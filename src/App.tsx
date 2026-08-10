@@ -64,11 +64,13 @@ export default function App() {
   function finishTransfer() {
     if (!transfer) return;
     const target = transfer.encounter;
-    const defeated = meta.defeated.includes(target.enemyId) ? meta.defeated : [...meta.defeated, target.enemyId];
+    const defeatedEncounterIds = meta.defeatedEncounterIds.includes(target.encounterId)
+      ? meta.defeatedEncounterIds
+      : [...meta.defeatedEncounterIds, target.encounterId];
     const afterTransfer = rotatePilot({
       ...meta,
       currentBody: target.bodyId,
-      defeated,
+      defeatedEncounterIds,
       x: target.retreat.x,
       y: target.retreat.y,
     });
