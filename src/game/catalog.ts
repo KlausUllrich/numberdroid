@@ -5,6 +5,7 @@ export const WORLD_W = 1600;
 export const WORLD_H = 1000;
 export const PLAYER_RADIUS = 24;
 export const MAX_META_ENERGY = 3;
+export const STARTING_HP = 3;
 
 export const BODIES: Record<RobotBody["id"], RobotBody> = {
   pico: {

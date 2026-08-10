@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { BODIES, ENCOUNTERS, ENCOUNTER_IDS, MAX_META_ENERGY, PLAYER_NAMES, STATION, WORLD_H, WORLD_W } from "../game/catalog";
+import { BODIES, ENCOUNTERS, ENCOUNTER_IDS, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP, STATION, WORLD_H, WORLD_W } from "../game/catalog";
 import { pointWalkable } from "../game/save";
 import type { EncounterConfig, EnemyId, MetaState } from "../game/types";
 
@@ -185,6 +185,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   }
 
   const body = BODIES[meta.currentBody];
+  const remainingHp = Math.max(0, STARTING_HP - meta.damageTaken);
   const objective = meta.stationUsed ? "ENERGIE GESICHERT · WÄHLE EINEN DROIDEN" : "ERKUNDE DAS DECK · FINDE ENERGIE · WÄHLE EINEN DROIDEN";
 
   return (
@@ -195,6 +196,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         <div className="zk-meta-stats">
           <div className="zk-meta-stat"><small>PILOT</small><b>{PLAYER_NAMES[meta.pilotIndex % meta.playerCount].toUpperCase()}</b></div>
           <div className="zk-meta-stat"><small>KÖRPER</small><b>{body.name}</b></div>
+          <div className="zk-meta-stat hp"><small>ROBOTER-HP</small><b>{remainingHp}/{STARTING_HP}</b></div>
           <div className="zk-meta-stat energy"><small>META-ENERGIE</small><b>⚡ {meta.metaEnergy}/{MAX_META_ENERGY}</b></div>
         </div>
       </header>

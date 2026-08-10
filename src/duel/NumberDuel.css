@@ -1,0 +1,125 @@
+.duel-screen .duel-hud {
+  grid-template-columns: 1fr auto;
+}
+
+.duel-hp-readout {
+  min-width: 112px;
+  text-align: right;
+}
+
+.duel-hp-readout b {
+  color: #6ff0b0;
+  font-size: 22px;
+}
+
+.reactor-target {
+  padding: 10px 12px 12px;
+  border: 1px solid #806a2f;
+  border-radius: 9px;
+  background: #241f0f;
+  text-align: center;
+}
+
+.reactor-target > small {
+  display: block;
+  color: #bcae7b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.reactor-target-equation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  line-height: 1;
+}
+
+.reactor-target-equation span {
+  color: #ffda65;
+  font-size: clamp(58px, 7.4vh, 92px);
+  font-weight: 950;
+}
+
+.reactor-target-equation strong {
+  color: #fff2b6;
+  font-size: clamp(42px, 5.6vh, 68px);
+  font-weight: 950;
+}
+
+.reactor-panel-clean .reactor-rewards {
+  margin: auto 0 0;
+}
+
+.reactor-panel-clean .resource-readout {
+  margin-top: 0;
+}
+
+@media (min-width: 901px) and (min-height: 521px) {
+  .duel-screen .duel-layout {
+    grid-template-columns: minmax(240px, 310px) minmax(500px, 1fr) minmax(280px, 360px);
+  }
+
+  .duel-screen .reactor-panel-clean {
+    gap: 16px;
+    padding: 18px;
+  }
+
+  .duel-screen .reactor-panel-clean .core-row {
+    gap: 8px;
+  }
+
+  .duel-screen .reactor-panel-clean .core-row i {
+    height: clamp(34px, 4.7vh, 54px);
+    border-radius: 7px;
+  }
+
+  .duel-screen .reactor-panel-clean .reactor-rewards {
+    font-size: 15px;
+    line-height: 1.55;
+  }
+}
+
+@media (max-width: 900px), (max-height: 520px) {
+  .duel-screen .duel-layout {
+    grid-template-columns: 150px minmax(330px, 1fr) 165px;
+  }
+
+  .duel-hp-readout {
+    min-width: 82px;
+  }
+
+  .duel-hp-readout b {
+    font-size: 15px;
+  }
+
+  .duel-screen .reactor-target {
+    padding: 4px 5px 5px;
+  }
+
+  .duel-screen .reactor-target > small {
+    font-size: 8px;
+  }
+
+  .duel-screen .reactor-target-equation {
+    gap: 6px;
+  }
+
+  .duel-screen .reactor-target-equation span {
+    font-size: 36px;
+  }
+
+  .duel-screen .reactor-target-equation strong {
+    font-size: 29px;
+  }
+
+  .duel-screen .reactor-panel-clean .core-row i {
+    height: 17px;
+  }
+
+  .duel-screen .reactor-panel-clean .reactor-rewards {
+    font-size: 9px;
+    line-height: 1.3;
+  }
+}

@@ -1,4 +1,4 @@
-import { BODIES, ENCOUNTER_IDS, MAX_META_ENERGY, WALKABLE, OBSTACLES } from "./catalog";
+import { BODIES, ENCOUNTER_IDS, MAX_META_ENERGY, OBSTACLES, STARTING_HP, WALKABLE } from "./catalog";
 import type { EnemyId, MetaState } from "./types";
 
 const META_KEY_V2 = "numberdroid-meta-v2";
@@ -16,8 +16,6 @@ export const DEFAULT_META: MetaState = {
   defeated: [],
   pilotIndex: 0,
   playerCount: 2,
-  // Each lost duel costs one life/integrity point. The maximum and zero-life
-  // consequence are still open, so we persist damage taken without inventing a cap.
   damageTaken: 0,
 };
 
@@ -46,8 +44,15 @@ function sanitize(candidate: Partial<MetaState>): MetaState {
     : [];
   state.playerCount = Math.max(1, Math.min(4, Number.isFinite(state.playerCount) ? state.playerCount : 2));
   state.pilotIndex = Math.max(0, Number.isFinite(state.pilotIndex) ? state.pilotIndex : 0) % state.playerCount;
-  state.damageTaken = Math.max(0, Number.isFinite(state.damageTaken) ? state.damageTaken : 0);
+  state.damageTaken = Math.max(0, Math.min(STARTING_HP, Number.isFinite(state.damageTaken) ? state.damageTaken : 0));
   return state;
+}
+
+export function restartFloorState(previous: MetaState): MetaState {
+  return {
+    ...DEFAULT_META,
+    playerCount: previous.playerCount,
+  };
 }
 
 export function loadMetaState(): MetaState {

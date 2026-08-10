@@ -3,7 +3,7 @@ export type EnemyId = "sentry" | "magnetar" | "kronos";
 export type MathMode = "add-easy" | "add-normal" | "add-hard" | "subtract";
 export type Difficulty = "easy" | "medium" | "hard";
 export type Operation = "add" | "subtract";
-export type GameScreen = "deck" | "encounter" | "duel" | "transfer";
+export type GameScreen = "deck" | "encounter" | "duel" | "transfer" | "destroyed";
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };

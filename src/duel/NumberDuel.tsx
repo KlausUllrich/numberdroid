@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BODIES, PLAYER_NAMES } from "../game/catalog";
+import { BODIES, PLAYER_NAMES, STARTING_HP } from "../game/catalog";
 import type { BattleResult, EncounterConfig, RobotBody } from "../game/types";
 import {
   COLS, MODE_INFO, ROWS, TOTAL_CORES, WIN_CORES,
@@ -7,11 +7,13 @@ import {
   pathExpression, pathResult, resolveGrid, rewardForLength, shiftRow,
   type Grid, type Pick, type Turn,
 } from "./duelEngine";
+import "./NumberDuel.css";
 
 type Props = {
   encounter: EncounterConfig;
   playerBody: RobotBody;
   playerCount: number;
+  remainingHp: number;
   initialMetaEnergy: number;
   onFinished: (result: BattleResult) => void;
 };
@@ -24,7 +26,7 @@ type ResultCard = {
   detail: string;
 };
 
-export function NumberDuel({ encounter, playerBody, playerCount, initialMetaEnergy, onFinished }: Props) {
+export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, initialMetaEnergy, onFinished }: Props) {
   const mode = encounter.mode;
   const config = MODE_INFO[mode];
   const enemyBody = BODIES[encounter.bodyId];
@@ -42,9 +44,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, initialMetaEner
   const [resultCard, setResultCard] = useState<ResultCard | null>(null);
 
   const activePath = turn === "human" ? selection : enemySelection;
-  const enemyCores = TOTAL_CORES - teamCores;
   const activeBody = turn === "human" ? playerBody : enemyBody;
-  const reward = rewardForLength(selection.length);
   const nextOptions = useMemo(() => {
     const set = new Set<string>();
     if (turn !== "human" || special || busy || selection.length === 0) return set;
@@ -184,8 +184,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, initialMetaEner
     <main className="duel-screen">
       <header className="duel-hud">
         <div><small>NUMBERDROID · TRANSFERDUELL</small><b>{encounter.name}</b></div>
-        <div className="duel-target"><span>ZIEL</span><strong>{config.symbol} {config.target}</strong></div>
-        <div><small>TEAM</small><b>{playerCount} SPIELER</b></div>
+        <div className="duel-hp-readout"><small>ROBOTER-HP</small><b>{remainingHp} / {STARTING_HP}</b></div>
       </header>
 
       <section className="duel-layout">
@@ -229,12 +228,14 @@ export function NumberDuel({ encounter, playerBody, playerCount, initialMetaEner
         </section>
 
         <aside className="reactor-panel-clean">
-          <small>REAKTORBALANCE</small>
-          <strong>{teamCores} : {enemyCores}</strong>
-          <div className="core-row" aria-label={`${teamCores} Team-Reaktorkerne, ${enemyCores} Droid-Reaktorkerne`}>
+          <div className="reactor-target" aria-label={`Rechenziel ${config.symbol} ${config.target}`}>
+            <small>RECHENZIEL</small>
+            <div className="reactor-target-equation"><span>{config.symbol}</span><strong>{config.target}</strong></div>
+          </div>
+          <div className="core-row" aria-label={`${teamCores} Team-Reaktorkerne, ${TOTAL_CORES - teamCores} Droid-Reaktorkerne`}>
             {Array.from({ length: TOTAL_CORES }, (_, index) => <i key={index} className={index < teamCores ? "team" : "enemy"} />)}
           </div>
-          <p>2 Zahlen → +1<br />3 → +2 · 4 → +4<br />5+ → Sofortsieg</p>
+          <p className="reactor-rewards">2 Zahlen → +1<br />3 → +2 · 4 → +4<br />5+ → Sofortsieg</p>
           <div className="resource-readout">META-ENERGIE <b>⚡ {metaEnergy}</b></div>
         </aside>
       </section>
