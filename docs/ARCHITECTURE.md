@@ -1,150 +1,158 @@
 # Numberdroid Architecture
 
-## Why this migration exists
+## Current status
 
-The v7 standalone prototype proved the game loop, but the metagame was attached around an already compiled React number duel through DOM manipulation. That allowed fast prototyping, but it also caused the regressions seen during development:
+The v7 prototype loop has been migrated into a clean React/TypeScript application and has passed manual desktop/mobile parity validation. The application now also has GitHub Actions build validation.
 
-- battle startup depended on clicking hidden React controls,
-- `MutationObserver` watched and modified the same UI tree,
-- fullscreen ownership moved between layers,
-- meta-energy had to be synchronized through localStorage,
-- the active robot portrait was patched into the DOM outside React,
-- stale `pendingBattle` state could lock the deck.
-
-The clean architecture removes those mechanisms entirely.
-
-## Top-level state machine
-
-`App.tsx` owns the current surface:
+Current top-level surfaces:
 
 ```text
-"deck"
-"encounter"
-"duel"
-"transfer"
+Deck → Encounter → NumberDuel
+                   ├─ loss, HP > 0 → Deck
+                   ├─ loss, HP = 0 → DestroyedScreen → restart Floor → Deck
+                   └─ win → TransferScreen → Deck
 ```
 
-Transitions:
+There are no DOM bridges, hidden control clicks, MutationObservers, reload-based transitions, or localStorage message buses between these systems.
 
-```text
-Deck
-  └─ scan enemy → Encounter
-       ├─ cancel → Deck
-       └─ start → NumberDuel
-                    ├─ loss → Deck
-                    └─ win → Transfer
-                               └─ complete → Deck
-```
-
-There is no page reload and no hidden-button configuration step.
-
-## Data contracts
-
-### EncounterConfig
-
-The deck sends all encounter parameters explicitly to the duel:
-
-- opponent identity
-- math mode / target
-- AI difficulty
-- rewarded robot body
-- retreat position
-
-The number duel does not inspect deck DOM, URL state or localStorage to determine difficulty.
-
-### BattleResult
-
-The duel returns:
-
-- `outcome: "win" | "loss"`
-- `remainingMetaEnergy`
-
-The duel does not directly mutate the deck, body ownership or defeated-opponent list.
-
-## Ownership responsibilities
+## Ownership boundaries
 
 ### App
 
-Owns persistent cross-screen state:
+Owns cross-screen state and transitions:
 
 - current body
-- deck position
-- pilot
-- player count
+- player/pilot state
 - meta-energy
-- defeated robots
-- energy-station state
-- accumulated life-point damage
-
-Also owns fullscreen/orientation through `useAppFullscreen`.
+- remaining run integrity through `damageTaken`
+- defeated enemies
+- transition into duel, transfer, destruction and Floor restart
+- top-level fullscreen/orientation
 
 ### MetaGame
 
-Owns transient deck interaction:
+Owns the live deck surface:
 
-- keyboard movement
-- touch-relative movement
+- free top-down movement
+- keyboard and touch-hold steering
 - camera follow
-- collision tests
-- proximity / interaction target
-- encounter initiation
-
-It receives and emits `MetaState`; it does not know how the number duel works.
+- collision/proximity checks
+- stations and enemy interaction
 
 ### NumberDuel
 
-Owns one battle:
+Owns one duel only:
 
-- shared 6×5 number grid
-- directed chain selection
-- child-friendly AI
-- reactor cores
-- board animation state
-- meta-energy spending during this battle
-- current body ability use for this battle
+- 6×5 board
+- player/AI turns
+- chain rules and delayed correctness reveal
+- reactor core balance
+- meta-energy spending during the duel
+- current body ability use during the duel
 
-It is configured entirely through props.
+It returns a `BattleResult`; it does not mutate deck/run state directly.
 
-### TransferScreen
+### TransferScreen / DestroyedScreen
 
-Owns only the body-transfer presentation:
+These own presentation only. `App` commits the resulting body transfer or Floor restart.
 
-- current body green from frame one
-- defeated body red during transfer
-- one central progress bar
-- red → green ownership switch at 100%
-- capability reveal
+## FloorDefinition
 
-Body ownership is committed by `App` when the transfer completes.
+Floor content is now separated from global robot/game catalogs.
 
-## Fullscreen
+`src/game/floors.ts` contains the current `DECK_A7` definition. A `FloorDefinition` contains:
 
-Fullscreen is deliberately outside every gameplay surface.
+- stable Floor id
+- display name/subtitle
+- world dimensions
+- background asset
+- start position, facing, starter body and initial meta-energy
+- walkable geometry
+- obstacle geometry
+- objective copy
+- energy-station definitions
+- encounter definitions
 
-The same fullscreen session surrounds:
+Each encounter now also has a stable `encounterId`, separate from `enemyId`. This distinction is intentional:
+
+- `encounterId` identifies one concrete opponent/spawn on a Floor
+- `enemyId` identifies the opponent archetype/body family
+
+This is required for Vertical Slice 2, where one Floor can contain multiple opponents of the same archetype.
+
+Energy stations likewise have stable ids, allowing a later Floor to contain multiple independent energy sources.
+
+### Temporary compatibility layer
+
+The parity-tested runtime still stores:
+
+- `stationUsed: boolean`
+- `defeated: EnemyId[]`
+
+and `MetaGame` still consumes compatibility views exported from `catalog.ts` (`ENCOUNTERS`, `STATION`, `WORLD_W`, etc.). These views are derived from `CURRENT_FLOOR`; the actual A7 coordinates/content no longer live in `catalog.ts`.
+
+This is deliberate staging, not the final multi-Floor model. It keeps the just-validated loop unchanged while isolating the next migration.
+
+## Next runtime-state migration
+
+Before adding the 5–7 opponents and 2–3 energy sources planned for Vertical Slice 2, migrate run state from the current v2 compatibility fields to stable instance ids, approximately:
 
 ```text
-Deck → Encounter → Duel → Transfer → Deck
+RunState
+├── floorId
+├── currentBody
+├── deckPosition / facing
+├── metaEnergy
+├── usedStationIds[]
+├── defeatedEncounterIds[]
+├── damageTaken / HP
+├── pilotIndex
+└── playerCount
 ```
 
-On touch/mobile, the app can show a legal user-gesture gate before starting fullscreen. Desktop can continue without forced fullscreen.
+That migration should preserve existing `numberdroid-meta-v2` saves and then move to a new versioned schema. Do not overload `EnemyId` to represent multiple physical opponents.
 
-## Save schema
+Once this migration is complete, remove the single-Floor compatibility exports from `catalog.ts` and let `MetaGame` consume the active `FloorDefinition` directly.
 
-Production migration starts a versioned key:
+## Health / HP
 
-`numberdroid-meta-v2`
+Confirmed behavior:
 
-Legacy v1 metagame data is migrated one-way where possible.
+- 3 HP at Floor start
+- every lost duel costs 1 HP
+- HP visible on deck and duel
+- at 0 HP open a dedicated destroyed screen
+- explicit Floor restart restores the Floor start state and 3 HP
+- player count survives the restart
 
-The save model validates old coordinates against the current walkable deck and repairs invalid positions.
+The current v2 save represents remaining HP as `3 - damageTaken`.
 
-### Life/integrity
+## Visual invariants
 
-Only one rule is currently final: a lost duel costs one life point.
+- hostile robot = red
+- controlled robot = green
+- controlled robot name remains above the sprite
+- math correctness is hidden until deliberate submit
+- duel reactor is visually substantial
+- arithmetic operator/target are prominent above the reactor
+- redundant `REAKTORBALANCE X:Y` text is not shown
+- body abilities and meta-energy remain separate resources
 
-Because max lives and the zero-life consequence are still undecided, the schema persists `damageTaken`. This preserves the confirmed consequence without encoding an unapproved maximum.
+## CI
+
+`.github/workflows/build.yml` validates pushes to `main` and `agent/**` plus pull requests targeting `main`.
+
+Current workflow:
+
+```text
+checkout
+→ Node 22
+→ npm install
+→ npm run build
+```
+
+The repository currently has no committed `package-lock.json`, so the workflow temporarily uses `npm install`. Once the locally generated lockfile is committed, change CI to `npm ci` for reproducible dependency installation.
 
 ## Prototype policy
 
-`zahlenkern-prototyp-meta-v7.html` is read-only reference behavior. New features should be implemented in `src/`, not patched into that HTML.
+`zahlenkern-prototyp-meta-v7.html` remains a frozen behavioral/visual reference. Production work belongs in `src/` and data definitions such as `src/game/floors.ts`.
