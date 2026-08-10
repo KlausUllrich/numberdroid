@@ -14,7 +14,8 @@ The clean application has explicit top-level surfaces:
 
 ```text
 Deck → Encounter → NumberDuel → Transfer → Deck
-                  ↘ loss ─────────→ Deck
+                  ↘ loss, HP > 0 ─────────→ Deck
+                  ↘ loss, HP = 0 → DestroyedScreen → restart Floor → Deck
 ```
 
 Key boundaries:
@@ -22,9 +23,10 @@ Key boundaries:
 - `MetaGame` owns deck movement/interactions.
 - `NumberDuel` receives an explicit `EncounterConfig` and returns a `BattleResult`.
 - `TransferScreen` owns only the transfer presentation.
+- `DestroyedScreen` owns the 0-HP presentation and explicit Floor-restart action.
 - Fullscreen/orientation belongs to the app shell.
-- Save data is versioned (`numberdroid-meta-v2`).
-- A lost duel increments `damageTaken`; max lives and the zero-life consequence are intentionally still undecided.
+- Save data remains versioned under `numberdroid-meta-v2`.
+- HP is represented compatibly as `3 - damageTaken`; `damageTaken` is clamped to 0–3.
 
 ## Product goal
 
@@ -68,6 +70,18 @@ Subtraction target 8 was prototyped but is not part of the first deck.
 
 AI is deliberately child-friendly: mostly 2-number chains, sometimes 3, rarely 4, very rarely 5; it may pass.
 
+### Reactor / math-target presentation
+
+The reactor is an important game object, not a small sidebar readout.
+
+Current confirmed presentation:
+- reactor/core field should be visually substantial on desktop,
+- the arithmetic operation and target sit directly above the reactor,
+- the operator itself (`+`, `−`, later `×`, `÷`) is large and immediately readable,
+- redundant text such as `REAKTORBALANCE 6:6` is omitted because the colored core field communicates the balance more clearly,
+- the chain-length reward explanation belongs visually near the bottom of the panel,
+- meta-energy remains a separate readout.
+
 ### Active robot in duel
 
 A visually substantial robot is shown **left of the number grid**.
@@ -75,6 +89,8 @@ A visually substantial robot is shown **left of the number grid**.
 - AI turn → current enemy, red
 
 Do not regress this to a tiny decorative icon. Desktop v7 intentionally made this element large.
+
+Remaining robot HP must also be visible during the duel.
 
 ## Faction/ownership color rule
 
@@ -90,6 +106,8 @@ During transfer:
 3. the single central progress bar reaches 100%,
 4. then the new body visibly switches red → green,
 5. that body becomes the player's deck sprite and duel portrait.
+
+A destroyed robot uses a neutral/desaturated destroyed treatment; it is neither an active hostile nor an active controlled body.
 
 ## Body transfer screen
 
@@ -145,7 +163,7 @@ Touch:
 
 Camera follows the robot. Enemies do not auto-attack: approach → scan → inspect encounter → explicitly start transfer duel.
 
-Current deck contains a detailed raster environment plus separate interactive robot/station sprites. Longer term, move toward reusable proper tiles/assets rather than one monolithic generated deck image.
+Current deck contains a detailed raster environment plus separate interactive robot/station sprites. Longer term, move toward reusable proper tiles/assets and data-driven `FloorDefinition`/map data rather than one monolithic generated deck image.
 
 ## Fullscreen / mobile
 
@@ -154,21 +172,30 @@ This must be treated as app architecture because prototype regressions occurred 
 - Fullscreen belongs to the entire app shell.
 - Touch/mobile startup provides a legal user gesture such as `VOLLBILD STARTEN`.
 - Request landscape lock where the browser supports it.
-- Deck → encounter → duel → transfer stays in the same fullscreen session.
+- Deck → encounter → duel → transfer/destroyed stays in the same fullscreen session.
 - Desktop works without forced fullscreen.
 - If fullscreen is exited, offering re-entry is acceptable.
 
-## Health / life
+## Health / HP
 
-Confirmed: **losing a duel costs one life/integrity point**.
+Confirmed runtime rule:
+- each Floor run starts at **3 HP**,
+- a lost duel removes exactly **1 HP**,
+- HP is visible on the deck and in the duel,
+- losses at 2 HP or 1 HP return to the deck,
+- the loss that reaches **0 HP** opens a dedicated **ROBOTER ZERSTÖRT** screen,
+- the player explicitly chooses `FLOOR NEU STARTEN`,
+- restarting the current Floor resets the run to its initial state: start position, PICO-3, enemies unresolved again, station unused, meta-energy 0 and HP 3,
+- player count is retained,
+- when multiple Floors exist later, Floor selection/restart can become data-driven.
+
+The current save schema keeps `damageTaken` for compatibility. Remaining HP is derived as `3 - damageTaken`; sanitize/clamp it to 0–3. A reload at 0 HP must reopen the destroyed state, not put the robot back on the deck.
 
 Still open:
-- max/start life count,
-- what happens at zero,
-- how repair works,
-- whether health belongs to consciousness or current body.
+- repair/healing mechanics,
+- final fiction/ownership of HP (body vs consciousness vs shared run integrity).
 
-The clean save model therefore stores `damageTaken` rather than inventing a maximum. Do not implement a zero-life consequence until explicitly decided.
+These semantic questions do not change the confirmed 3-HP gameplay behavior.
 
 ## Save behavior
 
@@ -176,7 +203,7 @@ Clean key: `numberdroid-meta-v2`.
 
 The migration layer may read legacy `zahlenkern-meta-v1` / `zahlenkern-save-v6` data. Validate saved deck coordinates and repair invalid positions.
 
-For the temporary three-opponent prototype, a fully completed run is treated as a session boundary so a later fresh load can restart the slice instead of opening an empty deck.
+A completed run must remain persisted across reload; do not silently resurrect defeated enemies. The explicit Floor-restart action is what resets current Floor run state after robot destruction.
 
 ## Multiple children
 
@@ -192,9 +219,9 @@ Do not introduce time pressure merely to force sharing.
 Not limited to SVG.
 - HTML/CSS/SVG for flexible HUD/UI,
 - raster/pixel-art sprites/tiles for game world and robots,
-- larger detailed art is acceptable on transfer/reward screens.
+- larger detailed art is acceptable on transfer/reward/destroyed screens.
 
-For pixel art use integer scaling and `image-rendering: pixelated`; avoid blurry arbitrary scaling.
+For pixel art use integer scaling where practical and `image-rendering: pixelated`; avoid blurry arbitrary scaling.
 
 ## Architecture to preserve
 
@@ -205,33 +232,37 @@ Numberdroid App
 ├── MetaState
 │   ├── currentBody
 │   ├── metaEnergy
-│   ├── damageTaken
+│   ├── damageTaken → HP
 │   ├── deckPosition
 │   ├── station state
 │   └── defeated robots
 ├── MetaGame
 ├── EncounterConfig
 ├── NumberDuel → BattleResult
-└── TransferScreen
+├── TransferScreen
+└── DestroyedScreen → restartFloorState
 ```
 
 The duel must not infer metagame state from DOM or localStorage. The metagame must not click hidden duel controls. Do not reintroduce MutationObserver bridges or page reloads between surfaces.
 
 ## Immediate next work
 
-The architecture extraction is complete on `agent/integrate-metagame-architecture`, but it still needs normal environment/browser validation before new content is added.
+The architecture extraction is complete on `agent/integrate-metagame-architecture`. The environment build blocker was resolved on Klaus's local checkout, and the original v7 deck background has been restored as `public/assets/deck/deck-a7.webp`.
 
-1. `npm install`
-2. `npm run build`
-3. run the clean app on desktop and phone
-4. regression-test full loop against v7: deck → encounter → duel → transfer → deck
-5. verify touch movement, fullscreen/landscape, save migration, red/green ownership, MAGNETAR ability and meta-energy
-6. fix migration regressions in `src/`, not the standalone HTML
+Current validation sequence:
+1. pull the latest integration branch,
+2. `npm run build`,
+3. run the clean app on desktop,
+4. verify 3 → 2 → 1 → 0 HP across three lost duels,
+5. confirm 0 HP opens the destroyed screen and Floor restart returns to the initial Floor state with 3 HP,
+6. verify desktop reactor sizing and operation/target hierarchy,
+7. run the full deck → encounter → duel → transfer → deck loop,
+8. verify touch movement, fullscreen/landscape, save/reload, red/green ownership, MAGNETAR ability and meta-energy on phone/touch.
 
-After that, build **Vertical Slice 2**: one fuller 10–15 minute deck with roughly 5–7 opponents, three meaningful bodies, 2–3 energy sources, optional routing and one clear deck objective. The desired decisions are: “Which body do I want?”, “Can I beat this robot now?”, “Should I collect energy first?”, and “Do I need to fight this opponent at all?”
+After that, build **Vertical Slice 2**: one fuller 10–15 minute Floor with roughly 5–7 opponents, three meaningful bodies, 2–3 energy sources, optional routing and one clear deck objective. Before multiplying Floors, move toward reusable Floor/map data and a modular tile/object approach.
 
-Avoid large skill trees, many decks, unrelated minigames, bosses, timers or complex inventory until this first complete deck is stable.
+Avoid large skill trees, many Floors, unrelated minigames, bosses, timers or complex inventory until this first complete Floor is stable.
 
 ## Recommended opening prompt for the next coding session
 
-> Read `CODEX_HANDOFF.md`, `README.md`, `docs/ARCHITECTURE.md`, and inspect the frozen `zahlenkern-prototyp-meta-v7.html`. Continue from the clean implementation in `src/` on `agent/integrate-metagame-architecture`. First install/run the normal build and regression-test the complete loop on desktop and phone. Fix migration regressions in `src/`; do not patch the standalone HTML and do not add new mechanics until the clean v7-equivalent loop is stable.
+> Read `AGENTS.md`, `CODEX_HANDOFF.md` and inspect the frozen `zahlenkern-prototyp-meta-v7.html`. Continue from the clean implementation in `src/` on `agent/integrate-metagame-architecture`. First build/run and regression-test the full loop on desktop and phone, including the confirmed 3-HP → destroyed → Floor-restart flow and the reactor/target presentation. Fix regressions in `src/`; do not patch the standalone HTML or reintroduce DOM/localStorage bridge techniques.

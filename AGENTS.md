@@ -19,7 +19,7 @@ If these conflict, do not silently invent a resolution. Preserve confirmed desig
 
 ## Immediate objective
 
-The immediate objective is **behavioral parity with v7 on the clean architecture**, not feature expansion.
+The immediate objective is **behavioral parity with v7 on the clean architecture**, plus explicitly confirmed parity fixes, not unrelated feature expansion.
 
 Before adding new gameplay systems:
 
@@ -44,15 +44,17 @@ App
 ├── MetaGame / Deck
 ├── Encounter
 ├── NumberDuel
-└── TransferScreen
+├── TransferScreen
+└── DestroyedScreen
 ```
 
 The intended runtime transition is:
 
 ```text
 Deck → Encounter → NumberDuel
-                   ├─ loss → Deck
-                   └─ win  → TransferScreen → Deck
+                   ├─ loss, HP > 0 → Deck
+                   ├─ loss, HP = 0 → DestroyedScreen → restart current Floor → Deck
+                   └─ win → TransferScreen → Deck
 ```
 
 Use explicit contracts such as `EncounterConfig` and `BattleResult` between systems.
@@ -79,7 +81,7 @@ Requirements:
 - phone play targets landscape,
 - mobile/touch startup must provide a legal user gesture for `requestFullscreen()`,
 - request landscape orientation where supported,
-- Deck → Duel → Transfer should remain in one fullscreen session,
+- Deck → Duel → Transfer/Destroyed should remain in one fullscreen session,
 - desktop must work without forced fullscreen,
 - leaving fullscreen may offer a clear re-entry action.
 
@@ -123,6 +125,15 @@ Rewards:
 
 Do not show visible `R1`, `R2`, etc. row markers on number tiles. Accessibility labels may still contain row/column information.
 
+### Reactor / target presentation
+
+The reactor should be visually substantial, especially on desktop.
+
+- Do not show redundant text such as `REAKTORBALANCE 6:6` when the colored reactor-core field already communicates the balance.
+- Show the required arithmetic operation and target directly above the reactor.
+- The arithmetic operator (`+`, `−`, later `×`, `÷`) must be a prominent visual symbol, not small inline text.
+- Keep the chain-length/reward explanation visually secondary and toward the bottom of the reactor panel.
+
 ### AI
 
 The AI is intentionally child-friendly, not optimal.
@@ -149,6 +160,8 @@ This must be consistent on:
 - the deck,
 - the active-robot display in the number duel,
 - the transfer screen.
+
+A destroyed robot is no longer an active hostile/controlled body and should use a neutral damaged/desaturated treatment rather than violating the ownership colors.
 
 Transfer screen behavior:
 
@@ -217,23 +230,28 @@ Rules:
 - current vertical slice begins at 0,
 - used stations visibly become empty/inactive.
 
-## Health / integrity
+## Health / HP
 
-Confirmed rule:
+Confirmed rules:
 
-- losing a duel costs a life/integrity point.
+- a Floor run starts with **3 HP**,
+- every lost duel costs exactly **1 HP**,
+- remaining HP must be visibly readable on the deck and in the number duel,
+- at **0 HP** the current robot is destroyed,
+- 0 HP opens a dedicated `DestroyedScreen`; do not silently return to the deck,
+- the player must deliberately restart the current Floor from that screen,
+- restarting the Floor resets run state: start position, starter body PICO-3, defeated opponents, station state, meta-energy and HP,
+- the selected player count is retained across the Floor restart,
+- later, when multiple Floors exist, the Floor to restart/select can become an explicit choice.
 
-Current clean-architecture implementation intentionally tracks **damage taken** rather than inventing a maximum life count.
+The save model may continue storing `damageTaken` as the persisted representation; with 3 starting HP, remaining HP is `3 - damageTaken`. Clamp persisted damage to the valid 0–3 range.
 
-Still undecided:
+Still open unless explicitly decided later:
 
-- max/start life,
-- whether health belongs to consciousness or body,
-- zero-life consequence,
-- repair behavior,
-- body destruction/loss.
+- repair/healing mechanics,
+- whether the fiction ultimately describes HP as consciousness integrity, body integrity, or a shared run resource.
 
-Do not choose these values or consequences without an explicit design decision.
+Do not let those semantic questions block the confirmed 3-HP runtime behavior.
 
 ## Saves
 
@@ -246,6 +264,8 @@ Keep separate concepts for:
 - current screen/encounter state where appropriate.
 
 Never use saved state as a hidden cross-component control channel.
+
+If a saved state has 0 HP, loading must return to the destroyed state rather than strand the player on the deck. A completed Floor/run must not be silently reset merely because the app reloads.
 
 ## Offline requirement
 
@@ -265,6 +285,7 @@ Prioritize:
 - large readable type,
 - large touch targets,
 - obvious ownership and turn state,
+- visible HP/resource state,
 - visible cause/effect,
 - no unexplained random UI changes,
 - no worksheet-like clutter.
@@ -297,13 +318,19 @@ Then manually verify:
 11. active robot changes green/red correctly,
 12. meta-energy ±1 works and consumes exactly one energy,
 13. MAGNETAR row shift works once per duel,
-14. loss returns to deck and records one damage,
-15. win enters transfer screen,
-16. old body is green and new body starts red,
-17. new body becomes green only at transfer completion,
-18. returning to deck uses the newly controlled body,
-19. defeated enemies remain resolved during the run,
-20. save/reload does not strand the player in an invalid state.
+14. HP starts at 3 and is visible on deck and duel,
+15. each lost duel removes exactly 1 HP,
+16. losses at 2 HP and 1 HP return to the deck,
+17. the loss that reaches 0 HP opens the robot-destroyed screen,
+18. reloading at 0 HP still opens the destroyed state,
+19. Floor restart restores the start position, PICO-3, all current Floor enemies/stations/resources and 3 HP,
+20. win enters transfer screen,
+21. old body is green and new body starts red,
+22. new body becomes green only at transfer completion,
+23. returning to deck uses the newly controlled body,
+24. defeated enemies remain resolved during the run,
+25. save/reload does not strand the player in an invalid state,
+26. desktop reactor is substantial, operation/target are prominent above it, and redundant `REAKTORBALANCE X:Y` text is absent.
 
 If a regression is found, fix it in the clean architecture rather than patching the frozen v7 file.
 
@@ -319,7 +346,7 @@ If a regression is found, fix it in the clean architecture rather than patching 
 
 ## Next milestone after parity
 
-Once the clean architecture reliably reproduces v7, the next planned development target is **Vertical Slice 2**:
+Once the clean architecture reliably reproduces v7 plus the confirmed 3-HP destruction flow, the next planned development target is **Vertical Slice 2**:
 
 - one fuller deck,
 - roughly 10–15 minutes,
@@ -328,6 +355,6 @@ Once the clean architecture reliably reproduces v7, the next planned development
 - 2–3 meta-energy sources,
 - optional routing/encounter choices,
 - a clear deck objective,
-- later integration of the confirmed health-loss rule once zero-life behavior is decided.
+- reusable Floor/map data so later Floors can be selected/restarted explicitly.
 
-Do not jump to multiple decks, large skill trees, many robot types, unrelated minigames, or complex inventory before this slice is stable.
+Do not jump to many decks, large skill trees, many robot types, unrelated minigames, or complex inventory before this slice is stable.
