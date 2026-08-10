@@ -47,11 +47,6 @@ function sanitize(candidate: Partial<MetaState>): MetaState {
   state.playerCount = Math.max(1, Math.min(4, Number.isFinite(state.playerCount) ? state.playerCount : 2));
   state.pilotIndex = Math.max(0, Number.isFinite(state.pilotIndex) ? state.pilotIndex : 0) % state.playerCount;
   state.damageTaken = Math.max(0, Number.isFinite(state.damageTaken) ? state.damageTaken : 0);
-
-  // The three-opponent prototype treats a completed run as a session boundary.
-  if (state.defeated.length === ENCOUNTER_IDS.length) {
-    return { ...DEFAULT_META, playerCount: state.playerCount };
-  }
   return state;
 }
 
