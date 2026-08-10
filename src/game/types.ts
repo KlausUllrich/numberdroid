@@ -61,14 +61,15 @@ export type FloorDefinition = {
 };
 
 export type MetaState = {
-  version: 2;
+  version: 3;
+  floorId: string;
   x: number;
   y: number;
   facing: number;
   metaEnergy: number;
-  stationUsed: boolean;
+  usedStationIds: string[];
   currentBody: BodyId;
-  defeated: EnemyId[];
+  defeatedEncounterIds: string[];
   pilotIndex: number;
   playerCount: number;
   damageTaken: number;
