@@ -87,4 +87,13 @@ export const DECK_A7: FloorDefinition = {
   ],
 };
 
+export const FLOORS: Record<string, FloorDefinition> = {
+  [DECK_A7.id]: DECK_A7,
+};
+
+export const DEFAULT_FLOOR_ID = DECK_A7.id;
 export const CURRENT_FLOOR = DECK_A7;
+
+export function getFloor(floorId: string): FloorDefinition {
+  return FLOORS[floorId] ?? DECK_A7;
+}
