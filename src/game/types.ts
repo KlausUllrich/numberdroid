@@ -18,6 +18,7 @@ export type RobotBody = {
 };
 
 export type EncounterConfig = {
+  encounterId: string;
   enemyId: EnemyId;
   name: string;
   x: number;
@@ -29,6 +30,34 @@ export type EncounterConfig = {
   bodyId: BodyId;
   rewardLabel: string;
   retreat: Point;
+};
+
+export type EnergyStationDefinition = Point & {
+  id: string;
+  energy: number;
+  label: string;
+};
+
+export type FloorDefinition = {
+  id: string;
+  name: string;
+  subtitle: string;
+  width: number;
+  height: number;
+  backgroundAsset: string;
+  start: Point & {
+    facing: number;
+    bodyId: BodyId;
+    metaEnergy: number;
+  };
+  objectives: {
+    default: string;
+    afterEnergy: string;
+  };
+  walkable: Rect[];
+  obstacles: Rect[];
+  energyStations: EnergyStationDefinition[];
+  encounters: EncounterConfig[];
 };
 
 export type MetaState = {
