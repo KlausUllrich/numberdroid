@@ -1,4 +1,5 @@
-import { BODIES, ENCOUNTER_IDS, MAX_META_ENERGY, OBSTACLES, STARTING_HP, WALKABLE } from "./catalog";
+import { BODIES, ENCOUNTER_IDS, MAX_META_ENERGY, STARTING_HP } from "./catalog";
+import { CURRENT_FLOOR } from "./floors";
 import type { EnemyId, MetaState } from "./types";
 
 const META_KEY_V2 = "numberdroid-meta-v2";
@@ -7,12 +8,12 @@ const LEGACY_DUEL_KEY = "zahlenkern-save-v6";
 
 export const DEFAULT_META: MetaState = {
   version: 2,
-  x: 800,
-  y: 850,
-  facing: 0,
-  metaEnergy: 0,
+  x: CURRENT_FLOOR.start.x,
+  y: CURRENT_FLOOR.start.y,
+  facing: CURRENT_FLOOR.start.facing,
+  metaEnergy: CURRENT_FLOOR.start.metaEnergy,
   stationUsed: false,
-  currentBody: "pico",
+  currentBody: CURRENT_FLOOR.start.bodyId,
   defeated: [],
   pilotIndex: 0,
   playerCount: 2,
@@ -24,8 +25,8 @@ function inRect(x: number, y: number, r: { x: number; y: number; w: number; h: n
 }
 
 export function pointWalkable(x: number, y: number) {
-  const onFloor = WALKABLE.some((rect) => inRect(x, y, rect, 24));
-  const blocked = OBSTACLES.some((rect) => inRect(x, y, rect, -24));
+  const onFloor = CURRENT_FLOOR.walkable.some((rect) => inRect(x, y, rect, 24));
+  const blocked = CURRENT_FLOOR.obstacles.some((rect) => inRect(x, y, rect, -24));
   return onFloor && !blocked;
 }
 
@@ -38,7 +39,7 @@ function sanitize(candidate: Partial<MetaState>): MetaState {
   }
   if (!Number.isFinite(state.facing)) state.facing = 0;
   state.metaEnergy = Math.max(0, Math.min(MAX_META_ENERGY, Number.isFinite(state.metaEnergy) ? state.metaEnergy : 0));
-  if (!BODIES[state.currentBody]) state.currentBody = "pico";
+  if (!BODIES[state.currentBody]) state.currentBody = CURRENT_FLOOR.start.bodyId;
   state.defeated = Array.isArray(state.defeated)
     ? state.defeated.filter((id): id is EnemyId => ENCOUNTER_IDS.includes(id as EnemyId))
     : [];
