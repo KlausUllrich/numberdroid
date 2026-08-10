@@ -1,268 +1,174 @@
 # Numberdroid — Codex Handover
 
 **Status:** 10 August 2026  
-**Reference prototype:** `zahlenkern-prototyp-meta-v7.html`  
-**Clean integration branch:** `agent/integrate-metagame-architecture`
+**Branch:** `agent/integrate-metagame-architecture`  
+**Draft PR:** #1 against `main`  
+**Frozen reference:** `zahlenkern-prototyp-meta-v7.html`
 
-## Current state
+## Milestone status
 
-The rapid v7 prototype proved the full loop but attached the metagame around an existing compiled React number duel using DOM patches, hidden control clicks, localStorage bridges and `MutationObserver`. That architecture is now replaced on the integration branch by a normal React/TypeScript application.
+The clean React/TypeScript migration has reached parity acceptance on desktop and phone for the current vertical slice. The original v7 deck background has been restored, the 3-HP destruction flow is implemented, and the duel/reactor/mobile presentation has been manually validated.
 
-Continue development in `src/`. Keep `zahlenkern-prototyp-meta-v7.html` frozen as a behavioral/visual regression reference. Do not resume patching the standalone HTML.
+A GitHub Actions build workflow is now active and has successfully run `npm run build` on GitHub infrastructure.
 
-The clean application has explicit top-level surfaces:
+Do not merge PR #1 unless explicitly requested.
+
+## Current runtime flow
 
 ```text
-Deck → Encounter → NumberDuel → Transfer → Deck
-                  ↘ loss, HP > 0 ─────────→ Deck
-                  ↘ loss, HP = 0 → DestroyedScreen → restart Floor → Deck
+Deck → Encounter → NumberDuel
+                   ├─ loss, HP > 0 → Deck
+                   ├─ loss, HP = 0 → DestroyedScreen → restart current Floor → Deck
+                   └─ win → TransferScreen → Deck
 ```
 
-Key boundaries:
-- `App` owns cross-screen state and transitions.
-- `MetaGame` owns deck movement/interactions.
-- `NumberDuel` receives an explicit `EncounterConfig` and returns a `BattleResult`.
-- `TransferScreen` owns only the transfer presentation.
-- `DestroyedScreen` owns the 0-HP presentation and explicit Floor-restart action.
-- Fullscreen/orientation belongs to the app shell.
-- Save data remains versioned under `numberdroid-meta-v2`.
-- HP is represented compatibly as `3 - damageTaken`; `damageTaken` is clamped to 0–3.
-
-## Product goal
-
-Numberdroid (previous working title: Zahlenkern) is a cooperative math game for 1–4 younger primary-school children, loosely Paradroid-inspired. Children explore a spaceship as a robot, deliberately engage hostile robots in number-chain duels and, on victory, transfer into the defeated robot body.
-
-The game must feel like a game first, not a worksheet. It should be readable, tactile, fair, understandable without time pressure and give children a realistic chance to win.
-
-Primary target: **phone in landscape orientation**. Desktop landscape must also work. Offline use is important.
+`App` owns cross-screen state. There are no prototype bridge techniques in production code: no hidden clicks, MutationObservers, reload transitions, DOM patching, or localStorage as a component message bus.
 
 ## Binding gameplay rules
 
 ### Number duel
 
-- Shared 6×5 board for team and AI.
-- Directed orthogonal chains; chains may bend.
-- No tile may repeat in one chain.
-- Minimum chain length: 2.
-- The board remains spatially the same on turn change.
-- Used tiles disappear and affected columns refill/fall.
-- Visible `R1`/`R2`/... row text is forbidden; row/column may remain in accessibility labels.
+- shared 6×5 board
+- directed orthogonal chains; bends allowed
+- no repeated tile in one chain
+- minimum two numbers
+- used tiles collapse/refill only after a correct submitted chain
+- incorrect chain is revealed only after `REAKTOR AUSLÖSEN`
+- before submit the UI must not reveal correctness
+- 2 numbers → +1 reactor core
+- 3 numbers → +2
+- 4 numbers → +4
+- 5+ → immediate win
+- incorrect chain → board unchanged, team loses one reactor core
+- AI remains deliberately child-friendly
 
-Correct-chain rewards:
-- 2 numbers → 1 reactor core
-- 3 numbers → 2 cores
-- 4 numbers → 4 cores
-- 5+ numbers → immediate win
+Current A7 encounters:
+- SENTRY-4: + target 6, easy
+- MAGNETAR 742: + target 8, medium
+- KRONOS-9: + target 10, strong
 
-Incorrect chain:
-- visible overload/failure after submit,
-- board remains unchanged,
-- team loses 1 reactor core.
+### Duel presentation
 
-**Critical rule:** before the player deliberately presses `REAKTOR AUSLÖSEN`, the UI must never reveal whether the calculation is correct. No remainder, correctness color, revealing button state or reward logic that proves the answer.
+- acting robot is substantial and left of the number grid
+- controlled robot green; hostile robot red
+- robot name is above the robot
+- HP visible
+- reactor is substantial on desktop and mobile
+- arithmetic operator and target are large and directly above the reactor
+- do not show redundant `REAKTORBALANCE X:Y`
+- reward explanation stays visually secondary near the bottom
 
-Current encounter math:
-- SENTRY-4 → +6, values 1–5, easy AI
-- MAGNETAR 742 → +8, values 1–7, medium AI
-- KRONOS-9 → +10, values 1–9, strong AI
+### Resources
 
-Subtraction target 8 was prototyped but is not part of the first deck.
+Meta-energy:
+- separate metagame resource
+- current slice starts at 0
+- station grants +1
+- spending 1 changes exactly one number by +1 or −1
 
-AI is deliberately child-friendly: mostly 2-number chains, sometimes 3, rarely 4, very rarely 5; it may pass.
+Body ability:
+- does not cost meta-energy
+- MAGNETAR 742: `REIHENSCHUB →`, once per duel, deliberately selected row shifts one field right
+- KRONOS ability remains open
 
-### Reactor / math-target presentation
+### HP / destruction
 
-The reactor is an important game object, not a small sidebar readout.
+- Floor starts at 3 HP
+- every lost duel costs exactly 1 HP
+- losses at 2 HP and 1 HP return to the deck
+- the loss reaching 0 HP opens `ROBOTER ZERSTÖRT`
+- Floor restart is explicit
+- restart restores start position, PICO-3, unresolved enemies, unused station, 0 meta-energy and 3 HP
+- player count survives restart
+- reload at 0 HP must return to destroyed state
 
-Current confirmed presentation:
-- reactor/core field should be visually substantial on desktop,
-- the arithmetic operation and target sit directly above the reactor,
-- the operator itself (`+`, `−`, later `×`, `÷`) is large and immediately readable,
-- redundant text such as `REAKTORBALANCE 6:6` is omitted because the colored core field communicates the balance more clearly,
-- the chain-length reward explanation belongs visually near the bottom of the panel,
-- meta-energy remains a separate readout.
+## FloorDefinition architecture
 
-### Active robot in duel
+The first Vertical Slice 2 architecture step is implemented.
 
-A visually substantial robot is shown **left of the number grid**.
-- team turn → current player-controlled body, green
-- AI turn → current enemy, red
+`src/game/floors.ts` is now the source of truth for current A7 Floor content:
 
-Do not regress this to a tiny decorative icon. Desktop v7 intentionally made this element large.
+- Floor id/name/subtitle
+- dimensions
+- background asset
+- start state
+- objectives
+- walkable geometry
+- obstacles
+- energy-station definitions
+- encounter definitions
 
-Remaining robot HP must also be visible during the duel.
+`FloorDefinition` and `EnergyStationDefinition` are declared in `src/game/types.ts`.
 
-## Faction/ownership color rule
+Every encounter also has a stable `encounterId` distinct from `enemyId`. This is intentional preparation for multiple physical opponents of the same robot archetype. Energy stations likewise have stable ids.
 
-Binding everywhere:
-- **hostile robot = red**
-- **currently controlled player robot = green**
+### Temporary compatibility layer
 
-This applies on deck, in the number duel and on the transfer screen.
+The currently validated runtime/save schema is still v2 and still stores:
 
-During transfer:
-1. old/current body on left is green from frame one,
-2. defeated/new body on right remains red during transfer,
-3. the single central progress bar reaches 100%,
-4. then the new body visibly switches red → green,
-5. that body becomes the player's deck sprite and duel portrait.
+- `stationUsed: boolean`
+- `defeated: EnemyId[]`
 
-A destroyed robot uses a neutral/desaturated destroyed treatment; it is neither an active hostile nor an active controlled body.
+`catalog.ts` therefore currently exposes compatibility views derived from `CURRENT_FLOOR` (`ENCOUNTERS`, `STATION`, `WORLD_W`, `WALKABLE`, etc.) so `MetaGame` can remain behaviorally untouched during this first extraction.
 
-## Body transfer screen
+Do not add 5–7 opponents or multiple stations until the next migration removes this limitation.
 
-Victory automatically leads to body transfer in the first slice; there is no keep-old/take-new choice.
+## Immediate next architecture step
 
-Layout:
-- current/old body left,
-- compact transfer/progress section center,
-- defeated/new body right.
-
-Approved progress stages:
-`SCAN → EXTRAKTION → UPLOAD → SYNCHRONISATION → AKTIVIERUNG`
-
-Use **one central progress bar only**. Do not add a second green background/fill behind the new robot. At completion, use a distinct activation/color-switch effect and then reveal the new body capability. `WEITER` is available only after completion.
-
-## Resources
-
-### Body abilities
-
-Body abilities belong to the current robot body. They do not cost meta-energy.
-
-Confirmed ability:
-- **MAGNETAR 742 — REIHENSCHUB →**: once per duel, shift one deliberately selected row exactly one field to the right.
-
-Potential swap/copy/other-shift concepts are not yet assigned as final abilities.
-
-Do **not** promote old visual mockup placeholders such as `PHASENSCHUB` or `SCHUTZPROTOKOLL` into mechanics.
-
-KRONOS-9's exact ability is still open.
-
-### Meta-energy
-
-Meta-energy belongs to the metagame, not the body.
-- earned at deck stations/bonuses,
-- not randomly generated by the duel,
-- first deck starts at 0,
-- current station grants +1 and becomes empty,
-- spending 1 energy changes exactly one number by +1 or −1.
-
-## Metagame movement
-
-Confirmed: **free continuous top-down movement**, not node/grid movement.
-
-Desktop:
-- WASD / arrow keys.
-
-Touch:
-- no virtual joystick,
-- touch and hold anywhere on the world,
-- robot moves in the relative direction from itself toward the touch point,
-- dragging continuously changes direction,
-- release stops movement.
-
-Camera follows the robot. Enemies do not auto-attack: approach → scan → inspect encounter → explicitly start transfer duel.
-
-Current deck contains a detailed raster environment plus separate interactive robot/station sprites. Longer term, move toward reusable proper tiles/assets and data-driven `FloorDefinition`/map data rather than one monolithic generated deck image.
-
-## Fullscreen / mobile
-
-This must be treated as app architecture because prototype regressions occurred when it was tied to individual screens.
-
-- Fullscreen belongs to the entire app shell.
-- Touch/mobile startup provides a legal user gesture such as `VOLLBILD STARTEN`.
-- Request landscape lock where the browser supports it.
-- Deck → encounter → duel → transfer/destroyed stays in the same fullscreen session.
-- Desktop works without forced fullscreen.
-- If fullscreen is exited, offering re-entry is acceptable.
-
-## Health / HP
-
-Confirmed runtime rule:
-- each Floor run starts at **3 HP**,
-- a lost duel removes exactly **1 HP**,
-- HP is visible on the deck and in the duel,
-- losses at 2 HP or 1 HP return to the deck,
-- the loss that reaches **0 HP** opens a dedicated **ROBOTER ZERSTÖRT** screen,
-- the player explicitly chooses `FLOOR NEU STARTEN`,
-- restarting the current Floor resets the run to its initial state: start position, PICO-3, enemies unresolved again, station unused, meta-energy 0 and HP 3,
-- player count is retained,
-- when multiple Floors exist later, Floor selection/restart can become data-driven.
-
-The current save schema keeps `damageTaken` for compatibility. Remaining HP is derived as `3 - damageTaken`; sanitize/clamp it to 0–3. A reload at 0 HP must reopen the destroyed state, not put the robot back on the deck.
-
-Still open:
-- repair/healing mechanics,
-- final fiction/ownership of HP (body vs consciousness vs shared run integrity).
-
-These semantic questions do not change the confirmed 3-HP gameplay behavior.
-
-## Save behavior
-
-Clean key: `numberdroid-meta-v2`.
-
-The migration layer may read legacy `zahlenkern-meta-v1` / `zahlenkern-save-v6` data. Validate saved deck coordinates and repair invalid positions.
-
-A completed run must remain persisted across reload; do not silently resurrect defeated enemies. The explicit Floor-restart action is what resets current Floor run state after robot destruction.
-
-## Multiple children
-
-Supports 1–4 players cooperatively.
-- duel turns rotate between children,
-- metagame has a separate pilot concept,
-- pilot rotation should follow meaningful events, not timers.
-
-Do not introduce time pressure merely to force sharing.
-
-## Art direction
-
-Not limited to SVG.
-- HTML/CSS/SVG for flexible HUD/UI,
-- raster/pixel-art sprites/tiles for game world and robots,
-- larger detailed art is acceptable on transfer/reward/destroyed screens.
-
-For pixel art use integer scaling where practical and `image-rendering: pixelated`; avoid blurry arbitrary scaling.
-
-## Architecture to preserve
-
-The important boundary is behavioral, not exact filenames:
+Migrate persisted run state to instance ids and an explicit Floor id, preserving v2 saves. Target shape is roughly:
 
 ```text
-Numberdroid App
-├── MetaState
-│   ├── currentBody
-│   ├── metaEnergy
-│   ├── damageTaken → HP
-│   ├── deckPosition
-│   ├── station state
-│   └── defeated robots
-├── MetaGame
-├── EncounterConfig
-├── NumberDuel → BattleResult
-├── TransferScreen
-└── DestroyedScreen → restartFloorState
+RunState
+├── floorId
+├── currentBody
+├── x / y / facing
+├── metaEnergy
+├── usedStationIds[]
+├── defeatedEncounterIds[]
+├── damageTaken
+├── pilotIndex
+└── playerCount
 ```
 
-The duel must not infer metagame state from DOM or localStorage. The metagame must not click hidden duel controls. Do not reintroduce MutationObserver bridges or page reloads between surfaces.
+After that:
+1. make `MetaGame` consume the active `FloorDefinition` directly,
+2. remove single-Floor compatibility exports from `catalog.ts`,
+3. then build Vertical Slice 2 content: about 5–7 opponents, three meaningful bodies, 2–3 energy sources, optional routes and one clear objective,
+4. introduce tile/object-layer map data after the Floor/runtime boundary is stable; LDtk or Tiled remains the likely editor direction.
 
-## Immediate next work
+Do not jump directly into many Floors, skill trees, bosses, timers or unrelated systems.
 
-The architecture extraction is complete on `agent/integrate-metagame-architecture`. The environment build blocker was resolved on Klaus's local checkout, and the original v7 deck background has been restored as `public/assets/deck/deck-a7.webp`.
+## CI / dependencies
 
-Current validation sequence:
-1. pull the latest integration branch,
-2. `npm run build`,
-3. run the clean app on desktop,
-4. verify 3 → 2 → 1 → 0 HP across three lost duels,
-5. confirm 0 HP opens the destroyed screen and Floor restart returns to the initial Floor state with 3 HP,
-6. verify desktop reactor sizing and operation/target hierarchy,
-7. run the full deck → encounter → duel → transfer → deck loop,
-8. verify touch movement, fullscreen/landscape, save/reload, red/green ownership, MAGNETAR ability and meta-energy on phone/touch.
+`.github/workflows/build.yml` runs on `main`, `agent/**`, and PRs to `main` using Node 22 and currently:
 
-After that, build **Vertical Slice 2**: one fuller 10–15 minute Floor with roughly 5–7 opponents, three meaningful bodies, 2–3 energy sources, optional routing and one clear deck objective. Before multiplying Floors, move toward reusable Floor/map data and a modular tile/object approach.
+```text
+npm install --no-audit --no-fund
+npm run build
+```
 
-Avoid large skill trees, many Floors, unrelated minigames, bosses, timers or complex inventory until this first complete Floor is stable.
+Reason: no `package-lock.json` is committed yet. Klaus's local checkout should already have/generated one from `npm install`; once it is committed, switch CI to `npm ci`.
 
-## Recommended opening prompt for the next coding session
+## Local validation
 
-> Read `AGENTS.md`, `CODEX_HANDOFF.md` and inspect the frozen `zahlenkern-prototyp-meta-v7.html`. Continue from the clean implementation in `src/` on `agent/integrate-metagame-architecture`. First build/run and regression-test the full loop on desktop and phone, including the confirmed 3-HP → destroyed → Floor-restart flow and the reactor/target presentation. Fix regressions in `src/`; do not patch the standalone HTML or reintroduce DOM/localStorage bridge techniques.
+From the worktree:
+
+```bash
+git pull --ff-only
+npm run build
+npm run dev -- --host 0.0.0.0
+```
+
+LAN test address on the current machine was `http://192.168.76.12:5173/` while that address remains assigned.
+
+## Architectural prohibitions
+
+Do not reintroduce:
+- hidden DOM button clicks
+- `MutationObserver` bridges
+- reload-based screen transitions
+- localStorage as implicit inter-component messaging
+- competing fullscreen owners
+- pre-submit correctness indicators
+
+Keep `zahlenkern-prototyp-meta-v7.html` frozen and implement production changes in `src/`.
