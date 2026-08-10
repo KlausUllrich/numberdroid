@@ -12,6 +12,17 @@
   font-size: 22px;
 }
 
+.duel-screen .active-robot small { order: 0; }
+.duel-screen .active-robot b {
+  order: 1;
+  margin: 7px 0 14px;
+}
+.duel-screen .active-robot img { order: 2; }
+.duel-screen .active-robot span {
+  order: 3;
+  margin-top: 12px;
+}
+
 .reactor-target {
   padding: 10px 12px 12px;
   border: 1px solid #806a2f;
@@ -58,24 +69,32 @@
 
 @media (min-width: 901px) and (min-height: 521px) {
   .duel-screen .duel-layout {
-    grid-template-columns: minmax(240px, 310px) minmax(500px, 1fr) minmax(280px, 360px);
+    grid-template-columns: minmax(240px, 310px) minmax(500px, 1fr) minmax(330px, 440px);
   }
 
   .duel-screen .reactor-panel-clean {
+    display: grid;
+    grid-template-rows: auto minmax(190px, 1fr) auto auto;
     gap: 16px;
     padding: 18px;
   }
 
   .duel-screen .reactor-panel-clean .core-row {
-    gap: 8px;
+    min-height: 0;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 10px;
   }
 
   .duel-screen .reactor-panel-clean .core-row i {
-    height: clamp(34px, 4.7vh, 54px);
-    border-radius: 7px;
+    width: 100%;
+    height: 100%;
+    min-height: 46px;
+    border-radius: 8px;
   }
 
   .duel-screen .reactor-panel-clean .reactor-rewards {
+    margin: 0;
     font-size: 15px;
     line-height: 1.55;
   }
@@ -92,6 +111,14 @@
 
   .duel-hp-readout b {
     font-size: 15px;
+  }
+
+  .duel-screen .active-robot b {
+    margin: 4px 0 7px;
+  }
+
+  .duel-screen .active-robot span {
+    margin-top: 6px;
   }
 
   .duel-screen .reactor-target {
