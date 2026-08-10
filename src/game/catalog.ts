@@ -1,5 +1,4 @@
-import { CURRENT_FLOOR } from "./floors";
-import type { EncounterConfig, EnemyId, MathMode, RobotBody } from "./types";
+import type { MathMode, RobotBody } from "./types";
 
 export const PLAYER_NAMES = ["Finn", "Klaus", "Ines", "Gast"] as const;
 export const PLAYER_RADIUS = 24;
@@ -40,22 +39,6 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     sprite: "/assets/robots/kronos.png",
   },
 };
-
-// Compatibility views for the current single-floor runtime. New floor content lives in
-// FloorDefinition; these aliases keep the parity-tested deck code unchanged while the
-// runtime/save layer is migrated in the next architecture step.
-export const WORLD_W = CURRENT_FLOOR.width;
-export const WORLD_H = CURRENT_FLOOR.height;
-export const WALKABLE = CURRENT_FLOOR.walkable;
-export const OBSTACLES = CURRENT_FLOOR.obstacles;
-export const STATION = CURRENT_FLOOR.energyStations[0];
-
-export const ENCOUNTERS = CURRENT_FLOOR.encounters.reduce((byEnemy, encounter) => {
-  byEnemy[encounter.enemyId] = encounter;
-  return byEnemy;
-}, {} as Record<EnemyId, EncounterConfig>);
-
-export const ENCOUNTER_IDS = CURRENT_FLOOR.encounters.map((encounter) => encounter.enemyId);
 
 export const MODE_TO_TARGET: Record<MathMode, number> = {
   "add-easy": 6,
