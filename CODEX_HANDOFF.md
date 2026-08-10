@@ -7,121 +7,107 @@
 
 ## Milestone status
 
-The clean React/TypeScript migration has reached parity acceptance on desktop and phone for the current vertical slice. The original v7 deck background has been restored, the 3-HP destruction flow is implemented, and the duel/reactor/mobile presentation has been manually validated.
+The clean React/TypeScript migration has passed manual parity acceptance on desktop and phone for the current slice. The original v7 deck art is restored, HP/destruction is implemented, reactor/mobile presentation is accepted, and GitHub Actions now validates the build independently.
 
-A GitHub Actions build workflow is now active and has successfully run `npm run build` on GitHub infrastructure.
+The first Vertical Slice 2 architecture work is also complete:
+- `FloorDefinition` is the source of Floor content,
+- `MetaGame` consumes the active Floor directly,
+- run/save state is now v3 with stable Floor, station and encounter-instance ids,
+- existing v2 saves migrate forward.
 
 Do not merge PR #1 unless explicitly requested.
 
-## Current runtime flow
+## Current flow
 
 ```text
 Deck → Encounter → NumberDuel
                    ├─ loss, HP > 0 → Deck
-                   ├─ loss, HP = 0 → DestroyedScreen → restart current Floor → Deck
+                   ├─ loss, HP = 0 → DestroyedScreen → restart Floor → Deck
                    └─ win → TransferScreen → Deck
 ```
 
-`App` owns cross-screen state. There are no prototype bridge techniques in production code: no hidden clicks, MutationObservers, reload transitions, DOM patching, or localStorage as a component message bus.
+No prototype bridge techniques are allowed in production code: no hidden clicks, MutationObservers, reload transitions, DOM patching or localStorage message buses.
 
 ## Binding gameplay rules
 
 ### Number duel
-
 - shared 6×5 board
 - directed orthogonal chains; bends allowed
 - no repeated tile in one chain
-- minimum two numbers
-- used tiles collapse/refill only after a correct submitted chain
-- incorrect chain is revealed only after `REAKTOR AUSLÖSEN`
-- before submit the UI must not reveal correctness
-- 2 numbers → +1 reactor core
-- 3 numbers → +2
-- 4 numbers → +4
+- minimum 2 numbers
+- correctness must remain hidden until `REAKTOR AUSLÖSEN`
+- correct 2 numbers → +1 core
+- 3 → +2
+- 4 → +4
 - 5+ → immediate win
-- incorrect chain → board unchanged, team loses one reactor core
-- AI remains deliberately child-friendly
+- incorrect chain → visible failure after submit, board unchanged, team loses one reactor core
+- AI deliberately child-friendly
 
 Current A7 encounters:
-- SENTRY-4: + target 6, easy
-- MAGNETAR 742: + target 8, medium
-- KRONOS-9: + target 10, strong
+- SENTRY-4: +6, easy
+- MAGNETAR 742: +8, medium
+- KRONOS-9: +10, strong
 
-### Duel presentation
-
-- acting robot is substantial and left of the number grid
-- controlled robot green; hostile robot red
-- robot name is above the robot
+### Presentation
+- acting robot substantial and left of grid
+- hostile red, controlled green
+- own robot name above robot
 - HP visible
-- reactor is substantial on desktop and mobile
-- arithmetic operator and target are large and directly above the reactor
-- do not show redundant `REAKTORBALANCE X:Y`
-- reward explanation stays visually secondary near the bottom
+- reactor substantial on desktop and mobile
+- large operator/target directly above reactor
+- no redundant `REAKTORBALANCE X:Y`
+- reward explanation secondary near bottom
 
 ### Resources
-
 Meta-energy:
 - separate metagame resource
-- current slice starts at 0
-- station grants +1
-- spending 1 changes exactly one number by +1 or −1
+- starts at 0 on current Floor
+- station grants configured energy
+- spend 1 to modify exactly one number by +1 or −1
 
 Body ability:
 - does not cost meta-energy
 - MAGNETAR 742: `REIHENSCHUB →`, once per duel, deliberately selected row shifts one field right
 - KRONOS ability remains open
 
-### HP / destruction
-
+### HP
 - Floor starts at 3 HP
-- every lost duel costs exactly 1 HP
-- losses at 2 HP and 1 HP return to the deck
-- the loss reaching 0 HP opens `ROBOTER ZERSTÖRT`
-- Floor restart is explicit
-- restart restores start position, PICO-3, unresolved enemies, unused station, 0 meta-energy and 3 HP
+- each lost duel costs exactly 1 HP
+- 2/3 and 1/3 return to deck
+- reaching 0 opens `ROBOTER ZERSTÖRT`
+- explicit Floor restart restores Floor start state and 3 HP
 - player count survives restart
-- reload at 0 HP must return to destroyed state
+- reload at 0 HP must reopen destroyed state
 
-## FloorDefinition architecture
+## Floor architecture
 
-The first Vertical Slice 2 architecture step is implemented.
+`src/game/floors.ts` contains `DECK_A7`, the Floor registry and `getFloor()`.
 
-`src/game/floors.ts` is now the source of truth for current A7 Floor content:
-
-- Floor id/name/subtitle
-- dimensions
-- background asset
+`FloorDefinition` contains:
+- id/name/subtitle
+- dimensions/background asset
 - start state
 - objectives
-- walkable geometry
-- obstacles
-- energy-station definitions
-- encounter definitions
+- walkable/obstacle geometry
+- `energyStations[]`
+- `encounters[]`
 
-`FloorDefinition` and `EnergyStationDefinition` are declared in `src/game/types.ts`.
+Stable identity rules:
+- `encounterId` identifies one physical encounter/spawn
+- `enemyId` identifies robot archetype/body family
+- station id identifies one energy source
 
-Every encounter also has a stable `encounterId` distinct from `enemyId`. This is intentional preparation for multiple physical opponents of the same robot archetype. Energy stations likewise have stable ids.
+This supports multiple opponents of the same type and multiple energy stations on the same Floor.
 
-### Temporary compatibility layer
+## Save schema v3
 
-The currently validated runtime/save schema is still v2 and still stores:
-
-- `stationUsed: boolean`
-- `defeated: EnemyId[]`
-
-`catalog.ts` therefore currently exposes compatibility views derived from `CURRENT_FLOOR` (`ENCOUNTERS`, `STATION`, `WORLD_W`, `WALKABLE`, etc.) so `MetaGame` can remain behaviorally untouched during this first extraction.
-
-Do not add 5–7 opponents or multiple stations until the next migration removes this limitation.
-
-## Immediate next architecture step
-
-Migrate persisted run state to instance ids and an explicit Floor id, preserving v2 saves. Target shape is roughly:
+Current key: `numberdroid-meta-v3`.
 
 ```text
-RunState
+MetaState v3
 ├── floorId
-├── currentBody
 ├── x / y / facing
+├── currentBody
 ├── metaEnergy
 ├── usedStationIds[]
 ├── defeatedEncounterIds[]
@@ -130,24 +116,53 @@ RunState
 └── playerCount
 ```
 
-After that:
-1. make `MetaGame` consume the active `FloorDefinition` directly,
-2. remove single-Floor compatibility exports from `catalog.ts`,
-3. then build Vertical Slice 2 content: about 5–7 opponents, three meaningful bodies, 2–3 energy sources, optional routes and one clear objective,
-4. introduce tile/object-layer map data after the Floor/runtime boundary is stable; LDtk or Tiled remains the likely editor direction.
+V2 migration preserves valid position/body/meta-energy/player/HP state and maps:
+- `stationUsed` → A7 station instance id
+- `defeated: EnemyId[]` → matching A7 `encounterId`s
 
-Do not jump directly into many Floors, skill trees, bosses, timers or unrelated systems.
+Floor restart is generated from the active `FloorDefinition` rather than hard-coded A7 coordinates.
 
-## CI / dependencies
+## CI
 
-`.github/workflows/build.yml` runs on `main`, `agent/**`, and PRs to `main` using Node 22 and currently:
+`.github/workflows/build.yml` runs on `main`, `agent/**`, and PRs to `main` with Node 22.
+
+Current steps:
 
 ```text
 npm install --no-audit --no-fund
 npm run build
 ```
 
-Reason: no `package-lock.json` is committed yet. Klaus's local checkout should already have/generated one from `npm install`; once it is committed, switch CI to `npm ci`.
+The workflow is green on the v3 runtime migration.
+
+No `package-lock.json` is committed yet. Once the local lockfile is added, change the workflow to `npm ci`.
+
+## Immediate next work
+
+The state/application architecture is now sufficient. Do not perform another broad state rewrite before building content.
+
+Next block:
+1. decide map authoring format: LDtk vs Tiled,
+2. integrate map/tile/object layers behind `FloorDefinition`,
+3. keep the current A7 raster version working during the transition,
+4. build the fuller 10–15 minute Vertical Slice 2 Floor,
+5. target roughly 5–7 encounter instances and 2–3 energy sources,
+6. add optional routing/encounter choices and one explicit Floor objective,
+7. define three meaningful body identities/capabilities; KRONOS still needs a final ability.
+
+Likely map split:
+
+```text
+FloorDefinition
+├── tile/map visual layers
+├── collision/walkable data
+├── encounters[]
+├── energyStations[]
+├── triggers/exits
+└── objective metadata
+```
+
+Prefer LDtk or Tiled over building a custom editor unless a concrete limitation appears.
 
 ## Local validation
 
@@ -159,16 +174,23 @@ npm run build
 npm run dev -- --host 0.0.0.0
 ```
 
-LAN test address on the current machine was `http://192.168.76.12:5173/` while that address remains assigned.
+The current LAN address observed during phone testing was `http://192.168.76.12:5173/` while that address remains assigned.
+
+After pulling v3, specifically verify once:
+- existing v2 save loads without reset/stranding,
+- already-used station remains used,
+- already-defeated current A7 opponents remain defeated,
+- one new loss decrements HP correctly,
+- Floor restart still returns to clean A7 start state.
 
 ## Architectural prohibitions
 
 Do not reintroduce:
 - hidden DOM button clicks
-- `MutationObserver` bridges
+- MutationObserver bridges
 - reload-based screen transitions
 - localStorage as implicit inter-component messaging
 - competing fullscreen owners
 - pre-submit correctness indicators
 
-Keep `zahlenkern-prototyp-meta-v7.html` frozen and implement production changes in `src/`.
+Keep `zahlenkern-prototyp-meta-v7.html` frozen and implement production changes in `src/` or authored Floor/map data.
