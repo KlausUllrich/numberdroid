@@ -76,6 +76,7 @@ export default function App() {
     const afterTransfer = rotatePilot({
       ...meta,
       currentBody: target.bodyId,
+      currentDeckSize: target.deckSize ?? "standard",
       defeatedEncounterIds,
       x: target.retreat.x,
       y: target.retreat.y,
