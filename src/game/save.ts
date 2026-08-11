@@ -30,6 +30,7 @@ export function createFloorState(floor: FloorDefinition, playerCount = 2): MetaS
     facing: floor.start.facing,
     metaEnergy: floor.start.metaEnergy,
     usedStationIds: [],
+    collectedPickupIds: [],
     currentBody: floor.start.bodyId,
     defeatedEncounterIds: [],
     pilotIndex: 0,
@@ -80,6 +81,11 @@ function sanitize(candidate: Partial<MetaState>): MetaState {
     ? [...new Set(state.usedStationIds.filter((id) => typeof id === "string" && validStationIds.has(id)))]
     : [];
 
+  const validPickupIds = new Set(floor.pickups.map((pickup) => pickup.id));
+  state.collectedPickupIds = Array.isArray(state.collectedPickupIds)
+    ? [...new Set(state.collectedPickupIds.filter((id) => typeof id === "string" && validPickupIds.has(id)))]
+    : [];
+
   const validEncounterIds = new Set(floor.encounters.map((encounter) => encounter.encounterId));
   state.defeatedEncounterIds = Array.isArray(state.defeatedEncounterIds)
     ? [...new Set(state.defeatedEncounterIds.filter((id) => typeof id === "string" && validEncounterIds.has(id)))]
@@ -106,6 +112,7 @@ function migrateV2(old: MetaStateV2): MetaState {
     facing: old.facing,
     metaEnergy: old.metaEnergy,
     usedStationIds: old.stationUsed ? floor.energyStations.slice(0, 1).map((station) => station.id) : [],
+    collectedPickupIds: [],
     currentBody: old.currentBody,
     defeatedEncounterIds: floor.encounters
       .filter((encounter) => defeatedEnemyIds.includes(encounter.enemyId))
@@ -152,7 +159,7 @@ export function loadMetaState(): MetaState {
     if (duel?.playerCount) return sanitize({ playerCount: duel.playerCount });
   } catch { /* ignore damaged legacy duel data */ }
 
-  return { ...DEFAULT_META, usedStationIds: [], defeatedEncounterIds: [] };
+  return { ...DEFAULT_META, usedStationIds: [], collectedPickupIds: [], defeatedEncounterIds: [] };
 }
 
 export function saveMetaState(state: MetaState) {
