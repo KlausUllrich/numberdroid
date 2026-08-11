@@ -16,7 +16,10 @@ export const DECK_A7: FloorDefinition = {
   subtitle: "FREIE ERKUNDUNG · VERTICAL SLICE",
   width: 1600,
   height: 1000,
-  backgroundAsset: "/assets/deck/deck-a7.webp",
+  visual: {
+    kind: "image",
+    asset: "/assets/deck/deck-a7.webp",
+  },
   start: {
     x: 800,
     y: 850,
