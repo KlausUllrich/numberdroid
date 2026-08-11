@@ -73,11 +73,15 @@ export default function App() {
     const defeatedEncounterIds = meta.defeatedEncounterIds.includes(target.encounterId)
       ? meta.defeatedEncounterIds
       : [...meta.defeatedEncounterIds, target.encounterId];
+    const accessKeyIds = target.accessKey && !meta.accessKeyIds.includes(target.accessKey.keyId)
+      ? [...meta.accessKeyIds, target.accessKey.keyId]
+      : meta.accessKeyIds;
     const afterTransfer = rotatePilot({
       ...meta,
       currentBody: target.bodyId,
       currentDeckSize: target.deckSize ?? "standard",
       defeatedEncounterIds,
+      accessKeyIds,
       x: target.retreat.x,
       y: target.retreat.y,
     });
