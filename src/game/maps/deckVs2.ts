@@ -17,6 +17,13 @@ type DoorTile = {
   keyId?: string;
   label?: string;
 };
+type EncounterOptions = {
+  boss?: boolean;
+  keyId?: string;
+  keyLabel?: string;
+  duelLayers?: number;
+  storyIntro?: string;
+};
 
 const ROOMS: TileRect[] = [
   { name: "aft-engineering", x: 2, y: 6, w: 8, h: 8 },
@@ -25,10 +32,22 @@ const ROOMS: TileRect[] = [
   { name: "central-security", x: 22, y: 6, w: 8, h: 8 },
   { name: "research-lab", x: 32, y: 1, w: 8, h: 6 },
   { name: "machine-room", x: 32, y: 13, w: 8, h: 6 },
-  { name: "navigation", x: 42, y: 2, w: 7, h: 6 },
-  { name: "storage-east", x: 42, y: 12, w: 7, h: 6 },
+  { name: "navigation", x: 42, y: 2, w: 6, h: 6 },
+  { name: "storage-east", x: 42, y: 12, w: 6, h: 6 },
   { name: "bridge", x: 48, y: 8, w: 4, h: 4 },
 ];
+
+const ROOM_COPY: Record<string, { label: string; subtitle: string }> = {
+  "aft-engineering": { label: "ANTRIEBSWERKSTATT", subtitle: "WARTUNG · HECKSEKTION" },
+  "aft-reactor": { label: "REAKTORKAMMER", subtitle: "ENERGIEVERTEILUNG B2" },
+  "aft-cargo": { label: "FRACHTDECK", subtitle: "CONTAINER · ERSATZTEILE" },
+  "central-security": { label: "SICHERHEITSZENTRALE", subtitle: "ZUGANGSKONTROLLE · BLUE" },
+  "research-lab": { label: "SIGNALLABOR", subtitle: "SENSOREN · FELDTECHNIK" },
+  "machine-room": { label: "MASCHINENKERN", subtitle: "SCHWERTECHNIK · VERSORGUNG" },
+  navigation: { label: "NAVIGATION", subtitle: "KOMMANDOZUGANG" },
+  "storage-east": { label: "VERSORGUNGSLAGER", subtitle: "OSTSEKTION" },
+  bridge: { label: "BRÜCKE B2", subtitle: "HAUPTKONSOLE · KOMMANDO" },
+};
 
 const CORRIDORS: TileRect[] = [
   { name: "main-west", x: 11, y: 9, w: 10, h: 2 },
@@ -144,6 +163,21 @@ function rectObjects(rects: TileRect[], firstId: number) {
   }));
 }
 
+function roomObjects(firstId: number) {
+  return ROOMS.map((room, index) => ({
+    id: firstId + index,
+    name: room.name,
+    x: room.x * TILE,
+    y: room.y * TILE,
+    width: room.w * TILE,
+    height: room.h * TILE,
+    properties: [
+      prop("label", ROOM_COPY[room.name]?.label ?? room.name.toUpperCase(), "string"),
+      prop("subtitle", ROOM_COPY[room.name]?.subtitle ?? "DECK B2", "string"),
+    ],
+  }));
+}
+
 function doorObjects(firstId: number) {
   return DOORWAYS.map((door, index) => ({
     id: firstId + index,
@@ -174,16 +208,6 @@ function station(id: number, name: string, x: number, y: number) {
   };
 }
 
-function pickup(id: number, name: string, x: number, y: number, keyId: string, label: string) {
-  return {
-    id,
-    name,
-    x,
-    y,
-    properties: [prop("keyId", keyId, "string"), prop("label", label, "string")],
-  };
-}
-
 function encounter(
   id: number,
   encounterId: string,
@@ -195,7 +219,7 @@ function encounter(
   difficulty: "easy" | "medium" | "hard",
   retreatX: number,
   retreatY: number,
-  boss = false,
+  options: EncounterOptions = {},
 ) {
   const target = mode === "add-easy" ? 6 : mode === "add-normal" ? 8 : mode === "add-hard" ? 10 : 8;
   const symbol = mode === "subtract" ? "−" : "+";
@@ -214,12 +238,33 @@ function encounter(
       prop("retreatX", retreatX, "float"),
       prop("retreatY", retreatY, "float"),
       ...(enemyId === "magnetar" ? [prop("rewardLabel", `SIEG → ${name} + REIHENSCHUB →`, "string")] : []),
-      ...(boss ? [
+      ...(options.keyId ? [
+        prop("accessKeyId", options.keyId, "string"),
+        prop("accessKeyLabel", options.keyLabel ?? "ZUGANGSKARTE", "string"),
+        prop("rewardLabel", `SIEG → KÖRPER + ${options.keyLabel ?? "ZUGANGSKARTE"}`, "string"),
+      ] : []),
+      ...(options.boss ? [
         prop("boss", true, "bool"),
         prop("deckSize", "large", "string"),
-        prop("rewardLabel", "SIEG → BRÜCKE SICHERN · KÖRPERTRANSFER BEREIT", "string"),
-        prop("storyIntro", "Der große Kommandodroide hält die Brücke verriegelt. Besiege ihn, um Deck B2 unter Kontrolle zu bringen.", "string"),
+        prop("duelLayers", options.duelLayers ?? 2, "int"),
+        prop("rewardLabel", "SIEG → KRONOS-KOMMANDOKÖRPER ÜBERNEHMEN", "string"),
       ] : []),
+      ...(options.storyIntro ? [prop("storyIntro", options.storyIntro, "string")] : []),
+    ],
+  };
+}
+
+function action(id: number, name: string, x: number, y: number) {
+  return {
+    id,
+    name,
+    x,
+    y,
+    properties: [
+      prop("prompt", "DECK B2 ÜBERNEHMEN", "string"),
+      prop("label", "HAUPTKONSOLE", "string"),
+      prop("completionLabel", "DECK B2 IST UNTER DEINER KONTROLLE", "string"),
+      prop("requiresEncounterId", "b2-boss-bridge", "string"),
     ],
   };
 }
@@ -228,30 +273,75 @@ const stations = [
   station(300, "b2-energy-engineering", 330, 500),
   station(301, "b2-energy-reactor", 1000, 250),
   station(302, "b2-energy-machine", 2200, 1020),
-  station(303, "b2-energy-navigation", 2860, 300),
-];
-
-const pickups = [
-  pickup(350, "b2-blue-access-card", 1110, 250, "blue-access", "BLAUE ZUGANGSKARTE"),
-  pickup(351, "b2-command-access-card", 2860, 430, "command-access", "KOMMANDOKARTE"),
+  station(303, "b2-energy-navigation", 2780, 300),
 ];
 
 const encounters = [
-  encounter(400, "b2-sentry-engineering", "SENTRY-4 TECHNIK", 500, 690, "sentry", "add-easy", "easy", 360, 690),
-  encounter(401, "b2-sentry-reactor", "SENTRY-4 REAKTOR", 930, 210, "sentry", "add-easy", "easy", 850, 320),
-  encounter(402, "b2-magnetar-reactor", "MAGNETAR 742 REAKTOR", 1150, 340, "magnetar", "add-normal", "medium", 1050, 340),
-  encounter(403, "b2-magnetar-cargo", "MAGNETAR 742 FRACHT", 920, 1000, "magnetar", "add-normal", "medium", 850, 1100),
-  encounter(404, "b2-sentry-cargo", "SENTRY-4 FRACHT", 1130, 1080, "sentry", "add-easy", "easy", 1030, 1080),
-  encounter(405, "b2-sentry-security", "SENTRY-4 ZENTRALE", 1540, 610, "sentry", "add-easy", "easy", 1460, 760),
-  encounter(406, "b2-magnetar-security", "MAGNETAR 742 SICHERHEIT", 1760, 760, "magnetar", "add-normal", "medium", 1660, 760),
-  encounter(407, "b2-magnetar-lab", "MAGNETAR 742 LABOR", 2170, 220, "magnetar", "add-normal", "medium", 2100, 340),
-  encounter(408, "b2-sentry-lab", "SENTRY-4 LABOR", 2390, 340, "sentry", "add-easy", "easy", 2290, 340),
-  encounter(409, "b2-kronos-machine", "KRONOS-9 MASCHINENRAUM", 2180, 1010, "kronos", "subtract", "hard", 2100, 1100),
-  encounter(410, "b2-magnetar-machine", "MAGNETAR 742 MASCHINENRAUM", 2400, 1100, "magnetar", "add-normal", "medium", 2300, 1100),
-  encounter(411, "b2-sentry-navigation", "SENTRY-4 NAVIGATION", 2810, 260, "sentry", "add-easy", "easy", 2730, 400),
-  encounter(412, "b2-magnetar-storage", "MAGNETAR 742 LAGER", 2860, 980, "magnetar", "add-normal", "medium", 2760, 980),
-  encounter(413, "b2-boss-bridge", "KRONOS-9 KOMMANDO", 3210, 640, "kronos", "add-hard", "hard", 3120, 640, true),
+  encounter(400, "b2-sentry-engineering", "SENTRY-4 WERKSTATTWACHE", 500, 690, "sentry", "add-easy", "easy", 360, 690),
+  encounter(401, "b2-sentry-reactor", "SENTRY-4 REAKTORPATROUILLE", 930, 210, "sentry", "add-easy", "easy", 850, 320),
+  encounter(402, "b2-magnetar-reactor", "MAGNETAR 742 REAKTORTECHNIK", 1150, 340, "magnetar", "add-normal", "medium", 1050, 340),
+  encounter(403, "b2-magnetar-cargo", "MAGNETAR 742 FRACHTHEBER", 920, 1000, "magnetar", "add-normal", "medium", 850, 1100),
+  encounter(404, "b2-sentry-cargo", "SENTRY-4 FRACHTWACHE", 1130, 1080, "sentry", "add-easy", "easy", 1030, 1080),
+  encounter(
+    405,
+    "b2-sentry-security",
+    "SENTRY-4 SCHLEUSENWACHE",
+    1540,
+    610,
+    "sentry",
+    "add-easy",
+    "easy",
+    1460,
+    760,
+    {
+      keyId: "blue-access",
+      keyLabel: "BLUE-SECURITY-CARD",
+      storyIntro: "Diese Schleusenwache authentifiziert den Zugang zur östlichen Sicherheitssektion. Ihre BLUE-Card ist im Droidenkern gesichert.",
+    },
+  ),
+  encounter(406, "b2-magnetar-security", "MAGNETAR 742 SICHERHEITSGITTER", 1760, 760, "magnetar", "add-normal", "medium", 1660, 760),
+  encounter(407, "b2-magnetar-lab", "MAGNETAR 742 SIGNALTECHNIK", 2170, 220, "magnetar", "add-normal", "medium", 2100, 340),
+  encounter(408, "b2-sentry-lab", "SENTRY-4 LABORPATROUILLE", 2390, 340, "sentry", "add-easy", "easy", 2290, 340),
+  encounter(409, "b2-kronos-machine", "KRONOS-9 MASCHINENWACHE", 2180, 1010, "kronos", "subtract", "hard", 2100, 1100),
+  encounter(410, "b2-magnetar-machine", "MAGNETAR 742 KERNWARTUNG", 2400, 1100, "magnetar", "add-normal", "medium", 2300, 1100),
+  encounter(
+    411,
+    "b2-sentry-navigation",
+    "SENTRY-4 KOMMANDOWACHE",
+    2780,
+    260,
+    "sentry",
+    "add-easy",
+    "easy",
+    2710,
+    400,
+    {
+      keyId: "command-access",
+      keyLabel: "COMMAND-SECURITY-CARD",
+      storyIntro: "Die letzte Kommandowache trägt die Freigabe für das schwere Brückentor. Ohne ihren Kerncode bleibt COMMAND verriegelt.",
+    },
+  ),
+  encounter(412, "b2-magnetar-storage", "MAGNETAR 742 VERSORGUNG", 2800, 980, "magnetar", "add-normal", "medium", 2720, 980),
+  encounter(
+    413,
+    "b2-boss-bridge",
+    "KRONOS-9 KOMMANDANT",
+    3210,
+    640,
+    "kronos",
+    "add-hard",
+    "hard",
+    3120,
+    640,
+    {
+      boss: true,
+      duelLayers: 2,
+      storyIntro: "KRONOS-9 ist kein normaler Transfergegner. Zwei Reaktor-Firewalls schützen seinen Kommandokern. Ressourcen, Körperfähigkeit und Meta-Energie müssen für beide Schichten reichen.",
+    },
+  ),
 ];
+
+const actions = [action(500, "b2-main-console", 3260, 700)];
 
 export const DECK_VS2_MAP: TiledMapJson = {
   orientation: "orthogonal",
@@ -263,12 +353,13 @@ export const DECK_VS2_MAP: TiledMapJson = {
   properties: [
     prop("floorId", "deck-vs2", "string"),
     prop("floorName", "DECK B2", "string"),
-    prop("subtitle", "VERTICAL SLICE 2 · SEKTIONEN & ZUGANGSKONTROLLE", "string"),
-    prop("objectiveDefault", "ERKUNDE DECK B2 · FINDE ZUGANGSKARTEN · DRINGE ZUR BRÜCKE VOR", "string"),
-    prop("objectiveAfterEnergy", "ENERGIE GESICHERT · FINDE DIE ZUGANGSKARTEN · DRINGE ZUR BRÜCKE VOR", "string"),
-    prop("goalEncounterId", "b2-boss-bridge", "string"),
-    prop("goalLabel", "ZIEL: ERREICHE DIE BRÜCKE · BESIEGE DEN KOMMANDODROIDEN", "string"),
-    prop("goalCompletedLabel", "EBENE GESICHERT · BRÜCKE UNTER KONTROLLE", "string"),
+    prop("subtitle", "VERTICAL SLICE 2 · SECURITY LOCKDOWN", "string"),
+    prop("objectiveDefault", "FINDE DIE SECURITY-FREIGABEN · DRINGE ZUR BRÜCKE VOR", "string"),
+    prop("objectiveAfterEnergy", "ENERGIE GESICHERT · FINDE DIE SECURITY-FREIGABEN · DRINGE ZUR BRÜCKE VOR", "string"),
+    prop("goalActionId", "b2-main-console", "string"),
+    prop("goalLabel", "ZIEL: DURCHBRICH DEN LOCKDOWN · BESIEGE KRONOS-9", "string"),
+    prop("goalReadyLabel", "KRONOS BESIEGT · FAHRE ZUR HAUPTKONSOLE UND ÜBERNIMM DECK B2", "string"),
+    prop("goalCompletedLabel", "DECK B2 ÜBERNOMMEN · EBENE GESICHERT", "string"),
   ],
   tilesets: [
     {
@@ -299,9 +390,11 @@ export const DECK_VS2_MAP: TiledMapJson = {
     },
     { id: 11, name: "Walkable", type: "objectgroup", objects: rectObjects(WALKABLE, 110) },
     { id: 12, name: "Obstacles", type: "objectgroup", objects: rectObjects(OBSTACLES, 200) },
-    { id: 13, name: "Doors", type: "objectgroup", objects: doorObjects(260) },
-    { id: 14, name: "EnergyStations", type: "objectgroup", objects: stations },
-    { id: 15, name: "Encounters", type: "objectgroup", objects: encounters },
-    { id: 16, name: "Pickups", type: "objectgroup", objects: pickups },
+    { id: 13, name: "Rooms", type: "objectgroup", objects: roomObjects(230) },
+    { id: 14, name: "Doors", type: "objectgroup", objects: doorObjects(260) },
+    { id: 15, name: "EnergyStations", type: "objectgroup", objects: stations },
+    { id: 16, name: "Encounters", type: "objectgroup", objects: encounters },
+    { id: 17, name: "Pickups", type: "objectgroup", objects: [] },
+    { id: 18, name: "Actions", type: "objectgroup", objects: actions },
   ],
 };
