@@ -1,4 +1,22 @@
-import type { TileLayerDefinition, TileMapVisualDefinition, TilesetDefinition } from "./types";
+import type {
+  BodyId,
+  Difficulty,
+  EncounterConfig,
+  EnergyStationDefinition,
+  EnemyId,
+  FloorDefinition,
+  MathMode,
+  Rect,
+  TileLayerDefinition,
+  TileMapVisualDefinition,
+  TilesetDefinition,
+} from "./types";
+
+type TiledProperty = {
+  name: string;
+  type?: string;
+  value: unknown;
+};
 
 type TiledTileLayer = {
   id: number;
@@ -11,11 +29,32 @@ type TiledTileLayer = {
   visible?: boolean;
 };
 
+type TiledObject = {
+  id: number;
+  name?: string;
+  class?: string;
+  type?: string;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  properties?: TiledProperty[];
+};
+
+type TiledObjectLayer = {
+  id: number;
+  name: string;
+  type: "objectgroup";
+  objects: TiledObject[];
+};
+
 type TiledOtherLayer = {
   id: number;
   name: string;
   type: string;
 };
+
+type TiledLayer = TiledTileLayer | TiledObjectLayer | TiledOtherLayer;
 
 type TiledTileset = {
   firstgid: number;
@@ -36,16 +75,69 @@ export type TiledMapJson = {
   height: number;
   tilewidth: number;
   tileheight: number;
-  layers: Array<TiledTileLayer | TiledOtherLayer>;
+  layers: TiledLayer[];
   tilesets: TiledTileset[];
+  properties?: TiledProperty[];
 };
 
 type TiledVisualOptions = {
   resolveAsset?: (path: string) => string;
 };
 
-function isTileLayer(layer: TiledTileLayer | TiledOtherLayer): layer is TiledTileLayer {
+const ENEMY_IDS: EnemyId[] = ["sentry", "magnetar", "kronos"];
+const BODY_IDS: BodyId[] = ["pico", "sentry", "magnetar", "kronos"];
+const MATH_MODES: MathMode[] = ["add-easy", "add-normal", "add-hard", "subtract"];
+const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+
+function isTileLayer(layer: TiledLayer): layer is TiledTileLayer {
   return layer.type === "tilelayer";
+}
+
+function isObjectLayer(layer: TiledLayer): layer is TiledObjectLayer {
+  return layer.type === "objectgroup" && Array.isArray((layer as TiledObjectLayer).objects);
+}
+
+function property(properties: TiledProperty[] | undefined, name: string): unknown {
+  return properties?.find((entry) => entry.name === name)?.value;
+}
+
+function requiredString(properties: TiledProperty[] | undefined, name: string, context: string): string {
+  const value = property(properties, name);
+  if (typeof value !== "string" || !value.trim()) throw new Error(`${context} requires string property ${name}.`);
+  return value;
+}
+
+function optionalString(properties: TiledProperty[] | undefined, name: string, fallback: string): string {
+  const value = property(properties, name);
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function optionalNumber(properties: TiledProperty[] | undefined, name: string, fallback: number): number {
+  const value = property(properties, name);
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function requiredEnum<T extends string>(
+  properties: TiledProperty[] | undefined,
+  name: string,
+  allowed: readonly T[],
+  context: string,
+): T {
+  const value = requiredString(properties, name, context);
+  if (!allowed.includes(value as T)) throw new Error(`${context} has invalid ${name}: ${value}.`);
+  return value as T;
+}
+
+function objectLayer(map: TiledMapJson, name: string): TiledObjectLayer | null {
+  const normalized = name.toLowerCase();
+  return map.layers.find((layer): layer is TiledObjectLayer => isObjectLayer(layer) && layer.name.toLowerCase() === normalized) ?? null;
+}
+
+function objectRect(object: TiledObject, context: string): Rect {
+  const width = object.width ?? 0;
+  const height = object.height ?? 0;
+  if (width <= 0 || height <= 0) throw new Error(`${context} must be a rectangle with width and height.`);
+  return { x: object.x, y: object.y, w: width, h: height };
 }
 
 export function visualFromTiledMap(map: TiledMapJson, options: TiledVisualOptions = {}): TileMapVisualDefinition {
@@ -102,5 +194,89 @@ export function visualFromTiledMap(map: TiledMapJson, options: TiledVisualOption
     tileHeight: map.tileheight,
     tilesets,
     layers,
+  };
+}
+
+function parseStations(map: TiledMapJson): EnergyStationDefinition[] {
+  const layer = objectLayer(map, "EnergyStations");
+  if (!layer) return [];
+  return layer.objects.map((object) => {
+    const energy = Math.max(1, Math.floor(optionalNumber(object.properties, "energy", 1)));
+    return {
+      id: object.name?.trim() || `station-${object.id}`,
+      x: object.x,
+      y: object.y,
+      energy,
+      label: optionalString(object.properties, "label", `ENERGIE ⚡ +${energy}`),
+    };
+  });
+}
+
+function parseEncounters(map: TiledMapJson): EncounterConfig[] {
+  const layer = objectLayer(map, "Encounters");
+  if (!layer) return [];
+  return layer.objects.map((object) => {
+    const context = `Encounter ${object.name || object.id}`;
+    const enemyId = requiredEnum(object.properties, "enemyId", ENEMY_IDS, context);
+    const bodyId = requiredEnum(object.properties, "bodyId", BODY_IDS, context);
+    const mode = requiredEnum(object.properties, "mode", MATH_MODES, context);
+    const difficulty = requiredEnum(object.properties, "difficulty", DIFFICULTIES, context);
+    const name = object.name?.trim() || requiredString(object.properties, "name", context);
+    return {
+      encounterId: optionalString(object.properties, "encounterId", `encounter-${object.id}`),
+      enemyId,
+      name,
+      x: object.x,
+      y: object.y,
+      mode,
+      mathLabel: requiredString(object.properties, "mathLabel", context),
+      difficulty,
+      difficultyLabel: optionalString(
+        object.properties,
+        "difficultyLabel",
+        difficulty === "easy" ? "LEICHT" : difficulty === "medium" ? "MITTEL" : "STARK",
+      ),
+      bodyId,
+      rewardLabel: optionalString(object.properties, "rewardLabel", `SIEG → ${name} ÜBERNEHMEN`),
+      retreat: {
+        x: optionalNumber(object.properties, "retreatX", object.x),
+        y: optionalNumber(object.properties, "retreatY", object.y),
+      },
+    };
+  });
+}
+
+export function floorFromTiledMap(map: TiledMapJson, options: TiledVisualOptions = {}): FloorDefinition {
+  const startLayer = objectLayer(map, "Start");
+  const startObject = startLayer?.objects[0];
+  if (!startObject) throw new Error("Tiled floor requires one object in layer Start.");
+
+  const walkableLayer = objectLayer(map, "Walkable");
+  if (!walkableLayer?.objects.length) throw new Error("Tiled floor requires at least one rectangle in layer Walkable.");
+  const obstaclesLayer = objectLayer(map, "Obstacles");
+
+  const floorId = requiredString(map.properties, "floorId", "Tiled map");
+  return {
+    id: floorId,
+    name: requiredString(map.properties, "floorName", `Floor ${floorId}`),
+    subtitle: optionalString(map.properties, "subtitle", "VERTICAL SLICE 2"),
+    width: map.width * map.tilewidth,
+    height: map.height * map.tileheight,
+    visual: visualFromTiledMap(map, options),
+    start: {
+      x: startObject.x,
+      y: startObject.y,
+      facing: optionalNumber(startObject.properties, "facing", 0),
+      bodyId: requiredEnum(startObject.properties, "bodyId", BODY_IDS, "Start object"),
+      metaEnergy: Math.max(0, Math.floor(optionalNumber(startObject.properties, "metaEnergy", 0))),
+    },
+    objectives: {
+      default: requiredString(map.properties, "objectiveDefault", `Floor ${floorId}`),
+      afterEnergy: requiredString(map.properties, "objectiveAfterEnergy", `Floor ${floorId}`),
+    },
+    walkable: walkableLayer.objects.map((object) => objectRect(object, `Walkable ${object.id}`)),
+    obstacles: obstaclesLayer?.objects.map((object) => objectRect(object, `Obstacle ${object.id}`)) ?? [],
+    energyStations: parseStations(map),
+    encounters: parseEncounters(map),
   };
 }
