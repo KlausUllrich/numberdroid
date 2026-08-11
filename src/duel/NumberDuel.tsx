@@ -27,6 +27,7 @@ type ResultCard = {
 };
 
 const TILE_MOTION_MS = 560;
+const FIREWALL_BREAK_MS = 1050;
 const REACTOR_START_CORES = 6;
 
 export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, initialMetaEnergy, onFinished }: Props) {
@@ -42,6 +43,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
   const [enemySelection, setEnemySelection] = useState<Pick[]>([]);
   const [teamCores, setTeamCores] = useState(REACTOR_START_CORES);
   const [clearedLayers, setClearedLayers] = useState(0);
+  const [breakingLayer, setBreakingLayer] = useState<number | null>(null);
   const [metaEnergy, setMetaEnergy] = useState(initialMetaEnergy);
   const [abilityUses, setAbilityUses] = useState(playerBody.abilityId === "row-shift-right" ? 1 : 0);
   const [special, setSpecial] = useState<Special>(null);
@@ -116,6 +118,33 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
       setBusy(false);
       setMessage(`REIHENSCHUB abgeschlossen. Reihe ${row + 1} wurde nach rechts verschoben.`);
     }, TILE_MOTION_MS);
+  }
+
+  function breakFirewall(layerIndex: number) {
+    const nextClearedLayers = layerIndex + 1;
+    setBreakingLayer(layerIndex);
+    setBusy(true);
+    setMessage(`FIREWALL ${nextClearedLayers} kollabiert …`);
+    window.setTimeout(() => {
+      setBreakingLayer(null);
+      setClearedLayers(nextClearedLayers);
+
+      if (nextClearedLayers < totalLayers) {
+        setTeamCores(REACTOR_START_CORES);
+        setGrid(freshGrid(mode));
+        setTurn("enemy");
+        setBusy(false);
+        setMessage(`FIREWALL ${nextClearedLayers} GEBROCHEN. Die nächste Schutzschicht bleibt aktiv. Ressourcen bleiben verbraucht.`);
+        return;
+      }
+
+      setBusy(false);
+      setResultCard({
+        outcome: "win",
+        title: "KOMMANDOKERN OFFEN",
+        detail: `${encounter.name}: Alle ${totalLayers} Reaktor-Firewalls sind zerstört. Der Körpertransfer ist bereit.`,
+      });
+    }, FIREWALL_BREAK_MS);
   }
 
   useEffect(() => {
@@ -228,24 +257,15 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     setTeamCores(winsCurrentLayer ? TOTAL_CORES : next);
     animateResolvedGrid(selection, () => {
       if (winsCurrentLayer) {
-        const nextClearedLayers = clearedLayers + 1;
-        if (nextClearedLayers < totalLayers) {
-          setClearedLayers(nextClearedLayers);
-          setTeamCores(REACTOR_START_CORES);
-          setGrid(freshGrid(mode));
-          setTurn("enemy");
-          setBusy(false);
-          setMessage(`FIREWALL ${nextClearedLayers}/${totalLayers} GEBROCHEN. Ressourcen bleiben verbraucht. ${encounter.name} kontert.`);
+        if (totalLayers > 1) {
+          breakFirewall(clearedLayers);
           return;
         }
-        setClearedLayers(totalLayers);
         setBusy(false);
         setResultCard({
           outcome: "win",
-          title: totalLayers > 1 ? "KOMMANDOKERN OFFEN" : "TRANSFER GEWONNEN",
-          detail: totalLayers > 1
-            ? `${encounter.name}: Alle ${totalLayers} Reaktor-Firewalls sind gebrochen. Der Körpertransfer ist bereit.`
-            : `${encounter.name} wurde besiegt. Der Körpertransfer ist bereit.`,
+          title: "TRANSFER GEWONNEN",
+          detail: `${encounter.name} wurde besiegt. Der Körpertransfer ist bereit.`,
         });
         return;
       }
@@ -265,7 +285,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     <main className="duel-screen">
       <header className="duel-hud">
         <div><small>NUMBERDROID · {totalLayers > 1 ? "KOMMANDODUELL" : "TRANSFERDUELL"}</small><b>{encounter.name}</b></div>
-        {totalLayers > 1 && <div className="duel-layer-hud"><small>FIREWALL</small><b>{currentLayer} / {totalLayers}</b></div>}
+        {totalLayers > 1 && <div className="duel-layer-hud"><small>SCHUTZSCHICHTEN</small><b>{totalLayers - clearedLayers} / {totalLayers}</b></div>}
         <div className="duel-hp-readout"><small>ROBOTER-HP</small><b>{remainingHp} / {STARTING_HP}</b></div>
       </header>
 
@@ -284,7 +304,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
               const index = activePath.findIndex((pick) => pick.row === r && pick.col === c);
               const selected = index >= 0;
               const end = selected && index === activePath.length - 1;
-              const next = nextOptions.has(`${r}:${c}`);
+              const nextOption = nextOptions.has(`${r}:${c}`);
               const fallY = fallOffsets[tile.id] ?? 0;
               const shiftX = rowShiftOffsets[tile.id] ?? 0;
               const motionStyle = (fallY > 0 || shiftX !== 0)
@@ -296,7 +316,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
               return (
                 <button
                   key={tile.id}
-                  className={`${selected ? turn === "enemy" ? "enemy-selected" : "selected" : ""} ${end ? "chain-end" : ""} ${next ? "next-option" : ""} ${special ? "special-target" : ""} ${fallY > 0 ? "tile-fall" : ""} ${shiftX !== 0 ? "tile-row-shift" : ""}`}
+                  className={`${selected ? turn === "enemy" ? "enemy-selected" : "selected" : ""} ${end ? "chain-end" : ""} ${nextOption ? "next-option" : ""} ${special ? "special-target" : ""} ${fallY > 0 ? "tile-fall" : ""} ${shiftX !== 0 ? "tile-row-shift" : ""}`}
                   style={motionStyle}
                   onClick={() => selectTile(r, c)}
                   disabled={turn === "enemy" || busy}
@@ -324,9 +344,26 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
             <div className="reactor-target-equation"><span>{config.symbol}</span><strong>{config.target}</strong></div>
           </div>
           {totalLayers > 1 && (
-            <div className="boss-firewalls" aria-label={`${clearedLayers} von ${totalLayers} Firewalls gebrochen`}>
-              {Array.from({ length: totalLayers }, (_, index) => <i key={index} className={index < clearedLayers ? "cleared" : index === clearedLayers ? "active" : ""} />)}
-              <span>REAKTOR-FIREWALL {currentLayer}/{totalLayers}</span>
+            <div className="boss-firewalls" aria-label={`${clearedLayers} von ${totalLayers} Firewalls zerstört`}>
+              <div className="boss-firewall-stack">
+                {Array.from({ length: totalLayers }, (_, index) => {
+                  const state = index < clearedLayers
+                    ? "broken"
+                    : breakingLayer === index
+                      ? "breaking"
+                      : index === clearedLayers
+                        ? "current"
+                        : "armed";
+                  return (
+                    <div key={index} className={`boss-firewall ${state}`}>
+                      <span className="shield">⬢</span>
+                      <b>FIREWALL {index + 1}</b>
+                      <small>{state === "broken" ? "ZERSTÖRT" : state === "current" ? "AKTIV" : "BEREIT"}</small>
+                    </div>
+                  );
+                })}
+              </div>
+              {breakingLayer !== null && <div className="firewall-break-flash">FIREWALL {breakingLayer + 1} GEBROCHEN</div>}
             </div>
           )}
           <div className="core-row" aria-label={`${teamCores} Team-Reaktorkerne, ${TOTAL_CORES - teamCores} Droid-Reaktorkerne`}>
