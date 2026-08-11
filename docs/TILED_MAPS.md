@@ -56,7 +56,7 @@ Optional rectangle objects. These are subtracted from the walkable space.
 
 ### `Doors`
 
-Each rectangle is one doorway/portal area. Automatic doors are implemented and participate in runtime collision.
+Each rectangle is one doorway/portal area. Doors participate in runtime collision and animate independently of the tilemap.
 
 Required properties:
 
@@ -66,10 +66,29 @@ Optional properties:
 
 - object name is the stable door id; otherwise `door-<Tiled object id>` is used
 - `openRadius`: proximity radius in world pixels, default `118`
+- `mode`: `auto` or `locked`, default `auto`
+- `size`: `standard` or `large`, default `standard`
+- `keyId`: required when `mode=locked`; matches a key id from `Pickups`
+- `label`: short display label such as `BLUE` or `COMMAND`
 
-Current door mode is automatic only. A closed door blocks the player's movement through a narrow collision slab at the center of the doorway. Approaching the door opens it before contact; an additional close-distance hysteresis prevents rapid open/close flicker while passing through.
+Automatic doors open when the player approaches. Locked doors remain closed until the matching access card has been collected, then behave like automatic doors. An additional close-distance hysteresis prevents rapid open/close flicker while passing through.
 
-The visual door panels animate independently of the tilemap and slide into the surrounding wall direction.
+Large gates use larger object rectangles rather than a separate rendering system. Current B2 uses a 64×128 command gate before the bridge.
+
+### `Pickups`
+
+Each object is a collectible access item. Current runtime support is intentionally narrow and deterministic: access cards only.
+
+Required properties:
+
+- `keyId`: stable access identity matched by locked doors
+
+Optional properties:
+
+- object name is the stable pickup id; otherwise `pickup-<Tiled object id>` is used
+- `label`: player-facing name such as `BLAUE ZUGANGSKARTE`
+
+Collected pickup ids are part of `MetaState` and survive normal save/reload flows. Preview floors still reset on page reload by design.
 
 ### `EnergyStations`
 
@@ -99,6 +118,9 @@ Optional properties:
 - `retreatX`, `retreatY`
 - `boss`: boolean — marks the encounter as an Endgegner visually
 - `storyIntro`: short encounter/story setup displayed before the duel
+- `deckSize`: `standard` or `large`, default `standard`; currently controls deck presentation only
+
+Standard deck robots should render smaller than one 64 px tile aperture. Large robots are deliberately exceptional and should generally be placed behind or near large gates. Full body-footprint/pathing semantics for controlled large bodies are intentionally deferred until large body takeover is designed as a persistent gameplay rule.
 
 The Tiled object's name is the displayed robot name.
 
@@ -108,7 +130,7 @@ Tile layers are rendered in map order. Tiled global tile IDs are preserved. The 
 
 The current `deck-vs2` map uses a deliberately simple technical tileset. It validates layout, camera, collision, object placement and multi-instance semantics; it is not final art.
 
-## Current B2 layout direction
+## Current B2 layout / gating direction
 
 The technical VS2 Floor is intentionally ship-shaped rather than arena-shaped:
 
@@ -121,16 +143,30 @@ The technical VS2 Floor is intentionally ship-shaped rather than arena-shaped:
 - bridge/command area at the far end
 - boss encounter as the explicit Floor goal
 
+Current access loop:
+
+```text
+aft section
+  → reactor side room
+  → BLUE access card
+  → locked security-east door
+  → eastern section
+  → navigation room
+  → COMMAND access card
+  → large locked bridge gate
+  → large command boss
+```
+
 The target is a 10–15 minute Floor in which enemies create route choices rather than a requirement to clear every spawn.
 
-## Planned gameplay object layers
+## Next gameplay object layer
 
-Extend this contract rather than hard-code behavior in React:
+The next interaction layer should extend this contract rather than hard-code behavior in React:
 
-- `Doors` — automatic doors are active now; locked/keyed variants come next
-- `Pickups` — keys/access tokens and other one-off items
 - `PatrolPaths` — short named paths used by moving enemy instances
 - later explicit exits/transitions once multi-Floor progression is designed
+
+Patrol simulation must remain outside global per-frame React state so it does not regress the currently smooth deck scrolling.
 
 ## Preview mode
 
