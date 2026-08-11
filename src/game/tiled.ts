@@ -112,9 +112,19 @@ function optionalString(properties: TiledProperty[] | undefined, name: string, f
   return typeof value === "string" && value.trim() ? value : fallback;
 }
 
+function optionalStringValue(properties: TiledProperty[] | undefined, name: string): string | undefined {
+  const value = property(properties, name);
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
 function optionalNumber(properties: TiledProperty[] | undefined, name: string, fallback: number): number {
   const value = property(properties, name);
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function optionalBoolean(properties: TiledProperty[] | undefined, name: string, fallback = false): boolean {
+  const value = property(properties, name);
+  return typeof value === "boolean" ? value : fallback;
 }
 
 function requiredEnum<T extends string>(
@@ -242,6 +252,8 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
         x: optionalNumber(object.properties, "retreatX", object.x),
         y: optionalNumber(object.properties, "retreatY", object.y),
       },
+      boss: optionalBoolean(object.properties, "boss"),
+      storyIntro: optionalStringValue(object.properties, "storyIntro"),
     };
   });
 }
@@ -256,6 +268,12 @@ export function floorFromTiledMap(map: TiledMapJson, options: TiledVisualOptions
   const obstaclesLayer = objectLayer(map, "Obstacles");
 
   const floorId = requiredString(map.properties, "floorId", "Tiled map");
+  const encounters = parseEncounters(map);
+  const goalEncounterId = optionalStringValue(map.properties, "goalEncounterId");
+  if (goalEncounterId && !encounters.some((encounter) => encounter.encounterId === goalEncounterId)) {
+    throw new Error(`Tiled floor ${floorId} references unknown goal encounter ${goalEncounterId}.`);
+  }
+
   return {
     id: floorId,
     name: requiredString(map.properties, "floorName", `Floor ${floorId}`),
@@ -274,9 +292,15 @@ export function floorFromTiledMap(map: TiledMapJson, options: TiledVisualOptions
       default: requiredString(map.properties, "objectiveDefault", `Floor ${floorId}`),
       afterEnergy: requiredString(map.properties, "objectiveAfterEnergy", `Floor ${floorId}`),
     },
+    goal: goalEncounterId ? {
+      kind: "defeat-encounter",
+      encounterId: goalEncounterId,
+      label: requiredString(map.properties, "goalLabel", `Floor ${floorId} goal`),
+      completedLabel: requiredString(map.properties, "goalCompletedLabel", `Floor ${floorId} goal`),
+    } : undefined,
     walkable: walkableLayer.objects.map((object) => objectRect(object, `Walkable ${object.id}`)),
     obstacles: obstaclesLayer?.objects.map((object) => objectRect(object, `Obstacle ${object.id}`)) ?? [],
     energyStations: parseStations(map),
-    encounters: parseEncounters(map),
+    encounters,
   };
 }
