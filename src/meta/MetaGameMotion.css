@@ -1,0 +1,85 @@
+.zk-meta-world {
+  transform-origin: 0 0;
+  will-change: transform;
+  backface-visibility: hidden;
+  contain: layout style paint;
+}
+
+.zk-player {
+  left: 0 !important;
+  top: 0 !important;
+  transform: translate3d(var(--player-x), var(--player-y), 0) translate(-50%, -50%) rotate(var(--facing));
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.zk-tilemap,
+.zk-tilemap-layer {
+  contain: layout style paint;
+}
+
+.zk-zoom-toggle {
+  position: absolute;
+  z-index: 42;
+  left: 12px;
+  bottom: 43px;
+  min-width: 136px;
+  padding: 8px 11px;
+  border: 1px solid #4fb9ae;
+  border-radius: 7px;
+  background: #06262dcc;
+  color: #d8f8f3;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .03em;
+}
+
+.zk-zoom-toggle small {
+  display: block;
+  margin-top: 2px;
+  color: #7eb8b0;
+  font-size: 9px;
+}
+
+.zk-zoom-toggle.active {
+  border-color: #e4bd55;
+  background: #2a2413e8;
+}
+
+.zk-entity.enemy.boss img {
+  width: 88px;
+  height: 88px;
+  filter: drop-shadow(0 0 15px #ff6d45) drop-shadow(0 0 28px #b20f0f) sepia(.25) saturate(2.4) hue-rotate(310deg);
+}
+
+.zk-entity.enemy.boss .tag {
+  border-color: #e7b348;
+  color: #ffe8a0;
+  background: #2a1809ed;
+}
+
+.zk-encounter.boss {
+  border-color: #e4b54a;
+  box-shadow: 0 0 36px #a51d1644;
+}
+
+.zk-encounter-story {
+  margin: 13px 0;
+  padding: 10px 12px;
+  border-left: 3px solid #dba947;
+  background: #261d0f;
+  color: #e9d9a7;
+  line-height: 1.4;
+}
+
+@media (max-width: 900px), (max-height: 520px) {
+  .zk-zoom-toggle {
+    left: 8px;
+    bottom: 36px;
+    min-width: 112px;
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+
+  .zk-zoom-toggle small { font-size: 8px; }
+}
