@@ -1,6 +1,6 @@
-import { BODIES, MAX_META_ENERGY, STARTING_HP } from "./catalog";
+import { BODIES, MAX_META_ENERGY, STARTING_HP, robotCollisionRadius } from "./catalog";
 import { CURRENT_FLOOR, getFloor } from "./floors";
-import type { BodyId, EnemyId, FloorDefinition, MetaState } from "./types";
+import type { BodyId, EnemyId, FloorDefinition, MetaState, Rect, RobotDeckSize } from "./types";
 
 const META_KEY_V3 = "numberdroid-meta-v3";
 const META_KEY_V2 = "numberdroid-meta-v2";
@@ -32,6 +32,7 @@ export function createFloorState(floor: FloorDefinition, playerCount = 2): MetaS
     usedStationIds: [],
     collectedPickupIds: [],
     currentBody: floor.start.bodyId,
+    currentDeckSize: "standard",
     defeatedEncounterIds: [],
     pilotIndex: 0,
     playerCount,
@@ -41,14 +42,38 @@ export function createFloorState(floor: FloorDefinition, playerCount = 2): MetaS
 
 export const DEFAULT_META: MetaState = createFloorState(CURRENT_FLOOR);
 
-function inRect(x: number, y: number, r: { x: number; y: number; w: number; h: number }, margin = 0) {
-  return x >= r.x + margin && x <= r.x + r.w - margin && y >= r.y + margin && y <= r.y + r.h - margin;
+function inRect(x: number, y: number, rect: Rect) {
+  return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 }
 
-export function pointWalkable(x: number, y: number, floorId = CURRENT_FLOOR.id) {
+function circleIntersectsRect(x: number, y: number, radius: number, rect: Rect) {
+  const nearestX = Math.max(rect.x, Math.min(x, rect.x + rect.w));
+  const nearestY = Math.max(rect.y, Math.min(y, rect.y + rect.h));
+  const dx = x - nearestX;
+  const dy = y - nearestY;
+  return dx * dx + dy * dy < radius * radius;
+}
+
+function footprintInsideWalkable(floor: FloorDefinition, x: number, y: number, radius: number) {
+  const samples = 16;
+  for (let i = 0; i < samples; i += 1) {
+    const angle = i / samples * Math.PI * 2;
+    const sx = x + Math.cos(angle) * radius;
+    const sy = y + Math.sin(angle) * radius;
+    if (!floor.walkable.some((rect) => inRect(sx, sy, rect))) return false;
+  }
+  return floor.walkable.some((rect) => inRect(x, y, rect));
+}
+
+export function pointWalkable(
+  x: number,
+  y: number,
+  floorId = CURRENT_FLOOR.id,
+  collisionRadius = robotCollisionRadius("standard"),
+) {
   const floor = getFloor(floorId);
-  const onFloor = floor.walkable.some((rect) => inRect(x, y, rect, 24));
-  const blocked = floor.obstacles.some((rect) => inRect(x, y, rect, -24));
+  const onFloor = footprintInsideWalkable(floor, x, y, collisionRadius);
+  const blocked = floor.obstacles.some((rect) => circleIntersectsRect(x, y, collisionRadius, rect));
   return onFloor && !blocked;
 }
 
@@ -62,19 +87,27 @@ function inferDefeatedEncounterFromOwnedBody(state: MetaState, floor: FloorDefin
   }
 }
 
+function validDeckSize(value: unknown): value is RobotDeckSize {
+  return value === "standard" || value === "large";
+}
+
 function sanitize(candidate: Partial<MetaState>): MetaState {
   const floor = getFloor(typeof candidate.floorId === "string" ? candidate.floorId : CURRENT_FLOOR.id);
   const defaults = createFloorState(floor);
   const state: MetaState = { ...defaults, ...candidate, version: 3, floorId: floor.id };
 
-  if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !pointWalkable(state.x, state.y, floor.id)) {
+  if (!BODIES[state.currentBody]) state.currentBody = defaults.currentBody;
+  if (!validDeckSize(state.currentDeckSize)) state.currentDeckSize = defaults.currentDeckSize;
+
+  const radius = robotCollisionRadius(state.currentDeckSize);
+  if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !pointWalkable(state.x, state.y, floor.id, radius)) {
     state.x = defaults.x;
     state.y = defaults.y;
     state.facing = defaults.facing;
+    state.currentDeckSize = defaults.currentDeckSize;
   }
   if (!Number.isFinite(state.facing)) state.facing = defaults.facing;
   state.metaEnergy = Math.max(0, Math.min(MAX_META_ENERGY, Number.isFinite(state.metaEnergy) ? state.metaEnergy : defaults.metaEnergy));
-  if (!BODIES[state.currentBody]) state.currentBody = defaults.currentBody;
 
   const validStationIds = new Set(floor.energyStations.map((station) => station.id));
   state.usedStationIds = Array.isArray(state.usedStationIds)
@@ -114,6 +147,7 @@ function migrateV2(old: MetaStateV2): MetaState {
     usedStationIds: old.stationUsed ? floor.energyStations.slice(0, 1).map((station) => station.id) : [],
     collectedPickupIds: [],
     currentBody: old.currentBody,
+    currentDeckSize: "standard",
     defeatedEncounterIds: floor.encounters
       .filter((encounter) => defeatedEnemyIds.includes(encounter.enemyId))
       .map((encounter) => encounter.encounterId),
