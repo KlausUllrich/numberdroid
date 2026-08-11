@@ -1,0 +1,141 @@
+.zk-encounter {
+  width: min(980px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.zk-encounter.large .zk-encounter-robot img {
+  width: 190px;
+}
+
+.zk-encounter-robot {
+  align-content: center;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.zk-encounter-robot > span {
+  color: #dcae55;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.zk-encounter-role {
+  margin: -7px 0 12px;
+}
+
+.zk-encounter-role b,
+.zk-encounter-role span {
+  display: block;
+}
+
+.zk-encounter-role b {
+  color: #e8c664;
+  font-size: 14px;
+  letter-spacing: .06em;
+}
+
+.zk-encounter-role span {
+  margin-top: 4px;
+  color: #b9ceca;
+  line-height: 1.35;
+}
+
+.zk-encounter-row.scan-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.zk-encounter-capability,
+.zk-encounter-access,
+.zk-encounter-boss-protocol {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #35625f;
+  background: #092329;
+}
+
+.zk-encounter-capability > span,
+.zk-encounter-access > span,
+.zk-encounter-boss-protocol > span {
+  display: block;
+  color: #83a9a5;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.zk-encounter-capability > b,
+.zk-encounter-access > b,
+.zk-encounter-boss-protocol > b {
+  display: block;
+  margin-top: 3px;
+  font-size: 16px;
+}
+
+.zk-encounter-capability p,
+.zk-encounter-access p,
+.zk-encounter-boss-protocol p {
+  margin: 4px 0 0;
+  color: #b7cbc7;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.zk-encounter-access {
+  border-color: #3aa99e;
+  background: #092b2d;
+}
+
+.zk-encounter-access > b {
+  color: #77f1df;
+}
+
+.zk-encounter-boss-protocol {
+  border-color: #c48e31;
+  background: #2c210e;
+}
+
+.zk-encounter-boss-protocol > b {
+  color: #ffd36b;
+}
+
+@media (max-width: 900px), (max-height: 520px) {
+  .zk-encounter {
+    width: 96vw;
+    max-height: 94vh;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .zk-encounter-robot {
+    width: 150px;
+    min-width: 150px;
+  }
+
+  .zk-encounter-robot img,
+  .zk-encounter.large .zk-encounter-robot img {
+    width: 110px;
+  }
+
+  .zk-encounter-info h2 {
+    margin-bottom: 9px;
+    font-size: 25px;
+  }
+
+  .zk-encounter-row.scan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .zk-encounter-capability,
+  .zk-encounter-access,
+  .zk-encounter-boss-protocol {
+    padding: 7px 9px;
+  }
+
+  .zk-encounter-capability p,
+  .zk-encounter-access p,
+  .zk-encounter-boss-protocol p,
+  .zk-encounter-role span {
+    font-size: 11px;
+  }
+}
