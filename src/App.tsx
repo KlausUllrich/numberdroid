@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BODIES, STARTING_HP } from "./game/catalog";
-import { loadMetaState, restartFloorState, saveMetaState } from "./game/save";
+import { getFloor, getPreviewFloorId } from "./game/floors";
+import { createFloorState, loadMetaState, restartFloorState, saveMetaState } from "./game/save";
 import { useAppFullscreen } from "./game/useFullscreen";
 import type { BattleResult, EncounterConfig, GameScreen, MetaState } from "./game/types";
 import { DestroyedScreen } from "./game/DestroyedScreen";
@@ -10,7 +11,11 @@ import { NumberDuel } from "./duel/NumberDuel";
 import { TransferScreen } from "./transfer/TransferScreen";
 
 export default function App() {
-  const [meta, setMeta] = useState<MetaState>(() => loadMetaState());
+  const previewFloorId = getPreviewFloorId();
+  const [meta, setMeta] = useState<MetaState>(() => {
+    const saved = loadMetaState();
+    return previewFloorId ? createFloorState(getFloor(previewFloorId), saved.playerCount) : saved;
+  });
   const [screen, setScreen] = useState<GameScreen>(() => meta.damageTaken >= STARTING_HP ? "destroyed" : "deck");
   const [encounter, setEncounter] = useState<EncounterConfig | null>(null);
   const [transfer, setTransfer] = useState<{ encounter: EncounterConfig; oldBodyId: MetaState["currentBody"] } | null>(null);
@@ -20,9 +25,10 @@ export default function App() {
   const remainingHp = Math.max(0, STARTING_HP - meta.damageTaken);
 
   useEffect(() => {
+    if (previewFloorId) return;
     const timer = window.setTimeout(() => saveMetaState(meta), 220);
     return () => window.clearTimeout(timer);
-  }, [meta]);
+  }, [meta, previewFloorId]);
 
   function rotatePilot(state: MetaState) {
     if (state.playerCount <= 1) return state;
