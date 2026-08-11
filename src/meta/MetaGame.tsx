@@ -8,7 +8,11 @@ import { FloorVisual } from "./FloorVisual";
 import { blockedByClosedDoor, nextAutomaticDoorIds, sameDoorSet } from "./doorRuntime";
 import "./MetaGameMotion.css";
 
-type Nearby = { type: "station"; id: string } | { type: "enemy"; id: string } | null;
+type Nearby =
+  | { type: "station"; id: string }
+  | { type: "pickup"; id: string }
+  | { type: "enemy"; id: string }
+  | null;
 type PlayerStyle = CSSProperties & { "--player-x": string; "--player-y": string; "--facing": string };
 
 type Props = {
@@ -36,6 +40,15 @@ function nearestInteractable(meta: MetaState): Nearby {
     const d = distance(meta.x, meta.y, station.x, station.y);
     if (d < 105 && d < bestDistance) {
       best = { type: "station", id: station.id };
+      bestDistance = d;
+    }
+  }
+
+  for (const pickup of floor.pickups) {
+    if (meta.collectedPickupIds.includes(pickup.id)) continue;
+    const d = distance(meta.x, meta.y, pickup.x, pickup.y);
+    if (d < 100 && d < bestDistance) {
+      best = { type: "pickup", id: pickup.id };
       bestDistance = d;
     }
   }
@@ -74,6 +87,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   const floor = getFloor(meta.floorId);
   const nearby = useMemo(() => nearestInteractable(meta), [meta]);
   const nearbyStation = nearby?.type === "station" ? floor.energyStations.find((station) => station.id === nearby.id) : null;
+  const nearbyPickup = nearby?.type === "pickup" ? floor.pickups.find((pickup) => pickup.id === nearby.id) : null;
   const nearbyEncounter = nearby?.type === "enemy" ? floor.encounters.find((encounter) => encounter.encounterId === nearby.id) : null;
 
   function syncMeta(next: MetaState, force = false) {
@@ -179,6 +193,20 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
       latestMetaRef.current = next;
       syncMeta(next, true);
       showToast(`ENERGIEZELLE GELADEN · ⚡ ${next.metaEnergy}/${MAX_META_ENERGY}`);
+      return;
+    }
+
+    if (nearby.type === "pickup") {
+      const pickup = floor.pickups.find((entry) => entry.id === nearby.id);
+      if (!pickup || current.collectedPickupIds.includes(pickup.id)) return;
+      const next = {
+        ...current,
+        collectedPickupIds: [...current.collectedPickupIds, pickup.id],
+      };
+      latestMetaRef.current = next;
+      updateAutomaticDoors(next);
+      syncMeta(next, true);
+      showToast(`${pickup.label} GESICHERT`);
       return;
     }
 
@@ -316,6 +344,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     ? goalComplete ? floor.goal.completedLabel : floor.goal.label
     : meta.usedStationIds.length > 0 ? floor.objectives.afterEnergy : floor.objectives.default;
   const activeEncounters = floor.encounters.filter((encounter) => !meta.defeatedEncounterIds.includes(encounter.encounterId));
+  const activePickups = floor.pickups.filter((pickup) => !meta.collectedPickupIds.includes(pickup.id));
   const pose = latestMetaRef.current;
   const initialPlayerStyle: PlayerStyle = {
     "--player-x": `${pose.x}px`,
@@ -350,7 +379,14 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
           style={{ width: floor.width, height: floor.height }}
         >
           <FloorVisual floor={floor} />
-          <DoorLayer floor={floor} openDoorIds={openDoorIds} />
+          <DoorLayer floor={floor} openDoorIds={openDoorIds} collectedPickupIds={meta.collectedPickupIds} />
+
+          {activePickups.map((pickup) => (
+            <div key={pickup.id} className="zk-entity pickup" style={{ left: pickup.x, top: pickup.y }}>
+              <span className="zk-keycard" aria-hidden="true"><b>ACCESS</b><i /></span>
+              <span className="tag">{pickup.label}</span>
+            </div>
+          ))}
 
           {floor.energyStations.map((station) => {
             const used = meta.usedStationIds.includes(station.id);
@@ -364,7 +400,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
           {activeEncounters.map((enemy) => (
             <button
               key={enemy.encounterId}
-              className={`zk-entity enemy ${enemy.enemyId === "kronos" ? "kronos" : ""} ${enemy.boss ? "boss" : ""}`}
+              className={`zk-entity enemy ${enemy.enemyId === "kronos" ? "kronos" : ""} ${enemy.boss ? "boss" : ""} ${enemy.deckSize === "large" ? "large" : "standard"}`}
               style={{ left: enemy.x, top: enemy.y, border: 0, background: "transparent" }}
               onClick={() => tryOpenEncounter(enemy)}
               aria-label={`${enemy.name}, ${enemy.boss ? "Endgegner, " : ""}${enemy.difficultyLabel}`}
@@ -394,6 +430,8 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
             <>INTERAGIEREN<small>Fahre näher heran</small></>
           ) : nearby.type === "station" && nearbyStation ? (
             <>ENERGIE AUFLADEN<small>+{nearbyStation.energy} Meta-Energie</small></>
+          ) : nearby.type === "pickup" && nearbyPickup ? (
+            <>ZUGANGSKARTE NEHMEN<small>{nearbyPickup.label}</small></>
           ) : nearbyEncounter ? (
             <>DROID SCANNEN<small>{nearbyEncounter.name} · {nearbyEncounter.difficultyLabel}</small></>
           ) : (
