@@ -1,6 +1,6 @@
 import type { TiledMapJson } from "../tiled";
 
-const COLUMNS = 52;
+const COLUMNS = 68;
 const ROWS = 20;
 const TILE = 64;
 
@@ -35,6 +35,8 @@ const ROOMS: TileRect[] = [
   { name: "navigation", x: 42, y: 2, w: 6, h: 6 },
   { name: "storage-east", x: 42, y: 12, w: 6, h: 6 },
   { name: "bridge", x: 48, y: 8, w: 4, h: 4 },
+  { name: "command-gallery", x: 55, y: 6, w: 6, h: 8 },
+  { name: "deck-control", x: 64, y: 8, w: 4, h: 4 },
 ];
 
 const ROOM_COPY: Record<string, { label: string; subtitle: string }> = {
@@ -46,7 +48,9 @@ const ROOM_COPY: Record<string, { label: string; subtitle: string }> = {
   "machine-room": { label: "MASCHINENKERN", subtitle: "SCHWERTECHNIK · VERSORGUNG" },
   navigation: { label: "NAVIGATION", subtitle: "KOMMANDOZUGANG" },
   "storage-east": { label: "VERSORGUNGSLAGER", subtitle: "OSTSEKTION" },
-  bridge: { label: "BRÜCKE B2", subtitle: "HAUPTKONSOLE · KOMMANDO" },
+  bridge: { label: "BRÜCKE B2", subtitle: "KOMMANDANT · COMMAND LOCK" },
+  "command-gallery": { label: "KOMMANDOGALERIE", subtitle: "SCHWERKÖRPER-KORRIDOR · DECKKONTROLLE" },
+  "deck-control": { label: "DECKKONTROLLE", subtitle: "HAUPTKONSOLE B2" },
 };
 
 const CORRIDORS: TileRect[] = [
@@ -56,6 +60,8 @@ const CORRIDORS: TileRect[] = [
   { name: "main-east", x: 31, y: 9, w: 16, h: 2 },
   { name: "lab-drop", x: 36, y: 8, w: 2, h: 1 },
   { name: "machine-rise", x: 36, y: 11, w: 2, h: 1 },
+  { name: "bridge-command", x: 52, y: 9, w: 3, h: 2 },
+  { name: "command-control", x: 61, y: 9, w: 3, h: 2 },
 ];
 
 const DOORWAYS: DoorTile[] = [
@@ -336,12 +342,12 @@ const encounters = [
     {
       boss: true,
       duelLayers: 2,
-      storyIntro: "KRONOS-9 ist kein normaler Transfergegner. Zwei Reaktor-Firewalls schützen seinen Kommandokern. Ressourcen, Körperfähigkeit und Meta-Energie müssen für beide Schichten reichen.",
+      storyIntro: "KRONOS-9 ist kein normaler Transfergegner. Zwei aktive Reaktor-Firewalls schützen seinen Kommandokern. Ressourcen, Körperfähigkeit und Meta-Energie müssen für beide Schichten reichen.",
     },
   ),
 ];
 
-const actions = [action(500, "b2-main-console", 3260, 700)];
+const actions = [action(500, "b2-main-console", 4250, 640)];
 
 export const DECK_VS2_MAP: TiledMapJson = {
   orientation: "orthogonal",
@@ -358,7 +364,7 @@ export const DECK_VS2_MAP: TiledMapJson = {
     prop("objectiveAfterEnergy", "ENERGIE GESICHERT · FINDE DIE SECURITY-FREIGABEN · DRINGE ZUR BRÜCKE VOR", "string"),
     prop("goalActionId", "b2-main-console", "string"),
     prop("goalLabel", "ZIEL: DURCHBRICH DEN LOCKDOWN · BESIEGE KRONOS-9", "string"),
-    prop("goalReadyLabel", "KRONOS BESIEGT · FAHRE ZUR HAUPTKONSOLE UND ÜBERNIMM DECK B2", "string"),
+    prop("goalReadyLabel", "KRONOS BESIEGT · DURCHQUERE DIE KOMMANDOGALERIE · ÜBERNIMM DECK B2", "string"),
     prop("goalCompletedLabel", "DECK B2 ÜBERNOMMEN · EBENE GESICHERT", "string"),
   ],
   tilesets: [
