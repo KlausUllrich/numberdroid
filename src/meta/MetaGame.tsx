@@ -5,6 +5,7 @@ import { pointWalkable } from "../game/save";
 import type { EncounterConfig, MetaState } from "../game/types";
 import { DoorLayer } from "./DoorLayer";
 import { FloorVisual } from "./FloorVisual";
+import { HostileLayer } from "./HostileLayer";
 import { blockedByClosedDoor, nextAutomaticDoorIds, sameDoorSet } from "./doorRuntime";
 import "./MetaGameMotion.css";
 
@@ -84,7 +85,7 @@ function nearestInteractable(meta: MetaState): Nearby {
   }
 
   for (const encounter of floor.encounters) {
-    if (meta.defeatedEncounterIds.includes(encounter.encounterId)) continue;
+    if (encounter.behavior || meta.defeatedEncounterIds.includes(encounter.encounterId)) continue;
     const d = distance(meta.x, meta.y, encounter.x, encounter.y);
     if (d < 112 && d < bestDistance) {
       best = { type: "enemy", id: encounter.encounterId };
@@ -278,6 +279,16 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     onEncounter(enemy);
   }
 
+  function interceptEncounter(enemy: EncounterConfig) {
+    if (pausedRef.current) return;
+    touchRef.current.active = false;
+    speedRef.current = 0;
+    wasMovingRef.current = false;
+    setTouchMarker(null);
+    syncMeta(latestMetaRef.current, true);
+    onEncounter(enemy);
+  }
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "KeyW", "KeyA", "KeyS", "KeyD"].includes(event.code)) {
@@ -429,7 +440,6 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     const ready = Boolean(goalAction && (!goalAction.requiresEncounterId || meta.defeatedEncounterIds.includes(goalAction.requiresEncounterId)));
     objective = complete ? goal.completedLabel : ready ? goal.readyLabel : goal.label;
   }
-  const activeEncounters = floor.encounters.filter((encounter) => !meta.defeatedEncounterIds.includes(encounter.encounterId));
   const activePickups = floor.pickups.filter((pickup) => !meta.collectedPickupIds.includes(pickup.id));
   const pose = latestMetaRef.current;
   const initialPlayerStyle: PlayerStyle = {
@@ -501,20 +511,16 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
             );
           })}
 
-          {activeEncounters.map((enemy) => (
-            <button
-              key={enemy.encounterId}
-              className={`zk-entity enemy ${enemy.enemyId === "kronos" ? "kronos" : ""} ${enemy.boss ? "boss" : ""} ${enemy.deckSize === "large" ? "large" : "standard"}`}
-              style={{ left: enemy.x, top: enemy.y, border: 0, background: "transparent" }}
-              onClick={() => tryOpenEncounter(enemy)}
-              aria-label={`${enemy.name}, ${enemy.boss ? "Endgegner, " : ""}${enemy.difficultyLabel}`}
-            >
-              <img src={BODIES[enemy.bodyId].sprite} alt="" />
-              <span className="tag">{enemy.name}</span>
-              {enemy.accessKey && <span className="zk-enemy-key" aria-label={`Trägt ${enemy.accessKey.label}`}>▣</span>}
-              <span className="level" aria-hidden="true">{[0, 1, 2].map((i) => <i key={i} className={i >= (enemy.difficulty === "easy" ? 1 : enemy.difficulty === "medium" ? 2 : 3) ? "off" : ""} />)}</span>
-            </button>
-          ))}
+          <HostileLayer
+            floor={floor}
+            defeatedEncounterIds={meta.defeatedEncounterIds}
+            playerMetaRef={latestMetaRef}
+            openDoorIdsRef={openDoorIdsRef}
+            pausedRef={pausedRef}
+            onIntercept={interceptEncounter}
+            onManualEncounter={tryOpenEncounter}
+            onAlert={(enemy) => showToast(`${enemy.name} HAT DICH ENTDECKT!`)}
+          />
 
           <div ref={playerRef} className={`zk-player ${meta.currentDeckSize}`} style={initialPlayerStyle}>
             <span className="zk-player-name">{body.name}</span>
@@ -533,7 +539,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         <div className="zk-touch-hint">TOUCH HALTEN → ROBOTER FÄHRT IN DIESE RICHTUNG · DESKTOP: WASD / PFEILE</div>
         <button className="zk-interact" disabled={!nearby} onClick={interact}>
           {!nearby ? (
-            <>INTERAGIEREN<small>Fahre näher heran</small></>
+            <>INTERAGIEREN<small>Hostile Droiden fangen dich automatisch ab</small></>
           ) : nearby.type === "station" && nearbyStation ? (
             <>ENERGIE AUFLADEN<small>+{nearbyStation.energy} Meta-Energie</small></>
           ) : nearby.type === "pickup" && nearbyPickup ? (
