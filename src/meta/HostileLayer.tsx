@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef, type CSSProperties, type MutableRefObject } from "react";
 import { BODIES, robotCollisionRadius } from "../game/catalog";
 import { pointWalkable } from "../game/save";
-import type { EncounterConfig, FloorDefinition, MetaState } from "../game/types";
+import type { EncounterBehaviorKind, EncounterConfig, FloorDefinition, MetaState } from "../game/types";
 import { blockedByClosedDoor } from "./doorRuntime";
 import "./HostileLayer.css";
 
@@ -17,7 +17,15 @@ type EnemyRuntime = {
   facing: number;
   pathIndex: number;
   chasing: boolean;
+  returning: boolean;
   armed: boolean;
+};
+
+export type EncounterRuntimePose = {
+  x: number;
+  y: number;
+  radius: number;
+  behaviorKind: EncounterBehaviorKind | "legacy";
 };
 
 type Props = {
@@ -26,9 +34,11 @@ type Props = {
   playerMetaRef: MutableRefObject<MetaState>;
   openDoorIdsRef: MutableRefObject<Set<string>>;
   pausedRef: MutableRefObject<boolean>;
+  runtimePosesRef: MutableRefObject<Map<string, EncounterRuntimePose>>;
   onIntercept: (enemy: EncounterConfig) => void;
   onManualEncounter: (enemy: EncounterConfig) => void;
   onAlert: (enemy: EncounterConfig) => void;
+  onNearbyNeutralChange: (encounterId: string | null) => void;
 };
 
 function distance(ax: number, ay: number, bx: number, by: number) {
@@ -51,18 +61,25 @@ function HostileLayerComponent({
   playerMetaRef,
   openDoorIdsRef,
   pausedRef,
+  runtimePosesRef,
   onIntercept,
   onManualEncounter,
   onAlert,
+  onNearbyNeutralChange,
 }: Props) {
   const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
   const runtimeRef = useRef(new Map<string, EnemyRuntime>());
-  const callbacksRef = useRef({ onIntercept, onManualEncounter, onAlert });
-  callbacksRef.current = { onIntercept, onManualEncounter, onAlert };
+  const callbacksRef = useRef({ onIntercept, onManualEncounter, onAlert, onNearbyNeutralChange });
+  callbacksRef.current = { onIntercept, onManualEncounter, onAlert, onNearbyNeutralChange };
   const encounterOpeningRef = useRef(false);
   const wasPausedRef = useRef(pausedRef.current);
+  const nearbyNeutralRef = useRef<string | null>(null);
 
   const activeEncounters = floor.encounters.filter((encounter) => !defeatedEncounterIds.includes(encounter.encounterId));
+
+  function contactDistance(enemy: EncounterConfig) {
+    return robotCollisionRadius(enemy.deckSize ?? "standard") + robotCollisionRadius(playerMetaRef.current.currentDeckSize) + 6;
+  }
 
   function runtimeFor(enemy: EncounterConfig) {
     let runtime = runtimeRef.current.get(enemy.encounterId);
@@ -74,22 +91,44 @@ function HostileLayerComponent({
         facing: 0,
         pathIndex: 0,
         chasing: false,
+        returning: false,
         armed: neutral
           ? false
-          : !enemy.behavior || distance(enemy.x, enemy.y, playerMetaRef.current.x, playerMetaRef.current.y) > enemy.behavior.interceptRadius,
+          : distance(enemy.x, enemy.y, playerMetaRef.current.x, playerMetaRef.current.y) > contactDistance(enemy) + 28,
       };
       runtimeRef.current.set(enemy.encounterId, runtime);
     }
     return runtime;
   }
 
+  function syncRuntimePose(enemy: EncounterConfig, runtime: EnemyRuntime) {
+    runtimePosesRef.current.set(enemy.encounterId, {
+      x: runtime.x,
+      y: runtime.y,
+      radius: robotCollisionRadius(enemy.deckSize ?? "standard"),
+      behaviorKind: enemy.behavior?.kind ?? "legacy",
+    });
+  }
+
   function applyNode(enemy: EncounterConfig, runtime: EnemyRuntime) {
+    syncRuntimePose(enemy, runtime);
     const node = nodeRefs.current.get(enemy.encounterId);
     if (!node) return;
     node.style.setProperty("--enemy-x", `${runtime.x}px`);
     node.style.setProperty("--enemy-y", `${runtime.y}px`);
     node.style.setProperty("--enemy-facing", `${runtime.facing}deg`);
     node.classList.toggle("alerted", runtime.chasing);
+    node.classList.toggle("returning", runtime.returning);
+  }
+
+  function canOccupy(enemy: EncounterConfig, x: number, y: number) {
+    const radius = robotCollisionRadius(enemy.deckSize ?? "standard");
+    if (!pointWalkable(x, y, floor.id, radius)) return false;
+    if (blockedByClosedDoor(floor, openDoorIdsRef.current, x, y, radius)) return false;
+
+    const player = playerMetaRef.current;
+    const playerRadius = robotCollisionRadius(player.currentDeckSize);
+    return distance(x, y, player.x, player.y) >= radius + playerRadius + 2;
   }
 
   function moveToward(enemy: EncounterConfig, runtime: EnemyRuntime, targetX: number, targetY: number, speed: number, dt: number) {
@@ -101,20 +140,13 @@ function HostileLayerComponent({
     const step = Math.min(length, speed * dt);
     const moveX = dx / length * step;
     const moveY = dy / length * step;
-    const radius = robotCollisionRadius(enemy.deckSize ?? "standard");
     let x = runtime.x;
     let y = runtime.y;
     const nx = x + moveX;
     const ny = y + moveY;
 
-    if (
-      pointWalkable(nx, y, floor.id, radius)
-      && !blockedByClosedDoor(floor, openDoorIdsRef.current, nx, y, radius)
-    ) x = nx;
-    if (
-      pointWalkable(x, ny, floor.id, radius)
-      && !blockedByClosedDoor(floor, openDoorIdsRef.current, x, ny, radius)
-    ) y = ny;
+    if (canOccupy(enemy, nx, y)) x = nx;
+    if (canOccupy(enemy, x, ny)) y = ny;
 
     runtime.x = x;
     runtime.y = y;
@@ -124,7 +156,10 @@ function HostileLayerComponent({
 
   useEffect(() => {
     runtimeRef.current = new Map();
+    runtimePosesRef.current.clear();
     encounterOpeningRef.current = false;
+    nearbyNeutralRef.current = null;
+    callbacksRef.current.onNearbyNeutralChange(null);
     let frameId = 0;
     let lastFrame = performance.now();
 
@@ -145,13 +180,45 @@ function HostileLayerComponent({
       }
 
       const player = playerMetaRef.current;
+      const playerRadius = robotCollisionRadius(player.currentDeckSize);
+      let nearestNeutralId: string | null = null;
+      let nearestNeutralDistance = Infinity;
+
       for (const enemy of activeEncounters) {
         const behavior = enemy.behavior;
-        if (!behavior) continue;
         const runtime = runtimeFor(enemy);
-        let playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
+        if (!behavior) {
+          applyNode(enemy, runtime);
+          continue;
+        }
 
-        if (behavior.kind === "aggressive") {
+        let playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
+        const homePlayerDistance = distance(enemy.x, enemy.y, player.x, player.y);
+
+        if (behavior.kind === "guard") {
+          if (runtime.returning) {
+            runtime.chasing = false;
+            if (moveToward(enemy, runtime, enemy.x, enemy.y, Math.max(48, behavior.chaseSpeed * 0.72), dt)) {
+              runtime.returning = false;
+              runtime.facing = 0;
+            }
+          } else {
+            if (!runtime.chasing && homePlayerDistance <= behavior.detectionRadius) {
+              runtime.chasing = true;
+              callbacksRef.current.onAlert(enemy);
+            }
+
+            if (runtime.chasing) {
+              if (homePlayerDistance > behavior.loseRadius) {
+                runtime.chasing = false;
+                runtime.returning = true;
+              } else {
+                moveToward(enemy, runtime, player.x, player.y, behavior.chaseSpeed, dt);
+              }
+            }
+          }
+          playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
+        } else if (behavior.kind === "aggressive") {
           if (!runtime.chasing && playerDistance <= behavior.detectionRadius) {
             runtime.chasing = true;
             callbacksRef.current.onAlert(enemy);
@@ -171,24 +238,37 @@ function HostileLayerComponent({
           playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
         }
 
-        if (behavior.kind !== "neutral") {
-          if (!runtime.armed) {
-            if (playerDistance > behavior.interceptRadius + 82) runtime.armed = true;
-          } else if (!encounterOpeningRef.current && playerDistance <= behavior.interceptRadius) {
-            runtime.armed = false;
-            encounterOpeningRef.current = true;
-            callbacksRef.current.onIntercept(enemy);
+        const contact = robotCollisionRadius(enemy.deckSize ?? "standard") + playerRadius + 6;
+        if (behavior.kind === "neutral") {
+          const interactionDistance = contact + 68;
+          if (playerDistance <= interactionDistance && playerDistance < nearestNeutralDistance) {
+            nearestNeutralId = enemy.encounterId;
+            nearestNeutralDistance = playerDistance;
           }
+        } else if (!runtime.armed) {
+          if (playerDistance > contact + 46) runtime.armed = true;
+        } else if (!encounterOpeningRef.current && playerDistance <= contact) {
+          runtime.armed = false;
+          encounterOpeningRef.current = true;
+          callbacksRef.current.onIntercept({ ...enemy, x: runtime.x, y: runtime.y });
         }
 
         applyNode(enemy, runtime);
+      }
+
+      if (nearestNeutralId !== nearbyNeutralRef.current) {
+        nearbyNeutralRef.current = nearestNeutralId;
+        callbacksRef.current.onNearbyNeutralChange(nearestNeutralId);
       }
 
       frameId = requestAnimationFrame(frame);
     }
 
     frameId = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(frameId);
+    return () => {
+      cancelAnimationFrame(frameId);
+      runtimePosesRef.current.clear();
+    };
     // Runtime intentionally keys off authored floor/encounter data, not player React state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [floor.id, defeatedEncounterIds]);
@@ -221,7 +301,7 @@ function HostileLayerComponent({
             <img src={BODIES[enemy.bodyId].sprite} alt="" />
             <span className="tag">{enemy.name}</span>
             {enemy.accessKey && <span className="zk-enemy-key" aria-label={`Trägt ${enemy.accessKey.label}`}>▣</span>}
-            {behavior && <span className="hostile-mode" aria-hidden="true">{behavior.kind === "neutral" ? "⚙" : behavior.kind === "aggressive" ? "!" : behavior.kind === "patrol" ? "↔" : "◆"}</span>}
+            {behavior && <span className="hostile-mode" aria-hidden="true">{behavior.kind === "neutral" ? "⚙" : runtime.returning ? "↩" : behavior.kind === "aggressive" ? "!" : behavior.kind === "patrol" ? "↔" : "◆"}</span>}
             <span className="level" aria-hidden="true">{[0, 1, 2].map((i) => <i key={i} className={i >= (enemy.difficulty === "easy" ? 1 : enemy.difficulty === "medium" ? 2 : 3) ? "off" : ""} />)}</span>
           </button>
         );
@@ -236,4 +316,5 @@ export const HostileLayer = memo(HostileLayerComponent, (previous, next) => (
   && previous.playerMetaRef === next.playerMetaRef
   && previous.openDoorIdsRef === next.openDoorIdsRef
   && previous.pausedRef === next.pausedRef
+  && previous.runtimePosesRef === next.runtimePosesRef
 ));
