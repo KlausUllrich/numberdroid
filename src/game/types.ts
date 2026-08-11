@@ -4,6 +4,7 @@ export type MathMode = "add-easy" | "add-normal" | "add-hard" | "subtract";
 export type Difficulty = "easy" | "medium" | "hard";
 export type Operation = "add" | "subtract";
 export type GameScreen = "deck" | "encounter" | "duel" | "transfer" | "destroyed";
+export type RobotDeckSize = "standard" | "large";
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -32,6 +33,7 @@ export type EncounterConfig = {
   retreat: Point;
   boss?: boolean;
   storyIntro?: string;
+  deckSize?: RobotDeckSize;
 };
 
 export type EnergyStationDefinition = Point & {
@@ -40,11 +42,21 @@ export type EnergyStationDefinition = Point & {
   label: string;
 };
 
+export type PickupDefinition = Point & {
+  id: string;
+  kind: "access-key";
+  keyId: string;
+  label: string;
+};
+
 export type DoorDefinition = Rect & {
   id: string;
   orientation: "vertical" | "horizontal";
-  mode: "auto";
+  mode: "auto" | "locked";
+  size: "standard" | "large";
   openRadius: number;
+  keyId?: string;
+  label?: string;
 };
 
 export type ImageFloorVisualDefinition = {
@@ -112,6 +124,7 @@ export type FloorDefinition = {
   walkable: Rect[];
   obstacles: Rect[];
   doors: DoorDefinition[];
+  pickups: PickupDefinition[];
   energyStations: EnergyStationDefinition[];
   encounters: EncounterConfig[];
 };
@@ -124,6 +137,7 @@ export type MetaState = {
   facing: number;
   metaEnergy: number;
   usedStationIds: string[];
+  collectedPickupIds: string[];
   currentBody: BodyId;
   defeatedEncounterIds: string[];
   pilotIndex: number;
