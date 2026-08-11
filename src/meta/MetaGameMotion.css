@@ -13,9 +13,63 @@
   backface-visibility: hidden;
 }
 
+/* A normal deck robot should read as smaller than one 64 px tile/door aperture. */
+.zk-meta-world .zk-player img {
+  width: 52px;
+  height: 52px;
+}
+
+.zk-meta-world .zk-entity.enemy.standard img {
+  width: 50px;
+  height: 50px;
+}
+
+.zk-meta-world .zk-entity.enemy.large img {
+  width: 96px;
+  height: 96px;
+}
+
 .zk-tilemap,
 .zk-tilemap-layer {
   contain: layout style paint;
+}
+
+.zk-entity.pickup {
+  z-index: 14;
+}
+
+.zk-keycard {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 28px;
+  border: 2px solid #65d9d0;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #153f49, #071a20 68%);
+  box-shadow: 0 0 13px #42e0d066;
+  color: #bffcf5;
+  transform: rotate(-7deg);
+}
+
+.zk-keycard b {
+  font-size: 7px;
+  letter-spacing: .09em;
+}
+
+.zk-keycard i {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  width: 8px;
+  height: 5px;
+  border-radius: 1px;
+  background: #efc85b;
+}
+
+.zk-entity.pickup .tag {
+  top: calc(100% + 5px);
+  color: #9ff4ec;
+  border-color: #328d87;
 }
 
 .zk-zoom-toggle {
@@ -47,8 +101,6 @@
 }
 
 .zk-entity.enemy.boss img {
-  width: 88px;
-  height: 88px;
   filter: drop-shadow(0 0 15px #ff6d45) drop-shadow(0 0 28px #b20f0f) sepia(.25) saturate(2.4) hue-rotate(310deg);
 }
 
