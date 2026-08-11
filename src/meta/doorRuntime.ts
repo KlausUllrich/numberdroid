@@ -24,25 +24,21 @@ export function collisionRectForDoor(door: DoorDefinition): Rect {
 }
 
 export function hasDoorAccess(
-  floor: FloorDefinition,
-  state: Pick<MetaState, "collectedPickupIds">,
+  state: Pick<MetaState, "accessKeyIds">,
   door: DoorDefinition,
 ) {
   if (door.mode === "auto") return true;
-  if (!door.keyId) return false;
-  return floor.pickups.some(
-    (pickup) => pickup.keyId === door.keyId && state.collectedPickupIds.includes(pickup.id),
-  );
+  return Boolean(door.keyId && state.accessKeyIds.includes(door.keyId));
 }
 
 export function nextAutomaticDoorIds(
   floor: FloorDefinition,
-  state: Pick<MetaState, "x" | "y" | "collectedPickupIds">,
+  state: Pick<MetaState, "x" | "y" | "accessKeyIds">,
   currentlyOpen: ReadonlySet<string>,
 ): Set<string> {
   const next = new Set<string>();
   for (const door of floor.doors) {
-    if (!hasDoorAccess(floor, state, door)) continue;
+    if (!hasDoorAccess(state, door)) continue;
     const center = doorCenter(door);
     const radius = door.openRadius + (currentlyOpen.has(door.id) ? DOOR_CLOSE_HYSTERESIS : 0);
     if (Math.hypot(state.x - center.x, state.y - center.y) <= radius) next.add(door.id);
