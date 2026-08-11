@@ -3,6 +3,7 @@ import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP } from "../game/cata
 import { getFloor } from "../game/floors";
 import { pointWalkable } from "../game/save";
 import type { EncounterConfig, MetaState } from "../game/types";
+import { FloorVisual } from "./FloorVisual";
 
 type Nearby = { type: "station"; id: string } | { type: "enemy"; id: string } | null;
 
@@ -247,7 +248,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
           className="zk-meta-world"
           style={{ width: floor.width, height: floor.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}
         >
-          <img className="zk-deck-art" alt="" src={floor.backgroundAsset} style={{ width: floor.width, height: floor.height }} />
+          <FloorVisual floor={floor} />
 
           {floor.energyStations.map((station) => {
             const used = meta.usedStationIds.includes(station.id);
