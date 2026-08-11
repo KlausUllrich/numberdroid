@@ -5,7 +5,7 @@ export type Difficulty = "easy" | "medium" | "hard";
 export type Operation = "add" | "subtract";
 export type GameScreen = "deck" | "encounter" | "duel" | "transfer" | "destroyed";
 export type RobotDeckSize = "standard" | "large";
-export type EncounterBehaviorKind = "guard" | "patrol" | "aggressive";
+export type EncounterBehaviorKind = "neutral" | "guard" | "patrol" | "aggressive";
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
