@@ -1,0 +1,112 @@
+.zk-meta-world .zk-hostile {
+  left: 0 !important;
+  top: 0 !important;
+  transform: translate3d(var(--enemy-x), var(--enemy-y), 0) translate(-50%, -50%) !important;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.zk-meta-world .zk-hostile > img {
+  transform: rotate(var(--enemy-facing));
+  transition: filter 120ms linear;
+}
+
+.zk-hostile .hostile-mode {
+  position: absolute;
+  left: -11px;
+  top: -13px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #7f6c38;
+  border-radius: 50%;
+  background: #17140cdd;
+  color: #e9c963;
+  font-size: 10px;
+  font-weight: 950;
+  box-shadow: 0 0 8px #cda63d44;
+  pointer-events: none;
+}
+
+.zk-hostile.behavior-patrol .hostile-mode {
+  border-color: #4a9c91;
+  background: #06221fdd;
+  color: #87e5d5;
+}
+
+.zk-hostile.behavior-aggressive .hostile-mode {
+  border-color: #d34d43;
+  background: #35100fdd;
+  color: #ff756b;
+}
+
+.zk-hostile.behavior-aggressive::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: 118px;
+  height: 118px;
+  border: 1px dashed #a13b3555;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: .28;
+  pointer-events: none;
+}
+
+.zk-hostile.alerted::before {
+  border: 2px solid #ff4a3f;
+  opacity: .8;
+  animation: hostile-alert-ring 760ms ease-out infinite;
+}
+
+.zk-hostile.alerted .hostile-mode {
+  color: #fff;
+  background: #9d1f19;
+  box-shadow: 0 0 14px #ff3b31aa;
+  animation: hostile-alert-badge 420ms ease-in-out infinite alternate;
+}
+
+.zk-hostile.alerted .tag {
+  border-color: #ef5148;
+  color: #ffd2ce;
+  background: #35100fec;
+}
+
+.zk-hostile.alerted > img {
+  filter: drop-shadow(0 0 12px #ff342f) drop-shadow(0 0 20px #ff342f88) sepia(.2) saturate(2.5) hue-rotate(310deg) !important;
+}
+
+@keyframes hostile-alert-ring {
+  from { transform: translate(-50%, -50%) scale(.68); opacity: .9; }
+  to { transform: translate(-50%, -50%) scale(1.18); opacity: 0; }
+}
+
+@keyframes hostile-alert-badge {
+  from { transform: scale(.92); }
+  to { transform: scale(1.12); }
+}
+
+@media (max-width: 900px), (max-height: 520px) {
+  .zk-hostile .hostile-mode {
+    left: -8px;
+    top: -10px;
+    width: 16px;
+    height: 16px;
+    font-size: 8px;
+  }
+
+  .zk-hostile.behavior-aggressive::before {
+    width: 92px;
+    height: 92px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zk-hostile.alerted::before,
+  .zk-hostile.alerted .hostile-mode {
+    animation-duration: 1ms;
+  }
+}
