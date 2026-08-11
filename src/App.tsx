@@ -142,6 +142,7 @@ export default function App() {
           newBody={BODIES[transfer.encounter.bodyId]}
           oldDeckSize={meta.currentDeckSize}
           newDeckSize={transfer.encounter.deckSize ?? "standard"}
+          accessKey={transfer.encounter.accessKey}
           onComplete={finishTransfer}
         />
       )}
