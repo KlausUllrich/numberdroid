@@ -51,6 +51,16 @@ export function pointWalkable(x: number, y: number, floorId = CURRENT_FLOOR.id) 
   return onFloor && !blocked;
 }
 
+function inferDefeatedEncounterFromOwnedBody(state: MetaState, floor: FloorDefinition) {
+  if (state.currentBody === floor.start.bodyId) return;
+  const matchingEncounters = floor.encounters.filter((encounter) => encounter.bodyId === state.currentBody);
+  if (matchingEncounters.length !== 1) return;
+  const encounterId = matchingEncounters[0].encounterId;
+  if (!state.defeatedEncounterIds.includes(encounterId)) {
+    state.defeatedEncounterIds = [...state.defeatedEncounterIds, encounterId];
+  }
+}
+
 function sanitize(candidate: Partial<MetaState>): MetaState {
   const floor = getFloor(typeof candidate.floorId === "string" ? candidate.floorId : CURRENT_FLOOR.id);
   const defaults = initialStateForFloor(floor);
@@ -74,6 +84,11 @@ function sanitize(candidate: Partial<MetaState>): MetaState {
   state.defeatedEncounterIds = Array.isArray(state.defeatedEncounterIds)
     ? [...new Set(state.defeatedEncounterIds.filter((id) => typeof id === "string" && validEncounterIds.has(id)))]
     : [];
+
+  // On the current single-instance A7 floor a non-starter body can only have been
+  // acquired by defeating its matching encounter. This also repairs early v2→v3
+  // migrations that may have lost the defeated marker while preserving the body.
+  inferDefeatedEncounterFromOwnedBody(state, floor);
 
   state.playerCount = Math.max(1, Math.min(4, Number.isFinite(state.playerCount) ? state.playerCount : defaults.playerCount));
   state.pilotIndex = Math.max(0, Number.isFinite(state.pilotIndex) ? state.pilotIndex : 0) % state.playerCount;
@@ -116,7 +131,7 @@ export function loadMetaState(): MetaState {
     if (raw) {
       const migrated = migrateV2(JSON.parse(raw) as MetaStateV2);
       saveMetaState(migrated);
-      localStorage.removeItem(META_KEY_V2);
+      // Keep the old v2 value as a migration fallback until v3 has had wider runtime validation.
       return migrated;
     }
   } catch { /* ignore damaged v2 data */ }

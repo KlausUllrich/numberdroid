@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BODIES, PLAYER_NAMES, STARTING_HP } from "../game/catalog";
 import type { BattleResult, EncounterConfig, RobotBody } from "../game/types";
 import {
   COLS, MODE_INFO, ROWS, TOTAL_CORES, WIN_CORES,
   canAppend, chooseAiPath, findCombinations, freshGrid,
   pathExpression, pathResult, resolveGrid, rewardForLength, shiftRow,
-  type Grid, type Pick, type Turn,
+  type Grid, type MotionStyle, type Pick, type Turn,
 } from "./duelEngine";
 import "./NumberDuel.css";
 
@@ -26,10 +26,13 @@ type ResultCard = {
   detail: string;
 };
 
+const FALL_ANIMATION_MS = 430;
+
 export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, initialMetaEnergy, onFinished }: Props) {
   const mode = encounter.mode;
   const config = MODE_INFO[mode];
   const enemyBody = BODIES[encounter.bodyId];
+  const gridRef = useRef<HTMLDivElement>(null);
   const [grid, setGrid] = useState<Grid>(() => freshGrid(mode));
   const [turn, setTurn] = useState<Turn>("human");
   const [playerIndex, setPlayerIndex] = useState(0);
@@ -42,6 +45,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(`Bilde eine Kette. Rechne selbst, ob sie ${config.target} ergibt.`);
   const [resultCard, setResultCard] = useState<ResultCard | null>(null);
+  const [fallOffsets, setFallOffsets] = useState<Record<number, number>>({});
 
   const activePath = turn === "human" ? selection : enemySelection;
   const activeBody = turn === "human" ? playerBody : enemyBody;
@@ -53,6 +57,32 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     }
     return set;
   }, [turn, special, busy, selection]);
+
+  function animateResolvedGrid(path: Pick[], onSettled: () => void) {
+    const resolution = resolveGrid(grid, path, mode);
+    const element = gridRef.current;
+    let rowStep = 72;
+    if (element) {
+      const rowGap = Number.parseFloat(window.getComputedStyle(element).rowGap) || 0;
+      const rowHeight = Math.max(1, (element.clientHeight - rowGap * (ROWS - 1)) / ROWS);
+      rowStep = rowHeight + rowGap;
+    }
+
+    const offsets: Record<number, number> = {};
+    for (const [id, rows] of Object.entries(resolution.fallRows)) {
+      if (rows > 0) offsets[Number(id)] = rows * rowStep;
+    }
+
+    setBusy(true);
+    setGrid(resolution.grid);
+    setFallOffsets(offsets);
+    setSelection([]);
+    setEnemySelection([]);
+    window.setTimeout(() => {
+      setFallOffsets({});
+      onSettled();
+    }, FALL_ANIMATION_MS);
+  }
 
   useEffect(() => {
     if (turn !== "enemy" || busy || resultCard) return;
@@ -71,11 +101,12 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
         const next = Math.max(0, teamCores - enemyReward.power);
         const loses = enemyReward.instant || next <= TOTAL_CORES - WIN_CORES;
         setTeamCores(loses ? 0 : next);
-        setGrid(resolveGrid(grid, path, mode).grid);
-        if (loses) {
-          setBusy(false);
-          setResultCard({ outcome: "loss", title: "REAKTOR VERLOREN", detail: `${encounter.name} übernimmt den Reaktor.` });
-        } else finishEnemyTurn();
+        animateResolvedGrid(path, () => {
+          if (loses) {
+            setBusy(false);
+            setResultCard({ outcome: "loss", title: "REAKTOR VERLOREN", detail: `${encounter.name} übernimmt den Reaktor.` });
+          } else finishEnemyTurn();
+        });
       }, 800);
     }, 700);
     return () => window.clearTimeout(timer);
@@ -164,14 +195,16 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     const next = Math.min(TOTAL_CORES, teamCores + gained.power);
     const wins = gained.instant || next >= WIN_CORES;
     setTeamCores(wins ? TOTAL_CORES : next);
-    setGrid(resolveGrid(grid, selection, mode).grid);
-    setSelection([]);
-    if (wins) {
-      setResultCard({ outcome: "win", title: "TRANSFER GEWONNEN", detail: `${encounter.name} wurde besiegt. Der Körpertransfer ist bereit.` });
-      return;
-    }
-    setTurn("enemy");
-    setMessage(`${encounter.name} ist dran.`);
+    animateResolvedGrid(selection, () => {
+      if (wins) {
+        setBusy(false);
+        setResultCard({ outcome: "win", title: "TRANSFER GEWONNEN", detail: `${encounter.name} wurde besiegt. Der Körpertransfer ist bereit.` });
+        return;
+      }
+      setTurn("enemy");
+      setBusy(false);
+      setMessage(`${encounter.name} ist dran.`);
+    });
   }
 
   function closeMistake() {
@@ -197,16 +230,19 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
 
         <section className="number-board-panel">
           <div className="turn-strip"><b>{turn === "enemy" ? "ROTE KETTE" : "GRÜNE KETTE"}</b><span>{message}</span></div>
-          <div className="number-grid">
+          <div ref={gridRef} className="number-grid">
             {grid.flatMap((row, r) => row.map((tile, c) => {
               const index = activePath.findIndex((pick) => pick.row === r && pick.col === c);
               const selected = index >= 0;
               const end = selected && index === activePath.length - 1;
               const next = nextOptions.has(`${r}:${c}`);
+              const fallY = fallOffsets[tile.id] ?? 0;
+              const motionStyle = fallY > 0 ? ({ "--fall-y": `-${fallY}px` } as MotionStyle) : undefined;
               return (
                 <button
                   key={tile.id}
-                  className={`${selected ? turn === "enemy" ? "enemy-selected" : "selected" : ""} ${end ? "chain-end" : ""} ${next ? "next-option" : ""} ${special ? "special-target" : ""}`}
+                  className={`${selected ? turn === "enemy" ? "enemy-selected" : "selected" : ""} ${end ? "chain-end" : ""} ${next ? "next-option" : ""} ${special ? "special-target" : ""} ${fallY > 0 ? "tile-fall" : ""}`}
+                  style={motionStyle}
                   onClick={() => selectTile(r, c)}
                   disabled={turn === "enemy" || busy}
                   aria-label={`Zahl ${tile.value}, Reihe ${r + 1}, Spalte ${c + 1}${end ? ", Kettenende" : ""}`}

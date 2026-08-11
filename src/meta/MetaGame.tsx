@@ -220,6 +220,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   const body = BODIES[meta.currentBody];
   const remainingHp = Math.max(0, STARTING_HP - meta.damageTaken);
   const objective = meta.usedStationIds.length > 0 ? floor.objectives.afterEnergy : floor.objectives.default;
+  const activeEncounters = floor.encounters.filter((encounter) => !meta.defeatedEncounterIds.includes(encounter.encounterId));
 
   return (
     <main className="zk-meta-shell clean-meta-screen">
@@ -257,23 +258,19 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
             );
           })}
 
-          {floor.encounters.map((enemy) => {
-            const defeated = meta.defeatedEncounterIds.includes(enemy.encounterId);
-            return (
-              <button
-                key={enemy.encounterId}
-                className={`zk-entity enemy ${enemy.enemyId === "kronos" ? "kronos" : ""} ${defeated ? "defeated" : ""}`}
-                style={{ left: enemy.x, top: enemy.y, border: 0, background: "transparent" }}
-                onClick={() => distance(meta.x, meta.y, enemy.x, enemy.y) < 145 ? onEncounter(enemy) : showToast(`FAHRE NÄHER AN ${enemy.name}`)}
-                disabled={defeated}
-                aria-label={`${enemy.name}, ${enemy.difficultyLabel}`}
-              >
-                <img src={BODIES[enemy.bodyId].sprite} alt="" />
-                <span className="tag">{enemy.name}</span>
-                <span className="level" aria-hidden="true">{[0, 1, 2].map((i) => <i key={i} className={i >= (enemy.difficulty === "easy" ? 1 : enemy.difficulty === "medium" ? 2 : 3) ? "off" : ""} />)}</span>
-              </button>
-            );
-          })}
+          {activeEncounters.map((enemy) => (
+            <button
+              key={enemy.encounterId}
+              className={`zk-entity enemy ${enemy.enemyId === "kronos" ? "kronos" : ""}`}
+              style={{ left: enemy.x, top: enemy.y, border: 0, background: "transparent" }}
+              onClick={() => distance(meta.x, meta.y, enemy.x, enemy.y) < 145 ? onEncounter(enemy) : showToast(`FAHRE NÄHER AN ${enemy.name}`)}
+              aria-label={`${enemy.name}, ${enemy.difficultyLabel}`}
+            >
+              <img src={BODIES[enemy.bodyId].sprite} alt="" />
+              <span className="tag">{enemy.name}</span>
+              <span className="level" aria-hidden="true">{[0, 1, 2].map((i) => <i key={i} className={i >= (enemy.difficulty === "easy" ? 1 : enemy.difficulty === "medium" ? 2 : 3) ? "off" : ""} />)}</span>
+            </button>
+          ))}
 
           <div className="zk-player" style={{ left: meta.x, top: meta.y, "--facing": `${meta.facing}deg` } as CSSProperties & { "--facing": string }}>
             <span className="zk-player-name">{body.name}</span>
