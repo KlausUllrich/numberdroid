@@ -8,12 +8,21 @@ type Props = {
   onStart: () => void;
 };
 
+function behaviorCopy(encounter: EncounterConfig) {
+  switch (encounter.behavior?.kind) {
+    case "guard": return "WACHE · FÄNGT DICH AB";
+    case "patrol": return "PATROUILLE · BEWEGT SICH";
+    case "aggressive": return encounter.behavior.forcedEngagement ? "JÄGER · ERZWINGT KAMPF" : "JÄGER · VERFOLGT DICH";
+    default: return "PASSIV · MANUELLER SCAN";
+  }
+}
+
 export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
   const body = BODIES[encounter.bodyId];
   const deckSize = encounter.deckSize ?? "standard";
   const drive = robotDriveProfile(encounter.bodyId, deckSize);
   const duelLayers = encounter.duelLayers ?? 1;
-  const isKronosLayeredBoss = Boolean(encounter.boss && encounter.enemyId === "kronos" && duelLayers > 1);
+  const forcedEngagement = Boolean(encounter.behavior?.forcedEngagement);
 
   return (
     <div className="zk-modal-layer clean-encounter-layer" role="dialog" aria-modal="true" aria-labelledby="encounter-title">
@@ -23,7 +32,7 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
           <span>{deckSize === "large" ? "SCHWERKÖRPER" : body.bodyClass}</span>
         </div>
         <div className="zk-encounter-info">
-          <small>{encounter.boss ? "KOMMANDO-SIGNATUR · ENDGEGNER" : "DROID-SCAN · TAKTISCHE ANALYSE"}</small>
+          <small>{encounter.boss ? "KOMMANDO-SIGNATUR · ENDGEGNER" : forcedEngagement ? "FEINDLICHER ABFANGSCAN · KAMPF ERZWUNGEN" : "DROID-SCAN · TAKTISCHE ANALYSE"}</small>
           <h2 id="encounter-title">{encounter.name}</h2>
           <div className="zk-encounter-role"><b>{body.roleLabel}</b><span>{body.roleDescription}</span></div>
           {encounter.storyIntro && <p className="zk-encounter-story">{encounter.storyIntro}</p>}
@@ -33,6 +42,7 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
             <div className="zk-encounter-chip"><span>KI-STÄRKE</span><b>{encounter.difficultyLabel}</b></div>
             <div className="zk-encounter-chip"><span>GRÖSSENKLASSE</span><b>{deckSize === "large" ? "GROSS · SCHWER" : "STANDARD"}</b></div>
             <div className="zk-encounter-chip"><span>FAHRWERK</span><b>{drive.label}</b></div>
+            <div className="zk-encounter-chip"><span>VERHALTEN</span><b>{behaviorCopy(encounter)}</b></div>
           </div>
 
           <div className="zk-encounter-capability">
@@ -40,6 +50,14 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
             <b>{body.abilityLabel}</b>
             <p>{body.abilityDescription}</p>
           </div>
+
+          {forcedEngagement && (
+            <div className="zk-encounter-boss-protocol">
+              <span>ABFANGPROTOKOLL</span>
+              <b>RÜCKZUG BLOCKIERT</b>
+              <p>Dieser Droid hat dich aktiv verfolgt und auf Kampfdistanz gestellt. Das Duell muss jetzt ausgetragen werden.</p>
+            </div>
+          )}
 
           {encounter.accessKey && (
             <div className="zk-encounter-access">
@@ -59,16 +77,14 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
           {duelLayers > 1 && (
             <div className="zk-encounter-boss-protocol">
               <span>KOMMANDOKERN-SCHUTZ</span>
-              <b>{isKronosLayeredBoss ? `${duelLayers} FIREWALLS · DANACH KERN` : `${duelLayers} REAKTOR-FIREWALLS`}</b>
-              <p>{isKronosLayeredBoss
-                ? "Jede Firewall kämpft mit einem kompakten 8-Segment-Reaktor. Eine 5er-Kette bricht nur die aktuelle Schutzschicht. Danach wird der normale 12-Segment-Kommandokern freigelegt. Meta-Energie und Körperjoker bleiben über den gesamten Kampf verbraucht."
-                : "Alle Schutzschichten sind zu Beginn aktiv. Eine 5er-Kette durchbricht nur die aktuelle Firewall; Meta-Energie und Körperjoker reichen über den gesamten Kampf."}</p>
+              <b>{duelLayers} FIREWALLS · DANACH KERN</b>
+              <p>Jede Firewall nutzt nur 8 Reaktorsegmente. Nach beiden Schutzschichten folgt der freigelegte 12-Segment-Kommandokern. Meta-Energie und Körperjoker reichen über den gesamten Kampf.</p>
             </div>
           )}
 
           <div className="zk-encounter-actions">
-            <button onClick={onCancel}>WEITERFAHREN</button>
-            <button className="attack" onClick={onStart}>{encounter.boss ? "KOMMANDODUELL STARTEN" : "DUELL STARTEN"}</button>
+            {!forcedEngagement && <button onClick={onCancel}>WEITERFAHREN</button>}
+            <button className="attack" onClick={onStart}>{encounter.boss ? "KOMMANDODUELL STARTEN" : forcedEngagement ? "ANGRIFF ABWEHREN" : "DUELL STARTEN"}</button>
           </div>
         </div>
       </section>
