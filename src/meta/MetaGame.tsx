@@ -420,13 +420,14 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   const drive = robotDriveProfile(meta.currentBody, meta.currentDeckSize);
   const remainingHp = Math.max(0, STARTING_HP - meta.damageTaken);
   let objective = meta.usedStationIds.length > 0 ? floor.objectives.afterEnergy : floor.objectives.default;
-  if (floor.goal?.kind === "defeat-encounter") {
-    objective = meta.defeatedEncounterIds.includes(floor.goal.encounterId) ? floor.goal.completedLabel : floor.goal.label;
-  } else if (floor.goal?.kind === "complete-action") {
-    const goalAction = floor.actions.find((action) => action.id === floor.goal?.actionId);
-    const complete = meta.completedActionIds.includes(floor.goal.actionId);
+  const goal = floor.goal;
+  if (goal?.kind === "defeat-encounter") {
+    objective = meta.defeatedEncounterIds.includes(goal.encounterId) ? goal.completedLabel : goal.label;
+  } else if (goal?.kind === "complete-action") {
+    const goalAction = floor.actions.find((action) => action.id === goal.actionId);
+    const complete = meta.completedActionIds.includes(goal.actionId);
     const ready = Boolean(goalAction && (!goalAction.requiresEncounterId || meta.defeatedEncounterIds.includes(goalAction.requiresEncounterId)));
-    objective = complete ? floor.goal.completedLabel : ready ? floor.goal.readyLabel : floor.goal.label;
+    objective = complete ? goal.completedLabel : ready ? goal.readyLabel : goal.label;
   }
   const activeEncounters = floor.encounters.filter((encounter) => !meta.defeatedEncounterIds.includes(encounter.encounterId));
   const activePickups = floor.pickups.filter((pickup) => !meta.collectedPickupIds.includes(pickup.id));
