@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP } from "../game/catalog";
+import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP, robotCollisionRadius } from "../game/catalog";
 import { getFloor } from "../game/floors";
 import { pointWalkable } from "../game/save";
 import type { EncounterConfig, MetaState } from "../game/types";
@@ -286,12 +286,19 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         dx /= Math.max(1, len);
         dy /= Math.max(1, len);
         const speed = 205;
+        const collisionRadius = robotCollisionRadius(current.currentDeckSize);
         let x = current.x;
         let y = current.y;
         const nx = x + dx * speed * dt;
         const ny = y + dy * speed * dt;
-        if (pointWalkable(nx, y, current.floorId) && !blockedByClosedDoor(floor, openDoorIdsRef.current, nx, y)) x = nx;
-        if (pointWalkable(x, ny, current.floorId) && !blockedByClosedDoor(floor, openDoorIdsRef.current, x, ny)) y = ny;
+        if (
+          pointWalkable(nx, y, current.floorId, collisionRadius)
+          && !blockedByClosedDoor(floor, openDoorIdsRef.current, nx, y, collisionRadius)
+        ) x = nx;
+        if (
+          pointWalkable(x, ny, current.floorId, collisionRadius)
+          && !blockedByClosedDoor(floor, openDoorIdsRef.current, x, ny, collisionRadius)
+        ) y = ny;
         const next = { ...current, x, y, facing: Math.atan2(dy, dx) * 180 / Math.PI + 90 };
         latestMetaRef.current = next;
         updateAutomaticDoors(next);
@@ -411,7 +418,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
             </button>
           ))}
 
-          <div ref={playerRef} className="zk-player" style={initialPlayerStyle}>
+          <div ref={playerRef} className={`zk-player ${meta.currentDeckSize}`} style={initialPlayerStyle}>
             <span className="zk-player-name">{body.name}</span>
             <img src={body.sprite} alt="Dein Roboter" />
           </div>
