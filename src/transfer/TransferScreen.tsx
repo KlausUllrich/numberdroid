@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
-import type { RobotBody } from "../game/types";
+import type { RobotBody, RobotDeckSize } from "../game/types";
 
 type Props = {
   oldBody: RobotBody;
   newBody: RobotBody;
+  oldDeckSize: RobotDeckSize;
+  newDeckSize: RobotDeckSize;
   onComplete: () => void;
 };
 
 const STAGES = ["SCAN", "EXTRAKTION", "UPLOAD", "SYNCHRONISATION", "AKTIVIERUNG"] as const;
 
-export function TransferScreen({ oldBody, newBody, onComplete }: Props) {
+function transferRobotStyle(size: RobotDeckSize) {
+  const pixels = size === "large" ? 168 : 92;
+  return { width: pixels, height: pixels };
+}
+
+export function TransferScreen({ oldBody, newBody, oldDeckSize, newDeckSize, onComplete }: Props) {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -36,7 +43,7 @@ export function TransferScreen({ oldBody, newBody, onComplete }: Props) {
       <div className="zk-transfer-main">
         <section className="zk-transfer-body">
           <header>AKTUELLER KÖRPER · DEIN KÖRPER</header>
-          <div className="zk-transfer-robot"><img src={oldBody.sprite} alt={oldBody.name} /></div>
+          <div className="zk-transfer-robot"><img style={transferRobotStyle(oldDeckSize)} src={oldBody.sprite} alt={oldBody.name} /></div>
           <div className="zk-transfer-card">
             <b>{oldBody.name}</b><span>{oldBody.bodyClass}</span><strong>{oldBody.abilityLabel}</strong>
           </div>
@@ -55,7 +62,7 @@ export function TransferScreen({ oldBody, newBody, onComplete }: Props) {
 
         <section className={`zk-transfer-body new ${activated ? "activated" : ""}`}>
           <header>{activated ? "NEUER KÖRPER · DEIN KÖRPER" : "BESIEGTER ROBOTER · FEINDLICH"}</header>
-          <div className="zk-transfer-robot"><img src={newBody.sprite} alt={newBody.name} /></div>
+          <div className="zk-transfer-robot"><img style={transferRobotStyle(newDeckSize)} src={newBody.sprite} alt={newBody.name} /></div>
           <div className="zk-transfer-card">
             <b>{newBody.name}</b><span>{newBody.bodyClass}</span><strong>{activated ? `NEU: ${newBody.abilityLabel}` : "FÄHIGKEIT WIRD SYNCHRONISIERT"}</strong>
           </div>
