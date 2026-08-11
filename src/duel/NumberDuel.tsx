@@ -35,6 +35,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
   const config = MODE_INFO[mode];
   const enemyBody = BODIES[encounter.bodyId];
   const totalLayers = Math.max(1, encounter.duelLayers ?? 1);
+  const hasFinalCorePhase = Boolean(encounter.boss && encounter.enemyId === "kronos" && totalLayers > 1);
   const gridRef = useRef<HTMLDivElement>(null);
   const [grid, setGrid] = useState<Grid>(() => freshGrid(mode));
   const [turn, setTurn] = useState<Turn>("human");
@@ -55,7 +56,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
 
   const activePath = turn === "human" ? selection : enemySelection;
   const activeBody = turn === "human" ? playerBody : enemyBody;
-  const currentLayer = Math.min(totalLayers, clearedLayers + 1);
+  const coreExposed = hasFinalCorePhase && clearedLayers >= totalLayers;
   const nextOptions = useMemo(() => {
     const set = new Set<string>();
     if (turn !== "human" || special || busy || selection.length === 0) return set;
@@ -135,6 +136,17 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
         setTurn("enemy");
         setBusy(false);
         setMessage(`FIREWALL ${nextClearedLayers} GEBROCHEN. Die nächste Schutzschicht bleibt aktiv. Ressourcen bleiben verbraucht.`);
+        return;
+      }
+
+      if (hasFinalCorePhase) {
+        setTeamCores(REACTOR_START_CORES);
+        setGrid(freshGrid(mode));
+        setSelection([]);
+        setEnemySelection([]);
+        setTurn("human");
+        setBusy(false);
+        setMessage("BEIDE FIREWALLS ZERSTÖRT. KRONOS' KOMMANDOKERN IST FREIGELEGT — jetzt den Kern übernehmen!");
         return;
       }
 
@@ -257,15 +269,17 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     setTeamCores(winsCurrentLayer ? TOTAL_CORES : next);
     animateResolvedGrid(selection, () => {
       if (winsCurrentLayer) {
-        if (totalLayers > 1) {
+        if (totalLayers > 1 && !coreExposed) {
           breakFirewall(clearedLayers);
           return;
         }
         setBusy(false);
         setResultCard({
           outcome: "win",
-          title: "TRANSFER GEWONNEN",
-          detail: `${encounter.name} wurde besiegt. Der Körpertransfer ist bereit.`,
+          title: coreExposed ? "KOMMANDOKERN ÜBERNOMMEN" : "TRANSFER GEWONNEN",
+          detail: coreExposed
+            ? `${encounter.name}: Der freigelegte Kommandokern ist besiegt. Der Körpertransfer ist bereit.`
+            : `${encounter.name} wurde besiegt. Der Körpertransfer ist bereit.`,
         });
         return;
       }
@@ -285,7 +299,12 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     <main className="duel-screen">
       <header className="duel-hud">
         <div><small>NUMBERDROID · {totalLayers > 1 ? "KOMMANDODUELL" : "TRANSFERDUELL"}</small><b>{encounter.name}</b></div>
-        {totalLayers > 1 && <div className="duel-layer-hud"><small>SCHUTZSCHICHTEN</small><b>{totalLayers - clearedLayers} / {totalLayers}</b></div>}
+        {totalLayers > 1 && (
+          <div className="duel-layer-hud">
+            <small>{coreExposed ? "KOMMANDOKERN" : "SCHUTZSCHICHTEN"}</small>
+            <b>{coreExposed ? "OFFEN" : `${totalLayers - clearedLayers} / ${totalLayers}`}</b>
+          </div>
+        )}
         <div className="duel-hp-readout"><small>ROBOTER-HP</small><b>{remainingHp} / {STARTING_HP}</b></div>
       </header>
 
@@ -338,9 +357,9 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
           </div>
         </section>
 
-        <aside className="reactor-panel-clean">
+        <aside className={`reactor-panel-clean ${coreExposed ? "boss-core-exposed" : ""}`}>
           <div className="reactor-target" aria-label={`Rechenziel ${config.symbol} ${config.target}`}>
-            <small>RECHENZIEL</small>
+            <small>{coreExposed ? "KOMMANDOKERN · RECHENZIEL" : "RECHENZIEL"}</small>
             <div className="reactor-target-equation"><span>{config.symbol}</span><strong>{config.target}</strong></div>
           </div>
           {totalLayers > 1 && (
@@ -369,7 +388,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
           <div className="core-row" aria-label={`${teamCores} Team-Reaktorkerne, ${TOTAL_CORES - teamCores} Droid-Reaktorkerne`}>
             {Array.from({ length: TOTAL_CORES }, (_, index) => <i key={index} className={index < teamCores ? "team" : "enemy"} />)}
           </div>
-          <p className="reactor-rewards">2 Zahlen → +1<br />3 → +2 · 4 → +4<br />{totalLayers > 1 ? "5+ → aktuelle Firewall brechen" : "5+ → Sofortsieg"}</p>
+          <p className="reactor-rewards">2 Zahlen → +1<br />3 → +2 · 4 → +4<br />{totalLayers > 1 ? coreExposed ? "5+ → Kommandokern übernehmen" : "5+ → aktuelle Firewall brechen" : "5+ → Sofortsieg"}</p>
           <div className="resource-readout">META-ENERGIE <b>⚡ {metaEnergy}</b></div>
         </aside>
       </section>
