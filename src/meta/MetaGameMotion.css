@@ -13,13 +13,11 @@
   backface-visibility: hidden;
 }
 
-/* Standard deck robots fit comfortably through a 64 px doorway. */
 .zk-meta-world .zk-player.standard img {
   width: 52px;
   height: 52px;
 }
 
-/* Large robots remain large after body transfer. */
 .zk-meta-world .zk-player.large img {
   width: 96px;
   height: 96px;
@@ -38,6 +36,34 @@
 .zk-tilemap,
 .zk-tilemap-layer {
   contain: layout style paint;
+}
+
+.zk-room-label {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  padding: 5px 7px;
+  border-left: 3px solid #326b68;
+  background: #041318a8;
+  color: #8eb6b2;
+  text-transform: uppercase;
+}
+
+.zk-room-label b,
+.zk-room-label span {
+  display: block;
+}
+
+.zk-room-label b {
+  color: #b8d8d4;
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+
+.zk-room-label span {
+  margin-top: 2px;
+  font-size: 8px;
+  letter-spacing: .06em;
 }
 
 .zk-entity.pickup {
@@ -76,6 +102,77 @@
   top: calc(100% + 5px);
   color: #9ff4ec;
   border-color: #328d87;
+}
+
+.zk-enemy-key {
+  position: absolute;
+  right: -12px;
+  top: -13px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 18px;
+  border: 1px solid #62e7d5;
+  border-radius: 3px;
+  background: #092d31;
+  color: #91fff0;
+  box-shadow: 0 0 9px #4ee5d777;
+  font-size: 11px;
+}
+
+.zk-entity.deck-action {
+  z-index: 15;
+}
+
+.zk-console-icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 46px;
+  border: 2px solid #497773;
+  border-radius: 6px;
+  background: linear-gradient(#0b3136, #061a1e);
+  color: #799a96;
+  font-size: 25px;
+  box-shadow: inset 0 0 12px #000b;
+}
+
+.zk-entity.deck-action.ready .zk-console-icon {
+  border-color: #e0b448;
+  color: #ffdc72;
+  box-shadow: 0 0 15px #d6a63d77, inset 0 0 12px #000b;
+}
+
+.zk-entity.deck-action.complete .zk-console-icon {
+  border-color: #3bd09b;
+  color: #78f0be;
+  box-shadow: 0 0 14px #35c99366;
+}
+
+.zk-entity.deck-action.locked {
+  opacity: .48;
+}
+
+.zk-entity.deck-action .tag {
+  top: calc(100% + 5px);
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zk-drive-readout {
+  position: absolute;
+  z-index: 32;
+  left: 166px;
+  bottom: 43px;
+  padding: 6px 9px;
+  border: 1px solid #2d625e;
+  border-radius: 5px;
+  background: #04171ccc;
+  color: #82aaa5;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .05em;
 }
 
 .zk-zoom-toggle {
@@ -131,6 +228,21 @@
 }
 
 @media (max-width: 900px), (max-height: 520px) {
+  .zk-room-label {
+    padding: 3px 5px;
+  }
+
+  .zk-room-label b { font-size: 9px; }
+  .zk-room-label span { font-size: 6px; }
+
+  .zk-drive-readout {
+    left: 126px;
+    bottom: 36px;
+    max-width: 165px;
+    padding: 4px 6px;
+    font-size: 7px;
+  }
+
   .zk-zoom-toggle {
     left: 8px;
     bottom: 36px;
