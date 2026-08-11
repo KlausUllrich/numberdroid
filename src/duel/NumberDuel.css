@@ -25,8 +25,14 @@
 
 .number-grid button.tile-fall {
   z-index: 2;
-  animation: number-tile-fall 430ms cubic-bezier(.16,.82,.24,1) both;
+  animation: number-tile-fall 560ms cubic-bezier(.16,.82,.24,1) both;
   will-change: transform, opacity;
+}
+
+.number-grid button.tile-row-shift {
+  z-index: 3;
+  animation: number-tile-row-shift 560ms cubic-bezier(.2,.75,.22,1) both;
+  will-change: transform;
 }
 
 @keyframes number-tile-fall {
@@ -39,6 +45,11 @@
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+@keyframes number-tile-row-shift {
+  from { transform: translateX(var(--row-shift-x)); }
+  to { transform: translateX(0); }
 }
 
 .reactor-target {
@@ -187,5 +198,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .number-grid button.tile-fall { animation-duration: 1ms; }
+  .number-grid button.tile-fall,
+  .number-grid button.tile-row-shift { animation-duration: 1ms; }
 }
