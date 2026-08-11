@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP, robotCollisionRadius } from "../game/catalog";
+import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP, robotCollisionRadius, robotDriveProfile } from "../game/catalog";
 import { getFloor } from "../game/floors";
 import { pointWalkable } from "../game/save";
 import type { EncounterConfig, MetaState } from "../game/types";
@@ -11,6 +11,7 @@ import "./MetaGameMotion.css";
 type Nearby =
   | { type: "station"; id: string }
   | { type: "pickup"; id: string }
+  | { type: "action"; id: string }
   | { type: "enemy"; id: string }
   | null;
 type PlayerStyle = CSSProperties & { "--player-x": string; "--player-y": string; "--facing": string };
@@ -28,6 +29,26 @@ const LOCAL_OVERVIEW_ZOOM = 0.68;
 
 function distance(ax: number, ay: number, bx: number, by: number) {
   return Math.hypot(ax - bx, ay - by);
+}
+
+function normalizeAngle(angle: number) {
+  let next = angle;
+  while (next > Math.PI) next -= Math.PI * 2;
+  while (next < -Math.PI) next += Math.PI * 2;
+  return next;
+}
+
+function turnToward(current: number, target: number, maxStep: number) {
+  const delta = normalizeAngle(target - current);
+  if (Math.abs(delta) <= maxStep) return target;
+  return current + Math.sign(delta) * maxStep;
+}
+
+function actionUnlocked(meta: MetaState, actionId: string) {
+  const floor = getFloor(meta.floorId);
+  const action = floor.actions.find((entry) => entry.id === actionId);
+  if (!action) return false;
+  return !action.requiresEncounterId || meta.defeatedEncounterIds.includes(action.requiresEncounterId);
 }
 
 function nearestInteractable(meta: MetaState): Nearby {
@@ -49,6 +70,15 @@ function nearestInteractable(meta: MetaState): Nearby {
     const d = distance(meta.x, meta.y, pickup.x, pickup.y);
     if (d < 100 && d < bestDistance) {
       best = { type: "pickup", id: pickup.id };
+      bestDistance = d;
+    }
+  }
+
+  for (const action of floor.actions) {
+    if (meta.completedActionIds.includes(action.id) || !actionUnlocked(meta, action.id)) continue;
+    const d = distance(meta.x, meta.y, action.x, action.y);
+    if (d < 118 && d < bestDistance) {
+      best = { type: "action", id: action.id };
       bestDistance = d;
     }
   }
@@ -78,6 +108,8 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   const zoomRef = useRef(NORMAL_ZOOM);
   const pausedRef = useRef(paused);
   const wasMovingRef = useRef(false);
+  const speedRef = useRef(0);
+  const headingRef = useRef((meta.facing - 90) * Math.PI / 180);
   const openDoorIdsRef = useRef<Set<string>>(new Set());
   const [touchMarker, setTouchMarker] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState("");
@@ -88,6 +120,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   const nearby = useMemo(() => nearestInteractable(meta), [meta]);
   const nearbyStation = nearby?.type === "station" ? floor.energyStations.find((station) => station.id === nearby.id) : null;
   const nearbyPickup = nearby?.type === "pickup" ? floor.pickups.find((pickup) => pickup.id === nearby.id) : null;
+  const nearbyAction = nearby?.type === "action" ? floor.actions.find((action) => action.id === nearby.id) : null;
   const nearbyEncounter = nearby?.type === "enemy" ? floor.encounters.find((encounter) => encounter.encounterId === nearby.id) : null;
 
   function syncMeta(next: MetaState, force = false) {
@@ -134,11 +167,12 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
 
   useEffect(() => {
     latestMetaRef.current = meta;
+    speedRef.current = 0;
+    headingRef.current = (meta.facing - 90) * Math.PI / 180;
     applyPlayerPose(meta);
     applyCamera(meta);
-    // This component is remounted for deck returns; floor changes are external pose changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta.floorId]);
+  }, [meta.floorId, meta.currentBody, meta.currentDeckSize]);
 
   useEffect(() => {
     zoomRef.current = zoom;
@@ -150,6 +184,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     pausedRef.current = paused;
     if (paused) {
       touchRef.current.active = false;
+      speedRef.current = 0;
       setTouchMarker(null);
       syncMeta(latestMetaRef.current, true);
     }
@@ -202,6 +237,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
       const next = {
         ...current,
         collectedPickupIds: [...current.collectedPickupIds, pickup.id],
+        accessKeyIds: current.accessKeyIds.includes(pickup.keyId) ? current.accessKeyIds : [...current.accessKeyIds, pickup.keyId],
       };
       latestMetaRef.current = next;
       updateAutomaticDoors(next);
@@ -210,8 +246,22 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
       return;
     }
 
+    if (nearby.type === "action") {
+      const action = floor.actions.find((entry) => entry.id === nearby.id);
+      if (!action || current.completedActionIds.includes(action.id) || !actionUnlocked(current, action.id)) return;
+      const next = {
+        ...current,
+        completedActionIds: [...current.completedActionIds, action.id],
+      };
+      latestMetaRef.current = next;
+      syncMeta(next, true);
+      showToast(action.completionLabel);
+      return;
+    }
+
     const encounter = floor.encounters.find((entry) => entry.encounterId === nearby.id);
     if (encounter) {
+      speedRef.current = 0;
       syncMeta(current, true);
       onEncounter(encounter);
     }
@@ -223,6 +273,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
       showToast(`FAHRE NÄHER AN ${enemy.name}`);
       return;
     }
+    speedRef.current = 0;
     syncMeta(current, true);
     onEncounter(enemy);
   }
@@ -250,6 +301,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
       lastFrameRef.current = now;
       const current = latestMetaRef.current;
       if (pausedRef.current) {
+        speedRef.current = 0;
         wasMovingRef.current = false;
         frameId = requestAnimationFrame(frame);
         return;
@@ -257,13 +309,13 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
 
       updateAutomaticDoors(current);
 
-      let dx = 0;
-      let dy = 0;
+      let inputX = 0;
+      let inputY = 0;
       const keys = keysRef.current;
-      if (keys.has("ArrowLeft") || keys.has("KeyA")) dx -= 1;
-      if (keys.has("ArrowRight") || keys.has("KeyD")) dx += 1;
-      if (keys.has("ArrowUp") || keys.has("KeyW")) dy -= 1;
-      if (keys.has("ArrowDown") || keys.has("KeyS")) dy += 1;
+      if (keys.has("ArrowLeft") || keys.has("KeyA")) inputX -= 1;
+      if (keys.has("ArrowRight") || keys.has("KeyD")) inputX += 1;
+      if (keys.has("ArrowUp") || keys.has("KeyW")) inputY -= 1;
+      if (keys.has("ArrowDown") || keys.has("KeyS")) inputY += 1;
 
       const touch = touchRef.current;
       const viewport = viewportRef.current;
@@ -276,21 +328,33 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         const ty = touch.y - playerScreenY;
         const len = Math.hypot(tx, ty);
         if (len > 22) {
-          dx += tx / len;
-          dy += ty / len;
+          inputX += tx / len;
+          inputY += ty / len;
         }
       }
 
-      const len = Math.hypot(dx, dy);
-      if (len > 0.06) {
-        dx /= Math.max(1, len);
-        dy /= Math.max(1, len);
-        const speed = 205;
+      const inputLength = Math.hypot(inputX, inputY);
+      const hasInput = inputLength > 0.06;
+      const drive = robotDriveProfile(current.currentBody, current.currentDeckSize);
+
+      if (hasInput) {
+        inputX /= Math.max(1, inputLength);
+        inputY /= Math.max(1, inputLength);
+        const desiredHeading = Math.atan2(inputY, inputX);
+        headingRef.current = turnToward(headingRef.current, desiredHeading, drive.turnSpeed * Math.PI / 180 * dt);
+        speedRef.current = Math.min(drive.maxSpeed, speedRef.current + drive.acceleration * dt);
+      } else {
+        speedRef.current = Math.max(0, speedRef.current - drive.deceleration * dt);
+      }
+
+      if (speedRef.current > 0.5) {
         const collisionRadius = robotCollisionRadius(current.currentDeckSize);
+        const moveX = Math.cos(headingRef.current) * speedRef.current * dt;
+        const moveY = Math.sin(headingRef.current) * speedRef.current * dt;
         let x = current.x;
         let y = current.y;
-        const nx = x + dx * speed * dt;
-        const ny = y + dy * speed * dt;
+        const nx = x + moveX;
+        const ny = y + moveY;
         if (
           pointWalkable(nx, y, current.floorId, collisionRadius)
           && !blockedByClosedDoor(floor, openDoorIdsRef.current, nx, y, collisionRadius)
@@ -299,7 +363,14 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
           pointWalkable(x, ny, current.floorId, collisionRadius)
           && !blockedByClosedDoor(floor, openDoorIdsRef.current, x, ny, collisionRadius)
         ) y = ny;
-        const next = { ...current, x, y, facing: Math.atan2(dy, dx) * 180 / Math.PI + 90 };
+
+        if (x === current.x && y === current.y) speedRef.current = 0;
+        const next = {
+          ...current,
+          x,
+          y,
+          facing: headingRef.current * 180 / Math.PI + 90,
+        };
         latestMetaRef.current = next;
         updateAutomaticDoors(next);
         applyPlayerPose(next);
@@ -307,6 +378,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         syncMeta(next);
         wasMovingRef.current = true;
       } else if (wasMovingRef.current) {
+        speedRef.current = 0;
         syncMeta(current, true);
         wasMovingRef.current = false;
       }
@@ -345,11 +417,17 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   }
 
   const body = BODIES[meta.currentBody];
+  const drive = robotDriveProfile(meta.currentBody, meta.currentDeckSize);
   const remainingHp = Math.max(0, STARTING_HP - meta.damageTaken);
-  const goalComplete = floor.goal?.kind === "defeat-encounter" && meta.defeatedEncounterIds.includes(floor.goal.encounterId);
-  const objective = floor.goal
-    ? goalComplete ? floor.goal.completedLabel : floor.goal.label
-    : meta.usedStationIds.length > 0 ? floor.objectives.afterEnergy : floor.objectives.default;
+  let objective = meta.usedStationIds.length > 0 ? floor.objectives.afterEnergy : floor.objectives.default;
+  if (floor.goal?.kind === "defeat-encounter") {
+    objective = meta.defeatedEncounterIds.includes(floor.goal.encounterId) ? floor.goal.completedLabel : floor.goal.label;
+  } else if (floor.goal?.kind === "complete-action") {
+    const goalAction = floor.actions.find((action) => action.id === floor.goal?.actionId);
+    const complete = meta.completedActionIds.includes(floor.goal.actionId);
+    const ready = Boolean(goalAction && (!goalAction.requiresEncounterId || meta.defeatedEncounterIds.includes(goalAction.requiresEncounterId)));
+    objective = complete ? floor.goal.completedLabel : ready ? floor.goal.readyLabel : floor.goal.label;
+  }
   const activeEncounters = floor.encounters.filter((encounter) => !meta.defeatedEncounterIds.includes(encounter.encounterId));
   const activePickups = floor.pickups.filter((pickup) => !meta.collectedPickupIds.includes(pickup.id));
   const pose = latestMetaRef.current;
@@ -386,7 +464,14 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
           style={{ width: floor.width, height: floor.height }}
         >
           <FloorVisual floor={floor} />
-          <DoorLayer floor={floor} openDoorIds={openDoorIds} collectedPickupIds={meta.collectedPickupIds} />
+
+          {floor.rooms.map((room) => (
+            <div key={room.id} className="zk-room-label" style={{ left: room.x + 14, top: room.y + 12 }}>
+              <b>{room.label}</b>{room.subtitle && <span>{room.subtitle}</span>}
+            </div>
+          ))}
+
+          <DoorLayer floor={floor} openDoorIds={openDoorIds} accessKeyIds={meta.accessKeyIds} />
 
           {activePickups.map((pickup) => (
             <div key={pickup.id} className="zk-entity pickup" style={{ left: pickup.x, top: pickup.y }}>
@@ -394,6 +479,17 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
               <span className="tag">{pickup.label}</span>
             </div>
           ))}
+
+          {floor.actions.map((action) => {
+            const complete = meta.completedActionIds.includes(action.id);
+            const unlocked = actionUnlocked(meta, action.id);
+            return (
+              <div key={action.id} className={`zk-entity deck-action ${complete ? "complete" : unlocked ? "ready" : "locked"}`} style={{ left: action.x, top: action.y }}>
+                <span className="zk-console-icon" aria-hidden="true">⌘</span>
+                <span className="tag">{complete ? action.completionLabel : unlocked ? action.prompt : action.label}</span>
+              </div>
+            );
+          })}
 
           {floor.energyStations.map((station) => {
             const used = meta.usedStationIds.includes(station.id);
@@ -414,6 +510,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
             >
               <img src={BODIES[enemy.bodyId].sprite} alt="" />
               <span className="tag">{enemy.name}</span>
+              {enemy.accessKey && <span className="zk-enemy-key" aria-label={`Trägt ${enemy.accessKey.label}`}>▣</span>}
               <span className="level" aria-hidden="true">{[0, 1, 2].map((i) => <i key={i} className={i >= (enemy.difficulty === "easy" ? 1 : enemy.difficulty === "medium" ? 2 : 3) ? "off" : ""} />)}</span>
             </button>
           ))}
@@ -431,6 +528,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         >
           {zoom < NORMAL_ZOOM ? <>NORMALANSICHT<small>100 %</small></> : <>UMGEBUNG ANSEHEN<small>LOKALER ZOOM-OUT</small></>}
         </button>
+        <div className="zk-drive-readout">{body.roleLabel} · {drive.label}</div>
         <div className="zk-touch-hint">TOUCH HALTEN → ROBOTER FÄHRT IN DIESE RICHTUNG · DESKTOP: WASD / PFEILE</div>
         <button className="zk-interact" disabled={!nearby} onClick={interact}>
           {!nearby ? (
@@ -438,7 +536,9 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
           ) : nearby.type === "station" && nearbyStation ? (
             <>ENERGIE AUFLADEN<small>+{nearbyStation.energy} Meta-Energie</small></>
           ) : nearby.type === "pickup" && nearbyPickup ? (
-            <>ZUGANGSKARTE NEHMEN<small>{nearbyPickup.label}</small></>
+            <>ZUGANG NEHMEN<small>{nearbyPickup.label}</small></>
+          ) : nearby.type === "action" && nearbyAction ? (
+            <>{nearbyAction.prompt}<small>{nearbyAction.label}</small></>
           ) : nearbyEncounter ? (
             <>DROID SCANNEN<small>{nearbyEncounter.name} · {nearbyEncounter.difficultyLabel}</small></>
           ) : (
