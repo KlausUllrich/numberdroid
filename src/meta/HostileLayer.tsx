@@ -72,7 +72,7 @@ function HostileLayerComponent({
         facing: 0,
         pathIndex: 0,
         chasing: false,
-        armed: true,
+        armed: !enemy.behavior || distance(enemy.x, enemy.y, playerMetaRef.current.x, playerMetaRef.current.y) > enemy.behavior.interceptRadius,
       };
       runtimeRef.current.set(enemy.encounterId, runtime);
     }
