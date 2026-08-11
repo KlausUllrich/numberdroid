@@ -31,6 +31,8 @@ export function createFloorState(floor: FloorDefinition, playerCount = 2): MetaS
     metaEnergy: floor.start.metaEnergy,
     usedStationIds: [],
     collectedPickupIds: [],
+    accessKeyIds: [],
+    completedActionIds: [],
     currentBody: floor.start.bodyId,
     currentDeckSize: "standard",
     defeatedEncounterIds: [],
@@ -119,14 +121,31 @@ function sanitize(candidate: Partial<MetaState>): MetaState {
     ? [...new Set(state.collectedPickupIds.filter((id) => typeof id === "string" && validPickupIds.has(id)))]
     : [];
 
+  const validAccessKeyIds = new Set<string>();
+  floor.doors.forEach((door) => { if (door.keyId) validAccessKeyIds.add(door.keyId); });
+  floor.pickups.forEach((pickup) => validAccessKeyIds.add(pickup.keyId));
+  floor.encounters.forEach((encounter) => { if (encounter.accessKey) validAccessKeyIds.add(encounter.accessKey.keyId); });
+  state.accessKeyIds = Array.isArray(state.accessKeyIds)
+    ? [...new Set(state.accessKeyIds.filter((id) => typeof id === "string" && validAccessKeyIds.has(id)))]
+    : [];
+
+  // Compatibility with the first VS2 keycard prototype: a previously collected physical
+  // pickup still grants its logical access key after keys move onto Security robots.
+  for (const pickupId of state.collectedPickupIds) {
+    const pickup = floor.pickups.find((entry) => entry.id === pickupId);
+    if (pickup && !state.accessKeyIds.includes(pickup.keyId)) state.accessKeyIds.push(pickup.keyId);
+  }
+
+  const validActionIds = new Set(floor.actions.map((action) => action.id));
+  state.completedActionIds = Array.isArray(state.completedActionIds)
+    ? [...new Set(state.completedActionIds.filter((id) => typeof id === "string" && validActionIds.has(id)))]
+    : [];
+
   const validEncounterIds = new Set(floor.encounters.map((encounter) => encounter.encounterId));
   state.defeatedEncounterIds = Array.isArray(state.defeatedEncounterIds)
     ? [...new Set(state.defeatedEncounterIds.filter((id) => typeof id === "string" && validEncounterIds.has(id)))]
     : [];
 
-  // On a floor with exactly one matching body encounter, owning that non-start body
-  // proves that encounter was already defeated. Floors with duplicate bodies keep
-  // explicit encounter-instance state only and do not infer which copy was defeated.
   inferDefeatedEncounterFromOwnedBody(state, floor);
 
   state.playerCount = Math.max(1, Math.min(4, Number.isFinite(state.playerCount) ? state.playerCount : defaults.playerCount));
@@ -146,6 +165,8 @@ function migrateV2(old: MetaStateV2): MetaState {
     metaEnergy: old.metaEnergy,
     usedStationIds: old.stationUsed ? floor.energyStations.slice(0, 1).map((station) => station.id) : [],
     collectedPickupIds: [],
+    accessKeyIds: [],
+    completedActionIds: [],
     currentBody: old.currentBody,
     currentDeckSize: "standard",
     defeatedEncounterIds: floor.encounters
@@ -172,12 +193,10 @@ export function loadMetaState(): MetaState {
     if (raw) {
       const migrated = migrateV2(JSON.parse(raw) as MetaStateV2);
       saveMetaState(migrated);
-      // Keep the old v2 value as a migration fallback until v3 has had wider runtime validation.
       return migrated;
     }
   } catch { /* ignore damaged v2 data */ }
 
-  // One-way migration from the DOM-bridge prototype.
   try {
     const raw = localStorage.getItem(LEGACY_META_KEY);
     if (raw) {
@@ -193,7 +212,14 @@ export function loadMetaState(): MetaState {
     if (duel?.playerCount) return sanitize({ playerCount: duel.playerCount });
   } catch { /* ignore damaged legacy duel data */ }
 
-  return { ...DEFAULT_META, usedStationIds: [], collectedPickupIds: [], defeatedEncounterIds: [] };
+  return {
+    ...DEFAULT_META,
+    usedStationIds: [],
+    collectedPickupIds: [],
+    accessKeyIds: [],
+    completedActionIds: [],
+    defeatedEncounterIds: [],
+  };
 }
 
 export function saveMetaState(state: MetaState) {
