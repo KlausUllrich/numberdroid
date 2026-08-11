@@ -215,7 +215,7 @@ function HostileLayerComponent({
             }}
             className={`zk-entity enemy zk-hostile ${enemy.enemyId === "kronos" ? "kronos" : ""} ${enemy.boss ? "boss" : ""} ${enemy.deckSize === "large" ? "large" : "standard"} ${behavior ? `behavior-${behavior.kind}` : "behavior-legacy"} ${behavior?.forcedEngagement ? "forced" : ""}`}
             style={style}
-            onClick={manuallyScannable ? () => callbacksRef.current.onManualEncounter(enemy) : undefined}
+            onClick={manuallyScannable ? () => callbacksRef.current.onManualEncounter({ ...enemy, x: runtime.x, y: runtime.y }) : undefined}
             aria-label={`${enemy.name}, ${enemy.boss ? "Endgegner, " : ""}${behavior ? `${behaviorLabel(enemy)}, ` : ""}${enemy.difficultyLabel}`}
           >
             <img src={BODIES[enemy.bodyId].sprite} alt="" />
