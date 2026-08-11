@@ -4,8 +4,10 @@ import { getFloor } from "../game/floors";
 import { pointWalkable } from "../game/save";
 import type { EncounterConfig, MetaState } from "../game/types";
 import { FloorVisual } from "./FloorVisual";
+import "./MetaGameMotion.css";
 
 type Nearby = { type: "station"; id: string } | { type: "enemy"; id: string } | null;
+type PlayerStyle = CSSProperties & { "--player-x": string; "--player-y": string; "--facing": string };
 
 type Props = {
   meta: MetaState;
@@ -13,6 +15,10 @@ type Props = {
   onEncounter: (encounter: EncounterConfig) => void;
   paused?: boolean;
 };
+
+const META_SYNC_INTERVAL_MS = 120;
+const NORMAL_ZOOM = 1;
+const LOCAL_OVERVIEW_ZOOM = 0.68;
 
 function distance(ax: number, ay: number, bx: number, by: number) {
   return Math.hypot(ax - bx, ay - by);
@@ -46,30 +52,93 @@ function nearestInteractable(meta: MetaState): Nearby {
 
 export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
+  const playerRef = useRef<HTMLDivElement>(null);
   const keysRef = useRef(new Set<string>());
   const touchRef = useRef({ active: false, pointerId: -1, x: 0, y: 0 });
   const latestMetaRef = useRef(meta);
   const lastFrameRef = useRef(performance.now());
+  const lastMetaSyncRef = useRef(performance.now());
   const cameraRef = useRef({ x: 0, y: 0 });
+  const zoomRef = useRef(NORMAL_ZOOM);
   const pausedRef = useRef(paused);
+  const wasMovingRef = useRef(false);
   const [touchMarker, setTouchMarker] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState("");
-  const [camera, setCamera] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(NORMAL_ZOOM);
 
   const floor = getFloor(meta.floorId);
   const nearby = useMemo(() => nearestInteractable(meta), [meta]);
   const nearbyStation = nearby?.type === "station" ? floor.energyStations.find((station) => station.id === nearby.id) : null;
   const nearbyEncounter = nearby?.type === "enemy" ? floor.encounters.find((encounter) => encounter.encounterId === nearby.id) : null;
 
-  useEffect(() => { latestMetaRef.current = meta; }, [meta]);
-  useEffect(() => { cameraRef.current = camera; }, [camera]);
+  function syncMeta(next: MetaState, force = false) {
+    const now = performance.now();
+    if (!force && now - lastMetaSyncRef.current < META_SYNC_INTERVAL_MS) return;
+    lastMetaSyncRef.current = now;
+    onMetaChange(next);
+  }
+
+  function applyPlayerPose(state: MetaState) {
+    const player = playerRef.current;
+    if (!player) return;
+    player.style.setProperty("--player-x", `${state.x}px`);
+    player.style.setProperty("--player-y", `${state.y}px`);
+    player.style.setProperty("--facing", `${state.facing}deg`);
+  }
+
+  function applyCamera(state: MetaState, requestedZoom = zoomRef.current) {
+    const viewport = viewportRef.current;
+    const world = worldRef.current;
+    if (!viewport || !world) return;
+
+    const viewWorldWidth = viewport.clientWidth / requestedZoom;
+    const viewWorldHeight = viewport.clientHeight / requestedZoom;
+    let cameraX = state.x - viewWorldWidth / 2;
+    let cameraY = state.y - viewWorldHeight / 2;
+
+    if (viewWorldWidth >= floor.width) cameraX = -(viewWorldWidth - floor.width) / 2;
+    else cameraX = Math.max(0, Math.min(floor.width - viewWorldWidth, cameraX));
+
+    if (viewWorldHeight >= floor.height) cameraY = -(viewWorldHeight - floor.height) / 2;
+    else cameraY = Math.max(0, Math.min(floor.height - viewWorldHeight, cameraY));
+
+    cameraRef.current = { x: cameraX, y: cameraY };
+    world.style.transform = `translate3d(${-cameraX * requestedZoom}px, ${-cameraY * requestedZoom}px, 0) scale(${requestedZoom})`;
+  }
+
+  useEffect(() => {
+    latestMetaRef.current = meta;
+    applyPlayerPose(meta);
+    applyCamera(meta);
+    // This component is remounted for deck returns; floor changes are external pose changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta.floorId]);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+    applyCamera(latestMetaRef.current, zoom);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom]);
+
   useEffect(() => {
     pausedRef.current = paused;
     if (paused) {
       touchRef.current.active = false;
       setTouchMarker(null);
+      syncMeta(latestMetaRef.current, true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paused]);
+
+  useEffect(() => {
+    function onResize() { applyCamera(latestMetaRef.current); }
+    applyPlayerPose(latestMetaRef.current);
+    applyCamera(latestMetaRef.current);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floor.id]);
 
   function rotatePilot(next: MetaState) {
     if (next.playerCount <= 1) return next;
@@ -83,22 +152,37 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
 
   function interact() {
     if (paused || !nearby) return;
+    const current = latestMetaRef.current;
 
     if (nearby.type === "station") {
       const station = floor.energyStations.find((entry) => entry.id === nearby.id);
-      if (!station || meta.usedStationIds.includes(station.id)) return;
+      if (!station || current.usedStationIds.includes(station.id)) return;
       const next = rotatePilot({
-        ...meta,
-        usedStationIds: [...meta.usedStationIds, station.id],
-        metaEnergy: Math.min(MAX_META_ENERGY, meta.metaEnergy + station.energy),
+        ...current,
+        usedStationIds: [...current.usedStationIds, station.id],
+        metaEnergy: Math.min(MAX_META_ENERGY, current.metaEnergy + station.energy),
       });
-      onMetaChange(next);
+      latestMetaRef.current = next;
+      syncMeta(next, true);
       showToast(`ENERGIEZELLE GELADEN · ⚡ ${next.metaEnergy}/${MAX_META_ENERGY}`);
       return;
     }
 
     const encounter = floor.encounters.find((entry) => entry.encounterId === nearby.id);
-    if (encounter) onEncounter(encounter);
+    if (encounter) {
+      syncMeta(current, true);
+      onEncounter(encounter);
+    }
+  }
+
+  function tryOpenEncounter(enemy: EncounterConfig) {
+    const current = latestMetaRef.current;
+    if (distance(current.x, current.y, enemy.x, enemy.y) >= 145) {
+      showToast(`FAHRE NÄHER AN ${enemy.name}`);
+      return;
+    }
+    syncMeta(current, true);
+    onEncounter(enemy);
   }
 
   useEffect(() => {
@@ -124,6 +208,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
       lastFrameRef.current = now;
       const current = latestMetaRef.current;
       if (pausedRef.current) {
+        wasMovingRef.current = false;
         frameId = requestAnimationFrame(frame);
         return;
       }
@@ -140,8 +225,9 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
       const viewport = viewportRef.current;
       if (touch.active && viewport) {
         const rect = viewport.getBoundingClientRect();
-        const playerScreenX = current.x - cameraRef.current.x + rect.left;
-        const playerScreenY = current.y - cameraRef.current.y + rect.top;
+        const activeZoom = zoomRef.current;
+        const playerScreenX = (current.x - cameraRef.current.x) * activeZoom + rect.left;
+        const playerScreenY = (current.y - cameraRef.current.y) * activeZoom + rect.top;
         const tx = touch.x - playerScreenX;
         const ty = touch.y - playerScreenY;
         const len = Math.hypot(tx, ty);
@@ -164,33 +250,21 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         if (pointWalkable(x, ny, current.floorId)) y = ny;
         const next = { ...current, x, y, facing: Math.atan2(dy, dx) * 180 / Math.PI + 90 };
         latestMetaRef.current = next;
-        onMetaChange(next);
+        applyPlayerPose(next);
+        applyCamera(next);
+        syncMeta(next);
+        wasMovingRef.current = true;
+      } else if (wasMovingRef.current) {
+        syncMeta(current, true);
+        wasMovingRef.current = false;
       }
+
       frameId = requestAnimationFrame(frame);
     }
     frameId = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(frameId);
-  }, [onMetaChange]);
-
-  useEffect(() => {
-    function updateCamera() {
-      const viewport = viewportRef.current;
-      if (!viewport) return;
-      const activeFloor = getFloor(meta.floorId);
-      const vw = viewport.clientWidth;
-      const vh = viewport.clientHeight;
-      let cx = meta.x - vw / 2;
-      let cy = meta.y - vh / 2;
-      cx = Math.max(0, Math.min(Math.max(0, activeFloor.width - vw), cx));
-      cy = Math.max(0, Math.min(Math.max(0, activeFloor.height - vh), cy));
-      if (vw > activeFloor.width) cx = -(vw - activeFloor.width) / 2;
-      if (vh > activeFloor.height) cy = -(vh - activeFloor.height) / 2;
-      setCamera({ x: cx, y: cy });
-    }
-    updateCamera();
-    window.addEventListener("resize", updateCamera);
-    return () => window.removeEventListener("resize", updateCamera);
-  }, [meta.floorId, meta.x, meta.y]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floor.id, onMetaChange]);
 
   function updateTouch(event: ReactPointerEvent<HTMLDivElement>) {
     touchRef.current.x = event.clientX;
@@ -220,8 +294,16 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
 
   const body = BODIES[meta.currentBody];
   const remainingHp = Math.max(0, STARTING_HP - meta.damageTaken);
-  const objective = meta.usedStationIds.length > 0 ? floor.objectives.afterEnergy : floor.objectives.default;
+  const goalComplete = floor.goal?.kind === "defeat-encounter" && meta.defeatedEncounterIds.includes(floor.goal.encounterId);
+  const objective = floor.goal
+    ? goalComplete ? floor.goal.completedLabel : floor.goal.label
+    : meta.usedStationIds.length > 0 ? floor.objectives.afterEnergy : floor.objectives.default;
   const activeEncounters = floor.encounters.filter((encounter) => !meta.defeatedEncounterIds.includes(encounter.encounterId));
+  const initialPlayerStyle: PlayerStyle = {
+    "--player-x": `${meta.x}px`,
+    "--player-y": `${meta.y}px`,
+    "--facing": `${meta.facing}deg`,
+  };
 
   return (
     <main className="zk-meta-shell clean-meta-screen">
@@ -245,8 +327,9 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         onPointerCancel={endTouch}
       >
         <div
+          ref={worldRef}
           className="zk-meta-world"
-          style={{ width: floor.width, height: floor.height, transform: `translate(${-camera.x}px, ${-camera.y}px)` }}
+          style={{ width: floor.width, height: floor.height }}
         >
           <FloorVisual floor={floor} />
 
@@ -262,10 +345,10 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
           {activeEncounters.map((enemy) => (
             <button
               key={enemy.encounterId}
-              className={`zk-entity enemy ${enemy.enemyId === "kronos" ? "kronos" : ""}`}
+              className={`zk-entity enemy ${enemy.enemyId === "kronos" ? "kronos" : ""} ${enemy.boss ? "boss" : ""}`}
               style={{ left: enemy.x, top: enemy.y, border: 0, background: "transparent" }}
-              onClick={() => distance(meta.x, meta.y, enemy.x, enemy.y) < 145 ? onEncounter(enemy) : showToast(`FAHRE NÄHER AN ${enemy.name}`)}
-              aria-label={`${enemy.name}, ${enemy.difficultyLabel}`}
+              onClick={() => tryOpenEncounter(enemy)}
+              aria-label={`${enemy.name}, ${enemy.boss ? "Endgegner, " : ""}${enemy.difficultyLabel}`}
             >
               <img src={BODIES[enemy.bodyId].sprite} alt="" />
               <span className="tag">{enemy.name}</span>
@@ -273,13 +356,19 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
             </button>
           ))}
 
-          <div className="zk-player" style={{ left: meta.x, top: meta.y, "--facing": `${meta.facing}deg` } as CSSProperties & { "--facing": string }}>
+          <div ref={playerRef} className="zk-player" style={initialPlayerStyle}>
             <span className="zk-player-name">{body.name}</span>
             <img src={body.sprite} alt="Dein Roboter" />
           </div>
         </div>
 
         {touchMarker && <div className="zk-touch-marker" style={{ left: touchMarker.x, top: touchMarker.y }} />}
+        <button
+          className={`zk-zoom-toggle ${zoom < NORMAL_ZOOM ? "active" : ""}`}
+          onClick={() => setZoom((current) => current < NORMAL_ZOOM ? NORMAL_ZOOM : LOCAL_OVERVIEW_ZOOM)}
+        >
+          {zoom < NORMAL_ZOOM ? <>NORMALANSICHT<small>100 %</small></> : <>UMGEBUNG ANSEHEN<small>LOKALER ZOOM-OUT</small></>}
+        </button>
         <div className="zk-touch-hint">TOUCH HALTEN → ROBOTER FÄHRT IN DIESE RICHTUNG · DESKTOP: WASD / PFEILE</div>
         <button className="zk-interact" disabled={!nearby} onClick={interact}>
           {!nearby ? (
