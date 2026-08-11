@@ -46,6 +46,7 @@ export const DECK_A7: FloorDefinition = {
     { x: 1020, y: 570, w: 125, h: 130 },
   ],
   doors: [],
+  pickups: [],
   energyStations: DECK_A7_STATIONS,
   encounters: [
     {
