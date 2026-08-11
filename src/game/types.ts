@@ -139,6 +139,7 @@ export type MetaState = {
   usedStationIds: string[];
   collectedPickupIds: string[];
   currentBody: BodyId;
+  currentDeckSize: RobotDeckSize;
   defeatedEncounterIds: string[];
   pilotIndex: number;
   playerCount: number;
