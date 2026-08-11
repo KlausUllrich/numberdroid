@@ -11,7 +11,7 @@ type Props = {
 function behaviorCopy(encounter: EncounterConfig) {
   switch (encounter.behavior?.kind) {
     case "neutral": return "NEUTRAL · MACHT SEINE ARBEIT";
-    case "guard": return "WACHE · FÄNGT DICH AB";
+    case "guard": return "WACHE · VERFOLGT NUR IM POSTENBEREICH";
     case "patrol": return "PATROUILLE · BEWEGT SICH";
     case "aggressive": return encounter.behavior.forcedEngagement ? "JÄGER · ERZWINGT KAMPF" : "JÄGER · VERFOLGT DICH";
     default: return "PASSIV · MANUELLER SCAN";
