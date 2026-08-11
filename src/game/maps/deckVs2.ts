@@ -27,7 +27,7 @@ for (const [col, row] of [[6, 12], [20, 17], [33, 12]] as const) {
   decor[row * COLUMNS + col] = 4;
 }
 
-function prop(name: string, value: unknown, type = typeof value) {
+function prop(name: string, value: unknown, type: string = typeof value) {
   return { name, type, value };
 }
 
