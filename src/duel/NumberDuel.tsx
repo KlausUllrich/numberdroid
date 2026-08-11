@@ -26,7 +26,7 @@ type ResultCard = {
   detail: string;
 };
 
-const FALL_ANIMATION_MS = 430;
+const TILE_MOTION_MS = 560;
 
 export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, initialMetaEnergy, onFinished }: Props) {
   const mode = encounter.mode;
@@ -46,6 +46,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
   const [message, setMessage] = useState(`Bilde eine Kette. Rechne selbst, ob sie ${config.target} ergibt.`);
   const [resultCard, setResultCard] = useState<ResultCard | null>(null);
   const [fallOffsets, setFallOffsets] = useState<Record<number, number>>({});
+  const [rowShiftOffsets, setRowShiftOffsets] = useState<Record<number, number>>({});
 
   const activePath = turn === "human" ? selection : enemySelection;
   const activeBody = turn === "human" ? playerBody : enemyBody;
@@ -57,6 +58,14 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     }
     return set;
   }, [turn, special, busy, selection]);
+
+  function gridColumnStep() {
+    const element = gridRef.current;
+    if (!element) return 110;
+    const gap = Number.parseFloat(window.getComputedStyle(element).columnGap) || 0;
+    const width = Math.max(1, (element.clientWidth - gap * (COLS - 1)) / COLS);
+    return width + gap;
+  }
 
   function animateResolvedGrid(path: Pick[], onSettled: () => void) {
     const resolution = resolveGrid(grid, path, mode);
@@ -81,7 +90,28 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     window.setTimeout(() => {
       setFallOffsets({});
       onSettled();
-    }, FALL_ANIMATION_MS);
+    }, TILE_MOTION_MS);
+  }
+
+  function animateRowShift(row: number) {
+    const rowTiles = grid[row];
+    const colStep = gridColumnStep();
+    const offsets: Record<number, number> = {};
+    rowTiles.forEach((tile, col) => {
+      offsets[tile.id] = col === COLS - 1 ? colStep * (COLS - 1) : -colStep;
+    });
+
+    setBusy(true);
+    setAbilityUses(0);
+    setSpecial(null);
+    setRowShiftOffsets(offsets);
+    setGrid((current) => shiftRow(current, row, "right"));
+    setMessage(`REIHENSCHUB: Reihe ${row + 1} wird um ein Feld nach rechts verschoben.`);
+    window.setTimeout(() => {
+      setRowShiftOffsets({});
+      setBusy(false);
+      setMessage(`REIHENSCHUB abgeschlossen. Reihe ${row + 1} wurde nach rechts verschoben.`);
+    }, TILE_MOTION_MS);
   }
 
   useEffect(() => {
@@ -140,10 +170,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
       return;
     }
     if (special === "row-shift") {
-      setGrid((current) => shiftRow(current, row, "right"));
-      setAbilityUses(0);
-      setSpecial(null);
-      setMessage(`REIHENSCHUB: Reihe ${row + 1} wurde um ein Feld nach rechts verschoben.`);
+      animateRowShift(row);
       return;
     }
 
@@ -237,11 +264,17 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
               const end = selected && index === activePath.length - 1;
               const next = nextOptions.has(`${r}:${c}`);
               const fallY = fallOffsets[tile.id] ?? 0;
-              const motionStyle = fallY > 0 ? ({ "--fall-y": `-${fallY}px` } as MotionStyle) : undefined;
+              const shiftX = rowShiftOffsets[tile.id] ?? 0;
+              const motionStyle = (fallY > 0 || shiftX !== 0)
+                ? ({
+                    ...(fallY > 0 ? { "--fall-y": `-${fallY}px` } : {}),
+                    ...(shiftX !== 0 ? { "--row-shift-x": `${shiftX}px` } : {}),
+                  } as MotionStyle)
+                : undefined;
               return (
                 <button
                   key={tile.id}
-                  className={`${selected ? turn === "enemy" ? "enemy-selected" : "selected" : ""} ${end ? "chain-end" : ""} ${next ? "next-option" : ""} ${special ? "special-target" : ""} ${fallY > 0 ? "tile-fall" : ""}`}
+                  className={`${selected ? turn === "enemy" ? "enemy-selected" : "selected" : ""} ${end ? "chain-end" : ""} ${next ? "next-option" : ""} ${special ? "special-target" : ""} ${fallY > 0 ? "tile-fall" : ""} ${shiftX !== 0 ? "tile-row-shift" : ""}`}
                   style={motionStyle}
                   onClick={() => selectTile(r, c)}
                   disabled={turn === "enemy" || busy}
