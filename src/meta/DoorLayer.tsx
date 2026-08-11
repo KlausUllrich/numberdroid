@@ -5,15 +5,15 @@ import "./DoorLayer.css";
 type Props = {
   floor: FloorDefinition;
   openDoorIds: ReadonlySet<string>;
-  collectedPickupIds: readonly string[];
+  accessKeyIds: readonly string[];
 };
 
-export function DoorLayer({ floor, openDoorIds, collectedPickupIds }: Props) {
+export function DoorLayer({ floor, openDoorIds, accessKeyIds }: Props) {
   return (
     <>
       {floor.doors.map((door) => {
         const open = openDoorIds.has(door.id);
-        const accessible = hasDoorAccess(floor, { collectedPickupIds: [...collectedPickupIds] }, door);
+        const accessible = hasDoorAccess({ accessKeyIds: [...accessKeyIds] }, door);
         const accessName = door.label ?? "ACCESS";
         const status = open
           ? "OPEN"
