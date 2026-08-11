@@ -1,0 +1,20 @@
+.zk-tilemap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.zk-tilemap-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.zk-map-tile {
+  position: absolute;
+  display: block;
+  background-repeat: no-repeat;
+  transform-origin: center;
+  image-rendering: pixelated;
+}
