@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { memo, type CSSProperties } from "react";
 import type { FloorDefinition, TileMapVisualDefinition, TilesetDefinition } from "../game/types";
 import "./FloorVisual.css";
 
@@ -8,7 +8,6 @@ const FLIP_DIAGONAL = 0x20000000;
 const GID_MASK = ~(FLIP_HORIZONTAL | FLIP_VERTICAL | FLIP_DIAGONAL) >>> 0;
 
 type Props = { floor: FloorDefinition };
-
 type TileTransform = CSSProperties & { transform?: string };
 
 function resolveTileset(visual: TileMapVisualDefinition, rawGid: number): TilesetDefinition | null {
@@ -74,7 +73,7 @@ function TileMap({ visual }: { visual: TileMapVisualDefinition }) {
   );
 }
 
-export function FloorVisual({ floor }: Props) {
+export const FloorVisual = memo(function FloorVisual({ floor }: Props) {
   if (floor.visual.kind === "image") {
     return (
       <img
@@ -87,4 +86,4 @@ export function FloorVisual({ floor }: Props) {
   }
 
   return <TileMap visual={floor.visual} />;
-}
+});
