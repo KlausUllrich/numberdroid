@@ -5,45 +5,54 @@ const ROWS = 20;
 const TILE = 64;
 
 type TileRect = { name: string; x: number; y: number; w: number; h: number };
+type DoorTile = { name: string; x: number; y: number; orientation: "vertical" | "horizontal" };
 
 const ROOMS: TileRect[] = [
   { name: "aft-engineering", x: 2, y: 6, w: 8, h: 8 },
-  { name: "aft-reactor", x: 10, y: 1, w: 8, h: 6 },
-  { name: "aft-cargo", x: 10, y: 13, w: 9, h: 6 },
-  { name: "central-security", x: 20, y: 6, w: 7, h: 8 },
-  { name: "research-lab", x: 28, y: 1, w: 8, h: 6 },
-  { name: "machine-room", x: 28, y: 13, w: 8, h: 6 },
-  { name: "navigation", x: 38, y: 2, w: 7, h: 6 },
-  { name: "storage-east", x: 38, y: 12, w: 7, h: 6 },
-  { name: "bridge-access", x: 45, y: 6, w: 5, h: 8 },
-  { name: "bridge", x: 49, y: 8, w: 3, h: 4 },
+  { name: "aft-reactor", x: 12, y: 1, w: 8, h: 6 },
+  { name: "aft-cargo", x: 12, y: 13, w: 8, h: 6 },
+  { name: "central-security", x: 22, y: 6, w: 8, h: 8 },
+  { name: "research-lab", x: 32, y: 1, w: 8, h: 6 },
+  { name: "machine-room", x: 32, y: 13, w: 8, h: 6 },
+  { name: "navigation", x: 42, y: 2, w: 7, h: 6 },
+  { name: "storage-east", x: 42, y: 12, w: 7, h: 6 },
+  { name: "bridge", x: 48, y: 8, w: 4, h: 4 },
 ];
 
 const CORRIDORS: TileRect[] = [
-  { name: "aft-upper-link", x: 8, y: 4, w: 5, h: 4 },
-  { name: "aft-lower-link", x: 8, y: 12, w: 5, h: 3 },
-  { name: "upper-west-corridor", x: 16, y: 4, w: 6, h: 3 },
-  { name: "lower-west-corridor", x: 17, y: 12, w: 5, h: 4 },
-  { name: "upper-center-link", x: 25, y: 4, w: 5, h: 4 },
-  { name: "lower-center-link", x: 25, y: 12, w: 5, h: 4 },
-  { name: "upper-east-corridor", x: 34, y: 4, w: 6, h: 3 },
-  { name: "lower-east-corridor", x: 34, y: 13, w: 6, h: 3 },
-  { name: "fore-upper-link", x: 43, y: 6, w: 4, h: 4 },
-  { name: "fore-lower-link", x: 43, y: 11, w: 4, h: 4 },
-  { name: "bridge-neck", x: 48, y: 8, w: 3, h: 4 },
+  { name: "main-west", x: 11, y: 9, w: 10, h: 2 },
+  { name: "reactor-drop", x: 16, y: 8, w: 2, h: 1 },
+  { name: "cargo-rise", x: 16, y: 11, w: 2, h: 1 },
+  { name: "main-east", x: 31, y: 9, w: 16, h: 2 },
+  { name: "lab-drop", x: 36, y: 8, w: 2, h: 1 },
+  { name: "machine-rise", x: 36, y: 11, w: 2, h: 1 },
 ];
 
-const WALKABLE: TileRect[] = [...ROOMS, ...CORRIDORS];
+const DOORWAYS: DoorTile[] = [
+  { name: "door-engineering-east", x: 10, y: 9, orientation: "vertical" },
+  { name: "door-security-west", x: 21, y: 9, orientation: "vertical" },
+  { name: "door-reactor-south", x: 16, y: 7, orientation: "horizontal" },
+  { name: "door-cargo-north", x: 16, y: 12, orientation: "horizontal" },
+  { name: "door-security-east", x: 30, y: 9, orientation: "vertical" },
+  { name: "door-lab-south", x: 36, y: 7, orientation: "horizontal" },
+  { name: "door-machine-north", x: 36, y: 12, orientation: "horizontal" },
+  { name: "door-navigation-south", x: 45, y: 8, orientation: "horizontal" },
+  { name: "door-storage-north", x: 45, y: 11, orientation: "horizontal" },
+  { name: "door-bridge-west", x: 47, y: 9, orientation: "vertical" },
+];
+
+const DOOR_RECTS: TileRect[] = DOORWAYS.map((door) => ({ name: door.name, x: door.x, y: door.y, w: 1, h: 1 }));
+const WALKABLE: TileRect[] = [...ROOMS, ...CORRIDORS, ...DOOR_RECTS];
 
 const OBSTACLES: TileRect[] = [
   { name: "engineering-core", x: 5, y: 8, w: 2, h: 2 },
-  { name: "reactor-bank", x: 13, y: 2, w: 2, h: 2 },
-  { name: "cargo-stack", x: 13, y: 15, w: 3, h: 1 },
-  { name: "security-console", x: 22, y: 9, w: 2, h: 2 },
-  { name: "lab-console", x: 31, y: 2, w: 2, h: 2 },
-  { name: "machine-core", x: 31, y: 15, w: 2, h: 2 },
-  { name: "navigation-bank", x: 40, y: 3, w: 2, h: 2 },
-  { name: "storage-stack", x: 40, y: 14, w: 2, h: 1 },
+  { name: "reactor-bank", x: 15, y: 2, w: 2, h: 2 },
+  { name: "cargo-stack", x: 15, y: 15, w: 3, h: 1 },
+  { name: "security-console", x: 25, y: 9, w: 2, h: 2 },
+  { name: "lab-console", x: 35, y: 2, w: 2, h: 2 },
+  { name: "machine-core", x: 35, y: 15, w: 2, h: 2 },
+  { name: "navigation-bank", x: 44, y: 3, w: 2, h: 2 },
+  { name: "storage-stack", x: 44, y: 14, w: 2, h: 1 },
 ];
 
 function contains(rect: TileRect, col: number, row: number) {
@@ -99,6 +108,21 @@ function rectObjects(rects: TileRect[], firstId: number) {
   }));
 }
 
+function doorObjects(firstId: number) {
+  return DOORWAYS.map((door, index) => ({
+    id: firstId + index,
+    name: door.name,
+    x: door.x * TILE,
+    y: door.y * TILE,
+    width: TILE,
+    height: TILE,
+    properties: [
+      prop("orientation", door.orientation, "string"),
+      prop("openRadius", 118, "float"),
+    ],
+  }));
+}
+
 function station(id: number, name: string, x: number, y: number) {
   markDecor(x, y);
   return {
@@ -150,27 +174,27 @@ function encounter(
 }
 
 const stations = [
-  station(300, "b2-energy-engineering", 350, 470),
-  station(301, "b2-energy-lab", 2180, 290),
-  station(302, "b2-energy-machine", 2180, 1080),
-  station(303, "b2-energy-navigation", 2780, 390),
+  station(300, "b2-energy-engineering", 330, 500),
+  station(301, "b2-energy-reactor", 1000, 250),
+  station(302, "b2-energy-machine", 2200, 1020),
+  station(303, "b2-energy-navigation", 2860, 300),
 ];
 
 const encounters = [
-  encounter(400, "b2-sentry-engineering", "SENTRY-4 TECHNIK", 460, 720, "sentry", "add-easy", "easy", 330, 720),
-  encounter(401, "b2-sentry-reactor", "SENTRY-4 REAKTOR", 760, 300, "sentry", "add-easy", "easy", 650, 300),
-  encounter(402, "b2-magnetar-cargo", "MAGNETAR 742 FRACHT", 790, 1050, "magnetar", "add-normal", "medium", 650, 1050),
-  encounter(403, "b2-sentry-upper-west", "SENTRY-4 KORRIDOR", 1180, 350, "sentry", "add-easy", "easy", 1070, 350),
-  encounter(404, "b2-magnetar-security", "MAGNETAR 742 SICHERHEIT", 1430, 500, "magnetar", "add-normal", "medium", 1320, 500),
-  encounter(405, "b2-sentry-security", "SENTRY-4 ZENTRALE", 1540, 760, "sentry", "add-easy", "easy", 1430, 760),
-  encounter(406, "b2-magnetar-lab", "MAGNETAR 742 LABOR", 2020, 300, "magnetar", "add-normal", "medium", 1900, 300),
-  encounter(407, "b2-kronos-machine", "KRONOS-9 MASCHINENRAUM", 2020, 1050, "kronos", "add-hard", "hard", 1900, 1050),
-  encounter(408, "b2-sentry-upper-east", "SENTRY-4 VERBINDUNG", 2350, 350, "sentry", "add-easy", "easy", 2240, 350),
-  encounter(409, "b2-magnetar-navigation", "MAGNETAR 742 NAVIGATION", 2650, 350, "magnetar", "add-normal", "medium", 2520, 350),
-  encounter(410, "b2-sentry-lower-east", "SENTRY-4 VERSORGUNG", 2350, 940, "sentry", "add-easy", "easy", 2240, 940),
-  encounter(411, "b2-kronos-storage", "KRONOS-9 LAGER", 2650, 960, "kronos", "subtract", "hard", 2520, 960),
-  encounter(412, "b2-magnetar-bridge-access", "MAGNETAR 742 BRÜCKENZUGANG", 2990, 650, "magnetar", "add-normal", "medium", 2870, 650),
-  encounter(413, "b2-boss-bridge", "KRONOS-9 KOMMANDO", 3230, 640, "kronos", "add-hard", "hard", 3110, 640, true),
+  encounter(400, "b2-sentry-engineering", "SENTRY-4 TECHNIK", 500, 690, "sentry", "add-easy", "easy", 360, 690),
+  encounter(401, "b2-sentry-reactor", "SENTRY-4 REAKTOR", 930, 210, "sentry", "add-easy", "easy", 850, 320),
+  encounter(402, "b2-magnetar-reactor", "MAGNETAR 742 REAKTOR", 1150, 340, "magnetar", "add-normal", "medium", 1050, 340),
+  encounter(403, "b2-magnetar-cargo", "MAGNETAR 742 FRACHT", 920, 1000, "magnetar", "add-normal", "medium", 850, 1100),
+  encounter(404, "b2-sentry-cargo", "SENTRY-4 FRACHT", 1130, 1080, "sentry", "add-easy", "easy", 1030, 1080),
+  encounter(405, "b2-sentry-security", "SENTRY-4 ZENTRALE", 1540, 610, "sentry", "add-easy", "easy", 1460, 760),
+  encounter(406, "b2-magnetar-security", "MAGNETAR 742 SICHERHEIT", 1760, 760, "magnetar", "add-normal", "medium", 1660, 760),
+  encounter(407, "b2-magnetar-lab", "MAGNETAR 742 LABOR", 2170, 220, "magnetar", "add-normal", "medium", 2100, 340),
+  encounter(408, "b2-sentry-lab", "SENTRY-4 LABOR", 2390, 340, "sentry", "add-easy", "easy", 2290, 340),
+  encounter(409, "b2-kronos-machine", "KRONOS-9 MASCHINENRAUM", 2180, 1010, "kronos", "subtract", "hard", 2100, 1100),
+  encounter(410, "b2-magnetar-machine", "MAGNETAR 742 MASCHINENRAUM", 2400, 1100, "magnetar", "add-normal", "medium", 2300, 1100),
+  encounter(411, "b2-sentry-navigation", "SENTRY-4 NAVIGATION", 2810, 260, "sentry", "add-easy", "easy", 2730, 400),
+  encounter(412, "b2-magnetar-storage", "MAGNETAR 742 LAGER", 2860, 980, "magnetar", "add-normal", "medium", 2760, 980),
+  encounter(413, "b2-boss-bridge", "KRONOS-9 KOMMANDO", 3210, 640, "kronos", "add-hard", "hard", 3120, 640, true),
 ];
 
 export const DECK_VS2_MAP: TiledMapJson = {
@@ -183,7 +207,7 @@ export const DECK_VS2_MAP: TiledMapJson = {
   properties: [
     prop("floorId", "deck-vs2", "string"),
     prop("floorName", "DECK B2", "string"),
-    prop("subtitle", "VERTICAL SLICE 2 · SCHIFFSDECK", "string"),
+    prop("subtitle", "VERTICAL SLICE 2 · SEKTIONEN & AUTO-TÜREN", "string"),
     prop("objectiveDefault", "ERKUNDE DECK B2 · FINDE EINEN WEG DURCH DIE SEKTIONEN", "string"),
     prop("objectiveAfterEnergy", "ENERGIE GESICHERT · DRINGE ZUR BRÜCKE VOR", "string"),
     prop("goalEncounterId", "b2-boss-bridge", "string"),
@@ -219,7 +243,8 @@ export const DECK_VS2_MAP: TiledMapJson = {
     },
     { id: 11, name: "Walkable", type: "objectgroup", objects: rectObjects(WALKABLE, 110) },
     { id: 12, name: "Obstacles", type: "objectgroup", objects: rectObjects(OBSTACLES, 200) },
-    { id: 13, name: "EnergyStations", type: "objectgroup", objects: stations },
-    { id: 14, name: "Encounters", type: "objectgroup", objects: encounters },
+    { id: 13, name: "Doors", type: "objectgroup", objects: doorObjects(260) },
+    { id: 14, name: "EnergyStations", type: "objectgroup", objects: stations },
+    { id: 15, name: "Encounters", type: "objectgroup", objects: encounters },
   ],
 };
