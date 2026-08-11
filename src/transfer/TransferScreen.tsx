@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import type { RobotBody, RobotDeckSize } from "../game/types";
+import type { EncounterAccessKey, RobotBody, RobotDeckSize } from "../game/types";
+import "./TransferScreen.css";
 
 type Props = {
   oldBody: RobotBody;
   newBody: RobotBody;
   oldDeckSize: RobotDeckSize;
   newDeckSize: RobotDeckSize;
+  accessKey?: EncounterAccessKey;
   onComplete: () => void;
 };
 
@@ -16,7 +18,7 @@ function transferRobotStyle(size: RobotDeckSize) {
   return { width: pixels, height: pixels };
 }
 
-export function TransferScreen({ oldBody, newBody, oldDeckSize, newDeckSize, onComplete }: Props) {
+export function TransferScreen({ oldBody, newBody, oldDeckSize, newDeckSize, accessKey, onComplete }: Props) {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -58,6 +60,21 @@ export function TransferScreen({ oldBody, newBody, oldDeckSize, newDeckSize, onC
           <div className="zk-transfer-bar" aria-label={`Transfer ${progress} Prozent`}><div style={{ width: `${progress}%` }} /></div>
           <div className="zk-transfer-percent">{progress}%</div>
           <small className="zk-transfer-status">{status}</small>
+
+          {activated && accessKey && (
+            <div className="zk-transfer-access-acquired">
+              <div className="zk-transfer-keycard" aria-hidden="true">
+                <i />
+                <b>SEC</b>
+                <span>ACCESS</span>
+              </div>
+              <div>
+                <small>SECURITY-FREIGABE ÜBERNOMMEN</small>
+                <strong>{accessKey.label}</strong>
+                <span>Droidenkern-Code wurde deinem Zugriff hinzugefügt.</span>
+              </div>
+            </div>
+          )}
         </section>
 
         <section className={`zk-transfer-body new ${activated ? "activated" : ""}`}>
