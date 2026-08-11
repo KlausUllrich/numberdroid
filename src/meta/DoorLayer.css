@@ -1,0 +1,69 @@
+.zk-door {
+  position: absolute;
+  z-index: 16;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.zk-door .frame {
+  position: absolute;
+  inset: 4px;
+  border: 2px solid #526c71;
+  border-radius: 5px;
+  box-shadow: inset 0 0 10px #000b, 0 0 8px #35d8cb33;
+}
+
+.zk-door .panel {
+  position: absolute;
+  display: block;
+  background: linear-gradient(90deg, #263e45, #61777b 48%, #1c3037 52%, #425b61);
+  border: 1px solid #8aa1a4;
+  box-shadow: 0 0 7px #000c;
+  transition: transform 260ms cubic-bezier(.2,.75,.2,1), opacity 180ms ease;
+}
+
+.zk-door.vertical .panel {
+  left: calc(50% - 7px);
+  width: 14px;
+  height: 50%;
+}
+
+.zk-door.vertical .panel-a { top: 0; }
+.zk-door.vertical .panel-b { bottom: 0; }
+.zk-door.vertical.open .panel-a { transform: translateY(-92%); }
+.zk-door.vertical.open .panel-b { transform: translateY(92%); }
+
+.zk-door.horizontal .panel {
+  top: calc(50% - 7px);
+  height: 14px;
+  width: 50%;
+}
+
+.zk-door.horizontal .panel-a { left: 0; }
+.zk-door.horizontal .panel-b { right: 0; }
+.zk-door.horizontal.open .panel-a { transform: translateX(-92%); }
+.zk-door.horizontal.open .panel-b { transform: translateX(92%); }
+
+.zk-door > span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 1px 3px;
+  border-radius: 2px;
+  background: #07191dcc;
+  color: #f0c15b;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  transition: opacity 160ms ease;
+}
+
+.zk-door.open > span {
+  opacity: .25;
+  color: #65e4bd;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zk-door .panel { transition-duration: 1ms; }
+}
