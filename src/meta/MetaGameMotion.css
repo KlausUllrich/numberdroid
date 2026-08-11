@@ -13,10 +13,16 @@
   backface-visibility: hidden;
 }
 
-/* A normal deck robot should read as smaller than one 64 px tile/door aperture. */
-.zk-meta-world .zk-player img {
+/* Standard deck robots fit comfortably through a 64 px doorway. */
+.zk-meta-world .zk-player.standard img {
   width: 52px;
   height: 52px;
+}
+
+/* Large robots remain large after body transfer. */
+.zk-meta-world .zk-player.large img {
+  width: 96px;
+  height: 96px;
 }
 
 .zk-meta-world .zk-entity.enemy.standard img {
