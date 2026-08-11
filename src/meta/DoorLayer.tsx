@@ -14,7 +14,14 @@ export function DoorLayer({ floor, openDoorIds, collectedPickupIds }: Props) {
       {floor.doors.map((door) => {
         const open = openDoorIds.has(door.id);
         const accessible = hasDoorAccess(floor, { collectedPickupIds: [...collectedPickupIds] }, door);
-        const status = open ? "OPEN" : door.mode === "locked" && !accessible ? "LOCK" : door.mode === "locked" ? "ACCESS" : "AUTO";
+        const accessName = door.label ?? "ACCESS";
+        const status = open
+          ? "OPEN"
+          : door.mode === "locked" && !accessible
+            ? `LOCK ${accessName}`
+            : door.mode === "locked"
+              ? `ACCESS ${accessName}`
+              : door.label ?? "AUTO";
         return (
           <div
             key={door.id}
@@ -25,7 +32,7 @@ export function DoorLayer({ floor, openDoorIds, collectedPickupIds }: Props) {
             <i className="frame" />
             <i className="panel panel-a" />
             <i className="panel panel-b" />
-            <span>{door.label ?? status}</span>
+            <span>{status}</span>
           </div>
         );
       })}
