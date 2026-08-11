@@ -42,9 +42,16 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
 
           {encounter.accessKey && (
             <div className="zk-encounter-access">
-              <span>SECURITY-FREIGABE IM DROIDENKERN</span>
-              <b>▣ {encounter.accessKey.label}</b>
-              <p>Wird nach erfolgreichem Transfer automatisch übernommen.</p>
+              <div className="zk-encounter-keycard" aria-hidden="true">
+                <i className="chip" />
+                <b>SEC</b>
+                <span>ACCESS</span>
+              </div>
+              <div>
+                <span>SECURITY-FREIGABE IM DROIDENKERN</span>
+                <b>{encounter.accessKey.label}</b>
+                <p>Wird nach erfolgreichem Transfer automatisch übernommen.</p>
+              </div>
             </div>
           )}
 
@@ -52,11 +59,10 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
             <div className="zk-encounter-boss-protocol">
               <span>KOMMANDOKERN-SCHUTZ</span>
               <b>{duelLayers} REAKTOR-FIREWALLS</b>
-              <p>Eine 5er-Kette durchbricht eine Firewall, beendet aber nicht den gesamten Kampf. Meta-Energie und Körperjoker reichen über alle Schichten.</p>
+              <p>Alle Schutzschichten sind zu Beginn aktiv. Eine 5er-Kette durchbricht nur die aktuelle Firewall; Meta-Energie und Körperjoker reichen über den gesamten Kampf.</p>
             </div>
           )}
 
-          <div className="zk-encounter-reward">{encounter.rewardLabel}</div>
           <div className="zk-encounter-actions">
             <button onClick={onCancel}>WEITERFAHREN</button>
             <button className="attack" onClick={onStart}>{encounter.boss ? "KOMMANDODUELL STARTEN" : "DUELL STARTEN"}</button>
