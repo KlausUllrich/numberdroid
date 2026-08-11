@@ -133,7 +133,13 @@ export default function App() {
         />
       )}
       {screen === "transfer" && transfer && (
-        <TransferScreen oldBody={BODIES[transfer.oldBodyId]} newBody={BODIES[transfer.encounter.bodyId]} onComplete={finishTransfer} />
+        <TransferScreen
+          oldBody={BODIES[transfer.oldBodyId]}
+          newBody={BODIES[transfer.encounter.bodyId]}
+          oldDeckSize={meta.currentDeckSize}
+          newDeckSize={transfer.encounter.deckSize ?? "standard"}
+          onComplete={finishTransfer}
+        />
       )}
       {screen === "destroyed" && (
         <DestroyedScreen body={BODIES[meta.currentBody]} onRestart={restartFloor} />
