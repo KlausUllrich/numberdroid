@@ -29,6 +29,31 @@
   pointer-events: none;
 }
 
+.zk-hostile.behavior-neutral {
+  cursor: pointer;
+}
+
+.zk-hostile.behavior-neutral > img {
+  filter: drop-shadow(0 0 8px #63c9bc) saturate(.82) !important;
+}
+
+.zk-hostile.behavior-neutral .hostile-mode {
+  border-color: #578f8a;
+  background: #08201fdd;
+  color: #8fd7cf;
+  box-shadow: 0 0 8px #5ebeb24a;
+}
+
+.zk-hostile.behavior-neutral .tag {
+  border-color: #3f7772;
+  background: #071918e8;
+  color: #a9d7d2;
+}
+
+.zk-hostile.behavior-neutral .level i {
+  background: #62b7ae;
+}
+
 .zk-hostile.behavior-patrol .hostile-mode {
   border-color: #4a9c91;
   background: #06221fdd;
