@@ -37,6 +37,7 @@ function distance(ax: number, ay: number, bx: number, by: number) {
 
 function behaviorLabel(enemy: EncounterConfig) {
   switch (enemy.behavior?.kind) {
+    case "neutral": return "ARBEITSDROID";
     case "guard": return "WACHE";
     case "patrol": return "PATROUILLE";
     case "aggressive": return "JÄGER";
@@ -66,13 +67,16 @@ function HostileLayerComponent({
   function runtimeFor(enemy: EncounterConfig) {
     let runtime = runtimeRef.current.get(enemy.encounterId);
     if (!runtime) {
+      const neutral = enemy.behavior?.kind === "neutral";
       runtime = {
         x: enemy.x,
         y: enemy.y,
         facing: 0,
         pathIndex: 0,
         chasing: false,
-        armed: !enemy.behavior || distance(enemy.x, enemy.y, playerMetaRef.current.x, playerMetaRef.current.y) > enemy.behavior.interceptRadius,
+        armed: neutral
+          ? false
+          : !enemy.behavior || distance(enemy.x, enemy.y, playerMetaRef.current.x, playerMetaRef.current.y) > enemy.behavior.interceptRadius,
       };
       runtimeRef.current.set(enemy.encounterId, runtime);
     }
@@ -159,7 +163,7 @@ function HostileLayerComponent({
             moveToward(enemy, runtime, player.x, player.y, behavior.chaseSpeed, dt);
             playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
           }
-        } else if (behavior.kind === "patrol" && behavior.patrolPath.length > 1) {
+        } else if ((behavior.kind === "patrol" || behavior.kind === "neutral") && behavior.patrolPath.length > 1) {
           const target = behavior.patrolPath[runtime.pathIndex % behavior.patrolPath.length];
           if (moveToward(enemy, runtime, target.x, target.y, behavior.patrolSpeed, dt)) {
             runtime.pathIndex = (runtime.pathIndex + 1) % behavior.patrolPath.length;
@@ -167,12 +171,14 @@ function HostileLayerComponent({
           playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
         }
 
-        if (!runtime.armed) {
-          if (playerDistance > behavior.interceptRadius + 82) runtime.armed = true;
-        } else if (!encounterOpeningRef.current && playerDistance <= behavior.interceptRadius) {
-          runtime.armed = false;
-          encounterOpeningRef.current = true;
-          callbacksRef.current.onIntercept(enemy);
+        if (behavior.kind !== "neutral") {
+          if (!runtime.armed) {
+            if (playerDistance > behavior.interceptRadius + 82) runtime.armed = true;
+          } else if (!encounterOpeningRef.current && playerDistance <= behavior.interceptRadius) {
+            runtime.armed = false;
+            encounterOpeningRef.current = true;
+            callbacksRef.current.onIntercept(enemy);
+          }
         }
 
         applyNode(enemy, runtime);
@@ -199,6 +205,7 @@ function HostileLayerComponent({
           background: "transparent",
         };
         const behavior = enemy.behavior;
+        const manuallyScannable = !behavior || behavior.kind === "neutral";
         return (
           <button
             key={enemy.encounterId}
@@ -208,13 +215,13 @@ function HostileLayerComponent({
             }}
             className={`zk-entity enemy zk-hostile ${enemy.enemyId === "kronos" ? "kronos" : ""} ${enemy.boss ? "boss" : ""} ${enemy.deckSize === "large" ? "large" : "standard"} ${behavior ? `behavior-${behavior.kind}` : "behavior-legacy"} ${behavior?.forcedEngagement ? "forced" : ""}`}
             style={style}
-            onClick={behavior ? undefined : () => callbacksRef.current.onManualEncounter(enemy)}
+            onClick={manuallyScannable ? () => callbacksRef.current.onManualEncounter(enemy) : undefined}
             aria-label={`${enemy.name}, ${enemy.boss ? "Endgegner, " : ""}${behavior ? `${behaviorLabel(enemy)}, ` : ""}${enemy.difficultyLabel}`}
           >
             <img src={BODIES[enemy.bodyId].sprite} alt="" />
             <span className="tag">{enemy.name}</span>
             {enemy.accessKey && <span className="zk-enemy-key" aria-label={`Trägt ${enemy.accessKey.label}`}>▣</span>}
-            {behavior && <span className="hostile-mode" aria-hidden="true">{behavior.kind === "aggressive" ? "!" : behavior.kind === "patrol" ? "↔" : "◆"}</span>}
+            {behavior && <span className="hostile-mode" aria-hidden="true">{behavior.kind === "neutral" ? "⚙" : behavior.kind === "aggressive" ? "!" : behavior.kind === "patrol" ? "↔" : "◆"}</span>}
             <span className="level" aria-hidden="true">{[0, 1, 2].map((i) => <i key={i} className={i >= (enemy.difficulty === "easy" ? 1 : enemy.difficulty === "medium" ? 2 : 3) ? "off" : ""} />)}</span>
           </button>
         );
