@@ -38,13 +38,51 @@ export type EnergyStationDefinition = Point & {
   label: string;
 };
 
+export type ImageFloorVisualDefinition = {
+  kind: "image";
+  asset: string;
+};
+
+export type TilesetDefinition = {
+  firstGid: number;
+  asset: string;
+  tileWidth: number;
+  tileHeight: number;
+  columns: number;
+  tileCount: number;
+  margin: number;
+  spacing: number;
+};
+
+export type TileLayerDefinition = {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  data: number[];
+  opacity?: number;
+  visible?: boolean;
+};
+
+export type TileMapVisualDefinition = {
+  kind: "tilemap";
+  columns: number;
+  rows: number;
+  tileWidth: number;
+  tileHeight: number;
+  tilesets: TilesetDefinition[];
+  layers: TileLayerDefinition[];
+};
+
+export type FloorVisualDefinition = ImageFloorVisualDefinition | TileMapVisualDefinition;
+
 export type FloorDefinition = {
   id: string;
   name: string;
   subtitle: string;
   width: number;
   height: number;
-  backgroundAsset: string;
+  visual: FloorVisualDefinition;
   start: Point & {
     facing: number;
     bodyId: BodyId;
