@@ -5,11 +5,13 @@ import type {
   EncounterConfig,
   EnergyStationDefinition,
   EnemyId,
+  FloorActionDefinition,
   FloorDefinition,
   MathMode,
   PickupDefinition,
   Rect,
   RobotDeckSize,
+  RoomDefinition,
   TileLayerDefinition,
   TileMapVisualDefinition,
   TilesetDefinition,
@@ -257,6 +259,38 @@ function parsePickups(map: TiledMapJson): PickupDefinition[] {
   });
 }
 
+function parseRooms(map: TiledMapJson): RoomDefinition[] {
+  const layer = objectLayer(map, "Rooms");
+  if (!layer) return [];
+  return layer.objects.map((object) => {
+    const context = `Room ${object.name || object.id}`;
+    return {
+      id: object.name?.trim() || `room-${object.id}`,
+      ...objectRect(object, context),
+      label: optionalString(object.properties, "label", object.name?.trim() || "SCHIFFSSEKTION"),
+      subtitle: optionalStringValue(object.properties, "subtitle"),
+    };
+  });
+}
+
+function parseActions(map: TiledMapJson): FloorActionDefinition[] {
+  const layer = objectLayer(map, "Actions");
+  if (!layer) return [];
+  return layer.objects.map((object) => {
+    const context = `Action ${object.name || object.id}`;
+    return {
+      id: object.name?.trim() || `action-${object.id}`,
+      kind: "deck-console",
+      x: object.x,
+      y: object.y,
+      label: optionalString(object.properties, "label", "HAUPTKONSOLE"),
+      prompt: requiredString(object.properties, "prompt", context),
+      completionLabel: requiredString(object.properties, "completionLabel", context),
+      requiresEncounterId: optionalStringValue(object.properties, "requiresEncounterId"),
+    };
+  });
+}
+
 function parseDoors(map: TiledMapJson): DoorDefinition[] {
   const layer = objectLayer(map, "Doors");
   if (!layer) return [];
@@ -289,6 +323,7 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
     const mode = requiredEnum(object.properties, "mode", MATH_MODES, context);
     const difficulty = requiredEnum(object.properties, "difficulty", DIFFICULTIES, context);
     const name = object.name?.trim() || requiredString(object.properties, "name", context);
+    const accessKeyId = optionalStringValue(object.properties, "accessKeyId");
     return {
       encounterId: optionalString(object.properties, "encounterId", `encounter-${object.id}`),
       enemyId,
@@ -312,6 +347,11 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
       boss: optionalBoolean(object.properties, "boss"),
       storyIntro: optionalStringValue(object.properties, "storyIntro"),
       deckSize: optionalEnum(object.properties, "deckSize", ROBOT_DECK_SIZES, "standard", context),
+      accessKey: accessKeyId ? {
+        keyId: accessKeyId,
+        label: optionalString(object.properties, "accessKeyLabel", "ZUGANGSKARTE"),
+      } : undefined,
+      duelLayers: Math.max(1, Math.floor(optionalNumber(object.properties, "duelLayers", 1))),
     };
   });
 }
@@ -327,9 +367,14 @@ export function floorFromTiledMap(map: TiledMapJson, options: TiledVisualOptions
 
   const floorId = requiredString(map.properties, "floorId", "Tiled map");
   const encounters = parseEncounters(map);
+  const actions = parseActions(map);
   const goalEncounterId = optionalStringValue(map.properties, "goalEncounterId");
+  const goalActionId = optionalStringValue(map.properties, "goalActionId");
   if (goalEncounterId && !encounters.some((encounter) => encounter.encounterId === goalEncounterId)) {
     throw new Error(`Tiled floor ${floorId} references unknown goal encounter ${goalEncounterId}.`);
+  }
+  if (goalActionId && !actions.some((action) => action.id === goalActionId)) {
+    throw new Error(`Tiled floor ${floorId} references unknown goal action ${goalActionId}.`);
   }
 
   return {
@@ -350,7 +395,13 @@ export function floorFromTiledMap(map: TiledMapJson, options: TiledVisualOptions
       default: requiredString(map.properties, "objectiveDefault", `Floor ${floorId}`),
       afterEnergy: requiredString(map.properties, "objectiveAfterEnergy", `Floor ${floorId}`),
     },
-    goal: goalEncounterId ? {
+    goal: goalActionId ? {
+      kind: "complete-action",
+      actionId: goalActionId,
+      label: requiredString(map.properties, "goalLabel", `Floor ${floorId} goal`),
+      readyLabel: requiredString(map.properties, "goalReadyLabel", `Floor ${floorId} goal ready`),
+      completedLabel: requiredString(map.properties, "goalCompletedLabel", `Floor ${floorId} goal complete`),
+    } : goalEncounterId ? {
       kind: "defeat-encounter",
       encounterId: goalEncounterId,
       label: requiredString(map.properties, "goalLabel", `Floor ${floorId} goal`),
@@ -358,8 +409,10 @@ export function floorFromTiledMap(map: TiledMapJson, options: TiledVisualOptions
     } : undefined,
     walkable: walkableLayer.objects.map((object) => objectRect(object, `Walkable ${object.id}`)),
     obstacles: obstaclesLayer?.objects.map((object) => objectRect(object, `Obstacle ${object.id}`)) ?? [],
+    rooms: parseRooms(map),
     doors: parseDoors(map),
     pickups: parsePickups(map),
+    actions,
     energyStations: parseStations(map),
     encounters,
   };
