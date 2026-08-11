@@ -298,6 +298,13 @@ function action(id: number, name: string, x: number, y: number) {
   };
 }
 
+const neutral = (path: Array<[number, number]> = [], workSpeed = 54): EncounterBehaviorOptions => ({
+  kind: "neutral",
+  patrolPath: path,
+  patrolSpeed: workSpeed,
+  interceptRadius: 72,
+  forcedEngagement: false,
+});
 const guard = (interceptRadius = 104): EncounterBehaviorOptions => ({ kind: "guard", interceptRadius });
 const patrol = (path: Array<[number, number]>, patrolSpeed = 72, interceptRadius = 100): EncounterBehaviorOptions => ({
   kind: "patrol",
@@ -322,13 +329,15 @@ const stations = [
 ];
 
 const encounters = [
-  encounter(400, "b2-sentry-engineering", "SENTRY-4 WERKSTATTWACHE", 500, 690, "sentry", "add-easy", "easy", 360, 690, { behavior: guard() }),
+  encounter(400, "b2-sentry-engineering", "SENTRY-4 WERKSTATTASSISTENT", 500, 690, "sentry", "add-easy", "easy", 360, 690, {
+    behavior: neutral([[430, 690], [560, 690], [560, 780], [430, 780]], 46),
+  }),
   encounter(401, "b2-sentry-reactor", "SENTRY-4 REAKTORPATROUILLE", 930, 210, "sentry", "add-easy", "easy", 850, 320, {
     behavior: patrol([[850, 330], [1180, 330], [1180, 390], [840, 390]], 78),
   }),
   encounter(402, "b2-magnetar-reactor", "MAGNETAR 742 REAKTORTECHNIK", 1150, 340, "magnetar", "add-normal", "medium", 1050, 340, { behavior: guard(108) }),
   encounter(403, "b2-magnetar-cargo", "MAGNETAR 742 FRACHTHEBER", 920, 1000, "magnetar", "add-normal", "medium", 850, 1100, {
-    behavior: patrol([[840, 1090], [930, 1090], [930, 1160], [830, 1160]], 58, 108),
+    behavior: neutral([[840, 1090], [930, 1090], [930, 1160], [830, 1160]], 48),
   }),
   encounter(404, "b2-sentry-cargo", "SENTRY-4 FRACHTWACHE", 1130, 1080, "sentry", "add-easy", "easy", 1030, 1080, {
     behavior: patrol([[1080, 1110], [1210, 1110], [1210, 1160], [1080, 1160]], 80),
@@ -354,14 +363,18 @@ const encounters = [
   encounter(406, "b2-magnetar-security", "MAGNETAR 742 SICHERHEITSGITTER", 1760, 760, "magnetar", "add-normal", "medium", 1660, 760, {
     behavior: aggressive(245, 132, 104),
   }),
-  encounter(407, "b2-magnetar-lab", "MAGNETAR 742 SIGNALTECHNIK", 2170, 220, "magnetar", "add-normal", "medium", 2100, 340, { behavior: guard(108) }),
-  encounter(408, "b2-sentry-lab", "SENTRY-4 LABORPATROUILLE", 2390, 340, "sentry", "add-easy", "easy", 2290, 340, {
-    behavior: patrol([[2110, 350], [2460, 350], [2460, 400], [2110, 400]], 82),
+  encounter(407, "b2-magnetar-lab", "MAGNETAR 742 SIGNALTECHNIK", 2170, 220, "magnetar", "add-normal", "medium", 2100, 340, {
+    behavior: neutral([[2100, 220], [2240, 220], [2240, 300], [2100, 300]], 50),
+  }),
+  encounter(408, "b2-sentry-lab", "SENTRY-4 LABORLÄUFER", 2390, 340, "sentry", "add-easy", "easy", 2290, 340, {
+    behavior: neutral([[2290, 350], [2460, 350], [2460, 410], [2290, 410]], 66),
   }),
   encounter(409, "b2-kronos-machine", "KRONOS-9 MASCHINENWACHE", 2180, 1010, "kronos", "subtract", "hard", 2100, 1100, {
     behavior: aggressive(270, 104, 118),
   }),
-  encounter(410, "b2-magnetar-machine", "MAGNETAR 742 KERNWARTUNG", 2400, 1100, "magnetar", "add-normal", "medium", 2300, 1100, { behavior: guard(108) }),
+  encounter(410, "b2-magnetar-machine", "MAGNETAR 742 KERNWARTUNG", 2400, 1100, "magnetar", "add-normal", "medium", 2300, 1100, {
+    behavior: neutral([[2310, 1100], [2460, 1100], [2460, 1170], [2310, 1170]], 46),
+  }),
   encounter(
     411,
     "b2-sentry-navigation",
