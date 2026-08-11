@@ -3,7 +3,9 @@ import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP } from "../game/cata
 import { getFloor } from "../game/floors";
 import { pointWalkable } from "../game/save";
 import type { EncounterConfig, MetaState } from "../game/types";
+import { DoorLayer } from "./DoorLayer";
 import { FloorVisual } from "./FloorVisual";
+import { blockedByClosedDoor, nextAutomaticDoorIds, sameDoorSet } from "./doorRuntime";
 import "./MetaGameMotion.css";
 
 type Nearby = { type: "station"; id: string } | { type: "enemy"; id: string } | null;
@@ -63,9 +65,11 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   const zoomRef = useRef(NORMAL_ZOOM);
   const pausedRef = useRef(paused);
   const wasMovingRef = useRef(false);
+  const openDoorIdsRef = useRef<Set<string>>(new Set());
   const [touchMarker, setTouchMarker] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState("");
   const [zoom, setZoom] = useState(NORMAL_ZOOM);
+  const [openDoorIds, setOpenDoorIds] = useState<Set<string>>(() => new Set());
 
   const floor = getFloor(meta.floorId);
   const nearby = useMemo(() => nearestInteractable(meta), [meta]);
@@ -107,6 +111,13 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     world.style.transform = `translate3d(${-cameraX * requestedZoom}px, ${-cameraY * requestedZoom}px, 0) scale(${requestedZoom})`;
   }
 
+  function updateAutomaticDoors(state: MetaState) {
+    const next = nextAutomaticDoorIds(floor, state, openDoorIdsRef.current);
+    if (sameDoorSet(next, openDoorIdsRef.current)) return;
+    openDoorIdsRef.current = next;
+    setOpenDoorIds(next);
+  }
+
   useEffect(() => {
     latestMetaRef.current = meta;
     applyPlayerPose(meta);
@@ -133,8 +144,11 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
 
   useEffect(() => {
     function onResize() { applyCamera(latestMetaRef.current); }
+    openDoorIdsRef.current = new Set();
+    setOpenDoorIds(new Set());
     applyPlayerPose(latestMetaRef.current);
     applyCamera(latestMetaRef.current);
+    updateAutomaticDoors(latestMetaRef.current);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -213,6 +227,8 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         return;
       }
 
+      updateAutomaticDoors(current);
+
       let dx = 0;
       let dy = 0;
       const keys = keysRef.current;
@@ -246,10 +262,11 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         let y = current.y;
         const nx = x + dx * speed * dt;
         const ny = y + dy * speed * dt;
-        if (pointWalkable(nx, y, current.floorId)) x = nx;
-        if (pointWalkable(x, ny, current.floorId)) y = ny;
+        if (pointWalkable(nx, y, current.floorId) && !blockedByClosedDoor(floor, openDoorIdsRef.current, nx, y)) x = nx;
+        if (pointWalkable(x, ny, current.floorId) && !blockedByClosedDoor(floor, openDoorIdsRef.current, x, ny)) y = ny;
         const next = { ...current, x, y, facing: Math.atan2(dy, dx) * 180 / Math.PI + 90 };
         latestMetaRef.current = next;
+        updateAutomaticDoors(next);
         applyPlayerPose(next);
         applyCamera(next);
         syncMeta(next);
@@ -299,10 +316,11 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     ? goalComplete ? floor.goal.completedLabel : floor.goal.label
     : meta.usedStationIds.length > 0 ? floor.objectives.afterEnergy : floor.objectives.default;
   const activeEncounters = floor.encounters.filter((encounter) => !meta.defeatedEncounterIds.includes(encounter.encounterId));
+  const pose = latestMetaRef.current;
   const initialPlayerStyle: PlayerStyle = {
-    "--player-x": `${meta.x}px`,
-    "--player-y": `${meta.y}px`,
-    "--facing": `${meta.facing}deg`,
+    "--player-x": `${pose.x}px`,
+    "--player-y": `${pose.y}px`,
+    "--facing": `${pose.facing}deg`,
   };
 
   return (
@@ -332,6 +350,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
           style={{ width: floor.width, height: floor.height }}
         >
           <FloorVisual floor={floor} />
+          <DoorLayer floor={floor} openDoorIds={openDoorIds} />
 
           {floor.energyStations.map((station) => {
             const used = meta.usedStationIds.includes(station.id);
