@@ -1,3 +1,4 @@
+import { robotCollisionRadius } from "../game/catalog";
 import type { DoorDefinition, FloorDefinition, MetaState, Rect } from "../game/types";
 
 export const DOOR_CLOSE_HYSTERESIS = 42;
@@ -60,7 +61,7 @@ export function blockedByClosedDoor(
   openDoorIds: ReadonlySet<string>,
   x: number,
   y: number,
-  collisionRadius: number,
+  collisionRadius = robotCollisionRadius("standard"),
 ) {
   return floor.doors.some(
     (door) => !openDoorIds.has(door.id) && circleIntersectsRect(x, y, collisionRadius, collisionRectForDoor(door)),
