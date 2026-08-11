@@ -21,7 +21,7 @@ type MetaStateV2 = {
   damageTaken?: number;
 };
 
-function initialStateForFloor(floor: FloorDefinition, playerCount = 2): MetaState {
+export function createFloorState(floor: FloorDefinition, playerCount = 2): MetaState {
   return {
     version: 3,
     floorId: floor.id,
@@ -38,7 +38,7 @@ function initialStateForFloor(floor: FloorDefinition, playerCount = 2): MetaStat
   };
 }
 
-export const DEFAULT_META: MetaState = initialStateForFloor(CURRENT_FLOOR);
+export const DEFAULT_META: MetaState = createFloorState(CURRENT_FLOOR);
 
 function inRect(x: number, y: number, r: { x: number; y: number; w: number; h: number }, margin = 0) {
   return x >= r.x + margin && x <= r.x + r.w - margin && y >= r.y + margin && y <= r.y + r.h - margin;
@@ -63,7 +63,7 @@ function inferDefeatedEncounterFromOwnedBody(state: MetaState, floor: FloorDefin
 
 function sanitize(candidate: Partial<MetaState>): MetaState {
   const floor = getFloor(typeof candidate.floorId === "string" ? candidate.floorId : CURRENT_FLOOR.id);
-  const defaults = initialStateForFloor(floor);
+  const defaults = createFloorState(floor);
   const state: MetaState = { ...defaults, ...candidate, version: 3, floorId: floor.id };
 
   if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !pointWalkable(state.x, state.y, floor.id)) {
@@ -85,9 +85,9 @@ function sanitize(candidate: Partial<MetaState>): MetaState {
     ? [...new Set(state.defeatedEncounterIds.filter((id) => typeof id === "string" && validEncounterIds.has(id)))]
     : [];
 
-  // On the current single-instance A7 floor a non-starter body can only have been
-  // acquired by defeating its matching encounter. This also repairs early v2→v3
-  // migrations that may have lost the defeated marker while preserving the body.
+  // On a floor with exactly one matching body encounter, owning that non-start body
+  // proves that encounter was already defeated. Floors with duplicate bodies keep
+  // explicit encounter-instance state only and do not infer which copy was defeated.
   inferDefeatedEncounterFromOwnedBody(state, floor);
 
   state.playerCount = Math.max(1, Math.min(4, Number.isFinite(state.playerCount) ? state.playerCount : defaults.playerCount));
@@ -117,7 +117,7 @@ function migrateV2(old: MetaStateV2): MetaState {
 }
 
 export function restartFloorState(previous: MetaState): MetaState {
-  return initialStateForFloor(getFloor(previous.floorId), previous.playerCount);
+  return createFloorState(getFloor(previous.floorId), previous.playerCount);
 }
 
 export function loadMetaState(): MetaState {
