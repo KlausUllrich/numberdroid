@@ -8,7 +8,7 @@
 .zk-player {
   left: 0 !important;
   top: 0 !important;
-  transform: translate3d(var(--player-x), var(--player-y), 0) translate(-50%, -50%) rotate(var(--facing)) !important;
+  transform: translate3d(var(--player-x), var(--player-y), 0) translate(-50%, -50%) !important;
   will-change: transform;
   backface-visibility: hidden;
 }
