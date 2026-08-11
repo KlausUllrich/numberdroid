@@ -8,7 +8,7 @@ agent/integrate-metagame-architecture
 
 Do **not** merge draft PR #1 unless Klaus explicitly asks you to.
 
-Before making changes, read **`CODEX_HANDOFF.md` completely**. Treat it as the authoritative handover for architecture, binding gameplay rules, validated behavior, current B2 state, prohibitions and the newly requested post-VS2 work.
+Before making changes, read **`CODEX_HANDOFF.md` completely** and then **`ENCOUNTER_ARCHETYPES.md` completely**. Treat both as the authoritative handover for architecture, binding gameplay rules, validated behavior, current B2 state, encounter behavior design, prohibitions and the requested post-VS2 work.
 
 Important context boundary:
 - A7 parity and the first complete B2/VS2 gameplay loop are already established.
@@ -16,17 +16,19 @@ Important context boundary:
 - Preserve the smooth local RAF movement/camera architecture and physical body-size/drive behavior.
 - Preserve hidden arithmetic correctness until explicit submit.
 - Extend current Floor/Tiled/runtime systems rather than adding per-map DOM hacks.
+- Robot bodies are physical on the deck; hostile scans should occur on actual contact rather than an invisible long-range scan boundary.
+- Neutral work robots are non-aggressive and voluntarily scannable.
+- Guards leave their post when triggered, chase only inside a limited leash area, scan on contact, and return to their post when the player escapes.
+- The future Treasure Golem / Beutedroide archetype requires an authored trap/environment interaction before it can be reached.
 
 The next development phase is **gameplay enrichment**, especially:
-1. small duel/transfer UI regressions and firewall presentation cleanup,
-2. KRONOS boss: two thin visible firewalls followed by a distinct exposed-core final fight,
-3. automatic proximity encounters plus patrol/guard/aggressive pursuit behavior,
-4. visible staged enemy ability usage and a funnier/longer AI think-and-fail moment,
-5. improved player-change animation in the duel,
-6. replace the textual chain-reward legend with a visual energy/progress bar without revealing arithmetic correctness,
-7. prototype simple child-friendly new board mechanics such as identical-number bonuses or dual-value tiles,
-8. generalize Security cards so every key on a deck has its own authored color consistently across enemy cue, scan, transfer and matching door,
-9. later strengthen deck/room/robot personality and art direction.
+1. finish and playtest neutral/guard/patrol/aggressive deck behavior,
+2. visible staged enemy ability usage and a funnier/longer AI think-and-fail moment,
+3. generalize Security cards so every key on a deck has its own authored color consistently across enemy cue, scan, transfer and matching door,
+4. prototype simple child-friendly new board mechanics such as identical-number bonuses or dual-value tiles,
+5. design the neutral-body risk/reward loop without inventing an arbitrary reward,
+6. later prototype the Treasure Golem / trap encounter as an authored floor mechanic,
+7. strengthen deck/room/robot personality and art direction.
 
 Do not try to implement the entire list in one unreviewed batch. Follow the recommended order in `CODEX_HANDOFF.md`, build after coherent increments, and keep the game continuously testable on desktop and physical phone landscape.
 
@@ -50,4 +52,4 @@ npm run build
 npm run dev -- --host 0.0.0.0
 ```
 
-Start by summarizing what you understand from `CODEX_HANDOFF.md` and propose the **first small implementation block only** before changing code.
+Start by summarizing what you understand from `CODEX_HANDOFF.md` and `ENCOUNTER_ARCHETYPES.md` and propose the **first small implementation block only** before changing code.
