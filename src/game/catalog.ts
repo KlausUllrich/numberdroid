@@ -1,9 +1,17 @@
-import type { MathMode, RobotBody } from "./types";
+import type { MathMode, RobotBody, RobotDeckSize } from "./types";
 
 export const PLAYER_NAMES = ["Finn", "Klaus", "Ines", "Gast"] as const;
-export const PLAYER_RADIUS = 24;
 export const MAX_META_ENERGY = 3;
 export const STARTING_HP = 3;
+
+export const ROBOT_DECK_METRICS: Record<RobotDeckSize, { spriteSize: number; collisionRadius: number }> = {
+  standard: { spriteSize: 52, collisionRadius: 18 },
+  large: { spriteSize: 96, collisionRadius: 38 },
+};
+
+export function robotCollisionRadius(size: RobotDeckSize) {
+  return ROBOT_DECK_METRICS[size].collisionRadius;
+}
 
 export const BODIES: Record<RobotBody["id"], RobotBody> = {
   pico: {
