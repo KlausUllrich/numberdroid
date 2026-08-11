@@ -2,6 +2,7 @@ import type {
   BodyId,
   Difficulty,
   DoorDefinition,
+  EncounterBehaviorKind,
   EncounterConfig,
   EnergyStationDefinition,
   EnemyId,
@@ -9,6 +10,7 @@ import type {
   FloorDefinition,
   MathMode,
   PickupDefinition,
+  Point,
   Rect,
   RobotDeckSize,
   RoomDefinition,
@@ -93,6 +95,7 @@ const ENEMY_IDS: EnemyId[] = ["sentry", "magnetar", "kronos"];
 const BODY_IDS: BodyId[] = ["pico", "sentry", "magnetar", "kronos"];
 const MATH_MODES: MathMode[] = ["add-easy", "add-normal", "add-hard", "subtract"];
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+const ENCOUNTER_BEHAVIORS: EncounterBehaviorKind[] = ["guard", "patrol", "aggressive"];
 const DOOR_ORIENTATIONS: DoorDefinition["orientation"][] = ["vertical", "horizontal"];
 const DOOR_MODES: DoorDefinition["mode"][] = ["auto", "locked"];
 const DOOR_SIZES: DoorDefinition["size"][] = ["standard", "large"];
@@ -157,6 +160,21 @@ function optionalEnum<T extends string>(
   const value = optionalString(properties, name, fallback);
   if (!allowed.includes(value as T)) throw new Error(`${context} has invalid ${name}: ${value}.`);
   return value as T;
+}
+
+function optionalPointPath(properties: TiledProperty[] | undefined, name: string, context: string): Point[] {
+  const value = property(properties, name);
+  if (value === undefined || value === null || value === "") return [];
+  if (typeof value !== "string") throw new Error(`${context} property ${name} must be a string of x,y pairs.`);
+  return value.split(";").filter(Boolean).map((entry, index) => {
+    const [xText, yText] = entry.split(",");
+    const x = Number(xText);
+    const y = Number(yText);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error(`${context} has invalid ${name} point ${index + 1}: ${entry}.`);
+    }
+    return { x, y };
+  });
 }
 
 function objectLayer(map: TiledMapJson, name: string): TiledObjectLayer | null {
@@ -324,6 +342,20 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
     const difficulty = requiredEnum(object.properties, "difficulty", DIFFICULTIES, context);
     const name = object.name?.trim() || requiredString(object.properties, "name", context);
     const accessKeyId = optionalStringValue(object.properties, "accessKeyId");
+    const behaviorValue = optionalStringValue(object.properties, "behavior");
+    const behaviorKind = behaviorValue
+      ? (ENCOUNTER_BEHAVIORS.includes(behaviorValue as EncounterBehaviorKind) ? behaviorValue as EncounterBehaviorKind : null)
+      : null;
+    if (behaviorValue && !behaviorKind) throw new Error(`${context} has invalid behavior: ${behaviorValue}.`);
+
+    const interceptRadius = Math.max(72, optionalNumber(object.properties, "interceptRadius", 104));
+    const detectionRadius = Math.max(interceptRadius, optionalNumber(object.properties, "detectionRadius", behaviorKind === "aggressive" ? 250 : interceptRadius));
+    const loseRadius = Math.max(detectionRadius + 32, optionalNumber(object.properties, "loseRadius", detectionRadius + 120));
+    const patrolPath = optionalPointPath(object.properties, "patrolPath", context);
+    if (behaviorKind === "patrol" && patrolPath.length < 2) {
+      throw new Error(`${context} patrol behavior requires at least two patrolPath points.`);
+    }
+
     return {
       encounterId: optionalString(object.properties, "encounterId", `encounter-${object.id}`),
       enemyId,
@@ -352,6 +384,16 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
         label: optionalString(object.properties, "accessKeyLabel", "ZUGANGSKARTE"),
       } : undefined,
       duelLayers: Math.max(1, Math.floor(optionalNumber(object.properties, "duelLayers", 1))),
+      behavior: behaviorKind ? {
+        kind: behaviorKind,
+        interceptRadius,
+        detectionRadius,
+        loseRadius,
+        patrolSpeed: Math.max(24, optionalNumber(object.properties, "patrolSpeed", behaviorKind === "patrol" ? 72 : 0)),
+        chaseSpeed: Math.max(40, optionalNumber(object.properties, "chaseSpeed", 128)),
+        forcedEngagement: optionalBoolean(object.properties, "forcedEngagement", false),
+        patrolPath,
+      } : undefined,
     };
   });
 }
