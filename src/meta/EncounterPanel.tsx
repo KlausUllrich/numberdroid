@@ -10,6 +10,7 @@ type Props = {
 
 function behaviorCopy(encounter: EncounterConfig) {
   switch (encounter.behavior?.kind) {
+    case "neutral": return "NEUTRAL · MACHT SEINE ARBEIT";
     case "guard": return "WACHE · FÄNGT DICH AB";
     case "patrol": return "PATROUILLE · BEWEGT SICH";
     case "aggressive": return encounter.behavior.forcedEngagement ? "JÄGER · ERZWINGT KAMPF" : "JÄGER · VERFOLGT DICH";
@@ -22,17 +23,18 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
   const deckSize = encounter.deckSize ?? "standard";
   const drive = robotDriveProfile(encounter.bodyId, deckSize);
   const duelLayers = encounter.duelLayers ?? 1;
+  const neutral = encounter.behavior?.kind === "neutral";
   const forcedEngagement = Boolean(encounter.behavior?.forcedEngagement);
 
   return (
     <div className="zk-modal-layer clean-encounter-layer" role="dialog" aria-modal="true" aria-labelledby="encounter-title">
-      <section className={`zk-encounter ${encounter.boss ? "boss" : ""} ${deckSize}`}>
+      <section className={`zk-encounter ${encounter.boss ? "boss" : ""} ${neutral ? "neutral" : ""} ${deckSize}`}>
         <div className="zk-encounter-robot">
           <img src={body.sprite} alt={encounter.name} />
           <span>{deckSize === "large" ? "SCHWERKÖRPER" : body.bodyClass}</span>
         </div>
         <div className="zk-encounter-info">
-          <small>{encounter.boss ? "KOMMANDO-SIGNATUR · ENDGEGNER" : forcedEngagement ? "FEINDLICHER ABFANGSCAN · KAMPF ERZWUNGEN" : "DROID-SCAN · TAKTISCHE ANALYSE"}</small>
+          <small>{encounter.boss ? "KOMMANDO-SIGNATUR · ENDGEGNER" : neutral ? "NEUTRALER DROID · ROUTINEARBEIT" : forcedEngagement ? "FEINDLICHER ABFANGSCAN · KAMPF ERZWUNGEN" : "DROID-SCAN · TAKTISCHE ANALYSE"}</small>
           <h2 id="encounter-title">{encounter.name}</h2>
           <div className="zk-encounter-role"><b>{body.roleLabel}</b><span>{body.roleDescription}</span></div>
           {encounter.storyIntro && <p className="zk-encounter-story">{encounter.storyIntro}</p>}
@@ -50,6 +52,14 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
             <b>{body.abilityLabel}</b>
             <p>{body.abilityDescription}</p>
           </div>
+
+          {neutral && (
+            <div className="zk-encounter-neutral-protocol">
+              <span>NEUTRALER BETRIEB</span>
+              <b>KEINE AGGRESSION</b>
+              <p>Dieser Droid arbeitet einfach weiter und wird dich weder abfangen noch verfolgen. Du kannst ihn ignorieren oder freiwillig versuchen, seinen Körper zu übernehmen.</p>
+            </div>
+          )}
 
           {forcedEngagement && (
             <div className="zk-encounter-boss-protocol">
@@ -83,8 +93,8 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
           )}
 
           <div className="zk-encounter-actions">
-            {!forcedEngagement && <button onClick={onCancel}>WEITERFAHREN</button>}
-            <button className="attack" onClick={onStart}>{encounter.boss ? "KOMMANDODUELL STARTEN" : forcedEngagement ? "ANGRIFF ABWEHREN" : "DUELL STARTEN"}</button>
+            {!forcedEngagement && <button onClick={onCancel}>{neutral ? "IN RUHE LASSEN" : "WEITERFAHREN"}</button>}
+            <button className="attack" onClick={onStart}>{encounter.boss ? "KOMMANDODUELL STARTEN" : forcedEngagement ? "ANGRIFF ABWEHREN" : neutral ? "ÜBERNAHME VERSUCHEN" : "DUELL STARTEN"}</button>
           </div>
         </div>
       </section>
