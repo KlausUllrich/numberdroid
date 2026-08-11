@@ -1,6 +1,7 @@
 import type {
   BodyId,
   Difficulty,
+  DoorDefinition,
   EncounterConfig,
   EnergyStationDefinition,
   EnemyId,
@@ -88,6 +89,7 @@ const ENEMY_IDS: EnemyId[] = ["sentry", "magnetar", "kronos"];
 const BODY_IDS: BodyId[] = ["pico", "sentry", "magnetar", "kronos"];
 const MATH_MODES: MathMode[] = ["add-easy", "add-normal", "add-hard", "subtract"];
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+const DOOR_ORIENTATIONS: DoorDefinition["orientation"][] = ["vertical", "horizontal"];
 
 function isTileLayer(layer: TiledLayer): layer is TiledTileLayer {
   return layer.type === "tilelayer";
@@ -222,6 +224,22 @@ function parseStations(map: TiledMapJson): EnergyStationDefinition[] {
   });
 }
 
+function parseDoors(map: TiledMapJson): DoorDefinition[] {
+  const layer = objectLayer(map, "Doors");
+  if (!layer) return [];
+  return layer.objects.map((object) => {
+    const context = `Door ${object.name || object.id}`;
+    const rect = objectRect(object, context);
+    return {
+      id: object.name?.trim() || `door-${object.id}`,
+      ...rect,
+      orientation: requiredEnum(object.properties, "orientation", DOOR_ORIENTATIONS, context),
+      mode: "auto",
+      openRadius: Math.max(72, optionalNumber(object.properties, "openRadius", 118)),
+    };
+  });
+}
+
 function parseEncounters(map: TiledMapJson): EncounterConfig[] {
   const layer = objectLayer(map, "Encounters");
   if (!layer) return [];
@@ -300,6 +318,7 @@ export function floorFromTiledMap(map: TiledMapJson, options: TiledVisualOptions
     } : undefined,
     walkable: walkableLayer.objects.map((object) => objectRect(object, `Walkable ${object.id}`)),
     obstacles: obstaclesLayer?.objects.map((object) => objectRect(object, `Obstacle ${object.id}`)) ?? [],
+    doors: parseDoors(map),
     energyStations: parseStations(map),
     encounters,
   };
