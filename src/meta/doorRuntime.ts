@@ -11,21 +11,33 @@ function doorCenter(door: DoorDefinition) {
 }
 
 export function collisionRectForDoor(door: DoorDefinition): Rect {
-  const slab = 12;
+  const slab = door.size === "large" ? 16 : 12;
   if (door.orientation === "vertical") {
     return { x: door.x + (door.w - slab) / 2, y: door.y, w: slab, h: door.h };
   }
   return { x: door.x, y: door.y + (door.h - slab) / 2, w: door.w, h: slab };
 }
 
+export function hasDoorAccess(
+  floor: FloorDefinition,
+  state: Pick<MetaState, "collectedPickupIds">,
+  door: DoorDefinition,
+) {
+  if (door.mode === "auto") return true;
+  if (!door.keyId) return false;
+  return floor.pickups.some(
+    (pickup) => pickup.keyId === door.keyId && state.collectedPickupIds.includes(pickup.id),
+  );
+}
+
 export function nextAutomaticDoorIds(
   floor: FloorDefinition,
-  state: Pick<MetaState, "x" | "y">,
+  state: Pick<MetaState, "x" | "y" | "collectedPickupIds">,
   currentlyOpen: ReadonlySet<string>,
 ): Set<string> {
   const next = new Set<string>();
   for (const door of floor.doors) {
-    if (door.mode !== "auto") continue;
+    if (!hasDoorAccess(floor, state, door)) continue;
     const center = doorCenter(door);
     const radius = door.openRadius + (currentlyOpen.has(door.id) ? DOOR_CLOSE_HYSTERESIS : 0);
     if (Math.hypot(state.x - center.x, state.y - center.y) <= radius) next.add(door.id);
