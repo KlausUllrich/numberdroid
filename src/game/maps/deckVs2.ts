@@ -5,7 +5,18 @@ const ROWS = 20;
 const TILE = 64;
 
 type TileRect = { name: string; x: number; y: number; w: number; h: number };
-type DoorTile = { name: string; x: number; y: number; orientation: "vertical" | "horizontal" };
+type DoorTile = {
+  name: string;
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  orientation: "vertical" | "horizontal";
+  mode?: "auto" | "locked";
+  size?: "standard" | "large";
+  keyId?: string;
+  label?: string;
+};
 
 const ROOMS: TileRect[] = [
   { name: "aft-engineering", x: 2, y: 6, w: 8, h: 8 },
@@ -33,15 +44,40 @@ const DOORWAYS: DoorTile[] = [
   { name: "door-security-west", x: 21, y: 9, orientation: "vertical" },
   { name: "door-reactor-south", x: 16, y: 7, orientation: "horizontal" },
   { name: "door-cargo-north", x: 16, y: 12, orientation: "horizontal" },
-  { name: "door-security-east", x: 30, y: 9, orientation: "vertical" },
+  {
+    name: "door-security-east",
+    x: 30,
+    y: 9,
+    orientation: "vertical",
+    mode: "locked",
+    keyId: "blue-access",
+    label: "BLUE",
+  },
   { name: "door-lab-south", x: 36, y: 7, orientation: "horizontal" },
   { name: "door-machine-north", x: 36, y: 12, orientation: "horizontal" },
   { name: "door-navigation-south", x: 45, y: 8, orientation: "horizontal" },
   { name: "door-storage-north", x: 45, y: 11, orientation: "horizontal" },
-  { name: "door-bridge-west", x: 47, y: 9, orientation: "vertical" },
+  {
+    name: "door-bridge-west",
+    x: 47,
+    y: 9,
+    w: 1,
+    h: 2,
+    orientation: "vertical",
+    mode: "locked",
+    size: "large",
+    keyId: "command-access",
+    label: "COMMAND",
+  },
 ];
 
-const DOOR_RECTS: TileRect[] = DOORWAYS.map((door) => ({ name: door.name, x: door.x, y: door.y, w: 1, h: 1 }));
+const DOOR_RECTS: TileRect[] = DOORWAYS.map((door) => ({
+  name: door.name,
+  x: door.x,
+  y: door.y,
+  w: door.w ?? 1,
+  h: door.h ?? 1,
+}));
 const WALKABLE: TileRect[] = [...ROOMS, ...CORRIDORS, ...DOOR_RECTS];
 
 const OBSTACLES: TileRect[] = [
@@ -114,11 +150,15 @@ function doorObjects(firstId: number) {
     name: door.name,
     x: door.x * TILE,
     y: door.y * TILE,
-    width: TILE,
-    height: TILE,
+    width: (door.w ?? 1) * TILE,
+    height: (door.h ?? 1) * TILE,
     properties: [
       prop("orientation", door.orientation, "string"),
-      prop("openRadius", 118, "float"),
+      prop("openRadius", door.size === "large" ? 150 : 118, "float"),
+      prop("mode", door.mode ?? "auto", "string"),
+      prop("size", door.size ?? "standard", "string"),
+      ...(door.keyId ? [prop("keyId", door.keyId, "string")] : []),
+      ...(door.label ? [prop("label", door.label, "string")] : []),
     ],
   }));
 }
@@ -131,6 +171,16 @@ function station(id: number, name: string, x: number, y: number) {
     x,
     y,
     properties: [prop("energy", 1, "int"), prop("label", "ENERGIE ⚡ +1", "string")],
+  };
+}
+
+function pickup(id: number, name: string, x: number, y: number, keyId: string, label: string) {
+  return {
+    id,
+    name,
+    x,
+    y,
+    properties: [prop("keyId", keyId, "string"), prop("label", label, "string")],
   };
 }
 
@@ -166,8 +216,9 @@ function encounter(
       ...(enemyId === "magnetar" ? [prop("rewardLabel", `SIEG → ${name} + REIHENSCHUB →`, "string")] : []),
       ...(boss ? [
         prop("boss", true, "bool"),
+        prop("deckSize", "large", "string"),
         prop("rewardLabel", "SIEG → BRÜCKE SICHERN · KÖRPERTRANSFER BEREIT", "string"),
-        prop("storyIntro", "Der Kommandodroide hält die Brücke verriegelt. Besiege ihn, um Deck B2 unter Kontrolle zu bringen.", "string"),
+        prop("storyIntro", "Der große Kommandodroide hält die Brücke verriegelt. Besiege ihn, um Deck B2 unter Kontrolle zu bringen.", "string"),
       ] : []),
     ],
   };
@@ -178,6 +229,11 @@ const stations = [
   station(301, "b2-energy-reactor", 1000, 250),
   station(302, "b2-energy-machine", 2200, 1020),
   station(303, "b2-energy-navigation", 2860, 300),
+];
+
+const pickups = [
+  pickup(350, "b2-blue-access-card", 1110, 250, "blue-access", "BLAUE ZUGANGSKARTE"),
+  pickup(351, "b2-command-access-card", 2860, 430, "command-access", "KOMMANDOKARTE"),
 ];
 
 const encounters = [
@@ -207,9 +263,9 @@ export const DECK_VS2_MAP: TiledMapJson = {
   properties: [
     prop("floorId", "deck-vs2", "string"),
     prop("floorName", "DECK B2", "string"),
-    prop("subtitle", "VERTICAL SLICE 2 · SEKTIONEN & AUTO-TÜREN", "string"),
-    prop("objectiveDefault", "ERKUNDE DECK B2 · FINDE EINEN WEG DURCH DIE SEKTIONEN", "string"),
-    prop("objectiveAfterEnergy", "ENERGIE GESICHERT · DRINGE ZUR BRÜCKE VOR", "string"),
+    prop("subtitle", "VERTICAL SLICE 2 · SEKTIONEN & ZUGANGSKONTROLLE", "string"),
+    prop("objectiveDefault", "ERKUNDE DECK B2 · FINDE ZUGANGSKARTEN · DRINGE ZUR BRÜCKE VOR", "string"),
+    prop("objectiveAfterEnergy", "ENERGIE GESICHERT · FINDE DIE ZUGANGSKARTEN · DRINGE ZUR BRÜCKE VOR", "string"),
     prop("goalEncounterId", "b2-boss-bridge", "string"),
     prop("goalLabel", "ZIEL: ERREICHE DIE BRÜCKE · BESIEGE DEN KOMMANDODROIDEN", "string"),
     prop("goalCompletedLabel", "EBENE GESICHERT · BRÜCKE UNTER KONTROLLE", "string"),
@@ -246,5 +302,6 @@ export const DECK_VS2_MAP: TiledMapJson = {
     { id: 13, name: "Doors", type: "objectgroup", objects: doorObjects(260) },
     { id: 14, name: "EnergyStations", type: "objectgroup", objects: stations },
     { id: 15, name: "Encounters", type: "objectgroup", objects: encounters },
+    { id: 16, name: "Pickups", type: "objectgroup", objects: pickups },
   ],
 };
