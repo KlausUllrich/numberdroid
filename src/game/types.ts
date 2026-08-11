@@ -30,6 +30,8 @@ export type EncounterConfig = {
   bodyId: BodyId;
   rewardLabel: string;
   retreat: Point;
+  boss?: boolean;
+  storyIntro?: string;
 };
 
 export type EnergyStationDefinition = Point & {
@@ -76,6 +78,13 @@ export type TileMapVisualDefinition = {
 
 export type FloorVisualDefinition = ImageFloorVisualDefinition | TileMapVisualDefinition;
 
+export type FloorGoalDefinition = {
+  kind: "defeat-encounter";
+  encounterId: string;
+  label: string;
+  completedLabel: string;
+};
+
 export type FloorDefinition = {
   id: string;
   name: string;
@@ -92,6 +101,7 @@ export type FloorDefinition = {
     default: string;
     afterEnergy: string;
   };
+  goal?: FloorGoalDefinition;
   walkable: Rect[];
   obstacles: Rect[];
   energyStations: EnergyStationDefinition[];
