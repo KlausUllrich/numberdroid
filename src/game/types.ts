@@ -9,13 +9,30 @@ export type RobotDeckSize = "standard" | "large";
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
 
+export type RobotDriveProfile = {
+  label: string;
+  maxSpeed: number;
+  acceleration: number;
+  deceleration: number;
+  turnSpeed: number;
+};
+
 export type RobotBody = {
   id: BodyId;
   name: string;
   bodyClass: string;
+  roleLabel: string;
+  roleDescription: string;
   abilityId: "row-shift-right" | null;
   abilityLabel: string;
+  abilityDescription: string;
+  drive: RobotDriveProfile;
   sprite: string;
+};
+
+export type EncounterAccessKey = {
+  keyId: string;
+  label: string;
 };
 
 export type EncounterConfig = {
@@ -34,6 +51,8 @@ export type EncounterConfig = {
   boss?: boolean;
   storyIntro?: string;
   deckSize?: RobotDeckSize;
+  accessKey?: EncounterAccessKey;
+  duelLayers?: number;
 };
 
 export type EnergyStationDefinition = Point & {
@@ -57,6 +76,21 @@ export type DoorDefinition = Rect & {
   openRadius: number;
   keyId?: string;
   label?: string;
+};
+
+export type RoomDefinition = Rect & {
+  id: string;
+  label: string;
+  subtitle?: string;
+};
+
+export type FloorActionDefinition = Point & {
+  id: string;
+  kind: "deck-console";
+  label: string;
+  prompt: string;
+  completionLabel: string;
+  requiresEncounterId?: string;
 };
 
 export type ImageFloorVisualDefinition = {
@@ -97,12 +131,20 @@ export type TileMapVisualDefinition = {
 
 export type FloorVisualDefinition = ImageFloorVisualDefinition | TileMapVisualDefinition;
 
-export type FloorGoalDefinition = {
-  kind: "defeat-encounter";
-  encounterId: string;
-  label: string;
-  completedLabel: string;
-};
+export type FloorGoalDefinition =
+  | {
+      kind: "defeat-encounter";
+      encounterId: string;
+      label: string;
+      completedLabel: string;
+    }
+  | {
+      kind: "complete-action";
+      actionId: string;
+      label: string;
+      readyLabel: string;
+      completedLabel: string;
+    };
 
 export type FloorDefinition = {
   id: string;
@@ -123,8 +165,10 @@ export type FloorDefinition = {
   goal?: FloorGoalDefinition;
   walkable: Rect[];
   obstacles: Rect[];
+  rooms: RoomDefinition[];
   doors: DoorDefinition[];
   pickups: PickupDefinition[];
+  actions: FloorActionDefinition[];
   energyStations: EnergyStationDefinition[];
   encounters: EncounterConfig[];
 };
@@ -138,6 +182,8 @@ export type MetaState = {
   metaEnergy: number;
   usedStationIds: string[];
   collectedPickupIds: string[];
+  accessKeyIds: string[];
+  completedActionIds: string[];
   currentBody: BodyId;
   currentDeckSize: RobotDeckSize;
   defeatedEncounterIds: string[];
