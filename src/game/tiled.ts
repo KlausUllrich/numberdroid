@@ -7,7 +7,9 @@ import type {
   EnemyId,
   FloorDefinition,
   MathMode,
+  PickupDefinition,
   Rect,
+  RobotDeckSize,
   TileLayerDefinition,
   TileMapVisualDefinition,
   TilesetDefinition,
@@ -90,6 +92,9 @@ const BODY_IDS: BodyId[] = ["pico", "sentry", "magnetar", "kronos"];
 const MATH_MODES: MathMode[] = ["add-easy", "add-normal", "add-hard", "subtract"];
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 const DOOR_ORIENTATIONS: DoorDefinition["orientation"][] = ["vertical", "horizontal"];
+const DOOR_MODES: DoorDefinition["mode"][] = ["auto", "locked"];
+const DOOR_SIZES: DoorDefinition["size"][] = ["standard", "large"];
+const ROBOT_DECK_SIZES: RobotDeckSize[] = ["standard", "large"];
 
 function isTileLayer(layer: TiledLayer): layer is TiledTileLayer {
   return layer.type === "tilelayer";
@@ -136,6 +141,18 @@ function requiredEnum<T extends string>(
   context: string,
 ): T {
   const value = requiredString(properties, name, context);
+  if (!allowed.includes(value as T)) throw new Error(`${context} has invalid ${name}: ${value}.`);
+  return value as T;
+}
+
+function optionalEnum<T extends string>(
+  properties: TiledProperty[] | undefined,
+  name: string,
+  allowed: readonly T[],
+  fallback: T,
+  context: string,
+): T {
+  const value = optionalString(properties, name, fallback);
   if (!allowed.includes(value as T)) throw new Error(`${context} has invalid ${name}: ${value}.`);
   return value as T;
 }
@@ -224,18 +241,40 @@ function parseStations(map: TiledMapJson): EnergyStationDefinition[] {
   });
 }
 
+function parsePickups(map: TiledMapJson): PickupDefinition[] {
+  const layer = objectLayer(map, "Pickups");
+  if (!layer) return [];
+  return layer.objects.map((object) => {
+    const context = `Pickup ${object.name || object.id}`;
+    return {
+      id: object.name?.trim() || `pickup-${object.id}`,
+      kind: "access-key",
+      keyId: requiredString(object.properties, "keyId", context),
+      label: optionalString(object.properties, "label", "ZUGANGSKARTE"),
+      x: object.x,
+      y: object.y,
+    };
+  });
+}
+
 function parseDoors(map: TiledMapJson): DoorDefinition[] {
   const layer = objectLayer(map, "Doors");
   if (!layer) return [];
   return layer.objects.map((object) => {
     const context = `Door ${object.name || object.id}`;
     const rect = objectRect(object, context);
+    const mode = optionalEnum(object.properties, "mode", DOOR_MODES, "auto", context);
+    const keyId = optionalStringValue(object.properties, "keyId");
+    if (mode === "locked" && !keyId) throw new Error(`${context} requires keyId when mode is locked.`);
     return {
       id: object.name?.trim() || `door-${object.id}`,
       ...rect,
       orientation: requiredEnum(object.properties, "orientation", DOOR_ORIENTATIONS, context),
-      mode: "auto",
+      mode,
+      size: optionalEnum(object.properties, "size", DOOR_SIZES, "standard", context),
       openRadius: Math.max(72, optionalNumber(object.properties, "openRadius", 118)),
+      keyId,
+      label: optionalStringValue(object.properties, "label"),
     };
   });
 }
@@ -272,6 +311,7 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
       },
       boss: optionalBoolean(object.properties, "boss"),
       storyIntro: optionalStringValue(object.properties, "storyIntro"),
+      deckSize: optionalEnum(object.properties, "deckSize", ROBOT_DECK_SIZES, "standard", context),
     };
   });
 }
@@ -319,6 +359,7 @@ export function floorFromTiledMap(map: TiledMapJson, options: TiledVisualOptions
     walkable: walkableLayer.objects.map((object) => objectRect(object, `Walkable ${object.id}`)),
     obstacles: obstaclesLayer?.objects.map((object) => objectRect(object, `Obstacle ${object.id}`)) ?? [],
     doors: parseDoors(map),
+    pickups: parsePickups(map),
     energyStations: parseStations(map),
     encounters,
   };
