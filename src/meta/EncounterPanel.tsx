@@ -13,6 +13,7 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
   const deckSize = encounter.deckSize ?? "standard";
   const drive = robotDriveProfile(encounter.bodyId, deckSize);
   const duelLayers = encounter.duelLayers ?? 1;
+  const isKronosLayeredBoss = Boolean(encounter.boss && encounter.enemyId === "kronos" && duelLayers > 1);
 
   return (
     <div className="zk-modal-layer clean-encounter-layer" role="dialog" aria-modal="true" aria-labelledby="encounter-title">
@@ -58,8 +59,10 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
           {duelLayers > 1 && (
             <div className="zk-encounter-boss-protocol">
               <span>KOMMANDOKERN-SCHUTZ</span>
-              <b>{duelLayers} REAKTOR-FIREWALLS</b>
-              <p>Alle Schutzschichten sind zu Beginn aktiv. Eine 5er-Kette durchbricht nur die aktuelle Firewall; Meta-Energie und Körperjoker reichen über den gesamten Kampf.</p>
+              <b>{isKronosLayeredBoss ? `${duelLayers} FIREWALLS · DANACH KERN` : `${duelLayers} REAKTOR-FIREWALLS`}</b>
+              <p>{isKronosLayeredBoss
+                ? "Jede Firewall kämpft mit einem kompakten 8-Segment-Reaktor. Eine 5er-Kette bricht nur die aktuelle Schutzschicht. Danach wird der normale 12-Segment-Kommandokern freigelegt. Meta-Energie und Körperjoker bleiben über den gesamten Kampf verbraucht."
+                : "Alle Schutzschichten sind zu Beginn aktiv. Eine 5er-Kette durchbricht nur die aktuelle Firewall; Meta-Energie und Körperjoker reichen über den gesamten Kampf."}</p>
             </div>
           )}
 

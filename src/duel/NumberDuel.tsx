@@ -19,6 +19,8 @@ type Props = {
 };
 
 type Special = null | "adjust-up" | "adjust-down" | "row-shift";
+type EnemyMood = "idle" | "thinking" | "confused";
+type PilotMotion = "idle" | "exit" | "enter";
 
 type ResultCard = {
   outcome?: "win" | "loss";
@@ -26,9 +28,35 @@ type ResultCard = {
   detail: string;
 };
 
+type ReactorProfile = {
+  total: number;
+  win: number;
+  start: number;
+};
+
 const TILE_MOTION_MS = 560;
 const FIREWALL_BREAK_MS = 1050;
-const REACTOR_START_CORES = 6;
+const PILOT_SWAP_MS = 230;
+const NORMAL_REACTOR: ReactorProfile = { total: TOTAL_CORES, win: WIN_CORES, start: 6 };
+const FIREWALL_REACTOR: ReactorProfile = { total: 8, win: 7, start: 4 };
+
+function chargeLabel(length: number, isFirewallPhase: boolean, coreExposed: boolean) {
+  if (length < 2) return length === 1 ? "WEITER VERKETTEN" : "BEREIT";
+  if (length === 2) return "+1";
+  if (length === 3) return "+2";
+  if (length === 4) return "+4";
+  if (isFirewallPhase) return "FIREWALL-BRUCH";
+  if (coreExposed) return "KERNÜBERNAHME";
+  return "SOFORTSIEG";
+}
+
+function chargeTier(length: number) {
+  if (length >= 5) return "instant";
+  if (length === 4) return "four";
+  if (length === 3) return "two";
+  if (length === 2) return "one";
+  return "idle";
+}
 
 export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, initialMetaEnergy, onFinished }: Props) {
   const mode = encounter.mode;
@@ -36,19 +64,22 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
   const enemyBody = BODIES[encounter.bodyId];
   const totalLayers = Math.max(1, encounter.duelLayers ?? 1);
   const hasFinalCorePhase = Boolean(encounter.boss && encounter.enemyId === "kronos" && totalLayers > 1);
+  const initialReactor = hasFinalCorePhase ? FIREWALL_REACTOR : NORMAL_REACTOR;
   const gridRef = useRef<HTMLDivElement>(null);
   const [grid, setGrid] = useState<Grid>(() => freshGrid(mode));
   const [turn, setTurn] = useState<Turn>("human");
   const [playerIndex, setPlayerIndex] = useState(0);
   const [selection, setSelection] = useState<Pick[]>([]);
   const [enemySelection, setEnemySelection] = useState<Pick[]>([]);
-  const [teamCores, setTeamCores] = useState(REACTOR_START_CORES);
+  const [teamCores, setTeamCores] = useState(initialReactor.start);
   const [clearedLayers, setClearedLayers] = useState(0);
   const [breakingLayer, setBreakingLayer] = useState<number | null>(null);
   const [metaEnergy, setMetaEnergy] = useState(initialMetaEnergy);
   const [abilityUses, setAbilityUses] = useState(playerBody.abilityId === "row-shift-right" ? 1 : 0);
   const [special, setSpecial] = useState<Special>(null);
   const [busy, setBusy] = useState(false);
+  const [enemyMood, setEnemyMood] = useState<EnemyMood>("idle");
+  const [pilotMotion, setPilotMotion] = useState<PilotMotion>("idle");
   const [message, setMessage] = useState(`Bilde eine Kette. Rechne selbst, ob sie ${config.target} ergibt.`);
   const [resultCard, setResultCard] = useState<ResultCard | null>(null);
   const [fallOffsets, setFallOffsets] = useState<Record<number, number>>({});
@@ -57,6 +88,13 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
   const activePath = turn === "human" ? selection : enemySelection;
   const activeBody = turn === "human" ? playerBody : enemyBody;
   const coreExposed = hasFinalCorePhase && clearedLayers >= totalLayers;
+  const isFirewallPhase = hasFinalCorePhase && !coreExposed;
+  const reactor = isFirewallPhase ? FIREWALL_REACTOR : NORMAL_REACTOR;
+  const activeChargeLength = turn === "human" ? selection.length : enemySelection.length;
+  const chargeReward = rewardForLength(activeChargeLength);
+  const chargeText = chargeLabel(activeChargeLength, isFirewallPhase, coreExposed);
+  const chargeClass = chargeTier(activeChargeLength);
+
   const nextOptions = useMemo(() => {
     const set = new Set<string>();
     if (turn !== "human" || special || busy || selection.length === 0) return set;
@@ -121,6 +159,27 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     }, TILE_MOTION_MS);
   }
 
+  function beginEnemyTurn() {
+    setSelection([]);
+    setSpecial(null);
+    if (playerCount <= 1) {
+      setTurn("enemy");
+      setBusy(false);
+      setMessage(`${encounter.name} ist dran.`);
+      return;
+    }
+
+    setPilotMotion("exit");
+    setBusy(true);
+    setMessage(`${PLAYER_NAMES[playerIndex]} gibt den Reaktor weiter …`);
+    window.setTimeout(() => {
+      setPilotMotion("idle");
+      setTurn("enemy");
+      setBusy(false);
+      setMessage(`${encounter.name} ist dran.`);
+    }, PILOT_SWAP_MS);
+  }
+
   function breakFirewall(layerIndex: number) {
     const nextClearedLayers = layerIndex + 1;
     setBreakingLayer(layerIndex);
@@ -131,22 +190,23 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
       setClearedLayers(nextClearedLayers);
 
       if (nextClearedLayers < totalLayers) {
-        setTeamCores(REACTOR_START_CORES);
+        setTeamCores(FIREWALL_REACTOR.start);
         setGrid(freshGrid(mode));
         setTurn("enemy");
         setBusy(false);
-        setMessage(`FIREWALL ${nextClearedLayers} GEBROCHEN. Die nächste Schutzschicht bleibt aktiv. Ressourcen bleiben verbraucht.`);
+        setMessage(`FIREWALL ${nextClearedLayers} GEBROCHEN. Die nächste 8-Segment-Schutzschicht ist aktiv. Ressourcen bleiben verbraucht.`);
         return;
       }
 
       if (hasFinalCorePhase) {
-        setTeamCores(REACTOR_START_CORES);
+        setTeamCores(NORMAL_REACTOR.start);
         setGrid(freshGrid(mode));
         setSelection([]);
         setEnemySelection([]);
         setTurn("human");
+        setPilotMotion("idle");
         setBusy(false);
-        setMessage("BEIDE FIREWALLS ZERSTÖRT. KRONOS' KOMMANDOKERN IST FREIGELEGT — jetzt den Kern übernehmen!");
+        setMessage("BEIDE FIREWALLS ZERSTÖRT. KRONOS' 12-SEGMENT-KOMMANDOKERN IST FREIGELEGT — jetzt den Kern übernehmen!");
         return;
       }
 
@@ -161,20 +221,36 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
 
   useEffect(() => {
     if (turn !== "enemy" || busy || resultCard) return;
+    const timers: number[] = [];
+    const later = (delay: number, callback: () => void) => {
+      const timer = window.setTimeout(callback, delay);
+      timers.push(timer);
+    };
+
     setBusy(true);
-    setMessage(`${encounter.name} sucht eine Kette …`);
-    const timer = window.setTimeout(() => {
+    setEnemyMood("thinking");
+    setMessage(`${encounter.name} rechnet …`);
+    later(560, () => setMessage(`${encounter.name} prüft die Zahlen noch einmal …`));
+    later(1080, () => {
       const path = chooseAiPath(findCombinations(grid, mode), encounter.difficulty);
       setEnemySelection(path);
       if (!path.length) {
-        setMessage(`${encounter.name} passt. Du bist wieder dran.`);
-        window.setTimeout(() => finishEnemyTurn(), 700);
+        setEnemyMood("confused");
+        setMessage(`${encounter.name} setzt an … und zieht den Greifer wieder zurück.`);
+        later(650, () => setMessage(`${encounter.name}: „Moment. Das sah eben noch richtig aus …“`));
+        later(1450, () => {
+          setEnemyMood("idle");
+          finishEnemyTurn();
+        });
         return;
       }
+
+      setEnemyMood("idle");
+      setMessage(`${encounter.name} hat eine Kette gefunden.`);
       const enemyReward = rewardForLength(path.length);
-      window.setTimeout(() => {
+      later(820, () => {
         const next = Math.max(0, teamCores - enemyReward.power);
-        const loses = enemyReward.instant || next <= TOTAL_CORES - WIN_CORES;
+        const loses = enemyReward.instant || next <= reactor.total - reactor.win;
         setTeamCores(loses ? 0 : next);
         animateResolvedGrid(path, () => {
           if (loses) {
@@ -182,9 +258,10 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
             setResultCard({ outcome: "loss", title: "REAKTOR VERLOREN", detail: `${encounter.name} übernimmt den Reaktor.` });
           } else finishEnemyTurn();
         });
-      }, 800);
-    }, 700);
-    return () => window.clearTimeout(timer);
+      });
+    });
+
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
     // One AI action is intentionally scheduled from this turn snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turn]);
@@ -192,10 +269,19 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
   function finishEnemyTurn() {
     setEnemySelection([]);
     setSelection([]);
-    setPlayerIndex((index) => (index + 1) % Math.max(1, playerCount));
+    setEnemyMood("idle");
+    const nextPlayerIndex = (playerIndex + 1) % Math.max(1, playerCount);
+    setPlayerIndex(nextPlayerIndex);
     setTurn("human");
     setBusy(false);
-    setMessage(`Dein Zug. Ziel: ${config.symbol} ${config.target}.`);
+    if (playerCount > 1) {
+      setPilotMotion("enter");
+      window.setTimeout(() => setPilotMotion("idle"), 300);
+      setMessage(`${PLAYER_NAMES[nextPlayerIndex]} übernimmt. Ziel: ${config.symbol} ${config.target}.`);
+    } else {
+      setPilotMotion("idle");
+      setMessage(`Dein Zug. Ziel: ${config.symbol} ${config.target}.`);
+    }
   }
 
   function selectTile(row: number, col: number) {
@@ -252,21 +338,21 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     const result = pathResult(selection, grid, mode);
     if (result !== config.target) {
       const next = Math.max(0, teamCores - 1);
-      const loses = next <= TOTAL_CORES - WIN_CORES;
+      const loses = next <= reactor.total - reactor.win;
       setTeamCores(loses ? 0 : next);
       setResultCard({
         outcome: loses ? "loss" : undefined,
         title: loses ? "REAKTOR VERLOREN" : "ÜBERLADUNG",
-        detail: `${pathExpression(selection, grid, mode)} = ${result}. Gesucht war ${config.target}. Die Zahlen bleiben liegen; 1 Reaktorkern geht an den Droiden.`,
+        detail: `${pathExpression(selection, grid, mode)} = ${result}. Gesucht war ${config.target}. Die Zahlen bleiben liegen; 1 Reaktorsegment geht an den Droiden.`,
       });
       if (!loses) setMessage("Rechenfehler: Das Feld bleibt unverändert.");
       return;
     }
 
     const gained = rewardForLength(selection.length);
-    const next = Math.min(TOTAL_CORES, teamCores + gained.power);
-    const winsCurrentLayer = gained.instant || next >= WIN_CORES;
-    setTeamCores(winsCurrentLayer ? TOTAL_CORES : next);
+    const next = Math.min(reactor.total, teamCores + gained.power);
+    const winsCurrentLayer = gained.instant || next >= reactor.win;
+    setTeamCores(winsCurrentLayer ? reactor.total : next);
     animateResolvedGrid(selection, () => {
       if (winsCurrentLayer) {
         if (totalLayers > 1 && !coreExposed) {
@@ -283,17 +369,19 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
         });
         return;
       }
-      setTurn("enemy");
-      setBusy(false);
-      setMessage(`${encounter.name} ist dran.`);
+      beginEnemyTurn();
     });
   }
 
   function closeMistake() {
     setResultCard(null);
     setSelection([]);
-    setTurn("enemy");
+    beginEnemyTurn();
   }
+
+  const robotMotionClass = turn === "human"
+    ? pilotMotion === "exit" ? "pilot-exit" : pilotMotion === "enter" ? "pilot-enter" : ""
+    : enemyMood === "thinking" ? "enemy-thinking" : enemyMood === "confused" ? "enemy-confused" : "";
 
   return (
     <main className="duel-screen">
@@ -309,11 +397,11 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
       </header>
 
       <section className="duel-layout">
-        <aside className={`active-robot ${turn === "enemy" ? "enemy" : "player"}`}>
+        <aside className={`active-robot ${turn === "enemy" ? "enemy" : "player"} ${robotMotionClass}`}>
           <small>{turn === "enemy" ? "GEGNER · DROIDZUG" : `${PLAYER_NAMES[playerIndex]} · DU BIST DRAN`}</small>
           <img src={activeBody.sprite} alt={activeBody.name} />
           <b>{activeBody.name}</b>
-          <span>{turn === "enemy" ? "FEINDLICHER KÖRPER" : activeBody.abilityLabel}</span>
+          <span>{turn === "enemy" ? enemyMood === "confused" ? "RECHENKERN VERWIRRT" : enemyMood === "thinking" ? "RECHENKERN ANALYSIERT" : "FEINDLICHER KÖRPER" : activeBody.abilityLabel}</span>
         </aside>
 
         <section className="number-board-panel">
@@ -357,9 +445,9 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
           </div>
         </section>
 
-        <aside className={`reactor-panel-clean ${coreExposed ? "boss-core-exposed" : ""}`}>
+        <aside className={`reactor-panel-clean ${isFirewallPhase ? "firewall-phase" : ""} ${coreExposed ? "boss-core-exposed" : ""}`}>
           <div className="reactor-target" aria-label={`Rechenziel ${config.symbol} ${config.target}`}>
-            <small>{coreExposed ? "KOMMANDOKERN · RECHENZIEL" : "RECHENZIEL"}</small>
+            <small>{coreExposed ? "KOMMANDOKERN · RECHENZIEL" : isFirewallPhase ? "FIREWALL · RECHENZIEL" : "RECHENZIEL"}</small>
             <div className="reactor-target-equation"><span>{config.symbol}</span><strong>{config.target}</strong></div>
           </div>
           {totalLayers > 1 && (
@@ -385,10 +473,15 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
               {breakingLayer !== null && <div className="firewall-break-flash">FIREWALL {breakingLayer + 1} GEBROCHEN</div>}
             </div>
           )}
-          <div className="core-row" aria-label={`${teamCores} Team-Reaktorkerne, ${TOTAL_CORES - teamCores} Droid-Reaktorkerne`}>
-            {Array.from({ length: TOTAL_CORES }, (_, index) => <i key={index} className={index < teamCores ? "team" : "enemy"} />)}
+          <div className={`core-row ${isFirewallPhase ? "firewall-segments" : ""}`} aria-label={`${teamCores} Team-Reaktorsegmente, ${reactor.total - teamCores} Droid-Reaktorsegmente, ${reactor.total} insgesamt`}>
+            {Array.from({ length: reactor.total }, (_, index) => <i key={index} className={index < teamCores ? "team" : "enemy"} />)}
           </div>
-          <p className="reactor-rewards">2 Zahlen → +1<br />3 → +2 · 4 → +4<br />{totalLayers > 1 ? coreExposed ? "5+ → Kommandokern übernehmen" : "5+ → aktuelle Firewall brechen" : "5+ → Sofortsieg"}</p>
+          <div className={`chain-charge tier-${chargeClass}`} aria-label={`Kettenlänge ${activeChargeLength}. ${activeChargeLength >= 2 ? chargeReward.instant ? "Sofort-Territorium bei korrekter Rechnung" : `Reaktorbonus ${chargeReward.power} bei korrekter Rechnung` : "Noch kein Reaktorbonus"}.`}>
+            <div className="chain-charge-head"><small>KETTENENERGIE</small><strong>{chargeText}</strong></div>
+            <div className="chain-charge-track" aria-hidden="true">
+              {Array.from({ length: 5 }, (_, index) => <i key={index} className={index < Math.min(5, activeChargeLength) ? "filled" : ""} />)}
+            </div>
+          </div>
           <div className="resource-readout">META-ENERGIE <b>⚡ {metaEnergy}</b></div>
         </aside>
       </section>
