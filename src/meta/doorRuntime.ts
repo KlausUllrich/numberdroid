@@ -2,8 +2,12 @@ import type { DoorDefinition, FloorDefinition, MetaState, Rect } from "../game/t
 
 export const DOOR_CLOSE_HYSTERESIS = 42;
 
-function inRect(x: number, y: number, rect: Rect, margin = 0) {
-  return x >= rect.x - margin && x <= rect.x + rect.w + margin && y >= rect.y - margin && y <= rect.y + rect.h + margin;
+function circleIntersectsRect(x: number, y: number, radius: number, rect: Rect) {
+  const nearestX = Math.max(rect.x, Math.min(x, rect.x + rect.w));
+  const nearestY = Math.max(rect.y, Math.min(y, rect.y + rect.h));
+  const dx = x - nearestX;
+  const dy = y - nearestY;
+  return dx * dx + dy * dy < radius * radius;
 }
 
 function doorCenter(door: DoorDefinition) {
@@ -56,6 +60,9 @@ export function blockedByClosedDoor(
   openDoorIds: ReadonlySet<string>,
   x: number,
   y: number,
+  collisionRadius: number,
 ) {
-  return floor.doors.some((door) => !openDoorIds.has(door.id) && inRect(x, y, collisionRectForDoor(door), 24));
+  return floor.doors.some(
+    (door) => !openDoorIds.has(door.id) && circleIntersectsRect(x, y, collisionRadius, collisionRectForDoor(door)),
+  );
 }
