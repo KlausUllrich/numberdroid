@@ -5,6 +5,7 @@ export type Difficulty = "easy" | "medium" | "hard";
 export type Operation = "add" | "subtract";
 export type GameScreen = "deck" | "encounter" | "duel" | "transfer" | "destroyed";
 export type RobotDeckSize = "standard" | "large";
+export type EncounterBehaviorKind = "guard" | "patrol" | "aggressive";
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -35,6 +36,17 @@ export type EncounterAccessKey = {
   label: string;
 };
 
+export type EncounterBehavior = {
+  kind: EncounterBehaviorKind;
+  interceptRadius: number;
+  detectionRadius: number;
+  loseRadius: number;
+  patrolSpeed: number;
+  chaseSpeed: number;
+  forcedEngagement: boolean;
+  patrolPath: Point[];
+};
+
 export type EncounterConfig = {
   encounterId: string;
   enemyId: EnemyId;
@@ -53,6 +65,7 @@ export type EncounterConfig = {
   deckSize?: RobotDeckSize;
   accessKey?: EncounterAccessKey;
   duelLayers?: number;
+  behavior?: EncounterBehavior;
 };
 
 export type EnergyStationDefinition = Point & {
