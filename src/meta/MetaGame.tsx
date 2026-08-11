@@ -5,7 +5,7 @@ import { pointWalkable } from "../game/save";
 import type { EncounterConfig, MetaState } from "../game/types";
 import { DoorLayer } from "./DoorLayer";
 import { FloorVisual } from "./FloorVisual";
-import { HostileLayer } from "./HostileLayer";
+import { HostileLayer, type EncounterRuntimePose } from "./HostileLayer";
 import { blockedByClosedDoor, nextAutomaticDoorIds, sameDoorSet } from "./doorRuntime";
 import "./MetaGameMotion.css";
 
@@ -112,10 +112,12 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   const speedRef = useRef(0);
   const headingRef = useRef((meta.facing - 90) * Math.PI / 180);
   const openDoorIdsRef = useRef<Set<string>>(new Set());
+  const encounterRuntimePosesRef = useRef<Map<string, EncounterRuntimePose>>(new Map());
   const [touchMarker, setTouchMarker] = useState<{ x: number; y: number } | null>(null);
   const [toast, setToast] = useState("");
   const [zoom, setZoom] = useState(NORMAL_ZOOM);
   const [openDoorIds, setOpenDoorIds] = useState<Set<string>>(() => new Set());
+  const [nearbyNeutralId, setNearbyNeutralId] = useState<string | null>(null);
 
   const floor = getFloor(meta.floorId);
   const nearby = useMemo(() => nearestInteractable(meta), [meta]);
@@ -123,6 +125,9 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   const nearbyPickup = nearby?.type === "pickup" ? floor.pickups.find((pickup) => pickup.id === nearby.id) : null;
   const nearbyAction = nearby?.type === "action" ? floor.actions.find((action) => action.id === nearby.id) : null;
   const nearbyEncounter = nearby?.type === "enemy" ? floor.encounters.find((encounter) => encounter.encounterId === nearby.id) : null;
+  const nearbyNeutralEncounter = nearbyNeutralId
+    ? floor.encounters.find((encounter) => encounter.encounterId === nearbyNeutralId && encounter.behavior?.kind === "neutral") ?? null
+    : null;
 
   function syncMeta(next: MetaState, force = false) {
     const now = performance.now();
@@ -166,6 +171,19 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     setOpenDoorIds(next);
   }
 
+  function runtimeEncounter(encounter: EncounterConfig) {
+    const pose = encounterRuntimePosesRef.current.get(encounter.encounterId);
+    return pose ? { ...encounter, x: pose.x, y: pose.y } : encounter;
+  }
+
+  function blockedByEncounterRobot(x: number, y: number, playerRadius: number) {
+    for (const [encounterId, pose] of encounterRuntimePosesRef.current) {
+      if (latestMetaRef.current.defeatedEncounterIds.includes(encounterId)) continue;
+      if (distance(x, y, pose.x, pose.y) < playerRadius + pose.radius + 2) return true;
+    }
+    return false;
+  }
+
   useEffect(() => {
     latestMetaRef.current = meta;
     speedRef.current = 0;
@@ -195,6 +213,8 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
   useEffect(() => {
     function onResize() { applyCamera(latestMetaRef.current); }
     openDoorIdsRef.current = new Set();
+    encounterRuntimePosesRef.current.clear();
+    setNearbyNeutralId(null);
     setOpenDoorIds(new Set());
     applyPlayerPose(latestMetaRef.current);
     applyCamera(latestMetaRef.current);
@@ -214,9 +234,24 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     window.setTimeout(() => setToast((current) => current === message ? "" : current), 2200);
   }
 
+  function openNeutralEncounter(current: MetaState) {
+    if (!nearbyNeutralEncounter) return false;
+    const encounter = runtimeEncounter(nearbyNeutralEncounter);
+    if (distance(current.x, current.y, encounter.x, encounter.y) >= 145) return false;
+    speedRef.current = 0;
+    syncMeta(current, true);
+    onEncounter(encounter);
+    return true;
+  }
+
   function interact() {
-    if (paused || !nearby) return;
+    if (paused) return;
     const current = latestMetaRef.current;
+
+    if (!nearby) {
+      openNeutralEncounter(current);
+      return;
+    }
 
     if (nearby.type === "station") {
       const station = floor.energyStations.find((entry) => entry.id === nearby.id);
@@ -264,19 +299,20 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     if (encounter) {
       speedRef.current = 0;
       syncMeta(current, true);
-      onEncounter(encounter);
+      onEncounter(runtimeEncounter(encounter));
     }
   }
 
   function tryOpenEncounter(enemy: EncounterConfig) {
     const current = latestMetaRef.current;
-    if (distance(current.x, current.y, enemy.x, enemy.y) >= 145) {
-      showToast(`FAHRE NÄHER AN ${enemy.name}`);
+    const runtimeEnemy = runtimeEncounter(enemy);
+    if (distance(current.x, current.y, runtimeEnemy.x, runtimeEnemy.y) >= 145) {
+      showToast(`FAHRE NÄHER AN ${runtimeEnemy.name}`);
       return;
     }
     speedRef.current = 0;
     syncMeta(current, true);
-    onEncounter(enemy);
+    onEncounter(runtimeEnemy);
   }
 
   function interceptEncounter(enemy: EncounterConfig) {
@@ -369,10 +405,12 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         if (
           pointWalkable(nx, y, current.floorId, collisionRadius)
           && !blockedByClosedDoor(floor, openDoorIdsRef.current, nx, y, collisionRadius)
+          && !blockedByEncounterRobot(nx, y, collisionRadius)
         ) x = nx;
         if (
           pointWalkable(x, ny, current.floorId, collisionRadius)
           && !blockedByClosedDoor(floor, openDoorIdsRef.current, x, ny, collisionRadius)
+          && !blockedByEncounterRobot(x, ny, collisionRadius)
         ) y = ny;
 
         if (x === current.x && y === current.y) speedRef.current = 0;
@@ -447,6 +485,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
     "--player-y": `${pose.y}px`,
     "--facing": `${pose.facing}deg`,
   };
+  const canInteract = Boolean(nearby || nearbyNeutralEncounter);
 
   return (
     <main className="zk-meta-shell clean-meta-screen">
@@ -517,9 +556,11 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
             playerMetaRef={latestMetaRef}
             openDoorIdsRef={openDoorIdsRef}
             pausedRef={pausedRef}
+            runtimePosesRef={encounterRuntimePosesRef}
             onIntercept={interceptEncounter}
             onManualEncounter={tryOpenEncounter}
-            onAlert={(enemy) => showToast(`${enemy.name} HAT DICH ENTDECKT!`)}
+            onAlert={(enemy) => showToast(enemy.behavior?.kind === "guard" ? `${enemy.name} VERLÄSST SEINEN POSTEN!` : `${enemy.name} HAT DICH ENTDECKT!`)}
+            onNearbyNeutralChange={setNearbyNeutralId}
           />
 
           <div ref={playerRef} className={`zk-player ${meta.currentDeckSize}`} style={initialPlayerStyle}>
@@ -537,9 +578,11 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
         </button>
         <div className="zk-drive-readout">{body.roleLabel} · {drive.label}</div>
         <div className="zk-touch-hint">TOUCH HALTEN → ROBOTER FÄHRT IN DIESE RICHTUNG · DESKTOP: WASD / PFEILE</div>
-        <button className="zk-interact" disabled={!nearby} onClick={interact}>
-          {!nearby ? (
-            <>INTERAGIEREN<small>Hostile Droiden fangen dich automatisch ab</small></>
+        <button className="zk-interact" disabled={!canInteract} onClick={interact}>
+          {!nearby && nearbyNeutralEncounter ? (
+            <>NEUTRALEN DROID SCANNEN<small>{nearbyNeutralEncounter.name} · freiwillig</small></>
+          ) : !nearby ? (
+            <>INTERAGIEREN<small>Feindliche Droiden lösen erst bei Kontakt einen Scan aus</small></>
           ) : nearby.type === "station" && nearbyStation ? (
             <>ENERGIE AUFLADEN<small>+{nearbyStation.energy} Meta-Energie</small></>
           ) : nearby.type === "pickup" && nearbyPickup ? (
