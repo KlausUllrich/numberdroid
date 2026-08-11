@@ -95,7 +95,7 @@ const ENEMY_IDS: EnemyId[] = ["sentry", "magnetar", "kronos"];
 const BODY_IDS: BodyId[] = ["pico", "sentry", "magnetar", "kronos"];
 const MATH_MODES: MathMode[] = ["add-easy", "add-normal", "add-hard", "subtract"];
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
-const ENCOUNTER_BEHAVIORS: EncounterBehaviorKind[] = ["guard", "patrol", "aggressive"];
+const ENCOUNTER_BEHAVIORS: EncounterBehaviorKind[] = ["neutral", "guard", "patrol", "aggressive"];
 const DOOR_ORIENTATIONS: DoorDefinition["orientation"][] = ["vertical", "horizontal"];
 const DOOR_MODES: DoorDefinition["mode"][] = ["auto", "locked"];
 const DOOR_SIZES: DoorDefinition["size"][] = ["standard", "large"];
@@ -389,9 +389,9 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
         interceptRadius,
         detectionRadius,
         loseRadius,
-        patrolSpeed: Math.max(24, optionalNumber(object.properties, "patrolSpeed", behaviorKind === "patrol" ? 72 : 0)),
+        patrolSpeed: Math.max(24, optionalNumber(object.properties, "patrolSpeed", behaviorKind === "patrol" ? 72 : behaviorKind === "neutral" ? 54 : 24)),
         chaseSpeed: Math.max(40, optionalNumber(object.properties, "chaseSpeed", 128)),
-        forcedEngagement: optionalBoolean(object.properties, "forcedEngagement", false),
+        forcedEngagement: behaviorKind === "neutral" ? false : optionalBoolean(object.properties, "forcedEngagement", false),
         patrolPath,
       } : undefined,
     };
