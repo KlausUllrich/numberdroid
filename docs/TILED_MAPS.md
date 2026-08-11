@@ -48,9 +48,28 @@ The object's `x` / `y` are the player start position.
 
 One or more rectangle objects. Their rectangles define the areas in which the robot may move. Overlapping rectangles are encouraged for rooms, bends and corridors; Floors do not need to be rectangular arenas.
 
+For the current B2 direction, large rectangular room rectangles are connected through explicit one-tile doorway rectangles and narrower corridor rectangles. Room-to-corridor openings should therefore be deliberate rather than broad overlapping edges.
+
 ### `Obstacles`
 
 Optional rectangle objects. These are subtracted from the walkable space.
+
+### `Doors`
+
+Each rectangle is one doorway/portal area. Automatic doors are implemented and participate in runtime collision.
+
+Required properties:
+
+- `orientation`: `vertical` or `horizontal`
+
+Optional properties:
+
+- object name is the stable door id; otherwise `door-<Tiled object id>` is used
+- `openRadius`: proximity radius in world pixels, default `118`
+
+Current door mode is automatic only. A closed door blocks the player's movement through a narrow collision slab at the center of the doorway. Approaching the door opens it before contact; an additional close-distance hysteresis prevents rapid open/close flicker while passing through.
+
+The visual door panels animate independently of the tilemap and slide into the surrounding wall direction.
 
 ### `EnergyStations`
 
@@ -94,10 +113,11 @@ The current `deck-vs2` map uses a deliberately simple technical tileset. It vali
 The technical VS2 Floor is intentionally ship-shaped rather than arena-shaped:
 
 - elongated horizontal silhouette
-- bent/S-shaped main route
-- side rooms and machinery spaces
-- multiple optional branches
-- substantially higher enemy density
+- large rectangular rooms as primary play spaces
+- explicit one-tile room entrances
+- corridors connecting those entrances
+- several rooms with multiple possible exits
+- high enemy density inside room sections
 - bridge/command area at the far end
 - boss encounter as the explicit Floor goal
 
@@ -105,14 +125,12 @@ The target is a 10–15 minute Floor in which enemies create route choices rathe
 
 ## Planned gameplay object layers
 
-The next interaction layer should extend this contract rather than hard-code behavior in React:
+Extend this contract rather than hard-code behavior in React:
 
-- `Doors` — automatic sliding doors and locked/keyed doors
+- `Doors` — automatic doors are active now; locked/keyed variants come next
 - `Pickups` — keys/access tokens and other one-off items
 - `PatrolPaths` — short named paths used by moving enemy instances
 - later explicit exits/transitions once multi-Floor progression is designed
-
-Door collision, key state and patrol simulation are not implemented yet; these names document the intended Tiled-facing architecture.
 
 ## Preview mode
 
