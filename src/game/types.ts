@@ -40,6 +40,13 @@ export type EnergyStationDefinition = Point & {
   label: string;
 };
 
+export type DoorDefinition = Rect & {
+  id: string;
+  orientation: "vertical" | "horizontal";
+  mode: "auto";
+  openRadius: number;
+};
+
 export type ImageFloorVisualDefinition = {
   kind: "image";
   asset: string;
@@ -104,6 +111,7 @@ export type FloorDefinition = {
   goal?: FloorGoalDefinition;
   walkable: Rect[];
   obstacles: Rect[];
+  doors: DoorDefinition[];
   energyStations: EnergyStationDefinition[];
   encounters: EncounterConfig[];
 };
