@@ -1,4 +1,6 @@
 import type { EnergyStationDefinition, FloorDefinition } from "./types";
+import { floorFromTiledMap } from "./tiled";
+import { DECK_VS2_MAP } from "./maps/deckVs2";
 
 const DECK_A7_STATIONS: EnergyStationDefinition[] = [
   {
@@ -90,8 +92,11 @@ export const DECK_A7: FloorDefinition = {
   ],
 };
 
+export const DECK_VS2 = floorFromTiledMap(DECK_VS2_MAP);
+
 export const FLOORS: Record<string, FloorDefinition> = {
   [DECK_A7.id]: DECK_A7,
+  [DECK_VS2.id]: DECK_VS2,
 };
 
 export const DEFAULT_FLOOR_ID = DECK_A7.id;
@@ -99,4 +104,10 @@ export const CURRENT_FLOOR = DECK_A7;
 
 export function getFloor(floorId: string): FloorDefinition {
   return FLOORS[floorId] ?? DECK_A7;
+}
+
+export function getPreviewFloorId(): string | null {
+  if (typeof window === "undefined") return null;
+  const floorId = new URLSearchParams(window.location.search).get("floor");
+  return floorId && FLOORS[floorId] ? floorId : null;
 }
