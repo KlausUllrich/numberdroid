@@ -104,6 +104,20 @@
   filter: drop-shadow(0 0 12px #ff342f) drop-shadow(0 0 20px #ff342f88) sepia(.2) saturate(2.5) hue-rotate(310deg) !important;
 }
 
+.zk-hostile.returning .hostile-mode {
+  border-color: #6f8b87;
+  background: #102321dd;
+  color: #a8c9c4;
+  box-shadow: 0 0 8px #6d9c9550;
+  animation: none;
+}
+
+.zk-hostile.returning .tag {
+  border-color: #58726e;
+  color: #a7c0bc;
+  background: #0a1716ec;
+}
+
 @keyframes hostile-alert-ring {
   from { transform: translate(-50%, -50%) scale(.68); opacity: .9; }
   to { transform: translate(-50%, -50%) scale(1.18); opacity: 0; }
