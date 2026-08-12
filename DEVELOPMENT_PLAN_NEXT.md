@@ -60,7 +60,7 @@ Extend persistence cleanly (likely save schema v4) with campaign-level informati
 - unlocked deck ids,
 - completed deck ids,
 - selected/current deck,
-- selected difficulty,
+- selected gameplay difficulty,
 - existing body/meta/deck state where appropriate.
 
 Completing a deck goal must:
@@ -69,7 +69,18 @@ Completing a deck goal must:
 3. unlock its authored successor(s),
 4. offer `NEXT DECK` and/or `DECKAUSWAHL` rather than leaving the player in a dead-end deck state.
 
-### Difficulty profiles
+### Separate learning progression from gameplay difficulty
+
+Do **not** collapse arithmetic curriculum and tactical game pressure into one difficulty setting.
+
+- **Learning/math progression** belongs to deck/encounter content: operation, target range, number range and later curriculum progression.
+- **Gameplay difficulty** controls how threatening the game systems are: enemy AI competence, detection pressure, chase acceleration, reaction windows and similar tactical parameters.
+
+This separation is important for an educational game: a player who needs easier arithmetic should not automatically be forced into a different action-game experience, and a player who wants more exciting pursuit should not have to change the learning topic.
+
+A separate player-facing learning-level selector can be added later if the deck progression alone proves insufficient.
+
+### Gameplay difficulty profiles
 
 Prototype three readable profiles for playtesting:
 - **ENTDECKER** — forgiving AI/chase tuning,
@@ -80,9 +91,9 @@ Difficulty must be a reusable profile rather than per-screen conditionals. Initi
 - duel AI competence / chance to miss or pass,
 - hostile detection and chase pressure,
 - reaction windows / acceleration,
-- optionally deck-authored math-mode variants.
+- short search/investigation persistence once perception exists.
 
-Do not change hidden arithmetic correctness or the core submit rules.
+Do not change hidden arithmetic correctness, core submit rules, or the authored math curriculum through these gameplay profiles.
 
 ### Second-deck proof
 
@@ -94,7 +105,8 @@ It should have:
 - at least one hostile/security encounter,
 - a simple goal,
 - progression from B2 into C3 and back to deck selection,
-- difficulty profile application.
+- gameplay-difficulty profile application,
+- a different authored math/content mix so deck progression itself can demonstrate learning progression.
 
 Avoid spending time on final tiles/art here.
 
@@ -102,12 +114,12 @@ Manual playtest required: **yes — Playtest Gate A**.
 
 Klaus should be able to test in one session:
 1. deck selection,
-2. difficulty selection,
+2. gameplay difficulty selection,
 3. enter B2,
 4. complete/force-complete B2 through development conveniences if needed,
 5. see success/story flow,
 6. unlock/open C3,
-7. verify that the three difficulty profiles feel meaningfully different.
+7. verify that the three gameplay difficulty profiles feel meaningfully different without unexpectedly changing the arithmetic rules.
 
 ## Package 3 — Robot perception realism
 
@@ -137,7 +149,7 @@ Minimum targets:
 - Floor/Tiled encounter parsing,
 - campaign unlock progression,
 - success → next-deck transition,
-- difficulty-profile selection/application,
+- gameplay-difficulty profile selection/application,
 - save migration/new schema behavior,
 - collision-triggered encounter rules,
 - guard detection/leash state transitions where they can be tested as pure logic,
@@ -152,7 +164,7 @@ Gate B focuses on feel and comprehension:
 - campaign/deck flow understandable without explanation,
 - hosted preview reliable after duel/transfer transitions,
 - guard LOS/chase feels fair,
-- difficulty differences are useful rather than arbitrary,
+- gameplay difficulty differences are useful rather than arbitrary,
 - phone landscape remains smooth.
 
 ## Current-agent stopping point / handoff boundary
@@ -166,7 +178,7 @@ The handoff should contain:
 - hosted preview URL and deployment notes,
 - current save schema and migration rules,
 - campaign/deck catalog structure,
-- difficulty-profile structure,
+- gameplay-difficulty profile structure and separation from math progression,
 - current B2 and C3 content status,
 - perception/LOS runtime behavior,
 - all binding duel rules,
@@ -192,7 +204,7 @@ This boundary keeps the current agent responsible for the **game framework and s
 Klaus should normally only need to manually test three times from this point:
 
 1. **Hosted preview smoke check** — very short, once Pages is live.
-2. **Gate A** — campaign shell + progression + difficulty + second-deck proof.
+2. **Gate A** — campaign shell + progression + gameplay difficulty + second-deck proof.
 3. **Gate B** — final framework/LOS/integration acceptance before handoff.
 
 Routine commits between those gates should be validated by CI and automated smoke coverage rather than repeated user playtests.
