@@ -1,6 +1,7 @@
 export type BodyId = "pico" | "sentry" | "magnetar" | "kronos";
 export type EnemyId = "sentry" | "magnetar" | "kronos";
 export type MathMode = "add-easy" | "add-normal" | "add-hard" | "subtract";
+export type MathRole = "comfort" | "core" | "stretch" | "specialist" | "boss";
 export type Difficulty = "easy" | "medium" | "hard";
 export type Operation = "add" | "subtract";
 export type GameScreen = "deck" | "encounter" | "duel" | "transfer" | "destroyed";
@@ -56,6 +57,7 @@ export type EncounterConfig = {
   y: number;
   mode: MathMode;
   mathLabel: string;
+  mathRole?: MathRole;
   difficulty: Difficulty;
   difficultyLabel: string;
   bodyId: BodyId;
