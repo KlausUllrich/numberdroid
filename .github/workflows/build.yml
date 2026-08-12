@@ -31,3 +31,26 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/agent/integrate-metagame-architecture'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./dist
+
+  deploy-preview:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/agent/integrate-metagame-architecture'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
