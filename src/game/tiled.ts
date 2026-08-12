@@ -9,6 +9,7 @@ import type {
   FloorActionDefinition,
   FloorDefinition,
   MathMode,
+  MathRole,
   PickupDefinition,
   Point,
   Rect,
@@ -94,6 +95,7 @@ type TiledVisualOptions = {
 const ENEMY_IDS: EnemyId[] = ["sentry", "magnetar", "kronos"];
 const BODY_IDS: BodyId[] = ["pico", "sentry", "magnetar", "kronos"];
 const MATH_MODES: MathMode[] = ["add-easy", "add-normal", "add-hard", "subtract"];
+const MATH_ROLES: MathRole[] = ["comfort", "core", "stretch", "specialist", "boss"];
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
 const ENCOUNTER_BEHAVIORS: EncounterBehaviorKind[] = ["neutral", "guard", "patrol", "aggressive"];
 const DOOR_ORIENTATIONS: DoorDefinition["orientation"][] = ["vertical", "horizontal"];
@@ -340,6 +342,9 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
     const bodyId = requiredEnum(object.properties, "bodyId", BODY_IDS, context);
     const mode = requiredEnum(object.properties, "mode", MATH_MODES, context);
     const difficulty = requiredEnum(object.properties, "difficulty", DIFFICULTIES, context);
+    const boss = optionalBoolean(object.properties, "boss");
+    const defaultMathRole: MathRole = boss ? "boss" : difficulty === "easy" ? "comfort" : difficulty === "medium" ? "core" : "stretch";
+    const mathRole = optionalEnum(object.properties, "mathRole", MATH_ROLES, defaultMathRole, context);
     const name = object.name?.trim() || requiredString(object.properties, "name", context);
     const accessKeyId = optionalStringValue(object.properties, "accessKeyId");
     const behaviorValue = optionalStringValue(object.properties, "behavior");
@@ -364,6 +369,7 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
       y: object.y,
       mode,
       mathLabel: requiredString(object.properties, "mathLabel", context),
+      mathRole,
       difficulty,
       difficultyLabel: optionalString(
         object.properties,
@@ -376,7 +382,7 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
         x: optionalNumber(object.properties, "retreatX", object.x),
         y: optionalNumber(object.properties, "retreatY", object.y),
       },
-      boss: optionalBoolean(object.properties, "boss"),
+      boss,
       storyIntro: optionalStringValue(object.properties, "storyIntro"),
       deckSize: optionalEnum(object.properties, "deckSize", ROBOT_DECK_SIZES, "standard", context),
       accessKey: accessKeyId ? {
