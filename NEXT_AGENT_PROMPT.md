@@ -1,26 +1,44 @@
 # Numberdroid — Prompt for the next agent
 
-You are continuing development of **Numberdroid** in repository `KlausUllrich/numberdroid` on branch:
+You are continuing **Numberdroid** in repository:
+
+```text
+KlausUllrich/numberdroid
+```
+
+Branch:
 
 ```text
 agent/integrate-metagame-architecture
 ```
 
-Do **not** merge draft PR #1 unless Klaus explicitly asks you to.
+Draft PR #1 targets `main`.
 
-## Read first
+**Never merge PR #1 unless Klaus explicitly asks.**
 
-Before changing code, read these files completely in this order:
+## Read completely, in this order
 
 1. `HANDOFF_2026-08-12.md`
-2. `CODEX_HANDOFF.md`
-3. `ENCOUNTER_ARCHETYPES.md`
-4. `CAMPAIGN_PROGRESSION.md`
-5. `LEARNING_PROFILES.md`
-6. `MENU_HUB_FLOW.md`
-7. `DEVELOPMENT_PLAN_NEXT.md`
+2. `STORY_WORLD_FOUNDATION.md`
+3. `CAMPAIGN_STORY_LEVEL_PROGRESSION.md`
+4. `CODEX_HANDOFF.md`
+5. `ENCOUNTER_ARCHETYPES.md`
+6. `CAMPAIGN_PROGRESSION.md`
+7. `LEARNING_PROFILES.md`
+8. `MENU_HUB_FLOW.md`
+9. `DEVELOPMENT_PLAN_NEXT.md`
 
-`HANDOFF_2026-08-12.md` is the newest status/handoff checkpoint. It supersedes outdated roadmap/status statements in older documents while preserving their binding architecture/gameplay rules.
+The first three documents contain the newest creative/status decisions. Older status/roadmap text is historical when it conflicts with them. Preserve older binding runtime rules that are not superseded.
+
+## Verify before changing anything
+
+1. Verify the current branch HEAD.
+2. Check the latest GitHub Actions test/build/Pages run.
+3. Verify the public GitHub Pages deployment.
+4. Check Draft PR #1 and keep it draft/unmerged.
+5. Inspect actual current code where relevant rather than assuming the documents describe implementation perfectly.
+
+Then **summarize what you understand to Klaus before changing code or assets**.
 
 ## Architecture boundary
 
@@ -31,123 +49,106 @@ Preserve:
 - physical body size and body-specific drive feel,
 - Floor/Tiled authoring,
 - hidden arithmetic correctness until explicit `REAKTOR AUSLÖSEN`,
-- physical collision → scan,
+- physical collision→scan,
 - neutral/guard/patrol/aggressive distinctions,
-- line-of-sight perception and lost-sight investigation,
+- LOS/view cone/investigation behavior,
 - profile-specific campaign/save/math state,
-- shared campaign for every math profile,
-- separate tactical challenge,
-- title/profile/hub navigation.
+- shared story campaign for all math profiles,
+- independent tactical challenge,
+- title/profile/hub flow.
 
-No hidden DOM clicks, MutationObservers, reload bridges, DOM patching or localStorage message buses.
+No prototype bridge techniques such as hidden DOM clicks, MutationObservers, reload transitions, DOM patching or localStorage message buses.
 
-## Current product flow
+## Important corrected loss rule
 
-Browser prototype:
+Do **not** preserve the old “one lost duel resets the whole deck” behavior as design intent.
 
-```text
-FULLSCREEN SETUP (when needed)
-→ INTRO
-→ TITLE
-→ CONTINUE / NEW PROFILE / SETTINGS
-→ PERSONAL HUB
-→ MISSION
-→ DECK
-→ SUCCESS → HUB
-or
-→ duel loss → same deck restarts from beginning with -1 HP
-→ final HP loss → mission failure → HUB
-```
+Binding desired behavior is:
+- lose 1 HP,
+- keep the active robot body,
+- return that body to the authored level-start position,
+- preserve already eliminated robots,
+- preserve acquired keys/access and completed deck-local actions,
+- preserve other current deck progress,
+- if the lost encounter is a boss, that boss encounter restarts from **Phase 1**,
+- only losing the final HP causes mission failure, hub return and a genuinely fresh future run.
 
-The browser fullscreen prompt currently happens before intro. The small manual fullscreen toggle remains for now. Future Capacitor/native packaging may make both temporary browser workarounds removable.
+The current code at the handoff checkpoint still reflects the old full-floor-reset misunderstanding. Treat this as a known contained implementation mismatch, **not** a new architecture direction.
 
-The hub shows only the current thematic area/act and does not reveal total act count or all ~25 internal deck slots.
+Do not silently claim it is already fixed.
 
-`SAMMLUNG`, `ERFOLGE`, `LOGBUCH`, and `STATISTIK` are dedicated full-screen hub views, not small side-panel widgets.
+## Story foundation now established
 
-## Player profiles / math
+The player is themselves, with their own name, and starts biologically human before the coming-of-age Transfer into a technical core/robot body.
 
-A first install may have zero profiles.
+Core fantasy: different robot bodies and digital transfer let the player reach impossible places such as deep ocean, volcanic environments and the Moon.
 
-Profile creation:
-1. child/adult,
-2. name,
-3. child gets supported arithmetic starting estimate,
-4. adult currently gets streamlined higher +/- default.
+The deeper campaign is about finding one's own place rather than accepting an optimally assigned identity.
 
-Current real duel math protocols are addition/subtraction. Do not present multiplication/division as playable until actual mechanics exist.
+Key arcs:
+- **Parents:** loving but ordinary/time-starved; learn that work they genuinely enjoy cannot replace choosing time for their child and each other. They must have individual viewpoints, not speak as one exposition voice.
+- **Kayo:** genuinely brilliant assigner of people to tasks; “my competence is my value”; the unassignable player triggers overload and exposes that Kayo made everyone dependent on him. He matures into a leader who makes others capable and ultimately helps the player create a new role rather than assigning one.
+- **PRIMUS:** order/optimisation antagonist; learns through self-organising nature that complex order does not require one manager, then discovers personal curiosity/passion and understands why passion cannot be assigned.
+- **Player:** possibilities/abilities can be gained or downloaded, but personally meaningful competence requires practice. The player eventually creates a role that did not previously exist.
 
-Difficulty is multidimensional:
-- player math baseline/evidence,
-- robot math role (`comfort/core/stretch/specialist/boss`),
-- deck curve,
-- campaign mechanic complexity,
-- independent tactical challenge.
+Tone: child-friendly comic adventure, a little robot horror/meanness but never truly frightening, humor throughout, plus short playable moments of awe.
 
-Latest human playtest confirmed child/adult balancing works very well.
+## Campaign progression now established at v0.1
 
-## Duel / initiative rules
+Intro + ~25 beats + Outro are coupled to gameplay across:
 
-Preserve existing duel rules in the handoff documents.
+1. Transfer Ship (Beats 1–5)
+2. Deep Ocean (6–10)
+3. Volcanic / Extreme Industry (11–15)
+4. Moon / Vacuum (16–20)
+5. Bio-Ark / PRIMUS (21–25)
 
-New binding initiative rule:
-- player starts the duel by default,
-- player starts **every new boss phase** by default,
-- KRONOS Firewall 1 → player starts,
-- Firewall 2 after first break → player starts,
-- exposed core after second break → player starts.
+Read the exact beat functions in `CAMPAIGN_STORY_LEVEL_PROGRESSION.md` rather than improvising replacements.
 
-Future authored enemy ability `REAKTIONSSCHNELL` / Quick Reaction may explicitly override this and give a special opponent first move. It is not implemented yet.
+Important open points:
+- Beat 12 needs intelligent enemy/body ordering, but exact RPS mechanics are not locked.
+- Beat 17 needs optional bonus core-conversion/strengthening, but the economy is not locked.
+- Beat 16 is a candidate for first Treasure Golem/Beutedroide introduction, but that system is not currently implemented.
+- Bio-Ark ecological mechanics remain design work for later.
 
-## Duel loss rule
+## Your next major task
 
-One lost duel:
-- loses 1 HP,
-- resets the entire current deck run,
-- restarts the **same deck** from its authored beginning,
-- resets deck-local encounter/key/action/resource progress,
-- keeps accumulated HP damage.
+The next major milestone is **first Art Direction / Graphic Push for Intro + Beats 1–5 / Transfer Ship**.
 
-At 0 remaining HP in campaign mode:
-- mission fails,
-- running mission clears,
-- return to hub,
-- next attempt starts fresh with restored HP.
+Do not write the entire final story again and do not make final art for all 25 beats.
 
-Direct developer previews may retain the debug destroyed/restart loop.
+First propose a bounded art-direction slice that defines:
+- visual language of biological childhood versus machine adulthood,
+- the Transfer itself,
+- player's first robot body,
+- ship architecture/forms/materials,
+- PRIMUS signage/order/UI language,
+- Kayo/status robot visual language,
+- lighting and palette principles,
+- human/family traces inside a primarily robotic society,
+- a small room/prop/robot asset set for the first graphical vertical slice,
+- how Numberdroid avoids looking like generic sci-fi.
 
-## Completed framework — do not restart
+Use the story as the reason for the visuals, not as decoration applied after the fact.
 
-- Pages preview/CI pipeline,
+Before implementing or generating assets, summarize your understanding and present the proposed first visual block to Klaus.
+
+## Existing framework — do not restart
+
+- Pages/CI pipeline,
 - campaign catalog,
-- B2 integration,
-- C3 proof deck,
-- B2→C3 progression,
-- family profiles and per-profile saves,
-- child/adult onboarding,
-- math roles and personalized envelopes,
-- tactical challenge separation,
-- hostile behavior and collision scan,
-- LOS/view cone/investigation,
-- intro/title/settings/profile wizard,
-- thematic personal hub,
-- mission resume,
-- full-screen collection/achievement/logbook/statistics views,
-- success/failure hub loop,
-- deck-restart-on-duel-loss,
-- player initiative on every KRONOS phase.
+- B2 and C3 framework/progression proof,
+- family profiles and isolated saves,
+- math roles/envelopes,
+- separate tactical challenge,
+- hostile archetypes/LOS/investigation,
+- menu/profile/hub/resume/archive screens,
+- duel board core rules,
+- player initiative on every ordinary new boss phase.
 
-## First task in a new session
+Current real math protocols are addition/subtraction only. Do not advertise multiplication/division as playable.
 
-1. Verify current branch HEAD.
-2. Verify latest Actions test/build/Pages state.
-3. Summarize the established architecture/product rules from the documents.
-4. Propose the next **single coherent content/system milestone** with Klaus.
-5. Do not start a broad list of deferred systems simultaneously.
-
-Potential future milestones are listed in `DEVELOPMENT_PLAN_NEXT.md`; they are options, not an instruction to implement them all.
-
-Current public preview target:
+Current public preview:
 
 ```text
 https://klausullrich.github.io/numberdroid/

@@ -1,10 +1,10 @@
 # Numberdroid — Title, Profile & Hub Flow
 
-This document defines the binding player-facing navigation and campaign presentation for Numberdroid. Read it together with `CAMPAIGN_PROGRESSION.md`, `LEARNING_PROFILES.md`, `ENCOUNTER_ARCHETYPES.md`, `CODEX_HANDOFF.md`, and the latest dedicated handoff document.
+This document defines the binding player-facing navigation and campaign presentation for Numberdroid. Read it together with `CAMPAIGN_PROGRESSION.md`, `LEARNING_PROFILES.md`, `ENCOUNTER_ARCHETYPES.md`, `STORY_WORLD_FOUNDATION.md`, and the latest dedicated handoff document.
 
 ## Core product rule
 
-The campaign data model may know about approximately 25 decks and multiple acts. The player-facing UI must **not** expose the whole campaign as a level-select spreadsheet.
+The campaign data model may know about approximately 25 decks and multiple areas/acts. The player-facing UI must **not** expose the whole campaign as a level-select spreadsheet.
 
 Numberdroid should feel like an adventure with a current place, current objective and gradually revealed world.
 
@@ -35,17 +35,17 @@ Binding current behavior:
 - the small manual fullscreen toggle remains available throughout the browser prototype,
 - fullscreen/orientation remains owned by the app shell; individual screens do not compete for it.
 
-Likely production direction: package the game with Capacitor/native-shell behavior. If that removes the browser fullscreen problem, the temporary fullscreen startup prompt and manual toggle may be removed. Do not make the browser workaround part of permanent game design.
+Likely production direction: package the game with Capacitor/native-shell behavior. If that removes the browser fullscreen problem, the temporary fullscreen startup prompt and manual toggle may be removed.
 
 ## Intro
 
-The intro is a short branded entry into the game.
+The intro is a short entry into the game and now also owns the start of the Transfer story defined in `CAMPAIGN_STORY_LEVEL_PROGRESSION.md`.
 
 Rules:
-- no profile or campaign configuration here,
-- short and skippable/advanceable,
-- it leads to the title screen,
-- in the browser prototype, display/fullscreen setup has already happened before this point.
+- no profile/campaign spreadsheet here,
+- short and advanceable,
+- use the player's own profile/name where appropriate,
+- in the browser prototype display/fullscreen setup has already happened.
 
 ## Title screen
 
@@ -57,55 +57,28 @@ Primary actions:
 - `NEUES PROFIL`,
 - `EINSTELLUNGEN`.
 
-The title screen must not show the 25-deck planning target, all acts, a campaign spreadsheet, or run-specific math configuration.
+The title screen must not show the 25-deck planning target, all acts, a campaign spreadsheet or run-specific math configuration.
 
-Profile switching belongs primarily here. The hub returns here through `HAUPTMENÜ`.
+## First install / new profile wizard
 
-## First install / no profiles
+A true first install may contain zero profiles. Do not create a fake visible `SPIELER 1` merely to satisfy runtime assumptions.
 
-A true first-time installation may contain zero profiles. Do not create a fake visible `SPIELER 1` merely to satisfy runtime assumptions. Legacy development/player profiles may be migrated and remain usable.
+Profile creation remains a short wizard:
+1. child or adult,
+2. name,
+3. child receives a friendly supported arithmetic starting estimate,
+4. adult gets the streamlined higher addition/subtraction default.
 
-## New profile wizard
-
-Profile creation is a short wizard, not a settings page.
-
-### Step 1 — Child or adult
-
-Ask `KIND` or `ERWACHSENER`. This is not a difficulty selection; it defines onboarding behavior and leaves room for later presentation/parental differences.
-
-### Step 2 — Name
-
-The profile owns campaign progress, running mission state, mathematics baseline/evidence, tactical preference, and later collection/achievement/story data.
-
-### Step 3 — Mathematics starting estimate for children
-
-Children receive a friendly self-assessment using recognizable examples. Current implemented start points are limited to math the duel genuinely supports:
-- small plus/minus,
-- plus/minus to about 20,
-- larger plus/minus.
-
-Do not pretend multiplication/division are playable until real duel protocols exist.
-
-No test, no score, no school-grade requirement. Choosing an easy start is safe, and easy arithmetic remains useful later.
-
-### Adults
-
-Adults currently skip the child knowledge question and receive a sensible higher addition/subtraction default. Later profile/statistics UI can expose adjustment without adding onboarding friction.
+Current supported visible mathematics remains addition/subtraction; do not expose multiplication/division as playable until actual protocols exist.
 
 ## Personal hub
 
 Choosing `FORTSETZEN` enters the selected profile's **hub**, never directly into a deck.
 
-The hub is the stable resting place for that player's campaign. Each active act should eventually have its own thematic presentation while sharing reusable hub infrastructure.
-
-Illustrative themes remain TBD: early controlled/infiltrated ship, later planet/operation, late enemy mothership, etc. Do not expose how many future acts exist before the story reveals them.
-
-### What the hub reveals
-
-The hub may show:
+The hub is the stable resting place for that player's campaign. It may show:
 - current thematic location,
-- progress **inside the current active act/area**,
-- next available mission,
+- progress inside the current active area,
+- next mission,
 - running mission that can be resumed,
 - collection,
 - achievements,
@@ -113,25 +86,19 @@ The hub may show:
 - player statistics,
 - return to main menu.
 
-The internal approximately-25-deck structure remains an authoring/production model only.
+The internal approximately-25-beat structure remains an authoring/production model only.
 
 ## Hub archive sections are dedicated screens
 
-`SAMMLUNG`, `ERFOLGE`, `LOGBUCH`, and `STATISTIK` are not small widgets inside the mission console. Each opens as its **own full-screen hub sub-screen** with a clear `← HUB` return action.
+`SAMMLUNG`, `ERFOLGE`, `LOGBUCH`, and `STATISTIK` each open as their **own full-screen hub sub-screen** with a clear `← HUB` return action.
 
-This is binding because these systems will grow substantially:
-- collection may contain robots, rare objects, discoveries and completion data,
-- achievements need space for categories/progress/rewards,
-- logbook may contain story fragments, locations, characters and recovered data,
-- statistics may expose mathematics evidence, difficulty calibration and parent/adult detail.
-
-The current implementations are structural placeholders. Do not collapse them back into one crowded right-hand panel.
+Do not collapse them back into a small side-console panel.
 
 ## Mission start, resume and failure
 
 ### Starting a mission
 
-From the hub, the dominant action is the next not-yet-completed playable deck/mission.
+From the hub, the dominant action is the next not-yet-completed playable mission.
 
 ### Leaving a live mission voluntarily
 
@@ -140,98 +107,68 @@ If a player returns to the hub while the run is viable:
 - keep the mission marked as running,
 - hub presents `MISSION FORTSETZEN`.
 
-### Losing one duel — deck restart penalty
+### Losing one duel — corrected binding rule
 
-A lost duel is now a meaningful but child-friendly campaign penalty:
+The earlier design that reset the whole deck after every lost duel was a misunderstanding.
+
+Binding behavior:
 
 ```text
 DUEL LOST
 → lose 1 robot HP
-→ reset the current deck to its authored starting state
-→ restart at the beginning of the SAME deck
+→ keep the active robot body
+→ return that body to the authored level-start position
+→ preserve existing deck progress
 ```
 
-Important consequences:
-- defeated encounters on that run reset,
-- acquired deck-local keys/resources/actions reset,
-- position/body return to the deck's authored start state,
-- accumulated `damageTaken` remains, so the player has one fewer HP,
-- the mission/deck itself remains the active mission.
+Preserve after a single duel loss:
+- already defeated/eliminated robots,
+- deck-local keys/access already earned,
+- completed deck-local actions,
+- other persistent run progress.
 
-This is deliberately stronger than merely retreating a few meters from the opponent, but weaker than returning to the hub after every lost duel.
+The player is being pushed back, **not replaying the entire deck**.
+
+For bosses, the surrounding deck progress remains, but the boss encounter itself restarts from **Phase 1** on the next attempt.
 
 ### Mission failure / 0 HP
 
-When accumulated damage reaches 0 remaining HP:
+When the final HP is lost:
 - mission is not completed,
 - return to hub,
 - clear the running-mission flag,
-- next attempt starts the mission fresh with restored HP,
+- next attempt starts the mission as a fresh deck run with restored HP,
 - do not strand campaign players on a separate destroyed-screen loop.
 
-Direct developer floor previews may retain the legacy destroyed/restart screen.
+Direct developer floor previews may retain the legacy destroyed/restart screen where useful.
+
+### Current implementation note
+
+At the handoff checkpoint, runtime code still reflects the earlier misunderstanding and performs a full floor reset after a single duel loss. The corrected behavior above is authoritative and requires a contained implementation fix later.
 
 ## Mission success
 
-Completing the deck goal:
-1. marks the deck completed for that profile,
+Completing the mission goal:
+1. marks it completed for that profile,
 2. unlocks the authored successor where applicable,
-3. shows a short success/story screen,
+3. shows a short success/story beat,
 4. returns to the hub.
 
-Do not jump directly from success into the next deck by default. The hub should reflect the changed campaign state and present the next mission in context.
+Do not jump directly from success into the next deck by default.
 
-## Collection and achievements
+## Collection, achievements, story and learning transparency
 
-Numberdroid should deliberately support collector and achiever motivations in addition to campaign completion and arithmetic improvement.
+Numberdroid should support collector/achiever motivations alongside campaign progression and arithmetic improvement.
 
-Potential persistent content:
-- unusual finds,
-- discovered robot/body entries,
-- rare items/resources,
-- hidden or visible collectibles,
-- achievements/milestones,
-- completion challenges,
-- story/data fragments.
+Potential persistent content includes robot/body discoveries, rare finds, collectibles with purpose, achievements, story fragments and location/character logbook material.
 
-Do not add arbitrary collectible currencies without a design purpose.
+Statistics should eventually make mathematics calibration understandable rather than a hidden black box. Child presentation remains friendly/non-evaluative; parent/adult detail may expose more evidence.
 
-## Story/logbook
+## Settings and layout
 
-Completed story beats should be reviewable. Potential contents include mission outcomes, recovered logs, character descriptions, robot entries, location lore and story fragments.
+Global settings live at title level. Expected categories include audio, language and later accessibility/control/display options.
 
-## Player statistics and learning transparency
-
-The statistics screen should eventually make the adaptive mathematics model understandable rather than a hidden black box.
-
-Useful presentation:
-- current approximate math baseline,
-- `KLAPPT SCHON GUT`,
-- `WIRD GERADE GEÜBT`,
-- likely next capability,
-- evidence/confidence over sustained play,
-- optional localized school-stage guidance,
-- separate tactical preference.
-
-A child view remains friendly/non-evaluative; a parent/adult detail view may expose more explicit evidence and calibration state.
-
-## Settings
-
-Global settings are accessed from the title screen. Expected categories: audio, language, later accessibility/control/display options. Language support must eventually use proper localization resources.
-
-## Layout rule
-
-Primary navigation screens target landscape/mobile and should fit the viewport without document scrolling:
-- startup/fullscreen prompt,
-- intro,
-- title,
-- profile wizard,
-- hub,
-- each hub archive screen,
-- settings,
-- success/failure transitions.
-
-If content grows, use contained internal scrolling/pagination inside the dedicated screen rather than turning the root document into a long website.
+Primary navigation screens target landscape/mobile and should fit the viewport without root-document scrolling. If content grows, use contained internal scrolling/pagination inside the dedicated screen.
 
 ## Current implementation status
 
@@ -240,29 +177,17 @@ Implemented on `agent/integrate-metagame-architecture`:
 - intro/title flow,
 - zero-profile first install,
 - active-profile continue and multiple-profile cycling,
-- child/adult wizard and child math baseline selection,
+- child/adult wizard and supported child math baseline selection,
 - persisted settings shell,
-- thematic Act-1 ship hub prototype,
-- current-act progress only,
+- thematic Act-1/ship hub prototype,
+- current-area progress only,
 - mission start/resume,
 - profile-specific running mission saves,
 - dedicated full-screen collection/achievement/logbook/statistics views,
 - success → story → hub,
-- single duel loss → same deck restart + 1 HP damage,
-- 0 HP → hub + fresh mission retry,
+- final HP loss → hub + fresh mission retry,
 - developer direct-floor preview behavior retained.
 
-The current art/content is structural prototype work, not final story/art direction.
+**Known mismatch:** single-duel loss currently still performs the old whole-floor reset in runtime code. It must be corrected to the preserved-progress/start-position rule above.
 
-## Deferred hub/content work
-
-- final intro cinematic/title art/audio,
-- final per-act hub art/themes,
-- persistent collectible schema/content,
-- broad achievement catalog,
-- final story archive/character database,
-- detailed adaptive-learning evidence dashboard,
-- parental detail view,
-- production localization pipeline/additional languages,
-- final audio/accessibility settings,
-- removal of browser fullscreen workaround if Capacitor/native shell makes it unnecessary.
+The current art/content remains structural prototype work, not final story/art direction.
