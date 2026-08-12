@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { publicAsset } from "../game/assets";
 import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP, robotCollisionRadius, robotDriveProfile } from "../game/catalog";
 import { getFloor } from "../game/floors";
 import { pointWalkable } from "../game/save";
@@ -545,7 +546,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
             const used = meta.usedStationIds.includes(station.id);
             return (
               <div key={station.id} className={`zk-entity station ${used ? "empty" : ""}`} style={{ left: station.x, top: station.y }}>
-                <img src="/assets/robots/station.png" alt="Energiestation" /><span className="tag">{station.label}</span>
+                <img src={publicAsset("assets/robots/station.png")} alt="Energiestation" /><span className="tag">{station.label}</span>
               </div>
             );
           })}
@@ -582,7 +583,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
           {!nearby && nearbyNeutralEncounter ? (
             <>NEUTRALEN DROID SCANNEN<small>{nearbyNeutralEncounter.name} · freiwillig</small></>
           ) : !nearby ? (
-            <>INTERAGIEREN<small>Feindliche Droiden lösen erst bei Kontakt einen Scan aus</small></>
+            <>INTERAGIEREN<small>Jede Robotkollision öffnet den Scan</small></>
           ) : nearby.type === "station" && nearbyStation ? (
             <>ENERGIE AUFLADEN<small>+{nearbyStation.energy} Meta-Energie</small></>
           ) : nearby.type === "pickup" && nearbyPickup ? (
