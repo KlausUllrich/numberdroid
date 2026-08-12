@@ -8,6 +8,12 @@ import {
 import { DECK_C3, DECK_VS2 } from "./floors";
 import {
   DEFAULT_PLAYER_PROFILE,
+  DEFAULT_PROFILE_COLLECTION,
+  activePlayerProfile,
+  collectionWithActiveProfile,
+  collectionWithNewProfile,
+  collectionWithUpdatedProfile,
+  createPlayerProfile,
   profileWithCompletedDeck,
   profileWithStartedDeck,
 } from "./playerProfile";
@@ -51,6 +57,34 @@ describe("player profile progression", () => {
     expect(completed.unlockedDeckIds).toContain("campaign-c3");
     expect(completed.mathStartId).toBe("small");
     expect(completed.tacticalChallengeId).toBe("explorer");
+  });
+});
+
+describe("family profile isolation", () => {
+  it("creates a second player at B2 without inheriting the first player's progress", () => {
+    const firstCompleted = profileWithCompletedDeck(DEFAULT_PLAYER_PROFILE, "campaign-b2", "campaign-c3");
+    const collection = collectionWithUpdatedProfile(DEFAULT_PROFILE_COLLECTION, firstCompleted);
+    const second = createPlayerProfile("player-2", "SPIELER 2");
+    const withSecond = collectionWithNewProfile(collection, second);
+
+    expect(activePlayerProfile(withSecond).id).toBe("player-2");
+    expect(activePlayerProfile(withSecond).unlockedDeckIds).toEqual(["campaign-b2"]);
+    expect(activePlayerProfile(withSecond).completedDeckIds).toEqual([]);
+
+    const first = withSecond.profiles.find((profile) => profile.id === "player-1")!;
+    expect(first.completedDeckIds).toContain("campaign-b2");
+    expect(first.unlockedDeckIds).toContain("campaign-c3");
+  });
+
+  it("switching the active child does not modify either child's math settings", () => {
+    const first = { ...DEFAULT_PLAYER_PROFILE, mathStartId: "small" as const };
+    const second = { ...createPlayerProfile("player-2", "SPIELER 2"), mathStartId: "to100" as const };
+    let collection = collectionWithUpdatedProfile(DEFAULT_PROFILE_COLLECTION, first);
+    collection = collectionWithNewProfile(collection, second);
+    collection = collectionWithActiveProfile(collection, first.id);
+
+    expect(activePlayerProfile(collection).mathStartId).toBe("small");
+    expect(collection.profiles.find((profile) => profile.id === "player-2")?.mathStartId).toBe("to100");
   });
 });
 
