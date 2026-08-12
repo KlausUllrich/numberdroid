@@ -1,3 +1,5 @@
+import type { FloorDefinition, MetaState } from "./types";
+
 export type CampaignAct = {
   id: string;
   order: number;
@@ -79,6 +81,22 @@ export function getCampaignDeck(deckId: string) {
   return CAMPAIGN_DECKS.find((deck) => deck.id === deckId) ?? CAMPAIGN_DECKS[0];
 }
 
+export function getCampaignDeckForFloor(floorId: string) {
+  return CAMPAIGN_DECKS.find((deck) => deck.floorId === floorId) ?? null;
+}
+
+export function getNextCampaignDeck(deckId: string) {
+  const current = getCampaignDeck(deckId);
+  return CAMPAIGN_DECKS.find((deck) => deck.order === current.order + 1) ?? null;
+}
+
 export function campaignDeckPlayable(deck: CampaignDeck) {
   return Boolean(deck.floorId);
+}
+
+export function floorGoalCompleted(meta: MetaState, floor: FloorDefinition) {
+  const goal = floor.goal;
+  if (!goal) return false;
+  if (goal.kind === "defeat-encounter") return meta.defeatedEncounterIds.includes(goal.encounterId);
+  return meta.completedActionIds.includes(goal.actionId);
 }
