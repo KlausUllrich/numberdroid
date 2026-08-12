@@ -111,7 +111,7 @@ If a player returns to the hub while the run is viable:
 
 The earlier design that reset the whole deck after every lost duel was a misunderstanding.
 
-Binding behavior:
+Binding and implemented behavior:
 
 ```text
 DUEL LOST
@@ -124,7 +124,9 @@ DUEL LOST
 Preserve after a single duel loss:
 - already defeated/eliminated robots,
 - deck-local keys/access already earned,
+- used stations and collected pickups,
 - completed deck-local actions,
+- remaining meta-energy,
 - other persistent run progress.
 
 The player is being pushed back, **not replaying the entire deck**.
@@ -142,9 +144,9 @@ When the final HP is lost:
 
 Direct developer floor previews may retain the legacy destroyed/restart screen where useful.
 
-### Current implementation note
+### Current implementation
 
-At the handoff checkpoint, runtime code still reflects the earlier misunderstanding and performs a full floor reset after a single duel loss. The corrected behavior above is authoritative and requires a contained implementation fix later.
+The corrected single-duel retreat is implemented in `src/game/duelLoss.ts` and used by `App.finishBattle()`. Focused automated tests verify that deck progress survives the retreat.
 
 ## Mission success
 
@@ -185,9 +187,9 @@ Implemented on `agent/integrate-metagame-architecture`:
 - profile-specific running mission saves,
 - dedicated full-screen collection/achievement/logbook/statistics views,
 - success → story → hub,
+- single-duel loss → -1 HP + level-start retreat while deck progress persists,
+- boss re-entry → boss starts from Phase 1,
 - final HP loss → hub + fresh mission retry,
 - developer direct-floor preview behavior retained.
-
-**Known mismatch:** single-duel loss currently still performs the old whole-floor reset in runtime code. It must be corrected to the preserved-progress/start-position rule above.
 
 The current art/content remains structural prototype work, not final story/art direction.
