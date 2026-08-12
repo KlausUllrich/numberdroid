@@ -19,6 +19,7 @@ type EnemyRuntime = {
   chasing: boolean;
   returning: boolean;
   armed: boolean;
+  moveSpeed: number;
 };
 
 export type EncounterRuntimePose = {
@@ -84,7 +85,6 @@ function HostileLayerComponent({
   function runtimeFor(enemy: EncounterConfig) {
     let runtime = runtimeRef.current.get(enemy.encounterId);
     if (!runtime) {
-      const neutral = enemy.behavior?.kind === "neutral";
       runtime = {
         x: enemy.x,
         y: enemy.y,
@@ -92,9 +92,8 @@ function HostileLayerComponent({
         pathIndex: 0,
         chasing: false,
         returning: false,
-        armed: neutral
-          ? false
-          : distance(enemy.x, enemy.y, playerMetaRef.current.x, playerMetaRef.current.y) > contactDistance(enemy) + 28,
+        armed: distance(enemy.x, enemy.y, playerMetaRef.current.x, playerMetaRef.current.y) > contactDistance(enemy) + 28,
+        moveSpeed: 0,
       };
       runtimeRef.current.set(enemy.encounterId, runtime);
     }
@@ -131,11 +130,24 @@ function HostileLayerComponent({
     return distance(x, y, player.x, player.y) >= radius + playerRadius + 2;
   }
 
-  function moveToward(enemy: EncounterConfig, runtime: EnemyRuntime, targetX: number, targetY: number, speed: number, dt: number) {
+  function moveToward(
+    enemy: EncounterConfig,
+    runtime: EnemyRuntime,
+    targetX: number,
+    targetY: number,
+    maxSpeed: number,
+    dt: number,
+    acceleration = 0,
+  ) {
     const dx = targetX - runtime.x;
     const dy = targetY - runtime.y;
     const length = Math.hypot(dx, dy);
     if (length < 4) return true;
+
+    const speed = acceleration > 0
+      ? Math.min(maxSpeed, runtime.moveSpeed + acceleration * dt)
+      : maxSpeed;
+    runtime.moveSpeed = speed;
 
     const step = Math.min(length, speed * dt);
     const moveX = dx / length * step;
@@ -187,68 +199,81 @@ function HostileLayerComponent({
       for (const enemy of activeEncounters) {
         const behavior = enemy.behavior;
         const runtime = runtimeFor(enemy);
-        if (!behavior) {
-          applyNode(enemy, runtime);
-          continue;
-        }
-
         let playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
-        const homePlayerDistance = distance(enemy.x, enemy.y, player.x, player.y);
 
-        if (behavior.kind === "guard") {
-          if (runtime.returning) {
-            runtime.chasing = false;
-            if (moveToward(enemy, runtime, enemy.x, enemy.y, Math.max(48, behavior.chaseSpeed * 0.72), dt)) {
-              runtime.returning = false;
-              runtime.facing = 0;
+        if (behavior) {
+          const homePlayerDistance = distance(enemy.x, enemy.y, player.x, player.y);
+
+          if (behavior.kind === "guard") {
+            if (runtime.returning) {
+              runtime.chasing = false;
+              if (moveToward(
+                enemy,
+                runtime,
+                enemy.x,
+                enemy.y,
+                Math.max(48, behavior.chaseSpeed * 0.72),
+                dt,
+                behavior.chaseAcceleration * 0.8,
+              )) {
+                runtime.returning = false;
+                runtime.moveSpeed = 0;
+                runtime.facing = 0;
+              }
+            } else {
+              if (!runtime.chasing && homePlayerDistance <= behavior.detectionRadius) {
+                runtime.chasing = true;
+                runtime.moveSpeed = 0;
+                callbacksRef.current.onAlert(enemy);
+              }
+
+              if (runtime.chasing) {
+                if (homePlayerDistance > behavior.loseRadius) {
+                  runtime.chasing = false;
+                  runtime.returning = true;
+                } else {
+                  moveToward(enemy, runtime, player.x, player.y, behavior.chaseSpeed, dt, behavior.chaseAcceleration);
+                }
+              }
             }
-          } else {
-            if (!runtime.chasing && homePlayerDistance <= behavior.detectionRadius) {
+            playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
+          } else if (behavior.kind === "aggressive") {
+            if (!runtime.chasing && playerDistance <= behavior.detectionRadius) {
               runtime.chasing = true;
+              runtime.moveSpeed = 0;
               callbacksRef.current.onAlert(enemy);
+            } else if (runtime.chasing && playerDistance > behavior.loseRadius) {
+              runtime.chasing = false;
+              runtime.moveSpeed = 0;
             }
 
             if (runtime.chasing) {
-              if (homePlayerDistance > behavior.loseRadius) {
-                runtime.chasing = false;
-                runtime.returning = true;
-              } else {
-                moveToward(enemy, runtime, player.x, player.y, behavior.chaseSpeed, dt);
-              }
+              moveToward(enemy, runtime, player.x, player.y, behavior.chaseSpeed, dt, behavior.chaseAcceleration);
+              playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
             }
-          }
-          playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
-        } else if (behavior.kind === "aggressive") {
-          if (!runtime.chasing && playerDistance <= behavior.detectionRadius) {
-            runtime.chasing = true;
-            callbacksRef.current.onAlert(enemy);
-          } else if (runtime.chasing && playerDistance > behavior.loseRadius) {
-            runtime.chasing = false;
-          }
-
-          if (runtime.chasing) {
-            moveToward(enemy, runtime, player.x, player.y, behavior.chaseSpeed, dt);
+          } else if ((behavior.kind === "patrol" || behavior.kind === "neutral") && behavior.patrolPath.length > 1) {
+            const target = behavior.patrolPath[runtime.pathIndex % behavior.patrolPath.length];
+            if (moveToward(enemy, runtime, target.x, target.y, behavior.patrolSpeed, dt)) {
+              runtime.pathIndex = (runtime.pathIndex + 1) % behavior.patrolPath.length;
+            }
             playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
           }
-        } else if ((behavior.kind === "patrol" || behavior.kind === "neutral") && behavior.patrolPath.length > 1) {
-          const target = behavior.patrolPath[runtime.pathIndex % behavior.patrolPath.length];
-          if (moveToward(enemy, runtime, target.x, target.y, behavior.patrolSpeed, dt)) {
-            runtime.pathIndex = (runtime.pathIndex + 1) % behavior.patrolPath.length;
+
+          if (behavior.kind === "neutral") {
+            const interactionDistance = robotCollisionRadius(enemy.deckSize ?? "standard") + playerRadius + 74;
+            if (playerDistance <= interactionDistance && playerDistance < nearestNeutralDistance) {
+              nearestNeutralId = enemy.encounterId;
+              nearestNeutralDistance = playerDistance;
+            }
           }
-          playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
         }
 
         const contact = robotCollisionRadius(enemy.deckSize ?? "standard") + playerRadius + 6;
-        if (behavior.kind === "neutral") {
-          const interactionDistance = contact + 68;
-          if (playerDistance <= interactionDistance && playerDistance < nearestNeutralDistance) {
-            nearestNeutralId = enemy.encounterId;
-            nearestNeutralDistance = playerDistance;
-          }
-        } else if (!runtime.armed) {
+        if (!runtime.armed) {
           if (playerDistance > contact + 46) runtime.armed = true;
         } else if (!encounterOpeningRef.current && playerDistance <= contact) {
           runtime.armed = false;
+          runtime.moveSpeed = 0;
           encounterOpeningRef.current = true;
           callbacksRef.current.onIntercept({ ...enemy, x: runtime.x, y: runtime.y });
         }
