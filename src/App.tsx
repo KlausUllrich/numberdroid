@@ -36,6 +36,7 @@ import {
   TitleScreen,
   type NewProfileDraft,
 } from "./menu/MenuFlow";
+import "./menu/HubDetailScreens.css";
 import { MetaGame } from "./meta/MetaGame";
 import { EncounterPanel } from "./meta/EncounterPanel";
 import { NumberDuel } from "./duel/NumberDuel";
@@ -76,7 +77,7 @@ export default function App() {
   const remainingHp = Math.max(0, STARTING_HP - meta.damageTaken);
   const hasProfiles = profileCollection.profiles.length > 0;
   const gameplayScreen = screen === "deck" || screen === "encounter" || screen === "duel" || screen === "transfer" || screen === "destroyed";
-  const showFullscreenGate = fullscreen.needsFullscreenPrompt && (previewFloorId !== null || gameplayScreen);
+  const showFullscreenGate = fullscreen.needsFullscreenPrompt;
 
   useEffect(() => {
     if (previewFloorId || !hasProfiles) return;
@@ -230,15 +231,9 @@ export default function App() {
     }
 
     const damageTaken = Math.min(STARTING_HP, energyState.damageTaken + 1);
-    const afterLoss = rotatePilot({
-      ...energyState,
-      x: encounter.retreat.x,
-      y: encounter.retreat.y,
-      damageTaken,
-    });
+    const failedFloor = getFloor(meta.floorId);
 
     if (damageTaken >= STARTING_HP && !previewFloorId) {
-      const failedFloor = getFloor(meta.floorId);
       const fresh = createFloorState(failedFloor, meta.playerCount);
       saveProfileMetaState(profile.id, fresh);
       setProfileCollection((current) => {
@@ -254,8 +249,15 @@ export default function App() {
       return;
     }
 
-    setMeta(afterLoss);
+    const restarted = rotatePilot({
+      ...createFloorState(failedFloor, meta.playerCount),
+      damageTaken,
+    });
+    if (!previewFloorId) saveProfileMetaState(profile.id, restarted);
+    setMeta(restarted);
     setEncounter(null);
+    setTransfer(null);
+    setHubNotice(`KAMPF VERLOREN · DECK NEUGESTARTET · ${Math.max(0, STARTING_HP - damageTaken)} HP ÜBRIG`);
     setScreen(damageTaken >= STARTING_HP ? "destroyed" : "deck");
   }
 
@@ -301,7 +303,7 @@ export default function App() {
             <div className="zk-app-start-mark">ND</div>
             <small>NUMBERDROID · SPIELMODUS</small>
             <h1 id="app-start-title">Im Vollbild spielen</h1>
-            <p>Für Deck, Zahlenduell und Körpertransfer wird auf dem Handy derselbe Querformat-Vollbildmodus verwendet.</p>
+            <p>Numberdroid funktioniert auf dem Handy am besten direkt im Querformat-Vollbildmodus.</p>
             <button className="primary" onClick={fullscreen.enterFullscreen}>⛶ &nbsp; VOLLBILD STARTEN</button>
             <button className="secondary" onClick={fullscreen.continueWithoutFullscreen}>OHNE VOLLBILD FORTFAHREN</button>
             {fullscreen.error && <div className="zk-app-start-error">{fullscreen.error}</div>}
@@ -309,15 +311,13 @@ export default function App() {
         </div>
       )}
 
-      {(previewFloorId || gameplayScreen) && (
-        <button
-          className="app-fullscreen-toggle"
-          aria-label={fullscreen.isFullscreen ? "Vollbildmodus verlassen" : "Vollbildmodus starten"}
-          onClick={fullscreen.isFullscreen ? fullscreen.exitFullscreen : fullscreen.enterFullscreen}
-        >
-          {fullscreen.isFullscreen ? "⛶×" : "⛶"}
-        </button>
-      )}
+      <button
+        className="app-fullscreen-toggle"
+        aria-label={fullscreen.isFullscreen ? "Vollbildmodus verlassen" : "Vollbildmodus starten"}
+        onClick={fullscreen.isFullscreen ? fullscreen.exitFullscreen : fullscreen.enterFullscreen}
+      >
+        {fullscreen.isFullscreen ? "⛶×" : "⛶"}
+      </button>
 
       {!previewFloorId && screen === "intro" && <IntroScreen onContinue={() => setScreen("title")} />}
       {!previewFloorId && screen === "title" && (
