@@ -1,318 +1,265 @@
 # Numberdroid — Campaign & Progression Model
 
-This document defines the current campaign structure and difficulty architecture for Numberdroid. It is binding design context together with `CODEX_HANDOFF.md`, `ENCOUNTER_ARCHETYPES.md`, `LEARNING_PROFILES.md`, and `DEVELOPMENT_PLAN_NEXT.md` until a later consolidated handoff replaces them.
+This document defines the binding campaign structure and progression architecture for Numberdroid. Read it together with `MENU_HUB_FLOW.md`, `LEARNING_PROFILES.md`, `ENCOUNTER_ARCHETYPES.md`, and `CODEX_HANDOFF.md`.
 
 ## Product promise
 
-Every player profile should be able to play the **same complete story campaign**.
+Every player profile plays the **same complete story campaign**.
 
-A child with modest mathematics knowledge and an older child or adult with much stronger mathematics knowledge should:
-- see the same ship,
-- visit the same decks in the same story order,
+A child with modest mathematics knowledge and an older child/adult with stronger mathematics knowledge should:
+- visit the same story locations and missions,
 - meet the same recognizable robot classes and bosses,
 - unlock the same campaign mechanics,
-- experience the same story beats,
-- but receive arithmetic tuned to the capability stored in that player profile.
+- experience the same major story beats,
+- receive concrete arithmetic tuned to that profile.
 
-The campaign must therefore never split into a `young child story` and an `advanced math story`.
+Do not create separate young/easy and advanced campaigns. Mathematically advanced players do not skip early story content; lower-skill players are not prevented from reaching later story content.
 
-## Campaign target size
+## Internal campaign target versus player-facing presentation
 
-Current content target: **approximately 25 decks**.
+Current production/content planning target: **approximately 25 decks**, currently represented as roughly 5 acts × about 5 decks.
 
-This is a production/content target, not a hard runtime limit. The architecture must support any number of decks.
+This is an internal authoring target, not a promise or level count shown to the player. Runtime/data architecture remains count-agnostic.
 
-A useful planning structure is **5 acts × about 5 decks**:
+Binding UI rule from `MENU_HUB_FLOW.md`:
+- never present all 25 decks as a global level-select grid,
+- never reveal the total number of acts from the personal hub,
+- the player sees only the current thematic campaign area/act and progress inside it,
+- future areas are revealed by story progression.
 
-1. **Act I — Infiltration / takeover foundation**
+The exact final number of decks and acts may change after real production content and playtime data exist.
+
+## Campaign arc direction
+
+The current internal planning structure is:
+
+1. **Infiltration / takeover foundation**
    - movement, scan, duel, transfer,
    - simple robot identities,
    - first body differences,
-   - first basic access mechanics.
-2. **Act II — Security systems**
+   - basic access/security mechanics.
+2. **Security systems**
    - guards, patrols, keys/access levels,
    - stronger body roles,
-   - more deliberate pursuit and route planning.
-3. **Act III — Ship systems**
-   - more robot abilities/Jokers,
+   - pursuit and route planning.
+3. **Systems / wider operation**
+   - more body/Joker skills,
    - richer number-board mechanics,
    - environmental interactions,
    - stronger combinations of known systems.
-4. **Act IV — Hunt / exploitation**
+4. **Hunt / exploitation**
    - Treasure Golem / Beutedroide capture logic,
    - traps, containment, rerouting,
-   - more advanced security/AI interactions,
    - higher systemic density.
-5. **Act V — Command / mastery**
-   - combinations of the campaign's established systems,
-   - strong deck identities,
+5. **Command / mastery**
+   - combinations of established systems,
+   - strong mission identities,
    - more demanding bosses,
-   - final command/story escalation.
+   - final story escalation.
 
-The exact act names and deck count remain content decisions. The important rule is that campaign progression introduces **new mechanics and combinations**, not only larger arithmetic numbers.
+Names, locations and themes are story/art TBD. Hubs may change theme dramatically between areas (ship, planet, enemy mothership, etc.) while using the same reusable campaign/hub data model.
 
-## Four independent progression dimensions
+## Independent progression dimensions
 
-Difficulty/progression is deliberately not one scalar.
+Difficulty is deliberately not one scalar.
 
-### 1. Player mathematics profile — personal baseline
+### 1. Player mathematics profile
 
-Each player profile stores a mathematics capability estimate.
+Each profile owns a mathematics baseline/evidence model. It determines what concrete arithmetic is appropriate without changing story progression.
 
-The player/family may choose an initial self-assessment when creating or editing the profile. This is a starting estimate, not an exam result and not a permanent label.
+Initial onboarding differs by audience:
+- child profiles receive a friendly arithmetic starting estimate,
+- adult profiles currently receive a higher +/- default without extra onboarding friction,
+- later profile/statistics UI may allow adjustment and explain calibration.
 
-The profile may later be fine-tuned from demonstrated play, but adaptation is conservative and must not erase authored encounter identity.
+See `LEARNING_PROFILES.md`.
 
-Examples of profile information:
-- comfortable addition/subtraction span,
-- ten-boundary confidence,
-- multiplication families currently known,
-- division availability,
-- useful chain complexity,
-- evidence/confidence for these capabilities.
+### 2. Robot mathematics role
 
-This baseline lets two children play the same campaign at different appropriate arithmetic levels.
-
-### 2. Robot mathematics role — encounter identity
-
-Arithmetic difficulty is strongly associated with recognizable robot types/roles.
-
-A simple robot should remain a comparatively easy encounter even late in the campaign. Easy arithmetic is not disposable tutorial content: fluent, satisfying encounters provide repetition, confidence and pacing.
-
-Robot classes should have authored mathematical roles such as:
+Recognizable robot variants have authored mathematical roles independent of tactical behavior:
 - **comfort/basic** — quick, highly achievable arithmetic,
 - **practice/core** — current working level,
 - **stretch/security** — noticeably more demanding,
-- **specialist** — introduces or emphasizes a particular operation/mechanic,
-- **boss** — combines pressure, endurance and special rules without necessarily being `just bigger numbers`.
+- **specialist** — emphasizes a particular operation/mechanic,
+- **boss** — staged/complex challenge, not simply larger numbers.
 
-Visual/body identity should let players learn that some robots are mathematically more threatening than others.
+A neutral specialist may be mathematically demanding. An aggressive small bot may still use comfort arithmetic. `neutral/guard/patrol/aggressive` must never implicitly define math difficulty.
 
-Do not make every robot on a later deck uniformly difficult.
+Easy arithmetic remains valid throughout the campaign. A player who has mastered +/- to 10 can still enjoy those encounters as fluency, pacing and visible mastery.
 
-### 3. Deck curve — local and global escalation
+### 3. Mission/deck curve
 
-Every deck should have its own arc:
+Each deck has its own authored arc:
 
 ```text
 arrival / easier encounters
-→ core deck pressure
-→ stronger/specialized enemies
+→ core pressure
+→ stronger/specialized encounters
 → pre-boss escalation
-→ boss
+→ boss / mission objective
 ```
 
-Then the next deck begins with some breathing room again, but at a somewhat higher overall campaign baseline.
-
-So the progression is a saw-tooth curve rather than a straight line:
+The next deck provides some breathing room again at a slightly higher overall ceiling:
 
 ```text
-Deck 1: low → medium → high
-Deck 2: low+ → medium+ → high+
-Deck 3: low++ → medium++ → high++
-...
+Deck N:   low  → medium  → high
+Deck N+1: low+ → medium+ → high+
 ```
 
-Later decks should contain a larger share of advanced/specialist robots, while still including some simple robots for rhythm and fluency.
+Later decks contain more advanced/specialist encounters and stronger combinations while retaining some comfortable robots.
 
-The exact robot mix is authored/balanced per deck, not globally hard-coded percentages.
+Do not implement `every duel is harder than the previous duel`.
 
-### 4. Campaign system complexity — new mechanics
+### 4. Campaign system complexity
 
-New decks also increase **game-system complexity** independently of arithmetic difficulty.
+New missions also increase **game-system complexity** independently from arithmetic difficulty.
 
 Examples:
 - more body/Joker skills,
 - access keys and layered security,
-- new robot behaviors,
-- Treasure Golem capture/trap mechanics,
-- new environmental actions,
+- additional robot behaviors,
+- Treasure Golem/trap mechanics,
+- environmental actions,
 - new number-board elements,
-- additional resource trade-offs,
-- combinations of mechanics introduced earlier.
+- resource trade-offs,
+- combinations of previously learned mechanics.
 
-This dimension is crucial. Deck 18 must not feel like Deck 4 with only larger numbers.
+This is essential: a late deck must not feel like an early deck with only larger numbers.
 
-## Tactical gameplay challenge
+### 5. Tactical challenge
 
-A separate tactical challenge setting may still exist (working profiles: `ENTDECKER`, `STANDARD`, `HERAUSFORDERUNG`). It controls systems such as:
-- AI competence,
+`ENTDECKER / STANDARD / HERAUSFORDERUNG` is a separate preference controlling systems such as:
+- duel AI competence,
 - pursuit/detection pressure,
 - acceleration/reaction windows,
 - tactical forgiveness,
 - search persistence.
 
-It does **not** define the player's mathematics knowledge.
+It does not define mathematics knowledge.
 
-The player profile may store both:
-- mathematics capability/self-assessment,
-- preferred tactical challenge.
+## Concrete arithmetic resolution
 
-These remain independent.
-
-## How arithmetic is resolved for one encounter
-
-Conceptually, encounter math comes from several inputs:
+Conceptually one encounter resolves from:
 
 ```text
-player mathematics baseline
-+ deck campaign position
-+ position within this deck
+player mathematics baseline/evidence
++ campaign position
++ position inside the current mission
 + robot mathematics role
-+ authored encounter/operation constraints
-+ conservative profile adaptation
-= concrete arithmetic envelope for this duel
++ authored encounter operation/rule constraints
++ conservative calibration
+= concrete arithmetic envelope
 ```
 
-Important consequences:
-- the same SENTRY class is recognizable to every player,
-- stronger player profiles can receive larger/more complex variants,
-- early-deck SENTRY encounters can remain easy for everyone relative to their own profile,
-- later decks can fan out more strongly for advanced profiles,
-- robot type and deck composition remain meaningful even when arithmetic is personalized.
+Consequences:
+- the same robot population/story is recognizable across profiles,
+- stronger profiles can receive wider/richer arithmetic,
+- early comfort robots remain relatively easy for everyone,
+- later missions may fan out more strongly for advanced profiles,
+- adaptive math must not flatten authored robot identities.
 
-Do not let adaptive math flatten all encounter classes into the same average difficulty.
+## Mathematics protocols versus labels
 
-## Same story, different arithmetic
+Do not claim an operation is playable until the number-duel implementation genuinely supports it.
 
-A player with a lower initial capability and a player with a higher initial capability should both start on the same first deck.
-
-Illustrative example only:
-
-```text
-Player A profile: early addition/subtraction
-Player B profile: fluent +/- and some multiplication
-
-Deck 1 basic robot:
-A → very small +/- combinations
-B → still easy for B, but may use a wider +/- span
-
-Deck 12 specialist robot:
-A → harder +/- / carefully introduced next concepts
-B → larger spans / multiplication / richer supported operations
-```
-
-The **relative encounter role stays the same** while the concrete arithmetic differs.
-
-This also means stronger players do not skip early story content just because the mathematics is easy for them.
-
-## Initial self-assessment
-
-Profile creation may offer a quick, friendly self-assessment such as recognizable example tasks or capability descriptions.
-
-Rules:
-- no mandatory test,
-- no school-report language,
-- easy to change later,
-- choose a safe starting point when uncertain,
-- actual play may refine the estimate gradually.
-
-The purpose is to avoid forcing every new profile to begin at the absolute lowest arithmetic band while keeping onboarding friction low.
+Current production prototype supports addition/subtraction envelopes. Multiplication/division remain planned curriculum capabilities and future duel protocols. A profile may eventually know them, but UI must not pretend they are active gameplay before implementation.
 
 ## Learning through repetition
 
-Simple arithmetic remains valuable throughout the campaign.
-
-Reasons:
+Simple arithmetic remains useful throughout the campaign:
 - automation/fluency improves through repetition,
-- easy encounters create pacing and competence,
-- fast mental recognition can improve without explicit timers,
-- children can feel mastery against familiar weak robots,
-- harder encounters become more meaningful when contrasted with easier ones.
+- easy encounters create rhythm and confidence,
+- players visibly feel mastery,
+- stronger encounters gain contrast.
 
-Therefore adaptation must not interpret `player is good at addition to 10` as `never show addition to 10 again`.
+Therefore `mastered` never means `remove from the game`.
 
-## Deck authoring data direction
+## Campaign mechanics are authored introductions
 
-The future campaign/deck catalog should support metadata along these lines:
-
-```text
-CampaignDeck
-  id
-  act/order
-  title/story
-  unlock requirements
-  intro/outro story
-  progression intensity
-  mechanics introduced / mechanics expected
-  supported math capabilities/operations
-  encounter population / robot roles
-  boss
-```
-
-Robot/encounter data should be able to declare a mathematical role or tier independently from its tactical behavior (`neutral`, `guard`, `patrol`, `aggressive`).
-
-Do not infer math difficulty solely from tactical behavior. A neutral specialist can be mathematically demanding; an aggressive small bot can still use easy arithmetic.
-
-## Number-board mechanic progression
-
-Additional arithmetic-game mechanics should be introduced over the campaign in authored stages rather than all being available immediately.
-
-Examples may include:
+New systems must be introduced in stages, repeated, and later combined. Potential future systems include:
 - current chain/reaction core,
 - body/Joker abilities,
-- identical-number bonuses,
-- dual-value or modified tiles,
-- operation-specific tiles,
-- other child-readable board mechanics discovered later.
+- keys/security,
+- Treasure Golem/traps,
+- operation-specific or modified tiles,
+- other readable number-board rules.
 
-New mechanics need explicit introduction, repetition and later combination. Avoid stacking several unfamiliar rules onto one deck merely to increase difficulty.
+Avoid stacking multiple unfamiliar systems merely to increase difficulty.
 
 ## Boss progression
 
-Bosses should become memorable through mechanics, staging and identity, not only raw arithmetic.
+Bosses should become memorable through staging and mechanics, not just raw arithmetic.
 
-Potential sources of boss difficulty:
-- multiple phases/firewalls,
+Possible sources of boss pressure:
+- phases/firewalls,
 - larger reactor requirements,
-- unique board interaction,
+- unique board interactions,
 - body ability use,
 - environmental setup before contact,
 - resource endurance,
-- combination of known campaign systems.
+- combinations of known systems.
 
-KRONOS remains the first established example of layered protection, but later bosses should not all copy KRONOS.
+KRONOS is the first established layered-protection example. Later bosses must not simply copy KRONOS.
 
-## Content pacing principle
+## Hub and mission lifecycle
 
-A healthy deck should contain a rhythm of:
-- comfortable wins,
-- normal practice,
-- occasional stretch,
-- systemic novelty,
-- payoff/boss.
+The personal hub is the stable campaign rest point.
 
-The campaign should feel like an adventure that happens to train arithmetic, not a worksheet progression decorated with robots.
+Canonical lifecycle:
 
-## Framework milestone versus final campaign
+```text
+HUB
+→ START / RESUME MISSION
+→ DECK
+→ SUCCESS STORY → HUB
+   or
+→ 0 HP / MISSION FAILURE → HUB
+```
 
-The current development milestone does **not** implement all 25 decks.
+A voluntarily exited viable run remains profile-specific and resumable. A failed run is cleared and the next attempt starts fresh. Full behavior is defined in `MENU_HUB_FLOW.md`.
 
-It must implement enough framework to prove this architecture:
-- campaign/deck catalog,
-- player profile mathematics baseline,
-- robot mathematical role/tier representation,
-- deck-local difficulty curve representation,
-- persistent progression,
-- B2 inside the campaign shell,
-- one small second-deck proof,
-- story success/unlock flow,
-- room for mechanic-unlock metadata.
+## Collector / achiever / story progression
 
-The 25-deck campaign and final act/content balancing are later production work on top of this framework.
+Campaign progression is broader than deck completion. The profile/hub architecture should support:
+- collectibles and rare finds,
+- discovered droids/body entries,
+- achievements and completion challenges,
+- story/data fragments,
+- character/location descriptions,
+- reviewable mission outcomes.
+
+These systems should reward collector/achiever motivations without replacing the core mission loop.
+
+## Current framework status
+
+Implemented on the active agent branch:
+- internal 25-slot count-agnostic campaign catalog,
+- B2 campaign mission,
+- C3 second-deck proof,
+- success/unlock progression,
+- multiple isolated family profiles,
+- per-profile running mission save/resume,
+- child/adult profile distinction,
+- profile mathematics starting baseline,
+- robot math roles independent from tactical behavior,
+- profile/deck/robot-derived arithmetic envelopes,
+- independent tactical challenge,
+- title/profile/hub flow from `MENU_HUB_FLOW.md`,
+- LOS/search/return robot perception foundation,
+- automated smoke tests and Pages deployment.
+
+The framework milestone does **not** mean the full ~25 production decks, final story, final hubs, final adaptive engine or final localization are implemented.
 
 ## Playtest questions
 
-Future campaign playtests should ask:
-- Do easy robots remain satisfying rather than pointless?
-- Can players predict which robot types are more mathematically dangerous?
-- Does each deck build toward its boss?
-- Does the next deck provide breathing room before escalating again?
-- Do later decks feel richer because of mechanics, not only larger numbers?
-- Can two profiles with different mathematics knowledge play the exact same story comfortably?
-- Do advanced players still enjoy early decks rather than feeling forced through trivial worksheets?
-- Does arithmetic adaptation preserve robot identity and authored pacing?
-
-## Current campaign target
-
-Use **25 decks as the current planning target**, preferably grouped into larger acts, but keep runtime/data architecture count-agnostic. Re-evaluate the exact final count after several real production decks exist and reliable playtime/content-density data is available.
+Campaign playtests should ask:
+- Does title → profile → hub → mission feel like an adventure rather than a configuration screen?
+- Does the hub reveal enough current progress without spoiling campaign size/future acts?
+- Are easy robots still satisfying for stronger players?
+- Can players predict relative mathematical threat from robot identity?
+- Does each deck build toward its objective/boss?
+- Does the next deck provide breathing room before escalating?
+- Do later missions feel richer through mechanics rather than only larger numbers?
+- Can two profiles with different mathematics knowledge play the same story comfortably?
+- Does voluntary exit resume correctly and failure return cleanly to the hub?
+- Does profile calibration remain explainable and non-punitive?
