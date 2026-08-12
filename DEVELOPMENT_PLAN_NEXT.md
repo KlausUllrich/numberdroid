@@ -33,24 +33,27 @@ The following are established and should be extended rather than restarted:
 - intro/title/settings/profile wizard/personal hub,
 - dedicated collection/achievement/logbook/statistics screens,
 - success/story→hub,
-- final-HP mission failure→hub,
+- corrected single-duel retreat preserving current deck progress,
+- final-HP mission failure→hub + fresh future attempt,
 - player initiative on every ordinary new duel/boss phase.
 
 Current real arithmetic protocols remain addition/subtraction only.
 
-## Known contained gameplay correction
+## Corrected duel-loss behavior — complete
 
-The earlier “single duel loss resets the entire deck” design was a misunderstanding.
+The earlier “single duel loss resets the entire deck” design was a misunderstanding and has now been corrected in runtime code.
 
-Correct rule:
+Implemented rule:
 - lose 1 HP,
-- keep active robot body,
+- keep active robot body and body size,
 - move that body to level start,
-- preserve defeated robots, keys/access, completed actions and other current deck progress,
-- boss encounter itself restarts at Phase 1,
+- preserve defeated robots, keys/access, stations/pickups, completed actions, remaining meta-energy and other current deck progress,
+- boss encounter itself restarts at Phase 1 on re-entry,
 - only final HP loss causes true mission failure and a fresh future attempt.
 
-Current runtime code still performs the old floor reset after one duel loss. This is a **small known implementation mismatch**, not a reason to reopen campaign architecture.
+Implementation is isolated in `src/game/duelLoss.ts` and used by `App.finishBattle()`. Focused tests verify preserved run state.
+
+Do not reintroduce the old whole-floor reset for ordinary duel losses.
 
 ## Story/world milestone — v0.1 complete for art exploration
 
