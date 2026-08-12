@@ -1,11 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CAMPAIGN_ACTS, CAMPAIGN_DECKS, campaignDeckPlayable, type CampaignDeck } from "../game/campaign";
 import { MATH_START_OPTIONS, TACTICAL_CHALLENGES, type PlayerProfile } from "../game/playerProfile";
 import "./CampaignScreen.css";
 
 type Props = {
   profile: PlayerProfile;
+  profiles: PlayerProfile[];
   onProfileChange: (profile: PlayerProfile) => void;
+  onSelectProfile: (profileId: string) => void;
+  onCreateProfile: () => void;
   onStartDeck: (deck: CampaignDeck) => void;
 };
 
@@ -16,11 +19,25 @@ function deckStatus(profile: PlayerProfile, deck: CampaignDeck) {
   return { unlocked, completed, playable };
 }
 
-export function CampaignScreen({ profile, onProfileChange, onStartDeck }: Props) {
+export function CampaignScreen({
+  profile,
+  profiles,
+  onProfileChange,
+  onSelectProfile,
+  onCreateProfile,
+  onStartDeck,
+}: Props) {
   const [selectedDeckId, setSelectedDeckId] = useState(() => {
     const firstOpen = CAMPAIGN_DECKS.find((deck) => profile.unlockedDeckIds.includes(deck.id) && !profile.completedDeckIds.includes(deck.id));
     return firstOpen?.id ?? CAMPAIGN_DECKS[0].id;
   });
+
+  useEffect(() => {
+    const firstOpen = CAMPAIGN_DECKS.find((deck) => profile.unlockedDeckIds.includes(deck.id) && !profile.completedDeckIds.includes(deck.id));
+    const firstUnlocked = CAMPAIGN_DECKS.find((deck) => profile.unlockedDeckIds.includes(deck.id));
+    setSelectedDeckId(firstOpen?.id ?? firstUnlocked?.id ?? CAMPAIGN_DECKS[0].id);
+  }, [profile.id]);
+
   const selectedDeck = CAMPAIGN_DECKS.find((deck) => deck.id === selectedDeckId) ?? CAMPAIGN_DECKS[0];
   const selectedStatus = deckStatus(profile, selectedDeck);
   const selectedMath = MATH_START_OPTIONS.find((option) => option.id === profile.mathStartId) ?? MATH_START_OPTIONS[0];
@@ -37,14 +54,34 @@ export function CampaignScreen({ profile, onProfileChange, onStartDeck }: Props)
         <div>
           <small>NUMBERDROID · KAMPAGNE</small>
           <h1>DAS SCHIFF</h1>
-          <p>Ein Schiff. Eine Story. Die Mathematik passt sich deinem Profil an.</p>
+          <p>Ein Schiff. Eine Story. Jedes Familienprofil bekommt passende Mathematik.</p>
         </div>
         <div className="nd-profile-summary">
-          <span>{profile.name}</span>
+          <span>AKTIVES PROFIL · {profile.name}</span>
           <b>{selectedMath.example} · {selectedMath.label}</b>
           <small>TAKTIK: {selectedTactical.label} · DECKS: {profile.completedDeckIds.length}/25</small>
         </div>
       </header>
+
+      <section className="nd-profile-switcher" aria-label="Familienprofile">
+        <div className="nd-profile-switcher-copy">
+          <small>WER SPIELT?</small>
+          <span>Fortschritt, Mathe-Einschätzung und Taktik bleiben pro Profil getrennt.</span>
+        </div>
+        <div className="nd-profile-chips">
+          {profiles.map((entry) => (
+            <button
+              key={entry.id}
+              className={entry.id === profile.id ? "selected" : ""}
+              onClick={() => onSelectProfile(entry.id)}
+            >
+              <b>{entry.name}</b>
+              <small>{entry.completedDeckIds.length}/25 Decks</small>
+            </button>
+          ))}
+          <button className="add" onClick={onCreateProfile}>+ PROFIL</button>
+        </div>
+      </section>
 
       <section className="nd-campaign-layout">
         <div className="nd-ship-panel">
@@ -109,7 +146,7 @@ export function CampaignScreen({ profile, onProfileChange, onStartDeck }: Props)
           </section>
 
           <section className="nd-campaign-card">
-            <small>MATHE-STARTPUNKT · JEDERZEIT ÄNDERBAR</small>
+            <small>MATHE-STARTPUNKT · FÜR {profile.name}</small>
             <div className="nd-math-options">
               {MATH_START_OPTIONS.map((option) => (
                 <button
