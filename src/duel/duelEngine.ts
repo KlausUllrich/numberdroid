@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { Difficulty, MathMode, Operation } from "../game/types";
+import type { Difficulty, DuelMathConfig, MathMode } from "../game/types";
 
 export type Side = "team" | "enemy";
 export type Turn = "human" | "enemy";
@@ -19,16 +19,7 @@ export type EventPopup = {
   detail: string;
 };
 export type MotionStyle = CSSProperties & { "--fall-y"?: string; "--row-shift-x"?: string };
-
-export type ModeConfig = {
-  label: string;
-  short: string;
-  operation: Operation;
-  symbol: "+" | "−";
-  target: number;
-  maxValue: number;
-  pool: number[];
-};
+export type MathInput = MathMode | DuelMathConfig;
 
 export const ROWS = 6;
 export const COLS = 5;
@@ -39,7 +30,7 @@ let nextPulseId = 1;
 
 export function makePulseId() { return nextPulseId++; }
 
-export const MODE_INFO: Record<MathMode, ModeConfig> = {
+export const MODE_INFO: Record<MathMode, DuelMathConfig> = {
   "add-easy": {
     label: "ZIEL 6", short: "WERTE 1–5", operation: "add", symbol: "+", target: 6, maxValue: 5,
     pool: [1, 2, 2, 3, 3, 4, 4, 5],
@@ -64,26 +55,31 @@ export const DIFFICULTY_INFO: Record<Difficulty, { label: string; detail: string
   hard: { label: "STARK", detail: "meist 2–3 · selten 4er" },
 };
 
-function randomValue(mode: MathMode) {
-  const pool = MODE_INFO[mode].pool;
+export function mathConfig(input: MathInput): DuelMathConfig {
+  return typeof input === "string" ? MODE_INFO[input] : input;
+}
+
+function randomValue(input: MathInput) {
+  const pool = mathConfig(input).pool;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function tile(value: number): Tile { return { id: nextTileId++, value }; }
-function newTile(mode: MathMode) { return tile(randomValue(mode)); }
+function newTile(input: MathInput) { return tile(randomValue(input)); }
 
 function adjacent(a: Pick, b: Pick) {
   return Math.abs(a.row - b.row) + Math.abs(a.col - b.col) === 1;
 }
 
-export function pathExpression(path: Pick[], grid: Grid, mode: MathMode) {
-  return path.map((pick) => grid[pick.row][pick.col].value).join(` ${MODE_INFO[mode].symbol} `);
+export function pathExpression(path: Pick[], grid: Grid, input: MathInput) {
+  const config = mathConfig(input);
+  return path.map((pick) => grid[pick.row][pick.col].value).join(` ${config.symbol} `);
 }
 
-export function pathResult(path: Pick[], grid: Grid, mode: MathMode) {
+export function pathResult(path: Pick[], grid: Grid, input: MathInput) {
   if (!path.length) return 0;
   const values = path.map((pick) => grid[pick.row][pick.col].value);
-  if (MODE_INFO[mode].operation === "add") return values.reduce((sum, value) => sum + value, 0);
+  if (mathConfig(input).operation === "add") return values.reduce((sum, value) => sum + value, 0);
   return values.slice(1).reduce((result, value) => result - value, values[0]);
 }
 
@@ -101,14 +97,14 @@ export function canAppend(path: Pick[], next: Pick) {
   return !path.some((pick) => pick.row === next.row && pick.col === next.col);
 }
 
-export function findCombinations(grid: Grid, mode: MathMode) {
-  const config = MODE_INFO[mode];
+export function findCombinations(grid: Grid, input: MathInput) {
+  const config = mathConfig(input);
   const results: Pick[][] = [];
   const seen = new Set<string>();
   const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]] as const;
 
   function explore(path: Pick[]) {
-    const result = pathResult(path, grid, mode);
+    const result = pathResult(path, grid, config);
     if (result === config.target && path.length >= 2) {
       const forward = path.map(({ row, col }) => `${row}:${col}`).join("|");
       const reverse = [...path].reverse().map(({ row, col }) => `${row}:${col}`).join("|");
@@ -133,9 +129,9 @@ export function findCombinations(grid: Grid, mode: MathMode) {
   return results.sort((a, b) => b.length - a.length);
 }
 
-function forceSimpleCombination(grid: Grid, mode: MathMode) {
+function forceSimpleCombination(grid: Grid, input: MathInput) {
   const next = grid.map((row) => [...row]);
-  const config = MODE_INFO[mode];
+  const config = mathConfig(input);
   if (config.operation === "add") {
     const first = Math.min(config.maxValue, Math.max(1, config.target - 2));
     next[0][0] = tile(first);
@@ -147,17 +143,17 @@ function forceSimpleCombination(grid: Grid, mode: MathMode) {
   return next;
 }
 
-export function freshGrid(mode: MathMode, seed?: number): Grid {
-  const config = MODE_INFO[mode];
+export function freshGrid(input: MathInput, seed?: number): Grid {
+  const config = mathConfig(input);
   let seededState = seed ?? 0;
   const nextValue = seed === undefined
-    ? () => randomValue(mode)
+    ? () => randomValue(config)
     : () => {
         seededState = (seededState * 1664525 + 1013904223) >>> 0;
         return config.pool[seededState % config.pool.length];
       };
   let grid = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => tile(nextValue())));
-  if (findCombinations(grid, mode).length === 0) grid = forceSimpleCombination(grid, mode);
+  if (findCombinations(grid, config).length === 0) grid = forceSimpleCombination(grid, config);
   return grid;
 }
 
@@ -168,14 +164,15 @@ export function shiftRow(grid: Grid, row: number, direction: "left" | "right") {
   return next;
 }
 
-function collapseGrid(grid: Grid, picks: Pick[], mode: MathMode) {
+function collapseGrid(grid: Grid, picks: Pick[], input: MathInput) {
+  const config = mathConfig(input);
   const removed = new Set(picks.map(({ row, col }) => `${row}:${col}`));
   const fallRows: Record<number, number> = {};
   const columns = Array.from({ length: COLS }, (_, col) => {
     const survivors = grid.map((row, rowIndex) => ({ row: rowIndex, value: row[col] }))
       .filter((entry) => !removed.has(`${entry.row}:${col}`));
     const missing = ROWS - survivors.length;
-    const arrivals = Array.from({ length: missing }, () => ({ row: -1, value: newTile(mode) }));
+    const arrivals = Array.from({ length: missing }, () => ({ row: -1, value: newTile(config) }));
     const column = [...arrivals, ...survivors];
     column.forEach((entry, finalRow) => {
       fallRows[entry.value.id] = entry.row < 0 ? finalRow + 1 : Math.max(0, finalRow - entry.row);
@@ -183,12 +180,12 @@ function collapseGrid(grid: Grid, picks: Pick[], mode: MathMode) {
     return column.map((entry) => entry.value);
   });
   let next = Array.from({ length: ROWS }, (_, row) => Array.from({ length: COLS }, (_, col) => columns[col][row]));
-  if (findCombinations(next, mode).length === 0) next = forceSimpleCombination(next, mode);
+  if (findCombinations(next, config).length === 0) next = forceSimpleCombination(next, config);
   return { grid: next, fallRows };
 }
 
-export function resolveGrid(grid: Grid, path: Pick[], mode: MathMode) {
-  const collapsed = collapseGrid(grid, path, mode);
+export function resolveGrid(grid: Grid, path: Pick[], input: MathInput) {
+  const collapsed = collapseGrid(grid, path, input);
   return { collapsed: collapsed.grid, grid: collapsed.grid, fallRows: collapsed.fallRows };
 }
 
