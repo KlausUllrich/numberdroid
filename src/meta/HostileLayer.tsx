@@ -1,6 +1,8 @@
 import { memo, useEffect, useRef, type CSSProperties, type MutableRefObject } from "react";
 import { BODIES, robotCollisionRadius } from "../game/catalog";
+import type { TacticalChallengeId } from "../game/playerProfile";
 import { pointWalkable } from "../game/save";
+import { resolveBehaviorPressure } from "../game/tacticalChallenge";
 import type { EncounterBehaviorKind, EncounterConfig, FloorDefinition, MetaState } from "../game/types";
 import { blockedByClosedDoor } from "./doorRuntime";
 import "./HostileLayer.css";
@@ -36,6 +38,7 @@ type Props = {
   openDoorIdsRef: MutableRefObject<Set<string>>;
   pausedRef: MutableRefObject<boolean>;
   runtimePosesRef: MutableRefObject<Map<string, EncounterRuntimePose>>;
+  tacticalChallengeId: TacticalChallengeId;
   onIntercept: (enemy: EncounterConfig) => void;
   onManualEncounter: (enemy: EncounterConfig) => void;
   onAlert: (enemy: EncounterConfig) => void;
@@ -63,6 +66,7 @@ function HostileLayerComponent({
   openDoorIdsRef,
   pausedRef,
   runtimePosesRef,
+  tacticalChallengeId,
   onIntercept,
   onManualEncounter,
   onAlert,
@@ -197,7 +201,8 @@ function HostileLayerComponent({
       let nearestNeutralDistance = Infinity;
 
       for (const enemy of activeEncounters) {
-        const behavior = enemy.behavior;
+        const authoredBehavior = enemy.behavior;
+        const behavior = authoredBehavior ? resolveBehaviorPressure(authoredBehavior, tacticalChallengeId) : undefined;
         const runtime = runtimeFor(enemy);
         let playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
 
@@ -294,9 +299,9 @@ function HostileLayerComponent({
       cancelAnimationFrame(frameId);
       runtimePosesRef.current.clear();
     };
-    // Runtime intentionally keys off authored floor/encounter data, not player React state.
+    // Runtime intentionally keys off authored floor/encounter data, tactical profile and refs, not player React pose state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [floor.id, defeatedEncounterIds]);
+  }, [floor.id, defeatedEncounterIds, tacticalChallengeId]);
 
   return (
     <>
@@ -342,4 +347,5 @@ export const HostileLayer = memo(HostileLayerComponent, (previous, next) => (
   && previous.openDoorIdsRef === next.openDoorIdsRef
   && previous.pausedRef === next.pausedRef
   && previous.runtimePosesRef === next.runtimePosesRef
+  && previous.tacticalChallengeId === next.tacticalChallengeId
 ));
