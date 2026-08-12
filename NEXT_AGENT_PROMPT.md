@@ -14,95 +14,151 @@ Before making changes, read these files completely, in this order:
 2. `ENCOUNTER_ARCHETYPES.md`
 3. `CAMPAIGN_PROGRESSION.md`
 4. `LEARNING_PROFILES.md`
-5. `DEVELOPMENT_PLAN_NEXT.md`
+5. `MENU_HUB_FLOW.md`
+6. `DEVELOPMENT_PLAN_NEXT.md`
 
-Treat them together as the authoritative handover. `CODEX_HANDOFF.md` is the established runtime/gameplay base; the later documents extend it with the current encounter, campaign, educational and development decisions.
+Treat them together as the authoritative handover.
 
-## Architecture boundary
+## Runtime architecture boundary
 
-- A7 parity and the first complete B2/VS2 gameplay loop are established.
+- A7 parity and the complete B2 gameplay loop are established.
 - Do not perform another broad migration/rewrite.
 - Preserve local RAF movement/camera and physical body-size/drive behavior.
-- Preserve hidden arithmetic correctness until explicit submit.
+- Preserve hidden arithmetic correctness until explicit `REAKTOR AUSLÖSEN`.
 - Extend Floor/Tiled/runtime systems rather than adding per-map DOM hacks.
 - Robot bodies are physical; physical collision always opens scan.
 - Neutral robots do not pursue.
-- Guards visibly trigger, accelerate, chase inside a leash, scan on collision, and return to post when escaped.
-- Future robot perception must use line of sight rather than seeing through walls/closed doors.
-- Treasure Golem / Beutedroide is a future authored trap/capture encounter.
+- Guards/hunters use authored range + line of sight; walls/obstacles/closed doors block sight.
+- Lost sight enters a visible investigation/search state before guard return or hunter give-up.
+- Guard acceleration/leash/return remain authored behavior.
+- Treasure Golem / Beutedroide remains future authored trap/capture content.
 
 ## Campaign product rule
 
-Numberdroid has **one shared story campaign**. Current planning target is about **25 decks**, likely grouped into larger acts, but runtime/data architecture must be count-agnostic.
+Numberdroid has **one shared story campaign** for every mathematics profile.
 
-Every player profile can play the entire same campaign:
-- same ship/decks,
-- same story order,
-- same recognizable robots/bosses,
-- same campaign-mechanic unlocks,
-- personalized concrete arithmetic.
+Internal planning currently uses approximately 25 deck slots across several acts, but this is **not player-facing roadmap UI**.
 
-Do not create separate easy/advanced campaigns and do not skip early story decks for mathematically advanced players.
+Binding player flow is now:
 
-### Campaign progression has several independent dimensions
+```text
+INTRO
+→ TITLE
+→ CONTINUE PROFILE / NEW PROFILE / SETTINGS
+→ PERSONAL HUB
+→ START / RESUME MISSION
+→ DECK
+→ SUCCESS STORY → HUB
+   or
+→ 0 HP / FAILURE → HUB
+```
 
-1. **Player mathematics baseline** stored in the player profile.
-2. **Robot mathematical role/type** (`comfort/basic`, `practice/core`, `stretch/security`, `specialist`, `boss`).
-3. **Deck curve**: easier arrival → stronger encounters → boss; next deck provides some breathing room but a higher ceiling.
-4. **Campaign system complexity**: later decks introduce/compose more mechanics such as Joker/body skills, keys, new robot behaviors, Treasure Golem/traps and number-board elements.
-5. **Tactical challenge** remains a separate setting for AI/pursuit/reaction pressure.
+The old all-in-one `CampaignScreen` is no longer the canonical UX.
 
-Easy arithmetic remains valid throughout the campaign. Mastering `+/- to 10` does not mean it should disappear; easy robots provide fluency, pacing and satisfying mastery.
+The personal hub:
+- shows only the active thematic area/act,
+- may show progress inside that current area,
+- must not reveal total act count or all ~25 decks,
+- owns access to collection, achievements, logbook/story and player statistics,
+- provides next mission / running mission,
+- returns to global title through `HAUPTMENÜ`.
 
-Do not make adaptation the primary global difficulty engine. Profile adaptation only calibrates the arithmetic envelope while preserving robot identity and authored deck pacing.
+## Profile onboarding
 
-## Player mathematics profile
+A true first install may contain zero profiles.
 
-A profile may have a friendly initial self-assessment using recognizable example tasks/capabilities. This is a starting estimate, not an exam.
+Profile creation:
+1. child or adult,
+2. name,
+3. children receive a friendly supported arithmetic starting estimate,
+4. adults currently skip the child math question and receive a higher +/- default.
 
-Rules:
-- safe default / simply starting must remain possible,
-- no mandatory placement test,
-- mathematics baseline can be changed/refined later,
-- actual play may conservatively calibrate it,
-- school-year labels are localized approximate guidance only,
-- tactical challenge is stored/controlled separately.
+Current real duel protocols are addition/subtraction. Do not present multiplication/division as playable modes before real mechanics exist.
 
-## Current development phase
+Each profile independently owns:
+- campaign progress,
+- running floor/mission save,
+- math baseline/evidence state,
+- tactical preference,
+- future collection/achievements/statistics.
 
-Follow `DEVELOPMENT_PLAN_NEXT.md`.
+## Difficulty architecture
 
-Package 0 — hosted Pages preview — is complete. Current preview target:
+Progression remains multidimensional:
+
+1. **player mathematics baseline/evidence**,
+2. **robot mathematics role** (`comfort`, `core`, `stretch`, `specialist`, `boss`),
+3. **within-mission/deck curve**,
+4. **campaign system complexity**,
+5. **independent tactical challenge**.
+
+Easy arithmetic remains useful throughout the campaign. Stronger profiles do not skip early story missions and comfort robots do not disappear.
+
+Tactical behavior (`neutral/guard/patrol/aggressive`) is independent from mathematical role.
+
+`ENTDECKER / STANDARD / HERAUSFORDERUNG` tunes duel AI and deck pursuit pressure, not mathematics knowledge.
+
+## Current implementation status
+
+Completed and should not be restarted:
+- GitHub Pages remote preview,
+- campaign/deck catalog,
+- B2 campaign integration,
+- playable C3 proof,
+- B2 success → unlock C3,
+- multiple isolated family profiles,
+- per-profile mission save/resume,
+- child/adult profile type,
+- profile math baseline,
+- robot math roles,
+- profile/deck/robot arithmetic envelope,
+- independent tactical challenge,
+- neutral/guard/patrol/aggressive behavior,
+- universal collision → scan,
+- LOS/view cone/door/obstacle perception,
+- lost-sight investigation + return/give-up,
+- automated tests/build/Pages pipeline,
+- intro/title/profile-wizard/settings/hub navigation,
+- current-area-only hub progress,
+- collection/achievement/logbook/statistics hub entry points,
+- voluntary mission exit → `MISSION FORTSETZEN`,
+- campaign 0 HP → hub + fresh retry,
+- success story → hub.
+
+Current hosted preview:
 
 ```text
 https://klausullrich.github.io/numberdroid/
 ```
 
-The current agent/session remains responsible for:
-
-1. campaign shell + deck catalog + player-profile foundation,
-2. campaign persistence/progression + robot math roles + authored deck difficulty curve + small C3 proof,
-3. reusable LOS/perception foundation,
-4. automated smoke coverage/framework hardening,
-5. Playtest Gates A and B feedback,
-6. only then deliberate handoff.
-
-Klaus should not be asked to test routine intermediate commits.
-
-Do not spend this milestone building all ~25 decks, final story/art, full Treasure Golem content, a sophisticated adaptive-learning algorithm, a full international curriculum database or a broad catalog of new board mechanics.
-
-Current local B2 preview:
+Current local direct B2 preview:
 
 ```text
 http://localhost:5173/?floor=deck-vs2
 ```
 
-Local workflow:
+## Current development phase
 
-```bash
-git pull --ff-only
-npm run build
-npm run dev -- --host 0.0.0.0
-```
+Follow `DEVELOPMENT_PLAN_NEXT.md`.
 
-If this is a genuine new session/handoff, summarize all five authoritative documents and verify branch/CI/Pages state before changing code. Then continue the first incomplete package in `DEVELOPMENT_PLAN_NEXT.md`; do not restart completed work.
+The next useful human step is the **integrated title/profile/hub/campaign playtest**. Do not ask Klaus to repeat routine micro-tests that automated CI can cover.
+
+After Klaus provides integrated feedback:
+1. fix concrete UX/gameplay regressions,
+2. add focused tests for repeatable bugs,
+3. keep docs synchronized,
+4. verify tests/build/Pages,
+5. perform deliberate handoff.
+
+Do not spend this milestone building the full ~25 production decks, final story/art, final per-act hubs, full collectibles/achievements, full Treasure Golem content, multiplication/division, a sophisticated adaptive-learning engine or full localization unless required by a concrete blocker.
+
+## Handoff rule
+
+If this is a genuine new session:
+- summarize all six authoritative documents,
+- verify current branch HEAD,
+- verify latest CI and Pages state,
+- inspect the actual current code before changing it,
+- continue the first incomplete item in `DEVELOPMENT_PLAN_NEXT.md`,
+- do not restart completed campaign/profile/LOS/menu work,
+- never merge PR #1 without explicit Klaus approval.
