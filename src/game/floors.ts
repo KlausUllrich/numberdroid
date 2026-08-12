@@ -1,6 +1,7 @@
 import type { EnergyStationDefinition, FloorDefinition } from "./types";
 import { publicAsset } from "./assets";
 import { floorFromTiledMap } from "./tiled";
+import { DECK_C3_MAP } from "./maps/deckC3";
 import { DECK_VS2_MAP } from "./maps/deckVs2";
 
 const DECK_A7_STATIONS: EnergyStationDefinition[] = [
@@ -60,6 +61,7 @@ export const DECK_A7: FloorDefinition = {
       y: 555,
       mode: "add-easy",
       mathLabel: "+ ZIEL 6",
+      mathRole: "comfort",
       difficulty: "easy",
       difficultyLabel: "LEICHT",
       bodyId: "sentry",
@@ -74,6 +76,7 @@ export const DECK_A7: FloorDefinition = {
       y: 555,
       mode: "add-normal",
       mathLabel: "+ ZIEL 8",
+      mathRole: "core",
       difficulty: "medium",
       difficultyLabel: "MITTEL",
       bodyId: "magnetar",
@@ -88,6 +91,7 @@ export const DECK_A7: FloorDefinition = {
       y: 210,
       mode: "add-hard",
       mathLabel: "+ ZIEL 10",
+      mathRole: "boss",
       difficulty: "hard",
       difficultyLabel: "STARK",
       bodyId: "kronos",
@@ -98,10 +102,12 @@ export const DECK_A7: FloorDefinition = {
 };
 
 export const DECK_VS2 = floorFromTiledMap(DECK_VS2_MAP, { resolveAsset: publicAsset });
+export const DECK_C3 = floorFromTiledMap(DECK_C3_MAP, { resolveAsset: publicAsset });
 
 export const FLOORS: Record<string, FloorDefinition> = {
   [DECK_A7.id]: DECK_A7,
   [DECK_VS2.id]: DECK_VS2,
+  [DECK_C3.id]: DECK_C3,
 };
 
 export const DEFAULT_FLOOR_ID = DECK_A7.id;
