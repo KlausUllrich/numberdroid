@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { BODIES, STARTING_HP } from "./game/catalog";
-import { floorGoalCompleted, getCampaignDeck, getNextCampaignDeck, type CampaignDeck } from "./game/campaign";
+import { FIRST_CAMPAIGN_DECK_ID, floorGoalCompleted, getCampaignDeck, getNextCampaignDeck, type CampaignDeck } from "./game/campaign";
 import { getFloor, getPreviewFloorId } from "./game/floors";
 import { encounterWithProfileDifficulty } from "./game/mathProgression";
-import { createFloorState, loadMetaState, restartFloorState, saveMetaState } from "./game/save";
+import {
+  createFloorState,
+  loadMetaState,
+  loadProfileMetaState,
+  restartFloorState,
+  saveProfileMetaState,
+} from "./game/save";
 import {
   activePlayerProfile,
   collectionWithActiveProfile,
@@ -29,13 +35,19 @@ import { TransferScreen } from "./transfer/TransferScreen";
 
 type AppScreen = GameScreen | "campaign" | "success";
 
+function freshCampaignMeta(playerCount: number) {
+  const firstDeck = getCampaignDeck(FIRST_CAMPAIGN_DECK_ID);
+  return createFloorState(getFloor(firstDeck.floorId ?? "deck-vs2"), playerCount);
+}
+
 export default function App() {
   const previewFloorId = getPreviewFloorId();
   const [profileCollection, setProfileCollection] = useState<PlayerProfileCollection>(() => loadPlayerProfiles());
   const profile = activePlayerProfile(profileCollection);
   const [meta, setMeta] = useState<MetaState>(() => {
-    const saved = loadMetaState();
-    return previewFloorId ? createFloorState(getFloor(previewFloorId), saved.playerCount) : saved;
+    const legacy = loadMetaState();
+    if (previewFloorId) return createFloorState(getFloor(previewFloorId), legacy.playerCount);
+    return loadProfileMetaState(profile.id, profile.id === "player-1") ?? freshCampaignMeta(legacy.playerCount);
   });
   const [screen, setScreen] = useState<AppScreen>(() => {
     if (!previewFloorId) return "campaign";
@@ -51,9 +63,9 @@ export default function App() {
 
   useEffect(() => {
     if (previewFloorId) return;
-    const timer = window.setTimeout(() => saveMetaState(meta), 220);
+    const timer = window.setTimeout(() => saveProfileMetaState(profile.id, meta), 220);
     return () => window.clearTimeout(timer);
-  }, [meta, previewFloorId]);
+  }, [meta, previewFloorId, profile.id]);
 
   useEffect(() => {
     if (previewFloorId) return;
@@ -80,7 +92,13 @@ export default function App() {
   }
 
   function selectProfile(profileId: string) {
+    if (profileId === profile.id) return;
+    saveProfileMetaState(profile.id, meta);
+    const selected = profileCollection.profiles.find((entry) => entry.id === profileId);
+    if (!selected) return;
+    const selectedRun = loadProfileMetaState(profileId);
     setProfileCollection((current) => collectionWithActiveProfile(current, profileId));
+    setMeta(selectedRun ?? freshCampaignMeta(meta.playerCount));
     setCompletedCampaignDeckId(null);
     setEncounter(null);
     setTransfer(null);
@@ -88,16 +106,17 @@ export default function App() {
   }
 
   function createProfile() {
-    setProfileCollection((current) => {
-      const usedIds = new Set(current.profiles.map((entry) => entry.id));
-      let index = current.profiles.length + 1;
-      let id = `player-${index}`;
-      while (usedIds.has(id)) {
-        index += 1;
-        id = `player-${index}`;
-      }
-      return collectionWithNewProfile(current, createPlayerProfile(id, `SPIELER ${index}`));
-    });
+    saveProfileMetaState(profile.id, meta);
+    const usedIds = new Set(profileCollection.profiles.map((entry) => entry.id));
+    let index = profileCollection.profiles.length + 1;
+    let id = `player-${index}`;
+    while (usedIds.has(id)) {
+      index += 1;
+      id = `player-${index}`;
+    }
+    const nextProfile = createPlayerProfile(id, `SPIELER ${index}`);
+    setProfileCollection((current) => collectionWithNewProfile(current, nextProfile));
+    setMeta(freshCampaignMeta(meta.playerCount));
     setCompletedCampaignDeckId(null);
     setEncounter(null);
     setTransfer(null);
@@ -111,7 +130,12 @@ export default function App() {
 
   function startCampaignDeck(deck: CampaignDeck) {
     if (!deck.floorId) return;
-    const next = createFloorState(getFloor(deck.floorId), meta.playerCount);
+    const floor = getFloor(deck.floorId);
+    const storedRun = loadProfileMetaState(profile.id);
+    const canResume = profile.currentCampaignDeckId === deck.id
+      && storedRun?.floorId === deck.floorId
+      && !floorGoalCompleted(storedRun, floor);
+    const next = canResume ? storedRun : createFloorState(floor, meta.playerCount);
     setProfileCollection((current) => {
       const active = activePlayerProfile(current);
       return collectionWithUpdatedProfile(current, profileWithStartedDeck(active, deck.id));
@@ -120,10 +144,11 @@ export default function App() {
     setMeta(next);
     setEncounter(null);
     setTransfer(null);
-    setScreen("deck");
+    setScreen(next.damageTaken >= STARTING_HP ? "destroyed" : "deck");
   }
 
   function returnToCampaign() {
+    if (!previewFloorId) saveProfileMetaState(profile.id, meta);
     setEncounter(null);
     setTransfer(null);
     setCompletedCampaignDeckId(null);
