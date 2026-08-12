@@ -14,7 +14,7 @@ function behaviorCopy(encounter: EncounterConfig) {
     case "guard": return "WACHE · VERFOLGT NUR IM POSTENBEREICH";
     case "patrol": return "PATROUILLE · BEWEGT SICH";
     case "aggressive": return encounter.behavior.forcedEngagement ? "JÄGER · ERZWINGT KAMPF" : "JÄGER · VERFOLGT DICH";
-    default: return "PASSIV · MANUELLER SCAN";
+    default: return "PASSIV · KONTAKTSCAN";
   }
 }
 
@@ -34,7 +34,7 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
           <span>{deckSize === "large" ? "SCHWERKÖRPER" : body.bodyClass}</span>
         </div>
         <div className="zk-encounter-info">
-          <small>{encounter.boss ? "KOMMANDO-SIGNATUR · ENDGEGNER" : neutral ? "NEUTRALER DROID · ROUTINEARBEIT" : forcedEngagement ? "FEINDLICHER ABFANGSCAN · KAMPF ERZWUNGEN" : "DROID-SCAN · TAKTISCHE ANALYSE"}</small>
+          <small>{encounter.boss ? "KOMMANDO-SIGNATUR · ENDGEGNER" : neutral ? "NEUTRALER DROID · KONTAKTSCAN" : forcedEngagement ? "FEINDLICHER ABFANGSCAN · KAMPF ERZWUNGEN" : "DROID-SCAN · TAKTISCHE ANALYSE"}</small>
           <h2 id="encounter-title">{encounter.name}</h2>
           <div className="zk-encounter-role"><b>{body.roleLabel}</b><span>{body.roleDescription}</span></div>
           {encounter.storyIntro && <p className="zk-encounter-story">{encounter.storyIntro}</p>}
@@ -57,7 +57,7 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
             <div className="zk-encounter-neutral-protocol">
               <span>NEUTRALER BETRIEB</span>
               <b>KEINE AGGRESSION</b>
-              <p>Dieser Droid arbeitet einfach weiter und wird dich weder abfangen noch verfolgen. Du kannst ihn ignorieren oder freiwillig versuchen, seinen Körper zu übernehmen.</p>
+              <p>Dieser Droid jagt dich nicht und arbeitet einfach weiter. Bei einer Kollision öffnet sich wie bei jedem Roboter der Scan; du kannst ihn dann in Ruhe lassen oder freiwillig die Übernahme versuchen.</p>
             </div>
           )}
 
