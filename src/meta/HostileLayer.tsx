@@ -1,9 +1,10 @@
 import { memo, useEffect, useRef, type CSSProperties, type MutableRefObject } from "react";
 import { BODIES, robotCollisionRadius } from "../game/catalog";
+import { robotCanSeePoint } from "../game/perception";
 import type { TacticalChallengeId } from "../game/playerProfile";
 import { pointWalkable } from "../game/save";
 import { resolveBehaviorPressure } from "../game/tacticalChallenge";
-import type { EncounterBehaviorKind, EncounterConfig, FloorDefinition, MetaState } from "../game/types";
+import type { EncounterBehavior, EncounterBehaviorKind, EncounterConfig, FloorDefinition, MetaState } from "../game/types";
 import { blockedByClosedDoor } from "./doorRuntime";
 import "./HostileLayer.css";
 
@@ -19,9 +20,13 @@ type EnemyRuntime = {
   facing: number;
   pathIndex: number;
   chasing: boolean;
+  investigating: boolean;
   returning: boolean;
   armed: boolean;
   moveSpeed: number;
+  lastSeenX: number;
+  lastSeenY: number;
+  lastSeenAt: number;
 };
 
 export type EncounterRuntimePose = {
@@ -92,12 +97,16 @@ function HostileLayerComponent({
       runtime = {
         x: enemy.x,
         y: enemy.y,
-        facing: 0,
+        facing: enemy.facing ?? 0,
         pathIndex: 0,
         chasing: false,
+        investigating: false,
         returning: false,
         armed: distance(enemy.x, enemy.y, playerMetaRef.current.x, playerMetaRef.current.y) > contactDistance(enemy) + 28,
         moveSpeed: 0,
+        lastSeenX: enemy.x,
+        lastSeenY: enemy.y,
+        lastSeenAt: 0,
       };
       runtimeRef.current.set(enemy.encounterId, runtime);
     }
@@ -120,7 +129,8 @@ function HostileLayerComponent({
     node.style.setProperty("--enemy-x", `${runtime.x}px`);
     node.style.setProperty("--enemy-y", `${runtime.y}px`);
     node.style.setProperty("--enemy-facing", `${runtime.facing}deg`);
-    node.classList.toggle("alerted", runtime.chasing);
+    node.classList.toggle("alerted", runtime.chasing && !runtime.investigating);
+    node.classList.toggle("investigating", runtime.investigating);
     node.classList.toggle("returning", runtime.returning);
   }
 
@@ -170,6 +180,42 @@ function HostileLayerComponent({
     return distance(x, y, targetX, targetY) < 6;
   }
 
+  function playerVisible(runtime: EnemyRuntime, behavior: EncounterBehavior, player: MetaState) {
+    return robotCanSeePoint(
+      floor,
+      openDoorIdsRef.current,
+      { x: runtime.x, y: runtime.y },
+      runtime.facing,
+      { x: player.x, y: player.y },
+      behavior,
+    );
+  }
+
+  function rememberPlayer(runtime: EnemyRuntime, player: MetaState, now: number) {
+    runtime.lastSeenX = player.x;
+    runtime.lastSeenY = player.y;
+    runtime.lastSeenAt = now;
+    runtime.investigating = false;
+  }
+
+  function searchLastSeen(enemy: EncounterConfig, runtime: EnemyRuntime, behavior: EncounterBehavior, now: number, dt: number) {
+    if (behavior.searchDurationMs <= 0 || now - runtime.lastSeenAt > behavior.searchDurationMs) {
+      runtime.investigating = false;
+      return false;
+    }
+    runtime.investigating = true;
+    moveToward(
+      enemy,
+      runtime,
+      runtime.lastSeenX,
+      runtime.lastSeenY,
+      Math.max(44, behavior.chaseSpeed * 0.72),
+      dt,
+      behavior.chaseAcceleration * 0.7,
+    );
+    return true;
+  }
+
   useEffect(() => {
     runtimeRef.current = new Map();
     runtimePosesRef.current.clear();
@@ -208,11 +254,21 @@ function HostileLayerComponent({
 
         if (behavior) {
           const homePlayerDistance = distance(enemy.x, enemy.y, player.x, player.y);
+          const seesPlayer = (behavior.kind === "guard" || behavior.kind === "aggressive")
+            ? playerVisible(runtime, behavior, player)
+            : false;
 
           if (behavior.kind === "guard") {
             if (runtime.returning) {
               runtime.chasing = false;
-              if (moveToward(
+              runtime.investigating = false;
+              if (seesPlayer && homePlayerDistance <= behavior.detectionRadius) {
+                runtime.returning = false;
+                runtime.chasing = true;
+                runtime.moveSpeed = 0;
+                rememberPlayer(runtime, player, now);
+                callbacksRef.current.onAlert(enemy);
+              } else if (moveToward(
                 enemy,
                 runtime,
                 enemy.x,
@@ -223,38 +279,54 @@ function HostileLayerComponent({
               )) {
                 runtime.returning = false;
                 runtime.moveSpeed = 0;
-                runtime.facing = 0;
+                runtime.facing = enemy.facing ?? 0;
               }
             } else {
-              if (!runtime.chasing && homePlayerDistance <= behavior.detectionRadius) {
+              if (!runtime.chasing && seesPlayer && homePlayerDistance <= behavior.detectionRadius) {
                 runtime.chasing = true;
                 runtime.moveSpeed = 0;
+                rememberPlayer(runtime, player, now);
                 callbacksRef.current.onAlert(enemy);
               }
 
               if (runtime.chasing) {
                 if (homePlayerDistance > behavior.loseRadius) {
                   runtime.chasing = false;
+                  runtime.investigating = false;
                   runtime.returning = true;
-                } else {
+                } else if (seesPlayer) {
+                  rememberPlayer(runtime, player, now);
                   moveToward(enemy, runtime, player.x, player.y, behavior.chaseSpeed, dt, behavior.chaseAcceleration);
+                } else if (!searchLastSeen(enemy, runtime, behavior, now, dt)) {
+                  runtime.chasing = false;
+                  runtime.returning = true;
+                  runtime.moveSpeed = 0;
                 }
               }
             }
             playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
           } else if (behavior.kind === "aggressive") {
-            if (!runtime.chasing && playerDistance <= behavior.detectionRadius) {
+            if (!runtime.chasing && seesPlayer) {
               runtime.chasing = true;
               runtime.moveSpeed = 0;
+              rememberPlayer(runtime, player, now);
               callbacksRef.current.onAlert(enemy);
-            } else if (runtime.chasing && playerDistance > behavior.loseRadius) {
-              runtime.chasing = false;
-              runtime.moveSpeed = 0;
             }
 
             if (runtime.chasing) {
-              moveToward(enemy, runtime, player.x, player.y, behavior.chaseSpeed, dt, behavior.chaseAcceleration);
-              playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
+              if (playerDistance > behavior.loseRadius) {
+                runtime.chasing = false;
+                runtime.investigating = false;
+                runtime.moveSpeed = 0;
+              } else if (seesPlayer) {
+                rememberPlayer(runtime, player, now);
+                moveToward(enemy, runtime, player.x, player.y, behavior.chaseSpeed, dt, behavior.chaseAcceleration);
+                playerDistance = distance(runtime.x, runtime.y, player.x, player.y);
+              } else if (!searchLastSeen(enemy, runtime, behavior, now, dt)) {
+                runtime.chasing = false;
+                runtime.investigating = false;
+                runtime.moveSpeed = 0;
+              }
             }
           } else if ((behavior.kind === "patrol" || behavior.kind === "neutral") && behavior.patrolPath.length > 1) {
             const target = behavior.patrolPath[runtime.pathIndex % behavior.patrolPath.length];
@@ -331,7 +403,7 @@ function HostileLayerComponent({
             <img src={BODIES[enemy.bodyId].sprite} alt="" />
             <span className="tag">{enemy.name}</span>
             {enemy.accessKey && <span className="zk-enemy-key" aria-label={`Trägt ${enemy.accessKey.label}`}>▣</span>}
-            {behavior && <span className="hostile-mode" aria-hidden="true">{behavior.kind === "neutral" ? "⚙" : runtime.returning ? "↩" : behavior.kind === "aggressive" ? "!" : behavior.kind === "patrol" ? "↔" : "◆"}</span>}
+            {behavior && <span className="hostile-mode" aria-hidden="true">{behavior.kind === "neutral" ? "⚙" : runtime.investigating ? "?" : runtime.returning ? "↩" : behavior.kind === "aggressive" ? "!" : behavior.kind === "patrol" ? "↔" : "◆"}</span>}
             <span className="level" aria-hidden="true">{[0, 1, 2].map((i) => <i key={i} className={i >= (enemy.difficulty === "easy" ? 1 : enemy.difficulty === "medium" ? 2 : 3) ? "off" : ""} />)}</span>
           </button>
         );
