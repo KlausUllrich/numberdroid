@@ -60,7 +60,24 @@ describe("player profile progression", () => {
   });
 });
 
-describe("family profile isolation", () => {
+describe("family profile onboarding and isolation", () => {
+  it("allows a true first install to have no visible fake player profile", () => {
+    expect(DEFAULT_PROFILE_COLLECTION.profiles).toEqual([]);
+    expect(DEFAULT_PROFILE_COLLECTION.activeProfileId).toBe("");
+  });
+
+  it("uses child and adult onboarding defaults without changing campaign access", () => {
+    const child = createPlayerProfile("child-1", "FINN", "child");
+    const adult = createPlayerProfile("adult-1", "KLAUS", "adult");
+
+    expect(child.audience).toBe("child");
+    expect(child.mathStartId).toBe("small");
+    expect(adult.audience).toBe("adult");
+    expect(adult.mathStartId).toBe("to100");
+    expect(child.unlockedDeckIds).toEqual([FIRST_CAMPAIGN_DECK_ID]);
+    expect(adult.unlockedDeckIds).toEqual([FIRST_CAMPAIGN_DECK_ID]);
+  });
+
   it("creates a second player at B2 without inheriting the first player's progress", () => {
     const firstCompleted = profileWithCompletedDeck(DEFAULT_PLAYER_PROFILE, "campaign-b2", "campaign-c3");
     const collection = collectionWithUpdatedProfile(DEFAULT_PROFILE_COLLECTION, firstCompleted);
