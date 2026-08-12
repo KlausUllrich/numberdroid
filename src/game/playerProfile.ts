@@ -2,11 +2,13 @@ import { FIRST_CAMPAIGN_DECK_ID } from "./campaign";
 
 export type MathStartId = "small" | "to20" | "to100" | "multiply" | "mixed";
 export type TacticalChallengeId = "explorer" | "standard" | "challenge";
+export type PlayerAudience = "child" | "adult";
 
 export type PlayerProfile = {
-  version: 2;
+  version: 3;
   id: string;
   name: string;
+  audience: PlayerAudience;
   mathStartId: MathStartId;
   tacticalChallengeId: TacticalChallengeId;
   unlockedDeckIds: string[];
@@ -46,9 +48,10 @@ const PROFILE_KEY_V2 = "numberdroid-player-profile-v2";
 const PROFILE_KEY_V1 = "numberdroid-player-profile-v1";
 
 export const DEFAULT_PLAYER_PROFILE: PlayerProfile = {
-  version: 2,
+  version: 3,
   id: "player-1",
   name: "SPIELER 1",
+  audience: "adult",
   mathStartId: "small",
   tacticalChallengeId: "standard",
   unlockedDeckIds: [FIRST_CAMPAIGN_DECK_ID],
@@ -58,12 +61,8 @@ export const DEFAULT_PLAYER_PROFILE: PlayerProfile = {
 
 export const DEFAULT_PROFILE_COLLECTION: PlayerProfileCollection = {
   version: 1,
-  activeProfileId: DEFAULT_PLAYER_PROFILE.id,
-  profiles: [{
-    ...DEFAULT_PLAYER_PROFILE,
-    unlockedDeckIds: [...DEFAULT_PLAYER_PROFILE.unlockedDeckIds],
-    completedDeckIds: [],
-  }],
+  activeProfileId: "",
+  profiles: [],
 };
 
 function validMathStart(value: unknown): value is MathStartId {
@@ -74,6 +73,10 @@ function validTacticalChallenge(value: unknown): value is TacticalChallengeId {
   return TACTICAL_CHALLENGES.some((entry) => entry.id === value);
 }
 
+function validAudience(value: unknown): value is PlayerAudience {
+  return value === "child" || value === "adult";
+}
+
 function cleanStringIds(value: unknown) {
   return Array.isArray(value) ? [...new Set(value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry)))] : [];
 }
@@ -82,9 +85,10 @@ function sanitizeProfile(candidate: Partial<PlayerProfile>, fallbackId = DEFAULT
   const unlockedDeckIds = cleanStringIds(candidate.unlockedDeckIds);
   if (!unlockedDeckIds.includes(FIRST_CAMPAIGN_DECK_ID)) unlockedDeckIds.unshift(FIRST_CAMPAIGN_DECK_ID);
   return {
-    version: 2,
+    version: 3,
     id: typeof candidate.id === "string" && candidate.id ? candidate.id : fallbackId,
     name: typeof candidate.name === "string" && candidate.name.trim() ? candidate.name.trim().slice(0, 24) : DEFAULT_PLAYER_PROFILE.name,
+    audience: validAudience(candidate.audience) ? candidate.audience : "adult",
     mathStartId: validMathStart(candidate.mathStartId) ? candidate.mathStartId : DEFAULT_PLAYER_PROFILE.mathStartId,
     tacticalChallengeId: validTacticalChallenge(candidate.tacticalChallengeId) ? candidate.tacticalChallengeId : DEFAULT_PLAYER_PROFILE.tacticalChallengeId,
     unlockedDeckIds,
@@ -114,16 +118,10 @@ function sanitizeCollection(candidate: Partial<PlayerProfileCollection>): Player
     .map((entry, index) => sanitizeProfile(entry, `player-${index + 1}`));
 
   const uniqueProfiles = profiles.filter((profile, index) => profiles.findIndex((entry) => entry.id === profile.id) === index);
-  if (!uniqueProfiles.length) uniqueProfiles.push({
-    ...DEFAULT_PLAYER_PROFILE,
-    unlockedDeckIds: [...DEFAULT_PLAYER_PROFILE.unlockedDeckIds],
-    completedDeckIds: [],
-  });
-
   const requestedActiveId = typeof candidate.activeProfileId === "string" ? candidate.activeProfileId : "";
   const activeProfileId = uniqueProfiles.some((profile) => profile.id === requestedActiveId)
     ? requestedActiveId
-    : uniqueProfiles[0].id;
+    : uniqueProfiles[0]?.id ?? "";
 
   return { version: 1, activeProfileId, profiles: uniqueProfiles };
 }
@@ -149,13 +147,16 @@ export function savePlayerProfiles(collection: PlayerProfileCollection) {
 }
 
 export function activePlayerProfile(collection: PlayerProfileCollection): PlayerProfile {
-  return collection.profiles.find((profile) => profile.id === collection.activeProfileId) ?? collection.profiles[0] ?? DEFAULT_PLAYER_PROFILE;
+  return collection.profiles.find((profile) => profile.id === collection.activeProfileId)
+    ?? collection.profiles[0]
+    ?? DEFAULT_PLAYER_PROFILE;
 }
 
 export function collectionWithUpdatedProfile(collection: PlayerProfileCollection, profile: PlayerProfile): PlayerProfileCollection {
   const exists = collection.profiles.some((entry) => entry.id === profile.id);
   return sanitizeCollection({
     ...collection,
+    activeProfileId: collection.activeProfileId || profile.id,
     profiles: exists
       ? collection.profiles.map((entry) => entry.id === profile.id ? profile : entry)
       : [...collection.profiles, profile],
@@ -167,11 +168,18 @@ export function collectionWithActiveProfile(collection: PlayerProfileCollection,
   return { ...collection, activeProfileId: profileId };
 }
 
-export function createPlayerProfile(id: string, name: string): PlayerProfile {
+export function createPlayerProfile(
+  id: string,
+  name: string,
+  audience: PlayerAudience = "child",
+  mathStartId: MathStartId = audience === "adult" ? "to100" : "small",
+): PlayerProfile {
   return sanitizeProfile({
     ...DEFAULT_PLAYER_PROFILE,
     id,
     name,
+    audience,
+    mathStartId,
     unlockedDeckIds: [FIRST_CAMPAIGN_DECK_ID],
     completedDeckIds: [],
     currentCampaignDeckId: null,
@@ -195,6 +203,10 @@ export function savePlayerProfile(profile: PlayerProfile) {
 
 export function profileWithStartedDeck(profile: PlayerProfile, deckId: string): PlayerProfile {
   return { ...profile, currentCampaignDeckId: deckId };
+}
+
+export function profileWithAbandonedDeck(profile: PlayerProfile): PlayerProfile {
+  return { ...profile, currentCampaignDeckId: null };
 }
 
 export function profileWithCompletedDeck(profile: PlayerProfile, deckId: string, nextDeckId?: string): PlayerProfile {
