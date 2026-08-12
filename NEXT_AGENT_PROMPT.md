@@ -12,70 +12,86 @@ Before making changes, read these files completely, in this order:
 
 1. `CODEX_HANDOFF.md`
 2. `ENCOUNTER_ARCHETYPES.md`
-3. `LEARNING_PROFILES.md`
-4. `DEVELOPMENT_PLAN_NEXT.md`
+3. `CAMPAIGN_PROGRESSION.md`
+4. `LEARNING_PROFILES.md`
+5. `DEVELOPMENT_PLAN_NEXT.md`
 
-Treat them together as the authoritative handover for architecture, binding gameplay rules, educational model, validated behavior, current B2 state, current development packages, test cadence and handoff boundary.
+Treat them together as the authoritative handover. `CODEX_HANDOFF.md` is the established runtime/gameplay base; the later documents extend it with the current encounter, campaign, educational and development decisions.
 
-Important context boundary:
-- A7 parity and the first complete B2/VS2 gameplay loop are already established.
-- Do not perform another broad migration or rewrite.
-- Preserve the smooth local RAF movement/camera architecture and physical body-size/drive behavior.
+## Architecture boundary
+
+- A7 parity and the first complete B2/VS2 gameplay loop are established.
+- Do not perform another broad migration/rewrite.
+- Preserve local RAF movement/camera and physical body-size/drive behavior.
 - Preserve hidden arithmetic correctness until explicit submit.
-- Extend current Floor/Tiled/runtime systems rather than adding per-map DOM hacks.
-- Robot bodies are physical on the deck; physical robot collision always opens the scan screen.
-- Neutral work robots are non-aggressive but can be voluntarily scanned or scanned by physical collision.
-- Guards leave their post when triggered, accelerate into pursuit, chase only inside a limited leash area, scan on contact, and return to their post when the player escapes.
-- Future robot perception must use direct line of sight rather than detecting through walls/closed doors.
-- The future Treasure Golem / Beutedroide archetype requires an authored trap/environment interaction before it can be reached.
+- Extend Floor/Tiled/runtime systems rather than adding per-map DOM hacks.
+- Robot bodies are physical; physical collision always opens scan.
+- Neutral robots do not pursue.
+- Guards visibly trigger, accelerate, chase inside a leash, scan on collision, and return to post when escaped.
+- Future robot perception must use line of sight rather than seeing through walls/closed doors.
+- Treasure Golem / Beutedroide is a future authored trap/capture encounter.
 
-## Family-learning product rule
+## Campaign product rule
 
-Numberdroid is a family game and arithmetic learning is a first-class system.
+Numberdroid has **one shared story campaign**. Current planning target is about **25 decks**, likely grouped into larger acts, but runtime/data architecture must be count-agnostic.
 
-**Do not require a mathematics level/profile selection before first play. Starting should always be safe and immediate.**
+Every player profile can play the entire same campaign:
+- same ship/decks,
+- same story order,
+- same recognizable robots/bosses,
+- same campaign-mechanic unlocks,
+- personalized concrete arithmetic.
 
-Use two independent axes:
+Do not create separate easy/advanced campaigns and do not skip early story decks for mathematically advanced players.
 
-1. **Adaptive mathematics progression** — begin in an accessible arithmetic band, observe explicit submitted play, then gradually adapt operand/target span, task composition and later concept progression.
-2. **Gameplay challenge** — AI competence, pursuit pressure, reaction windows and tactical threat.
+### Campaign progression has several independent dimensions
 
-Never let gameplay challenge silently change mathematical progression.
+1. **Player mathematics baseline** stored in the player profile.
+2. **Robot mathematical role/type** (`comfort/basic`, `practice/core`, `stretch/security`, `specialist`, `boss`).
+3. **Deck curve**: easier arrival → stronger encounters → boss; next deck provides some breathing room but a higher ceiling.
+4. **Campaign system complexity**: later decks introduce/compose more mechanics such as Joker/body skills, keys, new robot behaviors, Treasure Golem/traps and number-board elements.
+5. **Tactical challenge** remains a separate setting for AI/pursuit/reaction pressure.
 
-Adaptation rules from `LEARNING_PROFILES.md` are binding:
-- span/composition adapts before new concepts,
-- use sustained evidence/hysteresis rather than one result,
-- no reaction-time pressure,
-- no abrupt success punishment,
-- correctness remains hidden until submit,
-- family overrides may exist later,
-- school-year/grade labels are localized approximate guidance layered on canonical skills, never the source of truth.
+Easy arithmetic remains valid throughout the campaign. Mastering `+/- to 10` does not mean it should disappear; easy robots provide fluency, pacing and satisfying mastery.
 
-Family-facing presentation should communicate the current state rather than demand an up-front choice, e.g.:
-- `DU ÜBST GERADE`
-- `KLAPPT SCHON GUT`
-- `ALS NÄCHSTES`
-- recognizable arithmetic examples
-- optional localized school-stage recommendation
-- separate tactical gameplay challenge control.
+Do not make adaptation the primary global difficulty engine. Profile adaptation only calibrates the arithmetic envelope while preserving robot identity and authored deck pacing.
+
+## Player mathematics profile
+
+A profile may have a friendly initial self-assessment using recognizable example tasks/capabilities. This is a starting estimate, not an exam.
+
+Rules:
+- safe default / simply starting must remain possible,
+- no mandatory placement test,
+- mathematics baseline can be changed/refined later,
+- actual play may conservatively calibrate it,
+- school-year labels are localized approximate guidance only,
+- tactical challenge is stored/controlled separately.
 
 ## Current development phase
 
-Follow `DEVELOPMENT_PLAN_NEXT.md`. The current agent/session is responsible for the complete campaign/framework/adaptive-learning milestone before deliberate handoff:
+Follow `DEVELOPMENT_PLAN_NEXT.md`.
 
-0. hosted GitHub Pages preview,
-1. campaign shell + deck catalog + zero-friction learning entry,
-2. progression/save + adaptive span/progression + independent tactical challenge + small C3 proof deck,
-3. reusable line-of-sight/perception foundation,
-4. automated smoke coverage and framework hardening,
-5. fix concrete feedback from Playtest Gates A and B,
-6. only then prepare the deliberate next-agent handoff.
+Package 0 — hosted Pages preview — is complete. Current preview target:
 
-Klaus should not be asked to playtest routine intermediate commits. Use CI/automated tests and ask for the manual gates defined in the plan.
+```text
+https://klausullrich.github.io/numberdroid/
+```
 
-Do not spend this milestone on final art, many production decks, a full international curriculum database, sophisticated ML-style adaptation, Treasure Golem implementation, neutral-worker reward economy or broad new board mechanics unless required to support the framework.
+The current agent/session remains responsible for:
 
-Current local B2 preview after startup:
+1. campaign shell + deck catalog + player-profile foundation,
+2. campaign persistence/progression + robot math roles + authored deck difficulty curve + small C3 proof,
+3. reusable LOS/perception foundation,
+4. automated smoke coverage/framework hardening,
+5. Playtest Gates A and B feedback,
+6. only then deliberate handoff.
+
+Klaus should not be asked to test routine intermediate commits.
+
+Do not spend this milestone building all ~25 decks, final story/art, full Treasure Golem content, a sophisticated adaptive-learning algorithm, a full international curriculum database or a broad catalog of new board mechanics.
+
+Current local B2 preview:
 
 ```text
 http://localhost:5173/?floor=deck-vs2
@@ -89,4 +105,4 @@ npm run build
 npm run dev -- --host 0.0.0.0
 ```
 
-If this is a genuine handoff/new session, summarize the four authoritative documents and the current branch/CI/deployment state before changing code. Then continue the first incomplete package in `DEVELOPMENT_PLAN_NEXT.md`; do not restart completed work.
+If this is a genuine new session/handoff, summarize all five authoritative documents and verify branch/CI/Pages state before changing code. Then continue the first incomplete package in `DEVELOPMENT_PLAN_NEXT.md`; do not restart completed work.
