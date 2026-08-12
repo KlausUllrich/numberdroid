@@ -43,6 +43,7 @@ export type EncounterBehavior = {
   loseRadius: number;
   patrolSpeed: number;
   chaseSpeed: number;
+  chaseAcceleration: number;
   forcedEngagement: boolean;
   patrolPath: Point[];
 };
