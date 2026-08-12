@@ -59,23 +59,23 @@ Preserve:
 
 No prototype bridge techniques such as hidden DOM clicks, MutationObservers, reload transitions, DOM patching or localStorage message buses.
 
-## Important corrected loss rule
+## Important corrected loss rule — implemented
 
-Do **not** preserve the old “one lost duel resets the whole deck” behavior as design intent.
+Do **not** reintroduce the old “one lost duel resets the whole deck” behavior.
 
-Binding desired behavior is:
+Binding and implemented behavior is:
 - lose 1 HP,
-- keep the active robot body,
+- keep the active robot body and its physical deck size,
 - return that body to the authored level-start position,
 - preserve already eliminated robots,
-- preserve acquired keys/access and completed deck-local actions,
-- preserve other current deck progress,
-- if the lost encounter is a boss, that boss encounter restarts from **Phase 1**,
+- preserve acquired keys/access, used stations/pickups and completed deck-local actions,
+- preserve remaining meta-energy and other current deck progress,
+- if the lost encounter is a boss, that boss encounter restarts from **Phase 1** on the next attempt,
 - only losing the final HP causes mission failure, hub return and a genuinely fresh future run.
 
-The current code at the handoff checkpoint still reflects the old full-floor-reset misunderstanding. Treat this as a known contained implementation mismatch, **not** a new architecture direction.
+Runtime implementation uses `src/game/duelLoss.ts` (`retreatAfterDuelLoss`) from `App.finishBattle()`. Focused tests live in `src/game/duelLoss.test.ts`.
 
-Do not silently claim it is already fixed.
+Boss duel phases remain local `NumberDuel` state, so leaving the lost duel and re-entering the still-alive boss creates a fresh duel at Phase 1.
 
 ## Story foundation now established
 
@@ -144,6 +144,8 @@ Before implementing or generating assets, summarize your understanding and prese
 - hostile archetypes/LOS/investigation,
 - menu/profile/hub/resume/archive screens,
 - duel board core rules,
+- corrected duel-loss retreat preserving deck progress,
+- final-HP mission failure reset,
 - player initiative on every ordinary new boss phase.
 
 Current real math protocols are addition/subtraction only. Do not advertise multiplication/division as playable.
