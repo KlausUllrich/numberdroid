@@ -1,213 +1,214 @@
-# Numberdroid — Learning Profiles
+# Numberdroid — Adaptive Learning Model
 
 This document defines the educational progression layer for Numberdroid. It is binding design context together with `CODEX_HANDOFF.md`, `ENCOUNTER_ARCHETYPES.md`, and `DEVELOPMENT_PLAN_NEXT.md` until consolidated into a later handoff.
 
 ## Product principle
 
-Numberdroid is a family game that should make arithmetic practice feel like playing a real game rather than completing worksheets.
+Numberdroid is a family game first. Arithmetic practice should emerge from playing, not from completing a setup test or selecting a school-like difficulty before the fun starts.
 
-Children should be able to learn through repeated play without being pushed into arithmetic that is so difficult that the tactical game stops being fun. Adults should also be able to notice improvement through repeated playtesting and practice.
+**Starting should always be safe.** A player should be able to press `START` and play immediately. The game begins in a broadly accessible arithmetic band and then adapts the numerical span and learning progression from demonstrated play.
 
-The game therefore has two independent difficulty axes:
+The educational goal is a productive challenge band:
+- most tasks feel achievable,
+- some require thought,
+- repeated play produces noticeable fluency,
+- overload is reduced before frustration dominates,
+- boredom leads to gradual expansion rather than a sudden difficulty spike.
 
-1. **Learning profile / mathematics level** — what mathematical skills the player is expected to know, what the game is currently practising, and what the next learning step is.
-2. **Gameplay challenge** — how threatening the robot AI, pursuit, reaction windows and tactical systems are.
+## Two independent axes
 
-Never use one axis as a hidden proxy for the other.
+Numberdroid keeps two separate systems:
 
-## Player-facing promise
+1. **Adaptive mathematics progression** — what operations, number ranges, target/result ranges and cognitive load are currently appropriate.
+2. **Gameplay challenge** — how threatening robot AI, pursuit, reaction windows and tactical systems are.
 
-Before entering a deck/campaign segment, a family should be able to answer three questions without educational jargon:
+Never use one as a hidden proxy for the other.
 
-- **DAS SOLLTEST DU SCHON KÖNNEN** — prerequisite skills needed to have fun rather than struggle.
-- **DAS ÜBST DU HIER** — the primary skill that repeated play will strengthen.
-- **DAS KOMMT DANACH** — the next logical learning step.
+A child can therefore have a very modest arithmetic range while still playing exciting robot encounters, or practise advanced arithmetic with forgiving tactical pressure.
 
-A school-year/grade recommendation may also be shown, but it is secondary guidance rather than the canonical definition of the profile.
+## Zero-friction start
+
+There is no mandatory mathematics-profile chooser before the first game.
+
+Default flow:
+
+```text
+START
+→ story / deck entry
+→ immediately playable arithmetic
+→ observe confirmed play
+→ adapt within a safe range
+→ gradually expand or contract the learning span
+```
+
+Parents may later inspect or override the current learning band, but this is an optional family/settings feature rather than a gate before play.
+
+A future `Finde mein Niveau` flow may exist as an optional convenience, never as a required exam.
 
 ## Canonical skill model
 
-The underlying learning profile must be curriculum-neutral. It should describe mathematical competence directly instead of storing a German class year as the source of truth.
+The underlying model is curriculum-neutral and skill-based. It should represent mathematical capability directly instead of storing a German school year as truth.
 
-A profile can contain data such as:
-
+Relevant dimensions include:
 - allowed operations: addition / subtraction / multiplication / division,
-- number range,
+- operand range,
 - target/result range,
-- whether crossing a ten boundary is expected,
+- whether crossing a ten boundary is currently expected,
 - whether negative intermediate/results are allowed,
-- multiplication-table families expected,
-- division constraints such as exact division only,
-- typical chain length / cognitive load,
-- optional prerequisite profile ids,
-- examples suitable for the player-facing card.
+- multiplication-table families currently active,
+- exact-division constraints,
+- typical useful chain length / cognitive load,
+- evidence/confidence for each skill dimension,
+- recently demonstrated comfort and struggle.
 
-Exact TypeScript names can change during implementation, but the architecture must preserve this separation.
+Exact TypeScript names may change during implementation, but the architecture must preserve these dimensions separately from tactical gameplay difficulty.
 
-## Initial learning-profile ladder
+## Internal competence bands
 
-These are working content bands, not final curriculum claims. Names and exact boundaries should be tuned during implementation and playtesting.
+The former player-selected learning profiles become **internal competence bands / milestones**, useful for progression, explanation and curriculum mapping. They are not mandatory startup choices.
 
-### Profile A — Zahlenstart
+Working bands:
 
-Player-facing intent:
-- recognise and compare small numbers confidently,
-- simple addition/subtraction in a very small range,
-- short chains and highly readable targets.
-
-Typical content direction:
-- numbers roughly within 0–10,
+### A — Zahlenstart
+- small numbers around 0–10,
 - addition first,
-- very simple subtraction once introduced,
-- no multiplication/division.
+- very simple subtraction when appropriate,
+- short, readable chains.
 
-### Profile B — Plus & Minus bis 20
-
-Player-facing intent:
-- build fluency with addition and subtraction to 20,
-- gradually practise combinations that cross 10,
-- encourage mental strategies rather than time pressure.
-
-Typical content direction:
+### B — Plus & Minus bis 20
 - addition/subtraction within 20,
-- controlled introduction of crossing-ten tasks,
-- several valid chain solutions where possible.
+- gradual ten-boundary crossing,
+- multiple valid solutions where possible.
 
-### Profile C — Sicher bis 100
+### C — Sicher bis 100
+- addition/subtraction with larger numbers,
+- place-value structure,
+- increasing numerical composition without time pressure.
 
-Player-facing intent:
-- extend addition/subtraction fluency beyond 20,
-- work with larger targets and place-value structure,
-- maintain manageable chain complexity.
+### D — Malnehmen entdecken
+- selected multiplication families,
+- multiplication introduced gradually,
+- addition/subtraction may remain supporting operations.
 
-Typical content direction:
-- addition/subtraction within 100,
-- difficulty driven by number composition rather than reaction speed.
+### E — Malnehmen & Teilen
+- multiplication and inverse division relationships,
+- exact division first,
+- later mixed-operation fluency.
 
-### Profile D — Malnehmen entdecken
+These bands are working milestones, not final curriculum claims. Real family playtesting should decide where they split, overlap or merge.
 
-Player-facing intent:
-- introduce multiplication as repeated/grouped arithmetic,
-- begin with familiar table families before broadening.
+## Adaptation rule: span first, progression second
 
-Typical content direction:
-- selected multiplication tables,
-- addition/subtraction may remain available as supporting operations,
-- no assumption that all tables are already fluent.
+The first adaptive mechanism should remain deliberately conservative.
 
-### Profile E — Malnehmen & Teilen
+**Primary adaptation:** change the span and composition of tasks inside the player's current competence neighborhood.
 
-Player-facing intent:
-- strengthen multiplication and introduce inverse division relationships,
-- keep division exact at first,
-- build toward confident mixed-operation play.
+Examples:
+- more or fewer larger numbers,
+- more or fewer ten-boundary crossings,
+- easier/harder target composition,
+- shorter/longer useful chains,
+- more repetition of a weak fact family,
+- more variety after sustained success.
 
-Typical content direction:
-- multiplication/division within a controlled result range up to about 100,
-- exact division initially,
-- later mixed-operation decks can require stronger fluency.
+**Secondary progression:** only after enough evidence, gradually introduce the next mathematical concept or competence band.
 
-These bands are deliberately skill-based. A later content pass may split or merge them once real family playtests show where frustration or boredom occurs.
+Do not jump from `+/- bis 20` straight into multiplication because of a short success streak. Progression should be earned from sustained evidence and introduced gently.
 
-## School-year / grade recommendations and internationalisation
+If the player struggles, contract the span first before removing an already-familiar concept entirely.
 
-Do not hard-code a single school system into the learning profile.
+## What evidence may be used
 
-The canonical profile describes skills. A separate localisation/curriculum mapping layer may provide recommendations such as:
+Only observe gameplay after explicit actions; never reveal correctness before `REAKTOR AUSLÖSEN`.
 
-- Germany: `1. Klasse`, `2. Klasse`, etc.,
-- United States: `Grade 1`, `Grade 2`, etc.,
-- England/Wales: `Year 2`, `Year 3`, etc.,
-- other languages/regions using their own familiar labels.
+Useful evidence can include:
+- correct/incorrect explicit submissions,
+- repeated attempts on similar patterns,
+- solution time at a coarse, non-pressuring level,
+- typical selected chain length,
+- use of hints/meta-energy/abilities,
+- sustained ease or struggle over multiple encounters,
+- success after an earlier failure on the same skill family.
 
-Recommended implementation direction:
+Do not turn this into reaction-time scoring. The arithmetic itself remains untimed.
 
-```text
-LearningProfile
-  -> canonical mathematical skills
+## Adaptation behavior
 
-CurriculumRecommendation
-  -> locale / country / optional region
-  -> local school-stage label
-  -> approximate recommended range
-  -> optional curriculum/source/version metadata
-```
+The system should behave smoothly rather than visibly changing a difficulty setting every round.
 
-The recommendation must always be presented as guidance, not as a claim that every child in a particular class should already master exactly the same content.
+Principles:
+- small changes,
+- hysteresis / confidence before changing bands,
+- no oscillation after one bad or one excellent round,
+- prefer a mixture containing comfortable, practising and stretch tasks,
+- never punish success with an immediate wall of harder tasks,
+- allow temporary easier recovery after repeated struggle,
+- preserve family override controls.
 
-Before shipping region-specific grade labels, mappings should be checked against the relevant current curricula/standards rather than guessed from another country's school system.
+A useful first balancing target is qualitative rather than numeric: the player should feel competent most of the time while still encountering tasks that require thought. Exact percentages must come from playtests.
 
-## Family setup / choosing a profile
+## Player-facing learning presentation
 
-The first version should not ask parents to understand abstract curriculum terminology.
+Although selection is not mandatory, families should be able to understand what the game is currently doing.
 
-Prefer a short selector based on recognizable capabilities, for example:
+Useful presentation around deck selection, progress or family settings:
 
-```text
-Welche Aufgaben passen gerade gut?
+- **DU ÜBST GERADE** — current arithmetic focus,
+- **KLAPPT SCHON GUT** — recently demonstrated strengths,
+- **ALS NÄCHSTES** — likely next learning step,
+- optional examples such as `8 + 7`, `34 + 28`, `6 × 4`,
+- optional local school-stage guidance.
 
-[ 4 + 3 ]
-Ich übe Plus und Minus mit kleinen Zahlen
+Avoid presenting the child with a score like `MATHE: 63 %` or an irreversible label such as `schwach`.
 
-[ 8 + 7 ]
-Plus und Minus bis 20 klappt schon ganz gut
-
-[ 34 + 28 ]
-Ich rechne schon mit Zahlen bis 100
-
-[ 6 × 4 ]
-Ich übe das Einmaleins
-
-[ 24 ÷ 6 ]
-Ich kann schon Malnehmen und Teilen
-```
-
-The exact examples must be localized and tuned, but selection should feel like choosing an appropriate game level, not taking an exam.
-
-A later optional **Finde mein Niveau** calibration can offer a short low-pressure sequence and recommend a profile. It should never shame the player or present a school-grade judgment as a score.
-
-## Adaptive learning without hidden difficulty spikes
-
-Repeated play should help the player improve. The game may therefore observe post-submit performance such as:
-
-- success/failure after explicit submit,
-- repeated attempts,
-- typical chain length,
-- solution time at a coarse level,
-- use of hints/energy/abilities,
-- sustained streaks of ease or struggle.
-
-However:
-
-- correctness remains hidden until explicit `REAKTOR AUSLÖSEN`,
-- do not add reaction-time pressure to arithmetic,
-- do not silently jump a child into a new declared learning profile mid-deck,
-- adapt first within the selected profile (board composition, target mix, easier/harder examples),
-- recommend a profile change between decks/sessions when evidence is strong,
-- allow families to override recommendations at any time.
-
-The goal is a productive challenge band: frequent success, occasional meaningful stretch, and visible improvement over repeated sessions. Exact balancing thresholds must be established through playtesting rather than assumed as universal constants.
+The game may celebrate progression explicitly: e.g. `Zehnerübergänge klappen jetzt richtig gut` or `Neue Rechenmuster freigeschaltet`, while remaining a game rather than a report card.
 
 ## Deck relationship
 
-Decks and learning profiles should be related but not identical.
+Deck story progression and mathematical progression overlap but are not welded together.
 
-A deck has an authored theme/story/goal and declares which learning profiles it supports or targets. This allows the same story/deck structure to be used at different appropriate math levels where practical, instead of forcing every child through exactly one arithmetic curriculum path.
+A deck declares:
+- mathematical skill families it can support,
+- safe min/max ranges or variants,
+- primary learning focus,
+- optional advanced variants.
 
-Initial framework direction:
+The runtime chooses an appropriate variant from the player's current adaptive state.
 
-- each deck declares a primary learning objective,
-- deck selection shows the prerequisite/practice/next-step summary,
-- supported learning profiles determine encounter math generation/variants,
-- campaign progression and learning progression may overlap but should not be permanently welded together,
-- a player can revisit completed decks at a different suitable learning profile.
+This allows the same story deck to remain fun for siblings or adults with different arithmetic ability, where the authored encounter structure supports it.
 
-For the first C3 proof, it is acceptable to author a small number of variants rather than creating a fully procedural curriculum engine.
+For the first B2/C3 framework proof, a small number of explicit variants is enough; do not build a fully procedural curriculum engine yet.
+
+## School-year / grade recommendations and internationalisation
+
+School stage is secondary metadata, never the canonical learning state.
+
+A separate mapping layer may translate competence bands into familiar approximate guidance:
+- Germany: `1. Klasse`, `2. Klasse`, ...
+- United States: `Grade 1`, `Grade 2`, ...
+- England/Wales: `Year 2`, `Year 3`, ...
+- other locales with their own labels.
+
+Recommended shape:
+
+```text
+AdaptiveMathState
+  -> canonical demonstrated skills / ranges / confidence
+
+CompetenceBand
+  -> human-friendly internal milestone
+
+CurriculumRecommendation
+  -> locale / country / optional region
+  -> approximate school-stage label/range
+  -> optional curriculum/source/version metadata
+```
+
+School recommendations must be phrased as guidance, not judgment. Before production release, region-specific mappings should be checked against current curricula/standards rather than inferred from another country.
 
 ## Gameplay challenge remains independent
 
-The separate gameplay profiles remain:
-
+The separate tactical profiles remain:
 - `ENTDECKER`
 - `STANDARD`
 - `HERAUSFORDERUNG`
@@ -219,39 +220,28 @@ They may tune:
 - search persistence,
 - tactical forgiveness.
 
-They must not silently change the stated mathematical learning objective.
-
-A child may therefore play `Plus & Minus bis 20` on `HERAUSFORDERUNG`, while another family member plays the same learning profile on `ENTDECKER`.
-
-## Presentation requirements
-
-Learning information must be prominent but not school-like.
-
-Preferred hierarchy on deck/profile selection:
-
-1. deck fantasy/story,
-2. clear learning badge,
-3. `DAS SOLLTEST DU SCHON KÖNNEN`,
-4. `DAS ÜBST DU HIER`,
-5. optional localized school-year recommendation,
-6. gameplay challenge selector separately.
-
-Avoid labels such as simply `MATHE: LEICHT/MITTEL/SCHWER`; they do not tell families what the child actually needs to know.
+They must not silently widen the mathematical span or unlock a new operation.
 
 ## Playtest questions
 
-At Playtest Gate A, evaluate not only whether the campaign shell works but whether a parent/child can correctly predict the arithmetic experience before entering a deck.
-
-Questions to answer:
-- Was it obvious what skills were expected?
-- Did the chosen profile feel mostly achievable while still producing some learning moments?
-- Could the player notice improvement after repeated rounds?
-- Did school-year guidance help without feeling like a judgment?
-- Could gameplay challenge be changed without confusing it with math level?
-- Did the next recommended learning step feel understandable?
+At Playtest Gate A/B evaluate:
+- Could a new player simply start without understanding a math menu?
+- Did the opening arithmetic feel safe enough to continue playing?
+- Did the task span become more appropriate after several encounters?
+- Was improvement noticeable over repeated play?
+- Did progression feel gradual rather than punitive?
+- Could a parent understand `what is being practised now` without educational jargon?
+- Did tactical difficulty remain independent from arithmetic progression?
+- Did school-year guidance help without feeling like a grade or judgment?
 
 ## Handoff requirement
 
-The current agent must establish the learning-profile data model and first player-facing presentation as part of the campaign/framework milestone before handoff.
+The current agent must establish:
+- an adaptive-math state/data model,
+- a safe default starting band,
+- first span-adjustment logic or a clean deterministic prototype of it,
+- first player-facing `Du übst gerade / Als Nächstes` presentation,
+- separation from tactical gameplay challenge,
+- curriculum/localisation mapping shape.
 
-The next agent may expand curriculum content and regional mappings, but should not have to redesign the separation between canonical math skills, local school recommendations, deck content and gameplay challenge.
+The next agent may deepen curriculum content, adaptation algorithms and regional mappings, but should not need to redesign the zero-friction start or the separation of math progression from gameplay challenge.
