@@ -367,6 +367,7 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
       name,
       x: object.x,
       y: object.y,
+      facing: optionalNumber(object.properties, "facing", 0),
       mode,
       mathLabel: requiredString(object.properties, "mathLabel", context),
       mathRole,
@@ -404,6 +405,12 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
         )),
         forcedEngagement: behaviorKind === "neutral" ? false : optionalBoolean(object.properties, "forcedEngagement", false),
         patrolPath,
+        viewAngle: Math.max(30, Math.min(360, optionalNumber(object.properties, "viewAngle", 360))),
+        searchDurationMs: Math.max(0, Math.floor(optionalNumber(
+          object.properties,
+          "searchDurationMs",
+          behaviorKind === "guard" ? 900 : behaviorKind === "aggressive" ? 1300 : 0,
+        ))),
       } : undefined,
     };
   });
