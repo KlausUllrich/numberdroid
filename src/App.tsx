@@ -246,7 +246,15 @@ export default function App() {
         <button className="app-campaign-toggle" onClick={returnToCampaign}>← SCHIFF</button>
       )}
 
-      {showDeck && <MetaGame meta={meta} onMetaChange={updateMeta} onEncounter={openEncounter} paused={screen !== "deck" || fullscreen.needsFullscreenPrompt} />}
+      {showDeck && (
+        <MetaGame
+          meta={meta}
+          onMetaChange={updateMeta}
+          onEncounter={openEncounter}
+          tacticalChallengeId={previewFloorId ? "standard" : profile.tacticalChallengeId}
+          paused={screen !== "deck" || fullscreen.needsFullscreenPrompt}
+        />
+      )}
       {screen === "encounter" && encounter && <EncounterPanel encounter={encounter} onCancel={() => { setEncounter(null); setScreen("deck"); }} onStart={startEncounter} />}
       {screen === "duel" && encounter && (
         <NumberDuel
