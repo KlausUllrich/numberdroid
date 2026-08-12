@@ -6,7 +6,28 @@ This document extends `CODEX_HANDOFF.md` with the current deck-robot encounter d
 
 Not every robot on a deck is an enemy. Robot behavior should make the ship feel like a functioning place: some machines work, some guard, some patrol, some actively hunt the player, and some rare targets create small environmental puzzles.
 
-Physical robot bodies matter on the deck. The player should not simply drive through another robot. Encounter scans for hostile robots are triggered by actual physical contact, not by an invisible long-range scan radius.
+Physical robot bodies matter on the deck. The player should not simply drive through another robot.
+
+### Binding collision rule
+
+**Physical robot collision always opens the scan screen.** This applies to neutral workers, guards, patrols, hunters and legacy/static robots alike.
+
+Detection/trigger ranges are therefore never encounter ranges. They only govern whether and how another robot reacts before contact. The actual scan starts when the physical robot bodies collide.
+
+A neutral robot still does not initiate aggression: the player can simply drive around it. But deliberately or accidentally bumping into it opens the normal neutral scan and still allows `IN RUHE LASSEN`.
+
+### Future perception / line-of-sight rule
+
+Range alone is not sufficient for believable robot reactions. The intended next evolution of deck AI is **direct line of sight**:
+
+- a guard or hunter should not detect the player through walls, closed doors, large machinery or other opaque room geometry,
+- detection requires both authored range and an unobstructed sight line,
+- opening/closing a door can therefore reveal or hide the player,
+- different robot types may later get different view angles / fields of view,
+- losing visual contact may start a short investigation/search state before the robot gives up,
+- sight tests belong in reusable deck-runtime geometry code, not per-room JSX hacks.
+
+This line-of-sight system is a design requirement but is **not implemented yet**. Until then, authored detection/leash radii remain the approximation.
 
 ## Neutral work robots
 
@@ -14,13 +35,14 @@ Neutral robots simply perform their assigned work.
 
 Binding behavior:
 - no aggression,
-- no automatic scan,
 - no pursuit,
+- no reaction merely because the player enters a proximity radius,
 - may stand or follow a small authored work route,
 - remain physical collision bodies,
-- player may voluntarily scan them from interaction range,
+- physical collision opens the scan screen like every robot,
+- player may also voluntarily scan them from interaction range,
 - player may voluntarily attempt a normal takeover duel,
-- ignoring them must always be a valid choice.
+- ignoring them must always be a valid choice by simply not colliding/interacting.
 
 ### Future neutral risk/reward direction
 
@@ -43,14 +65,16 @@ A guard owns an authored home/post position and a limited protection area.
 
 Binding behavior:
 1. guard waits at its post,
-2. player enters guard trigger range,
-3. guard visibly leaves its post and drives toward the player,
+2. player enters guard trigger range (and, once implemented, is actually visible),
+3. guard visibly leaves its post and accelerates toward the player,
 4. encounter scan opens only when the physical robot bodies make contact,
 5. if the player escapes beyond the guard's leash/protection radius, the guard stops pursuit,
 6. guard visibly returns to its authored post,
 7. after returning it resumes guard duty.
 
 The trigger radius is therefore **not** the encounter radius. It only starts the chase.
+
+Guards should not jump immediately to maximum pursuit velocity. They need authored acceleration so the player has a readable reaction window and can make an actual escape decision.
 
 If the scan allows retreat and the player closes it, the guard may continue pursuing until the player actually escapes the leash area.
 
@@ -73,9 +97,11 @@ Aggressive robots actively detect and pursue the player.
 Binding behavior:
 - detection visibly changes their state,
 - they chase in local RAF runtime,
+- pursuit accelerates rather than instantly snapping to maximum speed,
 - scan/combat begins on physical contact,
 - they can lose the player according to authored behavior/range,
-- `forcedEngagement` may remove the retreat option once contact has occurred.
+- `forcedEngagement` may remove the retreat option once contact has occurred,
+- future detection must respect direct line of sight.
 
 ## Treasure Golem / Beutedroide
 
