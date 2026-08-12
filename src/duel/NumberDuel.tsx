@@ -192,9 +192,12 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
       if (nextClearedLayers < totalLayers) {
         setTeamCores(FIREWALL_REACTOR.start);
         setGrid(freshGrid(math));
-        setTurn("enemy");
+        setSelection([]);
+        setEnemySelection([]);
+        setTurn("human");
+        setPilotMotion("idle");
         setBusy(false);
-        setMessage(`FIREWALL ${nextClearedLayers} GEBROCHEN. Die nächste 8-Segment-Schutzschicht ist aktiv. Ressourcen bleiben verbraucht.`);
+        setMessage(`FIREWALL ${nextClearedLayers} GEBROCHEN. Die nächste 8-Segment-Schutzschicht ist aktiv — du beginnst die neue Phase. Ressourcen bleiben verbraucht.`);
         return;
       }
 
