@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BODIES, STARTING_HP } from "./game/catalog";
 import { floorGoalCompleted, getCampaignDeck, getNextCampaignDeck, type CampaignDeck } from "./game/campaign";
 import { getFloor, getPreviewFloorId } from "./game/floors";
+import { encounterWithProfileDifficulty } from "./game/mathProgression";
 import { createFloorState, loadMetaState, restartFloorState, saveMetaState } from "./game/save";
 import {
   loadPlayerProfile,
@@ -88,7 +89,13 @@ export default function App() {
   }
 
   function openEncounter(next: EncounterConfig) {
-    setEncounter(next);
+    const campaignDeck = !previewFloorId && profile.currentCampaignDeckId
+      ? getCampaignDeck(profile.currentCampaignDeckId)
+      : null;
+    const resolved = campaignDeck
+      ? encounterWithProfileDifficulty(next, profile.mathStartId, profile.tacticalChallengeId, campaignDeck.order)
+      : next;
+    setEncounter(resolved);
     setScreen("encounter");
   }
 
