@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { BODIES, STARTING_HP } from "./game/catalog";
+import { floorGoalCompleted, getCampaignDeck, getNextCampaignDeck, type CampaignDeck } from "./game/campaign";
 import { getFloor, getPreviewFloorId } from "./game/floors";
 import { createFloorState, loadMetaState, restartFloorState, saveMetaState } from "./game/save";
-import { loadPlayerProfile, savePlayerProfile, type PlayerProfile } from "./game/playerProfile";
+import {
+  loadPlayerProfile,
+  profileWithCompletedDeck,
+  profileWithStartedDeck,
+  savePlayerProfile,
+  type PlayerProfile,
+} from "./game/playerProfile";
 import { useAppFullscreen } from "./game/useFullscreen";
-import type { CampaignDeck } from "./game/campaign";
 import type { BattleResult, EncounterConfig, GameScreen, MetaState } from "./game/types";
 import { DestroyedScreen } from "./game/DestroyedScreen";
 import { CampaignScreen } from "./campaign/CampaignScreen";
+import { CampaignSuccessScreen } from "./campaign/CampaignSuccessScreen";
 import { MetaGame } from "./meta/MetaGame";
 import { EncounterPanel } from "./meta/EncounterPanel";
 import { NumberDuel } from "./duel/NumberDuel";
 import { TransferScreen } from "./transfer/TransferScreen";
 
-type AppScreen = GameScreen | "campaign";
+type AppScreen = GameScreen | "campaign" | "success";
 
 export default function App() {
   const previewFloorId = getPreviewFloorId();
@@ -28,6 +35,7 @@ export default function App() {
   });
   const [encounter, setEncounter] = useState<EncounterConfig | null>(null);
   const [transfer, setTransfer] = useState<{ encounter: EncounterConfig; oldBodyId: MetaState["currentBody"] } | null>(null);
+  const [completedCampaignDeckId, setCompletedCampaignDeckId] = useState<string | null>(null);
   const fullscreen = useAppFullscreen();
 
   const updateMeta = useCallback((next: MetaState) => setMeta(next), []);
@@ -45,6 +53,17 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [profile, previewFloorId]);
 
+  useEffect(() => {
+    if (previewFloorId || screen !== "deck" || !profile.currentCampaignDeckId) return;
+    const floor = getFloor(meta.floorId);
+    if (!floorGoalCompleted(meta, floor)) return;
+    const campaignDeck = getCampaignDeck(profile.currentCampaignDeckId);
+    const nextDeck = getNextCampaignDeck(campaignDeck.id);
+    setProfile((current) => profileWithCompletedDeck(current, campaignDeck.id, nextDeck?.id));
+    setCompletedCampaignDeckId(campaignDeck.id);
+    setScreen("success");
+  }, [meta, previewFloorId, profile.currentCampaignDeckId, screen]);
+
   function rotatePilot(state: MetaState) {
     if (state.playerCount <= 1) return state;
     return { ...state, pilotIndex: (state.pilotIndex + 1) % state.playerCount };
@@ -53,6 +72,8 @@ export default function App() {
   function startCampaignDeck(deck: CampaignDeck) {
     if (!deck.floorId) return;
     const next = createFloorState(getFloor(deck.floorId), meta.playerCount);
+    setProfile((current) => profileWithStartedDeck(current, deck.id));
+    setCompletedCampaignDeckId(null);
     setMeta(next);
     setEncounter(null);
     setTransfer(null);
@@ -62,6 +83,7 @@ export default function App() {
   function returnToCampaign() {
     setEncounter(null);
     setTransfer(null);
+    setCompletedCampaignDeckId(null);
     setScreen("campaign");
   }
 
@@ -128,6 +150,8 @@ export default function App() {
     setScreen("deck");
   }
 
+  const completedCampaignDeck = completedCampaignDeckId ? getCampaignDeck(completedCampaignDeckId) : null;
+  const nextCampaignDeck = completedCampaignDeck ? getNextCampaignDeck(completedCampaignDeck.id) : null;
   const showDeck = screen === "deck" || screen === "encounter";
 
   return (
@@ -158,7 +182,11 @@ export default function App() {
         <CampaignScreen profile={profile} onProfileChange={setProfile} onStartDeck={startCampaignDeck} />
       )}
 
-      {!previewFloorId && screen !== "campaign" && (
+      {!previewFloorId && screen === "success" && completedCampaignDeck && (
+        <CampaignSuccessScreen deck={completedCampaignDeck} nextDeck={nextCampaignDeck} onShip={returnToCampaign} onNext={startCampaignDeck} />
+      )}
+
+      {!previewFloorId && screen !== "campaign" && screen !== "success" && (
         <button className="app-campaign-toggle" onClick={returnToCampaign}>← SCHIFF</button>
       )}
 
