@@ -11,6 +11,16 @@ export type EncounterBehaviorKind = "neutral" | "guard" | "patrol" | "aggressive
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
 
+export type DuelMathConfig = {
+  label: string;
+  short: string;
+  operation: Operation;
+  symbol: "+" | "−";
+  target: number;
+  maxValue: number;
+  pool: number[];
+};
+
 export type RobotDriveProfile = {
   label: string;
   maxSpeed: number;
@@ -58,6 +68,7 @@ export type EncounterConfig = {
   mode: MathMode;
   mathLabel: string;
   mathRole?: MathRole;
+  mathConfig?: DuelMathConfig;
   difficulty: Difficulty;
   difficultyLabel: string;
   bodyId: BodyId;
