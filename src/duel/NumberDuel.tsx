@@ -59,14 +59,14 @@ function chargeTier(length: number) {
 }
 
 export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, initialMetaEnergy, onFinished }: Props) {
-  const mode = encounter.mode;
-  const config = MODE_INFO[mode];
+  const math = encounter.mathConfig ?? MODE_INFO[encounter.mode];
+  const config = math;
   const enemyBody = BODIES[encounter.bodyId];
   const totalLayers = Math.max(1, encounter.duelLayers ?? 1);
   const hasFinalCorePhase = Boolean(encounter.boss && encounter.enemyId === "kronos" && totalLayers > 1);
   const initialReactor = hasFinalCorePhase ? FIREWALL_REACTOR : NORMAL_REACTOR;
   const gridRef = useRef<HTMLDivElement>(null);
-  const [grid, setGrid] = useState<Grid>(() => freshGrid(mode));
+  const [grid, setGrid] = useState<Grid>(() => freshGrid(math));
   const [turn, setTurn] = useState<Turn>("human");
   const [playerIndex, setPlayerIndex] = useState(0);
   const [selection, setSelection] = useState<Pick[]>([]);
@@ -113,7 +113,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
   }
 
   function animateResolvedGrid(path: Pick[], onSettled: () => void) {
-    const resolution = resolveGrid(grid, path, mode);
+    const resolution = resolveGrid(grid, path, math);
     const element = gridRef.current;
     let rowStep = 72;
     if (element) {
@@ -191,7 +191,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
 
       if (nextClearedLayers < totalLayers) {
         setTeamCores(FIREWALL_REACTOR.start);
-        setGrid(freshGrid(mode));
+        setGrid(freshGrid(math));
         setTurn("enemy");
         setBusy(false);
         setMessage(`FIREWALL ${nextClearedLayers} GEBROCHEN. Die nächste 8-Segment-Schutzschicht ist aktiv. Ressourcen bleiben verbraucht.`);
@@ -200,7 +200,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
 
       if (hasFinalCorePhase) {
         setTeamCores(NORMAL_REACTOR.start);
-        setGrid(freshGrid(mode));
+        setGrid(freshGrid(math));
         setSelection([]);
         setEnemySelection([]);
         setTurn("human");
@@ -232,7 +232,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
     setMessage(`${encounter.name} rechnet …`);
     later(560, () => setMessage(`${encounter.name} prüft die Zahlen noch einmal …`));
     later(1080, () => {
-      const path = chooseAiPath(findCombinations(grid, mode), encounter.difficulty);
+      const path = chooseAiPath(findCombinations(grid, math), encounter.difficulty);
       setEnemySelection(path);
       if (!path.length) {
         setEnemyMood("confused");
@@ -335,7 +335,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
   function submit() {
     if (selection.length < 2 || busy || turn !== "human") return;
     // Correctness is intentionally checked only here. No pre-submit UI depends on it.
-    const result = pathResult(selection, grid, mode);
+    const result = pathResult(selection, grid, math);
     if (result !== config.target) {
       const next = Math.max(0, teamCores - 1);
       const loses = next <= reactor.total - reactor.win;
@@ -343,7 +343,7 @@ export function NumberDuel({ encounter, playerBody, playerCount, remainingHp, in
       setResultCard({
         outcome: loses ? "loss" : undefined,
         title: loses ? "REAKTOR VERLOREN" : "ÜBERLADUNG",
-        detail: `${pathExpression(selection, grid, mode)} = ${result}. Gesucht war ${config.target}. Die Zahlen bleiben liegen; 1 Reaktorsegment geht an den Droiden.`,
+        detail: `${pathExpression(selection, grid, math)} = ${result}. Gesucht war ${config.target}. Die Zahlen bleiben liegen; 1 Reaktorsegment geht an den Droiden.`,
       });
       if (!loses) setMessage("Rechenfehler: Das Feld bleibt unverändert.");
       return;
