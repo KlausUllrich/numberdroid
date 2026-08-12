@@ -1,3 +1,18 @@
+.app-campaign-toggle {
+  position: fixed;
+  z-index: 120;
+  top: 14px;
+  left: 14px;
+  border: 1px solid rgba(148,190,226,.36);
+  border-radius: 9px;
+  padding: 8px 11px;
+  background: rgba(5,13,21,.82);
+  color: #dcefff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
 .nd-campaign-shell {
   min-height: 100vh;
   padding: 28px;
