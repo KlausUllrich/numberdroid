@@ -2,21 +2,30 @@ import { useCallback, useEffect, useState } from "react";
 import { BODIES, STARTING_HP } from "./game/catalog";
 import { getFloor, getPreviewFloorId } from "./game/floors";
 import { createFloorState, loadMetaState, restartFloorState, saveMetaState } from "./game/save";
+import { loadPlayerProfile, savePlayerProfile, type PlayerProfile } from "./game/playerProfile";
 import { useAppFullscreen } from "./game/useFullscreen";
+import type { CampaignDeck } from "./game/campaign";
 import type { BattleResult, EncounterConfig, GameScreen, MetaState } from "./game/types";
 import { DestroyedScreen } from "./game/DestroyedScreen";
+import { CampaignScreen } from "./campaign/CampaignScreen";
 import { MetaGame } from "./meta/MetaGame";
 import { EncounterPanel } from "./meta/EncounterPanel";
 import { NumberDuel } from "./duel/NumberDuel";
 import { TransferScreen } from "./transfer/TransferScreen";
 
+type AppScreen = GameScreen | "campaign";
+
 export default function App() {
   const previewFloorId = getPreviewFloorId();
+  const [profile, setProfile] = useState<PlayerProfile>(() => loadPlayerProfile());
   const [meta, setMeta] = useState<MetaState>(() => {
     const saved = loadMetaState();
     return previewFloorId ? createFloorState(getFloor(previewFloorId), saved.playerCount) : saved;
   });
-  const [screen, setScreen] = useState<GameScreen>(() => meta.damageTaken >= STARTING_HP ? "destroyed" : "deck");
+  const [screen, setScreen] = useState<AppScreen>(() => {
+    if (!previewFloorId) return "campaign";
+    return meta.damageTaken >= STARTING_HP ? "destroyed" : "deck";
+  });
   const [encounter, setEncounter] = useState<EncounterConfig | null>(null);
   const [transfer, setTransfer] = useState<{ encounter: EncounterConfig; oldBodyId: MetaState["currentBody"] } | null>(null);
   const fullscreen = useAppFullscreen();
@@ -30,9 +39,30 @@ export default function App() {
     return () => window.clearTimeout(timer);
   }, [meta, previewFloorId]);
 
+  useEffect(() => {
+    if (previewFloorId) return;
+    const timer = window.setTimeout(() => savePlayerProfile(profile), 120);
+    return () => window.clearTimeout(timer);
+  }, [profile, previewFloorId]);
+
   function rotatePilot(state: MetaState) {
     if (state.playerCount <= 1) return state;
     return { ...state, pilotIndex: (state.pilotIndex + 1) % state.playerCount };
+  }
+
+  function startCampaignDeck(deck: CampaignDeck) {
+    if (!deck.floorId) return;
+    const next = createFloorState(getFloor(deck.floorId), meta.playerCount);
+    setMeta(next);
+    setEncounter(null);
+    setTransfer(null);
+    setScreen("deck");
+  }
+
+  function returnToCampaign() {
+    setEncounter(null);
+    setTransfer(null);
+    setScreen("campaign");
   }
 
   function openEncounter(next: EncounterConfig) {
@@ -123,6 +153,14 @@ export default function App() {
       >
         {fullscreen.isFullscreen ? "⛶×" : "⛶"}
       </button>
+
+      {!previewFloorId && screen === "campaign" && (
+        <CampaignScreen profile={profile} onProfileChange={setProfile} onStartDeck={startCampaignDeck} />
+      )}
+
+      {!previewFloorId && screen !== "campaign" && (
+        <button className="app-campaign-toggle" onClick={returnToCampaign}>← SCHIFF</button>
+      )}
 
       {showDeck && <MetaGame meta={meta} onMetaChange={updateMeta} onEncounter={openEncounter} paused={screen !== "deck" || fullscreen.needsFullscreenPrompt} />}
       {screen === "encounter" && encounter && <EncounterPanel encounter={encounter} onCancel={() => { setEncounter(null); setScreen("deck"); }} onStart={startEncounter} />}
