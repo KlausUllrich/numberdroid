@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerE
 import { publicAsset } from "../game/assets";
 import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP, robotCollisionRadius, robotDriveProfile } from "../game/catalog";
 import { getFloor } from "../game/floors";
+import type { TacticalChallengeId } from "../game/playerProfile";
 import { pointWalkable } from "../game/save";
 import type { EncounterConfig, MetaState } from "../game/types";
 import { DoorLayer } from "./DoorLayer";
@@ -22,6 +23,7 @@ type Props = {
   meta: MetaState;
   onMetaChange: (next: MetaState) => void;
   onEncounter: (encounter: EncounterConfig) => void;
+  tacticalChallengeId?: TacticalChallengeId;
   paused?: boolean;
 };
 
@@ -97,7 +99,7 @@ function nearestInteractable(meta: MetaState): Nearby {
   return best;
 }
 
-export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Props) {
+export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId = "standard", paused = false }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<HTMLDivElement>(null);
@@ -558,6 +560,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, paused = false }: Pr
             openDoorIdsRef={openDoorIdsRef}
             pausedRef={pausedRef}
             runtimePosesRef={encounterRuntimePosesRef}
+            tacticalChallengeId={tacticalChallengeId}
             onIntercept={interceptEncounter}
             onManualEncounter={tryOpenEncounter}
             onAlert={(enemy) => showToast(enemy.behavior?.kind === "guard" ? `${enemy.name} VERLÄSST SEINEN POSTEN!` : `${enemy.name} HAT DICH ENTDECKT!`)}
