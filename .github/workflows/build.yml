@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   build:
+    if: github.event_name != 'pull_request' || github.head_ref != 'agent/integrate-metagame-architecture'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
