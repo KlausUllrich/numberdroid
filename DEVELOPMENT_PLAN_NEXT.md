@@ -1,301 +1,234 @@
 # Numberdroid — Next Development Plan
 
-This plan follows the established B2 vertical slice and is designed to reduce the number of manual playtests Klaus needs to perform.
+This plan reflects the current integrated framework on `agent/integrate-metagame-architecture` and is designed to minimize repeated manual testing.
 
-Read `CAMPAIGN_PROGRESSION.md` and `LEARNING_PROFILES.md` together with this plan. Numberdroid is a family learning game with one shared story campaign and player-specific mathematics.
+Read these binding documents together:
+- `CODEX_HANDOFF.md`
+- `ENCOUNTER_ARCHETYPES.md`
+- `CAMPAIGN_PROGRESSION.md`
+- `LEARNING_PROFILES.md`
+- `MENU_HUB_FLOW.md`
 
 ## Working principle
 
-Development proceeds in larger coherent packages. CI/build checks and automated smoke tests should absorb routine regressions. Klaus should only be asked to playtest when a package changes game feel, campaign flow, learning behavior, or player-facing comprehension in a way automated checks cannot judge.
+Routine regressions belong in CI/automated tests. Klaus should be asked to playtest only when feel, comprehension, progression or family-learning behavior requires human judgment.
 
-The current agent continues through the **campaign/framework/player-profile milestone** described below. Handoff happens only after the framework is integrated, a second-deck skeleton proves progression end-to-end, the player-math/robot-tier model exists, automated smoke coverage exists, and final integrated playtest feedback has been addressed.
+Do not restart completed packages. Do not broadly rewrite the established runtime.
 
-Do not hand off merely because an individual feature is complete.
-
-## Package 0 — Remote preview and deployment
+## Completed package 0 — Remote preview
 
 Status: **complete**.
 
-Current GitHub Pages preview target:
+Hosted target:
 
 ```text
 https://klausullrich.github.io/numberdroid/
 ```
 
 Established:
-- agent branch is allowed to deploy to the `github-pages` environment,
-- normal build and Pages artifact reuse the same application build,
-- hosted paths are Vite-base safe,
-- redundant PR build for the current agent branch is avoided,
+- agent branch deploys to GitHub Pages,
+- tests/build and Pages use the same build pipeline,
+- Vite asset paths are deployment-safe,
+- redundant current-branch PR build is avoided,
 - draft PR #1 remains unmerged unless Klaus explicitly requests otherwise.
 
-Manual playtest: only a short hosted smoke check when useful; do not stop development for routine hosted checks.
+## Completed package 1 — Campaign/profile foundation
 
-## Package 1 — Campaign shell + player profile foundation
+Status: **complete**.
 
-Build the game around the current deck runtime rather than treating B2 as a standalone prototype.
+Implemented:
+- count-agnostic campaign/deck catalog with approximately 25 internal planning slots,
+- B2 integrated as first campaign mission,
+- persistent multiple family profiles,
+- profile-specific campaign progress,
+- per-profile running mission saves,
+- zero-profile first-install support,
+- child/adult profile distinction,
+- profile mathematics starting baseline,
+- separate tactical preference.
 
-Target player flow:
+## Completed package 2 — Progression / C3 / math roles
 
-```text
-PLAYER PROFILE
-→ START / CONTINUE
-→ SHIP / DECK SELECT
-→ optional DECK STORY
-→ DECK GAMEPLAY
-→ DECK SUCCESS STORY
-→ unlock/progression
-→ NEXT DECK / SHIP
-```
+Status: **complete**.
 
-### Campaign catalog
+Implemented:
+- B2 success → story → successor unlock,
+- small playable C3 proof deck,
+- robot mathematical role independent from tactical behavior,
+- profile/deck/robot-derived arithmetic envelope,
+- stronger profiles fan out more on later content while comfort robots remain easy,
+- tactical challenge affects duel AI and deck pursuit separately from mathematics,
+- campaign mechanic metadata supports staged future systems.
 
-Create authored campaign/deck metadata rather than hard-coded screen transitions.
+Important limitation:
+- real duel protocols currently cover addition/subtraction only,
+- multiplication/division remain future systems and must not be represented as already-playable modes.
 
-Required data direction:
-- deck id,
-- act/order,
-- title/subtitle,
-- locked/unlocked/completed state derived from progression,
-- prerequisite/unlock metadata,
-- intro/outro story copy,
-- boss/goal metadata,
-- campaign intensity/progression metadata,
-- mechanics introduced / mechanics expected,
-- supported math capabilities/variants,
-- room for authored encounter population/robot mathematical roles.
+## Completed package 3 — Robot perception
 
-The architecture must be count-agnostic but use **about 25 decks** as the current campaign planning target, likely grouped into larger acts. Do not implement 25 production decks in this milestone.
+Status: **complete**.
 
-### Player profile
+Implemented:
+- authored range plus line of sight,
+- walls/non-walkable geometry/obstacles block sight,
+- closed doors block sight,
+- view cone support,
+- visible chase state,
+- lost-sight investigation at last known position,
+- return/give-up behavior,
+- guard leash remains intact,
+- physical collision always opens scan regardless of sight.
 
-Introduce a player/family profile boundary that can eventually hold:
-- profile identity/name,
-- initial mathematics self-assessment/baseline,
-- demonstrated capability/evidence state,
-- preferred tactical challenge separately,
-- campaign progression/completed decks,
-- current deck/session state as appropriate.
+## Completed package 4 — Framework hardening
 
-Starting math choice should be friendly and skippable:
-- recognizable example tasks/capabilities,
-- safe default if the family simply starts,
-- no mandatory placement test,
-- not a school score.
+Status: **complete for the current framework milestone**.
 
-### Same story rule
+Implemented/tested:
+- campaign catalog ordering/progression,
+- B2 → C3 unlock,
+- family profile isolation,
+- profile-specific resume state,
+- robot math role parsing,
+- deterministic math-envelope resolution,
+- tactical-pressure resolution,
+- LOS/door/obstacle geometry,
+- floor-goal completion,
+- CI `Test → Build → Pages`.
 
-This must be structurally true from the beginning:
-- every mathematics profile can play the same full deck/story sequence,
-- advanced profiles do not skip early decks,
-- lower profiles are not locked out of later story decks because of curriculum level.
+## Completed package 5 — Title / Profile Wizard / Personal Hub
 
-Manual playtest required: **no** after Package 1 alone. Continue into Package 2 before Gate A.
+Status: **implemented; awaiting integrated human playtest**.
 
-## Package 2 — Progression + robot math roles + difficulty curves + C3 proof
+The previous all-in-one `CampaignScreen` is no longer the canonical product UX.
 
-### Campaign persistence / progression
-
-Extend persistence cleanly (likely a new save schema) with campaign/player-profile information such as:
-- unlocked deck ids,
-- completed deck ids,
-- selected/current deck,
-- mathematics baseline/capability state,
-- preferred tactical challenge,
-- existing body/meta/deck state where appropriate.
-
-Completing a deck goal must:
-1. show a proper success/story screen,
-2. mark the deck completed,
-3. unlock authored successor(s),
-4. return the player to a meaningful `NEXT DECK` / `SHIP` choice rather than a dead end.
-
-### Robot mathematical roles
-
-Represent mathematical challenge independently from tactical behavior.
-
-Working roles from `LEARNING_PROFILES.md` / `CAMPAIGN_PROGRESSION.md`:
-- comfort/basic,
-- practice/core,
-- stretch/security,
-- specialist,
-- boss.
-
-`neutral/guard/patrol/aggressive` is tactical behavior and must not automatically determine math role.
-
-The same recognizable robot role should remain relatively predictable for children while concrete arithmetic scales to the player profile and campaign position.
-
-### Deck-local and campaign-wide curve
-
-Support the authored saw-tooth progression:
+Implemented flow:
 
 ```text
-Deck N: easier arrival → core → stretch/specialist → boss
-Deck N+1: some breathing room again → overall somewhat higher ceiling → boss
+INTRO
+→ TITLE SCREEN
+→ CONTINUE PROFILE / NEW PROFILE / SETTINGS
+→ PERSONAL HUB
+→ START / RESUME MISSION
+→ DECK
+→ SUCCESS STORY → HUB
+   or
+→ 0 HP / FAILURE → HUB
 ```
 
-Later decks should contain more advanced/specialist encounters and stronger combinations while still retaining some comfortable robots.
+Implemented details:
+- compact profile cycling from title when several profiles exist,
+- child/adult selection during profile creation,
+- name step,
+- child-only supported +/- starting estimate,
+- adult streamlined default,
+- viewport-contained landscape menu screens (no root document scrolling),
+- title-level persisted master-volume settings shell and honest German-only language state,
+- Act-1 ship hub structural prototype,
+- current-act progress only; no total-act/25-deck reveal,
+- dominant next mission / `MISSION FORTSETZEN`,
+- collection/achievements/logbook/statistics hub entry points,
+- voluntary mission exit preserves resumable run,
+- campaign 0 HP clears run and returns to hub for a fresh retry,
+- success screen returns to hub rather than jumping directly into the next deck,
+- direct developer floor previews retain the debug destroyed/restart flow.
 
-Do not implement a global `each duel gets harder` rule.
+The hub art/theme and auxiliary collection/statistics content are structural prototypes, not final production content.
 
-### Mathematics calibration
+## Current human gate — Integrated Hub/Campaign Playtest
 
-Adaptive/profile logic is a calibration layer, not the primary difficulty engine.
+This is now the next useful manual test. Do **not** request separate micro-tests before it unless CI exposes a blocker.
 
-Initial implementation may use deterministic conservative rules:
-- adjust span/composition inside supported encounter ranges,
-- preserve robot mathematical identity,
-- preserve authored deck pacing,
-- never remove all mastered easy arithmetic,
-- no reaction-time scoring,
-- correctness remains hidden until explicit submit,
-- new operations/concepts require profile + authored encounter/deck support.
+Test one coherent session from the hosted root URL.
 
-### Tactical challenge
+### A. Entry/navigation
+1. Intro fits and advances cleanly.
+2. Title screen fits without scrolling.
+3. Existing profile shows `FORTSETZEN · <NAME>`.
+4. Multiple profiles can be cycled without entering the campaign.
+5. `NEUES PROFIL` and `EINSTELLUNGEN` are understandable.
 
-Keep tactical challenge independent. Working options may remain:
-- `ENTDECKER`,
-- `STANDARD`,
-- `HERAUSFORDERUNG`.
+### B. Profile creation
+1. Child/adult choice is clear and non-judgmental.
+2. Name step is obvious.
+3. Child math estimate feels like guidance rather than a test.
+4. Supported math examples are believable and fit the viewport.
+5. Adult onboarding feels appropriately quick.
 
-They tune AI/pursuit/reaction/tactical forgiveness, not math knowledge.
+### C. Hub comprehension
+1. Hub feels like a place in the story, not a level spreadsheet.
+2. Current-area progress is understandable.
+3. No total number of acts or 25-deck roadmap is exposed.
+4. Next mission is obvious.
+5. Collection/achievement/logbook/statistics affordances are readable without dominating the mission.
+6. Returning to main menu feels structurally clear.
 
-### Campaign mechanic progression
+### D. Mission lifecycle
+1. Start B2 from hub.
+2. Voluntarily return to hub and verify `MISSION FORTSETZEN`.
+3. Resume and verify position/body/progress remain appropriate.
+4. If practical, verify 0 HP returns to hub and the next attempt starts fresh.
+5. Complete B2 and verify success/story screen → hub → C3 as next mission.
+6. Verify C3 still demonstrates comfort vs specialist math-role separation.
 
-The campaign catalog must be able to record new mechanics introduced over later decks, for example:
-- body/Joker skills,
-- keys/security systems,
-- additional robot behavior,
-- Treasure Golem/traps,
-- environmental interactions,
-- new number-board mechanics.
+### E. Existing gameplay feel
+1. Robot collision still opens scan.
+2. Guards/hunters require line of sight.
+3. Losing sight gives readable `?` investigation then return/give-up.
+4. `ENTDECKER/STANDARD/HERAUSFORDERUNG` remains tactical rather than a math selector.
+5. Higher/lower math profiles feel like the same game/story with different arithmetic envelopes.
+6. Phone landscape performance remains smooth.
 
-Do not implement all of these now. The framework must make staged introduction possible.
+## After integrated playtest
 
-### Second-deck proof
+The current agent should:
+1. fix concrete regressions and UX misunderstandings from the integrated gate,
+2. add focused automated tests for any bug that can reasonably recur,
+3. keep documentation synchronized,
+4. run final tests/build/Pages,
+5. prepare deliberate handoff.
 
-Add one deliberately small **C3-style placeholder deck** whose job is to prove the architecture, not final content.
-
-It should demonstrate:
-- distinct story/catalog metadata,
-- progression B2 → success → C3 unlock,
-- at least one easy/comfort encounter,
-- at least one more demanding/specialist encounter,
-- neutral + hostile behavior where useful,
-- a simple boss/goal or final objective,
-- different math envelopes for at least two player baselines if feasible without overbuilding,
-- tactical challenge remaining independent,
-- one campaign mechanic/progression metadata difference from B2.
-
-Manual playtest required: **yes — Playtest Gate A**.
-
-Gate A should test in one coherent session:
-1. create/select a player profile or use the safe default,
-2. choose/inspect a simple math starting self-assessment without taking a test,
-3. enter the same campaign/deck structure regardless of that baseline,
-4. verify easy robots remain easy/pleasant,
-5. verify stronger robot types are recognizably more demanding,
-6. experience B2's within-deck escalation,
-7. see success/story flow,
-8. unlock/open C3,
-9. see the next deck begin with some breathing room but a somewhat higher ceiling,
-10. verify tactical challenge is independent,
-11. judge whether stronger/lower profiles both feel like the same game rather than different campaigns.
-
-## Package 3 — Robot perception realism
-
-After the campaign shell is stable, implement reusable line-of-sight/perception logic:
-- range alone does not detect the player,
-- walls and closed doors block sight,
-- opaque geometry can block sight,
-- authored field-of-view/view angle support,
-- visible detection state,
-- short investigation/search state after losing sight where useful,
-- guard leash/return remains intact,
-- physical collision always opens scan.
-
-Keep this in reusable floor/runtime geometry code, not room-specific JSX.
-
-Treasure Golem remains a later authored campaign mechanic unless a generic capture-state primitive naturally belongs here.
-
-Manual playtest required: folded into Gate B.
-
-## Package 4 — Automated smoke coverage + framework hardening
-
-Before Gate B, add automated coverage for the new framework where practical:
-- campaign/deck catalog ordering/unlocks,
-- success → next-deck transition,
-- player-profile initialization/defaults,
-- math baseline/self-assessment persistence,
-- robot math role separate from tactical behavior,
-- math-envelope derivation preserving robot/deck role,
-- save migration/new schema behavior,
-- tactical challenge independence,
-- curriculum/localization mapping fallback shape if implemented,
-- Floor/Tiled encounter parsing,
-- collision-triggered encounter rules,
-- guard detection/leash state transitions where testable as pure logic,
-- boss completion still finishes/unlocks correctly,
-- direct B2 preview still works without corrupting campaign persistence.
-
-Prefer pure state-transition helpers over DOM/browser hacks.
-
-Manual playtest required: **yes — Playtest Gate B**, only after CI is green.
-
-Gate B focuses on feel and comprehension:
-- campaign/ship/deck flow understandable without explanation,
-- hosted preview reliable after duel/transfer/progression transitions,
-- different math baselines can play the same story comfortably,
-- simple encounters remain satisfying,
-- robot mathematical identities are readable,
-- deck curves build toward bosses and reset partially on the next deck,
-- later content feels richer through mechanics rather than only bigger numbers,
-- profile calibration is subtle rather than punitive,
-- tactical challenge remains separate,
-- guard LOS/chase feels fair,
-- phone landscape remains smooth.
+Do not begin the full production campaign before this feedback is absorbed.
 
 ## Current-agent stopping point / handoff boundary
 
-The current agent continues through **Packages 0–4** and fixes concrete feedback from Gates A and B.
+Handoff occurs after:
+- integrated hub/campaign feedback is addressed,
+- CI is green,
+- hosted preview is current,
+- final docs describe actual behavior,
+- no known blocker remains in title/profile/hub/B2/C3/LOS/profile-save flow.
 
-Then perform a deliberate handoff containing:
+The handoff must include:
 - final branch HEAD and CI state,
-- hosted preview URL/deployment notes,
-- save schema/migration rules,
-- player-profile model,
-- campaign/deck catalog structure,
-- current campaign target/act model,
-- robot mathematical role model,
-- deck/global difficulty curve representation,
-- math baseline/calibration behavior,
-- tactical challenge separation,
-- B2/C3 content status,
-- perception/LOS behavior,
+- hosted preview/deployment notes,
+- title/profile/hub navigation model,
+- profile schema and migration behavior,
+- per-profile save/resume/failure rules,
+- campaign catalog/hidden-future-content rule,
+- B2/C3 status,
+- robot math-role / arithmetic-envelope model,
+- tactical challenge model,
+- LOS/investigation behavior,
 - binding duel rules,
-- deferred campaign mechanics including Treasure Golem,
-- explicit deferred features.
+- known prototype limitations,
+- deferred systems.
 
-### Intentionally deferred unless needed by Packages 1–4
+## Deferred production work
 
-- building the full ~25 production decks,
+Unless needed to fix integrated feedback, defer:
+- full ~25 production decks,
 - final act/story writing,
-- final room/deck art and full Tiled authoring pass,
-- full Treasure Golem trap implementation,
+- final hub themes/art per act,
+- final intro/title art/audio,
+- full persistent collectible schema/content,
+- broad achievement catalog,
+- character/lore database,
+- full Treasure Golem implementation,
 - neutral-worker reward economy,
-- broad board-mechanic catalog,
-- extensive enemy body-ability catalog,
-- complete international curriculum database,
-- sophisticated adaptive-learning algorithm,
+- broad new number-board mechanic catalog,
+- multiplication/division duel protocols,
+- sophisticated adaptive-learning evidence engine,
+- final international curriculum mappings,
+- production localization pipeline,
 - final long-campaign balancing,
-- production-quality sound/music/VFX.
-
-## Test cadence summary
-
-From this point Klaus should normally only need:
-
-1. optional very short hosted-preview smoke check,
-2. **Gate A** after Campaign/Profile/Progression/C3 are integrated,
-3. **Gate B** after LOS/tests/framework hardening before handoff.
-
-Routine intermediate commits should be validated through CI and automated tests instead of repeated manual playtests.
+- production-quality sound/music/VFX/accessibility pass.
