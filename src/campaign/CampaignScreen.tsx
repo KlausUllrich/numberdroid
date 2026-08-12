@@ -9,9 +9,20 @@ type Props = {
   onStartDeck: (deck: CampaignDeck) => void;
 };
 
+function deckStatus(profile: PlayerProfile, deck: CampaignDeck) {
+  const unlocked = profile.unlockedDeckIds.includes(deck.id);
+  const completed = profile.completedDeckIds.includes(deck.id);
+  const playable = unlocked && campaignDeckPlayable(deck);
+  return { unlocked, completed, playable };
+}
+
 export function CampaignScreen({ profile, onProfileChange, onStartDeck }: Props) {
-  const [selectedDeckId, setSelectedDeckId] = useState(CAMPAIGN_DECKS[0].id);
+  const [selectedDeckId, setSelectedDeckId] = useState(() => {
+    const firstOpen = CAMPAIGN_DECKS.find((deck) => profile.unlockedDeckIds.includes(deck.id) && !profile.completedDeckIds.includes(deck.id));
+    return firstOpen?.id ?? CAMPAIGN_DECKS[0].id;
+  });
   const selectedDeck = CAMPAIGN_DECKS.find((deck) => deck.id === selectedDeckId) ?? CAMPAIGN_DECKS[0];
+  const selectedStatus = deckStatus(profile, selectedDeck);
   const selectedMath = MATH_START_OPTIONS.find((option) => option.id === profile.mathStartId) ?? MATH_START_OPTIONS[0];
   const selectedTactical = TACTICAL_CHALLENGES.find((option) => option.id === profile.tacticalChallengeId) ?? TACTICAL_CHALLENGES[1];
 
@@ -31,7 +42,7 @@ export function CampaignScreen({ profile, onProfileChange, onStartDeck }: Props)
         <div className="nd-profile-summary">
           <span>{profile.name}</span>
           <b>{selectedMath.example} · {selectedMath.label}</b>
-          <small>TAKTIK: {selectedTactical.label}</small>
+          <small>TAKTIK: {selectedTactical.label} · DECKS: {profile.completedDeckIds.length}/25</small>
         </div>
       </header>
 
@@ -44,17 +55,24 @@ export function CampaignScreen({ profile, onProfileChange, onStartDeck }: Props)
                 <div className="nd-act-heading"><b>{act.title}</b><span>{act.subtitle}</span></div>
                 <div className="nd-deck-row">
                   {decks.map((deck) => {
-                    const playable = campaignDeckPlayable(deck);
+                    const status = deckStatus(profile, deck);
                     const selected = selectedDeckId === deck.id;
+                    const label = status.completed
+                      ? "GESICHERT"
+                      : status.playable
+                        ? "BEREIT"
+                        : status.unlocked
+                          ? "FREIGESCHALTET"
+                          : "GESPERRT";
                     return (
                       <button
                         key={deck.id}
-                        className={`nd-deck-node ${selected ? "selected" : ""} ${playable ? "playable" : "future"}`}
+                        className={`nd-deck-node ${selected ? "selected" : ""} ${status.playable ? "playable" : "future"} ${status.completed ? "completed" : ""} ${status.unlocked ? "unlocked" : "locked"}`}
                         onClick={() => setSelectedDeckId(deck.id)}
                       >
                         <small>{String(deck.order).padStart(2, "0")}</small>
                         <b>{deck.order === 1 ? "B2" : deck.order === 2 ? "C3" : "—"}</b>
-                        <span>{playable ? "BEREIT" : deck.order === 2 ? "NÄCHSTER PROTOTYP" : "GESPERRT"}</span>
+                        <span>{label}</span>
                       </button>
                     );
                   })}
@@ -77,10 +95,16 @@ export function CampaignScreen({ profile, onProfileChange, onStartDeck }: Props)
             )}
             <button
               className="nd-primary"
-              disabled={!campaignDeckPlayable(selectedDeck)}
+              disabled={!selectedStatus.playable}
               onClick={() => onStartDeck(selectedDeck)}
             >
-              {campaignDeckPlayable(selectedDeck) ? "DECK BETRETEN" : selectedDeck.order === 2 ? "NOCH IN ENTWICKLUNG" : "NOCH NICHT FREIGESCHALTET"}
+              {selectedStatus.completed && selectedStatus.playable
+                ? "DECK NOCH EINMAL SPIELEN"
+                : selectedStatus.playable
+                  ? "DECK BETRETEN"
+                  : selectedStatus.unlocked
+                    ? "FREIGESCHALTET · NOCH IN ENTWICKLUNG"
+                    : "NOCH NICHT FREIGESCHALTET"}
             </button>
           </section>
 
