@@ -14,6 +14,12 @@ export type PlayerProfile = {
   currentCampaignDeckId: string | null;
 };
 
+export type PlayerProfileCollection = {
+  version: 1;
+  activeProfileId: string;
+  profiles: PlayerProfile[];
+};
+
 export type MathStartOption = {
   id: MathStartId;
   example: string;
@@ -35,6 +41,7 @@ export const TACTICAL_CHALLENGES = [
   { id: "challenge" as const, label: "HERAUSFORDERUNG", description: "Hartnäckigere Gegner und weniger taktischer Spielraum" },
 ];
 
+const PROFILE_COLLECTION_KEY = "numberdroid-player-profiles-v1";
 const PROFILE_KEY_V2 = "numberdroid-player-profile-v2";
 const PROFILE_KEY_V1 = "numberdroid-player-profile-v1";
 
@@ -49,6 +56,16 @@ export const DEFAULT_PLAYER_PROFILE: PlayerProfile = {
   currentCampaignDeckId: null,
 };
 
+export const DEFAULT_PROFILE_COLLECTION: PlayerProfileCollection = {
+  version: 1,
+  activeProfileId: DEFAULT_PLAYER_PROFILE.id,
+  profiles: [{
+    ...DEFAULT_PLAYER_PROFILE,
+    unlockedDeckIds: [...DEFAULT_PLAYER_PROFILE.unlockedDeckIds],
+    completedDeckIds: [],
+  }],
+};
+
 function validMathStart(value: unknown): value is MathStartId {
   return MATH_START_OPTIONS.some((entry) => entry.id === value);
 }
@@ -61,12 +78,12 @@ function cleanStringIds(value: unknown) {
   return Array.isArray(value) ? [...new Set(value.filter((entry): entry is string => typeof entry === "string" && Boolean(entry)))] : [];
 }
 
-function sanitizeProfile(candidate: Partial<PlayerProfile>): PlayerProfile {
+function sanitizeProfile(candidate: Partial<PlayerProfile>, fallbackId = DEFAULT_PLAYER_PROFILE.id): PlayerProfile {
   const unlockedDeckIds = cleanStringIds(candidate.unlockedDeckIds);
   if (!unlockedDeckIds.includes(FIRST_CAMPAIGN_DECK_ID)) unlockedDeckIds.unshift(FIRST_CAMPAIGN_DECK_ID);
   return {
     version: 2,
-    id: typeof candidate.id === "string" && candidate.id ? candidate.id : DEFAULT_PLAYER_PROFILE.id,
+    id: typeof candidate.id === "string" && candidate.id ? candidate.id : fallbackId,
     name: typeof candidate.name === "string" && candidate.name.trim() ? candidate.name.trim().slice(0, 24) : DEFAULT_PLAYER_PROFILE.name,
     mathStartId: validMathStart(candidate.mathStartId) ? candidate.mathStartId : DEFAULT_PLAYER_PROFILE.mathStartId,
     tacticalChallengeId: validTacticalChallenge(candidate.tacticalChallengeId) ? candidate.tacticalChallengeId : DEFAULT_PLAYER_PROFILE.tacticalChallengeId,
@@ -76,7 +93,7 @@ function sanitizeProfile(candidate: Partial<PlayerProfile>): PlayerProfile {
   };
 }
 
-export function loadPlayerProfile(): PlayerProfile {
+function legacySingleProfile(): PlayerProfile | null {
   try {
     const raw = localStorage.getItem(PROFILE_KEY_V2);
     if (raw) return sanitizeProfile(JSON.parse(raw) as Partial<PlayerProfile>);
@@ -84,20 +101,96 @@ export function loadPlayerProfile(): PlayerProfile {
 
   try {
     const raw = localStorage.getItem(PROFILE_KEY_V1);
-    if (raw) {
-      const migrated = sanitizeProfile(JSON.parse(raw) as Partial<PlayerProfile>);
-      savePlayerProfile(migrated);
-      return migrated;
-    }
+    if (raw) return sanitizeProfile(JSON.parse(raw) as Partial<PlayerProfile>);
   } catch { /* ignore damaged v1 profile */ }
 
-  return { ...DEFAULT_PLAYER_PROFILE, unlockedDeckIds: [...DEFAULT_PLAYER_PROFILE.unlockedDeckIds], completedDeckIds: [] };
+  return null;
+}
+
+function sanitizeCollection(candidate: Partial<PlayerProfileCollection>): PlayerProfileCollection {
+  const sourceProfiles = Array.isArray(candidate.profiles) ? candidate.profiles : [];
+  const profiles = sourceProfiles
+    .filter((entry): entry is PlayerProfile => Boolean(entry && typeof entry === "object"))
+    .map((entry, index) => sanitizeProfile(entry, `player-${index + 1}`));
+
+  const uniqueProfiles = profiles.filter((profile, index) => profiles.findIndex((entry) => entry.id === profile.id) === index);
+  if (!uniqueProfiles.length) uniqueProfiles.push({
+    ...DEFAULT_PLAYER_PROFILE,
+    unlockedDeckIds: [...DEFAULT_PLAYER_PROFILE.unlockedDeckIds],
+    completedDeckIds: [],
+  });
+
+  const requestedActiveId = typeof candidate.activeProfileId === "string" ? candidate.activeProfileId : "";
+  const activeProfileId = uniqueProfiles.some((profile) => profile.id === requestedActiveId)
+    ? requestedActiveId
+    : uniqueProfiles[0].id;
+
+  return { version: 1, activeProfileId, profiles: uniqueProfiles };
+}
+
+export function loadPlayerProfiles(): PlayerProfileCollection {
+  try {
+    const raw = localStorage.getItem(PROFILE_COLLECTION_KEY);
+    if (raw) return sanitizeCollection(JSON.parse(raw) as Partial<PlayerProfileCollection>);
+  } catch { /* ignore damaged collection */ }
+
+  const legacy = legacySingleProfile();
+  const migrated = legacy
+    ? { version: 1 as const, activeProfileId: legacy.id, profiles: [legacy] }
+    : sanitizeCollection(DEFAULT_PROFILE_COLLECTION);
+  savePlayerProfiles(migrated);
+  return migrated;
+}
+
+export function savePlayerProfiles(collection: PlayerProfileCollection) {
+  try {
+    localStorage.setItem(PROFILE_COLLECTION_KEY, JSON.stringify(sanitizeCollection(collection)));
+  } catch { /* storage may be unavailable in private/sandboxed contexts */ }
+}
+
+export function activePlayerProfile(collection: PlayerProfileCollection): PlayerProfile {
+  return collection.profiles.find((profile) => profile.id === collection.activeProfileId) ?? collection.profiles[0] ?? DEFAULT_PLAYER_PROFILE;
+}
+
+export function collectionWithUpdatedProfile(collection: PlayerProfileCollection, profile: PlayerProfile): PlayerProfileCollection {
+  const exists = collection.profiles.some((entry) => entry.id === profile.id);
+  return sanitizeCollection({
+    ...collection,
+    profiles: exists
+      ? collection.profiles.map((entry) => entry.id === profile.id ? profile : entry)
+      : [...collection.profiles, profile],
+  });
+}
+
+export function collectionWithActiveProfile(collection: PlayerProfileCollection, profileId: string): PlayerProfileCollection {
+  if (!collection.profiles.some((profile) => profile.id === profileId)) return collection;
+  return { ...collection, activeProfileId: profileId };
+}
+
+export function createPlayerProfile(id: string, name: string): PlayerProfile {
+  return sanitizeProfile({
+    ...DEFAULT_PLAYER_PROFILE,
+    id,
+    name,
+    unlockedDeckIds: [FIRST_CAMPAIGN_DECK_ID],
+    completedDeckIds: [],
+    currentCampaignDeckId: null,
+  }, id);
+}
+
+export function collectionWithNewProfile(collection: PlayerProfileCollection, profile: PlayerProfile): PlayerProfileCollection {
+  const next = collectionWithUpdatedProfile(collection, profile);
+  return { ...next, activeProfileId: profile.id };
+}
+
+// Compatibility wrappers for code/tests that need only the currently active profile.
+export function loadPlayerProfile(): PlayerProfile {
+  return activePlayerProfile(loadPlayerProfiles());
 }
 
 export function savePlayerProfile(profile: PlayerProfile) {
-  try {
-    localStorage.setItem(PROFILE_KEY_V2, JSON.stringify(profile));
-  } catch { /* storage may be unavailable in private/sandboxed contexts */ }
+  const collection = loadPlayerProfiles();
+  savePlayerProfiles(collectionWithUpdatedProfile(collection, profile));
 }
 
 export function profileWithStartedDeck(profile: PlayerProfile, deckId: string): PlayerProfile {
