@@ -1,0 +1,117 @@
+.zk-transfer-access-acquired {
+  display: grid;
+  grid-template-columns: 68px 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid #4ba8ef;
+  border-radius: 8px;
+  background: linear-gradient(110deg, #0b2f53, #071e31 68%);
+  box-shadow: 0 0 22px #3aa8ff33, inset 0 0 18px #4caeff15;
+  animation: transfer-access-arrive 520ms cubic-bezier(.16,.84,.28,1) both;
+  text-align: left;
+}
+
+.zk-transfer-access-acquired > div:last-child > small,
+.zk-transfer-access-acquired > div:last-child > strong,
+.zk-transfer-access-acquired > div:last-child > span {
+  display: block;
+}
+
+.zk-transfer-access-acquired > div:last-child > small {
+  color: #81b9e5;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.zk-transfer-access-acquired > div:last-child > strong {
+  margin-top: 2px;
+  color: #a8d9ff;
+  font-size: 16px;
+}
+
+.zk-transfer-access-acquired > div:last-child > span {
+  margin-top: 3px;
+  color: #bdd3e2;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.zk-transfer-keycard {
+  position: relative;
+  width: 60px;
+  height: 40px;
+  border: 2px solid #79c3ff;
+  border-radius: 6px;
+  background: linear-gradient(145deg, #1b69aa, #092d51 62%, #071725);
+  box-shadow: 0 0 17px #47adff66;
+  overflow: hidden;
+}
+
+.zk-transfer-keycard::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  height: 2px;
+  background: #78c7ff88;
+  box-shadow: 0 -5px 0 #78c7ff35;
+}
+
+.zk-transfer-keycard i {
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  width: 14px;
+  height: 10px;
+  border: 1px solid #ffe6a3;
+  border-radius: 2px;
+  background: #cda640;
+}
+
+.zk-transfer-keycard b,
+.zk-transfer-keycard span {
+  position: absolute;
+  left: 7px;
+  color: #e0f1ff;
+  font-weight: 950;
+  letter-spacing: .08em;
+}
+
+.zk-transfer-keycard b { top: 6px; font-size: 10px; }
+.zk-transfer-keycard span { top: 18px; font-size: 6px; }
+
+@keyframes transfer-access-arrive {
+  from { opacity: 0; transform: translateY(10px) scale(.96); filter: brightness(1.8); }
+  55% { filter: brightness(1.45); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1); }
+}
+
+@media (max-width: 900px), (max-height: 520px) {
+  .zk-transfer-access-acquired {
+    grid-template-columns: 50px 1fr;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 7px 8px;
+  }
+
+  .zk-transfer-keycard {
+    width: 46px;
+    height: 31px;
+  }
+
+  .zk-transfer-keycard i {
+    width: 10px;
+    height: 7px;
+    right: 5px;
+    top: 5px;
+  }
+
+  .zk-transfer-keycard b { left: 5px; top: 4px; font-size: 8px; }
+  .zk-transfer-keycard span { left: 5px; top: 14px; font-size: 5px; }
+  .zk-transfer-access-acquired > div:last-child > strong { font-size: 12px; }
+  .zk-transfer-access-acquired > div:last-child > span { font-size: 9px; }
+}

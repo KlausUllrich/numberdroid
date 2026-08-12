@@ -1,0 +1,85 @@
+.destroyed-screen {
+  position: fixed;
+  z-index: 220;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 42%, #2d1b1b 0%, #0b0b0d 48%, #020507 100%);
+}
+
+.destroyed-card {
+  width: min(680px, 92vw);
+  max-height: 92vh;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px;
+  border: 1px solid #9d4b47;
+  border-radius: 16px;
+  background: #0b1216ee;
+  box-shadow: 0 28px 90px #000;
+  text-align: center;
+}
+
+.destroyed-card > small {
+  color: #ff7770;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.destroyed-card h1 {
+  margin: 0;
+  color: #ff8c84;
+  font-size: clamp(34px, 6vw, 58px);
+  letter-spacing: .04em;
+}
+
+.destroyed-card h2 {
+  margin: 0;
+  font-size: 27px;
+}
+
+.destroyed-card p {
+  margin: 0 0 8px;
+  color: #c5d3d1;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.destroyed-robot-frame {
+  width: min(300px, 48vh);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+
+.destroyed-robot-frame img {
+  width: 92%;
+  height: 92%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: grayscale(1) brightness(.56) contrast(1.12) drop-shadow(0 0 18px #8d9393);
+}
+
+.destroyed-card button {
+  min-width: 250px;
+  padding: 14px 22px;
+  border: 1px solid #e3b84e;
+  border-radius: 8px;
+  background: #b78b25;
+  color: #171000;
+  font-weight: 950;
+}
+
+@media (max-height: 520px) {
+  .destroyed-screen { padding: 8px; }
+  .destroyed-card { grid-template-columns: minmax(150px, 230px) 1fr; grid-template-rows: auto auto auto auto 1fr; column-gap: 18px; padding: 12px 18px; text-align: left; }
+  .destroyed-card > small,.destroyed-card h1,.destroyed-card h2,.destroyed-card p,.destroyed-card button { grid-column: 2; justify-self: stretch; }
+  .destroyed-card > small { grid-row: 1; }
+  .destroyed-card h1 { grid-row: 2; font-size: 30px; }
+  .destroyed-card h2 { grid-row: 3; font-size: 19px; }
+  .destroyed-card p { grid-row: 4; font-size: 12px; }
+  .destroyed-card button { grid-row: 5; align-self: end; padding: 9px; }
+  .destroyed-robot-frame { grid-column: 1; grid-row: 1 / 6; width: min(210px, 45vh); }
+}

@@ -1,0 +1,14 @@
+.zk-player {
+  transform: translate(-50%, -50%);
+}
+
+.zk-player img {
+  transform: rotate(var(--facing));
+  transform-origin: center;
+}
+
+.zk-player-name {
+  top: auto;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%);
+}

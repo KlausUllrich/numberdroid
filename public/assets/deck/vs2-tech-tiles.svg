@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="64" viewBox="0 0 256 64">
+  <defs>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#102b31"/>
+      <stop offset="1" stop-color="#08191e"/>
+    </linearGradient>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#294049"/>
+      <stop offset="1" stop-color="#101b22"/>
+    </linearGradient>
+    <pattern id="hazard" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="16" fill="#d6aa36"/>
+      <rect x="8" width="8" height="16" fill="#252118"/>
+    </pattern>
+  </defs>
+
+  <!-- 1: base floor -->
+  <g transform="translate(0 0)">
+    <rect width="64" height="64" fill="url(#floor)"/>
+    <rect x="2" y="2" width="60" height="60" rx="4" fill="none" stroke="#1f4c53" stroke-width="2"/>
+    <path d="M32 4V60M4 32H60" stroke="#173940" stroke-width="1"/>
+    <circle cx="8" cy="8" r="1.5" fill="#4f777b"/><circle cx="56" cy="8" r="1.5" fill="#4f777b"/>
+    <circle cx="8" cy="56" r="1.5" fill="#4f777b"/><circle cx="56" cy="56" r="1.5" fill="#4f777b"/>
+  </g>
+
+  <!-- 2: technical floor panel -->
+  <g transform="translate(64 0)">
+    <rect width="64" height="64" fill="#0b2329"/>
+    <rect x="3" y="3" width="58" height="58" rx="5" fill="none" stroke="#275b61" stroke-width="2"/>
+    <path d="M10 18H54M10 46H54M18 10V54M46 10V54" stroke="#183f46" stroke-width="2"/>
+    <rect x="24" y="24" width="16" height="16" rx="3" fill="#123941" stroke="#4d9da2"/>
+    <circle cx="32" cy="32" r="3" fill="#75d8cb"/>
+  </g>
+
+  <!-- 3: wall / solid machinery -->
+  <g transform="translate(128 0)">
+    <rect width="64" height="64" fill="url(#wall)"/>
+    <rect x="4" y="4" width="56" height="56" rx="5" fill="#17272e" stroke="#49626a" stroke-width="2"/>
+    <path d="M8 16H56M8 48H56" stroke="#0c151a" stroke-width="5"/>
+    <path d="M16 8V56M48 8V56" stroke="#314b54" stroke-width="3"/>
+    <circle cx="12" cy="12" r="3" fill="#65777d"/><circle cx="52" cy="52" r="3" fill="#65777d"/>
+  </g>
+
+  <!-- 4: hazard / energy marker -->
+  <g transform="translate(192 0)">
+    <rect width="64" height="64" fill="#111d22"/>
+    <rect x="4" y="4" width="56" height="56" rx="5" fill="url(#hazard)" opacity=".8"/>
+    <rect x="13" y="13" width="38" height="38" rx="6" fill="#08242a" stroke="#e0b740" stroke-width="3"/>
+    <path d="M35 18 24 34h9l-4 13 12-18h-9z" fill="#ffe16f"/>
+  </g>
+</svg>

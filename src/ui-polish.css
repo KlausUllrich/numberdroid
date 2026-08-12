@@ -1,0 +1,422 @@
+/* Focused cross-screen UI polish. Keep gameplay/state logic out of this file. */
+
+/* Number duel: reserve the contextual cancel-button footprint so the board
+   never resizes when a special action is armed. */
+.duel-screen .special-actions {
+  align-items: center;
+}
+
+.duel-screen .special-actions::after {
+  content: "ABBRECHEN";
+  visibility: hidden;
+  pointer-events: none;
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: normal;
+  white-space: nowrap;
+}
+
+.duel-screen .special-actions:has(> button:nth-child(4))::after {
+  display: none;
+}
+
+/* KRONOS: keep both protection layers visible as thin, unlabeled orange bars.
+   Existing state classes and break timing remain authoritative. */
+.boss-firewalls {
+  min-height: 22px;
+  display: grid;
+  align-items: center;
+}
+
+.boss-firewall-stack {
+  align-items: center;
+  gap: 8px;
+}
+
+.boss-firewall {
+  display: block;
+  height: 12px;
+  min-height: 12px;
+  padding: 0;
+  border: 1px solid #dd9228;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6b3a0b, #d9861f 22%, #f0a330 50%, #d9861f 78%, #6b3a0b);
+  box-shadow: inset 0 0 7px #ffd37a32, 0 0 7px #de8c2744;
+}
+
+.boss-firewall > * {
+  display: none !important;
+}
+
+.boss-firewall.armed {
+  opacity: .86;
+}
+
+.boss-firewall.current {
+  border-color: #ffb63f;
+  background: linear-gradient(90deg, #75400c, #e39424 20%, #ffb13b 50%, #e39424 80%, #75400c);
+  box-shadow: inset 0 0 8px #ffe1a044, 0 0 10px #f2a12d68;
+}
+
+.boss-firewall.broken {
+  border-color: #514535;
+  background: linear-gradient(90deg, #17130e, #33291c 45%, #1a1510);
+  box-shadow: inset 0 0 8px #000b;
+  opacity: .62;
+}
+
+.boss-firewall.broken::before,
+.boss-firewall.broken::after {
+  left: 40%;
+  top: -5px;
+  width: 2px;
+  height: 22px;
+  background: #c59a5868;
+  transform: rotate(62deg);
+}
+
+.boss-firewall.broken::after {
+  left: 64%;
+  top: -4px;
+  height: 20px;
+  transform: rotate(-58deg);
+}
+
+.firewall-break-flash {
+  inset: -8px;
+  border: 0;
+  border-radius: 999px;
+  background: radial-gradient(ellipse at center, #fff4bdcc 0 4%, #ffb3389c 12%, #e45e174f 28%, transparent 64%);
+  color: transparent;
+  font-size: 0;
+  text-shadow: none;
+  animation: firewall-break-visual 1050ms ease-out both;
+}
+
+@keyframes firewall-break-visual {
+  0%, 8% { opacity: 0; transform: scaleX(.72) scaleY(.55); }
+  18% { opacity: 1; transform: scaleX(1.02) scaleY(1); }
+  55% { opacity: .68; }
+  100% { opacity: 0; transform: scaleX(1.1) scaleY(1.45); }
+}
+
+/* Transfer: phase/status copy keeps fixed vertical slots. The optional access
+   reward is taken out of normal flow so its arrival cannot move the protocol. */
+.zk-transfer-progress {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-bottom: 96px;
+}
+
+.zk-transfer-progress h2 {
+  display: grid;
+  place-items: center;
+  min-height: 58px;
+  margin: 4px 0 8px;
+}
+
+.zk-transfer-status {
+  display: grid;
+  place-items: center;
+  min-height: 42px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.zk-transfer-access-acquired {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 16px;
+  margin-top: 0;
+}
+
+/* Duel enrichment: KRONOS firewall reactor, exposed core, charge meter,
+   enemy thought beats and fast pilot hand-off animation. */
+.duel-screen .reactor-panel-clean.firewall-phase .core-row.firewall-segments {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.duel-screen .reactor-panel-clean.firewall-phase .core-row.firewall-segments i {
+  min-height: 56px;
+  border: 1px solid #b97829;
+  border-radius: 9px;
+  box-shadow: inset 0 0 12px #e9972730, 0 0 8px #d9821f24;
+}
+
+.duel-screen .reactor-panel-clean.firewall-phase .core-row.firewall-segments i.team {
+  border-color: #69d8a4;
+}
+
+.duel-screen .reactor-panel-clean.firewall-phase .core-row.firewall-segments i.enemy {
+  border-color: #df6d57;
+}
+
+.duel-screen .boss-core-exposed .reactor-target {
+  border-color: #d55a45;
+  background: radial-gradient(circle at 50% 40%, #4b1f16, #25100c 72%);
+  box-shadow: inset 0 0 24px #ff6d3b1d, 0 0 17px #dc5a3a35;
+}
+
+.duel-screen .boss-core-exposed .reactor-target > small,
+.duel-screen .boss-core-exposed .reactor-target-equation span {
+  color: #ff9a6c;
+}
+
+.duel-screen .boss-core-exposed .reactor-target-equation strong {
+  color: #ffe0c7;
+}
+
+.duel-screen .boss-core-exposed .core-row {
+  filter: drop-shadow(0 0 9px #e85b3940);
+}
+
+.chain-charge {
+  display: grid;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid #355f5b;
+  border-radius: 8px;
+  background: #071b20;
+}
+
+.chain-charge-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chain-charge-head small {
+  color: #8fb5af;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+
+.chain-charge-head strong {
+  color: #8fb5af;
+  font-size: 13px;
+  letter-spacing: .04em;
+  text-align: right;
+}
+
+.chain-charge-track {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  height: 12px;
+}
+
+.chain-charge-track i {
+  display: block;
+  border: 1px solid #294943;
+  border-radius: 999px;
+  background: #0a2628;
+  box-shadow: inset 0 0 5px #0008;
+  transition: transform 130ms ease, background 130ms ease, box-shadow 130ms ease, border-color 130ms ease;
+}
+
+.chain-charge-track i.filled {
+  transform: scaleY(1.12);
+  border-color: #54c5ad;
+  background: #23866f;
+  box-shadow: 0 0 7px #3fe3bb55;
+}
+
+.chain-charge.tier-one .chain-charge-head strong { color: #78e7c4; }
+.chain-charge.tier-two .chain-charge-head strong { color: #a6ef8c; }
+.chain-charge.tier-four .chain-charge-head strong { color: #f0d66c; }
+.chain-charge.tier-instant {
+  border-color: #e3a43e;
+  background: #2b210c;
+  box-shadow: inset 0 0 16px #ffbd3b1f, 0 0 10px #d68d2730;
+}
+.chain-charge.tier-instant .chain-charge-head strong { color: #ffde70; }
+.chain-charge.tier-instant .chain-charge-track i.filled {
+  border-color: #f5bd4b;
+  background: #c68622;
+  box-shadow: 0 0 10px #ffbf3f77;
+}
+
+.duel-screen .active-robot {
+  position: relative;
+  overflow: hidden;
+}
+
+.duel-screen .active-robot.enemy.enemy-thinking::after,
+.duel-screen .active-robot.enemy.enemy-confused::after {
+  position: absolute;
+  right: 11%;
+  top: 17%;
+  display: grid;
+  place-items: center;
+  min-width: 48px;
+  min-height: 38px;
+  padding: 4px 9px;
+  border: 1px solid #d0554e;
+  border-radius: 18px 18px 18px 4px;
+  background: #19090be8;
+  color: #ffada5;
+  font-size: 25px;
+  font-weight: 950;
+  box-shadow: 0 0 13px #ed46383d;
+  pointer-events: none;
+}
+
+.duel-screen .active-robot.enemy.enemy-thinking::after {
+  content: "…";
+  animation: enemy-thought-pulse 720ms ease-in-out infinite alternate;
+}
+
+.duel-screen .active-robot.enemy.enemy-confused::after {
+  content: "?!";
+  animation: enemy-confused-pop 420ms cubic-bezier(.2,.9,.25,1) both;
+}
+
+.duel-screen .active-robot.enemy.enemy-thinking img {
+  animation: enemy-thinking-bob 760ms ease-in-out infinite alternate;
+}
+
+.duel-screen .active-robot.enemy.enemy-confused img {
+  animation: enemy-confused-shake 520ms ease-in-out 2;
+}
+
+.duel-screen .active-robot.player.pilot-exit img,
+.duel-screen .active-robot.player.pilot-exit b,
+.duel-screen .active-robot.player.pilot-exit small,
+.duel-screen .active-robot.player.pilot-exit span {
+  animation: pilot-slide-out 230ms ease-in both;
+}
+
+.duel-screen .active-robot.player.pilot-enter img,
+.duel-screen .active-robot.player.pilot-enter b,
+.duel-screen .active-robot.player.pilot-enter small,
+.duel-screen .active-robot.player.pilot-enter span {
+  animation: pilot-slide-in 290ms cubic-bezier(.18,.82,.28,1) both;
+}
+
+@keyframes enemy-thought-pulse {
+  from { transform: scale(.88); opacity: .72; }
+  to { transform: scale(1.06); opacity: 1; }
+}
+
+@keyframes enemy-thinking-bob {
+  from { transform: translateY(0) rotate(-.6deg); }
+  to { transform: translateY(-5px) rotate(.7deg); }
+}
+
+@keyframes enemy-confused-pop {
+  from { transform: scale(.5) rotate(-12deg); opacity: 0; }
+  to { transform: scale(1) rotate(3deg); opacity: 1; }
+}
+
+@keyframes enemy-confused-shake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25% { transform: translateX(-5px) rotate(-1deg); }
+  70% { transform: translateX(5px) rotate(1deg); }
+}
+
+@keyframes pilot-slide-out {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-70%); opacity: 0; }
+}
+
+@keyframes pilot-slide-in {
+  from { transform: translateX(-70%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@media (max-width: 900px), (max-height: 520px) {
+  .duel-screen .special-actions::after {
+    padding: 6px 7px;
+    font-size: 10px;
+  }
+
+  .boss-firewalls {
+    min-height: 14px;
+  }
+
+  .boss-firewall-stack {
+    gap: 4px;
+  }
+
+  .boss-firewall {
+    height: 8px;
+    min-height: 8px;
+  }
+
+  .zk-transfer-progress {
+    padding-bottom: 62px;
+  }
+
+  .zk-transfer-progress h2 {
+    min-height: 38px;
+    margin: 2px 0 5px;
+  }
+
+  .zk-transfer-status {
+    min-height: 30px;
+  }
+
+  .zk-transfer-access-acquired {
+    left: 8px;
+    right: 8px;
+    bottom: 6px;
+  }
+
+  .duel-screen .reactor-panel-clean.firewall-phase .core-row.firewall-segments {
+    gap: 5px;
+  }
+
+  .duel-screen .reactor-panel-clean.firewall-phase .core-row.firewall-segments i {
+    min-height: 29px;
+    border-radius: 6px;
+  }
+
+  .chain-charge {
+    gap: 4px;
+    padding: 5px 6px;
+  }
+
+  .chain-charge-head small { font-size: 6px; }
+  .chain-charge-head strong { font-size: 8px; }
+  .chain-charge-track { gap: 3px; height: 7px; }
+
+  .duel-screen .active-robot.enemy.enemy-thinking::after,
+  .duel-screen .active-robot.enemy.enemy-confused::after {
+    right: 5%;
+    top: 13%;
+    min-width: 30px;
+    min-height: 24px;
+    padding: 2px 5px;
+    font-size: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .firewall-break-flash,
+  .duel-screen .active-robot.enemy.enemy-thinking::after,
+  .duel-screen .active-robot.enemy.enemy-confused::after,
+  .duel-screen .active-robot.enemy.enemy-thinking img,
+  .duel-screen .active-robot.enemy.enemy-confused img,
+  .duel-screen .active-robot.player.pilot-exit img,
+  .duel-screen .active-robot.player.pilot-exit b,
+  .duel-screen .active-robot.player.pilot-exit small,
+  .duel-screen .active-robot.player.pilot-exit span,
+  .duel-screen .active-robot.player.pilot-enter img,
+  .duel-screen .active-robot.player.pilot-enter b,
+  .duel-screen .active-robot.player.pilot-enter small,
+  .duel-screen .active-robot.player.pilot-enter span {
+    animation-duration: 1ms;
+  }
+}

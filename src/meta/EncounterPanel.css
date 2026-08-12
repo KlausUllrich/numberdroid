@@ -1,0 +1,251 @@
+.zk-encounter {
+  width: min(980px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.zk-encounter.large .zk-encounter-robot img {
+  width: 190px;
+}
+
+.zk-encounter-robot {
+  align-content: center;
+  gap: 12px;
+  min-width: 220px;
+}
+
+.zk-encounter-robot > span {
+  color: #dcae55;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.zk-encounter-role {
+  margin: -7px 0 12px;
+}
+
+.zk-encounter-role b,
+.zk-encounter-role span {
+  display: block;
+}
+
+.zk-encounter-role b {
+  color: #e8c664;
+  font-size: 14px;
+  letter-spacing: .06em;
+}
+
+.zk-encounter-role span {
+  margin-top: 4px;
+  color: #b9ceca;
+  line-height: 1.35;
+}
+
+.zk-encounter-row.scan-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.zk-encounter-capability,
+.zk-encounter-access,
+.zk-encounter-boss-protocol,
+.zk-encounter-neutral-protocol {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #35625f;
+  background: #092329;
+}
+
+.zk-encounter-capability > span,
+.zk-encounter-boss-protocol > span,
+.zk-encounter-neutral-protocol > span,
+.zk-encounter-access > div:last-child > span {
+  display: block;
+  color: #83a9a5;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.zk-encounter-capability > b,
+.zk-encounter-boss-protocol > b,
+.zk-encounter-neutral-protocol > b,
+.zk-encounter-access > div:last-child > b {
+  display: block;
+  margin-top: 3px;
+  font-size: 16px;
+}
+
+.zk-encounter-capability p,
+.zk-encounter-boss-protocol p,
+.zk-encounter-neutral-protocol p,
+.zk-encounter-access p {
+  margin: 4px 0 0;
+  color: #b7cbc7;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.zk-encounter-access {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 13px;
+  align-items: center;
+  border-color: #3b7fc9;
+  background: linear-gradient(110deg, #0a2444, #081d2e 68%);
+  box-shadow: inset 0 0 22px #2477bf17;
+}
+
+.zk-encounter-access > div:last-child > b {
+  color: #8fcaff;
+}
+
+.zk-encounter-keycard {
+  position: relative;
+  width: 64px;
+  height: 42px;
+  border: 2px solid #77bfff;
+  border-radius: 6px;
+  background: linear-gradient(145deg, #1d69a7, #082b4d 62%, #071725);
+  box-shadow: 0 0 16px #42a8ff55, inset 0 0 0 1px #b4ddff2e;
+  overflow: hidden;
+}
+
+.zk-encounter-keycard::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 7px;
+  height: 2px;
+  background: #71bcff77;
+  box-shadow: 0 -5px 0 #71bcff33;
+}
+
+.zk-encounter-keycard .chip {
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  width: 15px;
+  height: 11px;
+  border: 1px solid #ffe39a;
+  border-radius: 2px;
+  background: #cda640;
+}
+
+.zk-encounter-keycard > b,
+.zk-encounter-keycard > span {
+  position: absolute;
+  left: 7px;
+  color: #d8eeff;
+  font-weight: 950;
+  letter-spacing: .08em;
+}
+
+.zk-encounter-keycard > b { top: 6px; font-size: 10px; }
+.zk-encounter-keycard > span { top: 18px; font-size: 6px; }
+
+.zk-encounter-boss-protocol {
+  border-color: #c48e31;
+  background: #2c210e;
+}
+
+.zk-encounter-boss-protocol > b {
+  color: #ffd36b;
+}
+
+.zk-encounter-neutral-protocol {
+  border-color: #4c817b;
+  background: linear-gradient(110deg, #0a2724, #081c1b 72%);
+}
+
+.zk-encounter-neutral-protocol > b {
+  color: #9bd8cf;
+}
+
+.zk-encounter.neutral {
+  border-color: #4e9189;
+  box-shadow: 0 0 30px #3a8f8240;
+}
+
+.zk-encounter.neutral .zk-encounter-robot {
+  border-color: #3b716b;
+  background: #09221f;
+}
+
+.zk-encounter.neutral .zk-encounter-robot img {
+  filter: drop-shadow(0 0 16px #58b9ad) saturate(.82);
+}
+
+.zk-encounter.neutral .zk-encounter-robot > span,
+.zk-encounter.neutral .zk-encounter-info > small,
+.zk-encounter.neutral .zk-encounter-role b {
+  color: #8dc9c0;
+}
+
+.zk-encounter.neutral .zk-encounter-actions .attack {
+  border-color: #65b7ab;
+  background: #174b45;
+}
+
+@media (max-width: 900px), (max-height: 520px) {
+  .zk-encounter {
+    width: 96vw;
+    max-height: 94vh;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .zk-encounter-robot {
+    width: 150px;
+    min-width: 150px;
+  }
+
+  .zk-encounter-robot img,
+  .zk-encounter.large .zk-encounter-robot img {
+    width: 110px;
+  }
+
+  .zk-encounter-info h2 {
+    margin-bottom: 9px;
+    font-size: 25px;
+  }
+
+  .zk-encounter-row.scan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .zk-encounter-capability,
+  .zk-encounter-access,
+  .zk-encounter-boss-protocol,
+  .zk-encounter-neutral-protocol {
+    padding: 7px 9px;
+  }
+
+  .zk-encounter-access {
+    grid-template-columns: 54px 1fr;
+    gap: 9px;
+  }
+
+  .zk-encounter-keycard {
+    width: 48px;
+    height: 32px;
+  }
+
+  .zk-encounter-keycard .chip {
+    right: 5px;
+    top: 5px;
+    width: 11px;
+    height: 8px;
+  }
+
+  .zk-encounter-keycard > b { left: 5px; top: 4px; font-size: 8px; }
+  .zk-encounter-keycard > span { left: 5px; top: 14px; font-size: 5px; }
+
+  .zk-encounter-capability p,
+  .zk-encounter-access p,
+  .zk-encounter-boss-protocol p,
+  .zk-encounter-neutral-protocol p,
+  .zk-encounter-role span {
+    font-size: 11px;
+  }
+}
