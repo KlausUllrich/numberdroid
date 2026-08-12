@@ -4,6 +4,7 @@ import type { BodyId, EnemyId, FloorDefinition, MetaState, Rect, RobotDeckSize }
 
 const META_KEY_V3 = "numberdroid-meta-v3";
 const META_KEY_V2 = "numberdroid-meta-v2";
+const PROFILE_META_PREFIX = "numberdroid-meta-v3-profile:";
 const LEGACY_META_KEY = "zahlenkern-meta-v1";
 const LEGACY_DUEL_KEY = "zahlenkern-save-v6";
 
@@ -129,8 +130,6 @@ function sanitize(candidate: Partial<MetaState>): MetaState {
     ? [...new Set(state.accessKeyIds.filter((id) => typeof id === "string" && validAccessKeyIds.has(id)))]
     : [];
 
-  // Compatibility with the first VS2 keycard prototype: a previously collected physical
-  // pickup still grants its logical access key after keys move onto Security robots.
   for (const pickupId of state.collectedPickupIds) {
     const pickup = floor.pickups.find((entry) => entry.id === pickupId);
     if (pickup && !state.accessKeyIds.includes(pickup.keyId)) state.accessKeyIds.push(pickup.keyId);
@@ -225,5 +224,33 @@ export function loadMetaState(): MetaState {
 export function saveMetaState(state: MetaState) {
   try {
     localStorage.setItem(META_KEY_V3, JSON.stringify(state));
+  } catch { /* storage may be unavailable in private/sandboxed contexts */ }
+}
+
+function profileMetaKey(profileId: string) {
+  return `${PROFILE_META_PREFIX}${profileId}`;
+}
+
+export function loadProfileMetaState(profileId: string, migrateLegacy = false): MetaState | null {
+  try {
+    const raw = localStorage.getItem(profileMetaKey(profileId));
+    if (raw) return sanitize(JSON.parse(raw));
+  } catch { /* ignore damaged profile run */ }
+
+  if (!migrateLegacy) return null;
+  const legacy = loadMetaState();
+  saveProfileMetaState(profileId, legacy);
+  return legacy;
+}
+
+export function saveProfileMetaState(profileId: string, state: MetaState) {
+  try {
+    localStorage.setItem(profileMetaKey(profileId), JSON.stringify(sanitize(state)));
+  } catch { /* storage may be unavailable in private/sandboxed contexts */ }
+}
+
+export function clearProfileMetaState(profileId: string) {
+  try {
+    localStorage.removeItem(profileMetaKey(profileId));
   } catch { /* storage may be unavailable in private/sandboxed contexts */ }
 }
