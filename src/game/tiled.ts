@@ -391,6 +391,11 @@ function parseEncounters(map: TiledMapJson): EncounterConfig[] {
         loseRadius,
         patrolSpeed: Math.max(24, optionalNumber(object.properties, "patrolSpeed", behaviorKind === "patrol" ? 72 : behaviorKind === "neutral" ? 54 : 24)),
         chaseSpeed: Math.max(40, optionalNumber(object.properties, "chaseSpeed", 128)),
+        chaseAcceleration: Math.max(20, optionalNumber(
+          object.properties,
+          "chaseAcceleration",
+          behaviorKind === "guard" ? 160 : behaviorKind === "aggressive" ? 220 : 120,
+        )),
         forcedEngagement: behaviorKind === "neutral" ? false : optionalBoolean(object.properties, "forcedEngagement", false),
         patrolPath,
       } : undefined,
