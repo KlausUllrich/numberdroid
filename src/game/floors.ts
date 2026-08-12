@@ -1,4 +1,5 @@
 import type { EnergyStationDefinition, FloorDefinition } from "./types";
+import { publicAsset } from "./assets";
 import { floorFromTiledMap } from "./tiled";
 import { DECK_VS2_MAP } from "./maps/deckVs2";
 
@@ -20,7 +21,7 @@ export const DECK_A7: FloorDefinition = {
   height: 1000,
   visual: {
     kind: "image",
-    asset: "/assets/deck/deck-a7.webp",
+    asset: publicAsset("assets/deck/deck-a7.webp"),
   },
   start: {
     x: 800,
@@ -96,7 +97,7 @@ export const DECK_A7: FloorDefinition = {
   ],
 };
 
-export const DECK_VS2 = floorFromTiledMap(DECK_VS2_MAP);
+export const DECK_VS2 = floorFromTiledMap(DECK_VS2_MAP, { resolveAsset: publicAsset });
 
 export const FLOORS: Record<string, FloorDefinition> = {
   [DECK_A7.id]: DECK_A7,
