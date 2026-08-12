@@ -18,6 +18,17 @@ function behaviorCopy(encounter: EncounterConfig) {
   }
 }
 
+function mathRoleCopy(encounter: EncounterConfig) {
+  switch (encounter.mathRole) {
+    case "comfort": return "KOMFORT · FLÜSSIG";
+    case "core": return "KERNÜBUNG";
+    case "stretch": return "ANSPRUCHSVOLL";
+    case "specialist": return "SPEZIALIST";
+    case "boss": return "BOSS-PROTOKOLL";
+    default: return encounter.difficulty === "easy" ? "KOMFORT · FLÜSSIG" : encounter.difficulty === "medium" ? "KERNÜBUNG" : "ANSPRUCHSVOLL";
+  }
+}
+
 export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
   const body = BODIES[encounter.bodyId];
   const deckSize = encounter.deckSize ?? "standard";
@@ -41,6 +52,7 @@ export function EncounterPanel({ encounter, onCancel, onStart }: Props) {
 
           <div className="zk-encounter-row scan-grid">
             <div className="zk-encounter-chip"><span>RECHENPROTOKOLL</span><b>{encounter.mathLabel}</b></div>
+            <div className="zk-encounter-chip"><span>RECHENROLLE</span><b>{mathRoleCopy(encounter)}</b></div>
             <div className="zk-encounter-chip"><span>KI-STÄRKE</span><b>{encounter.difficultyLabel}</b></div>
             <div className="zk-encounter-chip"><span>GRÖSSENKLASSE</span><b>{deckSize === "large" ? "GROSS · SCHWER" : "STANDARD"}</b></div>
             <div className="zk-encounter-chip"><span>FAHRWERK</span><b>{drive.label}</b></div>
