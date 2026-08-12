@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { BODIES, STARTING_HP } from "./game/catalog";
 import { FIRST_CAMPAIGN_DECK_ID, floorGoalCompleted, getCampaignDeck, getNextCampaignDeck, type CampaignDeck } from "./game/campaign";
+import { retreatAfterDuelLoss } from "./game/duelLoss";
 import { getFloor, getPreviewFloorId } from "./game/floors";
 import { encounterWithProfileDifficulty } from "./game/mathProgression";
 import {
@@ -230,8 +231,9 @@ export default function App() {
       return;
     }
 
-    const damageTaken = Math.min(STARTING_HP, energyState.damageTaken + 1);
     const failedFloor = getFloor(meta.floorId);
+    const retreated = retreatAfterDuelLoss(energyState, failedFloor);
+    const damageTaken = retreated.damageTaken;
 
     if (damageTaken >= STARTING_HP && !previewFloorId) {
       const fresh = createFloorState(failedFloor, meta.playerCount);
@@ -249,15 +251,12 @@ export default function App() {
       return;
     }
 
-    const restarted = rotatePilot({
-      ...createFloorState(failedFloor, meta.playerCount),
-      damageTaken,
-    });
+    const restarted = rotatePilot(retreated);
     if (!previewFloorId) saveProfileMetaState(profile.id, restarted);
     setMeta(restarted);
     setEncounter(null);
     setTransfer(null);
-    setHubNotice(`KAMPF VERLOREN · DECK NEUGESTARTET · ${Math.max(0, STARTING_HP - damageTaken)} HP ÜBRIG`);
+    setHubNotice(`KAMPF VERLOREN · ZURÜCK ZUM LEVELSTART · ${Math.max(0, STARTING_HP - damageTaken)} HP ÜBRIG`);
     setScreen(damageTaken >= STARTING_HP ? "destroyed" : "deck");
   }
 
