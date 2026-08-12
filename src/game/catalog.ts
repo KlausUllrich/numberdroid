@@ -1,4 +1,5 @@
 import type { BodyId, MathMode, RobotBody, RobotDeckSize } from "./types";
+import { publicAsset } from "./assets";
 
 export const PLAYER_NAMES = ["Finn", "Klaus", "Ines", "Gast"] as const;
 export const MAX_META_ENERGY = 3;
@@ -24,7 +25,7 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     abilityLabel: "KEINE KÖRPERFÄHIGKEIT",
     abilityDescription: "PICO besitzt noch keine aktive Manipulationsfähigkeit für das Zahlenfeld.",
     drive: { label: "AUSGEWOGEN", maxSpeed: 205, acceleration: 900, deceleration: 1250, turnSpeed: 720 },
-    sprite: "/assets/robots/pico.png",
+    sprite: publicAsset("assets/robots/pico.png"),
   },
   sentry: {
     id: "sentry",
@@ -36,7 +37,7 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     abilityLabel: "KEINE AKTIVE FELDFÄHIGKEIT",
     abilityDescription: "Sein Vorteil liegt bisher im schnellen Deck-Fahrwerk und in seiner Security-Rolle.",
     drive: { label: "SCHNELL · WENDIG", maxSpeed: 250, acceleration: 1200, deceleration: 1450, turnSpeed: 920 },
-    sprite: "/assets/robots/sentry.png",
+    sprite: publicAsset("assets/robots/sentry.png"),
   },
   magnetar: {
     id: "magnetar",
@@ -48,7 +49,7 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     abilityLabel: "REIHENSCHUB →",
     abilityDescription: "Einmal pro Duell darf eine gewählte Zahlenreihe um ein Feld nach rechts verschoben werden.",
     drive: { label: "STABIL · MITTEL", maxSpeed: 195, acceleration: 760, deceleration: 980, turnSpeed: 560 },
-    sprite: "/assets/robots/magnetar.png",
+    sprite: publicAsset("assets/robots/magnetar.png"),
   },
   kronos: {
     id: "kronos",
@@ -60,7 +61,7 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     abilityLabel: "FÄHIGKEIT NOCH NICHT FESTGELEGT",
     abilityDescription: "KRONOS soll später eine besonders starke Körperfähigkeit erhalten; die konkrete Mechanik ist noch offen.",
     drive: { label: "LANGSAM · MASSIV", maxSpeed: 165, acceleration: 520, deceleration: 680, turnSpeed: 360 },
-    sprite: "/assets/robots/kronos.png",
+    sprite: publicAsset("assets/robots/kronos.png"),
   },
 };
 
