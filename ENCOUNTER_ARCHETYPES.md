@@ -1,6 +1,6 @@
 # Numberdroid — Encounter Archetypes
 
-This document extends `CODEX_HANDOFF.md` with the current deck-robot encounter design. Treat it as binding design context together with the handoff until these rules are folded back into a later consolidated handover.
+This document extends `CODEX_HANDOFF.md` with the current deck-robot encounter design. Treat it as binding design context together with `CAMPAIGN_PROGRESSION.md`, `LEARNING_PROFILES.md`, and the development plan until these rules are folded into a later consolidated handover.
 
 ## Core principle
 
@@ -8,26 +8,72 @@ Not every robot on a deck is an enemy. Robot behavior should make the ship feel 
 
 Physical robot bodies matter on the deck. The player should not simply drive through another robot.
 
-### Binding collision rule
+## Binding collision rule
 
 **Physical robot collision always opens the scan screen.** This applies to neutral workers, guards, patrols, hunters and legacy/static robots alike.
 
-Detection/trigger ranges are therefore never encounter ranges. They only govern whether and how another robot reacts before contact. The actual scan starts when the physical robot bodies collide.
+Detection/trigger ranges are never encounter ranges. They only govern whether and how another robot reacts before contact. The actual scan starts when the physical robot bodies collide.
 
-A neutral robot still does not initiate aggression: the player can simply drive around it. But deliberately or accidentally bumping into it opens the normal neutral scan and still allows `IN RUHE LASSEN`.
+A neutral robot still does not initiate aggression: the player can simply drive around it. Deliberately or accidentally bumping into it opens the normal neutral scan and still allows `IN RUHE LASSEN`.
 
-### Future perception / line-of-sight rule
+## Implemented perception / line of sight
 
-Range alone is not sufficient for believable robot reactions. The intended next evolution of deck AI is **direct line of sight**:
+Direct line of sight is now part of the reusable deck runtime for guards and aggressive/hunter robots.
 
-- a guard or hunter should not detect the player through walls, closed doors, large machinery or other opaque room geometry,
-- detection requires both authored range and an unobstructed sight line,
-- opening/closing a door can therefore reveal or hide the player,
-- different robot types may later get different view angles / fields of view,
-- losing visual contact may start a short investigation/search state before the robot gives up,
-- sight tests belong in reusable deck-runtime geometry code, not per-room JSX hacks.
+Detection requires:
+- the player to be inside the authored/scaled detection range,
+- the player to be inside the authored field of view when a restricted `viewAngle` is used,
+- an unobstructed line through walkable deck space.
 
-This line-of-sight system is a design requirement but is **not implemented yet**. Until then, authored detection/leash radii remain the approximation.
+Current sight blockers:
+- leaving authored walkable geometry / crossing wall gaps,
+- authored obstacles / opaque machinery geometry,
+- closed doors.
+
+An open door restores sight through that doorway.
+
+Perception properties are Floor/Tiled-authorable:
+- `facing` on the encounter for its idle/home orientation,
+- `viewAngle` on behavior (`360` default for compatibility),
+- `searchDurationMs`,
+- existing `detectionRadius`, `loseRadius`, `chaseSpeed`, and `chaseAcceleration`.
+
+This means old B2 content remains behavior-compatible by default while future authored robots can receive narrower view cones.
+
+### Lost sight / investigation
+
+Guards and hunters remember the player's last visible position.
+
+When visual contact is lost:
+1. the robot enters a visible investigation/search state (`?`),
+2. it moves toward the last seen position for its authored `searchDurationMs`,
+3. reacquiring sight immediately resumes normal pursuit,
+4. after search timeout a guard returns to its post and a hunter gives up,
+5. a guard still gives up immediately if the player leaves its authored leash/protection radius.
+
+Runtime visual states are therefore roughly:
+
+```text
+!  player detected / pursuit
+?  sight lost / investigating last seen position
+↩  guard returning to home post
+```
+
+Sight is deliberately independent from the collision rule: even a robot that did not see the player will open the scan if the physical bodies collide.
+
+Sight tests live in reusable geometry code (`src/game/perception.ts`), not per-room JSX.
+
+## Tactical challenge interaction
+
+`ENTDECKER`, `STANDARD`, and `HERAUSFORDERUNG` may scale guard/hunter pressure without changing the collision rule or robot archetype.
+
+Current direction:
+- `STANDARD` preserves authored behavior exactly,
+- `ENTDECKER` reduces detection/chase pressure and acceleration,
+- `HERAUSFORDERUNG` increases detection/leash/chase pressure,
+- neutral workers and base patrols are not converted into hunters by tactical difficulty.
+
+Line of sight still applies in every tactical profile.
 
 ## Neutral work robots
 
@@ -64,19 +110,20 @@ The reward is intentionally not defined yet. Do not add a generic bonus without 
 A guard owns an authored home/post position and a limited protection area.
 
 Binding behavior:
-1. guard waits at its post,
-2. player enters guard trigger range (and, once implemented, is actually visible),
+1. guard waits at its post/home orientation,
+2. player enters detection range **and is actually visible**,
 3. guard visibly leaves its post and accelerates toward the player,
 4. encounter scan opens only when the physical robot bodies make contact,
-5. if the player escapes beyond the guard's leash/protection radius, the guard stops pursuit,
-6. guard visibly returns to its authored post,
-7. after returning it resumes guard duty.
+5. if visual contact is lost, the guard briefly investigates the last seen position,
+6. if the player is not reacquired, or leaves the leash/protection radius, pursuit ends,
+7. guard visibly returns to its authored post,
+8. after returning it resumes guard duty and its authored idle facing.
 
-The trigger radius is therefore **not** the encounter radius. It only starts the chase.
+The trigger radius is therefore **not** the encounter radius. It only allows visual detection to start the chase.
 
-Guards should not jump immediately to maximum pursuit velocity. They need authored acceleration so the player has a readable reaction window and can make an actual escape decision.
+Guards should not jump immediately to maximum pursuit velocity. They use authored acceleration so the player has a readable reaction window and can make an actual escape decision.
 
-If the scan allows retreat and the player closes it, the guard may continue pursuing until the player actually escapes the leash area.
+If the scan allows retreat and the player closes it, the guard may continue pursuing until the player escapes sight/search/leash conditions.
 
 ## Patrol robots
 
@@ -86,22 +133,24 @@ Binding behavior:
 - route data belongs in floor content, not JSX,
 - movement stays in the local RAF runtime,
 - they remain physical bodies,
-- merely entering an old proximity radius must not teleport the player into a scan,
+- merely entering an old proximity radius must not open a scan,
 - encounter begins on physical contact,
-- future patrol variants may investigate or chase, but that is not implicit in the base patrol type.
+- base patrol does not automatically become a hunter,
+- later authored patrol variants may gain investigation/chase behavior, but that is a separate capability rather than implicit in `patrol`.
 
 ## Aggressive / hunter robots
 
 Aggressive robots actively detect and pursue the player.
 
 Binding behavior:
+- detection requires direct line of sight plus authored/scaled range,
 - detection visibly changes their state,
-- they chase in local RAF runtime,
+- they chase in the local RAF runtime,
 - pursuit accelerates rather than instantly snapping to maximum speed,
 - scan/combat begins on physical contact,
-- they can lose the player according to authored behavior/range,
-- `forcedEngagement` may remove the retreat option once contact has occurred,
-- future detection must respect direct line of sight.
+- loss of sight starts a short last-seen investigation when configured,
+- they give up according to authored search/range behavior,
+- `forcedEngagement` may remove the retreat option once physical contact has occurred.
 
 ## Treasure Golem / Beutedroide
 
