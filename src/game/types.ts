@@ -57,6 +57,8 @@ export type EncounterBehavior = {
   chaseAcceleration: number;
   forcedEngagement: boolean;
   patrolPath: Point[];
+  viewAngle: number;
+  searchDurationMs: number;
 };
 
 export type EncounterConfig = {
@@ -65,6 +67,7 @@ export type EncounterConfig = {
   name: string;
   x: number;
   y: number;
+  facing?: number;
   mode: MathMode;
   mathLabel: string;
   mathRole?: MathRole;
