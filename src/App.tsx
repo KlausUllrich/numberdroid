@@ -17,23 +17,31 @@ import {
   collectionWithUpdatedProfile,
   createPlayerProfile,
   loadPlayerProfiles,
+  profileWithAbandonedDeck,
   profileWithCompletedDeck,
   profileWithStartedDeck,
   savePlayerProfiles,
-  type PlayerProfile,
   type PlayerProfileCollection,
 } from "./game/playerProfile";
+import { loadAppSettings, saveAppSettings, type AppSettings } from "./game/appSettings";
 import { useAppFullscreen } from "./game/useFullscreen";
 import type { BattleResult, EncounterConfig, GameScreen, MetaState } from "./game/types";
 import { DestroyedScreen } from "./game/DestroyedScreen";
-import { CampaignScreen } from "./campaign/CampaignScreen";
 import { CampaignSuccessScreen } from "./campaign/CampaignSuccessScreen";
+import {
+  HubScreen,
+  IntroScreen,
+  ProfileWizardScreen,
+  SettingsScreen,
+  TitleScreen,
+  type NewProfileDraft,
+} from "./menu/MenuFlow";
 import { MetaGame } from "./meta/MetaGame";
 import { EncounterPanel } from "./meta/EncounterPanel";
 import { NumberDuel } from "./duel/NumberDuel";
 import { TransferScreen } from "./transfer/TransferScreen";
 
-type AppScreen = GameScreen | "campaign" | "success";
+type AppScreen = GameScreen | "intro" | "title" | "profile-create" | "settings" | "hub" | "success";
 
 function freshCampaignMeta(playerCount: number) {
   const firstDeck = getCampaignDeck(FIRST_CAMPAIGN_DECK_ID);
@@ -44,34 +52,49 @@ export default function App() {
   const previewFloorId = getPreviewFloorId();
   const [profileCollection, setProfileCollection] = useState<PlayerProfileCollection>(() => loadPlayerProfiles());
   const profile = activePlayerProfile(profileCollection);
+  const [settings, setSettings] = useState<AppSettings>(() => loadAppSettings());
   const [meta, setMeta] = useState<MetaState>(() => {
     const legacy = loadMetaState();
     if (previewFloorId) return createFloorState(getFloor(previewFloorId), legacy.playerCount);
-    return loadProfileMetaState(profile.id, profile.id === "player-1") ?? freshCampaignMeta(legacy.playerCount);
+    const initialProfile = activePlayerProfile(loadPlayerProfiles());
+    const hasStoredProfile = loadPlayerProfiles().profiles.some((entry) => entry.id === initialProfile.id);
+    return hasStoredProfile
+      ? loadProfileMetaState(initialProfile.id, initialProfile.id === "player-1") ?? freshCampaignMeta(legacy.playerCount)
+      : freshCampaignMeta(legacy.playerCount);
   });
   const [screen, setScreen] = useState<AppScreen>(() => {
-    if (!previewFloorId) return "campaign";
+    if (!previewFloorId) return "intro";
     return meta.damageTaken >= STARTING_HP ? "destroyed" : "deck";
   });
   const [encounter, setEncounter] = useState<EncounterConfig | null>(null);
   const [transfer, setTransfer] = useState<{ encounter: EncounterConfig; oldBodyId: MetaState["currentBody"] } | null>(null);
   const [completedCampaignDeckId, setCompletedCampaignDeckId] = useState<string | null>(null);
+  const [hubNotice, setHubNotice] = useState("");
   const fullscreen = useAppFullscreen();
 
   const updateMeta = useCallback((next: MetaState) => setMeta(next), []);
   const remainingHp = Math.max(0, STARTING_HP - meta.damageTaken);
+  const hasProfiles = profileCollection.profiles.length > 0;
+  const gameplayScreen = screen === "deck" || screen === "encounter" || screen === "duel" || screen === "transfer" || screen === "destroyed";
+  const showFullscreenGate = fullscreen.needsFullscreenPrompt && (previewFloorId !== null || gameplayScreen);
 
   useEffect(() => {
-    if (previewFloorId) return;
+    if (previewFloorId || !hasProfiles) return;
     const timer = window.setTimeout(() => saveProfileMetaState(profile.id, meta), 220);
     return () => window.clearTimeout(timer);
-  }, [meta, previewFloorId, profile.id]);
+  }, [meta, previewFloorId, profile.id, hasProfiles]);
 
   useEffect(() => {
     if (previewFloorId) return;
     const timer = window.setTimeout(() => savePlayerProfiles(profileCollection), 120);
     return () => window.clearTimeout(timer);
   }, [profileCollection, previewFloorId]);
+
+  useEffect(() => {
+    if (previewFloorId) return;
+    const timer = window.setTimeout(() => saveAppSettings(settings), 120);
+    return () => window.clearTimeout(timer);
+  }, [settings, previewFloorId]);
 
   useEffect(() => {
     if (previewFloorId || screen !== "deck" || !profile.currentCampaignDeckId) return;
@@ -83,30 +106,42 @@ export default function App() {
       const active = activePlayerProfile(current);
       return collectionWithUpdatedProfile(current, profileWithCompletedDeck(active, campaignDeck.id, nextDeck?.id));
     });
+    setHubNotice("");
     setCompletedCampaignDeckId(campaignDeck.id);
     setScreen("success");
   }, [meta, previewFloorId, profile.currentCampaignDeckId, screen]);
 
-  function updateActiveProfile(next: PlayerProfile) {
-    setProfileCollection((current) => collectionWithUpdatedProfile(current, next));
+  function loadProfileRun(profileId: string) {
+    return loadProfileMetaState(profileId, profileId === "player-1") ?? freshCampaignMeta(meta.playerCount);
   }
 
-  function selectProfile(profileId: string) {
-    if (profileId === profile.id) return;
-    saveProfileMetaState(profile.id, meta);
-    const selected = profileCollection.profiles.find((entry) => entry.id === profileId);
-    if (!selected) return;
-    const selectedRun = loadProfileMetaState(profileId);
+  function switchProfile(profileId: string, destination: "title" | "hub") {
+    if (!profileCollection.profiles.some((entry) => entry.id === profileId)) return;
+    if (hasProfiles) saveProfileMetaState(profile.id, meta);
+    const selectedRun = loadProfileRun(profileId);
     setProfileCollection((current) => collectionWithActiveProfile(current, profileId));
-    setMeta(selectedRun ?? freshCampaignMeta(meta.playerCount));
+    setMeta(selectedRun);
     setCompletedCampaignDeckId(null);
+    setHubNotice("");
     setEncounter(null);
     setTransfer(null);
-    setScreen("campaign");
+    setScreen(destination);
   }
 
-  function createProfile() {
-    saveProfileMetaState(profile.id, meta);
+  function cycleProfile() {
+    if (profileCollection.profiles.length < 2) return;
+    const index = profileCollection.profiles.findIndex((entry) => entry.id === profile.id);
+    const next = profileCollection.profiles[(index + 1 + profileCollection.profiles.length) % profileCollection.profiles.length];
+    switchProfile(next.id, "title");
+  }
+
+  function continueProfile() {
+    if (!hasProfiles) return;
+    switchProfile(profile.id, "hub");
+  }
+
+  function createProfile(draft: NewProfileDraft) {
+    if (hasProfiles) saveProfileMetaState(profile.id, meta);
     const usedIds = new Set(profileCollection.profiles.map((entry) => entry.id));
     let index = profileCollection.profiles.length + 1;
     let id = `player-${index}`;
@@ -114,13 +149,14 @@ export default function App() {
       index += 1;
       id = `player-${index}`;
     }
-    const nextProfile = createPlayerProfile(id, `SPIELER ${index}`);
+    const nextProfile = createPlayerProfile(id, draft.name, draft.audience, draft.mathStartId);
     setProfileCollection((current) => collectionWithNewProfile(current, nextProfile));
     setMeta(freshCampaignMeta(meta.playerCount));
     setCompletedCampaignDeckId(null);
+    setHubNotice("");
     setEncounter(null);
     setTransfer(null);
-    setScreen("campaign");
+    setScreen("hub");
   }
 
   function rotatePilot(state: MetaState) {
@@ -134,6 +170,7 @@ export default function App() {
     const storedRun = loadProfileMetaState(profile.id);
     const canResume = profile.currentCampaignDeckId === deck.id
       && storedRun?.floorId === deck.floorId
+      && storedRun.damageTaken < STARTING_HP
       && !floorGoalCompleted(storedRun, floor);
     const next = canResume ? storedRun : createFloorState(floor, meta.playerCount);
     setProfileCollection((current) => {
@@ -141,18 +178,29 @@ export default function App() {
       return collectionWithUpdatedProfile(current, profileWithStartedDeck(active, deck.id));
     });
     setCompletedCampaignDeckId(null);
+    setHubNotice("");
     setMeta(next);
     setEncounter(null);
     setTransfer(null);
-    setScreen(next.damageTaken >= STARTING_HP ? "destroyed" : "deck");
+    setScreen("deck");
   }
 
-  function returnToCampaign() {
-    if (!previewFloorId) saveProfileMetaState(profile.id, meta);
+  function returnToHub() {
+    if (!previewFloorId && hasProfiles) saveProfileMetaState(profile.id, meta);
     setEncounter(null);
     setTransfer(null);
     setCompletedCampaignDeckId(null);
-    setScreen("campaign");
+    setHubNotice("");
+    setScreen("hub");
+  }
+
+  function returnToTitle() {
+    if (hasProfiles) saveProfileMetaState(profile.id, meta);
+    setEncounter(null);
+    setTransfer(null);
+    setCompletedCampaignDeckId(null);
+    setHubNotice("");
+    setScreen("title");
   }
 
   function openEncounter(next: EncounterConfig) {
@@ -188,6 +236,24 @@ export default function App() {
       y: encounter.retreat.y,
       damageTaken,
     });
+
+    if (damageTaken >= STARTING_HP && !previewFloorId) {
+      const failedFloor = getFloor(meta.floorId);
+      const fresh = createFloorState(failedFloor, meta.playerCount);
+      saveProfileMetaState(profile.id, fresh);
+      setProfileCollection((current) => {
+        const active = activePlayerProfile(current);
+        return collectionWithUpdatedProfile(current, profileWithAbandonedDeck(active));
+      });
+      setMeta(fresh);
+      setEncounter(null);
+      setTransfer(null);
+      setCompletedCampaignDeckId(null);
+      setHubNotice("MISSION NICHT GESCHAFFT · DU BIST ZURÜCK IM HUB");
+      setScreen("hub");
+      return;
+    }
+
     setMeta(afterLoss);
     setEncounter(null);
     setScreen(damageTaken >= STARTING_HP ? "destroyed" : "deck");
@@ -225,12 +291,11 @@ export default function App() {
   }
 
   const completedCampaignDeck = completedCampaignDeckId ? getCampaignDeck(completedCampaignDeckId) : null;
-  const nextCampaignDeck = completedCampaignDeck ? getNextCampaignDeck(completedCampaignDeck.id) : null;
   const showDeck = screen === "deck" || screen === "encounter";
 
   return (
     <>
-      {fullscreen.needsFullscreenPrompt && (
+      {showFullscreenGate && (
         <div className="zk-app-start-gate">
           <section className="zk-app-start-card" role="dialog" aria-modal="true" aria-labelledby="app-start-title">
             <div className="zk-app-start-mark">ND</div>
@@ -244,31 +309,38 @@ export default function App() {
         </div>
       )}
 
-      <button
-        className="app-fullscreen-toggle"
-        aria-label={fullscreen.isFullscreen ? "Vollbildmodus verlassen" : "Vollbildmodus starten"}
-        onClick={fullscreen.isFullscreen ? fullscreen.exitFullscreen : fullscreen.enterFullscreen}
-      >
-        {fullscreen.isFullscreen ? "⛶×" : "⛶"}
-      </button>
+      {(previewFloorId || gameplayScreen) && (
+        <button
+          className="app-fullscreen-toggle"
+          aria-label={fullscreen.isFullscreen ? "Vollbildmodus verlassen" : "Vollbildmodus starten"}
+          onClick={fullscreen.isFullscreen ? fullscreen.exitFullscreen : fullscreen.enterFullscreen}
+        >
+          {fullscreen.isFullscreen ? "⛶×" : "⛶"}
+        </button>
+      )}
 
-      {!previewFloorId && screen === "campaign" && (
-        <CampaignScreen
-          profile={profile}
+      {!previewFloorId && screen === "intro" && <IntroScreen onContinue={() => setScreen("title")} />}
+      {!previewFloorId && screen === "title" && (
+        <TitleScreen
           profiles={profileCollection.profiles}
-          onProfileChange={updateActiveProfile}
-          onSelectProfile={selectProfile}
-          onCreateProfile={createProfile}
-          onStartDeck={startCampaignDeck}
+          activeProfile={profile}
+          onContinue={continueProfile}
+          onCycleProfile={cycleProfile}
+          onNewProfile={() => setScreen("profile-create")}
+          onSettings={() => setScreen("settings")}
         />
       )}
-
+      {!previewFloorId && screen === "profile-create" && <ProfileWizardScreen onComplete={createProfile} onCancel={() => setScreen("title")} />}
+      {!previewFloorId && screen === "settings" && <SettingsScreen settings={settings} onChange={setSettings} onBack={() => setScreen("title")} />}
+      {!previewFloorId && screen === "hub" && (
+        <HubScreen profile={profile} meta={meta} notice={hubNotice} onStartMission={startCampaignDeck} onMainMenu={returnToTitle} />
+      )}
       {!previewFloorId && screen === "success" && completedCampaignDeck && (
-        <CampaignSuccessScreen deck={completedCampaignDeck} nextDeck={nextCampaignDeck} onShip={returnToCampaign} onNext={startCampaignDeck} />
+        <CampaignSuccessScreen deck={completedCampaignDeck} onHub={() => { setCompletedCampaignDeckId(null); setScreen("hub"); }} />
       )}
 
-      {!previewFloorId && screen !== "campaign" && screen !== "success" && (
-        <button className="app-campaign-toggle" onClick={returnToCampaign}>← SCHIFF</button>
+      {!previewFloorId && gameplayScreen && screen !== "destroyed" && (
+        <button className="app-hub-toggle" onClick={returnToHub}>← HUB</button>
       )}
 
       {showDeck && (
@@ -301,7 +373,7 @@ export default function App() {
           onComplete={finishTransfer}
         />
       )}
-      {screen === "destroyed" && (
+      {screen === "destroyed" && previewFloorId && (
         <DestroyedScreen body={BODIES[meta.currentBody]} onRestart={restartFloor} />
       )}
     </>
