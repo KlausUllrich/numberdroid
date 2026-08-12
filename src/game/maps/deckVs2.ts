@@ -26,6 +26,7 @@ type EncounterBehaviorOptions = {
   loseRadius?: number;
   interceptRadius?: number;
   chaseSpeed?: number;
+  chaseAcceleration?: number;
   forcedEngagement?: boolean;
 };
 type EncounterOptions = {
@@ -264,6 +265,7 @@ function encounter(
         ...(behavior.loseRadius !== undefined ? [prop("loseRadius", behavior.loseRadius, "float")] : []),
         ...(behavior.patrolSpeed !== undefined ? [prop("patrolSpeed", behavior.patrolSpeed, "float")] : []),
         ...(behavior.chaseSpeed !== undefined ? [prop("chaseSpeed", behavior.chaseSpeed, "float")] : []),
+        ...(behavior.chaseAcceleration !== undefined ? [prop("chaseAcceleration", behavior.chaseAcceleration, "float")] : []),
         ...(behavior.forcedEngagement !== undefined ? [prop("forcedEngagement", behavior.forcedEngagement, "bool")] : []),
         ...(behavior.patrolPath?.length ? [prop("patrolPath", behavior.patrolPath.map(([px, py]) => `${px},${py}`).join(";"), "string")] : []),
       ] : []),
@@ -305,18 +307,37 @@ const neutral = (path: Array<[number, number]> = [], workSpeed = 54): EncounterB
   interceptRadius: 72,
   forcedEngagement: false,
 });
-const guard = (interceptRadius = 104): EncounterBehaviorOptions => ({ kind: "guard", interceptRadius });
+const guard = (
+  detectionRadius = 240,
+  loseRadius = 430,
+  chaseSpeed = 150,
+  chaseAcceleration = 160,
+): EncounterBehaviorOptions => ({
+  kind: "guard",
+  interceptRadius: 72,
+  detectionRadius,
+  loseRadius,
+  chaseSpeed,
+  chaseAcceleration,
+  forcedEngagement: false,
+});
 const patrol = (path: Array<[number, number]>, patrolSpeed = 72, interceptRadius = 100): EncounterBehaviorOptions => ({
   kind: "patrol",
   patrolPath: path,
   patrolSpeed,
   interceptRadius,
 });
-const aggressive = (detectionRadius: number, chaseSpeed: number, interceptRadius = 102): EncounterBehaviorOptions => ({
+const aggressive = (
+  detectionRadius: number,
+  chaseSpeed: number,
+  interceptRadius = 102,
+  chaseAcceleration = 220,
+): EncounterBehaviorOptions => ({
   kind: "aggressive",
   detectionRadius,
   loseRadius: detectionRadius + 130,
   chaseSpeed,
+  chaseAcceleration,
   interceptRadius,
   forcedEngagement: true,
 });
@@ -335,7 +356,7 @@ const encounters = [
   encounter(401, "b2-sentry-reactor", "SENTRY-4 REAKTORPATROUILLE", 930, 210, "sentry", "add-easy", "easy", 850, 320, {
     behavior: patrol([[850, 330], [1180, 330], [1180, 390], [840, 390]], 78),
   }),
-  encounter(402, "b2-magnetar-reactor", "MAGNETAR 742 REAKTORTECHNIK", 1150, 340, "magnetar", "add-normal", "medium", 1050, 340, { behavior: guard(108) }),
+  encounter(402, "b2-magnetar-reactor", "MAGNETAR 742 REAKTORTECHNIK", 1150, 340, "magnetar", "add-normal", "medium", 1050, 340, { behavior: guard() }),
   encounter(403, "b2-magnetar-cargo", "MAGNETAR 742 FRACHTHEBER", 920, 1000, "magnetar", "add-normal", "medium", 850, 1100, {
     behavior: neutral([[840, 1090], [930, 1090], [930, 1160], [830, 1160]], 48),
   }),
@@ -356,12 +377,12 @@ const encounters = [
     {
       keyId: "blue-access",
       keyLabel: "BLUE-SECURITY-CARD",
-      behavior: guard(112),
+      behavior: guard(280, 500, 155, 150),
       storyIntro: "Diese Schleusenwache authentifiziert den Zugang zur östlichen Sicherheitssektion. Ihre BLUE-Card ist im Droidenkern gesichert.",
     },
   ),
   encounter(406, "b2-magnetar-security", "MAGNETAR 742 SICHERHEITSGITTER", 1760, 760, "magnetar", "add-normal", "medium", 1660, 760, {
-    behavior: aggressive(245, 132, 104),
+    behavior: aggressive(245, 132, 104, 190),
   }),
   encounter(407, "b2-magnetar-lab", "MAGNETAR 742 SIGNALTECHNIK", 2170, 220, "magnetar", "add-normal", "medium", 2100, 340, {
     behavior: neutral([[2100, 220], [2240, 220], [2240, 300], [2100, 300]], 50),
@@ -370,7 +391,7 @@ const encounters = [
     behavior: neutral([[2290, 350], [2460, 350], [2460, 410], [2290, 410]], 66),
   }),
   encounter(409, "b2-kronos-machine", "KRONOS-9 MASCHINENWACHE", 2180, 1010, "kronos", "subtract", "hard", 2100, 1100, {
-    behavior: aggressive(270, 104, 118),
+    behavior: aggressive(270, 104, 118, 110),
   }),
   encounter(410, "b2-magnetar-machine", "MAGNETAR 742 KERNWARTUNG", 2400, 1100, "magnetar", "add-normal", "medium", 2300, 1100, {
     behavior: neutral([[2310, 1100], [2460, 1100], [2460, 1170], [2310, 1170]], 46),
@@ -389,7 +410,7 @@ const encounters = [
     {
       keyId: "command-access",
       keyLabel: "COMMAND-SECURITY-CARD",
-      behavior: guard(112),
+      behavior: guard(255, 450, 150, 155),
       storyIntro: "Die letzte Kommandowache trägt die Freigabe für das schwere Brückentor. Ohne ihren Kerncode bleibt COMMAND verriegelt.",
     },
   ),
@@ -410,7 +431,7 @@ const encounters = [
     {
       boss: true,
       duelLayers: 2,
-      behavior: guard(132),
+      behavior: guard(220, 390, 118, 120),
       storyIntro: "KRONOS-9 ist kein normaler Transfergegner. Zwei aktive Reaktor-Firewalls schützen seinen Kommandokern. Ressourcen, Körperfähigkeit und Meta-Energie müssen für beide Schichten reichen.",
     },
   ),
