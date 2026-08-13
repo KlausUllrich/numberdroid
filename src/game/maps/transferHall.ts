@@ -8,8 +8,9 @@ function prop(name: string, value: unknown, type: string = typeof value) { retur
 
 const WALKABLE: TileRect[] = [{ name: "transfer-hall", x: 1, y: 1, w: 18, h: 10 }];
 
-const DIVIDER_X = 12.4375;
-const WALL_THICKNESS = 0.125;
+// 10 px visual wall centered on the former divider centerline.
+const WALL_THICKNESS = 10 / TILE;
+const DIVIDER_X = 12.5 - WALL_THICKNESS / 2;
 const OBSTACLES: TileRect[] = [
   { name: "divider-north", x: DIVIDER_X, y: 1, w: WALL_THICKNESS, h: 4 },
   { name: "divider-south", x: DIVIDER_X, y: 7, w: WALL_THICKNESS, h: 4 },
@@ -26,7 +27,6 @@ function block(target: number[], col: number, row: number, gids: number[], width
   gids.forEach((gid, i) => setCell(target, col + i % width, row + Math.floor(i / width), gid));
 }
 
-// Ground owns surfaces only. Outside the room stays transparent, so no fake thick wall slabs appear.
 const ground = layer();
 for (let row = 1; row <= 10; row += 1) {
   for (let col = 1; col <= 18; col += 1) {
@@ -35,45 +35,40 @@ for (let row = 1; row <= 10; row += 1) {
   }
 }
 
-// Architecture contains semantic geometry markers only. The renderer draws continuous
-// edge-to-edge wall bands from these markers so tile seams can never become wall gaps.
+// Architecture contains semantic geometry markers only.
 const architecture = layer();
 for (let col = 2; col <= 17; col += 1) {
-  setCell(architecture, col, 1, 81);  // top wall marker
-  setCell(architecture, col, 10, 82); // bottom wall marker
+  setCell(architecture, col, 1, 81);
+  setCell(architecture, col, 10, 82);
 }
 for (let row = 2; row <= 9; row += 1) {
-  setCell(architecture, 1, row, 83);  // left wall marker
-  setCell(architecture, 18, row, 84); // right wall marker
+  setCell(architecture, 1, row, 83);
+  setCell(architecture, 18, row, 84);
 }
-setCell(architecture, 1, 1, 85);   // top-left corner
-setCell(architecture, 18, 1, 86);  // top-right corner
-setCell(architecture, 18, 10, 87); // bottom-right corner
-setCell(architecture, 1, 10, 88);  // bottom-left corner
-
-setCell(architecture, 12, 1, 90);  // T-junction with top wall
-setCell(architecture, 12, 2, 89);  // internal vertical
+setCell(architecture, 1, 1, 85);
+setCell(architecture, 18, 1, 86);
+setCell(architecture, 18, 10, 87);
+setCell(architecture, 1, 10, 88);
+setCell(architecture, 12, 1, 90);
+setCell(architecture, 12, 2, 89);
 setCell(architecture, 12, 3, 89);
-setCell(architecture, 12, 4, 92);  // lower cap before doorway
-setCell(architecture, 12, 7, 93);  // upper cap after doorway
+setCell(architecture, 12, 4, 92);
+setCell(architecture, 12, 7, 93);
 setCell(architecture, 12, 8, 89);
 setCell(architecture, 12, 9, 89);
-setCell(architecture, 12, 10, 91); // T-junction with bottom wall
+setCell(architecture, 12, 10, 91);
 
-// FloorFX is strictly floor-projected non-light FX: contact shadows and markings.
-// Scene illumination is rendered later by LightOverlay, above world objects/characters and clipped by light zones.
+// FloorFX is strictly floor-projected non-light FX.
 const floorFx = layer();
-block(floorFx, 2, 4, [106,107,108,109,110,111], 3);       // table contact shadow
-block(floorFx, 9, 7, [112,113,114,115], 2);               // PICO dock shadow
-block(floorFx, 14, 6, [116,117,118,119], 2);              // Kayo pad shadow
+block(floorFx, 2, 4, [106,107,108,109,110,111], 3);
+block(floorFx, 9, 7, [112,113,114,115], 2);
+block(floorFx, 14, 6, [116,117,118,119], 2);
 
-// WallProps: shallow top-down equipment attached to the upper wall, transparent background.
 const wallProps = layer();
 block(wallProps, 3, 1, [129,130], 2);
 block(wallProps, 14, 1, [131,132], 2);
 block(wallProps, 16, 1, [133,134], 2);
 
-// FloorProps: top-down setpieces on transparent background; no baked floor pixels.
 const floorProps = layer();
 block(floorProps, 2, 4, [135,136,137,138,139,140], 3);
 block(floorProps, 8, 4, [141,142,143,144,145,146,147,148,149], 3);
@@ -97,7 +92,7 @@ const encounters = [
 
 export const TRANSFER_HALL_MAP: TiledMapJson = {
   orientation:"orthogonal", infinite:false, width:COLUMNS, height:ROWS, tilewidth:TILE, tileheight:TILE,
-  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","SLICE 0.3 · LIGHT OCCLUSION / DOOR POCKETS","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
+  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","SLICE 0 · FINAL FOUNDATION","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
   tilesets:[
     {firstgid:1,image:"/assets/deck/transfer-hall-tiles.png",tilewidth:TILE,tileheight:TILE,tilecount:80,columns:4,margin:0,spacing:0},
     {firstgid:81,image:"/assets/deck/transfer-hall-architecture.png",tilewidth:TILE,tileheight:TILE,tilecount:16,columns:4,margin:0,spacing:0},
