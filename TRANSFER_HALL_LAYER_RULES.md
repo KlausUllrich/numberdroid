@@ -2,15 +2,20 @@
 
 Binding technical rules for Slice 0.x and the following Gold Slice.
 
+## Repository transport
+
+Remote repository work in ChatGPT sessions must use the connected GitHub connector. A failed local/container network request must never be interpreted as missing GitHub access and must never trigger `git clone`, `curl`, or another container-network fallback for repository transport. If the GitHub connector itself fails, retry/diagnose the connector directly.
+
 ## Layer order
 
 1. Ground: walkable surface only.
-2. FloorFX: floor-projected shadows and light only.
-3. Architecture: thin walls, corners, T-junctions, end caps and door framing on transparent cells.
+2. FloorFX: floor-projected shadows and non-light markings only.
+3. Architecture: thin walls, corners, T-junctions, end caps and door framing.
 4. WallProps: top-down wall equipment on transparent cells.
 5. FloorProps: top-down free-standing objects on transparent cells.
 6. Characters: player, NPC and enemy robots.
-7. Overlay FX and UI: allegiance, scan, interaction and labels.
+7. LightOverlay: scene illumination, above world objects/characters but below UI.
+8. Overlay FX and UI: allegiance, scan, interaction and labels.
 
 Props must never contain a floor/background plate. If removing a prop removes visible floor, the prop asset is wrong.
 
@@ -22,19 +27,33 @@ Ground, Architecture, WallProps and FloorProps are strict orthographic top-down.
 
 Visible wall geometry and collision describe the same geometry. A visible opening has no collision. Continuous walls use explicit corner and T-junction markers. Open ends use caps. Door clearance is regression-tested.
 
-### Slice 0.2 rendering rule
+Wall tiles are semantic geometry markers, not trusted baked wall pictures. The runtime draws continuous edge-to-edge wall bands with deliberate overlap between adjacent cells. The internal divider is 8 px wide in rendering and `0.125` tile wide in collision.
 
-Wall tiles are **semantic geometry markers**, not trusted baked wall pictures. The runtime draws continuous edge-to-edge wall bands from those markers with deliberate 1 px overlap between adjacent cells. This prevents antialiasing or atlas slicing from creating visible gaps while keeping the layout tile-authored.
+T-junction stems terminate at the inner face of the horizontal wall. They must never visually pierce through the wall into the area outside the room.
 
-The internal divider is 8 px wide in rendering and `0.125` tile wide in collision, so visual mass and collision thickness match.
+## Door pockets
 
-The complete outer perimeter must have an Architecture marker on every cell of the top, bottom, left and right room boundary. Missing perimeter markers are a regression failure.
+Moving door leaves belong below Architecture in the scene stack. When a door opens, its leaves retract fully into the neighboring wall segments and are occluded by the wall. Static door guides/frame may sit at Architecture/WallProps depth; status labels are UI. A moving door leaf must never render on top of the wall it is supposed to enter.
 
-## Early light
+## Lighting
 
-The first Transfer Hall stays calmly and evenly lit. The Transfer apparatus may cast a clearly visible but restrained warm light pool onto the floor.
+Scene illumination is not a FloorFX tile and is never baked into prop art. Light is rendered by `LightOverlay` from semantic light-source data.
 
-Light belongs to FloorFX, not to the prop image. A local light pool must be rendered as **one continuous radial field from one semantic marker**, never as a 2x2/3x3 set of baked glow fragments. Sliced glow imagery is forbidden because tile seams read as yellow graphic edges rather than light.
+Light is room-occluded:
+
+- each light belongs to an explicit interior light zone;
+- light zones stop at the visible wall faces;
+- walls are never painted from above by the scene-light overlay;
+- light from one room never bleeds through a separating wall into another room;
+- for Slice 0.x an open doorway does not forward light into the next room; portal-light propagation can be added later as an explicit feature;
+- because LightOverlay is above Characters, robots standing inside a light field are illuminated too;
+- UI remains above LightOverlay and is not part of scene lighting.
+
+The first Transfer Hall stays calmly and evenly lit. The Transfer apparatus may cast a clearly visible but restrained warm light field. Do not add unrelated blinking/glowing props merely because their local atlas tile index matches an animated base tile.
+
+## Tile-state identity
+
+Animated/stateful tiles are selected by global GID, never by a tileset-local tile index. Local IDs may repeat between Ground, Architecture, FloorFX and Props; using them for global effects causes unrelated props to animate or glow.
 
 ## Directional characters
 

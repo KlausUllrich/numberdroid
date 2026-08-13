@@ -103,6 +103,16 @@
   color: #65e4bd;
 }
 
+/* Transfer Hall: panels are below Architecture so they retract into wall pockets. */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door { z-index: auto; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .panel { z-index: 1; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .frame { z-index: 3; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door > span { z-index: 23; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.open .panel-a { transform: translateY(-100%); }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.open .panel-b { transform: translateY(100%); }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.open .panel-a { transform: translateX(-100%); }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.open .panel-b { transform: translateX(100%); }
+
 @media (prefers-reduced-motion: reduce) {
   .zk-door .panel { transition-duration: 1ms; }
 }
