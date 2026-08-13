@@ -94,7 +94,7 @@ export const TRANSFER_HALL_MAP: TiledMapJson = {
   orientation:"orthogonal", infinite:false, width:COLUMNS, height:ROWS, tilewidth:TILE, tileheight:TILE,
   properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","SLICE 0 · FINAL FOUNDATION","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
   tilesets:[
-    {firstgid:1,image:"/assets/deck/transfer-hall-tiles.png",tilewidth:TILE,tileheight:TILE,tilecount:80,columns:4,margin:0,spacing:0},
+    {firstgid:1,image:"/assets/deck/transfer-hall-tiles.png",tilewidth:TILE,tileheight:TILE,tilecount:4,columns:4,margin:0,spacing:0},
     {firstgid:81,image:"/assets/deck/transfer-hall-architecture.png",tilewidth:TILE,tileheight:TILE,tilecount:16,columns:4,margin:0,spacing:0},
     {firstgid:97,image:"/assets/deck/transfer-hall-floorfx.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
     {firstgid:129,image:"/assets/deck/transfer-hall-props.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
