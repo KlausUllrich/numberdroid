@@ -26,6 +26,7 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     abilityDescription: "PICO besitzt noch keine aktive Manipulationsfähigkeit für das Zahlenfeld.",
     drive: { label: "AUSGEWOGEN", maxSpeed: 205, acceleration: 900, deceleration: 1250, turnSpeed: 720 },
     sprite: publicAsset("assets/robots/pico.png"),
+    directionalSprite: publicAsset("assets/robots/directional-pico.svg"),
   },
   sentry: {
     id: "sentry",
@@ -38,6 +39,7 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     abilityDescription: "Sein Vorteil liegt bisher im schnellen Deck-Fahrwerk und in seiner Security-Rolle.",
     drive: { label: "SCHNELL · WENDIG", maxSpeed: 250, acceleration: 1200, deceleration: 1450, turnSpeed: 920 },
     sprite: publicAsset("assets/robots/sentry.png"),
+    directionalSprite: publicAsset("assets/robots/directional-sentry.svg"),
   },
   magnetar: {
     id: "magnetar",
@@ -50,6 +52,7 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     abilityDescription: "Einmal pro Duell darf eine gewählte Zahlenreihe um ein Feld nach rechts verschoben werden.",
     drive: { label: "STABIL · MITTEL", maxSpeed: 195, acceleration: 760, deceleration: 980, turnSpeed: 560 },
     sprite: publicAsset("assets/robots/magnetar.png"),
+    directionalSprite: publicAsset("assets/robots/directional-magnetar.svg"),
   },
   kronos: {
     id: "kronos",
@@ -62,6 +65,7 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     abilityDescription: "KRONOS soll später eine besonders starke Körperfähigkeit erhalten; die konkrete Mechanik ist noch offen.",
     drive: { label: "LANGSAM · MASSIV", maxSpeed: 165, acceleration: 520, deceleration: 680, turnSpeed: 360 },
     sprite: publicAsset("assets/robots/kronos.png"),
+    directionalSprite: publicAsset("assets/robots/directional-kronos.svg"),
   },
 };
 

@@ -18,3 +18,23 @@
   transform-origin: center;
   image-rendering: pixelated;
 }
+
+/* TRANSFER SHIP TILE STATE MOTION */
+.zk-map-tile { image-rendering: auto; }
+.zk-map-tile[data-tile-id="4"],
+.zk-map-tile[data-tile-id="21"],
+.zk-map-tile[data-tile-id="22"] {
+  animation: nd-core-slot-pulse 1.8s ease-in-out infinite alternate;
+}
+.zk-map-tile[data-tile-id="15"] { animation: nd-primus-scan 2.8s ease-in-out infinite; }
+.zk-map-tile[data-tile-id="16"] { animation: nd-warning-breathe 1.15s ease-in-out infinite alternate; }
+@keyframes nd-core-slot-pulse { from { filter: brightness(.92); } to { filter: brightness(1.18) drop-shadow(0 0 5px #e7aa43); } }
+@keyframes nd-primus-scan { 0%, 100% { filter: brightness(.9); } 50% { filter: brightness(1.16); } }
+@keyframes nd-warning-breathe { from { filter: saturate(.85) brightness(.9); } to { filter: saturate(1.2) brightness(1.12); } }
+@media (prefers-reduced-motion: reduce) {
+  .zk-map-tile[data-tile-id="4"],
+  .zk-map-tile[data-tile-id="15"],
+  .zk-map-tile[data-tile-id="16"],
+  .zk-map-tile[data-tile-id="21"],
+  .zk-map-tile[data-tile-id="22"] { animation: none; }
+}

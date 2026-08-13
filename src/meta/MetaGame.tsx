@@ -5,6 +5,7 @@ import { getFloor } from "../game/floors";
 import type { TacticalChallengeId } from "../game/playerProfile";
 import { pointWalkable } from "../game/save";
 import type { EncounterConfig, MetaState } from "../game/types";
+import { directionClassForFacing } from "./robotDirection";
 import { DoorLayer } from "./DoorLayer";
 import { FloorVisual } from "./FloorVisual";
 import { HostileLayer, type EncounterRuntimePose } from "./HostileLayer";
@@ -145,6 +146,8 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
     player.style.setProperty("--player-x", `${state.x}px`);
     player.style.setProperty("--player-y", `${state.y}px`);
     player.style.setProperty("--facing", `${state.facing}deg`);
+    for (let index = 0; index < 8; index += 1) player.classList.remove(`dir-${index}`);
+    player.classList.add(directionClassForFacing(state.facing));
   }
 
   function applyCamera(state: MetaState, requestedZoom = zoomRef.current) {
@@ -491,7 +494,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
   const canInteract = Boolean(nearby || nearbyNeutralEncounter);
 
   return (
-    <main className="zk-meta-shell clean-meta-screen">
+    <main className="zk-meta-shell clean-meta-screen" data-floor-id={floor.id}>
       <header className="zk-meta-hud">
         <div className="zk-meta-brand"><span className="zk-meta-mark">ND</span><div><strong>{floor.name}</strong><small>{floor.subtitle}</small></div></div>
         <div className="zk-meta-objective">{objective}</div>
@@ -567,9 +570,9 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
             onNearbyNeutralChange={setNearbyNeutralId}
           />
 
-          <div ref={playerRef} className={`zk-player ${meta.currentDeckSize}`} style={initialPlayerStyle}>
+          <div ref={playerRef} className={`zk-player ${meta.currentDeckSize} ${directionClassForFacing(pose.facing)}`} style={initialPlayerStyle}>
             <span className="zk-player-name">{body.name}</span>
-            <img src={body.sprite} alt="Dein Roboter" />
+            <span className="zk-directional-sprite" style={{ backgroundImage: `url(${body.directionalSprite})` }} aria-label="Dein Roboter" role="img" />
           </div>
         </div>
 

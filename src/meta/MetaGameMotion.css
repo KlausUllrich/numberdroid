@@ -253,3 +253,69 @@
 
   .zk-zoom-toggle small { font-size: 8px; }
 }
+
+/* EIGHT-DIRECTION ROBOT SPRITES */
+.zk-directional-sprite {
+  display: block;
+  background-repeat: no-repeat;
+  background-size: 800% 100%;
+  background-position-y: 0;
+  transform-origin: 50% 50%;
+  image-rendering: auto;
+}
+.dir-0 .zk-directional-sprite { background-position-x: 0%; }
+.dir-1 .zk-directional-sprite { background-position-x: 14.285714%; }
+.dir-2 .zk-directional-sprite { background-position-x: 28.571429%; }
+.dir-3 .zk-directional-sprite { background-position-x: 42.857143%; }
+.dir-4 .zk-directional-sprite { background-position-x: 57.142857%; }
+.dir-5 .zk-directional-sprite { background-position-x: 71.428571%; }
+.dir-6 .zk-directional-sprite { background-position-x: 85.714286%; }
+.dir-7 .zk-directional-sprite { background-position-x: 100%; }
+
+.zk-meta-world .zk-player.standard .zk-directional-sprite { width: 52px; height: 52px; }
+.zk-meta-world .zk-player.large .zk-directional-sprite { width: 96px; height: 96px; }
+.zk-meta-world .zk-entity.enemy.standard .zk-directional-sprite { width: 50px; height: 50px; }
+.zk-meta-world .zk-entity.enemy.large .zk-directional-sprite { width: 96px; height: 96px; }
+
+.zk-player .zk-directional-sprite {
+  filter: drop-shadow(0 0 8px #36db82) hue-rotate(-38deg) saturate(1.22);
+}
+.zk-player::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: 58px;
+  height: 28px;
+  border: 2px solid #34d986aa;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, #39dd8742 0 28%, transparent 70%);
+  transform: translate(-50%, 22%);
+  pointer-events: none;
+}
+.zk-player.large::after { width: 104px; height: 46px; }
+
+/* Transfer Hall gets a brighter civilian HUD, while the controls remain readable. */
+.zk-meta-shell[data-floor-id="transfer-hall"] { background: #283130; color: #17201f; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-meta-hud {
+  border-bottom-color: #879b95;
+  background: #d6dbd6f2;
+  color: #17201f;
+  box-shadow: 0 8px 28px #17201f26;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-meta-brand small,
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-meta-stat small { color: #50625e; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-meta-stat {
+  border-color: #9aa7a2;
+  background: #edf0ede8;
+  color: #1d2927;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-meta-objective { color: #825b19; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-room-label {
+  border-left-color: #4f7f79;
+  background: #eef1edcf;
+  color: #445652;
+  box-shadow: 0 5px 16px #00000018;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-room-label b { color: #1e3430; }

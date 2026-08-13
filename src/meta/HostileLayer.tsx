@@ -6,6 +6,7 @@ import { pointWalkable } from "../game/save";
 import { resolveBehaviorPressure } from "../game/tacticalChallenge";
 import type { EncounterBehavior, EncounterBehaviorKind, EncounterConfig, FloorDefinition, MetaState } from "../game/types";
 import { blockedByClosedDoor } from "./doorRuntime";
+import { directionClassForFacing } from "./robotDirection";
 import "./HostileLayer.css";
 
 type EnemyStyle = CSSProperties & {
@@ -129,6 +130,8 @@ function HostileLayerComponent({
     node.style.setProperty("--enemy-x", `${runtime.x}px`);
     node.style.setProperty("--enemy-y", `${runtime.y}px`);
     node.style.setProperty("--enemy-facing", `${runtime.facing}deg`);
+    for (let index = 0; index < 8; index += 1) node.classList.remove(`dir-${index}`);
+    node.classList.add(directionClassForFacing(runtime.facing));
     node.classList.toggle("alerted", runtime.chasing && !runtime.investigating);
     node.classList.toggle("investigating", runtime.investigating);
     node.classList.toggle("returning", runtime.returning);
@@ -395,12 +398,12 @@ function HostileLayerComponent({
               if (node) nodeRefs.current.set(enemy.encounterId, node);
               else nodeRefs.current.delete(enemy.encounterId);
             }}
-            className={`zk-entity enemy zk-hostile ${enemy.enemyId === "kronos" ? "kronos" : ""} ${enemy.boss ? "boss" : ""} ${enemy.deckSize === "large" ? "large" : "standard"} ${behavior ? `behavior-${behavior.kind}` : "behavior-legacy"} ${behavior?.forcedEngagement ? "forced" : ""}`}
+            className={`zk-entity enemy zk-hostile ${directionClassForFacing(runtime.facing)} ${enemy.enemyId === "kronos" ? "kronos" : ""} ${enemy.boss ? "boss" : ""} ${enemy.deckSize === "large" ? "large" : "standard"} ${behavior ? `behavior-${behavior.kind}` : "behavior-legacy"} ${behavior?.forcedEngagement ? "forced" : ""}`}
             style={style}
             onClick={manuallyScannable ? () => callbacksRef.current.onManualEncounter({ ...enemy, x: runtime.x, y: runtime.y }) : undefined}
             aria-label={`${enemy.name}, ${enemy.boss ? "Endgegner, " : ""}${behavior ? `${behaviorLabel(enemy)}, ` : ""}${enemy.difficultyLabel}`}
           >
-            <img src={BODIES[enemy.bodyId].sprite} alt="" />
+            <span className="zk-directional-sprite" style={{ backgroundImage: `url(${BODIES[enemy.bodyId].directionalSprite})` }} aria-hidden="true" />
             <span className="tag">{enemy.name}</span>
             {enemy.accessKey && <span className="zk-enemy-key" aria-label={`Trägt ${enemy.accessKey.label}`}>▣</span>}
             {behavior && <span className="hostile-mode" aria-hidden="true">{behavior.kind === "neutral" ? "⚙" : runtime.investigating ? "?" : runtime.returning ? "↩" : behavior.kind === "aggressive" ? "!" : behavior.kind === "patrol" ? "↔" : "◆"}</span>}
