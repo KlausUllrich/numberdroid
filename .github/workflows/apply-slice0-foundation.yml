@@ -1,0 +1,52 @@
+name: Apply Slice 0 Foundation
+
+on:
+  push:
+    branches:
+      - agent/slice-0-foundation
+    paths:
+      - .github/workflows/apply-slice0-foundation.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/slice-0-foundation
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          npm install --no-audit --no-fund
+          python -m pip install pillow
+      - name: Apply Slice 0 foundation
+        run: python tools/apply_slice0_foundation.py
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Remove one-shot files and compiler artifacts
+        run: |
+          rm -f tools/apply_slice0_foundation.py
+          rm -f .github/workflows/apply-slice0-foundation.yml
+          rm -f tsconfig.tsbuildinfo tsconfig.app.tsbuildinfo tsconfig.node.tsbuildinfo
+      - name: Commit implementation
+        run: |
+          git config user.name "Numberdroid Slice 0 Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Build Slice 0 room foundation"
+          git push origin HEAD:agent/slice-0-foundation
