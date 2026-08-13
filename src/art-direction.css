@@ -15,99 +15,30 @@
   --nd-system-teal: #4c8581;
 }
 
-/* PLAYER / OWNED BODY = GREEN. The body itself stays the same asset. */
 .zk-player img,
 .active-robot.player img,
 .nd-allegiance-player img {
-  filter:
-    drop-shadow(0 0 10px color-mix(in srgb, var(--nd-allegiance-player) 72%, transparent))
-    grayscale(.78)
-    sepia(1)
-    saturate(4.8)
-    hue-rotate(62deg)
-    brightness(1.02) !important;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--nd-allegiance-player) 72%, transparent)) grayscale(.78) sepia(1) saturate(4.8) hue-rotate(62deg) brightness(1.02) !important;
 }
-
-/* HOSTILE / UNCLAIMED COMBAT BODY = RED. */
 .zk-hostile:not(.behavior-neutral) > img,
 .active-robot.enemy img,
 .nd-allegiance-enemy img {
-  filter:
-    drop-shadow(0 0 10px color-mix(in srgb, var(--nd-allegiance-enemy) 72%, transparent))
-    grayscale(.76)
-    sepia(1)
-    saturate(5.6)
-    hue-rotate(309deg)
-    brightness(.98) !important;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--nd-allegiance-enemy) 72%, transparent)) grayscale(.76) sepia(1) saturate(5.6) hue-rotate(309deg) brightness(.98) !important;
 }
-
-/* CIVILIAN / NEUTRAL NPC = BLUE. */
 .zk-hostile.behavior-neutral > img,
 .nd-allegiance-npc img {
-  filter:
-    drop-shadow(0 0 9px color-mix(in srgb, var(--nd-allegiance-npc) 68%, transparent))
-    grayscale(.78)
-    sepia(1)
-    saturate(5.2)
-    hue-rotate(166deg)
-    brightness(1.02) !important;
+  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--nd-allegiance-npc) 68%, transparent)) grayscale(.78) sepia(1) saturate(5.2) hue-rotate(166deg) brightness(1.02) !important;
 }
+.zk-hostile.behavior-neutral .hostile-mode { border-color:#4e83b2;background:#0a1d31e6;color:#8fc8ff;box-shadow:0 0 9px #3f8ed855; }
+.zk-hostile.behavior-neutral .tag { border-color:#416f99;background:#081728ed;color:#afd7ff; }
+.zk-hostile.behavior-neutral .level i { background:var(--nd-allegiance-npc); }
+.nd-allegiance-kayo img { filter:drop-shadow(0 0 10px #e99a3273) grayscale(.72) sepia(1) saturate(4.6) hue-rotate(347deg) brightness(1.06) !important; }
+.nd-allegiance-primus img { filter:drop-shadow(0 0 8px #d9e0df42) grayscale(1) brightness(.38) contrast(1.55) !important; }
 
-.zk-hostile.behavior-neutral .hostile-mode {
-  border-color: #4e83b2;
-  background: #0a1d31e6;
-  color: #8fc8ff;
-  box-shadow: 0 0 9px #3f8ed855;
-}
-
-.zk-hostile.behavior-neutral .tag {
-  border-color: #416f99;
-  background: #081728ed;
-  color: #afd7ff;
-}
-
-.zk-hostile.behavior-neutral .level i {
-  background: var(--nd-allegiance-npc);
-}
-
-/* Reserved semantic classes for story NPCs; no new BodyId is required. */
-.nd-allegiance-kayo img {
-  filter:
-    drop-shadow(0 0 10px #e99a3273)
-    grayscale(.72)
-    sepia(1)
-    saturate(4.6)
-    hue-rotate(347deg)
-    brightness(1.06) !important;
-}
-
-.nd-allegiance-primus img {
-  filter:
-    drop-shadow(0 0 8px #d9e0df42)
-    grayscale(1)
-    brightness(.38)
-    contrast(1.55) !important;
-}
-
-/*
- * Tile 4 in the first Transfer-Ship atlas is the CORE/SLOT service socket.
- * Animation is deliberately an overlay effect on a static orthographic tile: no fake
- * perspective, no camera-dependent shading baked into the atlas.
- */
-.zk-map-tile[data-tile-id="4"] {
-  animation: nd-core-socket-pulse 2.4s ease-in-out infinite;
-  will-change: filter;
-}
-
-@keyframes nd-core-socket-pulse {
-  0%, 100% { filter: drop-shadow(0 0 0 #ffb43f00) brightness(1); }
-  50% { filter: drop-shadow(0 0 7px #ffb43f80) brightness(1.08); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .zk-map-tile[data-tile-id="4"] { animation: none; }
-}
-
+/* Stateful tile FX always target the global GID. Local tile IDs repeat in each tileset. */
+.zk-map-tile[data-gid="4"] { animation:nd-core-socket-pulse 2.4s ease-in-out infinite;will-change:filter; }
+@keyframes nd-core-socket-pulse { 0%,100%{filter:drop-shadow(0 0 0 #ffb43f00) brightness(1)} 50%{filter:drop-shadow(0 0 7px #ffb43f80) brightness(1.08)} }
+@media (prefers-reduced-motion:reduce) { .zk-map-tile[data-gid="4"] { animation:none; } }
 
 /* TRANSFER HALL RECOVERY PASS */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-entity .tag,

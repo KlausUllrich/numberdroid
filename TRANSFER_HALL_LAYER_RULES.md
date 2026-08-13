@@ -1,6 +1,6 @@
 # Transfer Hall Layer Rules
 
-Binding technical rules for Slice 0.x and the following Gold Slice.
+Binding technical rules for the completed Slice 0 foundation and the following Gold Slice.
 
 ## Repository transport
 
@@ -10,7 +10,7 @@ Remote repository work in ChatGPT sessions must use the connected GitHub connect
 
 1. Ground: walkable surface only.
 2. FloorFX: floor-projected shadows and non-light markings only.
-3. Architecture: thin walls, corners, T-junctions, end caps and door framing.
+3. Architecture: wall bands, corners, T-junctions, end caps and door pockets.
 4. WallProps: top-down wall equipment on transparent cells.
 5. FloorProps: top-down free-standing objects on transparent cells.
 6. Characters: player, NPC and enemy robots.
@@ -27,13 +27,15 @@ Ground, Architecture, WallProps and FloorProps are strict orthographic top-down.
 
 Visible wall geometry and collision describe the same geometry. A visible opening has no collision. Continuous walls use explicit corner and T-junction markers. Open ends use caps. Door clearance is regression-tested.
 
-Wall tiles are semantic geometry markers, not trusted baked wall pictures. The runtime draws continuous edge-to-edge wall bands with deliberate overlap between adjacent cells. The internal divider is 8 px wide in rendering and `0.125` tile wide in collision.
+Wall tiles are semantic geometry markers, not trusted baked wall pictures. The runtime draws continuous edge-to-edge wall bands with deliberate overlap between adjacent cells. The Transfer Hall foundation uses a **10 px architectural wall band** and a matching `10 / 64` tile collision thickness for the internal divider.
 
-T-junction stems terminate at the inner face of the horizontal wall. They must never visually pierce through the wall into the area outside the room.
+T-junctions are layered joints: the divider stem is painted first and terminates into the horizontal wall; the uninterrupted horizontal band is painted over the join. A stem must never visually pierce through the wall or produce a cross-shaped protrusion outside the room.
 
 ## Door pockets
 
-Moving door leaves belong below Architecture in the scene stack. When a door opens, its leaves retract fully into the neighboring wall segments and are occluded by the wall. Static door guides/frame may sit at Architecture/WallProps depth; status labels are UI. A moving door leaf must never render on top of the wall it is supposed to enter.
+Moving door leaves belong below Architecture in the scene stack. Transfer Hall establishes a deliberate visual ratio: **10 px wall / 5 px moving door leaf**. The door must read as a thin moving element inside a more substantial wall, matching the original reference direction.
+
+When a door opens, its leaves retract fully into neighboring wall pockets and are occluded by Architecture. Static pocket rails may remain visible at Architecture/WallProps depth. A moving door leaf must never render on top of the wall it is supposed to enter.
 
 ## Lighting
 
@@ -42,18 +44,24 @@ Scene illumination is not a FloorFX tile and is never baked into prop art. Light
 Light is room-occluded:
 
 - each light belongs to an explicit interior light zone;
-- light zones stop at the visible wall faces;
+- light zones stop at visible wall faces;
 - walls are never painted from above by the scene-light overlay;
 - light from one room never bleeds through a separating wall into another room;
-- for Slice 0.x an open doorway does not forward light into the next room; portal-light propagation can be added later as an explicit feature;
+- for the foundation an open doorway does not forward light into the next room; portal-light propagation can be added later as an explicit feature;
 - because LightOverlay is above Characters, robots standing inside a light field are illuminated too;
 - UI remains above LightOverlay and is not part of scene lighting.
 
-The first Transfer Hall stays calmly and evenly lit. The Transfer apparatus may cast a clearly visible but restrained warm light field. Do not add unrelated blinking/glowing props merely because their local atlas tile index matches an animated base tile.
+The first Transfer Hall stays calmly and evenly lit. The Transfer apparatus may cast a clearly visible but restrained warm light field. Do not add unrelated blinking/glowing props.
 
 ## Tile-state identity
 
-Animated/stateful tiles are selected by global GID, never by a tileset-local tile index. Local IDs may repeat between Ground, Architecture, FloorFX and Props; using them for global effects causes unrelated props to animate or glow.
+Animated/stateful tiles are selected by **global GID**, never by a tileset-local tile index. Local IDs repeat between Ground, Architecture, FloorFX and Props. Global styling with `data-tile-id` is forbidden because it can make unrelated prop fragments pulse or glow and exposes hard atlas-fragment boundaries. Runtime state styling uses `data-gid`.
+
+## Preview annotations
+
+Floating room labels such as `FAMILIENBEREICH`, `TRANSFER`, `PRIMUS-ZUTEILUNG` and explanatory subtitles are **art/debug preview annotations**, not diegetic final-game UI. They may remain visible in the direct `?floor=transfer-hall` preview while the Gold Slice is evaluated.
+
+They must not be carried into normal campaign gameplay as floating explanatory labels. Final production information must either be communicated by world art/signage, normal interaction UI, or explicit narrative UI. Robot name plates are a separate system and are not covered by this rule.
 
 ## Directional characters
 
