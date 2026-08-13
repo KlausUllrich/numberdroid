@@ -35,36 +35,39 @@ for (let row = 1; row <= 10; row += 1) {
   }
 }
 
-// Architecture is transparent and contains only thin walls/junctions/caps.
+// Architecture contains semantic geometry markers only. The renderer draws continuous
+// edge-to-edge wall bands from these markers so tile seams can never become wall gaps.
 const architecture = layer();
 for (let col = 2; col <= 17; col += 1) {
-  setCell(architecture, col, 1, 81);
-  setCell(architecture, col, 10, 82);
+  setCell(architecture, col, 1, 81);  // top wall marker
+  setCell(architecture, col, 10, 82); // bottom wall marker
 }
 for (let row = 2; row <= 9; row += 1) {
-  setCell(architecture, 1, row, 83);
-  setCell(architecture, 18, row, 84);
+  setCell(architecture, 1, row, 83);  // left wall marker
+  setCell(architecture, 18, row, 84); // right wall marker
 }
-setCell(architecture, 1, 1, 85);
-setCell(architecture, 18, 1, 86);
-setCell(architecture, 18, 10, 87);
-setCell(architecture, 1, 10, 88);
+setCell(architecture, 1, 1, 85);   // top-left corner
+setCell(architecture, 18, 1, 86);  // top-right corner
+setCell(architecture, 18, 10, 87); // bottom-right corner
+setCell(architecture, 1, 10, 88);  // bottom-left corner
 
-setCell(architecture, 12, 1, 90); // T-junction with top wall
-setCell(architecture, 12, 2, 89);
+setCell(architecture, 12, 1, 90);  // T-junction with top wall
+setCell(architecture, 12, 2, 89);  // internal vertical
 setCell(architecture, 12, 3, 89);
-setCell(architecture, 12, 4, 92); // capped before door
-setCell(architecture, 12, 7, 93); // capped after door
+setCell(architecture, 12, 4, 92);  // lower cap before doorway
+setCell(architecture, 12, 7, 93);  // upper cap after doorway
 setCell(architecture, 12, 8, 89);
 setCell(architecture, 12, 9, 89);
 setCell(architecture, 12, 10, 91); // T-junction with bottom wall
 
-// FloorFX owns only projected shadows/light, never object geometry.
+// FloorFX owns projected shadows/light only, never object geometry.
+// The Transfer glow is ONE semantic marker. CSS renders one continuous radial light pool;
+// it is deliberately not sliced into 3x3 image fragments (which caused visible yellow seams).
 const floorFx = layer();
-block(floorFx, 8, 4, [97,98,99,100,101,102,103,104,105], 3); // warm Transfer glow
-block(floorFx, 2, 4, [106,107,108,109,110,111], 3);           // table contact shadow
-block(floorFx, 9, 7, [112,113,114,115], 2);                   // PICO dock shadow
-block(floorFx, 14, 6, [116,117,118,119], 2);                  // Kayo pad shadow
+setCell(floorFx, 9, 5, 97);                                // continuous Transfer glow marker
+block(floorFx, 2, 4, [106,107,108,109,110,111], 3);       // table contact shadow
+block(floorFx, 9, 7, [112,113,114,115], 2);               // PICO dock shadow
+block(floorFx, 14, 6, [116,117,118,119], 2);              // Kayo pad shadow
 
 // WallProps: shallow top-down equipment attached to the upper wall, transparent background.
 const wallProps = layer();
@@ -96,7 +99,7 @@ const encounters = [
 
 export const TRANSFER_HALL_MAP: TiledMapJson = {
   orientation:"orthogonal", infinite:false, width:COLUMNS, height:ROWS, tilewidth:TILE, tileheight:TILE,
-  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","SLICE 0.1 · LAYER FOUNDATION","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
+  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","SLICE 0.2 · WALL / LIGHT / 8-WAY FIX","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
   tilesets:[
     {firstgid:1,image:"/assets/deck/transfer-hall-tiles.png",tilewidth:TILE,tileheight:TILE,tilecount:80,columns:4,margin:0,spacing:0},
     {firstgid:81,image:"/assets/deck/transfer-hall-architecture.png",tilewidth:TILE,tileheight:TILE,tilecount:16,columns:4,margin:0,spacing:0},
