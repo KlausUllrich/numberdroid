@@ -2,7 +2,7 @@
 
 Status: **binding role/process contract for visual asset production**
 
-This document supplements `ART_ASSET_VALIDATION_RULES.md`. When rules overlap, the stricter rule wins.
+This document supplements `ART_ASSET_VALIDATION_RULES.md` and `ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`. When rules overlap, the stricter rule wins.
 
 ## Role
 
@@ -33,9 +33,7 @@ The Task Card is a production constraint. **It must never be rendered into the i
 
 ## Production prompt rule
 
-A production prompt describes only the visible asset itself.
-
-Never request titles, legends, checklists, palette swatches, technical specifications, self-check text, captions, numbered labels, UI panels, presentation frames, file metadata or art-direction notes inside a production image.
+A production prompt describes only the visible asset itself. Never request titles, legends, checklists, palette swatches, technical specifications, self-check text, captions, numbered labels, UI panels, presentation frames, file metadata or art-direction notes inside a production image.
 
 Do not use `infographic`, `documentation board`, `self check`, `labelled atlas`, `presentation sheet` or equivalent wording in a production-generation prompt.
 
@@ -61,95 +59,97 @@ PREPARED
 
 A failed state cannot advance.
 
+## Image-generation turn boundary — binding
+
+`image_gen` creates a user-visible turn boundary: after the image is generated, that assistant turn ends with the image and cannot rely on a normal explanatory message afterward.
+
+The Artist must therefore never plan generation + visible QA commentary in the same assistant turn.
+
+Required behavior:
+
+1. before `image_gen`, state that exactly one source will be generated and the next assistant response will begin with QA;
+2. call `image_gen` exactly once;
+3. do not regenerate or integrate in that turn;
+4. on the next user turn, inspect the generated image before doing anything else;
+5. report `PASS` or `FAIL` with concrete reasons;
+6. only after `PASS` may extraction or GitHub integration begin.
+
+The absence of commentary immediately after the image is a known tool boundary, not a QA pass. The pre-generation message must make this explicit so the tool boundary does not look like a hang.
+
 ## Mandatory stop after every generation
 
-After every generated image:
+After every generated image, the next Artist action is inspection — never another generation and never integration.
 
 1. open the actual image;
 2. inspect it at useful scale;
 3. compare it with the Task Card and validation rules;
 4. assign PASS or FAIL;
-5. do not generate another image until inspection is complete.
+5. if FAIL, identify concrete reasons before changing the next prompt.
 
-No silent retry loops. If a source fails, identify the concrete reasons before another generation.
+No silent retry loops.
 
 ## Source QA
 
-A source passes only when:
-
-- it contains exactly the requested category;
-- perspective is correct;
-- palette and semantic colours are correct;
-- variants are required and meaningfully distinct;
-- extraction boundaries are unambiguous;
-- nothing important is clipped;
-- no unwanted floor, wall, lighting or background is baked in;
-- no hero asset is mixed into a modular sheet;
-- no documentation/presentation text is rendered;
-- the art plausibly survives runtime downscaling.
+A source passes only when it contains exactly the requested category, perspective is correct, palette and semantic colours are correct, variants are meaningfully distinct, extraction boundaries are unambiguous, nothing important is clipped, unwanted environment/background/light is not baked in, no hero asset is mixed into a modular sheet, no documentation text is rendered, and the art plausibly survives runtime downscaling.
 
 Attractive but invalid art is still invalid.
 
 ## Production extraction and QA
 
-Generated images are source material, not production files. Crop deliberately, create alpha where required, normalize exact dimensions, preserve documented cell order and remove all labels, presentation furniture and stale historical content.
+Generated images are source material, not production files. Crop deliberately, create alpha where required, normalize exact dimensions, preserve documented cell order and remove labels, presentation furniture and stale historical content.
 
-Then open the entire final production file and verify total dimensions, cell dimensions, cell count/order, alpha, no bleed, no stale rows, no source text and correct colour semantics.
-
-A renderer ignoring bad rows is not a QA pass.
+Then inspect the entire final production file and verify total dimensions, cell dimensions, cell count/order, alpha, no bleed, no stale rows, no source text and correct colour semantics.
 
 ## Tile/map-context QA
 
-For map-driven tiles:
-
-- inspect actual GID usage;
-- determine whether placement is contiguous, scattered, alternating or directional;
-- test at least a 3×3 repeated patch;
-- test a mixed neighborhood matching the real map;
-- inspect the actual room after integration.
+For map-driven tiles inspect actual GID usage, determine whether placement is contiguous/scattered/alternating/directional, test at least a 3×3 repeated patch, test a mixed neighborhood matching the real map, and inspect the actual room after integration.
 
 Do not use directional marks for a tile scattered without directional semantics. Do not change map logic merely to rescue unsuitable art.
 
-## Transfer Hall Floor contract
+## Modular Floor versus Floor Hero assets
 
-Current Floor production starts with exactly four cells:
+These are separate asset classes.
 
-1. calm civilian ceramic base;
-2. subtle **non-directional** service/SLOT variant;
-3. contained graphite functional recess;
-4. warm-amber CORE/SLOT socket.
+### Modular Floor
 
-Runtime contract:
+Used repeatedly as ordinary walkable surface. It must survive arbitrary repetition and current map/GID placement.
+
+Current Transfer Hall contract:
 
 ```text
+GID 1 — calm civilian ceramic base
+GID 2 — subtle non-directional service/SLOT variant
+GID 3 — contained graphite functional recess
+GID 4 — warm-amber CORE/SLOT socket
+
 4 columns × 1 row
 64 × 64 px per cell
 final PNG = exactly 256 × 64 px
 ```
 
-A Floor source contains only four equally sized square floor candidates. No arrows, corridor pieces, wall sections, junctions, props, hero machinery, labels or documentation. The assembled floor must read as a broad calm surface rather than a checkerboard of framed plates.
+A modular Floor source contains only four equally sized **single-tile** square candidates. Each candidate represents one 64×64 tile, not a 2×2 composition shown at larger scale.
+
+Reject sources with internal 2×2 tile boundaries, large multi-cell layouts, room fragments, vents spanning multiple cells, hero-sized sockets, or compositions that only work as 128×128 setpieces.
+
+### Floor Hero
+
+A deliberately authored multi-tile floor setpiece. A 2×2 Floor Hero may be 128×128 and split into four exact 64×64 runtime tiles. Floor Heroes are stored separately and do not replace the ordinary repeatable Floor atlas.
+
+Do not promote a failed modular Floor candidate into the normal Floor merely because it is attractive. It may be reclassified as Floor Hero only when its composition genuinely warrants deliberate multi-tile placement.
 
 ## User/art-director gate
 
-The user is the art director for Gold Slice work. Failed sources must not be presented as accepted. A source that establishes a new category/look should pass internal QA before being shown for visual approval.
+The user is the art director for Gold Slice work. Failed sources must not be presented as accepted. A source establishing a new category/look should pass internal QA before visual approval.
 
 ## Integration gate
 
-Only after source and production QA pass: integrate, inspect the live room, verify gameplay scale/map context/layers, run tests and build, and verify deployed preview when relevant.
+Only after source and production QA pass: integrate, inspect the live room, verify gameplay scale/map context/layers, run tests/build and verify deployed preview when relevant.
 
 `Merged` does not mean `visually accepted`.
 
 ## Failure report
 
-When an asset fails, state concrete reasons before a replacement generation, e.g.:
-
-```text
-FAIL — FLOOR SOURCE
-- candidates are not equal square cells
-- teal dominates rather than signals
-- repeated border creates checkerboard
-- GID 2 mark is directional but map usage is scattered
-```
+When an asset fails, state concrete reasons before a replacement generation.
 
 ## Gold Slice sequence
 
@@ -157,4 +157,4 @@ FAIL — FLOOR SOURCE
 PICO → Floor → Walls → Doors → Transfer apparatus → PRIMUS → Family props → FloorFX
 ```
 
-The current category remains **Floor** until source QA, production QA, map-context QA and live-room QA all pass.
+The current category remains **Floor** until modular Floor source QA, production QA, map-context QA and live-room QA all pass. Floor Hero assets do not complete the modular Floor category.
