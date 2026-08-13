@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "category": "floor-hero-setpiece",
+  "tilewidth": 64,
+  "tileheight": 64,
+  "heroWidth": 128,
+  "heroHeight": 128,
+  "heroColumns": 2,
+  "heroRows": 2,
+  "splitOrder": ["NW", "NE", "SW", "SE"],
+  "assets": [
+    {"id": "calm-base", "file": "transfer-hall-floor-hero-calm-base.png"},
+    {"id": "service-slot", "file": "transfer-hall-floor-hero-service-slot.png"},
+    {"id": "machinery-recess", "file": "transfer-hall-floor-hero-machinery-recess.png"},
+    {"id": "core-socket", "file": "transfer-hall-floor-hero-core-socket.png"}
+  ]
+}
