@@ -1,5 +1,6 @@
 import type { BodyId, MathMode, RobotBody, RobotDeckSize } from "./types";
 import { publicAsset } from "./assets";
+import { PICO_GOLD_DIRECTIONAL } from "./generated/picoGoldDirectional";
 
 export const PLAYER_NAMES = ["Finn", "Klaus", "Ines", "Gast"] as const;
 export const MAX_META_ENERGY = 3;
@@ -26,7 +27,7 @@ export const BODIES: Record<RobotBody["id"], RobotBody> = {
     abilityDescription: "PICO besitzt noch keine aktive Manipulationsfähigkeit für das Zahlenfeld.",
     drive: { label: "AUSGEWOGEN", maxSpeed: 205, acceleration: 900, deceleration: 1250, turnSpeed: 720 },
     sprite: publicAsset("assets/robots/pico.png"),
-    directionalSprite: publicAsset("assets/robots/directional-pico.png"),
+    directionalSprite: PICO_GOLD_DIRECTIONAL,
   },
   sentry: {
     id: "sentry",
