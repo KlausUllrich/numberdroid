@@ -1,51 +1,77 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="64" viewBox="0 0 256 64">
   <defs>
-    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#102b31"/>
-      <stop offset="1" stop-color="#08191e"/>
+    <linearGradient id="ceramic" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d5d9d5"/>
+      <stop offset="1" stop-color="#b8c0bc"/>
     </linearGradient>
-    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#294049"/>
-      <stop offset="1" stop-color="#101b22"/>
+    <linearGradient id="ceramicInset" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c7cdca"/>
+      <stop offset="1" stop-color="#aeb8b4"/>
     </linearGradient>
-    <pattern id="hazard" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <rect width="8" height="16" fill="#d6aa36"/>
-      <rect x="8" width="8" height="16" fill="#252118"/>
-    </pattern>
+    <linearGradient id="graphite" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b4445"/>
+      <stop offset="1" stop-color="#232a2c"/>
+    </linearGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff1b6"/>
+      <stop offset=".38" stop-color="#ffc052"/>
+      <stop offset=".72" stop-color="#f29a24"/>
+      <stop offset="1" stop-color="#9f5f12"/>
+    </radialGradient>
   </defs>
 
-  <!-- 1: base floor -->
+  <!--
+    TRANSFER SHIP ATLAS v0.2 — 64x64, orthographic only.
+    Stable IDs (GID = local id + 1):
+      1 floor / ceramic deck
+      2 slot-service deck
+      3 solid machinery / boundary slab
+      4 CORE/SLOT service socket
+    IMPORTANT: no fake wall faces, no vanishing lines, no camera-perspective shading.
+  -->
+
+  <!-- 1: civilian ceramic floor, seen straight from above -->
   <g transform="translate(0 0)">
-    <rect width="64" height="64" fill="url(#floor)"/>
-    <rect x="2" y="2" width="60" height="60" rx="4" fill="none" stroke="#1f4c53" stroke-width="2"/>
-    <path d="M32 4V60M4 32H60" stroke="#173940" stroke-width="1"/>
-    <circle cx="8" cy="8" r="1.5" fill="#4f777b"/><circle cx="56" cy="8" r="1.5" fill="#4f777b"/>
-    <circle cx="8" cy="56" r="1.5" fill="#4f777b"/><circle cx="56" cy="56" r="1.5" fill="#4f777b"/>
+    <rect width="64" height="64" fill="url(#ceramic)"/>
+    <rect x="2" y="2" width="60" height="60" rx="5" fill="none" stroke="#9fa9a5" stroke-width="1.5"/>
+    <path d="M32 3V61M3 32H61" stroke="#adb6b2" stroke-width="1" opacity=".72"/>
+    <path d="M8 8h8M8 8v8M56 8h-8M56 8v8M8 56h8M8 56v-8M56 56h-8M56 56v-8" stroke="#879691" stroke-width="1.4" opacity=".7"/>
+    <circle cx="7" cy="7" r="1.25" fill="#75837f"/><circle cx="57" cy="7" r="1.25" fill="#75837f"/>
+    <circle cx="7" cy="57" r="1.25" fill="#75837f"/><circle cx="57" cy="57" r="1.25" fill="#75837f"/>
   </g>
 
-  <!-- 2: technical floor panel -->
+  <!-- 2: SLOT/service floor. Brackets and registration marks, still pure plan view. -->
   <g transform="translate(64 0)">
-    <rect width="64" height="64" fill="#0b2329"/>
-    <rect x="3" y="3" width="58" height="58" rx="5" fill="none" stroke="#275b61" stroke-width="2"/>
-    <path d="M10 18H54M10 46H54M18 10V54M46 10V54" stroke="#183f46" stroke-width="2"/>
-    <rect x="24" y="24" width="16" height="16" rx="3" fill="#123941" stroke="#4d9da2"/>
-    <circle cx="32" cy="32" r="3" fill="#75d8cb"/>
+    <rect width="64" height="64" fill="url(#ceramicInset)"/>
+    <rect x="3" y="3" width="58" height="58" rx="5" fill="none" stroke="#8e9b97" stroke-width="1.5"/>
+    <path d="M12 18V11h12M52 18V11H40M12 46v7h12M52 46v7H40" fill="none" stroke="#477976" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="32" cy="32" r="10" fill="#aab5b1" stroke="#71817d" stroke-width="2"/>
+    <circle cx="32" cy="32" r="4" fill="#647975"/>
+    <path d="M32 8v6M32 50v6M8 32h6M50 32h6" stroke="#557f7c" stroke-width="2"/>
+    <rect x="48" y="5" width="8" height="3" rx="1.5" fill="#65a49e"/>
   </g>
 
-  <!-- 3: wall / solid machinery -->
+  <!-- 3: solid machinery / blocked slab. Concentric top surfaces only, no visible side face. -->
   <g transform="translate(128 0)">
-    <rect width="64" height="64" fill="url(#wall)"/>
-    <rect x="4" y="4" width="56" height="56" rx="5" fill="#17272e" stroke="#49626a" stroke-width="2"/>
-    <path d="M8 16H56M8 48H56" stroke="#0c151a" stroke-width="5"/>
-    <path d="M16 8V56M48 8V56" stroke="#314b54" stroke-width="3"/>
-    <circle cx="12" cy="12" r="3" fill="#65777d"/><circle cx="52" cy="52" r="3" fill="#65777d"/>
+    <rect width="64" height="64" fill="#171c1e"/>
+    <rect x="3" y="3" width="58" height="58" rx="6" fill="url(#graphite)" stroke="#737d7d" stroke-width="2"/>
+    <rect x="9" y="9" width="46" height="46" rx="4" fill="#2b3335" stroke="#4d5859" stroke-width="2"/>
+    <rect x="17" y="17" width="30" height="30" rx="3" fill="#202729" stroke="#657071" stroke-width="1.5"/>
+    <path d="M22 22h20v20H22z" fill="none" stroke="#151a1c" stroke-width="3"/>
+    <circle cx="10" cy="10" r="2" fill="#929c9a"/><circle cx="54" cy="10" r="2" fill="#929c9a"/>
+    <circle cx="10" cy="54" r="2" fill="#929c9a"/><circle cx="54" cy="54" r="2" fill="#929c9a"/>
+    <path d="M25 7h14M25 57h14" stroke="#4f8b86" stroke-width="2" opacity=".78"/>
   </g>
 
-  <!-- 4: hazard / energy marker -->
+  <!-- 4: CORE/SLOT socket. Used for energy/service points and animated by CSS, not baked frames. -->
   <g transform="translate(192 0)">
-    <rect width="64" height="64" fill="#111d22"/>
-    <rect x="4" y="4" width="56" height="56" rx="5" fill="url(#hazard)" opacity=".8"/>
-    <rect x="13" y="13" width="38" height="38" rx="6" fill="#08242a" stroke="#e0b740" stroke-width="3"/>
-    <path d="M35 18 24 34h9l-4 13 12-18h-9z" fill="#ffe16f"/>
+    <rect width="64" height="64" fill="url(#ceramic)"/>
+    <rect x="3" y="3" width="58" height="58" rx="5" fill="none" stroke="#9aa5a1" stroke-width="1.5"/>
+    <path d="M10 22V10h12M54 22V10H42M10 42v12h12M54 42v12H42" fill="none" stroke="#4b7774" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="32" cy="32" r="18" fill="#30393a" stroke="#6a7774" stroke-width="2"/>
+    <circle cx="32" cy="32" r="13" fill="#202728" stroke="#d8952d" stroke-width="2"/>
+    <circle cx="32" cy="32" r="8" fill="url(#core)"/>
+    <circle cx="32" cy="32" r="3" fill="#fff8db"/>
+    <path d="M32 5v6M32 53v6M5 32h6M53 32h6" stroke="#d8952d" stroke-width="2"/>
   </g>
 </svg>
