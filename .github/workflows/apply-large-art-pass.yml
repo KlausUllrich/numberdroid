@@ -1,0 +1,49 @@
+name: Apply Large Art Pass
+
+on:
+  push:
+    branches:
+      - agent/transfer-hall-large-art-pass
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: contains(github.event.head_commit.message, '[apply-large-art-pass]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/transfer-hall-large-art-pass
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Apply art pass
+        run: bash scripts/apply-large-art-pass.sh
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Remove one-shot bootstrap
+        run: rm scripts/apply-large-art-pass.sh .github/workflows/apply-large-art-pass.yml
+
+      - name: Commit generated implementation
+        run: |
+          git config user.name "Numberdroid Art Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Build TS-01 Transfer Hall and eight-direction robots"
+          git push origin HEAD:agent/transfer-hall-large-art-pass
