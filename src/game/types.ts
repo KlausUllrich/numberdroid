@@ -40,6 +40,7 @@ export type RobotBody = {
   abilityDescription: string;
   drive: RobotDriveProfile;
   sprite: string;
+  directionalSprite: string;
 };
 
 export type EncounterAccessKey = {

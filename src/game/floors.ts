@@ -3,6 +3,7 @@ import { publicAsset } from "./assets";
 import { floorFromTiledMap } from "./tiled";
 import { DECK_C3_MAP } from "./maps/deckC3";
 import { DECK_VS2_MAP } from "./maps/deckVs2";
+import { TRANSFER_HALL_MAP } from "./maps/transferHall";
 
 const DECK_A7_STATIONS: EnergyStationDefinition[] = [
   {
@@ -103,11 +104,13 @@ export const DECK_A7: FloorDefinition = {
 
 export const DECK_VS2 = floorFromTiledMap(DECK_VS2_MAP, { resolveAsset: publicAsset });
 export const DECK_C3 = floorFromTiledMap(DECK_C3_MAP, { resolveAsset: publicAsset });
+export const TRANSFER_HALL = floorFromTiledMap(TRANSFER_HALL_MAP, { resolveAsset: publicAsset });
 
 export const FLOORS: Record<string, FloorDefinition> = {
   [DECK_A7.id]: DECK_A7,
   [DECK_VS2.id]: DECK_VS2,
   [DECK_C3.id]: DECK_C3,
+  [TRANSFER_HALL.id]: TRANSFER_HALL,
 };
 
 export const DEFAULT_FLOOR_ID = DECK_A7.id;

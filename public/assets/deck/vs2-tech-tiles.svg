@@ -1,77 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="64" viewBox="0 0 256 64">
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="512" viewBox="0 0 256 512">
   <defs>
-    <linearGradient id="ceramic" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#d5d9d5"/>
-      <stop offset="1" stop-color="#b8c0bc"/>
-    </linearGradient>
-    <linearGradient id="ceramicInset" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#c7cdca"/>
-      <stop offset="1" stop-color="#aeb8b4"/>
-    </linearGradient>
-    <linearGradient id="graphite" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3b4445"/>
-      <stop offset="1" stop-color="#232a2c"/>
-    </linearGradient>
-    <radialGradient id="core" cx="50%" cy="50%" r="50%">
-      <stop offset="0" stop-color="#fff1b6"/>
-      <stop offset=".38" stop-color="#ffc052"/>
-      <stop offset=".72" stop-color="#f29a24"/>
-      <stop offset="1" stop-color="#9f5f12"/>
-    </radialGradient>
+    <linearGradient id="ceramic" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dde1dc"/><stop offset="1" stop-color="#bcc5c0"/></linearGradient>
+    <linearGradient id="ceramicInset" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#cbd2ce"/><stop offset="1" stop-color="#aeb9b4"/></linearGradient>
+    <linearGradient id="graphite" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#414a49"/><stop offset="1" stop-color="#222a2a"/></linearGradient>
+    <radialGradient id="core" cx="45%" cy="40%" r="58%"><stop offset="0" stop-color="#fff7d0"/><stop offset=".32" stop-color="#ffc65b"/><stop offset=".72" stop-color="#e69a2f"/><stop offset="1" stop-color="#8d571c"/></radialGradient>
+    <radialGradient id="warmPool" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#f1c27c66"/><stop offset=".65" stop-color="#dc9c5a2b"/><stop offset="1" stop-color="#dc9c5a00"/></radialGradient>
   </defs>
-
-  <!--
-    TRANSFER SHIP ATLAS v0.2 — 64x64, orthographic only.
-    Stable IDs (GID = local id + 1):
-      1 floor / ceramic deck
-      2 slot-service deck
-      3 solid machinery / boundary slab
-      4 CORE/SLOT service socket
-    IMPORTANT: no fake wall faces, no vanishing lines, no camera-perspective shading.
-  -->
-
-  <!-- 1: civilian ceramic floor, seen straight from above -->
-  <g transform="translate(0 0)">
-    <rect width="64" height="64" fill="url(#ceramic)"/>
-    <rect x="2" y="2" width="60" height="60" rx="5" fill="none" stroke="#9fa9a5" stroke-width="1.5"/>
-    <path d="M32 3V61M3 32H61" stroke="#adb6b2" stroke-width="1" opacity=".72"/>
-    <path d="M8 8h8M8 8v8M56 8h-8M56 8v8M8 56h8M8 56v-8M56 56h-8M56 56v-8" stroke="#879691" stroke-width="1.4" opacity=".7"/>
-    <circle cx="7" cy="7" r="1.25" fill="#75837f"/><circle cx="57" cy="7" r="1.25" fill="#75837f"/>
-    <circle cx="7" cy="57" r="1.25" fill="#75837f"/><circle cx="57" cy="57" r="1.25" fill="#75837f"/>
-  </g>
-
-  <!-- 2: SLOT/service floor. Brackets and registration marks, still pure plan view. -->
-  <g transform="translate(64 0)">
-    <rect width="64" height="64" fill="url(#ceramicInset)"/>
-    <rect x="3" y="3" width="58" height="58" rx="5" fill="none" stroke="#8e9b97" stroke-width="1.5"/>
-    <path d="M12 18V11h12M52 18V11H40M12 46v7h12M52 46v7H40" fill="none" stroke="#477976" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="32" cy="32" r="10" fill="#aab5b1" stroke="#71817d" stroke-width="2"/>
-    <circle cx="32" cy="32" r="4" fill="#647975"/>
-    <path d="M32 8v6M32 50v6M8 32h6M50 32h6" stroke="#557f7c" stroke-width="2"/>
-    <rect x="48" y="5" width="8" height="3" rx="1.5" fill="#65a49e"/>
-  </g>
-
-  <!-- 3: solid machinery / blocked slab. Concentric top surfaces only, no visible side face. -->
-  <g transform="translate(128 0)">
-    <rect width="64" height="64" fill="#171c1e"/>
-    <rect x="3" y="3" width="58" height="58" rx="6" fill="url(#graphite)" stroke="#737d7d" stroke-width="2"/>
-    <rect x="9" y="9" width="46" height="46" rx="4" fill="#2b3335" stroke="#4d5859" stroke-width="2"/>
-    <rect x="17" y="17" width="30" height="30" rx="3" fill="#202729" stroke="#657071" stroke-width="1.5"/>
-    <path d="M22 22h20v20H22z" fill="none" stroke="#151a1c" stroke-width="3"/>
-    <circle cx="10" cy="10" r="2" fill="#929c9a"/><circle cx="54" cy="10" r="2" fill="#929c9a"/>
-    <circle cx="10" cy="54" r="2" fill="#929c9a"/><circle cx="54" cy="54" r="2" fill="#929c9a"/>
-    <path d="M25 7h14M25 57h14" stroke="#4f8b86" stroke-width="2" opacity=".78"/>
-  </g>
-
-  <!-- 4: CORE/SLOT socket. Used for energy/service points and animated by CSS, not baked frames. -->
-  <g transform="translate(192 0)">
-    <rect width="64" height="64" fill="url(#ceramic)"/>
-    <rect x="3" y="3" width="58" height="58" rx="5" fill="none" stroke="#9aa5a1" stroke-width="1.5"/>
-    <path d="M10 22V10h12M54 22V10H42M10 42v12h12M54 42v12H42" fill="none" stroke="#4b7774" stroke-width="3" stroke-linecap="round"/>
-    <circle cx="32" cy="32" r="18" fill="#30393a" stroke="#6a7774" stroke-width="2"/>
-    <circle cx="32" cy="32" r="13" fill="#202728" stroke="#d8952d" stroke-width="2"/>
-    <circle cx="32" cy="32" r="8" fill="url(#core)"/>
-    <circle cx="32" cy="32" r="3" fill="#fff8db"/>
-    <path d="M32 5v6M32 53v6M5 32h6M53 32h6" stroke="#d8952d" stroke-width="2"/>
-  </g>
+  <!-- Stable IDs. 1-4 preserve the previous atlas contract; new tiles append only. -->
+  <g transform="translate(0 0)"><rect width="64" height="64" fill="url(#ceramic)"/><rect x="2" y="2" width="60" height="60" rx="5" fill="none" stroke="#9fa9a5" stroke-width="1.5"/><path d="M32 3V61M3 32H61" stroke="#adb6b2" stroke-width="1" opacity=".72"/><path d="M8 8h8M8 8v8M56 8h-8M56 8v8M8 56h8M8 56v-8M56 56h-8M56 56v-8" stroke="#879691" stroke-width="1.4" opacity=".7"/></g><g transform="translate(64 0)"><rect width="64" height="64" fill="url(#ceramicInset)"/><rect x="3" y="3" width="58" height="58" rx="5" fill="none" stroke="#8e9b97" stroke-width="1.5"/><path d="M12 18V11h12M52 18V11H40M12 46v7h12M52 46v7H40" fill="none" stroke="#477976" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="32" r="10" fill="#aab5b1" stroke="#71817d" stroke-width="2"/><circle cx="32" cy="32" r="4" fill="#647975"/></g><g transform="translate(128 0)"><rect width="64" height="64" fill="#171c1e"/><rect x="3" y="3" width="58" height="58" rx="6" fill="url(#graphite)" stroke="#737d7d" stroke-width="2"/><rect x="9" y="9" width="46" height="46" rx="4" fill="#2b3335" stroke="#4d5859" stroke-width="2"/><rect x="17" y="17" width="30" height="30" rx="3" fill="#202729" stroke="#657071" stroke-width="1.5"/></g><g transform="translate(192 0)"><rect width="64" height="64" fill="url(#ceramic)"/><path d="M10 22V10h12M54 22V10H42M10 42v12h12M54 42v12H42" fill="none" stroke="#4b7774" stroke-width="3"/><circle cx="32" cy="32" r="18" fill="#30393a" stroke="#6a7774" stroke-width="2"/><circle cx="32" cy="32" r="13" fill="#202728" stroke="#d8952d" stroke-width="2"/><circle cx="32" cy="32" r="8" fill="url(#core)"/><circle cx="32" cy="32" r="3" fill="#fff8db"/></g><g transform="translate(0 64)"><rect width="64" height="64" fill="url(#ceramic)"/><rect width="64" height="13" fill="url(#graphite)"/><path d="M0 14H64" stroke="#5c9089" stroke-width="3"/><circle cx="12" cy="7" r="2" fill="#7db7af"/><circle cx="52" cy="7" r="2" fill="#7db7af"/></g><g transform="translate(64 64)"><rect width="64" height="64" fill="url(#ceramic)"/><rect x="51" width="13" height="64" fill="url(#graphite)"/><path d="M50 0V64" stroke="#5c9089" stroke-width="3"/><circle cx="57" cy="12" r="2" fill="#7db7af"/><circle cx="57" cy="52" r="2" fill="#7db7af"/></g><g transform="translate(128 64)"><rect width="64" height="64" fill="url(#ceramic)"/><rect y="51" width="64" height="13" fill="url(#graphite)"/><path d="M0 50H64" stroke="#5c9089" stroke-width="3"/><circle cx="12" cy="57" r="2" fill="#7db7af"/><circle cx="52" cy="57" r="2" fill="#7db7af"/></g><g transform="translate(192 64)"><rect width="64" height="64" fill="url(#ceramic)"/><rect width="13" height="64" fill="url(#graphite)"/><path d="M14 0V64" stroke="#5c9089" stroke-width="3"/><circle cx="7" cy="12" r="2" fill="#7db7af"/><circle cx="7" cy="52" r="2" fill="#7db7af"/></g><g transform="translate(0 128)"><rect width="64" height="64" fill="url(#ceramic)"/><path d="M0 13H13V64H0zM13 0H64V13H13z" fill="url(#graphite)"/><path d="M14 14H64M14 14V64" stroke="#5c9089" stroke-width="3"/></g><g transform="translate(64 128)"><rect width="64" height="64" fill="url(#ceramic)"/><path d="M0 0H51V13H64V64H51V14H0z" fill="url(#graphite)"/><path d="M0 14H50M50 14V64" stroke="#5c9089" stroke-width="3"/></g><g transform="translate(128 128)"><rect width="64" height="64" fill="url(#ceramic)"/><path d="M51 0H64V51H51V64H0V51H50V0z" fill="url(#graphite)"/><path d="M0 50H50M50 0V50" stroke="#5c9089" stroke-width="3"/></g><g transform="translate(192 128)"><rect width="64" height="64" fill="url(#ceramic)"/><path d="M0 0H13V50H64V64H0z" fill="url(#graphite)"/><path d="M14 0V50M14 50H64" stroke="#5c9089" stroke-width="3"/></g><g transform="translate(0 192)"><rect width="64" height="64" fill="url(#ceramic)"/><rect x="10" y="12" width="44" height="40" rx="7" fill="#8f9b97" stroke="#66736f" stroke-width="2"/><rect x="16" y="18" width="32" height="28" rx="4" fill="#aeb7b3"/><path d="M22 25h20M22 32h20M22 39h12" stroke="#6c7e79" stroke-width="2"/></g><g transform="translate(64 192)"><rect width="64" height="64" fill="url(#ceramicInset)"/><path d="M9 20V9h13M55 20V9H42M9 44v11h13M55 44v11H42" fill="none" stroke="#477976" stroke-width="4"/><rect x="19" y="24" width="9" height="18" rx="4" fill="#6e7c78"/><rect x="36" y="24" width="9" height="18" rx="4" fill="#6e7c78"/><circle cx="32" cy="20" r="5" fill="#d7952f"/></g><g transform="translate(128 192)"><rect width="64" height="64" fill="url(#ceramic)"/><rect x="9" y="9" width="46" height="46" rx="7" fill="#161d1e" stroke="#596360" stroke-width="2"/><circle cx="18" cy="18" r="4" fill="#0b1011" stroke="#78aaa4"/><path d="M26 17h20M26 23h14M16 34h32M16 40h24M16 46h18" stroke="#8eb7b0" stroke-width="2"/><rect x="43" y="42" width="6" height="6" rx="2" fill="#d9a344"/></g><g transform="translate(192 192)"><rect width="64" height="64" fill="url(#ceramicInset)"/><path d="M7 32h50" stroke="#d89b2d" stroke-width="6"/><path d="M18 17h28v30H18z" fill="none" stroke="#bd7d1d" stroke-width="2"/><rect x="27" y="22" width="10" height="16" rx="3" fill="#2b3130"/><circle cx="32" cy="30" r="3" fill="#f2b543"/></g><g transform="translate(0 256)"><ellipse cx="32" cy="49" rx="27" ry="9" fill="#d8b07955"/><rect x="7" y="28" width="50" height="20" rx="8" fill="#a86643" stroke="#75462f" stroke-width="2"/><rect x="11" y="23" width="42" height="10" rx="5" fill="#d39a6f"/><rect x="12" y="45" width="6" height="10" rx="2" fill="#5f4a3d"/><rect x="46" y="45" width="6" height="10" rx="2" fill="#5f4a3d"/></g><g transform="translate(64 256)"><path d="M12 36c0-10 6-18 14-18s14 8 14 18v16H12z" fill="#bd704d" stroke="#784632" stroke-width="2"/><path d="M16 25l10-7 10 7" fill="none" stroke="#e9b08c" stroke-width="2"/><circle cx="48" cy="39" r="7" fill="#d7d2c8" stroke="#7b817c" stroke-width="2"/><circle cx="48" cy="39" r="3" fill="#80614c"/></g><g transform="translate(128 256)"><rect x="11" y="8" width="42" height="48" rx="3" fill="#f6f1df" stroke="#b8aa85" stroke-width="2" transform="rotate(-4 32 32)"/><path d="M19 39c8-12 18-12 26 0M24 23l5 5 8-9 8 8" fill="none" stroke="#d4775c" stroke-width="3" stroke-linecap="round"/><circle cx="22" cy="19" r="4" fill="#e6ad48"/><path d="M19 48h25" stroke="#5d928b" stroke-width="2"/></g><g transform="translate(192 256)"><circle cx="32" cy="32" r="29" fill="url(#warmPool)"/><circle cx="32" cy="32" r="19" fill="none" stroke="#dcaa6b88" stroke-width="2" stroke-dasharray="5 5"/><circle cx="32" cy="32" r="4" fill="#efbd6a"/></g><g transform="translate(0 320)"><circle cx="32" cy="32" r="27" fill="#2e3737" stroke="#6b7874" stroke-width="3"/><circle cx="32" cy="32" r="20" fill="#d7dcda" stroke="#5f8f89" stroke-width="3"/><path d="M14 32h10M40 32h10M32 14v10M32 40v10" stroke="#5d8f89" stroke-width="4"/><circle cx="32" cy="32" r="9" fill="url(#core)"/><circle cx="32" cy="32" r="3" fill="#fff7d6"/></g><g transform="translate(64 320)"><rect x="7" y="7" width="50" height="50" rx="8" fill="#c9d0cd" stroke="#697774" stroke-width="2"/><path d="M13 20h12V12M51 20H39V12M13 44h12v8M51 44H39v8" fill="none" stroke="#4f817c" stroke-width="3"/><circle cx="32" cy="32" r="13" fill="#202827"/><path d="M21 32h22" stroke="#e5ac48" stroke-width="3"/><circle cx="32" cy="32" r="4" fill="#f5c05c"/></g><g transform="translate(128 320)"><path d="M17 48V29c0-10 6-17 15-17s15 7 15 17v19" fill="#cfd6d3" stroke="#596561" stroke-width="2"/><rect x="21" y="18" width="22" height="13" rx="6" fill="#dce1de" stroke="#596561" stroke-width="2"/><rect x="25" y="22" width="14" height="5" rx="2" fill="#26302f"/><circle cx="32" cy="38" r="6" fill="#2a3332"/><circle cx="32" cy="38" r="3" fill="#efad42"/><path d="M21 44h22" stroke="#5b9f97" stroke-width="3"/></g><g transform="translate(192 320)"><rect x="13" y="9" width="38" height="46" rx="8" fill="#151c1d" stroke="#606b68" stroke-width="2"/><rect x="18" y="15" width="28" height="12" rx="4" fill="#090d0e" stroke="#85aba5"/><path d="M22 20h20M21 34h22M21 40h17M21 46h11" stroke="#8ab7af" stroke-width="2"/><circle cx="42" cy="46" r="4" fill="#e1a43e"/></g><g transform="translate(0 384)"><ellipse cx="32" cy="55" rx="16" ry="4" fill="#1a1a1a22"/><circle cx="32" cy="16" r="7" fill="#d7a177"/><path d="M23 27c2-6 6-9 9-9s7 3 9 9v20H23z" fill="#b65f45"/><rect x="20" y="46" width="9" height="8" rx="3" fill="#50423a"/><rect x="35" y="46" width="9" height="8" rx="3" fill="#50423a"/><path d="M24 31h16" stroke="#e7b899" stroke-width="2"/></g><g transform="translate(64 384)"><ellipse cx="32" cy="55" rx="16" ry="4" fill="#1a1a1a22"/><circle cx="32" cy="16" r="7" fill="#d09a70"/><path d="M22 28c2-7 6-10 10-10s8 3 10 10v20H22z" fill="#4f7e86"/><path d="M24 37c7 5 9 5 16 0" fill="none" stroke="#d0a36f" stroke-width="3"/><rect x="20" y="47" width="9" height="7" rx="3" fill="#3d4848"/><rect x="35" y="47" width="9" height="7" rx="3" fill="#3d4848"/></g><g transform="translate(128 384)"><ellipse cx="32" cy="55" rx="19" ry="4" fill="#1a1a1a22"/><rect x="17" y="25" width="30" height="27" rx="7" fill="#d6d8d3" stroke="#554f48" stroke-width="2"/><path d="M14 28h8M42 28h8M18 44h28" stroke="#dc812a" stroke-width="5"/><rect x="21" y="13" width="22" height="16" rx="6" fill="#e4e3dc" stroke="#5d5951" stroke-width="2"/><rect x="25" y="18" width="14" height="5" rx="2" fill="#332c28"/><circle cx="32" cy="36" r="5" fill="#e98b2d"/><path d="M24 52l-5 6M40 52l5 6" stroke="#4a4540" stroke-width="4"/></g><g transform="translate(192 384)"><circle cx="32" cy="32" r="24" fill="#111617" stroke="#090c0d" stroke-width="5"/><circle cx="32" cy="32" r="14" fill="#252c2d" stroke="#3e4948" stroke-width="2"/><circle cx="32" cy="32" r="5" fill="#080b0c"/><path d="M20 19l24 26M44 19L20 45" stroke="#5c6966" stroke-width="2"/></g><g transform="translate(0 448)"><rect x="9" y="14" width="46" height="37" rx="5" fill="#858f8c" stroke="#5b6663" stroke-width="2"/><path d="M9 27h46M21 14v37M43 14v37" stroke="#6d7774" stroke-width="2"/><rect x="18" y="20" width="8" height="4" rx="2" fill="#64a39c"/></g><g transform="translate(64 448)"><path d="M8 27h31V17l17 15-17 15V37H8z" fill="#5c9b93" stroke="#3f746e" stroke-width="2"/><path d="M14 32h26" stroke="#d8e8e4" stroke-width="3"/></g><g transform="translate(128 448)"><rect x="7" y="11" width="50" height="42" rx="6" fill="#293231" stroke="#697572" stroke-width="2"/><rect x="12" y="16" width="40" height="12" rx="3" fill="#0d1415"/><path d="M16 20h18M16 24h27" stroke="#74a9a2" stroke-width="2"/><circle cx="17" cy="39" r="5" fill="#c7d1cd"/><circle cx="32" cy="39" r="5" fill="#c7d1cd"/><circle cx="47" cy="39" r="5" fill="#e0a445"/></g><g transform="translate(192 448)"><circle cx="32" cy="32" r="13" fill="#dc9368" stroke="#8c5c46" stroke-width="2"/><path d="M26 23c-4-6 8-8 7-2 5-5 11 4 5 7 6 4 0 12-6 8-5 6-12-2-7-7-7-2-4-9 1-6z" fill="#f0c074"/><circle cx="29" cy="30" r="2" fill="#4c3b33"/><circle cx="36" cy="30" r="2" fill="#4c3b33"/></g>
 </svg>

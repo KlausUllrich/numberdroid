@@ -36,9 +36,9 @@ button:focus-visible { outline:3px solid #fff; outline-offset:3px; }
 .zk-entity .level { display:flex; gap:2px; position:absolute; left:50%; top:-10px; transform:translateX(-50%); }
 .zk-entity .level i { width:14px; height:4px; background:#ff4b43; }
 .zk-entity .level i.off { opacity:.2; }
-.zk-player { z-index:20; transform:translate(-50%,-50%) rotate(var(--facing)); }
+.zk-player { z-index:20; transform:translate(-50%,-50%); }
 .zk-player img { width:76px; height:76px; filter:drop-shadow(0 0 10px #39f1a1) sepia(.25) saturate(1.8) hue-rotate(80deg); }
-.zk-player-name { transform:translateX(-50%) rotate(calc(-1 * var(--facing))); top:94%; color:#70f5b4; border-color:#3b9e73; }
+.zk-player-name { transform:translateX(-50%); top:94%; color:#70f5b4; border-color:#3b9e73; }
 .zk-touch-marker { position:absolute; z-index:40; width:46px; height:46px; transform:translate(-50%,-50%); border:2px solid #61e4d0; border-radius:50%; box-shadow:0 0 18px #44dbc6; pointer-events:none; }
 .zk-touch-hint { position:absolute; bottom:10px; left:12px; z-index:30; padding:6px 9px; background:#02090dcc; color:#8fb0ac; font-size:11px; }
 .zk-interact { position:absolute; z-index:40; bottom:18px; right:18px; min-width:220px; padding:13px 18px; border:1px solid #60ead2; border-radius:9px; background:#073039e8; font-weight:900; }

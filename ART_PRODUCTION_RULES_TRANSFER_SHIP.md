@@ -348,3 +348,11 @@ Not implemented yet:
 - full sprite-sheet locomotion animation.
 
 Those should follow only after the first in-game material/color read is evaluated.
+
+## Directional robot production rule — 8 views
+
+Gameplay robots use **8 authored turnaround directions** rather than rotating one sprite: N, NE, E, SE, S, SW, W, NW.
+
+The floor and tile atlas remain strictly orthographic. Robot entities are allowed to present front/side/back character views because this materially improves silhouette, personality and role readability.
+
+Affiliation is not baked into body identity. The renderer supplies ownership color: player green, opponent red, NPC blue, Kayo orange, PRIMUS black. A transferred body therefore changes affiliation presentation without changing body geometry.

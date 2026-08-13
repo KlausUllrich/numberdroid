@@ -173,3 +173,37 @@
     animation-duration: 1ms;
   }
 }
+
+/* AFFILIATION + EIGHT-DIRECTION BODY RENDERING */
+.zk-hostile .zk-directional-sprite {
+  filter: drop-shadow(0 0 8px #ee514a) hue-rotate(176deg) saturate(1.4);
+  transition: filter 120ms linear;
+}
+.zk-hostile::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -2;
+  width: 58px;
+  height: 28px;
+  border: 2px solid #e44943a8;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, #e44a3c3c 0 28%, transparent 70%);
+  transform: translate(-50%, 22%);
+  pointer-events: none;
+}
+.zk-hostile.large::after { width: 104px; height: 46px; }
+.zk-hostile.behavior-neutral .zk-directional-sprite {
+  filter: drop-shadow(0 0 8px #4d91ed) hue-rotate(38deg) saturate(1.28);
+}
+.zk-hostile.behavior-neutral::after {
+  border-color: #4d91edaa;
+  background: radial-gradient(ellipse, #4b8de53d 0 28%, transparent 70%);
+}
+.zk-hostile.alerted .zk-directional-sprite {
+  filter: drop-shadow(0 0 12px #ff3f34) drop-shadow(0 0 20px #ff3f3477) hue-rotate(176deg) saturate(1.7);
+}
+.zk-hostile.boss .zk-directional-sprite {
+  filter: drop-shadow(0 0 14px #ff6a45) drop-shadow(0 0 28px #b20f0f88) hue-rotate(176deg) saturate(1.55);
+}
