@@ -1,9 +1,107 @@
-/* Slice 0.1: explicit Transfer Hall visual layers. */
+/* Slice 0.2: explicit Transfer Hall visual layers. */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Ground"] { z-index: 0; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorFX"] {
-  z-index: 1;
-  mix-blend-mode: screen;
-}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorFX"] { z-index: 1; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] { z-index: 2; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="WallProps"] { z-index: 3; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorProps"] { z-index: 4; }
+
+/*
+ * ARCHITECTURE CONTRACT
+ * Architecture tiles are semantic markers only. Their PNG pixels are intentionally ignored here.
+ * Continuous CSS bands extend 1 px across tile boundaries so a valid wall can never show seams/gaps.
+ * The centered internal wall is 8 px wide, matching the authored 0.125-tile collision strip.
+ */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] {
+  --nd-wall-dark: #192423;
+  --nd-wall-mid: #2d4441;
+  --nd-wall-edge: #5f928b;
+  --nd-wall-hi: #9bc0ba;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile {
+  background-image: none !important;
+  overflow: visible;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile::before,
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile::after {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* horizontal bands */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="1"],[data-tile-id="5"],[data-tile-id="6"],[data-tile-id="10"])::before,
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="2"],[data-tile-id="7"],[data-tile-id="8"],[data-tile-id="11"])::before {
+  left: -1px;
+  width: calc(100% + 2px);
+  height: 8px;
+  background: linear-gradient(to bottom, var(--nd-wall-hi) 0 1px, var(--nd-wall-edge) 1px 2px, var(--nd-wall-mid) 2px 6px, var(--nd-wall-dark) 6px 8px);
+  box-shadow: 0 2px 3px rgba(10,18,17,.26);
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="1"],[data-tile-id="5"],[data-tile-id="6"],[data-tile-id="10"])::before { top: -1px; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="2"],[data-tile-id="7"],[data-tile-id="8"],[data-tile-id="11"])::before { bottom: -1px; }
+
+/* left/right outer bands */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="3"],[data-tile-id="5"],[data-tile-id="8"])::after,
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="4"],[data-tile-id="6"],[data-tile-id="7"])::after {
+  top: -1px;
+  height: calc(100% + 2px);
+  width: 8px;
+  background: linear-gradient(to right, var(--nd-wall-hi) 0 1px, var(--nd-wall-edge) 1px 2px, var(--nd-wall-mid) 2px 6px, var(--nd-wall-dark) 6px 8px);
+  box-shadow: 2px 0 3px rgba(10,18,17,.22);
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="3"],[data-tile-id="5"],[data-tile-id="8"])::after { left: -1px; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="4"],[data-tile-id="6"],[data-tile-id="7"])::after { right: -1px; }
+
+/* centered internal divider + the vertical stem of both T-junctions */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="9"],[data-tile-id="10"],[data-tile-id="11"],[data-tile-id="12"],[data-tile-id="13"])::after {
+  left: 28px;
+  top: -1px;
+  width: 8px;
+  height: calc(100% + 2px);
+  background: linear-gradient(to right, var(--nd-wall-dark) 0 1px, var(--nd-wall-mid) 1px 6px, var(--nd-wall-edge) 6px 7px, var(--nd-wall-hi) 7px 8px);
+  box-shadow: 2px 0 3px rgba(10,18,17,.24);
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile[data-tile-id="12"]::after { border-radius: 0 0 4px 4px; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile[data-tile-id="13"]::after { border-radius: 4px 4px 0 0; }
+
+/*
+ * FLOOR FX CONTRACT
+ * The Transfer light is a single marker (tile id 1 in the FloorFX tileset).
+ * No image fragments are shown; one soft radial field is rendered below the machine.
+ */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorFX"] .zk-map-tile[data-tile-id="1"] {
+  background-image: none !important;
+  overflow: visible;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorFX"] .zk-map-tile[data-tile-id="1"]::before,
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorFX"] .zk-map-tile[data-tile-id="1"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorFX"] .zk-map-tile[data-tile-id="1"]::before {
+  width: 260px;
+  height: 220px;
+  background: radial-gradient(ellipse at center, rgba(255,211,120,.46) 0%, rgba(247,174,58,.31) 30%, rgba(235,142,28,.14) 53%, rgba(226,123,14,0) 78%);
+  filter: blur(10px);
+  transform: translate(-50%,-50%);
+  animation: nd-transfer-light-breathe 2.8s ease-in-out infinite alternate;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorFX"] .zk-map-tile[data-tile-id="1"]::after {
+  width: 132px;
+  height: 112px;
+  background: radial-gradient(ellipse at center, rgba(255,231,171,.34) 0%, rgba(252,188,79,.19) 52%, transparent 78%);
+  filter: blur(6px);
+  transform: translate(-50%,-50%);
+}
+@keyframes nd-transfer-light-breathe {
+  from { opacity: .72; transform: translate(-50%,-50%) scale(.97); }
+  to { opacity: .94; transform: translate(-50%,-50%) scale(1.035); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorFX"] .zk-map-tile[data-tile-id="1"]::before { animation: none; }
+}
