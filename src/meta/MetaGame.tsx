@@ -394,8 +394,12 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
         inputX /= Math.max(1, inputLength);
         inputY /= Math.max(1, inputLength);
         const desiredHeading = Math.atan2(inputY, inputX);
+        const headingDelta = normalizeAngle(desiredHeading - headingRef.current);
+        const reversing = Math.abs(headingDelta) > Math.PI * 0.62;
         headingRef.current = turnToward(headingRef.current, desiredHeading, drive.turnSpeed * Math.PI / 180 * dt);
-        speedRef.current = Math.min(drive.maxSpeed, speedRef.current + drive.acceleration * dt);
+        speedRef.current = reversing && speedRef.current > drive.maxSpeed * 0.16
+          ? Math.max(0, speedRef.current - drive.deceleration * 1.35 * dt)
+          : Math.min(drive.maxSpeed, speedRef.current + drive.acceleration * dt);
       } else {
         speedRef.current = Math.max(0, speedRef.current - drive.deceleration * dt);
       }

@@ -1,4 +1,4 @@
-# Numberdroid — Transfer Ship Art Production Rules v0.1
+# Numberdroid — Transfer Ship Art Production Rules v0.2
 
 Status: implementation rules for the first playable art slice  
 Applies to: Intro + Beats 1–5 / Transfer Ship  
@@ -356,3 +356,34 @@ Gameplay robots use **8 authored turnaround directions** rather than rotating on
 The floor and tile atlas remain strictly orthographic. Robot entities are allowed to present front/side/back character views because this materially improves silhouette, personality and role readability.
 
 Affiliation is not baked into body identity. The renderer supplies ownership color: player green, opponent red, NPC blue, Kayo orange, PRIMUS black. A transferred body therefore changes affiliation presentation without changing body geometry.
+
+
+## Mockup Alignment Pass 1 — binding production update
+
+The first in-game review showed that technically correct SVG primitives still read as prototype art. From this pass onward the visible Transfer Hall production assets are raster runtime assets (`PNG`) with subtle material variation; SVG may remain a source/construction format but is not the target presentation format.
+
+### Tile vs. setpiece rule
+
+Use a 64×64 tile for repeatable surfaces, seams, edges, sockets and small functional markers. Use a multi-tile setpiece when the object is a focal architectural object or would physically occupy more than one cell.
+
+Current minimum examples:
+
+- Family table / parent niche: 3×2 cells
+- Transfer Cradle: 3×3 cells
+- PICO dock: 2×2 cells
+- PRIMUS allocation console: 2×2 cells
+- Kayo status platform: 2×2 cells
+- PRIMUS pylon: 2×2 cells
+- machine rack / body-slot bank: 2×2 cells
+
+A setpiece is sliced into exact 64×64 atlas fragments for the renderer, but must read as one coherent object in world space. Collision uses the setpiece footprint rather than one-cell proxy obstacles.
+
+### Directional character sheet naming
+
+`directional-<body>.png` is one horizontal 8-frame strip in this exact order:
+
+`N | NE | E | SE | S | SW | W | NW`
+
+The eight views must be visibly authored, not a rotated source image and not four views duplicated by mirroring. Front views expose face/sensor personality; rear views expose service/rear panels; pure side views have a true profile silhouette; diagonal views carry asymmetric near/far features.
+
+Ownership remains a renderer treatment. Do not bake player green, hostile red or NPC blue into the physical body sheet.
