@@ -331,3 +331,21 @@
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap { filter: drop-shadow(0 10px 20px rgba(22,30,29,.22)); }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-id="Decor"] { filter: drop-shadow(0 5px 5px rgba(20,26,25,.22)); }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-directional-sprite { image-rendering: auto; }
+
+
+/* SLICE 0 FOUNDATION */
+/* Early Transfer Ship lighting stays calm. The Transfer core is the single strong emissive. */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Decor"] {
+  filter: none;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-map-tile[data-tile-id="43"] {
+  animation: nd-slice0-transfer-core 2.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 5px rgba(239, 171, 58, .42));
+}
+@keyframes nd-slice0-transfer-core {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(239,171,58,.34)) brightness(1); }
+  50% { filter: drop-shadow(0 0 11px rgba(239,171,58,.62)) brightness(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zk-meta-shell[data-floor-id="transfer-hall"] .zk-map-tile[data-tile-id="43"] { animation: none; }
+}

@@ -42,7 +42,7 @@ function TileMap({ visual }: { visual: TileMapVisualDefinition }) {
       style={{ width: visual.columns * visual.tileWidth, height: visual.rows * visual.tileHeight }}
     >
       {visual.layers.filter((layer) => layer.visible !== false).map((layer) => (
-        <div key={layer.id} className="zk-tilemap-layer" style={{ opacity: layer.opacity ?? 1 }}>
+        <div key={layer.id} className="zk-tilemap-layer" data-layer-id={layer.id} data-layer-name={layer.name} style={{ opacity: layer.opacity ?? 1 }}>
           {layer.data.map((rawGid, index) => {
             if (!rawGid) return null;
             const gid = rawGid & GID_MASK;

@@ -1,4 +1,4 @@
-# Numberdroid — Transfer Ship Art Production Rules v0.2
+# Numberdroid — Transfer Ship Art Production Rules v0.3
 
 Status: implementation rules for the first playable art slice  
 Applies to: Intro + Beats 1–5 / Transfer Ship  
@@ -387,3 +387,54 @@ A setpiece is sliced into exact 64×64 atlas fragments for the renderer, but mus
 The eight views must be visibly authored, not a rotated source image and not four views duplicated by mirroring. Front views expose face/sensor personality; rear views expose service/rear panels; pure side views have a true profile silhouette; diagonal views carry asymmetric near/far features.
 
 Ownership remains a renderer treatment. Do not bake player green, hostile red or NPC blue into the physical body sheet.
+
+
+## Slice 0 Foundation — binding room grammar
+
+Slice 0 deliberately fixes the room grammar before the Gold Slice replaces the art with target-quality assets.
+
+### Thin-wall rule
+
+Walls are architectural boundaries, not 64×64 solid slabs. Outer walls render as narrow bands on the outside edge of a floor cell. Interior separators use a narrow centered band and a matching narrow collision rectangle. The player may approach a wall closely, but cannot cross it.
+
+A visible opening MUST be physically traversable. A closed wall MUST block. Door clearance is reserved on both sides of the opening.
+
+### Placement classes
+
+Every prop belongs to one of four placement classes:
+
+1. **floor marking** — painted/inset and never blocks movement;
+2. **intentional floor prop / hero setpiece** — may sit in open floor because its function requires it;
+3. **wall-mounted prop** — anchored to an upper wall and allowed to overlap downward into the room;
+4. **character/entity** — positioned independently from the tile atlas.
+
+Do not scatter wall furniture as isolated floor icons.
+
+### Orthographic overlap rule
+
+Upper walls may carry equipment that overlaps downward into the room. Lower walls remain visually clean; equipment must not overlap upward from the lower wall because that fights player/world readability in this camera.
+
+### Visual footprint vs collision footprint
+
+Visual art, collision and interaction clearance are separate data. Multi-tile art MUST NOT automatically become a full rectangular blocker. Floor pads such as PICO/Kayo platforms are driveable. Hero machinery blocks only its visibly solid mass.
+
+### Shadow and early-light rule
+
+Important props receive controlled contact shadows in the art. Early Transfer Ship rooms use calm, even ambient illumination. Emissive accents are sparse. In Slice 0, the Transfer core is intentionally the strongest local glow; large dynamic lighting effects are reserved for later escalation.
+
+### Preview-flow rule
+
+`?floor=transfer-hall` is an explicit developer/art preview route and intentionally bypasses intro/title/hub. A normal launch without the query parameter must continue through the normal menu flow.
+
+### Slice 0 definition of done
+
+- no visible accidental gaps in the room perimeter;
+- outer and interior walls read as thin architectural bands rather than square wall plates;
+- visible openings match traversal;
+- the two-cell allocation doorway is clear on approach, threshold and exit;
+- wall-mounted assets are anchored to the upper wall rather than scattered across the floor;
+- lower walls remain free of overlapping furniture;
+- floor pads remain driveable unless visibly solid;
+- the Transfer Cradle blocks only its solid core;
+- room lighting stays quiet, with a restrained Transfer-core emissive;
+- normal launch and direct preview routing are both regression-tested.
