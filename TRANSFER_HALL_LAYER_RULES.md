@@ -70,3 +70,30 @@ Characters are the exception to the top-down-only environment rule. PICO and oth
 `N (back) | NE (rear 3/4) | E (profile) | SE (front 3/4) | S (front) | SW (front 3/4) | W (profile) | NW (rear 3/4)`
 
 The eight frames must be visually distinguishable at gameplay scale. A technically separate frame that reads like the same cardinal view does not satisfy the rule. Front shows face/personality; rear removes the face and exposes service/back detail; profiles are narrow true profiles; diagonals visibly combine front/rear and side information.
+
+## Slice 0 acceptance — 2026-08-13
+
+Slice 0 is **accepted and closed as the technical foundation**. Do not reopen it as another architecture or system-design phase before beginning the Gold Slice.
+
+Validated foundation includes:
+
+- landscape-only mobile gameplay guard;
+- reliable visual/collision separation;
+- complete outer perimeter and traversable visible openings;
+- thin semantic wall geometry and matching collision;
+- door leaves that retract below Architecture into wall pockets;
+- clean Ground / FloorFX / Architecture / WallProps / FloorProps / Characters / LightOverlay / UI separation;
+- props with transparent backgrounds and no baked floor tiles;
+- room-occluded LightOverlay that illuminates PICO but not walls or the neighboring room;
+- global-GID state effects, preventing accidental prop glow;
+- visually readable eight-direction PICO turnaround;
+- art/debug annotations separated conceptually from final game UI.
+
+### Known cosmetic debt intentionally deferred to the Gold Slice
+
+The final Slice 0 screenshot still shows two minor visual seams. They are **not reasons to restart Slice 0**:
+
+1. At the upper/right wall-junction/corner there is still a thin cyan/teal highlight line that makes the junction look slightly layered rather than like one finished manufactured wall piece.
+2. An open doorway can still show two thin guide/pocket lines after the moving leaves retract. The door works correctly, but the final Gold art should integrate or hide those guides so the open aperture reads cleanly.
+
+Fix these while replacing/polishing the wall and door presentation for the Gold Slice. Preserve the underlying layer, collision, wall-pocket and lighting contracts.
