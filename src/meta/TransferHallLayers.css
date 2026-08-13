@@ -1,0 +1,9 @@
+/* Slice 0.1: explicit Transfer Hall visual layers. */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Ground"] { z-index: 0; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorFX"] {
+  z-index: 1;
+  mix-blend-mode: screen;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] { z-index: 2; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="WallProps"] { z-index: 3; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorProps"] { z-index: 4; }

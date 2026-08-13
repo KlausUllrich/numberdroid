@@ -8,55 +8,80 @@ function prop(name: string, value: unknown, type: string = typeof value) { retur
 
 const WALKABLE: TileRect[] = [{ name: "transfer-hall", x: 1, y: 1, w: 18, h: 10 }];
 
-// SLICE 0 RULE: visual footprint and collision footprint are independent.
-// Thin walls use thin blockers; wall-mounted props block only their protruding core.
+const DIVIDER_X = 12.4375;
+const WALL_THICKNESS = 0.125;
 const OBSTACLES: TileRect[] = [
-  { name: "divider-north", x: 12.43, y: 1, w: 0.14, h: 4 },
-  { name: "divider-south", x: 12.43, y: 7, w: 0.14, h: 4 },
+  { name: "divider-north", x: DIVIDER_X, y: 1, w: WALL_THICKNESS, h: 4 },
+  { name: "divider-south", x: DIVIDER_X, y: 7, w: WALL_THICKNESS, h: 4 },
   { name: "family-table-solid", x: 2.52, y: 4.58, w: 1.96, h: 0.82 },
-  { name: "family-display-protrusion", x: 3.38, y: 1.56, w: 1.24, h: 0.70 },
+  { name: "family-display-protrusion", x: 3.25, y: 1.08, w: 1.50, h: 0.56 },
   { name: "transfer-cradle-core", x: 8.70, y: 4.70, w: 1.60, h: 1.60 },
-  { name: "primus-console-protrusion", x: 14.36, y: 1.54, w: 1.28, h: 0.72 },
-  { name: "body-slot-bank-protrusion", x: 16.38, y: 1.54, w: 1.24, h: 0.70 },
+  { name: "primus-console-protrusion", x: 14.20, y: 1.08, w: 1.60, h: 0.58 },
+  { name: "body-slot-bank-protrusion", x: 16.20, y: 1.08, w: 1.60, h: 0.58 },
 ];
 
-function groundTile(col: number, row: number) {
-  if (col < 1 || col > 18 || row < 1 || row > 10) return 3;
-  if (col === 1 && row === 1) return 9;
-  if (col === 18 && row === 1) return 10;
-  if (col === 18 && row === 10) return 11;
-  if (col === 1 && row === 10) return 12;
-  if (row === 1) return 5;
-  if (col === 18) return 6;
-  if (row === 10) return 7;
-  if (col === 1) return 8;
-  // Thin internal architectural separator. Rows 5–6 are the actual doorway.
-  if (col === 12 && (row <= 4 || row >= 7)) return 20;
-  if (col === 12) return 2;
-  if (col >= 7 && col <= 11 && row >= 3 && row <= 8) return (col + row) % 4 === 0 ? 2 : 1;
-  return (col * 3 + row * 5) % 17 === 0 ? 13 : 1;
+const layer = () => Array.from({ length: COLUMNS * ROWS }, () => 0);
+function setCell(target: number[], col: number, row: number, gid: number) { target[row * COLUMNS + col] = gid; }
+function block(target: number[], col: number, row: number, gids: number[], width: number) {
+  gids.forEach((gid, i) => setCell(target, col + i % width, row + Math.floor(i / width), gid));
 }
 
-const ground = Array.from({ length: COLUMNS * ROWS }, (_, i) => groundTile(i % COLUMNS, Math.floor(i / COLUMNS)));
-const decor = Array.from({ length: COLUMNS * ROWS }, () => 0);
-function setDecor(col: number, row: number, gid: number) { decor[row * COLUMNS + col] = gid; }
-function block(col: number, row: number, gids: number[], width: number) { gids.forEach((gid,i) => setDecor(col + i % width, row + Math.floor(i / width), gid)); }
+// Ground owns surfaces only. Outside the room stays transparent, so no fake thick wall slabs appear.
+const ground = layer();
+for (let row = 1; row <= 10; row += 1) {
+  for (let col = 1; col <= 18; col += 1) {
+    const service = col >= 7 && col <= 11 && row >= 3 && row <= 8 && (col + row) % 4 === 0;
+    setCell(ground, col, row, service ? 2 : 1);
+  }
+}
 
-// SLICE 0 PLACEMENT GRAMMAR:
-// - wall-mounted assets overlap the TOP wall and project downward into the room;
-// - lower walls remain visually clean;
-// - floor objects exist only when their function requires a floor position.
-block(3,1,[68,69,70,71],2);                 // family display, wall-mounted 2x2
-block(2,4,[33,34,35,36,37,38],3);          // family table, intentional floor prop 3x2
-setDecor(4,7,17);                            // one personal trace, intentional floor prop
-block(8,4,[39,40,41,42,43,44,45,46,47],3); // Transfer Cradle, hero floor setpiece 3x3
-block(9,7,[48,49,50,51],2);                 // PICO dock, driveable floor pad 2x2
-setDecor(10,3,14);                           // body parking SLOT: floor marking, not furniture
-block(14,1,[52,53,54,55],2);                // PRIMUS allocation console, top-wall mounted
-block(16,1,[76,77,78,79],2);                // body-slot bank, top-wall mounted
-block(14,6,[56,57,58,59],2);                // Kayo status platform, intentional floor pad
+// Architecture is transparent and contains only thin walls/junctions/caps.
+const architecture = layer();
+for (let col = 2; col <= 17; col += 1) {
+  setCell(architecture, col, 1, 81);
+  setCell(architecture, col, 10, 82);
+}
+for (let row = 2; row <= 9; row += 1) {
+  setCell(architecture, 1, row, 83);
+  setCell(architecture, 18, row, 84);
+}
+setCell(architecture, 1, 1, 85);
+setCell(architecture, 18, 1, 86);
+setCell(architecture, 18, 10, 87);
+setCell(architecture, 1, 10, 88);
 
-function rectObjects(rects: TileRect[], firstId: number) { return rects.map((r,i)=>({id:firstId+i,name:r.name,x:r.x*TILE,y:r.y*TILE,width:r.w*TILE,height:r.h*TILE})); }
+setCell(architecture, 12, 1, 90); // T-junction with top wall
+setCell(architecture, 12, 2, 89);
+setCell(architecture, 12, 3, 89);
+setCell(architecture, 12, 4, 92); // capped before door
+setCell(architecture, 12, 7, 93); // capped after door
+setCell(architecture, 12, 8, 89);
+setCell(architecture, 12, 9, 89);
+setCell(architecture, 12, 10, 91); // T-junction with bottom wall
+
+// FloorFX owns only projected shadows/light, never object geometry.
+const floorFx = layer();
+block(floorFx, 8, 4, [97,98,99,100,101,102,103,104,105], 3); // warm Transfer glow
+block(floorFx, 2, 4, [106,107,108,109,110,111], 3);           // table contact shadow
+block(floorFx, 9, 7, [112,113,114,115], 2);                   // PICO dock shadow
+block(floorFx, 14, 6, [116,117,118,119], 2);                  // Kayo pad shadow
+
+// WallProps: shallow top-down equipment attached to the upper wall, transparent background.
+const wallProps = layer();
+block(wallProps, 3, 1, [129,130], 2);
+block(wallProps, 14, 1, [131,132], 2);
+block(wallProps, 16, 1, [133,134], 2);
+
+// FloorProps: top-down setpieces on transparent background; no baked floor pixels.
+const floorProps = layer();
+block(floorProps, 2, 4, [135,136,137,138,139,140], 3);
+block(floorProps, 8, 4, [141,142,143,144,145,146,147,148,149], 3);
+block(floorProps, 9, 7, [150,151,152,153], 2);
+block(floorProps, 14, 6, [154,155,156,157], 2);
+
+function rectObjects(rects: TileRect[], firstId: number) {
+  return rects.map((r,i)=>({id:firstId+i,name:r.name,x:r.x*TILE,y:r.y*TILE,width:r.w*TILE,height:r.h*TILE}));
+}
 
 const rooms = [
   { id:210,name:"family-niche",x:2*TILE,y:2*TILE,width:4*TILE,height:7*TILE,properties:[prop("label","FAMILIENBEREICH","string"),prop("subtitle","PERSÖNLICHE DINGE · KEIN ZUGEWIESENER ZWECK","string")] },
@@ -71,11 +96,19 @@ const encounters = [
 
 export const TRANSFER_HALL_MAP: TiledMapJson = {
   orientation:"orthogonal", infinite:false, width:COLUMNS, height:ROWS, tilewidth:TILE, tileheight:TILE,
-  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","SLICE 0 · FOUNDATION","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
-  tilesets:[{firstgid:1,image:"/assets/deck/transfer-hall-tiles.png",tilewidth:TILE,tileheight:TILE,tilecount:80,columns:4,margin:0,spacing:0}],
+  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","SLICE 0.1 · LAYER FOUNDATION","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
+  tilesets:[
+    {firstgid:1,image:"/assets/deck/transfer-hall-tiles.png",tilewidth:TILE,tileheight:TILE,tilecount:80,columns:4,margin:0,spacing:0},
+    {firstgid:81,image:"/assets/deck/transfer-hall-architecture.png",tilewidth:TILE,tileheight:TILE,tilecount:16,columns:4,margin:0,spacing:0},
+    {firstgid:97,image:"/assets/deck/transfer-hall-floorfx.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
+    {firstgid:129,image:"/assets/deck/transfer-hall-props.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
+  ],
   layers:[
     {id:1,name:"Ground",type:"tilelayer",width:COLUMNS,height:ROWS,data:ground,opacity:1,visible:true},
-    {id:2,name:"Decor",type:"tilelayer",width:COLUMNS,height:ROWS,data:decor,opacity:1,visible:true},
+    {id:2,name:"FloorFX",type:"tilelayer",width:COLUMNS,height:ROWS,data:floorFx,opacity:1,visible:true},
+    {id:3,name:"Architecture",type:"tilelayer",width:COLUMNS,height:ROWS,data:architecture,opacity:1,visible:true},
+    {id:4,name:"WallProps",type:"tilelayer",width:COLUMNS,height:ROWS,data:wallProps,opacity:1,visible:true},
+    {id:5,name:"FloorProps",type:"tilelayer",width:COLUMNS,height:ROWS,data:floorProps,opacity:1,visible:true},
     {id:10,name:"Start",type:"objectgroup",objects:[{id:100,name:"player-start",x:7.35*TILE,y:6.45*TILE,properties:[prop("bodyId","pico","string"),prop("facing",90,"float"),prop("metaEnergy",0,"int")]}]},
     {id:11,name:"Walkable",type:"objectgroup",objects:rectObjects(WALKABLE,110)},
     {id:12,name:"Obstacles",type:"objectgroup",objects:rectObjects(OBSTACLES,130)},

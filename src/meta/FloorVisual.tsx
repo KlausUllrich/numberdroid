@@ -1,6 +1,7 @@
 import { memo, type CSSProperties } from "react";
 import type { FloorDefinition, TileMapVisualDefinition, TilesetDefinition } from "../game/types";
 import "./FloorVisual.css";
+import "./TransferHallLayers.css";
 
 const FLIP_HORIZONTAL = 0x80000000;
 const FLIP_VERTICAL = 0x40000000;

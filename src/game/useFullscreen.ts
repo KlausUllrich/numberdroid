@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
+import { requiresLandscape } from "./orientationPolicy";
 
 function isStandaloneFullscreen() {
   return Boolean(document.fullscreenElement) || window.matchMedia("(display-mode: fullscreen), (display-mode: standalone)").matches;
 }
 
-function needsPrompt() {
+function mobileLike() {
   return window.matchMedia("(pointer: coarse)").matches || Math.min(window.innerWidth, window.innerHeight) < 700;
+}
+
+function landscapeRequiredNow() {
+  return requiresLandscape(window.innerWidth, window.innerHeight, mobileLike());
+}
+
+function needsPrompt() {
+  return mobileLike();
 }
 
 export function useAppFullscreen() {
@@ -16,8 +25,12 @@ export function useAppFullscreen() {
 
   const sync = useCallback(() => {
     const full = isStandaloneFullscreen();
+    const portraitBlocked = landscapeRequiredNow();
     setIsFullscreen(full);
-    setNeedsFullscreenPrompt(!bypassed && !full && needsPrompt());
+    setError((current) => portraitBlocked
+      ? "Bitte drehe dein Gerät ins Querformat. Numberdroid ist ein Breitbild-Spiel."
+      : current.startsWith("Bitte drehe") ? "" : current);
+    setNeedsFullscreenPrompt(portraitBlocked || (!bypassed && !full && needsPrompt()));
   }, [bypassed]);
 
   useEffect(() => {
@@ -33,6 +46,11 @@ export function useAppFullscreen() {
   }, [sync]);
 
   const enterFullscreen = useCallback(async () => {
+    if (landscapeRequiredNow()) {
+      setError("Bitte drehe dein Gerät zuerst ins Querformat. Vollbild startet erst im Breitbildformat.");
+      setNeedsFullscreenPrompt(true);
+      return;
+    }
     setError("");
     try {
       if (!document.fullscreenElement) {
@@ -42,11 +60,11 @@ export function useAppFullscreen() {
       try {
         const orientation = screen.orientation as ScreenOrientation & { lock?: (orientation: "landscape") => Promise<void> };
         await orientation.lock?.("landscape");
-      } catch { /* orientation lock is optional */ }
+      } catch { /* orientation lock is optional after the physical landscape guard */ }
       setBypassed(false);
       sync();
     } catch {
-      setError("Dieser Browser erlaubt hier keinen direkten Vollbildmodus. Du kannst ohne Vollbild weiterspielen oder Numberdroid zum Startbildschirm hinzufügen.");
+      setError("Dieser Browser erlaubt hier keinen direkten Vollbildmodus. Du kannst im Querformat ohne Vollbild weiterspielen oder Numberdroid zum Startbildschirm hinzufügen.");
       setNeedsFullscreenPrompt(true);
     }
   }, [sync]);
@@ -59,6 +77,11 @@ export function useAppFullscreen() {
   }, [sync]);
 
   const continueWithoutFullscreen = useCallback(() => {
+    if (landscapeRequiredNow()) {
+      setError("Bitte drehe dein Gerät zuerst ins Querformat. Im Hochformat bleibt das Spiel pausiert.");
+      setNeedsFullscreenPrompt(true);
+      return;
+    }
     setBypassed(true);
     setNeedsFullscreenPrompt(false);
   }, []);
