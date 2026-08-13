@@ -60,11 +60,9 @@ setCell(architecture, 12, 8, 89);
 setCell(architecture, 12, 9, 89);
 setCell(architecture, 12, 10, 91); // T-junction with bottom wall
 
-// FloorFX owns projected shadows/light only, never object geometry.
-// The Transfer glow is ONE semantic marker. CSS renders one continuous radial light pool;
-// it is deliberately not sliced into 3x3 image fragments (which caused visible yellow seams).
+// FloorFX is strictly floor-projected non-light FX: contact shadows and markings.
+// Scene illumination is rendered later by LightOverlay, above world objects/characters and clipped by light zones.
 const floorFx = layer();
-setCell(floorFx, 9, 5, 97);                                // continuous Transfer glow marker
 block(floorFx, 2, 4, [106,107,108,109,110,111], 3);       // table contact shadow
 block(floorFx, 9, 7, [112,113,114,115], 2);               // PICO dock shadow
 block(floorFx, 14, 6, [116,117,118,119], 2);              // Kayo pad shadow
@@ -99,7 +97,7 @@ const encounters = [
 
 export const TRANSFER_HALL_MAP: TiledMapJson = {
   orientation:"orthogonal", infinite:false, width:COLUMNS, height:ROWS, tilewidth:TILE, tileheight:TILE,
-  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","SLICE 0.2 · WALL / LIGHT / 8-WAY FIX","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
+  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","SLICE 0.3 · LIGHT OCCLUSION / DOOR POCKETS","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
   tilesets:[
     {firstgid:1,image:"/assets/deck/transfer-hall-tiles.png",tilewidth:TILE,tileheight:TILE,tilecount:80,columns:4,margin:0,spacing:0},
     {firstgid:81,image:"/assets/deck/transfer-hall-architecture.png",tilewidth:TILE,tileheight:TILE,tilecount:16,columns:4,margin:0,spacing:0},
