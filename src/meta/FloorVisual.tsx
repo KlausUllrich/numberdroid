@@ -65,7 +65,15 @@ function TileMap({ visual }: { visual: TileMapVisualDefinition }) {
               backgroundPosition: `-${sourceX}px -${sourceY}px`,
               transform,
             };
-            return <i key={`${layer.id}-${index}`} className="zk-map-tile" style={style} />;
+            return (
+              <i
+                key={`${layer.id}-${index}`}
+                className="zk-map-tile"
+                data-tile-id={localId + 1}
+                data-layer-id={layer.id}
+                style={style}
+              />
+            );
           })}
         </div>
       ))}
