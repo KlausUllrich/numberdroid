@@ -7,8 +7,8 @@ const tileLayers = TRANSFER_HALL_MAP.layers.filter((layer): layer is any => laye
 const byName = (name: string) => tileLayers.find((layer) => layer.name === name)!;
 const cell = (name: string, col: number, row: number) => byName(name).data[row * 20 + col] as number;
 
-describe("Transfer Hall Slice 0.2 layer contract", () => {
-  it("uses the binding render-layer order", () => {
+describe("Transfer Hall Slice 0.3 layer contract", () => {
+  it("uses the binding tile-layer order", () => {
     expect(tileLayers.map((layer) => layer.name)).toEqual(["Ground", "FloorFX", "Architecture", "WallProps", "FloorProps"]);
   });
 
@@ -36,12 +36,8 @@ describe("Transfer Hall Slice 0.2 layer contract", () => {
     expect(cell("Architecture", 12, 10)).toBe(91);
   });
 
-  it("uses one continuous Transfer-light marker instead of a sliced 3x3 glow", () => {
-    for (let row = 4; row <= 6; row += 1) {
-      for (let col = 8; col <= 10; col += 1) {
-        expect(cell("FloorFX", col, row)).toBe(col === 9 && row === 5 ? 97 : 0);
-      }
-    }
+  it("contains no scene-light marker in FloorFX", () => {
+    expect((byName("FloorFX").data as number[]).includes(97)).toBe(false);
   });
 
   it("has a genuinely open two-tile doorway with no hidden collision", () => {
