@@ -1,159 +1,154 @@
-# Numberdroid — Prompt for the next agent
+# Numberdroid — Prompt for the next agent — Gold Slice
 
-You are continuing **Numberdroid** in repository:
+You are continuing **Numberdroid** in:
 
-```text
-KlausUllrich/numberdroid
-```
+`KlausUllrich/numberdroid`
 
-Branch:
+Canonical branch is **`main`**. Do not continue old PR/architecture branches.
 
-```text
-agent/integrate-metagame-architecture
-```
+## First: read these completely, in this order
 
-Draft PR #1 targets `main`.
+1. `AGENT_REPOSITORY_WORKFLOW.md`
+2. `HANDOFF_2026-08-13_GOLD_SLICE.md`
+3. `TRANSFER_HALL_LAYER_RULES.md`
+4. `TRANSFER_HALL_ART_SLICE.md`
+5. `ART_DIRECTION_TRANSFER_SHIP.md`
+6. `ART_PRODUCTION_RULES_TRANSFER_SHIP.md`
+7. `STORY_WORLD_FOUNDATION.md`
+8. `CAMPAIGN_STORY_LEVEL_PROGRESSION.md`
 
-**Never merge PR #1 unless Klaus explicitly asks.**
+Then inspect the actual current code/assets relevant to Transfer Hall before changing anything.
 
-## Read completely, in this order
+## Repository workflow is binding
 
-1. `HANDOFF_2026-08-12.md`
-2. `STORY_WORLD_FOUNDATION.md`
-3. `CAMPAIGN_STORY_LEVEL_PROGRESSION.md`
-4. `CODEX_HANDOFF.md`
-5. `ENCOUNTER_ARCHETYPES.md`
-6. `CAMPAIGN_PROGRESSION.md`
-7. `LEARNING_PROFILES.md`
-8. `MENU_HUB_FLOW.md`
-9. `DEVELOPMENT_PLAN_NEXT.md`
+Use the connected **GitHub connector directly** for repository reads/writes/branches/PRs/Actions.
 
-The first three documents contain the newest creative/status decisions. Older status/roadmap text is historical when it conflicts with them. Preserve older binding runtime rules that are not superseded.
+Never use container-network `git clone`, `git fetch`, `curl`, `wget`, or similar as a GitHub fallback. A container network failure does not mean GitHub is unavailable.
 
-## Verify before changing anything
+Offline tools may be used for asset generation, but repository transport stays on the GitHub connector.
 
-1. Verify the current branch HEAD.
-2. Check the latest GitHub Actions test/build/Pages run.
-3. Verify the public GitHub Pages deployment.
-4. Check Draft PR #1 and keep it draft/unmerged.
-5. Inspect actual current code where relevant rather than assuming the documents describe implementation perfectly.
+## Verify current baseline
 
-Then **summarize what you understand to Klaus before changing code or assets**.
+Before changing anything:
 
-## Architecture boundary
+- verify current `main` HEAD;
+- verify latest GitHub Actions tests/build/Pages;
+- inspect the public preview:
+  `https://klausullrich.github.io/numberdroid/?floor=transfer-hall`
 
-Do not perform another broad migration/rewrite.
+At handoff creation, the accepted Slice 0 baseline was main commit `d8cfc376de784cdfbbbf53f999c7b46427b1e90b`, PR #8 merged, main tests/build/Pages green. Treat newer `main` as authoritative if it has moved.
 
-Preserve:
-- local RAF movement/camera,
-- physical body size and body-specific drive feel,
-- Floor/Tiled authoring,
-- hidden arithmetic correctness until explicit `REAKTOR AUSLÖSEN`,
-- physical collision→scan,
-- neutral/guard/patrol/aggressive distinctions,
-- LOS/view cone/investigation behavior,
-- profile-specific campaign/save/math state,
-- shared story campaign for all math profiles,
-- independent tactical challenge,
-- title/profile/hub flow.
+## Slice 0 is DONE
 
-No prototype bridge techniques such as hidden DOM clicks, MutationObservers, reload transitions, DOM patching or localStorage message buses.
+Do not start another architecture/foundation pass.
 
-## Important corrected loss rule — implemented
+Preserve the implemented contracts:
 
-Do **not** reintroduce the old “one lost duel resets the whole deck” behavior.
+- orthographic top-down environment;
+- characters alone may use front/side/back/diagonal views;
+- eight-direction PICO runtime;
+- landscape-only mobile gameplay;
+- separate Ground / FloorFX / Architecture / WallProps / FloorProps / Characters / LightOverlay / UI;
+- no baked floor pixels inside props;
+- visual footprint separate from collision footprint;
+- visible openings match traversal;
+- 10 px wall / 5 px moving door-leaf foundation;
+- moving door leaves retract below Architecture into wall pockets;
+- room-clipped LightOverlay illuminates PICO, not walls, and does not bleed into the next room;
+- global GID for global tile-state effects;
+- direct `?floor=transfer-hall` art preview without changing normal menu/campaign flow;
+- floating room labels in the preview are debug/art annotations, not final campaign UI.
 
-Binding and implemented behavior is:
-- lose 1 HP,
-- keep the active robot body and its physical deck size,
-- return that body to the authored level-start position,
-- preserve already eliminated robots,
-- preserve acquired keys/access, used stations/pickups and completed deck-local actions,
-- preserve remaining meta-energy and other current deck progress,
-- if the lost encounter is a boss, that boss encounter restarts from **Phase 1** on the next attempt,
-- only losing the final HP causes mission failure, hub return and a genuinely fresh future run.
+Two small visual defects are intentionally deferred into Gold art:
 
-Runtime implementation uses `src/game/duelLoss.ts` (`retreatAfterDuelLoss`) from `App.finishBattle()`. Focused tests live in `src/game/duelLoss.test.ts`.
+1. a thin cyan/teal line remains at one wall corner/junction;
+2. an open door can still show two thin guide/pocket lines.
 
-Boss duel phases remain local `NumberDuel` state, so leaving the lost duel and re-entering the still-alive boss creates a fresh duel at Phase 1.
+Fix their presentation during the Gold Slice. Do not redesign the underlying wall/door/collision systems.
 
-## Story foundation now established
+## Your next task: the actual visual Gold Slice
 
-The player is themselves, with their own name, and starts biologically human before the coming-of-age Transfer into a technical core/robot body.
+The current art is still technical placeholder art and is **not** the target look.
 
-Core fantasy: different robot bodies and digital transfer let the player reach impossible places such as deep ocean, volcanic environments and the Moon.
+The central lesson from previous attempts is:
 
-The deeper campaign is about finding one's own place rather than accepting an optimally assigned identity.
+**PNG is not a style.** Flat programmatic/vector-like source art still looks like SVG even when exported to PNG.
 
-Key arcs:
-- **Parents:** loving but ordinary/time-starved; learn that work they genuinely enjoy cannot replace choosing time for their child and each other. They must have individual viewpoints, not speak as one exposition voice.
-- **Kayo:** genuinely brilliant assigner of people to tasks; “my competence is my value”; the unassignable player triggers overload and exposes that Kayo made everyone dependent on him. He matures into a leader who makes others capable and ultimately helps the player create a new role rather than assigning one.
-- **PRIMUS:** order/optimisation antagonist; learns through self-organising nature that complex order does not require one manager, then discovers personal curiosity/passion and understands why passion cannot be assigned.
-- **Player:** possibilities/abilities can be gained or downloaded, but personally meaningful competence requires practice. The player eventually creates a role that did not previously exist.
+The Gold Slice must finally move toward the stronger **second mockup** direction:
 
-Tone: child-friendly comic adventure, a little robot horror/meanness but never truly frightening, humor throughout, plus short playable moments of awe.
+- richer, authored materiality;
+- recognizable real objects rather than abstract sci-fi symbols;
+- civic/optimistic Transfer technology rather than generic military sci-fi;
+- strict top-down environment;
+- characterful front/side/back robot sprites;
+- CORE & SLOT visual grammar;
+- warm personal family traces;
+- calm early-game lighting with Transfer as the restrained warm focus.
 
-## Campaign progression now established at v0.1
+### Highest priority: PICO
 
-Intro + ~25 beats + Outro are coupled to gameplay across:
+PICO must become a genuine hero character:
 
-1. Transfer Ship (Beats 1–5)
-2. Deep Ocean (6–10)
-3. Volcanic / Extreme Industry (11–15)
-4. Moon / Vacuum (16–20)
-5. Bio-Ark / PRIMUS (21–25)
+- sympathetic immediately;
+- compact, capable, versatile, not babyish;
+- neutral body material; allegiance remains runtime color treatment;
+- eight genuinely authored directions:
+  `N(back) | NE(rear 3/4) | E(profile) | SE(front 3/4) | S(front) | SW(front 3/4) | W(profile) | NW(rear 3/4)`;
+- clear face/personality at the front;
+- unmistakable rear/service detail;
+- true profiles and meaningful diagonals;
+- no rotated single image and no duplicated/mirrored four-direction cheat.
 
-Read the exact beat functions in `CAMPAIGN_STORY_LEVEL_PROGRESSION.md` rather than improvising replacements.
+## Bounded Gold Slice deliverable
 
-Important open points:
-- Beat 12 needs intelligent enemy/body ordering, but exact RPS mechanics are not locked.
-- Beat 17 needs optional bonus core-conversion/strengthening, but the economy is not locked.
-- Beat 16 is a candidate for first Treasure Golem/Beutedroide introduction, but that system is not currently implemented.
-- Bio-Ark ecological mechanics remain design work for later.
+Do not attempt all Transfer Ship art.
 
-## Your next major task
+Create one small coherent target-quality area containing:
 
-The next major milestone is **first Art Direction / Graphic Push for Intro + Beats 1–5 / Transfer Ship**.
+1. polished PICO 8-way turnaround;
+2. polished Transfer apparatus/cradle;
+3. one final-ish wall + door assembly, including cleanup of the cyan corner seam and open-door guide lines;
+4. one strict top-down PRIMUS console/wall object;
+5. one small family/personal prop set;
+6. one convincing floor/material patch;
+7. the existing LightOverlay integrated with the new art.
 
-Do not write the entire final story again and do not make final art for all 25 beats.
+Prefer one truly convincing crop over replacing the whole room with another intermediate visual style.
 
-First propose a bounded art-direction slice that defines:
-- visual language of biological childhood versus machine adulthood,
-- the Transfer itself,
-- player's first robot body,
-- ship architecture/forms/materials,
-- PRIMUS signage/order/UI language,
-- Kayo/status robot visual language,
-- lighting and palette principles,
-- human/family traces inside a primarily robotic society,
-- a small room/prop/robot asset set for the first graphical vertical slice,
-- how Numberdroid avoids looking like generic sci-fi.
+## Production approach
 
-Use the story as the reason for the visuals, not as decoration applied after the fact.
+First establish the Gold visual target before mass-producing runtime replacements.
 
-Before implementing or generating assets, summarize your understanding and present the proposed first visual block to Klaus.
+If image generation is available, use it for high-quality concept/hero source art. Do not fall back to simple geometric SVG/CSS construction as the final visible aesthetic.
 
-## Existing framework — do not restart
+After the target is established, derive exact transparent runtime PNGs/sprite sheets/atlas fragments while preserving stable IDs and collision data.
 
-- Pages/CI pipeline,
-- campaign catalog,
-- B2 and C3 framework/progression proof,
-- family profiles and isolated saves,
-- math roles/envelopes,
-- separate tactical challenge,
-- hostile archetypes/LOS/investigation,
-- menu/profile/hub/resume/archive screens,
-- duel board core rules,
-- corrected duel-loss retreat preserving deck progress,
-- final-HP mission failure reset,
-- player initiative on every ordinary new boss phase.
+Do not ask Klaus broad questions that are already answered by the docs. Your first response should be short:
 
-Current real math protocols are addition/subtraction only. Do not advertise multiplication/division as playable.
+1. summarize what you understood;
+2. state the exact Gold Slice block you will produce first;
+3. identify any genuinely blocking ambiguity only if one exists.
 
-Current public preview:
+The goal is to move quickly into visual production, not another long design discussion.
 
-```text
-https://klausullrich.github.io/numberdroid/
-```
+## Acceptance criteria
 
-Never merge PR #1 without explicit Klaus approval.
+The Gold Slice is not done merely because tests pass. It must visibly achieve:
+
+- PICO looks sympathetic;
+- all eight directions are obvious at gameplay size;
+- art no longer reads as SVG-minimalist/icon art;
+- hero props are recognizable named things;
+- materials have believable depth/texture/shadow;
+- environment remains top-down-only;
+- character-view exception feels deliberate;
+- Transfer light reads as scene illumination;
+- result is clearly closer to the good mockup than the Slice 0 placeholder.
+
+## Implementation/merge workflow
+
+Klaus is testing primarily on his phone and prefers the agent to do the repository work.
+
+Use a short branch from current `main`, implement the bounded Gold Slice, run/verify GitHub Actions tests and production build, then merge the validated branch back to `main` and verify Pages. Give Klaus the live preview link afterward.
+
+Do not require Klaus to run local commands.
