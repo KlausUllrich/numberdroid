@@ -1,6 +1,6 @@
 # Transfer Hall Layer Rules
 
-Slice 0.1 binding technical rules.
+Binding technical rules for Slice 0.x and the following Gold Slice.
 
 ## Layer order
 
@@ -20,8 +20,26 @@ Ground, Architecture, WallProps and FloorProps are strict orthographic top-down.
 
 ## Wall and collision contract
 
-Visible wall geometry and collision describe the same geometry. A visible opening has no collision. Continuous walls use explicit corner and T-junction art. Open ends use caps. Door clearance is regression-tested.
+Visible wall geometry and collision describe the same geometry. A visible opening has no collision. Continuous walls use explicit corner and T-junction markers. Open ends use caps. Door clearance is regression-tested.
+
+### Slice 0.2 rendering rule
+
+Wall tiles are **semantic geometry markers**, not trusted baked wall pictures. The runtime draws continuous edge-to-edge wall bands from those markers with deliberate 1 px overlap between adjacent cells. This prevents antialiasing or atlas slicing from creating visible gaps while keeping the layout tile-authored.
+
+The internal divider is 8 px wide in rendering and `0.125` tile wide in collision, so visual mass and collision thickness match.
+
+The complete outer perimeter must have an Architecture marker on every cell of the top, bottom, left and right room boundary. Missing perimeter markers are a regression failure.
 
 ## Early light
 
-The first Transfer Hall stays calmly and evenly lit. The Transfer apparatus may cast a clearly visible but restrained warm light pool onto the floor. That light belongs to FloorFX, not to the prop image.
+The first Transfer Hall stays calmly and evenly lit. The Transfer apparatus may cast a clearly visible but restrained warm light pool onto the floor.
+
+Light belongs to FloorFX, not to the prop image. A local light pool must be rendered as **one continuous radial field from one semantic marker**, never as a 2x2/3x3 set of baked glow fragments. Sliced glow imagery is forbidden because tile seams read as yellow graphic edges rather than light.
+
+## Directional characters
+
+Characters are the exception to the top-down-only environment rule. PICO and other important gameplay bodies use eight explicit authored views in this order:
+
+`N (back) | NE (rear 3/4) | E (profile) | SE (front 3/4) | S (front) | SW (front 3/4) | W (profile) | NW (rear 3/4)`
+
+The eight frames must be visually distinguishable at gameplay scale. A technically separate frame that reads like the same cardinal view does not satisfy the rule. Front shows face/personality; rear removes the face and exposes service/back detail; profiles are narrow true profiles; diagonals visibly combine front/rear and side information.
