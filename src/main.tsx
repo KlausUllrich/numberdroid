@@ -4,6 +4,7 @@ import App from "./App";
 import "./styles.css";
 import "./meta/MetaGame.css";
 import "./ui-polish.css";
+import "./art-direction.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Numberdroid: #root fehlt.");
