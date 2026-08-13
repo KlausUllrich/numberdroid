@@ -319,3 +319,15 @@
   box-shadow: 0 5px 16px #00000018;
 }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-room-label b { color: #1e3430; }
+
+
+/* MOCKUP ALIGNMENT PASS 1 */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-meta-viewport {
+  background:
+    radial-gradient(circle at 22% 48%, rgba(225,168,103,.16), transparent 24%),
+    radial-gradient(circle at 49% 50%, rgba(235,173,63,.13), transparent 23%),
+    linear-gradient(90deg, #bfc7c2 0 59%, #9ca8a4 59% 64%, #7d8986 64% 100%);
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap { filter: drop-shadow(0 10px 20px rgba(22,30,29,.22)); }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-id="Decor"] { filter: drop-shadow(0 5px 5px rgba(20,26,25,.22)); }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-directional-sprite { image-rendering: auto; }
