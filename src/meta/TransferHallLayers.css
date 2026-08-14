@@ -8,12 +8,16 @@
 /*
  * Architecture markers are semantic only. Runtime bands are continuous and overlap adjacent
  * cells by 1 px. Walls are intentionally more substantial than the moving door leaves.
+ *
+ * Gold Slice value hierarchy: the normal floor is light warm ceramic; structural walls are
+ * neutral dark graphite/charcoal so the walkable room silhouette reads immediately. Teal is
+ * deliberately removed from the structural wall edge and remains a semantic system accent.
  */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] {
-  --nd-wall-dark:#192423;
-  --nd-wall-mid:#2d4441;
-  --nd-wall-edge:#5f928b;
-  --nd-wall-hi:#9bc0ba;
+  --nd-wall-dark:#0f1417;
+  --nd-wall-mid:#232a2e;
+  --nd-wall-edge:#475158;
+  --nd-wall-hi:#7a8386;
   --nd-wall-size:10px;
 }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile {
@@ -35,7 +39,7 @@
   width:calc(100% + 2px);
   height:var(--nd-wall-size);
   background:linear-gradient(to bottom,var(--nd-wall-hi) 0 1px,var(--nd-wall-edge) 1px 2px,var(--nd-wall-mid) 2px 8px,var(--nd-wall-dark) 8px 10px);
-  box-shadow:0 2px 3px rgba(10,18,17,.24);
+  box-shadow:0 2px 3px rgba(7,10,12,.34);
 }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="1"],[data-tile-id="5"],[data-tile-id="6"])::before { top:-1px; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="2"],[data-tile-id="7"],[data-tile-id="8"])::before { bottom:-1px; }
@@ -47,22 +51,22 @@
   height:calc(100% + 2px);
   width:var(--nd-wall-size);
   background:linear-gradient(to right,var(--nd-wall-hi) 0 1px,var(--nd-wall-edge) 1px 2px,var(--nd-wall-mid) 2px 8px,var(--nd-wall-dark) 8px 10px);
-  box-shadow:2px 0 3px rgba(10,18,17,.20);
+  box-shadow:2px 0 3px rgba(7,10,12,.30);
 }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="3"],[data-tile-id="5"],[data-tile-id="8"])::after { left:-1px; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="4"],[data-tile-id="6"],[data-tile-id="7"])::after { right:-1px; }
 
-/* Regular internal divider and doorway caps. */
+/* Regular internal divider and genuine doorway caps. Connectable segments stay square/flush. */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile:is([data-tile-id="9"],[data-tile-id="12"],[data-tile-id="13"])::after {
   left:27px;
   top:-1px;
   width:var(--nd-wall-size);
   height:calc(100% + 2px);
   background:linear-gradient(to right,var(--nd-wall-dark) 0 2px,var(--nd-wall-mid) 2px 8px,var(--nd-wall-edge) 8px 9px,var(--nd-wall-hi) 9px 10px);
-  box-shadow:2px 0 3px rgba(10,18,17,.22);
+  box-shadow:2px 0 3px rgba(7,10,12,.32);
 }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile[data-tile-id="12"]::after { border-radius:0 0 4px 4px; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile[data-tile-id="13"]::after { border-radius:4px 4px 0 0; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile[data-tile-id="12"]::after { border-radius:0 0 2px 2px; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile[data-tile-id="13"]::after { border-radius:2px 2px 0 0; }
 
 /*
  * Clean T-junctions: the stem is painted first, then the uninterrupted outer wall is painted
@@ -74,7 +78,7 @@
   width:var(--nd-wall-size);
   height:calc(100% - 7px);
   background:linear-gradient(to right,var(--nd-wall-dark) 0 2px,var(--nd-wall-mid) 2px 8px,var(--nd-wall-edge) 8px 9px,var(--nd-wall-hi) 9px 10px);
-  box-shadow:2px 0 3px rgba(10,18,17,.22);
+  box-shadow:2px 0 3px rgba(7,10,12,.32);
 }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile[data-tile-id="10"]::after {
   left:-1px;
@@ -82,7 +86,7 @@
   width:calc(100% + 2px);
   height:var(--nd-wall-size);
   background:linear-gradient(to bottom,var(--nd-wall-hi) 0 1px,var(--nd-wall-edge) 1px 2px,var(--nd-wall-mid) 2px 8px,var(--nd-wall-dark) 8px 10px);
-  box-shadow:0 2px 3px rgba(10,18,17,.24);
+  box-shadow:0 2px 3px rgba(7,10,12,.34);
 }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile[data-tile-id="11"]::before {
   left:27px;
@@ -90,7 +94,7 @@
   width:var(--nd-wall-size);
   height:57px;
   background:linear-gradient(to right,var(--nd-wall-dark) 0 2px,var(--nd-wall-mid) 2px 8px,var(--nd-wall-edge) 8px 9px,var(--nd-wall-hi) 9px 10px);
-  box-shadow:2px 0 3px rgba(10,18,17,.22);
+  box-shadow:2px 0 3px rgba(7,10,12,.32);
 }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile[data-tile-id="11"]::after {
   left:-1px;
@@ -98,5 +102,5 @@
   width:calc(100% + 2px);
   height:var(--nd-wall-size);
   background:linear-gradient(to bottom,var(--nd-wall-hi) 0 1px,var(--nd-wall-edge) 1px 2px,var(--nd-wall-mid) 2px 8px,var(--nd-wall-dark) 8px 10px);
-  box-shadow:0 2px 3px rgba(10,18,17,.24);
+  box-shadow:0 2px 3px rgba(7,10,12,.34);
 }
