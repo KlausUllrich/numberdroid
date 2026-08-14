@@ -4,8 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "materialize-art": "node scripts/materialize-art-assets.mjs",
+    "predev": "npm run materialize-art",
     "dev": "vite",
     "test": "vitest run",
+    "prebuild": "npm run materialize-art",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
