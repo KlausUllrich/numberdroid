@@ -24,7 +24,20 @@ After generation, the next Artist action on the next user turn is inspection. No
 
 This is a process requirement specifically intended to prevent the image-generation tool boundary from appearing as an unexplained hang.
 
-## 3. One generation, then inspection
+## 3. QA never means generate
+
+If the user says `QA`, `prüfen`, `check`, or otherwise asks to inspect the existing image, the agent must **not call image generation**.
+
+QA means:
+
+1. inspect the existing asset/source;
+2. compare it against the current contract;
+3. report PASS/FAIL and concrete reasons;
+4. stop unless the user explicitly asks for the next generation/integration step.
+
+This rule exists because repeated accidental `image_gen` calls during QA obscured failures and made the tool appear to hang.
+
+## 4. One generation, then inspection
 
 After one image-generation call, generation stops until the actual resulting image has been opened and inspected.
 
@@ -32,24 +45,150 @@ Do not issue a second image-generation call merely because the first output is o
 
 No silent regeneration loops.
 
-## 4. Explicit PASS/FAIL gate
+## 5. Explicit PASS/FAIL gate
 
-Every generated source receives a real disposition:
+Every generated source receives a real disposition.
+
+For deterministic-geometry pipelines, distinguish two gates:
 
 ```text
-PASS — eligible for extraction
-FAIL — do not extract or integrate
+MATERIAL / STYLE PROOF — PASS or FAIL
+PRODUCTION GEOMETRY     — PASS or FAIL
 ```
+
+A material/style proof may pass while production geometry still fails, but only when a deterministic geometry-restoration step is part of the documented pipeline.
 
 No ambiguous state such as “pretty good”, “usable as inspiration” or “we can probably crop it” is sufficient for production integration.
 
-## 5. Source and production are different artifacts
+## 6. Source and production are different artifacts
 
 A source can contain spacing around candidates for extraction, but the final runtime PNG must contain only the exact required production pixels/cells.
 
 Both artifacts are inspected independently.
 
-## 6. Modular Floor and Floor Hero are different classes
+## 7. Controlled Art Pass proof — 2026-08-14
+
+The Transfer Hall H_TOP experiment established a viable hybrid workflow:
+
+1. exact wall geometry authored as SVG;
+2. SVG rasterized to a visible PNG guide;
+3. guide inspected and accepted before generation;
+4. visible guide used as the intended image-edit target;
+5. image generation produced materially convincing graphite/metal construction from the flat guide;
+6. generated output did not preserve exact pixel dimensions/alpha and therefore remained source material only;
+7. deterministic mask restoration is required before production use.
+
+The proof is considered successful because **generative material quality and deterministic geometry can be separated**.
+
+The generated H_TOP proof specifically showed:
+
+- strong dark graphite material and believable construction detail;
+- useful edge/relief treatment;
+- broad preservation of the horizontal-wall concept;
+- output canvas changed to 1254×1254 instead of the intended exact production size;
+- the generated wall band changed relative thickness;
+- stray alpha pixels existed outside the main wall region.
+
+Therefore:
+
+> The generator may author material appearance. It must not own final geometry, alpha, connector boundaries or runtime dimensions.
+
+## 8. Generation-canvas normalization — mandatory
+
+For controlled image edits, the deterministic raster guide must already be rendered at the **intended generation canvas size** and preserve runtime proportions exactly.
+
+Do not feed a small guide and rely on the image generator to enlarge it proportionally.
+
+Example:
+
+```text
+runtime tile: 64×64
+runtime wall: 10 px
+edit canvas:  1024×1024
+scale factor: 16×
+edit wall:    160 px
+```
+
+For the complete 4×4 Transfer Hall wall atlas:
+
+```text
+runtime atlas: 256×256
+4× guide:      1024×1024
+cell:           256×256
+wall:            40 px
+```
+
+The guide canvas and requested output aspect ratio must match.
+
+## 9. Guide visibility / edit-target rule
+
+For geometry-critical image editing, make the exact raster guide visible/available immediately before the edit call.
+
+A text description alone is not sufficient. Several failed attempts recreated a new atlas, documentation board or GitHub-like composition instead of editing the intended guide.
+
+If the output becomes a new composition instead of a material treatment of the target, disposition is:
+
+```text
+FAIL — edit target not respected
+```
+
+Do not attempt to rescue that image by cropping.
+
+## 10. Deterministic mask restoration — mandatory
+
+After a successful material pass:
+
+1. map/resample the generated material back to the deterministic guide coordinate system;
+2. reapply the original SVG-derived structural mask;
+3. remove every pixel outside the allowed mask;
+4. restore exact connector boundaries/guard zones;
+5. only then downscale to runtime resolution.
+
+Generative alpha is never authoritative for modular production geometry.
+
+Tiny stray alpha pixels outside the body are a QA failure until removed by this restoration step.
+
+## 11. Connector Guard Zones
+
+Any modular edge that joins another asset has a deterministic guard zone. The guard zone wins over the generated material if needed.
+
+At connector boundaries enforce:
+
+- exact thickness;
+- square edge;
+- no rounded termination;
+- no taper/bevel before the edge;
+- no alpha gap;
+- compatible value/material transition;
+- no accent line crossing the seam unless authored as a continuous system.
+
+## 12. Optional Effect Envelope — deferred extension
+
+A future two-mask approach may preserve controlled contact shadow or ambient occlusion outside the structural body:
+
+- **Structural Mask**: exact deterministic visible/collision body.
+- **Effect Envelope**: small explicitly allowed region for non-structural shadow/AO.
+
+This is not required for the first wall proof. Do not add it until structural geometry + material restoration works reliably.
+
+An Effect Envelope must never modify collision meaning or cross modular connection boundaries.
+
+## 13. Flow templates are source-of-truth helpers
+
+Accepted deterministic source templates are stored under:
+
+```text
+art-source/flow-vorlagen/
+```
+
+For the Transfer Hall wall proof:
+
+- `transfer-hall-wall-blueprint.svg` — exact 256×256 runtime-geometry master;
+- `transfer-hall-wall-blueprint-4x.png` — exact 1024×1024 raster guide derived from that SVG.
+
+Do not regenerate these from memory when continuing the wall pass. Reuse or deliberately revise the saved master.
+
+## 14. Modular Floor and Floor Hero are different classes
 
 A **Modular Floor** candidate represents one repeatable 64×64 tile. It must not contain an internal 2×2 composition or depend on neighboring cells to read correctly.
 
@@ -57,7 +196,7 @@ A **Floor Hero** is an intentional multi-tile setpiece. A 128×128 Floor Hero ma
 
 An attractive 2×2-looking generation must not silently replace the ordinary Floor atlas. Reclassifying it as Floor Hero does not complete the Modular Floor task.
 
-## 7. Floor candidate source contract
+## 15. Floor candidate source contract
 
 For the current Transfer Hall modular Floor task, the source generation itself must be structurally simple:
 
@@ -76,7 +215,7 @@ For the current Transfer Hall modular Floor task, the source generation itself m
 
 If these conditions fail, reject the source before cropping.
 
-## 8. Floor function and colour contract
+## 16. Floor function and colour contract
 
 The four current functions are fixed:
 
@@ -89,7 +228,7 @@ GID 4 — CORE/SLOT socket with warm amber identity
 
 Teal is a sparse system signal, never the dominant floor material. Amber is reserved for CORE/Transfer meaning. The service cell must work when placed as a scattered generic variant in the current map; it therefore cannot rely on a continuous directional stripe.
 
-## 9. Repetition must be judged before merge
+## 17. Repetition must be judged before merge
 
 For repeatable floor candidates, inspect:
 
@@ -100,7 +239,7 @@ For repeatable floor candidates, inspect:
 
 Strong square borders, repeated corner devices, continuous unintended seams, checkerboards or arbitrary directional dashes are rejection reasons.
 
-## 10. No category progression on paperwork alone
+## 18. No category progression on paperwork alone
 
 The next Gold Slice category does not begin because a PR merged or CI passed.
 
@@ -113,8 +252,8 @@ AND map-context QA passed
 AND live visual QA passed
 ```
 
-Until then, Floor remains the current category.
+A material-proof PASS alone does not complete the category.
 
-## 11. Artist role is the execution authority
+## 19. Artist role is the execution authority
 
 `ARTIST_AGENT_WORKFLOW.md` defines the required execution sequence for generation, inspection, extraction and integration. This addendum and the main validation rules define acceptance criteria. The Artist must use both.
