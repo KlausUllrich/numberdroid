@@ -7,13 +7,22 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const assets = [
   {
-    name: "Transfer Hall Architecture",
+    name: "Transfer Hall Architecture 16px fascia",
     sourceDir: join(root, "art-source/runtime"),
-    prefix: "transfer-hall-architecture.b64.",
+    prefix: "transfer-hall-architecture-16px.b64",
     output: join(root, "public/assets/deck/transfer-hall-architecture.png"),
-    expectedChunks: 6,
-    expectedBytes: 19483,
-    expectedSha256: "a9e2c96dd5a17e29f082aa2f9441c5dc0a7a69a7cc787c79ac39b040dea58ce9",
+    expectedChunks: 1,
+    expectedBytes: 3660,
+    expectedSha256: "b44c324cd2b5820e76ab9765c7735ff0f227a86f5eaf2329a655e0cbc9004df9",
+  },
+  {
+    name: "PICO eight-direction Gold Slice strip",
+    sourceDir: join(root, "art-source/runtime"),
+    prefix: "directional-pico-gold.b64.",
+    output: join(root, "public/assets/robots/directional-pico.png"),
+    expectedChunks: 4,
+    expectedBytes: 14617,
+    expectedSha256: "cb392e02da021ee2e33031021c6e7f01051f98edc4a01d0e9386a320f31494c9",
   },
 ];
 
