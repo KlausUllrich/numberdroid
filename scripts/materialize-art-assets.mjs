@@ -9,9 +9,9 @@ const assets = [
   {
     name: "Transfer Hall Architecture 16px fascia",
     sourceDir: join(root, "art-source/runtime"),
-    prefix: "transfer-hall-architecture-16px.b64",
+    prefix: "transfer-hall-architecture-16px.b64.",
     output: join(root, "public/assets/deck/transfer-hall-architecture.png"),
-    expectedChunks: 1,
+    expectedChunks: 2,
     expectedBytes: 3660,
     expectedWidth: 256,
     expectedHeight: 256,
