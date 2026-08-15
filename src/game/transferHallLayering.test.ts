@@ -38,41 +38,33 @@ describe("TS-01 Layout v3 layer/topology contract", () => {
     expect([cell("FloorFX", 5, 1), cell("FloorFX", 5, 2)]).toEqual([179, 180]);
   });
 
-  it("places plants as edge/corner objects without covering wall furniture", () => {
+  it("places plants as edge/corner objects without covering wall furniture or door approaches", () => {
     expect([cell("FloorProps", 1, 9), cell("FloorProps", 1, 10)]).toEqual([181, 182]);
     expect([cell("FloorFX", 1, 9), cell("FloorFX", 1, 10)]).toEqual([183, 184]);
-    expect(cell("FloorProps", 7, 6)).toBe(185);
-    expect(cell("FloorFX", 7, 6)).toBe(186);
+    expect(cell("FloorProps", 6, 6)).toBe(185);
+    expect(cell("FloorFX", 6, 6)).toBe(186);
     expect(cell("WallProps", 1, 9)).toBe(0);
-    expect(cell("WallProps", 7, 6)).toBe(0);
+    expect(cell("WallProps", 6, 6)).toBe(0);
+    expect(cell("FloorProps", 7, 6)).toBe(0);
   });
 
   it("adds explicit child-room and hygiene blockouts without pretending they are final art", () => {
     const domestic = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 201);
-    expect(domestic).toMatchObject({
-      image: "/assets/deck/ts01-domestic-blockout-props.svg",
-      tilewidth: 64,
-      tileheight: 64,
-      tilecount: 4,
-      columns: 4,
-    });
+    expect(domestic).toMatchObject({ image: "/assets/deck/ts01-domestic-blockout-props.svg", tilewidth: 64, tileheight: 64, tilecount: 4, columns: 4 });
     expect([cell("FloorProps", 2, 10), cell("FloorProps", 3, 10)]).toEqual([201, 202]);
     expect(cell("FloorProps", 7, 9)).toBe(203);
     expect(cell("FloorProps", 4, 11)).toBe(204);
   });
 
   it("uses real room openings rather than decorative wall stubs", () => {
-    // Living → Hall
     expect(cell("Architecture", 8, 4)).toBe(0);
     expect(cell("Architecture", 8, 5)).toBe(0);
     expect(cell("Architecture", 9, 4)).toBe(0);
     expect(cell("Architecture", 9, 5)).toBe(0);
-    // Living → child room: intentionally two tiles wide.
     expect(cell("Architecture", 2, 7)).toBe(0);
     expect(cell("Architecture", 3, 7)).toBe(0);
     expect(cell("Architecture", 2, 8)).toBe(0);
     expect(cell("Architecture", 3, 8)).toBe(0);
-    // Tiny hygiene room: one centered doorway avoids consuming the corner structure.
     expect(cell("Architecture", 6, 7)).toBe(82);
     expect(cell("Architecture", 7, 7)).toBe(0);
     expect(cell("Architecture", 6, 8)).toBe(85);
@@ -105,7 +97,7 @@ describe("TS-01 Layout v3 layer/topology contract", () => {
     expect(cell("FloorProps", 11, 14)).toBe(0);
   });
 
-  it("keeps Transfer support clustered in the destination room", () => {
+  it("keeps Transfer support clustered in the destination room with separate Flow FloorFX", () => {
     expect([cell("WallProps", 15, 14), cell("WallProps", 16, 14)]).toEqual([191, 192]);
     expect([cell("WallProps", 11, 19), cell("WallProps", 12, 19)]).toEqual([197, 198]);
     expect([
@@ -117,6 +109,10 @@ describe("TS-01 Layout v3 layer/topology contract", () => {
       cell("FloorProps", 14, 16), cell("FloorProps", 15, 16),
       cell("FloorProps", 14, 17), cell("FloorProps", 15, 17),
     ]).toEqual([150, 151, 152, 153]);
+    expect([
+      cell("FloorFX", 14, 16), cell("FloorFX", 15, 16),
+      cell("FloorFX", 14, 17), cell("FloorFX", 15, 17),
+    ]).toEqual([112, 113, 114, 115]);
   });
 
   it("uses aligned PRIMUS wall density while keeping the center available", () => {
@@ -134,7 +130,8 @@ describe("TS-01 Layout v3 layer/topology contract", () => {
     expect(byObstacleName("family-display-protrusion")?.x).toBeCloseTo(2.25 * TILE, 5);
     expect(byObstacleName("family-planter-trough-solid")?.x).toBeCloseTo(1.18 * TILE, 5);
     expect(byObstacleName("family-planter-trough-solid")?.y).toBeCloseTo(9.55 * TILE, 5);
-    expect(byObstacleName("family-round-plant-solid")?.x).toBeCloseTo(7.20 * TILE, 5);
+    expect(byObstacleName("family-round-plant-solid")?.x).toBeCloseTo(6.20 * TILE, 5);
+    expect(byObstacleName("family-round-plant-solid")?.y).toBeCloseTo(6.28 * TILE, 5);
     expect(byObstacleName("family-hologram-solid")?.x).toBeCloseTo(10.18 * TILE, 5);
     expect(byObstacleName("family-hologram-solid")?.y).toBeCloseTo(16.22 * TILE, 5);
   });
