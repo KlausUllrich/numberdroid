@@ -37,6 +37,12 @@ Story is **triggered context** for roles such as Artist/Engineer unless the task
 
 ## Art — current contracts
 
+Start with:
+
+- `art/README.md` — **current art authority/status router**; separates durable rules from old phase/status passages embedded in longer documents.
+
+Then as relevant:
+
 - direction: `art/direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-category production/QA: `art/production/`
 - Transfer Hall category contracts: `art/transfer-hall/`
