@@ -6,6 +6,7 @@
   "scripts": {
     "materialize-art": "node scripts/materialize-art-assets.mjs",
     "validate-art-seams": "node scripts/validate-wall-seams.mjs",
+    "art:compositor-demo": "node scripts/art/render-compositor-demo.mjs",
     "predev": "npm run materialize-art",
     "dev": "vite",
     "test": "vitest run",
