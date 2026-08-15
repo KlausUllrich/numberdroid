@@ -5,7 +5,8 @@
     "height": 128,
     "orientation": "vertical",
     "size": "large",
-    "mode": "auto"
+    "mode": "auto",
+    "transitionMs": 520
   },
   "leaf": {
     "asset": "public/assets/deck/transfer-hall-door-leaf.png",
@@ -13,6 +14,7 @@
     "halfLength": 64,
     "openTranslatePercent": 104,
     "connectorSides": ["T", "B"],
+    "materialBaseValue": 48,
     "outerDarkPx": 2,
     "outerDarkStrength": 0.3,
     "innerHighlightCenterPx": 2,
@@ -28,11 +30,28 @@
   "material": {
     "kind": "deterministic-borderless-graphite",
     "generation": "none",
-    "note": "Door material is deliberately close to the accepted wall family but slightly lighter so the moving leaf reads without becoming a focal neon element."
+    "note": "Moving leaves are deliberately darker than the accepted wall family so the door reads as a separate moving mechanism without becoming a focal neon element."
+  },
+  "keyVariant": {
+    "trigger": "locked door with keyId",
+    "colourSource": "door label semantic",
+    "allowedLabels": {
+      "BLUE": "#4f9de8",
+      "RED": "#d45555",
+      "GREEN": "#53c984",
+      "AMBER": "#d7a349",
+      "YELLOW": "#d7a349",
+      "COMMAND": "#d7a349",
+      "VIOLET": "#9a77d6",
+      "PURPLE": "#9a77d6"
+    },
+    "fallback": "#d7a349",
+    "presentation": "narrow semantic colour marker on otherwise normal graphite door"
   },
   "qa": {
     "closed": "two 64px halves meet cleanly at center; 5px total visible thickness",
-    "open": "leaves retract 104% into wall pockets; no guide rails remain through the aperture",
+    "open": "leaves retract 104% into wall pockets; no guide rails or status text remain through the aperture",
+    "layering": "entire Door stacking context remains below Architecture so retracting leaves cannot paint over the wall",
     "wallContract": "30px visible fascia, unchanged 10px collision core"
   }
 }
