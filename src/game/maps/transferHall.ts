@@ -70,7 +70,7 @@ block(wallProps, 14, 1, [131,132], 2);
 block(wallProps, 16, 1, [133,134], 2);
 
 const floorProps = layer();
-block(floorProps, 2, 4, [135,136,137,138,139,140], 3);
+block(floorProps, 2, 4, [161,162,163,164,165,166], 3);
 block(floorProps, 8, 4, [141,142,143,144,145,146,147,148,149], 3);
 block(floorProps, 9, 7, [150,151,152,153], 2);
 block(floorProps, 14, 6, [154,155,156,157], 2);
@@ -98,6 +98,7 @@ export const TRANSFER_HALL_MAP: TiledMapJson = {
     {firstgid:81,image:"/assets/deck/transfer-hall-architecture.png",tilewidth:TILE,tileheight:TILE,tilecount:16,columns:4,margin:0,spacing:0},
     {firstgid:97,image:"/assets/deck/transfer-hall-floorfx.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
     {firstgid:129,image:"/assets/deck/transfer-hall-props.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
+    {firstgid:161,image:"/assets/deck/family-table-props.png",tilewidth:TILE,tileheight:TILE,tilecount:6,columns:3,margin:0,spacing:0},
   ],
   layers:[
     {id:1,name:"Ground",type:"tilelayer",width:COLUMNS,height:ROWS,data:ground,opacity:1,visible:true},
