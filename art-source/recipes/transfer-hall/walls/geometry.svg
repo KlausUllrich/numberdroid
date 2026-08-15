@@ -1,39 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <!-- TS-01 WALLS V3 VISIBLE GEOMETRY MASTER: 4x4 cells, 64px each, 24px visible fascia. -->
+  <!-- TS-01 WALLS V4 VISIBLE GEOMETRY MASTER: 4x4 cells, 64px each, 30px visible fascia. Collision remains separate at 10px. -->
   <g id="visible-geometry" fill="#4a4f55">
-    <g id="tile-00-H_TOP"><rect x="0" y="0" width="64" height="24"/></g>
-    <g id="tile-01-H_BOTTOM"><rect x="64" y="40" width="64" height="24"/></g>
-    <g id="tile-02-V_LEFT"><rect x="128" y="0" width="24" height="64"/></g>
-    <g id="tile-03-V_RIGHT"><rect x="232" y="0" width="24" height="64"/></g>
+    <g id="tile-00-H_TOP"><rect x="0" y="0" width="64" height="30"/></g>
+    <g id="tile-01-H_BOTTOM"><rect x="64" y="34" width="64" height="30"/></g>
+    <g id="tile-02-V_LEFT"><rect x="128" y="0" width="30" height="64"/></g>
+    <g id="tile-03-V_RIGHT"><rect x="226" y="0" width="30" height="64"/></g>
 
-    <g id="tile-04-CORNER_NW">
-      <rect x="0" y="64" width="64" height="24"/>
-      <rect x="0" y="88" width="24" height="40"/>
-    </g>
-    <g id="tile-05-CORNER_NE">
-      <rect x="64" y="64" width="64" height="24"/>
-      <rect x="104" y="88" width="24" height="40"/>
-    </g>
-    <g id="tile-06-CORNER_SE">
-      <rect x="128" y="104" width="64" height="24"/>
-      <rect x="168" y="64" width="24" height="40"/>
-    </g>
-    <g id="tile-07-CORNER_SW">
-      <rect x="192" y="104" width="64" height="24"/>
-      <rect x="192" y="64" width="24" height="40"/>
-    </g>
+    <g id="tile-04-CORNER_NW"><rect x="0" y="64" width="64" height="30"/><rect x="0" y="94" width="30" height="34"/></g>
+    <g id="tile-05-CORNER_NE"><rect x="64" y="64" width="64" height="30"/><rect x="98" y="94" width="30" height="34"/></g>
+    <g id="tile-06-CORNER_SE"><rect x="128" y="98" width="64" height="30"/><rect x="162" y="64" width="30" height="34"/></g>
+    <g id="tile-07-CORNER_SW"><rect x="192" y="98" width="64" height="30"/><rect x="192" y="64" width="30" height="34"/></g>
 
-    <g id="tile-08-V_CENTER"><rect x="20" y="128" width="24" height="64"/></g>
-    <g id="tile-09-T_TOP_DOWN">
-      <rect x="64" y="128" width="64" height="24"/>
-      <rect x="84" y="152" width="24" height="40"/>
-    </g>
-    <g id="tile-10-T_BOTTOM_UP">
-      <rect x="148" y="128" width="24" height="40"/>
-      <rect x="128" y="168" width="64" height="24"/>
-    </g>
-    <g id="tile-11-CAP_DOWN"><rect x="212" y="128" width="24" height="64"/></g>
-    <g id="tile-12-CAP_UP"><rect x="20" y="192" width="24" height="64"/></g>
+    <g id="tile-08-V_CENTER"><rect x="17" y="128" width="30" height="64"/></g>
+    <g id="tile-09-T_TOP_DOWN"><rect x="64" y="128" width="64" height="30"/><rect x="81" y="158" width="30" height="34"/></g>
+    <g id="tile-10-T_BOTTOM_UP"><rect x="145" y="128" width="30" height="34"/><rect x="128" y="162" width="64" height="30"/></g>
+    <g id="tile-11-CAP_DOWN"><rect x="209" y="128" width="30" height="64"/></g>
+    <g id="tile-12-CAP_UP"><rect x="17" y="192" width="30" height="64"/></g>
 
     <g id="tile-13-RESERVED"/>
     <g id="tile-14-RESERVED"/>
