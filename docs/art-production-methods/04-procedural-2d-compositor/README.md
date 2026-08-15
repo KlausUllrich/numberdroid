@@ -1,6 +1,6 @@
 # M4 — Procedural 2D Compositor
 
-Status: **preferred next method for modular Transfer Hall architecture**
+Status: **PROVEN / LIVE_ACCEPTED for TS-01 modular walls**
 
 ## Purpose
 
@@ -27,7 +27,7 @@ This method stops asking an image model to simultaneously invent material, exact
 - semantic colors remain explicit;
 - runtime packing and QA remain deterministic.
 
-## Target wall pipeline
+## Proven TS-01 wall pipeline
 
 ```text
 semantic wall kit
@@ -40,9 +40,28 @@ semantic wall kit
 → real cap treatment only on CAP_UP / CAP_DOWN terminations
 → connector canonicalization / exact seam QA
 → runtime atlas
+→ live gameplay QA
 ```
 
-## Why this should produce calmer walls
+## Live validation — 2026-08-15
+
+M4 was implemented for the complete 13-piece TS-01 wall kit and reviewed in the public Transfer Hall at gameplay scale.
+
+Accepted result:
+
+- **30 px visible wall mass fits** the approved reference target;
+- walls read **homogeneous and visually subordinate** to PICO / focal objects;
+- **no visible connector, corner or T-junction errors** were observed;
+- gameplay collision remains the separate **10 px core**;
+- automated semantic seam QA remains exact after canonicalization.
+
+This is the first Numberdroid method family that has moved from hypothesis to live acceptance for a complete modular environment category.
+
+The important validated principle is:
+
+> For topology-aware modular architecture, generate/authenticate the material separately and let deterministic code own the silhouette and edge semantics.
+
+## Why this produces calmer walls
 
 All pieces can draw from the **same material field** rather than asking the model to paint thirteen separate objects. This naturally reduces per-tile framing and visual noise.
 
@@ -85,26 +104,24 @@ material-reference.md
 
 `render-recipe.json` should reference stable semantic tile names, not inferred occupancy alone.
 
-## Proposed render-recipe responsibilities
+## Render-recipe responsibilities
 
-Example conceptual fields:
+The TS-01 implementation established these useful responsibilities:
 
-```json
-{
-  "runtimeTile": 64,
-  "material": "graphite-transfer-ship-v1",
-  "materialMapping": "world-continuous",
-  "edges": {
-    "outerDarkPx": 3,
-    "aoPx": 4,
-    "innerHighlightPx": 1,
-    "connectorTreatment": "none"
-  },
-  "connectors": "transfer-hall-wall-kit-v1"
-}
+```text
+runtime tile / atlas geometry
+visible fascia versus collision size
+material generation/source configuration
+material coordinate mapping
+outline width / value change
+AO radius / value change
+inner lift/highlight
+connector quiet zone
+named semantic connector groups
+packing order
 ```
 
-The exact schema should evolve from implementation rather than being over-designed before the prototype.
+Do not move hidden topology back into the material source.
 
 ## Material mapping modes
 
@@ -114,9 +131,11 @@ The compositor should eventually support more than one mapping strategy:
 
 All tiles sample from one larger material field using stable coordinates. Good for homogeneous architecture and reducing visible repetition.
 
+This is the preferred TS-01 wall behavior.
+
 ### Tile-local
 
-Each tile samples a local crop/variant. Useful when cells need controlled individual variation.
+Each tile samples a local crop/variant. Useful when cells need controlled individual variation, but it can accidentally reintroduce visible tile boundaries.
 
 ### Periodic/seamless
 
@@ -124,7 +143,7 @@ Material sampling wraps in both axes. Required for some floor/wall materials; se
 
 ### Seeded variation
 
-Deterministic offsets/rotations/low-frequency overlays vary repeated assets without making builds non-reproducible.
+Deterministic offsets/rotations/low-frequency overlays vary repeated assets without making builds non-reproducible. Use only when the variation survives repetition QA without making tiles read as separate panels.
 
 ## Shading passes
 
@@ -139,13 +158,14 @@ Candidate deterministic passes, applied only through masks:
 7. semantic accent mask;
 8. optional effect envelope;
 9. alpha restore;
-10. runtime packing.
+10. connector canonicalization;
+11. runtime packing.
 
-Every pass must be independently inspectable during development.
+Every pass should be independently inspectable during development.
 
 ## QA
 
-M4 should enable stronger automated QA than M1/M2 alone:
+M4 enables stronger automated QA than M1/M2 alone:
 
 - dimensions and atlas order;
 - geometry mask equality;
@@ -157,6 +177,8 @@ M4 should enable stronger automated QA than M1/M2 alone:
 - deterministic output hash for fixed inputs/settings.
 
 Visual QA remains mandatory; automation does not decide whether the art is beautiful.
+
+For a live-accepted category, do not continue tweaking merely because numeric QA permits it. Preserve the accepted baseline and reopen only for a concrete defect or deliberate bounded upgrade.
 
 ## Good fits
 
@@ -177,11 +199,9 @@ Visual QA remains mandatory; automation does not decide whether the art is beaut
 
 Use M1 or M3 for those categories, possibly feeding results into M4 as textures/components.
 
-## First prototype target
+## Prototype sequence — validated
 
-Do **not** begin with the complete Transfer Hall atlas.
-
-Prototype in this order:
+The original prototype sequence was:
 
 ```text
 1. H_TOP
@@ -192,10 +212,6 @@ Prototype in this order:
 6. live Transfer Hall
 ```
 
-Acceptance for the first prototype:
+All six stages have now been completed for TS-01 Walls. The final live acceptance is recorded in `docs/TRANSFER_HALL_WALL_COMPOSITOR_ACCEPTANCE_2026-08-15.md`.
 
-- wall material reads calmer and more homogeneous than Walls v2;
-- connectors contain no false end-outline;
-- true exposed edges retain stable visual depth;
-- a three-tile run reads as one continuous architectural wall;
-- output is deterministic and reproducible.
+The next useful test of M4 is **not another wall iteration**. It is applying the same authority model to a different suitable category, especially Door architecture/pockets, while keeping moving door behavior separate.
