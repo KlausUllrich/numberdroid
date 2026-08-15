@@ -15,7 +15,7 @@ const OBSTACLES: TileRect[] = [
   { name: "divider-north", x: DIVIDER_X, y: 1, w: WALL_THICKNESS, h: 4 },
   { name: "divider-south", x: DIVIDER_X, y: 7, w: WALL_THICKNESS, h: 4 },
   { name: "family-table-solid", x: 2.52, y: 4.58, w: 1.96, h: 0.82 },
-  { name: "family-display-protrusion", x: 3.25, y: 1.08, w: 1.50, h: 0.56 },
+  { name: "family-display-protrusion", x: 3.25, y: 1.408125, w: 1.50, h: 0.56 },
   { name: "transfer-cradle-core", x: 8.70, y: 4.70, w: 1.60, h: 1.60 },
   { name: "primus-console-protrusion", x: 14.20, y: 1.08, w: 1.60, h: 0.58 },
   { name: "body-slot-bank-protrusion", x: 16.20, y: 1.08, w: 1.60, h: 0.58 },
@@ -60,6 +60,7 @@ setCell(architecture, 12, 10, 91);
 
 // FloorFX is strictly floor-projected non-light FX.
 const floorFx = layer();
+block(floorFx, 3, 1, [175,176], 2);
 block(floorFx, 2, 4, [167,168,169,170,171,172], 3);
 block(floorFx, 9, 7, [112,113,114,115], 2);
 block(floorFx, 14, 6, [116,117,118,119], 2);
@@ -101,6 +102,7 @@ export const TRANSFER_HALL_MAP: TiledMapJson = {
     {firstgid:161,image:"/assets/deck/family-table-props.png",tilewidth:TILE,tileheight:TILE,tilecount:6,columns:3,margin:0,spacing:0},
     {firstgid:167,image:"/assets/deck/family-table-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:6,columns:3,margin:0,spacing:0},
     {firstgid:173,image:"/assets/deck/family-memory-console.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:2,margin:0,spacing:0},
+    {firstgid:175,image:"/assets/deck/family-memory-console-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:2,margin:0,spacing:0},
   ],
   layers:[
     {id:1,name:"Ground",type:"tilelayer",width:COLUMNS,height:ROWS,data:ground,opacity:1,visible:true},

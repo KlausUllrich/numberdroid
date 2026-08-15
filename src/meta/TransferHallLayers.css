@@ -14,6 +14,20 @@
   overflow:visible;
 }
 
+/*
+ * The Family Memory Console source has its first visible pixels at y=9. The top wall fascia
+ * occupies y=0..29 of the perimeter tile, so a +21 px runtime placement puts the console's
+ * visible top edge exactly at the inner wall edge instead of overlapping the wall. Its dedicated
+ * FloorFX shadow receives the same offset; Architecture remains above FloorFX and therefore clips
+ * any shadow energy that would mathematically extend into the wall band.
+ */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-map-tile[data-gid="173"],
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-map-tile[data-gid="174"],
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-map-tile[data-gid="175"],
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-map-tile[data-gid="176"] {
+  transform:translateY(21px);
+}
+
 /* Explicitly suppress any legacy generated wall geometry if stale CSS is cached/combined. */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile::before,
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile::after {

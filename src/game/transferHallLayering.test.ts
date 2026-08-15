@@ -64,6 +64,30 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     ]).toEqual([173, 174]);
   });
 
+  it("routes the Family Memory Console grounding shadow through a dedicated 2x1 FloorFX tileset", () => {
+    const familyConsoleShadow = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 175);
+    expect(familyConsoleShadow).toMatchObject({
+      image: "/assets/deck/family-memory-console-shadow.png",
+      tilewidth: 64,
+      tileheight: 64,
+      tilecount: 2,
+      columns: 2,
+    });
+    expect([
+      cell("FloorFX", 3, 1), cell("FloorFX", 4, 1),
+    ]).toEqual([175, 176]);
+  });
+
+  it("moves the Family Memory Console collision inward with the visual placement", () => {
+    const obstacleLayer = TRANSFER_HALL_MAP.layers.find((layer): layer is any => layer.type === "objectgroup" && layer.name === "Obstacles")!;
+    const familyConsoleObstacle = obstacleLayer.objects.find((object: any) => object.name === "family-display-protrusion");
+    expect(familyConsoleObstacle).toBeTruthy();
+    expect(familyConsoleObstacle.x).toBeCloseTo(3.25 * TILE, 5);
+    expect(familyConsoleObstacle.y).toBeCloseTo(1.408125 * TILE, 5);
+    expect(familyConsoleObstacle.width).toBeCloseTo(1.50 * TILE, 5);
+    expect(familyConsoleObstacle.height).toBeCloseTo(0.56 * TILE, 5);
+  });
+
   it("has a complete outer-wall marker on every perimeter cell", () => {
     for (let col = 1; col <= 18; col += 1) {
       expect(cell("Architecture", col, 1)).not.toBe(0);
