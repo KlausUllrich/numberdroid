@@ -50,6 +50,17 @@ const familyTable = readTextSafePng({
   expectedHeight: 128,
 });
 
+const familyTableShadow = readTextSafePng({
+  name: "TS-01 Family Table grounding shadow",
+  directory: familyPropsSourceDir,
+  prefix: "family-table-shadow-runtime.b64.",
+  expectedChunks: 1,
+  expectedBytes: 24958,
+  expectedSha256: "73e859340d7021c1492ce272e1e4ff4c6cba889b9cd70b12335f79e212b5e9f9",
+  expectedWidth: 192,
+  expectedHeight: 128,
+});
+
 const robotOutputDir = join(root, "public/assets/robots");
 mkdirSync(robotOutputDir, { recursive: true });
 writeFileSync(join(robotOutputDir, "directional-pico.png"), pico);
@@ -59,3 +70,5 @@ const deckOutputDir = join(root, "public/assets/deck");
 mkdirSync(deckOutputDir, { recursive: true });
 writeFileSync(join(deckOutputDir, "family-table-props.png"), familyTable);
 console.log("Family Table: materialized validated 192x128 3x2 prop sheet from recipe-local source");
+writeFileSync(join(deckOutputDir, "family-table-shadow.png"), familyTableShadow);
+console.log("Family Table shadow: materialized validated 192x128 3x2 FloorFX sheet from recipe-local source");
