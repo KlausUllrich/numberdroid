@@ -163,7 +163,7 @@ block(floorFx, 2, 3, [167, 168, 169, 170, 171, 172], 3);
 block(floorFx, 1, 9, [183, 184], 1);
 setCell(floorFx, 7, 6, 186);
 setCell(floorFx, 10, 16, 188);
-block(floorFx, 14, 16, [150, 151, 152, 153], 2);
+block(floorFx, 14, 16, [112, 113, 114, 115], 2);
 block(floorFx, 18, 6, [116, 117, 118, 119], 2);
 
 const wallProps = layer();
