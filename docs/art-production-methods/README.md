@@ -22,12 +22,12 @@ A generative model may be strong at material or character form while being weak 
 
 ## Current method families
 
-| ID | Method | Geometry authority | Material authority | Edge/topology authority | Best suited to | Main limitation |
+| ID | Method | Geometry authority | Material authority | Edge/topology authority | Best suited to | Main limitation / status |
 |---|---|---|---|---|---|---|
 | M1 | [Direct Generative Source](01-direct-generative-source/README.md) | model / later extraction | model | model / later cleanup | characters, concepts, isolated props, hero-source exploration | cannot guarantee exact modular geometry/connectors |
 | M2 | [Controlled Art Pass](02-controlled-art-pass/README.md) | deterministic SVG/mask | image-edit / realism pass | deterministic restore, but model still sees isolated silhouette | geometry-critical assets where semantic edge treatment is simple | model cannot infer hidden neighbor topology from a separated tile |
 | M3 | [Layered Raster Editor / MCP](03-layered-raster-editor-mcp/README.md) | deterministic layers/masks | artist/model/tool | explicit layer/mask logic | retouch, paint-over, masks, complex hero assets, supervised production | requires a reliable programmable editor connection and command contract |
-| M4 | [Procedural 2D Compositor](04-procedural-2d-compositor/README.md) | deterministic geometry | generated/authored material swatch | deterministic semantic topology | modular walls, doors, panels, frames, sockets, repeatable architecture | less suitable for free-form characters or highly painterly unique objects |
+| M4 | [Procedural 2D Compositor](04-procedural-2d-compositor/README.md) | deterministic geometry | generated/authored material swatch | deterministic semantic topology | modular walls, doors, panels, frames, sockets, repeatable architecture | **live-proven for TS-01 Walls on 2026-08-15**; less suitable for free-form characters or highly painterly unique objects |
 
 Methods can be combined. A common target pipeline is:
 
@@ -69,7 +69,7 @@ The Transfer Hall wall experiments established an important boundary:
 
 Asking the model to create both the common wall material **and** the correct per-edge outline/bevel therefore over-assigns responsibility to the model.
 
-For modular walls, the stronger architecture is now:
+For modular walls, the stronger architecture is:
 
 ```text
 semantic geometry/topology
@@ -81,7 +81,9 @@ semantic geometry/topology
 → runtime atlas
 ```
 
-This is M4.
+This is M4, and it was live-accepted for the complete TS-01 Wall category on 2026-08-15. The accepted result used a 30 px visible fascia over the unchanged 10 px collision core and achieved the desired calm, homogeneous architectural hierarchy without visible T/connector defects.
+
+See `docs/TRANSFER_HALL_WALL_COMPOSITOR_ACCEPTANCE_2026-08-15.md`.
 
 ## Recipe integration
 
@@ -96,6 +98,8 @@ Optional finishing method: M3 Layered Raster Editor
 ```
 
 Do not choose a method because it is the newest method. Choose it because its authority model matches the asset problem.
+
+A method being proven on one category does not make it universal. M4 now has strong evidence for modular architecture; it still should not replace M1/M3 for expressive characters or unique hero forms.
 
 ## Directory policy
 
@@ -116,6 +120,7 @@ Do not duplicate production sources unnecessarily. Production asset-specific geo
 
 - `docs/SEMANTIC_CONNECTOR_CANONICALIZATION.md`
 - `docs/ART_PIPELINE_LOCAL_EXPERIMENTS_2026-08-14.md`
+- `docs/TRANSFER_HALL_WALL_COMPOSITOR_ACCEPTANCE_2026-08-15.md`
 - `ARTIST_AGENT_WORKFLOW.md`
 - `ART_ASSET_VALIDATION_RULES.md`
 - `art-source/recipes/README.md`
