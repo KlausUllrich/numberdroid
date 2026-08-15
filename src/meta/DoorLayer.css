@@ -1,4 +1,5 @@
 .zk-door { position:absolute;z-index:16;pointer-events:none;overflow:visible; }
+.zk-door .leaf-clip { position:absolute;inset:0;overflow:visible;pointer-events:none; }
 .zk-door .frame { position:absolute;inset:4px;border:2px solid #526c71;border-radius:5px;box-shadow:inset 0 0 10px #000b,0 0 8px #35d8cb33; }
 .zk-door .panel { position:absolute;display:block;background:linear-gradient(90deg,#263e45,#61777b 48%,#1c3037 52%,#425b61);border:1px solid #8aa1a4;box-shadow:0 0 7px #000c;transition:transform 260ms cubic-bezier(.2,.75,.2,1),opacity 180ms ease; }
 .zk-door.vertical .panel { left:calc(50% - 7px);width:14px;height:50%; }
@@ -34,6 +35,16 @@
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door {
   z-index:1;
 }
+/*
+ * Leaf motion is clipped to the exact door object aperture. Once a leaf crosses the
+ * north/south (or west/east) door boundary it is no longer visible, which makes the
+ * mechanism read as retracting into the wall pocket independent of stacking-context quirks.
+ * Pocket collars remain outside this clip and are therefore unaffected.
+ */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .leaf-clip {
+  z-index:1;
+  overflow:hidden;
+}
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .panel {
   z-index:1;
   border:0;
@@ -51,7 +62,7 @@
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.keyed.vertical .panel::after { top:8px;bottom:8px;width:1px; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.keyed.horizontal .panel::after { left:8px;right:8px;height:1px; }
 
-/* Compact pocket collars replace the old full-aperture guide rails. The door stacking context stays below Architecture. */
+/* Compact pocket collars replace the old full-aperture guide rails. */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .frame,
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large .frame {
   z-index:3;

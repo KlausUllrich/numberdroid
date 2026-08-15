@@ -42,6 +42,9 @@ export function DoorLayer({ floor, openDoorIds, accessKeyIds }: Props) {
   const frameStyle: DoorFrameStyle | undefined = transferHallPocket
     ? { "--door-pocket-image": `url(${transferHallPocket})` }
     : undefined;
+  const leafClipStyle: CSSProperties | undefined = floor.id === "transfer-hall"
+    ? { overflow: "hidden" }
+    : undefined;
   const showStatusText = floor.id !== "transfer-hall";
 
   return (
@@ -73,8 +76,10 @@ export function DoorLayer({ floor, openDoorIds, accessKeyIds }: Props) {
             aria-hidden="true"
           >
             <i className="frame" style={frameStyle} />
-            <i className="panel panel-a" style={leafStyle} />
-            <i className="panel panel-b" style={leafStyle} />
+            <div className="leaf-clip" style={leafClipStyle}>
+              <i className="panel panel-a" style={leafStyle} />
+              <i className="panel panel-b" style={leafStyle} />
+            </div>
             {showStatusText && <span>{status}</span>}
           </div>
         );
