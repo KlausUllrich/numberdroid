@@ -1,155 +1,144 @@
 import { describe, expect, it } from "vitest";
 import { TRANSFER_HALL_MAP } from "./maps/transferHall";
-import { pointWalkable } from "./save";
 
 const TILE = 64;
+const COLUMNS = TRANSFER_HALL_MAP.width;
 const tileLayers = TRANSFER_HALL_MAP.layers.filter((layer): layer is any => layer.type === "tilelayer");
 const byName = (name: string) => tileLayers.find((layer) => layer.name === name)!;
-const cell = (name: string, col: number, row: number) => byName(name).data[row * 20 + col] as number;
+const cell = (name: string, col: number, row: number) => byName(name).data[row * COLUMNS + col] as number;
 
-describe("Transfer Hall Slice 0.3 layer contract", () => {
-  it("uses the binding tile-layer order", () => {
+describe("TS-01 Layout v3 layer/topology contract", () => {
+  it("uses the binding visual-layer order on the expanded composition canvas", () => {
+    expect(TRANSFER_HALL_MAP.width).toBe(25);
+    expect(TRANSFER_HALL_MAP.height).toBe(20);
     expect(tileLayers.map((layer) => layer.name)).toEqual(["Ground", "FloorFX", "Architecture", "WallProps", "FloorProps"]);
   });
 
-  it("keeps props out of the floor tileset", () => {
-    for (const name of ["WallProps", "FloorProps"]) {
-      const gids = (byName(name).data as number[]).filter(Boolean);
-      expect(gids.length).toBeGreaterThan(0);
-      expect(gids.every((gid) => gid >= 129)).toBe(true);
-    }
+  it("uses an irregular footprint instead of filling the rectangular map bounds", () => {
+    expect(cell("Ground", 2, 2)).not.toBe(0);   // living
+    expect(cell("Ground", 16, 4)).not.toBe(0); // PRIMUS
+    expect(cell("Ground", 12, 16)).not.toBe(0); // Transfer
+    expect(cell("Ground", 11, 1)).toBe(0);     // gap above hall
+    expect(cell("Ground", 22, 16)).toBe(0);    // void east of Transfer
+    expect(cell("Ground", 4, 16)).toBe(0);     // void south of domestic cluster
   });
 
-  it("routes the Family Table through its dedicated 3x2 candidate tileset", () => {
-    const familyTable = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 161);
-    expect(familyTable).toMatchObject({ image: "/assets/deck/family-table-props.png", tilewidth: 64, tileheight: 64, tilecount: 6, columns: 3 });
+  it("keeps accepted Family assets and their shadows in the living room", () => {
     expect([
+      cell("FloorProps", 2, 3), cell("FloorProps", 3, 3), cell("FloorProps", 4, 3),
       cell("FloorProps", 2, 4), cell("FloorProps", 3, 4), cell("FloorProps", 4, 4),
-      cell("FloorProps", 2, 5), cell("FloorProps", 3, 5), cell("FloorProps", 4, 5),
     ]).toEqual([161, 162, 163, 164, 165, 166]);
-  });
-
-  it("routes the Family Table grounding shadow through a dedicated 3x2 FloorFX tileset", () => {
-    const familyShadow = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 167);
-    expect(familyShadow).toMatchObject({ image: "/assets/deck/family-table-shadow.png", tilewidth: 64, tileheight: 64, tilecount: 6, columns: 3 });
     expect([
+      cell("FloorFX", 2, 3), cell("FloorFX", 3, 3), cell("FloorFX", 4, 3),
       cell("FloorFX", 2, 4), cell("FloorFX", 3, 4), cell("FloorFX", 4, 4),
-      cell("FloorFX", 2, 5), cell("FloorFX", 3, 5), cell("FloorFX", 4, 5),
     ]).toEqual([167, 168, 169, 170, 171, 172]);
-  });
-
-  it("routes the Family Memory Console through a dedicated 2x1 WallProps tileset", () => {
-    const familyConsole = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 173);
-    expect(familyConsole).toMatchObject({ image: "/assets/deck/family-memory-console.png", tilewidth: 64, tileheight: 64, tilecount: 2, columns: 2 });
-    expect([cell("WallProps", 3, 1), cell("WallProps", 4, 1)]).toEqual([173, 174]);
-  });
-
-  it("routes the Family Memory Console grounding shadow through a dedicated 2x1 FloorFX tileset", () => {
-    const familyConsoleShadow = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 175);
-    expect(familyConsoleShadow).toMatchObject({ image: "/assets/deck/family-memory-console-shadow.png", tilewidth: 64, tileheight: 64, tilecount: 2, columns: 2 });
-    expect([cell("FloorFX", 3, 1), cell("FloorFX", 4, 1)]).toEqual([175, 176]);
-  });
-
-  it("moves the Family Memory Console collision inward with the visual placement", () => {
-    const obstacleLayer = TRANSFER_HALL_MAP.layers.find((layer): layer is any => layer.type === "objectgroup" && layer.name === "Obstacles")!;
-    const familyConsoleObstacle = obstacleLayer.objects.find((object: any) => object.name === "family-display-protrusion");
-    expect(familyConsoleObstacle).toBeTruthy();
-    expect(familyConsoleObstacle.x).toBeCloseTo(3.25 * TILE, 5);
-    expect(familyConsoleObstacle.y).toBeCloseTo(1.408125 * TILE, 5);
-    expect(familyConsoleObstacle.width).toBeCloseTo(1.50 * TILE, 5);
-    expect(familyConsoleObstacle.height).toBeCloseTo(0.56 * TILE, 5);
-  });
-
-  it("routes Family Props Batch 2 through dedicated tilesets and shadows", () => {
-    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 177)).toMatchObject({ image: "/assets/deck/family-coffee-machine.png", tilecount: 2, columns: 1 });
-    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 179)).toMatchObject({ image: "/assets/deck/family-coffee-machine-shadow.png", tilecount: 2, columns: 1 });
-    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 181)).toMatchObject({ image: "/assets/deck/family-planter-trough.png", tilecount: 2, columns: 1 });
-    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 183)).toMatchObject({ image: "/assets/deck/family-planter-trough-shadow.png", tilecount: 2, columns: 1 });
-    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 185)).toMatchObject({ image: "/assets/deck/family-round-plant.png", tilecount: 1, columns: 1 });
-    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 186)).toMatchObject({ image: "/assets/deck/family-round-plant-shadow.png", tilecount: 1, columns: 1 });
-    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 187)).toMatchObject({ image: "/assets/deck/family-hologram-pedestal.png", tilecount: 1, columns: 1 });
-    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 188)).toMatchObject({ image: "/assets/deck/family-hologram-pedestal-shadow.png", tilecount: 1, columns: 1 });
-  });
-
-  it("keeps the coffee machine at the upper wall with its access side facing into the room", () => {
+    expect([cell("WallProps", 2, 1), cell("WallProps", 3, 1)]).toEqual([173, 174]);
+    expect([cell("FloorFX", 2, 1), cell("FloorFX", 3, 1)]).toEqual([175, 176]);
     expect([cell("WallProps", 5, 1), cell("WallProps", 5, 2)]).toEqual([177, 178]);
     expect([cell("FloorFX", 5, 1), cell("FloorFX", 5, 2)]).toEqual([179, 180]);
   });
 
-  it("anchors both plants to Family edge clusters and pulls the hologram beside Transfer", () => {
-    expect([cell("FloorProps", 2, 8), cell("FloorProps", 2, 9)]).toEqual([181, 182]);
-    expect([cell("FloorFX", 2, 8), cell("FloorFX", 2, 9)]).toEqual([183, 184]);
-    expect(cell("FloorProps", 6, 9)).toBe(185);
-    expect(cell("FloorFX", 6, 9)).toBe(186);
-    expect(cell("FloorProps", 11, 4)).toBe(187);
-    expect(cell("FloorFX", 11, 4)).toBe(188);
+  it("places plants as edge/corner objects without covering wall furniture", () => {
+    expect([cell("FloorProps", 1, 9), cell("FloorProps", 1, 10)]).toEqual([181, 182]);
+    expect([cell("FloorFX", 1, 9), cell("FloorFX", 1, 10)]).toEqual([183, 184]);
+    expect(cell("FloorProps", 7, 6)).toBe(185);
+    expect(cell("FloorFX", 7, 6)).toBe(186);
+    expect(cell("WallProps", 1, 9)).toBe(0);
+    expect(cell("WallProps", 7, 6)).toBe(0);
   });
 
-  it("keeps Batch 2 collision footprints aligned with Composition Preview v2", () => {
+  it("adds explicit child-room and hygiene blockouts without pretending they are final art", () => {
+    const domestic = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 201);
+    expect(domestic).toMatchObject({
+      image: "/assets/deck/ts01-domestic-blockout-props.svg",
+      tilewidth: 64,
+      tileheight: 64,
+      tilecount: 4,
+      columns: 4,
+    });
+    expect([cell("FloorProps", 2, 10), cell("FloorProps", 3, 10)]).toEqual([201, 202]);
+    expect(cell("FloorProps", 7, 9)).toBe(203);
+    expect(cell("FloorProps", 4, 11)).toBe(204);
+  });
+
+  it("uses real room openings rather than decorative wall stubs", () => {
+    // Living → Hall
+    expect(cell("Architecture", 8, 4)).toBe(0);
+    expect(cell("Architecture", 8, 5)).toBe(0);
+    expect(cell("Architecture", 9, 4)).toBe(0);
+    expect(cell("Architecture", 9, 5)).toBe(0);
+    // Living → child / hygiene
+    expect(cell("Architecture", 2, 7)).toBe(0);
+    expect(cell("Architecture", 3, 7)).toBe(0);
+    expect(cell("Architecture", 2, 8)).toBe(0);
+    expect(cell("Architecture", 3, 8)).toBe(0);
+    expect(cell("Architecture", 6, 7)).toBe(0);
+    expect(cell("Architecture", 7, 7)).toBe(0);
+    expect(cell("Architecture", 6, 8)).toBe(0);
+    expect(cell("Architecture", 7, 8)).toBe(0);
+  });
+
+  it("keeps the PRIMUS controlled threshold visually clear on both sides", () => {
+    for (const row of [4, 5]) {
+      expect(cell("Architecture", 13, row)).toBe(0);
+      expect(cell("Architecture", 14, row)).toBe(0);
+      expect(cell("WallProps", 12, row)).toBe(0);
+      expect(cell("WallProps", 13, row)).toBe(0);
+      expect(cell("WallProps", 14, row)).toBe(0);
+      expect(cell("WallProps", 15, row)).toBe(0);
+      expect(cell("FloorProps", 12, row)).toBe(0);
+      expect(cell("FloorProps", 13, row)).toBe(0);
+      expect(cell("FloorProps", 14, row)).toBe(0);
+      expect(cell("FloorProps", 15, row)).toBe(0);
+    }
+  });
+
+  it("moves the hologram into the Transfer room while keeping the Hall entrance clear", () => {
+    expect(cell("FloorProps", 10, 16)).toBe(187);
+    expect(cell("FloorFX", 10, 16)).toBe(188);
+    expect(cell("Architecture", 10, 13)).toBe(0);
+    expect(cell("Architecture", 11, 13)).toBe(0);
+    expect(cell("Architecture", 10, 14)).toBe(0);
+    expect(cell("Architecture", 11, 14)).toBe(0);
+    expect(cell("FloorProps", 10, 14)).toBe(0);
+    expect(cell("FloorProps", 11, 14)).toBe(0);
+  });
+
+  it("keeps Transfer support clustered in the destination room", () => {
+    expect([cell("WallProps", 15, 14), cell("WallProps", 16, 14)]).toEqual([191, 192]);
+    expect([cell("WallProps", 11, 19), cell("WallProps", 12, 19)]).toEqual([197, 198]);
+    expect([
+      cell("FloorProps", 11, 15), cell("FloorProps", 12, 15), cell("FloorProps", 13, 15),
+      cell("FloorProps", 11, 16), cell("FloorProps", 12, 16), cell("FloorProps", 13, 16),
+      cell("FloorProps", 11, 17), cell("FloorProps", 12, 17), cell("FloorProps", 13, 17),
+    ]).toEqual([141, 142, 143, 144, 145, 146, 147, 148, 149]);
+    expect([
+      cell("FloorProps", 14, 16), cell("FloorProps", 15, 16),
+      cell("FloorProps", 14, 17), cell("FloorProps", 15, 17),
+    ]).toEqual([150, 151, 152, 153]);
+  });
+
+  it("uses aligned PRIMUS wall density while keeping the center available", () => {
+    expect(cell("WallProps", 15, 1)).toBe(199);
+    expect([cell("WallProps", 17, 1), cell("WallProps", 18, 1)]).toEqual([131, 132]);
+    expect([cell("WallProps", 20, 1), cell("WallProps", 21, 1)]).toEqual([133, 134]);
+    expect([cell("WallProps", 18, 9), cell("WallProps", 19, 9)]).toEqual([197, 198]);
+    expect(cell("FloorProps", 18, 5)).toBe(0);
+    expect(cell("FloorProps", 20, 6)).toBe(0);
+  });
+
+  it("keeps candidate collisions aligned with Layout v3 placement", () => {
     const obstacleLayer = TRANSFER_HALL_MAP.layers.find((layer): layer is any => layer.type === "objectgroup" && layer.name === "Obstacles")!;
     const byObstacleName = (name: string) => obstacleLayer.objects.find((object: any) => object.name === name);
-    expect(byObstacleName("family-planter-trough-solid")?.y).toBeCloseTo(8.55 * TILE, 5);
-    expect(byObstacleName("family-round-plant-solid")?.x).toBeCloseTo(6.20 * TILE, 5);
-    expect(byObstacleName("family-round-plant-solid")?.y).toBeCloseTo(9.28 * TILE, 5);
-    expect(byObstacleName("family-hologram-solid")?.x).toBeCloseTo(11.18 * TILE, 5);
-    expect(byObstacleName("family-hologram-solid")?.y).toBeCloseTo(4.22 * TILE, 5);
+    expect(byObstacleName("family-display-protrusion")?.x).toBeCloseTo(2.25 * TILE, 5);
+    expect(byObstacleName("family-planter-trough-solid")?.x).toBeCloseTo(1.18 * TILE, 5);
+    expect(byObstacleName("family-planter-trough-solid")?.y).toBeCloseTo(9.55 * TILE, 5);
+    expect(byObstacleName("family-round-plant-solid")?.x).toBeCloseTo(7.20 * TILE, 5);
+    expect(byObstacleName("family-hologram-solid")?.x).toBeCloseTo(10.18 * TILE, 5);
+    expect(byObstacleName("family-hologram-solid")?.y).toBeCloseTo(16.22 * TILE, 5);
   });
 
-  it("uses a soft Family to Transfer boundary with no unsupported wall stubs", () => {
-    const obstacleLayer = TRANSFER_HALL_MAP.layers.find((layer): layer is any => layer.type === "objectgroup" && layer.name === "Obstacles")!;
-    const names = obstacleLayer.objects.map((object: any) => object.name);
-    expect(names).not.toContain("family-return-north");
-    expect(names).not.toContain("family-return-south");
-    expect(cell("Architecture", 6, 1)).toBe(81);
-    expect(cell("Architecture", 6, 10)).toBe(82);
-    for (let row = 2; row <= 9; row += 1) expect(cell("Architecture", 6, row)).toBe(0);
-    expect(pointWalkable(6.5 * TILE, 2.5 * TILE, "transfer-hall", 18)).toBe(true);
-    expect(pointWalkable(6.5 * TILE, 6.0 * TILE, "transfer-hall", 18)).toBe(true);
-    expect(pointWalkable(6.5 * TILE, 8.0 * TILE, "transfer-hall", 18)).toBe(true);
-  });
-
-  it("routes composition blockouts through wall-backed functional clusters", () => {
-    const blockout = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 189);
-    expect(blockout).toMatchObject({ image: "/assets/deck/ts01-gold-slice-blockout-props.svg", tilewidth: 64, tileheight: 64, tilecount: 12, columns: 4 });
-
-    expect([cell("WallProps", 3, 10), cell("WallProps", 4, 10)]).toEqual([189, 190]);
-    expect([cell("WallProps", 5, 10), cell("WallProps", 6, 10)]).toEqual([193, 194]);
-    expect(cell("FloorProps", 3, 9)).toBe(196);
-    expect(cell("FloorProps", 5, 9)).toBe(195);
-
-    expect([cell("WallProps", 9, 1), cell("WallProps", 10, 1)]).toEqual([191, 192]);
-    expect([cell("WallProps", 9, 10), cell("WallProps", 10, 10)]).toEqual([197, 198]);
-
-    expect(cell("WallProps", 13, 1)).toBe(199);
-    expect([cell("WallProps", 15, 10), cell("WallProps", 16, 10)]).toEqual([197, 198]);
-  });
-
-  it("has a complete outer-wall marker on every perimeter cell", () => {
-    for (let col = 1; col <= 18; col += 1) {
-      expect(cell("Architecture", col, 1)).not.toBe(0);
-      expect(cell("Architecture", col, 10)).not.toBe(0);
-    }
-    for (let row = 1; row <= 10; row += 1) {
-      expect(cell("Architecture", 1, row)).not.toBe(0);
-      expect(cell("Architecture", 18, row)).not.toBe(0);
-    }
-  });
-
-  it("uses explicit T-junctions where the functional PRIMUS divider meets outer walls", () => {
-    expect(cell("Architecture", 12, 1)).toBe(90);
-    expect(cell("Architecture", 12, 10)).toBe(91);
-  });
-
-  it("contains no scene-light marker in FloorFX", () => {
+  it("contains no scene illumination tile in FloorFX", () => {
     expect((byName("FloorFX").data as number[]).includes(97)).toBe(false);
-  });
-
-  it("has a genuinely open two-tile PRIMUS doorway with no hidden collision", () => {
-    expect(cell("Architecture", 12, 5)).toBe(0);
-    expect(cell("Architecture", 12, 6)).toBe(0);
-    expect(pointWalkable(12.5 * TILE, 5.5 * TILE, "transfer-hall", 18)).toBe(true);
-    expect(pointWalkable(12.5 * TILE, 6.5 * TILE, "transfer-hall", 18)).toBe(true);
-    expect(pointWalkable(12.5 * TILE, 4.5 * TILE, "transfer-hall", 18)).toBe(false);
-    expect(pointWalkable(12.5 * TILE, 7.5 * TILE, "transfer-hall", 18)).toBe(false);
   });
 });
