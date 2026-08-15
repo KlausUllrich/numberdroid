@@ -76,54 +76,52 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     expect([cell("FloorFX", 5, 1), cell("FloorFX", 5, 2)]).toEqual([179, 180]);
   });
 
-  it("recomposes plants against the Family edge and moves the hologram into Transfer support", () => {
-    expect([cell("FloorProps", 2, 6), cell("FloorProps", 2, 7)]).toEqual([181, 182]);
-    expect([cell("FloorFX", 2, 6), cell("FloorFX", 2, 7)]).toEqual([183, 184]);
-    expect(cell("FloorProps", 2, 2)).toBe(185);
-    expect(cell("FloorFX", 2, 2)).toBe(186);
-    expect(cell("FloorProps", 10, 2)).toBe(187);
-    expect(cell("FloorFX", 10, 2)).toBe(188);
+  it("anchors both plants to Family edge clusters and pulls the hologram beside Transfer", () => {
+    expect([cell("FloorProps", 2, 8), cell("FloorProps", 2, 9)]).toEqual([181, 182]);
+    expect([cell("FloorFX", 2, 8), cell("FloorFX", 2, 9)]).toEqual([183, 184]);
+    expect(cell("FloorProps", 6, 9)).toBe(185);
+    expect(cell("FloorFX", 6, 9)).toBe(186);
+    expect(cell("FloorProps", 11, 4)).toBe(187);
+    expect(cell("FloorFX", 11, 4)).toBe(188);
   });
 
-  it("adds bounded collision footprints for the Batch 2 family props", () => {
+  it("keeps Batch 2 collision footprints aligned with Composition Preview v2", () => {
+    const obstacleLayer = TRANSFER_HALL_MAP.layers.find((layer): layer is any => layer.type === "objectgroup" && layer.name === "Obstacles")!;
+    const byObstacleName = (name: string) => obstacleLayer.objects.find((object: any) => object.name === name);
+    expect(byObstacleName("family-planter-trough-solid")?.y).toBeCloseTo(8.55 * TILE, 5);
+    expect(byObstacleName("family-round-plant-solid")?.x).toBeCloseTo(6.20 * TILE, 5);
+    expect(byObstacleName("family-round-plant-solid")?.y).toBeCloseTo(9.28 * TILE, 5);
+    expect(byObstacleName("family-hologram-solid")?.x).toBeCloseTo(11.18 * TILE, 5);
+    expect(byObstacleName("family-hologram-solid")?.y).toBeCloseTo(4.22 * TILE, 5);
+  });
+
+  it("uses a soft Family to Transfer boundary with no unsupported wall stubs", () => {
     const obstacleLayer = TRANSFER_HALL_MAP.layers.find((layer): layer is any => layer.type === "objectgroup" && layer.name === "Obstacles")!;
     const names = obstacleLayer.objects.map((object: any) => object.name);
-    expect(names).toEqual(expect.arrayContaining([
-      "family-coffee-machine-solid",
-      "family-planter-trough-solid",
-      "family-round-plant-solid",
-      "family-hologram-solid",
-    ]));
+    expect(names).not.toContain("family-return-north");
+    expect(names).not.toContain("family-return-south");
+    expect(cell("Architecture", 6, 1)).toBe(81);
+    expect(cell("Architecture", 6, 10)).toBe(82);
+    for (let row = 2; row <= 9; row += 1) expect(cell("Architecture", 6, row)).toBe(0);
+    expect(pointWalkable(6.5 * TILE, 2.5 * TILE, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(6.5 * TILE, 6.0 * TILE, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(6.5 * TILE, 8.0 * TILE, "transfer-hall", 18)).toBe(true);
   });
 
-  it("adds shallow Family wall returns using only accepted wall-kit semantics", () => {
-    expect(cell("Architecture", 6, 1)).toBe(90);
-    expect(cell("Architecture", 6, 2)).toBe(89);
-    expect(cell("Architecture", 6, 3)).toBe(92);
-    expect(cell("Architecture", 6, 8)).toBe(93);
-    expect(cell("Architecture", 6, 9)).toBe(89);
-    expect(cell("Architecture", 6, 10)).toBe(91);
-  });
-
-  it("keeps a broad four-tile opening between the Family wall returns", () => {
-    expect(cell("Architecture", 6, 4)).toBe(0);
-    expect(cell("Architecture", 6, 5)).toBe(0);
-    expect(cell("Architecture", 6, 6)).toBe(0);
-    expect(cell("Architecture", 6, 7)).toBe(0);
-    expect(pointWalkable(6.5 * TILE, 4.5 * TILE, "transfer-hall", 18)).toBe(true);
-    expect(pointWalkable(6.5 * TILE, 6.5 * TILE, "transfer-hall", 18)).toBe(true);
-    expect(pointWalkable(6.5 * TILE, 2.5 * TILE, "transfer-hall", 8)).toBe(false);
-    expect(pointWalkable(6.5 * TILE, 8.5 * TILE, "transfer-hall", 8)).toBe(false);
-  });
-
-  it("routes composition-only SVG placeholder props through a dedicated atlas", () => {
+  it("routes composition blockouts through wall-backed functional clusters", () => {
     const blockout = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 189);
     expect(blockout).toMatchObject({ image: "/assets/deck/ts01-gold-slice-blockout-props.svg", tilewidth: 64, tileheight: 64, tilecount: 12, columns: 4 });
-    expect([cell("WallProps", 8, 1), cell("WallProps", 9, 1)]).toEqual([191, 192]);
-    expect([cell("FloorProps", 3, 9), cell("FloorProps", 4, 9)]).toEqual([189, 190]);
-    expect(cell("FloorProps", 5, 8)).toBe(195);
-    expect(cell("FloorProps", 2, 8)).toBe(196);
-    expect([cell("FloorProps", 7, 9), cell("FloorProps", 8, 9)]).toEqual([197, 198]);
+
+    expect([cell("WallProps", 3, 10), cell("WallProps", 4, 10)]).toEqual([189, 190]);
+    expect([cell("WallProps", 5, 10), cell("WallProps", 6, 10)]).toEqual([193, 194]);
+    expect(cell("FloorProps", 3, 9)).toBe(196);
+    expect(cell("FloorProps", 5, 9)).toBe(195);
+
+    expect([cell("WallProps", 9, 1), cell("WallProps", 10, 1)]).toEqual([191, 192]);
+    expect([cell("WallProps", 9, 10), cell("WallProps", 10, 10)]).toEqual([197, 198]);
+
+    expect(cell("WallProps", 13, 1)).toBe(199);
+    expect([cell("WallProps", 15, 10), cell("WallProps", 16, 10)]).toEqual([197, 198]);
   });
 
   it("has a complete outer-wall marker on every perimeter cell", () => {
@@ -137,7 +135,7 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     }
   });
 
-  it("uses explicit T-junctions where divider meets outer walls", () => {
+  it("uses explicit T-junctions where the functional PRIMUS divider meets outer walls", () => {
     expect(cell("Architecture", 12, 1)).toBe(90);
     expect(cell("Architecture", 12, 10)).toBe(91);
   });
@@ -146,7 +144,7 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     expect((byName("FloorFX").data as number[]).includes(97)).toBe(false);
   });
 
-  it("has a genuinely open two-tile doorway with no hidden collision", () => {
+  it("has a genuinely open two-tile PRIMUS doorway with no hidden collision", () => {
     expect(cell("Architecture", 12, 5)).toBe(0);
     expect(cell("Architecture", 12, 6)).toBe(0);
     expect(pointWalkable(12.5 * TILE, 5.5 * TILE, "transfer-hall", 18)).toBe(true);
