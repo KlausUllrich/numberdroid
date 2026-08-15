@@ -60,7 +60,7 @@ setCell(architecture, 12, 10, 91);
 
 // FloorFX is strictly floor-projected non-light FX.
 const floorFx = layer();
-block(floorFx, 2, 4, [106,107,108,109,110,111], 3);
+block(floorFx, 2, 4, [167,168,169,170,171,172], 3);
 block(floorFx, 9, 7, [112,113,114,115], 2);
 block(floorFx, 14, 6, [116,117,118,119], 2);
 
@@ -99,6 +99,7 @@ export const TRANSFER_HALL_MAP: TiledMapJson = {
     {firstgid:97,image:"/assets/deck/transfer-hall-floorfx.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
     {firstgid:129,image:"/assets/deck/transfer-hall-props.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
     {firstgid:161,image:"/assets/deck/family-table-props.png",tilewidth:TILE,tileheight:TILE,tilecount:6,columns:3,margin:0,spacing:0},
+    {firstgid:167,image:"/assets/deck/family-table-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:6,columns:3,margin:0,spacing:0},
   ],
   layers:[
     {id:1,name:"Ground",type:"tilelayer",width:COLUMNS,height:ROWS,data:ground,opacity:1,visible:true},
