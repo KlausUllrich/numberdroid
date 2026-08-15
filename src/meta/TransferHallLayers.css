@@ -6,9 +6,9 @@
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="FloorProps"] { z-index:4; }
 
 /*
- * Gold Slice Architecture is now authored in the real 64px atlas rather than redrawn with
- * CSS pseudo-elements. The PNG contains the exact 10px structural masks for GIDs 81–93.
- * Collision, door pockets and layer order remain separate runtime systems.
+ * Gold Slice Architecture is authored in the real 64px atlas rather than redrawn with
+ * CSS pseudo-elements. The accepted atlas has a 30px visible fascia while collision
+ * remains a separate 10px structural core. Door leaves/pockets remain separate runtime systems.
  */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-tilemap-layer[data-layer-name="Architecture"] .zk-map-tile {
   overflow:visible;

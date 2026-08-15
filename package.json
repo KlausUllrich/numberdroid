@@ -6,12 +6,13 @@
   "scripts": {
     "materialize-art": "node scripts/materialize-art-assets.mjs",
     "render-walls": "node scripts/render-transfer-hall-walls.mjs",
+    "render-doors": "node scripts/render-transfer-hall-door-art.mjs",
     "validate-art-seams": "node scripts/validate-wall-seams.mjs",
     "art:toolkit-test": "node scripts/art/toolkit/selftest.mjs",
-    "predev": "npm run materialize-art && npm run render-walls",
+    "predev": "npm run materialize-art && npm run render-walls && npm run render-doors",
     "dev": "vite",
     "test": "vitest run",
-    "prebuild": "npm run materialize-art && npm run render-walls && npm run validate-art-seams",
+    "prebuild": "npm run materialize-art && npm run render-walls && npm run render-doors && npm run validate-art-seams",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
