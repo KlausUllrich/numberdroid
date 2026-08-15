@@ -11,18 +11,15 @@ const WALKABLE: TileRect[] = [{ name: "transfer-hall", x: 1, y: 1, w: 18, h: 10 
 // 10 px structural wall cores. The accepted 30 px fascia remains visual-only.
 const WALL_THICKNESS = 10 / TILE;
 const DIVIDER_X = 12.5 - WALL_THICKNESS / 2;
-const FAMILY_RETURN_X = 6.5 - WALL_THICKNESS / 2;
 const OBSTACLES: TileRect[] = [
-  { name: "family-return-north", x: FAMILY_RETURN_X, y: 1, w: WALL_THICKNESS, h: 3 },
-  { name: "family-return-south", x: FAMILY_RETURN_X, y: 8, w: WALL_THICKNESS, h: 3 },
   { name: "divider-north", x: DIVIDER_X, y: 1, w: WALL_THICKNESS, h: 4 },
   { name: "divider-south", x: DIVIDER_X, y: 7, w: WALL_THICKNESS, h: 4 },
   { name: "family-table-solid", x: 2.52, y: 4.58, w: 1.96, h: 0.82 },
   { name: "family-display-protrusion", x: 3.25, y: 1.408125, w: 1.50, h: 0.56 },
   { name: "family-coffee-machine-solid", x: 5.18, y: 1.52, w: 0.64, h: 0.82 },
-  { name: "family-planter-trough-solid", x: 2.18, y: 6.55, w: 0.64, h: 0.90 },
-  { name: "family-round-plant-solid", x: 2.20, y: 2.28, w: 0.60, h: 0.55 },
-  { name: "family-hologram-solid", x: 10.18, y: 2.22, w: 0.64, h: 0.62 },
+  { name: "family-planter-trough-solid", x: 2.18, y: 8.55, w: 0.64, h: 0.90 },
+  { name: "family-round-plant-solid", x: 6.20, y: 9.28, w: 0.60, h: 0.55 },
+  { name: "family-hologram-solid", x: 11.18, y: 4.22, w: 0.64, h: 0.62 },
   { name: "transfer-cradle-core", x: 8.70, y: 4.70, w: 1.60, h: 1.60 },
   { name: "primus-console-protrusion", x: 14.20, y: 1.08, w: 1.60, h: 0.58 },
   { name: "body-slot-bank-protrusion", x: 16.20, y: 1.08, w: 1.60, h: 0.58 },
@@ -57,15 +54,8 @@ setCell(architecture, 18, 1, 86);
 setCell(architecture, 18, 10, 87);
 setCell(architecture, 1, 10, 88);
 
-// Shallow Family-side wall returns: reuse the accepted wall kit to create
-// corners/alcove structure while preserving a broad four-tile circulation opening.
-setCell(architecture, 6, 1, 90);
-setCell(architecture, 6, 2, 89);
-setCell(architecture, 6, 3, 92);
-setCell(architecture, 6, 8, 93);
-setCell(architecture, 6, 9, 89);
-setCell(architecture, 6, 10, 91);
-
+// Family → Transfer stays a soft boundary. The only internal hard divider is the
+// functionally justified controlled threshold into PRIMUS allocation.
 setCell(architecture, 12, 1, 90);
 setCell(architecture, 12, 2, 89);
 setCell(architecture, 12, 3, 89);
@@ -80,30 +70,38 @@ const floorFx = layer();
 block(floorFx, 3, 1, [175,176], 2);
 block(floorFx, 5, 1, [179,180], 1);
 block(floorFx, 2, 4, [167,168,169,170,171,172], 3);
-block(floorFx, 2, 6, [183,184], 1);
-setCell(floorFx, 2, 2, 186);
-setCell(floorFx, 10, 2, 188);
+block(floorFx, 2, 8, [183,184], 1);
+setCell(floorFx, 6, 9, 186);
+setCell(floorFx, 11, 4, 188);
 block(floorFx, 9, 7, [112,113,114,115], 2);
 block(floorFx, 14, 6, [116,117,118,119], 2);
 
 const wallProps = layer();
 block(wallProps, 3, 1, [173,174], 2);
 block(wallProps, 5, 1, [177,178], 1);
-// Gold Slice blockout: provisional Transfer-support mass, not final art.
-block(wallProps, 8, 1, [191,192], 2);
+
+// Composition-only SVG blockout masses are attached to the walls they serve.
+// Family is intentionally asymmetric; Transfer uses the strongest local axis;
+// PRIMUS gains aligned service density without filling its patrol floor.
+block(wallProps, 3, 10, [189,190], 2);   // Family lower-wall bench
+block(wallProps, 5, 10, [193,194], 2);   // Family lower-wall storage
+block(wallProps, 9, 1, [191,192], 2);    // Transfer upper-wall diagnostics
+block(wallProps, 9, 10, [197,198], 2);   // Transfer lower-wall service bank
+setCell(wallProps, 13, 1, 199);           // PRIMUS compact utility module
 block(wallProps, 14, 1, [131,132], 2);
 block(wallProps, 16, 1, [133,134], 2);
+block(wallProps, 15, 10, [197,198], 2);   // PRIMUS lower service bank
 
 const floorProps = layer();
 block(floorProps, 2, 4, [161,162,163,164,165,166], 3);
-block(floorProps, 2, 6, [181,182], 1);
-setCell(floorProps, 2, 2, 185);
-setCell(floorProps, 10, 2, 187);
-// Gold Slice blockout: purposeful edge clusters for density/composition QA.
-block(floorProps, 3, 9, [189,190], 2);
-setCell(floorProps, 5, 8, 195);
-setCell(floorProps, 2, 8, 196);
-block(floorProps, 7, 9, [197,198], 2);
+block(floorProps, 2, 8, [181,182], 1);
+setCell(floorProps, 6, 9, 185);
+setCell(floorProps, 11, 4, 187);
+
+// Family personal traces stay attached to the lower wall-backed cluster.
+setCell(floorProps, 3, 9, 196); // small side table
+setCell(floorProps, 5, 9, 195); // personal bag / soft clutter
+
 block(floorProps, 8, 4, [141,142,143,144,145,146,147,148,149], 3);
 block(floorProps, 9, 7, [150,151,152,153], 2);
 block(floorProps, 14, 6, [154,155,156,157], 2);
@@ -113,7 +111,7 @@ function rectObjects(rects: TileRect[], firstId: number) {
 }
 
 const rooms = [
-  { id:210,name:"family-niche",x:2*TILE,y:2*TILE,width:4*TILE,height:7*TILE,properties:[prop("label","FAMILIENBEREICH","string"),prop("subtitle","PERSÖNLICHE DINGE · KEIN ZUGEWIESENER ZWECK","string")] },
+  { id:210,name:"family-niche",x:2*TILE,y:2*TILE,width:5*TILE,height:7*TILE,properties:[prop("label","FAMILIENBEREICH","string"),prop("subtitle","PERSÖNLICHE DINGE · KEIN ZUGEWIESENER ZWECK","string")] },
   { id:211,name:"transfer-zone",x:7*TILE,y:2*TILE,width:5*TILE,height:7*TILE,properties:[prop("label","TRANSFER","string"),prop("subtitle","CORE → SLOT · KÖRPERWAHL","string")] },
   { id:212,name:"machine-exit",x:13*TILE,y:2*TILE,width:5*TILE,height:8*TILE,properties:[prop("label","PRIMUS-ZUTEILUNG","string"),prop("subtitle","ROLLEN · ROUTEN · ARBEIT","string")] },
 ];
@@ -125,7 +123,7 @@ const encounters = [
 
 export const TRANSFER_HALL_MAP: TiledMapJson = {
   orientation:"orthogonal", infinite:false, width:COLUMNS, height:ROWS, tilewidth:TILE, tileheight:TILE,
-  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","GOLD SLICE · COMPOSITION PREVIEW","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
+  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","GOLD SLICE · COMPOSITION PREVIEW V2","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
   tilesets:[
     {firstgid:1,image:"/assets/deck/transfer-hall-tiles.png",tilewidth:TILE,tileheight:TILE,tilecount:4,columns:4,margin:0,spacing:0},
     {firstgid:81,image:"/assets/deck/transfer-hall-architecture.png",tilewidth:TILE,tileheight:TILE,tilecount:16,columns:4,margin:0,spacing:0},
