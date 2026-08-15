@@ -5,7 +5,7 @@ This index tracks reproducible Gold-Slice source recipes. `main` remains the run
 | Order | Asset/category | Status | Recipe | Notes |
 |---:|---|---|---|---|
 | 1 | Walls / Architecture | **LIVE_ACCEPTED** | `walls/` | 30 px visible fascia, 10 px collision core, M4 Procedural 2D Compositor. Live accepted 2026-08-15: mass fits, homogeneous/quiet hierarchy, no visible connector/T errors. Freeze unless a concrete defect or deliberate material upgrade appears. |
-| 2 | Doors | **INTEGRATED / LIVE_QA_PENDING** | `doors/` | 5 px moving leaf + compact pocket collars; M4 materialization through Art Production Toolkit, existing runtime motion retained. Gold pass removes the old full-aperture guide rails. |
+| 2 | Doors | **LIVE_ACCEPTED** | `doors/` | 5 px darker moving leaves, exact aperture clipping, compact pocket collars, 520 ms opening + 650 ms soft close, no status text, coloured-key variant. M4 + Art Production Toolkit. Live accepted 2026-08-15; freeze unless a concrete defect or approved extension appears. |
 | 3 | Family / ordinary props | PLANNED | per prop/set recipe before generation | Rebuild current placeholder atlas as isolated top-down objects. Likely M1 source + deterministic extraction; M4 only where geometry is genuinely fixed. |
 | 4 | Transfer apparatus / cradle | PLANNED | dedicated hero recipe before generation | Hero multi-tile object; warm CORE emissive source, illumination remains in LightOverlay. Likely M1/M3, with deterministic masks/packing where useful. |
 | 5 | PRIMUS wall object / console | PLANNED | dedicated recipe before generation | Precise, attractive system object; not villain-black or side-view furniture. Hybrid M1/M4 is plausible. |
@@ -19,8 +19,8 @@ This index tracks reproducible Gold-Slice source recipes. `main` remains the run
 PICO            LIVE_ACCEPTED
 Floor           ACCEPTED BASELINE
 Walls           LIVE_ACCEPTED (M4 breakthrough)
-Doors           INTEGRATED / LIVE_QA_PENDING
-Props           PLANNED
+Doors           LIVE_ACCEPTED (M4 + Toolkit second production proof)
+Props           NEXT
 Hero assets     PLANNED
 Other robots    PLANNED
 ```
