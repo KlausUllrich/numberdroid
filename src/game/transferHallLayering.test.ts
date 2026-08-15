@@ -22,13 +22,7 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
 
   it("routes the Family Table through its dedicated 3x2 candidate tileset", () => {
     const familyTable = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 161);
-    expect(familyTable).toMatchObject({
-      image: "/assets/deck/family-table-props.png",
-      tilewidth: 64,
-      tileheight: 64,
-      tilecount: 6,
-      columns: 3,
-    });
+    expect(familyTable).toMatchObject({ image: "/assets/deck/family-table-props.png", tilewidth: 64, tileheight: 64, tilecount: 6, columns: 3 });
     expect([
       cell("FloorProps", 2, 4), cell("FloorProps", 3, 4), cell("FloorProps", 4, 4),
       cell("FloorProps", 2, 5), cell("FloorProps", 3, 5), cell("FloorProps", 4, 5),
@@ -37,13 +31,7 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
 
   it("routes the Family Table grounding shadow through a dedicated 3x2 FloorFX tileset", () => {
     const familyShadow = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 167);
-    expect(familyShadow).toMatchObject({
-      image: "/assets/deck/family-table-shadow.png",
-      tilewidth: 64,
-      tileheight: 64,
-      tilecount: 6,
-      columns: 3,
-    });
+    expect(familyShadow).toMatchObject({ image: "/assets/deck/family-table-shadow.png", tilewidth: 64, tileheight: 64, tilecount: 6, columns: 3 });
     expect([
       cell("FloorFX", 2, 4), cell("FloorFX", 3, 4), cell("FloorFX", 4, 4),
       cell("FloorFX", 2, 5), cell("FloorFX", 3, 5), cell("FloorFX", 4, 5),
@@ -52,30 +40,14 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
 
   it("routes the Family Memory Console through a dedicated 2x1 WallProps tileset", () => {
     const familyConsole = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 173);
-    expect(familyConsole).toMatchObject({
-      image: "/assets/deck/family-memory-console.png",
-      tilewidth: 64,
-      tileheight: 64,
-      tilecount: 2,
-      columns: 2,
-    });
-    expect([
-      cell("WallProps", 3, 1), cell("WallProps", 4, 1),
-    ]).toEqual([173, 174]);
+    expect(familyConsole).toMatchObject({ image: "/assets/deck/family-memory-console.png", tilewidth: 64, tileheight: 64, tilecount: 2, columns: 2 });
+    expect([cell("WallProps", 3, 1), cell("WallProps", 4, 1)]).toEqual([173, 174]);
   });
 
   it("routes the Family Memory Console grounding shadow through a dedicated 2x1 FloorFX tileset", () => {
     const familyConsoleShadow = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 175);
-    expect(familyConsoleShadow).toMatchObject({
-      image: "/assets/deck/family-memory-console-shadow.png",
-      tilewidth: 64,
-      tileheight: 64,
-      tilecount: 2,
-      columns: 2,
-    });
-    expect([
-      cell("FloorFX", 3, 1), cell("FloorFX", 4, 1),
-    ]).toEqual([175, 176]);
+    expect(familyConsoleShadow).toMatchObject({ image: "/assets/deck/family-memory-console-shadow.png", tilewidth: 64, tileheight: 64, tilecount: 2, columns: 2 });
+    expect([cell("FloorFX", 3, 1), cell("FloorFX", 4, 1)]).toEqual([175, 176]);
   });
 
   it("moves the Family Memory Console collision inward with the visual placement", () => {
@@ -86,6 +58,42 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     expect(familyConsoleObstacle.y).toBeCloseTo(1.408125 * TILE, 5);
     expect(familyConsoleObstacle.width).toBeCloseTo(1.50 * TILE, 5);
     expect(familyConsoleObstacle.height).toBeCloseTo(0.56 * TILE, 5);
+  });
+
+  it("routes Family Props Batch 2 through dedicated tilesets and shadows", () => {
+    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 177)).toMatchObject({ image: "/assets/deck/family-coffee-machine.png", tilecount: 2, columns: 1 });
+    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 179)).toMatchObject({ image: "/assets/deck/family-coffee-machine-shadow.png", tilecount: 2, columns: 1 });
+    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 181)).toMatchObject({ image: "/assets/deck/family-planter-trough.png", tilecount: 2, columns: 1 });
+    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 183)).toMatchObject({ image: "/assets/deck/family-planter-trough-shadow.png", tilecount: 2, columns: 1 });
+    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 185)).toMatchObject({ image: "/assets/deck/family-round-plant.png", tilecount: 1, columns: 1 });
+    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 186)).toMatchObject({ image: "/assets/deck/family-round-plant-shadow.png", tilecount: 1, columns: 1 });
+    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 187)).toMatchObject({ image: "/assets/deck/family-hologram-pedestal.png", tilecount: 1, columns: 1 });
+    expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 188)).toMatchObject({ image: "/assets/deck/family-hologram-pedestal-shadow.png", tilecount: 1, columns: 1 });
+  });
+
+  it("places the coffee machine at the upper wall with its access side facing into the room", () => {
+    expect([cell("WallProps", 5, 1), cell("WallProps", 5, 2)]).toEqual([177, 178]);
+    expect([cell("FloorFX", 5, 1), cell("FloorFX", 5, 2)]).toEqual([179, 180]);
+  });
+
+  it("places the two plants and hologram in the lower-left family area with separate shadows", () => {
+    expect([cell("FloorProps", 2, 7), cell("FloorProps", 2, 8)]).toEqual([181, 182]);
+    expect([cell("FloorFX", 2, 7), cell("FloorFX", 2, 8)]).toEqual([183, 184]);
+    expect(cell("FloorProps", 5, 7)).toBe(185);
+    expect(cell("FloorFX", 5, 7)).toBe(186);
+    expect(cell("FloorProps", 4, 8)).toBe(187);
+    expect(cell("FloorFX", 4, 8)).toBe(188);
+  });
+
+  it("adds bounded collision footprints for the Batch 2 family props", () => {
+    const obstacleLayer = TRANSFER_HALL_MAP.layers.find((layer): layer is any => layer.type === "objectgroup" && layer.name === "Obstacles")!;
+    const names = obstacleLayer.objects.map((object: any) => object.name);
+    expect(names).toEqual(expect.arrayContaining([
+      "family-coffee-machine-solid",
+      "family-planter-trough-solid",
+      "family-round-plant-solid",
+      "family-hologram-solid",
+    ]));
   });
 
   it("has a complete outer-wall marker on every perimeter cell", () => {

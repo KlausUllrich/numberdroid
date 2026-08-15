@@ -16,6 +16,10 @@ const OBSTACLES: TileRect[] = [
   { name: "divider-south", x: DIVIDER_X, y: 7, w: WALL_THICKNESS, h: 4 },
   { name: "family-table-solid", x: 2.52, y: 4.58, w: 1.96, h: 0.82 },
   { name: "family-display-protrusion", x: 3.25, y: 1.408125, w: 1.50, h: 0.56 },
+  { name: "family-coffee-machine-solid", x: 5.18, y: 1.52, w: 0.64, h: 0.82 },
+  { name: "family-planter-trough-solid", x: 2.18, y: 7.55, w: 0.64, h: 0.90 },
+  { name: "family-round-plant-solid", x: 5.20, y: 7.28, w: 0.60, h: 0.55 },
+  { name: "family-hologram-solid", x: 4.18, y: 8.22, w: 0.64, h: 0.62 },
   { name: "transfer-cradle-core", x: 8.70, y: 4.70, w: 1.60, h: 1.60 },
   { name: "primus-console-protrusion", x: 14.20, y: 1.08, w: 1.60, h: 0.58 },
   { name: "body-slot-bank-protrusion", x: 16.20, y: 1.08, w: 1.60, h: 0.58 },
@@ -61,17 +65,25 @@ setCell(architecture, 12, 10, 91);
 // FloorFX is strictly floor-projected non-light FX.
 const floorFx = layer();
 block(floorFx, 3, 1, [175,176], 2);
+block(floorFx, 5, 1, [179,180], 1);
 block(floorFx, 2, 4, [167,168,169,170,171,172], 3);
+block(floorFx, 2, 7, [183,184], 1);
+setCell(floorFx, 5, 7, 186);
+setCell(floorFx, 4, 8, 188);
 block(floorFx, 9, 7, [112,113,114,115], 2);
 block(floorFx, 14, 6, [116,117,118,119], 2);
 
 const wallProps = layer();
 block(wallProps, 3, 1, [173,174], 2);
+block(wallProps, 5, 1, [177,178], 1);
 block(wallProps, 14, 1, [131,132], 2);
 block(wallProps, 16, 1, [133,134], 2);
 
 const floorProps = layer();
 block(floorProps, 2, 4, [161,162,163,164,165,166], 3);
+block(floorProps, 2, 7, [181,182], 1);
+setCell(floorProps, 5, 7, 185);
+setCell(floorProps, 4, 8, 187);
 block(floorProps, 8, 4, [141,142,143,144,145,146,147,148,149], 3);
 block(floorProps, 9, 7, [150,151,152,153], 2);
 block(floorProps, 14, 6, [154,155,156,157], 2);
@@ -103,6 +115,14 @@ export const TRANSFER_HALL_MAP: TiledMapJson = {
     {firstgid:167,image:"/assets/deck/family-table-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:6,columns:3,margin:0,spacing:0},
     {firstgid:173,image:"/assets/deck/family-memory-console.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:2,margin:0,spacing:0},
     {firstgid:175,image:"/assets/deck/family-memory-console-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:2,margin:0,spacing:0},
+    {firstgid:177,image:"/assets/deck/family-coffee-machine.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:1,margin:0,spacing:0},
+    {firstgid:179,image:"/assets/deck/family-coffee-machine-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:1,margin:0,spacing:0},
+    {firstgid:181,image:"/assets/deck/family-planter-trough.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:1,margin:0,spacing:0},
+    {firstgid:183,image:"/assets/deck/family-planter-trough-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:1,margin:0,spacing:0},
+    {firstgid:185,image:"/assets/deck/family-round-plant.png",tilewidth:TILE,tileheight:TILE,tilecount:1,columns:1,margin:0,spacing:0},
+    {firstgid:186,image:"/assets/deck/family-round-plant-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:1,columns:1,margin:0,spacing:0},
+    {firstgid:187,image:"/assets/deck/family-hologram-pedestal.png",tilewidth:TILE,tileheight:TILE,tilecount:1,columns:1,margin:0,spacing:0},
+    {firstgid:188,image:"/assets/deck/family-hologram-pedestal-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:1,columns:1,margin:0,spacing:0},
   ],
   layers:[
     {id:1,name:"Ground",type:"tilelayer",width:COLUMNS,height:ROWS,data:ground,opacity:1,visible:true},
