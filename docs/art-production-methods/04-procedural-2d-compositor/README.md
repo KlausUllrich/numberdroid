@@ -1,6 +1,6 @@
 # M4 — Procedural 2D Compositor
 
-Status: **PROVEN / LIVE_ACCEPTED for TS-01 modular walls**
+Status: **PROVEN / LIVE_ACCEPTED for TS-01 modular walls and doors**
 
 ## Purpose
 
@@ -8,7 +8,7 @@ Build final geometry-critical 2D assets deterministically from exact geometry, e
 
 Core insight:
 
-> The material source does not need to know where the wall ends. The compositor knows.
+> The material source does not need to know where the structure ends. The compositor knows.
 
 ## Authority model
 
@@ -36,6 +36,26 @@ The complete TS-01 wall kit was live accepted on 2026-08-15: 30 px wall mass fit
 
 Acceptance record: `../../art/transfer-hall/TRANSFER_HALL_WALL_COMPOSITOR_ACCEPTANCE_2026-08-15.md`.
 
+## Second production proof — TS-01 Doors
+
+Doors are the first new asset category built after extracting the reusable Art Production Toolkit, and were live accepted on 2026-08-15.
+
+The accepted hybrid separates responsibilities as follows:
+
+```text
+recipe geometry             → exact door/leaf/pocket dimensions
+Art Production Toolkit      → deterministic graphite leaf/pocket materialization
+DoorLayer runtime           → automatic open/closed behavior
+leaf-clip                   → exact geometric occlusion at the doorway boundary
+CSS motion                  → 520 ms open + 650 ms monotonic soft close
+semantic key marker         → coloured access-key variant
+live QA                     → final visual/motion acceptance
+```
+
+Important learning: z-index alone was not a sufficient topology guarantee for retracting leaves. The robust solution was an explicit clip boundary matching the semantic doorway aperture. This reinforces the M4 principle that topology/visibility rules should be deterministic rather than inferred from visual stacking.
+
+Door recipe: `../../../art-source/recipes/transfer-hall/doors/recipe.md`.
+
 ## Reusable tools
 
 M4 should use the method-agnostic Art Production Toolkit rather than reimplementing generic mechanics per asset:
@@ -43,7 +63,7 @@ M4 should use the method-agnostic Art Production Toolkit rather than reimplement
 - `../../art-production-toolkit/tools/compositor2d.md`
 - `../../../scripts/art/toolkit/`
 
-The current accepted wall renderer predates this extracted library and remains frozen. Doors are the preferred first new production consumer; do not refactor accepted Walls merely for code neatness unless output equivalence is proven.
+The accepted wall renderer predates the extracted library and remains frozen. Do not refactor accepted Walls merely for code neatness unless output equivalence is proven.
 
 ## Inputs
 
@@ -81,6 +101,4 @@ Potential mapping modes include world-continuous, tile-local, periodic/seamless 
 
 ## Adaptation sequence
 
-When applying M4 to a new category, prove one simple element and one small assembly before building the full kit. For TS-01 the sequence H_TOP → repeated run → corner → T → full kit → live room succeeded.
-
-**Doors / door pockets / thresholds** are the next useful M4 validation target while moving door leaves/runtime behavior remain separate systems.
+When applying M4 to a new category, prove one simple element and one small assembly before building the full kit. For TS-01 Walls the sequence H_TOP → repeated run → corner → T → full kit → live room succeeded. Doors then proved that the same authority model and Toolkit can generalize beyond wall atlases when runtime motion and topology are kept as separate explicit systems.
