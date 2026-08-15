@@ -15,12 +15,12 @@ describe("TS-01 Layout v3 layer/topology contract", () => {
   });
 
   it("uses an irregular footprint instead of filling the rectangular map bounds", () => {
-    expect(cell("Ground", 2, 2)).not.toBe(0);   // living
-    expect(cell("Ground", 16, 4)).not.toBe(0); // PRIMUS
-    expect(cell("Ground", 12, 16)).not.toBe(0); // Transfer
-    expect(cell("Ground", 11, 1)).toBe(0);     // gap above hall
-    expect(cell("Ground", 22, 16)).toBe(0);    // void east of Transfer
-    expect(cell("Ground", 4, 16)).toBe(0);     // void south of domestic cluster
+    expect(cell("Ground", 2, 2)).not.toBe(0);
+    expect(cell("Ground", 16, 4)).not.toBe(0);
+    expect(cell("Ground", 12, 16)).not.toBe(0);
+    expect(cell("Ground", 11, 1)).toBe(0);
+    expect(cell("Ground", 22, 16)).toBe(0);
+    expect(cell("Ground", 4, 16)).toBe(0);
   });
 
   it("keeps accepted Family assets and their shadows in the living room", () => {
@@ -67,14 +67,15 @@ describe("TS-01 Layout v3 layer/topology contract", () => {
     expect(cell("Architecture", 8, 5)).toBe(0);
     expect(cell("Architecture", 9, 4)).toBe(0);
     expect(cell("Architecture", 9, 5)).toBe(0);
-    // Living → child / hygiene
+    // Living → child room: intentionally two tiles wide.
     expect(cell("Architecture", 2, 7)).toBe(0);
     expect(cell("Architecture", 3, 7)).toBe(0);
     expect(cell("Architecture", 2, 8)).toBe(0);
     expect(cell("Architecture", 3, 8)).toBe(0);
-    expect(cell("Architecture", 6, 7)).toBe(0);
+    // Tiny hygiene room: one centered doorway avoids consuming the corner structure.
+    expect(cell("Architecture", 6, 7)).toBe(82);
     expect(cell("Architecture", 7, 7)).toBe(0);
-    expect(cell("Architecture", 6, 8)).toBe(0);
+    expect(cell("Architecture", 6, 8)).toBe(85);
     expect(cell("Architecture", 7, 8)).toBe(0);
   });
 
