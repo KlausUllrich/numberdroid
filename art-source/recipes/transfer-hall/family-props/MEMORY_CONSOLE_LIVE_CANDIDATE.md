@@ -11,12 +11,14 @@ This candidate replaces the rejected frontal Family Wall Display at the existing
 - map placement: col 3,row 1, 2×1 block
 - runtime asset: `/assets/deck/family-memory-console.png`
 - runtime/source size: 128×64 px
-- exact source: `source/family-memory-console-runtime.png`
-- bytes: 12371
-- SHA-256: `b948e7ecb66befafc92eddb2fbfc9fb82adde2a317c834b3ddd185d73a09dd54`
+- exact reproducible source: `source/family-memory-console-runtime.b64.00`
+- bytes: 3892
+- SHA-256: `7b3546264f6007884f395383b6db4cd25cdf1c67db45c325cf9026d298eefd5c`
 - existing collision: `family-display-protrusion`, unchanged at x 3.25, y 1.08, w 1.50, h 0.56 tiles
 - legacy prop atlas/GIDs 129–160 remain intact
 - accepted Family Table and its FloorFX shadow remain unchanged
+
+`npm run materialize-art` validates PNG signature, exact byte count, SHA-256 and 128×64 dimensions before writing the runtime file. The first PR #45 deployment used a directly tracked binary PNG which was found after live QA to contain a damaged PNG data stream; that deployment is rejected. The text-safe materialization path is now authoritative so the same failure cannot pass prebuild silently.
 
 ## Visual decision
 
@@ -42,12 +44,14 @@ Visible content is generic and non-canonical: small planter, notebook/personal i
 4. downscale with Lanczos into a 128×64 2×1 runtime envelope;
 5. final visible object size: approximately 124×40 px at offset (2,9);
 6. apply a light runtime-scale unsharp pass;
-7. preserve true alpha; no floor/background plate is baked into the asset.
+7. palette-optimize the validated runtime PNG without changing the gameplay-scale read;
+8. preserve true alpha; no floor/background plate is baked into the asset.
 
 ## Live QA gate
 
 Before acceptance, inspect the deployed Transfer Hall on PC and mobile and answer only:
 
+- is the console now visibly rendered at the Family wall position?
 - does the console read as wall-adjacent rather than as another table?
 - does the top-surface detail survive runtime scale?
 - does its depth remain compatible with the top-down wall band?
