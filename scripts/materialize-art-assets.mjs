@@ -72,6 +72,17 @@ const familyMemoryConsole = readTextSafePng({
   expectedHeight: 64,
 });
 
+const familyMemoryConsoleShadow = readTextSafePng({
+  name: "TS-01 Family Memory Console grounding shadow",
+  directory: familyPropsSourceDir,
+  prefix: "family-memory-console-shadow-runtime.b64.",
+  expectedChunks: 1,
+  expectedBytes: 915,
+  expectedSha256: "78c73c3e5e582a190aaa048a812c620963102a676d926e44ed864da757c86a06",
+  expectedWidth: 128,
+  expectedHeight: 64,
+});
+
 const robotOutputDir = join(root, "public/assets/robots");
 mkdirSync(robotOutputDir, { recursive: true });
 writeFileSync(join(robotOutputDir, "directional-pico.png"), pico);
@@ -85,3 +96,5 @@ writeFileSync(join(deckOutputDir, "family-table-shadow.png"), familyTableShadow)
 console.log("Family Table shadow: materialized validated 192x128 3x2 FloorFX sheet from recipe-local source");
 writeFileSync(join(deckOutputDir, "family-memory-console.png"), familyMemoryConsole);
 console.log("Family Memory Console: materialized validated 128x64 2x1 WallProps sheet from recipe-local source");
+writeFileSync(join(deckOutputDir, "family-memory-console-shadow.png"), familyMemoryConsoleShadow);
+console.log("Family Memory Console shadow: materialized validated 128x64 2x1 FloorFX sheet from recipe-local source");
