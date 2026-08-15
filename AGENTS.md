@@ -57,6 +57,7 @@ If two current authorities conflict, report the conflict rather than silently in
 - Verify current `main` HEAD and relevant GitHub Actions state before significant work.
 - Use focused branches/PRs for changes.
 - For remote repository operations use the connected GitHub connector. Do not fall back to `git clone`, `git fetch`, `curl`, `wget`, or container-network workarounds.
+- If GitHub actions are not currently surfaced, **rediscover the GitHub connector/actions first** as defined in `docs/agents/REPOSITORY_WORKFLOW.md`; absence from the active tool schema is not evidence that repository access is unavailable.
 - Do not mix broad repository reorganization with gameplay changes.
 - Preserve `zahlenkern-prototyp-meta-v7.html` as the frozen behavioral reference; do not refactor it into production code.
 - Before merging runtime changes, run the available tests and production build. Art changes must also run their relevant art QA scripts.
