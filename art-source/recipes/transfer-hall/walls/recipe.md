@@ -1,6 +1,6 @@
 # Asset Recipe — TS-01 Walls / Architecture
 
-Status: `PROCEDURAL_COMPOSITOR_PROVEN` — pending final live visual acceptance.
+Status: `LIVE_ACCEPTED` — accepted in the public Transfer Hall on 2026-08-15.
 
 ## Identity
 
@@ -48,11 +48,11 @@ The generator/editor is no longer asked to decide topology-dependent wall edges.
 - T and corner geometry remains deterministic;
 - Door category remains separate.
 
-The move from 24 to 30 px follows live QA against the approved reference: the architecture should feel more stable/substantial and less like a thin rail.
+The move from 24 to 30 px followed live QA against the approved reference: the architecture needed to feel more stable/substantial and less like a thin rail.
 
 ## Material source
 
-Current proof material is generated deterministically by `render-transfer-hall-walls.mjs` from `render-recipe.json`.
+Current accepted material is generated deterministically by `render-transfer-hall-walls.mjs` from `render-recipe.json`.
 
 It is intentionally:
 - borderless;
@@ -60,7 +60,7 @@ It is intentionally:
 - low contrast;
 - free of wall-specific caps, outlines, vents and frames.
 
-This procedural swatch is replaceable. A later image-generated, Invoke-created, hand-painted or Photoshop-authored swatch may be substituted if it is edge-agnostic and passes material QA.
+This procedural swatch is replaceable. A later image-generated, Invoke-created, hand-painted or Photoshop-authored swatch may be substituted if it is edge-agnostic and passes material QA. Such a substitution is an intentional material revision, not routine cleanup.
 
 A material swatch must never encode:
 - which edge is a connector;
@@ -110,6 +110,28 @@ render-recipe.json
 → live room QA
 ```
 
+## Live acceptance — 2026-08-15
+
+The public `?floor=transfer-hall` build was reviewed at PC gameplay scale after the 30 px M4 compositor pass.
+
+User acceptance:
+
+1. **Wall mass fits** the reference target.
+2. Architecture reads **homogeneous and less visually important**, which is the intended hierarchy.
+3. **No visible wall errors** were observed, including T-junction/connectors.
+
+This validates the central M4 hypothesis for TS-01 walls:
+
+> common material appearance and topology-dependent edge treatment should be separate responsibilities.
+
+The accepted wall baseline is therefore the current 30 px procedural compositor output. Do not continue iterating Walls merely because a newer method or generator is available.
+
+Reopen Walls only for one of these reasons:
+- a concrete live visual defect is found;
+- Door integration exposes a real wall/cap incompatibility;
+- an explicitly approved material-quality upgrade is being evaluated against the accepted baseline;
+- broader Transfer Ship architecture requires a deliberate promotion/revision of the TS-01 kit.
+
 ## QA requirements
 
 Geometry:
@@ -145,6 +167,6 @@ Live:
 - M2 complete-wall material editing: proved that deterministic geometry + generative material can work, but failed as final wall method because the model cannot infer runtime connector semantics from isolated silhouettes.
 - Spaced generation layouts: useful when separate object recognition is needed, but still do not tell a model which isolated edge is a connector.
 - Semantic connector canonicalization: retained and now used after compositing.
-- M4 compositor: first proof demonstrated that one material can be mapped to continuous H/CORNER/T geometry while outlines/AO are applied only to true exposed edges.
+- M4 compositor: live-accepted for TS-01 Walls on 2026-08-15; one shared material family plus deterministic exposed/connector edge semantics produced the desired calm, substantial wall hierarchy.
 
-See `docs/art-production-methods/README.md` for the method matrix.
+See `docs/art-production-methods/README.md` for the method matrix and `docs/TRANSFER_HALL_WALL_COMPOSITOR_ACCEPTANCE_2026-08-15.md` for the acceptance record.
