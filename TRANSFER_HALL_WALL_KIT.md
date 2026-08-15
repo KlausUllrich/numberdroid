@@ -1,151 +1,109 @@
 # Numberdroid — Transfer Hall Wall Kit
 
-Status: **binding production contract for the Gold Slice wall/architecture category**
-
-Applies to: `TS-01 Transfer Hall` only until promoted into a broader Transfer Ship architecture kit.
+Status: **binding production contract for TS-01 wall/architecture art**
 
 Companion documents:
 - `TRANSFER_HALL_LAYER_RULES.md`
 - `ART_DIRECTION_TRANSFER_SHIP.md`
-- `ART_PRODUCTION_RULES_TRANSFER_SHIP.md`
 - `ART_ASSET_VALIDATION_RULES.md`
 - `ARTIST_AGENT_WORKFLOW.md`
 - `docs/SEMANTIC_CONNECTOR_CANONICALIZATION.md`
+- `docs/art-production-methods/04-procedural-2d-compositor/README.md`
+- `art-source/recipes/transfer-hall/walls/recipe.md`
 
 ## 1. Visual purpose
 
-The Transfer Hall uses **dark graphite/charcoal walls against the light warm ceramic floor** so room boundaries read immediately at gameplay scale.
+The Transfer Hall is a bright civilian space framed by **quiet, substantial dark graphite architecture**. Walls are structural background, not hero props.
 
-This does not turn the ship into generic dark military sci-fi. The value hierarchy remains:
+Target hierarchy:
+- floor: light warm ceramic/off-white;
+- walls: homogeneous graphite/charcoal;
+- system teal/cyan: sparse semantic signal only;
+- CORE/Transfer amber: focal semantic accent only.
 
-- floor / civic walking surface: light warm off-white / ceramic grey;
-- walls / structural boundaries: dark graphite / charcoal;
-- machinery recesses: dark mineral/graphite, selectively;
-- teal/cyan: sparse semantic system signal only;
-- amber: CORE / Transfer meaning only.
+Avoid generic dark military sci-fi, noisy panels, bright per-tile metallic frames, vents/pipes everywhere, and cyan stitching.
 
-The target read is a bright, calm civic room **clearly framed by substantial darker architecture**.
+## 2. Runtime and geometry contract
 
-## 2. Structural core versus visual fascia
+- runtime tile: **64 × 64 px**;
+- atlas: **4 × 4 cells = 256 × 256 px**;
+- GIDs 81–93 active, 94–96 reserved;
+- structural/collision core: **10 px** and unchanged;
+- current visible fascia: **30 px**;
+- extra visible mass does not enlarge collision;
+- outer walls expand inward into the room;
+- centered divider remains on the same collision axis and expands symmetrically;
+- moving door leaves remain a separate Door layer below Architecture;
+- LightOverlay remains separate.
 
-Slice-0 gameplay geometry remains binding, but Gold-Slice art distinguishes collision geometry from visible wall mass:
+The 30 px fascia follows repeated live QA: 10, 16 and 24 px treatments all read too light/thin against the approved reference. This is a visual change only.
 
-- gameplay remains strict orthographic top-down;
-- the runtime tile is authoritatively **64 × 64 px**;
-- Architecture remains the semantic wall layer;
-- the **structural/collision core remains 10 px** thick;
-- the current Gold-Slice **visible fascia is 24 px** thick in the 64 px runtime cell;
-- the extra 14 px are visual mass/depth only and do not enlarge collision;
-- outer walls extend the visual fascia inward into the room;
-- centered dividers remain centered on the same collision axis and expand symmetrically around it;
-- moving door leaves remain 5 px and belong below Architecture;
-- LightOverlay does not paint walls from above;
-- existing Slice-0 layer, GID, collision and door-pocket topology is preserved.
+The old `Grid: 16 px` note in an early art-direction board is not a runtime tile-size contract. Runtime/Tiled tile size is 64 px.
 
-This refinement was made after repeated live PC QA showed that both 10 px and 16 px visible wall art still read too thin compared with the approved Transfer Hall reference. Do not change map topology or collision merely to match the thicker fascia.
-
-### 64 px tile versus old “16 px grid” note
-
-The current runtime/Tiled contract is **64 px per tile**. An early art-direction board contained a `Grid: 16 px` note; that is not a runtime tile-size contract and must not be used for production downscale calculations. Treat it only as an old conceptual/alignment-grid note unless a future document explicitly defines a 16 px sub-grid.
-
-## 3. Exact TS-01 Wall Kit v1
-
-The Transfer Hall uses these 13 active markers in a 4-column × 4-row atlas; the final three cells remain reserved.
+## 3. Semantic wall kit
 
 | local ID | GID | Name | Function |
 |---:|---:|---|---|
-| 0 | 81 | `H_TOP` | continuous horizontal wall at top room boundary |
-| 1 | 82 | `H_BOTTOM` | continuous horizontal wall at bottom room boundary |
-| 2 | 83 | `V_LEFT` | continuous vertical wall at left room boundary |
-| 3 | 84 | `V_RIGHT` | continuous vertical wall at right room boundary |
-| 4 | 85 | `CORNER_NW` | continuous top-left 90° corner |
-| 5 | 86 | `CORNER_NE` | continuous top-right 90° corner |
-| 6 | 87 | `CORNER_SE` | continuous bottom-right 90° corner |
-| 7 | 88 | `CORNER_SW` | continuous bottom-left 90° corner |
-| 8 | 89 | `V_CENTER` | internal vertical divider, centered in cell |
-| 9 | 90 | `T_TOP_DOWN` | uninterrupted top wall with divider entering from below |
-| 10 | 91 | `T_BOTTOM_UP` | uninterrupted bottom wall with divider entering from above |
-| 11 | 92 | `CAP_DOWN` | lower termination of north divider at doorway |
-| 12 | 93 | `CAP_UP` | upper termination of south divider at doorway |
-| 13 | 94 | reserved | unused |
-| 14 | 95 | reserved | unused |
-| 15 | 96 | reserved | unused |
+| 0 | 81 | `H_TOP` | top outer wall |
+| 1 | 82 | `H_BOTTOM` | bottom outer wall |
+| 2 | 83 | `V_LEFT` | left outer wall |
+| 3 | 84 | `V_RIGHT` | right outer wall |
+| 4 | 85 | `CORNER_NW` | top-left corner |
+| 5 | 86 | `CORNER_NE` | top-right corner |
+| 6 | 87 | `CORNER_SE` | bottom-right corner |
+| 7 | 88 | `CORNER_SW` | bottom-left corner |
+| 8 | 89 | `V_CENTER` | centered internal divider |
+| 9 | 90 | `T_TOP_DOWN` | top wall with divider entering from below |
+| 10 | 91 | `T_BOTTOM_UP` | bottom wall with divider entering from above |
+| 11 | 92 | `CAP_DOWN` | north divider termination at doorway |
+| 12 | 93 | `CAP_UP` | south divider termination at doorway |
+| 13–15 | 94–96 | reserved | empty |
 
-Door pockets and moving door leaves are a separate Door category and must be authored against `CAP_DOWN` / `CAP_UP`.
+## 4. Production method — M4 Procedural 2D Compositor
 
-## 4. Connection geometry — hard rule
+Walls no longer ask image generation to author complete wall pieces.
 
-Every visible connectable endpoint reaches the relevant 64 px cell boundary as a **flat, square, identical 24 px fascia**. The underlying collision contract remains 10 px.
-
-At a connection boundary:
-
-- no rounded end;
-- no bevel that narrows before the edge;
-- no decorative cap;
-- no shadow that visually closes the endpoint;
-- no cyan/teal strip crossing the boundary;
-- no width change;
-- no inset gap;
-- no transparent or black missing fragment at a T/corner join.
-
-Two compatible neighboring markers must read as one continuous manufactured wall.
-
-Only `CAP_DOWN` and `CAP_UP` are genuine visible terminations. Their closure detail must remain compact and compatible with the Door pass.
-
-## 5. Corner and T-junction rules
-
-Corners are continuous 90° structures, never two finished props touching. Their outgoing visible bands are 24 px wide and connect without seams.
-
-T-junction hierarchy remains:
-
-- divider stem terminates into the outer wall;
-- outer horizontal wall stays visually uninterrupted;
-- stem does not pierce outside the room;
-- no cross-shaped protrusion;
-- the complete target silhouette is reconstructed deterministically rather than trusted to the generated/material source alpha.
-
-`T_TOP_DOWN`: top wall continuous, stem from below.
-
-`T_BOTTOM_UP`: bottom wall continuous, stem from above.
-
-Live PC QA of the 16 px fascia revealed a genuine black/missing-looking fragment at the upper T-junction. Walls v2 therefore rebuilds both T silhouettes from the semantic mask before connector canonicalization; visual source alpha is not allowed to define the join.
-
-## 6. Material and value hierarchy
-
-Wall material is neutral dark graphite/charcoal with restrained metallic highlights. It should read substantially darker and heavier than the normal floor.
-
-Avoid:
-
-- green/teal-tinted wall body;
-- cyan edge around every segment;
-- hazard stripes;
-- random vents/pipes/modules in the structural sheet;
-- large glowing strips;
-- black-villain treatment.
-
-## 7. Production source contract
-
-The wall atlas contains only the 13 named structural pieces plus three empty reserved cells. No doors, props, floors, labels, documentation or bonus variants.
-
-Final production atlas:
+Binding pipeline:
 
 ```text
-4 columns × 4 rows
-64 × 64 px per cell
-256 × 256 px total
-GIDs 81–93 active
-GIDs 94–96 reserved
-10 px structural/collision core
-24 px visible Gold-Slice fascia
+semantic geometry / topology
+→ borderless material source
+→ deterministic material mapping
+→ EXPOSED / CONNECTOR / TRUE_CAP edge classification
+→ outline + AO only on true exposed edges
+→ no closing outline on connector boundaries
+→ exact alpha restore
+→ semantic connector canonicalization
+→ 64 px tiles / 256 px atlas
+→ automated seam QA + assembly QA
+→ live browser QA
 ```
 
-The current 16 px accepted material atlas remains a validated **material source**. `scripts/materialize-art-assets.mjs` deterministically expands it into the exact 24 px v2 semantic masks and performs connector canonicalization before writing the runtime PNG. Do not hand-author a separate thicker collision shape.
+The runtime implementation is `scripts/render-transfer-hall-walls.mjs` driven by `art-source/recipes/transfer-hall/walls/render-recipe.json`.
 
-## 8. Semantic Connector Canonicalization — mandatory mechanism
+The current material source is a deterministic procedural proof swatch. It can later be replaced by a generated or hand-authored **borderless** graphite texture without changing geometry or topology logic.
 
-A Connector Guard Zone is not merely a visual requirement. Modular edges are canonicalized deterministically.
+## 5. Edge semantics — hard rule
 
-The current semantic connector classes are:
+The compositor must distinguish:
+
+- `EXPOSED`: real architectural boundary; may receive restrained dark outline/AO;
+- `CONNECTOR`: continues into another tile; **must not** receive endpoint outline, cap, bevel closure or shadow closure;
+- `TRUE_CAP`: genuine doorway-facing termination on `CAP_DOWN` / `CAP_UP`; may receive compact termination treatment when Door art is authored.
+
+Do not derive this classification from isolated alpha silhouettes alone.
+
+At every connector:
+- flat and square to the cell boundary;
+- identical 30 px visible fascia;
+- no taper/rounding;
+- no decorative cap;
+- no cyan strip;
+- no alpha gap;
+- no black missing fragment;
+- no per-tile frame seam.
+
+## 6. Semantic connector groups
 
 ```text
 OUTER_TOP_RUN
@@ -174,21 +132,40 @@ DIVIDER_VERTICAL
   CAP_UP.B
 ```
 
-The genuine doorway-facing sides of `CAP_DOWN` and `CAP_UP` are **not** connector members and must not be canonicalized into a continuation.
+Doorway-facing ends of `CAP_DOWN` and `CAP_UP` are not continuation connectors.
 
-For each connector class:
+## 7. Connector canonicalization
 
-1. collect every member edge strip;
-2. compute one canonical strip using the **per-pixel median**, not the mean;
-3. make the boundary strip canonical;
-4. blend back toward each tile's individual material over an approximately **8–12 px ramp**; current runtime implementation uses 10 px;
-5. restore the semantic structural/visible mask after blending so canonicalization cannot create alpha outside allowed geometry.
+For each named connector class:
+1. collect all member edge strips;
+2. compute one per-pixel **median** strip;
+3. make boundary pixels canonical;
+4. blend toward the individual material over the recipe guard width;
+5. restore exact semantic alpha.
 
-Use named semantic relationships, not only occupancy counts. `orientation + occupied pixel count` is acceptable as an exploratory diagnostic but can group edges that are geometrically similar yet semantically not interchangeable.
+Named topology is authoritative. Occupancy-count heuristics are diagnostic only.
 
-## 9. Automated seam QA with negative control
+## 8. Material rule
 
-Seam compatibility is a pixel property and must not rely exclusively on visual inspection.
+The wall material should read as one quiet, maintained graphite/mineral-composite family.
+
+Prefer:
+- broad homogeneous value masses;
+- low-frequency subtle surface variation;
+- restrained construction depth;
+- low local contrast;
+- shared material coordinates where possible.
+
+Reject:
+- bright silver perimeter frame around each tile;
+- obvious texture reset/panel change at every 64 px boundary;
+- random vents/bolts/stripes;
+- hero-level detail;
+- baked room lighting.
+
+Material generation, when used, should create a **borderless material swatch**, not a wall object.
+
+## 9. Automated seam QA
 
 Run:
 
@@ -196,49 +173,25 @@ Run:
 npm run validate-art-seams
 ```
 
-The validator reports at least:
+Always report:
+- SAME-TYPE mean diff;
+- DIFF-TYPE negative control;
+- ratio;
+- worst same-type pair.
 
-```text
-SAME-TYPE mean diff      <- connector edges that MUST match
-DIFF-TYPE mean diff      <- negative control: same edge axis, different connector class
-RATIO = DIFF / SAME
-WORST same-type pair
-```
+Never report a seam match value without its negative control.
 
-**Never report a match number without a negative control.** A raw difference value is not interpretable by itself.
+Current production target after canonicalization: required boundary strips pixel-identical (`SAME-TYPE = 0`).
 
-For the current v2 wall atlas, semantic canonicalization is expected to make the actual runtime boundary strips pixel-identical (`SAME-TYPE = 0`, ratio effectively infinite). Generic future kits may use a tolerance, but a finite ratio below **20×** is a rejection signal unless the category contract explicitly justifies another threshold.
+## 10. Visual QA
 
-The validator is deliberately based on the named semantic table above rather than inferred occupancy. A heuristic occupancy-based metric can report a low ratio even for a correct atlas because it treats non-interchangeable wall classes as equivalent; that metric is not the production authority.
+Inspect at minimum:
+1. 3× `H_TOP` run;
+2. 3× `V_CENTER` run;
+3. all corners with straight neighbors;
+4. both T-junctions;
+5. divider + doorway caps;
+6. actual TS-01 wall layout;
+7. live PC/browser comparison against the approved reference.
 
-## 10. Required QA before integration
-
-Inspect and measure at minimum:
-
-1. automated semantic seam QA including negative control;
-2. three `H_TOP` pieces in a row;
-3. three `V_CENTER` pieces vertically;
-4. all four corners with straight neighbors;
-5. `H_TOP + T_TOP_DOWN + H_TOP` with divider;
-6. `H_BOTTOM + T_BOTTOM_UP + H_BOTTOM` with divider;
-7. north divider ending at `CAP_DOWN`;
-8. two-cell doorway gap;
-9. south divider starting at `CAP_UP`;
-10. the actual TS-01 wall layout;
-11. live PC/browser preview against the approved Transfer Hall reference.
-
-Reject visible seams, accidental gaps, black missing fragments, cyan stitching, width changes, mismatched shading or a wall weight that collapses to a thin outline at gameplay scale.
-
-## 11. Gold Slice acceptance
-
-Walls pass when:
-
-- light floor versus dark wall gives immediate boundary readability;
-- visible wall mass is close to the approved reference rather than a thin rail;
-- the result still feels like maintained civilian architecture rather than a warship;
-- straight runs read as continuous structures;
-- corners and T-junctions read as manufactured assemblies;
-- the cyan seam and black T-junction gap defects are gone;
-- semantic seam QA passes with its negative control;
-- collision and door behavior remain unchanged;
-- the kit is visually compatible with the following Door pass.
+Walls pass when they read as a stable dark architectural frame, are materially quieter than PICO/Transfer/doors, show no connector seams or black T gaps, and leave collision/door behavior unchanged.
