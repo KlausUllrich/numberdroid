@@ -8,7 +8,7 @@ This file defines where project information belongs and which directories are au
 
 ```text
 /
-├─ AGENTS.md                    # short agent entry point / mandatory reading order
+├─ AGENTS.md                    # universal agent router / hard rules
 ├─ REPOSITORY_STRUCTURE.md      # this file; folder ownership and document taxonomy
 ├─ README.md                    # human-facing project overview
 ├─ package.json                 # build/test/dev entry points
@@ -81,7 +81,7 @@ Rules:
 ```text
 docs/
 ├─ README.md
-├─ agents/
+├─ agents/                      # durable workflow, role-routing and handoff rules
 ├─ architecture/
 ├─ game-design/
 ├─ story/
@@ -91,11 +91,14 @@ docs/
 ├─ art-production-methods/      # when/why; authority model and workflow selection
 ├─ art-production-toolkit/      # reusable tools, capabilities and usage
 └─ history/
+   └─ handoffs/                 # dated task snapshots; not current authority by default
 ```
 
 ### Current authority
 
-- `docs/agents/` — durable agent/workflow rules;
+- `docs/agents/ROLE_ENTRYPOINTS.md` — role/task reading router and cross-domain triggers;
+- `docs/agents/HANDOFF_PROTOCOL.md` — how self-explanatory cross-role handoffs are written/consumed;
+- `docs/agents/` — other durable agent/workflow rules;
 - `docs/architecture/` — software/map/runtime architecture;
 - `docs/game-design/` — current gameplay design/progression;
 - `docs/story/` — current world/narrative contracts;
@@ -105,6 +108,12 @@ docs/
 - `docs/art-production-methods/` — how/why a production approach is selected;
 - `docs/art-production-toolkit/` — what reusable deterministic tools can do and how to use them;
 - `docs/history/` — evidence/history, never current authority by default.
+
+## Role-aware reading
+
+Repository taxonomy and reading scope are separate concerns. Files remain organized by domain, while `AGENTS.md` + `docs/agents/ROLE_ENTRYPOINTS.md` tell each task which domains are mandatory.
+
+An Artist therefore does not automatically read all Story/Game Design. Those domains become mandatory through explicit triggers such as narrative-specific prop content, gameplay affordance changes or runtime integration changes.
 
 ## Root documentation policy
 
@@ -129,6 +138,15 @@ reusable mechanics    → docs/art-production-toolkit/ + scripts/art/toolkit/
 asset reproducibility → art-source/recipes/
 historical art source → art-source/archive/
 runtime output        → public/assets/...
+```
+
+For current task continuation:
+
+```text
+universal rules       → AGENTS.md + docs/agents/
+forward plan          → docs/planning/
+current contracts     → domain docs + code/recipes
+named handoff         → docs/history/handoffs/ (task snapshot only)
 ```
 
 ## Move / rename discipline

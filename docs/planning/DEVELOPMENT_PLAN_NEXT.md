@@ -1,130 +1,146 @@
-# Numberdroid — Next Development Plan
+# Numberdroid — Current Development Plan
 
-This plan reflects the completed framework phase plus the newly consolidated **Story/World + 25-beat Level Progression v0.1** on `agent/integrate-metagame-architecture`.
+Status: **current forward plan — 2026-08-15**
 
-Read first:
-- `HANDOFF_2026-08-12.md`
-- `STORY_WORLD_FOUNDATION.md`
-- `CAMPAIGN_STORY_LEVEL_PROGRESSION.md`
-- `CODEX_HANDOFF.md`
-- `ENCOUNTER_ARCHETYPES.md`
-- `CAMPAIGN_PROGRESSION.md`
-- `LEARNING_PROFILES.md`
-- `MENU_HUB_FLOW.md`
+This document is deliberately forward-looking. Durable gameplay/story/art rules live in their domain documents; historical milestone reasoning lives in `docs/history/`.
 
-## Working principle
+## Foundation status
 
-Do not reopen solved runtime architecture. Routine regressions belong in automated tests; human playtests are for feel, comprehension, progression and family-learning behavior.
+The framework/architecture phase is complete and must not be restarted as a prerequisite for content production.
 
-## Completed framework packages
+Established systems include:
 
-The following are established and should be extended rather than restarted:
-- GitHub Pages preview/CI,
-- count-agnostic campaign catalog with ~25 internal planning slots,
-- B2 vertical slice and C3 campaign proof,
-- multiple isolated family profiles,
-- child/adult onboarding,
-- profile-specific progress/save/resume,
-- profile/deck/robot arithmetic envelopes,
-- separate tactical challenge,
-- robot neutral/guard/patrol/aggressive behavior,
-- collision→scan,
-- LOS/view cone/investigation/return behavior,
-- intro/title/settings/profile wizard/personal hub,
-- dedicated collection/achievement/logbook/statistics screens,
-- success/story→hub,
-- corrected single-duel retreat preserving current deck progress,
-- final-HP mission failure→hub + fresh future attempt,
-- player initiative on every ordinary new duel/boss phase.
+- React app/screen-state architecture;
+- free top-down metagame movement and local RAF camera;
+- Tiled/Floor data model with separate walkable/collision/object semantics;
+- family profiles/saves and progression framework;
+- Number Duel with current Addition/Subtraction gameplay;
+- robot body size/drive identity;
+- encounter behavior families (neutral/guard/patrol/aggressive);
+- transfer/body ownership flow;
+- HP/loss/restart behavior and current durable gameplay rules;
+- GitHub Actions/Pages build path.
 
-Current real arithmetic protocols remain addition/subtraction only.
+Do not reintroduce prototype bridges or another architecture migration. See `docs/agents/GAMEPLAY_AND_ENGINEERING_RULES.md`.
 
-## Corrected duel-loss behavior — complete
+## Story/world status
 
-The earlier “single duel loss resets the entire deck” design was a misunderstanding and has now been corrected in runtime code.
+`docs/story/STORY_WORLD_FOUNDATION.md` and `CAMPAIGN_STORY_LEVEL_PROGRESSION.md` remain the current world/campaign foundation. They are required when a task changes narrative semantics or beat sequencing, but are not mandatory background reading for every specialist. See `docs/agents/ROLE_ENTRYPOINTS.md`.
 
-Implemented rule:
-- lose 1 HP,
-- keep active robot body and body size,
-- move that body to level start,
-- preserve defeated robots, keys/access, stations/pickups, completed actions, remaining meta-energy and other current deck progress,
-- boss encounter itself restarts at Phase 1 on re-entry,
-- only final HP loss causes true mission failure and a fresh future attempt.
+The current production focus is still the Transfer Ship / TS-01 visual Gold Slice, not production of all campaign worlds.
 
-Implementation is isolated in `src/game/duelLoss.ts` and used by `App.finishBattle()`. Focused tests verify preserved run state.
+## Art-production infrastructure — established
 
-Do not reintroduce the old whole-floor reset for ordinary duel losses.
+The repository now separates:
 
-## Story/world milestone — v0.1 complete for art exploration
+```text
+METHOD  → docs/art-production-methods/      # when/why + authority model
+TOOL    → docs/art-production-toolkit/      # reusable deterministic operation
+RECIPE  → art-source/recipes/               # asset-specific reproducibility
+RUNTIME → public/assets/                     # deployed outputs
+```
 
-`STORY_WORLD_FOUNDATION.md` now establishes:
-- Transfer from biological child to machine adulthood,
-- body transfer as the core empowerment/travel fantasy,
-- ordinary loving but time-starved parents with individual viewpoints,
-- PRIMUS as optimisation/assignment antagonist,
-- Kayo as highly competent assigner who matures into an enabler,
-- player's inability to be assigned as the trigger for Kayo's collapse,
-- learning theme: downloaded capability versus personally practised competence/meaning,
-- nature/self-organisation as the key to PRIMUS's transformation,
-- passion as something that cannot be optimally assigned,
-- self-determination with responsibility rather than rejection of work.
+Current method families:
 
-`CAMPAIGN_STORY_LEVEL_PROGRESSION.md` now establishes Intro + 25 beats + Outro across:
-1. Transfer Ship,
-2. Deep Ocean,
-3. Volcanic / Extreme Industry,
-4. Moon / Vacuum,
-5. Bio-Ark / PRIMUS.
+- M1 Direct Generative Source;
+- M2 Controlled Art Pass;
+- M3 Layered Raster Editor / MCP;
+- M4 Procedural 2D Compositor.
 
-This is deliberately a **level-function/story-beat skeleton**, not final level design.
+The reusable Art Production Toolkit exists under `scripts/art/toolkit/` with PROVEN mask/compositor/connector/PNG primitives. Background removal/Freistellen, seamless texture tooling, generic atlas packing and several QA utilities remain PLANNED until implemented/proven.
 
-## Next major milestone — first Art Direction / Graphic Push
+## TS-01 Gold Slice — current status
 
-This is now the preferred next major creative milestone.
+### Accepted / frozen baseline
 
-Scope only **Intro + Beats 1–5 / Transfer Ship** first.
+- **PICO** — LIVE_ACCEPTED, eight authored directions, recipe-local source.
+- **Floor** — accepted baseline; do not revisit casually.
+- **Walls / Architecture** — LIVE_ACCEPTED; M4; 30 px visible fascia with unchanged 10 px collision core; semantic seam QA proven.
+- **Doors** — LIVE_ACCEPTED; M4 + Art Production Toolkit; dark 5 px moving leaf, exact aperture clipping, 520 ms opening, 650 ms soft close, clean aperture/no status text, coloured-key visual variant.
 
-Goals:
-- define a recognisable Numberdroid visual language rather than generic sci-fi,
-- determine the Transfer's visual identity,
-- establish architecture, forms, materials and lighting,
-- establish PRIMUS's order/signage/UI language,
-- establish how biological/family/human traces contrast with machine society,
-- define first-body and Kayo/status-robot visual principles,
-- identify a deliberately small asset/room/robot set for a first graphical vertical slice.
+Walls and Doors are now two independent production proofs that M4/Toolkit responsibility separation works. Do not refactor frozen assets merely for code uniformity.
 
-Do **not** yet produce final art for all 25 beats.
+### NEXT — Family / ordinary props
 
-Recommended sequence after the first visual slice:
-1. evaluate whether the visual identity feels uniquely Numberdroid,
-2. refine detailed story/character/level beats using what the visual world teaches us,
-3. derive additional level mechanics/content from those story needs,
-4. then perform the larger production graphics pass.
+Current next category is:
 
-## Deliberately open gameplay concepts from the story progression
+`art-source/recipes/transfer-hall/family-props/`
 
-Do not silently freeze these before design/playtest:
-- Beat 12 requires intelligent enemy/body encounter ordering; an RPS-style relationship is only one candidate implementation.
-- Beat 17 requires optional bonus core-conversion/strengthening; exact resource/economy/persistence is open.
-- Beat 16 is a strong candidate for the first optional Treasure Golem/Beutedroide, but that system is still unimplemented.
-- Bio-Ark ecology mechanics for Beats 21–25 require later design after the first art/story pass.
+Purpose: replace placeholder family/ordinary prop art with isolated top-down production assets that support the family-vs-PRIMUS visual contrast.
 
-## Deferred production work
+Likely production shape:
 
-Still not the next task:
-- authoring all ~25 final production decks,
-- final campaign-wide art,
-- final dialogue/cinematics,
-- persistent collectible/achievement production content,
-- multiplication/division protocols,
-- sophisticated adaptive-learning evidence engine,
-- broad enemy/body ability catalog,
-- production localisation,
-- final sound/music/VFX/accessibility,
-- Capacitor packaging.
+```text
+M1 isolated prop source
+→ source QA
+→ alpha/background cleanup (potential first real Freistellen-tool proof)
+→ deterministic crop/scale/packing
+→ runtime atlas/integration
+→ map-context QA
+→ live user/art-director acceptance
+```
 
-## Handoff rule
+This is a hypothesis, not a method decision already frozen. The receiving Artist must run the method-selection gate and update the recipe before generation. M4 should be used only where exact deterministic geometry genuinely owns the prop.
 
-A new agent must verify branch HEAD, latest Actions state, Pages and Draft PR #1 before changing code. PR #1 stays draft and must never be merged without Klaus's explicit request.
+Start with one deliberate **family micro-set**, not an entire mood board or all remaining props at once.
 
-Before producing or changing assets/code for the art milestone, the next agent should first summarize the creative/runtime constraints and propose a bounded Transfer-Ship art-direction slice.
+## After family props
+
+Intended order, subject to live learning:
+
+1. Family / ordinary props;
+2. Transfer apparatus / cradle hero object;
+3. PRIMUS wall object / console;
+4. remaining utility/hostile/special robots;
+5. evaluate TS-01 Gold Slice as a whole before broad Transfer-Ship production expansion.
+
+Hero/PRIMUS work may use hybrid M1/M3/M4 depending on geometry and finishing requirements. Do method selection per category.
+
+## Deliberately open art/tool questions
+
+Do not silently freeze these:
+
+- exact family prop inventory and whether specific objects are separate sprites vs one micro-set;
+- whether the first prop pass requires a reusable Freistellen/alpha tool or can use already-clean alpha source;
+- exact generic atlas packing/downscale tool design;
+- final material source/retouch strategy for hero apparatus and PRIMUS;
+- how many additional robot bodies are needed for the Gold Slice versus later Transfer Ship production.
+
+## Deliberately open broader gameplay concepts
+
+Still open from campaign design and not the current task unless explicitly requested:
+
+- Beat 12 enemy/body encounter ordering relationship;
+- Beat 17 optional bonus Core strengthening/economy;
+- Treasure Golem/Beutedroide concept;
+- later Bio-Ark ecology mechanics;
+- multiplication/division protocol production;
+- larger adaptive-learning evidence engine;
+- broad body ability catalog.
+
+Do not let these deferred systems block the current visual slice.
+
+## Current acceptance discipline
+
+For art categories:
+
+```text
+recipe/method selected
+→ source produced
+→ source QA
+→ production asset built
+→ production QA
+→ runtime integration
+→ tests/build/art validators
+→ live/deployed visual QA
+→ user acceptance
+→ recipe/index LIVE_ACCEPTED + freeze
+```
+
+`Merged` is not `LIVE_ACCEPTED`.
+
+## Handoff / role-routing rule
+
+All new agents begin at `AGENTS.md` and `docs/agents/ROLE_ENTRYPOINTS.md`. Specialists read only the minimum complete role bundle until a cross-domain trigger applies.
+
+A dated handoff can identify the exact next task, but it never overrides current code/contracts.
