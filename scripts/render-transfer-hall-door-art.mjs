@@ -25,7 +25,7 @@ const leaf = renderMaskedMaterial({
     { side: "T", start: 0, end: LEAF_WIDTH },
     { side: "B", start: 0, end: LEAF_WIDTH },
   ],
-  materialSampler: (x, y) => graphiteSampler(72, x, y),
+  materialSampler: (x, y) => graphiteSampler(48, x, y),
   outerDarkPx: 2,
   outerDarkStrength: 0.30,
   innerHighlightCenterPx: 2,
@@ -59,4 +59,4 @@ writeFileSync(
   encodeRgbaPng({ width: POCKET_WIDTH, height: POCKET_HEIGHT, rgba: pocket.rgba }),
 );
 
-console.log(`Transfer Hall Door M4: leaf=${LEAF_WIDTH}x${LEAF_HEIGHT}, pocket=${POCKET_WIDTH}x${POCKET_HEIGHT}, clean-aperture runtime skin`);
+console.log(`Transfer Hall Door M4: darker leaf=${LEAF_WIDTH}x${LEAF_HEIGHT}, pocket=${POCKET_WIDTH}x${POCKET_HEIGHT}, clean-aperture runtime skin`);

@@ -9,29 +9,49 @@
 .zk-door.horizontal.open .panel-a { transform:translateX(-92%); }.zk-door.horizontal.open .panel-b { transform:translateX(92%); }
 .zk-door.large .frame { inset:2px;border-width:3px;border-color:#9b7b38;box-shadow:inset 0 0 16px #000d,0 0 12px #e6b84344; }
 .zk-door.large.vertical .panel { left:calc(50% - 9px);width:18px; }.zk-door.large.horizontal .panel { top:calc(50% - 9px);height:18px; }
-.zk-door.locked.denied .frame { border-color:#9b3636;box-shadow:inset 0 0 10px #000c,0 0 10px #e13d3544; }
-.zk-door.locked.denied .panel { background:linear-gradient(90deg,#422326,#7b3d3d 48%,#30191b 52%,#5d292d);border-color:#b45d5d; }
-.zk-door.locked.accessible .frame { border-color:#4ca5a0;box-shadow:inset 0 0 10px #000b,0 0 10px #4bd9c755; }
+.zk-door.locked.denied:not(.keyed) .frame { border-color:#9b3636;box-shadow:inset 0 0 10px #000c,0 0 10px #e13d3544; }
+.zk-door.locked.denied:not(.keyed) .panel { background:linear-gradient(90deg,#422326,#7b3d3d 48%,#30191b 52%,#5d292d);border-color:#b45d5d; }
+.zk-door.locked.accessible:not(.keyed) .frame { border-color:#4ca5a0;box-shadow:inset 0 0 10px #000b,0 0 10px #4bd9c755; }
 .zk-door > span { position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:1px 3px;border-radius:2px;background:#07191dcc;color:#f0c15b;font-size:7px;font-weight:900;letter-spacing:.08em;white-space:nowrap;transition:opacity 160ms ease; }
 .zk-door.large > span { padding:2px 5px;font-size:9px; }.zk-door.locked.denied > span { color:#ff7770; }.zk-door.open > span { opacity:.25;color:#65e4bd; }
 
+/* Keyed doors keep the same manufactured body and expose the required access colour as a narrow semantic marker. */
+.zk-door.keyed .panel::after {
+  content:"";
+  position:absolute;
+  background:var(--door-key-color,#d7a349);
+  opacity:.72;
+  box-shadow:0 0 4px var(--door-key-color,#d7a349);
+}
+.zk-door.keyed.vertical .panel::after { left:50%;top:10%;bottom:10%;width:2px;transform:translateX(-50%); }
+.zk-door.keyed.horizontal .panel::after { top:50%;left:10%;right:10%;height:2px;transform:translateY(-50%); }
+.zk-door.keyed.locked.denied .frame { border-color:var(--door-key-color,#d7a349);box-shadow:inset 0 0 10px #000c,0 0 8px color-mix(in srgb,var(--door-key-color,#d7a349) 45%,transparent); }
+.zk-door.keyed.locked.denied .panel { background:linear-gradient(90deg,#26363a,#4d5c60 48%,#1c292c 52%,#36484c);border-color:#687a7e; }
+.zk-door.keyed.locked.accessible .frame { border-color:var(--door-key-color,#d7a349);box-shadow:inset 0 0 10px #000b,0 0 10px color-mix(in srgb,var(--door-key-color,#d7a349) 65%,transparent); }
+.zk-door.keyed.locked.accessible .panel::after { opacity:1; }
+
 /* Transfer Hall Gold Slice: 30 px visible wall fascia, 10 px collision core, thin 5 px moving leaves. */
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door { z-index:auto; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door {
+  z-index:1;
+}
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .panel {
   z-index:1;
   border:0;
-  background-color:#445154;
+  background-color:#2d3537;
   background-repeat:no-repeat;
   background-position:center;
   background-size:100% 100%;
   box-shadow:0 1px 2px #0008;
+  transition:transform 520ms cubic-bezier(.2,.75,.2,1),opacity 260ms ease;
 }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .panel,
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large.vertical .panel { left:calc(50% - 2.5px);width:5px; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal .panel,
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large.horizontal .panel { top:calc(50% - 2.5px);height:5px; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.keyed.vertical .panel::after { top:8px;bottom:8px;width:1px; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.keyed.horizontal .panel::after { left:8px;right:8px;height:1px; }
 
-/* Compact pocket collars replace the old full-aperture guide rails. */
+/* Compact pocket collars replace the old full-aperture guide rails. The door stacking context stays below Architecture. */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .frame,
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large .frame {
   z-index:3;
@@ -55,16 +75,7 @@
 }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::before { top:-5px; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::after { bottom:-5px;transform:rotate(180deg); }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door > span {
-  z-index:23;
-  padding:2px 5px;
-  border:1px solid #5e4d2a;
-  border-radius:2px;
-  background:#111a1ddd;
-  color:#ddb864;
-  box-shadow:0 1px 3px #0008;
-}
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.open > span { opacity:0; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door > span { display:none; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.open .panel-a { transform:translateY(-104%); }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.open .panel-b { transform:translateY(104%); }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.open .panel-a { transform:translateX(-104%); }
