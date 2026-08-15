@@ -11,10 +11,11 @@ Some large Transfer Ship documents were created during earlier exploration phase
 For what is accepted / next, use in this order:
 
 1. `../planning/DEVELOPMENT_PLAN_NEXT.md`
-2. `../../art-source/recipes/transfer-hall/INDEX.md`
-3. the relevant current asset `recipe.md`
-4. the relevant current Transfer Hall/category contract
-5. actual current runtime/code
+2. `../planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md` for detailed current Gold Slice sequencing/acceptance
+3. `../../art-source/recipes/transfer-hall/INDEX.md`
+4. the relevant current asset `recipe.md`
+5. the relevant current Transfer Hall/category contract
+6. actual current runtime/code
 
 Do not infer current status from an old “next” paragraph inside a long art-direction or production-rules document.
 
@@ -36,17 +37,22 @@ Method selection and reusable tooling are separate domains:
 ## Current TS-01 Gold Slice status — 2026-08-15
 
 ```text
-PICO                  LIVE_ACCEPTED
-Floor                 ACCEPTED BASELINE
-Walls / Architecture  LIVE_ACCEPTED
-Doors                 LIVE_ACCEPTED
-Family/ordinary Props NEXT
-Transfer apparatus    PLANNED after Props
-PRIMUS object         PLANNED
-Other robots          LATER
+PICO                    LIVE_ACCEPTED
+Floor                   ACCEPTED BASELINE
+Walls / Architecture    LIVE_ACCEPTED
+Doors                   LIVE_ACCEPTED
+Family Table             LIVE_ACCEPTED
+Family Memory Console    LIVE_ACCEPTED
+Family Props Batch 2     LIVE_CANDIDATE / composition input
+Whole-room composition   CURRENT
+Transfer/Flow hero       PLANNED inside Gold Slice
+PRIMUS hero object       PLANNED inside Gold Slice
+Other robots             AFTER Gold Slice as required
 ```
 
-Accepted categories are frozen unless live QA exposes a concrete defect or the user explicitly approves a bounded revision.
+Current live QA shows the limiting issue is now **room-level structure, density and fidelity convergence**, not simply another isolated prop generation. The current detailed sequence is therefore owned by `../planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`.
+
+Accepted categories are frozen unless live QA exposes a concrete defect or the user explicitly approves a bounded revision. Repositioning an accepted asset or reusing the accepted wall kit for approved composition changes does not automatically reopen its art/material treatment.
 
 ## Role-aware context
 
