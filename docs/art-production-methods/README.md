@@ -4,6 +4,8 @@ Status: **binding method-selection guide for gameplay art production**
 
 This directory catalogs the ways Numberdroid can turn an art target into a production asset. It answers **how an asset should be produced and which stage owns which property**.
 
+Reusable deterministic operations are documented separately in `../art-production-toolkit/` and implemented under `../../scripts/art/toolkit/`. A method may compose multiple toolkit operations; do not promote every reusable operation into a new method.
+
 Read together with:
 
 - `../art/production/ARTIST_AGENT_WORKFLOW.md`
@@ -16,17 +18,7 @@ Different asset problems require different tools. A character turnaround, modula
 
 ## Core separation
 
-Treat these as separate responsibilities whenever possible:
-
-1. **geometry** — exact silhouette, cell size, connector position, collision-corresponding structure;
-2. **topology / edge semantics** — which apparent edge is truly exposed, continues into a neighbor, or is a real termination;
-3. **material** — color, texture, roughness impression, wear and surface variation;
-4. **shading / construction language** — outline, bevel, AO/contact depth, inset/highlight treatment;
-5. **semantic accents** — CORE amber, system teal, allegiance overlays, warnings;
-6. **runtime packing** — atlas/frame order, alpha, scale and compression;
-7. **QA** — visual, structural, seam/repetition, map-context and live gameplay checks.
-
-A generative model may be strong at material or form invention while being weak at exact geometry/topology. The selected production method must assign authority accordingly.
+Treat geometry, topology, material, shading, semantic accents, runtime packing and QA as separate responsibilities whenever possible.
 
 ## Current method families
 
@@ -42,100 +34,39 @@ Methods can be combined. Example:
 ```text
 M1 generates a borderless material swatch
         ↓
-M4 applies it to exact geometry/topology
+M4 applies it to exact geometry/topology using toolkit primitives
         ↓
 M3 optionally performs supervised retouch
         ↓
 production QA / live QA
 ```
 
-## Method-selection questions
+## Method selection
 
-Before generating anything, answer:
-
-1. Does the asset require pixel-exact geometry?
-2. Does it contain modular connectors?
-3. Can an apparent silhouette edge actually be a hidden continuation into a neighboring tile?
-4. Does one material need to remain homogeneous across many pieces?
-5. Must the texture itself be seamless / periodic?
-6. Is the asset primarily a unique character/hero form?
-7. Is manual/agent retouch likely to be necessary?
-
-Use `METHOD_SELECTION_GATE.md` before starting a new production category.
-
-## Default routing
-
-- unique character silhouette / expressive body → start with **M1**;
-- exact shape where visible outline is genuinely exposed → **M2** can work well;
-- exact modular architecture with connector/exposed-edge semantics → prefer **M4**;
-- complex paint-over, local corrections and layer-specific retouch → consider **M3**;
-- seamless material → use the dedicated capability guidance; do not assume ordinary image generation creates a periodic texture.
+Use `METHOD_SELECTION_GATE.md` before starting a new production category. Choose a method because its authority model matches the asset problem, not because it is newest.
 
 ## Method-specific skills
 
-A skill is an operational specialization of a method, not a global art authority.
-
-When a method benefits from an agent skill, store it inside that method:
-
-```text
-<method>/skill/<skill-name>/SKILL.md
-```
-
-The current `numberdroid-artist` skill belongs to **M2 Controlled Art Pass**:
-
-`02-controlled-art-pass/skill/numberdroid-artist/SKILL.md`
-
-Future M1/M3/M4 skills should live beside their own method instead of being placed in a global top-level `skills/` directory.
+A skill is an operational specialization of a method, not a global art authority. Store it inside the corresponding method under `skill/`.
 
 ## Key TS-01 learning
 
-Transfer Hall wall experiments established this boundary:
+A separated generation layout can make pieces visually distinct to a model, but cannot tell it which apparent boundary is a real architectural end versus a runtime continuation. For modular walls the stronger authority model is semantic geometry/topology + independent material + deterministic exposed-edge treatment + connector canonicalization. This M4 model was live accepted on TS-01 Walls on 2026-08-15.
 
-> A separated generation layout can tell an image model that pieces are separate, but cannot tell it which boundary is a true exposed architectural edge and which exists only because runtime packaging split a continuous wall into cells.
+## Tool relation
 
-For modular walls the stronger authority model is:
+Examples of method-to-tool composition:
 
-```text
-semantic geometry/topology
-→ material source
-→ procedural material fill
-→ deterministic exposed-edge shading
-→ no outline at connectors
-→ connector canonicalization / exact edge QA
-→ runtime atlas
-```
+- M2: masks + future alpha cleanup + downscale/QA;
+- M4: masks + distance fields + compositor + connector canonicalization + seam QA;
+- future seamless material workflow: periodic construction/repair + periodic validation tools, potentially feeding M2 or M4;
+- M1/M3 prop workflows: future background-removal/freistellen + alpha QA + packing.
 
-This is M4. The complete TS-01 Wall kit using this authority model was **live accepted on 2026-08-15**: 30 px wall mass fits, the architecture reads homogeneous/quiet, and no visual wall errors were observed. See `../art/transfer-hall/TRANSFER_HALL_WALL_COMPOSITOR_ACCEPTANCE_2026-08-15.md`.
+See `../art-production-toolkit/CAPABILITY_INDEX.md` for implementation status. Only capabilities marked PROVEN may be assumed to exist.
 
 ## Recipe integration
 
-Every `art-source/recipes/.../recipe.md` must record the chosen method or hybrid **before production starts**.
-
-Recommended fields:
-
-```text
-Production method: M4 Procedural 2D Compositor
-Material source method: M1 Direct Generative Source
-Optional finishing method: M3 Layered Raster Editor
-```
-
-Choose a method because its authority model matches the asset problem, not because it is newest.
-
-## Directory policy
-
-Each method may contain:
-
-```text
-README.md
-research/
-scripts/
-demos/
-materials/
-schemas/
-skill/
-```
-
-Production asset-specific geometry, prompts and references belong in `art-source/recipes/`; reusable method mechanics belong here.
+Every `art-source/recipes/.../recipe.md` must record the chosen method or hybrid before production starts. Production asset-specific geometry, prompts and references belong in recipes; reusable mechanics belong in the toolkit.
 
 ## History
 

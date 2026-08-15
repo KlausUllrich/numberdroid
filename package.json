@@ -7,6 +7,7 @@
     "materialize-art": "node scripts/materialize-art-assets.mjs",
     "render-walls": "node scripts/render-transfer-hall-walls.mjs",
     "validate-art-seams": "node scripts/validate-wall-seams.mjs",
+    "art:toolkit-test": "node scripts/art/toolkit/selftest.mjs",
     "predev": "npm run materialize-art && npm run render-walls",
     "dev": "vite",
     "test": "vitest run",

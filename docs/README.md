@@ -33,26 +33,10 @@ Read `../REPOSITORY_STRUCTURE.md` first. This index points to **current** docume
 
 ## Art — current contracts
 
-### Direction
-
-- `art/direction/ART_DIRECTION_TRANSFER_SHIP.md`
-
-### Cross-category production / QA
-
-- `art/production/ART_PRODUCTION_RULES_TRANSFER_SHIP.md`
-- `art/production/ARTIST_AGENT_WORKFLOW.md`
-- `art/production/ART_ASSET_VALIDATION_RULES.md`
-- `art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
-- `art/production/SEMANTIC_CONNECTOR_CANONICALIZATION.md`
-
-### Transfer Hall
-
-- `art/transfer-hall/TRANSFER_HALL_ART_SLICE.md`
-- `art/transfer-hall/TRANSFER_HALL_LAYER_RULES.md`
-- `art/transfer-hall/TRANSFER_HALL_WALL_KIT.md`
-- `art/transfer-hall/TRANSFER_HALL_FLOOR_HERO_ASSETS.md`
-
-Asset-specific reproducibility lives separately under `../art-source/recipes/`.
+- direction: `art/direction/ART_DIRECTION_TRANSFER_SHIP.md`
+- cross-category production/QA: `art/production/`
+- Transfer Hall category contracts: `art/transfer-hall/`
+- asset-specific reproducibility: `../art-source/recipes/`
 
 ## Art production methods
 
@@ -61,7 +45,16 @@ Start at:
 - `art-production-methods/README.md`
 - `art-production-methods/METHOD_SELECTION_GATE.md`
 
-Method-specific skills, when present, live inside their method folder under `skill/`.
+Methods define workflow/authority and may contain method-specific skills.
+
+## Art production toolkit
+
+Start at:
+
+- `art-production-toolkit/README.md`
+- `art-production-toolkit/CAPABILITY_INDEX.md`
+
+The toolkit documents reusable deterministic operations such as masks, compositing, connector canonicalization, future background removal, seamless-material mechanics and QA utilities. Runnable code lives under `../scripts/art/toolkit/`.
 
 ## History
 
