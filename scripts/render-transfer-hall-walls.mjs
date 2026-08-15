@@ -81,8 +81,7 @@ function targetMask(id,x,y) {
 }
 
 function connectorBoundary(id,x,y) {
-  const groups = recipe.connectorGroups;
-  for (const members of Object.values(groups)) {
+  for (const members of Object.values(recipe.connectorGroups)) {
     for (const [tid,side] of members) {
       if (tid!==id) continue;
       if (side==='T' && y===0 && targetMask(id,x,y)) return true;
@@ -120,9 +119,8 @@ function distanceField(id,seeds,maxDistance=64) {
   return dist;
 }
 
-function materialPixel(material,x,y,offX,offY) {
-  const sx=((x+offX)%material.width+material.width)%material.width;
-  const sy=((y+offY)%material.height+material.height)%material.height;
+function materialPixel(material,x,y) {
+  const sx=x%material.width, sy=y%material.height;
   const o=(sy*material.width+sx)*4;
   return [material.rgba[o],material.rgba[o+1],material.rgba[o+2],255];
 }
@@ -136,10 +134,9 @@ function renderTile(material,id) {
   const e=recipe.edgeTreatment;
   const edgeDist=distanceField(id,edgeSeeds,e.aoRadius+4);
   const connDist=connSeeds.length?distanceField(id,connSeeds,e.connectorQuietZone+2):null;
-  const offX=(id*53)%material.width,offY=(id*31)%material.height;
   for(let y=0;y<T;y++) for(let x=0;x<T;x++) {
     if(!targetMask(id,x,y)){setPixel(out,x,y,[0,0,0,0]);continue;}
-    const src=materialPixel(material,x,y,offX,offY);
+    const src=materialPixel(material,x,y);
     const d=edgeDist[y*T+x];
     const quiet=connDist?clamp(connDist[y*T+x]/e.connectorQuietZone,0,1):1;
     const outline=clamp((e.outlineWidth+1-d)/(e.outlineWidth+1),0,1)*quiet;
@@ -166,9 +163,9 @@ function canonicalize(tiles){
     for(let y=0;y<T;y++)for(let x=0;x<T;x++){
       if(!targetMask(id,x,y)){setPixel(base,x,y,[0,0,0,0]);continue;}
       const ws=targets.map(({side})=>{const d=side==='T'?y:side==='B'?T-1-y:side==='L'?x:T-1-x;return Math.max(0,1-d/blend);});
-      let sum=ws.reduce((a,b)=>a+b,0);const scale=sum>1?1/sum:1;sum=0;
+      const total=ws.reduce((a,b)=>a+b,0),scale=total>1?1/total:1;
       const src=[0,1,2,3].map(c=>pixel(tiles[id],x,y,c));const result=[...src];
-      for(let n=0;n<targets.length;n++){const w=ws[n]*scale;if(!w)continue;sum+=w;const {side,strip}=targets[n],k=(side==='T'||side==='B')?x:y;for(let c=0;c<4;c++)result[c]+=w*(strip[k][c]-src[c]);}
+      for(let n=0;n<targets.length;n++){const w=ws[n]*scale;if(!w)continue;const {side,strip}=targets[n],k=(side==='T'||side==='B')?x:y;for(let c=0;c<4;c++)result[c]+=w*(strip[k][c]-src[c]);}
       result[3]=255;setPixel(base,x,y,result.map(v=>clamp(Math.round(v),0,255)));
     }
     tiles[id]=base;
@@ -190,4 +187,4 @@ const materialPng=encodeRgbaPng(material);
 const outDir=join(root,"public/assets/deck");mkdirSync(outDir,{recursive:true});
 writeFileSync(join(outDir,"transfer-hall-architecture.png"),atlasPng);
 writeFileSync(join(outDir,"transfer-hall-wall-material-preview.png"),materialPng);
-console.log(`Transfer Hall procedural compositor: ${atlasW}x${atlasH}, fascia=${TH}px, collision=${recipe.runtime.collisionCore}px`);
+console.log(`Transfer Hall procedural compositor: ${atlasW}x${atlasH}, fascia=${TH}px, collision=${recipe.runtime.collisionCore}px, shared material coordinates`);
