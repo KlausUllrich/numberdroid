@@ -46,18 +46,21 @@ Use this route when the task primarily asks for a gameplay visual asset, materia
 
 Read:
 
-1. `docs/art/production/ARTIST_AGENT_WORKFLOW.md`
-2. `docs/art/production/ART_ASSET_VALIDATION_RULES.md`
-3. `docs/art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
-4. the relevant art-direction document under `docs/art/direction/`
-5. the relevant category/world contract under `docs/art/`
-6. `docs/art-production-methods/README.md`
-7. `docs/art-production-methods/METHOD_SELECTION_GATE.md`
-8. the selected method README(s)
-9. the relevant `art-source/recipes/.../recipe.md`
-10. the actual runtime/map context that consumes the asset
+1. `docs/art/README.md` — current art status/authority router;
+2. `docs/art/production/ARTIST_AGENT_WORKFLOW.md`;
+3. `docs/art/production/ART_ASSET_VALIDATION_RULES.md`;
+4. `docs/art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`;
+5. the relevant art-direction document under `docs/art/direction/`;
+6. the relevant category/world contract under `docs/art/`;
+7. `docs/art-production-methods/README.md`;
+8. `docs/art-production-methods/METHOD_SELECTION_GATE.md`;
+9. the selected method README(s);
+10. the relevant `art-source/recipes/.../recipe.md`;
+11. the actual runtime/map context that consumes the asset.
 
 Read `docs/art-production-toolkit/CAPABILITY_INDEX.md` whenever deterministic extraction, masking, alpha, compositing, seams, packing, resampling or validation may be involved.
+
+The long Transfer Ship art-direction/production documents preserve some dated implementation-phase/status passages. `docs/art/README.md`, the current plan, recipe index and category recipes own current milestone status; the durable visual/perspective/material rules in the long documents remain relevant.
 
 ### Artist does NOT automatically read
 
@@ -158,7 +161,7 @@ Read relevant `docs/story/` when runtime behavior exists specifically to stage/s
 
 ### ART trigger
 
-Read relevant art contracts/recipe before changing visual layer ownership, sprite/frame contracts, semantic colors, lighting, wall/door/prop presentation or accepted runtime art behavior.
+Read `docs/art/README.md` plus relevant art contracts/recipe before changing visual layer ownership, sprite/frame contracts, semantic colors, lighting, wall/door/prop presentation or accepted runtime art behavior.
 
 Do not refactor a LIVE_ACCEPTED art/runtime contract solely for code neatness without proving output equivalence and having a reason to reopen it.
 
@@ -187,7 +190,7 @@ Read architecture/current code before declaring an implementation-level contract
 
 ### ART trigger
 
-Read art direction/category contracts when a design decision relies on visual semantics, space/footprint/readability, faction colors, interaction affordances or setpiece staging.
+Read `docs/art/README.md` plus relevant art direction/category contracts when a design decision relies on visual semantics, space/footprint/readability, faction colors, interaction affordances or setpiece staging.
 
 A Game Designer should describe the required function/experience; do not silently prescribe a rendering method that conflicts with the Artist/Technical Artist authority model.
 
@@ -211,7 +214,7 @@ Read Game Design when a story proposal changes gameplay progression, objective s
 
 ### ART trigger
 
-Read relevant art direction/category contract when specifying visible staging, props, character look, environment symbolism, signage or palette semantics.
+Read `docs/art/README.md` plus relevant art direction/category contract when specifying visible staging, props, character look, environment symbolism, signage or palette semantics.
 
 ### ENGINEERING trigger
 
