@@ -153,7 +153,7 @@ const familyHologramPedestal = readTextSafePng({
   name: "TS-01 Family Hologram Pedestal",
   directory: familyPropsSourceDir,
   prefix: "hologram-pedestal-runtime.b64.",
-  expectedChunks: 4,
+  expectedChunks: 7,
   expectedBytes: 7873,
   expectedSha256: "c31af1083ddeb469f0ff138189fb6d33f1378967e2e2635c7d047c02d5df5387",
   expectedWidth: 64,
