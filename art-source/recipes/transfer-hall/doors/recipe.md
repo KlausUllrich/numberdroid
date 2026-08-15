@@ -6,10 +6,11 @@ Status: `INTEGRATED / LIVE_QA_PENDING`
 
 - strict orthographic top-down;
 - TS-01 door object: **64 × 128 px**, vertical, large, automatic;
-- moving leaves remain separate from Architecture and render below walls;
+- moving leaves remain separate from Architecture;
 - moving leaf thickness: **5 px**;
 - accepted wall fascia around the door: **30 px visual / 10 px collision core**;
 - leaves retract into the north/south wall pockets;
+- the moving leaves are clipped to the exact 64 × 128 px door aperture, so no retracting leaf pixels may remain visible inside the surrounding wall area;
 - open state must leave a visually clean aperture;
 - TS-01 door carries no visible `ZUTEILUNG` / `OPEN` status text;
 - map topology, GIDs, collision and automatic-door behavior remain unchanged.
@@ -24,7 +25,8 @@ Runtime motion remains the existing `DoorLayer` CSS/React system. This is delibe
 geometry.svg / recipe      -> exact closed/open dimensions
 Art Production Toolkit     -> deterministic leaf + pocket materialization
 DoorLayer runtime          -> open/closed state and movement
-Architecture layer         -> occlusion while leaves retract into walls
+leaf-clip container        -> authoritative visual pocket/occlusion boundary
+Architecture layer         -> surrounding wall presentation
 CSS presentation           -> placement, key marker, clean aperture
 ```
 
@@ -45,9 +47,17 @@ Closed state:
 Open state:
 
 - each half translates **104%** along its long axis;
-- transform duration: **520 ms**, exactly twice the first Gold candidate duration after live QA found 260 ms too fast;
-- the whole Door stacking context is below Architecture, so leaves cannot paint over the wall while retracting;
+- transform duration: **520 ms**;
+- both leaves live inside a dedicated `leaf-clip` container exactly matching the 64 × 128 px Door object;
+- `leaf-clip` uses `overflow: hidden` in Transfer Hall, so a leaf disappears precisely when it crosses the aperture boundary into the wall pocket;
+- pocket collars remain outside that clip and stay visible;
 - no continuous rail/guide line is drawn through the 128 px aperture.
+
+### Why clipping is authoritative
+
+The first revised Gold candidate attempted to solve wall overdraw only by putting the Door stacking context below Architecture. Live screenshot QA showed that this was insufficient: the moved leaf still painted visibly over the wall region.
+
+Therefore z-index ordering is only secondary protection. The production guarantee is geometric clipping at the Door aperture itself.
 
 ## Runtime outputs
 
@@ -64,7 +74,7 @@ Settings: `render-recipe.json`.
 
 See `material-reference.md`.
 
-The moving leaf is deliberately darker than the accepted wall mass. This was requested in live QA so the door reads as a separate moving mechanism while remaining visually subordinate.
+The moving leaf is deliberately darker than the accepted wall mass so the mechanism reads separately while remaining visually subordinate.
 
 M4 owns the visible exposed-side depth; connectors at the two leaf ends do not receive fake cap treatment.
 
@@ -76,20 +86,29 @@ The graphite door body stays neutral. A narrow colour marker communicates the re
 
 The variant is reusable by later maps without changing door geometry or runtime access logic.
 
-## Live QA feedback incorporated — 2026-08-15
+## Live QA history — 2026-08-15
 
-First Gold candidate feedback:
+Accepted observations so far:
 
 1. wall/door mass relationship: **good**;
-2. door should be darker for clearer separation: **changed**;
-3. opening/closing was too fast: **260 ms → 520 ms**;
-4. leaves painted over the wall while retracting: **fixed with a Door stacking context below Architecture**;
-5. open aperture was clean: **keep**;
-6. pocket collars were not visually intrusive: **keep**;
-7. remove `ZUTEILUNG` / open-state text: **removed for TS-01**;
-8. add coloured-key door variant: **implemented as semantic colour marker**.
+2. darker door colour: **good**;
+3. 520 ms opening/closing speed: **good**;
+4. open aperture itself: **clean**;
+5. pocket collars: **not visually intrusive**;
+6. status text removal: implemented;
+7. coloured-key variant: implemented.
 
-Do not mark `LIVE_ACCEPTED` until this revised public Transfer Hall is reviewed.
+Remaining defect found by screenshot QA:
+
+- retracting leaves still remained visible over the wall despite lower z-index.
+
+Corrective implementation:
+
+- moving leaves wrapped in `leaf-clip`;
+- Transfer Hall `leaf-clip` = exact Door bounds + `overflow: hidden`;
+- regression test verifies clip wrapper and CSS clipping contract.
+
+Do not mark `LIVE_ACCEPTED` until this clipping revision is reviewed in the public Transfer Hall.
 
 ## QA gates
 
@@ -98,14 +117,16 @@ Automated/build:
 - `npm run art:toolkit-test`;
 - `npm test`;
 - `npm run build`;
-- existing `npm run validate-art-seams` must remain unchanged for accepted Walls.
+- existing `npm run validate-art-seams` must remain unchanged for accepted Walls;
+- `DoorLayer.test.tsx` verifies the leaf clip wrapper, no TS-01 status text, and the Transfer Hall clipping CSS contract.
 
 Live visual QA:
 
 1. closed door reads darker and clearly separate from the wall;
 2. 520 ms motion feels deliberate rather than abrupt;
-3. leaves disappear fully below the wall with no overdraw;
-4. open aperture has no guide rails or status text;
-5. pocket collars remain unobtrusive;
-6. future keyed doors show the required key colour without generic full-door red styling;
-7. automatic opening and collision behavior are unchanged.
+3. while opening, leaves are visible only inside the doorway aperture and disappear exactly at the wall boundary;
+4. fully open leaves are completely invisible;
+5. open aperture has no guide rails or status text;
+6. pocket collars remain unobtrusive;
+7. future keyed doors show the required key colour without generic full-door red styling;
+8. automatic opening and collision behavior are unchanged.
