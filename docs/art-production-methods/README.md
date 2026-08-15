@@ -35,7 +35,7 @@ A generative model may be strong at material or form invention while being weak 
 | M1 | [Direct Generative Source](01-direct-generative-source/README.md) | model / later extraction | model | model / later cleanup | characters, concepts, isolated props, hero-source exploration | cannot guarantee exact modular geometry/connectors |
 | M2 | [Controlled Art Pass](02-controlled-art-pass/README.md) | deterministic SVG/mask | image-edit / realism pass | deterministic restore; topology still explicit when needed | geometry-critical assets with simple exposed silhouettes | model cannot infer hidden neighbor topology from an isolated tile |
 | M3 | [Layered Raster Editor / MCP](03-layered-raster-editor-mcp/README.md) | deterministic layers/masks | artist/model/tool | explicit layer/mask logic | retouch, paint-over, complex hero assets, supervised production | requires reliable programmable editor/tool contract |
-| M4 | [Procedural 2D Compositor](04-procedural-2d-compositor/README.md) | deterministic geometry | generated/authored material swatch | deterministic semantic topology | modular walls, doors, panels, frames, sockets, repeatable architecture | less suitable for expressive free-form unique objects |
+| M4 | [Procedural 2D Compositor](04-procedural-2d-compositor/README.md) | deterministic geometry | generated/authored material swatch | deterministic semantic topology | modular walls, doors, panels, frames, sockets, repeatable architecture; **live-proven on TS-01 Walls** | less suitable for expressive free-form unique objects |
 
 Methods can be combined. Example:
 
@@ -105,7 +105,7 @@ semantic geometry/topology
 → runtime atlas
 ```
 
-This is M4.
+This is M4. The complete TS-01 Wall kit using this authority model was **live accepted on 2026-08-15**: 30 px wall mass fits, the architecture reads homogeneous/quiet, and no visual wall errors were observed. See `../art/transfer-hall/TRANSFER_HALL_WALL_COMPOSITOR_ACCEPTANCE_2026-08-15.md`.
 
 ## Recipe integration
 
