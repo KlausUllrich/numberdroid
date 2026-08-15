@@ -1,6 +1,8 @@
 # Numberdroid — Transfer Hall Wall Kit
 
-Status: **binding production contract for TS-01 wall/architecture art**
+Status: **LIVE_ACCEPTED binding production contract for TS-01 wall/architecture art**
+
+Live acceptance: **2026-08-15** — current 30 px M4 compositor baseline accepted in the public Transfer Hall.
 
 Companion documents:
 - `docs/art/transfer-hall/TRANSFER_HALL_LAYER_RULES.md`
@@ -10,6 +12,7 @@ Companion documents:
 - `docs/art/production/SEMANTIC_CONNECTOR_CANONICALIZATION.md`
 - `docs/art-production-methods/04-procedural-2d-compositor/README.md`
 - `art-source/recipes/transfer-hall/walls/recipe.md`
+- `docs/art/transfer-hall/TRANSFER_HALL_WALL_COMPOSITOR_ACCEPTANCE_2026-08-15.md`
 
 ## 1. Visual purpose
 
@@ -29,14 +32,14 @@ Avoid generic dark military sci-fi, noisy panels, bright per-tile metallic frame
 - atlas: **4 × 4 cells = 256 × 256 px**;
 - GIDs 81–93 active, 94–96 reserved;
 - structural/collision core: **10 px** and unchanged;
-- current visible fascia: **30 px**;
+- accepted visible fascia: **30 px**;
 - extra visible mass does not enlarge collision;
 - outer walls expand inward into the room;
 - centered divider remains on the same collision axis and expands symmetrically;
 - moving door leaves remain a separate Door layer below Architecture;
 - LightOverlay remains separate.
 
-The 30 px fascia follows repeated live QA: 10, 16 and 24 px treatments all read too light/thin against the approved reference. This is a visual change only.
+The 30 px fascia followed repeated live QA: 10, 16 and 24 px treatments all read too light/thin against the approved reference. The 30 px version was accepted on 2026-08-15 as visually substantial enough while remaining subordinate to focal objects.
 
 The old `Grid: 16 px` note in an early art-direction board is not a runtime tile-size contract. Runtime/Tiled tile size is 64 px.
 
@@ -81,7 +84,7 @@ semantic geometry / topology
 
 The runtime implementation is `scripts/render-transfer-hall-walls.mjs` driven by `art-source/recipes/transfer-hall/walls/render-recipe.json`.
 
-The current material source is a deterministic procedural proof swatch. It can later be replaced by a generated or hand-authored **borderless** graphite texture without changing geometry or topology logic.
+The current material source is a deterministic procedural graphite swatch. It may later be replaced by a generated or hand-authored **borderless** graphite texture without changing geometry or topology logic, but that is an explicit material revision rather than routine wall iteration.
 
 ## 5. Edge semantics — hard rule
 
@@ -195,3 +198,15 @@ Inspect at minimum:
 7. live PC/browser comparison against the approved reference.
 
 Walls pass when they read as a stable dark architectural frame, are materially quieter than PICO/Transfer/doors, show no connector seams or black T gaps, and leave collision/door behavior unchanged.
+
+## 11. Live acceptance and freeze rule
+
+On 2026-08-15 the public build was accepted with these observations:
+
+- wall mass fits the reference target;
+- walls are homogeneous and no longer compete visually with focal objects;
+- no visible wall defects were observed.
+
+The current Wall category is therefore complete for the active Gold Slice.
+
+Do not reopen the wall system merely to experiment further. Reopen only for a concrete live defect, a Door/cap integration incompatibility, an explicitly approved bounded material upgrade, or a deliberate promotion into a broader Transfer Ship architecture kit.
