@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "materialize-art": "node scripts/materialize-art-assets.mjs",
+    "render-walls": "node scripts/render-transfer-hall-walls.mjs",
     "validate-art-seams": "node scripts/validate-wall-seams.mjs",
-    "predev": "npm run materialize-art",
+    "predev": "npm run materialize-art && npm run render-walls",
     "dev": "vite",
     "test": "vitest run",
-    "prebuild": "npm run materialize-art && npm run validate-art-seams",
+    "prebuild": "npm run materialize-art && npm run render-walls && npm run validate-art-seams",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },

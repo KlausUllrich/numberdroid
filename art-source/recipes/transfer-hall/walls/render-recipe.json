@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "method": "material-source-plus-procedural-2d-compositor",
+  "runtime": {
+    "tileSize": 64,
+    "atlasColumns": 4,
+    "atlasRows": 4,
+    "activeTiles": 13,
+    "visibleFascia": 30,
+    "collisionCore": 10
+  },
+  "material": {
+    "type": "procedural-proof",
+    "seed": 742031,
+    "size": 256,
+    "baseRgb": [58, 61, 64],
+    "coarseVariation": 14,
+    "mediumVariation": 5,
+    "fineVariation": 2,
+    "directionalVariation": 2
+  },
+  "edgeTreatment": {
+    "outlineWidth": 2,
+    "outlineDarken": 0.28,
+    "aoRadius": 7,
+    "aoDarken": 0.12,
+    "innerLiftDistance": 7,
+    "innerLiftWidth": 2,
+    "innerLift": 4,
+    "connectorQuietZone": 8
+  },
+  "connectorGroups": {
+    "OUTER_TOP_RUN": [[0,"L"],[0,"R"],[4,"R"],[5,"L"],[9,"L"],[9,"R"]],
+    "OUTER_BOTTOM_RUN": [[1,"L"],[1,"R"],[7,"R"],[6,"L"],[10,"L"],[10,"R"]],
+    "OUTER_LEFT_RUN": [[2,"T"],[2,"B"],[4,"B"],[7,"T"]],
+    "OUTER_RIGHT_RUN": [[3,"T"],[3,"B"],[5,"B"],[6,"T"]],
+    "DIVIDER_VERTICAL": [[8,"T"],[8,"B"],[9,"B"],[10,"T"],[11,"T"],[12,"B"]]
+  },
+  "notes": [
+    "The material source owns surface variation only.",
+    "The semantic mask owns visible geometry.",
+    "Connector boundaries receive no endpoint outline or AO.",
+    "Final connector strips are canonicalized after compositing.",
+    "The current procedural material is a proof source and may later be replaced by a generated or hand-authored borderless material swatch without changing geometry/shading logic."
+  ]
+}
