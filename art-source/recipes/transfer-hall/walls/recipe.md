@@ -1,172 +1,150 @@
 # Asset Recipe — TS-01 Walls / Architecture
 
-Status: `PREPARED` for procedural-compositor prototype.
+Status: `PROCEDURAL_COMPOSITOR_PROVEN` — pending final live visual acceptance.
 
 ## Identity
 
 - Slice/world: TS-01 Transfer Hall / Transfer Ship
 - Category: modular Architecture wall kit
-- Runtime target: 4 columns × 4 rows, 64×64 px cells, 256×256 px atlas
+- Runtime: 4×4 atlas, 64×64 px cells, 256×256 px total
 - Runtime asset: `public/assets/deck/transfer-hall-architecture.png`
 - GIDs: 81–93 active, 94–96 reserved
 - Perspective: strict orthographic top-down
-- Background: transparent outside visible wall geometry
+- Background: transparent outside wall geometry
 
-## Production method
+## Primary method
 
-- Primary production method: **M4 Procedural 2D Compositor**
-- Material/source method: **M1 Direct Generative Source** for one edge-agnostic graphite material swatch, or an authored equivalent
-- Optional finishing method: **M3 Layered Raster Editor / MCP** later, only if local paint-over is useful and a reliable editor integration exists
-- Retired primary method: **M2 Controlled Art Pass** on complete wall pieces; preserved in `prompt-m2-wall-edit-retired.md`
+**M4 — Material Source + Procedural 2D Compositor**
 
-Why: the wall kit requires exact modular geometry **and** topology-dependent edge treatment. A separated generative wall sheet can distinguish pieces, but cannot know which isolated silhouette boundaries are runtime connectors versus true architectural terminations. M4 keeps that knowledge deterministic.
+The previous full-object image-edit approach is retired for Walls because an isolated generated wall piece cannot know which silhouette edges are runtime connectors and which are true exposed architectural edges.
 
-See `docs/art-production-methods/README.md` and `docs/art-production-methods/04-procedural-2d-compositor/README.md`.
+Binding implementation:
+- `geometry.svg` — 30 px visible fascia master;
+- `collision-core.svg` — unchanged 10 px gameplay core;
+- `render-recipe.json` — material, shading and connector parameters;
+- `scripts/render-transfer-hall-walls.mjs` — deterministic compositor;
+- `scripts/validate-wall-seams.mjs` — automated semantic seam QA.
 
-## Source authority
+## Core separation of responsibility
 
-- Visible geometry: `geometry.svg` — current 24 px visible fascia
-- Collision/structural core: `collision-core.svg` — binding 10 px gameplay core
-- Topology / connector semantics: `TRANSFER_HALL_WALL_KIT.md` + `docs/SEMANTIC_CONNECTOR_CANONICALIZATION.md`
-- Material reference: `material-reference.md`
-- Current material-source generation prompt: `prompt.md`
-- Historical M2 wall-object prompt: `prompt-m2-wall-edit-retired.md`
-- Render/compositor recipe: pending first prototype; add `render-recipe.json` only once the implementation fields are proven
+```text
+material source     -> surface variation only
+geometry.svg        -> visible silhouette
+collision-core.svg  -> gameplay collision contract
+semantic topology   -> connector vs exposed vs true cap
+compositor          -> material mapping + outline/AO + alpha
+canonicalization    -> exact interchangeable connector strips
+```
 
-The older `art-source/flow-vorlagen/transfer-hall-wall-blueprint.svg` remains the historical 10 px geometry proof. This recipe is the clearer source for the current separated 24 px visual / 10 px collision contract.
+The generator/editor is no longer asked to decide topology-dependent wall edges.
 
-## Visual target
+## Current visible geometry
 
-Walls are a quiet, substantial dark frame around the bright ceramic room. Compared with Walls v2 they should become:
+- tile: 64×64 px;
+- visible fascia: **30 px**;
+- collision core: **10 px**;
+- outer wall visual mass expands inward;
+- centered divider expands symmetrically around the existing collision axis;
+- T and corner geometry remains deterministic;
+- Door category remains separate.
 
-- visually heavier and closer to the approved reference;
-- more homogeneous and less segmented;
-- lower in local contrast;
-- less metallic-highlight driven;
-- stable architectural masses rather than individually framed wall props;
-- clearly darker than the floor while remaining maintained civilian infrastructure.
+The move from 24 to 30 px follows live QA against the approved reference: the architecture should feel more stable/substantial and less like a thin rail.
 
-The wall is not a hero asset. PICO, door operation, personal props and the Transfer apparatus must attract more attention.
+## Material source
 
-## M4 processing target
+Current proof material is generated deterministically by `render-transfer-hall-walls.mjs` from `render-recipe.json`.
 
-The compositor should eventually execute the following deterministic pipeline:
+It is intentionally:
+- borderless;
+- neutral graphite/charcoal;
+- low contrast;
+- free of wall-specific caps, outlines, vents and frames.
 
-1. Load/rasterize `geometry.svg` at exact runtime or controlled working resolution.
-2. Load one approved graphite material source that contains **no object outline or cap semantics**.
-3. Map the material into the complete semantic wall kit. Prefer a shared/world-continuous material field for homogeneity; keep mapping deterministic.
-4. Derive or load explicit edge classes from the semantic kit:
-   - `EXPOSED`
-   - `CONNECTOR`
-   - `TRUE_CAP`
-5. Apply low-contrast dark outer contour / AO only to true exposed architectural edges.
-6. Apply **no end-cap / closing outline treatment** across connector boundaries.
-7. Apply true termination treatment only on the doorway-facing ends of `CAP_DOWN` and `CAP_UP`.
-8. Reapply exact visible geometry alpha.
-9. Apply semantic connector canonicalization if any material boundary variation remains at continuation edges.
-10. Pack exact 64×64 cells into the 256×256 atlas.
-11. Run automated seam QA with DIFF-TYPE negative control.
-12. Assemble straight, corner, T, divider/cap and actual TS-01 layouts.
-13. Integrate and perform live browser QA.
+This procedural swatch is replaceable. A later image-generated, Invoke-created, hand-painted or Photoshop-authored swatch may be substituted if it is edge-agnostic and passes material QA.
 
-The 10 px collision system in `src/game/maps/transferHall.ts` does not change when visible fascia/shading changes.
+A material swatch must never encode:
+- which edge is a connector;
+- per-tile frame borders;
+- end caps;
+- doorway semantics;
+- collision geometry;
+- scene lighting.
 
-## Connector classes
+## Edge semantics
 
-Use the named classes defined in `TRANSFER_HALL_WALL_KIT.md`:
+The compositor derives three conceptual classes:
 
-- `OUTER_TOP_RUN`
-- `OUTER_BOTTOM_RUN`
-- `OUTER_LEFT_RUN`
-- `OUTER_RIGHT_RUN`
-- `DIVIDER_VERTICAL`
+- `EXPOSED` — real visible architectural boundary; receives restrained outline/AO;
+- `CONNECTOR` — continuation into another tile; receives no endpoint treatment and uses a quiet guard zone;
+- `TRUE_CAP` — genuine doorway-facing termination; reserved for compact Door-compatible treatment.
 
-Door-facing ends of `CAP_DOWN` and `CAP_UP` are genuine terminations and are not canonicalized as continuation edges.
+Connector relationships are the named groups in `TRANSFER_HALL_WALL_KIT.md` and `render-recipe.json`.
 
-## Edge-treatment rule
+## Current compositor recipe
 
-Do not derive architectural end treatment from an isolated tile's raw alpha silhouette alone.
+`render-recipe.json` currently controls:
+- fascia/collision sizes;
+- material seed and value range;
+- outline width/darkening;
+- AO radius/darkening;
+- subtle inner lift;
+- connector quiet-zone width;
+- named connector groups.
 
-For example:
+Current material mapping uses one shared coordinate space across all wall pieces to prevent automatic per-tile panel changes. Deliberate variants may be added later, but not by random per-tile offsets.
 
-- `H_TOP.left` and `H_TOP.right` are runtime connectors, even though they appear as silhouette edges in an isolated tile;
-- the floor-facing/internal long wall boundary is a true exposed architectural edge and may receive depth treatment;
-- `CAP_DOWN` / `CAP_UP` contain true doorway-facing terminations that may receive compact cap treatment.
+## Deterministic pipeline
 
-This semantic distinction is the primary reason M4 replaces full-object M2 editing for Walls v3.
+```text
+render-recipe.json
++ semantic mask/topology
+→ build borderless material field
+→ render each exact semantic tile mask
+→ find exposed boundaries
+→ suppress edge treatment at connector boundaries
+→ apply restrained interior outline/AO
+→ restore exact alpha
+→ semantic median connector canonicalization
+→ pack 13 active + 3 reserved cells
+→ validate seams with negative control
+→ live room QA
+```
 
-## Forbidden
+## QA requirements
 
-Reject:
+Geometry:
+- exact 256×256 atlas;
+- exact 64×64 cells;
+- exact 30 px visible fascia;
+- collision still 10 px;
+- cells 13–15 empty.
 
-- perspective / visible wall side faces;
-- full-cell wall slabs that alter room geometry;
-- noisy repeated panels/vents;
-- cyan stitching at connectors;
-- black/missing fragments at T/corner joins;
-- rounded/tapered connector ends;
-- bright per-tile metallic framing;
-- baked scene lighting or large glow;
-- hero props or doors inside the architecture atlas;
-- material treatment that makes the wall more visually dominant than the room's focal objects;
-- compositor logic that treats every alpha boundary as an exposed architectural edge.
+Material:
+- homogeneous graphite family;
+- wall is background architecture rather than focal object;
+- no silver per-tile frame;
+- no obvious texture reset at every tile;
+- no cyan/hazard decoration.
 
-## QA
+Topology:
+- no closing outline on connectors;
+- corners/Ts are continuous masses;
+- no black T fragment;
+- only true caps may terminate visibly.
 
-### Geometry / alpha
+Seams:
+- `npm run validate-art-seams`;
+- always report SAME-TYPE against DIFF-TYPE negative control;
+- target SAME-TYPE = 0 after canonicalization.
 
-- atlas exactly 256×256;
-- every cell exactly 64×64;
-- visible fascia exactly follows `geometry.svg`;
-- collision remains separately 10 px;
-- reserved cells 13–15 empty;
-- no alpha outside allowed masks.
+Live:
+- compare 3× straight run, corners, T, divider/door gap and full TS-01 against the approved reference.
 
-### Material
+## History / learned approaches
 
-- material reads as one coherent Transfer Ship graphite family across all pieces;
-- no obvious per-tile frames or unique generator-authored caps;
-- repeated run does not reveal obvious texture reset at every cell;
-- low-frequency value hierarchy stays quieter than PICO/Transfer/doors.
+- M2 complete-wall material editing: proved that deterministic geometry + generative material can work, but failed as final wall method because the model cannot infer runtime connector semantics from isolated silhouettes.
+- Spaced generation layouts: useful when separate object recognition is needed, but still do not tell a model which isolated edge is a connector.
+- Semantic connector canonicalization: retained and now used after compositing.
+- M4 compositor: first proof demonstrated that one material can be mapped to continuous H/CORNER/T geometry while outlines/AO are applied only to true exposed edges.
 
-### Edge/topology QA
-
-- connector boundaries have no false closing outline/cap;
-- true exposed edges retain consistent depth treatment;
-- true caps appear only at named termination edges;
-- T and corners read as continuous structures.
-
-### Seam QA
-
-Run `npm run validate-art-seams` after runtime atlas materialization.
-
-Always report:
-
-- SAME-TYPE mean diff;
-- DIFF-TYPE negative control;
-- ratio;
-- worst same-type pair.
-
-Current production target is pixel-identical required boundary strips after canonicalization (`SAME-TYPE = 0`).
-
-### Visual assembly QA
-
-Prototype and inspect in this order:
-
-1. single `H_TOP`;
-2. 3× `H_TOP` continuous run;
-3. `CORNER_NW` with straight neighbors;
-4. `T_TOP_DOWN` with divider;
-5. 3× `V_CENTER`;
-6. all corners and both T-junctions;
-7. north/south divider caps with doorway gap;
-8. actual TS-01 wall layout;
-9. live comparison against the approved reference.
-
-## Acceptance state
-
-- Technical modular wall system: proven.
-- 24 px visible fascia + 10 px collision separation: proven.
-- Semantic connector canonicalization: proven.
-- M2 separated generation layout: proven useful for separating pieces, but retired as primary wall materialization method because edge topology remained ambiguous to the model.
-- M4 procedural compositor: **next prototype, not yet proven visually**.
+See `docs/art-production-methods/README.md` for the method matrix.
