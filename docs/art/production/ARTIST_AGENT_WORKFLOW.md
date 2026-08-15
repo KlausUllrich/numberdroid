@@ -4,6 +4,8 @@ Status: **binding cross-method role/process contract for visual asset production
 
 This document defines the workflow shared by all Numberdroid art-production methods. It does **not** prescribe one rendering technique. Select the production method first from `docs/art-production-methods/README.md` and `METHOD_SELECTION_GATE.md`.
 
+Role/context routing is defined by `docs/agents/ROLE_ENTRYPOINTS.md`. An Artist does not automatically read all Story/Game Design; those domains become mandatory when their triggers apply.
+
 Companion QA documents:
 
 - `docs/art/production/ART_ASSET_VALIDATION_RULES.md`
@@ -24,9 +26,11 @@ The Artist owns:
 - deterministic extraction/composition where required;
 - production-file QA;
 - runtime-scale/map-context QA;
-- integration;
+- integration within the approved contract;
 - live visual verification;
 - updating the asset recipe after acceptance.
+
+Cross-domain gameplay/story/runtime decisions activate the corresponding role trigger in `ROLE_ENTRYPOINTS.md`.
 
 ## Required authority declaration
 
@@ -38,6 +42,8 @@ RUNTIME REQUIREMENTS
 GEOMETRY AUTHORITY
 MATERIAL AUTHORITY
 EDGE / TOPOLOGY AUTHORITY
+ALPHA / BACKGROUND AUTHORITY
+PACKING / RUNTIME AUTHORITY
 SELECTED METHOD / HYBRID
 KNOWN FAILURE MODE TO WATCH
 ```
@@ -86,7 +92,7 @@ Before the first production-generation/edit pass for a category, create or updat
 
 A recipe should preserve enough information to reproduce or deliberately revise the accepted asset without relying on chat history.
 
-Do not invent fake SVG geometry merely to satisfy a template. `PLANNED` is better than false authority.
+Do not invent fake SVG geometry merely to satisfy a template. `PLANNED` is better than false authority. A deterministic footprint/placement envelope may exist while a model or artist remains the silhouette authority.
 
 ## Shared state machine
 
@@ -114,6 +120,8 @@ A multi-frame sheet is allowed only when the asset itself requires it, e.g. an e
 ## One category per production pass
 
 Do not mix unrelated categories in one generation merely to save calls. In particular, do not combine ordinary Floor, Walls, Doors, Props, Hero setpieces and Characters in one source sheet unless the recipe explicitly defines them as one authored asset.
+
+For props, prefer one deliberate object or coherent micro-set rather than an entire room inventory/mood board.
 
 ## Image-generation turn boundary — binding
 
@@ -161,15 +169,17 @@ Generated or painted source material is not automatically the runtime asset.
 Build the production asset according to the selected method:
 
 - exact crop/extraction;
-- deterministic mask/geometry restoration;
+- deterministic mask/geometry restoration where authoritative;
 - procedural composition;
 - semantic connector/cap treatment;
-- alpha cleanup;
+- alpha/background cleanup;
 - exact atlas/frame order;
 - controlled downscale;
 - runtime packaging.
 
 The selected method defines which operations are authoritative.
+
+If a recurring deterministic operation is missing, classify it against the Art Production Toolkit before writing asset-specific duplicate code.
 
 ## Production QA
 
@@ -180,7 +190,7 @@ Verify as relevant:
 - exact dimensions and grid;
 - exact cell/frame count/order;
 - alpha/background contract;
-- geometry/mask equality;
+- geometry/mask equality where required;
 - no bleed/stale rows/source text;
 - semantic colours;
 - connector/seam requirements;
@@ -197,9 +207,9 @@ For map-driven tiles inspect actual GID usage and placement semantics. Test repe
 
 For characters inspect actual runtime frame selection/order and gameplay scale.
 
-For props/setpieces inspect visual footprint, collision footprint, layer ownership and contact with the surrounding environment.
+For props/setpieces inspect visual footprint, alpha, collision footprint, layer ownership, contact shadow and contact with surrounding environment.
 
-Do not change map/game logic merely to rescue unsuitable art unless the design itself is being intentionally revised.
+Do not change map/game logic merely to rescue unsuitable art unless the design itself is being intentionally revised and the cross-domain trigger has been followed.
 
 ## User / art-director gate
 
@@ -235,10 +245,16 @@ The current `numberdroid-artist` skill is an **M2 Controlled Art Pass** speciali
 
 Work from structural context toward focal detail, but treat accepted categories as frozen baselines unless a concrete defect appears.
 
-Current intended progression after accepted Floor/PICO/Walls is broadly:
+Current state:
 
 ```text
-Doors → ordinary props → hero apparatus / PRIMUS objects → remaining robots
+PICO             LIVE_ACCEPTED
+Floor            ACCEPTED BASELINE
+Walls            LIVE_ACCEPTED
+Doors            LIVE_ACCEPTED
+Family/ordinary props  NEXT
+Transfer apparatus / PRIMUS objects  AFTER PROPS
+Remaining robots       LATER
 ```
 
-The relevant recipe/category contract is more authoritative than an old sequence recorded in history.
+The relevant recipe/category contract and `docs/planning/DEVELOPMENT_PLAN_NEXT.md` are more authoritative than old sequence statements in history.

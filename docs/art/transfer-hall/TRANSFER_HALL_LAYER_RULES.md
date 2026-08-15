@@ -1,12 +1,12 @@
 # Transfer Hall Layer Rules
 
-Binding technical rules for the completed Slice 0 foundation and the following Gold Slice.
+Status: **binding technical category contract**
 
 ## Layer order
 
 1. Ground: walkable surface only.
 2. FloorFX: floor-projected shadows and non-light markings only.
-3. Architecture: wall bands, corners, T-junctions, end caps and door pockets.
+3. Architecture: wall bands, corners, T-junctions, end caps and architectural door interfaces.
 4. WallProps: top-down wall equipment on transparent cells.
 5. FloorProps: top-down free-standing objects on transparent cells.
 6. Characters: player, NPC and enemy robots.
@@ -19,21 +19,41 @@ Props must never contain a floor/background plate. If removing a prop removes vi
 
 Ground, Architecture, WallProps and FloorProps are strict orthographic top-down. Only Characters may use front, side, back and diagonal character views for personality and directional readability.
 
-## Wall and collision contract
+## Wall and collision contract — LIVE_ACCEPTED
 
-The accepted Gold-Slice wall kit uses **30 px visible fascia** while preserving the original **10 px collision core**. Visual mass may extend beyond collision; gameplay geometry remains the 10 px structural contract.
+The accepted Gold-Slice wall kit uses **30 px visible fascia** while preserving the **10 px collision core**. Visual mass may extend beyond collision; gameplay geometry remains the 10 px structural contract.
 
-A visible opening has no collision. Continuous walls use explicit corner and T-junction markers. Open ends use caps. Door clearance is regression-tested.
+A visible opening has no collision. Continuous walls use explicit corner and T-junction markers. Open ends use caps. Wall tiles are semantic geometry markers rendered through the accepted M4 compositor; topology is deterministic.
 
-Wall tiles are semantic geometry markers rendered through the accepted M4 compositor. T-junctions/corners/connectors are topology-driven; generated silhouettes do not own these semantics.
+Walls are frozen unless live QA exposes a concrete defect or an explicitly approved bounded revision is requested.
 
-## Door pockets
+## Doors — LIVE_ACCEPTED
 
-Moving door leaves belong below Architecture in the scene stack. Transfer Hall uses a deliberate ratio of **30 px visible wall fascia / 5 px moving door leaf**: the leaf is a thin moving mechanism inside a substantial structural wall.
+Transfer Hall uses **5 px darker moving door leaves** inside the substantial 30 px wall fascia.
 
-When a door opens, its leaves retract fully into neighboring wall pockets and are occluded by Architecture. Static pocket collars may remain visible at the real wall terminations. A moving leaf must never render on top of the wall it is supposed to enter.
+Accepted Door behavior/presentation:
 
-The Gold-Slice Door candidate removes the old full-length guide/pocket rails from the aperture; only compact termination collars remain. Live visual acceptance is still required before the Door category is frozen.
+- exact doorway-aperture clipping hides retracting leaves geometrically;
+- 520 ms opening;
+- 650 ms monotonic soft close with no overshoot;
+- compact pocket collars only at real wall terminations;
+- no full-length guide rails through the aperture;
+- no visible `ZUTEILUNG` / `OPEN` status text;
+- coloured-key variant uses a narrow semantic key-colour marker on a neutral graphite body;
+- map topology/collision/access logic remains separate from visual skin.
+
+Doors are frozen unless live QA exposes a concrete defect or an explicitly approved extension is requested.
+
+## Props
+
+WallProps and FloorProps are the **next Gold-Slice category**.
+
+- wall-mounted assets are anchored to the wall and remain separate from Architecture unless they are truly structural;
+- free-standing props must have transparent background and deliberate local contact shadow only;
+- collision/interaction footprint is independent from raster footprint;
+- do not bake floor or room lighting into prop art;
+- do not scatter filler clutter merely to make the room look busy;
+- family props should remain visually subordinate to the Transfer hero focus while carrying warm/personal traces.
 
 ## Lighting
 
@@ -53,12 +73,18 @@ Characters are the exception to top-down-only environment rules. Important bodie
 
 `N (back) | NE (rear 3/4) | E (profile) | SE (front 3/4) | S (front) | SW (front 3/4) | W (profile) | NW (rear 3/4)`
 
-## Slice 0 → Gold Slice status
+## Slice / Gold status
 
-Slice 0 is accepted and closed as the technical foundation. Gold Slice subsequently promoted the wall presentation from the original thin 10 px visual proof to the live-accepted 30 px M4 fascia while retaining 10 px collision.
+Slice 0 is accepted and closed as the technical foundation.
 
-Current Gold-Slice sequence after accepted Floor/PICO/Walls:
+Current Gold-Slice state:
 
-`Doors → ordinary props → hero apparatus / PRIMUS objects → remaining robots`.
+```text
+PICO    LIVE_ACCEPTED
+Floor   ACCEPTED BASELINE
+Walls   LIVE_ACCEPTED
+Doors   LIVE_ACCEPTED
+Props   NEXT
+```
 
-The remaining Door-specific gate is live visual QA of the Gold candidate; do not reopen foundational layer/collision architecture to solve cosmetic Door issues.
+Do not reopen foundational layer/collision architecture to solve ordinary prop-production issues.

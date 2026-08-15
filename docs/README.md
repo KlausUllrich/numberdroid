@@ -1,11 +1,13 @@
 # Numberdroid Documentation Index
 
-Read `../REPOSITORY_STRUCTURE.md` first. This index points to **current** documentation; historical material is intentionally separated.
+Read `../REPOSITORY_STRUCTURE.md` first. Agent work additionally follows `agents/ROLE_ENTRYPOINTS.md` so specialists load the minimum complete domain context rather than the entire repository.
 
-## Agent rules
+## Agent rules / routing
 
+- `agents/ROLE_ENTRYPOINTS.md` — **binding role/task reading routes and cross-domain triggers**.
+- `agents/HANDOFF_PROTOCOL.md` — binding format for self-explanatory, cross-role handoffs.
 - `agents/REPOSITORY_WORKFLOW.md` — GitHub/branch/PR working rules.
-- `agents/GAMEPLAY_AND_ENGINEERING_RULES.md` — durable gameplay, UX and engineering invariants.
+- `agents/GAMEPLAY_AND_ENGINEERING_RULES.md` — durable gameplay, UX and engineering invariants; mandatory for Engineering and when its triggers apply, not universal background reading for every specialist.
 
 ## Architecture
 
@@ -26,9 +28,11 @@ Read `../REPOSITORY_STRUCTURE.md` first. This index points to **current** docume
 - `story/STORY_WORLD_FOUNDATION.md`
 - `story/CAMPAIGN_STORY_LEVEL_PROGRESSION.md`
 
+Story is **triggered context** for roles such as Artist/Engineer unless the task directly changes narrative content or staging. See `agents/ROLE_ENTRYPOINTS.md`.
+
 ## Planning / decisions
 
-- `planning/DEVELOPMENT_PLAN_NEXT.md`
+- `planning/DEVELOPMENT_PLAN_NEXT.md` — current forward milestone plan.
 - `decisions/DECISIONS.md`
 
 ## Art — current contracts
@@ -54,10 +58,10 @@ Start at:
 - `art-production-toolkit/README.md`
 - `art-production-toolkit/CAPABILITY_INDEX.md`
 
-The toolkit documents reusable deterministic operations such as masks, compositing, connector canonicalization, future background removal, seamless-material mechanics and QA utilities. Runnable code lives under `../scripts/art/toolkit/`.
+The toolkit documents reusable deterministic operations such as masks, compositing, connector canonicalization, and planned capabilities such as background removal and seamless-material mechanics. Runnable code lives under `../scripts/art/toolkit/`.
 
 ## History
 
 `history/` preserves previous handoffs, experiments, dated discoveries and superseded documentation. It is useful evidence but **not current authority**.
 
-Do not start a new task from a history file unless a current contract explicitly asks you to consult it.
+Read a historical handoff only when the current task/user explicitly points to it or a current contract cites it for evidence. Do not start a new task by scanning old handoffs for a presumed latest truth.
