@@ -73,51 +73,25 @@ Before generation, state that exactly one source/edit is being generated. After 
 
 ## Geometry master
 
-For precision work, create SVG/mask geometry first. It owns:
-
-- runtime proportions;
-- cell/frame boundaries;
-- silhouette;
-- connector positions/widths when applicable;
-- reserved/empty cells;
-- collision-corresponding structure when relevant.
+For precision work, create SVG/mask geometry first. It owns runtime proportions, cell/frame boundaries, silhouette, connector positions/widths when applicable, reserved/empty cells and collision-corresponding structure when relevant.
 
 The geometry master is technical source, not final visible art.
 
 ## Generation layout
 
-The image/edit tool may need a layout different from the runtime atlas.
-
-When packed cells visually merge, create a **spaced generation layout** with transparent gutters. Preserve each cell's exact geometry and later repack deterministically.
+The image/edit tool may need a layout different from the runtime atlas. When packed cells visually merge, create a **spaced generation layout** with transparent gutters. Preserve each cell's exact geometry and later repack deterministically.
 
 Gutters solve object separation. They do **not** communicate hidden neighbor topology.
 
 ## Raster size
 
-Rasterize the deterministic geometry directly at the intended edit/generation resolution. Do not rely on the image tool to enlarge a tiny guide while preserving exact ratios.
+Rasterize deterministic geometry directly at the intended edit/generation resolution. Do not rely on the image tool to enlarge a tiny guide while preserving exact ratios.
 
 ## Edit instruction
 
-Ask only for material/surface enrichment appropriate to the recipe, for example:
+Ask only for material/surface enrichment appropriate to the recipe. Forbid new geometry/layout, labels/documentation, UI, bonus props, perspective change and arbitrary extra variants.
 
-- material richness;
-- believable construction;
-- restrained highlights;
-- wear/micro-detail;
-- local surface variation.
-
-Forbid:
-
-- new geometry/layout;
-- labels/documentation;
-- UI;
-- bonus props;
-- perspective change;
-- arbitrary extra variants.
-
-If the concrete edit target is ignored:
-
-`FAIL — edit target not respected`
+If the concrete edit target is ignored: `FAIL — edit target not respected`.
 
 ## Material proof versus production proof
 
@@ -132,25 +106,17 @@ A material proof may continue despite geometry drift only because deterministic 
 
 ## Restore geometry
 
-Map accepted material information back into the deterministic coordinate system and reapply the authoritative mask.
-
-- outside mask = transparent;
-- remove stray alpha;
-- generated alpha never owns production geometry.
+Map accepted material information back into the deterministic coordinate system and reapply the authoritative mask. Outside mask = transparent; generated alpha never owns production geometry.
 
 ## Modular seams
 
 If the recipe uses modular connectors, semantic connector definitions remain deterministic. Use canonicalization/negative-control QA from `docs/art/production/SEMANTIC_CONNECTOR_CANONICALIZATION.md`.
 
-Do not infer production connector identity from occupancy alone.
-
-If connector/exposed-edge semantics dominate the visual result, reconsider the method: M4 Procedural 2D Compositor is usually stronger.
+Do not infer production connector identity from occupancy alone. If connector/exposed-edge semantics dominate the visual result, reconsider the method: M4 is usually stronger.
 
 ## Production QA
 
-After restoration/downscale, inspect the real runtime file at 100% and in assembly/map context.
-
-Check exact dimensions, alpha, cell order, repeat behavior, seam behavior, semantic colours and gameplay-scale readability.
+After restoration/downscale, inspect the real runtime file at 100% and in assembly/map context. Check exact dimensions, alpha, cell order, repeat behavior, seam behavior, semantic colours and gameplay-scale readability.
 
 ## DO
 
@@ -177,4 +143,4 @@ Check exact dimensions, alpha, cell order, repeat behavior, seam behavior, seman
 
 The original Transfer Hall wall experiments proved that M2 can turn flat deterministic geometry into materially rich source art, while also proving that geometry/alpha drift requires deterministic restoration. Later wall work moved to M4 because wall edge treatment depended on hidden runtime topology.
 
-Historical source/templates and experiments are preserved under `art-source/flow-vorlagen/` and `docs/history/`; they are evidence, not current Wall authority.
+The original blueprint/raster guide is archived under `art-source/archive/controlled-art-pass-wall-blueprint/`; broader experimental findings live under `docs/history/`. These are evidence, not current Wall authority.
