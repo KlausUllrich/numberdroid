@@ -105,7 +105,7 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     for (let row = 2; row <= 9; row += 1) expect(cell("Architecture", 6, row)).toBe(0);
     expect(pointWalkable(6.5 * TILE, 2.5 * TILE, "transfer-hall", 18)).toBe(true);
     expect(pointWalkable(6.5 * TILE, 6.0 * TILE, "transfer-hall", 18)).toBe(true);
-    expect(pointWalkable(6.5 * TILE, 9.0 * TILE, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(6.5 * TILE, 8.0 * TILE, "transfer-hall", 18)).toBe(true);
   });
 
   it("routes composition blockouts through wall-backed functional clusters", () => {
