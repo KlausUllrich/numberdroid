@@ -1,1 +1,0 @@
-Live QA target: inspect the deployed Family Table grounding shadow at gameplay scale. This candidate is intentionally not accepted yet. If accepted, fold the result into recipe.md and remove this temporary QA note together with SHADOW_LIVE_CANDIDATE.md.
