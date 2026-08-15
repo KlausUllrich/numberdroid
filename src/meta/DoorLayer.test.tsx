@@ -1,7 +1,7 @@
-import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { FloorDefinition } from "../game/types";
+import doorCss from "./DoorLayer.css?raw";
 import { DoorLayer } from "./DoorLayer";
 
 const floor: FloorDefinition = {
@@ -47,7 +47,6 @@ describe("Transfer Hall Door visual contract", () => {
   });
 
   it("clips the Transfer Hall leaf container at the exact door aperture", () => {
-    const css = readFileSync(new URL("./DoorLayer.css", import.meta.url), "utf8");
-    expect(css).toMatch(/data-floor-id="transfer-hall"[^}]*\.zk-door \.leaf-clip\s*\{[^}]*overflow:hidden;/s);
+    expect(doorCss).toMatch(/data-floor-id="transfer-hall"[^}]*\.zk-door \.leaf-clip\s*\{[^}]*overflow:hidden;/s);
   });
 });
