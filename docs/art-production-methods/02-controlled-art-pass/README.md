@@ -42,35 +42,15 @@ A separate layout intended only for the image tool. Geometry is copied into isol
 
 The Generation Layout is **not** a runtime asset.
 
-The Transfer Hall Walls v3 experiment used:
+## What gutters solve — and what they do not
 
-```text
-runtime tile:       64×64
-edit cell:         256×256
-visible fascia:     24 px runtime / 96 px edit
-transparent gutter: 64 px
-```
+Gutters make each generated piece visually separable. They prevent a compact atlas from looking like one giant connected shape to the model.
 
-## What the gutters solve
-
-They make each generated piece visually separable. This prevents a compact atlas from looking like one giant connected gray mass to the model.
-
-## What the gutters do NOT solve
-
-A separated tile still does not contain information about its runtime neighbor.
-
-The model sees the silhouette of an isolated tile. It cannot reliably know that:
-
-- a left/right cell-boundary edge is actually a connector and must not receive an end-cap or outline;
-- the same material continues into another tile;
-- a cap edge is a genuine termination while a connector edge is not;
-- a modular T/corner belongs to a larger continuous structure.
-
-This is the central limit discovered in Walls v3.
+A separated tile still does not contain information about its runtime neighbor. The model cannot reliably know that a cell-boundary edge may be a connector rather than a true exposed edge.
 
 > M2 can preserve geometry after generation, but mask restore cannot undo incorrect **material placement and edge semantics** painted inside the valid mask.
 
-If the model paints a bright metallic frame around every isolated tile, later alpha restoration does not turn that framing into a continuous wall.
+If the model paints a bright frame around every isolated tile, restoring alpha does not turn those frames into one continuous wall.
 
 ## Good fits
 
@@ -78,47 +58,44 @@ If the model paints a bright metallic frame around every isolated tile, later al
 - props with deterministic footprint but visually free internal material;
 - hero elements where a final retouch step is available;
 - material enrichment where outline/topology is simple;
-- experiments in Invoke/ControlNet-style “more realism” passes when structural locking is demonstrably respected.
+- controlled Invoke/ControlNet/img2img realism passes when structural locking is demonstrably respected.
 
 ## Poor fits
 
-Use M4 instead when:
+Prefer M4 when:
 
-- the same material must be homogeneous across many modular pieces;
-- exposed-edge treatment depends on neighboring tile topology;
+- one material must remain homogeneous across many modular pieces;
+- exposed-edge treatment depends on neighboring topology;
 - connectors must have no outline/bevel/cap;
-- the generated object keeps turning each tile into an individually framed prop.
+- the generated result keeps turning each tile into an individually framed prop.
 
-## Local-tool subvariant: external realism pass
+## Method-specific skill
 
-A possible M2 implementation is:
+The original Numberdroid Artist skill belongs to this method and is stored at:
 
-```text
-SVG generation layout
-→ raster layer
-→ Invoke / ControlNet / img2img realism pass
-→ deterministic extraction and restore
-```
+`skill/numberdroid-artist/SKILL.md`
 
-This is worth revisiting only when the chosen model/control stack demonstrably respects structure. The current method catalog does not assume that any particular checkpoint/tool does so.
+It should be used for M2-style controlled art passes, not treated as a universal art-production skill. Future methods may receive their own skills under their own `skill/` folders.
 
 ## Recorded negative experiments
 
-See `docs/ART_PIPELINE_LOCAL_EXPERIMENTS_2026-08-14.md`.
+See:
 
-Known failures included:
+`../../history/experiments/ART_PIPELINE_LOCAL_EXPERIMENTS_2026-08-14.md`
+
+Recorded failures include:
 
 - IP-Adapter style transfer moved layout together with material;
 - the tested Qwen-Image-Edit checkpoint ignored the edit target;
 - using a flat geometry guide as both structural control and img2img visual source produced flat, under-materialized output.
 
-These are implementation-specific findings, but they are important regression warnings.
+These are implementation-specific findings, but useful regression warnings.
 
 ## Scripts and mechanics
 
-Reusable seam canonicalization already exists in:
+Reusable seam canonicalization is documented in:
 
-- `scripts/validate-wall-seams.mjs`
-- `docs/SEMANTIC_CONNECTOR_CANONICALIZATION.md`
+- `../../art/production/SEMANTIC_CONNECTOR_CANONICALIZATION.md`
+- `../../../scripts/validate-wall-seams.mjs`
 
 M2 remains valuable. The lesson is not “image editing failed”; the lesson is to stop asking it to infer information that exists only in runtime topology.

@@ -2,33 +2,36 @@
 
 Cooperative math game for 1–4 children with a Paradroid-inspired robot takeover metagame.
 
-## Current status
+## Repository orientation
 
-The repository contains two deliberately different artifacts:
+Agents must start with:
 
-- `zahlenkern-prototyp-meta-v7.html` — frozen, self-contained behavioral reference from the rapid prototype phase.
-- `src/` — clean React/TypeScript architecture that integrates deck, encounter, number duel and body transfer without DOM bridges.
+1. `AGENTS.md`
+2. `REPOSITORY_STRUCTURE.md`
+3. `docs/README.md`
 
-The clean architecture was extracted from v7. The prototype should remain unchanged as a regression/reference artifact.
+The repository deliberately separates production code, runtime assets, reproducible art sources, current documentation and historical context.
 
-## Architecture
+## Runtime
 
-The top-level app owns one explicit screen state:
+- `src/` — current React/TypeScript production implementation.
+- `public/` — runtime/deploy assets loaded by the game.
+- `zahlenkern-prototyp-meta-v7.html` — frozen self-contained prototype reference; do not refactor it into production code.
 
-```text
-Deck → Encounter → NumberDuel → Transfer → Deck
-                  ↘ loss ─────────→ Deck
-```
+## Documentation
 
-Important boundaries:
+- `docs/architecture/` — software/map/runtime contracts.
+- `docs/game-design/` — gameplay and progression design.
+- `docs/story/` — world and narrative foundations.
+- `docs/art/` — current art direction and production/category contracts.
+- `docs/art-production-methods/` — art method-selection handbook.
+- `docs/history/` — old handoffs/experiments; context only, not current authority.
 
-- `MetaGame` owns movement and deck interaction.
-- `NumberDuel` receives an `EncounterConfig` and returns a `BattleResult`.
-- `TransferScreen` receives the old/new bodies and owns only the transfer presentation.
-- `App` owns cross-screen state, body ownership, defeated enemies, meta-energy and save state.
-- Fullscreen/orientation belongs to the app shell, not to the duel.
+See `docs/README.md` for the current index.
 
-See `docs/ARCHITECTURE.md`.
+## Art source
+
+`art-source/recipes/` is the preferred reproducible source contract for production art. Runtime PNG/WebP files in `public/` are outputs, not automatically the authoring source of truth.
 
 ## Development
 
@@ -37,17 +40,15 @@ npm install
 npm run dev
 ```
 
-Production build:
+Validation:
 
 ```bash
+npm test
 npm run build
-npm run preview
 ```
 
-## Reference behavior
+Art-related work may require additional scripts from `package.json`, such as seam validation or compositor rendering.
 
-Read `CODEX_HANDOFF.md` before changing gameplay rules. Confirmed game-design decisions should not be silently changed during refactors.
+## Public Transfer Hall preview
 
-## Current deliberate open question
-
-A lost duel costs one life/integrity point. The exact maximum life count and the consequence at zero are not decided yet. The clean save model therefore records `damageTaken` rather than inventing a maximum.
+`https://klausullrich.github.io/numberdroid/?floor=transfer-hall`

@@ -3,11 +3,11 @@
 Status: **binding production contract for TS-01 wall/architecture art**
 
 Companion documents:
-- `TRANSFER_HALL_LAYER_RULES.md`
-- `ART_DIRECTION_TRANSFER_SHIP.md`
-- `ART_ASSET_VALIDATION_RULES.md`
-- `ARTIST_AGENT_WORKFLOW.md`
-- `docs/SEMANTIC_CONNECTOR_CANONICALIZATION.md`
+- `docs/art/transfer-hall/TRANSFER_HALL_LAYER_RULES.md`
+- `docs/art/direction/ART_DIRECTION_TRANSFER_SHIP.md`
+- `docs/art/production/ART_ASSET_VALIDATION_RULES.md`
+- `docs/art/production/ARTIST_AGENT_WORKFLOW.md`
+- `docs/art/production/SEMANTIC_CONNECTOR_CANONICALIZATION.md`
 - `docs/art-production-methods/04-procedural-2d-compositor/README.md`
 - `art-source/recipes/transfer-hall/walls/recipe.md`
 
