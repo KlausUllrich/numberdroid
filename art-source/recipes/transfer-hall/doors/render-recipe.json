@@ -6,7 +6,8 @@
     "orientation": "vertical",
     "size": "large",
     "mode": "auto",
-    "transitionMs": 520
+    "transitionMs": 520,
+    "clipMovingLeavesToDoorBounds": true
   },
   "leaf": {
     "asset": "public/assets/deck/transfer-hall-door-leaf.png",
@@ -25,7 +26,8 @@
     "asset": "public/assets/deck/transfer-hall-door-pocket.png",
     "width": 18,
     "height": 10,
-    "chamferCornerPx": 1
+    "chamferCornerPx": 1,
+    "outsideLeafClip": true
   },
   "material": {
     "kind": "deterministic-borderless-graphite",
@@ -50,8 +52,8 @@
   },
   "qa": {
     "closed": "two 64px halves meet cleanly at center; 5px total visible thickness",
-    "open": "leaves retract 104% into wall pockets; no guide rails or status text remain through the aperture",
-    "layering": "entire Door stacking context remains below Architecture so retracting leaves cannot paint over the wall",
+    "open": "leaves retract 104% and are clipped exactly at the 64x128 door aperture; no leaf pixels, guide rails or status text remain in the wall/open state",
+    "occlusion": "leaf-clip overflow hidden is authoritative; z-index ordering is secondary protection only",
     "wallContract": "30px visible fascia, unchanged 10px collision core"
   }
 }
