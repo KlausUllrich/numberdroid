@@ -54,9 +54,9 @@ const familyTableShadow = readTextSafePng({
   name: "TS-01 Family Table grounding shadow",
   directory: familyPropsSourceDir,
   prefix: "family-table-shadow-runtime.b64.",
-  expectedChunks: 4,
-  expectedBytes: 24958,
-  expectedSha256: "73e859340d7021c1492ce272e1e4ff4c6cba889b9cd70b12335f79e212b5e9f9",
+  expectedChunks: 1,
+  expectedBytes: 3699,
+  expectedSha256: "c4cce1f8daebba9d3f96b5f0e064513c7eac874ffedc6ffe00cdba4941398d81",
   expectedWidth: 192,
   expectedHeight: 128,
 });
