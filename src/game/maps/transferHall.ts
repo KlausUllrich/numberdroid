@@ -30,7 +30,7 @@ const ROOM_BOXES: RoomBox[] = [
     bottom: 7,
     openings: [
       { side: "right", cells: [4, 5] },
-      { side: "bottom", cells: [2, 3, 6, 7] },
+      { side: "bottom", cells: [2, 3, 7] },
     ],
   },
   {
@@ -47,7 +47,7 @@ const ROOM_BOXES: RoomBox[] = [
     top: 8,
     right: 8,
     bottom: 12,
-    openings: [{ side: "top", cells: [6, 7] }],
+    openings: [{ side: "top", cells: [7] }],
   },
   {
     name: "main-hall",
@@ -87,7 +87,7 @@ const WALKABLE: TileRect[] = [
   { name: "family-child", x: 1, y: 8, w: 4, h: 5 },
   { name: "living-to-child", x: 2, y: 7, w: 2, h: 1 },
   { name: "family-hygiene", x: 6, y: 8, w: 2, h: 4 },
-  { name: "living-to-hygiene", x: 6, y: 7, w: 2, h: 1 },
+  { name: "living-to-hygiene", x: 7, y: 7, w: 1, h: 1 },
   { name: "main-hall", x: 9, y: 3, w: 4, h: 10 },
   { name: "hall-to-primus", x: 13, y: 4, w: 1, h: 2 },
   { name: "primus-allocation", x: 14, y: 1, w: 9, h: 8 },
