@@ -18,6 +18,7 @@ Read `../REPOSITORY_STRUCTURE.md` first. Agent work additionally follows `agents
 ## Game design
 
 - `game-design/GAME_DESIGN.md`
+- `game-design/LEVEL_DESIGN_RULES.md` — **binding reusable room/Floor spatial-design rules: function, zoning, circulation, adjacency, edge furnishing, symmetry and blockout discipline.**
 - `game-design/CAMPAIGN_PROGRESSION.md`
 - `game-design/ENCOUNTER_ARCHETYPES.md`
 - `game-design/LEARNING_PROFILES.md`
