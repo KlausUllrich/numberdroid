@@ -11,8 +11,8 @@ Runtime contract:
 - runtime asset: `/assets/deck/family-table-shadow.png`
 - runtime size: 192×128 px
 - source: `source/family-table-shadow-runtime.b64.00`
-- bytes: 24958
-- SHA-256: `73e859340d7021c1492ce272e1e4ff4c6cba889b9cd70b12335f79e212b5e9f9`
+- bytes: 3699
+- SHA-256: `c4cce1f8daebba9d3f96b5f0e064513c7eac874ffedc6ffe00cdba4941398d81`
 - existing Family Table FloorProps remain GIDs `161–166`
 - existing collision remains unchanged
 - legacy FloorFX atlas/GIDs remain intact; only the Family Table placement routes to the appended shadow tileset
@@ -23,5 +23,7 @@ Visual intent:
 - tighter contact weighting near the furniture footprint plus a broader low-opacity ambient footprint;
 - no colored glow, floor texture, lighting state or gameplay semantics;
 - FloorFX owns the shadow; the prop remains clean and independently replaceable.
+
+The source is a compact deterministic runtime representation of the approved generated shadow concept; alpha is quantized to a small number of levels to keep the reproducible repository source small without changing the intended gameplay-scale read.
 
 This file records the temporary candidate state so the main family-props recipe does not prematurely mark the shadow accepted. After live QA, fold the accepted/rejected result into `recipe.md` and remove or archive this candidate note as appropriate.
