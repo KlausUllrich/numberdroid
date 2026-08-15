@@ -73,8 +73,10 @@ export function DoorLayer({ floor, openDoorIds, accessKeyIds }: Props) {
             aria-hidden="true"
           >
             <i className="frame" style={frameStyle} />
-            <i className="panel panel-a" style={leafStyle} />
-            <i className="panel panel-b" style={leafStyle} />
+            <div className="leaf-clip">
+              <i className="panel panel-a" style={leafStyle} />
+              <i className="panel panel-b" style={leafStyle} />
+            </div>
             {showStatusText && <span>{status}</span>}
           </div>
         );
