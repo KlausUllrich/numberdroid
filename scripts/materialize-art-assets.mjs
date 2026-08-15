@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const picoSourceDir = join(root, "art-source/recipes/transfer-hall/robots/pico/source");
+const familyPropsSourceDir = join(root, "art-source/recipes/transfer-hall/family-props/source");
 
 function readTextSafePng({ name, directory, prefix, expectedChunks, expectedBytes, expectedSha256, expectedWidth, expectedHeight }) {
   const files = readdirSync(directory).filter((file) => file.startsWith(prefix)).sort();
@@ -38,7 +39,23 @@ const pico = readTextSafePng({
   expectedHeight: 96,
 });
 
+const familyTable = readTextSafePng({
+  name: "TS-01 Family Table / Waiting Module",
+  directory: familyPropsSourceDir,
+  prefix: "family-table-runtime.b64.",
+  expectedChunks: 1,
+  expectedBytes: 9460,
+  expectedSha256: "1eb0253d60df639678def53c4e25afd5fb52cac9a428d7098225729f41a3bfa3",
+  expectedWidth: 192,
+  expectedHeight: 128,
+});
+
 const robotOutputDir = join(root, "public/assets/robots");
 mkdirSync(robotOutputDir, { recursive: true });
 writeFileSync(join(robotOutputDir, "directional-pico.png"), pico);
 console.log("PICO: materialized validated 768x96 eight-direction strip from recipe-local source");
+
+const deckOutputDir = join(root, "public/assets/deck");
+mkdirSync(deckOutputDir, { recursive: true });
+writeFileSync(join(deckOutputDir, "family-table-props.png"), familyTable);
+console.log("Family Table: materialized validated 192x128 3x2 prop sheet from recipe-local source");
