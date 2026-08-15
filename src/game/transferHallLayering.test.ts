@@ -20,6 +20,21 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     }
   });
 
+  it("routes the Family Table through its dedicated 3x2 candidate tileset", () => {
+    const familyTable = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 161);
+    expect(familyTable).toMatchObject({
+      image: "/assets/deck/family-table-props.png",
+      tilewidth: 64,
+      tileheight: 64,
+      tilecount: 6,
+      columns: 3,
+    });
+    expect([
+      cell("FloorProps", 2, 4), cell("FloorProps", 3, 4), cell("FloorProps", 4, 4),
+      cell("FloorProps", 2, 5), cell("FloorProps", 3, 5), cell("FloorProps", 4, 5),
+    ]).toEqual([161, 162, 163, 164, 165, 166]);
+  });
+
   it("has a complete outer-wall marker on every perimeter cell", () => {
     for (let col = 1; col <= 18; col += 1) {
       expect(cell("Architecture", col, 1)).not.toBe(0);
