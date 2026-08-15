@@ -16,9 +16,9 @@ describe("TS-01 Layout v3 traversal contract", () => {
     expect(pointWalkable(3.0 * TILE, 7.5 * TILE, "transfer-hall", 14)).toBe(true);
     expect(pointWalkable(3.0 * TILE, 8.5 * TILE, "transfer-hall", 14)).toBe(true);
 
-    expect(pointWalkable(7.0 * TILE, 6.5 * TILE, "transfer-hall", 12)).toBe(true);
-    expect(pointWalkable(7.0 * TILE, 7.5 * TILE, "transfer-hall", 12)).toBe(true);
-    expect(pointWalkable(7.0 * TILE, 8.6 * TILE, "transfer-hall", 12)).toBe(true);
+    expect(pointWalkable(7.5 * TILE, 6.5 * TILE, "transfer-hall", 12)).toBe(true);
+    expect(pointWalkable(7.5 * TILE, 7.5 * TILE, "transfer-hall", 12)).toBe(true);
+    expect(pointWalkable(7.5 * TILE, 8.6 * TILE, "transfer-hall", 12)).toBe(true);
   });
 
   it("connects the hall to both the controlled PRIMUS room and the south Transfer room", () => {
