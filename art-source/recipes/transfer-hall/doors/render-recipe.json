@@ -1,0 +1,38 @@
+{
+  "method": "M4 Procedural 2D Compositor + existing runtime DoorLayer motion",
+  "runtimeDoor": {
+    "width": 64,
+    "height": 128,
+    "orientation": "vertical",
+    "size": "large",
+    "mode": "auto"
+  },
+  "leaf": {
+    "asset": "public/assets/deck/transfer-hall-door-leaf.png",
+    "width": 5,
+    "halfLength": 64,
+    "openTranslatePercent": 104,
+    "connectorSides": ["T", "B"],
+    "outerDarkPx": 2,
+    "outerDarkStrength": 0.3,
+    "innerHighlightCenterPx": 2,
+    "innerHighlightWidthPx": 0.75,
+    "innerHighlightStrength": 0.025
+  },
+  "pocket": {
+    "asset": "public/assets/deck/transfer-hall-door-pocket.png",
+    "width": 18,
+    "height": 10,
+    "chamferCornerPx": 1
+  },
+  "material": {
+    "kind": "deterministic-borderless-graphite",
+    "generation": "none",
+    "note": "Door material is deliberately close to the accepted wall family but slightly lighter so the moving leaf reads without becoming a focal neon element."
+  },
+  "qa": {
+    "closed": "two 64px halves meet cleanly at center; 5px total visible thickness",
+    "open": "leaves retract 104% into wall pockets; no guide rails remain through the aperture",
+    "wallContract": "30px visible fascia, unchanged 10px collision core"
+  }
+}

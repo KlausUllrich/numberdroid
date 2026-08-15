@@ -15,20 +15,56 @@
 .zk-door > span { position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:1px 3px;border-radius:2px;background:#07191dcc;color:#f0c15b;font-size:7px;font-weight:900;letter-spacing:.08em;white-space:nowrap;transition:opacity 160ms ease; }
 .zk-door.large > span { padding:2px 5px;font-size:9px; }.zk-door.locked.denied > span { color:#ff7770; }.zk-door.open > span { opacity:.25;color:#65e4bd; }
 
-/* Transfer Hall: 10 px architecture, deliberately thin 5 px moving leaves. */
+/* Transfer Hall Gold Slice: 30 px visible wall fascia, 10 px collision core, thin 5 px moving leaves. */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door { z-index:auto; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .panel { z-index:1;border-width:1px;box-shadow:0 1px 2px #0008; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .panel {
+  z-index:1;
+  border:0;
+  background-color:#445154;
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:100% 100%;
+  box-shadow:0 1px 2px #0008;
+}
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .panel,
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large.vertical .panel { left:calc(50% - 2.5px);width:5px; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal .panel,
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large.horizontal .panel { top:calc(50% - 2.5px);height:5px; }
 
-/* Pocket rails align with the wall instead of drawing a thick frame over the doorway. */
+/* Compact pocket collars replace the old full-aperture guide rails. */
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .frame,
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large .frame { z-index:3;inset:auto;border-radius:0;background:transparent;box-shadow:none; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame { left:calc(50% - 6px);top:-4px;width:12px;height:calc(100% + 8px);border:0;border-left:1px solid #78928d;border-right:1px solid #1a2927; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal .frame { left:-4px;top:calc(50% - 6px);width:calc(100% + 8px);height:12px;border:0;border-top:1px solid #78928d;border-bottom:1px solid #1a2927; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door > span { z-index:23; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large .frame {
+  z-index:3;
+  inset:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::before,
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::after {
+  content:"";
+  position:absolute;
+  left:calc(50% - 9px);
+  width:18px;
+  height:10px;
+  background-image:var(--door-pocket-image);
+  background-repeat:no-repeat;
+  background-size:18px 10px;
+  background-position:center;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::before { top:-5px; }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::after { bottom:-5px;transform:rotate(180deg); }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door > span {
+  z-index:23;
+  padding:2px 5px;
+  border:1px solid #5e4d2a;
+  border-radius:2px;
+  background:#111a1ddd;
+  color:#ddb864;
+  box-shadow:0 1px 3px #0008;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.open > span { opacity:0; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.open .panel-a { transform:translateY(-104%); }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.open .panel-b { transform:translateY(104%); }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.open .panel-a { transform:translateX(-104%); }
