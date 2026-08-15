@@ -2,21 +2,21 @@
 
 Status: **binding durable level-design principles**
 
-This document defines reusable spatial-design rules for Numberdroid rooms and Floors. It is intentionally independent of one specific TS-01 layout. Milestone-specific layout decisions belong in current planning documents such as `docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`.
+This document defines reusable spatial-design rules for Numberdroid rooms and Floors. Milestone-specific layouts belong in planning documents such as `docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`.
 
-The rules combine game-level readability with practical interior-architecture heuristics. Selected ideas commonly associated with interior design, environmental psychology and feng-shui practice are used only as **spatial heuristics**: clear circulation, supported/anchored activity areas, controlled sightlines, balance between open and occupied space, and meaningful thresholds. They are not treated as mystical or absolute rules.
+The rules combine gameplay readability, interior-architecture heuristics, environmental psychology and selected feng-shui-derived composition heuristics. These are practical spatial tools, not mystical or absolute rules.
 
 ## 1. Level-design objective
 
 A successful Numberdroid space must work simultaneously as:
 
-1. **a gameplay space** — movement, encounters and interaction remain clear;
-2. **a believable place** — architecture and furnishing appear to exist for reasons;
-3. **a visual composition** — hierarchy, density and negative space feel deliberate;
-4. **a story/world expression** — the space communicates how this society works;
-5. **a production system** — repeated rules make future rooms efficient to build.
+1. **gameplay space** — movement, encounters and interaction remain clear;
+2. **believable place** — architecture and furnishing appear to exist for reasons;
+3. **visual composition** — hierarchy, density and negative space feel deliberate;
+4. **story/world expression** — space communicates how this society works;
+5. **production system** — reusable rules make later rooms efficient to build.
 
-A visually attractive room that fails movement or world logic is not successful level design. A perfectly functional rectangle with arbitrary objects is also not successful level design.
+A perfectly functional rectangle with arbitrary objects is not successful level design.
 
 ---
 
@@ -24,559 +24,347 @@ A visually attractive room that fails movement or world logic is not successful 
 
 Every substantial spatial intervention must have a plausible function.
 
-This applies especially to:
+This applies especially to wall returns, partitions, alcoves, thresholds, built-ins, machinery bays and floor-routing systems.
 
-- wall returns;
-- partial dividers;
-- alcoves;
-- raised or marked zones;
-- thresholds;
-- built-in furniture;
-- machinery bays;
-- floor-routing systems.
-
-Before adding such an element, be able to complete this sentence:
+Before adding one, be able to complete:
 
 > **This form exists because it helps the space to ________.**
 
-Valid answers can include:
+Valid reasons include privacy, refuge, infrastructure, machine protection, waiting/queueing, storage, service access, circulation, supervision, body docking, threshold framing and gameplay gating.
 
-- create privacy or refuge;
-- frame a ritual or important transition;
-- carry infrastructure;
-- support or protect a machine;
-- organize waiting/queueing;
-- define a workstation;
-- separate public from controlled space;
-- provide storage/service access;
-- guide circulation;
-- improve supervision or sightlines;
-- create a safe docking/parking position for a body;
-- anchor furniture or wall-mounted equipment.
-
-Invalid default answer:
+Invalid default reason:
 
 > “The room looked empty / too rectangular.”
 
-Visual composition is a reason to **look for a functional solution**, not a reason to invent meaningless architecture.
+Visual composition is a reason to look for a functional solution, not a reason to invent meaningless architecture.
 
 ## 2.1 Hard versus soft boundaries
 
-Use the weakest boundary that communicates the required function.
-
-From soft to hard:
+Use the weakest boundary that communicates the required function:
 
 1. orientation/alignment;
 2. furniture grouping;
-3. floor material / FloorFX / lighting change;
-4. low furnishing or equipment edge;
-5. partial screen / structural return;
+3. floor/light/material change;
+4. low furnishing/equipment edge;
+5. partial screen;
 6. full wall;
 7. wall + controlled door.
 
-A full wall should not be used where furniture, orientation or floor treatment can communicate the zone equally well.
-
-Hard boundaries are most justified by real changes in:
-
-- access;
-- security;
-- hazard;
-- privacy;
-- ownership;
-- environmental condition;
-- gameplay gating.
+Hard boundaries are most justified by real changes in access, security, hazard, privacy, ownership, environmental condition or gameplay state.
 
 ---
 
-# 3. Functional zoning
+# 3. Rationality gradient — do not over-optimize every room
 
-Every important room should have explicit functions, even when those functions share one open volume.
+**Efficiency is a worldbuilding variable, not a universal virtue.**
 
-For each zone define:
+A believable Numberdroid Floor may contain inherited structure, historical adaptation, awkward corners, secondary passages and rooms that are larger or smaller than a purely optimized plan would choose.
+
+## 3.1 Family / human-influenced space
+
+Human/domestic areas may be:
+
+- irregular;
+- subdivided into small rooms/niches;
+- adapted around older structure or neighboring spaces;
+- slightly inefficient;
+- asymmetric;
+- connected through short halls or offsets rather than one perfect open plan.
+
+This should feel **lived-in and evolved**, not randomly chaotic.
+
+A family dwelling should not automatically collapse into one generic “family rectangle” merely because that is the most efficient game layout.
+
+## 3.2 PRIMUS / system space
+
+PRIMUS may be more rational:
+
+- repeated modules;
+- explicit docking positions;
+- predictable service clearances;
+- aligned wall banks;
+- efficient routes;
+- stronger standardization.
+
+The contrast is useful worldbuilding:
+
+```text
+human/family   → adapted / layered / imperfectly efficient
+Transfer       → focal / ritual / deliberately composed
+PRIMUS         → optimized / assigned / repeatable
+```
+
+## 3.3 Avoid rectangular-outline default
+
+Do not assume a Floor or room cluster should fill its rectangular map bounds.
+
+Prefer a useful sequence of spaces when function supports it:
+
+```text
+room → small room/niche → hall → destination room → controlled room
+```
+
+Extra square meters are acceptable when they improve gameplay, staging or spatial plausibility. Compactness is not an acceptance criterion by itself.
+
+---
+
+# 4. Functional zoning and relationship graphs
+
+Every important zone needs:
 
 ```text
 FUNCTION
 PRIMARY USERS / BODIES
 ANCHOR OBJECT OR ACTIVITY
 ACCESS / APPROACH
-RELATION TO NEIGHBORING ZONES
+RELATION TO NEIGHBORS
 DESIRED DENSITY
 DESIRED EMOTIONAL READ
 ```
 
-A zone should normally have at least one **anchor**: a hero machine, table, workstation, body dock, seating group, storage wall or other clear reason for the zone to exist.
+Zones do not need equal size or equal visual weight.
 
-## 3.1 Zones do not need equal size or equal visual weight
+Before coordinates, sketch relationships. Objects and rooms that belong together should read together through proximity, alignment, orientation, shared floor treatment, visible connection or architecture.
 
-Avoid dividing a room into a set of equally sized, equally furnished rectangles merely because the underlying tile grid makes that easy.
-
-Difference is useful:
-
-- public circulation can be broad and calm;
-- a family niche can be denser and more personal;
-- a Transfer ritual area can be open and focal;
-- a PRIMUS allocation area can be aligned and controlled.
-
-The spatial hierarchy should reinforce the functional hierarchy.
+If object A controls/services object B, proximity is the default. If gameplay forces separation, provide a visible connection.
 
 ---
 
-# 4. Circulation first
+# 5. Circulation first
 
-Movement is the first hard constraint.
+Primary circulation should:
 
-## 4.1 Primary circulation
-
-A primary route should:
-
-- be obvious without requiring a minimap;
-- remain visually calmer than adjacent activity clusters;
+- be obvious;
+- remain calmer than activity clusters;
 - avoid unnecessary zig-zags;
-- avoid furniture protruding unpredictably into the path;
-- preserve comfortable camera framing;
-- accommodate the body sizes relevant to the current Floor.
+- preserve camera comfort;
+- accommodate relevant body sizes;
+- avoid furniture protruding unpredictably into the route.
 
-For TS-01-like public spaces, prefer generous multi-tile movement lanes rather than designing to the smallest technically passable gap.
+Secondary paths may be tighter when they lead to a niche, workstation, optional room or hero-support position.
 
-Exact minimum widths remain level/body specific and must be validated in runtime rather than frozen from aesthetics alone.
+## 5.1 Door breathing zone — hard rule
 
-## 4.2 Secondary circulation
+Doors and controlled thresholds need clean space on **both sides**.
 
-Secondary paths may be narrower or more intimate when they:
+Do not place ordinary props, plants, controls or decorative objects immediately beside a door merely because a tile is free.
 
-- lead into a niche;
-- access a workstation;
-- pass behind/around a hero object;
-- create optional exploration.
+A door must preserve:
 
-They must still be legible and must not produce accidental traps.
+- readable approach;
+- readable opening direction/state;
+- body clearance;
+- visual distinction from nearby equipment;
+- room-to-room transition legibility.
 
-## 4.3 Avoid meaningless central clutter
+Default composition target: at least roughly **one tile of uncluttered visual breathing room** on each usable side when the room scale allows it. Runtime collision/body QA still decides the actual minimum.
 
-The center of a public room is valuable circulation and visual breathing space.
+## 5.2 Center-floor objects are exceptional
 
-Center-floor objects should therefore be comparatively rare and usually belong to one of these classes:
-
-- hero / ritual object;
-- explicit interaction focus;
-- body dock / machine requiring all-side access;
-- intentional spatial landmark.
-
-Ordinary storage, plants, side tables and service furniture should usually move toward edges.
+Ordinary storage, plants and side furniture move to edges. Center placement is mainly for hero objects, ritual machinery, explicit interactions or landmarks that require all-side access.
 
 ---
 
-# 5. Adjacency and grouping
+# 6. Edge-first furnishing and human plausibility
 
-Objects that function together should **read together**.
+Ordinary furnishing usually belongs against a wall, in a corner, in an alcove, beside a larger cluster or beside the machine it supports.
 
-A relationship can be communicated by:
+## 6.1 Plant rules
 
-- physical proximity;
-- shared alignment;
-- shared orientation;
-- common platform or floor treatment;
-- a visible cable/path/conduit;
-- matching architecture;
-- shared lighting or shadow grouping;
-- facing one another across a short functional gap.
-
-## 5.1 Proximity rule
-
-If the player must infer that object A controls, services, stores, charges or belongs to object B, then A and B should normally be close enough to form one visual cluster.
-
-If they must be separated for gameplay reasons, create a visible connection.
-
-Do not rely on explanatory text to repair an otherwise invisible functional relationship.
-
-## 5.2 Cluster before scatter
-
-Increase room density by creating clusters, not by distributing unrelated props evenly over empty tiles.
-
-A good cluster usually contains:
-
-- one anchor;
-- one or more support objects;
-- a clear approach side;
-- intentional negative space around the group.
-
----
-
-# 6. Edge-first furnishing
-
-Ordinary furnishing usually belongs to the perimeter or to a functional edge.
-
-Preferred placements:
-
-- against a wall;
-- in a corner;
-- beside a larger furniture group;
-- inside an alcove;
-- along a zone boundary;
-- beside the machine it supports.
-
-Examples:
-
-- plants soften corners, flank seating or live near walls;
-- storage aligns with walls;
-- coffee/service equipment sits against infrastructure;
-- benches normally have a supported/backed edge rather than floating in circulation;
-- wall consoles should visibly belong to the wall or machine system they serve.
-
-Edge-first does **not** mean every wall must be full. Deliberate empty wall length is useful for rhythm, sightlines and movement.
-
----
-
-# 7. Human placement logic versus system placement logic
-
-Numberdroid benefits from spatial contrast between personal life and PRIMUS optimization.
-
-## 7.1 Family / personal spaces
+Plants are especially strong **edge softeners**.
 
 Prefer:
 
-- small asymmetries;
-- objects slightly off an ideal grid;
-- plants and personal items grouped around use areas;
-- seating/table relationships;
-- traces of convenience and habit;
-- warm local density;
-- objects with emotional value but no assigned system purpose.
+- near walls;
+- in corners;
+- beside seating;
+- at the end of a furniture run;
+- at a soft zone boundary.
 
-The result should feel **used and cared for**, not messy for its own sake.
+Avoid:
 
-## 7.2 PRIMUS / system spaces
+- primary circulation;
+- isolated open-floor placement without a reason;
+- placement directly **in front of wall furniture, consoles or storage**;
+- placement that blocks the visual read or access side of another object.
 
-Prefer:
+A plant may flank wall furniture; it should not obscure it.
 
-- repeated modules;
-- strong alignment;
-- explicit docking positions;
-- consistent clearances;
-- assigned wall banks;
-- visible service logic;
-- predictable routes and work positions.
+## 6.2 Furniture relationships
 
-The result should feel **competent and optimized**, not automatically hostile.
-
-## 7.3 Transfer / CORE spaces
-
-Transfer is allowed to be the most deliberately composed and symmetrical function when symmetry reinforces ritual, focus and machine precision.
-
-This makes a useful hierarchy:
-
-```text
-Family      → asymmetric / lived-in
-Transfer    → focal / ritual / partially symmetrical
-PRIMUS      → modular / aligned / controlled
-```
-
-Do not turn this into three identical rectangular columns with different labels.
+Benches normally have a backed/supported edge. Coffee/service equipment sits against infrastructure. Storage aligns with walls. Personal clutter belongs to a surface, seat, storage cluster or habitual use area rather than a random tile.
 
 ---
 
-# 8. Symmetry and asymmetry
+# 7. Symmetry and asymmetry
 
-Symmetry is a semantic tool, not a default layout generator.
+Symmetry is semantic, not a default layout generator.
 
-Use symmetry when it supports:
+Use symmetry for ritual, centrality, authority, machine precision and hero focus.
 
-- ritual;
-- centrality;
-- authority;
-- machine precision;
-- ceremonial approach;
-- a hero object that should dominate attention.
+Use asymmetry for domestic life, adaptation, optional activity, inherited structure and secondary functions.
 
-Use asymmetry when it supports:
-
-- domestic life;
-- adaptation;
-- optional activity;
-- organic accumulation;
-- secondary support functions.
-
-## 8.1 Avoid room-wide accidental symmetry
-
-If every zone has equal width, equal edge treatment and equal object count, the space can feel diagrammatic.
-
-Break that regularity through **function**, not random offsets:
-
-- one zone may use a hard boundary while another remains open;
-- one wall may carry a service bank while the opposite wall stays clear;
-- one corner may be a seating niche while another is circulation.
+Avoid room-wide accidental symmetry. Break regularity through function, not random offsets.
 
 ---
 
-# 9. Interior-architecture heuristics
+# 8. Interior-architecture / environmental heuristics
 
-The following practical principles are borrowed from interior architecture and environmental-design thinking.
+## 8.1 Anchor and focal point
 
-## 9.1 Anchor and focal point
+Every important room or zone benefits from a clear anchor with enough negative space to organize supporting elements.
 
-Every important room/zone benefits from an obvious anchor.
+## 8.2 Prospect and refuge
 
-The anchor should:
+Waiting, resting and personal areas often feel better with a protected/backed edge plus a view toward the room or approach.
 
-- be identifiable quickly;
-- have sufficient negative space around it;
-- organize nearby supporting elements.
+## 8.3 Compression and release
 
-## 9.2 Prospect and refuge
+A short tighter passage leading into a broader destination can communicate progression without signage. Do not turn every transition into a choke point.
 
-Areas where characters wait, rest or perform personal activity often feel more plausible when they have:
+## 8.4 Thresholds should mean something
 
-- a protected/backed edge;
-- a view into the room or toward the approach;
-- some separation from the main circulation stream.
+Doors and thresholds are strongest when they correspond to a real change in access, role, activity, privacy, material/light or story state.
 
-This is especially useful for family/waiting areas.
+## 8.5 Command-position heuristic
 
-## 9.3 Compression and release
+Important seats, workstations and controls often feel better when users can perceive the approach without sitting directly in the traffic stream.
 
-A change from tighter threshold to broader room, or from broad public space to smaller niche, can make spatial transitions legible without signage.
+## 8.6 Balance open and occupied space
 
-Do not overuse narrow choke points; use scale change deliberately.
-
-## 9.4 Thresholds should mean something
-
-A threshold is stronger when it corresponds to a real change in:
-
-- access;
-- role;
-- activity;
-- privacy;
-- material/light;
-- story state.
-
-A door in the middle of an otherwise identical space is weaker than a door that genuinely separates two systems.
-
-## 9.5 Supported seating / furniture
-
-Furniture used by people usually benefits from a plausible relationship to walls, views, tables and approach paths.
-
-Do not float a bench simply because an empty floor tile exists.
-
----
-
-# 10. Feng-shui-derived practical heuristics
-
-Use these only as composition aids.
-
-## 10.1 Clear approach
-
-Important destinations should have a clear approach and should not be hidden behind arbitrary clutter.
-
-## 10.2 Command-position heuristic
-
-A key seat, workstation or control point often feels better when its user can perceive the main approach while not being placed directly in the middle of the traffic stream.
-
-In gameplay terms: important human/support positions should have a readable relationship to entrances and activity, not face a dead wall without reason.
-
-## 10.3 Balance open and occupied space
-
-Avoid both extremes:
-
-- every edge and tile filled;
-- huge undifferentiated empty fields.
-
-The goal is a rhythm of:
+Seek rhythm rather than uniform density:
 
 ```text
 cluster → breathing space → anchor → circulation → cluster
 ```
 
-## 10.4 Do not create “arrows of furniture” into paths
-
-Sharp protrusions or narrow object ends aimed into primary circulation tend to feel awkward even when technically passable. Prefer shapes that terminate cleanly against walls or align with the route.
-
 ---
 
-# 11. Sightlines and information staging
-
-A player should understand a room in layers.
+# 9. Sightlines and information staging
 
 On entry, prioritize:
 
-1. immediate safe/walkable space;
+1. safe/walkable space;
 2. main destination / hero anchor;
-3. major route or threshold;
-4. secondary support clusters;
+3. route or threshold;
+4. support clusters;
 5. decorative/personal detail.
 
-Avoid presenting every detail at equal visual importance.
-
-For story spaces, sightlines can stage information deliberately: first the desirable Transfer hero, then the controlled PRIMUS threshold, for example.
+Story spaces may reveal information sequentially. A bend or hall is useful when it creates a meaningful reveal, not merely extra travel distance.
 
 ---
 
-# 12. Visual hierarchy and density
+# 10. Visual hierarchy and density
 
 Suggested hierarchy:
 
 1. hero gameplay/story object;
 2. player and relevant robots;
 3. major functional cluster;
-4. architectural framing / threshold;
+4. architectural framing;
 5. support props;
-6. minor personal clutter / wear.
+6. personal clutter/wear.
 
-A support prop that competes visually with the hero object is too strong, too central or too saturated.
+Density is not object count. It may come from room subdivision, wall articulation, grouped furniture, floor treatment, service banks, route markings, lighting and activity.
 
-## 12.1 Density is not object count
-
-Density can come from:
-
-- wall articulation;
-- grouped furniture;
-- floor treatment;
-- service banks;
-- route markings;
-- lighting hierarchy;
-- meaningful clutter;
-- robot activity.
-
-Do not solve every empty area with another standalone sprite.
+Do not solve every empty region with a standalone sprite.
 
 ---
 
-# 13. Top-down readability
+# 11. Top-down readability
 
-Numberdroid level design is evaluated from gameplay view first.
+Gameplay view is authoritative.
 
 For environment props:
 
 > **If the function or personality depends primarily on seeing the front/side face, the object is a poor default fit.**
 
-Prefer readability through:
-
-- footprint;
-- top surface;
-- silhouette;
-- orientation;
-- color/value grouping;
-- nearby functional relationships.
-
-This rule applies to both final art and blockout placeholders.
+Prefer footprint, top surface, silhouette, orientation, value/color grouping and nearby functional relationships.
 
 ---
 
-# 14. Architecture and furniture must cooperate
+# 12. Architecture and furniture must cooperate
 
-Architecture should create places for functions rather than fighting furniture placement.
-
-When a wall change is proposed, decide which of these is true:
+When a structural change is proposed, classify it:
 
 ```text
-A. The function genuinely needs architectural support.
-B. The function only needs furniture/edge definition.
-C. The function only needs floor/light/signage definition.
+A. function genuinely needs architecture;
+B. function only needs furniture/edge definition;
+C. function only needs floor/light/signage definition.
 ```
 
 Choose the least invasive solution that works.
 
-Do not introduce a wall return merely to create visual variety when a wall-backed furnishing cluster would solve the composition more plausibly.
+Do not use architecture to rescue bad furniture placement, and do not use furniture to hide an implausible wall.
 
 ---
 
-# 15. Placeholder / blockout rules
+# 13. Placeholder / blockout rules
 
-Blockouts exist to answer questions, not to become accidental production assets.
+Blockouts answer questions; they are not accidental production assets.
 
-Each placeholder must have a named function such as:
+Each placeholder must have a named function and test at least one of:
 
-- waiting bench;
-- personal storage;
-- Transfer diagnostic console;
-- body-service bank.
-
-A placeholder must test at least one of:
-
-- required mass;
+- mass;
 - placement;
 - adjacency;
 - approach clearance;
-- visual hierarchy;
-- density.
+- hierarchy;
+- density;
+- room function.
 
-If its function cannot be named, remove it.
-
-Placeholders should follow all spatial rules even when their art is crude.
-
----
-
-# 16. Level-design relationship graph
-
-Before detailed dressing, sketch the room as relationships rather than coordinates.
-
-Example:
-
-```text
-ENTRY
-  ↓
-FAMILY WAITING ── close ── FAMILY TABLE
-  │                         │
-  │ soft transition         └─ coffee / memory / plants
-  ↓
-TRANSFER HERO ── close ── TRANSFER CONTROL
-  │
-  │ hard controlled threshold
-  ↓
-PRIMUS ALLOCATION ── aligned ── body/service banks
-```
-
-Only after this graph makes sense should exact tile placement be decided.
+Useful blockouts may include entire **room functions** (bed, hygiene module, storage) when topology is being tested before final art production.
 
 ---
 
-# 17. Level-design review questions
-
-For every substantial room revision ask:
+# 14. Level-design review questions
 
 ## Function
-- Why does each wall/alcove/major object exist?
-- Can its role be understood without a text label?
+- Why does each wall/room/alcove/major object exist?
+- Is anything present only to make the silhouette less boring?
+
+## Rationality
+- Should this specific area be optimized, or should history/human use make it more layered?
+- Is the plan suspiciously rectangular or efficient without a world reason?
 
 ## Circulation
-- Where is the primary route?
-- Is any ordinary prop stealing path space?
-- Are clearances comfortable in runtime, not merely technically valid?
+- Is the primary route clear?
+- Do doors have breathing space on both sides?
+- Are clearances comfortable in runtime?
 
 ## Adjacency
 - Are related objects actually grouped?
-- If separated, is their connection visible?
+- Is a control visibly connected to the machine it controls?
 
 ## Human plausibility
-- Would a person plausibly put this plant, chair, bag or coffee machine here?
-- Does seating have a reason to face where it faces?
+- Would a person plausibly put this plant/furniture/object here?
+- Is any plant blocking wall furniture?
+- Does seating have a plausible wall/view/approach relationship?
 
-## Spatial hierarchy
-- What is the first thing the eye sees?
-- Is the hero object still the hero?
+## Hierarchy
+- What is seen first?
 - Is negative space intentional?
+- Does the hero remain dominant?
 
 ## Numberdroid identity
-- Does Family feel personal without becoming rustic?
-- Does PRIMUS feel optimized without generic villain styling?
+- Does Family feel personal and adapted?
 - Does Transfer feel focal/empowering?
-
-## Top-down read
-- Does every important function read at actual gameplay scale?
+- Does PRIMUS feel optimized without generic villain styling?
 
 ---
 
-# 18. Implementation discipline until a level-design tool exists
+# 15. Implementation discipline until a level-design tool exists
 
-Until a dedicated editor/tool owns this work, agents editing maps must:
+Until a dedicated level-design tool owns this work, agents editing maps must:
 
-1. read this document plus the current milestone/level plan;
-2. inspect the actual runtime map and collision definitions;
+1. read this document plus the current level/milestone plan;
+2. inspect actual map, movement and collision definitions;
 3. state the functional reason for structural changes;
-4. use blockout placeholders before producing expensive final art when placement/density is unresolved;
-5. keep visual footprint and collision footprint separate;
-6. preserve accepted art categories unless the change specifically requires reopening them;
-7. add/update regression tests for structural/collision contracts where appropriate;
-8. verify the live deployed room at desktop and phone scale;
-9. treat CI green, merged and level-design accepted as different states.
+4. prefer relationship/topology blockout before final asset production when layout is unresolved;
+5. keep visual and collision footprints separate;
+6. preserve accepted art unless a concrete layout need requires a bounded extension;
+7. add/update regression tests for topology, door clearance and collision;
+8. verify the deployed room on desktop and phone;
+9. treat `CI green`, `merged`, `layout accepted` and `Gold Slice accepted` as different states.
 
 A future level-design tool may automate placement, adjacency checks, clearance overlays and relationship visualization, but it must preserve these principles rather than replacing them with unconstrained tile painting.

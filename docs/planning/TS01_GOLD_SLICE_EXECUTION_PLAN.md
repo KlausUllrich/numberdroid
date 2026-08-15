@@ -1,529 +1,361 @@
 # Numberdroid — TS-01 Gold Slice Execution Plan
 
-Status: **CURRENT detailed execution plan — 2026-08-15**
+Status: **CURRENT detailed execution plan — Layout v3 approved for composition implementation, 2026-08-15**
 
-This is the single current planning document for the detailed TS-01 Gold Slice push. It is intentionally more concrete than `DEVELOPMENT_PLAN_NEXT.md`, which remains the project-level forward roadmap.
-
-Durable reusable spatial principles now live in:
-
-- `docs/game-design/LEVEL_DESIGN_RULES.md`
-
-This document applies those rules specifically to TS-01 and should be updated as the Gold Slice progresses. Do not create a competing Gold Slice status document for every iteration.
+`DEVELOPMENT_PLAN_NEXT.md` remains the project-level roadmap. `docs/game-design/LEVEL_DESIGN_RULES.md` owns durable spatial principles. This document applies them to the active TS-01 Gold Slice.
 
 ---
 
-# 1. Relationship to the master plan
+# 1. Gold Slice target
 
-`docs/planning/DEVELOPMENT_PLAN_NEXT.md` answers:
+TS-01 succeeds when the deployed Transfer Hall feels like a believable Numberdroid place and a representative quality bar rather than a diagram of three gameplay functions.
 
-> What major production milestone is Numberdroid working toward, and what comes after it?
+The room must preserve:
 
-This document answers:
+- comfortable top-down movement;
+- clear Family → Transfer → PRIMUS progression;
+- strong hero hierarchy;
+- Family/PRIMUS spatial contrast;
+- desktop and phone readability;
+- accepted art assets unless a concrete defect requires revision.
 
-> What exactly must be changed in TS-01 before the visual Gold Slice can be judged as a coherent representative room?
-
-The Gold Slice is one milestone in the broader production plan. It is not the end of Transfer Ship production and not the complete campaign.
-
----
-
-# 2. Gold Slice definition
-
-TS-01 succeeds when the deployed Transfer Hall is convincing enough to answer:
-
-> **If the rest of Numberdroid were produced at this quality and with this visual grammar, would we want to continue in this direction?**
-
-The target is a coherent room in which:
-
-- architecture, floor, props, doors, hero machinery, shadows and lighting feel like one game;
-- the larger gameplay space remains comfortable to move through;
-- Family, Transfer and PRIMUS functions read spatially without relying only on labels;
-- high-detail props no longer float inside an under-authored rectangle;
-- top-down perspective remains consistent;
-- functional relationships are visible through placement and architecture;
-- the room remains readable on desktop and phone.
-
-The reference room is a **density and composition reference, not a footprint template**. TS-01 may remain larger because gameplay benefits from the additional space.
+The reference image is a **density/composition reference, not a footprint template**. More square meters are acceptable when they improve staging and plausibility.
 
 ---
 
-# 3. Current accepted / candidate baseline
+# 2. Accepted / candidate art baseline
 
 ## Frozen / accepted
 
-- PICO — LIVE_ACCEPTED;
-- Floor — accepted baseline;
-- Walls / Architecture material + semantic kit — LIVE_ACCEPTED;
-- Doors — LIVE_ACCEPTED;
-- Family Table + grounding shadow — LIVE_ACCEPTED;
-- Family Memory Console + grounding shadow — LIVE_ACCEPTED.
+- PICO;
+- Floor baseline;
+- 30 px M4 wall material/kit;
+- Doors;
+- Family Table + shadow;
+- Family Memory Console + shadow.
 
-## Current candidates / blockout
+## Current live candidates
 
 - Coffee machine + shadow;
 - Planter trough + shadow;
 - Round plant + shadow;
 - Hologram pedestal + shadow;
-- SVG Gold Slice blockout-prop atlas `189–200`;
-- current composition preview layout.
+- SVG composition/blockout props.
 
-Merged/deployed candidate status does not imply visual acceptance.
-
----
-
-# 4. Current diagnosis after Composition Preview QA
-
-The first composition preview is a clear improvement over the empty rectangular room. It proved that added density and zoning help, but it also exposed a more important requirement: **level design must follow functional spatial logic rather than visual anti-emptiness tricks**.
-
-## What improved
-
-- the room feels materially denser;
-- the three functional regions are easier to read;
-- the SVG blockout successfully demonstrates that provisional furnishing can answer composition questions before final art production;
-- the larger room still appears preferable for gameplay;
-- the new finished props are individually compatible with the intended top-down art direction.
-
-## What still fails / remains weak
-
-1. **The Family wall returns read as arbitrary wall stubs.** They were added to break the rectangle but do not have a convincing function.
-2. **The three zones remain too equal/symmetrical as room subdivisions.** This underuses the contrast between Family, Transfer and PRIMUS.
-3. **Several blockout assets with dashed outlines read as detached floor diagrams rather than furniture/infrastructure.** Their functions need wall/cluster anchoring.
-4. **Plants still need more human-plausible placement.** Plants should sit near walls/corners/furniture rather than merely inside the Family rectangle.
-5. **The hologram is too detached from the Transfer apparatus.** If it controls/services Transfer, proximity or a visible connection must communicate that relationship.
-6. **PRIMUS still has too much empty wall/edge potential relative to the reference.** Density should increase through aligned wall/service modules while preserving patrol space.
-7. Hero assets, Flow grounding/shadow, dirt/use-wear and category-fidelity convergence remain outstanding.
+The candidate art is reusable across topology revisions; moving it does not reopen the source art.
 
 ---
 
-# 5. TS-01 relationship graph
+# 3. Learning from Composition Preview v2
 
-Before coordinates, the room should satisfy this functional graph:
+Preview v2 improved density and functional grouping, but the overall plan remained too efficient and diagrammatic:
+
+- essentially two large rectangular rooms;
+- Family reduced to one generic open area;
+- spatial history/domestic subdivision missing;
+- plants still not fully plausible as human furnishing;
+- one plant obscured wall furniture;
+- hologram crowded the controlled door threshold;
+- the room outline remained too rectangular.
+
+The next pass therefore changes **topology**, not merely prop coordinates.
+
+---
+
+# 4. Layout v3 spatial thesis
+
+The level should read as a sequence of places:
 
 ```text
-ENTRY / PUBLIC APPROACH
-        ↓
-FAMILY WAITING / PERSONAL AREA
-  ├─ Family Table
-  ├─ Memory Console
-  ├─ Coffee / convenience
-  ├─ plants
-  └─ bench / storage / personal traces
+DOMESTIC CLUSTER
+  living / family room
+  + small child room
+  + small hygiene/bathroom room
         │
-        │ SOFT TRANSITION — family remains present for Transfer
+        │ short domestic connection
         ↓
-TRANSFER RITUAL / HERO AREA
-  ├─ Transfer apparatus / Core focus
-  ├─ hologram / control
-  ├─ diagnostic/service support
-  └─ Flow / body-position system
-        │
-        │ HARD CONTROLLED THRESHOLD
-        ↓
-PRIMUS ALLOCATION / WORK SYSTEM
-  ├─ aligned system consoles
-  ├─ body/service banks
-  ├─ robot work positions
-  └─ controlled route onward
+MAIN HALL
+  ├────────→ PRIMUS ALLOCATION / WORK ROOM
+  │             controlled door
+  │
+  └────────↓
+         TRANSFER ROOM
+         destination / ritual / hero chamber
 ```
 
-This graph is more important than keeping three equal visual columns.
+This intentionally rejects the old horizontal `Family | Transfer | PRIMUS` panel layout.
 
----
-
-# 6. Binding TS-01 spatial decisions from the new level-design rules
-
-## 6.1 Keep the larger room
-
-Do not shrink the room merely to imitate the reference screenshot.
-
-Instead:
-
-- increase purposeful edge density;
-- preserve generous central movement;
-- use different boundary types and furnishing logic to create zones.
-
-## 6.2 Family → Transfer is a soft boundary
-
-This is the most important new structural decision.
-
-The family is present during the Transfer rite. There is no strong access/security/privacy reason for a hard wall between Family and Transfer.
-
-Therefore the current Family-side north/south wall returns should be **removed in the next layout revision**.
-
-Family → Transfer should be communicated using:
-
-- furniture orientation;
-- different density;
-- plants / edge objects;
-- local floor/light treatment later;
-- visual opening toward the Transfer hero.
-
-If later live QA proves that Family needs a real architectural niche, it should be a **functional built-in bay/recess** that houses furniture/infrastructure, not a free wall stub.
-
-## 6.3 Transfer → PRIMUS remains a hard boundary
-
-The existing divider and controlled door have an actual function:
-
-- transition from public/ritual Transfer space to allocation/control;
-- access/control change;
-- story meaning;
-- route gating.
-
-Keep this structural distinction unless gameplay/story changes.
-
-## 6.4 Use symmetry semantically
-
-Do not make all three room regions equally symmetrical.
-
-Desired pattern:
+## Rationality gradient
 
 ```text
-FAMILY    asymmetric, lived-in, clustered
-TRANSFER  strongest local symmetry and visual focus
-PRIMUS    ordered, aligned, modular — not necessarily mirror-symmetric
+Family dwelling  → adapted, subdivided, a little inefficient
+Hall             → connective, legible, restrained
+Transfer room    → deliberate destination, strongest local symmetry
+PRIMUS room      → efficient, aligned, modular
 ```
 
-Transfer may use a strong axis around the hero apparatus because ritual/machine precision justify it.
-
-Family should deliberately resist that precision.
-
-PRIMUS should feel systematized through repeated alignment and service modules rather than through a perfect mirrored room.
-
 ---
 
-# 7. Concrete next layout revision — TS-01 Composition Preview v2
+# 5. Layout v3 topology — composition blockout
 
-This is the next bounded level-design pass to implement before producing more final props.
+The map bounding canvas may expand to approximately **25 × 20 tiles**. The playable footprint should not fill that rectangle.
 
-## 7A — Remove unsupported architecture
+## 5.1 Living / Family room — north-west
 
-### Remove
-
-- `family-return-north` wall/collision;
-- `family-return-south` wall/collision;
-- corresponding Family-side divider markers at column 6.
-
-### Preserve
-
-- outer wall system;
-- Transfer→PRIMUS divider at column 12;
-- existing controlled doorway;
-- accepted wall material and semantic atlas.
-
-### Goal
-
-The room should stop reading as three equal bays. Family and Transfer become one public/ritual volume with differentiated furnishing; PRIMUS remains the structurally controlled region.
-
----
-
-## 7B — Family zone: make one believable lived-in cluster
-
-### Anchor
-
-**Family Table** remains the primary Family anchor.
-
-It should continue to sit away from the wall enough to allow use around it, but surrounding secondary items should explain the zone.
-
-### Upper/north-west edge cluster
-
-Use the upper/left architecture as the supported edge for:
-
-- Memory Console;
-- Coffee Machine;
-- one plant where it does not overlap the zone label;
-- optional low storage/support blockout if needed.
-
-The exact sequence does not need perfect alignment; mild asymmetry is desirable.
-
-Coffee Machine remains wall-backed with access from below.
-
-### Lower/west edge cluster
-
-Group:
-
-- planter trough;
-- waiting bench / low seating blockout;
-- low storage / personal bag / side table blockout.
-
-The planter should no longer read as a standalone decorative token. It should soften or terminate the seating/storage cluster.
-
-### Plant rule for TS-01
-
-Both plants should visually belong to:
-
-- a wall/corner;
-- or a furniture cluster immediately adjacent to a wall.
-
-No plant should sit in primary circulation or underneath floating UI/signage.
-
-### Family negative space
-
-Keep a clear route between Family Table and Transfer. Do not fill the entire lower-left floor just because placeholders are available.
-
----
-
-## 7C — Transfer zone: build one functional machine cluster
-
-### Anchor
-
-Transfer apparatus remains the dominant room hero and should own the strongest local symmetry/negative space.
-
-### Hologram
-
-Move the Hologram Pedestal into **direct functional proximity** to the Transfer apparatus.
-
-Preferred relationship:
-
-- approximately one tile from the apparatus visual footprint;
-- east/north-east or west/north-west support position depending runtime clearance;
-- clearly oriented/aligned as part of the same cluster;
-- not placed against a distant wall if it is meant to control the machine.
-
-### Diagnostic/support placeholders
-
-Reposition relevant dashed SVG blockouts so they become one of two things:
-
-1. **machine-adjacent support device** close to the Transfer hero; or
-2. **wall-backed support bank** with a visible FloorFX/data/power relationship to the hero.
-
-Do not leave a diagnostic console floating at the north wall while the supposed machine it controls is several tiles away with no connection.
-
-### Visual connection
-
-In this composition pass, proximity/alignment should already communicate the relationship.
-
-In PASS 3, strengthen it with one restrained visual connector such as:
-
-- floor registration/data path;
-- support pad;
-- Flow routing treatment;
-- controlled local lighting relation.
-
-Do not add decorative cables everywhere.
-
-### Hero breathing space
-
-Support devices should frame the Transfer apparatus, not crowd it.
-
-Keep the main approach and circular read unobstructed.
-
----
-
-## 7D — PRIMUS zone: use aligned wall density, not center clutter
-
-PRIMUS currently has useful open patrol space. Preserve that.
-
-Increase visual information primarily on:
-
-- north wall;
-- east wall / right-side edge;
-- selected work/docking positions.
-
-Use SVG blockout modules to preview:
-
-- wall/service console bank;
-- body-slot/service cabinet;
-- compact workstation/support module;
-- optional docking/parking marker tied to robot work.
-
-PRIMUS blockouts should be:
-
-- aligned;
-- repeated/modular;
-- more grid-disciplined than Family;
-- wall-backed wherever plausible.
-
-Do not sprinkle generic machinery into the center of the patrol area.
-
----
-
-## 7E — Reinterpret the dashed SVG assets
-
-The dashed outline successfully communicates “placeholder”, but their spatial roles need to be clearer.
-
-For Composition Preview v2 each placed placeholder must have a name/function and placement class:
+Approximate blockout box:
 
 ```text
-FAMILY_WALL_BENCH        wall-backed / lower-west
-FAMILY_LOW_STORAGE       wall-backed / near bench/table
-FAMILY_PERSONAL_BAG      adjacent to seating/table, deliberately slightly irregular
-TRANSFER_DIAGNOSTIC      machine-adjacent
-TRANSFER_SERVICE_BANK    wall-backed but visibly related to hero
-PRIMUS_SERVICE_BANK      wall-backed / aligned
-PRIMUS_BODY_SUPPORT      wall-backed or docking-edge aligned
+left 1 / top 1 / right 8 / bottom 7
 ```
 
-Unused placeholder cells may remain in the atlas, but do not place them merely for density.
+Purpose:
 
----
+- main family waiting/living area;
+- Family Table anchor;
+- Memory Console and Coffee Machine on supported wall edges;
+- personal furnishing and one wall-adjacent plant.
 
-# 8. Composition Preview v2 acceptance criteria
+Rules:
 
-The next layout passes only when:
+- keep generous use space around the table;
+- Coffee Machine stays upper-wall backed, accessed from below;
+- no plant in front of Memory Console/Coffee/storage;
+- long planter should sit genuinely near the left wall or terminate a furniture run;
+- do not make the living room perfectly symmetrical.
 
-## Architecture
+## 5.2 Child room — south-west pocket
 
-- no wall exists whose only justification is “break the rectangle”;
-- Family→Transfer reads open and natural;
-- Transfer→PRIMUS still reads as a meaningful controlled threshold.
-
-## Symmetry
-
-- Transfer owns the strongest local symmetry;
-- Family reads intentionally asymmetric/lived-in;
-- PRIMUS reads orderly/modular;
-- the whole room no longer looks like three equal decorated columns.
-
-## Family
-
-- plants are wall/cluster-adjacent;
-- coffee remains accessible from below;
-- table, memory, coffee, plants and seating/storage read as one family environment rather than unrelated props;
-- no plant collides visually with signage.
-
-## Transfer
-
-- hologram clearly belongs to the Transfer apparatus through proximity/alignment;
-- diagnostic/support blockouts visibly serve the hero cluster;
-- hero object retains breathing room and approach clarity.
-
-## PRIMUS
-
-- wall edges carry more purposeful system density;
-- patrol/movement center remains open;
-- modular alignment contrasts with Family placement.
-
-## General
-
-- main circulation is obvious;
-- ordinary props do not occupy central circulation without a reason;
-- negative space looks intentional rather than unfinished;
-- room remains comfortable on desktop and phone.
-
----
-
-# 9. PASS 3 — Cohesion, grounding and final fidelity
-
-After Composition Preview v2 passes, proceed to production/cohesion rather than continuing endless blockout rearrangement.
-
-## 9A — Hero assets
-
-Complete production-quality treatment for:
-
-- Transfer apparatus / cradle;
-- Flow/support system;
-- relevant PRIMUS focal system.
-
-## 9B — Environment grounding
-
-- add missing Flow floor-projected shadow/grounding path;
-- review contact shadows as a system;
-- add restrained room-edge/contact grounding where useful.
-
-## 9C — Floor use/wear
-
-Add a separate reproducible restrained use/wear FloorFX treatment:
-
-- subtle scuffs;
-- faint edge grime;
-- slightly stronger wear near high-use machines/paths;
-- no post-apocalyptic dirt;
-- no noisy decal spam.
-
-## 9D — Fidelity convergence
-
-Re-evaluate:
-
-- door/threshold treatment;
-- architecture transitions;
-- signage frames;
-- hero interfaces;
-- remaining old placeholder props.
-
-Do not reopen LIVE_ACCEPTED Walls/Doors automatically. First solve fidelity through adjacent trims, hero framing and context. Reopen accepted categories only if a concrete mismatch remains and a bounded revision is approved.
-
-## 9E — Replace successful SVG placeholders
-
-Only placeholders that proved their value become final assets.
-
-For each:
-
-1. name its function;
-2. select production method;
-3. create/update recipe;
-4. produce source;
-5. source QA;
-6. production build/QA;
-7. runtime integration;
-8. live QA;
-9. remove blockout.
-
-Delete failed/unnecessary placeholders instead of producing them out of inertia.
-
----
-
-# 10. Gold Slice exit gate
-
-Do not declare TS-01 complete until:
+Approximate box:
 
 ```text
-STRUCTURE
-[ ] room size supports gameplay
-[ ] every significant architectural form has a function
-[ ] Family→Transfer uses an appropriate soft boundary
-[ ] Transfer→PRIMUS controlled threshold reads clearly
-[ ] circulation lanes are clear
-
-COMPOSITION
-[ ] Family reads lived-in and clustered
-[ ] Transfer reads focal and machine-coherent
-[ ] PRIMUS reads aligned/optimized
-[ ] useful negative space is deliberate
-[ ] related objects are adjacent or visibly connected
-
-HERO / FOCUS
-[ ] Transfer apparatus production-quality
-[ ] Flow/support production-quality
-[ ] relevant PRIMUS focal object production-quality
-
-GROUNDING
-[ ] major props have appropriate contact shadows
-[ ] Flow has its floor-projected grounding/path
-[ ] floor has restrained wear/use history
-
-FIDELITY
-[ ] floor / architecture / doors / props / hero objects feel like one game
-[ ] no glaring blockout/legacy-quality object remains
-
-NUMBERDROID IDENTITY
-[ ] CORE / SLOT hierarchy readable
-[ ] Family personal without becoming rustic
-[ ] Transfer desirable/empowering
-[ ] PRIMUS competent/controlled without generic villain styling
-
-RUNTIME
-[ ] tests/build/art validators green
-[ ] desktop live QA passed
-[ ] phone live QA passed
-[ ] user/art-director Gold Slice acceptance recorded
+left 1 / top 8 / right 5 / bottom 13
 ```
+
+Purpose:
+
+- prove that the family lived here rather than merely waited in a lobby;
+- add domestic layering and irregular outline;
+- introduce child-specific placeholder mass without committing final art.
+
+Blockout inventory:
+
+- small child bed;
+- toy/personal storage;
+- optional soft seat/object if composition needs it.
+
+This is a composition/story-space proof, not final child-room production art.
+
+## 5.3 Hygiene / bathroom pocket
+
+Approximate box:
+
+```text
+left 6 / top 8 / right 8 / bottom 12
+```
+
+Purpose:
+
+- make the dwelling read like habitation;
+- create a second small room that is functionally distinct from living/child space;
+- contribute to an irregular domestic cluster.
+
+Use a simple top-down hygiene placeholder only; do not solve detailed sanitary design during this pass.
+
+## 5.4 Main hall — central spine
+
+Approximate box:
+
+```text
+left 9 / top 3 / right 13 / bottom 13
+```
+
+Purpose:
+
+- connect domestic space, Transfer and PRIMUS;
+- create compression/release and staged reveal;
+- stop the level from reading as one open rectangle.
+
+Rules:
+
+- hall itself remains comparatively uncluttered;
+- no decorative prop should steal doorway clearance;
+- route to Transfer and PRIMUS should be immediately readable once inside the hall.
+
+## 5.5 PRIMUS allocation/work room — north-east
+
+Approximate box:
+
+```text
+left 14 / top 1 / right 23 / bottom 9
+```
+
+Purpose:
+
+- controlled system space;
+- aligned service consoles / body banks;
+- neutral and hostile robot activity;
+- efficient contrast to domestic layout.
+
+Access:
+
+- controlled vertical doorway from hall;
+- preserve visual breathing room on both sides of the door;
+- no hologram/plant/service prop immediately beside the threshold.
+
+Density:
+
+- wall-backed north/right/bottom modules;
+- open center for robot movement/patrol.
+
+## 5.6 Transfer room — south destination
+
+Approximate box:
+
+```text
+left 8 / top 14 / right 18 / bottom 19
+```
+
+Purpose:
+
+- destination chamber reached from the hall;
+- strongest focal composition;
+- Transfer apparatus / Flow / hologram / diagnostics form one coherent system.
+
+Rules:
+
+- Transfer apparatus owns the strongest local symmetry;
+- room remains larger/open around hero machinery;
+- hologram/control is placed close enough to read as part of Transfer, but away from the hall entrance/doorway clearance;
+- support consoles sit on room walls, not the doorway mouth;
+- Flow grounding/path remains later Gold Slice work.
 
 ---
 
-# 11. Next implementation block
+# 6. Connections and thresholds
 
-**Next:** Composition Preview v2 derived from `LEVEL_DESIGN_RULES.md`.
+## Living → Hall
 
-Implement only after this plan is accepted:
+- open domestic passage;
+- no controlled door required;
+- short transition may be framed by walls but should not feel security-gated.
 
-1. remove the unsupported Family north/south wall returns and collision;
-2. keep the PRIMUS divider/door;
-3. regroup Family props against north/west/south edges around the Family Table;
-4. ensure both plants are wall/furniture-cluster adjacent and clear of signage;
-5. move the hologram to direct Transfer-apparatus proximity;
-6. move/rename SVG blockout placements so each represents a named wall-backed or machine-adjacent function;
-7. add aligned PRIMUS wall/service blockouts while preserving patrol center;
-8. update regression tests for the new structural/placement contract;
-9. deploy as `COMPOSITION_PREVIEW`, not visual acceptance;
-10. perform desktop/mobile Art-Director QA before producing final replacements.
+## Living → Child / Bathroom
 
-PASS 3 Flow shadow, dirt/use-wear and final hero production remain deferred until Composition Preview v2 proves the spatial layout.
+- small domestic openings;
+- blockout may use open doorway gaps rather than adding production doors;
+- topology should suggest rooms without creating fiddly gameplay choke points.
+
+## Hall → Transfer
+
+- broad/open destination threshold;
+- no ordinary prop in the approach zone;
+- room reveal should make the Transfer hero visible after moving down the hall.
+
+## Hall → PRIMUS
+
+- hard controlled threshold;
+- existing Door system remains appropriate;
+- approximately one tile of visual breathing space should remain clear on each useful side.
+
+---
+
+# 7. Prop placement rules for Layout v3
+
+## Family plants
+
+- long planter: wall-adjacent, preferably left/west wall or end of a furniture run;
+- round plant: corner/edge support object;
+- neither plant may sit directly in front of wall furniture or block access/readability.
+
+## Coffee Machine
+
+- upper living-room wall;
+- access from below;
+- no plant blocking it.
+
+## Hologram
+
+- belongs to Transfer;
+- place in the Transfer room beside the hero/support system;
+- not beside the PRIMUS door or Hall→Transfer threshold.
+
+## SVG blockout props
+
+Use only where they answer room-function questions:
+
+- living bench/storage;
+- Transfer diagnostics/service bank;
+- PRIMUS service modules.
+
+A new small domestic blockout atlas may add:
+
+- child bed;
+- hygiene module;
+- toy/personal storage.
+
+These remain provisional.
+
+---
+
+# 8. Composition Preview v3 implementation block
+
+Implement now:
+
+1. expand map canvas as required by the irregular floor plan;
+2. replace the two-room topology with Living + Child + Bathroom + Hall + Transfer + PRIMUS volumes;
+3. use the accepted wall art to outline the rectangular component rooms where possible;
+4. use open doorway gaps / explicit walkable connectors rather than inventing meaningless wall stubs;
+5. reposition all existing Family/Transfer candidate props under the rules above;
+6. add the small domestic SVG blockout atlas;
+7. move Transfer hero placeholders into the new south room;
+8. move PRIMUS encounters/service dressing into the north-east room;
+9. update light-zone coordinates for the new Transfer room;
+10. update topology/traversal/door-clearance regression tests;
+11. deploy as **COMPOSITION PREVIEW v3**, not `LIVE_ACCEPTED`.
+
+---
+
+# 9. Composition Preview v3 live QA gate
+
+Judge:
+
+## Topology
+- does the level now feel like a sequence of places rather than two rectangles?
+- does the domestic cluster plausibly suggest living + child + hygiene functions?
+- is the overall silhouette/footprint visibly non-rectangular?
+
+## Human plausibility
+- are plants beside walls/corners/furniture rather than in front of wall furniture?
+- does the Family zone feel adapted/lived-in rather than optimized?
+
+## Circulation
+- is the Hall readable?
+- are all room connections comfortable?
+- does the PRIMUS door have breathing room on both sides?
+- is the Transfer entrance uncluttered?
+
+## Functional relationships
+- does the hologram clearly belong to Transfer?
+- do Transfer support pieces form one cluster?
+- does PRIMUS remain ordered without becoming a mirror-image showroom?
+
+## Gameplay scale
+- does the larger footprint still feel comfortable rather than empty?
+- are the additional square meters justified by pacing and spatial identity?
+
+Do not produce final child/bathroom assets until this topology passes live QA.
+
+---
+
+# 10. After Layout v3 topology passes
+
+Return to the broader Gold Slice completion work:
+
+1. final Transfer hero production;
+2. Flow support + floor-projected grounding/path;
+3. replace useful SVG placeholders with deliberate production assets;
+4. restrained floor dirt/use-wear pass;
+5. fidelity convergence for threshold/architecture/support details;
+6. desktop + phone final Gold Slice QA.
+
+Gold Slice acceptance still requires coherent architecture, floor, props, heroes, shadows, lighting and story identity. `Merged` remains different from `LIVE_ACCEPTED`.

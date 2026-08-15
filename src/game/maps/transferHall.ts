@@ -1,162 +1,239 @@
 import type { TiledMapJson } from "../tiled";
 
 const TILE = 64;
-const COLUMNS = 20;
-const ROWS = 12;
+const COLUMNS = 25;
+const ROWS = 20;
+
 type TileRect = { name: string; x: number; y: number; w: number; h: number };
-function prop(name: string, value: unknown, type: string = typeof value) { return { name, type, value }; }
+type Side = "top" | "bottom" | "left" | "right";
+type Opening = { side: Side; cells: number[] };
 
-const WALKABLE: TileRect[] = [{ name: "transfer-hall", x: 1, y: 1, w: 18, h: 10 }];
+type RoomBox = {
+  name: string;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  openings?: Opening[];
+};
 
-// 10 px structural wall cores. The accepted 30 px fascia remains visual-only.
-const WALL_THICKNESS = 10 / TILE;
-const DIVIDER_X = 12.5 - WALL_THICKNESS / 2;
+function prop(name: string, value: unknown, type: string = typeof value) {
+  return { name, type, value };
+}
+
+const ROOM_BOXES: RoomBox[] = [
+  {
+    name: "family-living",
+    left: 1,
+    top: 1,
+    right: 8,
+    bottom: 7,
+    openings: [
+      { side: "right", cells: [4, 5] },
+      { side: "bottom", cells: [2, 3, 7] },
+    ],
+  },
+  {
+    name: "family-child",
+    left: 1,
+    top: 8,
+    right: 5,
+    bottom: 13,
+    openings: [{ side: "top", cells: [2, 3] }],
+  },
+  {
+    name: "family-hygiene",
+    left: 6,
+    top: 8,
+    right: 8,
+    bottom: 12,
+    openings: [{ side: "top", cells: [7] }],
+  },
+  {
+    name: "main-hall",
+    left: 9,
+    top: 3,
+    right: 13,
+    bottom: 13,
+    openings: [
+      { side: "left", cells: [4, 5] },
+      { side: "right", cells: [4, 5] },
+      { side: "bottom", cells: [10, 11] },
+    ],
+  },
+  {
+    name: "primus-allocation",
+    left: 14,
+    top: 1,
+    right: 23,
+    bottom: 9,
+    openings: [{ side: "left", cells: [4, 5] }],
+  },
+  {
+    name: "transfer-room",
+    left: 8,
+    top: 14,
+    right: 18,
+    bottom: 19,
+    openings: [{ side: "top", cells: [10, 11] }],
+  },
+];
+
+const WALKABLE: TileRect[] = [
+  { name: "family-living", x: 1, y: 1, w: 7, h: 6 },
+  { name: "living-to-hall", x: 8, y: 4, w: 1, h: 2 },
+  { name: "family-child", x: 1, y: 8, w: 4, h: 5 },
+  { name: "living-to-child", x: 2, y: 7, w: 2, h: 1 },
+  { name: "family-hygiene", x: 6, y: 8, w: 2, h: 4 },
+  { name: "living-to-hygiene", x: 7, y: 7, w: 1, h: 1 },
+  { name: "main-hall", x: 9, y: 3, w: 4, h: 10 },
+  { name: "hall-to-primus", x: 13, y: 4, w: 1, h: 2 },
+  { name: "primus-allocation", x: 14, y: 1, w: 9, h: 8 },
+  { name: "hall-to-transfer", x: 10, y: 13, w: 2, h: 1 },
+  { name: "transfer-room", x: 8, y: 14, w: 10, h: 5 },
+];
+
 const OBSTACLES: TileRect[] = [
-  { name: "divider-north", x: DIVIDER_X, y: 1, w: WALL_THICKNESS, h: 4 },
-  { name: "divider-south", x: DIVIDER_X, y: 7, w: WALL_THICKNESS, h: 4 },
-  { name: "family-table-solid", x: 2.52, y: 4.58, w: 1.96, h: 0.82 },
-  { name: "family-display-protrusion", x: 3.25, y: 1.408125, w: 1.50, h: 0.56 },
+  { name: "family-table-solid", x: 2.52, y: 3.58, w: 1.96, h: 0.82 },
+  { name: "family-display-protrusion", x: 2.25, y: 1.408125, w: 1.50, h: 0.56 },
   { name: "family-coffee-machine-solid", x: 5.18, y: 1.52, w: 0.64, h: 0.82 },
-  { name: "family-planter-trough-solid", x: 2.18, y: 8.55, w: 0.64, h: 0.90 },
-  { name: "family-round-plant-solid", x: 6.20, y: 9.28, w: 0.60, h: 0.55 },
-  { name: "family-hologram-solid", x: 11.18, y: 4.22, w: 0.64, h: 0.62 },
-  { name: "transfer-cradle-core", x: 8.70, y: 4.70, w: 1.60, h: 1.60 },
-  { name: "primus-console-protrusion", x: 14.20, y: 1.08, w: 1.60, h: 0.58 },
-  { name: "body-slot-bank-protrusion", x: 16.20, y: 1.08, w: 1.60, h: 0.58 },
+  { name: "family-planter-trough-solid", x: 1.18, y: 9.55, w: 0.64, h: 0.90 },
+  { name: "family-round-plant-solid", x: 6.20, y: 6.28, w: 0.60, h: 0.55 },
+  { name: "family-hologram-solid", x: 10.18, y: 16.22, w: 0.64, h: 0.62 },
+  { name: "transfer-cradle-core", x: 11.70, y: 15.70, w: 1.60, h: 1.60 },
+  { name: "primus-console-protrusion", x: 17.20, y: 1.08, w: 1.60, h: 0.58 },
+  { name: "body-slot-bank-protrusion", x: 20.20, y: 1.08, w: 1.60, h: 0.58 },
 ];
 
 const layer = () => Array.from({ length: COLUMNS * ROWS }, () => 0);
-function setCell(target: number[], col: number, row: number, gid: number) { target[row * COLUMNS + col] = gid; }
+function setCell(target: number[], col: number, row: number, gid: number) {
+  target[row * COLUMNS + col] = gid;
+}
 function block(target: number[], col: number, row: number, gids: number[], width: number) {
-  gids.forEach((gid, i) => setCell(target, col + i % width, row + Math.floor(i / width), gid));
+  gids.forEach((gid, i) => setCell(target, col + (i % width), row + Math.floor(i / width), gid));
+}
+function openingHas(room: RoomBox, side: Side, cell: number) {
+  return room.openings?.some((opening) => opening.side === side && opening.cells.includes(cell)) ?? false;
 }
 
 const ground = layer();
-for (let row = 1; row <= 10; row += 1) {
-  for (let col = 1; col <= 18; col += 1) {
-    const service = col >= 7 && col <= 11 && row >= 3 && row <= 8 && (col + row) % 4 === 0;
-    setCell(ground, col, row, service ? 2 : 1);
+for (const room of ROOM_BOXES) {
+  for (let row = room.top; row <= room.bottom; row += 1) {
+    for (let col = room.left; col <= room.right; col += 1) setCell(ground, col, row, 1);
+  }
+}
+for (let row = 2; row <= 8; row += 1) {
+  for (let col = 15; col <= 22; col += 1) {
+    if ((col + row) % 5 === 0) setCell(ground, col, row, 2);
+  }
+}
+for (let row = 15; row <= 18; row += 1) {
+  for (let col = 9; col <= 17; col += 1) {
+    if ((col + row) % 5 === 0) setCell(ground, col, row, 2);
   }
 }
 
-// Architecture contains semantic geometry markers only.
 const architecture = layer();
-for (let col = 2; col <= 17; col += 1) {
-  setCell(architecture, col, 1, 81);
-  setCell(architecture, col, 10, 82);
+function drawRoom(room: RoomBox) {
+  for (let col = room.left + 1; col < room.right; col += 1) {
+    if (!openingHas(room, "top", col)) setCell(architecture, col, room.top, 81);
+    if (!openingHas(room, "bottom", col)) setCell(architecture, col, room.bottom, 82);
+  }
+  for (let row = room.top + 1; row < room.bottom; row += 1) {
+    if (!openingHas(room, "left", row)) setCell(architecture, room.left, row, 83);
+    if (!openingHas(room, "right", row)) setCell(architecture, room.right, row, 84);
+  }
+  setCell(architecture, room.left, room.top, 85);
+  setCell(architecture, room.right, room.top, 86);
+  setCell(architecture, room.right, room.bottom, 87);
+  setCell(architecture, room.left, room.bottom, 88);
 }
-for (let row = 2; row <= 9; row += 1) {
-  setCell(architecture, 1, row, 83);
-  setCell(architecture, 18, row, 84);
-}
-setCell(architecture, 1, 1, 85);
-setCell(architecture, 18, 1, 86);
-setCell(architecture, 18, 10, 87);
-setCell(architecture, 1, 10, 88);
+ROOM_BOXES.forEach(drawRoom);
 
-// Family → Transfer stays a soft boundary. The only internal hard divider is the
-// functionally justified controlled threshold into PRIMUS allocation.
-setCell(architecture, 12, 1, 90);
-setCell(architecture, 12, 2, 89);
-setCell(architecture, 12, 3, 89);
-setCell(architecture, 12, 4, 92);
-setCell(architecture, 12, 7, 93);
-setCell(architecture, 12, 8, 89);
-setCell(architecture, 12, 9, 89);
-setCell(architecture, 12, 10, 91);
-
-// FloorFX is strictly floor-projected non-light FX.
 const floorFx = layer();
-block(floorFx, 3, 1, [175,176], 2);
-block(floorFx, 5, 1, [179,180], 1);
-block(floorFx, 2, 4, [167,168,169,170,171,172], 3);
-block(floorFx, 2, 8, [183,184], 1);
-setCell(floorFx, 6, 9, 186);
-setCell(floorFx, 11, 4, 188);
-block(floorFx, 9, 7, [112,113,114,115], 2);
-block(floorFx, 14, 6, [116,117,118,119], 2);
+block(floorFx, 2, 1, [175, 176], 2);
+block(floorFx, 5, 1, [179, 180], 1);
+block(floorFx, 2, 3, [167, 168, 169, 170, 171, 172], 3);
+block(floorFx, 1, 9, [183, 184], 1);
+setCell(floorFx, 6, 6, 186);
+setCell(floorFx, 10, 16, 188);
+block(floorFx, 14, 16, [112, 113, 114, 115], 2);
+block(floorFx, 18, 6, [116, 117, 118, 119], 2);
 
 const wallProps = layer();
-block(wallProps, 3, 1, [173,174], 2);
-block(wallProps, 5, 1, [177,178], 1);
-
-// Composition-only SVG blockout masses are attached to the walls they serve.
-// Family is intentionally asymmetric; Transfer uses the strongest local axis;
-// PRIMUS gains aligned service density without filling its patrol floor.
-block(wallProps, 3, 10, [189,190], 2);   // Family lower-wall bench
-block(wallProps, 5, 10, [193,194], 2);   // Family lower-wall storage
-block(wallProps, 9, 1, [191,192], 2);    // Transfer upper-wall diagnostics
-block(wallProps, 9, 10, [197,198], 2);   // Transfer lower-wall service bank
-setCell(wallProps, 13, 1, 199);           // PRIMUS compact utility module
-block(wallProps, 14, 1, [131,132], 2);
-block(wallProps, 16, 1, [133,134], 2);
-block(wallProps, 15, 10, [197,198], 2);   // PRIMUS lower service bank
+block(wallProps, 2, 1, [173, 174], 2);
+block(wallProps, 5, 1, [177, 178], 1);
+block(wallProps, 15, 14, [191, 192], 2);
+block(wallProps, 11, 19, [197, 198], 2);
+setCell(wallProps, 15, 1, 199);
+block(wallProps, 17, 1, [131, 132], 2);
+block(wallProps, 20, 1, [133, 134], 2);
+block(wallProps, 18, 9, [197, 198], 2);
 
 const floorProps = layer();
-block(floorProps, 2, 4, [161,162,163,164,165,166], 3);
-block(floorProps, 2, 8, [181,182], 1);
-setCell(floorProps, 6, 9, 185);
-setCell(floorProps, 11, 4, 187);
-
-// Family personal traces stay attached to the lower wall-backed cluster.
-setCell(floorProps, 3, 9, 196); // small side table
-setCell(floorProps, 5, 9, 195); // personal bag / soft clutter
-
-block(floorProps, 8, 4, [141,142,143,144,145,146,147,148,149], 3);
-block(floorProps, 9, 7, [150,151,152,153], 2);
-block(floorProps, 14, 6, [154,155,156,157], 2);
+block(floorProps, 2, 3, [161, 162, 163, 164, 165, 166], 3);
+block(floorProps, 1, 9, [181, 182], 1);
+setCell(floorProps, 6, 6, 185);
+setCell(floorProps, 5, 5, 195);
+block(floorProps, 2, 10, [201, 202], 2);
+setCell(floorProps, 7, 9, 203);
+setCell(floorProps, 4, 11, 204);
+block(floorProps, 11, 15, [141, 142, 143, 144, 145, 146, 147, 148, 149], 3);
+setCell(floorProps, 10, 16, 187);
+block(floorProps, 14, 16, [150, 151, 152, 153], 2);
 
 function rectObjects(rects: TileRect[], firstId: number) {
-  return rects.map((r,i)=>({id:firstId+i,name:r.name,x:r.x*TILE,y:r.y*TILE,width:r.w*TILE,height:r.h*TILE}));
+  return rects.map((r, i) => ({ id: firstId + i, name: r.name, x: r.x * TILE, y: r.y * TILE, width: r.w * TILE, height: r.h * TILE }));
 }
 
 const rooms = [
-  { id:210,name:"family-niche",x:2*TILE,y:2*TILE,width:5*TILE,height:7*TILE,properties:[prop("label","FAMILIENBEREICH","string"),prop("subtitle","PERSÖNLICHE DINGE · KEIN ZUGEWIESENER ZWECK","string")] },
-  { id:211,name:"transfer-zone",x:7*TILE,y:2*TILE,width:5*TILE,height:7*TILE,properties:[prop("label","TRANSFER","string"),prop("subtitle","CORE → SLOT · KÖRPERWAHL","string")] },
-  { id:212,name:"machine-exit",x:13*TILE,y:2*TILE,width:5*TILE,height:8*TILE,properties:[prop("label","PRIMUS-ZUTEILUNG","string"),prop("subtitle","ROLLEN · ROUTEN · ARBEIT","string")] },
+  { id: 210, name: "family-living", x: 2 * TILE, y: 2 * TILE, width: 5 * TILE, height: 4 * TILE, properties: [prop("label", "FAMILIENBEREICH", "string"), prop("subtitle", "WOHNEN · PERSÖNLICHE DINGE", "string")] },
+  { id: 211, name: "transfer-room", x: 9 * TILE, y: 15 * TILE, width: 8 * TILE, height: 3 * TILE, properties: [prop("label", "TRANSFER", "string"), prop("subtitle", "CORE → SLOT · KÖRPERWAHL", "string")] },
+  { id: 212, name: "primus-allocation", x: 15 * TILE, y: 2 * TILE, width: 7 * TILE, height: 6 * TILE, properties: [prop("label", "PRIMUS-ZUTEILUNG", "string"), prop("subtitle", "ROLLEN · ROUTEN · ARBEIT", "string")] },
 ];
 
 const encounters = [
-  { id:300,name:"MAGNETAR 742",x:17.2*TILE,y:3.65*TILE,properties:[prop("encounterId","ts01-utility","string"),prop("enemyId","magnetar","string"),prop("bodyId","magnetar","string"),prop("mode","add-easy","string"),prop("mathLabel","+ ZIEL 6","string"),prop("difficulty","easy","string"),prop("mathRole","comfort","string"),prop("retreatX",16.2*TILE,"float"),prop("retreatY",3.7*TILE,"float"),prop("behavior","neutral","string"),prop("patrolSpeed",42,"float"),prop("patrolPath","1060,228;1130,228;1130,280;1060,280","string"),prop("storyIntro","Ein normaler Arbeitskörper. Blau zeigt: Er gehört weder dir noch einem Gegner – er arbeitet einfach hier.","string")] },
-  { id:301,name:"SENTRY-4",x:15.7*TILE,y:9.35*TILE,properties:[prop("encounterId","ts01-guard","string"),prop("enemyId","sentry","string"),prop("bodyId","sentry","string"),prop("mode","add-easy","string"),prop("mathLabel","+ ZIEL 6","string"),prop("difficulty","easy","string"),prop("mathRole","comfort","string"),prop("retreatX",15.4*TILE,"float"),prop("retreatY",8.9*TILE,"float"),prop("behavior","patrol","string"),prop("patrolSpeed",64,"float"),prop("interceptRadius",80,"float"),prop("patrolPath","960,600;1110,600;1110,640;960,640","string"),prop("storyIntro","Rot bedeutet Gegenkontrolle. Derselbe Körper würde nach erfolgreicher Übernahme als Spieler grün gelesen.","string")] },
+  { id: 300, name: "MAGNETAR 742", x: 20.2 * TILE, y: 4.1 * TILE, properties: [prop("encounterId", "ts01-utility", "string"), prop("enemyId", "magnetar", "string"), prop("bodyId", "magnetar", "string"), prop("mode", "add-easy", "string"), prop("mathLabel", "+ ZIEL 6", "string"), prop("difficulty", "easy", "string"), prop("mathRole", "comfort", "string"), prop("retreatX", 19.2 * TILE, "float"), prop("retreatY", 4.1 * TILE, "float"), prop("behavior", "neutral", "string"), prop("patrolSpeed", 42, "float"), prop("patrolPath", "1160,250;1390,250;1390,350;1160,350", "string"), prop("storyIntro", "Ein normaler Arbeitskörper. Blau zeigt: Er gehört weder dir noch einem Gegner – er arbeitet einfach hier.", "string")] },
+  { id: 301, name: "SENTRY-4", x: 18.0 * TILE, y: 7.0 * TILE, properties: [prop("encounterId", "ts01-guard", "string"), prop("enemyId", "sentry", "string"), prop("bodyId", "sentry", "string"), prop("mode", "add-easy", "string"), prop("mathLabel", "+ ZIEL 6", "string"), prop("difficulty", "easy", "string"), prop("mathRole", "comfort", "string"), prop("retreatX", 17.5 * TILE, "float"), prop("retreatY", 7.0 * TILE, "float"), prop("behavior", "patrol", "string"), prop("patrolSpeed", 64, "float"), prop("interceptRadius", 80, "float"), prop("patrolPath", "1000,450;1370,450;1370,520;1000,520", "string"), prop("storyIntro", "Rot bedeutet Gegenkontrolle. Derselbe Körper würde nach erfolgreicher Übernahme als Spieler grün gelesen.", "string")] },
 ];
 
 export const TRANSFER_HALL_MAP: TiledMapJson = {
-  orientation:"orthogonal", infinite:false, width:COLUMNS, height:ROWS, tilewidth:TILE, tileheight:TILE,
-  properties:[prop("floorId","transfer-hall","string"),prop("floorName","TS-01 · TRANSFER HALL","string"),prop("subtitle","GOLD SLICE · COMPOSITION PREVIEW V2","string"),prop("objectiveDefault","ERKUNDE FAMILIE → TRANSFER → PRIMUS-ZUTEILUNG","string"),prop("objectiveAfterEnergy","ERKUNDE DEN TRANSFERBEREICH","string")],
-  tilesets:[
-    {firstgid:1,image:"/assets/deck/transfer-hall-tiles.png",tilewidth:TILE,tileheight:TILE,tilecount:4,columns:4,margin:0,spacing:0},
-    {firstgid:81,image:"/assets/deck/transfer-hall-architecture.png",tilewidth:TILE,tileheight:TILE,tilecount:16,columns:4,margin:0,spacing:0},
-    {firstgid:97,image:"/assets/deck/transfer-hall-floorfx.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
-    {firstgid:129,image:"/assets/deck/transfer-hall-props.png",tilewidth:TILE,tileheight:TILE,tilecount:32,columns:4,margin:0,spacing:0},
-    {firstgid:161,image:"/assets/deck/family-table-props.png",tilewidth:TILE,tileheight:TILE,tilecount:6,columns:3,margin:0,spacing:0},
-    {firstgid:167,image:"/assets/deck/family-table-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:6,columns:3,margin:0,spacing:0},
-    {firstgid:173,image:"/assets/deck/family-memory-console.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:2,margin:0,spacing:0},
-    {firstgid:175,image:"/assets/deck/family-memory-console-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:2,margin:0,spacing:0},
-    {firstgid:177,image:"/assets/deck/family-coffee-machine.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:1,margin:0,spacing:0},
-    {firstgid:179,image:"/assets/deck/family-coffee-machine-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:1,margin:0,spacing:0},
-    {firstgid:181,image:"/assets/deck/family-planter-trough.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:1,margin:0,spacing:0},
-    {firstgid:183,image:"/assets/deck/family-planter-trough-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:2,columns:1,margin:0,spacing:0},
-    {firstgid:185,image:"/assets/deck/family-round-plant.png",tilewidth:TILE,tileheight:TILE,tilecount:1,columns:1,margin:0,spacing:0},
-    {firstgid:186,image:"/assets/deck/family-round-plant-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:1,columns:1,margin:0,spacing:0},
-    {firstgid:187,image:"/assets/deck/family-hologram-pedestal.png",tilewidth:TILE,tileheight:TILE,tilecount:1,columns:1,margin:0,spacing:0},
-    {firstgid:188,image:"/assets/deck/family-hologram-pedestal-shadow.png",tilewidth:TILE,tileheight:TILE,tilecount:1,columns:1,margin:0,spacing:0},
-    {firstgid:189,image:"/assets/deck/ts01-gold-slice-blockout-props.svg",tilewidth:TILE,tileheight:TILE,tilecount:12,columns:4,margin:0,spacing:0},
+  orientation: "orthogonal", infinite: false, width: COLUMNS, height: ROWS, tilewidth: TILE, tileheight: TILE,
+  properties: [prop("floorId", "transfer-hall", "string"), prop("floorName", "TS-01 · TRANSFER HALL", "string"), prop("subtitle", "GOLD SLICE · LAYOUT V3 PREVIEW", "string"), prop("objectiveDefault", "ERKUNDE WOHNEN → HALLE → TRANSFER / PRIMUS", "string"), prop("objectiveAfterEnergy", "ERKUNDE DEN TRANSFERBEREICH", "string")],
+  tilesets: [
+    { firstgid: 1, image: "/assets/deck/transfer-hall-tiles.png", tilewidth: TILE, tileheight: TILE, tilecount: 4, columns: 4, margin: 0, spacing: 0 },
+    { firstgid: 81, image: "/assets/deck/transfer-hall-architecture.png", tilewidth: TILE, tileheight: TILE, tilecount: 16, columns: 4, margin: 0, spacing: 0 },
+    { firstgid: 97, image: "/assets/deck/transfer-hall-floorfx.png", tilewidth: TILE, tileheight: TILE, tilecount: 32, columns: 4, margin: 0, spacing: 0 },
+    { firstgid: 129, image: "/assets/deck/transfer-hall-props.png", tilewidth: TILE, tileheight: TILE, tilecount: 32, columns: 4, margin: 0, spacing: 0 },
+    { firstgid: 161, image: "/assets/deck/family-table-props.png", tilewidth: TILE, tileheight: TILE, tilecount: 6, columns: 3, margin: 0, spacing: 0 },
+    { firstgid: 167, image: "/assets/deck/family-table-shadow.png", tilewidth: TILE, tileheight: TILE, tilecount: 6, columns: 3, margin: 0, spacing: 0 },
+    { firstgid: 173, image: "/assets/deck/family-memory-console.png", tilewidth: TILE, tileheight: TILE, tilecount: 2, columns: 2, margin: 0, spacing: 0 },
+    { firstgid: 175, image: "/assets/deck/family-memory-console-shadow.png", tilewidth: TILE, tileheight: TILE, tilecount: 2, columns: 2, margin: 0, spacing: 0 },
+    { firstgid: 177, image: "/assets/deck/family-coffee-machine.png", tilewidth: TILE, tileheight: TILE, tilecount: 2, columns: 1, margin: 0, spacing: 0 },
+    { firstgid: 179, image: "/assets/deck/family-coffee-machine-shadow.png", tilewidth: TILE, tileheight: TILE, tilecount: 2, columns: 1, margin: 0, spacing: 0 },
+    { firstgid: 181, image: "/assets/deck/family-planter-trough.png", tilewidth: TILE, tileheight: TILE, tilecount: 2, columns: 1, margin: 0, spacing: 0 },
+    { firstgid: 183, image: "/assets/deck/family-planter-trough-shadow.png", tilewidth: TILE, tileheight: TILE, tilecount: 2, columns: 1, margin: 0, spacing: 0 },
+    { firstgid: 185, image: "/assets/deck/family-round-plant.png", tilewidth: TILE, tileheight: TILE, tilecount: 1, columns: 1, margin: 0, spacing: 0 },
+    { firstgid: 186, image: "/assets/deck/family-round-plant-shadow.png", tilewidth: TILE, tileheight: TILE, tilecount: 1, columns: 1, margin: 0, spacing: 0 },
+    { firstgid: 187, image: "/assets/deck/family-hologram-pedestal.png", tilewidth: TILE, tileheight: TILE, tilecount: 1, columns: 1, margin: 0, spacing: 0 },
+    { firstgid: 188, image: "/assets/deck/family-hologram-pedestal-shadow.png", tilewidth: TILE, tileheight: TILE, tilecount: 1, columns: 1, margin: 0, spacing: 0 },
+    { firstgid: 189, image: "/assets/deck/ts01-gold-slice-blockout-props.svg", tilewidth: TILE, tileheight: TILE, tilecount: 12, columns: 4, margin: 0, spacing: 0 },
+    { firstgid: 201, image: "/assets/deck/ts01-domestic-blockout-props.svg", tilewidth: TILE, tileheight: TILE, tilecount: 4, columns: 4, margin: 0, spacing: 0 },
   ],
-  layers:[
-    {id:1,name:"Ground",type:"tilelayer",width:COLUMNS,height:ROWS,data:ground,opacity:1,visible:true},
-    {id:2,name:"FloorFX",type:"tilelayer",width:COLUMNS,height:ROWS,data:floorFx,opacity:1,visible:true},
-    {id:3,name:"Architecture",type:"tilelayer",width:COLUMNS,height:ROWS,data:architecture,opacity:1,visible:true},
-    {id:4,name:"WallProps",type:"tilelayer",width:COLUMNS,height:ROWS,data:wallProps,opacity:1,visible:true},
-    {id:5,name:"FloorProps",type:"tilelayer",width:COLUMNS,height:ROWS,data:floorProps,opacity:1,visible:true},
-    {id:10,name:"Start",type:"objectgroup",objects:[{id:100,name:"player-start",x:7.35*TILE,y:6.45*TILE,properties:[prop("bodyId","pico","string"),prop("facing",90,"float"),prop("metaEnergy",0,"int")]}]},
-    {id:11,name:"Walkable",type:"objectgroup",objects:rectObjects(WALKABLE,110)},
-    {id:12,name:"Obstacles",type:"objectgroup",objects:rectObjects(OBSTACLES,130)},
-    {id:13,name:"Rooms",type:"objectgroup",objects:rooms},
-    {id:14,name:"Doors",type:"objectgroup",objects:[{id:240,name:"transfer-threshold",x:12*TILE,y:5*TILE,width:TILE,height:2*TILE,properties:[prop("orientation","vertical","string"),prop("mode","auto","string"),prop("size","large","string"),prop("openRadius",150,"float"),prop("label","ZUTEILUNG","string")]}]},
-    {id:15,name:"EnergyStations",type:"objectgroup",objects:[]},
-    {id:16,name:"Encounters",type:"objectgroup",objects:encounters},
-    {id:17,name:"Pickups",type:"objectgroup",objects:[]},
-    {id:18,name:"Actions",type:"objectgroup",objects:[]},
+  layers: [
+    { id: 1, name: "Ground", type: "tilelayer", width: COLUMNS, height: ROWS, data: ground, opacity: 1, visible: true },
+    { id: 2, name: "FloorFX", type: "tilelayer", width: COLUMNS, height: ROWS, data: floorFx, opacity: 1, visible: true },
+    { id: 3, name: "Architecture", type: "tilelayer", width: COLUMNS, height: ROWS, data: architecture, opacity: 1, visible: true },
+    { id: 4, name: "WallProps", type: "tilelayer", width: COLUMNS, height: ROWS, data: wallProps, opacity: 1, visible: true },
+    { id: 5, name: "FloorProps", type: "tilelayer", width: COLUMNS, height: ROWS, data: floorProps, opacity: 1, visible: true },
+    { id: 10, name: "Start", type: "objectgroup", objects: [{ id: 100, name: "player-start", x: 6.0 * TILE, y: 5.4 * TILE, properties: [prop("bodyId", "pico", "string"), prop("facing", 90, "float"), prop("metaEnergy", 0, "int")] }] },
+    { id: 11, name: "Walkable", type: "objectgroup", objects: rectObjects(WALKABLE, 110) },
+    { id: 12, name: "Obstacles", type: "objectgroup", objects: rectObjects(OBSTACLES, 130) },
+    { id: 13, name: "Rooms", type: "objectgroup", objects: rooms },
+    { id: 14, name: "Doors", type: "objectgroup", objects: [{ id: 240, name: "primus-threshold", x: 13 * TILE, y: 4 * TILE, width: TILE, height: 2 * TILE, properties: [prop("orientation", "vertical", "string"), prop("mode", "auto", "string"), prop("size", "large", "string"), prop("openRadius", 150, "float"), prop("label", "ZUTEILUNG", "string")] }] },
+    { id: 15, name: "EnergyStations", type: "objectgroup", objects: [] },
+    { id: 16, name: "Encounters", type: "objectgroup", objects: encounters },
+    { id: 17, name: "Pickups", type: "objectgroup", objects: [] },
+    { id: 18, name: "Actions", type: "objectgroup", objects: [] },
   ],
 };

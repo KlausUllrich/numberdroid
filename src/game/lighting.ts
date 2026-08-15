@@ -26,18 +26,23 @@ export type FloorLighting = {
 const TILE = 64;
 
 const TRANSFER_HALL_LIGHTING: FloorLighting = {
-  // Zones are room-interior illumination masks, not room rectangles. They start/end at the
-  // INNER wall faces so the overlay never paints wall pixels and never bleeds across the divider.
+  // Layout v3: Transfer is now its own south destination room. The light mask is clipped
+  // to the room interior so the warm CORE light cannot spill into the hall/void/walls.
   zones: [
-    { id: "transfer-left", x: TILE + 8, y: TILE + 8, w: 724, h: 624 },
-    { id: "primus-right", x: 804, y: TILE + 8, w: 404, h: 624 },
+    {
+      id: "transfer-room",
+      x: 8 * TILE + 30,
+      y: 14 * TILE + 30,
+      w: 11 * TILE - 60,
+      h: 6 * TILE - 60,
+    },
   ],
   lights: [
     {
       id: "transfer-core",
-      zoneId: "transfer-left",
-      x: 9.5 * TILE,
-      y: 5.5 * TILE,
+      zoneId: "transfer-room",
+      x: 12.5 * TILE,
+      y: 16.5 * TILE,
       radiusX: 180,
       radiusY: 155,
       rgb: "246 184 75",

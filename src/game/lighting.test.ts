@@ -4,21 +4,25 @@ import { TRANSFER_HALL_MAP } from "./maps/transferHall";
 
 const TILE = 64;
 
-describe("Transfer Hall light overlay contract", () => {
-  it("clips room light to wall faces instead of bleeding through the divider", () => {
+describe("TS-01 Layout v3 light overlay contract", () => {
+  it("clips the warm CORE light to the south Transfer room", () => {
     const lighting = lightingForFloor("transfer-hall")!;
-    const left = lighting.zones.find((zone) => zone.id === "transfer-left")!;
-    const right = lighting.zones.find((zone) => zone.id === "primus-right")!;
-    expect(left.x + left.w).toBe(12.4375 * TILE);
-    expect(right.x).toBe(12.5625 * TILE);
-    expect(right.x - (left.x + left.w)).toBe(8);
+    expect(lighting.zones).toHaveLength(1);
+    const zone = lighting.zones[0];
+    expect(zone.id).toBe("transfer-room");
+    expect(zone.x).toBe(8 * TILE + 30);
+    expect(zone.y).toBe(14 * TILE + 30);
+    expect(zone.w).toBe(11 * TILE - 60);
+    expect(zone.h).toBe(6 * TILE - 60);
   });
 
-  it("keeps the Transfer source in its left-room occlusion zone", () => {
+  it("keeps the Transfer source inside its destination-room occlusion zone", () => {
     const lighting = lightingForFloor("transfer-hall")!;
-    const zone = lighting.zones.find((entry) => entry.id === "transfer-left")!;
+    const zone = lighting.zones.find((entry) => entry.id === "transfer-room")!;
     const light = lighting.lights.find((entry) => entry.id === "transfer-core")!;
     expect(light.zoneId).toBe(zone.id);
+    expect(light.x).toBe(12.5 * TILE);
+    expect(light.y).toBe(16.5 * TILE);
     expect(light.x).toBeGreaterThan(zone.x);
     expect(light.x).toBeLessThan(zone.x + zone.w);
     expect(light.y).toBeGreaterThan(zone.y);
