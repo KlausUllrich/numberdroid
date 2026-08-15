@@ -1,7 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { FloorDefinition } from "../game/types";
-import doorCss from "./DoorLayer.css?raw";
 import { DoorLayer } from "./DoorLayer";
 
 const floor: FloorDefinition = {
@@ -35,18 +34,15 @@ const floor: FloorDefinition = {
 };
 
 describe("Transfer Hall Door visual contract", () => {
-  it("wraps moving leaves in a dedicated aperture clip and renders no status text", () => {
+  it("clips moving leaves at the aperture and renders no status text", () => {
     const html = renderToStaticMarkup(
       <DoorLayer floor={floor} openDoorIds={new Set(["transfer-threshold"])} accessKeyIds={[]} />,
     );
     expect(html).toContain("leaf-clip");
+    expect(html).toContain("overflow:hidden");
     expect(html).toContain("panel-a");
     expect(html).toContain("panel-b");
     expect(html).not.toContain("ZUTEILUNG");
     expect(html).not.toContain("OPEN");
-  });
-
-  it("clips the Transfer Hall leaf container at the exact door aperture", () => {
-    expect(doorCss).toMatch(/data-floor-id="transfer-hall"[^}]*\.zk-door \.leaf-clip\s*\{[^}]*overflow:hidden;/s);
   });
 });
