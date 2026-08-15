@@ -65,7 +65,7 @@ const familyMemoryConsole = readTextSafePng({
   name: "TS-01 Family Memory Console",
   directory: familyPropsSourceDir,
   prefix: "family-memory-console-runtime.b64.",
-  expectedChunks: 1,
+  expectedChunks: 4,
   expectedBytes: 3892,
   expectedSha256: "7b3546264f6007884f395383b6db4cd25cdf1c67db45c325cf9026d298eefd5c",
   expectedWidth: 128,
