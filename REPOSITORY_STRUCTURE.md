@@ -61,21 +61,7 @@ art-source/
 
 ### `art-source/recipes/` — preferred source of truth
 
-Every revisited/new production art category should get a recipe folder containing the information needed to reproduce or deliberately revise the asset:
-
-```text
-art-source/recipes/<world>/<asset>/
-├─ recipe.md
-├─ geometry.svg                 # when deterministic geometry applies
-├─ collision-core.svg           # optional
-├─ material-reference.md        # optional
-├─ prompt.md                    # optional
-├─ render-recipe.json           # optional compositor settings
-├─ topology.json                # optional modular semantics
-└─ reference.*                  # optional, only when appropriate to store
-```
-
-The recipe states which method owns geometry, material, topology, finishing and QA.
+Every revisited/new production art category should get one recipe folder with the information needed to reproduce or deliberately revise the asset. The recipe states which method owns geometry, material, topology, finishing and QA.
 
 ### `flow-vorlagen/`
 
@@ -89,16 +75,19 @@ Transitional storage used to reconstruct binary assets safely during builds. It 
 
 Contains repeatable processing and validation code.
 
-Preferred organization as the toolset grows:
-
 ```text
 scripts/
-├─ art/                         # reusable art/compositor helpers
-├─ validation/                  # reusable validators
+├─ art/
+│  └─ toolkit/                  # reusable method-agnostic art-processing primitives
+├─ validation/                  # reusable validators as this area grows
 └─ <small project-specific scripts>
 ```
 
-A production recipe may reference a script, but reusable mechanics should not be duplicated inside individual recipe folders.
+Rules:
+- reusable deterministic mechanics belong under `scripts/art/toolkit/` when they are shared by multiple methods/categories;
+- production recipes may reference toolkit code but must not duplicate generic mechanics;
+- asset-specific topology/settings remain with `art-source/recipes/`;
+- model calls/prompts belong to methods/skills or recipes, not inside low-level deterministic toolkit modules.
 
 ## `docs/` — documentation taxonomy
 
@@ -106,88 +95,42 @@ A production recipe may reference a script, but reusable mechanics should not be
 docs/
 ├─ README.md                    # documentation index
 ├─ agents/
-│  ├─ REPOSITORY_WORKFLOW.md
-│  └─ GAMEPLAY_AND_ENGINEERING_RULES.md
 ├─ architecture/
 ├─ game-design/
 ├─ story/
 ├─ planning/
 ├─ decisions/
 ├─ art/
-│  ├─ direction/
-│  ├─ production/
-│  └─ transfer-hall/
-├─ art-production-methods/
+├─ art-production-methods/      # when/why; authority model and workflow selection
+├─ art-production-toolkit/      # what reusable tools can do and how to call them
 └─ history/
-   ├─ handoffs/
-   ├─ experiments/
-   └─ art-pipeline-legacy/
 ```
 
 ### `docs/agents/`
 
 Durable rules agents must follow. These are mandatory after `AGENTS.md` and this structure file.
 
-### `docs/architecture/`
+### `docs/architecture/`, `game-design/`, `story/`, `planning/`, `decisions/`
 
-Current software, map, data and runtime architecture contracts. Examples: Tiled map contract, robot body sizing, application architecture.
-
-### `docs/game-design/`
-
-Current gameplay design and progression rules: encounters, learning profiles, menus, campaign/gameplay progression.
-
-### `docs/story/`
-
-World, fiction and narrative progression contracts.
-
-### `docs/planning/`
-
-Forward-looking development plans. Plans are subordinate to current code/contracts and should be revised rather than multiplied when they become stale.
-
-### `docs/decisions/`
-
-Cross-cutting durable decision records.
+Current software/map contracts, gameplay design, world/story, forward plans and durable cross-cutting decisions respectively.
 
 ### `docs/art/`
 
-Current art-direction and production contracts.
-
-- `direction/` — what the world should look/feel like;
-- `production/` — cross-category art production/QA rules;
-- `transfer-hall/` — TS-01-specific layer, wall, floor and Gold-Slice contracts.
-
-Asset-specific reproducible source still belongs in `art-source/recipes/`, not in `docs/art/`.
+Current art-direction and production contracts. Asset-specific reproducible source still belongs in `art-source/recipes/`, not in `docs/art/`.
 
 ### `docs/art-production-methods/` — method catalog
 
-The canonical catalog for choosing **how** an art problem should be produced.
+The canonical catalog for choosing **how an art problem should be produced and which stage owns which property**. Method-specific skills live beside their method under `skill/`.
 
-Each method may contain:
+### `docs/art-production-toolkit/` — reusable tool catalog
 
-```text
-<method>/
-├─ README.md
-├─ research/
-├─ scripts/
-├─ demos/
-├─ materials/
-├─ schemas/
-└─ skill/                       # optional method-specific agent skill(s)
-```
+The canonical inventory for deterministic reusable art-processing capabilities. It documents each tool's status, inputs, outputs, authority, limitations, usage and QA.
 
-Method-specific skills live here because a skill is an executable/operational specialization of a method, not a universal art authority.
-
-Current methods include direct generative source, controlled art pass, layered raster editor/MCP, and procedural 2D compositor. Add methods when a genuinely different authority model is needed rather than stretching one workflow to every asset type.
+Methods may compose several tools. A tool is not a method: background removal, mask operations, connector canonicalization or periodic-edge validation are reusable operations and should not create new production-method families by themselves.
 
 ### `docs/history/`
 
-Historical material is preserved for learning but **is not handlungsleitend/current authority**.
-
-- `handoffs/` — old session/agent handoffs and prompts;
-- `experiments/` — dated experiments, breakthroughs and rejected/obsolete approaches;
-- `art-pipeline-legacy/` — superseded duplicate art-pipeline handbook retained temporarily so unique learnings can be harvested before deletion.
-
-A current document may cite history as evidence, but a new agent must not treat a history file as the latest status merely because it contains confident language.
+Historical material is preserved for learning but is not current authority. A current document may cite history as evidence, but new agents must not treat historical confident language as latest status.
 
 ## Root documentation policy
 
@@ -203,33 +146,21 @@ Everything else belongs under `docs/` or `art-source/` according to ownership.
 
 ## Current authority examples
 
-For Transfer Hall art:
+For art production:
 
 ```text
-visual direction
-  → docs/art/direction/ART_DIRECTION_TRANSFER_SHIP.md
-
-cross-category production/QA
-  → docs/art/production/
-
-method selection
-  → docs/art-production-methods/README.md
-
-TS-01 category contract
-  → docs/art/transfer-hall/
-
-asset reproducibility
-  → art-source/recipes/transfer-hall/<asset>/
-
-runtime output
-  → public/assets/...
+art direction        → docs/art/
+method selection     → docs/art-production-methods/
+reusable mechanics   → docs/art-production-toolkit/ + scripts/art/toolkit/
+asset reproducibility→ art-source/recipes/
+runtime output       → public/assets/...
 ```
 
 ## Move / rename discipline
 
 When reorganizing files:
 
-1. move information without changing its meaning unless the change is deliberate;
+1. move information without changing its meaning unless deliberate;
 2. update current cross-references in the same PR;
 3. do not mix gameplay behavior changes into a structure-only PR;
 4. run tests/build even for documentation moves because build scripts may reference files;
@@ -239,6 +170,4 @@ When reorganizing files:
 
 ## Branch and PR history
 
-Branches/PRs are development history, not repository information architecture. Do not keep stale files merely because an old PR references their old path. Git history preserves the old layout.
-
-Open PRs that predate a major structure change should be discussed individually: rebase/retarget, absorb their unique content into the new structure, or close as superseded. Do not blindly merge an old documentation PR after paths have been reorganized.
+Branches/PRs are development history, not repository information architecture. Open PRs that predate a major structure change should be discussed individually: rebase/retarget, absorb unique content into the new structure, or close as superseded.
