@@ -1,6 +1,6 @@
 # M4 — Procedural 2D Compositor
 
-Status: **preferred next method for modular Transfer Hall architecture**
+Status: **PROVEN / LIVE_ACCEPTED for TS-01 modular walls**
 
 ## Purpose
 
@@ -12,11 +12,11 @@ Build the final asset deterministically from:
 - deterministic shading rules;
 - optional semantic accents.
 
-The core insight is:
+Core insight:
 
 > The material source does not need to know where the wall ends. The compositor knows.
 
-This method stops asking an image model to simultaneously invent material, exact geometry and runtime neighbor semantics.
+This method stops asking an image model to simultaneously invent material, exact geometry and runtime-neighbor semantics.
 
 ## Authority model
 
@@ -27,33 +27,48 @@ This method stops asking an image model to simultaneously invent material, exact
 - semantic colors remain explicit;
 - runtime packing and QA remain deterministic.
 
-## Target wall pipeline
+## Proven TS-01 wall pipeline
 
 ```text
 semantic wall kit
 → geometry masks
 → connector/exposed-edge classification
-→ one calm graphite material texture
-→ texture mapping into all wall masks
+→ one calm graphite material field
+→ texture/material mapping into all wall masks
 → exposed-edge darkening / AO / restrained highlight
 → NO end treatment on connector boundaries
-→ real cap treatment only on CAP_UP / CAP_DOWN terminations
+→ real cap treatment only on genuine terminations
 → connector canonicalization / exact seam QA
 → runtime atlas
+→ live gameplay QA
 ```
 
-## Why this should produce calmer walls
+## Live validation — 2026-08-15
 
-All pieces can draw from the **same material field** rather than asking the model to paint thirteen separate objects. This naturally reduces per-tile framing and visual noise.
+M4 was implemented for the complete 13-piece TS-01 wall kit and reviewed in the public Transfer Hall at gameplay scale.
 
-The visible construction language is then applied consistently by code:
+Accepted result:
 
-- homogeneous graphite body;
-- broad low-frequency material variation;
-- controlled darker outer contour;
-- optional subtle inner highlight;
-- AO/contact depth where architecturally justified;
-- zero artificial cap/outline across runtime connector boundaries.
+- 30 px visible fascia with unchanged 10 px collision core;
+- wall mass fits the reference target;
+- architecture reads homogeneous and visually subordinate;
+- no visible T-junction/connector defects were observed;
+- semantic seam canonicalization keeps required connector strips exact.
+
+This changes M4 from an experiment into a **production-proven Numberdroid method for modular architecture with hidden topology semantics**.
+
+Acceptance record: `../../art/transfer-hall/TRANSFER_HALL_WALL_COMPOSITOR_ACCEPTANCE_2026-08-15.md`.
+
+## Why it produces calmer modular architecture
+
+All pieces can draw from the same material family rather than asking a model to paint separate framed objects. The construction language is applied consistently by code:
+
+- homogeneous material body;
+- broad low-frequency surface variation;
+- controlled darker exposed contour;
+- optional restrained inner highlight;
+- AO/contact depth where justified;
+- zero artificial cap/outline across runtime connectors.
 
 ## Edge semantics
 
@@ -66,9 +81,7 @@ TRUE_CAP_EDGE
 OPTIONAL_EFFECT_EDGE
 ```
 
-A tile's raw alpha silhouette is **not enough** to derive this information. For example, the left border of `H_TOP` is part of the isolated tile silhouette but is a runtime connector, not an architectural end.
-
-This classification must come from the semantic kit/topology contract.
+A tile's raw alpha silhouette is not enough. A cell-boundary edge may be part of the isolated silhouette while actually being a runtime continuation. Classification must come from semantic topology.
 
 ## Inputs
 
@@ -78,37 +91,15 @@ A mature recipe can use:
 geometry.svg
 collision-core.svg               # optional
 render-recipe.json
-material-base.png
-material-variant-*.png            # optional
+material-base.png                # optional authored/generated material
+material-variant-*.png           # optional
+topology.json                    # optional when not embedded in recipe
 material-reference.md
 ```
 
 `render-recipe.json` should reference stable semantic tile names, not inferred occupancy alone.
 
-## Proposed render-recipe responsibilities
-
-Example conceptual fields:
-
-```json
-{
-  "runtimeTile": 64,
-  "material": "graphite-transfer-ship-v1",
-  "materialMapping": "world-continuous",
-  "edges": {
-    "outerDarkPx": 3,
-    "aoPx": 4,
-    "innerHighlightPx": 1,
-    "connectorTreatment": "none"
-  },
-  "connectors": "transfer-hall-wall-kit-v1"
-}
-```
-
-The exact schema should evolve from implementation rather than being over-designed before the prototype.
-
 ## Material mapping modes
-
-The compositor should eventually support more than one mapping strategy:
 
 ### World-continuous
 
@@ -128,7 +119,7 @@ Deterministic offsets/rotations/low-frequency overlays vary repeated assets with
 
 ## Shading passes
 
-Candidate deterministic passes, applied only through masks:
+Candidate deterministic passes:
 
 1. base material fill;
 2. low-frequency value normalization;
@@ -141,14 +132,14 @@ Candidate deterministic passes, applied only through masks:
 9. alpha restore;
 10. runtime packing.
 
-Every pass must be independently inspectable during development.
+Every pass should remain independently inspectable during development.
 
 ## QA
 
-M4 should enable stronger automated QA than M1/M2 alone:
+M4 enables strong automated QA:
 
 - dimensions and atlas order;
-- geometry mask equality;
+- geometry-mask equality;
 - connector seam equality;
 - negative-control seam metric;
 - accidental alpha outside mask;
@@ -156,7 +147,7 @@ M4 should enable stronger automated QA than M1/M2 alone:
 - repeated assembly renders;
 - deterministic output hash for fixed inputs/settings.
 
-Visual QA remains mandatory; automation does not decide whether the art is beautiful.
+Visual QA remains mandatory; automation does not decide whether the art is good.
 
 ## Good fits
 
@@ -166,22 +157,20 @@ Visual QA remains mandatory; automation does not decide whether the art is beaut
 - sockets and floor interfaces;
 - repeated consoles/panels with fixed geometry;
 - materialized UI/environment frames;
-- potentially floor tiles when their art can be decomposed into material + deterministic marks.
+- potentially floor tiles when their art decomposes into material + deterministic marks.
 
 ## Poor fits
 
 - expressive characters;
 - unique organic forms;
-- objects whose appeal depends primarily on hand-painted shape invention;
-- final hero paint-over that needs local artistic judgment.
+- objects whose appeal depends primarily on free-form shape invention;
+- final hero paint-over requiring local artistic judgment.
 
 Use M1 or M3 for those categories, possibly feeding results into M4 as textures/components.
 
-## First prototype target
+## Proven development sequence
 
-Do **not** begin with the complete Transfer Hall atlas.
-
-Prototype in this order:
+The TS-01 proof succeeded by expanding in this order:
 
 ```text
 1. H_TOP
@@ -192,10 +181,8 @@ Prototype in this order:
 6. live Transfer Hall
 ```
 
-Acceptance for the first prototype:
+This sequence should be reused when adapting M4 to a new modular category: prove one simple element and one assembly before generating a complete kit.
 
-- wall material reads calmer and more homogeneous than Walls v2;
-- connectors contain no false end-outline;
-- true exposed edges retain stable visual depth;
-- a three-tile run reads as one continuous architectural wall;
-- output is deterministic and reproducible.
+## Next validation target
+
+**Doors / door pockets / thresholds** are the next useful M4 test. They should prove whether the method generalizes beyond Walls while moving door leaves and runtime behavior remain separate systems.
