@@ -3,28 +3,45 @@ import { pointWalkable } from "./save";
 
 const TILE = 64;
 
-describe("Transfer Hall Slice 0 traversal contract", () => {
-  it("keeps the allocation doorway clear on approach, threshold and exit", () => {
-    const y = 6 * TILE;
-    expect(pointWalkable(11.45*TILE,y,"transfer-hall",18)).toBe(true);
-    expect(pointWalkable(12.5*TILE,y,"transfer-hall",18)).toBe(true);
-    expect(pointWalkable(13.55*TILE,y,"transfer-hall",18)).toBe(true);
+describe("TS-01 Layout v3 traversal contract", () => {
+  it("connects the living room to the main hall through a broad domestic opening", () => {
+    const y = 4.7 * TILE;
+    expect(pointWalkable(7.4 * TILE, y, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(8.5 * TILE, y, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(9.5 * TILE, y, "transfer-hall", 18)).toBe(true);
   });
 
-  it("makes the divider physically thin instead of a full tile slab", () => {
-    const y = 3 * TILE;
-    expect(pointWalkable(12.20*TILE,y,"transfer-hall",8)).toBe(true);
-    expect(pointWalkable(12.50*TILE,y,"transfer-hall",8)).toBe(false);
-    expect(pointWalkable(12.80*TILE,y,"transfer-hall",8)).toBe(true);
+  it("connects the living room to the child and hygiene pockets", () => {
+    expect(pointWalkable(3.0 * TILE, 6.5 * TILE, "transfer-hall", 14)).toBe(true);
+    expect(pointWalkable(3.0 * TILE, 7.5 * TILE, "transfer-hall", 14)).toBe(true);
+    expect(pointWalkable(3.0 * TILE, 8.5 * TILE, "transfer-hall", 14)).toBe(true);
+
+    expect(pointWalkable(7.0 * TILE, 6.5 * TILE, "transfer-hall", 12)).toBe(true);
+    expect(pointWalkable(7.0 * TILE, 7.5 * TILE, "transfer-hall", 12)).toBe(true);
+    expect(pointWalkable(7.0 * TILE, 8.6 * TILE, "transfer-hall", 12)).toBe(true);
   });
 
-  it("keeps intentional floor pads driveable", () => {
-    expect(pointWalkable(10*TILE,8*TILE,"transfer-hall",18)).toBe(true);
-    expect(pointWalkable(14.4*TILE,6.8*TILE,"transfer-hall",18)).toBe(true);
+  it("connects the hall to both the controlled PRIMUS room and the south Transfer room", () => {
+    const primusY = 4.7 * TILE;
+    expect(pointWalkable(12.5 * TILE, primusY, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(13.5 * TILE, primusY, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(14.5 * TILE, primusY, "transfer-hall", 18)).toBe(true);
+
+    const transferX = 10.7 * TILE;
+    expect(pointWalkable(transferX, 12.4 * TILE, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(transferX, 13.5 * TILE, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(transferX, 14.6 * TILE, "transfer-hall", 18)).toBe(true);
   });
 
-  it("blocks only the solid Transfer Cradle core", () => {
-    expect(pointWalkable(9.5*TILE,5.5*TILE,"transfer-hall",18)).toBe(false);
-    expect(pointWalkable(8.30*TILE,5.5*TILE,"transfer-hall",12)).toBe(true);
+  it("keeps void outside the irregular floor plan non-walkable", () => {
+    expect(pointWalkable(11 * TILE, 1.5 * TILE, "transfer-hall", 12)).toBe(false);
+    expect(pointWalkable(4 * TILE, 16 * TILE, "transfer-hall", 12)).toBe(false);
+    expect(pointWalkable(22 * TILE, 16 * TILE, "transfer-hall", 12)).toBe(false);
+  });
+
+  it("blocks the Transfer Cradle core while preserving circulation around it", () => {
+    expect(pointWalkable(12.5 * TILE, 16.5 * TILE, "transfer-hall", 18)).toBe(false);
+    expect(pointWalkable(9.3 * TILE, 16.5 * TILE, "transfer-hall", 12)).toBe(true);
+    expect(pointWalkable(16.4 * TILE, 16.5 * TILE, "transfer-hall", 12)).toBe(true);
   });
 });
