@@ -1,18 +1,52 @@
 # Numberdroid — Artist Agent Workflow
 
-Status: **binding role/process contract for visual asset production**
+Status: **binding cross-method role/process contract for visual asset production**
 
-This document supplements `ART_ASSET_VALIDATION_RULES.md` and `ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`. When rules overlap, the stricter rule wins.
+This document defines the workflow shared by all Numberdroid art-production methods. It does **not** prescribe one rendering technique. Select the production method first from `docs/art-production-methods/README.md` and `METHOD_SELECTION_GATE.md`.
+
+Companion QA documents:
+
+- `docs/art/production/ART_ASSET_VALIDATION_RULES.md`
+- `docs/art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
+
+When rules overlap, the stricter rule wins.
 
 ## Role
 
-The Artist agent turns approved art direction and runtime constraints into production-ready gameplay assets. It is not a mood-board or presentation-board role unless the user explicitly requests concept exploration.
+The Artist agent turns approved art direction and runtime constraints into production-ready gameplay assets. It is not a mood-board or presentation-board role unless concept exploration is explicitly requested.
 
-The Artist owns source generation, source inspection, deterministic extraction, production-file QA, runtime-scale QA, map-context QA, integration and live visual verification.
+The Artist owns:
+
+- task preparation;
+- method selection;
+- source generation/authoring;
+- source inspection;
+- deterministic extraction/composition where required;
+- production-file QA;
+- runtime-scale/map-context QA;
+- integration;
+- live visual verification;
+- updating the asset recipe after acceptance.
+
+## Required authority declaration
+
+Before production begins, state:
+
+```text
+ASSET CATEGORY
+RUNTIME REQUIREMENTS
+GEOMETRY AUTHORITY
+MATERIAL AUTHORITY
+EDGE / TOPOLOGY AUTHORITY
+SELECTED METHOD / HYBRID
+KNOWN FAILURE MODE TO WATCH
+```
+
+Do not begin by invoking an image tool merely because the asset is visual.
 
 ## Asset Task Card
 
-Before generating an asset category, establish:
+Before generating or authoring an asset category, establish:
 
 ```text
 CATEGORY
@@ -20,320 +54,191 @@ TARGET FILE
 RUNTIME SIZE / GRID
 PERSPECTIVE
 BACKGROUND / ALPHA
-PALETTE
-SEMANTIC COLOURS
+PALETTE / SEMANTIC COLOURS
 ALLOWED CONTENT
 FORBIDDEN CONTENT
 MAP / GID CONTEXT
-EXTRACTION PLAN
+SOURCE / RECIPE PATH
+EXTRACTION OR COMPOSITION PLAN
 QA TESTS
 ```
 
-The Task Card is a production constraint. **It must never be rendered into the image.**
+The Task Card is a production constraint. It must never be rendered into production pixels.
 
-## Production prompt rule
+## Method selection gate
 
-A production prompt describes only the visible asset itself. Never request titles, legends, checklists, palette swatches, technical specifications, self-check text, captions, numbered labels, UI panels, presentation frames, file metadata or art-direction notes inside a production image.
+Choose from the current method catalog:
 
-Do not use `infographic`, `documentation board`, `self check`, `labelled atlas`, `presentation sheet` or equivalent wording in a production-generation prompt.
+- **M1 Direct Generative Source** — characters, concepts, isolated props, hero-source exploration;
+- **M2 Controlled Art Pass** — deterministic silhouette + material/realism edit where hidden topology is not the dominant problem;
+- **M3 Layered Raster Editor / MCP** — supervised retouch, local masks, complex hero finishing;
+- **M4 Procedural 2D Compositor** — exact modular geometry/topology with shared materials and deterministic edge treatment.
 
-A multi-frame sheet is allowed only when the asset itself requires it, e.g. an eight-direction turnaround. It still contains sprites only, with no documentation.
+Methods may be combined. The recipe must state which stage owns each property.
 
-## One category per generation
+Method-specific details belong in the method folder and optional method skill, not in this cross-method workflow.
 
-Each generation solves one asset category only. No bonus content and no mixing modular assets with hero assets.
+## Recipe gate
 
-## State machine
+Before the first production-generation/edit pass for a category, create or update:
+
+`art-source/recipes/<world>/<asset>/recipe.md`
+
+A recipe should preserve enough information to reproduce or deliberately revise the accepted asset without relying on chat history.
+
+Do not invent fake SVG geometry merely to satisfy a template. `PLANNED` is better than false authority.
+
+## Shared state machine
 
 ```text
 PREPARED
-→ SOURCE_GENERATED
-→ SOURCE_INSPECTED
-→ SOURCE_ACCEPTED
-→ PRODUCTION_EXTRACTED
-→ PRODUCTION_INSPECTED
+→ METHOD_SELECTED
+→ SOURCE_READY
+→ SOURCE_QA_PASSED
+→ PRODUCTION_BUILT
+→ PRODUCTION_QA_PASSED
 → RUNTIME_INTEGRATED
 → LIVE_QA_PASSED
+→ RECIPE_UPDATED
 → MERGE_READY
 ```
 
-A failed state cannot advance.
+Method-specific workflows may add intermediate states. A failed state cannot silently advance.
+
+## Production prompt rule
+
+When generation is used, the production prompt describes the visible source/material/asset only. Do not request titles, legends, checklists, self-check text, technical specifications, palette boards, UI furniture or documentation inside production pixels.
+
+A multi-frame sheet is allowed only when the asset itself requires it, e.g. an eight-direction turnaround.
+
+## One category per production pass
+
+Do not mix unrelated categories in one generation merely to save calls. In particular, do not combine ordinary Floor, Walls, Doors, Props, Hero setpieces and Characters in one source sheet unless the recipe explicitly defines them as one authored asset.
 
 ## Image-generation turn boundary — binding
 
-`image_gen` creates a user-visible turn boundary: after the image is generated, that assistant turn ends with the image and cannot rely on a normal explanatory message afterward.
-
-The Artist must therefore never plan generation + visible QA commentary in the same assistant turn.
+When ChatGPT image generation is used, generation creates a user-visible turn boundary.
 
 Required behavior:
 
-1. before `image_gen`, state that exactly one source will be generated and the next assistant response will begin with QA;
-2. call `image_gen` exactly once;
-3. do not regenerate or integrate in that turn;
-4. on the next user turn, inspect the generated image before doing anything else;
-5. report `PASS` or `FAIL` with concrete reasons;
-6. only after `PASS` may extraction or GitHub integration begin.
-
-The absence of commentary immediately after the image is a known tool boundary, not a QA pass. The pre-generation message must make this explicit so the tool boundary does not look like a hang.
+1. state what single source/edit is being generated;
+2. call image generation once;
+3. do not silently regenerate or integrate in the same turn;
+4. on the next user turn, inspect the generated result before advancing.
 
 ### `QA` is a hard no-generation command
 
-If the user says `QA`, `prüfen`, `check`, or otherwise asks to inspect the existing image, **do not call image generation**. QA means: inspect the currently existing source, report PASS/FAIL, and stop unless the user explicitly requests the next generation step.
+If the user says `QA`, `prüfen`, `check`, or otherwise asks to inspect an existing image:
 
-## Mandatory stop after every generation
-
-After every generated image, the next Artist action is inspection — never another generation and never integration.
-
-1. open the actual image;
-2. inspect it at useful scale;
-3. compare it with the Task Card and validation rules;
-4. assign PASS or FAIL;
-5. if FAIL, identify concrete reasons before changing the next prompt.
-
-No silent retry loops.
+- **do not call image generation**;
+- inspect the existing source/asset;
+- report PASS/FAIL with concrete reasons;
+- stop unless the user explicitly requests the next production step.
 
 ## Source QA
 
-A source passes only when it contains exactly the requested category, perspective is correct, palette and semantic colours are correct, variants are meaningfully distinct, extraction boundaries are unambiguous, nothing important is clipped, unwanted environment/background/light is not baked in, no hero asset is mixed into a modular sheet, no documentation text is rendered, and the art plausibly survives runtime downscaling.
+A source passes only when it is suitable input for the selected method and recipe.
+
+Check, as relevant:
+
+- requested category only;
+- correct perspective;
+- correct semantic colour language;
+- useful alpha/background;
+- meaningful variant separation;
+- no unintended clipping;
+- no unwanted baked environment/lighting;
+- no documentation text in production pixels;
+- plausible survival at runtime scale;
+- edit/control target actually respected when the method requires one.
 
 Attractive but invalid art is still invalid.
 
-## Controlled Art Pass — deterministic geometry + generative material
+## Production build / extraction
 
-For assets where exact geometry, grid alignment, repeatability, connector positions or collision correspondence matter, **do not ask image generation to invent the production geometry**.
+Generated or painted source material is not automatically the runtime asset.
 
-Use this pipeline instead:
+Build the production asset according to the selected method:
 
-```text
-SEMANTIC SPEC
-→ DETERMINISTIC SVG MASTER
-→ RASTER GUIDE AT GENERATION CANVAS SIZE
-→ GUIDE QA
-→ IMAGE EDIT / MATERIAL PASS
-→ ART-PASS QA
-→ ORIGINAL MASK RESTORE
-→ CONNECTOR-GUARD RESTORE
-→ DOWNSCALE TO RUNTIME SIZE
-→ PRODUCTION QA
-→ LIVE QA
-```
+- exact crop/extraction;
+- deterministic mask/geometry restoration;
+- procedural composition;
+- semantic connector/cap treatment;
+- alpha cleanup;
+- exact atlas/frame order;
+- controlled downscale;
+- runtime packaging.
 
-This pipeline was proven viable on the Transfer Hall `H_TOP` wall test on 2026-08-14: a flat deterministic horizontal wall guide could be transformed into materially rich graphite/metal wall art. The generated art did not preserve exact dimensions or every alpha pixel, so **the generative output is material source, not authoritative geometry**.
+The selected method defines which operations are authoritative.
 
-### 1. Semantic spec first
+## Production QA
 
-Define every required piece and its exact function before drawing or generating anything. For modular kits, list the required cells by stable name and runtime ID.
+Inspect the actual final production file, not only the source image.
 
-### 2. Deterministic SVG is the geometry master
+Verify as relevant:
 
-Build the silhouette programmatically as SVG or another exact vector/mask representation.
+- exact dimensions and grid;
+- exact cell/frame count/order;
+- alpha/background contract;
+- geometry/mask equality;
+- no bleed/stale rows/source text;
+- semantic colours;
+- connector/seam requirements;
+- repeated-neighborhood behavior;
+- gameplay-scale readability.
 
-The master owns:
+Automated measurements supplement visual QA; they do not decide whether the art is good.
 
-- exact runtime proportions;
-- exact wall/tile/sprite silhouette;
-- exact connector positions and widths;
-- exact cell boundaries;
-- exact reserved/empty cells;
-- cap/termination geometry where applicable.
+For modular seams, always pair a match metric with a negative control as defined in `SEMANTIC_CONNECTOR_CANONICALIZATION.md`.
 
-The SVG is **not final art**. It is a technical geometry contract.
+## Map-context / runtime-context QA
 
-### 3. Raster guide must already match the generation canvas
+For map-driven tiles inspect actual GID usage and placement semantics. Test repeated and mixed neighborhoods matching the real map.
 
-Do not give image generation a small guide and assume it will preserve proportions while freely resizing it.
+For characters inspect actual runtime frame selection/order and gameplay scale.
 
-Render the deterministic master directly to the intended image-generation canvas while preserving exact ratios.
+For props/setpieces inspect visual footprint, collision footprint, layer ownership and contact with the surrounding environment.
 
-Example for a single 64×64 wall tile with a 10 px wall band:
+Do not change map/game logic merely to rescue unsuitable art unless the design itself is being intentionally revised.
 
-```text
-runtime:      64×64, wall = 10 px
-edit canvas: 1024×1024
-scale:        16×
-guide wall:   160 px
-```
+## User / art-director gate
 
-For the complete 4×4 Transfer Hall wall atlas:
+The user is the art director for Gold Slice work. A new target look/category should pass internal QA before being presented as a candidate for approval.
 
-```text
-runtime atlas: 256×256
-4× guide:      1024×1024
-cell:           256×256
-wall:            40 px
-```
-
-The generation canvas must preserve the master aspect ratio.
-
-### 4. Show and QA the raster guide before image editing
-
-The raster guide must be visibly inspected before the material pass. Check dimensions, alpha, silhouette, connector edges and reserved cells.
-
-If the guide is wrong, fix the deterministic master. Do not try to repair incorrect geometry with image generation.
-
-### 5. Edit the visible guide; do not text-regenerate the asset
-
-For geometry-critical work, the guide should be made visible/available as the concrete edit target immediately before the image-edit call.
-
-The edit instruction should ask only for surface/material treatment, e.g.:
-
-- graphite/charcoal material;
-- believable panel construction;
-- restrained edge highlights;
-- controlled wear;
-- micro-detail that survives downscale.
-
-It must explicitly forbid new objects, labels, presentation boards, alternate layouts and geometry redesign.
-
-If the tool ignores the edit target and creates a new composition, mark the attempt **FAIL — edit target not respected**.
-
-### 6. Art-pass QA is different from production QA
-
-An art pass may PASS as **material proof** even when its exact pixel geometry does not yet pass production rules.
-
-Evaluate separately:
-
-```text
-MATERIAL / STYLE PROOF: PASS or FAIL
-PRODUCTION GEOMETRY:     PASS or FAIL
-```
-
-A material-proof PASS is allowed to continue only because deterministic mask restoration follows.
-
-### 7. Restore the original structural mask
-
-After a successful material pass, resample/crop the generated material into the deterministic guide coordinate system and reapply the original SVG-derived structural mask.
-
-Outside the structural mask: transparent.
-
-Inside the structural mask: generated material is retained.
-
-This removes stray alpha pixels, accidental shape growth and rounded/generated endpoints.
-
-### 8. Connector Guard Zones
-
-For modular assets, define guard zones at every connector edge. Guard zones are deterministic and override the generated output where necessary.
-
-A guard zone ensures adjacent pieces share:
-
-- identical thickness;
-- identical square cut at the boundary;
-- compatible material/value at the seam;
-- no rounded endpoint;
-- no bevel narrowing before the edge;
-- no accidental alpha gap.
-
-Connector compatibility is more important than preserving a locally attractive generated flourish.
-
-### 9. Optional Effect Envelope — future extension
-
-Do not solve this until the structural pipeline is stable.
-
-A future asset may use two masks:
-
-1. **Structural Mask** — exact collision/visual body that must remain deterministic.
-2. **Effect Envelope** — a small controlled area outside the body where contact shadow, AO or another non-structural effect may exist.
-
-This allows the useful subtle inner-edge/contact shadow seen in successful wall concepts without weakening connector precision. The effect envelope must never cross a modular connection boundary or change collision meaning.
-
-### 10. Downscale only after geometry restoration
-
-After mask and connector restoration, downscale to exact runtime dimensions with a deliberate filter and inspect the final pixels at 100%.
-
-Do not treat the large generative image as the runtime asset.
-
-## Controlled Art Pass — DO / DON'T
-
-### DO
-
-- define the semantic kit before generation;
-- create exact SVG/mask geometry first;
-- render the guide at the actual generation canvas size;
-- visibly QA the guide before editing;
-- use image generation for material, texture, construction detail and visual richness;
-- preserve a permanent geometry master independent of the generated result;
-- reapply the structural mask after generation;
-- normalize connector guard zones deterministically;
-- remove stray alpha pixels outside allowed masks;
-- downscale only after geometry is restored;
-- QA source, material proof, restored production asset and live integration separately;
-- keep accepted geometry templates under `art-source/flow-vorlagen/`.
-
-### DON'T
-
-- do not ask image generation to invent a precision atlas from text;
-- do not render specs, labels, legends or self-check instructions into production art;
-- do not trust a generated `64×64`, `10 px`, `4×4` claim merely because text in the image says so;
-- do not assume an edit target was respected — inspect the actual output;
-- do not use a low-resolution guide if the generator will resize it unpredictably;
-- do not accept rounded or capped connector edges because they look attractive in isolation;
-- do not let generative alpha define production geometry;
-- do not crop/mask a failed category or failed composition into something it was never intended to be;
-- do not add shadows outside structural geometry until an explicit Effect Envelope has been defined;
-- do not call `image_gen` during a QA-only turn;
-- do not silently regenerate after failure.
-
-## Production extraction and QA
-
-Generated images are source material, not production files. Crop deliberately, create alpha where required, normalize exact dimensions, preserve documented cell order and remove labels, presentation furniture and stale historical content.
-
-Then inspect the entire final production file and verify total dimensions, cell dimensions, cell count/order, alpha, no bleed, no stale rows, no source text and correct colour semantics.
-
-## Tile/map-context QA
-
-For map-driven tiles inspect actual GID usage, determine whether placement is contiguous/scattered/alternating/directional, test at least a 3×3 repeated patch, test a mixed neighborhood matching the real map, and inspect the actual room after integration.
-
-Do not use directional marks for a tile scattered without directional semantics. Do not change map logic merely to rescue unsuitable art.
-
-## Modular Floor versus Floor Hero assets
-
-These are separate asset classes.
-
-### Modular Floor
-
-Used repeatedly as ordinary walkable surface. It must survive arbitrary repetition and current map/GID placement.
-
-Current Transfer Hall contract:
-
-```text
-GID 1 — calm civilian ceramic base
-GID 2 — subtle non-directional service/SLOT variant
-GID 3 — contained graphite functional recess
-GID 4 — warm-amber CORE/SLOT socket
-
-4 columns × 1 row
-64 × 64 px per cell
-final PNG = exactly 256 × 64 px
-```
-
-A modular Floor source contains only four equally sized **single-tile** square candidates. Each candidate represents one 64×64 tile, not a 2×2 composition shown at larger scale.
-
-Reject sources with internal 2×2 tile boundaries, large multi-cell layouts, room fragments, vents spanning multiple cells, hero-sized sockets, or compositions that only work as 128×128 setpieces.
-
-### Floor Hero
-
-A deliberately authored multi-tile floor setpiece. A 2×2 Floor Hero may be 128×128 and split into four exact 64×64 runtime tiles. Floor Heroes are stored separately and do not replace the ordinary repeatable Floor atlas.
-
-Do not promote a failed modular Floor candidate into the normal Floor merely because it is attractive. It may be reclassified as Floor Hero only when its composition genuinely warrants deliberate multi-tile placement.
-
-## User/art-director gate
-
-The user is the art director for Gold Slice work. Failed sources must not be presented as accepted. A source establishing a new category/look should pass internal QA before visual approval.
+`CI green` and `merged` do not mean `visually accepted`.
 
 ## Integration gate
 
-Only after source and production QA pass: integrate, inspect the live room, verify gameplay scale/map context/layers, run tests/build and verify deployed preview when relevant.
+Only after source and production QA pass:
 
-`Merged` does not mean `visually accepted`.
+1. integrate the bounded asset;
+2. inspect the live room/game;
+3. verify layer/context behavior;
+4. run relevant art validators;
+5. run tests/build;
+6. verify deployed preview when relevant;
+7. update the recipe/status after acceptance.
 
 ## Failure report
 
-When an asset fails, state concrete reasons before a replacement generation.
+When an asset fails, state concrete reasons before changing tools/prompts. Record important negative results in the relevant method `research/` folder or `docs/history/experiments/` when they are broadly reusable.
 
-## Gold Slice sequence
+## Method-specific skills
+
+Skills belong inside their production method:
+
+`docs/art-production-methods/<method>/skill/`
+
+The current `numberdroid-artist` skill is an **M2 Controlled Art Pass** specialization. It is not the universal Artist workflow.
+
+## Current Gold Slice sequencing principle
+
+Work from structural context toward focal detail, but treat accepted categories as frozen baselines unless a concrete defect appears.
+
+Current intended progression after accepted Floor/PICO/Walls is broadly:
 
 ```text
-PICO → Floor → Walls → Doors → Transfer apparatus → PRIMUS → Family props → FloorFX
+Doors → ordinary props → hero apparatus / PRIMUS objects → remaining robots
 ```
 
-The current category advances only after its source QA, production QA, context QA and live-room QA pass. A successful material proof alone does not complete a category.
+The relevant recipe/category contract is more authoritative than an old sequence recorded in history.
