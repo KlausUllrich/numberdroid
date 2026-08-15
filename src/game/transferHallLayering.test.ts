@@ -35,6 +35,21 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     ]).toEqual([161, 162, 163, 164, 165, 166]);
   });
 
+  it("routes the Family Table grounding shadow through a dedicated 3x2 FloorFX tileset", () => {
+    const familyShadow = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 167);
+    expect(familyShadow).toMatchObject({
+      image: "/assets/deck/family-table-shadow.png",
+      tilewidth: 64,
+      tileheight: 64,
+      tilecount: 6,
+      columns: 3,
+    });
+    expect([
+      cell("FloorFX", 2, 4), cell("FloorFX", 3, 4), cell("FloorFX", 4, 4),
+      cell("FloorFX", 2, 5), cell("FloorFX", 3, 5), cell("FloorFX", 4, 5),
+    ]).toEqual([167, 168, 169, 170, 171, 172]);
+  });
+
   it("has a complete outer-wall marker on every perimeter cell", () => {
     for (let col = 1; col <= 18; col += 1) {
       expect(cell("Architecture", col, 1)).not.toBe(0);
