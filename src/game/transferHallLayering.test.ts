@@ -50,6 +50,20 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     ]).toEqual([167, 168, 169, 170, 171, 172]);
   });
 
+  it("routes the Family Memory Console through a dedicated 2x1 WallProps tileset", () => {
+    const familyConsole = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 173);
+    expect(familyConsole).toMatchObject({
+      image: "/assets/deck/family-memory-console.png",
+      tilewidth: 64,
+      tileheight: 64,
+      tilecount: 2,
+      columns: 2,
+    });
+    expect([
+      cell("WallProps", 3, 1), cell("WallProps", 4, 1),
+    ]).toEqual([173, 174]);
+  });
+
   it("has a complete outer-wall marker on every perimeter cell", () => {
     for (let col = 1; col <= 18; col += 1) {
       expect(cell("Architecture", col, 1)).not.toBe(0);
