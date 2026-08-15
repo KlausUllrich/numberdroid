@@ -6,7 +6,11 @@
     "orientation": "vertical",
     "size": "large",
     "mode": "auto",
-    "transitionMs": 520,
+    "openTransitionMs": 520,
+    "closeTransitionMs": 650,
+    "openEasing": "cubic-bezier(.2,.75,.2,1)",
+    "closeEasing": "cubic-bezier(.16,1,.3,1)",
+    "closeTarget": "explicit translate(0), never transform:none",
     "clipMovingLeavesToDoorBounds": true
   },
   "leaf": {
@@ -51,9 +55,10 @@
     "presentation": "narrow semantic colour marker on otherwise normal graphite door"
   },
   "qa": {
-    "closed": "two 64px halves meet cleanly at center; 5px total visible thickness",
+    "closed": "two 64px halves meet cleanly at center; 5px total visible thickness; final approach decelerates with no overshoot",
     "open": "leaves retract 104% and are clipped exactly at the 64x128 door aperture; no leaf pixels, guide rails or status text remain in the wall/open state",
     "occlusion": "leaf-clip overflow hidden is authoritative; z-index ordering is secondary protection only",
+    "motion": "opening remains 520ms; closing uses 650ms monotonic soft-close easing and explicit translate(0) endpoint",
     "wallContract": "30px visible fascia, unchanged 10px collision core"
   }
 }
