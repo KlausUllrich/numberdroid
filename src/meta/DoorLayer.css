@@ -53,8 +53,23 @@
   background-position:center;
   background-size:100% 100%;
   box-shadow:0 1px 2px #0008;
-  transition:transform 520ms cubic-bezier(.2,.75,.2,1),opacity 260ms ease;
+  transition-property:transform,opacity;
+  transition-duration:520ms,260ms;
+  transition-timing-function:cubic-bezier(.2,.75,.2,1),ease;
 }
+/*
+ * Soft close is intentionally asymmetric: opening keeps the accepted 520 ms timing,
+ * while closing gets a longer monotonic ease-out with zero end velocity. Explicit
+ * translate(0) targets avoid any browser interpolation through `transform:none`.
+ */
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.closed .panel {
+  transition-duration:650ms,260ms;
+  transition-timing-function:cubic-bezier(.16,1,.3,1),ease;
+}
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.closed .panel-a,
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.closed .panel-b { transform:translateY(0); }
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.closed .panel-a,
+.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.closed .panel-b { transform:translateX(0); }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .panel,
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large.vertical .panel { left:calc(50% - 2.5px);width:5px; }
 .zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal .panel,
