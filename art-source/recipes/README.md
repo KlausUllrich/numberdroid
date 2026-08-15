@@ -6,21 +6,9 @@ The purpose is simple: a production asset must not exist only as a PNG plus lost
 
 ## Method selection comes first
 
-Before preparing or generating an asset, choose the production method from:
+Before preparing or generating an asset, choose the production method from `docs/art-production-methods/README.md` and record which method owns geometry, topology, material and optional finishing.
 
-`docs/art-production-methods/README.md`
-
-The recipe must record which method owns geometry, topology, material and optional finishing. This is especially important for hybrid pipelines.
-
-Example:
-
-```text
-Primary production method: M4 Procedural 2D Compositor
-Material/source method: M1 Direct Generative Source
-Optional finishing method: M3 Layered Raster Editor
-```
-
-Do not leave the method implicit in chat history or assume every asset should use the latest wall workflow.
+Do not assume every asset should use the latest wall workflow.
 
 ## Folder contract
 
@@ -35,6 +23,7 @@ art-source/recipes/<world-or-slice>/<asset-name>/
   prompt.md                 # approved generation/edit/material prompt when applicable
   render-recipe.json        # optional deterministic compositor/render settings
   topology.json             # optional explicit modular edge/connectivity semantics
+  source/                   # optional accepted source payload when build/reproduction requires it
   reference.*               # optional image only when rights/source are clear and repo storage is useful
 ```
 
@@ -51,16 +40,19 @@ For geometry-critical environment art:
 5. `prompt.md` records the approved generation/edit/material instruction when generation is part of the method.
 6. `render-recipe.json`, when present, owns deterministic compositor settings.
 7. `recipe.md` owns runtime size, method selection, atlas order, post-processing, semantic connectors and QA.
-8. Runtime PNG/WebP assets are outputs, not the source of truth.
+8. `source/`, when present, stores an accepted source payload required for deterministic reconstruction; it must be described and validated by the recipe.
+9. Runtime PNG/WebP assets are outputs, not automatically the source of truth.
 
-Characters are a deliberate exception: an authored eight-direction turnaround is not reduced to a rigid SVG silhouette merely for consistency. Character recipes may omit `geometry.svg` and instead preserve frame order, scale, reference/source and generation prompt.
+Characters are a deliberate exception: an authored eight-direction turnaround is not reduced to a rigid SVG silhouette merely for consistency. Character recipes may instead preserve frame order, scale, source payload and generation/production process.
 
 ## Lifecycle
 
-Before generating a new production category, create or update its recipe to at least `PREPARED` status. After visual acceptance, update the recipe with the accepted material reference, prompt, deterministic processing and QA result.
+Before generating a new production category, create or update its recipe to at least `PREPARED` status. After visual acceptance, update the recipe with the accepted source/material reference, deterministic processing and QA result.
 
 Do not invent placeholder SVGs for assets whose geometry has not yet been art-directed. A `PLANNED` recipe is preferable to a fake geometry master.
 
-## Legacy flow templates
+## Historical sources
 
-`art-source/flow-vorlagen/` predates this library. Existing accepted templates remain valid. As categories are revisited, their authoritative files should be referenced or migrated into a recipe folder rather than duplicated without purpose.
+Superseded source artifacts that still carry useful research/history value belong under `art-source/archive/`. They are not current production authority.
+
+Do not create new work under the old `flow-vorlagen` convention. Current deterministic geometry belongs with its asset recipe.

@@ -18,7 +18,7 @@ This file defines where project information belongs and which directories are au
 ├─ src/                         # production application code
 ├─ public/                      # runtime/deploy assets only
 ├─ scripts/                     # deterministic build, art and validation tooling
-├─ art-source/                  # reproducible art-authoring sources
+├─ art-source/                  # reproducible/current + archived art-authoring sources
 └─ docs/                        # current documentation plus explicit history
 ```
 
@@ -26,50 +26,37 @@ Do not add project-status, art-process, design, handoff, or research Markdown fi
 
 ## `src/` — production code
 
-Contains the React/TypeScript game implementation.
-
-Rules:
-- current runtime behavior lives here;
-- architecture changes must preserve the durable rules in `docs/agents/GAMEPLAY_AND_ENGINEERING_RULES.md`;
-- do not use historical handoffs as a substitute for inspecting current code.
+Contains the React/TypeScript game implementation. Current runtime behavior lives here; historical handoffs are not substitutes for inspecting current code.
 
 ## `public/` — runtime/deploy outputs
 
 Contains files the built application loads directly.
 
-```text
-public/
-└─ assets/
-   ├─ deck/
-   └─ robots/
-```
-
 Rules:
 - `public/` answers **what the game loads**, not necessarily **how the asset is authored**;
 - generated/materialized runtime images are outputs;
-- source SVGs, prompts, material references and authoring recipes should not be introduced here when they belong in `art-source/`;
-- legacy source-like files already present in `public/` are technical debt to be migrated only in a dedicated cleanup pass with reference checks.
+- source prompts/material references/authoring recipes belong in `art-source/`;
+- some legacy source-like SVGs remain in `public/` because current reference coverage is not yet sufficient to remove them safely; clean them only in a dedicated runtime-reference audit.
 
-## `art-source/` — reproducible art source
+## `art-source/` — art authoring source
 
 ```text
 art-source/
-├─ recipes/                     # canonical source contract per production asset/category
-├─ flow-vorlagen/               # legacy deterministic templates; transitional
-└─ runtime/                     # transitional text-safe binary transport/materialization sources
+├─ recipes/                     # canonical source contract per current production asset/category
+└─ archive/                     # superseded source artifacts retained only for historical/reference value
 ```
 
-### `art-source/recipes/` — preferred source of truth
+### `art-source/recipes/`
 
-Every revisited/new production art category should get one recipe folder with the information needed to reproduce or deliberately revise the asset. The recipe states which method owns geometry, material, topology, finishing and QA.
+Preferred source of truth for current/revisitable production art. A recipe can contain deterministic geometry, collision geometry, topology, prompts, render settings, material references and an optional `source/` payload required for deterministic reconstruction.
 
-### `flow-vorlagen/`
+Source payloads should live with the asset they reconstruct rather than in a generic runtime transport folder.
 
-Historical predecessor of the recipe system. Keep only while existing recipes or research still require these templates. Do not add new unrelated production categories here.
+### `art-source/archive/`
 
-### `runtime/`
+Historical authoring artifacts that still have reference/research value but are not current production authority. Do not start new production work here.
 
-Transitional storage used to reconstruct binary assets safely during builds. It is not a general art-source dumping ground. Remove obsolete entries only in a technical cleanup after proving nothing consumes them.
+Intermediate/transport artifacts with no continuing reference value should be deleted once consumers are removed; Git history preserves them.
 
 ## `scripts/` — deterministic tooling
 
@@ -84,16 +71,16 @@ scripts/
 ```
 
 Rules:
-- reusable deterministic mechanics belong under `scripts/art/toolkit/` when they are shared by multiple methods/categories;
-- production recipes may reference toolkit code but must not duplicate generic mechanics;
+- reusable deterministic mechanics belong under `scripts/art/toolkit/` when shared by multiple methods/categories;
+- recipes may reference toolkit code but must not duplicate generic mechanics;
 - asset-specific topology/settings remain with `art-source/recipes/`;
-- model calls/prompts belong to methods/skills or recipes, not inside low-level deterministic toolkit modules.
+- model calls/prompts belong to methods/skills or recipes, not low-level toolkit modules.
 
 ## `docs/` — documentation taxonomy
 
 ```text
 docs/
-├─ README.md                    # documentation index
+├─ README.md
 ├─ agents/
 ├─ architecture/
 ├─ game-design/
@@ -102,35 +89,22 @@ docs/
 ├─ decisions/
 ├─ art/
 ├─ art-production-methods/      # when/why; authority model and workflow selection
-├─ art-production-toolkit/      # what reusable tools can do and how to call them
+├─ art-production-toolkit/      # reusable tools, capabilities and usage
 └─ history/
 ```
 
-### `docs/agents/`
+### Current authority
 
-Durable rules agents must follow. These are mandatory after `AGENTS.md` and this structure file.
-
-### `docs/architecture/`, `game-design/`, `story/`, `planning/`, `decisions/`
-
-Current software/map contracts, gameplay design, world/story, forward plans and durable cross-cutting decisions respectively.
-
-### `docs/art/`
-
-Current art-direction and production contracts. Asset-specific reproducible source still belongs in `art-source/recipes/`, not in `docs/art/`.
-
-### `docs/art-production-methods/` — method catalog
-
-The canonical catalog for choosing **how an art problem should be produced and which stage owns which property**. Method-specific skills live beside their method under `skill/`.
-
-### `docs/art-production-toolkit/` — reusable tool catalog
-
-The canonical inventory for deterministic reusable art-processing capabilities. It documents each tool's status, inputs, outputs, authority, limitations, usage and QA.
-
-Methods may compose several tools. A tool is not a method: background removal, mask operations, connector canonicalization or periodic-edge validation are reusable operations and should not create new production-method families by themselves.
-
-### `docs/history/`
-
-Historical material is preserved for learning but is not current authority. A current document may cite history as evidence, but new agents must not treat historical confident language as latest status.
+- `docs/agents/` — durable agent/workflow rules;
+- `docs/architecture/` — software/map/runtime architecture;
+- `docs/game-design/` — current gameplay design/progression;
+- `docs/story/` — current world/narrative contracts;
+- `docs/planning/` — forward-looking plans;
+- `docs/decisions/` — durable cross-cutting decisions;
+- `docs/art/` — current art direction and production/category contracts;
+- `docs/art-production-methods/` — how/why a production approach is selected;
+- `docs/art-production-toolkit/` — what reusable deterministic tools can do and how to use them;
+- `docs/history/` — evidence/history, never current authority by default.
 
 ## Root documentation policy
 
@@ -149,11 +123,12 @@ Everything else belongs under `docs/` or `art-source/` according to ownership.
 For art production:
 
 ```text
-art direction        → docs/art/
-method selection     → docs/art-production-methods/
-reusable mechanics   → docs/art-production-toolkit/ + scripts/art/toolkit/
-asset reproducibility→ art-source/recipes/
-runtime output       → public/assets/...
+art direction         → docs/art/
+method selection      → docs/art-production-methods/
+reusable mechanics    → docs/art-production-toolkit/ + scripts/art/toolkit/
+asset reproducibility → art-source/recipes/
+historical art source → art-source/archive/
+runtime output        → public/assets/...
 ```
 
 ## Move / rename discipline
@@ -163,10 +138,10 @@ When reorganizing files:
 1. move information without changing its meaning unless deliberate;
 2. update current cross-references in the same PR;
 3. do not mix gameplay behavior changes into a structure-only PR;
-4. run tests/build even for documentation moves because build scripts may reference files;
-5. keep historical documents rather than deleting useful reasoning on the first cleanup pass;
+4. run tests/build even for documentation/source moves because build scripts may reference files;
+5. keep historical material only when it still adds useful evidence;
 6. delete technical artifacts only after checking code/build references;
-7. update this structure document if a new durable top-level category is introduced.
+7. update this structure document if a new durable category is introduced.
 
 ## Branch and PR history
 

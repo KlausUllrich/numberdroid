@@ -4,7 +4,7 @@ Characters use the same reproducibility principle but are **not** forced into ri
 
 ## Current state
 
-- **PICO** — live/accepted eight-direction character. Keep stable unless a deliberate character revision is requested.
+- **PICO** — `pico/recipe.md`; live-accepted eight-direction character with validated recipe-local source payload. Keep stable unless a deliberate character revision is requested.
 - **MAGNETAR / utility body** — current runtime art is placeholder/intermediate; create a dedicated character recipe before final Gold-Slice replacement.
 - **SENTRY / guard body** — current runtime art is placeholder/intermediate; create a dedicated character recipe before final Gold-Slice replacement.
 - **Kayo / special status body** — final recipe not yet authored.
@@ -18,9 +18,9 @@ Each final body recipe must preserve:
 - target frame size and apparent body scale;
 - front/back/profile/diagonal requirements;
 - material/character reference;
-- generation prompt;
+- generation/authoring process;
 - extraction/background-removal process;
 - ground-contact consistency QA;
 - neutral physical body art, with allegiance applied by runtime semantics unless the body is intrinsically a named special identity.
 
-Existing SVGs under `public/assets/robots/` are historical/technical sources for several bodies. Do not automatically treat them as the final visual geometry target.
+Existing SVGs under `public/assets/robots/` remain legacy/source-like technical debt pending a dedicated runtime-reference audit. Do not automatically treat them as final visual geometry or delete them merely because the current character catalog uses PNGs.
