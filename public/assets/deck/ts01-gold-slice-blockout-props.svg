@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="192" viewBox="0 0 256 192">
+  <defs>
+    <style>
+      .shell{fill:#d7d2c6;stroke:#565a56;stroke-width:3;stroke-dasharray:6 4;stroke-linejoin:round}
+      .graphite{fill:#565a56}
+      .recess{fill:#777b75}
+      .family{fill:#b87955}
+      .transfer{fill:#5b9e9a}
+      .soft{fill:#c7bdae;stroke:#565a56;stroke-width:2}
+      .line{fill:none;stroke:#565a56;stroke-width:2;stroke-linecap:round}
+    </style>
+  </defs>
+
+  <!-- local 0-1: Family lower-wall bench, visible mass kept in top 30 px -->
+  <g>
+    <rect class="shell" x="8" y="4" width="112" height="26" rx="9"/>
+    <rect class="soft" x="14" y="8" width="46" height="18" rx="7"/>
+    <rect class="soft" x="64" y="8" width="46" height="18" rx="7"/>
+    <rect class="family" x="92" y="10" width="12" height="10" rx="3"/>
+    <path class="line" d="M62 8v18"/>
+  </g>
+
+  <!-- local 2-3: Transfer upper-wall support console, visible mass starts below top fascia -->
+  <g>
+    <rect class="shell" x="136" y="34" width="112" height="26" rx="7"/>
+    <rect class="graphite" x="144" y="40" width="96" height="14" rx="5"/>
+    <rect class="transfer" x="160" y="43" width="54" height="8" rx="4"/>
+    <circle class="transfer" cx="226" cy="47" r="5"/>
+    <circle fill="#d7d2c6" cx="226" cy="47" r="2"/>
+  </g>
+
+  <!-- local 4-5: Family lower-wall low storage / sideboard -->
+  <g>
+    <rect class="shell" x="8" y="68" width="112" height="26" rx="5"/>
+    <rect class="recess" x="14" y="73" width="30" height="16" rx="3"/>
+    <rect class="recess" x="47" y="73" width="30" height="16" rx="3"/>
+    <rect class="recess" x="80" y="73" width="30" height="16" rx="3"/>
+    <circle class="family" cx="108" cy="72" r="4"/>
+  </g>
+
+  <!-- local 6: personal bag / soft clutter -->
+  <g>
+    <path class="soft" d="M143 83c2-10 9-15 17-15s15 5 17 15l-3 26c-1 7-7 11-14 11s-13-4-14-11z"/>
+    <path class="line" d="M151 76c2-7 16-7 18 0"/>
+    <rect class="family" x="151" y="92" width="18" height="9" rx="4"/>
+    <circle class="family" cx="181" cy="111" r="5"/>
+  </g>
+
+  <!-- local 7: small personal side table with mismatched cups -->
+  <g>
+    <circle class="shell" cx="224" cy="96" r="23"/>
+    <circle class="recess" cx="224" cy="96" r="16"/>
+    <circle class="family" cx="218" cy="91" r="5"/>
+    <rect class="transfer" x="228" y="99" width="8" height="10" rx="3"/>
+  </g>
+
+  <!-- local 8-9: Transfer lower-wall service bank -->
+  <g>
+    <rect class="shell" x="8" y="132" width="112" height="26" rx="6"/>
+    <rect class="graphite" x="14" y="137" width="28" height="16" rx="4"/>
+    <rect class="graphite" x="47" y="137" width="28" height="16" rx="4"/>
+    <rect class="graphite" x="80" y="137" width="30" height="16" rx="4"/>
+    <rect class="transfer" x="19" y="142" width="18" height="6" rx="3"/>
+    <rect class="transfer" x="52" y="142" width="18" height="6" rx="3"/>
+    <circle class="transfer" cx="95" cy="145" r="5"/>
+  </g>
+
+  <!-- local 10: compact upper-wall utility module -->
+  <g>
+    <rect class="shell" x="136" y="160" width="48" height="28" rx="6"/>
+    <rect class="graphite" x="143" y="166" width="34" height="15" rx="4"/>
+    <rect class="transfer" x="149" y="170" width="22" height="6" rx="3"/>
+  </g>
+
+  <!-- local 11: single soft waiting seat / cushion mass -->
+  <g>
+    <rect class="soft" x="207" y="142" width="34" height="36" rx="14"/>
+    <rect class="family" x="216" y="150" width="16" height="13" rx="6" opacity=".8"/>
+  </g>
+</svg>

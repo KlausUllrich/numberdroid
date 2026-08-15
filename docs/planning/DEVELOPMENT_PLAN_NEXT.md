@@ -2,7 +2,13 @@
 
 Status: **current forward plan — 2026-08-15**
 
-This document is deliberately forward-looking. Durable gameplay/story/art rules live in their domain documents; historical milestone reasoning lives in `docs/history/`.
+This document is deliberately forward-looking and stays at the **project/milestone level**. Durable gameplay/story/art rules live in their domain documents; historical milestone reasoning lives in `docs/history/`.
+
+The detailed current TS-01 Gold Slice execution plan lives in:
+
+`docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`
+
+Do not duplicate that level of Gold Slice detail here.
 
 ## Foundation status
 
@@ -55,56 +61,67 @@ The reusable Art Production Toolkit exists under `scripts/art/toolkit/` with PRO
 
 - **PICO** — LIVE_ACCEPTED, eight authored directions, recipe-local source.
 - **Floor** — accepted baseline; do not revisit casually.
-- **Walls / Architecture** — LIVE_ACCEPTED; M4; 30 px visible fascia with unchanged 10 px collision core; semantic seam QA proven.
+- **Walls / Architecture material + wall kit** — LIVE_ACCEPTED; M4; 30 px visible fascia with unchanged 10 px collision core; semantic seam QA proven.
 - **Doors** — LIVE_ACCEPTED; M4 + Art Production Toolkit; dark 5 px moving leaf, exact aperture clipping, 520 ms opening, 650 ms soft close, clean aperture/no status text, coloured-key visual variant.
+- **Family Table / Waiting Module** — LIVE_ACCEPTED with dedicated grounding shadow.
+- **Family Memory Console** — LIVE_ACCEPTED with final wall-adjacent placement and dedicated grounding shadow.
 
-Walls and Doors are now two independent production proofs that M4/Toolkit responsibility separation works. Do not refactor frozen assets merely for code uniformity.
+Accepted categories/assets remain frozen unless live QA exposes a concrete defect or the user explicitly approves a bounded revision. A composition/layout revision may reuse accepted assets without reopening their art.
 
-### NEXT — Family / ordinary props
+### Current Family / ordinary-prop state
 
-Current next category is:
+The second Family prop batch is deployed as a **LIVE_CANDIDATE composition input**:
 
-`art-source/recipes/transfer-hall/family-props/`
+- round plant;
+- planter trough;
+- coffee machine;
+- hologram pedestal;
+- separate grounding shadows.
 
-Purpose: replace placeholder family/ordinary prop art with isolated top-down production assets that support the family-vs-PRIMUS visual contrast.
+The assets themselves are promising, but live QA showed that **room-level structure, placement and density are now the limiting problem**, not the lack of another isolated prop generation.
 
-Likely production shape:
+### CURRENT — TS-01 Gold Slice composition and cohesion
 
-```text
-M1 isolated prop source
-→ source QA
-→ alpha/background cleanup (potential first real Freistellen-tool proof)
-→ deterministic crop/scale/packing
-→ runtime atlas/integration
-→ map-context QA
-→ live user/art-director acceptance
-```
+The active milestone is now the **whole-room Gold Slice push**, not another isolated prop batch.
 
-This is a hypothesis, not a method decision already frozen. The receiving Artist must run the method-selection gate and update the recipe before generation. M4 should be used only where exact deterministic geometry genuinely owns the prop.
+Detailed execution authority:
 
-Start with one deliberate **family micro-set**, not an entire mood board or all remaining props at once.
+`docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`
 
-## After family props
+High-level goals:
 
-Intended order, subject to live learning:
+1. keep the larger gameplay room but add internal structural articulation/corners;
+2. recompose ordinary props around walls, corners and functional clusters;
+3. use strict-top-down SVG placeholder props to block out the missing density before producing more final assets;
+4. complete the missing Transfer/Flow/PRIMUS hero hierarchy;
+5. add restrained grounding, Flow shadow/path and floor use/wear;
+6. converge architecture/door/prop/hero fidelity where live comparison still exposes a mismatch;
+7. evaluate the deployed TS-01 room as one coherent visual slice on desktop and phone.
 
-1. Family / ordinary props;
-2. Transfer apparatus / cradle hero object;
-3. PRIMUS wall object / console;
-4. remaining utility/hostile/special robots;
-5. evaluate TS-01 Gold Slice as a whole before broad Transfer-Ship production expansion.
+The Gold Slice is complete only after live Art-Director acceptance. `CI green`, `merged` and `LIVE_ACCEPTED` remain different states.
 
-Hero/PRIMUS work may use hybrid M1/M3/M4 depending on geometry and finishing requirements. Do method selection per category.
+## After the TS-01 Gold Slice
+
+Once TS-01 passes as a coherent representative room:
+
+1. decide which Gold Slice art-production patterns should become reusable Transfer Ship production standards;
+2. finish only the additional robot bodies/utility categories needed for the next playable Transfer Ship content;
+3. expand from the Gold Slice to the remaining Transfer Ship spaces/beats using the proven room/asset grammar;
+4. continue campaign production in the order defined by current story/game-design plans rather than reopening foundation architecture.
+
+Do not broaden into all campaign worlds before TS-01 has answered the visual-production questions it was created to answer.
 
 ## Deliberately open art/tool questions
 
 Do not silently freeze these:
 
-- exact family prop inventory and whether specific objects are separate sprites vs one micro-set;
-- whether the first prop pass requires a reusable Freistellen/alpha tool or can use already-clean alpha source;
+- which SVG blockout props survive composition QA and therefore deserve final production;
+- exact final asset inventory required to reach Gold Slice density;
+- whether a reusable Freistellen/alpha tool is needed for the next final prop/hero sources;
 - exact generic atlas packing/downscale tool design;
 - final material source/retouch strategy for hero apparatus and PRIMUS;
-- how many additional robot bodies are needed for the Gold Slice versus later Transfer Ship production.
+- whether the accepted door/wall categories need any **bounded fidelity extension** after hero/detail convergence, versus leaving the accepted category art untouched and solving the mismatch with adjacent trim/props;
+- how many additional robot bodies are required immediately after Gold Slice versus later Transfer Ship production.
 
 ## Deliberately open broader gameplay concepts
 
@@ -135,6 +152,18 @@ recipe/method selected
 → live/deployed visual QA
 → user acceptance
 → recipe/index LIVE_ACCEPTED + freeze
+```
+
+For the room-level Gold Slice:
+
+```text
+structural composition preview
+→ SVG density blockout
+→ live composition QA
+→ final hero/prop/grounding production
+→ fidelity convergence
+→ desktop + phone live QA
+→ Gold Slice user acceptance
 ```
 
 `Merged` is not `LIVE_ACCEPTED`.

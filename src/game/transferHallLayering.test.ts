@@ -71,18 +71,18 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
     expect(TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 188)).toMatchObject({ image: "/assets/deck/family-hologram-pedestal-shadow.png", tilecount: 1, columns: 1 });
   });
 
-  it("places the coffee machine at the upper wall with its access side facing into the room", () => {
+  it("keeps the coffee machine at the upper wall with its access side facing into the room", () => {
     expect([cell("WallProps", 5, 1), cell("WallProps", 5, 2)]).toEqual([177, 178]);
     expect([cell("FloorFX", 5, 1), cell("FloorFX", 5, 2)]).toEqual([179, 180]);
   });
 
-  it("places the two plants and hologram in the lower-left family area with separate shadows", () => {
-    expect([cell("FloorProps", 2, 7), cell("FloorProps", 2, 8)]).toEqual([181, 182]);
-    expect([cell("FloorFX", 2, 7), cell("FloorFX", 2, 8)]).toEqual([183, 184]);
-    expect(cell("FloorProps", 5, 7)).toBe(185);
-    expect(cell("FloorFX", 5, 7)).toBe(186);
-    expect(cell("FloorProps", 4, 8)).toBe(187);
-    expect(cell("FloorFX", 4, 8)).toBe(188);
+  it("recomposes plants against the Family edge and moves the hologram into Transfer support", () => {
+    expect([cell("FloorProps", 2, 6), cell("FloorProps", 2, 7)]).toEqual([181, 182]);
+    expect([cell("FloorFX", 2, 6), cell("FloorFX", 2, 7)]).toEqual([183, 184]);
+    expect(cell("FloorProps", 2, 2)).toBe(185);
+    expect(cell("FloorFX", 2, 2)).toBe(186);
+    expect(cell("FloorProps", 10, 2)).toBe(187);
+    expect(cell("FloorFX", 10, 2)).toBe(188);
   });
 
   it("adds bounded collision footprints for the Batch 2 family props", () => {
@@ -94,6 +94,36 @@ describe("Transfer Hall Slice 0.3 layer contract", () => {
       "family-round-plant-solid",
       "family-hologram-solid",
     ]));
+  });
+
+  it("adds shallow Family wall returns using only accepted wall-kit semantics", () => {
+    expect(cell("Architecture", 6, 1)).toBe(90);
+    expect(cell("Architecture", 6, 2)).toBe(89);
+    expect(cell("Architecture", 6, 3)).toBe(92);
+    expect(cell("Architecture", 6, 8)).toBe(93);
+    expect(cell("Architecture", 6, 9)).toBe(89);
+    expect(cell("Architecture", 6, 10)).toBe(91);
+  });
+
+  it("keeps a broad four-tile opening between the Family wall returns", () => {
+    expect(cell("Architecture", 6, 4)).toBe(0);
+    expect(cell("Architecture", 6, 5)).toBe(0);
+    expect(cell("Architecture", 6, 6)).toBe(0);
+    expect(cell("Architecture", 6, 7)).toBe(0);
+    expect(pointWalkable(6.5 * TILE, 4.5 * TILE, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(6.5 * TILE, 6.5 * TILE, "transfer-hall", 18)).toBe(true);
+    expect(pointWalkable(6.5 * TILE, 2.5 * TILE, "transfer-hall", 8)).toBe(false);
+    expect(pointWalkable(6.5 * TILE, 8.5 * TILE, "transfer-hall", 8)).toBe(false);
+  });
+
+  it("routes composition-only SVG placeholder props through a dedicated atlas", () => {
+    const blockout = TRANSFER_HALL_MAP.tilesets.find((tileset) => tileset.firstgid === 189);
+    expect(blockout).toMatchObject({ image: "/assets/deck/ts01-gold-slice-blockout-props.svg", tilewidth: 64, tileheight: 64, tilecount: 12, columns: 4 });
+    expect([cell("WallProps", 8, 1), cell("WallProps", 9, 1)]).toEqual([191, 192]);
+    expect([cell("FloorProps", 3, 9), cell("FloorProps", 4, 9)]).toEqual([189, 190]);
+    expect(cell("FloorProps", 5, 8)).toBe(195);
+    expect(cell("FloorProps", 2, 8)).toBe(196);
+    expect([cell("FloorProps", 7, 9), cell("FloorProps", 8, 9)]).toEqual([197, 198]);
   });
 
   it("has a complete outer-wall marker on every perimeter cell", () => {

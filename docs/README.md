@@ -32,7 +32,8 @@ Story is **triggered context** for roles such as Artist/Engineer unless the task
 
 ## Planning / decisions
 
-- `planning/DEVELOPMENT_PLAN_NEXT.md` — current forward milestone plan.
+- `planning/DEVELOPMENT_PLAN_NEXT.md` — current project-level forward milestone plan.
+- `planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md` — current detailed execution/acceptance plan for the TS-01 visual Gold Slice.
 - `decisions/DECISIONS.md`
 
 ## Art — current contracts
