@@ -1,6 +1,6 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.3 metadata-driven prop placement**
+Status: **CURRENT architecture / implementation track — v0.4 actor placement**
 
 This directory owns the design and technical contract for the Numberdroid procedural/declarative level-authoring system.
 
@@ -19,9 +19,9 @@ shared wall graph + doors + corridors
         ↓
 navigation + forbidden zones
         ↓
-hero / prop placement
+hero / prop placement + allowed art rotations
         ↓
-enemy / actor placement
+enemy / actor placement + authored routes
         ↓
 triggers + events + validation
         ↓
@@ -59,33 +59,52 @@ The current solver deliberately targets connected **tree-like** room graphs. Arb
 
 See `NAVIGATION_AND_FORBIDDEN_ZONES.md`.
 
-The navigation stage:
-
-- decomposes generated Spaces into walkable cells;
-- connects neighboring Spaces only through real apertures;
-- validates generated reachability;
-- creates explicit portal pairs;
-- reserves a deterministic primary-circulation skeleton;
-- marks door-clearance / primary-circulation forbidden cells;
-- derives wall-adjacent placement slots from the canonical Wall Graph.
+The navigation stage decomposes generated Spaces into walkable cells, connects Spaces only through real apertures, validates reachability, creates portal pairs, reserves provisional primary circulation and derives wall-adjacent attachment slots.
 
 ### v0.3 — metadata-driven prop placement — IMPLEMENTED
 
 See `PROP_PLACEMENT.md`.
 
-The placement stage now:
+The placement stage:
 
 - places `hero → support → furniture → dressing`;
 - uses real Wall Graph slots for wall props;
-- enumerates valid floor footprints inside semantic Spaces;
-- rejects occupied, reserved, doorway and circulation conflicts;
-- reserves approach/use-space in front of wall furniture;
-- reserves Hero clearance around important machinery;
-- lets Heroes consume provisional circulation only when generated reachability survives;
-- scores preferred walls, wall adjacency, corners, room-center Hero focus, explicit `near` relationships, semantic tag proximity and opposite-door placement;
-- uses deterministic per-instance sub-seeds for stable tie-breaking;
-- records reason/score/candidate/rejection data for explainability;
-- fails compilation when a required Prop has no valid placement.
+- rejects occupied, use-space, doorway and circulation conflicts;
+- reserves wall-prop approach space and Hero clearance;
+- scores semantic adjacency / wall / corner / center / opposite-door preferences;
+- uses deterministic sub-seeds and explainable candidate diagnostics.
+
+### v0.3.1 — clearance + orientation hardening — IMPLEMENTED
+
+Two durable rules were added before actor placement:
+
+1. **Door Clearance lateral width = 2× door aperture width.** The zone gains one half-door-width on each side along the wall while preserving authored before/after depth into each room.
+2. **Props declare allowed cardinal art rotations** from `0° / 90° / 180° / 270°`.
+
+Prop wall convention:
+
+```text
+0°   north wall, front/access toward south
+90°  east wall,  front/access toward west
+180° south wall, front/access toward north
+270° west wall,  front/access toward east
+```
+
+A perspective-sensitive Prop cannot be placed on a wall that requires an unavailable authored rotation. Current non-square floor footprints conservatively use only rotations compatible with the already solved footprint until rotated-footprint enumeration is added.
+
+### v0.4 — encounter / actor placement — IMPLEMENTED
+
+See `ACTOR_PLACEMENT.md`.
+
+The actor stage:
+
+- consumes the already furnished / reserved generated level;
+- rejects Prop footprints, Prop use-space, Hero clearance, widened Door Clearance and other actor homes;
+- compiles named patrol/pass-by/scripted routes through actual remaining free navigation cells;
+- places patrol actors on their route;
+- reserves patrol-route cells against unrelated static actor homes;
+- applies behavior-aware scoring for neutral / guard / patrol / aggressive roles;
+- emits cardinal actor facing and explainable placement diagnostics.
 
 The live gameplay TS-01 map is still authored separately. Generated geometry/navigation/placement is currently a compiler proof and authoring QA source, not yet the deployed Floor source.
 
@@ -98,9 +117,7 @@ The live compiler/debug view is the first shell of the future Level Workbench:
 - zoom remains focused on gesture/cursor position;
 - `FIT` restores the complete generated topology;
 - `+` / `−` provide an accessible fallback;
-- the map surface owns touch gestures while manipulated.
-
-Viewport state is editor/debug state only. It never mutates `LevelSpec`, generated geometry or gameplay-camera state.
+- viewport state never mutates `LevelSpec`, generated geometry or gameplay-camera state.
 
 The view is available at:
 
@@ -108,20 +125,20 @@ The view is available at:
 ?levelgen=ts01
 ```
 
-It can visualize topology, primary circulation, door clearance, wall slots, generated Props and Prop use-space.
+It can now visualize topology, primary circulation, widened Door Clearance, wall slots, generated Props/use-space, Prop rotation in tooltips, generated actors and actor routes.
 
 ## Why this exists
 
-Manual TS-01 composition proved that individual local fixes do not scale to the roughly 25 authored Floors/levels expected for Numberdroid. Reusable design knowledge needs to become data and constraints:
+Manual TS-01 composition proved that local coordinate fixes do not scale to the roughly 25 authored Floors expected for Numberdroid. Reusable design knowledge therefore becomes data and constraints:
 
 - general Numberdroid spatial rules;
 - world/archetype rules;
 - one-level-specific rules;
 - stable seeds/sub-seeds;
-- prop metadata;
+- prop metadata and art orientation;
 - room/corridor relationships;
 - door/access semantics;
-- enemy placement;
+- actor roles/routes;
 - triggers/events;
 - local overrides/locks.
 
@@ -134,16 +151,16 @@ docs/game-design/LEVEL_DESIGN_RULES.md
     durable spatial/design principles
 
 this directory
-    compiler architecture + LevelSpec contract
+    compiler architecture + LevelSpec contracts
 
 level-specific spec under src/levelgen/specs/
     declarative intent for one Floor
 
 src/levelgen/
-    deterministic compiler / validators / metadata registries
+    deterministic compiler / validators / registries
 
 compiled Tiled/Floor data
-    runtime output, not the high-level authoring truth
+    runtime output, not high-level authoring truth
 ```
 
 ## Planned compile stages
@@ -152,9 +169,9 @@ compiled Tiled/Floor data
 2. **Topology / preferred-size geometry** — implemented v0.1 for tree-like graphs.
 3. **Shared wall graph + connection apertures** — implemented v0.1.
 4. **Navigation / forbidden-zone validation** — implemented v0.2.
-5. **Prop placement** — implemented v0.3.
-6. **Encounter / actor placement** — next: enemies, neutral workers, guards, patrols, spawn/home positions and route geometry using the same reservations.
-7. **Trigger/event compilation** — keys, locked doors, scripted pass-bys, one-shot beats and staging events.
+5. **Prop placement** — implemented v0.3 + v0.3.1 orientation/clearance hardening.
+6. **Encounter / actor placement** — implemented v0.4.
+7. **Trigger/event compilation** — next: keys, locked doors, scripted pass-bys, one-shot beats and staged actions.
 8. **Runtime/Tiled emission** — generated debug/live data compatible with the existing runtime boundary.
 9. **Overrides / Workbench** — select/lock/regenerate/move one semantic element without destabilizing unrelated areas.
 10. **Natural-language front-end** — an LLM translates rough design prompts into LevelSpec; LevelSpec remains canonical.
