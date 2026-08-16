@@ -138,7 +138,7 @@ export const TS01_LEVEL_SPEC: LevelSpec = {
       widthTiles: 2,
       preferredSide: "east",
       clearanceTiles: { before: 1.5, after: 1.5 },
-      lock: { mode: "none" },
+      lock: { mode: "access-key", keyId: "primus-access" },
     },
   ],
   props: [
@@ -193,8 +193,46 @@ export const TS01_LEVEL_SPEC: LevelSpec = {
       tags: ["guard", "patrol"],
     },
   ],
-  triggers: [],
-  events: [],
+  stagedActors: [],
+  pickups: [
+    {
+      id: "primus-access-card",
+      kind: "access-key",
+      keyId: "primus-access",
+      spaceId: "family-living",
+      label: "PRIMUS ACCESS",
+    },
+  ],
+  zones: [
+    {
+      id: "transfer-intro-zone",
+      spaceId: "transfer-room",
+      anchor: { kind: "space-center" },
+      sizeTiles: { w: 4, h: 3 },
+      tags: ["story", "transfer", "first-view"],
+    },
+  ],
+  triggers: [
+    {
+      id: "collect-primus-access",
+      kind: "collect",
+      sourceId: "primus-access-card",
+      eventIds: ["grant-primus-access", "unlock-primus-door"],
+      once: true,
+    },
+    {
+      id: "enter-transfer-intro",
+      kind: "enter-zone",
+      sourceId: "transfer-intro-zone",
+      eventIds: ["play-transfer-intro"],
+      once: true,
+    },
+  ],
+  events: [
+    { id: "grant-primus-access", kind: "grant-key", keyId: "primus-access" },
+    { id: "unlock-primus-door", kind: "unlock-door", doorId: "hall-to-primus" },
+    { id: "play-transfer-intro", kind: "story-beat", beatId: "ts01.transfer-first-view", blocking: true },
+  ],
   overrides: [],
 };
 
