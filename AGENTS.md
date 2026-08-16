@@ -71,6 +71,8 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
 
 Before producing/editing gameplay art, follow the Artist route in `ROLE_ENTRYPOINTS.md` and the binding `docs/art/production/ARTIST_AGENT_WORKFLOW.md`.
 
+For Prop or Prop-like environmental Hero work, `docs/agents/PROP_ARTIST_BRIEF.md` is the specialized direct onboarding route. It points to the current Prop workflow, editor requirements, method/toolkit authorities, recipe and runtime consumers without duplicating them.
+
 In particular:
 
 - select a production method before generation;

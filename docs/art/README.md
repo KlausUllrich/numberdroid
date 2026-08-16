@@ -22,6 +22,7 @@ Do not infer current status from an old “next” paragraph inside a long art-d
 
 ## Durable visual / production authority
 
+- **Prop Artist direct onboarding route:** `../agents/PROP_ARTIST_BRIEF.md`
 - Transfer Ship visual thesis: `direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-method Artist workflow: `production/ARTIST_AGENT_WORKFLOW.md`
 - **binding Prop-specific source → approval → extraction → shadow → editor/runtime workflow: `production/PROP_ASSET_WORKFLOW.md`**
@@ -99,6 +100,8 @@ Accepted Walls, Doors and accepted Family assets remain frozen unless a concrete
 
 ## Role-aware context
 
-Artists follow `../agents/ROLE_ENTRYPOINTS.md`. Full Story/Game Design is not automatic Artist reading; activate those domains when their triggers apply.
+Artists follow `../agents/ROLE_ENTRYPOINTS.md`. Prop-focused agents may use `../agents/PROP_ARTIST_BRIEF.md` as the specialized direct entry point; it routes back to the universal bootstrap and all required current authorities without duplicating them.
+
+Full Story/Game Design is not automatic Artist reading; activate those domains when their triggers apply.
 
 For TS-01 hero assets, the Story/World trigger is relevant whenever the object depicts or stages specific Transfer meaning beyond the already approved generic CORE/SLOT art direction.
