@@ -3,6 +3,10 @@ import type { DoorDefinition, FloorDefinition, MetaState, Rect } from "../game/t
 
 export const DOOR_CLOSE_HYSTERESIS = 42;
 
+type DoorAccessState = Pick<MetaState, "accessKeyIds"> & {
+  scriptState?: Pick<MetaState["scriptState"], "doorStates">;
+};
+
 function circleIntersectsRect(x: number, y: number, radius: number, rect: Rect) {
   const nearestX = Math.max(rect.x, Math.min(x, rect.x + rect.w));
   const nearestY = Math.max(rect.y, Math.min(y, rect.y + rect.h));
@@ -23,17 +27,17 @@ export function collisionRectForDoor(door: DoorDefinition): Rect {
   return { x: door.x, y: door.y + (door.h - slab) / 2, w: door.w, h: slab };
 }
 
-export function hasDoorAccess(
-  state: Pick<MetaState, "accessKeyIds">,
-  door: DoorDefinition,
-) {
+export function hasDoorAccess(state: DoorAccessState, door: DoorDefinition) {
+  const scripted = state.scriptState?.doorStates[door.id];
+  if (scripted === "unlocked") return true;
+  if (scripted === "locked") return false;
   if (door.mode === "auto") return true;
   return Boolean(door.keyId && state.accessKeyIds.includes(door.keyId));
 }
 
 export function nextAutomaticDoorIds(
   floor: FloorDefinition,
-  state: Pick<MetaState, "x" | "y" | "accessKeyIds">,
+  state: Pick<MetaState, "x" | "y" | "accessKeyIds"> & { scriptState?: Pick<MetaState["scriptState"], "doorStates"> },
   currentlyOpen: ReadonlySet<string>,
 ): Set<string> {
   const next = new Set<string>();
