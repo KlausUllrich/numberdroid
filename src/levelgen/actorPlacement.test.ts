@@ -19,7 +19,16 @@ function compile() {
   return compileActorPlacement(props);
 }
 
-describe("Level Compiler v0.4 actor placement", () => {
+function distanceToWall(cell: { x: number; y: number }, rect: { x: number; y: number; w: number; h: number }) {
+  return Math.min(
+    cell.x - rect.x,
+    rect.x + rect.w - 1 - cell.x,
+    cell.y - rect.y,
+    rect.y + rect.h - 1 - cell.y,
+  );
+}
+
+describe("Level Compiler v0.13.2 actor placement", () => {
   it("places the authored TS-01 actors inside PRIMUS", () => {
     const plan = compile();
     expect(plan.actors.map((actor) => actor.id).sort()).toEqual(["primus-magnetar-742", "primus-sentry-4"]);
@@ -63,6 +72,17 @@ describe("Level Compiler v0.4 actor placement", () => {
       const b = route!.cells[index];
       expect(Math.abs(a.x - b.x) + Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
     }
+  });
+
+  it("keeps the large single-room PRIMUS patrol one full tile away from the room edge", () => {
+    const plan = compile();
+    const route = plan.routes.find((entry) => entry.id === "primus-sentry-patrol")!;
+    const primus = plan.props.navigation.geometry.spaces.find((entry) => entry.id === "primus-allocation")!;
+    expect(route.cells.length).toBeGreaterThan(4);
+    expect(route.cells.every((cell) => distanceToWall(cell, primus.rect) >= 1)).toBe(true);
+
+    const sentry = plan.actors.find((entry) => entry.id === "primus-sentry-4")!;
+    expect(distanceToWall(sentry.cell, primus.rect)).toBeGreaterThanOrEqual(1);
   });
 
   it("keeps the neutral worker out of the reserved patrol route", () => {
