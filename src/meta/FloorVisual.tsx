@@ -1,5 +1,10 @@
 import { memo, type CSSProperties } from "react";
-import type { FloorDefinition, TileMapVisualDefinition, TilesetDefinition } from "../game/types";
+import type {
+  CompositeFloorVisualDefinition,
+  FloorDefinition,
+  TileMapVisualDefinition,
+  TilesetDefinition,
+} from "../game/types";
 import { LightOverlay } from "./LightOverlay";
 import "./FloorVisual.css";
 import "./TransferHallLayers.css";
@@ -65,7 +70,39 @@ function TileMap({ visual }: { visual: TileMapVisualDefinition }) {
   </div>;
 }
 
+function CompositeVisual({ visual, width, height }: { visual: CompositeFloorVisualDefinition; width: number; height: number }) {
+  return <div className="zk-floor-composite" aria-hidden="true" style={{ width, height }}>
+    {visual.layers.map((layer) => layer.kind === "image"
+      ? <img
+          key={layer.id}
+          className="zk-floor-composite__image"
+          data-visual-layer={layer.id}
+          src={layer.asset}
+          alt=""
+          style={{ width, height, opacity: layer.opacity ?? 1 }}
+        />
+      : <div key={layer.id} className="zk-floor-composite__sprites" data-visual-layer={layer.id} style={{ opacity: layer.opacity ?? 1 }}>
+          {layer.sprites.map((sprite) => <img
+            key={sprite.id}
+            className="zk-floor-composite__sprite"
+            data-sprite-id={sprite.id}
+            src={sprite.asset}
+            alt=""
+            style={{
+              left: sprite.x,
+              top: sprite.y,
+              width: sprite.width,
+              height: sprite.height,
+              opacity: sprite.opacity ?? 1,
+              transform: sprite.rotation ? `rotate(${sprite.rotation}deg)` : undefined,
+            }}
+          />)}
+        </div>)}
+  </div>;
+}
+
 export const FloorVisual = memo(function FloorVisual({ floor }: Props) {
   if (floor.visual.kind === "image") return <img className="zk-deck-art" alt="" src={floor.visual.asset} style={{ width: floor.width, height: floor.height }} />;
+  if (floor.visual.kind === "composite") return <CompositeVisual visual={floor.visual} width={floor.width} height={floor.height} />;
   return <><TileMap visual={floor.visual} /><LightOverlay floorId={floor.id} /></>;
 });
