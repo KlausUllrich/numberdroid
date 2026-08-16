@@ -8,7 +8,12 @@ import {
   TS01_GENERATED_PLAN,
   TS01_GENERATED_PREVIEW_ALIAS,
 } from "./generatedTs01Preview";
-import { COMPILER_PREVIEW_FASCIA_PX, compilerPlayablePreviewSvg } from "./playablePreview";
+import {
+  COMPILER_PREVIEW_FASCIA_PX,
+  artSpriteForPlacement,
+  compilerCompositePreviewVisual,
+  compilerPlayablePreviewSvg,
+} from "./playablePreview";
 
 describe("Level Compiler playable generated preview", () => {
   it("registers the compiler floor under both its canonical id and friendly preview alias", () => {
@@ -46,12 +51,59 @@ describe("Level Compiler playable generated preview", () => {
     expect(magnetar?.behavior?.kind).toBe("neutral");
   });
 
-  it("renders the complete compiler QA world as one static image while preserving runtime collision", () => {
+  it("uses ordered composite presentation without changing runtime collision", () => {
     const floor = TS01_GENERATED_FLOOR;
-    expect(floor.visual.kind).toBe("image");
-    if (floor.visual.kind !== "image") return;
-    expect(floor.visual.asset.startsWith("data:image/svg+xml")).toBe(true);
+    expect(floor.visual.kind).toBe("composite");
+    if (floor.visual.kind !== "composite") return;
+    expect(floor.visual.layers.map((layer) => layer.id)).toEqual([
+      "ground",
+      "floor-fx",
+      "architecture",
+      "wall-prop-blockouts",
+      "wall-props",
+      "floor-prop-blockouts",
+      "floor-props",
+    ]);
     expect(floor.obstacles.length).toBe(TS01_GENERATED_PLAN.runtimeFloor.obstacles.length);
+  });
+
+  it("maps registered production art and keeps unmapped Props as blockouts", () => {
+    const visual = compilerCompositePreviewVisual(TS01_GENERATED_PLAN);
+    const wallProps = visual.layers.find((layer) => layer.id === "wall-props");
+    const floorProps = visual.layers.find((layer) => layer.id === "floor-props");
+    const floorFx = visual.layers.find((layer) => layer.id === "floor-fx");
+    const fallbackFloor = visual.layers.find((layer) => layer.id === "floor-prop-blockouts");
+
+    expect(wallProps?.kind).toBe("sprites");
+    expect(floorProps?.kind).toBe("sprites");
+    expect(floorFx?.kind).toBe("sprites");
+    expect(fallbackFloor?.kind).toBe("image");
+    if (wallProps?.kind !== "sprites" || floorProps?.kind !== "sprites" || floorFx?.kind !== "sprites") return;
+
+    expect(wallProps.sprites.find((sprite) => sprite.id === "living-memory")?.asset).toContain("assets/deck/family-memory-console.png");
+    expect(wallProps.sprites.find((sprite) => sprite.id === "living-coffee")?.asset).toContain("assets/deck/family-coffee-machine.png");
+    expect(floorProps.sprites.find((sprite) => sprite.id === "living-table")?.asset).toContain("assets/deck/family-table-props.png");
+    expect(floorProps.sprites.find((sprite) => sprite.id === "living-plant")?.asset).toContain("assets/deck/family-round-plant.png");
+    expect(floorFx.sprites.find((sprite) => sprite.id === "shadow:living-table")?.asset).toContain("assets/deck/family-table-shadow.png");
+  });
+
+  it("keeps authored source dimensions when rotating art over a rotated physical footprint", () => {
+    const placement = TS01_GENERATED_PLAN.events.actors.props.placements.find((entry) => entry.id === "living-memory")!;
+    const physicalCenter = {
+      x: placement.rect.x + placement.rect.w / 2,
+      y: placement.rect.y + placement.rect.h / 2,
+    };
+    const rotatedPlacement = {
+      ...placement,
+      rotation: 90 as const,
+      rect: { x: physicalCenter.x - 0.5, y: physicalCenter.y - 1, w: 1, h: 2 },
+    };
+    const sprite = artSpriteForPlacement(TS01_GENERATED_PLAN, rotatedPlacement, "assets/test.png");
+    expect(sprite.width).toBe(128);
+    expect(sprite.height).toBe(64);
+    expect(sprite.rotation).toBe(90);
+    expect(sprite.x + sprite.width / 2).toBeCloseTo((rotatedPlacement.rect.x - TS01_GENERATED_PLAN.events.actors.props.navigation.bounds.x + 0.5) * 64);
+    expect(sprite.y + sprite.height / 2).toBeCloseTo((rotatedPlacement.rect.y - TS01_GENERATED_PLAN.events.actors.props.navigation.bounds.y + 1) * 64);
   });
 
   it("uses the accepted visible wall fascia and emits each canonical wall only once", () => {
