@@ -7,6 +7,11 @@ import type {
   WallOrientation,
   WallSegment,
 } from "./geometryTypes";
+import {
+  solveMultiConstraintTopology,
+  spatialRelationDiagnostics,
+  validateRequiredSpatialRelations,
+} from "./topologySolver";
 
 const DEFAULT_ROOM_SIZE = {
   tiny: { w: 2, h: 3 },
@@ -380,10 +385,8 @@ function boundsFor(spaces: SpaceGeometry[], margin = 1): GridRect {
   return { x: 0, y: 0, w: maxX + margin, h: maxY + margin };
 }
 
-export function compileLevelGeometry(semantic: SemanticCompilePlan): GeometryCompilePlan {
-  if (!semantic.spaces.length) throw new Error(`Geometry compile requires at least one semantic space.`);
-
-  const diagnostics = [...semantic.diagnostics];
+function legacyTreePlacement(semantic: SemanticCompilePlan) {
+  const diagnostics: GeometryCompilePlan["diagnostics"] = [];
   const root = semantic.spaces[0];
   const rootSize = dimensions(root, semantic.overrides);
   const placed = new Map<string, SpaceGeometry>([
@@ -416,15 +419,64 @@ export function compileLevelGeometry(semantic: SemanticCompilePlan): GeometryCom
     }
     if (!progressed) {
       const remaining = semantic.spaces.filter((space) => !placed.has(space.id)).map((space) => space.id);
-      throw new Error(`Geometry solver cannot attach remaining spaces: ${remaining.join(", ")}. v0.1 expects a connected tree-like placement graph.`);
+      throw new Error(`Geometry solver cannot attach remaining spaces: ${remaining.join(", ")}.`);
     }
   }
 
-  let spaces = normalizePlacements([...placed.values()]);
+  return { spaces: [...placed.values()], diagnostics };
+}
+
+function finalizeSpaces(rawSpaces: SpaceGeometry[], semantic: SemanticCompilePlan) {
+  let spaces = normalizePlacements(rawSpaces);
   spaces = applyOffsets(spaces, semantic.overrides);
   validateNoOverlaps(spaces);
-
+  validateRequiredSpatialRelations(semantic, spaces);
   const connections = compileConnections(semantic, spaces);
+  return { spaces, connections };
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export function compileLevelGeometry(semantic: SemanticCompilePlan): GeometryCompilePlan {
+  if (!semantic.spaces.length) throw new Error(`Geometry compile requires at least one semantic space.`);
+
+  const diagnostics = [...semantic.diagnostics];
+  let spaces: SpaceGeometry[];
+  let connections: ConnectionGeometry[];
+
+  try {
+    const legacy = legacyTreePlacement(semantic);
+    const finalized = finalizeSpaces(legacy.spaces, semantic);
+    spaces = finalized.spaces;
+    connections = finalized.connections;
+    diagnostics.push(...legacy.diagnostics);
+    diagnostics.push({
+      level: "info",
+      code: "TREE_COMPATIBLE_TOPOLOGY_PRESERVED",
+      message: "Existing tree-compatible geometry path satisfied all authored connections and required relations; no topology search was needed.",
+    });
+  } catch (legacyError) {
+    try {
+      const solved = solveMultiConstraintTopology(semantic);
+      const finalized = finalizeSpaces(solved.spaces, semantic);
+      spaces = finalized.spaces;
+      connections = finalized.connections;
+      diagnostics.push({
+        level: "info",
+        code: "MULTI_CONSTRAINT_FALLBACK_USED",
+        message: `Incremental tree placement could not satisfy the complete topology (${errorMessage(legacyError)}); deterministic multi-constraint search was used.`,
+      });
+      diagnostics.push(...solved.diagnostics);
+    } catch (solverError) {
+      throw new Error(
+        `Geometry topology could not be solved. Incremental path: ${errorMessage(legacyError)} Multi-constraint path: ${errorMessage(solverError)}`,
+      );
+    }
+  }
+
+  diagnostics.push(...spatialRelationDiagnostics(semantic, spaces));
   const walls = collapseWalls(buildWallUnits(spaces, connections));
 
   diagnostics.push({
