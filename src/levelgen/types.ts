@@ -93,6 +93,19 @@ export type EncounterIntentSpec = {
   patrolRouteId?: string;
 };
 
+/**
+ * A non-encounter actor that may be spawned/moved only by scripted events.
+ * This is intentionally separate from EncounterIntentSpec so a Bio-Ark animal,
+ * maintenance vehicle, crowd extra, etc. does not need fake combat metadata.
+ */
+export type StagedActorSpec = {
+  id: string;
+  actorType: string;
+  tags?: string[];
+  initiallyPresent?: boolean;
+  defaultSpaceId?: string;
+};
+
 export type AccessPickupSpec = {
   id: string;
   kind: "access-key";
@@ -102,8 +115,37 @@ export type AccessPickupSpec = {
   label?: string;
 };
 
+export type TriggerZoneAnchor =
+  | { kind: "space-center" }
+  | { kind: "connection"; targetId: string }
+  | { kind: "prop"; targetId: string }
+  | { kind: "actor"; targetId: string }
+  | { kind: "route"; targetId: string; position?: "start" | "middle" | "end" }
+  | { kind: "pickup"; targetId: string };
+
+/**
+ * Semantic trigger region. Geometry is derived after Props/Actors exist; no raw
+ * map coordinate is persisted in the authored LevelSpec.
+ */
+export type TriggerZoneSpec = {
+  id: string;
+  spaceId: string;
+  anchor: TriggerZoneAnchor;
+  sizeTiles?: { w: number; h: number };
+  tags?: string[];
+};
+
 export type TriggerKind = "enter-space" | "enter-zone" | "interact" | "collect" | "state-change" | "proximity" | "timer";
-export type TriggerSpec = { id: string; kind: TriggerKind; sourceId: string; eventIds: string[]; once?: boolean; delayMs?: number };
+export type TriggerSpec = {
+  id: string;
+  kind: TriggerKind;
+  sourceId: string;
+  eventIds: string[];
+  once?: boolean;
+  delayMs?: number;
+  /** Used by proximity triggers; defaults to two tiles in v0.5. */
+  radiusTiles?: number;
+};
 
 export type LevelEventSpec =
   | { id: string; kind: "set-flag"; flag: string; value: boolean | number | string }
@@ -144,8 +186,10 @@ export type LevelSpec = {
   connections: ConnectionSpec[];
   props: PropRequestSpec[];
   encounters: EncounterIntentSpec[];
+  stagedActors?: StagedActorSpec[];
   routes?: RouteSpec[];
   pickups?: AccessPickupSpec[];
+  zones?: TriggerZoneSpec[];
   triggers?: TriggerSpec[];
   events?: LevelEventSpec[];
   overrides?: PlacementOverride[];
@@ -196,8 +240,10 @@ export type SemanticCompilePlan = {
   connections: CompiledConnection[];
   props: CompiledPropRequest[];
   encounters: CompiledEncounterIntent[];
+  stagedActors: StagedActorSpec[];
   routes: RouteSpec[];
   pickups: AccessPickupSpec[];
+  zones: TriggerZoneSpec[];
   triggers: TriggerSpec[];
   events: LevelEventSpec[];
   overrides: PlacementOverride[];

@@ -1,14 +1,15 @@
 import { compilePropPlacement } from "./placement";
 import { deriveSubSeed, seededUnit } from "./seed";
 import type { CardinalDirection, PropRotation } from "./types";
-import type { NavigationCompilePlan } from "./navigationTypes";
+import type { HardenedNavigationCompilePlan } from "./navigationHardening";
 import type { PropPlacementDecision, PropPlacementPlan } from "./placementTypes";
 
 export type OrientedPropPlacementDecision = PropPlacementDecision & {
   rotation: PropRotation;
 };
 
-export type OrientedPropPlacementPlan = Omit<PropPlacementPlan, "placements"> & {
+export type OrientedPropPlacementPlan = Omit<PropPlacementPlan, "placements" | "navigation"> & {
+  navigation: HardenedNavigationCompilePlan;
   placements: OrientedPropPlacementDecision[];
 };
 
@@ -37,7 +38,7 @@ function chooseFloorRotation(
   return compatible[Math.min(compatible.length - 1, Math.floor(unit * compatible.length))];
 }
 
-export function compileOrientedPropPlacement(navigation: NavigationCompilePlan): OrientedPropPlacementPlan {
+export function compileOrientedPropPlacement(navigation: HardenedNavigationCompilePlan): OrientedPropPlacementPlan {
   const base = compilePropPlacement(navigation);
   const requests = new Map(base.navigation.geometry.semantic.props.map((request) => [request.id, request]));
 
@@ -69,6 +70,7 @@ export function compileOrientedPropPlacement(navigation: NavigationCompilePlan):
 
   return {
     ...base,
+    navigation,
     placements,
     diagnostics: [
       ...base.diagnostics,

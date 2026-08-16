@@ -3,8 +3,12 @@ import type { GeometryCompilePlan, GridRect } from "./geometryTypes";
 import type { ForbiddenCell, NavigationCompilePlan, NavigationCell } from "./navigationTypes";
 
 export type DoorClearanceZone = {
+  /** Stable authoring/debug identifier for this room-side clearance region. */
+  id: string;
   connectionId: string;
   spaceId: string;
+  /** Which semantic side of the authored connection this clearance belongs to. */
+  side: "before" | "after";
   rect: GridRect;
 };
 
@@ -79,8 +83,24 @@ export function compileLevelNavigationV031(geometry: GeometryCompilePlan): Harde
       ? widenClearance(connection.clearanceAfter, connection.wallOrientation, connection.apertureLength)
       : null;
 
-    if (clearanceBefore) zones.push({ connectionId: connection.id, spaceId: connection.from, rect: clearanceBefore });
-    if (clearanceAfter) zones.push({ connectionId: connection.id, spaceId: connection.to, rect: clearanceAfter });
+    if (clearanceBefore) {
+      zones.push({
+        id: `door-clearance:${connection.id}:before`,
+        connectionId: connection.id,
+        spaceId: connection.from,
+        side: "before",
+        rect: clearanceBefore,
+      });
+    }
+    if (clearanceAfter) {
+      zones.push({
+        id: `door-clearance:${connection.id}:after`,
+        connectionId: connection.id,
+        spaceId: connection.to,
+        side: "after",
+        rect: clearanceAfter,
+      });
+    }
 
     return { ...connection, clearanceBefore, clearanceAfter };
   });
