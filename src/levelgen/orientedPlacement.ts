@@ -48,11 +48,12 @@ export function compileOrientedPropPlacement(navigation: NavigationCompilePlan):
     if (!allowed.length) throw new Error(`Prop ${request.propId} must declare at least one allowed rotation.`);
 
     let rotation: PropRotation;
-    if (placement.wallSide) {
+    if (request.metadata.attachment === "wall") {
+      if (!placement.wallSide) throw new Error(`Wall prop ${placement.id} has no solved wall side.`);
       rotation = wallSideRotation(placement.wallSide);
       if (!allowed.includes(rotation)) {
         throw new Error(
-          `Prop ${placement.id} was solved on ${placement.wallSide} wall, requiring ${rotation}°, but ${request.propId} allows only ${allowed.join("/ ")}°.`
+          `Prop ${placement.id} was solved on ${placement.wallSide} wall, requiring ${rotation}°, but ${request.propId} allows only ${allowed.join("/")}°.`
         );
       }
     } else {
