@@ -140,7 +140,7 @@ This prevents an Artist from solving an old problem or reopening a completed arc
 Read completely:
 
 1. [`../art/README.md`](../art/README.md) — current art status/authority router;
-2. [`../art/production/PROP_ASSET_WORKFLOW.md`](../art/production/PROP_ASSET_WORKFLOW.md) — **binding Prop function-analysis, user-alignment, source, QA, processing, shadow and integration sequence**;
+2. [`../art/production/PROP_ASSET_WORKFLOW.md`](../art/production/PROP_ASSET_WORKFLOW.md) — **binding Prop function-analysis, keyword-trigger, source, QA, processing, shadow and integration sequence**;
 3. [`../art/production/ARTIST_AGENT_WORKFLOW.md`](../art/production/ARTIST_AGENT_WORKFLOW.md) — cross-method Artist process;
 4. [`../art/production/ART_ASSET_VALIDATION_RULES.md`](../art/production/ART_ASSET_VALIDATION_RULES.md);
 5. [`../art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`](../art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md);
@@ -217,7 +217,7 @@ After reading the required context for a **new or materially revised Prop**, do 
 
 First explain the proposed **function-to-form philosophy in text** so the user can correct the reasoning before an expensive visual iteration.
 
-The binding details live in [`../art/production/PROP_ASSET_WORKFLOW.md`](../art/production/PROP_ASSET_WORKFLOW.md). At minimum, the Artist's text should make clear:
+At minimum, make clear:
 
 - what the asset actually does in the world/game/story;
 - what the player should understand from its shape without explanation;
@@ -227,13 +227,40 @@ The binding details live in [`../art/production/PROP_ASSET_WORKFLOW.md`](../art/
 - the perspective strategy and what viewpoint mistakes must be avoided;
 - the proposed visual design philosophy.
 
-**The user gets a correction gate here.** Do not generate in the same turn merely because the Artist has finished thinking. Generate only after the user has accepted/corrected that textual direction or has already explicitly requested generation after seeing it.
-
-After alignment, image generation follows the Prop workflow: **one proposal per generated image**.
+The user gets a correction gate here. **Do not generate merely because this philosophy was accepted.** For Prop image work, generation waits for the explicit trigger word `generieren` in a later/current user message.
 
 ---
 
-# 7. Cross-domain triggers
+# 7. Two keyword triggers — memorize these
+
+The binding details live in [`../art/production/PROP_ASSET_WORKFLOW.md`](../art/production/PROP_ASSET_WORKFLOW.md).
+
+For Prop / Prop-like Hero image work, use these explicit triggers:
+
+## `QA`
+
+`QA` means **inspect only**.
+
+- Never call `image_gen` in a `QA` turn.
+- Report the current image as `PASS`, `FAIL` or `REVISION REQUIRED` with concrete reasons.
+- Capture durable learning in the relevant recipe/documentation when requested.
+- Do not create a replacement image in the same turn.
+
+If `QA` and `generieren` appear in the same message, `QA` wins. No generation occurs.
+
+## `generieren`
+
+`image_gen` may be called for Prop work **only when the current user message contains the literal word `generieren`** (case-insensitive).
+
+Do not treat `ok`, `ja`, `weiter`, `mach das`, `ändern`, `verbessern`, `nächste Variante` or similar language as generation authorization.
+
+One `generieren` trigger = exactly one proposal = exactly one image-generation call = then stop for QA.
+
+This is intentionally mechanical. It prevents the Artist from accidentally starting a slow image turn while the user is still discussing or reviewing the design.
+
+---
+
+# 8. Cross-domain triggers
 
 Use [`ROLE_ENTRYPOINTS.md`](ROLE_ENTRYPOINTS.md) for complete trigger definitions.
 
@@ -247,7 +274,7 @@ A Prop Artist may identify such a requirement, but should not hide an unresolved
 
 ---
 
-# 8. Ready-to-produce check
+# 9. Ready-to-produce check
 
 After the reading route above, the Prop Artist should be able to state:
 
@@ -260,13 +287,14 @@ After the reading route above, the Prop Artist should be able to state:
 - the applicable visual/category contract;
 - the selected method and authority split;
 - the current asset recipe and runtime consumer;
-- the exact next gate in `PROP_ASSET_WORKFLOW.md`.
+- the exact next gate in `PROP_ASSET_WORKFLOW.md`;
+- whether the current user turn is `QA`, `generieren`, or neither.
 
 If any of those cannot be established from current documents/code, resolve the missing authority before generation rather than guessing.
 
 ---
 
-# 9. Scope boundary of this brief
+# 10. Scope boundary of this brief
 
 This brief contains **orientation summaries**, not duplicate production specifications.
 
