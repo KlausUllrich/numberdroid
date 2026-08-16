@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
+import { BODIES } from "../game/catalog";
+import type { EnemyId } from "../game/types";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
 import type { ConnectionGeometry, GridRect, SpaceGeometry } from "./geometryTypes";
@@ -15,12 +17,20 @@ import {
   regenerateSemanticTarget,
   resetOverride,
   resizeLockedGeometry,
+  setEncounterRobotType,
   setPreferredWall,
   tryCompileWorkbenchPlan,
   unlockGeometry,
   unlockProp,
   type WorkbenchSelection,
 } from "./workbench";
+import { clearWorkbenchDraft, loadWorkbenchDraft, saveWorkbenchDraft } from "./workbenchDraft";
+import {
+  commitWorkbenchHistory,
+  createWorkbenchHistory,
+  redoWorkbenchHistory,
+  undoWorkbenchHistory,
+} from "./workbenchHistory";
 import { pointerExceededTapSlop, shouldCommitWorkbenchTap } from "./workbenchInteraction";
 import "./LevelCompilerDebug.css";
 
@@ -29,10 +39,13 @@ const PAD = 34;
 const MIN_ZOOM = 0.45;
 const MAX_ZOOM = 5;
 const WALLS: Array<CardinalDirection | undefined> = [undefined, "north", "east", "south", "west"];
+const ROBOT_TYPES: EnemyId[] = ["sentry", "magnetar", "kronos"];
 
 type ViewBox = { x: number; y: number; w: number; h: number };
 type PointerPosition = { x: number; y: number };
 type EditAvailability = { valid: boolean; error: string | null };
+
+type AvailabilityMap = Record<string, EditAvailability>;
 
 function friendly(id: string) {
   return id.replace(/^family-/, "").replace(/-/g, " ").replace(/#/g, " ").toUpperCase();
@@ -93,7 +106,7 @@ function selectionFromPointerTarget(target: EventTarget | null): WorkbenchSelect
   if (!element) return null;
   const kind = element.getAttribute("data-workbench-kind");
   const id = element.getAttribute("data-workbench-id");
-  if (!id || (kind !== "space" && kind !== "prop")) return null;
+  if (!id || (kind !== "space" && kind !== "prop" && kind !== "actor")) return null;
   return { kind, id };
 }
 
@@ -111,8 +124,33 @@ function blocked(reason: string): EditAvailability {
   return { valid: false, error: reason };
 }
 
+function explainConstraint(error: string | null) {
+  if (!error) return "Blocked by the current compiler constraints.";
+  if (/root Space anchors|root-relative compiler grid/i.test(error)) return "Root anchor: this Space defines the coordinate frame, so moving it would only translate the whole level.";
+  if (/requires .* share a real boundary/i.test(error)) return "Connection boundary: this edit would separate two Spaces that must remain directly connected.";
+  if (/spaces overlap/i.test(error)) return "Space overlap: this edit would intersect another room/corridor.";
+  if (/Required spatial relation failed/i.test(error)) return "Required relation: this edit would violate a hard north/south/east/west relationship.";
+  if (/door-clearance|clearance/i.test(error)) return "Door/use clearance: required free space would be obstructed.";
+  if (/primary-circulation|reachability|reachable/i.test(error)) return "Navigation: this edit would break required circulation or reachability.";
+  if (/Required prop .* could not be placed/i.test(error)) return "Furnishing dependency: a required Prop would no longer have any legal placement.";
+  if (/route|patrol/i.test(error)) return "Actor route: the edit would invalidate a required patrol/scripted route.";
+  if (/locked Prop|placement lock|wall slot|wall/i.test(error)) return "Prop attachment: the object would violate its wall/placement contract.";
+  return error.length > 190 ? `${error.slice(0, 187)}…` : error;
+}
+
+function blockedEntries(availability: AvailabilityMap | null) {
+  if (!availability) return [];
+  return Object.entries(availability).filter(([, entry]) => !entry.valid);
+}
+
 export function LevelCompilerWorkbench() {
-  const [overrides, setOverrides] = useState<PlacementOverride[]>(() => [...(TS01_LEVEL_SPEC.overrides ?? [])]);
+  const initialDraft = useMemo(() => loadWorkbenchDraft(TS01_LEVEL_SPEC), []);
+  const baseOverrides = TS01_LEVEL_SPEC.overrides ?? [];
+  const [history, setHistory] = useState(() => createWorkbenchHistory(initialDraft?.overrides ?? baseOverrides));
+  const overrides = history.present;
+  const [hasSavedDraft, setHasSavedDraft] = useState(Boolean(initialDraft));
+  const [savedSnapshot, setSavedSnapshot] = useState(() => overrideJson(initialDraft?.overrides ?? baseOverrides));
+  const [saveNotice, setSaveNotice] = useState(initialDraft ? "DRAFT LOADED" : "");
   const [selection, setSelection] = useState<WorkbenchSelection | null>(null);
   const [editMode, setEditMode] = useState(true);
   const [editError, setEditError] = useState<string | null>(null);
@@ -152,10 +190,16 @@ export function LevelCompilerWorkbench() {
   const selectedSpace = selection?.kind === "space" ? geometry.spaces.find((entry) => entry.id === selection.id) ?? null : null;
   const selectedProp = selection?.kind === "prop" ? props.placements.find((entry) => entry.id === selection.id) ?? null : null;
   const selectedPropRequest = selectedProp ? geometry.semantic.props.find((entry) => entry.id === selectedProp.requestId) ?? null : null;
-  const selectedTargetId = selectedSpace?.id ?? selectedPropRequest?.id ?? null;
+  const selectedActor = selection?.kind === "actor" ? actors.actors.find((entry) => entry.id === selection.id) ?? null : null;
+  const selectedEncounter = selectedActor ? geometry.semantic.encounters.find((entry) => entry.id === selectedActor.id) ?? null : null;
+  const baseEncounter = selectedEncounter ? TS01_LEVEL_SPEC.encounters.find((entry) => entry.id === selectedEncounter.id) ?? null : null;
+  const selectedTargetId = selectedSpace?.id ?? selectedPropRequest?.id ?? selectedEncounter?.id ?? null;
   const selectedOverride = selectedTargetId ? activeOverride(overrides, selectedTargetId) : null;
   const inspectorOpen = Boolean(selection || editError);
   const rootSpaceId = geometry.spaces[0]?.id ?? null;
+  const baseSnapshot = overrideJson(baseOverrides);
+  const currentSnapshot = overrideJson(overrides);
+  const draftDirty = currentSnapshot !== (hasSavedDraft ? savedSnapshot : baseSnapshot);
 
   const spaceEditAvailability = useMemo(() => {
     if (!selectedSpace) return null;
@@ -184,12 +228,10 @@ export function LevelCompilerWorkbench() {
     };
   }, [selectedProp?.id, selectedPropRequest?.id, selectedPropRequest?.quantity, overrides, plan]);
 
-  const spaceDirectEditCount = spaceEditAvailability
-    ? Object.values(spaceEditAvailability).filter((entry) => entry.valid).length
-    : 0;
-  const propDirectEditCount = propEditAvailability
-    ? Object.values(propEditAvailability).filter((entry) => entry.valid).length
-    : 0;
+  const spaceDirectEditCount = spaceEditAvailability ? Object.values(spaceEditAvailability).filter((entry) => entry.valid).length : 0;
+  const propDirectEditCount = propEditAvailability ? Object.values(propEditAvailability).filter((entry) => entry.valid).length : 0;
+  const spaceBlocked = blockedEntries(spaceEditAvailability);
+  const propBlocked = blockedEntries(propEditAvailability);
 
   useEffect(() => {
     viewBoxRef.current = fullViewBox;
@@ -334,8 +376,9 @@ export function LevelCompilerWorkbench() {
         setEditError(result.error ?? "Unknown compiler error");
         return;
       }
-      setOverrides(candidate);
+      setHistory((current) => commitWorkbenchHistory(current, candidate));
       setEditError(null);
+      setSaveNotice("");
     } catch (error) {
       setEditError(error instanceof Error ? error.message : String(error));
     }
@@ -353,6 +396,42 @@ export function LevelCompilerWorkbench() {
     applyEdit(() => selectedOverride?.lockPlacement
       ? unlockProp(overrides, selectedPropRequest.id)
       : materializePropLock(plan, overrides, selectedProp.id));
+  }
+
+  function undo() {
+    if (!history.past.length) return;
+    setHistory((current) => undoWorkbenchHistory(current));
+    setEditError(null);
+    setSaveNotice("");
+  }
+
+  function redo() {
+    if (!history.future.length) return;
+    setHistory((current) => redoWorkbenchHistory(current));
+    setEditError(null);
+    setSaveNotice("");
+  }
+
+  function saveDraft() {
+    try {
+      const saved = saveWorkbenchDraft(TS01_LEVEL_SPEC, overrides);
+      setHasSavedDraft(true);
+      setSavedSnapshot(overrideJson(saved.overrides));
+      setSaveNotice("DRAFT SAVED");
+    } catch (error) {
+      setEditError(`Could not save browser draft: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  function clearDraft() {
+    try {
+      clearWorkbenchDraft(TS01_LEVEL_SPEC);
+      setHasSavedDraft(false);
+      setSavedSnapshot(baseSnapshot);
+      setSaveNotice("DRAFT CLEARED");
+    } catch (error) {
+      setEditError(`Could not clear browser draft: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   async function copyOverrides() {
@@ -374,9 +453,9 @@ export function LevelCompilerWorkbench() {
     <main className="levelgen-debug levelgen-debug--workbench">
       <header className="levelgen-debug__header">
         <div>
-          <small>NUMBERDROID · LEVEL COMPILER WORKBENCH v0.12.2</small>
+          <small>NUMBERDROID · LEVEL COMPILER WORKBENCH v0.12.3</small>
           <h1>TS-01 · SEMANTIC EDITING</h1>
-          <p>Tap a Space or Prop · enabled edit controls already satisfy the full compiler · drag/pinch navigates</p>
+          <p>Tap Space / Prop / Actor · accepted edits enter Undo history · SAVE DRAFT persists on this browser</p>
         </div>
         <div className="levelgen-debug__stats">
           <span><b>{geometry.spaces.length}</b> SPACES</span>
@@ -390,6 +469,12 @@ export function LevelCompilerWorkbench() {
 
       <section className="levelgen-debug__controls" aria-label="Workbench layers and viewport">
         <label className="edit-mode"><input type="checkbox" checked={editMode} onChange={(event) => setEditMode(event.target.checked)} /> EDIT MODE</label>
+        <div className="levelgen-workbench__history-controls" aria-label="Authoring history and draft">
+          <button type="button" disabled={!history.past.length} onClick={undo}>UNDO</button>
+          <button type="button" disabled={!history.future.length} onClick={redo}>REDO</button>
+          <button type="button" className={draftDirty ? "dirty" : ""} onClick={saveDraft}>SAVE DRAFT</button>
+          <span className={draftDirty ? "dirty" : "saved"}>{saveNotice || (draftDirty ? "UNSAVED" : hasSavedDraft ? "SAVED" : "BASE")}</span>
+        </div>
         <label><input type="checkbox" checked={showNavigation} onChange={(event) => setShowNavigation(event.target.checked)} /> PRIMARY PATH</label>
         <label><input type="checkbox" checked={showClearance} onChange={(event) => setShowClearance(event.target.checked)} /> DOOR CLEARANCE</label>
         <label><input type="checkbox" checked={showWallSlots} onChange={(event) => setShowWallSlots(event.target.checked)} /> WALL SLOTS</label>
@@ -413,7 +498,7 @@ export function LevelCompilerWorkbench() {
             className={`levelgen-debug__canvas${isDragging ? " is-dragging" : ""}`}
             viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
             role="img"
-            aria-label="Generated TS-01 Level Compiler Workbench. Tap a Space or Prop to select; drag to pan; pinch with two fingers to zoom."
+            aria-label="Generated TS-01 Level Compiler Workbench. Tap a Space, Prop or Actor to select; drag to pan; pinch with two fingers to zoom."
             onWheel={handleWheel}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -505,8 +590,21 @@ export function LevelCompilerWorkbench() {
             {showActors && <g className="levelgen-debug__actors">{actors.actors.map((actor) => {
               const center = cellCenter(actor.cell, bounds);
               const vector = facingVector(actor.facing);
-              const tooltip = `${actor.id}\n${actor.behavior} · facing ${actor.facing}°${actor.patrolRouteId ? ` · ${actor.patrolRouteId}` : ""}\nscore ${actor.score.toFixed(2)}\n${actor.reasons.join(" · ")}\nvalid candidates ${actor.candidateCount}`;
-              return <g key={actor.id} className={`actor actor--${actor.behavior}`}><circle cx={center.x} cy={center.y} r={TILE * 0.27} /><line x1={center.x} y1={center.y} x2={center.x + vector.x * TILE * 0.34} y2={center.y + vector.y * TILE * 0.34} /><title>{tooltip}</title></g>;
+              const encounter = geometry.semantic.encounters.find((entry) => entry.id === actor.id);
+              const tooltip = `${actor.id}\n${encounter ? BODIES[encounter.bodyId].name : "ACTOR"} · ${actor.behavior} · facing ${actor.facing}°${actor.patrolRouteId ? ` · ${actor.patrolRouteId}` : ""}\nscore ${actor.score.toFixed(2)}\n${actor.reasons.join(" · ")}\nvalid candidates ${actor.candidateCount}`;
+              const selected = selection?.kind === "actor" && selection.id === actor.id;
+              return (
+                <g
+                  key={actor.id}
+                  className={`actor actor--${actor.behavior}${selected ? " is-selected" : ""}`}
+                  data-workbench-kind="actor"
+                  data-workbench-id={actor.id}
+                >
+                  <circle cx={center.x} cy={center.y} r={TILE * 0.27} />
+                  <line x1={center.x} y1={center.y} x2={center.x + vector.x * TILE * 0.34} y2={center.y + vector.y * TILE * 0.34} />
+                  <title>{tooltip}</title>
+                </g>
+              );
             })}</g>}
 
             {showEvents && <g className="levelgen-debug__triggers">{plan.triggers.filter((trigger) => trigger.source.point).map((trigger) => {
@@ -546,8 +644,14 @@ export function LevelCompilerWorkbench() {
           <button type="button" className="levelgen-workbench__inspector-close" aria-label="Close inspector" onClick={closeInspector}>×</button>
           <div className="levelgen-workbench__inspector-head">
             <small>SEMANTIC OVERRIDE</small>
-            <strong>{selectedSpace ? friendly(selectedSpace.id) : selectedProp ? friendly(selectedProp.id) : "NOTHING SELECTED"}</strong>
-            <span>{selectedSpace ? `SPACE · ${selectedSpace.rect.w}×${selectedSpace.rect.h}` : selectedProp ? `PROP · ${selectedProp.rotation}° · ${selectedProp.wallSide ?? "FLOOR"}` : "Tap a Space or Prop in Edit Mode."}</span>
+            <strong>{selectedSpace ? friendly(selectedSpace.id) : selectedProp ? friendly(selectedProp.id) : selectedActor ? friendly(selectedActor.id) : "NOTHING SELECTED"}</strong>
+            <span>{selectedSpace
+              ? `SPACE · ${selectedSpace.rect.w}×${selectedSpace.rect.h}`
+              : selectedProp
+                ? `PROP · ${selectedProp.rotation}° · ${selectedProp.wallSide ?? "FLOOR"}`
+                : selectedEncounter
+                  ? `ACTOR · ${BODIES[selectedEncounter.bodyId].name} · ${selectedEncounter.behavior.toUpperCase()}`
+                  : "Tap a Space, Prop or Actor in Edit Mode."}</span>
           </div>
 
           {selectedSpace && spaceEditAvailability && (
@@ -562,16 +666,22 @@ export function LevelCompilerWorkbench() {
               </p>
               <div className="levelgen-workbench__edit-grid">
                 <span>MOVE</span>
-                <button disabled={!spaceEditAvailability.left.valid} title={spaceEditAvailability.left.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0))}>←</button>
-                <button disabled={!spaceEditAvailability.up.valid} title={spaceEditAvailability.up.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1))}>↑</button>
-                <button disabled={!spaceEditAvailability.down.valid} title={spaceEditAvailability.down.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1))}>↓</button>
-                <button disabled={!spaceEditAvailability.right.valid} title={spaceEditAvailability.right.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0))}>→</button>
+                <button disabled={!spaceEditAvailability.left.valid} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0))}>←</button>
+                <button disabled={!spaceEditAvailability.up.valid} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1))}>↑</button>
+                <button disabled={!spaceEditAvailability.down.valid} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1))}>↓</button>
+                <button disabled={!spaceEditAvailability.right.valid} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0))}>→</button>
                 <span>SIZE</span>
-                <button disabled={!spaceEditAvailability.narrower.valid} title={spaceEditAvailability.narrower.error ?? undefined} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0))}>W−</button>
-                <button disabled={!spaceEditAvailability.wider.valid} title={spaceEditAvailability.wider.error ?? undefined} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0))}>W+</button>
-                <button disabled={!spaceEditAvailability.shorter.valid} title={spaceEditAvailability.shorter.error ?? undefined} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1))}>H−</button>
-                <button disabled={!spaceEditAvailability.taller.valid} title={spaceEditAvailability.taller.error ?? undefined} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1))}>H+</button>
+                <button disabled={!spaceEditAvailability.narrower.valid} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0))}>W−</button>
+                <button disabled={!spaceEditAvailability.wider.valid} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0))}>W+</button>
+                <button disabled={!spaceEditAvailability.shorter.valid} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1))}>H−</button>
+                <button disabled={!spaceEditAvailability.taller.valid} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1))}>H+</button>
               </div>
+              {spaceBlocked.length > 0 && (
+                <details className="levelgen-workbench__constraints">
+                  <summary>WHY BLOCKED? · {spaceBlocked.length}</summary>
+                  <ul>{spaceBlocked.map(([action, entry]) => <li key={action}><b>{action.toUpperCase()}</b><span>{explainConstraint(entry.error)}</span></li>)}</ul>
+                </details>
+              )}
             </>
           )}
 
@@ -583,17 +693,40 @@ export function LevelCompilerWorkbench() {
               </div>
               {selectedPropRequest.quantity !== 1
                 ? <p className="levelgen-workbench__note">Per-instance locking for quantity &gt; 1 is deliberately deferred; request-level preferences/regeneration remain available.</p>
-                : <p className="levelgen-workbench__note">{propDirectEditCount}/4 direct moves are valid in the current full compiler state. A Prop can be completely bound by wall attachment, use-space, clearance, circulation or neighboring Props; disabled arrows show those constraints before you edit.</p>}
+                : <p className="levelgen-workbench__note">{propDirectEditCount}/4 direct moves are valid in the current full compiler state. A Prop can be completely bound by wall attachment, use-space, clearance, circulation or neighboring Props.</p>}
               <div className="levelgen-workbench__edit-grid">
                 <span>MOVE</span>
-                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.left.valid} title={propEditAvailability?.left.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, -1, 0))}>←</button>
-                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.up.valid} title={propEditAvailability?.up.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, -1))}>↑</button>
-                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.down.valid} title={propEditAvailability?.down.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, 1))}>↓</button>
-                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.right.valid} title={propEditAvailability?.right.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 1, 0))}>→</button>
+                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.left.valid} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, -1, 0))}>←</button>
+                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.up.valid} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, -1))}>↑</button>
+                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.down.valid} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, 1))}>↓</button>
+                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.right.valid} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 1, 0))}>→</button>
               </div>
               <label className="levelgen-workbench__field">PREFERRED WALL
                 <select value={selectedOverride?.preferredWall ?? ""} onChange={(event) => applyEdit(() => setPreferredWall(overrides, selectedPropRequest.id, (event.target.value || undefined) as CardinalDirection | undefined))}>
                   {WALLS.map((wall) => <option key={wall ?? "auto"} value={wall ?? ""}>{wall?.toUpperCase() ?? "AUTO"}</option>)}
+                </select>
+              </label>
+              {propBlocked.length > 0 && selectedPropRequest.quantity === 1 && (
+                <details className="levelgen-workbench__constraints">
+                  <summary>WHY BLOCKED? · {propBlocked.length}</summary>
+                  <ul>{propBlocked.map(([action, entry]) => <li key={action}><b>{action.toUpperCase()}</b><span>{explainConstraint(entry.error)}</span></li>)}</ul>
+                </details>
+              )}
+            </>
+          )}
+
+          {selectedActor && selectedEncounter && baseEncounter && (
+            <>
+              <p className="levelgen-workbench__note">The semantic Encounter ID, behavior, route and math role stay stable. ROBOT TYPE replaces the emitted enemy/body type through the normal compiler pipeline.</p>
+              <label className="levelgen-workbench__field">ROBOT TYPE
+                <select
+                  value={selectedEncounter.enemyId}
+                  onChange={(event) => {
+                    const next = event.target.value as EnemyId;
+                    applyEdit(() => setEncounterRobotType(overrides, selectedEncounter.id, next === baseEncounter.enemyId ? undefined : next));
+                  }}
+                >
+                  {ROBOT_TYPES.map((robotType) => <option key={robotType} value={robotType}>{BODIES[robotType].name}</option>)}
                 </select>
               </label>
             </>
@@ -603,8 +736,11 @@ export function LevelCompilerWorkbench() {
           {editError && <div className="levelgen-workbench__error"><b>EDIT REJECTED</b><span>{editError}</span></div>}
 
           <div className="levelgen-workbench__export">
+            <div><strong>WORKBENCH DRAFT</strong><button onClick={saveDraft}>{draftDirty ? "SAVE DRAFT" : "SAVED"}</button></div>
+            <p className="levelgen-workbench__note">SAVE DRAFT persists on this browser/device. COPY JSON is the portable representation for committing the edits into the canonical project LevelSpec.</p>
             <div><strong>OVERRIDES</strong><button onClick={copyOverrides}>{copied ? "COPIED" : "COPY JSON"}</button></div>
             <pre>{overrideJson(overrides)}</pre>
+            {hasSavedDraft && <button className="levelgen-workbench__clear-draft" onClick={clearDraft}>CLEAR SAVED DRAFT</button>}
           </div>
         </aside>
       </div>

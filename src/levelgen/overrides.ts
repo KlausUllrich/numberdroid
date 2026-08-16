@@ -1,6 +1,8 @@
 import { deriveSubSeed } from "./seed";
 import type { LevelSpec, PlacementOverride } from "./types";
 
+const ROBOT_TYPES = new Set(["sentry", "magnetar", "kronos"]);
+
 export function overrideFor(overrides: PlacementOverride[], targetId: string) {
   return overrides.find((entry) => entry.targetId === targetId);
 }
@@ -18,11 +20,12 @@ export function validatePlacementOverrides(spec: LevelSpec) {
   const spaces = new Set(spec.spaces.map((entry) => entry.id));
   const connections = new Set(spec.connections.map((entry) => entry.id));
   const props = new Set(spec.props.map((entry) => entry.id));
+  const encounters = new Set(spec.encounters.map((entry) => entry.id));
   const known = new Set([
     ...spaces,
     ...connections,
     ...props,
-    ...spec.encounters.map((entry) => entry.id),
+    ...encounters,
     ...(spec.stagedActors ?? []).map((entry) => entry.id),
     ...(spec.routes ?? []).map((entry) => entry.id),
     ...(spec.pickups ?? []).map((entry) => entry.id),
@@ -57,6 +60,10 @@ export function validatePlacementOverrides(spec: LevelSpec) {
     }
     if (override.preferredWall && !props.has(override.targetId)) {
       throw new Error(`Override ${override.targetId} preferredWall can target only a Prop request.`);
+    }
+    if (override.robotType) {
+      if (!encounters.has(override.targetId)) throw new Error(`Override ${override.targetId} robotType can target only an Encounter actor.`);
+      if (!ROBOT_TYPES.has(override.robotType)) throw new Error(`Override ${override.targetId} has unsupported robotType ${override.robotType}.`);
     }
 
     if (override.lockGeometry || override.lockedGeometry) {

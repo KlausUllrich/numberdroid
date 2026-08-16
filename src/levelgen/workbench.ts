@@ -6,11 +6,13 @@ import { compileLevelNavigationV031 } from "./navigationHardening";
 import { compileOrientedPropPlacement } from "./orientedPlacement";
 import { overrideFor, validatePlacementOverrides, withOverride } from "./overrides";
 import type { EventCompilationPlan } from "./eventCompilationTypes";
+import type { EnemyId } from "../game/types";
 import type { PropRegistry, LevelSpec, PlacementOverride, CardinalDirection } from "./types";
 
 export type WorkbenchSelection =
   | { kind: "space"; id: string }
-  | { kind: "prop"; id: string };
+  | { kind: "prop"; id: string }
+  | { kind: "actor"; id: string };
 
 export type WorkbenchCompileResult = {
   plan: EventCompilationPlan | null;
@@ -179,6 +181,14 @@ export function setPreferredSide(
   preferredSide: CardinalDirection | undefined,
 ) {
   return withOverride(overrides, connectionId, (current) => compactOverride({ ...current, preferredSide }));
+}
+
+export function setEncounterRobotType(
+  overrides: PlacementOverride[],
+  encounterId: string,
+  robotType: EnemyId | undefined,
+) {
+  return withOverride(overrides, encounterId, (current) => compactOverride({ ...current, robotType }));
 }
 
 export function regenerateSemanticTarget(overrides: PlacementOverride[], targetId: string) {
