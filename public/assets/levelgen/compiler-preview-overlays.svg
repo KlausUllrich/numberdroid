@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1216" height="64" viewBox="0 0 1216 64">
+  <defs>
+    <g id="wall-n">
+      <rect x="0" y="0" width="64" height="8" fill="#202929"/>
+      <rect x="0" y="8" width="64" height="2" fill="#56635f" opacity="0.8"/>
+    </g>
+    <g id="wall-e">
+      <rect x="56" y="0" width="8" height="64" fill="#202929"/>
+      <rect x="54" y="0" width="2" height="64" fill="#56635f" opacity="0.8"/>
+    </g>
+    <g id="wall-s">
+      <rect x="0" y="56" width="64" height="8" fill="#202929"/>
+      <rect x="0" y="54" width="64" height="2" fill="#56635f" opacity="0.8"/>
+    </g>
+    <g id="wall-w">
+      <rect x="0" y="0" width="8" height="64" fill="#202929"/>
+      <rect x="8" y="0" width="2" height="64" fill="#56635f" opacity="0.8"/>
+    </g>
+  </defs>
+
+  <!-- local IDs 0..14: wall masks 1..15, bit order N=1 E=2 S=4 W=8 -->
+  <g transform="translate(0 0)"><use href="#wall-n"/></g>
+  <g transform="translate(64 0)"><use href="#wall-e"/></g>
+  <g transform="translate(128 0)"><use href="#wall-n"/><use href="#wall-e"/></g>
+  <g transform="translate(192 0)"><use href="#wall-s"/></g>
+  <g transform="translate(256 0)"><use href="#wall-n"/><use href="#wall-s"/></g>
+  <g transform="translate(320 0)"><use href="#wall-e"/><use href="#wall-s"/></g>
+  <g transform="translate(384 0)"><use href="#wall-n"/><use href="#wall-e"/><use href="#wall-s"/></g>
+  <g transform="translate(448 0)"><use href="#wall-w"/></g>
+  <g transform="translate(512 0)"><use href="#wall-n"/><use href="#wall-w"/></g>
+  <g transform="translate(576 0)"><use href="#wall-e"/><use href="#wall-w"/></g>
+  <g transform="translate(640 0)"><use href="#wall-n"/><use href="#wall-e"/><use href="#wall-w"/></g>
+  <g transform="translate(704 0)"><use href="#wall-s"/><use href="#wall-w"/></g>
+  <g transform="translate(768 0)"><use href="#wall-n"/><use href="#wall-s"/><use href="#wall-w"/></g>
+  <g transform="translate(832 0)"><use href="#wall-e"/><use href="#wall-s"/><use href="#wall-w"/></g>
+  <g transform="translate(896 0)"><use href="#wall-n"/><use href="#wall-e"/><use href="#wall-s"/><use href="#wall-w"/></g>
+
+  <!-- local IDs 15..18: generic semantic prop roles -->
+  <g transform="translate(960 0)">
+    <rect x="7" y="7" width="50" height="50" rx="8" fill="#e5c94f" fill-opacity="0.72" stroke="#6f5c10" stroke-width="3"/>
+    <circle cx="32" cy="32" r="9" fill="none" stroke="#6f5c10" stroke-width="3"/>
+  </g>
+  <g transform="translate(1024 0)">
+    <rect x="7" y="7" width="50" height="50" rx="8" fill="#6bc5df" fill-opacity="0.70" stroke="#225f73" stroke-width="3"/>
+    <path d="M18 32H46M32 18V46" stroke="#225f73" stroke-width="3"/>
+  </g>
+  <g transform="translate(1088 0)">
+    <rect x="7" y="7" width="50" height="50" rx="8" fill="#d99359" fill-opacity="0.72" stroke="#75421f" stroke-width="3"/>
+    <path d="M17 20H47V44H17Z" fill="none" stroke="#75421f" stroke-width="3"/>
+  </g>
+  <g transform="translate(1152 0)">
+    <rect x="7" y="7" width="50" height="50" rx="8" fill="#72b979" fill-opacity="0.70" stroke="#2b6733" stroke-width="3"/>
+    <path d="M32 45V30M32 31C20 31 18 21 19 16C28 16 33 21 32 31ZM32 31C44 31 46 21 45 16C36 16 31 21 32 31Z" fill="none" stroke="#2b6733" stroke-width="3"/>
+  </g>
+</svg>

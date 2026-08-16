@@ -4,6 +4,7 @@ import { floorFromTiledMap } from "./tiled";
 import { DECK_C3_MAP } from "./maps/deckC3";
 import { DECK_VS2_MAP } from "./maps/deckVs2";
 import { TRANSFER_HALL_MAP } from "./maps/transferHall";
+import { TS01_GENERATED_FLOOR, TS01_GENERATED_PREVIEW_ALIAS } from "../levelgen/generatedTs01Preview";
 
 const DECK_A7_STATIONS: EnergyStationDefinition[] = [
   {
@@ -111,6 +112,8 @@ export const FLOORS: Record<string, FloorDefinition> = {
   [DECK_VS2.id]: DECK_VS2,
   [DECK_C3.id]: DECK_C3,
   [TRANSFER_HALL.id]: TRANSFER_HALL,
+  [TS01_GENERATED_FLOOR.id]: TS01_GENERATED_FLOOR,
+  [TS01_GENERATED_PREVIEW_ALIAS]: TS01_GENERATED_FLOOR,
 };
 
 export const DEFAULT_FLOOR_ID = DECK_A7.id;

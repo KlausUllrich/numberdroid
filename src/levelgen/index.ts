@@ -12,6 +12,13 @@ export { compileTriggerEvents } from "./eventCompilation";
 export type * from "./eventCompilationTypes";
 export { emitRuntimeLevel, compileRuntimeLevel } from "./emission";
 export type * from "./emissionTypes";
+export { createPlayableCompilerPreview } from "./playablePreview";
+export {
+  TS01_GENERATED_FLOOR,
+  TS01_GENERATED_PLAN,
+  TS01_GENERATED_PREVIEW_ALIAS,
+  TS01_PLAYABLE_SPEC,
+} from "./generatedTs01Preview";
 export { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 export { deriveSubSeed, normalizeLevelSeed, seededUnit } from "./seed";
 export { TS01_LEVEL_SPEC } from "./specs/ts01";
