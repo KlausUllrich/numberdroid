@@ -5,10 +5,10 @@ import { compileLevelNavigationV031 } from "./navigationHardening";
 import { compileOrientedPropPlacement } from "./orientedPlacement";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
-import type { LevelSpec } from "./types";
+import type { LevelSpec, PropRegistry } from "./types";
 
-function compile(spec: LevelSpec = TS01_LEVEL_SPEC) {
-  const semantic = compileLevelSpec(spec, NUMBERDROID_PROP_REGISTRY);
+function compile(spec: LevelSpec = TS01_LEVEL_SPEC, registry: PropRegistry = NUMBERDROID_PROP_REGISTRY) {
+  const semantic = compileLevelSpec(spec, registry);
   const geometry = compileLevelGeometry(semantic);
   const navigation = compileLevelNavigationV031(geometry);
   return compileOrientedPropPlacement(navigation);
@@ -50,14 +50,12 @@ describe("Level Compiler v0.3.1 clearance + orientation hardening", () => {
     expect(coffee).toMatchObject({ wallSide: "north", rotation: 0 });
   });
 
-  it("rejects a perspective-sensitive wall prop when the solved wall requires a forbidden rotation", () => {
-    const spec: LevelSpec = {
-      ...TS01_LEVEL_SPEC,
-      id: "rotation-rejection-example",
-      props: TS01_LEVEL_SPEC.props.map((request) =>
-        request.id === "living-memory" ? { ...request, preferredWall: "south" as const } : request,
-      ),
+  it("rejects a perspective-sensitive wall prop when its solved wall requires a forbidden rotation", () => {
+    const memory = NUMBERDROID_PROP_REGISTRY["family-memory-console"];
+    const incompatibleRegistry: PropRegistry = {
+      ...NUMBERDROID_PROP_REGISTRY,
+      "family-memory-console": { ...memory, allowedRotations: [180] },
     };
-    expect(() => compile(spec)).toThrow(/requires 180°.*allows only 0°/);
+    expect(() => compile(TS01_LEVEL_SPEC, incompatibleRegistry)).toThrow(/requires 0°.*allows only 180°/);
   });
 });
