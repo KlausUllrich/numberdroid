@@ -7,6 +7,7 @@ const META_KEY_V2 = "numberdroid-meta-v2";
 const PROFILE_META_PREFIX = "numberdroid-meta-v3-profile:";
 const LEGACY_META_KEY = "zahlenkern-meta-v1";
 const LEGACY_DUEL_KEY = "zahlenkern-save-v6";
+const COLLISION_BUCKET_PX = 128;
 
 type MetaStateV2 = {
   version?: 2;
@@ -21,6 +22,9 @@ type MetaStateV2 = {
   playerCount?: number;
   damageTaken?: number;
 };
+
+type CollisionIndex = Map<string, Rect[]>;
+const collisionIndexByFloor = new WeakMap<FloorDefinition, CollisionIndex>();
 
 export function createFloorState(floor: FloorDefinition, playerCount = 2): MetaState {
   return {
@@ -57,6 +61,49 @@ function circleIntersectsRect(x: number, y: number, radius: number, rect: Rect) 
   return dx * dx + dy * dy < radius * radius;
 }
 
+function bucketKey(x: number, y: number) {
+  return `${x},${y}`;
+}
+
+function collisionIndex(floor: FloorDefinition) {
+  const cached = collisionIndexByFloor.get(floor);
+  if (cached) return cached;
+
+  const index: CollisionIndex = new Map();
+  for (const rect of floor.obstacles) {
+    const minX = Math.floor(rect.x / COLLISION_BUCKET_PX);
+    const maxX = Math.floor((rect.x + rect.w) / COLLISION_BUCKET_PX);
+    const minY = Math.floor(rect.y / COLLISION_BUCKET_PX);
+    const maxY = Math.floor((rect.y + rect.h) / COLLISION_BUCKET_PX);
+    for (let by = minY; by <= maxY; by += 1) {
+      for (let bx = minX; bx <= maxX; bx += 1) {
+        const key = bucketKey(bx, by);
+        const bucket = index.get(key) ?? [];
+        bucket.push(rect);
+        index.set(key, bucket);
+      }
+    }
+  }
+  collisionIndexByFloor.set(floor, index);
+  return index;
+}
+
+function nearbyObstacles(floor: FloorDefinition, x: number, y: number, radius: number) {
+  if (floor.obstacles.length <= 12) return floor.obstacles;
+  const index = collisionIndex(floor);
+  const minX = Math.floor((x - radius) / COLLISION_BUCKET_PX);
+  const maxX = Math.floor((x + radius) / COLLISION_BUCKET_PX);
+  const minY = Math.floor((y - radius) / COLLISION_BUCKET_PX);
+  const maxY = Math.floor((y + radius) / COLLISION_BUCKET_PX);
+  const unique = new Set<Rect>();
+  for (let by = minY; by <= maxY; by += 1) {
+    for (let bx = minX; bx <= maxX; bx += 1) {
+      for (const rect of index.get(bucketKey(bx, by)) ?? []) unique.add(rect);
+    }
+  }
+  return unique;
+}
+
 function footprintInsideWalkable(floor: FloorDefinition, x: number, y: number, radius: number) {
   const samples = 16;
   for (let i = 0; i < samples; i += 1) {
@@ -76,8 +123,10 @@ export function pointWalkable(
 ) {
   const floor = getFloor(floorId);
   const onFloor = footprintInsideWalkable(floor, x, y, collisionRadius);
-  const blocked = floor.obstacles.some((rect) => circleIntersectsRect(x, y, collisionRadius, rect));
-  return onFloor && !blocked;
+  if (!onFloor) return false;
+  const blocked = Array.from(nearbyObstacles(floor, x, y, collisionRadius))
+    .some((rect) => circleIntersectsRect(x, y, collisionRadius, rect));
+  return !blocked;
 }
 
 function inferDefeatedEncounterFromOwnedBody(state: MetaState, floor: FloorDefinition) {
