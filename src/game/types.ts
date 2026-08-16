@@ -177,6 +177,73 @@ export type FloorGoalDefinition =
       completedLabel: string;
     };
 
+export type ScriptValue = boolean | number | string;
+export type FloorScriptTriggerKind = "enter-space" | "enter-zone" | "interact" | "collect" | "state-change" | "proximity" | "timer";
+export type FloorScriptRouteKind = "patrol" | "passby" | "scripted";
+export type FloorScriptCell = { x: number; y: number };
+
+export type FloorScriptTriggerDefinition = {
+  id: string;
+  kind: FloorScriptTriggerKind;
+  sourceKind: "space" | "zone" | "prop" | "actor" | "pickup" | "connection" | "route" | "flag" | "timer";
+  sourceId: string;
+  sourceCells: FloorScriptCell[];
+  eventIds: string[];
+  once: boolean;
+  delayMs: number;
+  radiusTiles?: number;
+};
+
+export type FloorScriptEventDefinition =
+  | { id: string; kind: "set-flag"; flag: string; value: ScriptValue }
+  | { id: string; kind: "grant-key"; keyId: string }
+  | { id: string; kind: "unlock-door"; doorId: string }
+  | { id: string; kind: "lock-door"; doorId: string }
+  | { id: string; kind: "spawn-actor"; actorId: string; spaceId: string }
+  | { id: string; kind: "despawn-actor"; actorId: string }
+  | { id: string; kind: "move-actor"; actorId: string; routeId: string }
+  | { id: string; kind: "actor-passby"; actorId: string; routeId: string; durationMs?: number }
+  | { id: string; kind: "story-beat"; beatId: string; blocking?: boolean };
+
+export type FloorScriptRouteDefinition = {
+  id: string;
+  kind: FloorScriptRouteKind;
+  loop: boolean;
+  points: Point[];
+};
+
+export type FloorStagedActorDefinition = {
+  id: string;
+  actorType: string;
+  initiallyPresent: boolean;
+  defaultSpaceId?: string;
+};
+
+export type FloorScriptDefinition = {
+  tileSize: number;
+  triggers: FloorScriptTriggerDefinition[];
+  events: FloorScriptEventDefinition[];
+  routes: FloorScriptRouteDefinition[];
+  stagedActors: FloorStagedActorDefinition[];
+};
+
+export type ScriptedActorRunState = {
+  present: boolean;
+  spaceId?: string;
+  routeId?: string;
+  mode: "idle" | "route" | "passby";
+  durationMs?: number;
+};
+
+export type LevelScriptRunState = {
+  firedTriggerIds: string[];
+  flags: Record<string, ScriptValue>;
+  doorStates: Record<string, "locked" | "unlocked">;
+  stagedActors: Record<string, ScriptedActorRunState>;
+  storyBeatQueue: string[];
+  activeStoryBeatId: string | null;
+};
+
 export type FloorDefinition = {
   id: string;
   name: string;
@@ -194,6 +261,7 @@ export type FloorDefinition = {
     afterEnergy: string;
   };
   goal?: FloorGoalDefinition;
+  script?: FloorScriptDefinition;
   walkable: Rect[];
   obstacles: Rect[];
   rooms: RoomDefinition[];
@@ -205,7 +273,7 @@ export type FloorDefinition = {
 };
 
 export type MetaState = {
-  version: 3;
+  version: 4;
   floorId: string;
   x: number;
   y: number;
@@ -221,6 +289,7 @@ export type MetaState = {
   pilotIndex: number;
   playerCount: number;
   damageTaken: number;
+  scriptState: LevelScriptRunState;
 };
 
 export type BattleResult = {
