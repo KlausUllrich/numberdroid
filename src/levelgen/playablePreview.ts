@@ -1,5 +1,6 @@
 import type { FloorDefinition } from "../game/types";
 import type { RuntimeEmissionPlan } from "./emissionTypes";
+import { floorWithCompiledScript } from "./runtimeScriptContract";
 
 export const COMPILER_PREVIEW_FASCIA_PX = 30;
 const GRID_PX = 64;
@@ -86,13 +87,12 @@ function svgDataUrl(svg: string) {
 }
 
 /**
- * Adds a presentation-only compiler blockout to an emitted runtime Floor.
- * Collision, doors, encounters and pickups remain exactly those produced by
- * v0.6. The whole static level illustration is one image so camera movement
- * stays compositor-cheap even when the compiler emits many wall segments.
+ * Adds a presentation-only compiler blockout to an emitted runtime Floor and
+ * attaches the adjacent typed v0.8 script contract. Collision, doors,
+ * encounters and pickups remain exactly those produced by v0.6.
  */
 export function createPlayableCompilerPreview(plan: RuntimeEmissionPlan): FloorDefinition {
-  const floor = plan.runtimeFloor;
+  const floor = floorWithCompiledScript(plan);
   return {
     ...floor,
     visual: {
