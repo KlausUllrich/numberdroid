@@ -1,6 +1,8 @@
 # Numberdroid — Gold Slice Regression Gates
 
-Status: **required stabilization / merge gate from v0.13.2 onward**
+Status: **v0.13.2 LIVE QA ACCEPTED on 2026-08-16; permanent regression / merge gate onward**
+
+Acceptance record: `V0132_STABILIZATION_ACCEPTANCE_2026-08-16.md`.
 
 This document exists because the v0.13.1 live QA exposed regressions that passed normal compile/build CI:
 
@@ -16,7 +18,7 @@ The repository **was** being committed, pushed, tested and merged regularly. The
 1. an accepted Gold Slice behavior was scoped to one concrete Floor ID instead of a reusable presentation contract;
 2. the first Exact-Fit model incorrectly assumed that true object space must remain contained by its coarse integer tile anchor.
 
-Both are now explicit regression classes.
+Both are now explicit regression classes. The v0.13.2 implementation was merged in PR #79 and the deployed/generated pass was explicitly accepted by Klaus on 2026-08-16.
 
 ## 1. Source-control / acceptance distinction
 
@@ -34,7 +36,7 @@ deployed
 live visual/gameplay QA accepted
 ```
 
-A Gold Slice presentation/runtime contract may not be described as accepted merely because CI is green.
+v0.13.2 has crossed the final live-QA gate for the current stabilization baseline. Future changes touching these contracts must pass the same regression discipline again.
 
 ## 2. Door invariant
 
@@ -60,7 +62,7 @@ as the only authority for accepted Door behavior. Generated and hand-authored Go
 
 ## 3. Coarse Prop anchor vs true object space
 
-`footprintTiles` is the deterministic **coarse solver anchor/reservation**, not necessarily the final world-space silhouette.
+`footprintTiles` is the deterministic **coarse solver anchor/reservation**, not necessarily the final world-space silhouette or mandatory containment box.
 
 The precise spatial model is:
 
@@ -79,7 +81,7 @@ minimum sub-tile correction
 true world-space object geometry
 ```
 
-A precise envelope may cross its own coarse anchor boundary when needed to clear wall fascia. That is allowed only if the translated envelope remains valid against:
+Source-local bounds remain authored inside the 0° source canvas. After rotation, a precise world-space envelope may cross its own coarse anchor boundary when needed to clear wall fascia. That is allowed only if the translated result remains valid against:
 
 - containing-room surfaces;
 - other Prop true-space envelopes;
@@ -115,11 +117,13 @@ Detailed collision is authored spatial metadata in `propCollisionRegistry.ts`, n
 
 The Hologram may use a visual envelope larger than its physical pedestal, but its physical collider must be large enough that PICO cannot drive over the visible base.
 
-Current stabilization target: a 0.70 × 0.70 tile pedestal collider inside the 1×1 source canvas.
+Current accepted stabilization baseline: a **0.70 × 0.70 tile** pedestal collider inside the 1×1 source canvas.
 
 ## 7. Fallback blockout invariant
 
 Unmapped production Props may remain semantic stubs, but their rendered fallback rectangles must be clipped/inset to the containing room's **visible interior**. A placeholder is not allowed to bleed through the 30 px wall fascia merely because its coarse tile anchor touches a boundary.
+
+Blockouts remain provisional presentation and are replaced by registered production art without changing the semantic Prop identity.
 
 ## 8. Actor / Patrol wall-safety invariant
 
@@ -146,9 +150,11 @@ Before merge, CI must protect at least:
 - generated TS-01 exact envelopes do not overlap other Props / foreign reservations / Door Clearance;
 - fallback blockout SVGs identify/use wall-safe visible-interior rendering.
 
-## 10. Required live QA after deployment
+These tests remain permanent after v0.13.2 acceptance.
 
-For changes touching any shared spatial/presentation contract, inspect the generated TS-01 live before acceptance:
+## 10. Required live QA after future shared-contract changes
+
+For changes touching any shared spatial/presentation contract, inspect generated TS-01 live before accepting the revision:
 
 1. Family Table / seating and wall clearance;
 2. Memory Console / Coffee / Plants against wall fascia;
@@ -158,4 +164,12 @@ For changes touching any shared spatial/presentation contract, inspect the gener
 6. Door leaf layering/retraction;
 7. Door open/close feel, especially the 650 ms soft close.
 
-Only explicit live QA may mark this gate accepted.
+Do not reopen the accepted stabilization baseline without a concrete defect or a deliberate contract change.
+
+## 11. Current acceptance and next step
+
+The v0.13.2 stabilization block is **LIVE QA ACCEPTED**.
+
+This acceptance does not automatically promote `LIVE_CANDIDATE` art to `LIVE_ACCEPTED`; art review state remains owned by the Art Registry/recipes and explicit Art-Director acceptance.
+
+The active next block is **Generated TS-01 feature/art parity and Gold Slice production assets**. Accepted Walls, Doors and already accepted Family assets remain frozen while missing Transfer/Flow/PRIMUS and useful domestic production art is added through the existing compiler/composite pipeline.

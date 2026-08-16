@@ -1,6 +1,8 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.13.1 Exact Prop Fit / Wall Surface — CURRENT QA TARGET**
+Status: **CURRENT architecture / implementation track — v0.13.2 stabilization LIVE QA ACCEPTED; Generated TS-01 feature/art parity is CURRENT**
+
+Acceptance record: `V0132_STABILIZATION_ACCEPTANCE_2026-08-16.md`.
 
 This directory owns the design and technical contract for the Numberdroid deterministic/declarative level-authoring system.
 
@@ -19,9 +21,10 @@ Shared Wall Graph + doors + corridors
         ↓
 navigation + forbidden zones
         ↓
-Prop placement + rotation-aware conservative footprints
+Prop placement + rotation-aware coarse anchors/reservations
         ↓
-Exact Prop Fit / physical envelopes / wall surfaces
+Exact / True-Space Prop Fit
+  visual bounds + collision parts + placement envelopes
         ↓
 Encounter / Actor placement + routes
         ↓
@@ -45,15 +48,10 @@ The existing React/gameplay runtime remains the consumer. The compiler is an **a
 - typed `LevelSpec`;
 - stable semantic IDs and sub-seeds;
 - rooms/corridors as semantic Spaces;
-- `TileRange` sizing;
 - Connections / Doors / Access Keys;
-- Prop requests backed by registries;
-- Encounter intents;
-- Routes;
-- Trigger Zones, Triggers and Events;
-- Staged Actors;
+- Prop, Encounter, Route, Trigger Zone, Trigger, Event and Staged Actor intent;
 - semantic Overrides;
-- validation and semantic reachability;
+- semantic validation/reachability;
 - TS-01 reference spec.
 
 ### v0.1 — geometry + Shared Wall Graph — IMPLEMENTED
@@ -61,48 +59,42 @@ The existing React/gameplay runtime remains the consumer. The compiler is an **a
 See `GEOMETRY_AND_WALL_GRAPH.md`.
 
 - deterministic preferred-size geometry;
-- real shared boundaries;
-- collision-avoiding edge slides;
-- canonical shared wall graph;
-- real apertures cut from walls;
+- canonical shared boundaries instead of room-owned double walls;
+- real connection apertures;
 - Door Clearance rectangles;
 - exact TS-01 geometry regression coverage.
 
-### v0.2 — navigation + forbidden zones — IMPLEMENTED
+### v0.2 / v0.3.1 — navigation + forbidden-zone hardening — IMPLEMENTED
 
 See `NAVIGATION_AND_FORBIDDEN_ZONES.md`.
 
-- walkable cell decomposition;
-- portal links only through real apertures;
-- reachability validation;
+- walkable-cell graph and real portal links;
 - primary circulation skeleton;
 - wall attachment slots;
-- Door Clearance as authoring forbidden zones.
+- widened real-door clearance with 2× aperture lateral span;
+- downstream Props/Actors consume the same reservations.
 
-### v0.3 / v0.3.1 — metadata-driven Prop placement + orientation — IMPLEMENTED
+### v0.3 / v0.10 — Prop placement + rotation-aware geometry — IMPLEMENTED
 
 See `PROP_PLACEMENT.md`.
 
-- hierarchy `hero → support → furniture → dressing`;
+- placement order `hero → support → furniture → dressing`;
 - real wall-slot placement;
-- footprint vs use-space separation;
-- Hero clearance;
-- hard collision / clearance / circulation rejections;
-- semantic scoring for wall/corner/near/center/opposite-door intent;
-- explicit `allowedRotations`;
-- binding wall orientation convention;
-- explainable candidate/rejection diagnostics.
+- footprint vs use-space / Hero-clearance separation;
+- semantic scoring/rejection diagnostics;
+- explicit authored rotations;
+- non-square footprints rotate physically before validation;
+- deterministic candidate stability.
 
 ### v0.4 — Encounter / Actor placement — IMPLEMENTED
 
 See `ACTOR_PLACEMENT.md`.
 
 - Actors consume furnished/reserved free space;
-- neutral / guard / patrol / aggressive placement intent;
-- patrol/pass-by/scripted Routes through actual remaining navigation;
-- Actor facing;
-- deterministic diagnostics;
-- no duplicate collision/reservation model.
+- neutral / guard / patrol / aggressive authoring intent;
+- generated routes use actual remaining navigation;
+- Actor facing and diagnostics;
+- single-room patrol interior preference protects large visible sprites from room fascia when a safe interior exists.
 
 ### v0.5 — Trigger / Event compilation — IMPLEMENTED
 
@@ -111,166 +103,97 @@ See `TRIGGER_EVENT_COMPILATION.md`.
 - semantic Trigger Zones;
 - Access Pickup materialization;
 - Staged Actors;
-- `enter-space`, `enter-zone`, `interact`, `collect`, `state-change`, `proximity`, `timer`;
 - ordered Trigger → Event programs;
-- key / door / flag / Actor / Story events;
-- deterministic source geometry;
-- invalid-reference and loop diagnostics.
+- invalid-reference / suspicious-loop diagnostics.
 
-### v0.6 — Runtime / Tiled emission — IMPLEMENTED
+### v0.6 / v0.7 — Runtime/Tiled emission + playable generated Floor — IMPLEMENTED / MANUALLY QA'D
 
-See `RUNTIME_TILED_EMISSION.md`.
+See `RUNTIME_TILED_EMISSION.md` and `PLAYABLE_GENERATED_PREVIEW.md`.
 
-- one-call semantic compile to runtime representation;
-- Tiled-compatible interchange;
-- Start / Walkable / Obstacles / Rooms / Doors / Encounters / Pickups;
-- Shared-Wall collision;
-- generated patrol routes mapped into the existing runtime contract;
-- compiler-only layers preserve rich Props/Routes/Triggers/Events;
-- emitted physical Floor round-trips through existing `floorFromTiledMap()`.
+- full authoring plan emits to the existing Tiled/`FloorDefinition` boundary;
+- generated Shared Walls, Doors, Props, Pickups, Encounters and patrol routes use normal runtime systems;
+- compiler-only layers preserve richer semantic data;
+- `?floor=ts01-generated` executes generated TS-01 in normal `MetaGame`.
 
-### v0.7 / v0.7.1 — playable generated Floor + scale/performance hardening — IMPLEMENTED / MANUALLY QA'D
+### v0.7.1 — scale/performance hardening — IMPLEMENTED / MANUALLY QA'D
 
-See `PLAYABLE_GENERATED_PREVIEW.md`.
+- generated background collapsed from per-cell React presentation into static imagery;
+- accepted 30 px wall fascia remains visually separate from 10 px collision core;
+- cached obstacle index introduced;
+- desktop and real-mobile driving manually confirmed smooth.
 
-`?floor=ts01-generated` executes generated TS-01 in normal `MetaGame`.
-
-The v0.7.1 hardening collapsed the generated QA world from hundreds of React tiles to static presentation images, restored accepted 30 px wall fascia while collision remains 10 px, and added a cached obstacle index. Desktop and real-mobile driving were manually confirmed smooth.
-
-### v0.8 / v0.8.1 — persistent Trigger/Event runtime + timing scheduler — IMPLEMENTED / MANUALLY QA'D
+### v0.8 / v0.8.1 — persistent Trigger/Event runtime + scheduler — IMPLEMENTED / MANUALLY QA'D
 
 See `TRIGGER_EVENT_RUNTIME.md`.
 
-- persistent script state in `MetaState`;
-- fired Trigger IDs, flags, Door overrides, Staged Actor state, Story Beat queue;
+- persistent Trigger IDs, flags, Door overrides, Staged Actor state and Story Beat queue;
 - ordered Event execution;
-- blocking Story Beats pause Player and Actors;
-- persisted absolute deadlines for delayed triggers;
-- `timer` triggers and recurring timers without catch-up bursts;
-- reload/browser-suspend/mobile-background safe execution;
+- blocking Story Beats pause Player/Actors;
+- persisted absolute deadlines for delays/timers;
 - scheduler remains outside movement RAF loops.
 
-TS-01 access and Transfer Story Beat behavior were manually confirmed live.
+Generated TS-01 access and Transfer Story Beat behavior were manually confirmed live.
 
 ### v0.9 — Scripted / Staged Actor presentation — IMPLEMENTED / MANUALLY QA'D
 
 See `STAGED_ACTOR_PRESENTATION.md`.
 
 - non-combat Staged Actors remain separate from Encounters;
-- `spawn-actor`, `despawn-actor`, `move-actor`, `actor-passby`;
-- route pose derived from compiled route + persistent timing state;
-- no frame coordinates persisted;
-- blocking Story Beats freeze route clocks without jumps;
-- one-shot pass-by completion persists;
-- semantic Actor presentation catalog + fallback blockout.
+- route/pass-by pose derives from semantic state + compiled routes;
+- frame coordinates are not persisted;
+- blocking pauses freeze route clocks safely.
 
-Bio-Ark proof:
-
-```text
-?floor=bioark-passby
-```
-
-The Grazer pass-by has been manually confirmed live.
-
-### v0.10 — rotated non-square Prop footprints — IMPLEMENTED
-
-See `PROP_PLACEMENT.md`.
-
-- rotation moved into candidate generation;
-- `90°/270°` physically swap non-square width/height;
-- collision, use-space, clearance and downstream Actor/Trigger calculations use the rotated rectangle;
-- Wall Props only generate candidates for authored/allowed rotations;
-- directional use-space rotates with access direction;
-- stable pre-existing candidate seed identity is preserved.
+Bio-Ark proof remains `?floor=bioark-passby`.
 
 ### v0.11 — cyclic / multi-constraint topology — IMPLEMENTED
 
-See `GEOMETRY_AND_WALL_GRAPH.md` and `MULTI_CONSTRAINT_TOPOLOGY.md`.
+See `MULTI_CONSTRAINT_TOPOLOGY.md`.
 
-The geometry stage deliberately preserves the existing tree-compatible solution when it still satisfies the complete graph. If it cannot, bounded deterministic multi-constraint search handles cycles, several simultaneous Connections, hard required relations, soft preferences and integer size variation inside authored ranges.
+- existing valid tree-compatible layouts are preserved exactly;
+- deterministic bounded fallback solves cycles/multiple simultaneous constraints;
+- preferred sizes may vary within authored ranges only when required;
+- TS-01 remains on its compatibility path rather than being rerolled.
 
-Existing TS-01 stays on the compatibility path and is not rerolled merely because the more capable solver exists.
+### v0.12–v0.12.4 — semantic Workbench authoring — IMPLEMENTED / MANUALLY QA'D
 
-### v0.12 — semantic Overrides / Workbench editing — IMPLEMENTED
+See:
 
-See `OVERRIDES_AND_WORKBENCH.md`.
+- `OVERRIDES_AND_WORKBENCH.md`;
+- `WORKBENCH_MOBILE_INTERACTION.md`;
+- `WORKBENCH_AUTHORING_V0123.md`.
 
-Core contract:
+Capabilities include:
 
-- Space Geometry Locks are root-relative compiler-grid geometry;
-- Prop Placement Locks are containing-Space-relative placement + rotation;
-- `preferredWall`, `preferredSide` and local `seedSalt` remain semantic compiler inputs;
-- every proposed edit is recompiled through the full pipeline before commit;
-- invalid edits never leave a partial broken Workbench state;
-- generated output is never destructively tile-painted as canonical truth.
+- constraint-aware Space geometry Locks;
+- singleton Prop placement Locks;
+- `preferredWall`, `preferredSide`, local `seedSalt`;
+- full-compiler validation before edit commit;
+- mobile tap/pan/pinch + bottom-sheet Inspector;
+- selectable Encounter Actors and typed robot substitution;
+- Undo/Redo of accepted semantic Override snapshots;
+- browser-local Drafts distinct from canonical repository truth;
+- `WHY BLOCKED?` explanations;
+- effective Actor body labels while stable Encounter IDs remain internal.
 
-### v0.12.1 — mobile Workbench interaction hardening — IMPLEMENTED / MANUALLY QA'D
-
-See `WORKBENCH_MOBILE_INTERACTION.md`.
-
-- one-finger tap selects;
-- one-finger movement pans;
-- two-finger gesture pinches/pans and never commits Selection;
-- debug overlays are pointer-transparent;
-- narrow screens use a bottom-sheet Inspector with larger touch targets.
-
-Mobile pinch, selection and Inspector behavior were manually confirmed.
-
-### v0.12.2 — constraint-aware direct editing — IMPLEMENTED / MANUALLY QA'D
-
-Direct move/resize controls are preflighted through the complete compiler. Impossible exact one-tile actions are disabled rather than pretending every arrow is legal and then returning an avoidable red error.
-
-The Workbench also records why direct edits are blocked by topology, Door Clearance, navigation, furnishing, route or attachment constraints.
-
-### v0.12.3 — authoring usability: Actors, Undo/Redo, Drafts — IMPLEMENTED / MANUALLY QA'D
-
-See `WORKBENCH_AUTHORING_V0123.md`.
-
-- generated Encounter Actors are selectable;
-- SENTRY / MAGNETAR / KRONOS can be swapped through a typed `robotType` Override while Encounter ID, behavior, route and math metadata remain stable;
-- Undo/Redo stores accepted semantic Override snapshots only;
-- `SAVE DRAFT` persists level/version-specific Override data in the current browser;
-- `COPY JSON` remains the portable representation for review/project integration;
-- `WHY BLOCKED?` exposes mobile-readable compiler explanations.
-
-Browser Draft data is explicitly **not** canonical repository truth.
-
-The user manually confirmed the v0.12.3 Workbench behavior. A v0.12.4 display-only follow-up also makes the foreground SVG Actor label follow the effective compiled Robot body name while the stable Encounter ID remains internal.
-
-### v0.13 — Prop / Art emission mapping — IMPLEMENTED / LIVE QA IN PROGRESS
+### v0.13 — Prop / Art emission — IMPLEMENTED
 
 See `PROP_ART_EMISSION.md`.
 
-v0.13 connects solved Prop placements to actual registered runtime art without allowing pixels to define gameplay geometry.
-
-Binding architecture:
+Binding separation:
 
 ```text
 Spatial Prop Registry
-  footprint / rotations / placement rules
+  placement / coarse footprint / true-space metadata
           ↓
-rotation-aware solved placement
+Prop solver + Exact Fit
           ↓
 Prop Art Registry
-  asset / shadow / accepted-or-candidate status
+  asset / shadow / review state only
           ↓
 ordered composite Floor visual
 ```
 
-Capabilities:
-
-- new `composite` Floor visual type; existing `image`/`tilemap` Floors remain unchanged;
-- presentation-only Prop Art Registry separate from collision/placement metadata;
-- accepted Family Table + Memory Console mapped into generated TS-01;
-- candidate Coffee Machine, Planter, Round Plant and Hologram Pedestal mapped for integrated visual evaluation without promoting their review status;
-- unregistered Props remain deterministic semantic blockouts;
-- grounding shadows render in FloorFX before Architecture;
-- WallProps and FloorProps are separate explicit presentation layers;
-- layer classification follows authored attachment semantics, not incidental `wallSide` placement hints;
-- authored 0° image dimensions are retained and rotated around the center of the solved physical footprint, preventing non-square sprite distortion;
-- no per-cell React rendering is reintroduced.
-
-The first live v0.13 QA was positive overall but exposed a real precision defect: real Prop art was still centered on semantic tile boundaries while the accepted 30 px visible wall fascia extends into the room. That issue is handled by v0.13.1 rather than by weakening the tile solver.
+Current generated TS-01 maps real accepted/candidate Family art into the compiled room while unmapped Props remain deterministic blockouts.
 
 Generated layer order:
 
@@ -282,39 +205,43 @@ Ground
 → WallProps
 → FloorProp blockout fallback
 → FloorProps
-→ runtime Characters / Doors / UI outside the static Floor visual
+→ runtime Characters / Doors / UI
 ```
 
-### v0.13.1 — Exact Prop Fit / Wall Surface — IMPLEMENTED / CURRENT QA TARGET
+No per-cell React rendering is reintroduced.
 
-See `PROP_EXACT_FIT.md`.
+### v0.13.1 — first Exact Prop Fit model — IMPLEMENTED, SUPERSEDED WHERE NOTED
 
-v0.13.1 separates the coarse conservative tile footprint from the true physical/presentation envelopes needed at runtime:
+v0.13.1 introduced explicit:
 
-- `footprintTiles` remains the conservative solver/reservation contract;
-- `visualBoundsTiles` describes the meaningful visible object envelope, independent of raw PNG canvas size;
-- `collisionBoundsTiles` describes actual emitted runtime collision;
-- `placementEnvelope` selects `visual`, `collision` or an explicit `custom` envelope per Prop;
-- `wallBoundary` selects the visible wall fascia or only the collision core;
-- exact-fit metadata is authored in 0° local tile units and rotates with the Prop;
-- Wall Surface Fit only occurs when the solved footprint actually touches the recorded wall side;
-- one sub-tile translation is shared by production sprite, shadow and runtime collision;
-- final placement/collision may not escape the already-reserved tile footprint;
-- unmapped blockout Props retain conservative full-tile collision until their physical/art contract is reviewed.
+- `visualBoundsTiles`;
+- collision bounds;
+- `placementEnvelope`;
+- `wallBoundary`;
+- shared sprite/shadow/collision sub-tile translation.
 
-Current intended examples:
+Its original assumption that final true object space must remain inside the coarse integer tile anchor was disproven by live QA and is superseded by v0.13.2.
 
-```text
-large furniture / visible wall console
-→ placement envelope: visual
-→ wall boundary: visible fascia
+### v0.13.2 — Gold Slice spatial/presentation stabilization — IMPLEMENTED / LIVE QA ACCEPTED
 
-small hologram / glow around pedestal
-→ placement envelope: collision
-→ wall boundary: collision core
-```
+See `PROP_EXACT_FIT.md`, `GOLD_SLICE_REGRESSION_GATES.md` and `V0132_STABILIZATION_ACCEPTANCE_2026-08-16.md`.
 
-This is a compile-time precision layer only: no DOM measurement, PNG-alpha analysis or per-frame geometry work is introduced.
+Binding stabilized behavior:
+
+- `footprintTiles` is the deterministic coarse anchor/reservation, **not** mandatory final world-space containment;
+- source-local true-space bounds/parts remain explicit semantic metadata;
+- Exact Fit may apply the minimum sub-tile translation beyond the object's own coarse anchor;
+- translated geometry is revalidated against containing-room surfaces, other Prop true-space envelopes, foreign use-space/Hero reservations and Door Clearance;
+- Family Table uses multipart collision, preserving navigable seat gaps;
+- Hologram physical pedestal is 0.70 × 0.70 tiles;
+- fallback blockouts cannot bleed through visible wall fascia;
+- large single-room patrols prefer a safe interior instead of room-edge cells when possible;
+- hand-authored and compiler-generated Gold Slice Floors share the accepted Door presentation/timing contract;
+- Door baseline remains 5 px leaf, 520 ms opening, 650 ms soft close, aperture clipping and wall-pocket retraction.
+
+Klaus explicitly confirmed the deployed/generated v0.13.2 stabilization pass on 2026-08-16.
+
+A smaller issue with the player's own in-game model/presentation is known but deliberately deferred for separate discussion. It does not block the stabilization acceptance or the next Art Asset block.
 
 ## Workbench / runtime proof links
 
@@ -342,42 +269,40 @@ Bio-Ark Staged Actor proof:
 docs/game-design/LEVEL_DESIGN_RULES.md
     durable spatial/design principles
 
-this directory
+docs/level-generation/
     compiler architecture + technical contracts
 
 src/levelgen/specs/
     canonical declarative intent for one Floor
 
 spatial registries / metadata
-    reusable physical placement capabilities
-    including exact-fit visual/collision/placement envelopes
+    placement, true-space physical/composition contracts
 
 presentation registries
-    reusable art bindings and review state
+    asset bindings + visual review state only
 
 semantic Override[]
-    explicit reviewed local exceptions / locked composition
+    reviewed local exceptions / locked composition
 
 src/levelgen/
-    deterministic compiler / validators / solvers
+    executable compiler / validators / solvers
 
 compiled Tiled/FloorDefinition + typed script contract
     runtime output, never high-level authoring truth
 ```
 
-When a recurring defect is found, prefer fixing a reusable rule/metadata contract instead of manually patching every affected Floor.
+When a recurring defect is found, prefer fixing a reusable rule/metadata contract instead of manually patching every Floor.
 
 ## Current task list / next stages
 
-1. **Generated TS-01 feature/art parity** — first explicitly accept v0.13.1 Exact Prop Fit in the live generated Floor, then complete missing production bindings/assets and make the generated Floor capable of replacing the hand-authored reference only after explicit visual/gameplay QA acceptance.
-2. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and larger Bio-Ark/natural layout to expose missing rules before campaign production.
-3. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical, typed and inspectable.
-4. **Workbench usability pass** — extend the accepted Workbench with Connection selection, per-instance Overrides where needed, direct manipulation translated into semantic grid edits, import/apply/write-back workflow, richer diagnostics and useful generated diffs.
-5. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
-6. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling and compiler stress testing before production readiness.
-7. **FINAL AGENT AUTHORING GUIDE** — **the absolute last step of this development track**. This assistant writes the authoritative operational guide for Game Designer and Artist agents only after all tool/workflows are stable: capability overview, LevelSpec authoring, global vs per-Level rules, registries/metadata, rotations/footprints, Exact Prop Fit and physical envelopes, Actor art, Routes, Triggers/Events, Workbench/Overrides/locks/local regeneration, QA, diagnostics, asset expansion and the decision rule for reusable-system fixes vs one-Level overrides.
-
-The final Agent Authoring Guide is deliberately last so it documents the final accepted workflow instead of becoming stale while the compiler is still changing.
+1. **Generated TS-01 feature/art parity — CURRENT.** v0.13.2 stabilization is accepted. Add the missing deliberate production assets/bindings, beginning with the Transfer/Flow hero hierarchy and PRIMUS system/hero objects, then replace useful remaining blockouts. Preserve accepted Walls/Doors/Family assets. Candidate art remains candidate until explicit Art-Director promotion.
+2. **TS-01 Gold Slice cohesion/final QA.** Add only justified FloorFX/grounding/use-wear/light support, compare Generated TS-01 against the intended room quality bar on desktop and phone, and require explicit visual/gameplay acceptance before the generated Floor may replace the hand-authored reference.
+3. **Additional archetype stress Floors.** Dense PRIMUS/system layout, larger ship layout and larger Bio-Ark/natural layout to expose missing reusable rules before campaign-scale production.
+4. **Natural-language front-end.** Translate rough Level Designer instructions into typed/inspectable LevelSpec; LevelSpec remains canonical.
+5. **Workbench usability/canonical write-back pass.** Extend Connection editing, per-instance Overrides where production proves necessary, import/apply/reviewed repository write-back and richer diffs/diagnostics without creating a second tile editor.
+6. **Campaign production workflow.** Validate repeatable authoring for the planned Floor set and asset-library growth.
+7. **FINAL PERFORMANCE & SCALE PASS.** Explicit desktop + real-mobile runtime profiling and compiler stress testing before production readiness.
+8. **FINAL AGENT AUTHORING GUIDE — LAST STEP.** Write the final operational guide only after the production/compiler workflows stop changing materially.
 
 ## Required final Performance & Scale Pass
 
@@ -398,7 +323,7 @@ Compiler
 ├─ topology search nodes / backtracks
 ├─ geometry solve time
 ├─ Prop placement time
-├─ exact-fit emission
+├─ true-space Exact Fit / collision emission
 ├─ Actor/path solve time
 ├─ Trigger compilation
 └─ complete LevelSpec → runtime compile time
@@ -430,17 +355,6 @@ Binding examples include:
 - v0.11 does not rerun an already-valid tree-compatible layout;
 - Workbench `seedSalt` changes only the target semantic seed;
 - Geometry/Prop locks preserve reviewed local composition while the compiler revalidates dependent systems;
-- adding/replacing a Prop Art Registry entry does not reroll spatial placement or redefine collision;
-- Exact Prop Fit refines art/collision only inside an already-reserved tile footprint and may not silently occupy neighboring tiles.
-
-## Editing and persistence model
-
-Generated output is edited through semantic intent and Overrides, not destructive tile painting.
-
-Workbench history is transient UI state. `SAVE DRAFT` is browser-local continuation state. `COPY JSON` is portable authoring data. The repository `LevelSpec` remains the canonical project source after explicit review/write-back.
-
-## Relationship to Tiled
-
-Tiled remains an interchange/debug/runtime boundary. It is not the canonical high-level authoring model.
-
-Physical generated Floors continue to cross the existing Tiled/FloorDefinition importer boundary. Rich compiler-only semantics remain preserved in typed compiler/runtime data and must never be recreated as hidden DOM or React behavior.
+- adding/replacing a Prop Art Registry entry does not reroll spatial placement;
+- Exact Fit refines true-space art/collision without becoming a second topology solver;
+- adding a new production asset must not silently redefine gameplay geometry from its PNG dimensions or alpha.

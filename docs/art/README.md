@@ -1,6 +1,6 @@
 # Numberdroid Art — Current Authority / Status Index
 
-Status: **current art-domain router**
+Status: **current art-domain router — 2026-08-16**
 
 This file separates **durable art rules** from **current production status**.
 
@@ -12,10 +12,11 @@ For what is accepted / next, use in this order:
 
 1. `../planning/DEVELOPMENT_PLAN_NEXT.md`
 2. `../planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md` for detailed current Gold Slice sequencing/acceptance
-3. `../../art-source/recipes/transfer-hall/INDEX.md`
-4. the relevant current asset `recipe.md`
-5. the relevant current Transfer Hall/category contract
-6. actual current runtime/code
+3. `../level-generation/V0132_STABILIZATION_ACCEPTANCE_2026-08-16.md` for the accepted generated spatial/presentation baseline
+4. `../../art-source/recipes/transfer-hall/INDEX.md`
+5. the relevant current asset `recipe.md`
+6. the relevant current Transfer Hall/category contract
+7. actual current runtime/code
 
 Do not infer current status from an old “next” paragraph inside a long art-direction or production-rules document.
 
@@ -34,26 +35,66 @@ Method selection and reusable tooling are separate domains:
 - methods: `../art-production-methods/`
 - toolkit: `../art-production-toolkit/`
 
-## Current TS-01 Gold Slice status — 2026-08-15
+## Current TS-01 Gold Slice status — 2026-08-16
 
 ```text
-PICO                    LIVE_ACCEPTED
+PICO                    LIVE_ACCEPTED source baseline
 Floor                   ACCEPTED BASELINE
 Walls / Architecture    LIVE_ACCEPTED
 Doors                   LIVE_ACCEPTED
-Family Table             LIVE_ACCEPTED
-Family Memory Console    LIVE_ACCEPTED
-Family Props Batch 2     LIVE_CANDIDATE / composition input
-Whole-room composition   CURRENT
-Transfer/Flow hero       PLANNED inside Gold Slice
-PRIMUS hero object       PLANNED inside Gold Slice
-Other robots             AFTER Gold Slice as required
+Family Table            LIVE_ACCEPTED
+Family Memory Console   LIVE_ACCEPTED
+Family Props Batch 2    LIVE_CANDIDATE
+Layout-v3 structure     ACCEPTED generated semantic baseline
+v0.13.2 stabilization   LIVE QA ACCEPTED
+Transfer Apparatus      CURRENT NEXT PRODUCTION ASSET
+Flow support / FloorFX  NEXT after Transfer hero
+PRIMUS hero/system art  NEXT after Transfer/Flow
+Useful domestic assets  AFTER hero hierarchy
+Final room cohesion     AFTER production asset replacement
+Other robots            AFTER Gold Slice as required
 ```
 
-Current live QA shows the limiting issue is now **room-level structure, density and fidelity convergence**, not simply another isolated prop generation. The current detailed sequence is therefore owned by `../planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`.
+The active problem is no longer “make the generated Floor spatially safe.” v0.13.2 is the accepted spatial/presentation stabilization baseline. The active problem is **Generated TS-01 feature/art parity and Gold Slice visual completion**.
 
-Accepted categories are frozen unless live QA exposes a concrete defect or the user explicitly approves a bounded revision. Repositioning an accepted asset or reusing the accepted wall kit for approved composition changes does not automatically reopen its art/material treatment.
+### Important review-state distinction
+
+The v0.13.2 PASS does **not** automatically promote candidate images.
+
+Current candidate assets remain:
+
+- Coffee Machine + shadow;
+- Planter Trough + shadow;
+- Round Plant + shadow;
+- Hologram Pedestal + shadow.
+
+They may remain integrated while the complete room is art-directed. Promote them only after explicit visual acceptance in the final composition.
+
+### Known deferred player-model issue
+
+A smaller issue with the player's own in-game model/presentation is known and deliberately deferred for separate discussion.
+
+Do not treat this note as permission to reopen/regenerate the accepted PICO turnaround. First identify whether the problem belongs to Character art, runtime scale/position, allegiance treatment, animation/frame selection or another integration contract.
+
+It does not block the next environmental Art Asset work.
+
+## Current asset-production sequence
+
+The current detailed sequence lives in `../planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`.
+
+In short:
+
+1. Transfer Apparatus / Core hero;
+2. Flow support + justified FloorFX grounding/path;
+3. PRIMUS hero/system wall object / service presentation;
+4. useful domestic replacements for remaining blockouts;
+5. final grounding/use-wear/light/cohesion pass;
+6. desktop + phone Art-Director QA.
+
+Accepted Walls, Doors and accepted Family assets remain frozen unless a concrete live defect appears. New assets must consume the existing generated composite/Exact-Fit pipeline rather than forcing a new renderer or reopening accepted geometry.
 
 ## Role-aware context
 
 Artists follow `../agents/ROLE_ENTRYPOINTS.md`. Full Story/Game Design is not automatic Artist reading; activate those domains when their triggers apply.
+
+For TS-01 hero assets, the Story/World trigger is relevant whenever the object depicts or stages specific Transfer meaning beyond the already approved generic CORE/SLOT art direction.

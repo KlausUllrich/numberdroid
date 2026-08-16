@@ -1,10 +1,10 @@
 # Family Props Batch 2 — LIVE_CANDIDATE
 
-Status: **`LIVE_CANDIDATE` — source art promising; Layout v3 placement pending deployed Art-Director QA**.
+Status: **`LIVE_CANDIDATE` — source art remains provisional; generated v0.13.2 spatial/runtime integration accepted on 2026-08-16; final visual Art-Director promotion still pending**.
 
-This batch contains four isolated strict-top-down concepts: two plant types, a coffee machine and a hologram pedestal. Source art remains unchanged during level-design recomposition.
+This batch contains four isolated ND Shallow Top-Down concepts: two plant types, a Coffee Machine and a Hologram Pedestal. Source art remains unchanged during level-design/art-parity work.
 
-The assets follow `docs/game-design/LEVEL_DESIGN_RULES.md` and the current `docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`.
+The assets follow `docs/game-design/LEVEL_DESIGN_RULES.md`, `docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md` and the accepted v0.13.2 true-space contract.
 
 ## Binding visual rule
 
@@ -12,75 +12,101 @@ All four props use the established **ND Shallow Top-Down** language. Interesting
 
 No gameplay interaction, pickup, resource or story semantics are introduced by this batch.
 
-## Layout v3 placement contract
+## Review-state clarification after v0.13.2
 
-### Coffee machine
+The v0.13.2 PASS means the generated room can place/render/collide with these assets under the accepted wall/true-space/door contracts without reopening the spatial system.
+
+It does **not** mean these four images are visually final.
+
+They remain `LIVE_CANDIDATE` until Klaus explicitly accepts their appearance in the completed Gold Slice composition.
+
+## Semantic generated placement intent
+
+The canonical generated TS-01 authoring no longer depends on the hand-authored raw coordinates below. `src/levelgen/specs/ts01.ts` expresses the current intent semantically:
+
+- Coffee Machine → Family Living support Prop, preferred north wall;
+- Planter Trough → Child Room dressing, preferred west wall;
+- Round Plant → Family Living dressing, preferred south/edge placement under global plant rules;
+- Hologram → Transfer support Prop near the Transfer Core.
+
+The solver, true-space Exact Fit and permanent regression gates own the actual generated world placement.
+
+## Hand-authored Layout-v3 reference coordinates
+
+The following coordinates remain useful as the earlier hand-authored composition reference. They are **not** the canonical generated LevelSpec authoring language.
+
+### Coffee Machine
 
 Upper living-room wall; access from below; no plant may obscure it.
 
 ```text
 Prop GIDs:        177–178 on WallProps
-Placement:        col 5,row 1; 1×2
-Shadow GIDs:      179–180 on FloorFX, same placement
+Reference:        col 5,row 1; 1×2
+Shadow GIDs:      179–180 on FloorFX
 Runtime asset:    /assets/deck/family-coffee-machine.png
 ```
 
-### Planter trough
+### Planter Trough
 
 West edge of the child-room/domestic pocket, genuinely wall-adjacent rather than floating in open floor.
 
 ```text
 Prop GIDs:        181–182 on FloorProps
-Placement:        col 1,row 9; 1×2
-Shadow GIDs:      183–184 on FloorFX, same placement
+Reference:        col 1,row 9; 1×2
+Shadow GIDs:      183–184 on FloorFX
 Runtime asset:    /assets/deck/family-planter-trough.png
 ```
 
-### Round plant
+### Round Plant
 
-Living-room lower wall edge at **col 6,row 6**. It was moved one tile left during CI because col 7 interfered with the natural approach to the hygiene-room doorway. It still softens the domestic edge but now respects circulation.
+Living-room edge support object. The old hand-authored Layout-v3 reference moved it away from the hygiene doorway approach.
 
 ```text
 Prop GID:         185 on FloorProps
-Placement:        col 6,row 6
-Shadow GID:       186 on FloorFX, same placement
+Reference:        col 6,row 6
+Shadow GID:       186 on FloorFX
 Runtime asset:    /assets/deck/family-round-plant.png
 ```
 
-### Hologram pedestal
+### Hologram Pedestal
 
-South Transfer room, close to the hero/support cluster but away from Hall→Transfer and Hall→PRIMUS thresholds.
+Transfer support object close to the hero cluster but away from Hall/PRIMUS thresholds.
 
 ```text
 Prop GID:         187 on FloorProps
-Placement:        col 10,row 16
-Shadow GID:       188 on FloorFX, same placement
+Reference:        col 10,row 16
+Shadow GID:       188 on FloorFX
 Runtime asset:    /assets/deck/family-hologram-pedestal.png
 ```
 
-## Layout v3 collision
+## Current generated physical contract
 
-```text
-family-coffee-machine-solid   x 5.18,y 1.52,w 0.64,h 0.82
-family-planter-trough-solid   x 1.18,y 9.55,w 0.64,h 0.90
-family-round-plant-solid      x 6.20,y 6.28,w 0.60,h 0.55
-family-hologram-solid         x 10.18,y 16.22,w 0.64,h 0.62
-```
+Spatial authority now lives in `src/levelgen/propRegistry.ts`, `propCollisionRegistry.ts` and v0.13.2 Exact Fit rather than these old map-coordinate rectangles.
 
-Collision remains smaller than visual foliage/effect envelopes. No interaction logic is attached.
+Important current rules:
+
+- Coffee / plants use explicit source-local visual/collision envelopes and wall policies;
+- Hologram pedestal collider is **0.70 × 0.70 tiles**;
+- final true-space geometry may receive the minimum sub-tile correction beyond its own coarse anchor while remaining valid against room surfaces, other Props, foreign reservations and Door Clearance;
+- sprite, shadow and collision share the same Exact-Fit translation.
+
+PNG alpha does not define physical geometry.
 
 ## Source/material integrity
 
 Accepted source chunks, byte counts, hashes and runtime PNG dimensions are unchanged. `npm run materialize-art` remains the integrity gate.
 
-## Layout v3 live QA gate
+## Final visual QA gate
 
-- Coffee Machine remains wall-backed and accessible from below.
-- Long planter reads as wall-adjacent domestic furnishing.
-- Neither plant obscures wall furniture, a doorway or the approach to a doorway.
-- Round plant supports the living-room edge rather than circulation.
-- Hologram clearly belongs to Transfer and does not crowd either threshold.
-- all four shadows remain aligned;
-- topology remains readable on desktop and phone.
+Judge these candidates only in the increasingly complete generated Gold Slice:
 
-Do not mark Batch 2 `LIVE_ACCEPTED` until the Layout v3 room-level composition is accepted.
+- Coffee Machine remains wall-backed and accessible from below;
+- Planter reads as intentional domestic edge furnishing;
+- neither plant obscures wall furniture, doorway approach or circulation;
+- Round Plant supports the living-room edge rather than becoming isolated clutter;
+- Hologram clearly belongs to the Transfer hero/support cluster;
+- all four shadows remain visually aligned;
+- scale/material/perspective remain coherent with accepted Family Table/Memory Console and the new Transfer/PRIMUS hero assets;
+- desktop and phone readability remain good.
+
+Do not mark Batch 2 `LIVE_ACCEPTED` merely because v0.13.2 spatial stabilization passed. Final promotion remains an explicit Art-Director decision.

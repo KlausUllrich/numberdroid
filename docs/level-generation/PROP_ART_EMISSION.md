@@ -1,20 +1,23 @@
 # Numberdroid — Prop / Art Emission
 
-Status: **v0.13 runtime presentation contract; spatial precision extended by v0.13.1 `PROP_EXACT_FIT.md`**
+Status: **v0.13 presentation contract + v0.13.2 accepted true-space integration; Generated TS-01 Art Parity CURRENT**
 
-v0.13 connects solved semantic Prop placement to registered runtime art without making pixels authoritative for gameplay.
+v0.13 connects solved semantic Prop placement to registered runtime art without making pixels authoritative for gameplay. v0.13.2 stabilizes the spatial precision layer consumed by that presentation path.
 
 ```text
 LevelSpec Prop request
         ↓
-Prop Registry
-  footprint / attachment / allowed rotations / placement rules
+Spatial Prop Registry
+  attachment / allowed rotations / coarse footprint
+  placement / use-space / Hero clearance
+  true-space visual/collision/placement metadata
         ↓
 rotation-aware Prop solver
-  conservative physical rect / rotation / wall side / reservations
+  deterministic coarse anchor/reservations
         ↓
-Exact Prop Fit (v0.13.1)
-  authored visual/collision/placement envelopes + wall surfaces
+Exact / True-Space Fit (v0.13.2)
+  minimum sub-tile correction
+  room / Prop / reservation / Door validation
         ↓
 Prop Art Registry
   asset / optional shadow / review status
@@ -24,46 +27,60 @@ ordered composite Floor visual
 existing runtime
 ```
 
-The central rule remains:
+Central rule:
 
 > **Art consumes authored/solved geometry. Raw image pixels never define collision, reachability or placement validity.**
 
-## 1. Two registries, two responsibilities
+## 1. Spatial Registry and Art Registry have different authority
 
 ### Spatial Prop Registry
 
-`src/levelgen/propRegistry.ts`
+`src/levelgen/propRegistry.ts` owns gameplay/authoring facts such as:
 
-Owns gameplay/authoring facts such as:
-
-- semantic Prop ID;
-- tags;
+- semantic Prop ID/tags;
 - floor/wall attachment;
 - allowed rotations;
-- authored 0° footprint in tiles;
-- approach/use-space;
-- Hero clearance;
+- authored 0° coarse `footprintTiles`;
+- approach/use-space and Hero clearance;
 - navigation / Door Clearance restrictions;
 - placement preferences;
-- v0.13.1 exact-fit visual/collision/custom physical envelopes and wall-surface policy.
+- source-local visual/collision/custom envelopes;
+- placement-envelope and wall-surface policies.
 
-Changing this registry can change the compiled level geometry or emitted collision and therefore requires spatial/gameplay QA.
+`src/levelgen/propCollisionRegistry.ts` owns optional multipart physical collision for Props whose physical silhouette should not be one filled rectangle.
+
+Changing spatial metadata can change emitted collision/composition and therefore requires spatial/gameplay regression and live QA.
 
 ### Prop Art Registry
 
-`src/levelgen/propArtRegistry.ts`
-
-Owns presentation only:
+`src/levelgen/propArtRegistry.ts` owns presentation only:
 
 - runtime art asset;
 - optional grounding shadow;
 - art-review status: `accepted` or `candidate`.
 
-Adding/replacing an art registration must **not** change the solved footprint, collision or navigation result.
+Adding/replacing an art registration must **not** reroll placement or infer new collision from PNG dimensions/alpha.
 
-This separation is intentional for Artist-agent workflows: an Artist can register a new approved sprite without silently modifying gameplay geometry. If the new art reveals that the existing physical envelope is wrong, changing that envelope is a separate reviewed Spatial Registry change; it is never inferred from the PNG automatically.
+If new art exposes wrong spatial metadata, update the spatial contract separately and deliberately.
 
-## 2. Current TS-01 mappings
+## 2. v0.13.2 true-space integration
+
+The old v0.13.1 assumption that final exact geometry must remain inside its own coarse tile anchor is superseded.
+
+Binding current behavior:
+
+- the coarse solved tile rectangle remains deterministic placement identity/reservation;
+- source-local visual bounds/collision parts/placement envelopes remain explicit metadata;
+- Exact Fit may apply the minimum sub-tile translation beyond the object's own coarse anchor when necessary;
+- translated collision remains inside room collision surfaces;
+- selected visual/placement envelopes remain inside their chosen room surfaces;
+- same-space true-space placement envelopes may not overlap;
+- translated envelopes may not steal foreign use-space/Hero reservations or Door Clearance;
+- the **same translation** is applied to production sprite, shadow and collision parts.
+
+See `PROP_EXACT_FIT.md`, `GOLD_SLICE_REGRESSION_GATES.md` and `V0132_STABILIZATION_ACCEPTANCE_2026-08-16.md`.
+
+## 3. Current TS-01 mappings
 
 ### Accepted art
 
@@ -72,24 +89,31 @@ This separation is intentional for Artist-agent workflows: an Artist can registe
 
 ### Candidate art
 
-The following art is mapped so it can be evaluated in the generated room, but its registry status remains explicitly `candidate` until visual QA accepts it:
+Mapped for integrated evaluation but still explicitly `candidate`:
 
 - `coffee-machine`;
 - `planter-trough`;
 - `plant-round`;
-- `transfer-hologram` / current Hologram Pedestal candidate.
+- `transfer-hologram` / Hologram Pedestal.
 
-### Blockout fallback
+The v0.13.2 PASS confirms stable spatial/runtime integration around these assets. It does **not** promote their visual status.
 
-Props with no Art Registry entry continue to render as semantic blockouts. This is deliberate progressive enhancement, not an error.
+### Current blockout fallback / missing production art
 
-Current TS-01 examples include Child Bed, Toy Storage, Toilet, Transfer Core, Flow Station and PRIMUS Service Bank.
+Props without an Art Registry entry continue to render as semantic blockouts. Current TS-01 examples include:
 
-A partially art-mapped Level must therefore remain playable and inspectable.
+- Child Bed;
+- Toy Storage;
+- Toilet;
+- Transfer Core / apparatus;
+- Flow Station;
+- PRIMUS Service Bank.
 
-## 3. Composite runtime visual
+A partially art-mapped Level remains playable and inspectable. Progressive replacement of these blockouts is the current Gold Slice production workflow.
 
-`FloorVisualDefinition` now supports:
+## 4. Composite runtime visual
+
+`FloorVisualDefinition` supports:
 
 ```ts
 {
@@ -100,7 +124,7 @@ A partially art-mapped Level must therefore remain playable and inspectable.
 
 Existing `image` and `tilemap` Floors remain unchanged.
 
-The composite layer array is the explicit render order. The generated preview uses:
+Generated TS-01 explicit render order:
 
 ```text
 Ground
@@ -112,150 +136,162 @@ Ground
 → FloorProps production art
 ```
 
-Characters, Doors and other live runtime entities remain outside this static Floor visual and keep their established runtime layering.
+Characters, Doors and other live runtime entities remain outside the static Floor composite and keep their established runtime systems/layering.
 
-This preserves the existing Numberdroid art-direction order:
+This preserves the art-direction hierarchy:
 
 ```text
 Ground → FloorFX → Architecture → WallProps → FloorProps → Characters → LightOverlay / UI
 ```
 
-The generated compiler preview does not gain a new LightOverlay merely because it became composite; v0.13 changes Prop art presentation only.
+## 5. Why production PNGs remain separate sprites
 
-## 4. Why not embed PNGs inside the blockout SVG?
+v0.7.1 intentionally collapsed generated geometry into static imagery instead of hundreds of React tile nodes.
 
-The v0.7.1 performance fix deliberately collapsed the generated geometric background into static SVG instead of hundreds of React tile nodes.
+Production Props remain ordinary public PNG assets because embedding them inside a data-URL blockout SVG would:
 
-Production assets, however, already exist as normal public PNG files and should resolve through Vite/GitHub Pages paths normally.
+- mix generated geometry and production art authority;
+- complicate asset/base-path handling;
+- make progressive replacement/registry status less explicit.
 
-Embedding external production PNG references inside a data-URL SVG would create brittle URL/CORS/base-path behavior and mix two presentation systems.
+The composite visual therefore keeps static generated Ground/Architecture and adds only a small number of positioned production sprites/shadows.
 
-The composite visual keeps the efficient static ground/architecture SVGs while adding only a small number of ordinary positioned `<img>` sprites.
+## 6. Rotation and authored dimensions
 
-## 5. Rotation and authored dimensions
-
-This is a binding technical rule.
-
-`PropMetadata.footprintTiles` describes the **0° authored asset dimensions**.
-
-Example:
+Binding rule:
 
 ```text
-authored asset: 2×1
-solver rotation: 90°
-physical solved rect: 1×2
+authored source canvas = 2×1
+solver rotation        = 90°
+coarse solved rect      = 1×2
+runtime image           = authored 2×1 dimensions, centered and rotate(90°)
 ```
 
-The runtime art must **not** be resized to `1×2` and then rotated again.
+Do **not** resize a source to the already-rotated AABB and then rotate again.
 
-Instead:
+The runtime:
 
-1. keep the image at authored `2×1` pixel dimensions;
-2. find the center of the solved `1×2` physical rectangle;
-3. apply the v0.13.1 exact-fit sub-tile translation when authored physical envelopes require it;
-4. rotate the image by 90° around its center.
+1. retains authored 0° image dimensions;
+2. centers them on the solved/true-space position;
+3. applies the v0.13.2 Exact-Fit translation;
+4. rotates around the image center.
 
-The resulting visual preserves authored pixels while the meaningful physical/visual envelopes rotate with the solver orientation.
+The same rule applies to grounding shadows.
 
-This rule also applies to grounding shadows.
+## 7. WallProps vs FloorProps
 
-## 6. WallProps vs FloorProps
-
-Visual layer classification comes from the authored attachment contract:
+Visual layer classification comes from authored attachment semantics:
 
 ```ts
 request.metadata.attachment
 ```
 
-It must **not** be inferred merely from `placement.wallSide`.
+It must not be inferred merely from `placement.wallSide`.
 
-Floor-attached Props may record a `wallSide` because their selected candidate touches or prefers a wall. That does not turn them into WallProps.
+A floor-attached Prop may touch/prefer a wall and still remain a FloorProp. `wallSide`/touched walls may affect spatial fitting without changing presentation category.
 
-This distinction was regression-tested during v0.13 because Family Table can touch a wall while still belonging to the FloorProps layer.
+## 8. Shadows / FloorFX
 
-The same `wallSide` may be consumed by v0.13.1 Exact Prop Fit only when the solved footprint really touches that wall.
-
-## 7. Shadows / FloorFX
-
-If an Art Registry entry contains `shadowAsset`, v0.13 emits a separate sprite with stable ID:
+If an Art Registry entry contains `shadowAsset`, emission creates a separate stable sprite:
 
 ```text
 shadow:<placement-id>
 ```
 
-The shadow uses the same authored dimensions, rotation and exact-fit translation as the visible Prop and is rendered in the `floor-fx` layer **before Architecture**.
+The shadow uses the same authored dimensions, rotation and Exact-Fit translation as the visible Prop and renders in FloorFX before Architecture.
 
-This avoids baking grounding shadows into collision or into the Prop's visual/collision silhouette.
+Grounding shadows remain separate from:
 
-Future art metadata may add explicit shadow offsets/overhangs if required; v0.13 intentionally uses the existing aligned shadow sheets.
+- physical collision;
+- Prop visual silhouette;
+- scene illumination.
 
-## 8. Art status is not acceptance
+Future explicit shadow overhang/offset metadata may be added only when a concrete production asset proves the need.
+
+## 9. Fallback blockout safety
+
+Unregistered semantic Props still receive fallback presentation, but v0.13.2 requires the fallback visual rectangle to be clipped/inset to the containing room's **visible interior**.
+
+A provisional stub is not allowed to bleed through the accepted 30 px wall fascia just because its coarse tile anchor touches a room boundary.
+
+Fallback presentation does not redefine the Prop's semantic/spatial identity.
+
+## 10. Art status is not acceptance
 
 `status: "candidate"` means only that an asset is available for integrated visual evaluation.
 
 It does not mean:
 
-- visual QA passed;
-- the asset is final;
-- the generated TS-01 reached parity with the hand-authored reference.
+- source/production visual QA is final;
+- the image is promoted to the Gold Slice baseline;
+- Generated TS-01 has reached complete art parity.
 
-Only explicit user/art-direction acceptance may promote candidate art to accepted status.
+Only explicit user/Art-Director acceptance may promote a candidate.
 
-## 9. Runtime safety
+Similarly:
 
-The **Prop Art Registry and composite presentation layer** remain presentation-only.
+```text
+v0.13.2 spatial PASS
+≠
+Batch 2 visual acceptance
+```
 
-They do not independently alter:
+## 11. Runtime safety / performance boundary
+
+The Prop Art Registry and composite presentation layer do not independently alter:
 
 - Walkable cells;
-- Shared Wall collision;
+- Shared Wall topology/collision;
 - Door apertures;
 - Encounter placement;
 - Trigger/Event programs;
 - script state;
 - route geometry.
 
-v0.13.1 adds a deliberately separate spatial precision contract in the Spatial Prop Registry. It may emit a smaller/more accurate Prop collider and sub-tile offset, but only inside the conservative tile footprint already reserved by the solver. See `PROP_EXACT_FIT.md`.
+True-space collision refinements come only from reviewed spatial metadata.
 
-No DOM measurement, image alpha, browser sprite bounds or MutationObserver participates in gameplay collision.
+No DOM measurement, image alpha, browser sprite bounds or MutationObserver participates in gameplay geometry.
 
-## 10. Performance boundary
+Presentation preserves the v0.7.1 performance strategy:
 
-v0.13 preserves the v0.7.1 strategy:
+- one static Ground image;
+- one static Architecture image;
+- small fallback blockout images only where needed;
+- one DOM image per registered Prop/shadow;
+- Exact Fit is compile-time arithmetic, not per-frame work.
 
-- one static SVG Ground image;
-- one static SVG Architecture image;
-- at most a small fallback blockout SVG per Prop category;
-- one DOM image per registered Prop/shadow.
+## 12. Permanent tests / regression expectations
 
-v0.13.1 Exact Fit is compile-time arithmetic only and adds no per-frame work.
+Coverage must protect at least:
 
-It does **not** reintroduce per-cell React rendering.
+- ordered composite visual;
+- registered assets in intended layers;
+- grounding shadows before Architecture;
+- blockout fallback for unmapped Props;
+- authored-size non-square sprite rotation;
+- accepted 30 px fascia / 10 px collision wall relationship;
+- v0.13.2 true-space wall/corner fitting;
+- pairwise true-space Prop separation;
+- foreign reservation / Door Clearance protection;
+- multipart Family Table collision;
+- Hologram 0.70 × 0.70 physical pedestal;
+- wall-safe fallback rendering.
 
-The required final Performance & Scale Pass will later measure large floors / high asset counts on desktop and real mobile hardware.
+See `GOLD_SLICE_REGRESSION_GATES.md` for the permanent Gold Slice gate.
 
-## 11. Tests
+## 13. Current next step — Art Parity
 
-Regression coverage verifies:
+v0.13.2 is LIVE QA ACCEPTED. Do **not** spend the next block trying to re-prove v0.13.1 containment or reopen the spatial system by default.
 
-- generated TS-01 uses the ordered composite visual;
-- registered assets appear in the intended layer;
-- grounding shadows precede Architecture;
-- unmapped Props retain blockout fallback;
-- a synthetic `2×1 @ 90°` case keeps authored `2×1` image dimensions while centering over a `1×2` solved footprint;
-- accepted 30 px wall fascia still emits every canonical wall once;
-- v0.13.1 visual/collision envelopes rotate correctly and fit only against a wall that the solved tile footprint actually touches;
-- exact collision/envelopes may not expand beyond the conservative tile reservation.
+Current production sequence:
 
-## 12. Next step
+1. Transfer Apparatus / Core hero;
+2. Flow support + justified FloorFX grounding/path;
+3. PRIMUS hero/system wall object / Service Bank presentation;
+4. useful domestic replacements (Child Bed / Toy Storage / Hygiene) where they materially improve the room;
+5. final cohesion/use-wear/light support;
+6. complete generated-room Art-Director QA on desktop and phone.
 
-v0.13 provides the art mapping mechanism and v0.13.1 provides the missing wall/physical precision layer. Neither alone constitutes full art parity.
+New production art should register against the existing semantic Props. Only if an asset genuinely exposes a wrong physical/composition contract should spatial metadata change in a separate reviewed step.
 
-The next development block remains **Generated TS-01 feature/art parity**, but only after explicit live acceptance of the v0.13.1 Exact Prop Fit pass:
-
-- inspect the generated Floor with real registered art and true wall-surface fitting;
-- confirm physical collision still feels aligned to the visual object;
-- fix scale/layer/registration problems through reusable metadata where possible;
-- add remaining necessary production assets/registrations;
-- compare generated vs hand-authored reference;
-- require explicit visual/gameplay QA before the generated Floor can replace the reference.
+The generated Floor may replace the hand-authored reference only after explicit final feature/art/gameplay parity acceptance.
