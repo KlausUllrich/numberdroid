@@ -12,6 +12,22 @@
 .levelgen-debug--workbench .levelgen-debug__space-fill,
 .levelgen-debug--workbench .levelgen-debug__props .prop {
   transition: filter 100ms linear, stroke-width 100ms linear;
+  pointer-events: all;
+}
+
+.levelgen-debug--workbench .levelgen-debug__grid,
+.levelgen-debug--workbench .levelgen-debug__navigation,
+.levelgen-debug--workbench .levelgen-debug__clearance,
+.levelgen-debug--workbench .levelgen-debug__trigger-zones,
+.levelgen-debug--workbench .levelgen-debug__prop-reservations,
+.levelgen-debug--workbench .levelgen-debug__pickups,
+.levelgen-debug--workbench .levelgen-debug__actor-routes,
+.levelgen-debug--workbench .levelgen-debug__walls,
+.levelgen-debug--workbench .levelgen-debug__portals,
+.levelgen-debug--workbench .levelgen-debug__wall-slots,
+.levelgen-debug--workbench .levelgen-debug__actors,
+.levelgen-debug--workbench .levelgen-debug__triggers {
+  pointer-events: none;
 }
 
 .levelgen-debug--workbench .levelgen-debug__controls .edit-mode {
