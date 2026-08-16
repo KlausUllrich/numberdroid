@@ -1,19 +1,20 @@
 # Numberdroid — Playable Generated Preview
 
-Status: **v0.7 integration contract + v0.7.1 runtime-QA hardening**
+Status: **v0.7 runtime integration + v0.7.1 performance hardening + v0.13 composite art presentation**
 
-v0.7 is the first stage where a Floor produced by the procedural Level Compiler is registered in the existing game and driven by the real `MetaGame` runtime.
+The generated preview is the live integration target where a Floor produced by the Level Compiler is driven by the real Numberdroid runtime.
 
 ```text
 LevelSpec
-→ compiler v0.1–v0.5
-→ v0.6 Tiled/FloorDefinition emission
-→ presentation-only compiler preview
-→ normal FLOORS registry
-→ existing MetaGame / DoorLayer / HostileLayer / save collision helpers
+→ semantic compiler
+→ geometry / navigation / Props / Actors / Events
+→ Tiled/FloorDefinition physical emission
+→ typed script contract
+→ presentation mapping
+→ existing MetaGame runtime
 ```
 
-The accepted hand-authored Transfer Hall remains unchanged. The generated Floor is a separate QA target.
+The hand-authored Transfer Hall remains a separate reference until generated TS-01 reaches explicit feature/art parity acceptance.
 
 ## Preview URL
 
@@ -21,132 +22,153 @@ The accepted hand-authored Transfer Hall remains unchanged. The generated Floor 
 ?floor=ts01-generated
 ```
 
-The friendly preview alias resolves to the generated TS-01 Floor. The canonical `FloorDefinition.id` remains the semantic LevelSpec id, so save/runtime references continue to use the compiler identity rather than the URL alias.
+The friendly URL alias resolves to the generated TS-01 Floor. Runtime/save identity remains the canonical compiler Floor ID.
 
 ## What is real runtime behavior
 
-The following data comes directly from v0.6 emission and is consumed by the existing game systems without a generated-level-specific movement/runtime fork:
+The generated Floor uses the normal game systems rather than a preview-specific gameplay fork.
+
+Compiler/runtime data drives:
 
 - solved player start;
 - Walkable rectangles;
-- Shared-Wall-derived obstacle collision;
+- Shared-Wall obstacle collision;
 - Prop footprint collision;
-- embedded Door objects;
-- locked-door / access-key behavior;
-- generated Pickup position;
-- generated Encounter home positions;
-- generated Patrol path;
-- normal PICO movement/camera/collision;
-- normal DoorLayer animation and door collision;
-- normal HostileLayer encounter/perception runtime.
+- embedded Doors;
+- access keys / Pickups;
+- generated Encounter positions and patrol routes;
+- Trigger/Event programs;
+- persistent delayed/timer scheduling;
+- blocking Story Beats;
+- Staged Actor state/routes;
+- normal PICO movement/camera;
+- normal DoorLayer collision/animation;
+- normal HostileLayer behavior/perception;
+- normal save state.
 
-`pointWalkable()` and the existing closed-door collision path remain authoritative. v0.7 does not add a second generated-level collision model.
+`FloorDefinition` physical data and existing runtime helpers remain authoritative. The preview never measures rendered DOM or image pixels for collision.
 
-## v0.7.1 — runtime QA hardening
+## v0.7.1 — performance architecture
 
-The first side-by-side QA against the hand-authored Transfer Hall exposed two integration problems:
+The first playable compiler proof used many individual visual tile nodes. That made camera movement unnecessarily expensive on generated Floors.
 
-1. generated movement became less homogeneous;
-2. the blockout's visual scale language no longer matched the accepted Transfer Hall closely enough.
+v0.7.1 changed the presentation to static generated imagery while leaving physical collision untouched.
 
-Both are treated as runtime/presentation defects, not as reasons to change semantic room geometry or the 64 px compiler grid.
-
-### Static preview image instead of React tile proliferation
-
-The first playable preview rendered generated Ground, wall masks and Prop masks as many individual tile DOM nodes. That was useful for initial proof, but it unnecessarily increased the amount of composited DOM moved by the camera every animation frame.
-
-v0.7.1 changes the presentation-only preview to **one static generated SVG image**:
+The binding wall scale remains:
 
 ```text
-compiler geometry
-→ one SVG illustration
-→ one FloorVisual image node
+visible fascia       = 30 px
+physical collision   = 10 px
+compiler/runtime grid = 64 px
 ```
 
-Runtime collision is unchanged and still comes from the emitted `FloorDefinition`.
+Desktop and real-mobile driving/scale were manually QA'd after this hardening.
 
-The SVG contains:
+The cached obstacle index introduced at the same time remains the collision acceleration path for procedural Floors; its result is equivalent to the prior rectangle collision test.
 
-- semantic room/corridor fills;
-- a lightweight 64 px reference grid;
-- canonical Shared Walls;
-- one visual blockout silhouette per placed Prop instance.
+## v0.13 — composite presentation
 
-This keeps the preview cheap to move with the camera while preserving the exact same generated gameplay floor underneath.
+A single data-URL SVG is excellent for generated geometry but is the wrong container for normal production PNG assets.
 
-### Visual wall scale
-
-The initial preview used an 8 px debug edge although the accepted Transfer Hall established a much stronger visible wall language.
-
-v0.7.1 therefore uses:
+v0.13 therefore extends `FloorVisualDefinition` with a presentation-only ordered composite:
 
 ```text
-visible compiler-preview fascia = 30 px
-runtime collision core           = 10 px
+Ground static SVG
+→ FloorFX / registered shadows
+→ Architecture static SVG
+→ WallProp blockout fallback
+→ registered WallProps
+→ FloorProp blockout fallback
+→ registered FloorProps
 ```
 
-These must remain separate concepts. The 30 px fascia is presentation; the 10 px collision core remains physical truth.
+This keeps the v0.7.1 performance principle:
 
-This restores the established room-scale cue without changing tile size, robot size, room dimensions or collision geometry.
+- no per-cell React rendering;
+- only a small number of static image layers;
+- one positioned image per registered Prop/shadow.
 
-### Prop blockout scale
+Characters, Doors, Pickups and other live entities remain normal runtime layers outside the static Floor visual.
 
-The first preview painted every occupied Prop cell as a separate full-tile symbol, making multi-tile objects read as collections of boxes.
+## Production Prop art vs blockouts
 
-v0.7.1 instead draws **one inset silhouette per placed Prop instance** using its solved rectangular footprint and role. Rotation remains the compiler-selected cardinal rotation.
+See `PROP_ART_EMISSION.md`.
 
-This better represents the mass of a table, Transfer core or service bank while remaining explicitly provisional art.
+Registered art is progressive enhancement. A Prop without a presentation registration remains a deterministic role-colored blockout and still has full physical/runtime behavior.
 
-### Collision hot path
+Current generated TS-01 mapping includes accepted Family Table and Memory Console art plus several explicitly `candidate` assets for integrated QA. Candidate status does not imply visual acceptance.
 
-Generated Floors contain more wall obstacle segments than the old hand-authored map. `pointWalkable()` is called repeatedly by both player movement and moving actors, so scanning every obstacle on every query does not scale well with procedural maps.
+## Rotation contract
 
-v0.7.1 adds a cached coarse spatial index for Floors with more than a small number of obstacles. Collision queries only test obstacle rectangles in buckets intersecting the robot's local collision circle.
+Production sprites use their authored 0° dimensions, centered over the solver's final physical footprint and rotated around that center.
 
-The result remains mathematically equivalent to the previous rectangle collision test; only candidate selection changes.
+Example:
 
-## Presentation-only preview
+```text
+source asset / metadata = 2×1
+solver rotation          = 90°
+physical footprint       = 1×2
+runtime image            = 2×1, centered, rotate(90°)
+```
 
-The generated preview is **not** collision truth. It visualizes compiler output while driving the real emitted Floor.
+The source image is never stretched to the already-rotated physical dimensions and then rotated again.
 
-### Wall visualization
+## Trigger/Event runtime
 
-Walls are derived directly from the canonical Shared Wall Graph. Every wall segment is emitted exactly once, including shared room boundaries. Door apertures remain gaps because no canonical wall segment exists through an aperture.
+The old v0.7 limitation where Trigger/Event programs were only compiled is obsolete.
 
-### Prop visualization
+Since v0.8/v0.8.1 the generated Floor executes persistent Trigger/Event state, delayed deadlines and timers. TS-01 live QA has confirmed:
 
-Placed Props receive generic role language:
+```text
+PRIMUS ACCESS collected
+→ collect Trigger
+→ key granted
+→ controlled Door unlocked
 
-- Hero
-- Support
-- Furniture
-- Dressing
+Transfer intro zone entered
+→ Story Beat activated
+→ runtime pauses
+→ WEITER resumes
+```
 
-These remain temporary QA blockouts only.
+## Staged Actor runtime
+
+Since v0.9, compiler script state can present non-combat staged actors through compiled routes. The separate Bio-Ark proof remains:
+
+```text
+?floor=bioark-passby
+```
 
 ## Acceptance tests
 
-Regression coverage verifies:
+Regression coverage verifies at least:
 
-- the generated Floor is registered under canonical id and preview alias;
-- PICO starts on a valid collision-safe position;
-- the PRIMUS controlled door remains locked to `primus-access`;
-- the generated PRIMUS access card survives into the runtime Floor;
-- doorway centers remain physically walkable before DoorLayer collision is applied;
-- SENTRY patrol geometry and neutral MAGNETAR behavior survive into runtime Encounter data;
-- the playable compiler presentation is one static SVG image;
-- the visible wall fascia is 30 px while runtime obstacles remain unchanged;
-- every canonical wall is represented once in the generated preview SVG.
+- generated Floor registration / preview alias;
+- valid PICO start;
+- physical door-aperture walkability;
+- access key / Door contract;
+- Encounter behavior and patrol geometry;
+- persistent Trigger/Event integration;
+- 30 px visual wall fascia while runtime obstacles remain unchanged;
+- every canonical wall emitted once;
+- ordered v0.13 composite visual layers;
+- registered production Prop assets in their intended layers;
+- FloorFX shadows before Architecture;
+- blockout fallback for unmapped Props;
+- authored-size non-square art rotation without distortion.
 
-## Deliberate boundary
+## Current acceptance boundary
 
-v0.7 / v0.7.1 do **not yet execute** compiler `Trigger` / `Event` programs. Existing runtime behavior such as collecting an access card still works because that capability already exists in `FloorDefinition`/`MetaGame`.
+Compiler correctness and CI are not the same as visual acceptance.
 
-Trigger/Event execution requires explicit persistent runtime state for concepts such as:
+For v0.13 and the following generated TS-01 parity pass, live QA must separately inspect:
 
-- once-fired trigger IDs;
-- world flags;
-- scripted actor presence/movement;
-- blocking Story Beat state.
+- asset scale;
+- rotation / orientation;
+- grounding shadows;
+- WallProp vs FloorProp layering;
+- collisions still matching visual mass reasonably;
+- performance on desktop/mobile;
+- whether candidate art should be promoted, replaced or left provisional.
 
-That state must be added to the clean runtime/save architecture rather than hidden in component-local hacks. This remains the next integration block after playable generated-floor QA.
+Only explicit visual/gameplay acceptance can make generated TS-01 eligible to replace the hand-authored reference.
