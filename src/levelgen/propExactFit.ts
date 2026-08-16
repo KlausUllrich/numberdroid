@@ -136,6 +136,18 @@ function contains(container: PixelRect, inner: PixelRect) {
     && inner.y + inner.h <= container.y + container.h + epsilon;
 }
 
+function touchesWall(
+  placement: ExactFitPlacement,
+  spaceRect: { x: number; y: number; w: number; h: number },
+  side: CardinalDirection,
+) {
+  const epsilon = 1e-9;
+  if (side === "north") return Math.abs(placement.rect.y - spaceRect.y) <= epsilon;
+  if (side === "south") return Math.abs(placement.rect.y + placement.rect.h - (spaceRect.y + spaceRect.h)) <= epsilon;
+  if (side === "west") return Math.abs(placement.rect.x - spaceRect.x) <= epsilon;
+  return Math.abs(placement.rect.x + placement.rect.w - (spaceRect.x + spaceRect.w)) <= epsilon;
+}
+
 function wallFacePx(
   side: CardinalDirection,
   spaceRect: { x: number; y: number; w: number; h: number },
@@ -173,6 +185,9 @@ function keepCollisionInsideRoom(
  * Exact fit is deliberately a post-solve precision layer. The tile footprint
  * remains the conservative compiler/reservation envelope, while this function
  * resolves sub-tile wall surface alignment and the actual runtime collision.
+ * A recorded wallSide is only actionable when the solved footprint really
+ * touches that wall; a stale/preference-only hint may never snap a Prop across
+ * the room after placement.
  */
 export function computePropExactFit(
   placement: ExactFitPlacement,
@@ -208,7 +223,7 @@ export function computePropExactFit(
   let offset = { x: 0, y: 0 };
   const fit: PropExactFitMetadata | undefined = metadata.exactFit;
   const side = placement.wallSide ?? undefined;
-  if (fit && side) {
+  if (fit && side && touchesWall(placement, spaceRect, side)) {
     const boundaryThickness = (fit.wallBoundary ?? "visual") === "collision" ? wallCollisionPx : wallVisualPx;
     offset = alignOffset(envelope, side, wallFacePx(side, spaceRect, tileSize, boundaryThickness));
     // A visual envelope may be intentionally larger/smaller than collision, but
