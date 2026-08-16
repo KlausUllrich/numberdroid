@@ -1,6 +1,6 @@
 # Numberdroid Art — Current Authority / Status Index
 
-Status: **current art-domain router — 2026-08-16**
+Status: **current art-domain router — 2026-08-17**
 
 This file separates **durable art rules** from **current production status**.
 
@@ -25,7 +25,7 @@ Do not infer current status from an old “next” paragraph inside a long art-d
 - **Prop Artist direct onboarding route:** `../agents/PROP_ARTIST_BRIEF.md`
 - Transfer Ship visual thesis: `direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-method Artist workflow: `production/ARTIST_AGENT_WORKFLOW.md`
-- **binding Prop-specific source → approval → extraction → shadow → editor/runtime workflow: `production/PROP_ASSET_WORKFLOW.md`**
+- **binding Prop function-analysis → user-alignment → single-source → approval → extraction → shadow → editor/runtime workflow:** `production/PROP_ASSET_WORKFLOW.md`
 - asset validation: `production/ART_ASSET_VALIDATION_RULES.md`
 - validation process addendum: `production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
 - Transfer Ship perspective/material/placement rules: `production/ART_PRODUCTION_RULES_TRANSFER_SHIP.md`
@@ -38,7 +38,7 @@ Method selection and reusable tooling are separate domains:
 - methods: `../art-production-methods/`
 - toolkit: `../art-production-toolkit/`
 
-## Current TS-01 Gold Slice status — 2026-08-16
+## Current TS-01 Gold Slice status
 
 ```text
 PICO                    LIVE_ACCEPTED source baseline
@@ -94,14 +94,24 @@ In short:
 5. final grounding/use-wear/light/cohesion pass;
 6. desktop + phone Art-Director QA.
 
-For each new Prop/Hero asset, the initial visual proposal now follows the Prop workflow's **A/B/C three-variant rule for one semantic asset**, followed by assistant QA and explicit Klaus source selection before extraction/shadow/integration.
+For each new Prop/Hero asset, the Prop workflow now requires:
+
+```text
+understand what the asset must do
+→ explain the function-to-form philosophy in text
+→ let Klaus correct/approve the direction
+→ generate exactly one visual proposal in one image
+→ QA that source before any new candidate or technical processing
+```
+
+If another alternative is needed, it is another **single-image** proposal cycle after QA/user steering. Do not generate A/B/C comparison sheets or multiple Prop variants on one canvas.
 
 Accepted Walls, Doors and accepted Family assets remain frozen unless a concrete live defect appears. New assets must consume the existing generated composite/Exact-Fit pipeline rather than forcing a new renderer or reopening accepted geometry.
 
 ## Role-aware context
 
-Artists follow `../agents/ROLE_ENTRYPOINTS.md`. Prop-focused agents may use `../agents/PROP_ARTIST_BRIEF.md` as the specialized direct entry point; it routes back to the universal bootstrap and all required current authorities without duplicating them.
+Artists follow `../agents/ROLE_ENTRYPOINTS.md`. Prop-focused agents should use `../agents/PROP_ARTIST_BRIEF.md` as the specialized direct entry point. It provides the minimum game/story/project orientation and routes to current Story, Game/Level Design, Art, planning, method/toolkit, recipe and Level Compiler authorities.
 
-Full Story/Game Design is not automatic Artist reading; activate those domains when their triggers apply.
+The brief's high-level game/story orientation does not replace deeper triggers. Narrative-specific Prop content still activates the Story route; gameplay/mechanical changes still activate Game Design; runtime/tool changes still activate Technical Artist/Engineering.
 
-For TS-01 hero assets, the Story/World trigger is relevant whenever the object depicts or stages specific Transfer meaning beyond the already approved generic CORE/SLOT art direction.
+For TS-01 hero assets, Story/World context is inherently relevant because the Transfer Hero depicts the central CORE/body-transfer fantasy and stages the opening coming-of-age beat.

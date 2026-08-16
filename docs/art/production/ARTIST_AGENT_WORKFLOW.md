@@ -4,9 +4,9 @@ Status: **binding cross-method role/process contract for visual asset production
 
 This document defines the workflow shared by all Numberdroid art-production methods. It does **not** prescribe one rendering technique. Select the production method first from `docs/art-production-methods/README.md` and `METHOD_SELECTION_GATE.md`.
 
-Role/context routing is defined by `docs/agents/ROLE_ENTRYPOINTS.md`. An Artist does not automatically read all Story/Game Design; those domains become mandatory when their triggers apply.
+Role/context routing is defined by `docs/agents/ROLE_ENTRYPOINTS.md`. Prop and Prop-like Hero work begins at `docs/agents/PROP_ARTIST_BRIEF.md`.
 
-Companion QA documents:
+Companion QA/process documents:
 
 - `docs/art/production/ART_ASSET_VALIDATION_RULES.md`
 - `docs/art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
@@ -20,7 +20,7 @@ The Artist agent turns approved art direction and runtime constraints into produ
 
 The Artist owns:
 
-- task preparation;
+- task/context preparation;
 - method selection;
 - source generation/authoring;
 - source inspection;
@@ -72,6 +72,22 @@ QA TESTS
 
 The Task Card is a production constraint. It must never be rendered into production pixels.
 
+## Function / intent gate for Props and Hero objects
+
+Props and environmental Hero objects have an additional pre-generation requirement defined in `PROP_ASSET_WORKFLOW.md`:
+
+```text
+understand the world/game/story function
+→ derive function-to-form philosophy
+→ explain that philosophy textually to the user
+→ allow correction
+→ only then generate a visual proposal
+```
+
+Do not skip this gate by writing a visually rich prompt before deciding what the object must communicate.
+
+A Prop that is attractive but could plausibly be a teleporter, scanner, reactor, altar or medical device interchangeably has not yet solved its semantic design problem.
+
 ## Method selection gate
 
 Choose from the current method catalog:
@@ -100,6 +116,7 @@ Do not invent fake SVG geometry merely to satisfy a template. `PLANNED` is bette
 ```text
 PREPARED
 → METHOD_SELECTED
+→ DESIGN_INTENT_ALIGNED
 → SOURCE_READY
 → SOURCE_QA_PASSED
 → PRODUCTION_BUILT
@@ -112,7 +129,7 @@ PREPARED
 
 Method-specific workflows may add intermediate states. A failed state cannot silently advance.
 
-For Gold Slice Props, `PROP_ASSET_WORKFLOW.md` adds an explicit Klaus source-selection gate between source QA and production build.
+For Gold Slice Props, `PROP_ASSET_WORKFLOW.md` adds explicit textual user-alignment and Klaus source-approval gates.
 
 ## Production prompt rule
 
@@ -124,18 +141,17 @@ A multi-frame sheet is allowed only when the asset itself requires it, e.g. an e
 
 Do not mix unrelated categories or semantic assets in one generation merely to save calls. In particular, do not combine ordinary Floor, Walls, Doors, several unrelated Props, Hero setpieces and Characters in one source sheet unless the recipe explicitly defines them as one authored asset.
 
-### Prop A/B/C first-proposal exception
+### Prop proposal rule
 
-`PROP_ASSET_WORKFLOW.md` defines one deliberate acceleration exception for a **new single Prop**:
+For Props and Prop-like Hero assets, the stricter `PROP_ASSET_WORKFLOW.md` rule applies:
 
-- the first visual proposal normally returns exactly three separate variants `A / B / C` of the **same semantic Prop**;
-- all three share the same function, perspective, footprint class and runtime contract;
-- they are alternatives, not a three-Prop batch;
-- when the generation tool supports multiple separate outputs in one call, use one generation call with three separate outputs;
-- never combine them into an infographic, labeled board, room inventory or extraction sheet;
-- after QA, Klaus selects one source and only that selected source proceeds to production extraction/shadow/integration.
+- **one visual proposal per generated image**;
+- no A/B/C comparison sheet;
+- no three variants on one canvas;
+- no Prop + shadow proposal in one source image;
+- no room/mockup around the proposed production Prop.
 
-Outside this bounded first-proposal exception, work on one selected source/edit at a time.
+If several alternatives are desired, they are separate image-generation turns and separate QA cycles. The previous source must be inspected before another candidate is generated.
 
 ## Image-generation turn boundary — binding
 
@@ -143,10 +159,12 @@ When ChatGPT image generation is used, generation creates a user-visible turn bo
 
 Required behavior:
 
-1. state what single semantic source/edit (or the allowed Prop A/B/C first-proposal set) is being generated;
+1. state what **single** source/edit is being generated;
 2. call image generation once;
 3. do not silently regenerate or integrate in the same turn;
-4. on the next user turn, inspect the generated result(s) before advancing.
+4. on the next user turn, inspect the generated result before advancing.
+
+Do not promise to generate several sequential alternatives automatically in one response. The tool boundary makes that workflow unreliable and bypasses the required QA/user steering point.
 
 ### `QA` is a hard no-generation command
 
@@ -164,10 +182,10 @@ A source passes only when it is suitable input for the selected method and recip
 Check, as relevant:
 
 - requested category only;
-- correct perspective;
+- intended function is visually legible;
+- correct perspective/camera logic;
 - correct semantic colour language;
 - useful alpha/background;
-- meaningful variant separation;
 - no unintended clipping;
 - no unwanted baked environment/lighting;
 - no documentation text in production pixels;
@@ -176,7 +194,7 @@ Check, as relevant:
 
 Attractive but invalid art is still invalid.
 
-For a Prop A/B/C first proposal, inspect and disposition all three separately before Klaus selects one.
+For Props, perspective and function-to-form are source gates; they are not deferred to runtime integration.
 
 ## Production build / extraction
 
@@ -233,7 +251,7 @@ Do not change map/game logic merely to rescue unsuitable art unless the design i
 
 The user is the art director for Gold Slice work. A new target look/category should pass internal QA before being presented as a candidate for approval.
 
-For new Gold Slice Props, explicit source selection/approval by Klaus is required before extraction/shadow/integration as defined by `PROP_ASSET_WORKFLOW.md`.
+For new Gold Slice Props, the user must first be able to correct the function-to-form philosophy before generation, and explicit source approval is required before extraction/shadow/integration as defined by `PROP_ASSET_WORKFLOW.md`.
 
 `CI green` and `merged` do not mean `visually accepted`.
 
@@ -254,6 +272,17 @@ For Props, spatial/editor metadata must also pass `docs/level-generation/PROP_AU
 ## Failure report
 
 When an asset fails, state concrete reasons before changing tools/prompts. Record important negative results in the relevant method `research/` folder or `docs/history/experiments/` when they are broadly reusable.
+
+For Props, distinguish whether the failure is:
+
+- wrong function/design logic;
+- wrong perspective;
+- style/material mismatch;
+- prompt/tool execution;
+- extraction/alpha problem;
+- spatial/runtime integration problem.
+
+Fix the correct layer instead of rerolling blindly.
 
 ## Method-specific skills
 

@@ -4,17 +4,23 @@ Status: **binding production contract for Props and Prop-like Hero setpieces**
 
 This document specializes `ARTIST_AGENT_WORKFLOW.md` for isolated gameplay Props. It does not replace the general Artist workflow, validation rules, method-selection gate, category recipe or Level Compiler placement rules. When rules overlap, the stricter rule wins.
 
-The purpose is to make Prop production reproducible without relying on chat memory and to keep visual approval, technical extraction, spatial authoring and runtime integration as distinct gates.
+The purpose is to make Prop production reproducible without relying on chat memory and to keep **functional reasoning, user alignment, visual approval, technical extraction, spatial authoring and runtime integration** as distinct gates.
 
-## 1. Core rule
+---
+
+# 1. Core rule
 
 A Prop moves through the pipeline one semantic asset at a time.
 
 ```text
-PROP CONTRACT
-→ FIRST PROPOSAL: VARIANTS A / B / C
+CURRENT CONTEXT / PHASE
+→ ASSET FUNCTION ANALYSIS
+→ FUNCTION-TO-FORM PHILOSOPHY (TEXT)
+→ USER ALIGNMENT / CORRECTION
+→ PROP CONTRACT + PERSPECTIVE PREFLIGHT
+→ ONE SOURCE IMAGE
 → ASSISTANT SOURCE QA
-→ KLAUS SELECTS + APPROVES ONE SOURCE
+→ KLAUS SOURCE APPROVAL
 → PRODUCTION EXTRACTION / NORMALIZATION
 → PRODUCTION QA
 → SHADOW / GROUNDING
@@ -28,36 +34,135 @@ PROP CONTRACT
 
 No later step may silently compensate for a failed earlier step.
 
-## 2. One Prop, three first-look variants
+A good-looking Prop that does not communicate its function is a failed design, not a successful source awaiting technical cleanup.
 
-To speed up art direction, the **first proposal for a new Prop should normally present three alternatives**:
+---
+
+# 2. Function before form — mandatory design-analysis gate
+
+Before writing the image prompt, the Artist must first determine **what the asset actually has to accomplish**.
+
+Use current Story, Game Design, Level Design, Art Direction, Level Compiler metadata and the asset recipe to answer, as applicable:
 
 ```text
-A — conservative / closest to established Numberdroid language
-B — stronger character / silhouette variation
-C — bolder but still contract-compliant interpretation
+WHAT IS THIS OBJECT FOR?
+WHY DOES IT EXIST IN THIS PLACE?
+WHO / WHAT USES IT?
+WHAT MUST THE PLAYER UNDERSTAND BY LOOKING AT IT?
+WHAT IS THE APPROACH / USE / ENTRY / EXIT SEQUENCE?
+WHAT PARTS ARE PHYSICALLY SOLID?
+WHAT SPACE MUST REMAIN OPEN AROUND IT?
+WHAT OTHER OBJECT / SYSTEM DOES IT RELATE TO?
+WHAT STORY OR WORLD IDEA SHOULD ITS FUNCTION EXPRESS?
+WHAT SHOULD IT NOT BE MISTAKEN FOR?
 ```
 
-These are **three variants of the same Prop**, not three different asset categories.
+Then derive form from that function.
 
-When ChatGPT image generation can return multiple separate outputs in one generation call, request exactly three isolated outputs for A/B/C. Do not combine them into an infographic, presentation board, room mockup or labeled source sheet.
+The Artist should ask:
 
-All three variants must share the same:
+- Which large shapes communicate the operation from the actual gameplay camera?
+- Is there a visible source/target, input/output, dock, cradle, opening, control side, service side or directional relationship?
+- Does the silhouette explain how a body/person/robot relates to the object?
+- Can the function be read without relying on tiny screen graphics or explanatory text?
+- Is the object merely using generic sci-fi rings, panels, screens or glow where a more functional form is needed?
 
-- semantic Prop identity and function;
-- perspective contract;
-- target footprint class;
-- material/palette family;
-- background/alpha contract;
-- forbidden-content rules.
+For Hero Props, this step is especially important. A Hero object should normally tell a small piece of gameplay/world story through its physical organization.
 
-They may vary in silhouette, proportions within the approved envelope, secondary construction detail and restrained personal/style character.
+---
 
-After generation, the next turn is QA. No extraction, shadow creation, integration or second generation occurs before inspection.
+# 3. Textual design-philosophy gate — user must be able to intervene
 
-If the tool cannot return three separate source candidates cleanly, generate them sequentially rather than putting several objects into one production image.
+Before the first image generation for a new or materially revised Prop, present the intended design logic **in text**.
 
-## 3. Mandatory Prop Contract before generation
+The explanation should be short enough to review but concrete enough to challenge. It should normally state:
+
+```text
+1. FUNCTION / PLAYER READ
+2. FUNCTION-TO-FORM IDEA
+3. APPROACH / USE / MOVEMENT AROUND THE OBJECT
+4. MAJOR SILHOUETTE / PART RELATIONSHIPS
+5. SPATIAL / EDITOR IMPLICATIONS
+6. PERSPECTIVE STRATEGY
+7. MAIN FAILURE MODE TO AVOID
+```
+
+This is a real approval/correction gate.
+
+**Do not call image generation in the same turn in which the Artist first presents this design philosophy**, unless the user had already seen/approved the same direction or explicitly instructs generation after reviewing it.
+
+The purpose is to make conceptual mistakes cheap. It is much faster to correct “this looks like a teleporter, but it needs to communicate Core → Body transfer” in text than after several image generations.
+
+If later QA reveals that the underlying functional interpretation was wrong, return to this gate before the next materially different generation.
+
+---
+
+# 4. One proposal per generated image — binding
+
+For Prop production, **one generated image contains one proposed asset**.
+
+Do not ask the image generator for:
+
+- three alternatives in one picture;
+- an A/B/C concept sheet;
+- a comparison board;
+- several versions around one canvas;
+- the Prop plus its shadow candidate;
+- a room mockup containing the proposed Prop;
+- labels, captions, arrows or explanatory presentation furniture.
+
+These compositions repeatedly produce attractive concept art that is poor production source material and make QA/extraction ambiguous.
+
+## Multiple alternatives
+
+If the user wants several visual alternatives, they are separate proposal cycles:
+
+```text
+Candidate A
+→ one image-generation turn
+→ QA / user reaction
+
+Candidate B (only when requested/needed)
+→ one image-generation turn
+→ QA / user reaction
+
+Candidate C (only when requested/needed)
+→ one image-generation turn
+→ QA / user reaction
+```
+
+Because ChatGPT image generation forms a user-visible turn boundary, do **not** promise to autonomously generate A, B and C sequentially inside one response. The next candidate is generated only after the previous result has been inspected and the user asks to continue or the revised direction has been approved.
+
+If Candidate A is approved, there is no requirement to generate B/C merely to satisfy a quota.
+
+**One proposal per image is more important than presenting three choices quickly.**
+
+---
+
+# 5. Perspective preflight — mandatory before every new visual direction
+
+Perspective/camera mismatch is a source-level failure and cannot be fixed by cropping.
+
+Before generation, identify from the binding category/world contract:
+
+- projection/camera model;
+- which surfaces should dominate the read;
+- how much, if any, vertical/side face is allowed;
+- whether rotation is a runtime transform or requires separately authored views;
+- which accepted existing asset is the best perspective reference;
+- which perspective cues are explicitly forbidden.
+
+For Numberdroid environment Props, the gameplay camera remains authoritative. Do not use isometric or presentation-art perspective simply because it makes machinery look more dramatic.
+
+When using the current ND Shallow Top-Down civilian/Prop treatment, preserve the near-top-down logic defined by the current Art contracts: top surfaces and footprint must carry the function; readable frontal furniture faces, strong side walls, convergence or camera-dependent extrusion are not acceptable.
+
+Before the image call, the Artist should be able to say in one sentence what the camera is doing and which surfaces the viewer should primarily see.
+
+If source QA reports wrong perspective, change the next visual brief/prompt before generating again; do not merely repeat the same request.
+
+---
+
+# 6. Mandatory Prop Contract before generation
 
 Before the first image call, record the following in the relevant recipe or task card.
 
@@ -88,54 +193,79 @@ The Level Compiler mapping for these decisions is defined in `../../level-genera
 
 Do not generate an asset while its spatial role is still ambiguous. For example, a console that may be either wall-mounted or floor-standing needs that decision before art production because perspective, collision, rotations and editor behavior depend on it.
 
-## 4. Source generation gate
+The contract does not require every final numeric bound to be known before concept art, but it must make the intended spatial behavior explicit enough that the proposed silhouette can be judged against it.
+
+---
+
+# 7. Source generation gate
 
 The production source must contain the requested Prop only.
 
 For ordinary Props and Hero objects:
 
-- isolated object;
+- one isolated object/proposal;
 - transparent background when supported;
 - no room, floor tile or wall section;
 - no labels, captions, dimensions, UI, legend or technical board;
 - no baked global scene lighting;
 - no unrelated Props;
-- no baked grounding shadow unless the recipe explicitly makes it inseparable.
+- no separate shadow/FloorFX proposal in the same image;
+- no baked grounding shadow unless the recipe explicitly makes it inseparable;
+- no decorative structures whose only role is to make the image look more like concept art.
 
-For the current Transfer Ship civilian-prop language, use the approved Numberdroid perspective contract from the relevant category recipe. Detailed civilian Props normally use the established ND Shallow Top-Down baseline unless explicitly overridden.
+The prompt should emphasize the **approved functional form**, not merely palette/style adjectives.
 
-## 5. Assistant source QA
+For current Transfer Ship civilian-prop language, use the approved Numberdroid perspective contract from the relevant category recipe/art rules.
 
-Every A/B/C source candidate receives a concrete disposition.
+---
+
+# 8. Assistant source QA
+
+Every generated source receives one concrete disposition.
 
 Check:
 
 - requested Prop only;
+- **function is visually understandable**;
 - correct perspective and camera logic;
 - Numberdroid material/palette fit;
 - recognizable function at gameplay scale;
-- silhouette compatible with the intended footprint;
+- silhouette compatible with intended footprint;
+- visual relationship between meaningful functional parts;
 - no unwanted floor/wall/background pixels;
 - no baked directional room shadow;
 - no clipped object parts;
-- no text or presentation furniture;
+- no text/presentation furniture;
 - plausible extraction into a clean transparent runtime canvas.
 
-Report each variant as `PASS` or `FAIL` with reasons.
+Report `PASS` or `FAIL` with reasons.
 
 A visually attractive but invalid source is a FAIL.
 
-## 6. Klaus source-approval gate
+`QA`, `prüfen`, `check` or equivalent means **inspection only**. Do not call image generation during QA.
 
-For Gold Slice production, **Klaus must select and approve one source candidate before technical production continues**.
+---
 
-The selected source becomes the visual authority for that Prop revision.
+# 9. Klaus source-approval gate
 
-Do not infer approval from silence, CI, a merge, or an earlier mood-board discussion.
+For Gold Slice production, **Klaus must explicitly approve the source before technical production continues**.
 
-If none of A/B/C is approved, revise the brief and make a new three-variant proposal. Do not crop or integrate the least-bad source.
+The approved source becomes the visual authority for that Prop revision.
 
-## 7. Production extraction / normalization
+Do not infer approval from silence, CI, a merge or an earlier mood-board discussion.
+
+If the source is rejected:
+
+1. state why it failed;
+2. decide whether the failure is prompt execution, perspective, style or underlying function-to-form reasoning;
+3. if the design logic changes materially, present the revised philosophy in text first;
+4. generate exactly one revised candidate only after alignment/continuation.
+
+Do not crop or integrate a least-bad source.
+
+---
+
+# 10. Production extraction / normalization
 
 The approved source is not automatically the runtime asset.
 
@@ -166,7 +296,9 @@ This tool **does not perform semantic background removal**. If the approved sour
 
 The recipe records the actual extraction values used for the accepted production asset.
 
-## 8. Production QA
+---
+
+# 11. Production QA
 
 Inspect the actual normalized runtime PNG independently from the approved large source.
 
@@ -180,14 +312,19 @@ Verify:
 - intended runtime margins;
 - correct apparent scale;
 - important forms survive gameplay-size downscale;
+- functional read survives gameplay scale;
 - no accidental source text/background;
 - source orientation is preserved.
 
 Only the production asset proceeds to shadow/spatial integration.
 
-## 9. Shadow / grounding step
+---
+
+# 12. Shadow / grounding step
 
 Grounding shadow is a separate `FloorFX` asset unless a category-specific exception is explicitly approved.
+
+The shadow is created **after** the visible Prop source/production asset is approved. It is not part of the initial visual-proposal image.
 
 Default contract:
 
@@ -203,7 +340,9 @@ The shadow may be generated or derived deterministically from the approved produ
 
 Klaus' final live review evaluates the combined Prop + shadow result in context. A shadow that materially changes the intended look may be escalated for separate approval before integration.
 
-## 10. Spatial metadata finalization
+---
+
+# 13. Spatial metadata finalization
 
 Art pixels never become gameplay geometry automatically.
 
@@ -225,7 +364,9 @@ The accepted image informs these authored values, but alpha is not collision aut
 
 If the asset requires a spatial rule the current registry/compiler cannot express, **stop and extend the authoring model first**. Do not hide the missing rule in hand-authored coordinates or a special renderer.
 
-## 11. Level Editor / Workbench gate
+---
+
+# 14. Level Editor / Workbench gate
 
 Before integration, confirm the asset is understandable to the current semantic Level Workbench.
 
@@ -244,7 +385,9 @@ The Workbench must be able to explain or enforce, as applicable:
 
 Type-level asset rules belong in the Prop Registry. Level-instance intent belongs in `LevelSpec.props` / semantic Overrides. The Workbench must not silently turn global asset semantics into one-off level coordinates.
 
-## 12. Runtime integration
+---
+
+# 15. Runtime integration
 
 For generated TS-01, the default production path is **individual registered assets**, not immediate global atlas packing.
 
@@ -261,23 +404,40 @@ The generated composite already places registered Prop art in the correct visual
 
 Atlas packing is an optimization/asset-management concern and remains deferred until there is a demonstrated need. Do not delay Gold Slice Prop production waiting for a generic atlas packer.
 
-## 13. Integration QA and final acceptance
+---
+
+# 16. Integration QA and final acceptance
 
 After registry integration:
 
 1. run relevant Art Toolkit QA;
 2. run tests/build;
-3. inspect the deployed generated TS-01;
+3. inspect the deployed generated level;
 4. verify actual placement, rotation, scale, wall contact and shadow;
-5. drive PICO around the Prop and verify collision/use-space plausibility;
+5. drive PICO/relevant bodies around the Prop and verify collision/use-space plausibility;
 6. inspect desktop and phone gameplay scale;
 7. obtain Klaus' live combined acceptance;
 8. update recipe/status to `LIVE_ACCEPTED` only then.
 
-`SOURCE APPROVED`, `PRODUCTION QA PASSED`, `CI GREEN`, `MERGED`, `DEPLOYED` and `LIVE_ACCEPTED` are distinct states.
+`DESIGN PHILOSOPHY ALIGNED`, `SOURCE APPROVED`, `PRODUCTION QA PASSED`, `CI GREEN`, `MERGED`, `DEPLOYED` and `LIVE_ACCEPTED` are distinct states.
 
-## 14. Batch discipline
+---
 
-Only one selected Prop proceeds through extraction/shadow/integration at a time.
+# 17. Iteration discipline
 
-The A/B/C acceleration rule applies to **initial visual choice**, not to downstream technical batching. This keeps rejection cheap and prevents several unapproved assets from accumulating technical work.
+Only one visual candidate is active at a time.
+
+When a source fails or the user asks for another direction:
+
+```text
+inspect
+→ identify the real failure
+→ revise function-to-form philosophy/prompt as needed
+→ tell the user what will change
+→ generate one new image
+→ inspect again
+```
+
+Do not hide learning by silently rerolling images.
+
+Do not batch several unapproved Props or several unapproved variants into downstream extraction/shadow/integration work.

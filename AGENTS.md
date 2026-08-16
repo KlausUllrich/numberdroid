@@ -71,12 +71,15 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
 
 Before producing/editing gameplay art, follow the Artist route in `ROLE_ENTRYPOINTS.md` and the binding `docs/art/production/ARTIST_AGENT_WORKFLOW.md`.
 
-For Prop or Prop-like environmental Hero work, `docs/agents/PROP_ARTIST_BRIEF.md` is the specialized direct onboarding route. It points to the current Prop workflow, editor requirements, method/toolkit authorities, recipe and runtime consumers without duplicating them.
+For Prop or Prop-like environmental Hero work, `docs/agents/PROP_ARTIST_BRIEF.md` is the specialized direct onboarding route. It provides concise game/story/current-phase orientation and routes to the current Prop workflow, Level/Editor requirements, Art contracts, method/toolkit authorities, recipe and runtime consumers.
 
 In particular:
 
 - select a production method before generation;
 - update/create the asset recipe before the first production generation/edit pass;
+- for a new/materially revised Prop, first explain the **function-to-form design philosophy in text** and give the user a correction gate before image generation;
+- **one Prop proposal per generated image**; do not put A/B/C alternatives or several versions on one canvas;
+- if alternatives are wanted, generate them as separate turns with QA/user steering between candidates;
 - one requested image-generation pass means one generation, then stop for QA;
 - `QA`, `prüfen`, `check`, or equivalent inspection requests are **hard no-generation commands**;
 - generated source is not automatically a production runtime asset;
