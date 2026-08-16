@@ -68,6 +68,7 @@ describe("Transfer Hall Gold Slice Door visual contract", () => {
     const html = renderDoor("deck-b2");
     expect(html).toContain("generic");
     expect(html).not.toContain("gold-slice");
-    expect(html).toContain("ZUTEILUNG");
+    // Generic doors still expose status text; this fixture is rendered open.
+    expect(html).toContain("OPEN");
   });
 });
