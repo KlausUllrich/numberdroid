@@ -38,14 +38,14 @@ describe("Level Compiler v0 semantic contract", () => {
     );
   });
 
-  it("normalizes door clearance and preserves the controlled PRIMUS threshold", () => {
+  it("normalizes door clearance and preserves the controlled locked PRIMUS threshold", () => {
     const plan = compile();
     const primusDoor = plan.connections.find((connection) => connection.id === "hall-to-primus");
     expect(primusDoor).toMatchObject({
       kind: "controlled-door",
       widthTiles: 2,
       clearanceTiles: { before: 1.5, after: 1.5 },
-      lock: { mode: "none" },
+      lock: { mode: "access-key", keyId: "primus-access" },
     });
     const childDoor = plan.connections.find((connection) => connection.id === "living-to-child");
     expect(childDoor?.clearanceTiles).toEqual({ before: 1.25, after: 1.25 });
@@ -77,7 +77,7 @@ describe("Level Compiler v0 semantic contract", () => {
     });
   });
 
-  it("supports locked doors, access cards and trigger/event wiring without runtime implementation yet", () => {
+  it("supports locked doors, access cards and trigger/event wiring", () => {
     const spec: LevelSpec = {
       ...TS01_LEVEL_SPEC,
       id: "locked-door-example",
@@ -105,22 +105,30 @@ describe("Level Compiler v0 semantic contract", () => {
     expect(plan.diagnostics.some((diagnostic) => diagnostic.code === "KEY_SOURCE_NOT_YET_AUTHORED")).toBe(false);
   });
 
-  it("supports future pass-by staging events through named semantic routes", () => {
+  it("supports non-combat staged actors and pass-by events through named semantic routes", () => {
     const spec: LevelSpec = {
       ...TS01_LEVEL_SPEC,
       id: "passby-example",
+      stagedActors: [
+        { id: "bioark-large-animal", actorType: "bioark-large-herbivore", initiallyPresent: false },
+      ],
       routes: [
         ...(TS01_LEVEL_SPEC.routes ?? []),
         { id: "bioark-visible-pass", kind: "passby", spaceIds: ["main-hall"], loop: false },
+      ],
+      zones: [
+        ...(TS01_LEVEL_SPEC.zones ?? []),
+        { id: "ridge-view-zone", spaceId: "main-hall", anchor: { kind: "space-center" }, sizeTiles: { w: 3, h: 3 } },
       ],
       events: [
         { id: "animal-crosses", kind: "actor-passby", actorId: "bioark-large-animal", routeId: "bioark-visible-pass", durationMs: 2400 },
       ],
       triggers: [
-        { id: "animal-glimpse-trigger", kind: "enter-zone", sourceId: "future-ridge-view-zone", eventIds: ["animal-crosses"], once: true },
+        { id: "animal-glimpse-trigger", kind: "enter-zone", sourceId: "ridge-view-zone", eventIds: ["animal-crosses"], once: true },
       ],
     };
     const plan = compile(spec);
+    expect(plan.stagedActors[0]).toMatchObject({ id: "bioark-large-animal", initiallyPresent: false });
     expect(plan.events[0]).toMatchObject({ kind: "actor-passby", routeId: "bioark-visible-pass" });
   });
 
