@@ -12,7 +12,27 @@ type Props = {
 };
 
 type DoorFrameStyle = CSSProperties & { "--door-pocket-image"?: string };
-type DoorStyle = CSSProperties & { "--door-key-color"?: string };
+type DoorStyle = CSSProperties & {
+  "--door-key-color"?: string;
+  "--door-open-duration"?: string;
+  "--door-close-duration"?: string;
+};
+
+/**
+ * Accepted Gold Slice door timing. Keep the visual timing next to the
+ * presentation selector so generated and hand-authored TS-01 cannot silently
+ * diverge again.
+ */
+export const GOLD_SLICE_DOOR_TIMING = {
+  openMs: 520,
+  closeMs: 650,
+} as const;
+
+const GOLD_SLICE_FLOOR_IDS = new Set(["transfer-hall", "ts01-transfer-hall"]);
+
+export function usesGoldSliceDoorPresentation(floorId: string) {
+  return GOLD_SLICE_FLOOR_IDS.has(floorId);
+}
 
 const KEY_COLORS: Record<string, string> = {
   BLUE: "#4f9de8",
@@ -31,10 +51,11 @@ function doorKeyColor(label?: string) {
 }
 
 export function DoorLayer({ floor, openDoorIds, accessKeyIds, doorStates }: Props) {
-  const transferHallDoorLeaf = floor.id === "transfer-hall"
+  const goldSlice = usesGoldSliceDoorPresentation(floor.id);
+  const transferHallDoorLeaf = goldSlice
     ? publicAsset("assets/deck/transfer-hall-door-leaf.png")
     : null;
-  const transferHallPocket = floor.id === "transfer-hall"
+  const transferHallPocket = goldSlice
     ? publicAsset("assets/deck/transfer-hall-door-pocket.png")
     : null;
   const leafStyle: CSSProperties | undefined = transferHallDoorLeaf
@@ -43,10 +64,10 @@ export function DoorLayer({ floor, openDoorIds, accessKeyIds, doorStates }: Prop
   const frameStyle: DoorFrameStyle | undefined = transferHallPocket
     ? { "--door-pocket-image": `url(${transferHallPocket})` }
     : undefined;
-  const leafClipStyle: CSSProperties | undefined = floor.id === "transfer-hall"
+  const leafClipStyle: CSSProperties | undefined = goldSlice
     ? { overflow: "hidden" }
     : undefined;
-  const showStatusText = floor.id !== "transfer-hall";
+  const showStatusText = !goldSlice;
 
   return (
     <>
@@ -70,11 +91,15 @@ export function DoorLayer({ floor, openDoorIds, accessKeyIds, doorStates }: Prop
           width: door.w,
           height: door.h,
           ...(keyed ? { "--door-key-color": doorKeyColor(door.label) } : {}),
+          ...(goldSlice ? {
+            "--door-open-duration": `${GOLD_SLICE_DOOR_TIMING.openMs}ms`,
+            "--door-close-duration": `${GOLD_SLICE_DOOR_TIMING.closeMs}ms`,
+          } : {}),
         };
         return (
           <div
             key={door.id}
-            className={`zk-door ${door.orientation} ${door.size} ${door.mode} ${keyed ? "keyed" : ""} ${accessible ? "accessible" : "denied"} ${open ? "open" : "closed"}`}
+            className={`zk-door ${goldSlice ? "gold-slice" : "generic"} ${door.orientation} ${door.size} ${door.mode} ${keyed ? "keyed" : ""} ${accessible ? "accessible" : "denied"} ${open ? "open" : "closed"}`}
             style={style}
             aria-hidden="true"
           >
