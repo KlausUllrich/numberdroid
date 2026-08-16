@@ -1,6 +1,6 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.2 navigation + forbidden zones**
+Status: **CURRENT architecture / implementation track — v0.3 metadata-driven prop placement**
 
 This directory owns the design and technical contract for the Numberdroid procedural/declarative level-authoring system.
 
@@ -19,7 +19,9 @@ shared wall graph + doors + corridors
         ↓
 navigation + forbidden zones
         ↓
-hero / prop / enemy placement
+hero / prop placement
+        ↓
+enemy / actor placement
         ↓
 triggers + events + validation
         ↓
@@ -49,54 +51,64 @@ The current React/runtime architecture, `FloorDefinition`, Tiled importer and ga
 
 See `GEOMETRY_AND_WALL_GRAPH.md`.
 
-The geometry stage now:
+The geometry stage resolves preferred room/corridor dimensions, attaches connected Spaces, avoids overlap, requires real shared boundaries, cuts apertures and derives **one canonical Shared Wall Graph** rather than room-owned duplicate walls.
 
-- resolves preferred room/corridor dimensions onto an integer tile grid;
-- honors explicit corridor width;
-- attaches connected spaces from semantic side/relationship intent;
-- slides a child space along a shared edge when necessary to avoid overlap;
-- normalizes the result into positive coordinates;
-- requires every connection to resolve to a real shared boundary;
-- cuts connection apertures out of that boundary;
-- reserves explicit door-clearance rectangles on both sides;
-- derives **one canonical shared wall graph** from all space boundaries;
-- collapses canonical unit edges into wall segments;
-- rejects double-wall-by-construction behavior.
-
-The current v0.1 solver deliberately targets connected **tree-like** room graphs. Arbitrary cyclic topology / multi-constraint optimization is not silently approximated; that capability remains future work.
+The current solver deliberately targets connected **tree-like** room graphs. Arbitrary cyclic topology / multi-constraint optimization remains future work rather than being silently approximated.
 
 ### v0.2 — navigation + forbidden zones — IMPLEMENTED
 
 See `NAVIGATION_AND_FORBIDDEN_ZONES.md`.
 
-The navigation stage now:
+The navigation stage:
 
-- decomposes generated Space geometry into walkable unit cells;
-- only connects neighboring Spaces through real compiled apertures;
-- validates global generated reachability;
-- creates explicit portal cell pairs per doorway/opening;
-- reserves a deterministic primary-circulation skeleton before furnishing;
-- marks door-clearance and primary-circulation cells as authoring forbidden zones;
-- derives wall-adjacent placement slots from the canonical Wall Graph;
-- records whether each wall slot is blocked by circulation/clearance;
-- exposes a live compiler/debug view via `?levelgen=ts01`.
+- decomposes generated Spaces into walkable cells;
+- connects neighboring Spaces only through real apertures;
+- validates generated reachability;
+- creates explicit portal pairs;
+- reserves a deterministic primary-circulation skeleton;
+- marks door-clearance / primary-circulation forbidden cells;
+- derives wall-adjacent placement slots from the canonical Wall Graph.
 
-The live gameplay TS-01 map is still authored separately. Generated geometry/navigation is currently a compiler proof and authoring QA source, not yet the deployed Floor source.
+### v0.3 — metadata-driven prop placement — IMPLEMENTED
+
+See `PROP_PLACEMENT.md`.
+
+The placement stage now:
+
+- places `hero → support → furniture → dressing`;
+- uses real Wall Graph slots for wall props;
+- enumerates valid floor footprints inside semantic Spaces;
+- rejects occupied, reserved, doorway and circulation conflicts;
+- reserves approach/use-space in front of wall furniture;
+- reserves Hero clearance around important machinery;
+- lets Heroes consume provisional circulation only when generated reachability survives;
+- scores preferred walls, wall adjacency, corners, room-center Hero focus, explicit `near` relationships, semantic tag proximity and opposite-door placement;
+- uses deterministic per-instance sub-seeds for stable tie-breaking;
+- records reason/score/candidate/rejection data for explainability;
+- fails compilation when a required Prop has no valid placement.
+
+The live gameplay TS-01 map is still authored separately. Generated geometry/navigation/placement is currently a compiler proof and authoring QA source, not yet the deployed Floor source.
 
 ## Workbench interaction baseline
 
-The live compiler/debug view is also the first shell of the future Level Workbench. Navigation of a generated map should work independently of gameplay input:
+The live compiler/debug view is the first shell of the future Level Workbench:
 
 - **pan:** one-finger drag or left-mouse drag;
 - **zoom:** two-finger pinch or mouse wheel;
-- zoom should stay focused on the gesture/mouse position rather than snapping around the map center;
+- zoom remains focused on gesture/cursor position;
 - `FIT` restores the complete generated topology;
-- simple `+` / `−` controls remain available as an accessible fallback;
-- the map surface owns touch gestures (`touch-action: none`) so browser page scrolling does not fight the authoring interaction while manipulating the map.
+- `+` / `−` provide an accessible fallback;
+- the map surface owns touch gestures while manipulated.
 
-This viewport state is an editor/debug concern only. It must not mutate `LevelSpec`, generated geometry, gameplay camera state or persisted Floor content.
+Viewport state is editor/debug state only. It never mutates `LevelSpec`, generated geometry or gameplay-camera state.
 
-Later direct manipulation—selecting a room/prop, moving it, locking it or regenerating only that semantic object—should build on this same Workbench viewport rather than inventing another map-navigation UI.
+The view is available at:
+
+```text
+?levelgen=ts01
+```
+
+It can visualize topology, primary circulation, door clearance, wall slots, generated Props and Prop use-space.
 
 ## Why this exists
 
@@ -105,13 +117,13 @@ Manual TS-01 composition proved that individual local fixes do not scale to the 
 - general Numberdroid spatial rules;
 - world/archetype rules;
 - one-level-specific rules;
-- stable seeds and sub-seeds;
+- stable seeds/sub-seeds;
 - prop metadata;
 - room/corridor relationships;
-- door and access semantics;
+- door/access semantics;
 - enemy placement;
-- triggers and events;
-- local overrides and locks.
+- triggers/events;
+- local overrides/locks.
 
 When a recurring layout defect is discovered, prefer adding a reusable rule or metadata constraint instead of fixing the same class of defect in many authored maps.
 
@@ -140,73 +152,49 @@ compiled Tiled/Floor data
 2. **Topology / preferred-size geometry** — implemented v0.1 for tree-like graphs.
 3. **Shared wall graph + connection apertures** — implemented v0.1.
 4. **Navigation / forbidden-zone validation** — implemented v0.2.
-5. **Prop placement** — next: metadata-driven wall/floor attachment, adjacency, forbidden zones, hierarchy and dressing.
-6. **Encounter placement** — authored enemy roles/routes/clearances placed from semantic spawn intent.
-7. **Trigger/event compilation** — keys, locked doors, scripted pass-bys, one-shot beats, staging events and later world-specific interactions.
+5. **Prop placement** — implemented v0.3.
+6. **Encounter / actor placement** — next: enemies, neutral workers, guards, patrols, spawn/home positions and route geometry using the same reservations.
+7. **Trigger/event compilation** — keys, locked doors, scripted pass-bys, one-shot beats and staging events.
 8. **Runtime/Tiled emission** — generated debug/live data compatible with the existing runtime boundary.
-9. **Overrides / Workbench** — lock/regenerate/move one semantic element without destabilizing unrelated areas.
-10. **Natural language front-end** — an LLM translates rough design prompts into LevelSpec; LevelSpec remains canonical.
+9. **Overrides / Workbench** — select/lock/regenerate/move one semantic element without destabilizing unrelated areas.
+10. **Natural-language front-end** — an LLM translates rough design prompts into LevelSpec; LevelSpec remains canonical.
 
 ## Stability rule
 
-A single global PRNG stream is forbidden for authored regeneration.
-
-Every semantic object receives a deterministic sub-seed derived from:
+A single global PRNG stream is forbidden for authored regeneration. Every semantic object receives a deterministic sub-seed from:
 
 ```text
 level seed + stable semantic path
-```
-
-Example:
-
-```text
-TS01
-TS01/family
-TS01/family/child
-TS01/family/child/props
-TS01/transfer
-TS01/primus
 ```
 
 Changing/regenerating one child-space should therefore not randomly rearrange Transfer or PRIMUS.
 
 ## Editing model
 
-Generated output should remain editable through semantic overrides, not destructive tile painting alone.
-
-Examples:
+Generated output should remain editable through semantic overrides rather than destructive tile painting alone.
 
 ```yaml
 overrides:
   family.bathroom:
     lockGeometry: true
-
   family.child:
     offset: [-1, 0]
-
   transfer.hologram:
     preferredWall: west
 ```
 
-A later visual Workbench may expose these operations through direct manipulation, but the persisted representation should remain declarative and reproducible.
+A later Workbench may expose these through direct manipulation, while the persisted representation remains declarative/reproducible.
 
 ## Event model direction
 
-Triggers and events are first-class authored data even before their complete runtime execution exists.
-
-Examples that the schema must be able to represent:
+Triggers/events are first-class authored data even before complete runtime execution exists. The schema already targets cases such as:
 
 - access card collected → unlock door;
-- enter zone → play one-shot story/staging beat;
-- reach viewport/zone → large Bio-Ark animal briefly crosses a visible route;
-- interact with console → toggle/open/close another object;
-- state flag becomes true → spawn/despawn/move actor;
-- optional short stopping/staging beat before control returns.
-
-The compiler must preserve stable IDs and relationships so runtime support can be added incrementally without redesigning the LevelSpec.
+- enter zone → one-shot story/staging beat;
+- visible Bio-Ark route → large animal briefly passes by;
+- interact with console → toggle another object;
+- state flag → spawn/despawn/move actor.
 
 ## Relationship to Tiled
 
-Tiled remains a useful interchange/debug format and the existing runtime importer remains valid. The Level Compiler should initially emit data compatible with the current Tiled/Floor contracts rather than forcing another renderer or gameplay-state migration.
-
-A future editor may visualize or edit the semantic LevelSpec directly; that does not require abandoning the existing runtime data boundary.
+Tiled remains a useful interchange/debug format and the existing runtime importer remains valid. The Level Compiler should emit data compatible with current Tiled/Floor contracts rather than forcing another renderer or gameplay-state migration.
