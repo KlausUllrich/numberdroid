@@ -255,7 +255,6 @@ function candidateScore(
   instanceSeed: number,
   rect: GridRect,
   wallSide: CardinalDirection | null,
-  rotation: PropRotation,
   space: SpaceGeometry,
   placements: PropPlacementDecision[],
   primaryOverlap: number,
@@ -311,9 +310,11 @@ function candidateScore(
     reasons.push(`hero reroutes ${primaryOverlap} primary cell${primaryOverlap === 1 ? "" : "s"}`);
   }
 
-  // Rotation participates in the deterministic tie break. Equal geometry with
-  // different valid art orientations therefore remains reproducible by seed.
-  const tie = seededUnit(deriveSubSeed(instanceSeed, `candidate/${rect.x},${rect.y},${rect.w},${rect.h}/${wallSide ?? "floor"}/${rotation}`));
+  // Preserve the pre-rotation spatial seed identity. Adding a new allowed art
+  // rotation may add candidates, but must not randomly reshuffle an unchanged
+  // physical candidate. Equal geometry/orientation duplicates retain authored
+  // candidate order as the final stable tie-break.
+  const tie = seededUnit(deriveSubSeed(instanceSeed, `candidate/${rect.x},${rect.y},${rect.w},${rect.h}/${wallSide ?? "floor"}`));
   score += tie * 0.01;
   return { score, reasons };
 }
@@ -397,7 +398,7 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
         if (!preservesReachability(navigation, trial)) { reject("blocks-reachability"); continue; }
       }
 
-      const scored = candidateScore(request, instanceSeed, raw.rect, raw.wallSide, raw.rotation, space, placements, primaryOverlap);
+      const scored = candidateScore(request, instanceSeed, raw.rect, raw.wallSide, space, placements, primaryOverlap);
       let score = scored.score;
       const reasons = [...scored.reasons, `rotation ${raw.rotation}° allowed`, `footprint ${raw.rect.w}×${raw.rect.h}`];
       const touched = touchedSides(raw.rect, space.rect);
