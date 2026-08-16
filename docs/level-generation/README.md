@@ -1,6 +1,6 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.8 trigger/event runtime**
+Status: **CURRENT architecture / implementation track — v0.8.1 persistent runtime scheduler**
 
 This directory owns the design and technical contract for the Numberdroid procedural/declarative level-authoring system.
 
@@ -154,7 +154,7 @@ Manual desktop/mobile QA exposed two regressions when the generated Floor first 
 
 Desktop and mobile driving were manually re-verified as smooth after this pass.
 
-### v0.8 — persistent Trigger / Event runtime — IMPLEMENTED / CURRENT
+### v0.8 — persistent Trigger / Event runtime — IMPLEMENTED
 
 See `TRIGGER_EVENT_RUNTIME.md`.
 
@@ -167,7 +167,7 @@ See `TRIGGER_EVENT_RUNTIME.md`.
 - blocking Story Beats pause Player and Hostile/Patrol simulation and require explicit continuation;
 - Trigger evaluation stays off the per-frame RAF hot path.
 
-The generated TS-01 now provides the first complete compiler-driven proof:
+The generated TS-01 provides the first complete compiler-driven proof:
 
 ```text
 PRIMUS ACCESS collected
@@ -181,6 +181,20 @@ Transfer trigger zone entered
 → Player + Actors pause
 → explicit WEITER
 ```
+
+### v0.8.1 — persistent timing scheduler — IMPLEMENTED / CURRENT
+
+See `TRIGGER_EVENT_RUNTIME.md`.
+
+- delayed Trigger edges persist an absolute `dueAtMs` instead of resetting their delay on save/reload;
+- `timer` Triggers initialize automatically and require a positive authored delay;
+- one-shot timers persist once-fired state;
+- recurring timers schedule the next deadline from actual firing time;
+- overdue work after reload/browser/mobile suspension fires once on resume;
+- missed recurring intervals are deliberately not replayed as catch-up bursts;
+- one deadline-driven timeout plus focus/visibility checks handles scheduler wakeups;
+- scheduler work remains outside Player/Actor RAF loops;
+- deterministic tests inject `nowMs` and cover delayed edges, timers, recurring timers and save-like JSON round trips.
 
 ## Workbench interaction baseline
 
@@ -243,18 +257,17 @@ compiled Tiled/Floor data + typed script contract
 
 ## Current task list / next stages
 
-1. **v0.8.1 Runtime timing scheduler** — persistent delayed Trigger deadlines + `timer` execution; save/reload must not duplicate or reset timing.
-2. **Scripted / Staged Actor presentation** — consume persistent spawn/despawn/move/pass-by state and compiled routes; first Bio-Ark pass-by proof.
-3. **Rotated non-square footprint solving** — enumerate true 90°/270° footprints rather than conservatively rejecting them.
-4. **Cyclic / multi-constraint topology solver** — extend beyond tree-like Space graphs without sacrificing deterministic/explainable decisions.
-5. **Overrides / Workbench editing** — select, lock, move, resize or regenerate one semantic element without destabilizing unrelated areas.
-6. **Prop/art emission mapping** — replace semantic blockouts with registered production assets while preserving metadata/rotation/collision contracts.
-7. **Generated TS-01 feature/art parity** — make the compiler-generated Floor capable of replacing the hand-authored reference only after explicit QA acceptance.
-8. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and Bio-Ark/natural layout to expose missing rules before producing the campaign set.
-9. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical and inspectable.
-10. **Workbench usability pass** — direct editing, locks, local regeneration, diagnostics/explanations and useful diffing of generated changes.
-11. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
-12. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling before the compiler/runtime pipeline is treated as production-ready.
+1. **Scripted / Staged Actor presentation** — consume persistent spawn/despawn/move/pass-by state and compiled routes; first Bio-Ark pass-by proof.
+2. **Rotated non-square footprint solving** — enumerate true 90°/270° footprints rather than conservatively rejecting them.
+3. **Cyclic / multi-constraint topology solver** — extend beyond tree-like Space graphs without sacrificing deterministic/explainable decisions.
+4. **Overrides / Workbench editing** — select, lock, move, resize or regenerate one semantic element without destabilizing unrelated areas.
+5. **Prop/art emission mapping** — replace semantic blockouts with registered production assets while preserving metadata/rotation/collision contracts.
+6. **Generated TS-01 feature/art parity** — make the compiler-generated Floor capable of replacing the hand-authored reference only after explicit QA acceptance.
+7. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and Bio-Ark/natural layout to expose missing rules before producing the campaign set.
+8. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical and inspectable.
+9. **Workbench usability pass** — direct editing, locks, local regeneration, diagnostics/explanations and useful diffing of generated changes.
+10. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
+11. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling before the compiler/runtime pipeline is treated as production-ready.
 
 The final Performance & Scale Pass is a **required task**, not an optional polish step. It must cover at least:
 
