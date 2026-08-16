@@ -18,6 +18,7 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     footprintTiles: { w: 2, h: 1 },
     placement: {
       forbidDoorClearance: true,
+      approachDepthTiles: 1,
     },
   },
   "coffee-machine": {
@@ -27,6 +28,7 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     footprintTiles: { w: 1, h: 2 },
     placement: {
       forbidDoorClearance: true,
+      approachDepthTiles: 1,
     },
   },
   "plant-round": {
@@ -99,6 +101,7 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     placement: {
       forbidDoorClearance: true,
       forbidPrimaryPath: true,
+      clearanceAroundTiles: 1,
     },
   },
   "transfer-hologram": {
@@ -130,6 +133,7 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     footprintTiles: { w: 2, h: 1 },
     placement: {
       forbidDoorClearance: true,
+      approachDepthTiles: 1,
     },
   },
 };
