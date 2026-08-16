@@ -246,21 +246,26 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
   const originX = bounds.x * tileSize;
   const originY = bounds.y * tileSize;
 
-  const propObstacleObjects = props.placements.map((placement) => {
+  const propObstacleObjects = props.placements.flatMap((placement) => {
     const fit = exactFitForPlacement(placement);
-    return object({
-      name: `prop-solid:${placement.id}`,
-      x: fit.collisionBoundsPx.x - originX,
-      y: fit.collisionBoundsPx.y - originY,
-      width: fit.collisionBoundsPx.w,
-      height: fit.collisionBoundsPx.h,
+    return fit.collisionPartsPx.map((collision, index) => object({
+      name: fit.collisionPartsPx.length === 1
+        ? `prop-solid:${placement.id}`
+        : `prop-solid:${placement.id}#${index + 1}`,
+      x: collision.x - originX,
+      y: collision.y - originY,
+      width: collision.w,
+      height: collision.h,
       properties: [
         prop("kind", "prop", "string"),
         prop("propId", placement.propId, "string"),
+        prop("placementId", placement.id, "string"),
+        prop("collisionPart", index, "int"),
+        prop("collisionPartCount", fit.collisionPartsPx.length, "int"),
         prop("exactFitOffsetX", fit.offsetPx.x, "float"),
         prop("exactFitOffsetY", fit.offsetPx.y, "float"),
       ],
-    });
+    }));
   });
 
   const roomObjects = geometry.spaces.map((space) => {
@@ -381,6 +386,14 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
         prop("collisionY", fit.collisionBoundsPx.y - originY, "float"),
         prop("collisionWidth", fit.collisionBoundsPx.w, "float"),
         prop("collisionHeight", fit.collisionBoundsPx.h, "float"),
+        prop("collisionPartCount", fit.collisionPartsPx.length, "int"),
+        prop("collisionParts", JSON.stringify(fit.collisionPartsPx.map((part) => ({
+          x: part.x - originX,
+          y: part.y - originY,
+          w: part.w,
+          h: part.h,
+        }))), "string"),
+        prop("touchedWalls", fit.touchedWalls.join(";"), "string"),
       ],
     });
   });
@@ -519,7 +532,7 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
       prop("subtitle", runtime.subtitle, "string"),
       prop("objectiveDefault", runtime.objectiveDefault, "string"),
       prop("objectiveAfterEnergy", runtime.objectiveAfterEnergy, "string"),
-      prop("levelgenStage", "v0.13.1-exact-prop-fit", "string"),
+      prop("levelgenStage", "v0.13.2-stabilized-exact-fit", "string"),
       prop("levelSpecVersion", semantic.version, "int"),
       prop("levelSeed", semantic.seed, "int"),
       prop("wallCollisionPx", wallCollisionPx, "float"),
@@ -556,7 +569,7 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
     {
       level: "info" as const,
       code: "PROP_EXACT_FIT_EMITTED",
-      message: `Applied post-solve Prop exact-fit geometry with ${wallVisualPx}px visible wall fascia and ${wallCollisionPx}px wall collision core.`,
+      message: `Applied stabilized Prop exact-fit geometry with multipart collision, ${wallVisualPx}px visible wall fascia and ${wallCollisionPx}px wall collision core.`,
     },
   ];
 
