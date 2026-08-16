@@ -233,6 +233,10 @@ export type ScriptedActorRunState = {
   routeId?: string;
   mode: "idle" | "route" | "passby";
   durationMs?: number;
+  /** Absolute wall-clock start. Route pose is derived, not persisted per frame. */
+  startedAtMs?: number;
+  /** Blocking runtime pauses freeze staged motion by shifting startedAtMs on resume. */
+  pausedAtMs?: number;
 };
 
 export type ScheduledTriggerRunState = {
