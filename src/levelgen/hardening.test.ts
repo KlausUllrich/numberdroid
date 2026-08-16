@@ -56,6 +56,6 @@ describe("Level Compiler v0.3.1 clearance + orientation hardening", () => {
       ...NUMBERDROID_PROP_REGISTRY,
       "family-memory-console": { ...memory, allowedRotations: [180] },
     };
-    expect(() => compile(TS01_LEVEL_SPEC, incompatibleRegistry)).toThrow(/requires 0°.*allows only 180°/);
+    expect(() => compile(TS01_LEVEL_SPEC, incompatibleRegistry)).toThrow(/requiring 0°.*allows only 180°/);
   });
 });
