@@ -192,6 +192,7 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
   const triggerById = new Map((floor.script?.triggers ?? []).map((trigger) => [trigger.id, trigger]));
   const doorIds = new Set(floor.doors.map((door) => door.id));
   const stagedIds = new Set((floor.script?.stagedActors ?? []).map((actor) => actor.id));
+  const routeIds = new Set((floor.script?.routes ?? []).map((route) => route.id));
   const beatIds = new Set(
     (floor.script?.events ?? [])
       .filter((event) => event.kind === "story-beat")
@@ -216,12 +217,17 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
       if (!stagedIds.has(id) || !value || typeof value !== "object") continue;
       const state = value as Partial<ScriptedActorRunState>;
       const mode = state.mode === "route" || state.mode === "passby" ? state.mode : "idle";
+      const routeId = typeof state.routeId === "string" && routeIds.has(state.routeId) ? state.routeId : undefined;
+      const startedAtMs = Number(state.startedAtMs);
+      const pausedAtMs = Number(state.pausedAtMs);
       stagedActors[id] = {
         present: Boolean(state.present),
         spaceId: typeof state.spaceId === "string" ? state.spaceId : defaults.stagedActors[id]?.spaceId,
-        routeId: typeof state.routeId === "string" ? state.routeId : undefined,
-        mode,
+        routeId,
+        mode: routeId ? mode : "idle",
         durationMs: Number.isFinite(state.durationMs) && Number(state.durationMs) > 0 ? Number(state.durationMs) : undefined,
+        startedAtMs: routeId && Number.isFinite(startedAtMs) && startedAtMs >= 0 ? startedAtMs : undefined,
+        pausedAtMs: routeId && Number.isFinite(pausedAtMs) && pausedAtMs >= 0 ? pausedAtMs : undefined,
       };
     }
   }

@@ -4,12 +4,20 @@ import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP, robotCollisionRadiu
 import { getFloor } from "../game/floors";
 import type { TacticalChallengeId } from "../game/playerProfile";
 import { pointWalkable } from "../game/save";
-import { advanceFloorScript, dismissActiveStoryBeat, nextScheduledScriptDeadline, storyBeatIsBlocking } from "../game/scriptRuntime";
+import {
+  advanceFloorScript,
+  completeStagedActorPassby,
+  dismissActiveStoryBeat,
+  nextScheduledScriptDeadline,
+  setStagedActorsPaused,
+  storyBeatIsBlocking,
+} from "../game/scriptRuntime";
 import type { EncounterConfig, MetaState } from "../game/types";
 import { directionClassForFacing } from "./robotDirection";
 import { DoorLayer } from "./DoorLayer";
 import { FloorVisual } from "./FloorVisual";
 import { HostileLayer, type EncounterRuntimePose } from "./HostileLayer";
+import { StagedActorLayer } from "./StagedActorLayer";
 import { blockedByClosedDoor, nextAutomaticDoorIds, sameDoorSet } from "./doorRuntime";
 import "./MetaGameMotion.css";
 import "./ScriptRuntime.css";
@@ -295,11 +303,18 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
   }, [zoom]);
 
   useEffect(() => {
+    let next = setStagedActorsPaused(latestMetaRef.current, runtimePaused, Date.now());
     pausedRef.current = runtimePaused;
     if (runtimePaused) {
       touchRef.current.active = false;
       speedRef.current = 0;
       setTouchMarker(null);
+    }
+    if (next !== latestMetaRef.current) {
+      latestMetaRef.current = next;
+      previousScriptMetaRef.current = next;
+      syncMeta(next, true);
+    } else if (runtimePaused) {
       syncMeta(latestMetaRef.current, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -331,10 +346,21 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
   }
 
   function dismissStoryBeat() {
-    const next = dismissActiveStoryBeat(latestMetaRef.current);
+    let next = dismissActiveStoryBeat(latestMetaRef.current);
+    const remainsPaused = paused || storyBeatIsBlocking(floor, next.scriptState.activeStoryBeatId);
+    next = setStagedActorsPaused(next, remainsPaused, Date.now());
     latestMetaRef.current = next;
     previousScriptMetaRef.current = next;
-    pausedRef.current = paused || storyBeatIsBlocking(floor, next.scriptState.activeStoryBeatId);
+    pausedRef.current = remainsPaused;
+    syncMeta(next, true);
+  }
+
+  function finishStagedPassby(actorId: string) {
+    const current = latestMetaRef.current;
+    const next = completeStagedActorPassby(current, actorId);
+    if (next === current) return;
+    latestMetaRef.current = next;
+    previousScriptMetaRef.current = next;
     syncMeta(next, true);
   }
 
@@ -667,6 +693,13 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
               </div>
             );
           })}
+
+          <StagedActorLayer
+            floor={floor}
+            stagedActors={meta.scriptState.stagedActors}
+            pausedRef={pausedRef}
+            onPassbyComplete={finishStagedPassby}
+          />
 
           <HostileLayer
             floor={floor}

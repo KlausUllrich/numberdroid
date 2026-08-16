@@ -1,0 +1,125 @@
+.zk-staged-actor {
+  --staged-x: 0px;
+  --staged-y: 0px;
+  --staged-facing: 0deg;
+  --staged-width: 72px;
+  --staged-height: 48px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 12;
+  width: var(--staged-width);
+  height: var(--staged-height);
+  transform: translate3d(var(--staged-x), var(--staged-y), 0) translate(-50%, -50%);
+  transform-origin: 50% 50%;
+  pointer-events: none;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.zk-staged-actor .staged-shadow {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 4%;
+  height: 24%;
+  border-radius: 50%;
+  background: #0007;
+  filter: blur(5px);
+}
+
+.zk-staged-actor .staged-body {
+  position: absolute;
+  left: 8%;
+  top: 15%;
+  width: 76%;
+  height: 65%;
+  border: 3px solid #284f49;
+  border-radius: 48% 56% 46% 52%;
+  background: linear-gradient(145deg, #9fc49a, #4d7c68 68%, #28483f);
+  box-shadow: inset 0 0 0 3px #d4e1b536, 0 4px 10px #0007;
+  transform: rotate(var(--staged-facing));
+  transform-origin: 50% 50%;
+}
+
+.zk-staged-actor .staged-head {
+  position: absolute;
+  right: -18%;
+  top: 22%;
+  width: 34%;
+  height: 48%;
+  border: 3px solid #284f49;
+  border-radius: 55% 70% 55% 45%;
+  background: #7dab83;
+}
+
+.zk-staged-actor .staged-mark {
+  position: absolute;
+  left: 28%;
+  top: 29%;
+  width: 25%;
+  height: 25%;
+  border: 2px solid #d9e8b6aa;
+  border-radius: 50%;
+}
+
+.zk-staged-actor.kind-vehicle .staged-body {
+  left: 6%;
+  top: 18%;
+  width: 88%;
+  height: 58%;
+  border-color: #346675;
+  border-radius: 18px 28px 18px 28px;
+  background: linear-gradient(145deg, #77b8c5, #376f7f 70%, #193f4b);
+}
+
+.zk-staged-actor.kind-vehicle .staged-head {
+  right: 10%;
+  top: 24%;
+  width: 20%;
+  height: 50%;
+  border-color: #346675;
+  border-radius: 6px;
+  background: #b7d9dd;
+}
+
+.zk-staged-actor.kind-generic .staged-body {
+  left: 10%;
+  top: 14%;
+  width: 80%;
+  height: 70%;
+  border-color: #766843;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #d0bc79, #7e6a38);
+}
+
+.zk-staged-actor .staged-tag {
+  position: absolute;
+  left: 50%;
+  bottom: -18px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 3px 6px;
+  border: 1px solid #668d79;
+  border-radius: 4px;
+  background: #071713e8;
+  color: #c7e2c7;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  box-shadow: 0 3px 8px #0007;
+}
+
+.zk-staged-actor.mode-passby .staged-tag {
+  border-color: #7fae70;
+  color: #d9efbd;
+}
+
+@media (max-width: 900px), (max-height: 520px) {
+  .zk-staged-actor .staged-tag {
+    bottom: -14px;
+    padding: 2px 4px;
+    font-size: 6px;
+  }
+}
