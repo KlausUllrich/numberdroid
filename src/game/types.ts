@@ -235,11 +235,19 @@ export type ScriptedActorRunState = {
   durationMs?: number;
 };
 
+export type ScheduledTriggerRunState = {
+  /** Absolute wall-clock timestamp. Persisting this prevents save/reload from resetting authored delays. */
+  dueAtMs: number;
+  /** Diagnostic timestamp for Workbench/runtime inspection. */
+  scheduledAtMs: number;
+};
+
 export type LevelScriptRunState = {
   firedTriggerIds: string[];
   flags: Record<string, ScriptValue>;
   doorStates: Record<string, "locked" | "unlocked">;
   stagedActors: Record<string, ScriptedActorRunState>;
+  scheduledTriggers: Record<string, ScheduledTriggerRunState>;
   storyBeatQueue: string[];
   activeStoryBeatId: string | null;
 };
