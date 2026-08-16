@@ -17,7 +17,11 @@ export { compileTriggerEvents } from "./eventCompilation";
 export type * from "./eventCompilationTypes";
 export { emitRuntimeLevel, compileRuntimeLevel } from "./emission";
 export type * from "./emissionTypes";
-export { createPlayableCompilerPreview } from "./playablePreview";
+export {
+  artSpriteForPlacement,
+  compilerCompositePreviewVisual,
+  createPlayableCompilerPreview,
+} from "./playablePreview";
 export {
   TS01_GENERATED_FLOOR,
   TS01_GENERATED_PLAN,
@@ -25,6 +29,8 @@ export {
   TS01_PLAYABLE_SPEC,
 } from "./generatedTs01Preview";
 export { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
+export { NUMBERDROID_PROP_ART_REGISTRY, propArtRegistration } from "./propArtRegistry";
+export type { PropArtRegistration, PropArtRegistry, PropArtStatus } from "./propArtRegistry";
 export { overrideFor, locallyVariedSeed, validatePlacementOverrides, withOverride } from "./overrides";
 export {
   activeOverride,
