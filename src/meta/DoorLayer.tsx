@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { publicAsset } from "../game/assets";
-import type { FloorDefinition } from "../game/types";
+import type { FloorDefinition, MetaState } from "../game/types";
 import { hasDoorAccess } from "./doorRuntime";
 import "./DoorLayer.css";
 
@@ -8,6 +8,7 @@ type Props = {
   floor: FloorDefinition;
   openDoorIds: ReadonlySet<string>;
   accessKeyIds: readonly string[];
+  doorStates?: MetaState["scriptState"]["doorStates"];
 };
 
 type DoorFrameStyle = CSSProperties & { "--door-pocket-image"?: string };
@@ -29,7 +30,7 @@ function doorKeyColor(label?: string) {
   return KEY_COLORS[key] ?? "#d7a349";
 }
 
-export function DoorLayer({ floor, openDoorIds, accessKeyIds }: Props) {
+export function DoorLayer({ floor, openDoorIds, accessKeyIds, doorStates }: Props) {
   const transferHallDoorLeaf = floor.id === "transfer-hall"
     ? publicAsset("assets/deck/transfer-hall-door-leaf.png")
     : null;
@@ -51,14 +52,16 @@ export function DoorLayer({ floor, openDoorIds, accessKeyIds }: Props) {
     <>
       {floor.doors.map((door) => {
         const open = openDoorIds.has(door.id);
-        const accessible = hasDoorAccess({ accessKeyIds: [...accessKeyIds] }, door);
+        const accessible = hasDoorAccess({ accessKeyIds: [...accessKeyIds], scriptState: doorStates ? { doorStates } : undefined }, door);
         const keyed = door.mode === "locked" && Boolean(door.keyId);
+        const scriptedState = doorStates?.[door.id];
         const accessName = door.label ?? "ACCESS";
+        const denied = scriptedState === "locked" || (scriptedState !== "unlocked" && door.mode === "locked" && !accessible);
         const status = open
           ? "OPEN"
-          : door.mode === "locked" && !accessible
+          : denied
             ? `LOCK ${accessName}`
-            : door.mode === "locked"
+            : keyed || scriptedState === "unlocked"
               ? `ACCESS ${accessName}`
               : door.label ?? "AUTO";
         const style: DoorStyle = {
