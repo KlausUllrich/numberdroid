@@ -215,6 +215,8 @@ export type LevelRuntimeSpec = {
   tileSize?: number;
   /** Collision-core thickness for emitted wall obstacles. */
   wallCollisionPx?: number;
+  /** Visible wall fascia thickness used by exact Prop surface fitting. */
+  wallVisualPx?: number;
   floorName?: string;
   subtitle?: string;
   objectiveDefault?: string;
@@ -268,6 +270,27 @@ export type PropPlacementMetadata = {
   clearanceAroundTiles?: number;
 };
 
+/**
+ * Bounds in the Prop's authored 0° local tile coordinate system. These are
+ * physical authoring envelopes, not measurements read back from a rendered PNG.
+ */
+export type PropLocalBounds = { x: number; y: number; w: number; h: number };
+export type PropPlacementEnvelopeSource = "visual" | "collision" | "custom";
+export type PropWallBoundaryKind = "visual" | "collision";
+
+export type PropExactFitMetadata = {
+  /** Visible/object envelope. Defaults to the complete authored footprint. */
+  visualBoundsTiles?: PropLocalBounds;
+  /** Actual runtime collision. Defaults to the complete authored footprint. */
+  collisionBoundsTiles?: PropLocalBounds;
+  /** Which physical envelope is aligned to a touched wall surface. Defaults to visual. */
+  placementEnvelope?: PropPlacementEnvelopeSource;
+  /** Explicit third envelope for unusual Props. Required when placementEnvelope=custom. */
+  customEnvelopeTiles?: PropLocalBounds;
+  /** Align against visible fascia or only the wall collision core. Defaults to visual. */
+  wallBoundary?: PropWallBoundaryKind;
+};
+
 export type PropMetadata = {
   id: string;
   tags: string[];
@@ -276,6 +299,8 @@ export type PropMetadata = {
   allowedRotations: PropRotation[];
   footprintTiles: { w: number; h: number };
   placement: PropPlacementMetadata;
+  /** Optional post-solve sub-tile geometry contract. Tile placement remains conservative. */
+  exactFit?: PropExactFitMetadata;
 };
 
 export type PropRegistry = Readonly<Record<string, PropMetadata>>;

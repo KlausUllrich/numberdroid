@@ -11,6 +11,8 @@ export {
   wallSideRotation,
 } from "./orientedPlacement";
 export type { OrientedPropPlacementDecision, OrientedPropPlacementPlan } from "./orientedPlacement";
+export { computePropExactFit, transformedPropBoundsPx, validatePropExactFitMetadata } from "./propExactFit";
+export type { ExactFitPlacement, PixelRect, PropExactFitResult } from "./propExactFit";
 export { compileActorPlacement } from "./actorPlacement";
 export type * from "./actorPlacementTypes";
 export { compileTriggerEvents } from "./eventCompilation";

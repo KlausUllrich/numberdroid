@@ -6,6 +6,7 @@ import { compileLevelNavigationV031 } from "./navigationHardening";
 import { compileOrientedPropPlacement } from "./orientedPlacement";
 import { compileActorPlacement } from "./actorPlacement";
 import { compileTriggerEvents } from "./eventCompilation";
+import { computePropExactFit } from "./propExactFit";
 import type { GridCell, NavigationCell } from "./navigationTypes";
 import type { EventCompilationPlan } from "./eventCompilationTypes";
 import type { RuntimeEmissionPlan } from "./emissionTypes";
@@ -19,6 +20,7 @@ import type {
 
 const DEFAULT_TILE_SIZE = 64;
 const DEFAULT_WALL_COLLISION_PX = 10;
+export const DEFAULT_WALL_VISUAL_PX = 30;
 const BLOCKOUT_TILESET = "/assets/levelgen/compiler-blockout-tiles.svg";
 
 type TiledProperty = { name: string; type?: string; value: unknown };
@@ -78,6 +80,10 @@ function normalizedRuntime(runtime: LevelRuntimeSpec | undefined, semantic: Even
   if (!Number.isFinite(wallCollisionPx) || wallCollisionPx <= 0 || wallCollisionPx >= tileSize) {
     throw new Error(`Runtime emission wallCollisionPx must be > 0 and < tileSize; got ${wallCollisionPx}.`);
   }
+  const wallVisualPx = runtime?.wallVisualPx ?? DEFAULT_WALL_VISUAL_PX;
+  if (!Number.isFinite(wallVisualPx) || wallVisualPx <= 0 || wallVisualPx >= tileSize || wallVisualPx < wallCollisionPx) {
+    throw new Error(`Runtime emission wallVisualPx must be >= wallCollisionPx, > 0 and < tileSize; got ${wallVisualPx}.`);
+  }
 
   const startSpaceId = runtime?.start?.spaceId ?? semantic.spaces[0]?.id;
   if (!startSpaceId || !semantic.spaces.some((space) => space.id === startSpaceId)) {
@@ -91,6 +97,7 @@ function normalizedRuntime(runtime: LevelRuntimeSpec | undefined, semantic: Even
   return {
     tileSize,
     wallCollisionPx,
+    wallVisualPx,
     floorName: runtime?.floorName ?? friendly(semantic.levelId),
     subtitle: runtime?.subtitle ?? "GENERATED LEVEL · COMPILER V0.6",
     objectiveDefault: runtime?.objectiveDefault ?? "ERKUNDE DEN GENERIERTEN LEVEL",
@@ -156,6 +163,7 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
   const runtime = normalizedRuntime(runtimeOverride, semantic);
   const tileSize = runtime.tileSize;
   const wallCollisionPx = runtime.wallCollisionPx;
+  const wallVisualPx = runtime.wallVisualPx;
   const columns = bounds.w;
   const rows = bounds.h;
   const shiftX = (x: number) => x - bounds.x;
@@ -226,14 +234,34 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
     });
   });
 
-  const propObstacleObjects = props.placements.map((placement) => object({
-    name: `prop-solid:${placement.id}`,
-    x: pxX(placement.rect.x),
-    y: pxY(placement.rect.y),
-    width: placement.rect.w * tileSize,
-    height: placement.rect.h * tileSize,
-    properties: [prop("kind", "prop", "string"), prop("propId", placement.propId, "string")],
-  }));
+  const semanticPropById = new Map(semantic.props.map((request) => [request.id, request]));
+  const geometrySpaceById = new Map(geometry.spaces.map((space) => [space.id, space]));
+  const exactFitForPlacement = (placement: typeof props.placements[number]) => {
+    const request = semanticPropById.get(placement.requestId);
+    const space = geometrySpaceById.get(placement.spaceId);
+    if (!request) throw new Error(`Emitter cannot resolve Prop request ${placement.requestId}.`);
+    if (!space) throw new Error(`Emitter cannot resolve Prop Space ${placement.spaceId}.`);
+    return computePropExactFit(placement, request.metadata, space.rect, tileSize, wallCollisionPx, wallVisualPx);
+  };
+  const originX = bounds.x * tileSize;
+  const originY = bounds.y * tileSize;
+
+  const propObstacleObjects = props.placements.map((placement) => {
+    const fit = exactFitForPlacement(placement);
+    return object({
+      name: `prop-solid:${placement.id}`,
+      x: fit.collisionBoundsPx.x - originX,
+      y: fit.collisionBoundsPx.y - originY,
+      width: fit.collisionBoundsPx.w,
+      height: fit.collisionBoundsPx.h,
+      properties: [
+        prop("kind", "prop", "string"),
+        prop("propId", placement.propId, "string"),
+        prop("exactFitOffsetX", fit.offsetPx.x, "float"),
+        prop("exactFitOffsetY", fit.offsetPx.y, "float"),
+      ],
+    });
+  });
 
   const roomObjects = geometry.spaces.map((space) => {
     const semanticSpace = semanticSpaceById.get(space.id);
@@ -332,21 +360,30 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
     });
   });
 
-  const compilerPropObjects = props.placements.map((placement) => object({
-    name: placement.id,
-    x: pxX(placement.rect.x),
-    y: pxY(placement.rect.y),
-    width: placement.rect.w * tileSize,
-    height: placement.rect.h * tileSize,
-    properties: [
-      prop("propId", placement.propId, "string"),
-      prop("spaceId", placement.spaceId, "string"),
-      prop("role", placement.role, "string"),
-      prop("rotation", placement.rotation, "int"),
-      prop("wallSide", placement.wallSide ?? "", "string"),
-      prop("tags", placement.tags.join(";"), "string"),
-    ],
-  }));
+  const compilerPropObjects = props.placements.map((placement) => {
+    const fit = exactFitForPlacement(placement);
+    return object({
+      name: placement.id,
+      x: pxX(placement.rect.x),
+      y: pxY(placement.rect.y),
+      width: placement.rect.w * tileSize,
+      height: placement.rect.h * tileSize,
+      properties: [
+        prop("propId", placement.propId, "string"),
+        prop("spaceId", placement.spaceId, "string"),
+        prop("role", placement.role, "string"),
+        prop("rotation", placement.rotation, "int"),
+        prop("wallSide", placement.wallSide ?? "", "string"),
+        prop("tags", placement.tags.join(";"), "string"),
+        prop("exactFitOffsetX", fit.offsetPx.x, "float"),
+        prop("exactFitOffsetY", fit.offsetPx.y, "float"),
+        prop("collisionX", fit.collisionBoundsPx.x - originX, "float"),
+        prop("collisionY", fit.collisionBoundsPx.y - originY, "float"),
+        prop("collisionWidth", fit.collisionBoundsPx.w, "float"),
+        prop("collisionHeight", fit.collisionBoundsPx.h, "float"),
+      ],
+    });
+  });
 
   const routeObjects = actors.routes.map((route) => {
     const first = route.cells[0];
@@ -482,9 +519,11 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
       prop("subtitle", runtime.subtitle, "string"),
       prop("objectiveDefault", runtime.objectiveDefault, "string"),
       prop("objectiveAfterEnergy", runtime.objectiveAfterEnergy, "string"),
-      prop("levelgenStage", "v0.6-runtime-emission", "string"),
+      prop("levelgenStage", "v0.13.1-exact-prop-fit", "string"),
       prop("levelSpecVersion", semantic.version, "int"),
       prop("levelSeed", semantic.seed, "int"),
+      prop("wallCollisionPx", wallCollisionPx, "float"),
+      prop("wallVisualPx", wallVisualPx, "float"),
     ],
     tilesets: [
       {
@@ -501,7 +540,7 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
     layers,
   };
 
-  // Critical v0.6 contract: generated Tiled data must be consumable by the existing runtime importer.
+  // Generated Tiled data remains consumable by the existing runtime importer.
   const runtimeFloor = floorFromTiledMap(tiledMap);
   const objectLayerCounts = Object.fromEntries(
     layers.filter((layer): layer is TiledObjectLayer => layer.type === "objectgroup" && "objects" in layer)
@@ -514,12 +553,16 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
       code: "RUNTIME_TILED_EMISSION_COMPLETE",
       message: `Emitted ${columns}×${rows} runtime map with ${objectLayerCounts.Obstacles ?? 0} obstacle(s), ${objectLayerCounts.Doors ?? 0} door(s), ${objectLayerCounts.CompilerProps ?? 0} prop(s), ${objectLayerCounts.Encounters ?? 0} encounter actor(s), ${objectLayerCounts.Triggers ?? 0} trigger(s) and ${objectLayerCounts.Events ?? 0} event(s).`,
     },
+    {
+      level: "info" as const,
+      code: "PROP_EXACT_FIT_EMITTED",
+      message: `Applied post-solve Prop exact-fit geometry with ${wallVisualPx}px visible wall fascia and ${wallCollisionPx}px wall collision core.`,
+    },
   ];
 
-  return { events, tileSize, wallCollisionPx, tiledMap, runtimeFloor, objectLayerCounts, diagnostics };
+  return { events, tileSize, wallCollisionPx, wallVisualPx, tiledMap, runtimeFloor, objectLayerCounts, diagnostics };
 }
 
-/** One-call compiler entry point for the complete v0.6 authoring pipeline. */
 export function compileRuntimeLevel(spec: LevelSpec, propRegistry: PropRegistry): RuntimeEmissionPlan {
   const semantic = compileLevelSpec(spec, propRegistry);
   const geometry = compileLevelGeometry(semantic);

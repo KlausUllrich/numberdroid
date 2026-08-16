@@ -1,6 +1,6 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.13 Prop / Art emission mapping**
+Status: **CURRENT architecture / implementation track — v0.13.1 Exact Prop Fit / Wall Surface — CURRENT QA TARGET**
 
 This directory owns the design and technical contract for the Numberdroid deterministic/declarative level-authoring system.
 
@@ -19,7 +19,9 @@ Shared Wall Graph + doors + corridors
         ↓
 navigation + forbidden zones
         ↓
-Prop placement + rotation-aware physical footprints
+Prop placement + rotation-aware conservative footprints
+        ↓
+Exact Prop Fit / physical envelopes / wall surfaces
         ↓
 Encounter / Actor placement + routes
         ↓
@@ -235,7 +237,7 @@ Browser Draft data is explicitly **not** canonical repository truth.
 
 The user manually confirmed the v0.12.3 Workbench behavior. A v0.12.4 display-only follow-up also makes the foreground SVG Actor label follow the effective compiled Robot body name while the stable Encounter ID remains internal.
 
-### v0.13 — Prop / Art emission mapping — IMPLEMENTED / CURRENT QA TARGET
+### v0.13 — Prop / Art emission mapping — IMPLEMENTED / LIVE QA IN PROGRESS
 
 See `PROP_ART_EMISSION.md`.
 
@@ -266,8 +268,9 @@ Capabilities:
 - WallProps and FloorProps are separate explicit presentation layers;
 - layer classification follows authored attachment semantics, not incidental `wallSide` placement hints;
 - authored 0° image dimensions are retained and rotated around the center of the solved physical footprint, preventing non-square sprite distortion;
-- runtime collision / navigation / Doors / Encounters / Triggers remain unchanged;
 - no per-cell React rendering is reintroduced.
+
+The first live v0.13 QA was positive overall but exposed a real precision defect: real Prop art was still centered on semantic tile boundaries while the accepted 30 px visible wall fascia extends into the room. That issue is handled by v0.13.1 rather than by weakening the tile solver.
 
 Generated layer order:
 
@@ -281,6 +284,37 @@ Ground
 → FloorProps
 → runtime Characters / Doors / UI outside the static Floor visual
 ```
+
+### v0.13.1 — Exact Prop Fit / Wall Surface — IMPLEMENTED / CURRENT QA TARGET
+
+See `PROP_EXACT_FIT.md`.
+
+v0.13.1 separates the coarse conservative tile footprint from the true physical/presentation envelopes needed at runtime:
+
+- `footprintTiles` remains the conservative solver/reservation contract;
+- `visualBoundsTiles` describes the meaningful visible object envelope, independent of raw PNG canvas size;
+- `collisionBoundsTiles` describes actual emitted runtime collision;
+- `placementEnvelope` selects `visual`, `collision` or an explicit `custom` envelope per Prop;
+- `wallBoundary` selects the visible wall fascia or only the collision core;
+- exact-fit metadata is authored in 0° local tile units and rotates with the Prop;
+- Wall Surface Fit only occurs when the solved footprint actually touches the recorded wall side;
+- one sub-tile translation is shared by production sprite, shadow and runtime collision;
+- final placement/collision may not escape the already-reserved tile footprint;
+- unmapped blockout Props retain conservative full-tile collision until their physical/art contract is reviewed.
+
+Current intended examples:
+
+```text
+large furniture / visible wall console
+→ placement envelope: visual
+→ wall boundary: visible fascia
+
+small hologram / glow around pedestal
+→ placement envelope: collision
+→ wall boundary: collision core
+```
+
+This is a compile-time precision layer only: no DOM measurement, PNG-alpha analysis or per-frame geometry work is introduced.
 
 ## Workbench / runtime proof links
 
@@ -316,6 +350,7 @@ src/levelgen/specs/
 
 spatial registries / metadata
     reusable physical placement capabilities
+    including exact-fit visual/collision/placement envelopes
 
 presentation registries
     reusable art bindings and review state
@@ -334,13 +369,13 @@ When a recurring defect is found, prefer fixing a reusable rule/metadata contrac
 
 ## Current task list / next stages
 
-1. **Generated TS-01 feature/art parity** — evaluate v0.13 in the live generated Floor, complete missing production bindings/assets and make the generated Floor capable of replacing the hand-authored reference only after explicit visual/gameplay QA acceptance.
+1. **Generated TS-01 feature/art parity** — first explicitly accept v0.13.1 Exact Prop Fit in the live generated Floor, then complete missing production bindings/assets and make the generated Floor capable of replacing the hand-authored reference only after explicit visual/gameplay QA acceptance.
 2. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and larger Bio-Ark/natural layout to expose missing rules before campaign production.
 3. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical, typed and inspectable.
 4. **Workbench usability pass** — extend the accepted Workbench with Connection selection, per-instance Overrides where needed, direct manipulation translated into semantic grid edits, import/apply/write-back workflow, richer diagnostics and useful generated diffs.
 5. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
 6. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling and compiler stress testing before production readiness.
-7. **FINAL AGENT AUTHORING GUIDE** — **the absolute last step of this development track**. This assistant writes the authoritative operational guide for Game Designer and Artist agents only after all tool/workflows are stable: capability overview, LevelSpec authoring, global vs per-Level rules, registries/metadata, rotations/footprints, Actor art, Routes, Triggers/Events, Workbench/Overrides/locks/local regeneration, QA, diagnostics, asset expansion and the decision rule for reusable-system fixes vs one-Level overrides.
+7. **FINAL AGENT AUTHORING GUIDE** — **the absolute last step of this development track**. This assistant writes the authoritative operational guide for Game Designer and Artist agents only after all tool/workflows are stable: capability overview, LevelSpec authoring, global vs per-Level rules, registries/metadata, rotations/footprints, Exact Prop Fit and physical envelopes, Actor art, Routes, Triggers/Events, Workbench/Overrides/locks/local regeneration, QA, diagnostics, asset expansion and the decision rule for reusable-system fixes vs one-Level overrides.
 
 The final Agent Authoring Guide is deliberately last so it documents the final accepted workflow instead of becoming stale while the compiler is still changing.
 
@@ -363,6 +398,7 @@ Compiler
 ├─ topology search nodes / backtracks
 ├─ geometry solve time
 ├─ Prop placement time
+├─ exact-fit emission
 ├─ Actor/path solve time
 ├─ Trigger compilation
 └─ complete LevelSpec → runtime compile time
@@ -394,7 +430,8 @@ Binding examples include:
 - v0.11 does not rerun an already-valid tree-compatible layout;
 - Workbench `seedSalt` changes only the target semantic seed;
 - Geometry/Prop locks preserve reviewed local composition while the compiler revalidates dependent systems;
-- adding/replacing a Prop Art Registry entry does not reroll spatial placement or mutate collision.
+- adding/replacing a Prop Art Registry entry does not reroll spatial placement or redefine collision;
+- Exact Prop Fit refines art/collision only inside an already-reserved tile footprint and may not silently occupy neighboring tiles.
 
 ## Editing and persistence model
 
