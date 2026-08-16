@@ -626,7 +626,9 @@ export function LevelCompilerWorkbench() {
               })}
               {showActors && actors.actors.map((actor) => {
                 const center = cellCenter(actor.cell, bounds);
-                return <text key={`label-actor-${actor.id}`} className="label label--actor" x={center.x} y={center.y + TILE * 0.43} textAnchor="middle">{friendly(actor.id)}</text>;
+                const encounter = geometry.semantic.encounters.find((entry) => entry.id === actor.id);
+                const label = encounter ? BODIES[encounter.bodyId].name : friendly(actor.id);
+                return <text key={`label-actor-${actor.id}`} className="label label--actor" x={center.x} y={center.y + TILE * 0.43} textAnchor="middle">{label}</text>;
               })}
               {showEvents && plan.pickups.map((pickup) => {
                 const center = cellCenter(pickup.cell, bounds);
