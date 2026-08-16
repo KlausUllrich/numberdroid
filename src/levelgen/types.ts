@@ -158,14 +158,45 @@ export type LevelEventSpec =
   | { id: string; kind: "actor-passby"; actorId: string; routeId: string; durationMs?: number }
   | { id: string; kind: "story-beat"; beatId: string; blocking?: boolean };
 
+/**
+ * A Workbench geometry lock is stored relative to the semantic root Space, not
+ * in runtime pixels. Normalizing the exported Floor therefore cannot move the
+ * locked Space relative to the rest of the authored topology.
+ */
+export type LockedGeometryOverride = {
+  offsetFromRootTiles: { x: number; y: number };
+  sizeTiles: { w: number; h: number };
+};
+
+/**
+ * A Prop placement lock is stored relative to its containing semantic Space.
+ * This allows the Space itself to move while preserving the deliberate local
+ * art-director placement.
+ */
+export type LockedPropPlacementOverride = {
+  offsetTiles: { x: number; y: number };
+  rotation: PropRotation;
+  wallSide?: CardinalDirection | null;
+};
+
 export type PlacementOverride = {
   targetId: string;
+  /** Locks a Space to lockedGeometry during topology search. */
   lockGeometry?: boolean;
+  lockedGeometry?: LockedGeometryOverride;
+  /** Locks a Prop request/instance to lockedPlacement during placement solve. */
   lockPlacement?: boolean;
+  lockedPlacement?: LockedPropPlacementOverride;
+  /** Explicit post-solve Space offset retained for simple/manual nudges. */
   offsetTiles?: { x: number; y: number };
+  /** Connection-side preference override. */
   preferredSide?: CardinalDirection;
+  /** Prop wall preference override. */
   preferredWall?: CardinalDirection;
+  /** Explicit room size override. */
   size?: Partial<SpaceSizeSpec>;
+  /** Local deterministic variation. Incrementing this never changes unrelated semantic seeds. */
+  seedSalt?: number;
 };
 
 export type LevelRuleConfig = {
