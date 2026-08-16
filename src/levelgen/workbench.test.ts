@@ -8,11 +8,20 @@ import {
   nudgeLockedGeometry,
   overrideJson,
   regenerateSemanticTarget,
+  resizeLockedGeometry,
+  setPreferredWall,
   tryCompileWorkbenchPlan,
 } from "./workbench";
 
 function compile(overrides = TS01_LEVEL_SPEC.overrides ?? []) {
   return compileWorkbenchPlan(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY, overrides);
+}
+
+function expectValid(overrides: ReturnType<typeof regenerateSemanticTarget>, label: string) {
+  const attempted = tryCompileWorkbenchPlan(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY, overrides);
+  expect(attempted.error, label).toBeNull();
+  expect(attempted.plan, label).not.toBeNull();
+  return attempted.plan!;
 }
 
 describe("Level Compiler v0.12 semantic Workbench model", () => {
@@ -36,6 +45,24 @@ describe("Level Compiler v0.12 semantic Workbench model", () => {
     const locked = compile(overrides);
     expect(locked.actors.props.navigation.geometry.spaces.find((entry) => entry.id === "transfer-room")?.rect).toEqual(transfer.rect);
     expect(locked.diagnostics.some((entry) => entry.code === "GEOMETRY_LOCK_ACTIVE" && entry.targetId === "transfer-room")).toBe(true);
+  });
+
+  it("accepts representative valid TS-01 Workbench edits instead of rejecting every edit", () => {
+    const baseline = compile();
+
+    const movedTransfer = nudgeLockedGeometry(baseline, [], "transfer-room", 1, 0);
+    const movedPlan = expectValid(movedTransfer, "transfer-room +1 x should be a valid semantic edit");
+    expect(movedPlan.actors.props.navigation.geometry.spaces.find((entry) => entry.id === "transfer-room")?.rect.x)
+      .toBe(baseline.actors.props.navigation.geometry.spaces.find((entry) => entry.id === "transfer-room")!.rect.x + 1);
+
+    const widenedTransfer = resizeLockedGeometry(baseline, [], "transfer-room", 1, 0);
+    expectValid(widenedTransfer, "transfer-room +1 width should be a valid semantic edit");
+
+    const preferredWall = setPreferredWall([], "child-bed", "east");
+    expectValid(preferredWall, "child-bed preferred east wall should remain a valid soft preference");
+
+    const regenerated = regenerateSemanticTarget([], "living-plant");
+    expectValid(regenerated, "living-plant local regeneration should compile");
   });
 
   it("rejects an impossible locked Space move without mutating the last valid override set", () => {
