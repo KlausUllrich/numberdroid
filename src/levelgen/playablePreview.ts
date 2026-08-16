@@ -6,8 +6,10 @@ import type {
 } from "../game/types";
 import type { RuntimeEmissionPlan } from "./emissionTypes";
 import { propArtRegistration } from "./propArtRegistry";
+import { computePropExactFit } from "./propExactFit";
 import { floorWithCompiledScript } from "./runtimeScriptContract";
 
+/** Accepted default generated-wall fascia; individual runtime plans may override it. */
 export const COMPILER_PREVIEW_FASCIA_PX = 30;
 const GRID_PX = 64;
 
@@ -79,7 +81,7 @@ function architectureSvg(plan: RuntimeEmissionPlan) {
     const y1 = pxY(wall.y);
     const x2 = wall.orientation === "horizontal" ? x1 + wall.length * tileSize : x1;
     const y2 = wall.orientation === "vertical" ? y1 + wall.length * tileSize : y1;
-    return `<g data-wall-id="${xml(wall.id)}"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#202827" stroke-width="${COMPILER_PREVIEW_FASCIA_PX}" stroke-linecap="square"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#59635f" stroke-width="3" opacity=".72"/></g>`;
+    return `<g data-wall-id="${xml(wall.id)}"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#202827" stroke-width="${plan.wallVisualPx}" stroke-linecap="square"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#59635f" stroke-width="3" opacity=".72"/></g>`;
   }).join("");
   return svgRoot(width, height, walls);
 }
@@ -108,19 +110,28 @@ export function artSpriteForPlacement(
   id = placement.id,
 ): FloorVisualSpriteDefinition {
   const { bounds, tileSize } = previewMetrics(plan);
-  const request = plan.events.actors.props.navigation.geometry.semantic.props.find((entry) => entry.id === placement.requestId);
+  const geometry = plan.events.actors.props.navigation.geometry;
+  const request = geometry.semantic.props.find((entry) => entry.id === placement.requestId);
   if (!request) throw new Error(`Prop art emission cannot resolve request ${placement.requestId}.`);
-  const authoredWidth = request.metadata.footprintTiles.w * tileSize;
-  const authoredHeight = request.metadata.footprintTiles.h * tileSize;
-  const physicalCenterX = (placement.rect.x - bounds.x + placement.rect.w / 2) * tileSize;
-  const physicalCenterY = (placement.rect.y - bounds.y + placement.rect.h / 2) * tileSize;
+  const space = geometry.spaces.find((entry) => entry.id === placement.spaceId);
+  if (!space) throw new Error(`Prop art emission cannot resolve Space ${placement.spaceId}.`);
+  const fit = computePropExactFit(
+    placement,
+    request.metadata,
+    space.rect,
+    tileSize,
+    plan.wallCollisionPx,
+    plan.wallVisualPx,
+  );
+  const originX = bounds.x * tileSize;
+  const originY = bounds.y * tileSize;
   return {
     id,
     asset: publicAsset(asset),
-    x: physicalCenterX - authoredWidth / 2,
-    y: physicalCenterY - authoredHeight / 2,
-    width: authoredWidth,
-    height: authoredHeight,
+    x: fit.spriteRectPx.x - originX,
+    y: fit.spriteRectPx.y - originY,
+    width: fit.spriteRectPx.w,
+    height: fit.spriteRectPx.h,
     rotation: placement.rotation,
   };
 }
