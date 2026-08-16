@@ -176,12 +176,34 @@ export type LevelRuleConfig = {
   defaultDoorClearance: DoorClearanceSpec;
 };
 
+/** Runtime-facing metadata is deliberately small. Spatial content still comes from semantic compilation. */
+export type LevelRuntimeSpec = {
+  /** Runtime/Tiled tile size. Numberdroid currently uses 64 px. */
+  tileSize?: number;
+  /** Collision-core thickness for emitted wall obstacles. */
+  wallCollisionPx?: number;
+  floorName?: string;
+  subtitle?: string;
+  objectiveDefault?: string;
+  objectiveAfterEnergy?: string;
+  start?: {
+    /** Start is resolved to a valid free cell in this semantic Space. */
+    spaceId?: string;
+    bodyId?: BodyId;
+    facing?: number;
+    metaEnergy?: number;
+    preferredSide?: CardinalDirection;
+  };
+};
+
 export type LevelSpec = {
   id: string;
   version: number;
   seed: LevelSeed;
   ruleSetRefs: string[];
   rules: LevelRuleConfig;
+  /** Presentation/start metadata for runtime emission; never raw authored map coordinates. */
+  runtime?: LevelRuntimeSpec;
   spaces: LevelSpaceSpec[];
   connections: ConnectionSpec[];
   props: PropRequestSpec[];
@@ -236,6 +258,7 @@ export type SemanticCompilePlan = {
   seed: number;
   ruleSetRefs: string[];
   rules: LevelRuleConfig;
+  runtime?: LevelRuntimeSpec;
   spaces: CompiledSemanticSpace[];
   connections: CompiledConnection[];
   props: CompiledPropRequest[];
