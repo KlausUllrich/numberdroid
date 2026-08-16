@@ -6,30 +6,21 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     tags: ["family", "furniture", "table", "social-anchor"],
     attachment: "floor",
     footprintTiles: { w: 3, h: 2 },
-    placement: {
-      forbidDoorClearance: true,
-      forbidPrimaryPath: true,
-    },
+    placement: { forbidDoorClearance: true, forbidPrimaryPath: true },
   },
   "family-memory-console": {
     id: "family-memory-console",
     tags: ["family", "wall-prop", "memory", "personal"],
     attachment: "wall",
     footprintTiles: { w: 2, h: 1 },
-    placement: {
-      forbidDoorClearance: true,
-      approachDepthTiles: 1,
-    },
+    placement: { forbidDoorClearance: true, approachDepthTiles: 1 },
   },
   "coffee-machine": {
     id: "coffee-machine",
     tags: ["family", "wall-prop", "service", "coffee"],
     attachment: "wall",
     footprintTiles: { w: 1, h: 2 },
-    placement: {
-      forbidDoorClearance: true,
-      approachDepthTiles: 1,
-    },
+    placement: { forbidDoorClearance: true, approachDepthTiles: 1 },
   },
   "plant-round": {
     id: "plant-round",
@@ -63,22 +54,14 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     tags: ["family", "child", "bed", "furniture"],
     attachment: "floor",
     footprintTiles: { w: 2, h: 1 },
-    placement: {
-      preferWallAdjacent: true,
-      forbidDoorClearance: true,
-      forbidPrimaryPath: true,
-    },
+    placement: { preferWallAdjacent: true, forbidDoorClearance: true, forbidPrimaryPath: true },
   },
   "toy-storage": {
     id: "toy-storage",
     tags: ["family", "child", "storage", "furniture"],
     attachment: "floor",
     footprintTiles: { w: 1, h: 1 },
-    placement: {
-      preferWallAdjacent: true,
-      forbidDoorClearance: true,
-      forbidPrimaryPath: true,
-    },
+    placement: { preferWallAdjacent: true, forbidDoorClearance: true, forbidPrimaryPath: true },
   },
   toilet: {
     id: "toilet",
@@ -99,6 +82,7 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     attachment: "floor",
     footprintTiles: { w: 3, h: 3 },
     placement: {
+      preferRoomCenter: true,
       forbidDoorClearance: true,
       forbidPrimaryPath: true,
       clearanceAroundTiles: 1,
@@ -131,9 +115,6 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     tags: ["primus", "wall-prop", "service", "system"],
     attachment: "wall",
     footprintTiles: { w: 2, h: 1 },
-    placement: {
-      forbidDoorClearance: true,
-      approachDepthTiles: 1,
-    },
+    placement: { forbidDoorClearance: true, approachDepthTiles: 1 },
   },
 };
