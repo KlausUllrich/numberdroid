@@ -5,6 +5,10 @@ import { DECK_C3_MAP } from "./maps/deckC3";
 import { DECK_VS2_MAP } from "./maps/deckVs2";
 import { TRANSFER_HALL_MAP } from "./maps/transferHall";
 import { TS01_GENERATED_FLOOR, TS01_GENERATED_PREVIEW_ALIAS } from "../levelgen/generatedTs01Preview";
+import {
+  BIOARK_PASSBY_GENERATED_FLOOR,
+  BIOARK_PASSBY_PREVIEW_ALIAS,
+} from "../levelgen/generatedBioArkPassbyPreview";
 
 const DECK_A7_STATIONS: EnergyStationDefinition[] = [
   {
@@ -114,6 +118,8 @@ export const FLOORS: Record<string, FloorDefinition> = {
   [TRANSFER_HALL.id]: TRANSFER_HALL,
   [TS01_GENERATED_FLOOR.id]: TS01_GENERATED_FLOOR,
   [TS01_GENERATED_PREVIEW_ALIAS]: TS01_GENERATED_FLOOR,
+  [BIOARK_PASSBY_GENERATED_FLOOR.id]: BIOARK_PASSBY_GENERATED_FLOOR,
+  [BIOARK_PASSBY_PREVIEW_ALIAS]: BIOARK_PASSBY_GENERATED_FLOOR,
 };
 
 export const DEFAULT_FLOOR_ID = DECK_A7.id;
