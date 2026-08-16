@@ -252,6 +252,22 @@ function cellPixelRect(cell: GridCell, tileSize: number): PixelRect {
   return { x: cell.x * tileSize, y: cell.y * tileSize, w: tileSize, h: tileSize };
 }
 
+/**
+ * Primary circulation is a gameplay corridor, not a ban on decorative pixels.
+ * Use a central keep-clear core so small true-space overhangs into a path tile
+ * remain legal while physical collision is still prevented from occupying the
+ * usable middle of the route.
+ */
+function primaryPathKeepClearRect(cell: GridCell, tileSize: number): PixelRect {
+  const inset = tileSize * 0.25;
+  return {
+    x: cell.x * tileSize + inset,
+    y: cell.y * tileSize + inset,
+    w: tileSize - inset * 2,
+    h: tileSize - inset * 2,
+  };
+}
+
 type InternalCandidate = {
   rect: GridRect;
   wallSide: CardinalDirection | null;
@@ -465,7 +481,7 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
       }
 
       if (request.metadata.placement.forbidPrimaryPath && role !== "hero" && primaryPathCells.some((cell) =>
-        cell.spaceId === request.spaceId && pixelIntersects(exactFit.placementEnvelopePx, cellPixelRect(cell, tileSize)))) {
+        cell.spaceId === request.spaceId && exactFit.collisionPartsPx.some((part) => pixelIntersects(part, primaryPathKeepClearRect(cell, tileSize))))) {
         reject("true-space-primary-circulation");
         continue;
       }
