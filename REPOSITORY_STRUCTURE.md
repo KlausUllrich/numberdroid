@@ -15,7 +15,7 @@ This file defines where project information belongs and which directories are au
 ├─ index.html / vite / tsconfig # application tooling
 ├─ zahlenkern-prototyp-meta-v7.html  # frozen prototype reference
 ├─ .github/                     # CI / GitHub automation
-├─ src/                         # production application code
+├─ src/                         # production application + compiler code
 ├─ public/                      # runtime/deploy assets only
 ├─ scripts/                     # deterministic build, art and validation tooling
 ├─ art-source/                  # reproducible/current + archived art-authoring sources
@@ -27,6 +27,19 @@ Do not add project-status, art-process, design, handoff, or research Markdown fi
 ## `src/` — production code
 
 Contains the React/TypeScript game implementation. Current runtime behavior lives here; historical handoffs are not substitutes for inspecting current code.
+
+### `src/levelgen/` — declarative Level Compiler
+
+Owns the deterministic procedural/declarative level-authoring implementation:
+
+- typed `LevelSpec` contracts;
+- seed/sub-seed derivation;
+- semantic graph/constraint validation;
+- prop metadata registry;
+- level-specific semantic specs under `src/levelgen/specs/`;
+- future topology, wall, door, placement and event compile stages.
+
+This is an authoring/compiler layer **before** the existing Tiled/`FloorDefinition` runtime boundary. It must not become a competing runtime renderer/state architecture.
 
 ## `public/` — runtime/deploy outputs
 
@@ -84,6 +97,7 @@ docs/
 ├─ agents/                      # durable workflow, role-routing and handoff rules
 ├─ architecture/
 ├─ game-design/
+├─ level-generation/            # Level Compiler / LevelSpec / authoring-system contract
 ├─ story/
 ├─ planning/
 ├─ decisions/
@@ -100,7 +114,8 @@ docs/
 - `docs/agents/HANDOFF_PROTOCOL.md` — how self-explanatory cross-role handoffs are written/consumed;
 - `docs/agents/` — other durable agent/workflow rules;
 - `docs/architecture/` — software/map/runtime architecture;
-- `docs/game-design/` — current gameplay design/progression;
+- `docs/game-design/` — current gameplay and spatial-design rules;
+- `docs/level-generation/` — declarative level-authoring/compiler architecture and LevelSpec contract;
 - `docs/story/` — current world/narrative contracts;
 - `docs/planning/` — forward-looking plans;
 - `docs/decisions/` — durable cross-cutting decisions;
@@ -140,6 +155,16 @@ historical art source → art-source/archive/
 runtime output        → public/assets/...
 ```
 
+For level generation:
+
+```text
+spatial rules         → docs/game-design/LEVEL_DESIGN_RULES.md
+compiler contract     → docs/level-generation/
+semantic level spec   → src/levelgen/specs/
+compiler code         → src/levelgen/
+runtime map contract  → docs/architecture/ + src/game/tiled.ts + FloorDefinition
+```
+
 For current task continuation:
 
 ```text
@@ -155,7 +180,7 @@ When reorganizing files:
 
 1. move information without changing its meaning unless deliberate;
 2. update current cross-references in the same PR;
-3. do not mix gameplay behavior changes into a structure-only PR;
+3. do not mix unrelated gameplay behavior changes into a structure-only PR;
 4. run tests/build even for documentation/source moves because build scripts may reference files;
 5. keep historical material only when it still adds useful evidence;
 6. delete technical artifacts only after checking code/build references;
