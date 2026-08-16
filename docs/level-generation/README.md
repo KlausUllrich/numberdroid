@@ -1,6 +1,6 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0 foundation**
+Status: **CURRENT architecture / implementation track — v0.1 geometry proof**
 
 This directory owns the design and technical contract for the Numberdroid procedural/declarative level-authoring system.
 
@@ -25,6 +25,45 @@ existing Tiled/FloorDefinition runtime contract
 ```
 
 The current React/runtime architecture, `FloorDefinition`, Tiled importer and gameplay systems remain the consuming runtime. The compiler is an **authoring layer in front of them**, not a replacement game architecture.
+
+## Current implementation status
+
+### v0 — semantic foundation — IMPLEMENTED
+
+- typed `LevelSpec`;
+- stable seed/sub-seed derivation;
+- rooms and corridors as semantic spaces;
+- explicit corridor-width constraints;
+- room/space connections;
+- door / locked-door / key-card intent;
+- prop requirements backed by metadata;
+- encounter/enemy spawn intent;
+- trigger and event declarations;
+- locks/overrides;
+- semantic validation and reachability checks;
+- TS-01 as the first reference spec.
+
+### v0.1 — deterministic geometry + shared walls — IMPLEMENTED
+
+See `GEOMETRY_AND_WALL_GRAPH.md`.
+
+The geometry stage now:
+
+- resolves preferred room/corridor dimensions onto an integer tile grid;
+- honors explicit corridor width;
+- attaches connected spaces from semantic side/relationship intent;
+- slides a child space along a shared edge when necessary to avoid overlap;
+- normalizes the result into positive coordinates;
+- requires every connection to resolve to a real shared boundary;
+- cuts connection apertures out of that boundary;
+- reserves explicit door-clearance rectangles on both sides;
+- derives **one canonical shared wall graph** from all space boundaries;
+- collapses canonical unit edges into wall segments;
+- rejects double-wall-by-construction behavior.
+
+The current v0.1 solver deliberately targets connected **tree-like** room graphs. Arbitrary cyclic topology / multi-constraint optimization is not silently approximated; that capability remains future work.
+
+The live TS-01 map is still authored separately. The generated geometry is currently a compiler proof and test fixture, not the deployed Floor source.
 
 ## Why this exists
 
@@ -62,35 +101,16 @@ compiled Tiled/Floor data
     runtime output, not the high-level authoring truth
 ```
 
-## Current v0 scope
-
-The first implementation block intentionally stops before geometry generation. It establishes:
-
-- typed `LevelSpec`;
-- stable seed/sub-seed derivation;
-- rooms and corridors as semantic spaces;
-- explicit corridor-width constraints;
-- room/space connections;
-- door / locked-door / key-card intent;
-- prop requirements backed by metadata;
-- encounter/enemy spawn intent;
-- trigger and event declarations;
-- locks/overrides;
-- semantic validation and reachability checks;
-- TS-01 as the first reference spec.
-
-The v0 compiler produces a **semantic compile plan**, not a replacement runtime map yet.
-
 ## Planned compile stages
 
-1. **Spec / semantic graph** — current v0 foundation.
-2. **Topology solver** — sizes, relative positions, corridor routing and rationality profiles.
-3. **Shared wall graph** — derive walls from boundaries so adjacent rooms never create double walls.
-4. **Door compiler** — doors cut apertures into real wall segments; leaves/pockets derive from the wall; clearance is reserved on both sides.
-5. **Navigation validator** — all required spaces reachable, corridor widths respected, no blocked threshold/hero approach.
-6. **Prop placement** — metadata-driven wall/floor attachment, adjacency, forbidden zones, hierarchy and dressing.
-7. **Encounter placement** — authored enemy roles/routes/clearances placed from semantic spawn intent.
-8. **Trigger/event compilation** — keys, locked doors, scripted pass-bys, one-shot beats, staging events and later world-specific interactions.
+1. **Spec / semantic graph** — implemented v0.
+2. **Topology / preferred-size geometry** — implemented v0.1 for tree-like graphs.
+3. **Shared wall graph + connection apertures** — implemented v0.1.
+4. **Navigation / forbidden-zone validation** — next.
+5. **Prop placement** — metadata-driven wall/floor attachment, adjacency, forbidden zones, hierarchy and dressing.
+6. **Encounter placement** — authored enemy roles/routes/clearances placed from semantic spawn intent.
+7. **Trigger/event compilation** — keys, locked doors, scripted pass-bys, one-shot beats, staging events and later world-specific interactions.
+8. **Runtime/Tiled emission** — generated debug/live data compatible with the existing runtime boundary.
 9. **Overrides / Workbench** — lock/regenerate/move one semantic element without destabilizing unrelated areas.
 10. **Natural language front-end** — an LLM translates rough design prompts into LevelSpec; LevelSpec remains canonical.
 
