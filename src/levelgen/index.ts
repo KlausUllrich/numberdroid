@@ -1,7 +1,11 @@
 export { compileLevelSpec } from "./compiler";
 export { compileLevelGeometry } from "./geometry";
 export { compileLevelNavigation } from "./navigation";
+export { compileLevelNavigationV031 } from "./navigationHardening";
+export type { DoorClearanceZone, HardenedNavigationCompilePlan } from "./navigationHardening";
 export { compilePropPlacement } from "./placement";
+export { compileOrientedPropPlacement, wallSideRotation } from "./orientedPlacement";
+export type { OrientedPropPlacementDecision, OrientedPropPlacementPlan } from "./orientedPlacement";
 export { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 export { deriveSubSeed, normalizeLevelSeed, seededUnit } from "./seed";
 export { TS01_LEVEL_SPEC } from "./specs/ts01";
