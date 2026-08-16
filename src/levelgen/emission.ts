@@ -276,7 +276,9 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
       prop("openRadius", Math.max(118, connection.apertureLength * tileSize * 0.9), "float"),
       prop("label", friendly(connection.id), "string"),
     ];
-    if (locked) properties.push(prop("keyId", semanticConnection.lock.keyId, "string"));
+    if (semanticConnection.lock.mode === "access-key") {
+      properties.push(prop("keyId", semanticConnection.lock.keyId, "string"));
+    }
     return object({ name: connection.id, ...rect, properties });
   });
 
