@@ -3,11 +3,11 @@ import { compileLevelSpec } from "./compiler";
 import { compileLevelGeometry } from "./geometry";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
-import type { LevelSpec } from "./types";
+import type { LevelSpec, TileRange } from "./types";
 
-const RANGE_4 = { min: 4, preferred: 4, max: 4 } as const;
+const RANGE_4: TileRange = { min: 4, preferred: 4, max: 4 };
 
-function room(id: string, width = RANGE_4, height = RANGE_4) {
+function room(id: string, width: TileRange = RANGE_4, height: TileRange = RANGE_4) {
   return {
     id,
     kind: "room" as const,
