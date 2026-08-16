@@ -1,6 +1,6 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.4 actor placement**
+Status: **CURRENT architecture / implementation track — v0.5 trigger/event compilation**
 
 This directory owns the design and technical contract for the Numberdroid procedural/declarative level-authoring system.
 
@@ -23,7 +23,7 @@ hero / prop placement + allowed art rotations
         ↓
 enemy / actor placement + authored routes
         ↓
-triggers + events + validation
+trigger zones + pickups + trigger/event programs
         ↓
 existing Tiled/FloorDefinition runtime contract
 ```
@@ -106,7 +106,23 @@ The actor stage:
 - applies behavior-aware scoring for neutral / guard / patrol / aggressive roles;
 - emits cardinal actor facing and explainable placement diagnostics.
 
-The live gameplay TS-01 map is still authored separately. Generated geometry/navigation/placement is currently a compiler proof and authoring QA source, not yet the deployed Floor source.
+### v0.5 — trigger / event compilation — IMPLEMENTED
+
+See `TRIGGER_EVENT_COMPILATION.md`.
+
+The event stage now:
+
+- adds semantic Trigger Zones anchored to Spaces, Connections, Props, Actors, Routes or Pickups;
+- materializes Access Pickups into remaining valid furnished cells;
+- adds Staged Actors for non-combat scripted objects such as Bio-Ark fauna;
+- resolves `enter-space`, `enter-zone`, `interact`, `collect`, `state-change`, `proximity` and `timer` Trigger sources;
+- compiles ordered Trigger→Event programs;
+- validates door, actor, route, pickup and zone references;
+- supports key grants, lock/unlock, flags, spawn/despawn/move, actor pass-bys and blocking/non-blocking Story Beats;
+- warns on obvious non-once state self-loops;
+- keeps all event geometry and source resolution deterministic/explainable.
+
+The live gameplay TS-01 map is still authored separately. Generated geometry/navigation/placement/event data is currently a compiler proof and authoring QA source, not yet the deployed Floor source.
 
 ## Workbench interaction baseline
 
@@ -125,7 +141,11 @@ The view is available at:
 ?levelgen=ts01
 ```
 
-It can now visualize topology, primary circulation, widened Door Clearance, wall slots, generated Props/use-space, Prop rotation in tooltips, generated actors and actor routes.
+It can now visualize topology, primary circulation, widened Door Clearance, wall slots, generated Props/use-space, Prop rotation in tooltips, generated actors/routes, Trigger Zones, generated Pickups and spatial Trigger sources.
+
+### Binding foreground-label rule
+
+All element labels are rendered in **one final SVG label layer** after every geometry/debug layer. Space names, dimensions, Prop labels, Actor labels, Pickup labels and Trigger labels must therefore remain visually on top. Future compiler overlays must be inserted **before** this final label layer.
 
 ## Why this exists
 
@@ -171,8 +191,8 @@ compiled Tiled/Floor data
 4. **Navigation / forbidden-zone validation** — implemented v0.2.
 5. **Prop placement** — implemented v0.3 + v0.3.1 orientation/clearance hardening.
 6. **Encounter / actor placement** — implemented v0.4.
-7. **Trigger/event compilation** — next: keys, locked doors, scripted pass-bys, one-shot beats and staged actions.
-8. **Runtime/Tiled emission** — generated debug/live data compatible with the existing runtime boundary.
+7. **Trigger/event compilation** — implemented v0.5.
+8. **Runtime/Tiled emission** — next: emit one coherent generated representation containing geometry, doors, Props, Actors, routes, Pickups, zones, Triggers and Events.
 9. **Overrides / Workbench** — select/lock/regenerate/move one semantic element without destabilizing unrelated areas.
 10. **Natural-language front-end** — an LLM translates rough design prompts into LevelSpec; LevelSpec remains canonical.
 
@@ -202,16 +222,18 @@ overrides:
 
 A later Workbench may expose these through direct manipulation, while the persisted representation remains declarative/reproducible.
 
-## Event model direction
+## Event model
 
-Triggers/events are first-class authored data even before complete runtime execution exists. The schema already targets cases such as:
+Triggers/events are now compiled first-class authored data. The current contract handles cases such as:
 
-- access card collected → unlock door;
-- enter zone → one-shot story/staging beat;
-- visible Bio-Ark route → large animal briefly passes by;
-- interact with console → toggle another object;
+- access card collected → grant key → unlock door;
+- enter generated zone → one-shot blocking/non-blocking story beat;
+- visible Bio-Ark route → staged large animal briefly passes by;
+- interact/proximity source → ordered event program;
 - state flag → spawn/despawn/move actor.
+
+Runtime execution is intentionally separated from compiler authoring. v0.5 proves that the complete event graph can be resolved before the runtime dispatcher is connected.
 
 ## Relationship to Tiled
 
-Tiled remains a useful interchange/debug format and the existing runtime importer remains valid. The Level Compiler should emit data compatible with current Tiled/Floor contracts rather than forcing another renderer or gameplay-state migration.
+Tiled remains a useful interchange/debug format and the existing runtime importer remains valid. The next compiler stage should emit data compatible with current Tiled/Floor contracts rather than forcing another renderer or gameplay-state migration.
