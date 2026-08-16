@@ -18,6 +18,8 @@ export type ExactFitPlacement = {
 export type PropExactFitResult = {
   /** Sub-tile translation applied equally to sprite, shadow and runtime collision. */
   offsetPx: { x: number; y: number };
+  /** Coarse tile anchor/reservation emitted by the solver. Exact bounds may shift beyond it. */
+  anchorRectPx: PixelRect;
   /** Unrotated authored sprite canvas; runtime rotation still happens around its center. */
   spriteRectPx: PixelRect;
   /** Axis-aligned world bounds of the authored visual envelope after cardinal rotation. */
@@ -28,7 +30,7 @@ export type PropExactFitResult = {
   collisionPartsPx: PixelRect[];
   /** Envelope selected for spatial fitting / authoring diagnostics. */
   placementEnvelopePx: PixelRect;
-  /** Every room boundary physically touched by the conservative solved footprint. */
+  /** Every room boundary touched by the coarse anchor footprint. */
   touchedWalls: CardinalDirection[];
 };
 
@@ -77,6 +79,11 @@ function validBounds(bounds: PropLocalBounds, footprint: { w: number; h: number 
     && bounds.y + bounds.h <= footprint.h + epsilon;
 }
 
+/**
+ * Bounds are authored inside the 0° source canvas/footprint. That remains a
+ * useful metadata invariant even though the final translated world envelope may
+ * extend beyond the coarse solver anchor rectangle.
+ */
 export function validatePropExactFitMetadata(metadata: PropMetadata) {
   const fit = metadata.exactFit;
   const entries: Array<[string, PropLocalBounds | undefined]> = [
@@ -86,12 +93,12 @@ export function validatePropExactFitMetadata(metadata: PropMetadata) {
   ];
   for (const [name, bounds] of entries) {
     if (bounds && !validBounds(bounds, metadata.footprintTiles)) {
-      throw new Error(`Prop ${metadata.id} exactFit ${name} must be positive finite bounds contained by the authored ${metadata.footprintTiles.w}×${metadata.footprintTiles.h} footprint.`);
+      throw new Error(`Prop ${metadata.id} exactFit ${name} must be positive finite bounds contained by the authored ${metadata.footprintTiles.w}×${metadata.footprintTiles.h} source canvas.`);
     }
   }
   for (const [index, bounds] of propCollisionLocalBounds(metadata).entries()) {
     if (!validBounds(bounds, metadata.footprintTiles)) {
-      throw new Error(`Prop ${metadata.id} collision part ${index} must be positive finite bounds contained by the authored ${metadata.footprintTiles.w}×${metadata.footprintTiles.h} footprint.`);
+      throw new Error(`Prop ${metadata.id} collision part ${index} must be positive finite bounds contained by the authored ${metadata.footprintTiles.w}×${metadata.footprintTiles.h} source canvas.`);
     }
   }
   if (fit?.placementEnvelope === "custom" && !fit.customEnvelopeTiles) {
@@ -106,10 +113,7 @@ function rotatePoint(x: number, y: number, rotation: PropRotation) {
   return { x: y, y: -x };
 }
 
-/**
- * Converts a 0° local bounds rectangle, authored in tile units inside the
- * source sprite canvas, into world-pixel AABB around the solved placement.
- */
+/** Convert a 0° local bounds rectangle into a cardinally rotated world AABB. */
 export function transformedPropBoundsPx(
   placement: ExactFitPlacement,
   metadata: PropMetadata,
@@ -175,16 +179,18 @@ function touchesWall(
   return Math.abs(placement.rect.x + placement.rect.w - (spaceRect.x + spaceRect.w)) <= epsilon;
 }
 
-function wallFacePx(
-  side: CardinalDirection,
+function roomInteriorPx(
   spaceRect: { x: number; y: number; w: number; h: number },
   tileSize: number,
-  thicknessPx: number,
-) {
-  if (side === "north") return spaceRect.y * tileSize + thicknessPx / 2;
-  if (side === "south") return (spaceRect.y + spaceRect.h) * tileSize - thicknessPx / 2;
-  if (side === "west") return spaceRect.x * tileSize + thicknessPx / 2;
-  return (spaceRect.x + spaceRect.w) * tileSize - thicknessPx / 2;
+  boundaryThicknessPx: number,
+): PixelRect {
+  const inset = boundaryThicknessPx / 2;
+  return {
+    x: spaceRect.x * tileSize + inset,
+    y: spaceRect.y * tileSize + inset,
+    w: spaceRect.w * tileSize - boundaryThicknessPx,
+    h: spaceRect.h * tileSize - boundaryThicknessPx,
+  };
 }
 
 type OffsetRange = { minX: number; maxX: number; minY: number; maxY: number };
@@ -200,13 +206,6 @@ function constrainContained(range: OffsetRange, container: PixelRect, inner: Pix
   range.maxY = Math.min(range.maxY, container.y + container.h - (inner.y + inner.h));
 }
 
-function constrainInsideFace(range: OffsetRange, rect: PixelRect, side: CardinalDirection, face: number) {
-  if (side === "north") range.minY = Math.max(range.minY, face - rect.y);
-  else if (side === "south") range.maxY = Math.min(range.maxY, face - (rect.y + rect.h));
-  else if (side === "west") range.minX = Math.max(range.minX, face - rect.x);
-  else range.maxX = Math.min(range.maxX, face - (rect.x + rect.w));
-}
-
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -214,7 +213,7 @@ function clamp(value: number, min: number, max: number) {
 function resolveOffset(range: OffsetRange, preferred: { x: number; y: number }, propId: string) {
   const epsilon = 1e-7;
   if (range.minX > range.maxX + epsilon || range.minY > range.maxY + epsilon) {
-    throw new Error(`Prop ${propId} exact-fit wall constraints cannot fit inside its conservative tile reservation.`);
+    throw new Error(`Prop ${propId} true-space envelope cannot fit inside its containing room surfaces.`);
   }
   return {
     x: clamp(preferred.x, range.minX, range.maxX),
@@ -223,15 +222,20 @@ function resolveOffset(range: OffsetRange, preferred: { x: number; y: number }, 
 }
 
 /**
- * Exact Fit is a post-solve precision layer. The tile footprint remains the
- * conservative compiler/reservation envelope. Exact Fit may move the authored
- * canvas and physical collider within that reservation, but may not occupy a
- * neighboring tile.
+ * v0.13.2 true-space contract:
  *
- * v0.13.2 safety rule: the authored placement is the preferred position. We do
- * NOT snap an object to a wall merely because it has a wallSide/preference.
- * Only actual intrusion into a physically touched wall surface produces the
- * minimum correction needed to restore the declared visual/collision contract.
+ * - `placement.rect` / `footprintTiles` remain the coarse deterministic anchor
+ *   and reservation used by the integer tile solver.
+ * - visual/collision/custom bounds describe the actual object in source-local
+ *   space and may receive a small sub-tile translation beyond that anchor.
+ * - the translated physical collision must remain inside the room's collision
+ *   surfaces; visual-fit objects must remain inside the visible wall fascia.
+ * - pairwise Prop/use-space validation is performed by the runtime emission
+ *   stage because only that stage sees all translated true-space envelopes at
+ *   once.
+ *
+ * This is intentionally not PNG-alpha collision. Every true bound is explicit,
+ * reviewable metadata.
  */
 export function computePropExactFit(
   placement: ExactFitPlacement,
@@ -248,17 +252,17 @@ export function computePropExactFit(
     x: (placement.rect.x + placement.rect.w / 2) * tileSize,
     y: (placement.rect.y + placement.rect.h / 2) * tileSize,
   };
+  const anchorRectPx: PixelRect = {
+    x: placement.rect.x * tileSize,
+    y: placement.rect.y * tileSize,
+    w: placement.rect.w * tileSize,
+    h: placement.rect.h * tileSize,
+  };
   const baseSprite: PixelRect = {
     x: worldCenter.x - authoredWidth / 2,
     y: worldCenter.y - authoredHeight / 2,
     w: authoredWidth,
     h: authoredHeight,
-  };
-  const physicalRect: PixelRect = {
-    x: placement.rect.x * tileSize,
-    y: placement.rect.y * tileSize,
-    w: placement.rect.w * tileSize,
-    h: placement.rect.h * tileSize,
   };
   const visual = transformedPropBoundsPx(placement, metadata, resolvedVisualBounds(metadata), tileSize);
   const collisionParts = propCollisionLocalBounds(metadata)
@@ -267,44 +271,54 @@ export function computePropExactFit(
   const envelope = transformedPropBoundsPx(placement, metadata, resolvedEnvelope(metadata), tileSize);
   const touchedWalls = CARDINALS.filter((side) => touchesWall(placement, spaceRect, side));
 
-  const range = unconstrainedRange();
-  constrainContained(range, physicalRect, envelope);
-  for (const part of collisionParts) constrainContained(range, physicalRect, part);
-
   const fit: PropExactFitMetadata | undefined = metadata.exactFit;
-  if (fit) {
-    for (const side of touchedWalls) {
-      // Collision never enters the wall collision core.
-      const collisionFace = wallFacePx(side, spaceRect, tileSize, wallCollisionPx);
-      for (const part of collisionParts) constrainInsideFace(range, part, side, collisionFace);
-
-      // Visual-fit Props keep their declared visible silhouette outside the
-      // accepted fascia on every touched side, including two-sided corners.
-      if ((fit.wallBoundary ?? "visual") === "visual") {
-        constrainInsideFace(range, visual, side, wallFacePx(side, spaceRect, tileSize, wallVisualPx));
-      }
-    }
+  if (!fit) {
+    return {
+      offsetPx: { x: 0, y: 0 },
+      anchorRectPx,
+      spriteRectPx: baseSprite,
+      visualBoundsPx: visual,
+      collisionBoundsPx: collision,
+      collisionPartsPx: collisionParts,
+      placementEnvelopePx: envelope,
+      touchedWalls,
+    };
   }
 
-  // Zero is intentional: preserve authored placement unless a constraint forces
-  // the smallest possible correction away from an actual wall intrusion.
+  const range = unconstrainedRange();
+  const collisionInterior = roomInteriorPx(spaceRect, tileSize, wallCollisionPx);
+  for (const part of collisionParts) constrainContained(range, collisionInterior, part);
+
+  const wallBoundary = fit.wallBoundary ?? "visual";
+  const envelopeInterior = roomInteriorPx(
+    spaceRect,
+    tileSize,
+    wallBoundary === "visual" ? wallVisualPx : wallCollisionPx,
+  );
+  constrainContained(range, envelopeInterior, envelope);
+
+  if (wallBoundary === "visual") {
+    constrainContained(range, roomInteriorPx(spaceRect, tileSize, wallVisualPx), visual);
+  }
+
+  // Preserve authored anchor position whenever it is already safe. Otherwise
+  // apply the minimum sub-tile correction needed to satisfy true room surfaces.
   const offset = resolveOffset(range, { x: 0, y: 0 }, metadata.id);
   const finalVisual = translate(visual, offset);
   const finalCollisionParts = collisionParts.map((part) => translate(part, offset));
   const finalCollision = unionPixelRects(finalCollisionParts);
   const finalEnvelope = translate(envelope, offset);
 
-  if (!contains(physicalRect, finalEnvelope)) {
-    throw new Error(`Prop ${metadata.id} exact-fit placement envelope leaves its solved tile footprint; adjust visual/collision/custom bounds instead of expanding into unrelated tiles.`);
+  if (!finalCollisionParts.every((part) => contains(collisionInterior, part))) {
+    throw new Error(`Prop ${metadata.id} collision escaped the room collision surfaces after exact fitting.`);
   }
-  for (const part of finalCollisionParts) {
-    if (!contains(physicalRect, part)) {
-      throw new Error(`Prop ${metadata.id} exact-fit collision leaves its solved tile footprint; collision metadata must remain inside the conservative tile reservation.`);
-    }
+  if (!contains(envelopeInterior, finalEnvelope)) {
+    throw new Error(`Prop ${metadata.id} placement envelope escaped the selected room surface after exact fitting.`);
   }
 
   return {
     offsetPx: offset,
+    anchorRectPx,
     spriteRectPx: translate(baseSprite, offset),
     visualBoundsPx: finalVisual,
     collisionBoundsPx: finalCollision,
