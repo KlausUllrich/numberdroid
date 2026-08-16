@@ -82,7 +82,7 @@ function stagedActor(current: MetaState, actorId: string): ScriptedActorRunState
   return current.scriptState.stagedActors[actorId] ?? { present: false, mode: "idle" };
 }
 
-function applyEvent(current: MetaState, event: FloorScriptEventDefinition) {
+function applyEvent(current: MetaState, event: FloorScriptEventDefinition, nowMs: number) {
   const scriptState = current.scriptState;
   if (event.kind === "set-flag") {
     if (scriptState.flags[event.flag] === event.value) return false;
@@ -109,12 +109,22 @@ function applyEvent(current: MetaState, event: FloorScriptEventDefinition) {
       mode: "idle",
       routeId: undefined,
       durationMs: undefined,
+      startedAtMs: undefined,
+      pausedAtMs: undefined,
     };
     return !before.present || before.spaceId !== event.spaceId || before.mode !== "idle";
   }
   if (event.kind === "despawn-actor") {
     const before = stagedActor(current, event.actorId);
-    scriptState.stagedActors[event.actorId] = { ...before, present: false, mode: "idle", routeId: undefined, durationMs: undefined };
+    scriptState.stagedActors[event.actorId] = {
+      ...before,
+      present: false,
+      mode: "idle",
+      routeId: undefined,
+      durationMs: undefined,
+      startedAtMs: undefined,
+      pausedAtMs: undefined,
+    };
     return before.present || before.mode !== "idle";
   }
   if (event.kind === "move-actor" || event.kind === "actor-passby") {
@@ -126,8 +136,11 @@ function applyEvent(current: MetaState, event: FloorScriptEventDefinition) {
       mode,
       routeId: event.routeId,
       durationMs: event.kind === "actor-passby" ? event.durationMs : undefined,
+      startedAtMs: nowMs,
+      pausedAtMs: undefined,
     };
-    return !before.present || before.mode !== mode || before.routeId !== event.routeId;
+    // Re-firing a non-once scripted movement intentionally restarts that route.
+    return true;
   }
 
   const alreadyActive = scriptState.activeStoryBeatId === event.beatId;
@@ -208,7 +221,7 @@ export function advanceFloorScript(
     }
     for (const eventId of trigger.eventIds) {
       const event = eventById.get(eventId);
-      if (event && applyEvent(current, event)) localChanged = true;
+      if (event && applyEvent(current, event, nowMs)) localChanged = true;
     }
     if (trigger.kind === "timer" && !trigger.once && trigger.delayMs > 0) {
       current.scriptState.scheduledTriggers[trigger.id] = {
@@ -269,6 +282,57 @@ export function advanceFloorScript(
   }
 
   return { state: changed ? current : candidate, firedTriggerIds, changed };
+}
+
+/**
+ * Freezes/resumes staged Actor route clocks without per-frame persistence.
+ * Blocking Story Beats and other explicit runtime pauses therefore stop scripted
+ * Actors while their pose can still be derived from a persisted route start.
+ */
+export function setStagedActorsPaused(state: MetaState, paused: boolean, nowMs = Date.now()): MetaState {
+  let changed = false;
+  const stagedActors = Object.fromEntries(Object.entries(state.scriptState.stagedActors).map(([id, actor]) => {
+    if (!actor.present || actor.mode === "idle" || !Number.isFinite(actor.startedAtMs)) return [id, actor];
+    if (paused) {
+      if (Number.isFinite(actor.pausedAtMs)) return [id, actor];
+      changed = true;
+      return [id, { ...actor, pausedAtMs: nowMs }];
+    }
+    if (!Number.isFinite(actor.pausedAtMs)) return [id, actor];
+    const pausedFor = Math.max(0, nowMs - Number(actor.pausedAtMs));
+    changed = true;
+    return [id, {
+      ...actor,
+      startedAtMs: Number(actor.startedAtMs) + pausedFor,
+      pausedAtMs: undefined,
+    }];
+  }));
+  if (!changed) return state;
+  return { ...state, scriptState: { ...state.scriptState, stagedActors } };
+}
+
+/** Persist the semantic end of a one-shot pass-by instead of hiding it only in React. */
+export function completeStagedActorPassby(state: MetaState, actorId: string): MetaState {
+  const before = state.scriptState.stagedActors[actorId];
+  if (!before || !before.present || before.mode !== "passby") return state;
+  return {
+    ...state,
+    scriptState: {
+      ...state.scriptState,
+      stagedActors: {
+        ...state.scriptState.stagedActors,
+        [actorId]: {
+          ...before,
+          present: false,
+          mode: "idle",
+          routeId: undefined,
+          durationMs: undefined,
+          startedAtMs: undefined,
+          pausedAtMs: undefined,
+        },
+      },
+    },
+  };
 }
 
 export function dismissActiveStoryBeat(state: MetaState): MetaState {
