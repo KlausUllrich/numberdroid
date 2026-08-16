@@ -83,6 +83,21 @@ The navigation stage now:
 
 The live gameplay TS-01 map is still authored separately. Generated geometry/navigation is currently a compiler proof and authoring QA source, not yet the deployed Floor source.
 
+## Workbench interaction baseline
+
+The live compiler/debug view is also the first shell of the future Level Workbench. Navigation of a generated map should work independently of gameplay input:
+
+- **pan:** one-finger drag or left-mouse drag;
+- **zoom:** two-finger pinch or mouse wheel;
+- zoom should stay focused on the gesture/mouse position rather than snapping around the map center;
+- `FIT` restores the complete generated topology;
+- simple `+` / `−` controls remain available as an accessible fallback;
+- the map surface owns touch gestures (`touch-action: none`) so browser page scrolling does not fight the authoring interaction while manipulating the map.
+
+This viewport state is an editor/debug concern only. It must not mutate `LevelSpec`, generated geometry, gameplay camera state or persisted Floor content.
+
+Later direct manipulation—selecting a room/prop, moving it, locking it or regenerating only that semantic object—should build on this same Workbench viewport rather than inventing another map-navigation UI.
+
 ## Why this exists
 
 Manual TS-01 composition proved that individual local fixes do not scale to the roughly 25 authored Floors/levels expected for Numberdroid. Reusable design knowledge needs to become data and constraints:
