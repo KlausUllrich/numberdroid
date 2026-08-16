@@ -1,141 +1,103 @@
-import { publicAsset } from "../game/assets";
-import type { FloorDefinition, TileLayerDefinition, TileMapVisualDefinition, TilesetDefinition } from "../game/types";
+import type { FloorDefinition } from "../game/types";
 import type { RuntimeEmissionPlan } from "./emissionTypes";
 
-const PREVIEW_FIRST_GID = 1000;
-const PREVIEW_TILE_COUNT = 19;
-const PREVIEW_TILESET_ASSET = "assets/levelgen/compiler-preview-overlays.svg";
+export const COMPILER_PREVIEW_FASCIA_PX = 30;
+const GRID_PX = 64;
 
-// Wall mask bits. The preview renders each canonical wall segment exactly once
-// on one adjacent walkable cell, so shared walls do not become visually doubled.
-const WALL_N = 1;
-const WALL_E = 2;
-const WALL_S = 4;
-const WALL_W = 8;
+const SPACE_FILLS = {
+  domestic: "#777d73",
+  corridor: "#667470",
+  ritual: "#68755f",
+  system: "#5f6c73",
+  neutral: "#69736f",
+} as const;
 
-function cellKey(x: number, y: number) {
-  return `${x},${y}`;
+const PROP_STYLE = {
+  hero: { fill: "#d4bc48", stroke: "#675713", glyph: "◎" },
+  support: { fill: "#65b7cf", stroke: "#245b6c", glyph: "+" },
+  furniture: { fill: "#c8814b", stroke: "#6a3d20", glyph: "□" },
+  dressing: { fill: "#6eab72", stroke: "#2d6033", glyph: "♧" },
+} as const;
+
+function xml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function indexFor(x: number, y: number, bounds: { x: number; y: number; w: number; h: number }) {
-  const col = x - bounds.x;
-  const row = y - bounds.y;
-  if (col < 0 || col >= bounds.w || row < 0 || row >= bounds.h) return -1;
-  return row * bounds.w + col;
-}
-
-function buildWallPreviewLayer(plan: RuntimeEmissionPlan): TileLayerDefinition {
-  const navigation = plan.events.actors.props.navigation;
-  const bounds = navigation.bounds;
-  const cells = new Map(navigation.walkableCells.map((cell) => [cellKey(cell.x, cell.y), cell]));
-  const masks = new Map<string, number>();
-
-  const addMask = (x: number, y: number, bit: number) => {
-    const key = cellKey(x, y);
-    masks.set(key, (masks.get(key) ?? 0) | bit);
-  };
-
-  for (const wall of navigation.geometry.walls) {
-    for (let offset = 0; offset < wall.length; offset += 1) {
-      if (wall.orientation === "horizontal") {
-        const x = wall.x + offset;
-        const above = cells.get(cellKey(x, wall.y - 1));
-        const below = cells.get(cellKey(x, wall.y));
-        if (above) addMask(above.x, above.y, WALL_S);
-        else if (below) addMask(below.x, below.y, WALL_N);
-      } else {
-        const y = wall.y + offset;
-        const left = cells.get(cellKey(wall.x - 1, y));
-        const right = cells.get(cellKey(wall.x, y));
-        if (left) addMask(left.x, left.y, WALL_E);
-        else if (right) addMask(right.x, right.y, WALL_W);
-      }
-    }
-  }
-
-  const data = Array.from({ length: bounds.w * bounds.h }, () => 0);
-  for (const [key, mask] of masks) {
-    const [xText, yText] = key.split(",");
-    const index = indexFor(Number(xText), Number(yText), bounds);
-    if (index >= 0 && mask > 0) data[index] = PREVIEW_FIRST_GID + mask - 1;
-  }
-
-  return {
-    id: "compiler-preview-walls",
-    name: "CompilerPreviewWalls",
-    width: bounds.w,
-    height: bounds.h,
-    data,
-    opacity: 1,
-    visible: true,
-  };
-}
-
-function buildPropPreviewLayer(plan: RuntimeEmissionPlan): TileLayerDefinition {
-  const props = plan.events.actors.props;
-  const bounds = props.navigation.bounds;
-  const data = Array.from({ length: bounds.w * bounds.h }, () => 0);
-  const roleGid = {
-    hero: PREVIEW_FIRST_GID + 15,
-    support: PREVIEW_FIRST_GID + 16,
-    furniture: PREVIEW_FIRST_GID + 17,
-    dressing: PREVIEW_FIRST_GID + 18,
-  } as const;
-
-  for (const placement of props.placements) {
-    for (const cell of placement.footprintCells) {
-      const index = indexFor(cell.x, cell.y, bounds);
-      if (index >= 0) data[index] = roleGid[placement.role];
-    }
-  }
-
-  return {
-    id: "compiler-preview-props",
-    name: "CompilerPreviewProps",
-    width: bounds.w,
-    height: bounds.h,
-    data,
-    opacity: 1,
-    visible: true,
-  };
+function spaceFill(plan: RuntimeEmissionPlan, spaceId: string, kind: "room" | "corridor") {
+  if (kind === "corridor") return SPACE_FILLS.corridor;
+  const semantic = plan.events.actors.props.navigation.geometry.semantic.spaces.find((entry) => entry.id === spaceId);
+  if (semantic?.kind === "room" && semantic.rationality === "domestic") return SPACE_FILLS.domestic;
+  if (semantic?.kind === "room" && semantic.rationality === "ritual") return SPACE_FILLS.ritual;
+  if (semantic?.kind === "room" && semantic.rationality === "system") return SPACE_FILLS.system;
+  return SPACE_FILLS.neutral;
 }
 
 /**
- * Adds presentation-only blockout overlays to an emitted runtime Floor.
+ * Builds one static world-space SVG for playable compiler QA.
+ *
+ * This deliberately does not mirror collision as hundreds of React tile nodes.
+ * Runtime collision remains the v0.6 FloorDefinition. The SVG only presents the
+ * same generated geometry with the accepted 30 px visible wall-fascia language.
+ */
+export function compilerPlayablePreviewSvg(plan: RuntimeEmissionPlan) {
+  const navigation = plan.events.actors.props.navigation;
+  const geometry = navigation.geometry;
+  const bounds = navigation.bounds;
+  const tileSize = plan.tileSize;
+  const width = bounds.w * tileSize;
+  const height = bounds.h * tileSize;
+  const pxX = (x: number) => (x - bounds.x) * tileSize;
+  const pxY = (y: number) => (y - bounds.y) * tileSize;
+
+  const spaces = geometry.spaces.map((space) => {
+    const x = pxX(space.rect.x);
+    const y = pxY(space.rect.y);
+    const w = space.rect.w * tileSize;
+    const h = space.rect.h * tileSize;
+    return `<g data-space-id="${xml(space.id)}"><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${spaceFill(plan, space.id, space.kind)}"/><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#grid)" opacity=".55"/></g>`;
+  }).join("");
+
+  const walls = geometry.walls.map((wall) => {
+    const x1 = pxX(wall.x);
+    const y1 = pxY(wall.y);
+    const x2 = wall.orientation === "horizontal" ? x1 + wall.length * tileSize : x1;
+    const y2 = wall.orientation === "vertical" ? y1 + wall.length * tileSize : y1;
+    return `<g data-wall-id="${xml(wall.id)}"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#202827" stroke-width="${COMPILER_PREVIEW_FASCIA_PX}" stroke-linecap="square"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#59635f" stroke-width="3" opacity=".72"/></g>`;
+  }).join("");
+
+  const props = plan.events.actors.props.placements.map((placement) => {
+    const style = PROP_STYLE[placement.role];
+    const inset = Math.min(10, tileSize * 0.14);
+    const x = pxX(placement.rect.x) + inset;
+    const y = pxY(placement.rect.y) + inset;
+    const w = Math.max(8, placement.rect.w * tileSize - inset * 2);
+    const h = Math.max(8, placement.rect.h * tileSize - inset * 2);
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    const fontSize = Math.max(18, Math.min(34, Math.min(w, h) * 0.42));
+    return `<g data-prop-id="${xml(placement.id)}" transform="rotate(${placement.rotation} ${cx} ${cy})"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${Math.min(12, w * .12, h * .12)}" fill="${style.fill}" fill-opacity=".86" stroke="${style.stroke}" stroke-width="3"/><text x="${cx}" y="${cy + fontSize * .34}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${fontSize}" font-weight="800" fill="${style.stroke}" opacity=".9">${style.glyph}</text></g>`;
+  }).join("");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><pattern id="grid" width="${GRID_PX}" height="${GRID_PX}" patternUnits="userSpaceOnUse"><path d="M${GRID_PX} 0H0V${GRID_PX}" fill="none" stroke="#d8e1dc" stroke-opacity=".20" stroke-width="1"/><path d="M8 32H56" fill="none" stroke="#d8e1dc" stroke-opacity=".08" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="#091011"/>${spaces}${walls}${props}</svg>`;
+}
+
+function svgDataUrl(svg: string) {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Adds a presentation-only compiler blockout to an emitted runtime Floor.
  * Collision, doors, encounters and pickups remain exactly those produced by
- * v0.6; this function only makes the generated geometry readable while driving it.
+ * v0.6. The whole static level illustration is one image so camera movement
+ * stays compositor-cheap even when the compiler emits many wall segments.
  */
 export function createPlayableCompilerPreview(plan: RuntimeEmissionPlan): FloorDefinition {
   const floor = plan.runtimeFloor;
-  if (floor.visual.kind !== "tilemap") return floor;
-  if (plan.tileSize !== 64) {
-    throw new Error(`Compiler playable preview currently requires 64 px tiles; got ${plan.tileSize}.`);
-  }
-
-  const baseVisual = floor.visual;
-  const resolvedBaseTilesets: TilesetDefinition[] = baseVisual.tilesets.map((tileset) => ({
-    ...tileset,
-    asset: publicAsset(tileset.asset),
-  }));
-  const previewTileset: TilesetDefinition = {
-    firstGid: PREVIEW_FIRST_GID,
-    asset: publicAsset(PREVIEW_TILESET_ASSET),
-    tileWidth: 64,
-    tileHeight: 64,
-    columns: PREVIEW_TILE_COUNT,
-    tileCount: PREVIEW_TILE_COUNT,
-    margin: 0,
-    spacing: 0,
+  return {
+    ...floor,
+    visual: {
+      kind: "image",
+      asset: svgDataUrl(compilerPlayablePreviewSvg(plan)),
+    },
   };
-  const visual: TileMapVisualDefinition = {
-    ...baseVisual,
-    tilesets: [...resolvedBaseTilesets, previewTileset],
-    layers: [
-      ...baseVisual.layers,
-      buildWallPreviewLayer(plan),
-      buildPropPreviewLayer(plan),
-    ],
-  };
-
-  return { ...floor, visual };
 }
