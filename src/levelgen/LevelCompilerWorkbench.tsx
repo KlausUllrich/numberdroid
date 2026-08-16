@@ -32,6 +32,7 @@ const WALLS: Array<CardinalDirection | undefined> = [undefined, "north", "east",
 
 type ViewBox = { x: number; y: number; w: number; h: number };
 type PointerPosition = { x: number; y: number };
+type EditAvailability = { valid: boolean; error: string | null };
 
 function friendly(id: string) {
   return id.replace(/^family-/, "").replace(/-/g, " ").replace(/#/g, " ").toUpperCase();
@@ -96,6 +97,20 @@ function selectionFromPointerTarget(target: EventTarget | null): WorkbenchSelect
   return { kind, id };
 }
 
+function previewEdit(factory: () => PlacementOverride[]): EditAvailability {
+  try {
+    const candidate = factory();
+    const result = tryCompileWorkbenchPlan(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY, candidate);
+    return { valid: Boolean(result.plan), error: result.error };
+  } catch (error) {
+    return { valid: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function blocked(reason: string): EditAvailability {
+  return { valid: false, error: reason };
+}
+
 export function LevelCompilerWorkbench() {
   const [overrides, setOverrides] = useState<PlacementOverride[]>(() => [...(TS01_LEVEL_SPEC.overrides ?? [])]);
   const [selection, setSelection] = useState<WorkbenchSelection | null>(null);
@@ -140,6 +155,41 @@ export function LevelCompilerWorkbench() {
   const selectedTargetId = selectedSpace?.id ?? selectedPropRequest?.id ?? null;
   const selectedOverride = selectedTargetId ? activeOverride(overrides, selectedTargetId) : null;
   const inspectorOpen = Boolean(selection || editError);
+  const rootSpaceId = geometry.spaces[0]?.id ?? null;
+
+  const spaceEditAvailability = useMemo(() => {
+    if (!selectedSpace) return null;
+    const rootMove = selectedSpace.id === rootSpaceId
+      ? blocked("The root Space anchors the root-relative compiler grid. Global translation would be normalized away; move connected child Spaces instead.")
+      : null;
+    return {
+      left: rootMove ?? previewEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0)),
+      up: rootMove ?? previewEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1)),
+      down: rootMove ?? previewEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1)),
+      right: rootMove ?? previewEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0)),
+      narrower: previewEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0)),
+      wider: previewEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0)),
+      shorter: previewEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1)),
+      taller: previewEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1)),
+    };
+  }, [selectedSpace?.id, rootSpaceId, overrides, plan]);
+
+  const propEditAvailability = useMemo(() => {
+    if (!selectedProp || !selectedPropRequest || selectedPropRequest.quantity !== 1) return null;
+    return {
+      left: previewEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, -1, 0)),
+      up: previewEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, -1)),
+      down: previewEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, 1)),
+      right: previewEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 1, 0)),
+    };
+  }, [selectedProp?.id, selectedPropRequest?.id, selectedPropRequest?.quantity, overrides, plan]);
+
+  const spaceDirectEditCount = spaceEditAvailability
+    ? Object.values(spaceEditAvailability).filter((entry) => entry.valid).length
+    : 0;
+  const propDirectEditCount = propEditAvailability
+    ? Object.values(propEditAvailability).filter((entry) => entry.valid).length
+    : 0;
 
   useEffect(() => {
     viewBoxRef.current = fullViewBox;
@@ -324,9 +374,9 @@ export function LevelCompilerWorkbench() {
     <main className="levelgen-debug levelgen-debug--workbench">
       <header className="levelgen-debug__header">
         <div>
-          <small>NUMBERDROID · LEVEL COMPILER WORKBENCH v0.12.1</small>
+          <small>NUMBERDROID · LEVEL COMPILER WORKBENCH v0.12.2</small>
           <h1>TS-01 · SEMANTIC EDITING</h1>
-          <p>Tap a Space or Prop · drag with one pointer · pinch with two · edits compile before commit</p>
+          <p>Tap a Space or Prop · enabled edit controls already satisfy the full compiler · drag/pinch navigates</p>
         </div>
         <div className="levelgen-debug__stats">
           <span><b>{geometry.spaces.length}</b> SPACES</span>
@@ -500,23 +550,27 @@ export function LevelCompilerWorkbench() {
             <span>{selectedSpace ? `SPACE · ${selectedSpace.rect.w}×${selectedSpace.rect.h}` : selectedProp ? `PROP · ${selectedProp.rotation}° · ${selectedProp.wallSide ?? "FLOOR"}` : "Tap a Space or Prop in Edit Mode."}</span>
           </div>
 
-          {selectedSpace && (
+          {selectedSpace && spaceEditAvailability && (
             <>
               <div className="levelgen-workbench__button-row">
                 <button className={selectedOverride?.lockGeometry ? "active" : ""} onClick={toggleSpaceLock}>{selectedOverride?.lockGeometry ? "UNLOCK" : "LOCK GEOMETRY"}</button>
                 <button onClick={() => applyEdit(() => regenerateSemanticTarget(overrides, selectedSpace.id))}>REGENERATE</button>
               </div>
+              <p className="levelgen-workbench__note">
+                {spaceDirectEditCount}/8 direct move/size edits are valid in the current full compiler state. Disabled controls are blocked by topology, doors, furnishing, routes or other hard constraints.
+                {selectedSpace.id === rootSpaceId ? " This is the root Space, so global MOVE is intentionally disabled; its position defines the root-relative grid." : ""}
+              </p>
               <div className="levelgen-workbench__edit-grid">
                 <span>MOVE</span>
-                <button onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0))}>←</button>
-                <button onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1))}>↑</button>
-                <button onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1))}>↓</button>
-                <button onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0))}>→</button>
+                <button disabled={!spaceEditAvailability.left.valid} title={spaceEditAvailability.left.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0))}>←</button>
+                <button disabled={!spaceEditAvailability.up.valid} title={spaceEditAvailability.up.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1))}>↑</button>
+                <button disabled={!spaceEditAvailability.down.valid} title={spaceEditAvailability.down.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1))}>↓</button>
+                <button disabled={!spaceEditAvailability.right.valid} title={spaceEditAvailability.right.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0))}>→</button>
                 <span>SIZE</span>
-                <button onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0))}>W−</button>
-                <button onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0))}>W+</button>
-                <button onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1))}>H−</button>
-                <button onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1))}>H+</button>
+                <button disabled={!spaceEditAvailability.narrower.valid} title={spaceEditAvailability.narrower.error ?? undefined} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, -1, 0))}>W−</button>
+                <button disabled={!spaceEditAvailability.wider.valid} title={spaceEditAvailability.wider.error ?? undefined} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 1, 0))}>W+</button>
+                <button disabled={!spaceEditAvailability.shorter.valid} title={spaceEditAvailability.shorter.error ?? undefined} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, -1))}>H−</button>
+                <button disabled={!spaceEditAvailability.taller.valid} title={spaceEditAvailability.taller.error ?? undefined} onClick={() => applyEdit(() => resizeLockedGeometry(plan, overrides, selectedSpace.id, 0, 1))}>H+</button>
               </div>
             </>
           )}
@@ -527,13 +581,15 @@ export function LevelCompilerWorkbench() {
                 <button disabled={selectedPropRequest.quantity !== 1} className={selectedOverride?.lockPlacement ? "active" : ""} onClick={togglePropLock}>{selectedOverride?.lockPlacement ? "UNLOCK" : "LOCK PLACEMENT"}</button>
                 <button onClick={() => applyEdit(() => regenerateSemanticTarget(overrides, selectedPropRequest.id))}>REGENERATE</button>
               </div>
-              {selectedPropRequest.quantity !== 1 && <p className="levelgen-workbench__note">Per-instance locking for quantity &gt; 1 is deliberately deferred; request-level preferences/regeneration remain available.</p>}
+              {selectedPropRequest.quantity !== 1
+                ? <p className="levelgen-workbench__note">Per-instance locking for quantity &gt; 1 is deliberately deferred; request-level preferences/regeneration remain available.</p>
+                : <p className="levelgen-workbench__note">{propDirectEditCount}/4 direct moves are valid in the current full compiler state. A Prop can be completely bound by wall attachment, use-space, clearance, circulation or neighboring Props; disabled arrows show those constraints before you edit.</p>}
               <div className="levelgen-workbench__edit-grid">
                 <span>MOVE</span>
-                <button disabled={selectedPropRequest.quantity !== 1} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, -1, 0))}>←</button>
-                <button disabled={selectedPropRequest.quantity !== 1} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, -1))}>↑</button>
-                <button disabled={selectedPropRequest.quantity !== 1} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, 1))}>↓</button>
-                <button disabled={selectedPropRequest.quantity !== 1} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 1, 0))}>→</button>
+                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.left.valid} title={propEditAvailability?.left.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, -1, 0))}>←</button>
+                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.up.valid} title={propEditAvailability?.up.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, -1))}>↑</button>
+                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.down.valid} title={propEditAvailability?.down.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 0, 1))}>↓</button>
+                <button disabled={selectedPropRequest.quantity !== 1 || !propEditAvailability?.right.valid} title={propEditAvailability?.right.error ?? undefined} onClick={() => applyEdit(() => nudgeLockedProp(plan, overrides, selectedProp.id, 1, 0))}>→</button>
               </div>
               <label className="levelgen-workbench__field">PREFERRED WALL
                 <select value={selectedOverride?.preferredWall ?? ""} onChange={(event) => applyEdit(() => setPreferredWall(overrides, selectedPropRequest.id, (event.target.value || undefined) as CardinalDirection | undefined))}>
