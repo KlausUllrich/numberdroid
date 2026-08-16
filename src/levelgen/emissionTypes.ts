@@ -7,6 +7,8 @@ export type RuntimeEmissionPlan = {
   events: EventCompilationPlan;
   tileSize: number;
   wallCollisionPx: number;
+  /** Visible fascia thickness used by exact Prop surface fitting. */
+  wallVisualPx: number;
   tiledMap: TiledMapJson;
   /** Round-trip through the existing Tiled importer; this is the current gameplay runtime boundary. */
   runtimeFloor: FloorDefinition;
