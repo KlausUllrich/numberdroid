@@ -3,6 +3,7 @@ import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
 import { compileWorkbenchPlan, setEncounterRobotType } from "./workbench";
 import { clearWorkbenchDraft, loadWorkbenchDraft, saveWorkbenchDraft } from "./workbenchDraft";
+import { workbenchActorDisplayName } from "./workbenchDisplay";
 import { commitWorkbenchHistory, createWorkbenchHistory, redoWorkbenchHistory, undoWorkbenchHistory } from "./workbenchHistory";
 import type { PlacementOverride } from "./types";
 
@@ -42,7 +43,7 @@ describe("Workbench authoring state", () => {
     expect(loadWorkbenchDraft(TS01_LEVEL_SPEC, storage)).toBeNull();
   });
 
-  it("changes an Encounter robot type while preserving semantic Actor identity and behavior", () => {
+  it("changes an Encounter robot type while preserving semantic Actor identity and updating the visible name", () => {
     const overrides = setEncounterRobotType([], "primus-sentry-4", "magnetar");
     expect(overrides).toEqual([{ targetId: "primus-sentry-4", robotType: "magnetar" }]);
 
@@ -53,5 +54,6 @@ describe("Workbench authoring state", () => {
     expect(encounter.bodyId).toBe("magnetar");
     expect(encounter.behavior).toBe("patrol");
     expect(actor.patrolRouteId).toBe("primus-sentry-patrol");
+    expect(workbenchActorDisplayName(encounter.bodyId, encounter.id)).toBe("MAGNETAR 742");
   });
 });
