@@ -50,7 +50,8 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     exactFit: {
       visualBoundsTiles: { x: 0.08, y: 0.08, w: 0.84, h: 1.84 },
       collisionBoundsTiles: { x: 0.18, y: 0.55, w: 0.64, h: 0.90 },
-      placementEnvelope: "visual",
+      // Leaves must respect the visible wall fascia, but Door/use-space is governed by the physical planter body.
+      placementEnvelope: "collision",
       wallBoundary: "visual",
     },
   },
