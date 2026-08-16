@@ -1,4 +1,5 @@
 import { deriveSubSeed, normalizeLevelSeed } from "./seed";
+import { overrideFor } from "./overrides";
 import type {
   CompiledConnection,
   CompiledEncounterIntent,
@@ -316,8 +317,19 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
     if (encounter.patrolRouteId && !routeIds.has(encounter.patrolRouteId)) {
       throw new Error(`Encounter ${encounter.id} references unknown patrol route ${encounter.patrolRouteId}.`);
     }
+    const robotType = overrideFor(spec.overrides ?? [], encounter.id)?.robotType;
+    if (robotType && robotType !== encounter.enemyId) {
+      diagnostics.push({
+        level: "info",
+        code: "ENCOUNTER_ROBOT_TYPE_OVERRIDDEN",
+        targetId: encounter.id,
+        message: `${encounter.id} robot type changed from ${encounter.enemyId} to ${robotType} by semantic Override.`,
+      });
+    }
     return {
       ...encounter,
+      enemyId: robotType ?? encounter.enemyId,
+      bodyId: robotType ?? encounter.bodyId,
       seed: deriveSubSeed(spec.seed, `encounter/${encounter.id}`),
     };
   });
