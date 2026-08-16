@@ -28,10 +28,19 @@ Read `../REPOSITORY_STRUCTURE.md` first. Agent work additionally follows `agents
 
 Start with:
 
-- `level-generation/README.md` — purpose, ownership, compile stages and stability model;
-- `level-generation/LEVEL_SPEC.md` — declarative LevelSpec, corridor widths, shared-wall/door direction, prop metadata, enemy placement, triggers/events and overrides.
+- `level-generation/README.md` — purpose, implementation stages, current v0.13.2 accepted baseline and next authoring/Art-Parity work;
+- `level-generation/LEVEL_SPEC.md` — declarative LevelSpec, corridor widths, shared-wall/door direction, prop metadata, enemy placement, triggers/events and overrides;
+- `level-generation/PROP_EXACT_FIT.md` — **current v0.13.2 true-space Prop geometry contract**;
+- `level-generation/GOLD_SLICE_REGRESSION_GATES.md` — permanent Gold Slice spatial/presentation regression gate;
+- `level-generation/V0132_STABILIZATION_ACCEPTANCE_2026-08-16.md` — explicit live-QA acceptance record and next-step boundary.
 
 Implementation lives under `../src/levelgen/`. The compiler is an authoring layer before the existing Tiled/`FloorDefinition` runtime contract.
+
+Important current status:
+
+> **v0.13.2 spatial/presentation stabilization is LIVE QA ACCEPTED. Generated TS-01 feature/art parity is the active next block.**
+
+Do not revive the superseded v0.13.1 rule that final true-space geometry must remain inside its own coarse tile anchor.
 
 ## Story / world
 
@@ -43,7 +52,7 @@ Story is **triggered context** for roles such as Artist/Engineer unless the task
 ## Planning / decisions
 
 - `planning/DEVELOPMENT_PLAN_NEXT.md` — current project-level forward milestone plan.
-- `planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md` — current detailed execution/acceptance plan for the TS-01 visual Gold Slice.
+- `planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md` — **current detailed execution plan; now begins with new Transfer/Flow/PRIMUS production Art Assets after accepted v0.13.2 stabilization.**
 - `decisions/DECISIONS.md`
 
 ## Art — current contracts
@@ -57,7 +66,23 @@ Then as relevant:
 - direction: `art/direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-category production/QA: `art/production/`
 - Transfer Hall category contracts: `art/transfer-hall/`
-- asset-specific reproducibility: `../art-source/recipes/`
+- asset-specific reproducibility/status: `../art-source/recipes/transfer-hall/`
+
+Current TS-01 art direction after v0.13.2 acceptance:
+
+```text
+accepted/frozen baseline
+→ Walls / Doors / Floor / PICO source / Family Table / Memory Console
+
+current production
+→ Transfer Apparatus / Core hero
+→ Flow support / FloorFX
+→ PRIMUS hero/system art
+→ useful domestic replacements
+→ final room cohesion / QA
+```
+
+Family Props Batch 2 remains `LIVE_CANDIDATE`; the spatial PASS does not automatically promote visual candidates.
 
 ## Art production methods
 
@@ -75,7 +100,13 @@ Start at:
 - `art-production-toolkit/README.md`
 - `art-production-toolkit/CAPABILITY_INDEX.md`
 
-The toolkit documents reusable deterministic operations such as masks, compositing, connector canonicalization, and planned capabilities such as background removal and seamless-material mechanics. Runnable code lives under `../scripts/art/toolkit/`.
+The toolkit documents reusable deterministic operations such as masks, compositing, connector canonicalization and QA. Only capabilities marked **PROVEN** may be assumed to exist. Generic Freistellen/background removal, seamless-material construction/validation and several packing/downscale utilities remain PLANNED until explicitly implemented/proven.
+
+## Known deferred issue
+
+A smaller issue with the player's own in-game model/presentation is known as of 2026-08-16 and deliberately deferred for separate discussion.
+
+It is not a blocker for v0.13.2 acceptance or the next environment/hero Art Asset block. Do not interpret the note as permission to regenerate the accepted PICO source before the concrete issue is identified and routed to the appropriate Character/Engineering contract.
 
 ## History
 
