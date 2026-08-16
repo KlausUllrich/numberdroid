@@ -81,7 +81,8 @@ understand the world/game/story function
 → derive function-to-form philosophy
 → explain that philosophy textually to the user
 → allow correction
-→ only then generate a visual proposal
+→ wait for the explicit `generieren` trigger
+→ generate one visual proposal
 ```
 
 Do not skip this gate by writing a visually rich prompt before deciding what the object must communicate.
@@ -117,8 +118,9 @@ Do not invent fake SVG geometry merely to satisfy a template. `PLANNED` is bette
 PREPARED
 → METHOD_SELECTED
 → DESIGN_INTENT_ALIGNED
+→ GENERATION_AUTHORIZED (`generieren`)
 → SOURCE_READY
-→ SOURCE_QA_PASSED
+→ SOURCE_QA_PASSED (`QA` inspection)
 → PRODUCTION_BUILT
 → PRODUCTION_QA_PASSED
 → RUNTIME_INTEGRATED
@@ -153,27 +155,43 @@ For Props and Prop-like Hero assets, the stricter `PROP_ASSET_WORKFLOW.md` rule 
 
 If several alternatives are desired, they are separate image-generation turns and separate QA cycles. The previous source must be inspected before another candidate is generated.
 
+## Explicit image-tool triggers — binding for Prop work
+
+For Prop / Prop-like Hero production, the user's current message controls image-tool execution through two explicit keywords.
+
+### `QA`
+
+If the message contains `QA`:
+
+- inspection only;
+- never call `image_gen`;
+- report the current source disposition and concrete reasons;
+- do not replace/regenerate in the same turn.
+
+If a message contains both `QA` and `generieren`, `QA` wins and no image is generated.
+
+### `generieren`
+
+For Prop / Prop-like Hero work, call `image_gen` only when the user's **current message contains the literal word `generieren`** (case-insensitive).
+
+Do not treat synonyms or conversational approval as equivalent authorization. `ok`, `ja`, `weiter`, `mach das`, `ändern`, `verbessern`, `nächste Variante` or similar wording may advance discussion but do not authorize the image tool.
+
+One `generieren` trigger authorizes exactly one image call for exactly one proposal.
+
+These keyword rules are intentionally stricter than ordinary conversational inference because repeated accidental generation during QA/discussion caused long, confusing turns.
+
 ## Image-generation turn boundary — binding
 
 When ChatGPT image generation is used, generation creates a user-visible turn boundary.
 
 Required behavior:
 
-1. state what **single** source/edit is being generated;
-2. call image generation once;
+1. ensure the current message contains the required `generieren` trigger for Prop work;
+2. call image generation once for one source/edit;
 3. do not silently regenerate or integrate in the same turn;
 4. on the next user turn, inspect the generated result before advancing.
 
-Do not promise to generate several sequential alternatives automatically in one response. The tool boundary makes that workflow unreliable and bypasses the required QA/user steering point.
-
-### `QA` is a hard no-generation command
-
-If the user says `QA`, `prüfen`, `check`, or otherwise asks to inspect an existing image:
-
-- **do not call image generation**;
-- inspect the existing source/asset;
-- report PASS/FAIL with concrete reasons;
-- stop unless the user explicitly requests the next production step.
+Do not promise to generate several sequential alternatives automatically in one response.
 
 ## Source QA
 

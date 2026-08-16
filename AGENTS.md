@@ -80,8 +80,11 @@ In particular:
 - for a new/materially revised Prop, first explain the **function-to-form design philosophy in text** and give the user a correction gate before image generation;
 - **one Prop proposal per generated image**; do not put A/B/C alternatives or several versions on one canvas;
 - if alternatives are wanted, generate them as separate turns with QA/user steering between candidates;
-- one requested image-generation pass means one generation, then stop for QA;
-- `QA`, `prüfen`, `check`, or equivalent inspection requests are **hard no-generation commands**;
+- for Prop work, `image_gen` may be called only when the current user message contains the literal trigger word **`generieren`**;
+- one `generieren` trigger authorizes exactly one image-generation call for one proposal, then the turn ends for QA;
+- the literal trigger word **`QA`** means inspection only and is a hard no-generation mode;
+- if `QA` and `generieren` occur in the same message, `QA` takes precedence and no image is generated;
+- `ok`, `ja`, `weiter`, `mach das`, `ändern`, `verbessern`, `nächste Variante` or similar conversational wording do not substitute for `generieren`;
 - generated source is not automatically a production runtime asset;
 - accepted/frozen categories are not reopened without a concrete defect or explicit approved revision.
 
