@@ -51,6 +51,35 @@ function resolvedEnvelope(metadata: PropMetadata) {
   return resolvedVisualBounds(metadata);
 }
 
+function validBounds(bounds: PropLocalBounds, footprint: { w: number; h: number }) {
+  const epsilon = 1e-9;
+  return [bounds.x, bounds.y, bounds.w, bounds.h].every(Number.isFinite)
+    && bounds.x >= 0
+    && bounds.y >= 0
+    && bounds.w > 0
+    && bounds.h > 0
+    && bounds.x + bounds.w <= footprint.w + epsilon
+    && bounds.y + bounds.h <= footprint.h + epsilon;
+}
+
+export function validatePropExactFitMetadata(metadata: PropMetadata) {
+  const fit = metadata.exactFit;
+  if (!fit) return;
+  const entries: Array<[string, PropLocalBounds | undefined]> = [
+    ["visualBoundsTiles", fit.visualBoundsTiles],
+    ["collisionBoundsTiles", fit.collisionBoundsTiles],
+    ["customEnvelopeTiles", fit.customEnvelopeTiles],
+  ];
+  for (const [name, bounds] of entries) {
+    if (bounds && !validBounds(bounds, metadata.footprintTiles)) {
+      throw new Error(`Prop ${metadata.id} exactFit ${name} must be positive finite bounds contained by the authored ${metadata.footprintTiles.w}×${metadata.footprintTiles.h} footprint.`);
+    }
+  }
+  if (fit.placementEnvelope === "custom" && !fit.customEnvelopeTiles) {
+    throw new Error(`Prop ${metadata.id} exactFit placementEnvelope=custom requires customEnvelopeTiles.`);
+  }
+}
+
 function rotatePoint(x: number, y: number, rotation: PropRotation) {
   if (rotation === 0) return { x, y };
   if (rotation === 90) return { x: -y, y: x };
@@ -99,6 +128,14 @@ function translate(rect: PixelRect, offset: { x: number; y: number }): PixelRect
   return { ...rect, x: rect.x + offset.x, y: rect.y + offset.y };
 }
 
+function contains(container: PixelRect, inner: PixelRect) {
+  const epsilon = 1e-7;
+  return inner.x + epsilon >= container.x
+    && inner.y + epsilon >= container.y
+    && inner.x + inner.w <= container.x + container.w + epsilon
+    && inner.y + inner.h <= container.y + container.h + epsilon;
+}
+
 function wallFacePx(
   side: CardinalDirection,
   spaceRect: { x: number; y: number; w: number; h: number },
@@ -145,6 +182,7 @@ export function computePropExactFit(
   wallCollisionPx: number,
   wallVisualPx: number,
 ): PropExactFitResult {
+  validatePropExactFitMetadata(metadata);
   const authoredWidth = metadata.footprintTiles.w * tileSize;
   const authoredHeight = metadata.footprintTiles.h * tileSize;
   const worldCenter = {
@@ -156,6 +194,12 @@ export function computePropExactFit(
     y: worldCenter.y - authoredHeight / 2,
     w: authoredWidth,
     h: authoredHeight,
+  };
+  const physicalRect: PixelRect = {
+    x: placement.rect.x * tileSize,
+    y: placement.rect.y * tileSize,
+    w: placement.rect.w * tileSize,
+    h: placement.rect.h * tileSize,
   };
   const visual = transformedPropBoundsPx(placement, metadata, resolvedVisualBounds(metadata), tileSize);
   const collision = transformedPropBoundsPx(placement, metadata, resolvedCollisionBounds(metadata), tileSize);
@@ -177,11 +221,21 @@ export function computePropExactFit(
     );
   }
 
+  const finalVisual = translate(visual, offset);
+  const finalCollision = translate(collision, offset);
+  const finalEnvelope = translate(envelope, offset);
+  if (!contains(physicalRect, finalEnvelope)) {
+    throw new Error(`Prop ${metadata.id} exact-fit placement envelope leaves its solved tile footprint; adjust visual/collision/custom bounds instead of expanding into unrelated tiles.`);
+  }
+  if (!contains(physicalRect, finalCollision)) {
+    throw new Error(`Prop ${metadata.id} exact-fit collision leaves its solved tile footprint; collisionBoundsTiles must remain inside the conservative tile reservation.`);
+  }
+
   return {
     offsetPx: offset,
     spriteRectPx: translate(baseSprite, offset),
-    visualBoundsPx: translate(visual, offset),
-    collisionBoundsPx: translate(collision, offset),
-    placementEnvelopePx: translate(envelope, offset),
+    visualBoundsPx: finalVisual,
+    collisionBoundsPx: finalCollision,
+    placementEnvelopePx: finalEnvelope,
   };
 }
