@@ -25,7 +25,7 @@ Do not infer current status from an old “next” paragraph inside a long art-d
 - **Prop Artist direct onboarding route:** `../agents/PROP_ARTIST_BRIEF.md`
 - Transfer Ship visual thesis: `direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-method Artist workflow: `production/ARTIST_AGENT_WORKFLOW.md`
-- **binding Prop function-analysis → user-alignment → single-source → approval → extraction → shadow → editor/runtime workflow:** `production/PROP_ASSET_WORKFLOW.md`
+- **binding Prop function-analysis → user-alignment → keyword-triggered single-source → approval → extraction → shadow → editor/runtime workflow:** `production/PROP_ASSET_WORKFLOW.md`
 - asset validation: `production/ART_ASSET_VALIDATION_RULES.md`
 - validation process addendum: `production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
 - Transfer Ship perspective/material/placement rules: `production/ART_PRODUCTION_RULES_TRANSFER_SHIP.md`
@@ -100,9 +100,18 @@ For each new Prop/Hero asset, the Prop workflow now requires:
 understand what the asset must do
 → explain the function-to-form philosophy in text
 → let Klaus correct/approve the direction
+→ wait for the literal trigger `generieren`
 → generate exactly one visual proposal in one image
-→ QA that source before any new candidate or technical processing
+→ use `QA` for inspection-only review
+→ no second generation until a later `generieren` turn
 ```
+
+### Trigger shorthand
+
+- **`QA`** = inspection only, never `image_gen`.
+- **`generieren`** = the only Prop-work authorization for exactly one image-generation call.
+- If both words appear in the same message, **`QA` wins** and no image is generated.
+- `ok`, `ja`, `weiter`, `mach das`, `ändern`, `verbessern` or similar wording do not substitute for `generieren`.
 
 If another alternative is needed, it is another **single-image** proposal cycle after QA/user steering. Do not generate A/B/C comparison sheets or multiple Prop variants on one canvas.
 
