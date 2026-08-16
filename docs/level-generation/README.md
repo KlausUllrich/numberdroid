@@ -1,10 +1,10 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.10 rotated non-square footprint solving**
+Status: **CURRENT architecture / implementation track — v0.11 cyclic / multi-constraint topology**
 
-This directory owns the design and technical contract for the Numberdroid procedural/declarative level-authoring system.
+This directory owns the design and technical contract for the Numberdroid deterministic/declarative level-authoring system.
 
-The goal is **not** a classic random level generator that invents a completely different Floor every time. The goal is a deterministic, inspectable **Level Compiler**:
+The goal is **not** a classic random level generator. The goal is an inspectable Level Compiler that turns semantic design intent into a reproducible playable Floor:
 
 ```text
 natural-language design intent
@@ -13,17 +13,17 @@ LevelSpec / declarative DSL
         ↓
 semantic space + relationship graph
         ↓
-constraint solving / topology
+topology / geometry constraint solving
         ↓
-shared wall graph + doors + corridors
+Shared Wall Graph + doors + corridors
         ↓
 navigation + forbidden zones
         ↓
-hero / prop placement + rotation-aware physical footprints
+Prop placement + rotation-aware physical footprints
         ↓
-enemy / actor placement + authored routes
+Encounter / Actor placement + routes
         ↓
-trigger zones + pickups + trigger/event programs
+Trigger Zones + Pickups + Trigger/Event programs
         ↓
 Tiled-compatible runtime emission
         ↓
@@ -32,182 +32,181 @@ FloorDefinition + typed script contract
 existing Numberdroid runtime
 ```
 
-The existing React/gameplay architecture remains the consuming runtime. The compiler is an **authoring layer in front of it**, not a replacement game architecture.
+The existing React/gameplay runtime remains the consumer. The compiler is an **authoring layer in front of it**, not a replacement game architecture.
 
 ## Current implementation status
 
 ### v0 — semantic foundation — IMPLEMENTED
 
 - typed `LevelSpec`;
-- stable seed/sub-seed derivation;
-- rooms and corridors as semantic spaces;
-- explicit corridor-width constraints;
-- room/space connections;
-- doors / locked doors / key cards;
-- prop requirements backed by metadata;
-- encounter/enemy spawn intent;
-- trigger and event declarations;
-- semantic overrides/locks;
+- stable semantic IDs and sub-seeds;
+- rooms/corridors as semantic Spaces;
+- `TileRange` sizing;
+- Connections / Doors / Access Keys;
+- Prop requests backed by registries;
+- Encounter intents;
+- Routes;
+- Trigger Zones, Triggers and Events;
+- Staged Actors;
+- semantic Overrides;
 - validation and semantic reachability;
-- TS-01 as first reference spec.
+- TS-01 reference spec.
 
-### v0.1 — deterministic geometry + Shared Wall Graph — IMPLEMENTED
+### v0.1 — geometry + Shared Wall Graph — IMPLEMENTED
 
 See `GEOMETRY_AND_WALL_GRAPH.md`.
 
-- preferred room/corridor dimensions;
-- deterministic connected-space placement;
-- overlap avoidance;
+- deterministic preferred-size geometry;
 - real shared boundaries;
-- one canonical wall graph instead of room-owned duplicate walls;
-- apertures cut from the shared wall;
-- tree-like connected topology supported deliberately before arbitrary cyclic constraint solving.
+- collision-avoiding edge slides;
+- canonical shared wall graph;
+- real apertures cut from walls;
+- Door Clearance rectangles;
+- exact TS-01 geometry regression coverage.
 
 ### v0.2 — navigation + forbidden zones — IMPLEMENTED
 
 See `NAVIGATION_AND_FORBIDDEN_ZONES.md`.
 
 - walkable cell decomposition;
-- portal pairs through real apertures only;
+- portal links only through real apertures;
 - reachability validation;
-- provisional primary circulation;
+- primary circulation skeleton;
 - wall attachment slots;
-- Door Clearance / forbidden-zone basis.
+- Door Clearance as authoring forbidden zones.
 
 ### v0.3 — metadata-driven Prop placement — IMPLEMENTED
 
 See `PROP_PLACEMENT.md`.
 
-- placement order `hero → support → furniture → dressing`;
-- real wall slots for wall Props;
-- occupied/use-space/door/path rejection;
-- approach/use-space and Hero clearance;
-- semantic near/wall/corner/center/opposite-door scoring;
-- deterministic explainable candidate diagnostics.
+- hierarchy `hero → support → furniture → dressing`;
+- real wall-slot placement;
+- footprint vs use-space separation;
+- Hero clearance;
+- hard rejections for collision / clearance / circulation;
+- semantic scoring for wall/corner/near/center/opposite-door intent;
+- explainable candidate/rejection diagnostics.
 
 ### v0.3.1 — clearance + art orientation hardening — IMPLEMENTED
 
-- Door Clearance lateral width = **2× aperture width**, adding half a door width on each side;
-- Props declare allowed rotations from `0° / 90° / 180° / 270°`;
-- wall convention:
+- real-door lateral clearance = **2× aperture width**;
+- explicit per-Prop `allowedRotations` from `0/90/180/270`;
+- binding wall convention:
 
 ```text
-0°   north wall, access south
-90°  east wall,  access west
-180° south wall, access north
-270° west wall,  access east
+0°   north wall · front/access south
+90°  east wall  · front/access west
+180° south wall · front/access north
+270° west wall  · front/access east
 ```
 
-Perspective-sensitive Props cannot be placed on a wall orientation for which no authored rotation exists.
+Perspective-sensitive art is never rotated into an unsupported orientation.
 
 ### v0.4 — Encounter / Actor placement — IMPLEMENTED
 
 See `ACTOR_PLACEMENT.md`.
 
-- Actor homes consume furnished/reserved geometry;
-- no Actor placement on Props, use-space, Hero clearance or Door Clearance;
-- patrol/pass-by/scripted routes through remaining navigable geometry;
-- patrol Actors start on route;
-- behavior-aware Neutral / Guard / Patrol / Aggressive scoring;
-- cardinal facing and explainable diagnostics.
+- Actors consume furnished/reserved free space;
+- neutral / guard / patrol / aggressive placement intent;
+- patrol/pass-by/scripted Routes through actual remaining navigation;
+- Actor facing;
+- deterministic diagnostics;
+- no duplicate collision/reservation model.
 
 ### v0.5 — Trigger / Event compilation — IMPLEMENTED
 
 See `TRIGGER_EVENT_COMPILATION.md`.
 
-- Trigger Zones anchored to Spaces, Connections, Props, Actors, Routes or Pickups;
+- semantic Trigger Zones;
 - Access Pickup materialization;
-- Staged Actors for non-combat scripted objects;
-- `enter-space`, `enter-zone`, `interact`, `collect`, `state-change`, `proximity`, `timer` source resolution;
+- Staged Actors;
+- `enter-space`, `enter-zone`, `interact`, `collect`, `state-change`, `proximity`, `timer`;
 - ordered Trigger → Event programs;
-- key/door/flag/actor/story events;
-- state-loop warnings;
-- deterministic source geometry.
+- key / door / flag / Actor / Story events;
+- deterministic source geometry;
+- invalid-reference and loop diagnostics.
 
 ### v0.6 — Runtime / Tiled emission — IMPLEMENTED
 
 See `RUNTIME_TILED_EMISSION.md`.
 
-- one-call `LevelSpec → FloorDefinition` compile path;
-- orthogonal Tiled-compatible emitted representation;
-- standard runtime layers for Start, Walkable, Obstacles, Rooms, Doors, Encounters, Pickups;
-- Shared-Wall collision with apertures preserved;
-- generated patrol routes converted into existing runtime path format;
-- compiler-only layers preserve Props, rotations, routes, zones, Triggers, Events and ordering;
-- emitted physical Floor immediately round-trips through the existing `floorFromTiledMap()` importer.
+- one-call semantic compile to runtime representation;
+- Tiled-compatible interchange;
+- Start / Walkable / Obstacles / Rooms / Doors / Encounters / Pickups;
+- Shared-Wall collision;
+- generated patrol routes mapped into the existing runtime contract;
+- compiler-only layers preserve rich Props/Routes/Triggers/Events;
+- emitted physical Floor round-trips through existing `floorFromTiledMap()`.
 
 ### v0.7 — playable generated Floor — IMPLEMENTED
 
 See `PLAYABLE_GENERATED_PREVIEW.md`.
 
-`?floor=ts01-generated` runs the generated TS-01 through the normal `MetaGame`, Door, collision, Pickup, Encounter and Hostile/Patrol systems. The accepted hand-authored Transfer Hall remains a separate reference Floor.
+`?floor=ts01-generated` executes the generated TS-01 in the normal `MetaGame` runtime without replacing the hand-authored Transfer Hall reference.
 
-### v0.7.1 — runtime scale/performance hardening — IMPLEMENTED
+### v0.7.1 — runtime scale/performance hardening — IMPLEMENTED / MANUALLY QA'D
 
-Manual desktop/mobile QA exposed two regressions when the generated Floor first became playable.
+- generated QA world collapsed from many React tiles into one static SVG image;
+- visible wall fascia restored to 30 px while collision remains 10 px;
+- semantic Prop blockouts instead of repeated cell DOM nodes;
+- coarse cached obstacle index for procedural Floors;
+- collision-equivalence regression tests;
+- desktop and real-mobile driving manually confirmed smooth.
 
-- compiler QA world collapsed from many React tile nodes into one static SVG image;
-- visible wall fascia restored to the accepted **30 px** while physical collision remains **10 px**;
-- multi-cell Props now read as one semantic blockout rather than repeated cell symbols;
-- procedural Floors use a cached coarse spatial obstacle index in the shared collision hot path;
-- regression tests prove indexed collision remains equivalent to brute-force semantics.
-
-Desktop and mobile driving were manually re-verified as smooth after this pass.
-
-### v0.8 — persistent Trigger / Event runtime — IMPLEMENTED
+### v0.8 — persistent Trigger / Event runtime — IMPLEMENTED / MANUALLY QA'D
 
 See `TRIGGER_EVENT_RUNTIME.md`.
 
-- `MetaState` v4 owns persistent script run state;
-- old v3 global/profile runs migrate forward;
-- compiled Floors carry a typed script contract adjacent to the physical `FloorDefinition`;
-- immediate `enter-space`, `enter-zone`, `proximity`, `collect`, `interact`, `state-change` edges execute in gameplay;
-- once-fired Trigger IDs persist;
-- ordered Events update flags, keys, Door overrides and staged Actor state;
-- blocking Story Beats pause Player and Hostile/Patrol simulation and require explicit continuation;
-- Trigger evaluation stays off the per-frame RAF hot path.
+- `MetaState` v4 persistent script state;
+- fired Trigger IDs;
+- world flags;
+- Door overrides;
+- Staged Actor state;
+- Story Beat queue/active state;
+- immediate Trigger execution;
+- ordered Event execution;
+- blocking Story Beats pause Player and Actors;
+- v3 Save migration;
+- Trigger evaluation outside the movement RAF hot path.
 
-The generated TS-01 provides the first complete compiler-driven proof:
+TS-01 proof:
 
 ```text
 PRIMUS ACCESS collected
 → compiler Trigger fires once
-→ grant key
-→ unlock PRIMUS door
+→ key granted
+→ PRIMUS door unlocked
 
-Transfer trigger zone entered
-→ compiler Trigger fires once
+Transfer Trigger Zone entered
 → blocking Story Beat
 → Player + Actors pause
-→ explicit WEITER
+→ explicit WEITER resumes
 ```
 
 ### v0.8.1 — persistent timing scheduler — IMPLEMENTED
 
 See `TRIGGER_EVENT_RUNTIME.md`.
 
-- delayed Trigger edges persist an absolute `dueAtMs` instead of resetting their delay on save/reload;
-- `timer` Triggers initialize automatically and require a positive authored delay;
-- one-shot timers persist once-fired state;
-- recurring timers schedule the next deadline from actual firing time;
-- overdue work after reload/browser/mobile suspension fires once on resume;
-- missed recurring intervals are deliberately not replayed as catch-up bursts;
-- one deadline-driven timeout plus focus/visibility checks handles scheduler wakeups;
-- scheduler work remains outside Player/Actor RAF loops;
-- deterministic tests inject `nowMs` and cover delayed edges, timers, recurring timers and save-like JSON round trips.
+- absolute persisted deadlines for delayed Trigger edges;
+- `timer` Trigger execution;
+- recurring timers without catch-up bursts;
+- reload / browser suspend / mobile background-safe overdue execution;
+- one deadline-driven timeout plus focus/visibility wakeup;
+- deterministic time-injected tests;
+- timing remains outside RAF movement loops.
 
-### v0.9 — Scripted / Staged Actor presentation — IMPLEMENTED
+### v0.9 — Scripted / Staged Actor presentation — IMPLEMENTED / MANUALLY QA'D
 
 See `STAGED_ACTOR_PRESENTATION.md`.
 
-- non-combat Staged Actors render separately from Encounter/Hostile robots;
-- `spawn-actor`, `despawn-actor`, `move-actor` and `actor-passby` persistent state is consumed directly by the runtime;
-- route position/facing is derived from compiled route + persisted start time rather than storing frame coordinates;
-- blocking Story Beats/runtime pauses freeze Staged Actor route clocks and resume without a visual jump;
-- one-shot pass-bys persist completion as `present: false`;
-- an Actor presentation catalog maps semantic `actorType` to blockout dimensions, speed and presentation kind with a generic fallback;
-- moving Staged Actors own a RAF only while movement is actually active;
-- a separate generated Bio-Ark proof Floor demonstrates the complete chain without contaminating TS-01.
+- non-combat Staged Actors render separately from Encounters;
+- `spawn-actor`, `despawn-actor`, `move-actor`, `actor-passby`;
+- route pose derived from compiled route + persistent start/pause time;
+- no frame coordinates persisted;
+- blocking Story Beats freeze route clocks without jumps;
+- one-shot pass-by completion persists;
+- semantic Actor presentation catalog + fallback blockout;
+- moving Staged Actors own RAF only while active.
 
 Bio-Ark proof:
 
@@ -215,70 +214,84 @@ Bio-Ark proof:
 ?floor=bioark-passby
 ```
 
-```text
-enter grazer-view-zone
-→ run-grazer-passby
-→ bioark-grazer-01 appears
-→ traverses generated pass-by route
-→ disappears
-→ completion persists
-```
+The Grazer pass-by has been manually confirmed in the live runtime.
 
-The current Grazer is a runtime blockout. Final Bio-Ark art remains a later Artist/asset-registry task.
-
-### v0.10 — rotated non-square footprint solving — IMPLEMENTED / CURRENT
+### v0.10 — rotated non-square Prop footprints — IMPLEMENTED
 
 See `PROP_PLACEMENT.md`.
 
-- Prop rotation is now solved during candidate generation, not applied after placement;
-- `footprintTiles` is the physical `0°` footprint;
-- `90° / 270°` swap width and height before collision/path/use-space validation;
-- wall side determines the required art rotation and unsupported wall orientations create no candidate;
-- floor Props enumerate all authored `allowedRotations` as independent physical candidates;
-- directional approach/use-space rotates with the Prop's access direction;
-- downstream Actor routes, Trigger anchors, collision and runtime emission consume the solved rotated rectangle;
-- the pre-rotation spatial candidate seed identity is preserved so enabling the feature does not randomly reshuffle unchanged placements;
-- regression tests prove `2×1 → 1×2`, rotated use-space, wall-orientation filtering and full TS-01 route stability.
+- rotation moved into candidate generation;
+- `90°/270°` physically swap non-square width/height;
+- collision, use-space, clearance and downstream Actor/Trigger calculations use the rotated rectangle;
+- Wall Props only generate candidates for authored/allowed art rotations;
+- directional use-space rotates with access direction;
+- stable pre-existing candidate seed identity preserved to avoid unrelated rerolls;
+- TS-01 Patrol/placement stability regression-tested.
+
+### v0.11 — cyclic / multi-constraint topology — IMPLEMENTED / CURRENT
+
+See:
+
+- `GEOMETRY_AND_WALL_GRAPH.md`
+- `MULTI_CONSTRAINT_TOPOLOGY.md`
+
+The geometry stage now has two deliberate paths:
+
+```text
+existing incremental/tree-compatible placement
+        ↓ complete graph validates?
+      yes → preserve exact layout
+       no → deterministic multi-constraint search
+```
+
+Capabilities:
+
+- cyclic Connection graphs;
+- one Space satisfying several already-placed Connections simultaneously;
+- bounded deterministic backtracking;
+- `required` spatial relations as hard constraints;
+- `preferred` spatial relations as soft scoring hints;
+- Connection `preferredSide` remains soft;
+- integer dimension variation inside authored `TileRange min/preferred/max` when required to satisfy joint topology;
+- constrained-space-first search ordering;
+- Space-local deterministic candidate tie-breaks;
+- explicit search/backtrack/size-adjustment diagnostics;
+- incompatible required relations fail loudly;
+- downstream Shared Wall / Navigation / Prop / Actor / Runtime contracts unchanged.
+
+A dedicated cyclic regression proves that a preferred `6×4` room can become `7×4` when that is the smallest valid dimension capable of satisfying two independent aperture-width constraints.
+
+Most importantly, existing TS-01 geometry remains exactly on the compatibility path and is not rerolled by the new solver.
 
 ## Workbench interaction baseline
 
-The live compiler/debug view is the first shell of the future Level Workbench:
+The current compiler/debug view is the first shell of the future Level Workbench:
 
-- one-finger / left-mouse drag to pan;
-- pinch / mouse wheel to zoom around gesture focus;
-- `FIT` restores complete generated topology;
-- `+` / `−` provide accessible fallback;
-- viewport state never mutates LevelSpec or gameplay-camera state;
-- all element labels render in one final foreground SVG layer.
+- drag / one-finger pan;
+- pinch / mouse-wheel zoom around focus;
+- `FIT` restores complete topology;
+- `+ / −` fallback controls;
+- viewport state never mutates LevelSpec/gameplay camera state;
+- all labels render in one final foreground SVG layer;
+- toggles exist for geometry, walls, paths, clearance, slots, Props, Actors/Routes and Trigger/Event debugging.
 
-Workbench URL:
+Workbench:
 
 ```text
 ?levelgen=ts01
 ```
 
-Playable generated Floor:
+Generated runtime TS-01:
 
 ```text
 ?floor=ts01-generated
 ```
 
-## Why this exists
+Bio-Ark Staged Actor proof:
 
-Manual TS-01 composition proved that local coordinate fixes do not scale to the roughly 25 authored Floors expected for Numberdroid. Reusable design knowledge therefore becomes data and constraints:
-
-- general Numberdroid spatial rules;
-- world/archetype rules;
-- one-level-specific rules;
-- stable seeds/sub-seeds;
-- Prop metadata and allowed art orientation;
-- room/corridor relationships;
-- door/access semantics;
-- Actor roles/routes;
-- Triggers/Events;
-- local overrides/locks.
-
-When a recurring layout defect is discovered, prefer adding a reusable rule or metadata constraint instead of fixing the same class of defect in many authored maps.
+```text
+?floor=bioark-passby
+```
 
 ## Source-of-truth hierarchy
 
@@ -287,34 +300,40 @@ docs/game-design/LEVEL_DESIGN_RULES.md
     durable spatial/design principles
 
 this directory
-    compiler architecture + LevelSpec contracts
+    compiler architecture + technical contracts
 
 src/levelgen/specs/
-    declarative intent for one Floor
+    canonical declarative intent for one Floor
+
+registries / metadata
+    reusable Prop / Actor / art capabilities
 
 src/levelgen/
-    deterministic compiler / validators / registries
+    deterministic compiler / validators / solvers
 
-compiled Tiled/Floor data + typed script contract
-    runtime output, not high-level authoring truth
+compiled Tiled/FloorDefinition + typed script contract
+    runtime output, never high-level authoring truth
 ```
+
+When a recurring defect is found, prefer fixing a reusable rule/metadata contract instead of manually patching every affected Floor.
 
 ## Current task list / next stages
 
-1. **Cyclic / multi-constraint topology solver** — extend beyond tree-like Space graphs without sacrificing deterministic/explainable decisions.
-2. **Overrides / Workbench editing** — select, lock, move, resize or regenerate one semantic element without destabilizing unrelated areas.
-3. **Prop/art emission mapping** — replace semantic blockouts with registered production assets while preserving metadata/rotation/collision contracts.
-4. **Generated TS-01 feature/art parity** — make the compiler-generated Floor capable of replacing the hand-authored reference only after explicit QA acceptance.
-5. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and Bio-Ark/natural layout to expose missing rules before producing the campaign set.
-6. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical and inspectable.
-7. **Workbench usability pass** — direct editing, locks, local regeneration, diagnostics/explanations and useful diffing of generated changes.
-8. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
-9. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling before the compiler/runtime pipeline is treated as production-ready.
-10. **FINAL AGENT AUTHORING GUIDE** — only after the tool and workflows are stable, write the authoritative usage guide for Game Designer and Artist agents: what the compiler can do, how to author/change a LevelSpec, which rules belong globally vs per-Level, how Props/Actor art metadata and rotations are registered, how Triggers/Events/Routes work, how to use Workbench/overrides/locks/local regeneration, how to QA generated output, and when an agent should change a reusable rule instead of hand-fixing one Floor.
+1. **Overrides / Workbench editing** — select, lock, move, resize or regenerate one semantic element without destabilizing unrelated areas. Evolve current post-solve Overrides into first-class constraint-aware authoring controls.
+2. **Prop/art emission mapping** — replace semantic blockouts with registered production assets while preserving footprint, rotation, layering, shadow and collision metadata.
+3. **Generated TS-01 feature/art parity** — make the generated Floor capable of replacing the hand-authored reference only after explicit visual/gameplay QA acceptance.
+4. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and larger Bio-Ark/natural layout to expose missing rules before campaign production.
+5. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical, typed and inspectable.
+6. **Workbench usability pass** — direct editing, locks, local regeneration, diagnostics/explanations and useful diffs of generated changes.
+7. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
+8. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling and compiler stress testing before production readiness.
+9. **FINAL AGENT AUTHORING GUIDE** — **the last step of this development track**. Write the authoritative operational guide for Game Designer and Artist agents only after the tool/workflows are stable: capability overview, LevelSpec authoring, global vs per-Level rules, registries/metadata, rotations/footprints, Actor art, Routes, Triggers/Events, Workbench/Overrides/locks/local regeneration, QA, diagnostics, asset expansion and the decision rule for reusable-system fixes vs one-Level overrides.
 
-The **Agent Authoring Guide is deliberately the last step** of this development track so it documents the final accepted capability and workflow instead of becoming stale while the compiler architecture is still changing.
+The final Agent Authoring Guide is deliberately last so it documents the final accepted workflow instead of becoming stale while the compiler is still changing.
 
-The final Performance & Scale Pass is a **required task**, not an optional polish step. It must cover at least:
+## Required final Performance & Scale Pass
+
+This is not optional polish.
 
 ```text
 Runtime
@@ -322,11 +341,12 @@ Runtime
 ├─ Actor RAF
 ├─ collision / spatial queries
 ├─ Door / LOS / perception
-├─ Trigger evaluation
+├─ Trigger evaluation / scheduler
 ├─ scripted Actors / pass-bys
 └─ React renders / DOM complexity
 
 Compiler
+├─ topology search nodes / backtracks
 ├─ geometry solve time
 ├─ Prop placement time
 ├─ Actor/path solve time
@@ -346,21 +366,25 @@ Stress Floors
 └─ large Bio-Ark Floor
 ```
 
-Prefer frame-time stability over a misleading average FPS figure. Performance regression guards should be structural/deterministic where possible rather than fragile CI millisecond thresholds.
+Prefer frame-time stability over misleading average FPS. CI guards should be structural/deterministic where possible rather than fragile wall-clock millisecond thresholds.
 
 ## Stability rule
 
-A single global PRNG stream is forbidden for authored regeneration. Every semantic object receives a deterministic sub-seed from:
+A single global PRNG stream is forbidden.
 
-```text
-level seed + stable semantic path
-```
+Every semantic object receives deterministic identity from stable semantic paths/sub-seeds. Local changes must not randomly rearrange unrelated accepted content.
 
-Changing/regenerating one child-space should not randomly rearrange Transfer or PRIMUS. Adding a capability such as a new allowed Prop rotation must likewise preserve unchanged candidate seed identity wherever physical geometry is unchanged.
+This includes several now-binding examples:
+
+- adding a Prop rotation must preserve unchanged candidate seed identity;
+- adding the v0.11 topology solver must not rerun an already-valid tree-compatible layout;
+- future Workbench local regeneration must preserve locked and unrelated semantic regions.
 
 ## Editing model
 
-Generated output should remain editable through semantic overrides rather than destructive tile painting alone.
+Generated output should be edited through semantic intent and Overrides, not destructive tile painting as the canonical source.
+
+Conceptual direction:
 
 ```yaml
 overrides:
@@ -372,8 +396,10 @@ overrides:
     preferredWall: west
 ```
 
-A later Workbench exposes these through direct manipulation while the persisted representation remains declarative/reproducible.
+The next Workbench/Overrides block will turn this from a mostly declarative contract into a robust constraint-aware interactive workflow.
 
 ## Relationship to Tiled
 
-Tiled remains a useful interchange/debug format and the existing runtime importer remains valid. Physical generated Floors continue to cross that boundary. Rich compiler script data is preserved in compiler-only layers and is attached to gameplay through an explicit typed script contract; it must never be recreated as hidden React/DOM behavior.
+Tiled remains an interchange/debug/runtime boundary. It is not the canonical high-level authoring model.
+
+Physical generated Floors continue to cross the existing Tiled/FloorDefinition importer boundary. Rich compiler-only semantics remain preserved in typed compiler/runtime data and must never be recreated as hidden DOM or React behavior.
