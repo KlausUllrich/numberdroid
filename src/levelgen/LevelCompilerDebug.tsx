@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { compileLevelSpec } from "./compiler";
 import { compileLevelGeometry } from "./geometry";
 import { compileLevelNavigation } from "./navigation";
@@ -9,6 +10,20 @@ import "./LevelCompilerDebug.css";
 
 const TILE = 46;
 const PAD = 34;
+const MIN_ZOOM = 0.45;
+const MAX_ZOOM = 5;
+
+type ViewBox = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+type PointerPosition = {
+  x: number;
+  y: number;
+};
 
 function friendly(id: string) {
   return id.replace(/^family-/, "").replace(/-/g, " ").toUpperCase();
@@ -42,11 +57,15 @@ function spaceClass(space: SpaceGeometry, rationality?: string) {
   return "neutral";
 }
 
-export function LevelCompilerDebug() {
-  const [showNavigation, setShowNavigation] = useState(true);
-  const [showClearance, setShowClearance] = useState(true);
-  const [showWallSlots, setShowWallSlots] = useState(false);
+function pointerDistance(a: PointerPosition, b: PointerPosition) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
 
+function pointerMidpoint(a: PointerPosition, b: PointerPosition): PointerPosition {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+export function LevelCompilerDebug() {
   const plan = useMemo(() => {
     const semantic = compileLevelSpec(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY);
     const geometry = compileLevelGeometry(semantic);
@@ -56,10 +75,135 @@ export function LevelCompilerDebug() {
   const { geometry, bounds } = plan;
   const width = bounds.w * TILE + PAD * 2;
   const height = bounds.h * TILE + PAD * 2;
-  const semanticById = new Map(geometry.semantic.spaces.map((space) => [space.id, space]));
+  const fullViewBox = useMemo<ViewBox>(() => ({ x: 0, y: 0, w: width, h: height }), [width, height]);
 
+  const [showNavigation, setShowNavigation] = useState(true);
+  const [showClearance, setShowClearance] = useState(true);
+  const [showWallSlots, setShowWallSlots] = useState(false);
+  const [viewBox, setViewBox] = useState<ViewBox>(fullViewBox);
+  const [isDragging, setIsDragging] = useState(false);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const viewBoxRef = useRef<ViewBox>(fullViewBox);
+  const pointersRef = useRef<Map<number, PointerPosition>>(new Map());
+
+  const semanticById = new Map(geometry.semantic.spaces.map((space) => [space.id, space]));
   const verticalGrid = Array.from({ length: bounds.w + 1 }, (_, i) => PAD + i * TILE);
   const horizontalGrid = Array.from({ length: bounds.h + 1 }, (_, i) => PAD + i * TILE);
+  const zoomPercent = Math.round((fullViewBox.w / viewBox.w) * 100);
+
+  function commitViewBox(next: ViewBox) {
+    viewBoxRef.current = next;
+    setViewBox(next);
+  }
+
+  function fitView() {
+    commitViewBox(fullViewBox);
+  }
+
+  function clientToSvg(clientX: number, clientY: number) {
+    const svg = svgRef.current;
+    const matrix = svg?.getScreenCTM();
+    if (!svg || !matrix) return null;
+    const point = svg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    return point.matrixTransform(matrix.inverse());
+  }
+
+  function zoomAround(focus: { x: number; y: number }, factor: number, base = viewBoxRef.current) {
+    const minWidth = fullViewBox.w / MAX_ZOOM;
+    const maxWidth = fullViewBox.w / MIN_ZOOM;
+    const nextWidth = Math.min(maxWidth, Math.max(minWidth, base.w * factor));
+    const actualFactor = nextWidth / base.w;
+    if (Math.abs(actualFactor - 1) < 0.000001) return base;
+    const nextHeight = base.h * actualFactor;
+    return {
+      x: focus.x - (focus.x - base.x) * actualFactor,
+      y: focus.y - (focus.y - base.y) * actualFactor,
+      w: nextWidth,
+      h: nextHeight,
+    };
+  }
+
+  function zoomAtCenter(factor: number) {
+    const current = viewBoxRef.current;
+    commitViewBox(zoomAround({ x: current.x + current.w / 2, y: current.y + current.h / 2 }, factor, current));
+  }
+
+  function handleWheel(event: ReactWheelEvent<SVGSVGElement>) {
+    event.preventDefault();
+    const focus = clientToSvg(event.clientX, event.clientY);
+    if (!focus) return;
+    const factor = Math.exp(event.deltaY * 0.0015);
+    commitViewBox(zoomAround(focus, factor));
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    setIsDragging(true);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
+    if (!pointersRef.current.has(event.pointerId)) return;
+    event.preventDefault();
+
+    const previousPointers = new Map(pointersRef.current);
+    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const currentPointers = pointersRef.current;
+    const currentView = viewBoxRef.current;
+
+    if (currentPointers.size === 1) {
+      const previous = previousPointers.get(event.pointerId);
+      const current = currentPointers.get(event.pointerId);
+      if (!previous || !current) return;
+      const previousWorld = clientToSvg(previous.x, previous.y);
+      const currentWorld = clientToSvg(current.x, current.y);
+      if (!previousWorld || !currentWorld) return;
+      commitViewBox({
+        ...currentView,
+        x: currentView.x + previousWorld.x - currentWorld.x,
+        y: currentView.y + previousWorld.y - currentWorld.y,
+      });
+      return;
+    }
+
+    if (currentPointers.size >= 2) {
+      const ids = [...currentPointers.keys()].slice(0, 2);
+      const previousA = previousPointers.get(ids[0]);
+      const previousB = previousPointers.get(ids[1]);
+      const currentA = currentPointers.get(ids[0]);
+      const currentB = currentPointers.get(ids[1]);
+      if (!previousA || !previousB || !currentA || !currentB) return;
+
+      const previousDistance = pointerDistance(previousA, previousB);
+      const currentDistance = pointerDistance(currentA, currentB);
+      if (previousDistance < 2 || currentDistance < 2) return;
+
+      const previousMid = pointerMidpoint(previousA, previousB);
+      const currentMid = pointerMidpoint(currentA, currentB);
+      const previousWorld = clientToSvg(previousMid.x, previousMid.y);
+      const currentWorld = clientToSvg(currentMid.x, currentMid.y);
+      if (!previousWorld || !currentWorld) return;
+
+      const panned: ViewBox = {
+        ...currentView,
+        x: currentView.x + previousWorld.x - currentWorld.x,
+        y: currentView.y + previousWorld.y - currentWorld.y,
+      };
+      commitViewBox(zoomAround(previousWorld, previousDistance / currentDistance, panned));
+    }
+  }
+
+  function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
+    pointersRef.current.delete(event.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setIsDragging(pointersRef.current.size > 0);
+  }
 
   return (
     <main className="levelgen-debug">
@@ -77,14 +221,31 @@ export function LevelCompilerDebug() {
         </div>
       </header>
 
-      <section className="levelgen-debug__controls" aria-label="Debug layers">
+      <section className="levelgen-debug__controls" aria-label="Debug layers and viewport">
         <label><input type="checkbox" checked={showNavigation} onChange={(event) => setShowNavigation(event.target.checked)} /> PRIMARY PATH</label>
         <label><input type="checkbox" checked={showClearance} onChange={(event) => setShowClearance(event.target.checked)} /> DOOR CLEARANCE</label>
         <label><input type="checkbox" checked={showWallSlots} onChange={(event) => setShowWallSlots(event.target.checked)} /> WALL SLOTS</label>
+        <div className="levelgen-debug__viewport-controls" aria-label="Map zoom controls">
+          <button type="button" aria-label="Zoom out" onClick={() => zoomAtCenter(1.25)}>−</button>
+          <span>{zoomPercent}%</span>
+          <button type="button" aria-label="Zoom in" onClick={() => zoomAtCenter(0.8)}>+</button>
+          <button type="button" className="fit" onClick={fitView}>FIT</button>
+        </div>
       </section>
 
       <section className="levelgen-debug__canvas-wrap">
-        <svg className="levelgen-debug__canvas" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Generated TS-01 level topology">
+        <svg
+          ref={svgRef}
+          className={`levelgen-debug__canvas${isDragging ? " is-dragging" : ""}`}
+          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
+          role="img"
+          aria-label="Generated TS-01 level topology. Drag to pan; use mouse wheel or pinch gesture to zoom."
+          onWheel={handleWheel}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
+        >
           <rect className="levelgen-debug__void" x="0" y="0" width={width} height={height} />
 
           {geometry.spaces.map((space) => {
@@ -165,6 +326,7 @@ export function LevelCompilerDebug() {
         <span className="path">PRIMARY PATH</span>
         <span className="clearance">DOOR CLEARANCE</span>
         <span className="door">DOOR / APERTURE</span>
+        <span className="gesture">DRAG · WHEEL / PINCH</span>
       </footer>
     </main>
   );
