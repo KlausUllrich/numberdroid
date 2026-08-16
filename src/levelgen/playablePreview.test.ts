@@ -7,6 +7,7 @@ import {
   TS01_GENERATED_PLAN,
   TS01_GENERATED_PREVIEW_ALIAS,
 } from "./generatedTs01Preview";
+import { COMPILER_PREVIEW_FASCIA_PX, compilerPlayablePreviewSvg } from "./playablePreview";
 
 describe("Level Compiler v0.7 playable generated preview", () => {
   it("registers the compiler floor under both its canonical id and friendly preview alias", () => {
@@ -44,16 +45,19 @@ describe("Level Compiler v0.7 playable generated preview", () => {
     expect(magnetar?.behavior?.kind).toBe("neutral");
   });
 
-  it("adds presentation-only visible wall and prop overlays without mutating compiler collision output", () => {
+  it("renders the complete compiler QA world as one static image while preserving runtime collision", () => {
     const floor = TS01_GENERATED_FLOOR;
-    expect(floor.visual.kind).toBe("tilemap");
-    if (floor.visual.kind !== "tilemap") return;
-    expect(floor.visual.layers.map((layer) => layer.name)).toEqual(expect.arrayContaining([
-      "Ground",
-      "CompilerPreviewWalls",
-      "CompilerPreviewProps",
-    ]));
-    expect(floor.visual.tilesets.some((tileset) => tileset.firstGid === 1000)).toBe(true);
+    expect(floor.visual.kind).toBe("image");
+    if (floor.visual.kind !== "image") return;
+    expect(floor.visual.asset.startsWith("data:image/svg+xml")).toBe(true);
     expect(floor.obstacles.length).toBe(TS01_GENERATED_PLAN.runtimeFloor.obstacles.length);
+  });
+
+  it("uses the accepted visible wall fascia and emits each canonical wall only once", () => {
+    expect(COMPILER_PREVIEW_FASCIA_PX).toBe(30);
+    const svg = compilerPlayablePreviewSvg(TS01_GENERATED_PLAN);
+    for (const wall of TS01_GENERATED_PLAN.events.actors.props.navigation.geometry.walls) {
+      expect(svg.split(`data-wall-id=\"${wall.id}\"`).length - 1).toBe(1);
+    }
   });
 });
