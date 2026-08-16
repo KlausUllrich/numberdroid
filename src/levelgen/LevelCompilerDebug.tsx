@@ -2,8 +2,9 @@ import { useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from "react";
 import { compileLevelSpec } from "./compiler";
 import { compileLevelGeometry } from "./geometry";
-import { compileLevelNavigation } from "./navigation";
-import { compilePropPlacement } from "./placement";
+import { compileLevelNavigationV031 } from "./navigationHardening";
+import { compileOrientedPropPlacement } from "./orientedPlacement";
+import { compileActorPlacement } from "./actorPlacement";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
 import type { ConnectionGeometry, GridRect, SpaceGeometry } from "./geometryTypes";
@@ -27,6 +28,13 @@ function rectPixels(rect: GridRect, bounds: GridRect) {
     y: PAD + (rect.y - bounds.y) * TILE,
     width: rect.w * TILE,
     height: rect.h * TILE,
+  };
+}
+
+function cellCenter(cell: { x: number; y: number }, bounds: GridRect) {
+  return {
+    x: PAD + (cell.x - bounds.x + 0.5) * TILE,
+    y: PAD + (cell.y - bounds.y + 0.5) * TILE,
   };
 }
 
@@ -57,15 +65,24 @@ function pointerMidpoint(a: PointerPosition, b: PointerPosition): PointerPositio
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
+function facingVector(facing: number) {
+  if (facing === 90) return { x: 0, y: 1 };
+  if (facing === 180) return { x: -1, y: 0 };
+  if (facing === 270) return { x: 0, y: -1 };
+  return { x: 1, y: 0 };
+}
+
 export function LevelCompilerDebug() {
   const plan = useMemo(() => {
     const semantic = compileLevelSpec(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY);
     const geometry = compileLevelGeometry(semantic);
-    const navigation = compileLevelNavigation(geometry);
-    return compilePropPlacement(navigation);
+    const navigation = compileLevelNavigationV031(geometry);
+    const props = compileOrientedPropPlacement(navigation);
+    return compileActorPlacement(props);
   }, []);
 
-  const navigation = plan.navigation;
+  const props = plan.props;
+  const navigation = props.navigation;
   const { geometry, bounds } = navigation;
   const width = bounds.w * TILE + PAD * 2;
   const height = bounds.h * TILE + PAD * 2;
@@ -76,6 +93,8 @@ export function LevelCompilerDebug() {
   const [showWallSlots, setShowWallSlots] = useState(false);
   const [showProps, setShowProps] = useState(true);
   const [showPropReservations, setShowPropReservations] = useState(false);
+  const [showActors, setShowActors] = useState(true);
+  const [showActorRoutes, setShowActorRoutes] = useState(true);
   const [viewBox, setViewBox] = useState<ViewBox>(fullViewBox);
   const [isDragging, setIsDragging] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -192,13 +211,13 @@ export function LevelCompilerDebug() {
         <div>
           <small>NUMBERDROID · LEVEL COMPILER DEBUG</small>
           <h1>TS-01 · GENERATED LEVEL PLAN</h1>
-          <p>Spec → Geometry → Shared Walls → Navigation → Prop Placement</p>
+          <p>Spec → Geometry → Shared Walls → Navigation → Props → Actors</p>
         </div>
         <div className="levelgen-debug__stats">
           <span><b>{geometry.spaces.length}</b> SPACES</span>
-          <span><b>{geometry.walls.length}</b> WALL SEGMENTS</span>
-          <span><b>{plan.placements.length}</b> PLACED PROPS</span>
-          <span><b>{plan.reservations.length}</b> USE-SPACE CELLS</span>
+          <span><b>{props.placements.length}</b> PROPS</span>
+          <span><b>{plan.actors.length}</b> ACTORS</span>
+          <span><b>{plan.routes.length}</b> ACTOR ROUTES</span>
         </div>
       </header>
 
@@ -208,6 +227,8 @@ export function LevelCompilerDebug() {
         <label><input type="checkbox" checked={showWallSlots} onChange={(event) => setShowWallSlots(event.target.checked)} /> WALL SLOTS</label>
         <label><input type="checkbox" checked={showProps} onChange={(event) => setShowProps(event.target.checked)} /> PROPS</label>
         <label><input type="checkbox" checked={showPropReservations} onChange={(event) => setShowPropReservations(event.target.checked)} /> PROP USE-SPACE</label>
+        <label><input type="checkbox" checked={showActorRoutes} onChange={(event) => setShowActorRoutes(event.target.checked)} /> ACTOR ROUTES</label>
+        <label><input type="checkbox" checked={showActors} onChange={(event) => setShowActors(event.target.checked)} /> ACTORS</label>
         <div className="levelgen-debug__viewport-controls" aria-label="Map zoom controls">
           <button type="button" aria-label="Zoom out" onClick={() => zoomAtCenter(1.25)}>−</button>
           <span>{zoomPercent}%</span>
@@ -267,7 +288,7 @@ export function LevelCompilerDebug() {
 
           {showPropReservations && (
             <g className="levelgen-debug__prop-reservations">
-              {plan.reservations.map((reservation) => (
+              {props.reservations.map((reservation) => (
                 <rect
                   key={`${reservation.ownerPlacementId}-${reservation.kind}-${reservation.x}-${reservation.y}`}
                   className={reservation.kind}
@@ -283,9 +304,9 @@ export function LevelCompilerDebug() {
 
           {showProps && (
             <g className="levelgen-debug__props">
-              {plan.placements.map((placement) => {
+              {props.placements.map((placement) => {
                 const box = rectPixels(placement.rect, bounds);
-                const tooltip = `${placement.id}\n${placement.role} · ${placement.wallSide ?? "floor"}\nscore ${placement.score.toFixed(2)}\n${placement.reasons.join(" · ")}\nvalid candidates ${placement.candidateCount}`;
+                const tooltip = `${placement.id}\n${placement.role} · ${placement.wallSide ?? "floor"} · ${placement.rotation}°\nscore ${placement.score.toFixed(2)}\n${placement.reasons.join(" · ")}\nvalid candidates ${placement.candidateCount}`;
                 return (
                   <g key={placement.id} className={`prop prop--${placement.role}`}>
                     <rect {...box} rx="5" />
@@ -293,6 +314,18 @@ export function LevelCompilerDebug() {
                     <title>{tooltip}</title>
                   </g>
                 );
+              })}
+            </g>
+          )}
+
+          {showActorRoutes && (
+            <g className="levelgen-debug__actor-routes">
+              {plan.routes.map((route) => {
+                const points = route.cells.map((cell) => {
+                  const point = cellCenter(cell, bounds);
+                  return `${point.x},${point.y}`;
+                }).join(" ");
+                return <polyline key={route.id} className={`route route--${route.kind}`} points={points}><title>{`${route.id}\n${route.kind} · ${route.cells.length} cells${route.loop ? " · loop" : ""}`}</title></polyline>;
               })}
             </g>
           )}
@@ -320,6 +353,24 @@ export function LevelCompilerDebug() {
               })}
             </g>
           )}
+
+          {showActors && (
+            <g className="levelgen-debug__actors">
+              {plan.actors.map((actor) => {
+                const center = cellCenter(actor.cell, bounds);
+                const vector = facingVector(actor.facing);
+                const tooltip = `${actor.id}\n${actor.behavior} · facing ${actor.facing}°${actor.patrolRouteId ? ` · ${actor.patrolRouteId}` : ""}\nscore ${actor.score.toFixed(2)}\n${actor.reasons.join(" · ")}\nvalid candidates ${actor.candidateCount}`;
+                return (
+                  <g key={actor.id} className={`actor actor--${actor.behavior}`}>
+                    <circle cx={center.x} cy={center.y} r={TILE * 0.27} />
+                    <line x1={center.x} y1={center.y} x2={center.x + vector.x * TILE * 0.34} y2={center.y + vector.y * TILE * 0.34} />
+                    <text x={center.x} y={center.y + TILE * 0.43} textAnchor="middle">{friendly(actor.id)}</text>
+                    <title>{tooltip}</title>
+                  </g>
+                );
+              })}
+            </g>
+          )}
         </svg>
       </section>
 
@@ -330,6 +381,8 @@ export function LevelCompilerDebug() {
         <span className="system">PRIMUS / SYSTEM</span>
         <span className="hero-prop">HERO PROP</span>
         <span className="functional-prop">SUPPORT / FURNITURE</span>
+        <span className="actor-route">ACTOR ROUTE</span>
+        <span className="actor">ACTOR</span>
         <span className="path">PRIMARY PATH</span>
         <span className="clearance">DOOR CLEARANCE</span>
         <span className="door">DOOR / APERTURE</span>
