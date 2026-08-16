@@ -1,14 +1,33 @@
-.zk-tilemap {
+.zk-tilemap,
+.zk-floor-composite {
   position: absolute;
   inset: 0;
   pointer-events: none;
   overflow: hidden;
 }
 
-.zk-tilemap-layer {
+.zk-tilemap-layer,
+.zk-floor-composite__sprites {
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.zk-floor-composite__image {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.zk-floor-composite__sprite {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: center center;
+  image-rendering: auto;
 }
 
 .zk-map-tile {
