@@ -195,6 +195,8 @@ export type PlacementOverride = {
   preferredWall?: CardinalDirection;
   /** Explicit room size override. */
   size?: Partial<SpaceSizeSpec>;
+  /** Encounter robot/body replacement. The runtime receives the substituted canonical robot type. */
+  robotType?: EnemyId;
   /** Local deterministic variation. Incrementing this never changes unrelated semantic seeds. */
   seedSalt?: number;
 };
