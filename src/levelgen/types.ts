@@ -101,9 +101,11 @@ export type PropRequestSpec = {
   preferredWall?: CardinalDirection;
 };
 
+export type RouteKind = "patrol" | "passby" | "scripted";
+
 export type RouteSpec = {
   id: string;
-  kind: "patrol" | "passby" | "scripted";
+  kind: RouteKind;
   spaceIds: string[];
   loop?: boolean;
   tags?: string[];
@@ -210,6 +212,10 @@ export type PropPlacementMetadata = {
   forbidPrimaryPath?: boolean;
   forbidInFrontOfWallProp?: boolean;
   preferOppositeDoor?: boolean;
+  /** Reserve unobstructed use-space immediately in front of a wall-attached prop. */
+  approachDepthTiles?: number;
+  /** Reserve a non-furnishable ring around important floor props / hero machinery. */
+  clearanceAroundTiles?: number;
 };
 
 export type PropMetadata = {
