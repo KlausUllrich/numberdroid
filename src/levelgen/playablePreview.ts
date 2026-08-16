@@ -68,7 +68,6 @@ function groundSvg(plan: RuntimeEmissionPlan) {
     return `<g data-space-id="${xml(space.id)}"><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${spaceFill(plan, space.id, space.kind)}"/><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#grid)" opacity=".55"/></g>`;
   }).join("");
   const defs = `<defs><pattern id="grid" width="${GRID_PX}" height="${GRID_PX}" patternUnits="userSpaceOnUse"><path d="M${GRID_PX} 0H0V${GRID_PX}" fill="none" stroke="#d8e1dc" stroke-opacity=".20" stroke-width="1"/><path d="M8 32H56" fill="none" stroke="#d8e1dc" stroke-opacity=".08" stroke-width="1"/></pattern></defs>`;
-  // Touch bounds here so the generated SVG remains explicitly tied to navigation output.
   void bounds;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${defs}<rect width="100%" height="100%" fill="#091011"/>${spaces}</svg>`;
 }
@@ -102,11 +101,6 @@ function fallbackPropsSvg(plan: RuntimeEmissionPlan, placements: Placement[]) {
   return svgRoot(width, height, content);
 }
 
-/**
- * Maps one solved placement to authored 0° art dimensions centered over the
- * solved physical footprint. Rotating the authored rectangle then produces the
- * same AABB as the rotation-aware placement solver without stretching pixels.
- */
 export function artSpriteForPlacement(
   plan: RuntimeEmissionPlan,
   placement: Placement,
@@ -144,7 +138,9 @@ function propVisualLayers(plan: RuntimeEmissionPlan) {
     const request = semanticProps.get(placement.requestId);
     if (!request) throw new Error(`Prop art emission cannot resolve ${placement.requestId}.`);
     const art = propArtRegistration(request.propId);
-    const isWall = request.metadata.attachment === "wall" || placement.wallSide != null;
+    // `wallSide` on floor Props only records a touched/preferred wall. The
+    // visual layer contract follows authored attachment semantics instead.
+    const isWall = request.metadata.attachment === "wall";
     if (!art) {
       (isWall ? fallbackWall : fallbackFloor).push(placement);
       continue;
@@ -176,11 +172,6 @@ export function compilerCompositePreviewVisual(plan: RuntimeEmissionPlan): Compo
   return { kind: "composite", layers };
 }
 
-/**
- * Full one-image blockout retained as a deterministic QA/debug helper. The
- * playable preview now uses compilerCompositePreviewVisual() so registered
- * production art can load as normal browser assets.
- */
 export function compilerPlayablePreviewSvg(plan: RuntimeEmissionPlan) {
   const metrics = previewMetrics(plan);
   const allFallback = plan.events.actors.props.placements;
@@ -196,11 +187,6 @@ export function compilerPlayablePreviewSvg(plan: RuntimeEmissionPlan) {
   return svgRoot(metrics.width, metrics.height, `${ground}${architecture}${props}`);
 }
 
-/**
- * Adds presentation-only compiler art to an emitted runtime Floor and attaches
- * the adjacent typed script contract. Collision, doors, encounters and pickups
- * remain exactly those produced by v0.6.
- */
 export function createPlayableCompilerPreview(plan: RuntimeEmissionPlan): FloorDefinition {
   const floor = floorWithCompiledScript(plan);
   return {
