@@ -31,17 +31,22 @@ export function runtimeScriptFromPlan(plan: RuntimeEmissionPlan): FloorScriptDef
     y: (cell.y - bounds.y + 0.5) * tileSize,
   });
 
-  const triggers: FloorScriptTriggerDefinition[] = plan.events.triggers.map((trigger) => ({
-    id: trigger.id,
-    kind: trigger.kind,
-    sourceKind: trigger.source.kind,
-    sourceId: trigger.source.id,
-    sourceCells: trigger.source.cells.map(shiftCell),
-    eventIds: [...trigger.eventIds],
-    once: trigger.once,
-    delayMs: trigger.delayMs,
-    radiusTiles: trigger.radiusTiles,
-  }));
+  const triggers: FloorScriptTriggerDefinition[] = plan.events.triggers.map((trigger) => {
+    if (trigger.kind === "timer" && trigger.delayMs <= 0) {
+      throw new Error(`Runtime timer trigger ${trigger.id} requires delayMs > 0.`);
+    }
+    return {
+      id: trigger.id,
+      kind: trigger.kind,
+      sourceKind: trigger.source.kind,
+      sourceId: trigger.source.id,
+      sourceCells: trigger.source.cells.map(shiftCell),
+      eventIds: [...trigger.eventIds],
+      once: trigger.once,
+      delayMs: trigger.delayMs,
+      radiusTiles: trigger.radiusTiles,
+    };
+  });
 
   const events = plan.events.events.map((entry) => runtimeEvent(entry.event));
   const routes: FloorScriptRouteDefinition[] = plan.events.actors.routes.map((route) => ({
