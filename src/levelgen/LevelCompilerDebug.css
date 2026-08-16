@@ -1,0 +1,245 @@
+.levelgen-debug {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 18px;
+  background: #111919;
+  color: #e7f1ed;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.levelgen-debug__header {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.levelgen-debug__header small {
+  color: #78d8cd;
+  letter-spacing: .12em;
+  font-weight: 800;
+}
+
+.levelgen-debug__header h1 {
+  margin: 3px 0 4px;
+  font-size: clamp(22px, 3vw, 38px);
+  line-height: 1;
+}
+
+.levelgen-debug__header p {
+  margin: 0;
+  color: #9fb2ac;
+  font-size: 13px;
+}
+
+.levelgen-debug__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(110px, 1fr));
+  gap: 6px;
+  min-width: 270px;
+}
+
+.levelgen-debug__stats span {
+  border: 1px solid #3e5350;
+  background: #172221;
+  padding: 8px 10px;
+  font-size: 10px;
+  letter-spacing: .06em;
+  color: #94a9a4;
+}
+
+.levelgen-debug__stats b {
+  display: block;
+  font-size: 17px;
+  color: #ecf7f4;
+}
+
+.levelgen-debug__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.levelgen-debug__controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background: #182322;
+  border: 1px solid #354945;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .05em;
+}
+
+.levelgen-debug__controls input {
+  accent-color: #64dfcf;
+}
+
+.levelgen-debug__canvas-wrap {
+  height: calc(100vh - 184px);
+  min-height: 430px;
+  overflow: hidden;
+  border: 1px solid #39504b;
+  border-radius: 10px;
+  background: #0c1111;
+}
+
+.levelgen-debug__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.levelgen-debug__void {
+  fill: #0b1010;
+}
+
+.levelgen-debug__space rect {
+  stroke-width: 0;
+}
+
+.levelgen-debug__space--domestic rect { fill: #d9d0b6; }
+.levelgen-debug__space--corridor rect { fill: #b5c7c1; }
+.levelgen-debug__space--ritual rect { fill: #c8d6b0; }
+.levelgen-debug__space--system rect { fill: #b9c9d4; }
+.levelgen-debug__space--neutral rect { fill: #c8ceca; }
+
+.levelgen-debug__space text {
+  fill: #16201e;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  paint-order: stroke;
+  stroke: rgba(255,255,255,.5);
+  stroke-width: 2px;
+}
+
+.levelgen-debug__space .levelgen-debug__dimension {
+  font-size: 10px;
+  font-weight: 700;
+  fill: #46534f;
+}
+
+.levelgen-debug__grid line {
+  stroke: rgba(26, 45, 42, .19);
+  stroke-width: 1;
+}
+
+.levelgen-debug__navigation rect {
+  fill: rgba(40, 205, 180, .36);
+  stroke: rgba(18, 121, 106, .85);
+  stroke-width: 1.2;
+}
+
+.levelgen-debug__clearance rect {
+  fill: rgba(244, 154, 42, .28);
+  stroke: rgba(185, 100, 6, .7);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+
+.levelgen-debug__walls line {
+  stroke-linecap: square;
+}
+
+.levelgen-debug__walls .outer {
+  stroke: #202929;
+  stroke-width: 8;
+}
+
+.levelgen-debug__walls .shared {
+  stroke: #34423f;
+  stroke-width: 8;
+}
+
+.levelgen-debug__portals .portal {
+  stroke-width: 7;
+  stroke-linecap: butt;
+}
+
+.levelgen-debug__portals .portal--opening { stroke: #66d6c7; }
+.levelgen-debug__portals .portal--standard-door { stroke: #efb55a; }
+.levelgen-debug__portals .portal--controlled-door { stroke: #ff815c; }
+
+.levelgen-debug__wall-slots circle.available {
+  fill: #55e4d1;
+  stroke: #123a35;
+  stroke-width: 1;
+}
+
+.levelgen-debug__wall-slots circle.blocked {
+  fill: #e46f59;
+  stroke: #54231b;
+  stroke-width: 1;
+}
+
+.levelgen-debug__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.levelgen-debug__legend span {
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  color: #12201d;
+}
+
+.levelgen-debug__legend .domestic { background: #d9d0b6; }
+.levelgen-debug__legend .corridor { background: #b5c7c1; }
+.levelgen-debug__legend .ritual { background: #c8d6b0; }
+.levelgen-debug__legend .system { background: #b9c9d4; }
+.levelgen-debug__legend .path { background: #58d9c7; }
+.levelgen-debug__legend .clearance { background: #efad51; }
+.levelgen-debug__legend .door { background: #ff815c; }
+
+@media (max-width: 760px) {
+  .levelgen-debug {
+    padding: 10px;
+  }
+
+  .levelgen-debug__header {
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .levelgen-debug__header p {
+    display: none;
+  }
+
+  .levelgen-debug__stats {
+    min-width: 190px;
+    grid-template-columns: repeat(2, minmax(82px, 1fr));
+  }
+
+  .levelgen-debug__stats span {
+    padding: 5px 7px;
+    font-size: 8px;
+  }
+
+  .levelgen-debug__stats b {
+    font-size: 14px;
+  }
+
+  .levelgen-debug__controls label {
+    padding: 5px 7px;
+    font-size: 9px;
+  }
+
+  .levelgen-debug__canvas-wrap {
+    height: calc(100vh - 145px);
+    min-height: 300px;
+  }
+
+  .levelgen-debug__legend {
+    display: none;
+  }
+}
