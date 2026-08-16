@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { robotCollisionRadius } from "../game/catalog";
 import { getFloor } from "../game/floors";
-import { pointWalkable } from "../game/save";
+import { createFloorState, pointWalkable } from "../game/save";
+import { advanceFloorScript } from "../game/scriptRuntime";
 import {
   TS01_GENERATED_FLOOR,
   TS01_GENERATED_PLAN,
@@ -9,7 +10,7 @@ import {
 } from "./generatedTs01Preview";
 import { COMPILER_PREVIEW_FASCIA_PX, compilerPlayablePreviewSvg } from "./playablePreview";
 
-describe("Level Compiler v0.7 playable generated preview", () => {
+describe("Level Compiler playable generated preview", () => {
   it("registers the compiler floor under both its canonical id and friendly preview alias", () => {
     expect(getFloor(TS01_GENERATED_FLOOR.id)).toBe(TS01_GENERATED_FLOOR);
     expect(getFloor(TS01_GENERATED_PREVIEW_ALIAS)).toBe(TS01_GENERATED_FLOOR);
@@ -59,5 +60,46 @@ describe("Level Compiler v0.7 playable generated preview", () => {
     for (const wall of TS01_GENERATED_PLAN.events.actors.props.navigation.geometry.walls) {
       expect(svg.split(`data-wall-id=\"${wall.id}\"`).length - 1).toBe(1);
     }
+  });
+
+  it("attaches the compiled TS-01 trigger graph to the playable Floor", () => {
+    const script = TS01_GENERATED_FLOOR.script;
+    expect(script?.triggers.map((trigger) => trigger.id)).toEqual(expect.arrayContaining([
+      "collect-primus-access",
+      "enter-transfer-intro",
+    ]));
+    expect(script?.events.map((event) => event.id)).toEqual(expect.arrayContaining([
+      "grant-primus-access",
+      "unlock-primus-door",
+      "play-transfer-intro",
+    ]));
+  });
+
+  it("executes the real generated PRIMUS access trigger exactly once", () => {
+    const floor = TS01_GENERATED_FLOOR;
+    const before = createFloorState(floor, 1);
+    const candidate = { ...before, collectedPickupIds: ["primus-access-card"] };
+    const result = advanceFloorScript(floor, before, candidate);
+    expect(result.firedTriggerIds).toContain("collect-primus-access");
+    expect(result.state.accessKeyIds).toContain("primus-access");
+    expect(result.state.scriptState.doorStates["hall-to-primus"]).toBe("unlocked");
+    expect(result.state.scriptState.firedTriggerIds).toContain("collect-primus-access");
+  });
+
+  it("opens the real generated Transfer Story Beat when crossing its trigger zone", () => {
+    const floor = TS01_GENERATED_FLOOR;
+    const trigger = floor.script?.triggers.find((entry) => entry.id === "enter-transfer-intro");
+    expect(trigger?.sourceCells.length).toBeGreaterThan(0);
+    if (!trigger?.sourceCells.length || !floor.script) return;
+    const target = trigger.sourceCells[0];
+    const inside = {
+      x: (target.x + 0.5) * floor.script.tileSize,
+      y: (target.y + 0.5) * floor.script.tileSize,
+    };
+    const before = createFloorState(floor, 1);
+    const candidate = { ...before, ...inside };
+    const result = advanceFloorScript(floor, before, candidate);
+    expect(result.firedTriggerIds).toContain("enter-transfer-intro");
+    expect(result.state.scriptState.activeStoryBeatId).toBe("ts01.transfer-first-view");
   });
 });

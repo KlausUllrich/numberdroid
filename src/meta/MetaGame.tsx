@@ -4,6 +4,7 @@ import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP, robotCollisionRadiu
 import { getFloor } from "../game/floors";
 import type { TacticalChallengeId } from "../game/playerProfile";
 import { pointWalkable } from "../game/save";
+import { advanceFloorScript, dismissActiveStoryBeat, storyBeatIsBlocking } from "../game/scriptRuntime";
 import type { EncounterConfig, MetaState } from "../game/types";
 import { directionClassForFacing } from "./robotDirection";
 import { DoorLayer } from "./DoorLayer";
@@ -11,6 +12,7 @@ import { FloorVisual } from "./FloorVisual";
 import { HostileLayer, type EncounterRuntimePose } from "./HostileLayer";
 import { blockedByClosedDoor, nextAutomaticDoorIds, sameDoorSet } from "./doorRuntime";
 import "./MetaGameMotion.css";
+import "./ScriptRuntime.css";
 
 type Nearby =
   | { type: "station"; id: string }
@@ -107,6 +109,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
   const keysRef = useRef(new Set<string>());
   const touchRef = useRef({ active: false, pointerId: -1, x: 0, y: 0 });
   const latestMetaRef = useRef(meta);
+  const previousScriptMetaRef = useRef(meta);
   const lastFrameRef = useRef(performance.now());
   const lastMetaSyncRef = useRef(performance.now());
   const cameraRef = useRef({ x: 0, y: 0 });
@@ -124,6 +127,9 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
   const [nearbyNeutralId, setNearbyNeutralId] = useState<string | null>(null);
 
   const floor = getFloor(meta.floorId);
+  const activeStoryBeatId = meta.scriptState.activeStoryBeatId;
+  const blockingStoryBeat = storyBeatIsBlocking(floor, activeStoryBeatId);
+  const runtimePaused = paused || blockingStoryBeat;
   const nearby = useMemo(() => nearestInteractable(meta), [meta]);
   const nearbyStation = nearby?.type === "station" ? floor.energyStations.find((station) => station.id === nearby.id) : null;
   const nearbyPickup = nearby?.type === "pickup" ? floor.pickups.find((pickup) => pickup.id === nearby.id) : null;
@@ -190,6 +196,41 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
     return false;
   }
 
+  function applyInteractionScript(current: MetaState, candidate: MetaState, sourceId: string) {
+    const advanced = advanceFloorScript(floor, current, candidate, { interactionSourceId: sourceId });
+    const resolved = advanced.state;
+    latestMetaRef.current = resolved;
+    previousScriptMetaRef.current = resolved;
+    updateAutomaticDoors(resolved);
+    if (storyBeatIsBlocking(floor, resolved.scriptState.activeStoryBeatId)) {
+      pausedRef.current = true;
+      speedRef.current = 0;
+      touchRef.current.active = false;
+      setTouchMarker(null);
+    }
+    return resolved;
+  }
+
+  useEffect(() => {
+    const previous = previousScriptMetaRef.current.floorId === meta.floorId
+      ? previousScriptMetaRef.current
+      : meta;
+    const advanced = advanceFloorScript(floor, previous, meta);
+    previousScriptMetaRef.current = advanced.state;
+    if (!advanced.changed) return;
+    latestMetaRef.current = advanced.state;
+    updateAutomaticDoors(advanced.state);
+    if (storyBeatIsBlocking(floor, advanced.state.scriptState.activeStoryBeatId)) {
+      pausedRef.current = true;
+      speedRef.current = 0;
+      touchRef.current.active = false;
+      setTouchMarker(null);
+    }
+    onMetaChange(advanced.state);
+    // Script evaluation runs on the throttled React run-state stream, not RAF.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, floor.id, onMetaChange]);
+
   useEffect(() => {
     latestMetaRef.current = meta;
     speedRef.current = 0;
@@ -206,15 +247,15 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
   }, [zoom]);
 
   useEffect(() => {
-    pausedRef.current = paused;
-    if (paused) {
+    pausedRef.current = runtimePaused;
+    if (runtimePaused) {
       touchRef.current.active = false;
       speedRef.current = 0;
       setTouchMarker(null);
       syncMeta(latestMetaRef.current, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paused]);
+  }, [runtimePaused]);
 
   useEffect(() => {
     function onResize() { applyCamera(latestMetaRef.current); }
@@ -222,6 +263,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
     encounterRuntimePosesRef.current.clear();
     setNearbyNeutralId(null);
     setOpenDoorIds(new Set());
+    previousScriptMetaRef.current = latestMetaRef.current;
     applyPlayerPose(latestMetaRef.current);
     applyCamera(latestMetaRef.current);
     updateAutomaticDoors(latestMetaRef.current);
@@ -240,18 +282,28 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
     window.setTimeout(() => setToast((current) => current === message ? "" : current), 2200);
   }
 
+  function dismissStoryBeat() {
+    const next = dismissActiveStoryBeat(latestMetaRef.current);
+    latestMetaRef.current = next;
+    previousScriptMetaRef.current = next;
+    pausedRef.current = paused || storyBeatIsBlocking(floor, next.scriptState.activeStoryBeatId);
+    syncMeta(next, true);
+  }
+
   function openNeutralEncounter(current: MetaState) {
     if (!nearbyNeutralEncounter) return false;
     const encounter = runtimeEncounter(nearbyNeutralEncounter);
     if (distance(current.x, current.y, encounter.x, encounter.y) >= 145) return false;
+    const scripted = applyInteractionScript(current, current, encounter.encounterId);
+    syncMeta(scripted, true);
+    if (storyBeatIsBlocking(floor, scripted.scriptState.activeStoryBeatId)) return true;
     speedRef.current = 0;
-    syncMeta(current, true);
     onEncounter(encounter);
     return true;
   }
 
   function interact() {
-    if (paused) return;
+    if (runtimePaused) return;
     const current = latestMetaRef.current;
 
     if (!nearby) {
@@ -262,12 +314,12 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
     if (nearby.type === "station") {
       const station = floor.energyStations.find((entry) => entry.id === nearby.id);
       if (!station || current.usedStationIds.includes(station.id)) return;
-      const next = rotatePilot({
+      const candidate = rotatePilot({
         ...current,
         usedStationIds: [...current.usedStationIds, station.id],
         metaEnergy: Math.min(MAX_META_ENERGY, current.metaEnergy + station.energy),
       });
-      latestMetaRef.current = next;
+      const next = applyInteractionScript(current, candidate, station.id);
       syncMeta(next, true);
       showToast(`ENERGIEZELLE GELADEN · ⚡ ${next.metaEnergy}/${MAX_META_ENERGY}`);
       return;
@@ -276,13 +328,12 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
     if (nearby.type === "pickup") {
       const pickup = floor.pickups.find((entry) => entry.id === nearby.id);
       if (!pickup || current.collectedPickupIds.includes(pickup.id)) return;
-      const next = {
+      const candidate = {
         ...current,
         collectedPickupIds: [...current.collectedPickupIds, pickup.id],
         accessKeyIds: current.accessKeyIds.includes(pickup.keyId) ? current.accessKeyIds : [...current.accessKeyIds, pickup.keyId],
       };
-      latestMetaRef.current = next;
-      updateAutomaticDoors(next);
+      const next = applyInteractionScript(current, candidate, pickup.id);
       syncMeta(next, true);
       showToast(`${pickup.label} GESICHERT`);
       return;
@@ -291,11 +342,11 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
     if (nearby.type === "action") {
       const action = floor.actions.find((entry) => entry.id === nearby.id);
       if (!action || current.completedActionIds.includes(action.id) || !actionUnlocked(current, action.id)) return;
-      const next = {
+      const candidate = {
         ...current,
         completedActionIds: [...current.completedActionIds, action.id],
       };
-      latestMetaRef.current = next;
+      const next = applyInteractionScript(current, candidate, action.id);
       syncMeta(next, true);
       showToast(action.completionLabel);
       return;
@@ -303,8 +354,10 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
 
     const encounter = floor.encounters.find((entry) => entry.encounterId === nearby.id);
     if (encounter) {
+      const scripted = applyInteractionScript(current, current, encounter.encounterId);
+      syncMeta(scripted, true);
+      if (storyBeatIsBlocking(floor, scripted.scriptState.activeStoryBeatId)) return;
       speedRef.current = 0;
-      syncMeta(current, true);
       onEncounter(runtimeEncounter(encounter));
     }
   }
@@ -316,8 +369,10 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
       showToast(`FAHRE NÄHER AN ${runtimeEnemy.name}`);
       return;
     }
+    const scripted = applyInteractionScript(current, current, runtimeEnemy.encounterId);
+    syncMeta(scripted, true);
+    if (storyBeatIsBlocking(floor, scripted.scriptState.activeStoryBeatId)) return;
     speedRef.current = 0;
-    syncMeta(current, true);
     onEncounter(runtimeEnemy);
   }
 
@@ -457,7 +512,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
   }
 
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (paused || (event.target as HTMLElement).closest("button,.zk-entity,.zk-modal-layer,.zk-transfer")) return;
+    if (runtimePaused || (event.target as HTMLElement).closest("button,.zk-entity,.zk-modal-layer,.zk-transfer")) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     touchRef.current = { active: true, pointerId: event.pointerId, x: event.clientX, y: event.clientY };
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* optional */ }
@@ -495,7 +550,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
     "--player-y": `${pose.y}px`,
     "--facing": `${pose.facing}deg`,
   };
-  const canInteract = Boolean(nearby || nearbyNeutralEncounter);
+  const canInteract = Boolean(nearby || nearbyNeutralEncounter) && !runtimePaused;
 
   return (
     <main className="zk-meta-shell clean-meta-screen" data-floor-id={floor.id}>
@@ -531,7 +586,12 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
             </div>
           ))}
 
-          <DoorLayer floor={floor} openDoorIds={openDoorIds} accessKeyIds={meta.accessKeyIds} />
+          <DoorLayer
+            floor={floor}
+            openDoorIds={openDoorIds}
+            accessKeyIds={meta.accessKeyIds}
+            doorStates={meta.scriptState.doorStates}
+          />
 
           {activePickups.map((pickup) => (
             <div key={pickup.id} className="zk-entity pickup" style={{ left: pickup.x, top: pickup.y }}>
@@ -607,6 +667,15 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
           )}
         </button>
         <div className={`zk-toast ${toast ? "show" : ""}`}>{toast}</div>
+
+        {activeStoryBeatId && blockingStoryBeat && (
+          <section className="zk-story-beat-runtime" role="dialog" aria-modal="true" aria-label="Story Beat">
+            <small>LEVEL EVENT · STORY BEAT</small>
+            <strong>{activeStoryBeatId}</strong>
+            <span>Für diesen Beat ist noch kein finaler Story-Text hinterlegt. Die Runtime pausiert trotzdem korrekt und wartet auf die bewusste Fortsetzung.</span>
+            <button onClick={dismissStoryBeat}>WEITER</button>
+          </section>
+        )}
       </div>
     </main>
   );

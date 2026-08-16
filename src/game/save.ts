@@ -1,10 +1,22 @@
 import { BODIES, MAX_META_ENERGY, STARTING_HP, robotCollisionRadius } from "./catalog";
 import { CURRENT_FLOOR, getFloor } from "./floors";
-import type { BodyId, EnemyId, FloorDefinition, MetaState, Rect, RobotDeckSize } from "./types";
+import type {
+  BodyId,
+  EnemyId,
+  FloorDefinition,
+  LevelScriptRunState,
+  MetaState,
+  Rect,
+  RobotDeckSize,
+  ScriptValue,
+  ScriptedActorRunState,
+} from "./types";
 
+const META_KEY_V4 = "numberdroid-meta-v4";
 const META_KEY_V3 = "numberdroid-meta-v3";
 const META_KEY_V2 = "numberdroid-meta-v2";
-const PROFILE_META_PREFIX = "numberdroid-meta-v3-profile:";
+const PROFILE_META_PREFIX_V4 = "numberdroid-meta-v4-profile:";
+const PROFILE_META_PREFIX_V3 = "numberdroid-meta-v3-profile:";
 const LEGACY_META_KEY = "zahlenkern-meta-v1";
 const LEGACY_DUEL_KEY = "zahlenkern-save-v6";
 const COLLISION_BUCKET_PX = 128;
@@ -26,9 +38,32 @@ type MetaStateV2 = {
 type CollisionIndex = Map<string, Rect[]>;
 const collisionIndexByFloor = new WeakMap<FloorDefinition, CollisionIndex>();
 
+function scriptedActorDefaults(floor: FloorDefinition) {
+  const result: Record<string, ScriptedActorRunState> = {};
+  for (const actor of floor.script?.stagedActors ?? []) {
+    result[actor.id] = {
+      present: actor.initiallyPresent,
+      spaceId: actor.defaultSpaceId,
+      mode: "idle",
+    };
+  }
+  return result;
+}
+
+export function createLevelScriptRunState(floor: FloorDefinition): LevelScriptRunState {
+  return {
+    firedTriggerIds: [],
+    flags: {},
+    doorStates: {},
+    stagedActors: scriptedActorDefaults(floor),
+    storyBeatQueue: [],
+    activeStoryBeatId: null,
+  };
+}
+
 export function createFloorState(floor: FloorDefinition, playerCount = 2): MetaState {
   return {
-    version: 3,
+    version: 4,
     floorId: floor.id,
     x: floor.start.x,
     y: floor.start.y,
@@ -44,6 +79,7 @@ export function createFloorState(floor: FloorDefinition, playerCount = 2): MetaS
     pilotIndex: 0,
     playerCount,
     damageTaken: 0,
+    scriptState: createLevelScriptRunState(floor),
   };
 }
 
@@ -143,10 +179,80 @@ function validDeckSize(value: unknown): value is RobotDeckSize {
   return value === "standard" || value === "large";
 }
 
-function sanitize(candidate: Partial<MetaState>): MetaState {
+function validScriptValue(value: unknown): value is ScriptValue {
+  return typeof value === "boolean" || typeof value === "number" || typeof value === "string";
+}
+
+function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelScriptRunState {
+  const defaults = createLevelScriptRunState(floor);
+  if (!candidate || typeof candidate !== "object") return defaults;
+  const raw = candidate as Partial<LevelScriptRunState>;
+  const triggerIds = new Set((floor.script?.triggers ?? []).map((trigger) => trigger.id));
+  const doorIds = new Set(floor.doors.map((door) => door.id));
+  const stagedIds = new Set((floor.script?.stagedActors ?? []).map((actor) => actor.id));
+  const beatIds = new Set(
+    (floor.script?.events ?? [])
+      .filter((event) => event.kind === "story-beat")
+      .map((event) => event.beatId),
+  );
+
+  const flags: Record<string, ScriptValue> = {};
+  if (raw.flags && typeof raw.flags === "object") {
+    for (const [key, value] of Object.entries(raw.flags)) if (validScriptValue(value)) flags[key] = value;
+  }
+
+  const doorStates: Record<string, "locked" | "unlocked"> = {};
+  if (raw.doorStates && typeof raw.doorStates === "object") {
+    for (const [id, value] of Object.entries(raw.doorStates)) {
+      if (doorIds.has(id) && (value === "locked" || value === "unlocked")) doorStates[id] = value;
+    }
+  }
+
+  const stagedActors = { ...defaults.stagedActors };
+  if (raw.stagedActors && typeof raw.stagedActors === "object") {
+    for (const [id, value] of Object.entries(raw.stagedActors)) {
+      if (!stagedIds.has(id) || !value || typeof value !== "object") continue;
+      const state = value as Partial<ScriptedActorRunState>;
+      const mode = state.mode === "route" || state.mode === "passby" ? state.mode : "idle";
+      stagedActors[id] = {
+        present: Boolean(state.present),
+        spaceId: typeof state.spaceId === "string" ? state.spaceId : defaults.stagedActors[id]?.spaceId,
+        routeId: typeof state.routeId === "string" ? state.routeId : undefined,
+        mode,
+        durationMs: Number.isFinite(state.durationMs) && Number(state.durationMs) > 0 ? Number(state.durationMs) : undefined,
+      };
+    }
+  }
+
+  const storyBeatQueue = Array.isArray(raw.storyBeatQueue)
+    ? [...new Set(raw.storyBeatQueue.filter((id): id is string => typeof id === "string" && beatIds.has(id)))]
+    : [];
+  const activeStoryBeatId = typeof raw.activeStoryBeatId === "string" && beatIds.has(raw.activeStoryBeatId)
+    ? raw.activeStoryBeatId
+    : null;
+
+  return {
+    firedTriggerIds: Array.isArray(raw.firedTriggerIds)
+      ? [...new Set(raw.firedTriggerIds.filter((id): id is string => typeof id === "string" && triggerIds.has(id)))]
+      : [],
+    flags,
+    doorStates,
+    stagedActors,
+    storyBeatQueue,
+    activeStoryBeatId,
+  };
+}
+
+function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaState {
   const floor = getFloor(typeof candidate.floorId === "string" ? candidate.floorId : CURRENT_FLOOR.id);
   const defaults = createFloorState(floor);
-  const state: MetaState = { ...defaults, ...candidate, version: 3, floorId: floor.id };
+  const state: MetaState = {
+    ...defaults,
+    ...candidate,
+    version: 4,
+    floorId: floor.id,
+    scriptState: sanitizeScriptState(candidate.scriptState, floor),
+  };
 
   if (!BODIES[state.currentBody]) state.currentBody = defaults.currentBody;
   if (!validDeckSize(state.currentDeckSize)) state.currentDeckSize = defaults.currentDeckSize;
@@ -175,6 +281,7 @@ function sanitize(candidate: Partial<MetaState>): MetaState {
   floor.doors.forEach((door) => { if (door.keyId) validAccessKeyIds.add(door.keyId); });
   floor.pickups.forEach((pickup) => validAccessKeyIds.add(pickup.keyId));
   floor.encounters.forEach((encounter) => { if (encounter.accessKey) validAccessKeyIds.add(encounter.accessKey.keyId); });
+  for (const event of floor.script?.events ?? []) if (event.kind === "grant-key") validAccessKeyIds.add(event.keyId);
   state.accessKeyIds = Array.isArray(state.accessKeyIds)
     ? [...new Set(state.accessKeyIds.filter((id) => typeof id === "string" && validAccessKeyIds.has(id)))]
     : [];
@@ -232,8 +339,17 @@ export function restartFloorState(previous: MetaState): MetaState {
 
 export function loadMetaState(): MetaState {
   try {
-    const raw = localStorage.getItem(META_KEY_V3);
+    const raw = localStorage.getItem(META_KEY_V4);
     if (raw) return sanitize(JSON.parse(raw));
+  } catch { /* ignore damaged v4 data */ }
+
+  try {
+    const raw = localStorage.getItem(META_KEY_V3);
+    if (raw) {
+      const migrated = sanitize(JSON.parse(raw));
+      saveMetaState(migrated);
+      return migrated;
+    }
   } catch { /* ignore damaged v3 data */ }
 
   try {
@@ -267,24 +383,38 @@ export function loadMetaState(): MetaState {
     accessKeyIds: [],
     completedActionIds: [],
     defeatedEncounterIds: [],
+    scriptState: createLevelScriptRunState(CURRENT_FLOOR),
   };
 }
 
 export function saveMetaState(state: MetaState) {
   try {
-    localStorage.setItem(META_KEY_V3, JSON.stringify(state));
+    localStorage.setItem(META_KEY_V4, JSON.stringify(sanitize(state)));
   } catch { /* storage may be unavailable in private/sandboxed contexts */ }
 }
 
-function profileMetaKey(profileId: string) {
-  return `${PROFILE_META_PREFIX}${profileId}`;
+function profileMetaKeyV4(profileId: string) {
+  return `${PROFILE_META_PREFIX_V4}${profileId}`;
+}
+
+function profileMetaKeyV3(profileId: string) {
+  return `${PROFILE_META_PREFIX_V3}${profileId}`;
 }
 
 export function loadProfileMetaState(profileId: string, migrateLegacy = false): MetaState | null {
   try {
-    const raw = localStorage.getItem(profileMetaKey(profileId));
+    const raw = localStorage.getItem(profileMetaKeyV4(profileId));
     if (raw) return sanitize(JSON.parse(raw));
   } catch { /* ignore damaged profile run */ }
+
+  try {
+    const raw = localStorage.getItem(profileMetaKeyV3(profileId));
+    if (raw) {
+      const migrated = sanitize(JSON.parse(raw));
+      saveProfileMetaState(profileId, migrated);
+      return migrated;
+    }
+  } catch { /* ignore damaged v3 profile run */ }
 
   if (!migrateLegacy) return null;
   const legacy = loadMetaState();
@@ -294,12 +424,13 @@ export function loadProfileMetaState(profileId: string, migrateLegacy = false): 
 
 export function saveProfileMetaState(profileId: string, state: MetaState) {
   try {
-    localStorage.setItem(profileMetaKey(profileId), JSON.stringify(sanitize(state)));
+    localStorage.setItem(profileMetaKeyV4(profileId), JSON.stringify(sanitize(state)));
   } catch { /* storage may be unavailable in private/sandboxed contexts */ }
 }
 
 export function clearProfileMetaState(profileId: string) {
   try {
-    localStorage.removeItem(profileMetaKey(profileId));
+    localStorage.removeItem(profileMetaKeyV4(profileId));
+    localStorage.removeItem(profileMetaKeyV3(profileId));
   } catch { /* storage may be unavailable in private/sandboxed contexts */ }
 }
