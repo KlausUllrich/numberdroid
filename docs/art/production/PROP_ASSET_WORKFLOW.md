@@ -18,7 +18,9 @@ CURRENT CONTEXT / PHASE
 → FUNCTION-TO-FORM PHILOSOPHY (TEXT)
 → USER ALIGNMENT / CORRECTION
 → PROP CONTRACT + PERSPECTIVE PREFLIGHT
+→ WAIT FOR `generieren`
 → ONE SOURCE IMAGE
+→ WAIT FOR / ENTER `QA`
 → ASSISTANT SOURCE QA
 → KLAUS SOURCE APPROVAL
 → PRODUCTION EXTRACTION / NORMALIZATION
@@ -38,7 +40,55 @@ A good-looking Prop that does not communicate its function is a failed design, n
 
 ---
 
-# 2. Function before form — mandatory design-analysis gate
+# 2. Two explicit trigger words — binding interaction contract
+
+For Prop / Prop-like Hero image work, use two explicit user keywords as hard mode switches.
+
+## `QA` — inspection mode
+
+If the user's current message contains the explicit word **`QA`** (case-insensitive):
+
+- do **not** call `image_gen`;
+- inspect the currently relevant image/source only;
+- compare it against the current recipe, perspective, function and production contract;
+- report `PASS`, `FAIL` or `REVISION REQUIRED` with concrete reasons;
+- record newly learned durable design constraints in the recipe/documentation when requested;
+- do not silently generate a replacement in the same turn.
+
+`QA` has priority over generation.
+
+If the same user message contains both `QA` and `generieren`, **QA wins**. Do not generate. A later user turn must contain `generieren` without `QA` to authorize the next image.
+
+## `generieren` — image-generation authorization
+
+For this workflow, `image_gen` may be called **only when the user's current message explicitly contains the word `generieren`** (case-insensitive).
+
+The following do **not** authorize image generation by themselves:
+
+- `ok`, `ja`, `gut`;
+- `weiter`;
+- `mach das`;
+- `ändern`, `überarbeiten`, `verbessern`;
+- `nächste Variante`;
+- discussion of what the next picture should show;
+- approval of the textual function-to-form philosophy without the literal word `generieren`.
+
+Such messages may refine the concept, prompt, recipe or next plan. Image generation waits for the explicit `generieren` trigger.
+
+One `generieren` trigger authorizes:
+
+- exactly **one** image-generation call;
+- exactly **one** visual proposal;
+- no automatic second candidate;
+- no integration/extraction after the generated image in the same turn.
+
+The generated image is the end of that production turn. It must be inspected before another generation.
+
+This trigger contract deliberately removes ambiguity between discussion, QA and expensive image-tool execution.
+
+---
+
+# 3. Function before form — mandatory design-analysis gate
 
 Before writing the image prompt, the Artist must first determine **what the asset actually has to accomplish**.
 
@@ -71,7 +121,7 @@ For Hero Props, this step is especially important. A Hero object should normally
 
 ---
 
-# 3. Textual design-philosophy gate — user must be able to intervene
+# 4. Textual design-philosophy gate — user must be able to intervene
 
 Before the first image generation for a new or materially revised Prop, present the intended design logic **in text**.
 
@@ -87,9 +137,9 @@ The explanation should be short enough to review but concrete enough to challeng
 7. MAIN FAILURE MODE TO AVOID
 ```
 
-This is a real approval/correction gate.
+This is a real correction/alignment gate.
 
-**Do not call image generation in the same turn in which the Artist first presents this design philosophy**, unless the user had already seen/approved the same direction or explicitly instructs generation after reviewing it.
+**Do not call image generation merely because the Artist has finished presenting the philosophy.** Even after alignment, wait for the explicit user trigger `generieren`.
 
 The purpose is to make conceptual mistakes cheap. It is much faster to correct “this looks like a teleporter, but it needs to communicate Core → Body transfer” in text than after several image generations.
 
@@ -97,7 +147,7 @@ If later QA reveals that the underlying functional interpretation was wrong, ret
 
 ---
 
-# 4. One proposal per generated image — binding
+# 5. One proposal per generated image — binding
 
 For Prop production, **one generated image contains one proposed asset**.
 
@@ -119,27 +169,26 @@ If the user wants several visual alternatives, they are separate proposal cycles
 
 ```text
 Candidate A
+→ user says `generieren`
 → one image-generation turn
 → QA / user reaction
 
-Candidate B (only when requested/needed)
-→ one image-generation turn
-→ QA / user reaction
-
-Candidate C (only when requested/needed)
+Candidate B, if still wanted
+→ revise direction as needed
+→ user says `generieren`
 → one image-generation turn
 → QA / user reaction
 ```
 
-Because ChatGPT image generation forms a user-visible turn boundary, do **not** promise to autonomously generate A, B and C sequentially inside one response. The next candidate is generated only after the previous result has been inspected and the user asks to continue or the revised direction has been approved.
+Do **not** promise to autonomously generate A, B and C sequentially inside one response.
 
 If Candidate A is approved, there is no requirement to generate B/C merely to satisfy a quota.
 
-**One proposal per image is more important than presenting three choices quickly.**
+**One proposal per image is more important than presenting several choices quickly.**
 
 ---
 
-# 5. Perspective preflight — mandatory before every new visual direction
+# 6. Perspective preflight — mandatory before every new visual direction
 
 Perspective/camera mismatch is a source-level failure and cannot be fixed by cropping.
 
@@ -162,7 +211,7 @@ If source QA reports wrong perspective, change the next visual brief/prompt befo
 
 ---
 
-# 6. Mandatory Prop Contract before generation
+# 7. Mandatory Prop Contract before generation
 
 Before the first image call, record the following in the relevant recipe or task card.
 
@@ -193,11 +242,11 @@ The Level Compiler mapping for these decisions is defined in `../../level-genera
 
 Do not generate an asset while its spatial role is still ambiguous. For example, a console that may be either wall-mounted or floor-standing needs that decision before art production because perspective, collision, rotations and editor behavior depend on it.
 
-The contract does not require every final numeric bound to be known before concept art, but it must make the intended spatial behavior explicit enough that the proposed silhouette can be judged against it.
+The contract does not require every final numeric bound to be known before concept art, but it must make intended spatial behavior explicit enough that the proposed silhouette can be judged against it.
 
 ---
 
-# 7. Source generation gate
+# 8. Source generation gate
 
 The production source must contain the requested Prop only.
 
@@ -217,9 +266,11 @@ The prompt should emphasize the **approved functional form**, not merely palette
 
 For current Transfer Ship civilian-prop language, use the approved Numberdroid perspective contract from the relevant category recipe/art rules.
 
+The image call itself still waits for the literal `generieren` trigger defined above.
+
 ---
 
-# 8. Assistant source QA
+# 9. Assistant source QA
 
 Every generated source receives one concrete disposition.
 
@@ -238,15 +289,15 @@ Check:
 - no text/presentation furniture;
 - plausible extraction into a clean transparent runtime canvas.
 
-Report `PASS` or `FAIL` with reasons.
+Report `PASS`, `FAIL` or `REVISION REQUIRED` with reasons.
 
 A visually attractive but invalid source is a FAIL.
 
-`QA`, `prüfen`, `check` or equivalent means **inspection only**. Do not call image generation during QA.
+The explicit `QA` keyword always means inspection mode and cannot authorize generation.
 
 ---
 
-# 9. Klaus source-approval gate
+# 10. Klaus source-approval gate
 
 For Gold Slice production, **Klaus must explicitly approve the source before technical production continues**.
 
@@ -259,13 +310,14 @@ If the source is rejected:
 1. state why it failed;
 2. decide whether the failure is prompt execution, perspective, style or underlying function-to-form reasoning;
 3. if the design logic changes materially, present the revised philosophy in text first;
-4. generate exactly one revised candidate only after alignment/continuation.
+4. update the recipe when durable learning changed;
+5. wait for a later explicit `generieren` trigger before making exactly one revised candidate.
 
 Do not crop or integrate a least-bad source.
 
 ---
 
-# 10. Production extraction / normalization
+# 11. Production extraction / normalization
 
 The approved source is not automatically the runtime asset.
 
@@ -298,7 +350,7 @@ The recipe records the actual extraction values used for the accepted production
 
 ---
 
-# 11. Production QA
+# 12. Production QA
 
 Inspect the actual normalized runtime PNG independently from the approved large source.
 
@@ -320,11 +372,13 @@ Only the production asset proceeds to shadow/spatial integration.
 
 ---
 
-# 12. Shadow / grounding step
+# 13. Shadow / grounding step
 
 Grounding shadow is a separate `FloorFX` asset unless a category-specific exception is explicitly approved.
 
 The shadow is created **after** the visible Prop source/production asset is approved. It is not part of the initial visual-proposal image.
+
+If the shadow itself requires image generation, the same trigger rule applies: wait for the explicit word `generieren`, make exactly one shadow proposal, then stop for QA.
 
 Default contract:
 
@@ -336,13 +390,13 @@ Default contract:
 - no global directional-light claim;
 - no collision semantics.
 
-The shadow may be generated or derived deterministically from the approved production silhouette. It receives assistant QA before integration.
+The shadow may also be derived deterministically from the approved production silhouette. It receives assistant QA before integration.
 
-Klaus' final live review evaluates the combined Prop + shadow result in context. A shadow that materially changes the intended look may be escalated for separate approval before integration.
+Klaus' final live review evaluates the combined Prop + shadow result in context.
 
 ---
 
-# 13. Spatial metadata finalization
+# 14. Spatial metadata finalization
 
 Art pixels never become gameplay geometry automatically.
 
@@ -366,7 +420,7 @@ If the asset requires a spatial rule the current registry/compiler cannot expres
 
 ---
 
-# 14. Level Editor / Workbench gate
+# 15. Level Editor / Workbench gate
 
 Before integration, confirm the asset is understandable to the current semantic Level Workbench.
 
@@ -387,7 +441,7 @@ Type-level asset rules belong in the Prop Registry. Level-instance intent belong
 
 ---
 
-# 15. Runtime integration
+# 16. Runtime integration
 
 For generated TS-01, the default production path is **individual registered assets**, not immediate global atlas packing.
 
@@ -406,7 +460,7 @@ Atlas packing is an optimization/asset-management concern and remains deferred u
 
 ---
 
-# 16. Integration QA and final acceptance
+# 17. Integration QA and final acceptance
 
 After registry integration:
 
@@ -423,19 +477,20 @@ After registry integration:
 
 ---
 
-# 17. Iteration discipline
+# 18. Iteration discipline
 
 Only one visual candidate is active at a time.
 
 When a source fails or the user asks for another direction:
 
 ```text
-inspect
+inspect / QA
 → identify the real failure
 → revise function-to-form philosophy/prompt as needed
 → tell the user what will change
+→ wait for `generieren`
 → generate one new image
-→ inspect again
+→ stop for QA again
 ```
 
 Do not hide learning by silently rerolling images.
