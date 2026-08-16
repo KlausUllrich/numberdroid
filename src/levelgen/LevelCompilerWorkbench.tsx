@@ -25,6 +25,7 @@ import {
   type WorkbenchSelection,
 } from "./workbench";
 import { clearWorkbenchDraft, loadWorkbenchDraft, saveWorkbenchDraft } from "./workbenchDraft";
+import { workbenchActorDisplayName } from "./workbenchDisplay";
 import {
   commitWorkbenchHistory,
   createWorkbenchHistory,
@@ -453,7 +454,7 @@ export function LevelCompilerWorkbench() {
     <main className="levelgen-debug levelgen-debug--workbench">
       <header className="levelgen-debug__header">
         <div>
-          <small>NUMBERDROID · LEVEL COMPILER WORKBENCH v0.12.3</small>
+          <small>NUMBERDROID · LEVEL COMPILER WORKBENCH v0.12.4</small>
           <h1>TS-01 · SEMANTIC EDITING</h1>
           <p>Tap Space / Prop / Actor · accepted edits enter Undo history · SAVE DRAFT persists on this browser</p>
         </div>
@@ -591,7 +592,8 @@ export function LevelCompilerWorkbench() {
               const center = cellCenter(actor.cell, bounds);
               const vector = facingVector(actor.facing);
               const encounter = geometry.semantic.encounters.find((entry) => entry.id === actor.id);
-              const tooltip = `${actor.id}\n${encounter ? BODIES[encounter.bodyId].name : "ACTOR"} · ${actor.behavior} · facing ${actor.facing}°${actor.patrolRouteId ? ` · ${actor.patrolRouteId}` : ""}\nscore ${actor.score.toFixed(2)}\n${actor.reasons.join(" · ")}\nvalid candidates ${actor.candidateCount}`;
+              const displayName = workbenchActorDisplayName(encounter?.bodyId, actor.id);
+              const tooltip = `${actor.id}\n${displayName} · ${actor.behavior} · facing ${actor.facing}°${actor.patrolRouteId ? ` · ${actor.patrolRouteId}` : ""}\nscore ${actor.score.toFixed(2)}\n${actor.reasons.join(" · ")}\nvalid candidates ${actor.candidateCount}`;
               const selected = selection?.kind === "actor" && selection.id === actor.id;
               return (
                 <g
@@ -627,7 +629,7 @@ export function LevelCompilerWorkbench() {
               {showActors && actors.actors.map((actor) => {
                 const center = cellCenter(actor.cell, bounds);
                 const encounter = geometry.semantic.encounters.find((entry) => entry.id === actor.id);
-                const label = encounter ? BODIES[encounter.bodyId].name : friendly(actor.id);
+                const label = workbenchActorDisplayName(encounter?.bodyId, actor.id);
                 return <text key={`label-actor-${actor.id}`} className="label label--actor" x={center.x} y={center.y + TILE * 0.43} textAnchor="middle">{label}</text>;
               })}
               {showEvents && plan.pickups.map((pickup) => {
@@ -646,13 +648,19 @@ export function LevelCompilerWorkbench() {
           <button type="button" className="levelgen-workbench__inspector-close" aria-label="Close inspector" onClick={closeInspector}>×</button>
           <div className="levelgen-workbench__inspector-head">
             <small>SEMANTIC OVERRIDE</small>
-            <strong>{selectedSpace ? friendly(selectedSpace.id) : selectedProp ? friendly(selectedProp.id) : selectedActor ? friendly(selectedActor.id) : "NOTHING SELECTED"}</strong>
+            <strong>{selectedSpace
+              ? friendly(selectedSpace.id)
+              : selectedProp
+                ? friendly(selectedProp.id)
+                : selectedActor
+                  ? workbenchActorDisplayName(selectedEncounter?.bodyId, selectedActor.id)
+                  : "NOTHING SELECTED"}</strong>
             <span>{selectedSpace
               ? `SPACE · ${selectedSpace.rect.w}×${selectedSpace.rect.h}`
               : selectedProp
                 ? `PROP · ${selectedProp.rotation}° · ${selectedProp.wallSide ?? "FLOOR"}`
                 : selectedEncounter
-                  ? `ACTOR · ${BODIES[selectedEncounter.bodyId].name} · ${selectedEncounter.behavior.toUpperCase()}`
+                  ? `ACTOR · ${workbenchActorDisplayName(selectedEncounter.bodyId, selectedEncounter.id)} · ${selectedEncounter.behavior.toUpperCase()} · ID ${selectedEncounter.id}`
                   : "Tap a Space, Prop or Actor in Edit Mode."}</span>
           </div>
 
