@@ -160,7 +160,33 @@ export type TileMapVisualDefinition = {
   layers: TileLayerDefinition[];
 };
 
-export type FloorVisualDefinition = ImageFloorVisualDefinition | TileMapVisualDefinition;
+/** One authored visual sprite in world pixels. Rotation is around its center. */
+export type FloorVisualSpriteDefinition = {
+  id: string;
+  asset: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
+  opacity?: number;
+};
+
+/**
+ * Ordered static visual layers. The array order is the render order and is
+ * deliberately explicit so FloorFX / Architecture / WallProps / FloorProps do
+ * not depend on incidental DOM ordering.
+ */
+export type CompositeFloorVisualLayerDefinition =
+  | { id: string; kind: "image"; asset: string; opacity?: number }
+  | { id: string; kind: "sprites"; sprites: FloorVisualSpriteDefinition[]; opacity?: number };
+
+export type CompositeFloorVisualDefinition = {
+  kind: "composite";
+  layers: CompositeFloorVisualLayerDefinition[];
+};
+
+export type FloorVisualDefinition = ImageFloorVisualDefinition | TileMapVisualDefinition | CompositeFloorVisualDefinition;
 
 export type FloorGoalDefinition =
   | {
