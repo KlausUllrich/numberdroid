@@ -1,6 +1,6 @@
 # Numberdroid — Prop Placement Compiler
 
-Status: **v0.3 placement + v0.3.1 orientation contract**
+Status: **v0.3 placement + v0.3.1 orientation + v0.10 rotated-footprint contract**
 
 This stage consumes generated navigation/forbidden-zone data and produces deterministic, explainable Hero / functional / furniture / dressing placement.
 
@@ -11,7 +11,7 @@ Geometry / Shared Walls
   ↓
 Navigation + widened Door Clearance
   ↓
-Prop Placement + art orientation   ← this document
+Prop Placement + rotation-aware physical geometry   ← this document
   ↓
 Actor Placement
   ↓
@@ -35,13 +35,19 @@ Hero machinery owns composition first; support objects relate to it; furniture w
 
 ## 2. Candidate generation
 
+Rotation is part of candidate geometry. It is **not** a presentation transform applied after a location has already been chosen.
+
 ### Wall-attached Props
 
 Wall candidates come only from `wallAttachmentSlots` derived from the canonical Shared Wall Graph. A wall Prop therefore cannot be placed where no wall exists or inside a doorway aperture.
 
+The wall side determines the required art rotation before geometric validation. If that rotation is not present in `allowedRotations`, that wall side does not produce candidates at all.
+
 ### Floor Props
 
-Floor candidates enumerate fitting rectangles inside the requested semantic Space. The footprint must resolve entirely to walkable cells belonging to that Space.
+Floor candidates enumerate every authored allowed rotation. Each orientation receives its real rotated physical rectangle before occupancy, Door Clearance, path, Hero-clearance and use-space validation.
+
+The footprint must resolve entirely to walkable cells belonging to the requested semantic Space.
 
 ## 3. Hard rejection rules
 
@@ -69,38 +75,49 @@ allowedRotations: Array<0 | 90 | 180 | 270>
 
 This exists because Numberdroid assets are top-down but may contain slight authored perspective, highlights, controls or side-face cues. The compiler must not freely rotate an asset into a view that has never been authored/approved.
 
-### Wall convention
+`footprintTiles` always describes the approved **0° authored physical footprint**.
 
-For wall-backed Props:
+The solver derives:
 
 ```text
-0°   north wall · front/access south
-90°  east wall  · front/access west
-180° south wall · front/access north
-270° west wall  · front/access east
+0°   → width × height
+90°  → height × width
+180° → width × height
+270° → height × width
 ```
 
-A wall placement requiring a rotation outside `allowedRotations` is invalid. For example, the current Family Memory Console and Coffee Machine are authored for the north-wall orientation and currently declare only `0°`.
+Thus a `2×1` bed using `90°` is physically solved as `1×2`; collision, occupancy, use-space and all downstream systems receive that solved rectangle.
 
-### Floor Props
+### Direction convention
 
-Square floor Props may choose any allowed cardinal rotation without changing their solved footprint.
+```text
+0°   back north · front/access south
+90°  back east  · front/access west
+180° back south · front/access north
+270° back west  · front/access east
+```
 
-Until the placement stage explicitly enumerates rotated non-square footprints, non-square floor Props conservatively use only compatible `0° / 180°` orientations. This is deliberate: visual rotation must not silently invalidate collision/footprint geometry.
+For wall-backed Props this is also the wall convention. A north-wall prop therefore requires `0°`, an east-wall prop `90°`, and so on.
 
-The chosen rotation is persisted in the oriented placement decision and exposed in Workbench tooltips.
+For floor Props, all authored allowed rotations are valid candidate orientations. Directional use-space such as an operating side rotates with the Prop rather than remaining in world north/south.
+
+The chosen rotation is persisted directly in the solved placement decision and exposed to Workbench/runtime emission.
 
 ## 5. Use-space reservations
 
 Prop footprints and use-space are separate concepts.
 
-### Wall-prop approach
+### Directional approach / operating space
 
-Wall furniture may declare `approachDepthTiles`. The approach stays walkable but becomes unavailable to later furnishing/dressing. This prevents plants or storage from blocking the Coffee Machine, Memory Console or service banks.
+Props may declare `approachDepthTiles`. The approach is generated from the Prop's solved front/access direction, remains walkable, but becomes unavailable to later furnishing/dressing.
+
+For example, a `2×1` floor service object rotated to `90°` becomes `1×2` and reserves its operating strip to the west.
+
+For wall furniture this prevents plants or storage from blocking the Coffee Machine, Memory Console or service banks.
 
 ### Hero clearance
 
-Hero machinery may declare `clearanceAroundTiles`, reserving composition/gameplay space around the Hero without converting it to solid collision.
+Hero machinery may declare `clearanceAroundTiles`, reserving composition/gameplay space around the **rotated physical footprint** without converting the reservation itself to solid collision.
 
 ## 6. Primary circulation and Heroes
 
@@ -108,7 +125,7 @@ Ordinary Props that forbid the provisional primary path treat it as a hard const
 
 Hero Props are exceptional: they may consume provisional primary cells only if generated reachability survives. Such candidates are penalized and explained rather than silently accepted.
 
-## 7. Soft scoring
+## 7. Soft scoring and stability
 
 After hard rejection, valid candidates are scored using preferences such as:
 
@@ -122,6 +139,20 @@ After hard rejection, valid candidates are scored using preferences such as:
 
 A tiny deterministic sub-seed tie-breaker makes equivalent valid choices stable.
 
+### Binding regeneration-stability rule
+
+Adding rotation support must not randomly reshuffle an already valid unchanged spatial candidate. The candidate seed identity therefore remains based on:
+
+```text
+instance seed
++ solved physical rect
++ wall side / floor
+```
+
+not on a newly appended rotation token.
+
+New allowed orientations may create genuinely new physical candidates, but unchanged candidates retain their previous deterministic ranking. This is required for local regeneration and future Workbench editing.
+
 ## 8. Explainability
 
 Every placement records:
@@ -129,15 +160,15 @@ Every placement records:
 - stable instance ID;
 - source request / Prop / Space;
 - role;
-- final rectangle;
-- wall side when applicable;
 - resolved cardinal rotation;
+- final **rotated** rectangle;
+- wall side when applicable;
 - footprint/use-space;
 - score and scoring reasons;
 - valid candidate count;
 - rejection counts.
 
-This supports Workbench questions such as “Why is this plant here?” or “Why can't this console go on the west wall?”.
+Diagnostics explicitly include the chosen rotation and resulting footprint dimensions. This supports Workbench questions such as “Why is this plant here?”, “Why can't this console go on the west wall?” or “Why did this bed become 1×2?”.
 
 ## 9. TS-01 proof
 
@@ -145,12 +176,19 @@ The reference spec currently exercises:
 
 - Memory Console → real north wall, `0°`, operating approach;
 - Coffee Machine → north wall, `0°`, operating approach;
-- PRIMUS service banks → wall attachment with multiple allowed cardinal rotations;
+- PRIMUS service banks → real wall attachment with multiple cardinal art orientations;
 - plants → wall/corner preference while avoiding Door Clearance, paths and operating space;
-- child furniture → wall-biased placement;
+- child bed → non-square floor Prop with four allowed cardinal orientations;
 - toilet → hygiene-only + wall adjacency + wall opposite door;
 - Transfer Core → centered Hero + reserved clearance;
 - Hologram / Flow → semantic proximity to the Transfer Hero.
+
+Dedicated v0.10 tests additionally prove:
+
+- `2×1 @ 90° → 1×2` physical footprint;
+- unavailable wall-side art removes that wall from candidate generation;
+- directional floor-prop use-space rotates with the Prop;
+- full TS-01 placement remains deterministic and its existing downstream Actor routes remain valid.
 
 ## 10. Debug preview
 
@@ -158,8 +196,7 @@ The reference spec currently exercises:
 
 ## 11. Current limitations
 
-- rotated non-square floor footprints are not yet enumerated at candidate-generation time;
 - actual sprite pixel overhangs remain future metadata;
 - per-Prop visual/collision shapes are still coarser than final runtime art geometry;
 - direct Workbench move/lock/regenerate operations are not yet implemented;
-- generated content does not yet replace the live TS-01 Floor.
+- generated content does not yet replace the accepted hand-authored TS-01 Floor.
