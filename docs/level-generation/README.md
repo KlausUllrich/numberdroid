@@ -1,6 +1,6 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.8.1 persistent runtime scheduler**
+Status: **CURRENT architecture / implementation track — v0.9 scripted/staged actor presentation**
 
 This directory owns the design and technical contract for the Numberdroid procedural/declarative level-authoring system.
 
@@ -182,7 +182,7 @@ Transfer trigger zone entered
 → explicit WEITER
 ```
 
-### v0.8.1 — persistent timing scheduler — IMPLEMENTED / CURRENT
+### v0.8.1 — persistent timing scheduler — IMPLEMENTED
 
 See `TRIGGER_EVENT_RUNTIME.md`.
 
@@ -195,6 +195,36 @@ See `TRIGGER_EVENT_RUNTIME.md`.
 - one deadline-driven timeout plus focus/visibility checks handles scheduler wakeups;
 - scheduler work remains outside Player/Actor RAF loops;
 - deterministic tests inject `nowMs` and cover delayed edges, timers, recurring timers and save-like JSON round trips.
+
+### v0.9 — Scripted / Staged Actor presentation — IMPLEMENTED / CURRENT
+
+See `STAGED_ACTOR_PRESENTATION.md`.
+
+- non-combat Staged Actors now render separately from Encounter/Hostile robots;
+- `spawn-actor`, `despawn-actor`, `move-actor` and `actor-passby` persistent state is consumed directly by the runtime;
+- route position/facing is derived from compiled route + persisted start time rather than storing frame coordinates;
+- blocking Story Beats/runtime pauses freeze Staged Actor route clocks and resume without a visual jump;
+- one-shot pass-bys persist completion as `present: false`;
+- an Actor presentation catalog maps semantic `actorType` to blockout dimensions, speed and presentation kind with a generic fallback;
+- moving Staged Actors own a RAF only while movement is actually active;
+- a separate generated Bio-Ark proof Floor demonstrates the complete chain without contaminating TS-01.
+
+Bio-Ark proof:
+
+```text
+?floor=bioark-passby
+```
+
+```text
+enter grazer-view-zone
+→ run-grazer-passby
+→ bioark-grazer-01 appears
+→ traverses generated pass-by route
+→ disappears
+→ completion persists
+```
+
+The current Grazer is a runtime blockout. Final Bio-Ark art remains a later Artist/asset-registry task.
 
 ## Workbench interaction baseline
 
@@ -257,17 +287,19 @@ compiled Tiled/Floor data + typed script contract
 
 ## Current task list / next stages
 
-1. **Scripted / Staged Actor presentation** — consume persistent spawn/despawn/move/pass-by state and compiled routes; first Bio-Ark pass-by proof.
-2. **Rotated non-square footprint solving** — enumerate true 90°/270° footprints rather than conservatively rejecting them.
-3. **Cyclic / multi-constraint topology solver** — extend beyond tree-like Space graphs without sacrificing deterministic/explainable decisions.
-4. **Overrides / Workbench editing** — select, lock, move, resize or regenerate one semantic element without destabilizing unrelated areas.
-5. **Prop/art emission mapping** — replace semantic blockouts with registered production assets while preserving metadata/rotation/collision contracts.
-6. **Generated TS-01 feature/art parity** — make the compiler-generated Floor capable of replacing the hand-authored reference only after explicit QA acceptance.
-7. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and Bio-Ark/natural layout to expose missing rules before producing the campaign set.
-8. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical and inspectable.
-9. **Workbench usability pass** — direct editing, locks, local regeneration, diagnostics/explanations and useful diffing of generated changes.
-10. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
-11. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling before the compiler/runtime pipeline is treated as production-ready.
+1. **Rotated non-square footprint solving** — enumerate true 90°/270° footprints rather than conservatively rejecting them.
+2. **Cyclic / multi-constraint topology solver** — extend beyond tree-like Space graphs without sacrificing deterministic/explainable decisions.
+3. **Overrides / Workbench editing** — select, lock, move, resize or regenerate one semantic element without destabilizing unrelated areas.
+4. **Prop/art emission mapping** — replace semantic blockouts with registered production assets while preserving metadata/rotation/collision contracts.
+5. **Generated TS-01 feature/art parity** — make the compiler-generated Floor capable of replacing the hand-authored reference only after explicit QA acceptance.
+6. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and Bio-Ark/natural layout to expose missing rules before producing the campaign set.
+7. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical and inspectable.
+8. **Workbench usability pass** — direct editing, locks, local regeneration, diagnostics/explanations and useful diffing of generated changes.
+9. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
+10. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling before the compiler/runtime pipeline is treated as production-ready.
+11. **FINAL AGENT AUTHORING GUIDE** — only after the tool and workflows are stable, write the authoritative usage guide for Game Designer and Artist agents: what the compiler can do, how to author/change a LevelSpec, which rules belong globally vs per-Level, how Props/Actor art metadata and rotations are registered, how Triggers/Events/Routes work, how to use Workbench/overrides/locks/local regeneration, how to QA generated output, and when an agent should change a reusable rule instead of hand-fixing one Floor.
+
+The **Agent Authoring Guide is deliberately the last step** of this development track so it documents the final accepted capability and workflow instead of becoming stale while the compiler architecture is still changing.
 
 The final Performance & Scale Pass is a **required task**, not an optional polish step. It must cover at least:
 
