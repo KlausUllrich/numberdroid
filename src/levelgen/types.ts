@@ -14,34 +14,14 @@ export type OrientationPreference = "horizontal" | "vertical" | "any";
 export type SpaceSizeClass = "tiny" | "small" | "medium" | "large" | "hero";
 export type RoomRationality = "domestic" | "neutral" | "ritual" | "system";
 
-export type TileRange = {
-  min: number;
-  preferred: number;
-  max: number;
-};
-
-export type SpaceSizeSpec = {
-  class: SpaceSizeClass;
-  width?: TileRange;
-  height?: TileRange;
-};
+export type TileRange = { min: number; preferred: number; max: number };
+export type SpaceSizeSpec = { class: SpaceSizeClass; width?: TileRange; height?: TileRange };
 
 export type RelativeRelation =
-  | "adjacent"
-  | "north_of"
-  | "south_of"
-  | "east_of"
-  | "west_of"
-  | "north_east_of"
-  | "north_west_of"
-  | "south_east_of"
-  | "south_west_of";
+  | "adjacent" | "north_of" | "south_of" | "east_of" | "west_of"
+  | "north_east_of" | "north_west_of" | "south_east_of" | "south_west_of";
 
-export type SpatialRelationSpec = {
-  targetId: string;
-  relation: RelativeRelation;
-  strength?: ConstraintStrength;
-};
+export type SpatialRelationSpec = { targetId: string; relation: RelativeRelation; strength?: ConstraintStrength };
 
 export type RoomSpaceSpec = {
   id: string;
@@ -65,16 +45,8 @@ export type CorridorSpaceSpec = {
 };
 
 export type LevelSpaceSpec = RoomSpaceSpec | CorridorSpaceSpec;
-
-export type DoorClearanceSpec = {
-  before: number;
-  after: number;
-};
-
-export type DoorLockSpec =
-  | { mode: "none" }
-  | { mode: "access-key"; keyId: string };
-
+export type DoorClearanceSpec = { before: number; after: number };
+export type DoorLockSpec = { mode: "none" } | { mode: "access-key"; keyId: string };
 export type ConnectionKind = "opening" | "standard-door" | "controlled-door";
 
 export type ConnectionSpec = {
@@ -89,7 +61,6 @@ export type ConnectionSpec = {
 };
 
 export type PropPlacementRole = "hero" | "support" | "furniture" | "dressing";
-
 export type PropRequestSpec = {
   id: string;
   propId: string;
@@ -101,13 +72,8 @@ export type PropRequestSpec = {
   preferredWall?: CardinalDirection;
 };
 
-export type RouteSpec = {
-  id: string;
-  kind: "patrol" | "passby" | "scripted";
-  spaceIds: string[];
-  loop?: boolean;
-  tags?: string[];
-};
+export type RouteKind = "patrol" | "passby" | "scripted";
+export type RouteSpec = { id: string; kind: RouteKind; spaceIds: string[]; loop?: boolean; tags?: string[] };
 
 export type EncounterIntentSpec = {
   id: string;
@@ -135,23 +101,8 @@ export type AccessPickupSpec = {
   label?: string;
 };
 
-export type TriggerKind =
-  | "enter-space"
-  | "enter-zone"
-  | "interact"
-  | "collect"
-  | "state-change"
-  | "proximity"
-  | "timer";
-
-export type TriggerSpec = {
-  id: string;
-  kind: TriggerKind;
-  sourceId: string;
-  eventIds: string[];
-  once?: boolean;
-  delayMs?: number;
-};
+export type TriggerKind = "enter-space" | "enter-zone" | "interact" | "collect" | "state-change" | "proximity" | "timer";
+export type TriggerSpec = { id: string; kind: TriggerKind; sourceId: string; eventIds: string[]; once?: boolean; delayMs?: number };
 
 export type LevelEventSpec =
   | { id: string; kind: "set-flag"; flag: string; value: boolean | number | string }
@@ -206,10 +157,15 @@ export type PropPlacementMetadata = {
   preferWallAdjacent?: boolean;
   preferCorner?: boolean;
   preferNearTags?: string[];
+  preferRoomCenter?: boolean;
   forbidDoorClearance?: boolean;
   forbidPrimaryPath?: boolean;
   forbidInFrontOfWallProp?: boolean;
   preferOppositeDoor?: boolean;
+  /** Reserve unobstructed use-space immediately in front of a wall-attached prop. */
+  approachDepthTiles?: number;
+  /** Reserve a non-furnishable ring around important floor props / hero machinery. */
+  clearanceAroundTiles?: number;
 };
 
 export type PropMetadata = {
@@ -221,35 +177,11 @@ export type PropMetadata = {
 };
 
 export type PropRegistry = Readonly<Record<string, PropMetadata>>;
-
-export type CompileDiagnostic = {
-  level: "info" | "warning";
-  code: string;
-  message: string;
-  targetId?: string;
-};
-
-export type CompiledSemanticSpace = LevelSpaceSpec & {
-  seed: number;
-};
-
-export type CompiledConnection = ConnectionSpec & {
-  seed: number;
-  widthTiles: number;
-  clearanceTiles: DoorClearanceSpec;
-  lock: DoorLockSpec;
-};
-
-export type CompiledPropRequest = PropRequestSpec & {
-  seed: number;
-  quantity: number;
-  required: boolean;
-  metadata: PropMetadata;
-};
-
-export type CompiledEncounterIntent = EncounterIntentSpec & {
-  seed: number;
-};
+export type CompileDiagnostic = { level: "info" | "warning"; code: string; message: string; targetId?: string };
+export type CompiledSemanticSpace = LevelSpaceSpec & { seed: number };
+export type CompiledConnection = ConnectionSpec & { seed: number; widthTiles: number; clearanceTiles: DoorClearanceSpec; lock: DoorLockSpec };
+export type CompiledPropRequest = PropRequestSpec & { seed: number; quantity: number; required: boolean; metadata: PropMetadata };
+export type CompiledEncounterIntent = EncounterIntentSpec & { seed: number };
 
 export type SemanticCompilePlan = {
   levelId: string;

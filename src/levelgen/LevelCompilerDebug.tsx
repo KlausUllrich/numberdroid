@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent }
 import { compileLevelSpec } from "./compiler";
 import { compileLevelGeometry } from "./geometry";
 import { compileLevelNavigation } from "./navigation";
+import { compilePropPlacement } from "./placement";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
 import type { ConnectionGeometry, GridRect, SpaceGeometry } from "./geometryTypes";
@@ -13,20 +14,11 @@ const PAD = 34;
 const MIN_ZOOM = 0.45;
 const MAX_ZOOM = 5;
 
-type ViewBox = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-};
-
-type PointerPosition = {
-  x: number;
-  y: number;
-};
+type ViewBox = { x: number; y: number; w: number; h: number };
+type PointerPosition = { x: number; y: number };
 
 function friendly(id: string) {
-  return id.replace(/^family-/, "").replace(/-/g, " ").toUpperCase();
+  return id.replace(/^family-/, "").replace(/-/g, " ").replace(/#/g, " ").toUpperCase();
 }
 
 function rectPixels(rect: GridRect, bounds: GridRect) {
@@ -69,10 +61,12 @@ export function LevelCompilerDebug() {
   const plan = useMemo(() => {
     const semantic = compileLevelSpec(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY);
     const geometry = compileLevelGeometry(semantic);
-    return compileLevelNavigation(geometry);
+    const navigation = compileLevelNavigation(geometry);
+    return compilePropPlacement(navigation);
   }, []);
 
-  const { geometry, bounds } = plan;
+  const navigation = plan.navigation;
+  const { geometry, bounds } = navigation;
   const width = bounds.w * TILE + PAD * 2;
   const height = bounds.h * TILE + PAD * 2;
   const fullViewBox = useMemo<ViewBox>(() => ({ x: 0, y: 0, w: width, h: height }), [width, height]);
@@ -80,6 +74,8 @@ export function LevelCompilerDebug() {
   const [showNavigation, setShowNavigation] = useState(true);
   const [showClearance, setShowClearance] = useState(true);
   const [showWallSlots, setShowWallSlots] = useState(false);
+  const [showProps, setShowProps] = useState(true);
+  const [showPropReservations, setShowPropReservations] = useState(false);
   const [viewBox, setViewBox] = useState<ViewBox>(fullViewBox);
   const [isDragging, setIsDragging] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -134,8 +130,7 @@ export function LevelCompilerDebug() {
     event.preventDefault();
     const focus = clientToSvg(event.clientX, event.clientY);
     if (!focus) return;
-    const factor = Math.exp(event.deltaY * 0.0015);
-    commitViewBox(zoomAround(focus, factor));
+    commitViewBox(zoomAround(focus, Math.exp(event.deltaY * 0.0015)));
   }
 
   function handlePointerDown(event: ReactPointerEvent<SVGSVGElement>) {
@@ -149,7 +144,6 @@ export function LevelCompilerDebug() {
   function handlePointerMove(event: ReactPointerEvent<SVGSVGElement>) {
     if (!pointersRef.current.has(event.pointerId)) return;
     event.preventDefault();
-
     const previousPointers = new Map(pointersRef.current);
     pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     const currentPointers = pointersRef.current;
@@ -162,11 +156,7 @@ export function LevelCompilerDebug() {
       const previousWorld = clientToSvg(previous.x, previous.y);
       const currentWorld = clientToSvg(current.x, current.y);
       if (!previousWorld || !currentWorld) return;
-      commitViewBox({
-        ...currentView,
-        x: currentView.x + previousWorld.x - currentWorld.x,
-        y: currentView.y + previousWorld.y - currentWorld.y,
-      });
+      commitViewBox({ ...currentView, x: currentView.x + previousWorld.x - currentWorld.x, y: currentView.y + previousWorld.y - currentWorld.y });
       return;
     }
 
@@ -177,31 +167,22 @@ export function LevelCompilerDebug() {
       const currentA = currentPointers.get(ids[0]);
       const currentB = currentPointers.get(ids[1]);
       if (!previousA || !previousB || !currentA || !currentB) return;
-
       const previousDistance = pointerDistance(previousA, previousB);
       const currentDistance = pointerDistance(currentA, currentB);
       if (previousDistance < 2 || currentDistance < 2) return;
-
       const previousMid = pointerMidpoint(previousA, previousB);
       const currentMid = pointerMidpoint(currentA, currentB);
       const previousWorld = clientToSvg(previousMid.x, previousMid.y);
       const currentWorld = clientToSvg(currentMid.x, currentMid.y);
       if (!previousWorld || !currentWorld) return;
-
-      const panned: ViewBox = {
-        ...currentView,
-        x: currentView.x + previousWorld.x - currentWorld.x,
-        y: currentView.y + previousWorld.y - currentWorld.y,
-      };
+      const panned: ViewBox = { ...currentView, x: currentView.x + previousWorld.x - currentWorld.x, y: currentView.y + previousWorld.y - currentWorld.y };
       commitViewBox(zoomAround(previousWorld, previousDistance / currentDistance, panned));
     }
   }
 
   function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
     pointersRef.current.delete(event.pointerId);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
     setIsDragging(pointersRef.current.size > 0);
   }
 
@@ -210,14 +191,14 @@ export function LevelCompilerDebug() {
       <header className="levelgen-debug__header">
         <div>
           <small>NUMBERDROID · LEVEL COMPILER DEBUG</small>
-          <h1>TS-01 · GENERATED TOPOLOGY</h1>
-          <p>Semantic Spec → Geometry → Shared Wall Graph → Navigation / Forbidden Zones</p>
+          <h1>TS-01 · GENERATED LEVEL PLAN</h1>
+          <p>Spec → Geometry → Shared Walls → Navigation → Prop Placement</p>
         </div>
         <div className="levelgen-debug__stats">
           <span><b>{geometry.spaces.length}</b> SPACES</span>
           <span><b>{geometry.walls.length}</b> WALL SEGMENTS</span>
-          <span><b>{plan.walkableCells.length}</b> WALKABLE CELLS</span>
-          <span><b>{plan.forbiddenCells.length}</b> RESERVED CELLS</span>
+          <span><b>{plan.placements.length}</b> PLACED PROPS</span>
+          <span><b>{plan.reservations.length}</b> USE-SPACE CELLS</span>
         </div>
       </header>
 
@@ -225,6 +206,8 @@ export function LevelCompilerDebug() {
         <label><input type="checkbox" checked={showNavigation} onChange={(event) => setShowNavigation(event.target.checked)} /> PRIMARY PATH</label>
         <label><input type="checkbox" checked={showClearance} onChange={(event) => setShowClearance(event.target.checked)} /> DOOR CLEARANCE</label>
         <label><input type="checkbox" checked={showWallSlots} onChange={(event) => setShowWallSlots(event.target.checked)} /> WALL SLOTS</label>
+        <label><input type="checkbox" checked={showProps} onChange={(event) => setShowProps(event.target.checked)} /> PROPS</label>
+        <label><input type="checkbox" checked={showPropReservations} onChange={(event) => setShowPropReservations(event.target.checked)} /> PROP USE-SPACE</label>
         <div className="levelgen-debug__viewport-controls" aria-label="Map zoom controls">
           <button type="button" aria-label="Zoom out" onClick={() => zoomAtCenter(1.25)}>−</button>
           <span>{zoomPercent}%</span>
@@ -239,7 +222,7 @@ export function LevelCompilerDebug() {
           className={`levelgen-debug__canvas${isDragging ? " is-dragging" : ""}`}
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
           role="img"
-          aria-label="Generated TS-01 level topology. Drag to pan; use mouse wheel or pinch gesture to zoom."
+          aria-label="Generated TS-01 level plan. Drag to pan; use mouse wheel or pinch gesture to zoom."
           onWheel={handleWheel}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -267,15 +250,8 @@ export function LevelCompilerDebug() {
 
           {showNavigation && (
             <g className="levelgen-debug__navigation">
-              {plan.primaryPathCells.map((cell) => (
-                <rect
-                  key={`path-${cell.x}-${cell.y}`}
-                  x={PAD + (cell.x - bounds.x) * TILE + 8}
-                  y={PAD + (cell.y - bounds.y) * TILE + 8}
-                  width={TILE - 16}
-                  height={TILE - 16}
-                  rx="7"
-                />
+              {navigation.primaryPathCells.map((cell) => (
+                <rect key={`path-${cell.x}-${cell.y}`} x={PAD + (cell.x - bounds.x) * TILE + 8} y={PAD + (cell.y - bounds.y) * TILE + 8} width={TILE - 16} height={TILE - 16} rx="7" />
               ))}
             </g>
           )}
@@ -286,6 +262,38 @@ export function LevelCompilerDebug() {
                 connection.clearanceBefore ? <rect key={`${connection.id}-before`} {...rectPixels(connection.clearanceBefore, bounds)} /> : null,
                 connection.clearanceAfter ? <rect key={`${connection.id}-after`} {...rectPixels(connection.clearanceAfter, bounds)} /> : null,
               ])}
+            </g>
+          )}
+
+          {showPropReservations && (
+            <g className="levelgen-debug__prop-reservations">
+              {plan.reservations.map((reservation) => (
+                <rect
+                  key={`${reservation.ownerPlacementId}-${reservation.kind}-${reservation.x}-${reservation.y}`}
+                  className={reservation.kind}
+                  x={PAD + (reservation.x - bounds.x) * TILE + 4}
+                  y={PAD + (reservation.y - bounds.y) * TILE + 4}
+                  width={TILE - 8}
+                  height={TILE - 8}
+                  rx="5"
+                />
+              ))}
+            </g>
+          )}
+
+          {showProps && (
+            <g className="levelgen-debug__props">
+              {plan.placements.map((placement) => {
+                const box = rectPixels(placement.rect, bounds);
+                const tooltip = `${placement.id}\n${placement.role} · ${placement.wallSide ?? "floor"}\nscore ${placement.score.toFixed(2)}\n${placement.reasons.join(" · ")}\nvalid candidates ${placement.candidateCount}`;
+                return (
+                  <g key={placement.id} className={`prop prop--${placement.role}`}>
+                    <rect {...box} rx="5" />
+                    <text x={box.x + box.width / 2} y={box.y + box.height / 2 + 4} textAnchor="middle">{friendly(placement.id)}</text>
+                    <title>{tooltip}</title>
+                  </g>
+                );
+              })}
             </g>
           )}
 
@@ -300,15 +308,12 @@ export function LevelCompilerDebug() {
           </g>
 
           <g className="levelgen-debug__portals">
-            {geometry.connections.map((connection) => {
-              const line = connectionLine(connection, bounds);
-              return <line key={connection.id} className={`portal portal--${connection.kind}`} {...line} />;
-            })}
+            {geometry.connections.map((connection) => <line key={connection.id} className={`portal portal--${connection.kind}`} {...connectionLine(connection, bounds)} />)}
           </g>
 
           {showWallSlots && (
             <g className="levelgen-debug__wall-slots">
-              {plan.wallAttachmentSlots.map((slot) => {
+              {navigation.wallAttachmentSlots.map((slot) => {
                 const cx = PAD + (slot.cell.x - bounds.x + 0.5) * TILE;
                 const cy = PAD + (slot.cell.y - bounds.y + 0.5) * TILE;
                 return <circle key={slot.id} className={slot.blockedBy.length ? "blocked" : "available"} cx={cx} cy={cy} r="4.5" />;
@@ -323,6 +328,8 @@ export function LevelCompilerDebug() {
         <span className="corridor">HALL / CIRCULATION</span>
         <span className="ritual">TRANSFER / RITUAL</span>
         <span className="system">PRIMUS / SYSTEM</span>
+        <span className="hero-prop">HERO PROP</span>
+        <span className="functional-prop">SUPPORT / FURNITURE</span>
         <span className="path">PRIMARY PATH</span>
         <span className="clearance">DOOR CLEARANCE</span>
         <span className="door">DOOR / APERTURE</span>
