@@ -1,6 +1,6 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.11 cyclic / multi-constraint topology**
+Status: **CURRENT architecture / implementation track — v0.12 semantic Overrides / Workbench editing**
 
 This directory owns the design and technical contract for the Numberdroid deterministic/declarative level-authoring system.
 
@@ -228,14 +228,11 @@ See `PROP_PLACEMENT.md`.
 - stable pre-existing candidate seed identity preserved to avoid unrelated rerolls;
 - TS-01 Patrol/placement stability regression-tested.
 
-### v0.11 — cyclic / multi-constraint topology — IMPLEMENTED / CURRENT
+### v0.11 — cyclic / multi-constraint topology — IMPLEMENTED
 
-See:
+See `GEOMETRY_AND_WALL_GRAPH.md` and `MULTI_CONSTRAINT_TOPOLOGY.md`.
 
-- `GEOMETRY_AND_WALL_GRAPH.md`
-- `MULTI_CONSTRAINT_TOPOLOGY.md`
-
-The geometry stage now has two deliberate paths:
+The geometry stage has two deliberate paths:
 
 ```text
 existing incremental/tree-compatible placement
@@ -263,23 +260,68 @@ A dedicated cyclic regression proves that a preferred `6×4` room can become `7�
 
 Most importantly, existing TS-01 geometry remains exactly on the compatibility path and is not rerolled by the new solver.
 
-## Workbench interaction baseline
+### v0.12 — semantic Overrides / Workbench editing — IMPLEMENTED / CURRENT
 
-The current compiler/debug view is the first shell of the future Level Workbench:
+See `OVERRIDES_AND_WORKBENCH.md`.
 
-- drag / one-finger pan;
-- pinch / mouse-wheel zoom around focus;
-- `FIT` restores complete topology;
-- `+ / −` fallback controls;
-- viewport state never mutates LevelSpec/gameplay camera state;
-- all labels render in one final foreground SVG layer;
-- toggles exist for geometry, walls, paths, clearance, slots, Props, Actors/Routes and Trigger/Event debugging.
+v0.12 turns the TS-01 debug shell into the first real semantic editing Workbench while keeping `LevelSpec + Override[]` as authoring truth.
 
-Workbench:
+Compiler contract:
+
+- Space Geometry Locks store root-relative compiler-grid position + size;
+- Prop Placement Locks store containing-Space-relative position + rotation + wall side;
+- Locks remain normal compiler inputs and do not bypass geometry/navigation/placement validation;
+- `preferredWall` Overrides are consumed as soft Prop placement intent;
+- `preferredSide` Overrides are consumed by both tree-compatible and multi-constraint topology solving;
+- `seedSalt` derives target-local deterministic variation without changing the global Level seed;
+- a geometry Lock can cause v0.11 fallback search to solve surrounding Spaces around the locked target;
+- invalid locked arrangements fail loudly.
+
+Workbench transaction:
+
+```text
+last valid Override[]
+→ proposed semantic edit
+→ complete compile through Trigger/Event plan
+→ valid: commit local Override[]
+→ invalid: reject edit + preserve previous Workbench state
+```
+
+Initial live editor capabilities:
+
+- select Space or Prop;
+- Space lock/unlock;
+- Space one-tile nudge;
+- Space width/height resize;
+- singleton Prop lock/unlock;
+- singleton Prop one-tile nudge;
+- Prop preferred-wall editing;
+- local deterministic regeneration salt;
+- reset selected Override;
+- rejected-edit compiler diagnostics;
+- copyable Override JSON;
+- browser-memory edits only; no silent repository write-back.
+
+The user-established foreground rule remains binding: **all element labels are still rendered in the final SVG layer after selection/QA overlays**.
+
+Deliberate current boundary: placement locking for `quantity > 1` Prop requests is disabled until generated instance IDs become explicit Override targets. Request-level preference/regeneration remains available.
+
+## Workbench
+
+Live semantic Workbench:
 
 ```text
 ?levelgen=ts01
 ```
+
+Navigation remains:
+
+- background drag / one-finger drag → pan;
+- pinch / mouse-wheel → zoom around focus;
+- `FIT` → complete topology;
+- `+ / −` fallback controls;
+- viewport state never mutates gameplay-camera state;
+- all labels remain in one final foreground SVG layer.
 
 Generated runtime TS-01:
 
@@ -308,6 +350,9 @@ src/levelgen/specs/
 registries / metadata
     reusable Prop / Actor / art capabilities
 
+semantic Override[]
+    explicit reviewed local exceptions / locked composition
+
 src/levelgen/
     deterministic compiler / validators / solvers
 
@@ -319,15 +364,14 @@ When a recurring defect is found, prefer fixing a reusable rule/metadata contrac
 
 ## Current task list / next stages
 
-1. **Overrides / Workbench editing** — select, lock, move, resize or regenerate one semantic element without destabilizing unrelated areas. Evolve current post-solve Overrides into first-class constraint-aware authoring controls.
-2. **Prop/art emission mapping** — replace semantic blockouts with registered production assets while preserving footprint, rotation, layering, shadow and collision metadata.
-3. **Generated TS-01 feature/art parity** — make the generated Floor capable of replacing the hand-authored reference only after explicit visual/gameplay QA acceptance.
-4. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and larger Bio-Ark/natural layout to expose missing rules before campaign production.
-5. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical, typed and inspectable.
-6. **Workbench usability pass** — direct editing, locks, local regeneration, diagnostics/explanations and useful diffs of generated changes.
-7. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
-8. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling and compiler stress testing before production readiness.
-9. **FINAL AGENT AUTHORING GUIDE** — **the last step of this development track**. Write the authoritative operational guide for Game Designer and Artist agents only after the tool/workflows are stable: capability overview, LevelSpec authoring, global vs per-Level rules, registries/metadata, rotations/footprints, Actor art, Routes, Triggers/Events, Workbench/Overrides/locks/local regeneration, QA, diagnostics, asset expansion and the decision rule for reusable-system fixes vs one-Level overrides.
+1. **Prop/art emission mapping** — replace semantic blockouts with registered production assets while preserving footprint, rotation, layering, shadow and collision metadata.
+2. **Generated TS-01 feature/art parity** — make the generated Floor capable of replacing the hand-authored reference only after explicit visual/gameplay QA acceptance.
+3. **Additional archetype stress Floors** — dense PRIMUS/system layout, larger ship layout and larger Bio-Ark/natural layout to expose missing rules before campaign production.
+4. **Natural-language front-end** — LLM translates rough Level Designer instructions into LevelSpec; LevelSpec remains canonical, typed and inspectable.
+5. **Workbench usability pass** — extend v0.12 with Connection selection, per-instance Overrides where needed, direct manipulation translated into semantic grid edits, import/apply/write-back workflow, richer diagnostics/explanations and useful diffs.
+6. **Campaign production workflow** — validate repeatable authoring for the planned Floor set and asset-library growth.
+7. **FINAL PERFORMANCE & SCALE PASS** — explicit desktop + real-mobile profiling and compiler stress testing before production readiness.
+8. **FINAL AGENT AUTHORING GUIDE** — **the last step of this development track**. This assistant writes the authoritative operational guide for Game Designer and Artist agents only after the tool/workflows are stable: capability overview, LevelSpec authoring, global vs per-Level rules, registries/metadata, rotations/footprints, Actor art, Routes, Triggers/Events, Workbench/Overrides/locks/local regeneration, QA, diagnostics, asset expansion and the decision rule for reusable-system fixes vs one-Level overrides.
 
 The final Agent Authoring Guide is deliberately last so it documents the final accepted workflow instead of becoming stale while the compiler is still changing.
 
@@ -374,29 +418,36 @@ A single global PRNG stream is forbidden.
 
 Every semantic object receives deterministic identity from stable semantic paths/sub-seeds. Local changes must not randomly rearrange unrelated accepted content.
 
-This includes several now-binding examples:
+Binding examples now include:
 
-- adding a Prop rotation must preserve unchanged candidate seed identity;
-- adding the v0.11 topology solver must not rerun an already-valid tree-compatible layout;
-- future Workbench local regeneration must preserve locked and unrelated semantic regions.
+- adding a Prop rotation preserves unchanged candidate seed identity;
+- v0.11 does not rerun an already-valid tree-compatible layout;
+- v0.12 `seedSalt` changes only the target semantic seed;
+- Geometry/Prop locks preserve deliberate reviewed local composition while the compiler revalidates dependent systems.
 
 ## Editing model
 
-Generated output should be edited through semantic intent and Overrides, not destructive tile painting as the canonical source.
+Generated output is edited through semantic intent and Overrides, not destructive tile painting as canonical source.
 
-Conceptual direction:
+Example v0.12 data:
 
 ```yaml
 overrides:
-  family.bathroom:
+  - targetId: transfer-room
     lockGeometry: true
-  family.child:
-    offset: [-1, 0]
-  transfer.hologram:
-    preferredWall: west
+    lockedGeometry:
+      offsetFromRootTiles: { x: 7, y: 7 }
+      sizeTiles: { w: 10, h: 6 }
+
+  - targetId: living-memory
+    lockPlacement: true
+    lockedPlacement:
+      offsetTiles: { x: 2, y: 0 }
+      rotation: 0
+      wallSide: north
 ```
 
-The next Workbench/Overrides block will turn this from a mostly declarative contract into a robust constraint-aware interactive workflow.
+The Workbench emits the same semantics as JSON for explicit review/copying.
 
 ## Relationship to Tiled
 
