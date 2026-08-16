@@ -8,11 +8,20 @@ import {
   nudgeLockedGeometry,
   overrideJson,
   regenerateSemanticTarget,
+  resizeLockedGeometry,
+  setPreferredWall,
   tryCompileWorkbenchPlan,
 } from "./workbench";
 
 function compile(overrides = TS01_LEVEL_SPEC.overrides ?? []) {
   return compileWorkbenchPlan(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY, overrides);
+}
+
+function expectValid(overrides: ReturnType<typeof regenerateSemanticTarget>, label: string) {
+  const attempted = tryCompileWorkbenchPlan(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY, overrides);
+  expect(attempted.error, label).toBeNull();
+  expect(attempted.plan, label).not.toBeNull();
+  return attempted.plan!;
 }
 
 describe("Level Compiler v0.12 semantic Workbench model", () => {
@@ -36,6 +45,38 @@ describe("Level Compiler v0.12 semantic Workbench model", () => {
     const locked = compile(overrides);
     expect(locked.actors.props.navigation.geometry.spaces.find((entry) => entry.id === "transfer-room")?.rect).toEqual(transfer.rect);
     expect(locked.diagnostics.some((entry) => entry.code === "GEOMETRY_LOCK_ACTIVE" && entry.targetId === "transfer-room")).toBe(true);
+  });
+
+  it("round-trips every current TS-01 Space geometry as a valid Workbench lock", () => {
+    const baseline = compile();
+    const before = new Map(baseline.actors.props.navigation.geometry.spaces.map((entry) => [entry.id, entry.rect]));
+
+    for (const space of baseline.actors.props.navigation.geometry.spaces) {
+      const overrides = materializeGeometryLock(baseline, [], space.id);
+      const attempted = tryCompileWorkbenchPlan(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY, overrides);
+      expect(attempted.error, `Space ${space.id} current geometry must be lockable`).toBeNull();
+      expect(attempted.plan, `Space ${space.id} current geometry must compile after locking`).not.toBeNull();
+      expect(attempted.plan!.actors.props.navigation.geometry.spaces.find((entry) => entry.id === space.id)?.rect)
+        .toEqual(before.get(space.id));
+    }
+  });
+
+  it("accepts representative valid TS-01 Workbench edits instead of rejecting every edit", () => {
+    const baseline = compile();
+
+    const movedTransfer = nudgeLockedGeometry(baseline, [], "transfer-room", 1, 0);
+    const movedPlan = expectValid(movedTransfer, "transfer-room +1 x should be a valid semantic edit");
+    expect(movedPlan.actors.props.navigation.geometry.spaces.find((entry) => entry.id === "transfer-room")?.rect.x)
+      .toBe(baseline.actors.props.navigation.geometry.spaces.find((entry) => entry.id === "transfer-room")!.rect.x + 1);
+
+    const widenedTransfer = resizeLockedGeometry(baseline, [], "transfer-room", 1, 0);
+    expectValid(widenedTransfer, "transfer-room +1 width should be a valid semantic edit");
+
+    const preferredWall = setPreferredWall([], "child-bed", "east");
+    expectValid(preferredWall, "child-bed preferred east wall should remain a valid soft preference");
+
+    const regenerated = regenerateSemanticTarget([], "living-plant");
+    expectValid(regenerated, "living-plant local regeneration should compile");
   });
 
   it("rejects an impossible locked Space move without mutating the last valid override set", () => {
@@ -62,6 +103,24 @@ describe("Level Compiler v0.12 semantic Workbench model", () => {
     expect(after.rotation).toBe(placement.rotation);
     expect(after.wallSide).toBe(placement.wallSide);
     expect(locked.diagnostics.some((entry) => entry.code === "PROP_PLACEMENT_LOCK_APPLIED" && entry.targetId === "living-memory")).toBe(true);
+  });
+
+  it("round-trips every singleton TS-01 Prop as a valid Workbench placement lock", () => {
+    const baseline = compile();
+    const requests = new Map(baseline.actors.props.navigation.geometry.semantic.props.map((entry) => [entry.id, entry]));
+
+    for (const placement of baseline.actors.props.placements) {
+      const request = requests.get(placement.requestId)!;
+      if (request.quantity !== 1) continue;
+      const overrides = materializePropLock(baseline, [], placement.id);
+      const attempted = tryCompileWorkbenchPlan(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY, overrides);
+      expect(attempted.error, `Prop ${placement.id} current placement must be lockable`).toBeNull();
+      expect(attempted.plan, `Prop ${placement.id} current placement must compile after locking`).not.toBeNull();
+      const after = attempted.plan!.actors.props.placements.find((entry) => entry.id === placement.id)!;
+      expect(after.rect).toEqual(placement.rect);
+      expect(after.rotation).toBe(placement.rotation);
+      expect(after.wallSide).toBe(placement.wallSide);
+    }
   });
 
   it("keeps regeneration local in the declarative override data", () => {
