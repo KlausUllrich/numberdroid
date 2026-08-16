@@ -1,6 +1,6 @@
 # Numberdroid — Procedural Level Compiler
 
-Status: **CURRENT architecture / implementation track — v0.1 geometry proof**
+Status: **CURRENT architecture / implementation track — v0.2 navigation + forbidden zones**
 
 This directory owns the design and technical contract for the Numberdroid procedural/declarative level-authoring system.
 
@@ -16,6 +16,8 @@ semantic space + relationship graph
 constraint solving / topology
         ↓
 shared wall graph + doors + corridors
+        ↓
+navigation + forbidden zones
         ↓
 hero / prop / enemy placement
         ↓
@@ -63,7 +65,23 @@ The geometry stage now:
 
 The current v0.1 solver deliberately targets connected **tree-like** room graphs. Arbitrary cyclic topology / multi-constraint optimization is not silently approximated; that capability remains future work.
 
-The live TS-01 map is still authored separately. The generated geometry is currently a compiler proof and test fixture, not the deployed Floor source.
+### v0.2 — navigation + forbidden zones — IMPLEMENTED
+
+See `NAVIGATION_AND_FORBIDDEN_ZONES.md`.
+
+The navigation stage now:
+
+- decomposes generated Space geometry into walkable unit cells;
+- only connects neighboring Spaces through real compiled apertures;
+- validates global generated reachability;
+- creates explicit portal cell pairs per doorway/opening;
+- reserves a deterministic primary-circulation skeleton before furnishing;
+- marks door-clearance and primary-circulation cells as authoring forbidden zones;
+- derives wall-adjacent placement slots from the canonical Wall Graph;
+- records whether each wall slot is blocked by circulation/clearance;
+- exposes a live compiler/debug view via `?levelgen=ts01`.
+
+The live gameplay TS-01 map is still authored separately. Generated geometry/navigation is currently a compiler proof and authoring QA source, not yet the deployed Floor source.
 
 ## Why this exists
 
@@ -106,8 +124,8 @@ compiled Tiled/Floor data
 1. **Spec / semantic graph** — implemented v0.
 2. **Topology / preferred-size geometry** — implemented v0.1 for tree-like graphs.
 3. **Shared wall graph + connection apertures** — implemented v0.1.
-4. **Navigation / forbidden-zone validation** — next.
-5. **Prop placement** — metadata-driven wall/floor attachment, adjacency, forbidden zones, hierarchy and dressing.
+4. **Navigation / forbidden-zone validation** — implemented v0.2.
+5. **Prop placement** — next: metadata-driven wall/floor attachment, adjacency, forbidden zones, hierarchy and dressing.
 6. **Encounter placement** — authored enemy roles/routes/clearances placed from semantic spawn intent.
 7. **Trigger/event compilation** — keys, locked doors, scripted pass-bys, one-shot beats, staging events and later world-specific interactions.
 8. **Runtime/Tiled emission** — generated debug/live data compatible with the existing runtime boundary.
