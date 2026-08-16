@@ -10,6 +10,8 @@ export { compileActorPlacement } from "./actorPlacement";
 export type * from "./actorPlacementTypes";
 export { compileTriggerEvents } from "./eventCompilation";
 export type * from "./eventCompilationTypes";
+export { emitRuntimeLevel, compileRuntimeLevel } from "./emission";
+export type * from "./emissionTypes";
 export { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 export { deriveSubSeed, normalizeLevelSeed, seededUnit } from "./seed";
 export { TS01_LEVEL_SPEC } from "./specs/ts01";
