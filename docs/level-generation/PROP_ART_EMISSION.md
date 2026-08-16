@@ -1,8 +1,8 @@
 # Numberdroid — Prop / Art Emission
 
-Status: **v0.13 runtime presentation contract**
+Status: **v0.13 runtime presentation contract; spatial precision extended by v0.13.1 `PROP_EXACT_FIT.md`**
 
-v0.13 connects solved semantic Prop placement to registered runtime art without changing the spatial compiler or making pixels authoritative for gameplay.
+v0.13 connects solved semantic Prop placement to registered runtime art without making pixels authoritative for gameplay.
 
 ```text
 LevelSpec Prop request
@@ -11,7 +11,10 @@ Prop Registry
   footprint / attachment / allowed rotations / placement rules
         ↓
 rotation-aware Prop solver
-  physical rect / rotation / wall side / reservations
+  conservative physical rect / rotation / wall side / reservations
+        ↓
+Exact Prop Fit (v0.13.1)
+  authored visual/collision/placement envelopes + wall surfaces
         ↓
 Prop Art Registry
   asset / optional shadow / review status
@@ -21,9 +24,9 @@ ordered composite Floor visual
 existing runtime
 ```
 
-The central rule is:
+The central rule remains:
 
-> **Art consumes solved geometry. Art never defines collision, reachability or placement validity.**
+> **Art consumes authored/solved geometry. Raw image pixels never define collision, reachability or placement validity.**
 
 ## 1. Two registries, two responsibilities
 
@@ -41,9 +44,10 @@ Owns gameplay/authoring facts such as:
 - approach/use-space;
 - Hero clearance;
 - navigation / Door Clearance restrictions;
-- placement preferences.
+- placement preferences;
+- v0.13.1 exact-fit visual/collision/custom physical envelopes and wall-surface policy.
 
-Changing this registry can change the compiled level geometry and therefore requires spatial/gameplay QA.
+Changing this registry can change the compiled level geometry or emitted collision and therefore requires spatial/gameplay QA.
 
 ### Prop Art Registry
 
@@ -57,7 +61,7 @@ Owns presentation only:
 
 Adding/replacing an art registration must **not** change the solved footprint, collision or navigation result.
 
-This separation is intentional for Artist-agent workflows: an Artist can register a new approved sprite without silently modifying gameplay geometry.
+This separation is intentional for Artist-agent workflows: an Artist can register a new approved sprite without silently modifying gameplay geometry. If the new art reveals that the existing physical envelope is wrong, changing that envelope is a separate reviewed Spatial Registry change; it is never inferred from the PNG automatically.
 
 ## 2. Current TS-01 mappings
 
@@ -148,10 +152,10 @@ Instead:
 
 1. keep the image at authored `2×1` pixel dimensions;
 2. find the center of the solved `1×2` physical rectangle;
-3. center the authored image on that point;
+3. apply the v0.13.1 exact-fit sub-tile translation when authored physical envelopes require it;
 4. rotate the image by 90° around its center.
 
-The resulting visual axis-aligned footprint matches the solver's rotated physical rectangle without distorting pixels.
+The resulting visual preserves authored pixels while the meaningful physical/visual envelopes rotate with the solver orientation.
 
 This rule also applies to grounding shadows.
 
@@ -169,6 +173,8 @@ Floor-attached Props may record a `wallSide` because their selected candidate to
 
 This distinction was regression-tested during v0.13 because Family Table can touch a wall while still belonging to the FloorProps layer.
 
+The same `wallSide` may be consumed by v0.13.1 Exact Prop Fit only when the solved footprint really touches that wall.
+
 ## 7. Shadows / FloorFX
 
 If an Art Registry entry contains `shadowAsset`, v0.13 emits a separate sprite with stable ID:
@@ -177,7 +183,7 @@ If an Art Registry entry contains `shadowAsset`, v0.13 emits a separate sprite w
 shadow:<placement-id>
 ```
 
-The shadow uses the same authored dimensions, center and rotation as the visible Prop and is rendered in the `floor-fx` layer **before Architecture**.
+The shadow uses the same authored dimensions, rotation and exact-fit translation as the visible Prop and is rendered in the `floor-fx` layer **before Architecture**.
 
 This avoids baking grounding shadows into collision or into the Prop's visual/collision silhouette.
 
@@ -197,11 +203,10 @@ Only explicit user/art-direction acceptance may promote candidate art to accepte
 
 ## 9. Runtime safety
 
-The composite visual is presentation-only.
+The **Prop Art Registry and composite presentation layer** remain presentation-only.
 
-It does not alter:
+They do not independently alter:
 
-- `FloorDefinition.obstacles`;
 - Walkable cells;
 - Shared Wall collision;
 - Door apertures;
@@ -210,9 +215,9 @@ It does not alter:
 - script state;
 - route geometry.
 
-The existing emitted physical Floor remains the source of runtime collision and gameplay behavior.
+v0.13.1 adds a deliberately separate spatial precision contract in the Spatial Prop Registry. It may emit a smaller/more accurate Prop collider and sub-tile offset, but only inside the conservative tile footprint already reserved by the solver. See `PROP_EXACT_FIT.md`.
 
-No DOM measurement, image alpha, sprite bounds or MutationObserver participates in gameplay collision.
+No DOM measurement, image alpha, browser sprite bounds or MutationObserver participates in gameplay collision.
 
 ## 10. Performance boundary
 
@@ -223,6 +228,8 @@ v0.13 preserves the v0.7.1 strategy:
 - at most a small fallback blockout SVG per Prop category;
 - one DOM image per registered Prop/shadow.
 
+v0.13.1 Exact Fit is compile-time arithmetic only and adds no per-frame work.
+
 It does **not** reintroduce per-cell React rendering.
 
 The required final Performance & Scale Pass will later measure large floors / high asset counts on desktop and real mobile hardware.
@@ -232,20 +239,22 @@ The required final Performance & Scale Pass will later measure large floors / hi
 Regression coverage verifies:
 
 - generated TS-01 uses the ordered composite visual;
-- runtime obstacle count remains unchanged;
 - registered assets appear in the intended layer;
 - grounding shadows precede Architecture;
 - unmapped Props retain blockout fallback;
 - a synthetic `2×1 @ 90°` case keeps authored `2×1` image dimensions while centering over a `1×2` solved footprint;
-- accepted 30 px wall fascia still emits every canonical wall once.
+- accepted 30 px wall fascia still emits every canonical wall once;
+- v0.13.1 visual/collision envelopes rotate correctly and fit only against a wall that the solved tile footprint actually touches;
+- exact collision/envelopes may not expand beyond the conservative tile reservation.
 
 ## 12. Next step
 
-v0.13 provides the mapping mechanism, not full art parity.
+v0.13 provides the art mapping mechanism and v0.13.1 provides the missing wall/physical precision layer. Neither alone constitutes full art parity.
 
-The next development block is **Generated TS-01 feature/art parity**:
+The next development block remains **Generated TS-01 feature/art parity**, but only after explicit live acceptance of the v0.13.1 Exact Prop Fit pass:
 
-- inspect the generated Floor with real registered art;
+- inspect the generated Floor with real registered art and true wall-surface fitting;
+- confirm physical collision still feels aligned to the visual object;
 - fix scale/layer/registration problems through reusable metadata where possible;
 - add remaining necessary production assets/registrations;
 - compare generated vs hand-authored reference;
