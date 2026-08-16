@@ -1,3 +1,4 @@
+import { overrideFor } from "./overrides";
 import type { CompiledConnection, CompiledSemanticSpace, PlacementOverride, RelativeRelation, SemanticCompilePlan } from "./types";
 import type {
   ConnectionGeometry,
@@ -37,12 +38,9 @@ function preferredRangeValue(range: { preferred: number } | undefined, fallback:
   return integerTile(range?.preferred ?? fallback, context);
 }
 
-function overrideFor(overrides: PlacementOverride[], targetId: string) {
-  return overrides.find((entry) => entry.targetId === targetId);
-}
-
 function dimensions(space: CompiledSemanticSpace, overrides: PlacementOverride[]): { w: number; h: number } {
   const override = overrideFor(overrides, space.id);
+  if (override?.lockGeometry && override.lockedGeometry) return { ...override.lockedGeometry.sizeTiles };
   if (space.kind === "corridor") {
     const width = preferredRangeValue(space.width, 3, `Corridor ${space.id} width`);
     const length = preferredRangeValue(space.length, 8, `Corridor ${space.id} length`);
@@ -76,10 +74,17 @@ function sideFromRelation(relation: RelativeRelation | undefined) {
   return undefined;
 }
 
-function connectionSide(connection: CompiledConnection, parentId: string, childId: string, relation: RelativeRelation | undefined) {
-  if (connection.preferredSide) {
-    if (connection.from === parentId && connection.to === childId) return connection.preferredSide;
-    if (connection.to === parentId && connection.from === childId) return opposite(connection.preferredSide);
+function connectionSide(
+  connection: CompiledConnection,
+  parentId: string,
+  childId: string,
+  relation: RelativeRelation | undefined,
+  overrides: PlacementOverride[],
+) {
+  const preferredSide = overrideFor(overrides, connection.id)?.preferredSide ?? connection.preferredSide;
+  if (preferredSide) {
+    if (connection.from === parentId && connection.to === childId) return preferredSide;
+    if (connection.to === parentId && connection.from === childId) return opposite(preferredSide);
   }
   return sideFromRelation(relation) ?? "east";
 }
@@ -136,7 +141,7 @@ function placeChild(
 ) {
   const childSize = dimensions(child, overrides);
   const relation = relationToParent(child, parent.id);
-  const side = connectionSide(connection, parent.id, child.id, relation);
+  const side = connectionSide(connection, parent.id, child.id, relation, overrides);
   const base = baseCandidate(parent.rect, childSize, side, relation);
   const requiredSharedLength = integerTile(connection.widthTiles, `Connection ${connection.id} width`);
   const limit = Math.max(parent.rect.w, parent.rect.h, childSize.w, childSize.h) + 24;
@@ -160,6 +165,24 @@ function normalizePlacements(spaces: SpaceGeometry[], margin = 1) {
     ...space,
     rect: { ...space.rect, x: space.rect.x + dx, y: space.rect.y + dy },
   }));
+}
+
+function applyGeometryLocks(spaces: SpaceGeometry[], overrides: PlacementOverride[]) {
+  if (!spaces.length) return spaces;
+  const root = spaces[0];
+  return spaces.map((space) => {
+    const lock = overrideFor(overrides, space.id);
+    if (!lock?.lockGeometry || !lock.lockedGeometry) return space;
+    return {
+      ...space,
+      rect: {
+        x: root.rect.x + lock.lockedGeometry.offsetFromRootTiles.x,
+        y: root.rect.y + lock.lockedGeometry.offsetFromRootTiles.y,
+        w: lock.lockedGeometry.sizeTiles.w,
+        h: lock.lockedGeometry.sizeTiles.h,
+      },
+    };
+  });
 }
 
 function applyOffsets(spaces: SpaceGeometry[], overrides: PlacementOverride[]) {
@@ -428,6 +451,7 @@ function legacyTreePlacement(semantic: SemanticCompilePlan) {
 
 function finalizeSpaces(rawSpaces: SpaceGeometry[], semantic: SemanticCompilePlan) {
   let spaces = normalizePlacements(rawSpaces);
+  spaces = applyGeometryLocks(spaces, semantic.overrides);
   spaces = applyOffsets(spaces, semantic.overrides);
   validateNoOverlaps(spaces);
   validateRequiredSpatialRelations(semantic, spaces);
@@ -455,7 +479,7 @@ export function compileLevelGeometry(semantic: SemanticCompilePlan): GeometryCom
     diagnostics.push({
       level: "info",
       code: "TREE_COMPATIBLE_TOPOLOGY_PRESERVED",
-      message: "Existing tree-compatible geometry path satisfied all authored connections and required relations; no topology search was needed.",
+      message: "Existing tree-compatible geometry path satisfied all authored connections, geometry locks and required relations; no topology search was needed.",
     });
   } catch (legacyError) {
     try {
@@ -478,6 +502,15 @@ export function compileLevelGeometry(semantic: SemanticCompilePlan): GeometryCom
 
   diagnostics.push(...spatialRelationDiagnostics(semantic, spaces));
   const walls = collapseWalls(buildWallUnits(spaces, connections));
+
+  for (const override of semantic.overrides.filter((entry) => entry.lockGeometry && entry.lockedGeometry)) {
+    diagnostics.push({
+      level: "info",
+      code: "GEOMETRY_LOCK_ACTIVE",
+      targetId: override.targetId,
+      message: `${override.targetId} is constrained by a materialized root-relative Workbench geometry lock.`,
+    });
+  }
 
   diagnostics.push({
     level: "info",

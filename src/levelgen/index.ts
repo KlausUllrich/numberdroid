@@ -25,6 +25,25 @@ export {
   TS01_PLAYABLE_SPEC,
 } from "./generatedTs01Preview";
 export { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
+export { overrideFor, locallyVariedSeed, validatePlacementOverrides, withOverride } from "./overrides";
+export {
+  activeOverride,
+  compileWorkbenchPlan,
+  materializeGeometryLock,
+  materializePropLock,
+  nudgeLockedGeometry,
+  nudgeLockedProp,
+  overrideJson,
+  regenerateSemanticTarget,
+  resetOverride,
+  resizeLockedGeometry,
+  setPreferredSide,
+  setPreferredWall,
+  tryCompileWorkbenchPlan,
+  unlockGeometry,
+  unlockProp,
+} from "./workbench";
+export type { WorkbenchCompileResult, WorkbenchSelection } from "./workbench";
 export { deriveSubSeed, normalizeLevelSeed, seededUnit } from "./seed";
 export { TS01_LEVEL_SPEC } from "./specs/ts01";
 export type * from "./types";

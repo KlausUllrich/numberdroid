@@ -1,4 +1,5 @@
 import { deriveSubSeed, seededUnit } from "./seed";
+import { locallyVariedSeed, overrideFor } from "./overrides";
 import type { CardinalDirection, CompiledPropRequest, PropPlacementRole, PropRotation } from "./types";
 import type { GridRect, SpaceGeometry } from "./geometryTypes";
 import type { GridCell, NavigationCell, NavigationCompilePlan } from "./navigationTypes";
@@ -139,7 +140,6 @@ function wallCandidateRects(space: SpaceGeometry, request: CompiledPropRequest, 
 
   for (const side of SIDES) {
     const rotation = wallSideRotation(side);
-    // A perspective-sensitive wall prop may only be mounted where matching art exists.
     if (!allowed.has(rotation)) continue;
     const { w, h } = rotatedFootprint(request.metadata.footprintTiles, rotation);
     if (w > space.rect.w || h > space.rect.h) continue;
@@ -163,7 +163,6 @@ function wallCandidateRects(space: SpaceGeometry, request: CompiledPropRequest, 
 
 function floorCandidateRects(space: SpaceGeometry, request: CompiledPropRequest) {
   const candidates: RawCandidate[] = [];
-  // Preserve author order but avoid duplicate orientations if malformed metadata repeats one.
   const rotations = [...new Set(request.metadata.allowedRotations)];
 
   for (const rotation of rotations) {
@@ -178,8 +177,6 @@ function floorCandidateRects(space: SpaceGeometry, request: CompiledPropRequest)
           rect,
           wallSide: preferred,
           rotation,
-          // Floor props can also reserve a directional use-space. 0° has its back
-          // to north and front/access to south, matching the wall-art convention.
           approachSide: rotationBackSide(rotation),
         });
       }
@@ -310,13 +307,19 @@ function candidateScore(
     reasons.push(`hero reroutes ${primaryOverlap} primary cell${primaryOverlap === 1 ? "" : "s"}`);
   }
 
-  // Preserve the pre-rotation spatial seed identity. Adding a new allowed art
-  // rotation may add candidates, but must not randomly reshuffle an unchanged
-  // physical candidate. Equal geometry/orientation duplicates retain authored
-  // candidate order as the final stable tie-break.
   const tie = seededUnit(deriveSubSeed(instanceSeed, `candidate/${rect.x},${rect.y},${rect.w},${rect.h}/${wallSide ?? "floor"}`));
   score += tie * 0.01;
   return { score, reasons };
+}
+
+function matchesLockedPlacement(raw: RawCandidate, space: SpaceGeometry, request: CompiledPropRequest, navigation: NavigationCompilePlan) {
+  const override = overrideFor(navigation.geometry.semantic.overrides, request.id);
+  if (!override?.lockPlacement || !override.lockedPlacement) return true;
+  const lock = override.lockedPlacement;
+  return raw.rect.x === space.rect.x + lock.offsetTiles.x
+    && raw.rect.y === space.rect.y + lock.offsetTiles.y
+    && raw.rotation === lock.rotation
+    && (lock.wallSide === undefined || raw.wallSide === lock.wallSide);
 }
 
 export function compilePropPlacement(navigation: NavigationCompilePlan): PropPlacementPlan {
@@ -332,7 +335,13 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
   const spaceById = new Map(navigation.geometry.spaces.map((space) => [space.id, space]));
   const slotKeys = new Set(navigation.wallAttachmentSlots.map((slot) => `${slot.spaceId}:${slot.side}:${slot.cell.x},${slot.cell.y}`));
 
-  const expanded = semantic.props.flatMap((request, requestOrder) => {
+  const expanded = semantic.props.flatMap((sourceRequest, requestOrder) => {
+    const override = overrideFor(semantic.overrides, sourceRequest.id);
+    const request: CompiledPropRequest = {
+      ...sourceRequest,
+      preferredWall: override?.preferredWall ?? sourceRequest.preferredWall,
+      seed: locallyVariedSeed(sourceRequest.seed, override),
+    };
     const role = request.role ?? "furniture";
     return Array.from({ length: request.quantity }, (_, instanceIndex) => ({ request, requestOrder, role, instanceIndex }));
   }).sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.requestOrder - b.requestOrder || a.instanceIndex - b.instanceIndex);
@@ -353,7 +362,7 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
     const rawCandidates = [
       ...(request.metadata.attachment === "wall" || request.metadata.attachment === "either" ? wallCandidateRects(space, request, slotKeys) : []),
       ...(request.metadata.attachment === "floor" || request.metadata.attachment === "either" ? floorCandidateRects(space, request) : []),
-    ];
+    ].filter((raw) => matchesLockedPlacement(raw, space, request, navigation));
     const candidates: InternalCandidate[] = [];
     const oppositeDoorSides = doorOppositeSides(navigation, request.spaceId);
 
@@ -423,7 +432,9 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
     candidates.sort((a, b) => b.score - a.score);
     const chosen = candidates[0];
     if (!chosen) {
-      const summary = Object.entries(rejectedCounts).sort((a, b) => b[1] - a[1]).map(([reason, count]) => `${reason}:${count}`).join(", ") || "no geometric candidates";
+      const override = overrideFor(semantic.overrides, request.id);
+      const lockMessage = override?.lockPlacement ? "locked-placement unavailable" : "no geometric candidates";
+      const summary = Object.entries(rejectedCounts).sort((a, b) => b[1] - a[1]).map(([reason, count]) => `${reason}:${count}`).join(", ") || lockMessage;
       if (request.required) throw new Error(`Required prop ${instanceId} could not be placed in ${request.spaceId} (${summary}).`);
       diagnostics.push({ level: "warning", code: "OPTIONAL_PROP_UNPLACED", targetId: instanceId, message: `Optional prop ${instanceId} was not placed (${summary}).` });
       continue;
@@ -450,6 +461,16 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
     };
     placements.push(decision);
     decision.footprintCells.forEach((cell) => occupied.add(cellKey(cell)));
+
+    const placementOverride = overrideFor(semantic.overrides, request.id);
+    if (placementOverride?.lockPlacement) {
+      diagnostics.push({
+        level: "info",
+        code: "PROP_PLACEMENT_LOCK_APPLIED",
+        targetId: request.id,
+        message: `${request.id} used its materialized space-relative Workbench placement lock.`,
+      });
+    }
 
     for (const cell of decision.approachCells) {
       const key = cellKey(cell);
