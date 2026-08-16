@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="64" viewBox="0 0 256 64">
+  <defs>
+    <pattern id="gridA" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path d="M16 0H0V16" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1"/>
+    </pattern>
+    <pattern id="gridB" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path d="M16 0H0V16" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <g>
+    <rect x="0" y="0" width="64" height="64" fill="#6f766f"/>
+    <rect x="0" y="0" width="64" height="64" fill="url(#gridA)"/>
+    <circle cx="11" cy="12" r="2" fill="#d8c889" opacity="0.45"/>
+  </g>
+  <g>
+    <rect x="64" y="0" width="64" height="64" fill="#65716e"/>
+    <rect x="64" y="0" width="64" height="64" fill="url(#gridB)"/>
+    <path d="M72 32H120" stroke="#a9bbb6" stroke-opacity="0.3" stroke-width="2"/>
+  </g>
+  <g>
+    <rect x="128" y="0" width="64" height="64" fill="#66745f"/>
+    <rect x="128" y="0" width="64" height="64" fill="url(#gridA)"/>
+    <circle cx="160" cy="32" r="12" fill="none" stroke="#c9d6ad" stroke-opacity="0.32" stroke-width="2"/>
+  </g>
+  <g>
+    <rect x="192" y="0" width="64" height="64" fill="#5f6b72"/>
+    <rect x="192" y="0" width="64" height="64" fill="url(#gridB)"/>
+    <path d="M200 16H248M200 32H248M200 48H248" stroke="#bed0da" stroke-opacity="0.2" stroke-width="2"/>
+  </g>
+</svg>
