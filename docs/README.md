@@ -18,11 +18,20 @@ Read `../REPOSITORY_STRUCTURE.md` first. Agent work additionally follows `agents
 ## Game design
 
 - `game-design/GAME_DESIGN.md`
-- `game-design/LEVEL_DESIGN_RULES.md` — **binding reusable room/Floor spatial-design rules: function, zoning, circulation, adjacency, edge furnishing, symmetry and blockout discipline.**
+- `game-design/LEVEL_DESIGN_RULES.md` — **binding reusable room/Floor spatial-design rules: function, zoning, circulation, adjacency, edge furnishing, rationality gradient, symmetry and blockout discipline.**
 - `game-design/CAMPAIGN_PROGRESSION.md`
 - `game-design/ENCOUNTER_ARCHETYPES.md`
 - `game-design/LEARNING_PROFILES.md`
 - `game-design/MENU_HUB_FLOW.md`
+
+## Level generation / authoring
+
+Start with:
+
+- `level-generation/README.md` — purpose, ownership, compile stages and stability model;
+- `level-generation/LEVEL_SPEC.md` — declarative LevelSpec, corridor widths, shared-wall/door direction, prop metadata, enemy placement, triggers/events and overrides.
+
+Implementation lives under `../src/levelgen/`. The compiler is an authoring layer before the existing Tiled/`FloorDefinition` runtime contract.
 
 ## Story / world
 
