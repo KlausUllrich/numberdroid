@@ -1,4 +1,5 @@
-import type { CompileDiagnostic, EncounterBehaviorKind } from "./types";
+import type { EncounterBehaviorKind } from "../game/types";
+import type { CompileDiagnostic } from "./types";
 import type { NavigationCell } from "./navigationTypes";
 import type { OrientedPropPlacementPlan } from "./orientedPlacement";
 
