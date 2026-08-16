@@ -21,6 +21,7 @@ import {
   unlockProp,
   type WorkbenchSelection,
 } from "./workbench";
+import { pointerExceededTapSlop, shouldCommitWorkbenchTap } from "./workbenchInteraction";
 import "./LevelCompilerDebug.css";
 
 const TILE = 46;
@@ -86,6 +87,15 @@ function facingVector(facing: number) {
   return { x: 1, y: 0 };
 }
 
+function selectionFromPointerTarget(target: EventTarget | null): WorkbenchSelection | null {
+  const element = target instanceof Element ? target.closest("[data-workbench-kind][data-workbench-id]") : null;
+  if (!element) return null;
+  const kind = element.getAttribute("data-workbench-kind");
+  const id = element.getAttribute("data-workbench-id");
+  if (!id || (kind !== "space" && kind !== "prop")) return null;
+  return { kind, id };
+}
+
 export function LevelCompilerWorkbench() {
   const [overrides, setOverrides] = useState<PlacementOverride[]>(() => [...(TS01_LEVEL_SPEC.overrides ?? [])]);
   const [selection, setSelection] = useState<WorkbenchSelection | null>(null);
@@ -115,6 +125,10 @@ export function LevelCompilerWorkbench() {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const viewBoxRef = useRef<ViewBox>(fullViewBox);
   const pointersRef = useRef<Map<number, PointerPosition>>(new Map());
+  const pointerStartsRef = useRef<Map<number, PointerPosition>>(new Map());
+  const pointerSelectionsRef = useRef<Map<number, WorkbenchSelection | null>>(new Map());
+  const movedPointersRef = useRef<Set<number>>(new Set());
+  const multiPointerGestureRef = useRef(false);
 
   const semanticById = new Map(geometry.semantic.spaces.map((space) => [space.id, space]));
   const verticalGrid = Array.from({ length: bounds.w + 1 }, (_, i) => PAD + i * TILE);
@@ -125,6 +139,7 @@ export function LevelCompilerWorkbench() {
   const selectedPropRequest = selectedProp ? geometry.semantic.props.find((entry) => entry.id === selectedProp.requestId) ?? null : null;
   const selectedTargetId = selectedSpace?.id ?? selectedPropRequest?.id ?? null;
   const selectedOverride = selectedTargetId ? activeOverride(overrides, selectedTargetId) : null;
+  const inspectorOpen = Boolean(selection || editError);
 
   useEffect(() => {
     viewBoxRef.current = fullViewBox;
@@ -181,7 +196,12 @@ export function LevelCompilerWorkbench() {
     if (event.pointerType === "mouse" && event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const position = { x: event.clientX, y: event.clientY };
+    pointersRef.current.set(event.pointerId, position);
+    pointerStartsRef.current.set(event.pointerId, position);
+    pointerSelectionsRef.current.set(event.pointerId, selectionFromPointerTarget(event.target));
+    movedPointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size >= 2) multiPointerGestureRef.current = true;
     setIsDragging(true);
   }
 
@@ -189,8 +209,12 @@ export function LevelCompilerWorkbench() {
     if (!pointersRef.current.has(event.pointerId)) return;
     event.preventDefault();
     const previousPointers = new Map(pointersRef.current);
-    pointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const currentPosition = { x: event.clientX, y: event.clientY };
+    pointersRef.current.set(event.pointerId, currentPosition);
+    const start = pointerStartsRef.current.get(event.pointerId);
+    if (start && pointerExceededTapSlop(start, currentPosition)) movedPointersRef.current.add(event.pointerId);
     const currentPointers = pointersRef.current;
+    if (currentPointers.size >= 2) multiPointerGestureRef.current = true;
     const currentView = viewBoxRef.current;
 
     if (currentPointers.size === 1) {
@@ -224,17 +248,32 @@ export function LevelCompilerWorkbench() {
     }
   }
 
-  function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
+  function finishPointer(event: ReactPointerEvent<SVGSVGElement>, allowTap: boolean) {
+    const moved = movedPointersRef.current.has(event.pointerId);
+    const pointerSelection = pointerSelectionsRef.current.get(event.pointerId) ?? null;
+    const multiPointerGesture = multiPointerGestureRef.current;
+
     pointersRef.current.delete(event.pointerId);
+    pointerStartsRef.current.delete(event.pointerId);
+    pointerSelectionsRef.current.delete(event.pointerId);
+    movedPointersRef.current.delete(event.pointerId);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+
+    if (allowTap && editMode && shouldCommitWorkbenchTap({ moved, multiPointerGesture })) {
+      setSelection(pointerSelection);
+      setEditError(null);
+    }
+
+    if (pointersRef.current.size === 0) multiPointerGestureRef.current = false;
     setIsDragging(pointersRef.current.size > 0);
   }
 
-  function select(event: ReactPointerEvent<SVGElement>, next: WorkbenchSelection) {
-    if (!editMode) return;
-    event.stopPropagation();
-    setSelection(next);
-    setEditError(null);
+  function handlePointerEnd(event: ReactPointerEvent<SVGSVGElement>) {
+    finishPointer(event, true);
+  }
+
+  function handlePointerCancel(event: ReactPointerEvent<SVGSVGElement>) {
+    finishPointer(event, false);
   }
 
   function applyEdit(factory: () => PlacementOverride[]) {
@@ -276,13 +315,18 @@ export function LevelCompilerWorkbench() {
     }
   }
 
+  function closeInspector() {
+    setSelection(null);
+    setEditError(null);
+  }
+
   return (
     <main className="levelgen-debug levelgen-debug--workbench">
       <header className="levelgen-debug__header">
         <div>
-          <small>NUMBERDROID · LEVEL COMPILER WORKBENCH v0.12</small>
+          <small>NUMBERDROID · LEVEL COMPILER WORKBENCH v0.12.1</small>
           <h1>TS-01 · SEMANTIC EDITING</h1>
-          <p>Choose a Space or Prop → edit semantic Override → full compiler validation → export Override data</p>
+          <p>Tap a Space or Prop · drag with one pointer · pinch with two · edits compile before commit</p>
         </div>
         <div className="levelgen-debug__stats">
           <span><b>{geometry.spaces.length}</b> SPACES</span>
@@ -319,14 +363,14 @@ export function LevelCompilerWorkbench() {
             className={`levelgen-debug__canvas${isDragging ? " is-dragging" : ""}`}
             viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
             role="img"
-            aria-label="Generated TS-01 Level Compiler Workbench. Select Spaces or Props in Edit Mode; drag background to pan."
+            aria-label="Generated TS-01 Level Compiler Workbench. Tap a Space or Prop to select; drag to pan; pinch with two fingers to zoom."
             onWheel={handleWheel}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerEnd}
-            onPointerCancel={handlePointerEnd}
+            onPointerCancel={handlePointerCancel}
           >
-            <rect className="levelgen-debug__void" x="0" y="0" width={width} height={height} onPointerDown={() => setSelection(null)} />
+            <rect className="levelgen-debug__void" x="0" y="0" width={width} height={height} />
 
             {geometry.spaces.map((space) => {
               const box = rectPixels(space.rect, bounds);
@@ -336,8 +380,9 @@ export function LevelCompilerWorkbench() {
                 <rect
                   key={`space-${space.id}`}
                   className={`levelgen-debug__space-fill levelgen-debug__space-fill--${spaceClass(space, semantic?.kind === "room" ? semantic.rationality : undefined)}${selected ? " is-selected" : ""}`}
+                  data-workbench-kind="space"
+                  data-workbench-id={space.id}
                   {...box}
-                  onPointerDown={(event) => select(event, { kind: "space", id: space.id })}
                 />
               );
             })}
@@ -371,9 +416,10 @@ export function LevelCompilerWorkbench() {
                 <rect
                   key={placement.id}
                   className={`prop prop--${placement.role}${selected ? " is-selected" : ""}`}
+                  data-workbench-kind="prop"
+                  data-workbench-id={placement.id}
                   {...box}
                   rx="5"
-                  onPointerDown={(event) => select(event, { kind: "prop", id: placement.id })}
                 >
                   <title>{tooltip}</title>
                 </rect>
@@ -446,11 +492,12 @@ export function LevelCompilerWorkbench() {
           </svg>
         </section>
 
-        <aside className="levelgen-workbench__inspector" aria-label="Semantic override inspector">
+        <aside className={`levelgen-workbench__inspector${inspectorOpen ? " is-open" : ""}`} aria-label="Semantic override inspector">
+          <button type="button" className="levelgen-workbench__inspector-close" aria-label="Close inspector" onClick={closeInspector}>×</button>
           <div className="levelgen-workbench__inspector-head">
             <small>SEMANTIC OVERRIDE</small>
             <strong>{selectedSpace ? friendly(selectedSpace.id) : selectedProp ? friendly(selectedProp.id) : "NOTHING SELECTED"}</strong>
-            <span>{selectedSpace ? `SPACE · ${selectedSpace.rect.w}×${selectedSpace.rect.h}` : selectedProp ? `PROP · ${selectedProp.rotation}° · ${selectedProp.wallSide ?? "FLOOR"}` : "Select a Space or Prop in Edit Mode."}</span>
+            <span>{selectedSpace ? `SPACE · ${selectedSpace.rect.w}×${selectedSpace.rect.h}` : selectedProp ? `PROP · ${selectedProp.rotation}° · ${selectedProp.wallSide ?? "FLOOR"}` : "Tap a Space or Prop in Edit Mode."}</span>
           </div>
 
           {selectedSpace && (
@@ -507,7 +554,7 @@ export function LevelCompilerWorkbench() {
       </div>
 
       <footer className="levelgen-debug__legend">
-        <span className="domestic">DOMESTIC</span><span className="corridor">HALL / CIRCULATION</span><span className="ritual">TRANSFER / RITUAL</span><span className="system">PRIMUS / SYSTEM</span><span className="hero-prop">HERO PROP</span><span className="functional-prop">SUPPORT / FURNITURE</span><span className="actor-route">ACTOR ROUTE</span><span className="actor">ACTOR</span><span className="trigger-zone">TRIGGER ZONE</span><span className="trigger">TRIGGER / EVENT</span><span className="path">PRIMARY PATH</span><span className="clearance">DOOR CLEARANCE</span><span className="door">DOOR / APERTURE</span><span className="gesture">SELECT · DRAG BACKGROUND · WHEEL / PINCH</span>
+        <span className="domestic">DOMESTIC</span><span className="corridor">HALL / CIRCULATION</span><span className="ritual">TRANSFER / RITUAL</span><span className="system">PRIMUS / SYSTEM</span><span className="hero-prop">HERO PROP</span><span className="functional-prop">SUPPORT / FURNITURE</span><span className="actor-route">ACTOR ROUTE</span><span className="actor">ACTOR</span><span className="trigger-zone">TRIGGER ZONE</span><span className="trigger">TRIGGER / EVENT</span><span className="path">PRIMARY PATH</span><span className="clearance">DOOR CLEARANCE</span><span className="door">DOOR / APERTURE</span><span className="gesture">TAP · DRAG · PINCH</span>
       </footer>
     </main>
   );

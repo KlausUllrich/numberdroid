@@ -12,6 +12,22 @@
 .levelgen-debug--workbench .levelgen-debug__space-fill,
 .levelgen-debug--workbench .levelgen-debug__props .prop {
   transition: filter 100ms linear, stroke-width 100ms linear;
+  pointer-events: all;
+}
+
+.levelgen-debug--workbench .levelgen-debug__grid,
+.levelgen-debug--workbench .levelgen-debug__navigation,
+.levelgen-debug--workbench .levelgen-debug__clearance,
+.levelgen-debug--workbench .levelgen-debug__trigger-zones,
+.levelgen-debug--workbench .levelgen-debug__prop-reservations,
+.levelgen-debug--workbench .levelgen-debug__pickups,
+.levelgen-debug--workbench .levelgen-debug__actor-routes,
+.levelgen-debug--workbench .levelgen-debug__walls,
+.levelgen-debug--workbench .levelgen-debug__portals,
+.levelgen-debug--workbench .levelgen-debug__wall-slots,
+.levelgen-debug--workbench .levelgen-debug__actors,
+.levelgen-debug--workbench .levelgen-debug__triggers {
+  pointer-events: none;
 }
 
 .levelgen-debug--workbench .levelgen-debug__controls .edit-mode {
@@ -34,6 +50,7 @@
 
 .levelgen-workbench__inspector {
   box-sizing: border-box;
+  position: relative;
   min-width: 0;
   height: calc(100vh - 188px);
   min-height: 480px;
@@ -43,6 +60,10 @@
   border-radius: 10px;
   background: #101817;
   color: #dce9e5;
+}
+
+.levelgen-workbench__inspector-close {
+  display: none;
 }
 
 .levelgen-workbench__inspector-head {
@@ -193,8 +214,77 @@
 }
 
 @media (max-width: 760px) {
-  .levelgen-debug--workbench .levelgen-debug__canvas-wrap { height: 55vh; }
-  .levelgen-workbench__inspector { max-height: 36vh; padding: 9px; }
-  .levelgen-workbench__inspector-head strong { font-size: 14px; }
-  .levelgen-workbench__edit-grid { grid-template-columns: 38px repeat(4, 1fr); }
+  .levelgen-debug--workbench {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .levelgen-debug--workbench .levelgen-debug__controls {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+  .levelgen-debug--workbench .levelgen-debug__controls::-webkit-scrollbar { display: none; }
+  .levelgen-debug--workbench .levelgen-debug__controls > label,
+  .levelgen-debug--workbench .levelgen-debug__viewport-controls { flex: 0 0 auto; }
+
+  .levelgen-debug--workbench .levelgen-debug__canvas-wrap {
+    height: 62dvh;
+    min-height: 330px;
+  }
+
+  .levelgen-workbench__inspector {
+    display: none;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .levelgen-workbench__inspector.is-open {
+    display: block;
+    position: fixed;
+    z-index: 80;
+    left: 8px;
+    right: 8px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    max-height: min(54dvh, 560px);
+    overflow: auto;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+    border-color: #52726b;
+    border-radius: 14px;
+    background: rgba(16, 24, 23, .98);
+    box-shadow: 0 -12px 42px rgba(0, 0, 0, .48);
+    backdrop-filter: blur(10px);
+  }
+
+  .levelgen-workbench__inspector-close {
+    display: grid !important;
+    position: absolute;
+    z-index: 2;
+    top: 8px;
+    right: 8px;
+    width: 34px;
+    min-height: 34px !important;
+    place-items: center;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    font-size: 20px !important;
+    line-height: 1 !important;
+  }
+
+  .levelgen-workbench__inspector-head {
+    padding-right: 42px;
+  }
+  .levelgen-workbench__inspector-head strong { font-size: 15px; }
+  .levelgen-workbench__inspector-head span { font-size: 11px; }
+
+  .levelgen-workbench__button-row button,
+  .levelgen-workbench__edit-grid button,
+  .levelgen-workbench__reset,
+  .levelgen-workbench__field select {
+    min-height: 42px;
+    font-size: 10px;
+  }
+  .levelgen-workbench__edit-grid { grid-template-columns: 40px repeat(4, 1fr); }
 }
