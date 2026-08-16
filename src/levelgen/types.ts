@@ -101,6 +101,14 @@ export type PropRequestSpec = {
   preferredWall?: CardinalDirection;
 };
 
+export type RouteSpec = {
+  id: string;
+  kind: "patrol" | "passby" | "scripted";
+  spaceIds: string[];
+  loop?: boolean;
+  tags?: string[];
+};
+
 export type EncounterIntentSpec = {
   id: string;
   spaceId: string;
@@ -147,6 +155,7 @@ export type TriggerSpec = {
 
 export type LevelEventSpec =
   | { id: string; kind: "set-flag"; flag: string; value: boolean | number | string }
+  | { id: string; kind: "grant-key"; keyId: string }
   | { id: string; kind: "unlock-door"; doorId: string }
   | { id: string; kind: "lock-door"; doorId: string }
   | { id: string; kind: "spawn-actor"; actorId: string; spaceId: string }
@@ -183,6 +192,7 @@ export type LevelSpec = {
   connections: ConnectionSpec[];
   props: PropRequestSpec[];
   encounters: EncounterIntentSpec[];
+  routes?: RouteSpec[];
   pickups?: AccessPickupSpec[];
   triggers?: TriggerSpec[];
   events?: LevelEventSpec[];
@@ -251,6 +261,7 @@ export type SemanticCompilePlan = {
   connections: CompiledConnection[];
   props: CompiledPropRequest[];
   encounters: CompiledEncounterIntent[];
+  routes: RouteSpec[];
   pickups: AccessPickupSpec[];
   triggers: TriggerSpec[];
   events: LevelEventSpec[];
