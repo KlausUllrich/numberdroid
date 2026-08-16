@@ -9,9 +9,12 @@ import type {
   LevelSpaceSpec,
   LevelSpec,
   PropRegistry,
+  RouteSpec,
   SemanticCompilePlan,
+  StagedActorSpec,
   TileRange,
   TriggerSpec,
+  TriggerZoneSpec,
 } from "./types";
 
 function assertId(id: string, context: string) {
@@ -53,8 +56,10 @@ function collectIds(spec: LevelSpec): Set<string> {
     ["connection", spec.connections],
     ["prop request", spec.props],
     ["encounter", spec.encounters],
+    ["staged actor", spec.stagedActors ?? []],
     ["route", spec.routes ?? []],
     ["pickup", spec.pickups ?? []],
+    ["trigger zone", spec.zones ?? []],
     ["trigger", spec.triggers ?? []],
     ["event", spec.events ?? []],
   ];
@@ -136,16 +141,84 @@ function validateRoutes(spec: LevelSpec, spaceIds: Set<string>) {
   }
 }
 
-function validateEvents(events: LevelEventSpec[], connectionIds: Set<string>, routeIds: Set<string>, spaceIds: Set<string>) {
+function validateStagedActors(stagedActors: StagedActorSpec[], spaceIds: Set<string>) {
+  for (const actor of stagedActors) {
+    if (!actor.actorType.trim()) throw new Error(`Staged actor ${actor.id} requires a non-empty actorType.`);
+    if (actor.defaultSpaceId && !spaceIds.has(actor.defaultSpaceId)) {
+      throw new Error(`Staged actor ${actor.id} references unknown default space ${actor.defaultSpaceId}.`);
+    }
+  }
+}
+
+function validateZones(
+  zones: TriggerZoneSpec[],
+  spaceIds: Set<string>,
+  connectionIds: Set<string>,
+  propRequestIds: Set<string>,
+  actorIds: Set<string>,
+  routeIds: Set<string>,
+  pickupIds: Set<string>,
+) {
+  for (const zone of zones) {
+    if (!spaceIds.has(zone.spaceId)) throw new Error(`Trigger zone ${zone.id} references unknown space ${zone.spaceId}.`);
+    if (zone.sizeTiles) {
+      if (!Number.isInteger(zone.sizeTiles.w) || !Number.isInteger(zone.sizeTiles.h) || zone.sizeTiles.w <= 0 || zone.sizeTiles.h <= 0) {
+        throw new Error(`Trigger zone ${zone.id} sizeTiles must use positive integer width/height.`);
+      }
+    }
+    const anchor = zone.anchor;
+    if (anchor.kind === "connection" && !connectionIds.has(anchor.targetId)) {
+      throw new Error(`Trigger zone ${zone.id} references unknown connection ${anchor.targetId}.`);
+    }
+    if (anchor.kind === "prop" && !propRequestIds.has(anchor.targetId)) {
+      throw new Error(`Trigger zone ${zone.id} references unknown prop request ${anchor.targetId}.`);
+    }
+    if (anchor.kind === "actor" && !actorIds.has(anchor.targetId)) {
+      throw new Error(`Trigger zone ${zone.id} references unknown actor ${anchor.targetId}.`);
+    }
+    if (anchor.kind === "route" && !routeIds.has(anchor.targetId)) {
+      throw new Error(`Trigger zone ${zone.id} references unknown route ${anchor.targetId}.`);
+    }
+    if (anchor.kind === "pickup" && !pickupIds.has(anchor.targetId)) {
+      throw new Error(`Trigger zone ${zone.id} references unknown pickup ${anchor.targetId}.`);
+    }
+  }
+}
+
+function validateEvents(
+  events: LevelEventSpec[],
+  connectionById: Map<string, CompiledConnection>,
+  routeById: Map<string, RouteSpec>,
+  spaceIds: Set<string>,
+  actorIds: Set<string>,
+) {
   for (const event of events) {
-    if ((event.kind === "unlock-door" || event.kind === "lock-door") && !connectionIds.has(event.doorId)) {
-      throw new Error(`Event ${event.id} references unknown door/connection ${event.doorId}.`);
+    if (event.kind === "unlock-door" || event.kind === "lock-door") {
+      const connection = connectionById.get(event.doorId);
+      if (!connection) throw new Error(`Event ${event.id} references unknown door/connection ${event.doorId}.`);
+      if (connection.kind === "opening") throw new Error(`Event ${event.id} cannot ${event.kind} opening ${event.doorId}.`);
     }
-    if (event.kind === "spawn-actor" && !spaceIds.has(event.spaceId)) {
-      throw new Error(`Event ${event.id} references unknown spawn space ${event.spaceId}.`);
+    if (event.kind === "grant-key" && !event.keyId.trim()) throw new Error(`Event ${event.id} requires a non-empty keyId.`);
+    if (event.kind === "set-flag" && !event.flag.trim()) throw new Error(`Event ${event.id} requires a non-empty flag.`);
+    if (event.kind === "story-beat" && !event.beatId.trim()) throw new Error(`Event ${event.id} requires a non-empty beatId.`);
+
+    if (event.kind === "spawn-actor") {
+      if (!actorIds.has(event.actorId)) throw new Error(`Event ${event.id} references unknown actor ${event.actorId}.`);
+      if (!spaceIds.has(event.spaceId)) throw new Error(`Event ${event.id} references unknown spawn space ${event.spaceId}.`);
     }
-    if ((event.kind === "move-actor" || event.kind === "actor-passby") && !routeIds.has(event.routeId)) {
-      throw new Error(`Event ${event.id} references unknown route ${event.routeId}.`);
+    if (event.kind === "despawn-actor" && !actorIds.has(event.actorId)) {
+      throw new Error(`Event ${event.id} references unknown actor ${event.actorId}.`);
+    }
+    if (event.kind === "move-actor" || event.kind === "actor-passby") {
+      if (!actorIds.has(event.actorId)) throw new Error(`Event ${event.id} references unknown actor ${event.actorId}.`);
+      const route = routeById.get(event.routeId);
+      if (!route) throw new Error(`Event ${event.id} references unknown route ${event.routeId}.`);
+      if (event.kind === "actor-passby" && route.kind === "patrol") {
+        throw new Error(`Event ${event.id} actor-passby requires a passby/scripted route, not patrol route ${event.routeId}.`);
+      }
+    }
+    if (event.kind === "actor-passby" && event.durationMs !== undefined && event.durationMs <= 0) {
+      throw new Error(`Event ${event.id} durationMs must be > 0 when provided.`);
     }
   }
 }
@@ -153,10 +226,10 @@ function validateEvents(events: LevelEventSpec[], connectionIds: Set<string>, ro
 function validateTriggers(
   triggers: TriggerSpec[],
   eventIds: Set<string>,
-  allIds: Set<string>,
+  sourceIds: Set<string>,
   spaceIds: Set<string>,
+  zoneIds: Set<string>,
   pickupIds: Set<string>,
-  diagnostics: CompileDiagnostic[],
 ) {
   for (const trigger of triggers) {
     if (!trigger.eventIds.length) throw new Error(`Trigger ${trigger.id} must reference at least one event.`);
@@ -164,20 +237,22 @@ function validateTriggers(
       if (!eventIds.has(eventId)) throw new Error(`Trigger ${trigger.id} references unknown event ${eventId}.`);
     }
     if (trigger.delayMs !== undefined && trigger.delayMs < 0) throw new Error(`Trigger ${trigger.id} delayMs cannot be negative.`);
+    if (trigger.radiusTiles !== undefined && (!Number.isFinite(trigger.radiusTiles) || trigger.radiusTiles <= 0)) {
+      throw new Error(`Trigger ${trigger.id} radiusTiles must be > 0.`);
+    }
+    if (!trigger.sourceId.trim()) throw new Error(`Trigger ${trigger.id} requires a non-empty sourceId.`);
 
     if (trigger.kind === "enter-space" && !spaceIds.has(trigger.sourceId)) {
       throw new Error(`Trigger ${trigger.id} references unknown space ${trigger.sourceId}.`);
     }
+    if (trigger.kind === "enter-zone" && !zoneIds.has(trigger.sourceId)) {
+      throw new Error(`Trigger ${trigger.id} references unknown trigger zone ${trigger.sourceId}.`);
+    }
     if (trigger.kind === "collect" && !pickupIds.has(trigger.sourceId)) {
       throw new Error(`Trigger ${trigger.id} references unknown pickup ${trigger.sourceId}.`);
     }
-    if ((trigger.kind === "interact" || trigger.kind === "proximity") && !allIds.has(trigger.sourceId)) {
-      diagnostics.push({
-        level: "warning",
-        code: "UNRESOLVED_TRIGGER_SOURCE",
-        targetId: trigger.id,
-        message: `Trigger ${trigger.id} source ${trigger.sourceId} is reserved for a later runtime/zone registry.`,
-      });
+    if ((trigger.kind === "interact" || trigger.kind === "proximity") && !sourceIds.has(trigger.sourceId)) {
+      throw new Error(`Trigger ${trigger.id} references unknown source ${trigger.sourceId}.`);
     }
   }
 }
@@ -203,7 +278,8 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
   }));
 
   const connections = spec.connections.map((connection) => compileConnection(spec, connection, spaceIds));
-  const connectionIds = new Set(connections.map((connection) => connection.id));
+  const connectionById = new Map(connections.map((connection) => [connection.id, connection]));
+  const connectionIds = new Set(connectionById.keys());
   validateReachability(spec, spaceIds);
 
   const props: CompiledPropRequest[] = spec.props.map((request) => {
@@ -230,7 +306,8 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
   });
 
   const routes = spec.routes ?? [];
-  const routeIds = new Set(routes.map((route) => route.id));
+  const routeById = new Map(routes.map((route) => [route.id, route]));
+  const routeIds = new Set(routeById.keys());
   const encounters: CompiledEncounterIntent[] = spec.encounters.map((encounter) => {
     if (!spaceIds.has(encounter.spaceId)) throw new Error(`Encounter ${encounter.id} references unknown space ${encounter.spaceId}.`);
     if (encounter.behavior === "patrol" && !encounter.patrolRouteId) {
@@ -245,11 +322,28 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
     };
   });
 
+  const stagedActors = spec.stagedActors ?? [];
+  validateStagedActors(stagedActors, spaceIds);
+  const actorIds = new Set([...encounters.map((encounter) => encounter.id), ...stagedActors.map((actor) => actor.id)]);
+
   const pickups = spec.pickups ?? [];
   for (const pickup of pickups) {
     if (!spaceIds.has(pickup.spaceId)) throw new Error(`Pickup ${pickup.id} references unknown space ${pickup.spaceId}.`);
     if (!pickup.keyId.trim()) throw new Error(`Pickup ${pickup.id} requires a non-empty keyId.`);
   }
+  const pickupIds = new Set(pickups.map((pickup) => pickup.id));
+
+  const zones = spec.zones ?? [];
+  const zoneIds = new Set(zones.map((zone) => zone.id));
+  validateZones(
+    zones,
+    spaceIds,
+    connectionIds,
+    new Set(props.map((request) => request.id)),
+    actorIds,
+    routeIds,
+    pickupIds,
+  );
 
   const keySources = new Set([
     ...pickups.map((pickup) => pickup.keyId),
@@ -268,10 +362,19 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
 
   const events = spec.events ?? [];
   const eventIds = new Set(events.map((event) => event.id));
-  validateEvents(events, connectionIds, routeIds, spaceIds);
+  validateEvents(events, connectionById, routeById, spaceIds, actorIds);
 
+  const triggerSourceIds = new Set([
+    ...spaceIds,
+    ...connectionIds,
+    ...props.map((request) => request.id),
+    ...actorIds,
+    ...routeIds,
+    ...pickupIds,
+    ...zoneIds,
+  ]);
   const triggers = spec.triggers ?? [];
-  validateTriggers(triggers, eventIds, allIds, spaceIds, new Set(pickups.map((pickup) => pickup.id)), diagnostics);
+  validateTriggers(triggers, eventIds, triggerSourceIds, spaceIds, zoneIds, pickupIds);
 
   for (const override of spec.overrides ?? []) {
     if (!allIds.has(override.targetId)) throw new Error(`Override references unknown semantic id ${override.targetId}.`);
@@ -302,8 +405,10 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
     connections,
     props,
     encounters,
+    stagedActors,
     routes,
     pickups,
+    zones,
     triggers,
     events,
     overrides: spec.overrides ?? [],
