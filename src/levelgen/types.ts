@@ -13,6 +13,7 @@ export type CardinalDirection = "north" | "south" | "east" | "west";
 export type OrientationPreference = "horizontal" | "vertical" | "any";
 export type SpaceSizeClass = "tiny" | "small" | "medium" | "large" | "hero";
 export type RoomRationality = "domestic" | "neutral" | "ritual" | "system";
+export type PropRotation = 0 | 90 | 180 | 270;
 
 export type TileRange = { min: number; preferred: number; max: number };
 export type SpaceSizeSpec = { class: SpaceSizeClass; width?: TileRange; height?: TileRange };
@@ -172,6 +173,8 @@ export type PropMetadata = {
   id: string;
   tags: string[];
   attachment: PropAttachment;
+  /** Authored raster/SVG orientation. 0° means north-wall-backed / front-access from south for wall props. */
+  allowedRotations: PropRotation[];
   footprintTiles: { w: number; h: number };
   placement: PropPlacementMetadata;
 };
