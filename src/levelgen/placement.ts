@@ -1,7 +1,7 @@
 import { deriveSubSeed, seededUnit } from "./seed";
-import type { CardinalDirection, CompiledPropRequest, PropPlacementRole } from "./types";
+import type { CardinalDirection, CompiledPropRequest, PropPlacementRole, PropRotation } from "./types";
 import type { GridRect, SpaceGeometry } from "./geometryTypes";
-import type { ForbiddenCell, GridCell, NavigationCell, NavigationCompilePlan } from "./navigationTypes";
+import type { GridCell, NavigationCell, NavigationCompilePlan } from "./navigationTypes";
 import type { PlacementReservation, PropPlacementDecision, PropPlacementPlan } from "./placementTypes";
 
 const ROLE_ORDER: Record<PropPlacementRole, number> = {
@@ -28,6 +28,29 @@ function sideOpposite(side: CardinalDirection): CardinalDirection {
   if (side === "south") return "north";
   if (side === "east") return "west";
   return "east";
+}
+
+export function rotationBackSide(rotation: PropRotation): CardinalDirection {
+  if (rotation === 0) return "north";
+  if (rotation === 90) return "east";
+  if (rotation === 180) return "south";
+  return "west";
+}
+
+export function wallSideRotation(side: CardinalDirection): PropRotation {
+  if (side === "north") return 0;
+  if (side === "east") return 90;
+  if (side === "south") return 180;
+  return 270;
+}
+
+export function rotatedFootprint(
+  footprint: { w: number; h: number },
+  rotation: PropRotation,
+) {
+  return rotation === 90 || rotation === 270
+    ? { w: footprint.h, h: footprint.w }
+    : { w: footprint.w, h: footprint.h };
 }
 
 function rectCenter(rect: GridRect) {
@@ -61,6 +84,10 @@ function cellsInRect(rect: GridRect, byCell: Map<string, NavigationCell>, spaceI
   return cells;
 }
 
+/**
+ * `side` is the prop's back side. The returned rectangle is therefore on the
+ * opposite/front side and represents unobstructed interaction/use space.
+ */
 function approachRect(rect: GridRect, side: CardinalDirection, depth: number): GridRect | null {
   if (depth <= 0) return null;
   if (side === "north") return { x: rect.x, y: rect.y + rect.h, w: rect.w, h: depth };
@@ -87,9 +114,16 @@ function clearanceCells(
   return all.filter((cell) => !(cell.x >= rect.x && cell.x < rect.x + rect.w && cell.y >= rect.y && cell.y < rect.y + rect.h));
 }
 
+type RawCandidate = {
+  rect: GridRect;
+  wallSide: CardinalDirection | null;
+  rotation: PropRotation;
+  approachSide: CardinalDirection;
+};
+
 function wallCandidateRects(space: SpaceGeometry, request: CompiledPropRequest, availableSlotKeys: Set<string>) {
-  const fp = request.metadata.footprintTiles;
-  const candidates: Array<{ rect: GridRect; wallSide: CardinalDirection }> = [];
+  const candidates: RawCandidate[] = [];
+  const allowed = new Set(request.metadata.allowedRotations);
 
   const slotKey = (side: CardinalDirection, x: number, y: number) => `${space.id}:${side}:${x},${y}`;
   const wallExists = (side: CardinalDirection, rect: GridRect) => {
@@ -104,22 +138,23 @@ function wallCandidateRects(space: SpaceGeometry, request: CompiledPropRequest, 
   };
 
   for (const side of SIDES) {
-    const horizontalWall = side === "north" || side === "south";
-    const w = horizontalWall ? fp.w : fp.h;
-    const h = horizontalWall ? fp.h : fp.w;
+    const rotation = wallSideRotation(side);
+    // A perspective-sensitive wall prop may only be mounted where matching art exists.
+    if (!allowed.has(rotation)) continue;
+    const { w, h } = rotatedFootprint(request.metadata.footprintTiles, rotation);
     if (w > space.rect.w || h > space.rect.h) continue;
 
-    if (horizontalWall) {
+    if (side === "north" || side === "south") {
       const y = side === "north" ? space.rect.y : space.rect.y + space.rect.h - h;
       for (let x = space.rect.x; x <= space.rect.x + space.rect.w - w; x += 1) {
         const rect = { x, y, w, h };
-        if (wallExists(side, rect)) candidates.push({ rect, wallSide: side });
+        if (wallExists(side, rect)) candidates.push({ rect, wallSide: side, rotation, approachSide: side });
       }
     } else {
       const x = side === "west" ? space.rect.x : space.rect.x + space.rect.w - w;
       for (let y = space.rect.y; y <= space.rect.y + space.rect.h - h; y += 1) {
         const rect = { x, y, w, h };
-        if (wallExists(side, rect)) candidates.push({ rect, wallSide: side });
+        if (wallExists(side, rect)) candidates.push({ rect, wallSide: side, rotation, approachSide: side });
       }
     }
   }
@@ -127,15 +162,27 @@ function wallCandidateRects(space: SpaceGeometry, request: CompiledPropRequest, 
 }
 
 function floorCandidateRects(space: SpaceGeometry, request: CompiledPropRequest) {
-  const { w, h } = request.metadata.footprintTiles;
-  const candidates: Array<{ rect: GridRect; wallSide: CardinalDirection | null }> = [];
-  if (w > space.rect.w || h > space.rect.h) return candidates;
-  for (let y = space.rect.y; y <= space.rect.y + space.rect.h - h; y += 1) {
-    for (let x = space.rect.x; x <= space.rect.x + space.rect.w - w; x += 1) {
-      const rect = { x, y, w, h };
-      const touched = touchedSides(rect, space.rect);
-      const preferred = request.preferredWall && touched.includes(request.preferredWall) ? request.preferredWall : touched[0] ?? null;
-      candidates.push({ rect, wallSide: preferred });
+  const candidates: RawCandidate[] = [];
+  // Preserve author order but avoid duplicate orientations if malformed metadata repeats one.
+  const rotations = [...new Set(request.metadata.allowedRotations)];
+
+  for (const rotation of rotations) {
+    const { w, h } = rotatedFootprint(request.metadata.footprintTiles, rotation);
+    if (w > space.rect.w || h > space.rect.h) continue;
+    for (let y = space.rect.y; y <= space.rect.y + space.rect.h - h; y += 1) {
+      for (let x = space.rect.x; x <= space.rect.x + space.rect.w - w; x += 1) {
+        const rect = { x, y, w, h };
+        const touched = touchedSides(rect, space.rect);
+        const preferred = request.preferredWall && touched.includes(request.preferredWall) ? request.preferredWall : touched[0] ?? null;
+        candidates.push({
+          rect,
+          wallSide: preferred,
+          rotation,
+          // Floor props can also reserve a directional use-space. 0° has its back
+          // to north and front/access to south, matching the wall-art convention.
+          approachSide: rotationBackSide(rotation),
+        });
+      }
     }
   }
   return candidates;
@@ -194,6 +241,8 @@ function preservesReachability(navigation: NavigationCompilePlan, blocked: Set<s
 type InternalCandidate = {
   rect: GridRect;
   wallSide: CardinalDirection | null;
+  rotation: PropRotation;
+  approachSide: CardinalDirection;
   footprintCells: NavigationCell[];
   approachCells: NavigationCell[];
   clearanceCells: NavigationCell[];
@@ -256,15 +305,15 @@ function candidateScore(
     }
   }
 
-  if (metadata.preferOppositeDoor) {
-    // Filled by caller through a synthetic reason/score, because the navigation plan is not needed elsewhere here.
-  }
-
   if (primaryOverlap > 0) {
     score -= primaryOverlap * 6;
     reasons.push(`hero reroutes ${primaryOverlap} primary cell${primaryOverlap === 1 ? "" : "s"}`);
   }
 
+  // Preserve the pre-rotation spatial seed identity. Adding a new allowed art
+  // rotation may add candidates, but must not randomly reshuffle an unchanged
+  // physical candidate. Equal geometry/orientation duplicates retain authored
+  // candidate order as the final stable tie-break.
   const tie = seededUnit(deriveSubSeed(instanceSeed, `candidate/${rect.x},${rect.y},${rect.w},${rect.h}/${wallSide ?? "floor"}`));
   score += tie * 0.01;
   return { score, reasons };
@@ -297,6 +346,10 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
     const rejectedCounts: Record<string, number> = {};
     const reject = (code: string) => { rejectedCounts[code] = (rejectedCounts[code] ?? 0) + 1; };
 
+    if (!request.metadata.allowedRotations.length) {
+      throw new Error(`Prop ${request.propId} must declare at least one allowed rotation.`);
+    }
+
     const rawCandidates = [
       ...(request.metadata.attachment === "wall" || request.metadata.attachment === "either" ? wallCandidateRects(space, request, slotKeys) : []),
       ...(request.metadata.attachment === "floor" || request.metadata.attachment === "either" ? floorCandidateRects(space, request) : []),
@@ -324,8 +377,7 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
       const approachDepth = request.metadata.placement.approachDepthTiles ?? 0;
       let approachCells: NavigationCell[] = [];
       if (approachDepth > 0) {
-        if (!raw.wallSide) { reject("missing-wall-approach"); continue; }
-        const rect = approachRect(raw.rect, raw.wallSide, approachDepth);
+        const rect = approachRect(raw.rect, raw.approachSide, approachDepth);
         approachCells = rect ? cellsInRect(rect, byCell, request.spaceId) ?? [] : [];
         if (!rect || !approachCells.length || approachCells.length !== rect.w * rect.h) { reject("approach-outside-space"); continue; }
         const keys = approachCells.map(cellKey);
@@ -348,7 +400,7 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
 
       const scored = candidateScore(request, instanceSeed, raw.rect, raw.wallSide, space, placements, primaryOverlap);
       let score = scored.score;
-      const reasons = [...scored.reasons];
+      const reasons = [...scored.reasons, `rotation ${raw.rotation}° allowed`, `footprint ${raw.rect.w}×${raw.rect.h}`];
       const touched = touchedSides(raw.rect, space.rect);
       if (request.metadata.placement.preferOppositeDoor && touched.some((side) => oppositeDoorSides.has(side))) {
         score += 55;
@@ -358,6 +410,8 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
       candidates.push({
         rect: raw.rect,
         wallSide: raw.wallSide,
+        rotation: raw.rotation,
+        approachSide: raw.approachSide,
         footprintCells,
         approachCells,
         clearanceCells: heroClearance,
@@ -383,6 +437,7 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
       spaceId: request.spaceId,
       role,
       tags: [...request.metadata.tags],
+      rotation: chosen.rotation,
       rect: chosen.rect,
       wallSide: chosen.wallSide,
       footprintCells: chosen.footprintCells,
@@ -414,6 +469,11 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
     level: "info",
     code: "PROP_PLACEMENT_COMPLETE",
     message: `Placed ${placements.length} prop instance(s); reserved ${reservations.length} approach/hero-clearance cell(s).`,
+  });
+  diagnostics.push({
+    level: "info",
+    code: "ROTATED_FOOTPRINTS_SOLVED",
+    message: `Solved physical footprints and use-space for ${placements.length} prop rotation(s) during candidate placement.`,
   });
 
   return { navigation, placements, occupiedCells, reservations, diagnostics };

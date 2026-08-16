@@ -4,7 +4,12 @@ export { compileLevelNavigation } from "./navigation";
 export { compileLevelNavigationV031 } from "./navigationHardening";
 export type { DoorClearanceZone, HardenedNavigationCompilePlan } from "./navigationHardening";
 export { compilePropPlacement } from "./placement";
-export { compileOrientedPropPlacement, wallSideRotation } from "./orientedPlacement";
+export {
+  compileOrientedPropPlacement,
+  rotatedFootprint,
+  rotationBackSide,
+  wallSideRotation,
+} from "./orientedPlacement";
 export type { OrientedPropPlacementDecision, OrientedPropPlacementPlan } from "./orientedPlacement";
 export { compileActorPlacement } from "./actorPlacement";
 export type * from "./actorPlacementTypes";

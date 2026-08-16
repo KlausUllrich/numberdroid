@@ -1,4 +1,4 @@
-import type { CardinalDirection, CompileDiagnostic, PropPlacementRole } from "./types";
+import type { CardinalDirection, CompileDiagnostic, PropPlacementRole, PropRotation } from "./types";
 import type { GridRect } from "./geometryTypes";
 import type { GridCell, NavigationCell, NavigationCompilePlan } from "./navigationTypes";
 
@@ -17,6 +17,9 @@ export type PropPlacementDecision = {
   spaceId: string;
   role: PropPlacementRole;
   tags: string[];
+  /** Cardinal art rotation selected while solving geometry, not after placement. */
+  rotation: PropRotation;
+  /** Physical occupied footprint after applying rotation. */
   rect: GridRect;
   wallSide: CardinalDirection | null;
   footprintCells: NavigationCell[];
@@ -39,6 +42,7 @@ export type PropPlacementPlan = {
 export type PlacementCandidatePreview = {
   rect: GridRect;
   wallSide: CardinalDirection | null;
+  rotation: PropRotation;
   footprintCells: GridCell[];
   score: number;
   reasons: string[];

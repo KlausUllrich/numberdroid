@@ -50,12 +50,15 @@ describe("Level Compiler v0.3.1 clearance + orientation hardening", () => {
     expect(coffee).toMatchObject({ wallSide: "north", rotation: 0 });
   });
 
-  it("rejects a perspective-sensitive wall prop when its solved wall requires a forbidden rotation", () => {
+  it("removes wall sides whose required perspective rotation is unavailable", () => {
     const memory = NUMBERDROID_PROP_REGISTRY["family-memory-console"];
     const incompatibleRegistry: PropRegistry = {
       ...NUMBERDROID_PROP_REGISTRY,
       "family-memory-console": { ...memory, allowedRotations: [180] },
     };
-    expect(() => compile(TS01_LEVEL_SPEC, incompatibleRegistry)).toThrow(/requiring 0°.*allows only 180°/);
+    // North-wall placement is no longer created and rejected afterwards. The
+    // solver only considers the south/180° orientation; TS-01 has no valid
+    // collision-safe location there, so the required prop fails placement.
+    expect(() => compile(TS01_LEVEL_SPEC, incompatibleRegistry)).toThrow(/Required prop living-memory could not be placed/);
   });
 });
