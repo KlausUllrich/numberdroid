@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
+import { compileWorkbenchPlan, setEncounterRobotType } from "./workbench";
 import { clearWorkbenchDraft, loadWorkbenchDraft, saveWorkbenchDraft } from "./workbenchDraft";
 import { commitWorkbenchHistory, createWorkbenchHistory, redoWorkbenchHistory, undoWorkbenchHistory } from "./workbenchHistory";
 import type { PlacementOverride } from "./types";
@@ -38,5 +40,18 @@ describe("Workbench authoring state", () => {
 
     clearWorkbenchDraft(TS01_LEVEL_SPEC, storage);
     expect(loadWorkbenchDraft(TS01_LEVEL_SPEC, storage)).toBeNull();
+  });
+
+  it("changes an Encounter robot type while preserving semantic Actor identity and behavior", () => {
+    const overrides = setEncounterRobotType([], "primus-sentry-4", "magnetar");
+    expect(overrides).toEqual([{ targetId: "primus-sentry-4", robotType: "magnetar" }]);
+
+    const plan = compileWorkbenchPlan(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY, overrides);
+    const encounter = plan.actors.props.navigation.geometry.semantic.encounters.find((entry) => entry.id === "primus-sentry-4")!;
+    const actor = plan.actors.actors.find((entry) => entry.id === "primus-sentry-4")!;
+    expect(encounter.enemyId).toBe("magnetar");
+    expect(encounter.bodyId).toBe("magnetar");
+    expect(encounter.behavior).toBe("patrol");
+    expect(actor.patrolRouteId).toBe("primus-sentry-patrol");
   });
 });
