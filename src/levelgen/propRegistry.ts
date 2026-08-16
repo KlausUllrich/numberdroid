@@ -4,10 +4,10 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
   "family-table": {
     id: "family-table", tags: ["family", "furniture", "table", "social-anchor"], attachment: "floor", allowedRotations: [0], footprintTiles: { w: 3, h: 2 },
     placement: { forbidDoorClearance: true, forbidPrimaryPath: true },
-    // Large furniture fits by its visible silhouette; collision remains slightly inset.
+    // Recipe-derived runtime content is 186×120 at offset (3,5) in a 192×128 canvas.
+    // Physical seating/table collision is multipart in propCollisionRegistry.ts.
     exactFit: {
-      visualBoundsTiles: { x: 0.12, y: 0.12, w: 2.76, h: 1.76 },
-      collisionBoundsTiles: { x: 0.25, y: 0.25, w: 2.5, h: 1.5 },
+      visualBoundsTiles: { x: 0.046875, y: 0.078125, w: 2.90625, h: 1.875 },
       placementEnvelope: "visual",
       wallBoundary: "visual",
     },
@@ -15,9 +15,11 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
   "family-memory-console": {
     id: "family-memory-console", tags: ["family", "wall-prop", "memory", "personal"], attachment: "wall", allowedRotations: [0], footprintTiles: { w: 2, h: 1 },
     placement: { forbidDoorClearance: true, forbidPrimaryPath: true, approachDepthTiles: 1 },
+    // Accepted source deliberately carries top-canvas breathing room. Protect the
+    // visible console body rather than the complete transparent 2×1 canvas.
     exactFit: {
-      visualBoundsTiles: { x: 0.1, y: 0.12, w: 1.8, h: 0.76 },
-      collisionBoundsTiles: { x: 0.12, y: 0.18, w: 1.76, h: 0.58 },
+      visualBoundsTiles: { x: 0.04, y: 0.30, w: 1.92, h: 0.64 },
+      collisionBoundsTiles: { x: 0.25, y: 0.32, w: 1.50, h: 0.56 },
       placementEnvelope: "visual",
       wallBoundary: "visual",
     },
@@ -26,8 +28,8 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     id: "coffee-machine", tags: ["family", "wall-prop", "service", "coffee"], attachment: "wall", allowedRotations: [0], footprintTiles: { w: 1, h: 2 },
     placement: { forbidDoorClearance: true, forbidPrimaryPath: true, approachDepthTiles: 1 },
     exactFit: {
-      visualBoundsTiles: { x: 0.12, y: 0.12, w: 0.76, h: 1.76 },
-      collisionBoundsTiles: { x: 0.18, y: 0.2, w: 0.64, h: 1.5 },
+      visualBoundsTiles: { x: 0.08, y: 0.18, w: 0.84, h: 1.72 },
+      collisionBoundsTiles: { x: 0.18, y: 0.52, w: 0.64, h: 0.82 },
       placementEnvelope: "visual",
       wallBoundary: "visual",
     },
@@ -36,8 +38,8 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     id: "plant-round", tags: ["family", "plant", "decorative"], attachment: "floor", allowedRotations: [0, 90, 180, 270], footprintTiles: { w: 1, h: 1 },
     placement: { preferWallAdjacent: true, preferCorner: true, preferNearTags: ["family", "furniture"], forbidDoorClearance: true, forbidPrimaryPath: true, forbidInFrontOfWallProp: true },
     exactFit: {
-      visualBoundsTiles: { x: 0.14, y: 0.14, w: 0.72, h: 0.72 },
-      collisionBoundsTiles: { x: 0.2, y: 0.2, w: 0.6, h: 0.6 },
+      visualBoundsTiles: { x: 0.08, y: 0.08, w: 0.84, h: 0.84 },
+      collisionBoundsTiles: { x: 0.20, y: 0.28, w: 0.60, h: 0.55 },
       placementEnvelope: "visual",
       wallBoundary: "visual",
     },
@@ -46,9 +48,10 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     id: "planter-trough", tags: ["family", "plant", "planter", "decorative"], attachment: "floor", allowedRotations: [0, 180], footprintTiles: { w: 1, h: 2 },
     placement: { preferWallAdjacent: true, preferNearTags: ["family", "furniture"], forbidDoorClearance: true, forbidPrimaryPath: true, forbidInFrontOfWallProp: true },
     exactFit: {
-      visualBoundsTiles: { x: 0.12, y: 0.12, w: 0.76, h: 1.76 },
-      collisionBoundsTiles: { x: 0.24, y: 0.22, w: 0.52, h: 1.5 },
-      placementEnvelope: "visual",
+      visualBoundsTiles: { x: 0.08, y: 0.08, w: 0.84, h: 1.84 },
+      collisionBoundsTiles: { x: 0.18, y: 0.55, w: 0.64, h: 0.90 },
+      // Leaves must respect the visible wall fascia, but Door/use-space is governed by the physical planter body.
+      placementEnvelope: "collision",
       wallBoundary: "visual",
     },
   },
@@ -71,10 +74,11 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
   "transfer-hologram": {
     id: "transfer-hologram", tags: ["transfer", "control", "hologram", "support"], attachment: "floor", allowedRotations: [0, 90, 180, 270], footprintTiles: { w: 1, h: 1 },
     placement: { preferNearTags: ["transfer", "hero", "core"], forbidDoorClearance: true, forbidPrimaryPath: true },
-    // Glow may overhang; the pedestal collider is the meaningful placement envelope.
+    // Glow may overhang the physical pedestal. The base is deliberately larger
+    // than v0.13.1 so the player cannot drive across the visible object.
     exactFit: {
       visualBoundsTiles: { x: 0.08, y: 0.08, w: 0.84, h: 0.84 },
-      collisionBoundsTiles: { x: 0.22, y: 0.22, w: 0.56, h: 0.56 },
+      collisionBoundsTiles: { x: 0.15, y: 0.15, w: 0.70, h: 0.70 },
       placementEnvelope: "collision",
       wallBoundary: "collision",
     },

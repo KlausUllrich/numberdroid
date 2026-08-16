@@ -31,21 +31,26 @@
 .zk-door.keyed.locked.accessible .frame { border-color:var(--door-key-color,#d7a349);box-shadow:inset 0 0 10px #000b,0 0 10px color-mix(in srgb,var(--door-key-color,#d7a349) 65%,transparent); }
 .zk-door.keyed.locked.accessible .panel::after { opacity:1; }
 
-/* Transfer Hall Gold Slice: 30 px visible wall fascia, 10 px collision core, thin 5 px moving leaves. */
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door {
+/*
+ * Gold Slice door contract. This is deliberately a door presentation class,
+ * not a parent Floor ID selector: both the hand-authored and compiler-generated
+ * TS-01 must render the same accepted mechanism.
+ *
+ * Accepted geometry: 30 px visible wall fascia, 10 px collision core, 5 px
+ * moving leaves. Accepted timing: 520 ms open, 650 ms soft close.
+ */
+.zk-door.gold-slice {
   z-index:1;
 }
 /*
- * Leaf motion is clipped to the exact door object aperture. Once a leaf crosses the
- * north/south (or west/east) door boundary it is no longer visible, which makes the
- * mechanism read as retracting into the wall pocket independent of stacking-context quirks.
- * Pocket collars remain outside this clip and are therefore unaffected.
+ * Leaf motion is clipped to the exact aperture. Once a leaf crosses the
+ * north/south (or west/east) door boundary it disappears into the wall pocket.
  */
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .leaf-clip {
+.zk-door.gold-slice .leaf-clip {
   z-index:1;
   overflow:hidden;
 }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .panel {
+.zk-door.gold-slice .panel {
   z-index:1;
   border:0;
   background-color:#2d3537;
@@ -54,32 +59,28 @@
   background-size:100% 100%;
   box-shadow:0 1px 2px #0008;
   transition-property:transform,opacity;
-  transition-duration:520ms,260ms;
+  transition-duration:var(--door-open-duration,520ms),260ms;
   transition-timing-function:cubic-bezier(.2,.75,.2,1),ease;
 }
-/*
- * Soft close is intentionally asymmetric: opening keeps the accepted 520 ms timing,
- * while closing gets a longer monotonic ease-out with zero end velocity. Explicit
- * translate(0) targets avoid any browser interpolation through `transform:none`.
- */
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.closed .panel {
-  transition-duration:650ms,260ms;
+/* Soft close is intentionally longer and monotonic with zero end velocity. */
+.zk-door.gold-slice.closed .panel {
+  transition-duration:var(--door-close-duration,650ms),260ms;
   transition-timing-function:cubic-bezier(.16,1,.3,1),ease;
 }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.closed .panel-a,
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.closed .panel-b { transform:translateY(0); }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.closed .panel-a,
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.closed .panel-b { transform:translateX(0); }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .panel,
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large.vertical .panel { left:calc(50% - 2.5px);width:5px; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal .panel,
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large.horizontal .panel { top:calc(50% - 2.5px);height:5px; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.keyed.vertical .panel::after { top:8px;bottom:8px;width:1px; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.keyed.horizontal .panel::after { left:8px;right:8px;height:1px; }
+.zk-door.gold-slice.vertical.closed .panel-a,
+.zk-door.gold-slice.vertical.closed .panel-b { transform:translateY(0); }
+.zk-door.gold-slice.horizontal.closed .panel-a,
+.zk-door.gold-slice.horizontal.closed .panel-b { transform:translateX(0); }
+.zk-door.gold-slice.vertical .panel,
+.zk-door.gold-slice.large.vertical .panel { left:calc(50% - 2.5px);width:5px; }
+.zk-door.gold-slice.horizontal .panel,
+.zk-door.gold-slice.large.horizontal .panel { top:calc(50% - 2.5px);height:5px; }
+.zk-door.gold-slice.keyed.vertical .panel::after { top:8px;bottom:8px;width:1px; }
+.zk-door.gold-slice.keyed.horizontal .panel::after { left:8px;right:8px;height:1px; }
 
 /* Compact pocket collars replace the old full-aperture guide rails. */
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door .frame,
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.large .frame {
+.zk-door.gold-slice .frame,
+.zk-door.gold-slice.large .frame {
   z-index:3;
   inset:0;
   border:0;
@@ -87,8 +88,8 @@
   background:transparent;
   box-shadow:none;
 }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::before,
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::after {
+.zk-door.gold-slice.vertical .frame::before,
+.zk-door.gold-slice.vertical .frame::after {
   content:"";
   position:absolute;
   left:calc(50% - 9px);
@@ -99,11 +100,11 @@
   background-size:18px 10px;
   background-position:center;
 }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::before { top:-5px; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical .frame::after { bottom:-5px;transform:rotate(180deg); }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door > span { display:none; }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.open .panel-a { transform:translateY(-104%); }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.vertical.open .panel-b { transform:translateY(104%); }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.open .panel-a { transform:translateX(-104%); }
-.zk-meta-shell[data-floor-id="transfer-hall"] .zk-door.horizontal.open .panel-b { transform:translateX(104%); }
+.zk-door.gold-slice.vertical .frame::before { top:-5px; }
+.zk-door.gold-slice.vertical .frame::after { bottom:-5px;transform:rotate(180deg); }
+.zk-door.gold-slice > span { display:none; }
+.zk-door.gold-slice.vertical.open .panel-a { transform:translateY(-104%); }
+.zk-door.gold-slice.vertical.open .panel-b { transform:translateY(104%); }
+.zk-door.gold-slice.horizontal.open .panel-a { transform:translateX(-104%); }
+.zk-door.gold-slice.horizontal.open .panel-b { transform:translateX(104%); }
 @media (prefers-reduced-motion:reduce) { .zk-door .panel { transition-duration:1ms; } }

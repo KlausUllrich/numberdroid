@@ -86,19 +86,44 @@ function architectureSvg(plan: RuntimeEmissionPlan) {
   return svgRoot(width, height, walls);
 }
 
+/**
+ * Fallback blockouts are presentation only, but they still must not visually
+ * contradict the accepted wall fascia. Intersect their solved tile rectangle
+ * with the containing room's visible interior before drawing the stub.
+ */
 function fallbackPropsSvg(plan: RuntimeEmissionPlan, placements: Placement[]) {
   const { tileSize, width, height, pxX, pxY } = previewMetrics(plan);
+  const spaces = new Map(plan.events.actors.props.navigation.geometry.spaces.map((space) => [space.id, space]));
   const content = placements.map((placement) => {
     const style = PROP_STYLE[placement.role];
-    const inset = Math.min(10, tileSize * 0.14);
-    const x = pxX(placement.rect.x) + inset;
-    const y = pxY(placement.rect.y) + inset;
-    const w = Math.max(8, placement.rect.w * tileSize - inset * 2);
-    const h = Math.max(8, placement.rect.h * tileSize - inset * 2);
+    const space = spaces.get(placement.spaceId);
+    if (!space) throw new Error(`Fallback Prop ${placement.id} cannot resolve Space ${placement.spaceId}.`);
+
+    const propLeft = pxX(placement.rect.x);
+    const propTop = pxY(placement.rect.y);
+    const propRight = propLeft + placement.rect.w * tileSize;
+    const propBottom = propTop + placement.rect.h * tileSize;
+    const fascia = plan.wallVisualPx / 2;
+    const innerLeft = pxX(space.rect.x) + fascia;
+    const innerTop = pxY(space.rect.y) + fascia;
+    const innerRight = pxX(space.rect.x + space.rect.w) - fascia;
+    const innerBottom = pxY(space.rect.y + space.rect.h) - fascia;
+
+    const safeLeft = Math.max(propLeft, innerLeft);
+    const safeTop = Math.max(propTop, innerTop);
+    const safeRight = Math.min(propRight, innerRight);
+    const safeBottom = Math.min(propBottom, innerBottom);
+    const availableW = Math.max(8, safeRight - safeLeft);
+    const availableH = Math.max(8, safeBottom - safeTop);
+    const inset = Math.min(8, availableW * 0.12, availableH * 0.12);
+    const x = safeLeft + inset;
+    const y = safeTop + inset;
+    const w = Math.max(8, availableW - inset * 2);
+    const h = Math.max(8, availableH - inset * 2);
     const cx = x + w / 2;
     const cy = y + h / 2;
     const fontSize = Math.max(18, Math.min(34, Math.min(w, h) * 0.42));
-    return `<g data-prop-id="${xml(placement.id)}" data-fallback="true"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${Math.min(12, w * .12, h * .12)}" fill="${style.fill}" fill-opacity=".86" stroke="${style.stroke}" stroke-width="3"/><text x="${cx}" y="${cy + fontSize * .34}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${fontSize}" font-weight="800" fill="${style.stroke}" opacity=".9">${style.glyph}</text></g>`;
+    return `<g data-prop-id="${xml(placement.id)}" data-fallback="true" data-wall-safe="true"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${Math.min(12, w * .12, h * .12)}" fill="${style.fill}" fill-opacity=".86" stroke="${style.stroke}" stroke-width="3"/><text x="${cx}" y="${cy + fontSize * .34}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="${fontSize}" font-weight="800" fill="${style.stroke}" opacity=".9">${style.glyph}</text></g>`;
   }).join("");
   return svgRoot(width, height, content);
 }

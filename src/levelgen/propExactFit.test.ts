@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computePropExactFit, transformedPropBoundsPx, validatePropExactFitMetadata } from "./propExactFit";
+import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import type { PropMetadata } from "./types";
 
 const TILE = 64;
@@ -19,8 +20,8 @@ function prop(overrides: Partial<PropMetadata> = {}): PropMetadata {
   };
 }
 
-describe("Level Compiler v0.13.1 exact Prop fit", () => {
-  it("aligns a visual envelope to the visible wall face without changing its conservative tile footprint", () => {
+describe("Level Compiler v0.13.2 exact Prop fit", () => {
+  it("moves a visual envelope only as far as needed to leave visible wall fascia", () => {
     const metadata = prop({
       exactFit: {
         visualBoundsTiles: { x: 0.12, y: 0.12, w: 1.76, h: 0.76 },
@@ -33,12 +34,11 @@ describe("Level Compiler v0.13.1 exact Prop fit", () => {
     const fit = computePropExactFit(placement, metadata, ROOM, TILE, WALL_COLLISION, WALL_VISUAL);
 
     expect(fit.offsetPx.y).toBeCloseTo(WALL_VISUAL / 2 - 0.12 * TILE);
-    expect(fit.placementEnvelopePx.y).toBeCloseTo(WALL_VISUAL / 2);
+    expect(fit.visualBoundsPx.y).toBeCloseTo(WALL_VISUAL / 2);
     expect(fit.collisionBoundsPx.y).toBeGreaterThanOrEqual(WALL_COLLISION / 2);
-    expect(fit.placementEnvelopePx.y + fit.placementEnvelopePx.h).toBeLessThanOrEqual(TILE + 1e-6);
   });
 
-  it("can fit a small glowing Prop by collision rather than by its visual outline", () => {
+  it("does not snap an already-safe collision-fit Prop outward toward the wall", () => {
     const metadata = prop({
       footprintTiles: { w: 1, h: 1 },
       exactFit: {
@@ -51,11 +51,35 @@ describe("Level Compiler v0.13.1 exact Prop fit", () => {
     const placement = { rect: { x: 0, y: 0, w: 1, h: 1 }, rotation: 0 as const, wallSide: "north" as const };
     const fit = computePropExactFit(placement, metadata, ROOM, TILE, WALL_COLLISION, WALL_VISUAL);
 
-    expect(fit.collisionBoundsPx.y).toBeCloseTo(WALL_COLLISION / 2);
-    expect(fit.placementEnvelopePx.y).toBeCloseTo(WALL_COLLISION / 2);
-    // Visual glow/canvas is deliberately allowed closer to/under the visible fascia.
+    expect(fit.offsetPx).toEqual({ x: 0, y: 0 });
+    expect(fit.collisionBoundsPx.y).toBeCloseTo(0.22 * TILE);
     expect(fit.visualBoundsPx.y).toBeLessThan(WALL_VISUAL / 2);
-    expect(fit.collisionBoundsPx.w).toBeCloseTo(0.56 * TILE);
+  });
+
+  it("protects both visible wall faces for a real corner Prop", () => {
+    const metadata = prop({
+      footprintTiles: { w: 1, h: 1 },
+      exactFit: {
+        visualBoundsTiles: { x: 0.08, y: 0.08, w: 0.84, h: 0.84 },
+        collisionBoundsTiles: { x: 0.2, y: 0.2, w: 0.6, h: 0.6 },
+        placementEnvelope: "visual",
+        wallBoundary: "visual",
+      },
+    });
+    const placement = { rect: { x: 0, y: 5, w: 1, h: 1 }, rotation: 0 as const, wallSide: "west" as const };
+    const fit = computePropExactFit(placement, metadata, ROOM, TILE, WALL_COLLISION, WALL_VISUAL);
+
+    expect(fit.touchedWalls).toEqual(expect.arrayContaining(["south", "west"]));
+    expect(fit.visualBoundsPx.x).toBeGreaterThanOrEqual(WALL_VISUAL / 2 - 1e-6);
+    expect(fit.visualBoundsPx.y + fit.visualBoundsPx.h).toBeLessThanOrEqual(ROOM.h * TILE - WALL_VISUAL / 2 + 1e-6);
+  });
+
+  it("keeps the Family Table physical silhouette multipart instead of one giant rectangle", () => {
+    const metadata = NUMBERDROID_PROP_REGISTRY["family-table"];
+    const placement = { rect: { x: 2, y: 2, w: 3, h: 2 }, rotation: 0 as const, wallSide: null };
+    const fit = computePropExactFit(placement, metadata, ROOM, TILE, WALL_COLLISION, WALL_VISUAL);
+    expect(fit.collisionPartsPx).toHaveLength(5);
+    expect(fit.collisionPartsPx.every((part) => part.w < fit.collisionBoundsPx.w || part.h < fit.collisionBoundsPx.h)).toBe(true);
   });
 
   it("rotates non-square local physical bounds with the Prop", () => {

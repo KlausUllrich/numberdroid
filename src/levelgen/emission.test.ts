@@ -15,11 +15,15 @@ function objectLayer(plan: ReturnType<typeof compile>, name: string) {
   return layer;
 }
 
+function property(object: ReturnType<typeof objectLayer>["objects"][number], name: string) {
+  return object.properties?.find((entry) => entry.name === name)?.value;
+}
+
 function pointInsideRect(point: { x: number; y: number }, rect: { x: number; y: number; w: number; h: number }) {
   return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h;
 }
 
-describe("Level Compiler v0.6 runtime / Tiled emission", () => {
+describe("Level Compiler v0.13.2 runtime / Tiled emission", () => {
   it("emits a Tiled map that round-trips through the existing FloorDefinition importer", () => {
     const plan = compile();
     expect(plan.runtimeFloor.id).toBe(TS01_LEVEL_SPEC.id);
@@ -29,7 +33,7 @@ describe("Level Compiler v0.6 runtime / Tiled emission", () => {
     expect(plan.runtimeFloor.walkable.length).toBe(plan.events.actors.props.navigation.geometry.spaces.length);
   });
 
-  it("emits wall + Prop collision, real doors, pickups and runtime encounters", () => {
+  it("emits wall + detailed Prop collision, real doors, pickups and runtime encounters", () => {
     const plan = compile();
     expect(plan.runtimeFloor.obstacles.length).toBeGreaterThan(plan.events.actors.props.placements.length);
     expect(plan.runtimeFloor.doors).toHaveLength(3);
@@ -42,6 +46,24 @@ describe("Level Compiler v0.6 runtime / Tiled emission", () => {
     const sentry = plan.runtimeFloor.encounters.find((entry) => entry.encounterId === "primus-sentry-4");
     expect(sentry?.behavior?.kind).toBe("patrol");
     expect(sentry?.behavior?.patrolPath.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("emits the Family Table as table + four seat colliders instead of one invisible rectangle", () => {
+    const plan = compile();
+    const obstacles = objectLayer(plan, "Obstacles").objects;
+    const tableParts = obstacles.filter((entry) => property(entry, "placementId") === "living-table");
+    expect(tableParts).toHaveLength(5);
+    expect(tableParts.map((entry) => property(entry, "collisionPart"))).toEqual([0, 1, 2, 3, 4]);
+    expect(tableParts.every((entry) => property(entry, "collisionPartCount") === 5)).toBe(true);
+  });
+
+  it("uses a substantial physical Hologram pedestal collider", () => {
+    const plan = compile();
+    const obstacles = objectLayer(plan, "Obstacles").objects;
+    const hologram = obstacles.find((entry) => property(entry, "propId") === "transfer-hologram");
+    expect(hologram).toBeTruthy();
+    expect(hologram?.width).toBeCloseTo(0.70 * plan.tileSize);
+    expect(hologram?.height).toBeCloseTo(0.70 * plan.tileSize);
   });
 
   it("preserves compiler-only semantic layers in the emitted Tiled representation", () => {
@@ -58,17 +80,16 @@ describe("Level Compiler v0.6 runtime / Tiled emission", () => {
     const plan = compile();
     const propObjects = objectLayer(plan, "CompilerProps").objects;
     const memory = propObjects.find((entry) => entry.name === "living-memory");
-    const rotation = memory?.properties?.find((entry) => entry.name === "rotation")?.value;
-    expect(rotation).toBe(0);
+    expect(property(memory!, "rotation")).toBe(0);
 
     const links = objectLayer(plan, "TriggerEventLinks").objects.filter((entry) =>
-      entry.properties?.some((property) => property.name === "triggerId" && property.value === "collect-primus-access"),
+      entry.properties?.some((entryProperty) => entryProperty.name === "triggerId" && entryProperty.value === "collect-primus-access"),
     );
-    expect(links.map((entry) => entry.properties?.find((property) => property.name === "eventId")?.value)).toEqual([
+    expect(links.map((entry) => property(entry, "eventId"))).toEqual([
       "grant-primus-access",
       "unlock-primus-door",
     ]);
-    expect(links.map((entry) => entry.properties?.find((property) => property.name === "order")?.value)).toEqual([0, 1]);
+    expect(links.map((entry) => property(entry, "order"))).toEqual([0, 1]);
   });
 
   it("selects a valid free runtime start without authored raw coordinates", () => {

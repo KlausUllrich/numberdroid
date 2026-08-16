@@ -1,5 +1,6 @@
 import { deriveSubSeed, seededUnit } from "./seed";
 import { locallyVariedSeed, overrideFor } from "./overrides";
+import { computePropExactFit, type PixelRect, type PropExactFitResult } from "./propExactFit";
 import type { CardinalDirection, CompiledPropRequest, PropPlacementRole, PropRotation } from "./types";
 import type { GridRect, SpaceGeometry } from "./geometryTypes";
 import type { GridCell, NavigationCell, NavigationCompilePlan } from "./navigationTypes";
@@ -19,6 +20,10 @@ const NEIGHBORS = [
   { x: 0, y: 1 },
   { x: -1, y: 0 },
 ] as const;
+
+const DEFAULT_TILE_SIZE = 64;
+const DEFAULT_WALL_COLLISION_PX = 10;
+const DEFAULT_WALL_VISUAL_PX = 30;
 
 function cellKey(cell: GridCell) {
   return `${cell.x},${cell.y}`;
@@ -235,6 +240,34 @@ function preservesReachability(navigation: NavigationCompilePlan, blocked: Set<s
   return true;
 }
 
+function pixelIntersects(a: PixelRect, b: PixelRect) {
+  const epsilon = 1e-7;
+  return a.x < b.x + b.w - epsilon
+    && a.x + a.w > b.x + epsilon
+    && a.y < b.y + b.h - epsilon
+    && a.y + a.h > b.y + epsilon;
+}
+
+function cellPixelRect(cell: GridCell, tileSize: number): PixelRect {
+  return { x: cell.x * tileSize, y: cell.y * tileSize, w: tileSize, h: tileSize };
+}
+
+/**
+ * Primary circulation is a gameplay corridor, not a ban on decorative pixels.
+ * Use a central keep-clear core so small true-space overhangs into a path tile
+ * remain legal while physical collision is still prevented from occupying the
+ * usable middle of the route.
+ */
+function primaryPathKeepClearRect(cell: GridCell, tileSize: number): PixelRect {
+  const inset = tileSize * 0.25;
+  return {
+    x: cell.x * tileSize + inset,
+    y: cell.y * tileSize + inset,
+    w: tileSize - inset * 2,
+    h: tileSize - inset * 2,
+  };
+}
+
 type InternalCandidate = {
   rect: GridRect;
   wallSide: CardinalDirection | null;
@@ -243,8 +276,15 @@ type InternalCandidate = {
   footprintCells: NavigationCell[];
   approachCells: NavigationCell[];
   clearanceCells: NavigationCell[];
+  exactFit: PropExactFitResult;
   score: number;
   reasons: string[];
+};
+
+type PlacedExactFit = {
+  placementId: string;
+  spaceId: string;
+  fit: PropExactFitResult;
 };
 
 function candidateScore(
@@ -330,10 +370,16 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
   const occupied = new Set<string>();
   const reserved = new Set<string>();
   const placements: PropPlacementDecision[] = [];
+  const placedExactFits: PlacedExactFit[] = [];
   const reservations: PlacementReservation[] = [];
   const diagnostics = [...navigation.diagnostics];
   const spaceById = new Map(navigation.geometry.spaces.map((space) => [space.id, space]));
   const slotKeys = new Set(navigation.wallAttachmentSlots.map((slot) => `${slot.spaceId}:${slot.side}:${slot.cell.x},${slot.cell.y}`));
+  const tileSize = semantic.runtime?.tileSize ?? DEFAULT_TILE_SIZE;
+  const wallCollisionPx = semantic.runtime?.wallCollisionPx ?? DEFAULT_WALL_COLLISION_PX;
+  const wallVisualPx = semantic.runtime?.wallVisualPx ?? DEFAULT_WALL_VISUAL_PX;
+  const doorClearanceCells = navigation.forbiddenCells.filter((cell) => cell.reasons.includes("door-clearance"));
+  const primaryPathCells = navigation.primaryPathCells;
 
   const expanded = semantic.props.flatMap((sourceRequest, requestOrder) => {
     const override = overrideFor(semantic.overrides, sourceRequest.id);
@@ -401,6 +447,45 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
       if (clearanceKeys.some((key) => occupied.has(key) || reserved.has(key))) { reject("clearance-blocked"); continue; }
       if (clearanceKeys.some((key) => forbidden.get(key)?.reasons.includes("door-clearance"))) { reject("clearance-door-overlap"); continue; }
 
+      let exactFit: PropExactFitResult;
+      try {
+        exactFit = computePropExactFit(raw, request.metadata, space.rect, tileSize, wallCollisionPx, wallVisualPx);
+      } catch {
+        reject("true-space-room-surface");
+        continue;
+      }
+
+      const previousFits = placedExactFits.filter((entry) => entry.spaceId === request.spaceId);
+      if (previousFits.some((entry) => pixelIntersects(exactFit.placementEnvelopePx, entry.fit.placementEnvelopePx))) {
+        reject("true-space-prop-overlap");
+        continue;
+      }
+
+      if (reservations.some((reservation) => reservation.spaceId === request.spaceId
+        && pixelIntersects(exactFit.placementEnvelopePx, cellPixelRect(reservation, tileSize)))) {
+        reject("true-space-reservation");
+        continue;
+      }
+
+      const candidateUseCells = [...approachCells, ...heroClearance];
+      if (candidateUseCells.some((cell) => previousFits.some((entry) =>
+        pixelIntersects(cellPixelRect(cell, tileSize), entry.fit.placementEnvelopePx)))) {
+        reject("true-space-blocks-use-space");
+        continue;
+      }
+
+      if (request.metadata.placement.forbidDoorClearance && doorClearanceCells.some((cell) =>
+        cell.spaceId === request.spaceId && pixelIntersects(exactFit.placementEnvelopePx, cellPixelRect(cell, tileSize)))) {
+        reject("true-space-door-clearance");
+        continue;
+      }
+
+      if (request.metadata.placement.forbidPrimaryPath && role !== "hero" && primaryPathCells.some((cell) =>
+        cell.spaceId === request.spaceId && exactFit.collisionPartsPx.some((part) => pixelIntersects(part, primaryPathKeepClearRect(cell, tileSize))))) {
+        reject("true-space-primary-circulation");
+        continue;
+      }
+
       if (role === "hero") {
         const trial = new Set(occupied);
         footprintKeys.forEach((key) => trial.add(key));
@@ -409,7 +494,12 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
 
       const scored = candidateScore(request, instanceSeed, raw.rect, raw.wallSide, space, placements, primaryOverlap);
       let score = scored.score;
-      const reasons = [...scored.reasons, `rotation ${raw.rotation}° allowed`, `footprint ${raw.rect.w}×${raw.rect.h}`];
+      const reasons = [
+        ...scored.reasons,
+        `rotation ${raw.rotation}° allowed`,
+        `footprint ${raw.rect.w}×${raw.rect.h}`,
+        `true-space offset ${exactFit.offsetPx.x.toFixed(1)},${exactFit.offsetPx.y.toFixed(1)}px`,
+      ];
       const touched = touchedSides(raw.rect, space.rect);
       if (request.metadata.placement.preferOppositeDoor && touched.some((side) => oppositeDoorSides.has(side))) {
         score += 55;
@@ -424,6 +514,7 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
         footprintCells,
         approachCells,
         clearanceCells: heroClearance,
+        exactFit,
         score,
         reasons,
       });
@@ -460,6 +551,7 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
       rejectedCounts,
     };
     placements.push(decision);
+    placedExactFits.push({ placementId: decision.id, spaceId: decision.spaceId, fit: chosen.exactFit });
     decision.footprintCells.forEach((cell) => occupied.add(cellKey(cell)));
 
     const placementOverride = overrideFor(semantic.overrides, request.id);
@@ -495,6 +587,11 @@ export function compilePropPlacement(navigation: NavigationCompilePlan): PropPla
     level: "info",
     code: "ROTATED_FOOTPRINTS_SOLVED",
     message: `Solved physical footprints and use-space for ${placements.length} prop rotation(s) during candidate placement.`,
+  });
+  diagnostics.push({
+    level: "info",
+    code: "PROP_TRUE_SPACE_SOLVED",
+    message: `Validated translated true-space envelopes for ${placedExactFits.length} prop instance(s) during deterministic candidate selection.`,
   });
 
   return { navigation, placements, occupiedCells, reservations, diagnostics };

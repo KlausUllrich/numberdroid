@@ -8,6 +8,7 @@ import {
   TS01_GENERATED_PLAN,
   TS01_GENERATED_PREVIEW_ALIAS,
 } from "./generatedTs01Preview";
+import { computePropExactFit } from "./propExactFit";
 import {
   COMPILER_PREVIEW_FASCIA_PX,
   artSpriteForPlacement,
@@ -87,8 +88,12 @@ describe("Level Compiler playable generated preview", () => {
     expect(floorFx.sprites.find((sprite) => sprite.id === "shadow:living-table")?.asset).toContain("assets/deck/family-table-shadow.png");
   });
 
-  it("keeps authored source dimensions when rotating art over a rotated physical footprint", () => {
+  it("keeps authored source dimensions while applying Exact Fit correction to rotated art", () => {
     const placement = TS01_GENERATED_PLAN.events.actors.props.placements.find((entry) => entry.id === "living-memory")!;
+    const geometry = TS01_GENERATED_PLAN.events.actors.props.navigation.geometry;
+    const request = geometry.semantic.props.find((entry) => entry.id === placement.requestId)!;
+    const space = geometry.spaces.find((entry) => entry.id === placement.spaceId)!;
+    const bounds = TS01_GENERATED_PLAN.events.actors.props.navigation.bounds;
     const physicalCenter = {
       x: placement.rect.x + placement.rect.w / 2,
       y: placement.rect.y + placement.rect.h / 2,
@@ -98,12 +103,23 @@ describe("Level Compiler playable generated preview", () => {
       rotation: 90 as const,
       rect: { x: physicalCenter.x - 0.5, y: physicalCenter.y - 1, w: 1, h: 2 },
     };
+    const fit = computePropExactFit(
+      rotatedPlacement,
+      request.metadata,
+      space.rect,
+      TS01_GENERATED_PLAN.tileSize,
+      TS01_GENERATED_PLAN.wallCollisionPx,
+      TS01_GENERATED_PLAN.wallVisualPx,
+    );
     const sprite = artSpriteForPlacement(TS01_GENERATED_PLAN, rotatedPlacement, "assets/test.png");
     expect(sprite.width).toBe(128);
     expect(sprite.height).toBe(64);
     expect(sprite.rotation).toBe(90);
-    expect(sprite.x + sprite.width / 2).toBeCloseTo((rotatedPlacement.rect.x - TS01_GENERATED_PLAN.events.actors.props.navigation.bounds.x + 0.5) * 64);
-    expect(sprite.y + sprite.height / 2).toBeCloseTo((rotatedPlacement.rect.y - TS01_GENERATED_PLAN.events.actors.props.navigation.bounds.y + 1) * 64);
+
+    const anchorCenterX = (rotatedPlacement.rect.x - bounds.x + rotatedPlacement.rect.w / 2) * TS01_GENERATED_PLAN.tileSize;
+    const anchorCenterY = (rotatedPlacement.rect.y - bounds.y + rotatedPlacement.rect.h / 2) * TS01_GENERATED_PLAN.tileSize;
+    expect(sprite.x + sprite.width / 2).toBeCloseTo(anchorCenterX + fit.offsetPx.x);
+    expect(sprite.y + sprite.height / 2).toBeCloseTo(anchorCenterY + fit.offsetPx.y);
   });
 
   it("uses the accepted visible wall fascia and emits each canonical wall only once", () => {
