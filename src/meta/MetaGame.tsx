@@ -4,7 +4,7 @@ import { BODIES, MAX_META_ENERGY, PLAYER_NAMES, STARTING_HP, robotCollisionRadiu
 import { getFloor } from "../game/floors";
 import type { TacticalChallengeId } from "../game/playerProfile";
 import { pointWalkable } from "../game/save";
-import { advanceFloorScript, dismissActiveStoryBeat, storyBeatIsBlocking } from "../game/scriptRuntime";
+import { advanceFloorScript, dismissActiveStoryBeat, nextScheduledScriptDeadline, storyBeatIsBlocking } from "../game/scriptRuntime";
 import type { EncounterConfig, MetaState } from "../game/types";
 import { directionClassForFacing } from "./robotDirection";
 import { DoorLayer } from "./DoorLayer";
@@ -227,9 +227,57 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
       setTouchMarker(null);
     }
     onMetaChange(advanced.state);
-    // Script evaluation runs on the throttled React run-state stream, not RAF.
+    // Script edge evaluation runs on the throttled React run-state stream, not RAF.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meta, floor.id, onMetaChange]);
+
+  useEffect(() => {
+    if (!floor.script?.triggers.length) return;
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    const commitSchedulerAdvance = () => {
+      if (cancelled) return;
+      const current = latestMetaRef.current;
+      const advanced = advanceFloorScript(floor, current, current, { nowMs: Date.now() });
+      if (!advanced.changed) return;
+      latestMetaRef.current = advanced.state;
+      previousScriptMetaRef.current = advanced.state;
+      updateAutomaticDoors(advanced.state);
+      if (storyBeatIsBlocking(floor, advanced.state.scriptState.activeStoryBeatId)) {
+        pausedRef.current = true;
+        speedRef.current = 0;
+        touchRef.current.active = false;
+        setTouchMarker(null);
+      }
+      onMetaChange(advanced.state);
+    };
+
+    // First pass initializes timer Trigger deadlines and immediately resolves any
+    // deadline that became overdue while the app was suspended or reloaded.
+    commitSchedulerAdvance();
+
+    const deadline = nextScheduledScriptDeadline(latestMetaRef.current);
+    if (deadline !== null) {
+      const delay = Math.min(2_147_000_000, Math.max(0, deadline - Date.now()));
+      timeoutId = window.setTimeout(commitSchedulerAdvance, delay + 4);
+    }
+
+    const onResume = () => {
+      if (document.visibilityState === "visible") commitSchedulerAdvance();
+    };
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("focus", commitSchedulerAdvance);
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("focus", commitSchedulerAdvance);
+    };
+    // Scheduler state changes only when script timing changes; ordinary RAF pose
+    // updates preserve the same scheduledTriggers object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floor.id, meta.scriptState.scheduledTriggers, onMetaChange]);
 
   useEffect(() => {
     latestMetaRef.current = meta;

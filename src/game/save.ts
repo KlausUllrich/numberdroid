@@ -56,6 +56,7 @@ export function createLevelScriptRunState(floor: FloorDefinition): LevelScriptRu
     flags: {},
     doorStates: {},
     stagedActors: scriptedActorDefaults(floor),
+    scheduledTriggers: {},
     storyBeatQueue: [],
     activeStoryBeatId: null,
   };
@@ -188,6 +189,7 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
   if (!candidate || typeof candidate !== "object") return defaults;
   const raw = candidate as Partial<LevelScriptRunState>;
   const triggerIds = new Set((floor.script?.triggers ?? []).map((trigger) => trigger.id));
+  const triggerById = new Map((floor.script?.triggers ?? []).map((trigger) => [trigger.id, trigger]));
   const doorIds = new Set(floor.doors.map((door) => door.id));
   const stagedIds = new Set((floor.script?.stagedActors ?? []).map((actor) => actor.id));
   const beatIds = new Set(
@@ -224,6 +226,24 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
     }
   }
 
+  const firedTriggerIds = Array.isArray(raw.firedTriggerIds)
+    ? [...new Set(raw.firedTriggerIds.filter((id): id is string => typeof id === "string" && triggerIds.has(id)))]
+    : [];
+  const firedSet = new Set(firedTriggerIds);
+
+  const scheduledTriggers: LevelScriptRunState["scheduledTriggers"] = {};
+  if (raw.scheduledTriggers && typeof raw.scheduledTriggers === "object") {
+    for (const [id, value] of Object.entries(raw.scheduledTriggers)) {
+      const trigger = triggerById.get(id);
+      if (!trigger || (trigger.once && firedSet.has(id)) || !value || typeof value !== "object") continue;
+      const rawSchedule = value as { dueAtMs?: unknown; scheduledAtMs?: unknown };
+      const dueAtMs = Number(rawSchedule.dueAtMs);
+      const scheduledAtMs = Number(rawSchedule.scheduledAtMs);
+      if (!Number.isFinite(dueAtMs) || dueAtMs < 0 || !Number.isFinite(scheduledAtMs) || scheduledAtMs < 0) continue;
+      scheduledTriggers[id] = { dueAtMs, scheduledAtMs };
+    }
+  }
+
   const storyBeatQueue = Array.isArray(raw.storyBeatQueue)
     ? [...new Set(raw.storyBeatQueue.filter((id): id is string => typeof id === "string" && beatIds.has(id)))]
     : [];
@@ -232,12 +252,11 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
     : null;
 
   return {
-    firedTriggerIds: Array.isArray(raw.firedTriggerIds)
-      ? [...new Set(raw.firedTriggerIds.filter((id): id is string => typeof id === "string" && triggerIds.has(id)))]
-      : [],
+    firedTriggerIds,
     flags,
     doorStates,
     stagedActors,
+    scheduledTriggers,
     storyBeatQueue,
     activeStoryBeatId,
   };
