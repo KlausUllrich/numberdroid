@@ -45,11 +45,14 @@ Use these authorities:
 - reproducible asset-specific art source: `art-source/recipes/`
 - architecture/map contracts: `docs/architecture/`
 - game design: `docs/game-design/`
+- declarative level-authoring/compiler contract: `docs/level-generation/` + `src/levelgen/`
 - story/world: `docs/story/`
 - current forward plan: `docs/planning/DEVELOPMENT_PLAN_NEXT.md`
 - historical handoffs/experiments: `docs/history/` — evidence/context only, never current authority by default
 
 If two current authorities conflict, report the conflict rather than silently inventing a resolution.
+
+For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LEVEL_DESIGN_RULES.md`, `docs/level-generation/README.md`, `docs/level-generation/LEVEL_SPEC.md`, relevant architecture/map contracts, and the actual `src/levelgen/` implementation before changing the compiler/spec semantics.
 
 ## Repository workflow — hard rules
 
