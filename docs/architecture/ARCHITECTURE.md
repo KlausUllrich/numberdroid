@@ -59,17 +59,18 @@ Presentation only. `App` commits body transfer or Floor restart.
 
 ## FloorDefinition
 
-`src/game/floors.ts` is the source of truth for Floor content.
+`src/game/floors.ts` is the gameplay-facing source of truth for compiled Floor content.
 
 A `FloorDefinition` contains:
 - stable Floor id
 - display name/subtitle
 - world dimensions
-- background asset
+- visual data
 - start position/facing/body/meta-energy
 - objective copy
 - walkable geometry
 - obstacle geometry
+- rooms/doors/pickups/actions
 - energy-station definitions
 - encounter definitions
 
@@ -80,7 +81,40 @@ Every energy station has a stable id. Every encounter has a stable `encounterId`
 
 This permits multiple opponents of the same archetype on one Floor.
 
-`FLOORS`/`getFloor()` form the current Floor registry. A7 is currently the default and only authored Floor.
+`FLOORS`/`getFloor()` form the current Floor registry.
+
+## Declarative Level Compiler authoring layer
+
+A new authoring boundary now exists **before** Tiled/`FloorDefinition`:
+
+```text
+LevelSpec
+→ semantic compile plan
+→ topology / shared walls / doors / placement / event compile stages
+→ Tiled-compatible / FloorDefinition data
+→ existing runtime
+```
+
+Implementation and contract:
+
+- `docs/level-generation/`
+- `src/levelgen/`
+
+This is deliberately **not** another runtime architecture migration. The game continues to consume `FloorDefinition`; the Level Compiler exists to make large-scale level production deterministic, rule-driven and editable.
+
+The compiler is expected to own authoring concerns such as:
+
+- room/corridor topology and corridor width;
+- stable seeds/sub-seeds;
+- shared wall derivation without duplicate walls;
+- doors embedded into real wall apertures with clearance;
+- prop metadata/placement constraints;
+- enemy spawn/route intent;
+- access keys/locked-door intent;
+- triggers/events;
+- local locks/overrides.
+
+The current TS-01 runtime map remains authoritative until the compiler reaches geometry/runtime parity and passes live QA.
 
 ## Save / RunState v3
 
@@ -88,7 +122,7 @@ Current save key:
 
 `numberdroid-meta-v3`
 
-The persisted state now contains:
+The persisted state contains:
 
 ```text
 MetaState v3
@@ -97,20 +131,14 @@ MetaState v3
 ├── currentBody
 ├── metaEnergy
 ├── usedStationIds[]
+├── collectedPickupIds[]
+├── accessKeyIds[]
+├── completedActionIds[]
 ├── defeatedEncounterIds[]
 ├── damageTaken
 ├── pilotIndex
 └── playerCount
 ```
-
-This is the required state shape for the Vertical Slice 2 target of several opponents and several energy sources.
-
-Existing `numberdroid-meta-v2` saves are migrated one-way:
-- old `stationUsed` maps to the current A7 station id
-- old defeated enemy archetypes map to matching A7 encounter ids
-- position/body/meta-energy/player/HP state is preserved where valid
-
-Legacy prototype saves are still read as a fallback.
 
 Floor restart is data-driven: it rebuilds the initial state from the active `FloorDefinition` while preserving player count.
 
@@ -138,35 +166,26 @@ Confirmed:
 
 ## CI
 
-`.github/workflows/build.yml` runs for `main`, `agent/**`, and pull requests targeting `main`.
+`.github/workflows/build.yml` validates branches, pull requests and `main` through the project test/build path.
 
-Current workflow:
+The repository does not yet contain a committed `package-lock.json`, so CI currently uses `npm install` rather than `npm ci`.
 
-```text
-checkout
-→ Node 22
-→ npm install --no-audit --no-fund
-→ npm run build
-```
+## Current architecture/content boundary
 
-The workflow is currently green.
+The application/run-state architecture is sufficient for content production. Do not restart the React/game-state framework as a prerequisite.
 
-The repository does not yet contain a committed `package-lock.json`, so CI temporarily uses `npm install`. Once a lockfile is committed, switch to `npm ci`.
+Current content-authoring direction:
 
-## Next architecture/content boundary
+1. keep `FloorDefinition` as the gameplay-facing runtime contract;
+2. keep the current Tiled subset/importer as a valid runtime/interchange path;
+3. develop the declarative Level Compiler upstream of that boundary;
+4. use TS-01 as the first parity/reference case;
+5. move recurring manual level-design fixes into reusable rules/metadata/validators;
+6. add compiler stages incrementally: semantic graph → topology → shared wall graph → doors/navigation → props/enemies → triggers/events → workbench/overrides;
+7. only switch a live Floor from manual map authoring to compiler output after parity, tests and deployed QA.
 
-The basic application/run-state architecture is now sufficient for Vertical Slice 2. The next work should focus on Floor representation and content rather than another state rewrite.
-
-Recommended order:
-1. choose and integrate a tile/object map format (LDtk or Tiled are the leading options),
-2. keep `FloorDefinition` as the gameplay-facing contract,
-3. import/render floor/wall/decor layers from map data,
-4. keep encounters, stations, triggers and collision as explicit object/data layers,
-5. build the fuller 10–15 minute Floor with roughly 5–7 opponents, 2–3 energy sources and optional routes,
-6. define the three meaningful body capabilities needed for that slice, including KRONOS.
-
-Do not create a custom map editor unless the external editors prove inadequate.
+A future **Level Generator Workbench** is now an approved authoring-tool direction because large-scale campaign production requires semantic regeneration/locking/overrides. It should manipulate LevelSpec/constraints rather than becoming an unrelated second game runtime or an unconstrained tile-painting editor.
 
 ## Prototype policy
 
-`zahlenkern-prototyp-meta-v7.html` remains a frozen visual/behavioral reference. Production work belongs in `src/` and authored Floor/map data.
+`zahlenkern-prototyp-meta-v7.html` remains a frozen visual/behavioral reference. Production work belongs in `src/` and authored/compiled Floor data.
