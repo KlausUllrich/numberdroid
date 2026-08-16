@@ -26,7 +26,7 @@ export type PropExactFitResult = {
   collisionBoundsPx: PixelRect;
   /** Detailed physical collision parts. These preserve gaps in non-rectangular Props. */
   collisionPartsPx: PixelRect[];
-  /** Envelope chosen to touch the selected wall surface. */
+  /** Envelope selected for spatial fitting / authoring diagnostics. */
   placementEnvelopePx: PixelRect;
   /** Every room boundary physically touched by the conservative solved footprint. */
   touchedWalls: CardinalDirection[];
@@ -187,13 +187,6 @@ function wallFacePx(
   return (spaceRect.x + spaceRect.w) * tileSize - thicknessPx / 2;
 }
 
-function alignOffset(rect: PixelRect, side: CardinalDirection, face: number) {
-  if (side === "north") return { x: 0, y: face - rect.y };
-  if (side === "south") return { x: 0, y: face - (rect.y + rect.h) };
-  if (side === "west") return { x: face - rect.x, y: 0 };
-  return { x: face - (rect.x + rect.w), y: 0 };
-}
-
 type OffsetRange = { minX: number; maxX: number; minY: number; maxY: number };
 
 function unconstrainedRange(): OffsetRange {
@@ -235,11 +228,10 @@ function resolveOffset(range: OffsetRange, preferred: { x: number; y: number }, 
  * canvas and physical collider within that reservation, but may not occupy a
  * neighboring tile.
  *
- * Gold Slice hardening:
- * - all actually touched room boundaries participate, not just one wallSide;
- * - visual-boundary Props keep their visible envelope outside visible fascia;
- * - every collision part stays outside the wall collision core;
- * - a preference/stale wallSide that is not physically touched is ignored.
+ * v0.13.2 safety rule: the authored placement is the preferred position. We do
+ * NOT snap an object to a wall merely because it has a wallSide/preference.
+ * Only actual intrusion into a physically touched wall surface produces the
+ * minimum correction needed to restore the declared visual/collision contract.
  */
 export function computePropExactFit(
   placement: ExactFitPlacement,
@@ -275,41 +267,28 @@ export function computePropExactFit(
   const envelope = transformedPropBoundsPx(placement, metadata, resolvedEnvelope(metadata), tileSize);
   const touchedWalls = CARDINALS.filter((side) => touchesWall(placement, spaceRect, side));
 
-  const fit: PropExactFitMetadata | undefined = metadata.exactFit;
-  let preferredOffset = { x: 0, y: 0 };
-  if (fit && touchedWalls.length) {
-    const primarySide = placement.wallSide && touchedWalls.includes(placement.wallSide)
-      ? placement.wallSide
-      : touchedWalls[0];
-    const boundaryThickness = (fit.wallBoundary ?? "visual") === "collision" ? wallCollisionPx : wallVisualPx;
-    preferredOffset = alignOffset(
-      envelope,
-      primarySide,
-      wallFacePx(primarySide, spaceRect, tileSize, boundaryThickness),
-    );
-  }
-
   const range = unconstrainedRange();
-  // Placement envelope and every collision island must remain inside the tile
-  // reservation so precise fitting never steals space from a neighboring Prop.
   constrainContained(range, physicalRect, envelope);
   for (const part of collisionParts) constrainContained(range, physicalRect, part);
 
+  const fit: PropExactFitMetadata | undefined = metadata.exactFit;
   if (fit) {
     for (const side of touchedWalls) {
-      // Physical collision can never enter the 10 px collision wall core.
+      // Collision never enters the wall collision core.
       const collisionFace = wallFacePx(side, spaceRect, tileSize, wallCollisionPx);
       for (const part of collisionParts) constrainInsideFace(range, part, side, collisionFace);
 
-      // Props authored against visible fascia keep their visible silhouette out
-      // of the accepted 30 px wall body on every touched side, including corners.
+      // Visual-fit Props keep their declared visible silhouette outside the
+      // accepted fascia on every touched side, including two-sided corners.
       if ((fit.wallBoundary ?? "visual") === "visual") {
         constrainInsideFace(range, visual, side, wallFacePx(side, spaceRect, tileSize, wallVisualPx));
       }
     }
   }
 
-  const offset = resolveOffset(range, preferredOffset, metadata.id);
+  // Zero is intentional: preserve authored placement unless a constraint forces
+  // the smallest possible correction away from an actual wall intrusion.
+  const offset = resolveOffset(range, { x: 0, y: 0 }, metadata.id);
   const finalVisual = translate(visual, offset);
   const finalCollisionParts = collisionParts.map((part) => translate(part, offset));
   const finalCollision = unionPixelRects(finalCollisionParts);
