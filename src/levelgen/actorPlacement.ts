@@ -25,6 +25,15 @@ function manhattan(a: GridCell, b: GridCell) {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
+function distanceToWall(cell: NavigationCell, rect: { x: number; y: number; w: number; h: number }) {
+  return Math.min(
+    cell.x - rect.x,
+    rect.x + rect.w - 1 - cell.x,
+    cell.y - rect.y,
+    rect.y + rect.h - 1 - cell.y,
+  );
+}
+
 function freeCellKeys(props: OrientedPropPlacementPlan) {
   const blocked = new Set<string>();
   for (const cell of props.occupiedCells) blocked.add(cellKey(cell));
@@ -131,19 +140,33 @@ function compileRoute(
 ): ActorRouteGeometry {
   const navigation = props.navigation;
   const spaceIds = new Set(route.spaceIds);
-  const allowedKeys = new Set(
-    navigation.walkableCells
-      .filter((cell) => spaceIds.has(cell.spaceId) && freeKeys.has(cellKey(cell)))
-      .map(cellKey),
-  );
-  if (!allowedKeys.size) throw new Error(`Actor route ${route.id} has no free navigation cells.`);
-
-  const { adjacency, byKey } = buildAdjacency(navigation.walkableCells, allowedKeys, navigation.portals);
   const spaceById = new Map(navigation.geometry.spaces.map((space) => [space.id, space]));
+  const baseRouteCells = navigation.walkableCells
+    .filter((cell) => spaceIds.has(cell.spaceId) && freeKeys.has(cellKey(cell)));
+  if (!baseRouteCells.length) throw new Error(`Actor route ${route.id} has no free navigation cells.`);
+
+  // A single-room patrol is ambient movement inside a room, not an instruction
+  // to scrape the room perimeter. If a useful interior exists, reserve one full
+  // tile of visual breathing room from the room edge. This comfortably covers
+  // the 30 px fascia + standard 52 px robot sprite without changing global
+  // robot collision or door traversal semantics. Tiny/multi-space routes retain
+  // the old free-cell fallback because they may genuinely need perimeter/portal
+  // cells to remain connected.
+  let routeCells = baseRouteCells;
+  if (route.kind === "patrol" && route.spaceIds.length === 1) {
+    const space = spaceById.get(route.spaceIds[0]);
+    const interior = space
+      ? baseRouteCells.filter((cell) => distanceToWall(cell, space.rect) >= 1)
+      : [];
+    if (interior.length >= 4) routeCells = interior;
+  }
+
+  const allowedKeys = new Set(routeCells.map(cellKey));
+  const { adjacency, byKey } = buildAdjacency(navigation.walkableCells, allowedKeys, navigation.portals);
   let anchors: NavigationCell[] = [];
 
   if (route.spaceIds.length === 1) {
-    const candidates = navigation.walkableCells.filter((cell) => cell.spaceId === route.spaceIds[0] && allowedKeys.has(cellKey(cell)));
+    const candidates = routeCells.filter((cell) => cell.spaceId === route.spaceIds[0]);
     if (route.kind === "patrol") {
       anchors = extremeAnchors(candidates);
       if (anchors.length < 2 && candidates.length > 1) anchors = [candidates[0], candidates[candidates.length - 1]];
@@ -158,7 +181,7 @@ function compileRoute(
     for (const spaceId of route.spaceIds) {
       const space = spaceById.get(spaceId);
       if (!space) throw new Error(`Actor route ${route.id} references missing geometry space ${spaceId}.`);
-      const candidates = navigation.walkableCells.filter((cell) => cell.spaceId === spaceId && allowedKeys.has(cellKey(cell)));
+      const candidates = routeCells.filter((cell) => cell.spaceId === spaceId);
       const anchor = nearestToCenter(candidates, space.rect);
       if (!anchor) throw new Error(`Actor route ${route.id} cannot find a free anchor in ${spaceId}.`);
       anchors.push(anchor);
@@ -179,15 +202,6 @@ function compileRoute(
   }
 
   return { id: route.id, kind: route.kind, cells, loop: Boolean(route.loop) };
-}
-
-function distanceToWall(cell: NavigationCell, rect: { x: number; y: number; w: number; h: number }) {
-  return Math.min(
-    cell.x - rect.x,
-    rect.x + rect.w - 1 - cell.x,
-    cell.y - rect.y,
-    rect.y + rect.h - 1 - cell.y,
-  );
 }
 
 function preferredWallDistance(cell: NavigationCell, rect: { x: number; y: number; w: number; h: number }, side: CardinalDirection) {
