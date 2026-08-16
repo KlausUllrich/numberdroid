@@ -1,10 +1,40 @@
 # Numberdroid Tiled Map Contract
 
-VS2 uses Tiled as an authoring format while the game runtime stays independent of the Tiled application. Maps are converted into `FloorDefinition` through `src/game/tiled.ts`.
+Numberdroid runtime stays independent of the Tiled application. Maps are converted into `FloorDefinition` through `src/game/tiled.ts`.
+
+Tiled remains valid for hand-authored/debug Floors, but the approved scalable campaign-authoring direction now adds a declarative Level Compiler **upstream** of this contract. Generated Floors should initially compile to the same Tiled/`FloorDefinition` semantics rather than introducing a second runtime map system.
+
+See:
+
+- `docs/level-generation/README.md`
+- `docs/level-generation/LEVEL_SPEC.md`
+- `src/levelgen/`
+
+## Level Compiler relationship
+
+The intended boundary is:
+
+```text
+LevelSpec / constraints
+→ topology / shared wall / door / placement compilation
+→ Tiled-compatible semantic layers / FloorDefinition
+→ existing runtime
+```
+
+Tiled object layers therefore remain useful as a compiled target/debug representation for:
+
+- rooms/walkable/obstacles;
+- doors and access metadata;
+- pickups;
+- encounters;
+- stations/actions;
+- later trigger/event adapters.
+
+The high-level LevelSpec should not duplicate raw tile coordinates when a semantic relationship can express the design intent.
 
 ## Current import scope
 
-The VS2 importer deliberately supports a small, deterministic subset:
+The runtime importer deliberately supports a small, deterministic subset:
 
 - orthogonal finite maps
 - JSON-array tile-layer data (not base64/compressed data)
@@ -48,7 +78,7 @@ The object's `x` / `y` are the player start position.
 
 One or more rectangle objects. Their rectangles define the areas in which the robot may move. Overlapping rectangles are encouraged for rooms, bends and corridors; Floors do not need to be rectangular arenas.
 
-For the current B2 direction, large rectangular room rectangles are connected through explicit one-tile doorway rectangles and narrower corridor rectangles. Room-to-corridor openings should therefore be deliberate rather than broad overlapping edges.
+For current hand-authored maps, large rectangular room rectangles may be connected through explicit doorway/corridor rectangles. For future compiled maps, these rectangles are outputs of semantic room/corridor geometry rather than the primary level-design language.
 
 ### `Obstacles`
 
@@ -73,7 +103,9 @@ Optional properties:
 
 Automatic doors open when the player approaches. Locked doors remain closed until the matching access card has been collected, then behave like automatic doors. An additional close-distance hysteresis prevents rapid open/close flicker while passing through.
 
-Large gates use larger object rectangles rather than a separate rendering system. Current B2 uses a 64×128 command gate before the bridge.
+Large gates use larger object rectangles rather than a separate rendering system.
+
+For generated geometry, a door definition must derive from a real wall aperture. The Level Compiler owns the stronger authoring invariant that door clearance is reserved on both sides and that adjacent rooms share one wall rather than emitting overlapping walls.
 
 ### `Pickups`
 
@@ -100,7 +132,7 @@ Each object is one independent station instance.
 
 ### `Encounters`
 
-Each object is one independent hostile-robot instance. Multiple encounters may use the same robot body.
+Each object is one independent robot/encounter instance. Multiple encounters may use the same robot body.
 
 Required properties:
 
@@ -119,8 +151,9 @@ Optional properties:
 - `boss`: boolean — marks the encounter as an Endgegner visually
 - `storyIntro`: short encounter/story setup displayed before the duel
 - `deckSize`: `standard` or `large`, default `standard`; currently controls deck presentation only
+- behavior/perception/path properties supported by the current importer/runtime
 
-Standard deck robots should render smaller than one 64 px tile aperture. Large robots are deliberately exceptional and should generally be placed behind or near large gates. Full body-footprint/pathing semantics for controlled large bodies are intentionally deferred until large body takeover is designed as a persistent gameplay rule.
+Standard deck robots should render smaller than one 64 px tile aperture. Large robots are deliberately exceptional and should generally be placed behind or near large gates. Full body-footprint/pathing semantics for controlled large bodies remain a separate gameplay rule.
 
 The Tiled object's name is the displayed robot name.
 
@@ -128,52 +161,26 @@ The Tiled object's name is the displayed robot name.
 
 Tile layers are rendered in map order. Tiled global tile IDs are preserved. The renderer currently supports the horizontal, vertical and diagonal Tiled flip flags.
 
-The current `deck-vs2` map uses a deliberately simple technical tileset. It validates layout, camera, collision, object placement and multi-instance semantics; it is not final art.
+Technical maps may use simple placeholder tilesets to validate layout, camera, collision, object placement and multi-instance semantics; they are not automatically final art.
 
-## Current B2 layout / gating direction
+## Access / gating direction
 
-The technical VS2 Floor is intentionally ship-shaped rather than arena-shaped:
+Existing Tiled content already proves a data-driven access loop through `Pickups` + locked `Doors`. The LevelSpec layer should reference the same stable key/door identities and later add progression validation so a required key cannot accidentally be generated behind its own lock.
 
-- elongated horizontal silhouette
-- large rectangular rooms as primary play spaces
-- explicit one-tile room entrances
-- corridors connecting those entrances
-- several rooms with multiple possible exits
-- high enemy density inside room sections
-- bridge/command area at the far end
-- boss encounter as the explicit Floor goal
+## Trigger / event direction
 
-Current access loop:
+The declarative LevelSpec now reserves first-class triggers/events for future compilation, including access events, one-shot staging, actor pass-bys and world-specific scripted moments.
 
-```text
-aft section
-  → reactor side room
-  → BLUE access card
-  → locked security-east door
-  → eastern section
-  → navigation room
-  → COMMAND access card
-  → large locked bridge gate
-  → large command boss
-```
+Do not hard-code those future beats into React components. When runtime execution is implemented, extend the Floor/Tiled data contract or an adjacent explicit compiled contract so stable trigger/event IDs survive the compiler boundary.
 
-The target is a 10–15 minute Floor in which enemies create route choices rather than a requirement to clear every spawn.
+## Patrol / route direction
 
-## Next gameplay object layer
+Patrol simulation remains outside global per-frame React state so it does not regress smooth deck scrolling.
 
-The next interaction layer should extend this contract rather than hard-code behavior in React:
-
-- `PatrolPaths` — short named paths used by moving enemy instances
-- later explicit exits/transitions once multi-Floor progression is designed
-
-Patrol simulation must remain outside global per-frame React state so it does not regress the currently smooth deck scrolling.
+The LevelSpec may declare named semantic routes. A later geometry stage converts those route intents into the point/path form consumed by encounter/runtime systems.
 
 ## Preview mode
 
-The production/default Floor remains A7. A registered Floor can be opened without changing the persistent A7 save by adding:
+A registered Floor can be opened without changing the persistent default save by adding a `?floor=<floor-id>` query parameter where supported by the current registry.
 
-```text
-?floor=deck-vs2
-```
-
-Preview state is created fresh when the page loads and is not written to the normal `numberdroid-meta-v3` save.
+Preview state is created fresh when the page loads and is not written to the normal persistent save.
