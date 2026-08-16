@@ -1,9 +1,11 @@
 export { compileLevelSpec } from "./compiler";
 export { compileLevelGeometry } from "./geometry";
 export { compileLevelNavigation } from "./navigation";
+export { compilePropPlacement } from "./placement";
 export { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 export { deriveSubSeed, normalizeLevelSeed, seededUnit } from "./seed";
 export { TS01_LEVEL_SPEC } from "./specs/ts01";
 export type * from "./types";
 export type * from "./geometryTypes";
 export type * from "./navigationTypes";
+export type * from "./placementTypes";
