@@ -10,13 +10,14 @@ This is the authoritative inventory of reusable art-processing capabilities.
 | Masked material compositor | **PROVEN** | `compositor.mjs`, `tools/compositor2d.md` | Applies shared material to exact geometry with controlled edge shading | Does not generate the material source |
 | Semantic connector canonicalization | **PROVEN** | `connectors.mjs` | Makes named modular connector strips interchangeable using median canonical strips + inward blend | Cannot infer semantic classes reliably from pixels alone |
 | Connector seam metric | **PROVEN** | `connectors.mjs`, `tools/qa-validation.md` | Measures actual boundary difference; supports SAME-type seam QA | A score alone does not judge visual quality; negative control still required by production QA |
-| RGBA PNG encoding | **PROVEN** | `raster.mjs` | Writes exact non-interlaced 8-bit RGBA PNGs without extra dependencies | No general PNG decode/edit API yet |
-| Alpha/background removal (Freistellen) | **PLANNED** | `tools/freistellen.md` | Future extraction of foreground alpha and halo cleanup | No production implementation yet |
+| RGBA PNG encoding | **PROVEN** | `raster.mjs` | Writes exact non-interlaced 8-bit RGBA PNGs without extra dependencies | No broad general-purpose image editor |
+| Prop alpha crop / runtime fit | **PROVEN** | `scripts/art/toolkit/prop-source.mjs`, `scripts/art/prepare-prop-asset.mjs`, `tools/prop-source-preparation.md` | Decodes standard 8-bit PNG source, removes a configured low-alpha halo, crops surviving alpha, performs premultiplied-alpha Lanczos resize and writes an exact transparent runtime canvas | Does not identify/remove an opaque or painted background; does not infer collision or visual bounds semantics |
+| Alpha/background removal (Freistellen) | **PLANNED** | `tools/freistellen.md` | Future extraction of foreground alpha and halo cleanup from non-transparent sources | No production implementation yet |
 | Seamless/periodic texture construction | **PLANNED** | `tools/seamless-tiles.md` | Future synthesis/repair of truly periodic material textures | Ordinary image generation is not assumed seamless |
 | Seamless/periodic texture validation | **PLANNED** | `tools/seamless-tiles.md` | Future opposite-edge metrics, wrap preview and repetition QA | Not implemented yet |
-| Atlas packing / frame extraction | **PLANNED** | future tool doc | Deterministic packing/cropping from authored sources | Existing asset-specific scripts remain authoritative for now |
-| Downscale / resample normalization | **PLANNED** | future tool doc | Controlled filter/downscale + post-resample QA | Existing per-asset code remains in place |
-| Alpha halo / stray-pixel QA | **PLANNED** | `tools/qa-validation.md` | Detects contamination outside masks and matte halos | No generic production implementation yet |
+| Atlas packing / frame extraction | **PLANNED** | future tool doc | Deterministic packing/cropping from authored sources | Existing asset-specific scripts remain authoritative for now; generated TS-01 Props default to individual registered PNGs |
+| Generic downscale / resample normalization | **PLANNED** | future tool doc | Broad controlled filter/downscale + post-resample QA across asset categories | Prop crop/fit now has a bounded Lanczos implementation; other asset classes still use existing per-asset code |
+| Alpha halo / stray-pixel QA | **PLANNED** | `tools/qa-validation.md` | Detects contamination outside masks and matte halos generically | Prop preparation has configured low-alpha cleanup but no generic semantic halo detector |
 | Palette / semantic-color QA | **PLANNED** | `tools/qa-validation.md` | Future checks for faction/system color contracts | Does not replace visual QA |
 
 ## Rule

@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import {
+  alphaBounds,
   canonicalizeConnectorGroup,
   createMask,
+  decodePngRgba,
   encodeRgbaPng,
   exposedBoundaryMask,
   meanConnectorDifference,
+  preparePropPng,
   renderMaskedMaterial,
 } from "./index.mjs";
 
@@ -47,4 +50,47 @@ assert.equal(after12, 0, "canonicalized connector pair 1/2 must be pixel-identic
 const png = encodeRgbaPng({ width, height, rgba: tiles[0] });
 assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-console.log(`Art toolkit self-test PASS: connector diff ${before.toFixed(3)} -> ${after01.toFixed(3)}`);
+// Prop-source normalization proof: a compact opaque body with a deliberately
+// tiny low-alpha halo must crop/fit into an exact transparent runtime canvas.
+const sourceWidth = 32;
+const sourceHeight = 24;
+const sourceRgba = new Uint8Array(sourceWidth * sourceHeight * 4);
+for (let y = 6; y < 18; y += 1) {
+  for (let x = 8; x < 24; x += 1) {
+    const o = (y * sourceWidth + x) * 4;
+    sourceRgba[o] = 210;
+    sourceRgba[o + 1] = 190;
+    sourceRgba[o + 2] = 150;
+    sourceRgba[o + 3] = 255;
+  }
+}
+for (let x = 7; x <= 24; x += 1) {
+  for (const y of [5, 18]) sourceRgba[(y * sourceWidth + x) * 4 + 3] = 3;
+}
+const sourcePng = encodeRgbaPng({ width: sourceWidth, height: sourceHeight, rgba: sourceRgba });
+const prepared = preparePropPng({
+  bytes: sourcePng,
+  targetWidth: 20,
+  targetHeight: 16,
+  margin: 2,
+  alphaCutoff: 4,
+});
+const decodedPrepared = decodePngRgba(prepared.png);
+assert.equal(decodedPrepared.width, 20);
+assert.equal(decodedPrepared.height, 16);
+const preparedBounds = alphaBounds(decodedPrepared.rgba, 20, 16);
+assert(preparedBounds, "prepared Prop must retain visible content");
+assert(preparedBounds.x >= 1 && preparedBounds.y >= 1, "prepared Prop must retain transparent breathing room");
+assert(preparedBounds.x + preparedBounds.w <= 19 && preparedBounds.y + preparedBounds.h <= 15, "prepared Prop must stay inside runtime canvas");
+assert.equal(decodedPrepared.rgba[3], 0, "runtime canvas corner must remain transparent");
+assert.deepEqual(prepared.sourceBounds, { x: 8, y: 6, w: 16, h: 12 }, "low-alpha halo must not expand the crop");
+
+const opaque = new Uint8Array(4 * 4 * 4).fill(255);
+const opaquePng = encodeRgbaPng({ width: 4, height: 4, rgba: opaque });
+assert.throws(
+  () => preparePropPng({ bytes: opaquePng, targetWidth: 8, targetHeight: 8 }),
+  /no alpha transparency/i,
+  "opaque backgrounds must not be mistaken for generic Freistellen",
+);
+
+console.log(`Art toolkit self-test PASS: connector diff ${before.toFixed(3)} -> ${after01.toFixed(3)}; Prop crop/fit ${prepared.sourceBounds.w}x${prepared.sourceBounds.h} -> ${prepared.contentBounds.w}x${prepared.contentBounds.h}`);

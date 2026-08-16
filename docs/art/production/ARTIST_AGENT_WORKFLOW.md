@@ -10,8 +10,9 @@ Companion QA documents:
 
 - `docs/art/production/ART_ASSET_VALIDATION_RULES.md`
 - `docs/art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
+- `docs/art/production/PROP_ASSET_WORKFLOW.md` for Props and Prop-like Hero assets
 
-When rules overlap, the stricter rule wins.
+When rules overlap, the stricter or more asset-specific rule wins.
 
 ## Role
 
@@ -111,17 +112,30 @@ PREPARED
 
 Method-specific workflows may add intermediate states. A failed state cannot silently advance.
 
+For Gold Slice Props, `PROP_ASSET_WORKFLOW.md` adds an explicit Klaus source-selection gate between source QA and production build.
+
 ## Production prompt rule
 
 When generation is used, the production prompt describes the visible source/material/asset only. Do not request titles, legends, checklists, self-check text, technical specifications, palette boards, UI furniture or documentation inside production pixels.
 
 A multi-frame sheet is allowed only when the asset itself requires it, e.g. an eight-direction turnaround.
 
-## One category per production pass
+## One semantic asset/category per production pass
 
-Do not mix unrelated categories in one generation merely to save calls. In particular, do not combine ordinary Floor, Walls, Doors, Props, Hero setpieces and Characters in one source sheet unless the recipe explicitly defines them as one authored asset.
+Do not mix unrelated categories or semantic assets in one generation merely to save calls. In particular, do not combine ordinary Floor, Walls, Doors, several unrelated Props, Hero setpieces and Characters in one source sheet unless the recipe explicitly defines them as one authored asset.
 
-For props, prefer one deliberate object or coherent micro-set rather than an entire room inventory/mood board.
+### Prop A/B/C first-proposal exception
+
+`PROP_ASSET_WORKFLOW.md` defines one deliberate acceleration exception for a **new single Prop**:
+
+- the first visual proposal normally returns exactly three separate variants `A / B / C` of the **same semantic Prop**;
+- all three share the same function, perspective, footprint class and runtime contract;
+- they are alternatives, not a three-Prop batch;
+- when the generation tool supports multiple separate outputs in one call, use one generation call with three separate outputs;
+- never combine them into an infographic, labeled board, room inventory or extraction sheet;
+- after QA, Klaus selects one source and only that selected source proceeds to production extraction/shadow/integration.
+
+Outside this bounded first-proposal exception, work on one selected source/edit at a time.
 
 ## Image-generation turn boundary — binding
 
@@ -129,10 +143,10 @@ When ChatGPT image generation is used, generation creates a user-visible turn bo
 
 Required behavior:
 
-1. state what single source/edit is being generated;
+1. state what single semantic source/edit (or the allowed Prop A/B/C first-proposal set) is being generated;
 2. call image generation once;
 3. do not silently regenerate or integrate in the same turn;
-4. on the next user turn, inspect the generated result before advancing.
+4. on the next user turn, inspect the generated result(s) before advancing.
 
 ### `QA` is a hard no-generation command
 
@@ -162,6 +176,8 @@ Check, as relevant:
 
 Attractive but invalid art is still invalid.
 
+For a Prop A/B/C first proposal, inspect and disposition all three separately before Klaus selects one.
+
 ## Production build / extraction
 
 Generated or painted source material is not automatically the runtime asset.
@@ -180,6 +196,8 @@ Build the production asset according to the selected method:
 The selected method defines which operations are authoritative.
 
 If a recurring deterministic operation is missing, classify it against the Art Production Toolkit before writing asset-specific duplicate code.
+
+For approved alpha-bearing Props, `scripts/art/prepare-prop-asset.mjs` is the current proven crop/fit path. It is not generic semantic background removal.
 
 ## Production QA
 
@@ -215,6 +233,8 @@ Do not change map/game logic merely to rescue unsuitable art unless the design i
 
 The user is the art director for Gold Slice work. A new target look/category should pass internal QA before being presented as a candidate for approval.
 
+For new Gold Slice Props, explicit source selection/approval by Klaus is required before extraction/shadow/integration as defined by `PROP_ASSET_WORKFLOW.md`.
+
 `CI green` and `merged` do not mean `visually accepted`.
 
 ## Integration gate
@@ -228,6 +248,8 @@ Only after source and production QA pass:
 5. run tests/build;
 6. verify deployed preview when relevant;
 7. update the recipe/status after acceptance.
+
+For Props, spatial/editor metadata must also pass `docs/level-generation/PROP_AUTHORING_REQUIREMENTS.md`; pixels must not silently define placement or collision.
 
 ## Failure report
 
@@ -248,13 +270,19 @@ Work from structural context toward focal detail, but treat accepted categories 
 Current state:
 
 ```text
-PICO             LIVE_ACCEPTED
-Floor            ACCEPTED BASELINE
-Walls            LIVE_ACCEPTED
-Doors            LIVE_ACCEPTED
-Family/ordinary props  NEXT
-Transfer apparatus / PRIMUS objects  AFTER PROPS
-Remaining robots       LATER
+PICO                         LIVE_ACCEPTED source baseline
+Floor                        ACCEPTED BASELINE
+Walls                        LIVE_ACCEPTED
+Doors                        LIVE_ACCEPTED
+Family Table                 LIVE_ACCEPTED
+Family Memory Console        LIVE_ACCEPTED
+Family Props Batch 2         LIVE_CANDIDATE
+v0.13.2 stabilization        LIVE QA ACCEPTED
+Transfer Apparatus / Core    CURRENT NEXT PRODUCTION ASSET
+Flow support / FloorFX       NEXT
+PRIMUS hero/system art       NEXT
+Useful domestic assets       AFTER hero hierarchy
+Remaining robots             AFTER Gold Slice as required
 ```
 
 The relevant recipe/category contract and `docs/planning/DEVELOPMENT_PLAN_NEXT.md` are more authoritative than old sequence statements in history.

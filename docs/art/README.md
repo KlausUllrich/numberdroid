@@ -24,11 +24,13 @@ Do not infer current status from an old “next” paragraph inside a long art-d
 
 - Transfer Ship visual thesis: `direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-method Artist workflow: `production/ARTIST_AGENT_WORKFLOW.md`
+- **binding Prop-specific source → approval → extraction → shadow → editor/runtime workflow: `production/PROP_ASSET_WORKFLOW.md`**
 - asset validation: `production/ART_ASSET_VALIDATION_RULES.md`
 - validation process addendum: `production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
 - Transfer Ship perspective/material/placement rules: `production/ART_PRODUCTION_RULES_TRANSFER_SHIP.md`
 - TS-01 layer/category contract: `transfer-hall/TRANSFER_HALL_LAYER_RULES.md`
 - TS-01 recipes/status: `../../art-source/recipes/transfer-hall/`
+- Prop Level Compiler / Workbench metadata requirements: `../level-generation/PROP_AUTHORING_REQUIREMENTS.md`
 
 Method selection and reusable tooling are separate domains:
 
@@ -90,6 +92,8 @@ In short:
 4. useful domestic replacements for remaining blockouts;
 5. final grounding/use-wear/light/cohesion pass;
 6. desktop + phone Art-Director QA.
+
+For each new Prop/Hero asset, the initial visual proposal now follows the Prop workflow's **A/B/C three-variant rule for one semantic asset**, followed by assistant QA and explicit Klaus source selection before extraction/shadow/integration.
 
 Accepted Walls, Doors and accepted Family assets remain frozen unless a concrete live defect appears. New assets must consume the existing generated composite/Exact-Fit pipeline rather than forcing a new renderer or reopening accepted geometry.
 
