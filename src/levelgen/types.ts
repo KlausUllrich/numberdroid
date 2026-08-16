@@ -258,7 +258,7 @@ export type SemanticCompilePlan = {
   seed: number;
   ruleSetRefs: string[];
   rules: LevelRuleConfig;
-  runtime: LevelRuntimeSpec;
+  runtime?: LevelRuntimeSpec;
   spaces: CompiledSemanticSpace[];
   connections: CompiledConnection[];
   props: CompiledPropRequest[];
