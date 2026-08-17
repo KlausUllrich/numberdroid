@@ -28,7 +28,7 @@ transfer-system/
 
 ## Approved source record — Transfer Apparatus
 
-Current state: **SOURCE_APPROVED / ARCHIVE_PENDING**
+Current state: **SOURCE_APPROVED / ARCHIVE_PENDING / USER_UPLOAD_REQUIRED**
 
 The latest approved generated source is visually approved by Klaus and is the visual authority for the current Transfer Apparatus direction.
 
@@ -38,7 +38,7 @@ Expected archive target:
 source/transfer-apparatus__approved-original__2026-08-17.png
 ```
 
-Verified source metadata from the current working file:
+Verified source metadata from the approved original:
 
 ```text
 component:          transfer-apparatus
@@ -49,27 +49,44 @@ format:             PNG RGBA, non-interlaced
 original size:      1122 × 1402 px
 raw bytes:          1,231,884
 sha256:             f19ccfba6af722577b6bd8c49a0be15e45473867421e98d22c1fd018de6da794
+git blob sha1:      1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
 recipe:             art-source/recipes/transfer-hall/transfer-apparatus/recipe.md
 ```
 
 ### Archive transport status
 
-The approved original currently exists as a local/mounted generated file but is **not yet committed to this repository path**.
+The approved original has been prepared byte-identically under the canonical archive filename, but is **not yet committed to this repository path**.
 
-Reason: the active GitHub connector exposes no real binary file/path upload action, there is no existing authenticated local repository checkout in the current execution environment, and `docs/agents/BINARY_ASSET_TRANSPORT.md` prohibits inline Base64 through the agent.
+The active GitHub connector exposes no real binary file/path upload action and `docs/agents/BINARY_ASSET_TRANSPORT.md` prohibits inline Base64 through the agent.
 
-Therefore the truthful state is:
+Therefore the next required workflow step is the manual handoff defined by:
+
+`docs/art/production/APPROVED_SOURCE_UPLOAD_HANDOFF.md`
+
+State:
 
 ```text
 LOCAL_BINARY_READY
 SOURCE_APPROVED
 BINARY_TRANSPORT_BLOCKED
 ARCHIVE_PENDING
+USER_UPLOAD_REQUIRED
 ```
 
-Do not claim `APPROVED_SOURCE_ARCHIVED` until the actual byte-identical PNG is reachable at the target path above.
+After Klaus uploads the exact prepared file and replies `hochgeladen`, the Agent verifies:
 
-Do not continue irreversible/authoritative production processing in a future session before resolving this archive gate unless Klaus explicitly changes the preservation policy.
+- exact target filename;
+- raw size `1,231,884` bytes;
+- GitHub blob SHA `1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1`.
+
+Only after that verification may this state become:
+
+```text
+USER_UPLOAD_VERIFIED
+APPROVED_SOURCE_ARCHIVED
+```
+
+Do not continue destructive/downscaling production before the archive gate closes unless Klaus explicitly changes the preservation policy.
 
 ## Future yellow Core source
 
