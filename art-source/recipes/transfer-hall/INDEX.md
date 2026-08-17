@@ -13,7 +13,7 @@ Current art milestone: **Transfer Apparatus + Yellow Core static presentation LI
 | 3 | Family / ordinary props | **MIXED: LIVE_ACCEPTED + LIVE_CANDIDATE** | `family-props/` | Family Table + shadow and Family Memory Console + shadow are accepted. Round Plant, Planter Trough, Coffee Machine and Hologram Pedestal remain candidates pending full-room disposition. |
 | 4 | Transfer Apparatus | **LIVE_ACCEPTED** | `transfer-apparatus/` | 4×6 Hero; accepted high-resolution source, deterministic runtime Crop/Fit, separate FloorFX shadow, authored silhouette collision with navigable transparent corners. |
 | 5 | Yellow Core | **LIVE_ACCEPTED static resting state** | `yellow-core/` | 96×96 separate movable `transfer-fx` visual centered on the Apparatus platform; no independent Prop collision. Transfer choreography remains future work. |
-| 6 | Flow support / functional FloorFX | **DESIGN PROPOSAL / USER ALIGNMENT PENDING — CURRENT** | `flow-support/` | Working concept: compact cyan-led Transfer Flow Regulator as normal support Prop plus a separate deterministic flush FloorFX coupling bus. Existing sources define Flow only as Transfer support; exact physical meaning is being aligned before generation. |
+| 6 | Flow support / functional FloorFX | **SOURCE_APPROVED + ARCHIVED / 128×128 RUNTIME_CANDIDATE — CURRENT** | `flow-support/` | Approved cyan-led Flow Regulator source, no invented wave icon. First candidate keeps the 2×2 reservation with 111×112 visible content; live scale QA precedes shadow/collision refinement and deterministic FloorFX coupling bus. |
 | 7 | PRIMUS wall object / system hero | **NEXT after Flow** | `primus-console/` | Precise, attractive system object; assignment/order language without villain-black styling. Wall protrusion/collision remains explicit metadata. |
 | 8 | Useful domestic replacements | **AFTER Transfer/PRIMUS hierarchy** | coherent micro-set as needed | Replace only blockouts that materially improve habitation/readability: Child Bed, Toy/Personal Storage, Hygiene fixture/support and surviving named functional placeholders. |
 | 9 | Gold-Slice cohesion / finishing | **AFTER production replacements** | room-level pass | Resolve candidate Family props, remove obsolete blockouts, add restrained floor use/wear/grounding and lighting convergence, then desktop + phone QA. |
@@ -34,9 +34,10 @@ Family Props Batch 2         LIVE_CANDIDATE
 Layout-v3 / v0.13.2          SPATIAL BASELINE ACCEPTED
 Transfer Apparatus           LIVE_ACCEPTED
 Yellow Core                  LIVE_ACCEPTED STATIC RESTING STATE
+Flow Regulator source        APPROVED + ARCHIVED
 
-CURRENT → Flow support function-to-form alignment
-NEXT    → Flow source + functional FloorFX production
+CURRENT → Flow Regulator 128×128 runtime scale QA
+NEXT    → Flow shadow + collision refinement + deterministic FloorFX bus
 NEXT    → PRIMUS hero/system art
 NEXT    → useful domestic replacements
 NEXT    → room cohesion + candidate disposition + lighting/grounding
