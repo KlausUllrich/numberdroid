@@ -12,8 +12,12 @@ function contains(rect: { x: number; y: number; w: number; h: number }, x: numbe
   return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 }
 
+function blocked(parts: readonly { x: number; y: number; w: number; h: number }[], x: number, y: number) {
+  return parts.some((part) => contains(part, x, y));
+}
+
 describe("TS-01 Transfer Apparatus production contract", () => {
-  it("uses the approved Hero redesign on the doubled 4x6 canvas", () => {
+  it("uses the approved Hero redesign on the doubled 4x6 canvas with a separate FloorFX shadow", () => {
     const metadata = NUMBERDROID_PROP_REGISTRY["transfer-core"];
     expect(metadata.footprintTiles).toEqual({ w: 4, h: 6 });
     expect(metadata.allowedRotations).toEqual([0]);
@@ -25,24 +29,37 @@ describe("TS-01 Transfer Apparatus production contract", () => {
     });
     expect(NUMBERDROID_PROP_ART_REGISTRY["transfer-core"]).toMatchObject({
       asset: "assets/deck/transfer-apparatus.png",
+      shadowAsset: "assets/deck/transfer-apparatus-shadow.png",
       status: "candidate",
     });
   });
 
-  it("keeps Human intake and PICO dock open while making the broad transfer platform solid", () => {
+  it("blocks normal movement across the apparatus while leaving all four outer whitespace corners navigable", () => {
     const parts = NUMBERDROID_PROP_COLLISION_PARTS["transfer-core"];
-    expect(parts).toHaveLength(5);
+    expect(parts).toHaveLength(9);
 
-    // Human receiving surface: player must be able to move into the center lane.
-    expect(parts.some((part) => contains(part, 2.0, 1.4))).toBe(false);
+    // Normal Human/Robot movement must not cross any of the machine's main body:
+    // intake, upper body, central transfer platform, lower body and dock nose.
+    for (const point of [
+      [2.0, 0.375],
+      [2.0, 1.0],
+      [2.0, 2.75],
+      [2.0, 4.5],
+      [2.0, 5.375],
+    ] as const) {
+      expect(blocked(parts, point[0], point[1])).toBe(true);
+    }
 
-    // Broad central transfer platform is real machinery and remains solid.
-    expect(parts.some((part) => contains(part, 2.0, 3.2))).toBe(true);
-    expect(parts.some((part) => contains(part, 0.30, 3.2))).toBe(true);
-
-    // PICO staging slot and south drive-out lane remain open.
-    expect(parts.some((part) => contains(part, 2.0, 4.8))).toBe(false);
-    expect(parts.some((part) => contains(part, 2.0, 5.8))).toBe(false);
+    // The approved silhouette has transparent floor in all four outer corners;
+    // the old broad AABB incorrectly prevented the player from using this space.
+    for (const point of [
+      [0.5, 0.75],  // LO / upper-left whitespace
+      [3.5, 0.75],  // RO / upper-right whitespace
+      [3.5, 5.25],  // RU / lower-right whitespace
+      [0.5, 5.25],  // LU / lower-left whitespace
+    ] as const) {
+      expect(blocked(parts, point[0], point[1])).toBe(false);
+    }
   });
 
   it("still places the enlarged Hero deterministically in generated TS-01", () => {
