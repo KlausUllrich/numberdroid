@@ -10,6 +10,11 @@ It is intentionally separate from:
 - `public/` — runtime/deploy outputs;
 - `art-source/archive/` — superseded/historical authoring material.
 
+Detailed process authority:
+
+- `docs/art/production/APPROVED_SOURCE_ARCHIVE.md`
+- `docs/art/production/APPROVED_SOURCE_UPLOAD_HANDOFF.md` when Klaus must upload the binary manually.
+
 ## Canonical hierarchy
 
 Approved sources are grouped first by **Campaign Area**, then by **Asset Family**.
@@ -74,6 +79,7 @@ The family manifest records at least:
 - original dimensions;
 - byte size;
 - SHA-256 when available;
+- Git blob SHA-1 when a manual upload may need verification;
 - relevant recipe path;
 - whether the file is current or superseded.
 
@@ -89,7 +95,21 @@ SOURCE APPROVED
 
 Do not treat a chat attachment, image-generation tool result, temporary `/mnt/data` file or local working file as durable archive.
 
-If repository binary transport is unavailable, record `SOURCE_APPROVED / ARCHIVE_PENDING` and stop before irreversible production work. Follow `docs/agents/BINARY_ASSET_TRANSPORT.md`; never use inline Base64 to fake the archive step.
+If automatic repository binary transport is unavailable, the flow is **not** simply “stop and ask Klaus to figure it out.” The Agent must prepare the manual handoff:
+
+```text
+SOURCE_APPROVED
+→ ARCHIVE_PENDING
+→ USER_UPLOAD_REQUIRED
+→ Agent provides exact downloadable file + branch + target path + hashes + upload steps
+→ Klaus uploads and replies `hochgeladen`
+→ Agent verifies raw size + Git blob SHA
+→ APPROVED_SOURCE_ARCHIVED
+```
+
+The Agent owns naming, Campaign Area, Asset Family, branch selection, target path, prepared download file and verification metadata. Klaus only performs the GitHub upload click-path and replies `hochgeladen`.
+
+Follow `docs/agents/BINARY_ASSET_TRANSPORT.md`; never use inline Base64 to fake the archive step.
 
 ## Relationship to runtime assets
 
