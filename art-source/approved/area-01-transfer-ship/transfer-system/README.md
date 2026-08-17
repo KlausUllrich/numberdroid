@@ -77,9 +77,9 @@ USER_UPLOAD_VERIFIED
 
 ## Production derivative — Transfer Apparatus
 
-Current production state: **PRODUCTION_BUILT / 4×6 RUNTIME_CANDIDATE / SHADOW+COLLISION LIVE_QA_PENDING**
+Current production state: **PRODUCTION_BUILT / 4×6 RUNTIME_ACCEPTED / SHADOW+COLLISION LIVE_QA_PASS**
 
-The runtime candidate and its FloorFX shadow are generated deterministically from the archived authority by:
+The accepted runtime asset and its FloorFX shadow are generated deterministically from the archived authority by:
 
 ```text
 scripts/materialize-transfer-apparatus.mjs
@@ -108,7 +108,7 @@ runtime SHA-256:         29128f45d6fc3ce9ae97ed69e0df89565d9e6dbc0fe0961fca97166
 shadow canvas:           256 × 384 px FloorFX
 shadow generation:       source silhouette threshold + soft deterministic blur + 2px/6px offset
 shadow SHA-256:          2839b266b8181cded0ae4213741ba2124c0fd26bb2e07dd02f81eb22b658b511
-art registry state:      candidate
+art registry state:      accepted
 ```
 
 ### Live QA collision decision — 2026-08-17
@@ -135,7 +135,20 @@ Spatial production contract:
 - runtime collision follows the scripted silhouette rather than the complete 4×6 canvas;
 - the `transfer-intro-zone` remains anchored to the `hall-to-transfer` entrance, matching first-view story timing while the Hero occupies the room center.
 
-PR #99 validates the shadow registration and collision semantics, including regression points for the blocked machine centerline and all four navigable outer whitespace corners. Final live Art-Director QA of shadow weight and movement feel remains a separate state.
+### Final live Art-Director acceptance — 2026-08-17
+
+After PR #99 added the deterministic grounding shadow and corrected silhouette collision, Klaus performed final live QA and marked the Transfer Apparatus **fully approved**. This closes the current production review gate for the apparatus itself:
+
+```text
+SOURCE APPROVED
+→ RUNTIME SCALE APPROVED
+→ SHADOW APPROVED
+→ COLLISION APPROVED
+→ LIVE QA PASS
+→ ART REGISTRY ACCEPTED
+```
+
+Future changes to the Transfer Apparatus should therefore be treated as deliberate revisions to an accepted asset, not as continuation of the candidate pass. The Yellow Core and Transfer FX remain separate future family components.
 
 ## Future Yellow Core source
 
