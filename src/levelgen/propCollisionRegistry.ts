@@ -20,6 +20,17 @@ export const NUMBERDROID_PROP_COLLISION_PARTS: Readonly<Record<string, readonly 
     { x: 0.08, y: 0.68, w: 0.50, h: 0.64 },
     { x: 2.42, y: 0.68, w: 0.50, h: 0.64 },
   ],
+  // Transfer Apparatus: keep the static machine mass physical while preserving
+  // the semantic spaces inside the Hero object. The upper human cradle remains
+  // open between its side rails; the central Core receiver is solid; the lower
+  // PICO dock keeps a >1-tile-wide center lane and an open south drive-out.
+  "transfer-core": [
+    { x: 0.35, y: 0.20, w: 0.55, h: 2.05 },
+    { x: 2.10, y: 0.20, w: 0.55, h: 2.05 },
+    { x: 0.65, y: 2.25, w: 1.70, h: 1.35 },
+    { x: 0.35, y: 3.55, w: 0.60, h: 2.25 },
+    { x: 2.05, y: 3.55, w: 0.60, h: 2.25 },
+  ],
   // Hologram: block the actual pedestal footprint, not merely a tiny core.
   "transfer-hologram": [
     { x: 0.15, y: 0.15, w: 0.70, h: 0.70 },
