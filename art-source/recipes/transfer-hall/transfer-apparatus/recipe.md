@@ -1,12 +1,13 @@
 # Asset Recipe — TS-01 Transfer Apparatus / Core Hero
 
-Status: **`SOURCE_APPROVED / ARCHIVE_PENDING`** — visual source approved by Klaus; large approved original is not yet durably published to the repository archive because safe binary transport is unavailable in the current execution environment.
+Status: **`APPROVED_SOURCE_ARCHIVED / PRODUCTION_READY`** — visual source approved by Klaus and the byte-identical high-resolution original has been manually uploaded and verified in the Approved Source Archive.
 
 Current process authority:
 
 - `docs/agents/PROP_ARTIST_BRIEF.md`
 - `docs/art/production/PROP_ASSET_WORKFLOW.md`
 - `docs/art/production/APPROVED_SOURCE_ARCHIVE.md`
+- `docs/art/production/APPROVED_SOURCE_UPLOAD_HANDOFF.md`
 - `docs/agents/BINARY_ASSET_TRANSPORT.md`
 - `docs/level-generation/PROP_AUTHORING_REQUIREMENTS.md`
 - `docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`
@@ -82,7 +83,7 @@ Binding runtime/source separation:
 
 ## Approved generated source
 
-Klaus approved the latest isolated Apparatus source as the visual direction/source candidate.
+Klaus approved the latest isolated Apparatus source as the visual authority for this revision.
 
 Approved source characteristics:
 
@@ -93,7 +94,7 @@ Approved source characteristics:
 - perspective is sufficiently near-top-down for the intended Numberdroid Prop treatment;
 - transparent RGBA source is available.
 
-Known approved-source provenance from the current working file:
+Approved-source provenance:
 
 ```text
 component:          transfer-apparatus
@@ -104,9 +105,10 @@ format:             PNG RGBA, non-interlaced
 original size:      1122 × 1402 px
 raw bytes:          1,231,884
 sha256:             f19ccfba6af722577b6bd8c49a0be15e45473867421e98d22c1fd018de6da794
+git blob sha1:      1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
 ```
 
-Canonical archive target:
+Canonical archive source:
 
 ```text
 art-source/approved/area-01-transfer-ship/transfer-system/
@@ -114,28 +116,29 @@ art-source/approved/area-01-transfer-ship/transfer-system/
    └─ transfer-apparatus__approved-original__2026-08-17.png
 ```
 
-### Archive status — important
+### Archive verification — complete
 
-The actual byte-identical approved PNG is **not yet committed at that path**.
+Klaus manually uploaded the prepared byte-identical source and the Agent verified repository metadata against the prepared original:
 
-Current truthful state:
+```text
+filename match:      PASS
+repository bytes:    1,231,884
+expected bytes:      1,231,884
+github blob sha1:    1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
+expected blob sha1:  1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
+verification:        PASS
+```
+
+Current state:
 
 ```text
 SOURCE_APPROVED
-LOCAL_BINARY_READY
-BINARY_TRANSPORT_BLOCKED
-ARCHIVE_PENDING
+USER_UPLOAD_VERIFIED
+APPROVED_SOURCE_ARCHIVED
+PRODUCTION_READY
 ```
 
-Reason:
-
-- current GitHub connector has no real binary file/path upload action;
-- no existing authenticated local repository checkout is available in the current execution environment;
-- `BINARY_ASSET_TRANSPORT.md` correctly prohibits inline Base64 through the agent.
-
-Do not claim `APPROVED_SOURCE_ARCHIVED` until the actual original PNG is reachable in the repository.
-
-Per current archive policy, downstream destructive/downscaling production should not become authoritative before this preservation gate is resolved unless Klaus explicitly changes that policy.
+All subsequent destructive/downscaling work must derive from this archived original; the archive file itself remains immutable.
 
 ---
 
@@ -185,7 +188,7 @@ primary path:         protected
 Hero clearance:       1 tile around coarse footprint
 ```
 
-The approved visual source is substantially more elongated than the old 3×3 blockout. Final coarse footprint, visual Exact-Fit bounds and multipart collision must be settled deliberately after the approved source is archived and production processing resumes.
+The approved visual source is substantially more elongated than the old 3×3 blockout. Final coarse footprint, visual Exact-Fit bounds and multipart collision must be settled deliberately during production processing.
 
 Do not shrink the source merely to preserve the historical 3×3 blockout.
 
@@ -226,11 +229,11 @@ Use the approved Transfer Ship language rather than generic sci-fi:
 
 ```text
 Primary visible-source method: M1 Direct Generative Source
-Visual silhouette authority:   approved generated source above
+Visual silhouette authority:   archived approved generated source above
 Approved-source authority:     art-source/approved/.../transfer-system/source/
 Coarse placement authority:    propRegistry.ts / compiler
 Collision authority:           reviewed spatial metadata / propCollisionRegistry when needed
-Alpha/canvas authority:        deterministic production preparation after archive gate
+Alpha/canvas authority:        deterministic production preparation from archived source
 Shadow authority:              separate FloorFX step after Prop production QA
 PICO/body authority:           separate Character/entity; never baked into static Prop
 Core-sphere authority:         separate movable source/FX component in same Asset Family
@@ -256,13 +259,13 @@ generieren
 
 `QA` remains inspection-only.
 
-The Apparatus itself does **not** currently need another image generation because its source is approved. The next separate generated visual expected for this Asset Family is the yellow Core when Klaus explicitly starts that source cycle.
+The Apparatus itself does **not** currently need another image generation because its source is approved and archived. The next separate generated visual expected for this Asset Family is the yellow Core when Klaus explicitly starts that source cycle.
 
 ---
 
-## Production / integration plan after archive gate
+## Production / integration plan
 
-Only after the approved original is durably archived:
+The archive gate is closed. Next:
 
 1. derive production Crop/Fit from the archived original;
 2. preserve useful processed masters under `art-source/approved/area-01-transfer-ship/transfer-system/production/`;
@@ -271,7 +274,7 @@ Only after the approved original is durably archived:
 5. author/review visual bounds, multipart collision and placement envelope deliberately;
 6. produce separate grounding shadow/FloorFX;
 7. stage PICO as a separate runtime Character in the receiving dock;
-8. stage the separately approved yellow Core as a movable Transfer-state element;
+8. create/approve/archive the yellow Core as a separate movable Transfer-state element;
 9. register Prop + shadow through `propArtRegistry.ts`;
 10. preserve spatial authority in `propRegistry.ts` / `propCollisionRegistry.ts`;
 11. run tests/build/art validation;
@@ -285,7 +288,7 @@ No atlas packing is required for the current generated TS-01 integration path un
 
 ## Acceptance questions for downstream production
 
-The visual source is approved, but runtime production still must confirm:
+The visual source and archive are approved, but runtime production still must confirm:
 
 - does **human → Core receiver → robot Body Dock** remain readable at gameplay scale?
 - is the human entry point obvious from the gameplay camera?
