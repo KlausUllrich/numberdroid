@@ -25,7 +25,9 @@ Do not infer current status from an old “next” paragraph inside a long art-d
 - **Prop Artist direct onboarding route:** `../agents/PROP_ARTIST_BRIEF.md`
 - Transfer Ship visual thesis: `direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-method Artist workflow: `production/ARTIST_AGENT_WORKFLOW.md`
-- **binding Prop function-analysis → user-alignment → keyword-triggered single-source → approval → extraction → shadow → editor/runtime workflow:** `production/PROP_ASSET_WORKFLOW.md`
+- hard standalone image-generation command gate: `production/HARD_GENERATION_COMMAND_GATE.md`
+- ChatGPT image-tool channel/turn contract: `production/IMAGE_GENERATION_TURN_CONTRACT.md`
+- **binding Prop function-analysis → user-alignment → single-source → approval → extraction → shadow → editor/runtime workflow:** `production/PROP_ASSET_WORKFLOW.md`
 - asset validation: `production/ART_ASSET_VALIDATION_RULES.md`
 - validation process addendum: `production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
 - Transfer Ship perspective/material/placement rules: `production/ART_PRODUCTION_RULES_TRANSFER_SHIP.md`
@@ -50,7 +52,8 @@ Family Memory Console   LIVE_ACCEPTED
 Family Props Batch 2    LIVE_CANDIDATE
 Layout-v3 structure     ACCEPTED generated semantic baseline
 v0.13.2 stabilization   LIVE QA ACCEPTED
-Transfer Apparatus      CURRENT NEXT PRODUCTION ASSET
+Transfer Apparatus      SOURCE_APPROVED / PRODUCTION_CANDIDATE
+Transfer spatial fit    CURRENT VALIDATION (3×6 + multipart collision)
 Flow support / FloorFX  NEXT after Transfer hero
 PRIMUS hero/system art  NEXT after Transfer/Flow
 Useful domestic assets  AFTER hero hierarchy
@@ -59,6 +62,23 @@ Other robots            AFTER Gold Slice as required
 ```
 
 The active problem is no longer “make the generated Floor spatially safe.” v0.13.2 is the accepted spatial/presentation stabilization baseline. The active problem is **Generated TS-01 feature/art parity and Gold Slice visual completion**.
+
+### Transfer Apparatus current state
+
+Klaus has explicitly approved the current visual source direction.
+
+The source now cleanly separates:
+
+```text
+static apparatus
++ human registration surface
++ empty Core receiver
++ empty PICO Body Dock / drive-out lane
+```
+
+PICO remains a separate Character asset. The yellow Core sphere remains a separate movable Transfer-state asset.
+
+The approved source has true RGBA transparency and has been deterministically fitted to a **192×384 / 3×6 tile production candidate**. The current branch is validating the matching Exact-Fit bounds and multipart collision before runtime art registration. See the current Transfer Apparatus recipe for authoritative values.
 
 ### Important review-state distinction
 
@@ -79,7 +99,7 @@ A smaller issue with the player's own in-game model/presentation is known and de
 
 Do not treat this note as permission to reopen/regenerate the accepted PICO turnaround. First identify whether the problem belongs to Character art, runtime scale/position, allegiance treatment, animation/frame selection or another integration contract.
 
-It does not block the next environmental Art Asset work.
+It does not block the environmental Art Asset work.
 
 ## Current asset-production sequence
 
@@ -87,33 +107,34 @@ The current detailed sequence lives in `../planning/TS01_GOLD_SLICE_EXECUTION_PL
 
 In short:
 
-1. Transfer Apparatus / Core hero;
-2. Flow support + justified FloorFX grounding/path;
-3. PRIMUS hero/system wall object / service presentation;
-4. useful domestic replacements for remaining blockouts;
-5. final grounding/use-wear/light/cohesion pass;
-6. desktop + phone Art-Director QA.
+1. finish Transfer Apparatus production/spatial/runtime integration;
+2. produce the separate yellow Core sphere / Transfer-state presentation when explicitly triggered;
+3. Flow support + justified FloorFX grounding/path;
+4. PRIMUS hero/system wall object / service presentation;
+5. useful domestic replacements for remaining blockouts;
+6. final grounding/use-wear/light/cohesion pass;
+7. desktop + phone Art-Director QA.
 
-For each new Prop/Hero asset, the Prop workflow now requires:
+For each new Prop/Hero asset, the Prop workflow requires:
 
 ```text
 understand what the asset must do
 → explain the function-to-form philosophy in text
 → let Klaus correct/approve the direction
-→ wait for the literal trigger `generieren`
-→ generate exactly one visual proposal in one image
+→ wait for the standalone command `generieren`
+→ generate exactly one visual proposal
 → use `QA` for inspection-only review
-→ no second generation until a later `generieren` turn
+→ no second generation until a later standalone `generieren` turn
 ```
 
 ### Trigger shorthand
 
 - **`QA`** = inspection only, never `image_gen`.
-- **`generieren`** = the only Prop-work authorization for exactly one image-generation call.
-- If both words appear in the same message, **`QA` wins** and no image is generated.
-- `ok`, `ja`, `weiter`, `mach das`, `ändern`, `verbessern` or similar wording do not substitute for `generieren`.
+- **`generieren`** authorizes image generation only when the complete trimmed current user message is exactly `generieren`.
+- A prose sentence that merely contains the word does **not** authorize generation.
+- Authorization is current-turn-only and consumed after one image call.
 
-If another alternative is needed, it is another **single-image** proposal cycle after QA/user steering. Do not generate A/B/C comparison sheets or multiple Prop variants on one canvas.
+If another alternative is needed, it is another single-image proposal cycle after QA/user steering. Do not generate A/B/C comparison sheets or multiple Prop variants on one canvas.
 
 Accepted Walls, Doors and accepted Family assets remain frozen unless a concrete live defect appears. New assets must consume the existing generated composite/Exact-Fit pipeline rather than forcing a new renderer or reopening accepted geometry.
 
