@@ -11,13 +11,14 @@ const sourcePath = join(
 );
 const outputPath = join(root, "public/assets/deck/transfer-apparatus.png");
 
-const EXPECTED_SOURCE_BYTES = 1_231_884;
-const EXPECTED_SOURCE_SHA256 = "f19ccfba6af722577b6bd8c49a0be15e45473867421e98d22c1fd018de6da794";
-const EXPECTED_SOURCE_SIZE = { width: 1122, height: 1402 };
-const EXPECTED_ALPHA_CROP = { x: 282, y: 0, w: 559, h: 1391 };
-// Half-scale world presentation: 2×3 tiles. The narrow approved silhouette is
-// intentionally centered with substantial transparent left/right breathing room.
-const EXPECTED_CONTENT_BOUNDS = { x: 27, y: 4, w: 74, h: 184 };
+const EXPECTED_SOURCE_BYTES = 1_962_107;
+const EXPECTED_SOURCE_SHA256 = "4adecec81c5e241a0952e0ed353836d6776f60960e9c8d1cf6e53727e402812c";
+const EXPECTED_SOURCE_SIZE = { width: 1086, height: 1448 };
+const EXPECTED_ALPHA_CROP = { x: 10, y: 0, w: 1065, h: 1448 };
+// Approved Hero redesign keeps the proven 2×3 world scale while using much more
+// of the canvas width. The wider silhouette restores visual importance without
+// returning to the oversized 3×6 presentation.
+const EXPECTED_CONTENT_BOUNDS = { x: 4, y: 14, w: 120, h: 163 };
 
 function sameBounds(actual, expected) {
   return actual.x === expected.x

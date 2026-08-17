@@ -20,15 +20,15 @@ export const NUMBERDROID_PROP_COLLISION_PARTS: Readonly<Record<string, readonly 
     { x: 0.08, y: 0.68, w: 0.50, h: 0.64 },
     { x: 2.42, y: 0.68, w: 0.50, h: 0.64 },
   ],
-  // Transfer Apparatus: same physical structure as the approved 3×6 candidate,
-  // uniformly scaled to half world size and centered inside the new 2×3 canvas.
-  // Human receiving lane and PICO dock/drive-out remain open.
+  // Transfer Apparatus v2: wider Hero silhouette at the same 2×3 world scale.
+  // Side machinery guides the Human intake, the broad middle transfer platform
+  // is solid, and the lower rails leave the PICO Body Dock + south exit open.
   "transfer-core": [
-    { x: 0.475, y: 0.15, w: 0.275, h: 1.15 },
-    { x: 1.25, y: 0.15, w: 0.275, h: 1.15 },
-    { x: 0.475, y: 1.275, w: 1.05, h: 0.725 },
-    { x: 0.50, y: 2.025, w: 0.275, h: 0.775 },
-    { x: 1.225, y: 2.025, w: 0.275, h: 0.775 },
+    { x: 0.20, y: 0.20, w: 0.40, h: 0.72 },
+    { x: 1.40, y: 0.20, w: 0.40, h: 0.72 },
+    { x: 0.08, y: 0.92, w: 1.84, h: 1.10 },
+    { x: 0.34, y: 2.02, w: 0.36, h: 0.66 },
+    { x: 1.30, y: 2.02, w: 0.36, h: 0.66 },
   ],
   // Hologram: block the actual pedestal footprint, not merely a tiny core.
   "transfer-hologram": [
