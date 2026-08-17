@@ -10,6 +10,7 @@ Companion QA/process documents:
 
 - `docs/art/production/ART_ASSET_VALIDATION_RULES.md`
 - `docs/art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
+- `docs/art/production/IMAGE_GENERATION_TURN_CONTRACT.md` — technical ChatGPT `image_gen` channel/turn execution
 - `docs/art/production/PROP_ASSET_WORKFLOW.md` for Props and Prop-like Hero assets
 
 When rules overlap, the stricter or more asset-specific rule wins.
@@ -182,16 +183,21 @@ These keyword rules are intentionally stricter than ordinary conversational infe
 
 ## Image-generation turn boundary — binding
 
-When ChatGPT image generation is used, generation creates a user-visible turn boundary.
+Technical execution is owned by `IMAGE_GENERATION_TURN_CONTRACT.md`.
 
-Required behavior:
+When ChatGPT `image_gen` is used:
 
-1. ensure the current message contains the required `generieren` trigger for Prop work;
-2. call image generation once for one source/edit;
-3. do not silently regenerate or integrate in the same turn;
-4. on the next user turn, inspect the generated result before advancing.
+1. complete all explanation, design alignment and user authorization **before** the generation turn;
+2. invoke `image_gen` exactly once in the channel declared by the current tool schema — currently **commentary**, never `final`;
+3. do not emit a visible preamble/status message in that generation turn;
+4. do not silently regenerate, inspect, extract or integrate after the call;
+5. after `image_gen` returns, emit **no additional assistant `final` response**;
+6. the image tool return is the terminal output of that assistant turn;
+7. normal dialogue resumes only after the user's next message.
 
 Do not promise to generate several sequential alternatives automatically in one response.
+
+If an image call succeeded but the UI appears stuck or the image does not render, do not reroll automatically. Treat it as a turn/tool execution problem first and verify this contract.
 
 ## Source QA
 
