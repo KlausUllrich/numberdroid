@@ -39,16 +39,16 @@ Design authority:
 
 The original above is immutable after approval. Runtime derivatives are build products and do not replace source authority.
 
-## Yellow Core — runtime candidate
+## Yellow Core — accepted runtime
 
-The first in-game scale candidate is materialized deterministically by:
+The accepted in-game scale is materialized deterministically by:
 
 ```text
 scripts/materialize-yellow-core.mjs
 → public/assets/deck/yellow-core.png
 ```
 
-Verified CI production contract:
+Verified production contract:
 
 ```text
 source alpha crop:       x=155, y=116, w=946, h=968
@@ -56,7 +56,23 @@ runtime canvas:          96 × 96 px
 runtime margin:          4 px
 runtime content bounds:  x=5, y=4, w=86, h=88
 runtime SHA-256:         b300e7d535aee21de75b6276c81b2c4973391d22dcb2bdcf79b50833f9d421ae
-runtime status:          candidate / live QA pending
+runtime status:          accepted / live QA PASS
 ```
 
 The Core is emitted as a separate `transfer-fx` sprite centered on the accepted Transfer Apparatus resting platform. It is intentionally **not** a normal Prop and has no independent collision. This is a structural requirement so later Transfer choreography can move the same visual between the Apparatus and robot bodies.
+
+### Final live QA acceptance — 2026-08-17
+
+Klaus reviewed the 96 × 96 runtime Core live on the accepted 4 × 6 Transfer Apparatus and approved the visual scale and placement. The Core remains clearly readable as a separate identity module without overpowering the Apparatus, and its center alignment on the resting platform is accepted.
+
+```text
+SOURCE APPROVED
+→ USER UPLOAD VERIFIED
+→ APPROVED SOURCE ARCHIVED
+→ 96×96 RUNTIME MATERIALIZED
+→ TRANSFER-FX LAYER VALIDATED
+→ LIVE QA PASS
+→ RUNTIME ACCEPTED
+```
+
+Future changes to the Yellow Core's static source, 96 × 96 resting scale, or center placement should be treated as deliberate revisions. Transfer motion, synchronization effects and robot-body insertion remain separate animation/FX work.
