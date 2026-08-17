@@ -78,7 +78,7 @@ Family Memory Console   LIVE_ACCEPTED
 Family Props Batch 2    LIVE_CANDIDATE
 Layout-v3 structure     ACCEPTED generated semantic baseline
 v0.13.2 stabilization   LIVE QA ACCEPTED
-Transfer Apparatus      APPROVED_SOURCE_ARCHIVED / PRODUCTION_READY
+Transfer Apparatus      PRODUCTION_BUILT / RUNTIME_CANDIDATE / LIVE_QA_PENDING
 Yellow Core             NEXT SOURCE ASSET in transfer-system
 Flow support / FloorFX  NEXT after Transfer hero/Core
 PRIMUS hero/system art  NEXT after Transfer/Flow
@@ -89,18 +89,29 @@ Other robots            AFTER Gold Slice as required
 
 The active problem is no longer “make the generated Floor spatially safe.” v0.13.2 is the accepted spatial/presentation stabilization baseline. The active problem is **Generated TS-01 feature/art parity and Gold Slice visual completion**.
 
-The current Transfer Apparatus source is now both visually approved and durably archived. The manually uploaded source was verified by exact filename, raw byte size and Git blob SHA before the archive gate was closed.
+The Transfer Apparatus now has:
+
+- a visually approved and byte-identically archived high-resolution source;
+- deterministic 192×384 / 3×6 runtime materialization from that archive;
+- a 3×6 spatial footprint with reviewed Exact-Fit visual bounds;
+- multipart collision that preserves Human entry and the PICO dock/drive-out lane;
+- a TS-01 Transfer room enlarged only in the proven-needed vertical dimension to 10×8 preferred geometry;
+- `candidate` art registration;
+- full test/build validation.
+
+It does **not** yet have a grounding shadow or live Art-Director acceptance. Those states remain deliberately separate.
 
 ### Important review-state distinction
 
-`SOURCE_APPROVED`, `USER_UPLOAD_REQUIRED`, `APPROVED_SOURCE_ARCHIVED`, `PRODUCTION_QA_PASSED`, `RUNTIME_INTEGRATED`, `CI_GREEN`, `DEPLOYED` and `LIVE_ACCEPTED` are distinct states.
+`SOURCE_APPROVED`, `USER_UPLOAD_REQUIRED`, `APPROVED_SOURCE_ARCHIVED`, `PRODUCTION_BUILT`, `PRODUCTION_QA_PASSED`, `RUNTIME_INTEGRATED`, `CI_GREEN`, `DEPLOYED` and `LIVE_ACCEPTED` are distinct states.
 
 Current candidate assets remain:
 
 - Coffee Machine + shadow;
 - Planter Trough + shadow;
 - Round Plant + shadow;
-- Hologram Pedestal + shadow.
+- Hologram Pedestal + shadow;
+- Transfer Apparatus (runtime candidate; shadow pending).
 
 They may remain integrated while the complete room is art-directed. Promote them only after explicit visual acceptance in the final composition.
 
@@ -118,13 +129,14 @@ The current detailed sequence lives in `../planning/TS01_GOLD_SLICE_EXECUTION_PL
 
 In short:
 
-1. create production Crop/Fit + spatial integration for the archived Transfer Apparatus;
-2. create/approve/archive the yellow Core within the same `transfer-system` Asset Family;
-3. Flow support + justified FloorFX grounding/path;
-4. PRIMUS hero/system wall object / service presentation;
-5. useful domestic replacements for remaining blockouts;
-6. final grounding/use-wear/light/cohesion pass;
-7. desktop + phone Art-Director QA.
+1. deploy and live-QA the Transfer Apparatus runtime candidate;
+2. if Production/Live QA passes, create/approve its separate grounding shadow/FloorFX;
+3. create/approve/archive the yellow Core within the same `transfer-system` Asset Family;
+4. Flow support + justified FloorFX grounding/path;
+5. PRIMUS hero/system wall object / service presentation;
+6. useful domestic replacements for remaining blockouts;
+7. final grounding/use-wear/light/cohesion pass;
+8. desktop + phone Art-Director QA.
 
 For each new Prop/Hero asset, the Prop workflow requires:
 
@@ -141,7 +153,7 @@ understand what the asset must do
 → only then create production derivatives
 ```
 
-Accepted Walls, Doors and accepted Family assets remain frozen unless a concrete live defect appears. New assets must consume the existing generated composite/Exact-Fit pipeline rather than forcing a new renderer or reopening accepted geometry.
+Accepted Walls, Doors and accepted Family assets remain frozen unless a concrete defect appears. New assets must consume the existing generated composite/Exact-Fit pipeline rather than forcing a new renderer or reopening accepted geometry.
 
 ## Role-aware context
 
