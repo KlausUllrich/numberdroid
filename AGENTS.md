@@ -36,6 +36,7 @@ Use these authorities:
 - repository organization and file ownership: `REPOSITORY_STRUCTURE.md`
 - role/task reading routes: `docs/agents/ROLE_ENTRYPOINTS.md`
 - repository/GitHub workflow: `docs/agents/REPOSITORY_WORKFLOW.md`
+- binary repository assets / safe transport: `docs/agents/BINARY_ASSET_TRANSPORT.md`
 - durable gameplay/engineering invariants: `docs/agents/GAMEPLAY_AND_ENGINEERING_RULES.md`
 - current production code: `src/`
 - runtime/deploy assets: `public/` — outputs, not automatically authoring sources
@@ -59,7 +60,11 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
 - `main` is canonical and should remain stable.
 - Verify current `main` HEAD and relevant GitHub Actions state before significant work.
 - Use focused branches/PRs for changes.
-- For remote repository operations use the connected GitHub connector. Do not fall back to `git clone`, `git fetch`, `curl`, `wget`, or container-network workarounds.
+- For structured/textual remote repository operations use the connected GitHub connector and the discovery/recovery rules in `docs/agents/REPOSITORY_WORKFLOW.md`.
+- **Before any binary repository write**, read `docs/agents/BINARY_ASSET_TRANSPORT.md`, measure raw byte size, and choose a real file-transport path before constructing a tool payload.
+- **Never inline Base64 for a binary larger than 16 KiB**. If raw size is unknown, treat it as too large until measured.
+- If a large binary cannot be published through a direct connector file action or an already-authenticated local checkout, stop that write as `BINARY_TRANSPORT_BLOCKED`; do not use Base64/data-URI/SVG/chunking workarounds.
+- Local Git/`gh` is allowed only for the specific large-binary transport gap when an authenticated checkout actually exists; it is not a diagnostic fallback for connector availability.
 - If GitHub actions are not currently surfaced, **rediscover the GitHub connector/actions first** as defined in `docs/agents/REPOSITORY_WORKFLOW.md`; absence from the active tool schema is not evidence that repository access is unavailable.
 - Do not mix broad repository reorganization with gameplay changes.
 - Preserve `zahlenkern-prototyp-meta-v7.html` as the frozen behavioral reference; do not refactor it into production code.
