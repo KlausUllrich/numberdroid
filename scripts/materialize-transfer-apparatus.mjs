@@ -15,7 +15,9 @@ const EXPECTED_SOURCE_BYTES = 1_231_884;
 const EXPECTED_SOURCE_SHA256 = "f19ccfba6af722577b6bd8c49a0be15e45473867421e98d22c1fd018de6da794";
 const EXPECTED_SOURCE_SIZE = { width: 1122, height: 1402 };
 const EXPECTED_ALPHA_CROP = { x: 282, y: 0, w: 559, h: 1391 };
-const EXPECTED_CONTENT_BOUNDS = { x: 22, y: 8, w: 148, h: 368 };
+// Half-scale world presentation: 2×3 tiles. The narrow approved silhouette is
+// intentionally centered with substantial transparent left/right breathing room.
+const EXPECTED_CONTENT_BOUNDS = { x: 27, y: 4, w: 74, h: 184 };
 
 function sameBounds(actual, expected) {
   return actual.x === expected.x
@@ -45,9 +47,9 @@ if (sourceWidth !== EXPECTED_SOURCE_SIZE.width || sourceHeight !== EXPECTED_SOUR
 
 const prepared = preparePropPng({
   bytes: source,
-  targetWidth: 192,
-  targetHeight: 384,
-  margin: 8,
+  targetWidth: 128,
+  targetHeight: 192,
+  margin: 4,
   alphaCutoff: 4,
   requireTransparency: true,
 });
@@ -65,6 +67,6 @@ writeFileSync(outputPath, prepared.png);
 const runtimeSha = createHash("sha256").update(prepared.png).digest("hex");
 console.log(`Transfer Apparatus: validated approved source ${sourceWidth}x${sourceHeight}`);
 console.log(`Transfer Apparatus: alpha crop ${JSON.stringify(prepared.sourceBounds)}`);
-console.log(`Transfer Apparatus: runtime content ${JSON.stringify(prepared.contentBounds)} in 192x384 canvas`);
+console.log(`Transfer Apparatus: runtime content ${JSON.stringify(prepared.contentBounds)} in 128x192 canvas`);
 console.log(`Transfer Apparatus: runtime SHA-256 ${runtimeSha}`);
 console.log(`Transfer Apparatus: wrote ${outputPath}`);
