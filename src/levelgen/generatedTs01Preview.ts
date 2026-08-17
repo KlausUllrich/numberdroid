@@ -1,10 +1,11 @@
-import type { FloorDefinition } from "../game/types";
+import type { CompositeFloorVisualDefinition, FloorDefinition } from "../game/types";
 import { compileRuntimeLevel } from "./emission";
 import type { RuntimeEmissionPlan } from "./emissionTypes";
 import { createPlayableCompilerPreview } from "./playablePreview";
 import { compileAndValidatePropExactFits } from "./propExactFitPlan";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
+import { yellowCoreSprite } from "./transferFxPresentation";
 import type { LevelSpec } from "./types";
 
 export const TS01_PLAYABLE_SPEC: LevelSpec = {
@@ -39,8 +40,24 @@ export const TS01_GENERATED_PLAN: RuntimeEmissionPlan = compileRuntimeLevel(TS01
  */
 export const TS01_GENERATED_EXACT_FITS = compileAndValidatePropExactFits(TS01_GENERATED_PLAN);
 
+function withTransferFx(floor: FloorDefinition): FloorDefinition {
+  if (floor.visual.kind !== "composite") return floor;
+  const core = yellowCoreSprite(TS01_GENERATED_PLAN, TS01_GENERATED_EXACT_FITS);
+  if (!core) return floor;
+  const visual: CompositeFloorVisualDefinition = {
+    ...floor.visual,
+    layers: [
+      ...floor.visual.layers,
+      // Separate from the accepted Apparatus Prop so the Core can later move
+      // between bodies without changing Prop collision or the source artwork.
+      { id: "transfer-fx", kind: "sprites", sprites: [core] },
+    ],
+  };
+  return { ...floor, visual };
+}
+
 /** Existing MetaGame-compatible floor plus presentation-only compiler overlays. */
-export const TS01_GENERATED_FLOOR: FloorDefinition = createPlayableCompilerPreview(TS01_GENERATED_PLAN);
+export const TS01_GENERATED_FLOOR: FloorDefinition = withTransferFx(createPlayableCompilerPreview(TS01_GENERATED_PLAN));
 
 /** Friendly URL alias; the canonical generated FloorDefinition keeps the LevelSpec id. */
 export const TS01_GENERATED_PREVIEW_ALIAS = "ts01-generated";
