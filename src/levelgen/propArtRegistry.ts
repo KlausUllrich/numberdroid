@@ -60,7 +60,7 @@ export const NUMBERDROID_PROP_ART_REGISTRY: PropArtRegistry = {
     propId: "transfer-core",
     asset: "assets/deck/transfer-apparatus.png",
     shadowAsset: "assets/deck/transfer-apparatus-shadow.png",
-    status: "candidate",
+    status: "accepted",
   },
 };
 
