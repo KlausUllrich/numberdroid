@@ -1,22 +1,22 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — 2026-08-16 after v0.13.2 LIVE QA acceptance**
+Status: **current forward plan — 2026-08-17 after Transfer Apparatus + Yellow Core LIVE QA acceptance**
 
-This document is deliberately forward-looking and stays at the **project/milestone level**. Durable gameplay/story/art rules live in their domain documents; historical milestone reasoning lives in `docs/history/`.
+This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
-Detailed current TS-01 Gold Slice execution:
+Detailed TS-01 Gold Slice execution:
 
 `docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`
+
+Transfer Hero production lessons:
+
+`docs/history/experiments/TRANSFER_SYSTEM_HERO_PRODUCTION_LEARNINGS_2026-08-17.md`
 
 Declarative Level Compiler contracts:
 
 `docs/level-generation/`
 
-v0.13.2 stabilization acceptance record:
-
-`docs/level-generation/V0132_STABILIZATION_ACCEPTANCE_2026-08-16.md`
-
-Do not duplicate detailed contracts here.
+---
 
 ## Foundation status
 
@@ -26,9 +26,9 @@ Established systems include:
 
 - React app/screen-state architecture;
 - free top-down metagame movement and local RAF camera;
-- Tiled/`FloorDefinition` runtime data model;
+- Tiled/`FloorDefinition` runtime model;
 - family profiles/saves and progression framework;
-- Number Duel with current Addition/Subtraction gameplay;
+- Number Duel with Addition/Subtraction gameplay;
 - robot body size/drive identity;
 - neutral / guard / patrol / aggressive encounter behavior families;
 - transfer/body ownership flow;
@@ -40,18 +40,18 @@ Established systems include:
 
 Do not reintroduce prototype bridges or another game-runtime architecture migration. See `docs/agents/GAMEPLAY_AND_ENGINEERING_RULES.md`.
 
-## Level Compiler / scalable level production — ESTABLISHED AUTHORING INFRASTRUCTURE
+---
 
-The approved direction is a deterministic **declarative Level Compiler**, not a classic random generator and not a replacement runtime architecture.
+## Level Compiler — established authoring infrastructure
 
-Current pipeline is implemented through the existing runtime boundary:
+The approved direction remains a deterministic declarative Level Compiler:
 
 ```text
 rough design intent
-→ LevelSpec / typed declarative contract
+→ LevelSpec
 → semantic room/corridor graph
-→ deterministic topology / multi-constraint fallback
-→ Shared Wall Graph + real apertures
+→ deterministic topology
+→ Shared Wall Graph + apertures
 → navigation + Door Clearance
 → Props / use-space / Hero clearance
 → true-space Exact Fit / multipart collision
@@ -63,189 +63,217 @@ rough design intent
 → existing MetaGame runtime
 ```
 
-TS-01 is the reference/parity case. The generated Floor is playable through:
+TS-01 is the reference/parity case.
+
+Playable generated floor:
 
 ```text
 ?floor=ts01-generated
 ```
 
-The semantic Workbench remains:
+Workbench:
 
 ```text
 ?levelgen=ts01
 ```
 
-### v0.13.2 stabilization — ACCEPTED
+v0.13.2 spatial/presentation stabilization remains **LIVE QA ACCEPTED** and should not be reopened to solve ordinary art problems.
 
-PR #79 stabilized the Gold Slice spatial/presentation contract after v0.13.1 live QA exposed wall/Prop/patrol/Door regressions.
-
-Klaus explicitly confirmed the deployed/generated v0.13.2 pass as **PASS on 2026-08-16**.
-
-Binding accepted implications:
-
-- coarse `footprintTiles` is a deterministic anchor/reservation, not mandatory final true-space containment;
-- true-space Prop geometry can receive the minimum sub-tile correction beyond its own coarse anchor;
-- final envelopes remain constrained by room surfaces, other true-space Props, foreign use-space/Hero reservations and Door Clearance;
-- Family Table uses multipart collision;
-- Hologram uses the reviewed 0.70 × 0.70 pedestal collider;
-- generated large single-room patrols prefer safe interior cells when possible;
-- fallback blockouts are wall-safe;
-- generated and hand-authored Gold Slice Floors share the accepted Door contract.
-
-See `docs/level-generation/GOLD_SLICE_REGRESSION_GATES.md`.
-
-A smaller issue with the player's own in-game model/presentation is known and deliberately deferred for separate discussion. It does **not** block current Art Asset production. Do not alter/regenerate accepted PICO art until that concrete issue is discussed and classified.
+---
 
 ## Art-production infrastructure — established
 
-The repository separates:
+Repository authority remains separated:
 
 ```text
-METHOD  → docs/art-production-methods/      # when/why + authority model
-TOOL    → docs/art-production-toolkit/      # reusable deterministic operation
-RECIPE  → art-source/recipes/               # asset-specific reproducibility
-RUNTIME → public/assets/                     # deployed outputs
+METHOD  → docs/art-production-methods/
+TOOL    → docs/art-production-toolkit/
+RECIPE  → art-source/recipes/
+SOURCE  → art-source/approved/
+RUNTIME → public/assets/
 ```
 
-Current method families:
+Current proven method/tooling includes:
 
 - M1 Direct Generative Source;
 - M2 Controlled Art Pass;
-- M3 Layered Raster Editor / MCP — planned/research;
-- M4 Procedural 2D Compositor — proven/live accepted for Walls and Doors.
+- M4 Procedural 2D Compositor for Walls/Doors;
+- deterministic approved-source validation;
+- Crop/Fit/downscale with premultiplied-alpha Lanczos;
+- deterministic shadow derivation;
+- explicit manual approved-source upload/verification path;
+- categorical prohibition on inline repository Base64 transport.
 
-The reusable Art Production Toolkit has PROVEN mask/compositor/connector/PNG primitives. Generic Freistellen/background removal, seamless-material construction, generic atlas packing/downscale and several QA utilities remain PLANNED until explicitly implemented/proven.
+M3 layered-editor infrastructure and broader generic Freistellen/atlas tooling remain deferred until a concrete need justifies them.
+
+---
 
 ## TS-01 Gold Slice — accepted baseline
 
-Frozen unless a concrete defect or deliberately approved revision appears:
+Frozen unless a concrete defect or deliberate revision appears:
 
-- **PICO** — `LIVE_ACCEPTED`, eight authored directions, recipe-local source;
+- **PICO** — LIVE_ACCEPTED source baseline;
 - **Floor** — accepted baseline;
-- **Walls / Architecture** — `LIVE_ACCEPTED`, M4, 30 px visible fascia / 10 px collision core;
-- **Doors** — `LIVE_ACCEPTED`, 5 px leaf, aperture clipping, 520 ms opening, 650 ms soft close, coloured-key variant;
-- **Family Table / Waiting Module** — `LIVE_ACCEPTED` with dedicated grounding shadow;
-- **Family Memory Console** — `LIVE_ACCEPTED` with dedicated grounding shadow.
+- **Walls / Architecture** — LIVE_ACCEPTED;
+- **Doors** — LIVE_ACCEPTED;
+- **Family Table + shadow** — LIVE_ACCEPTED;
+- **Family Memory Console + shadow** — LIVE_ACCEPTED;
+- **Transfer Apparatus + shadow + silhouette collision** — LIVE_ACCEPTED;
+- **Yellow Core static resting state** — LIVE_ACCEPTED at 96×96 on separate `transfer-fx` layer.
 
-### Family / ordinary Prop candidates
-
-Still explicitly `LIVE_CANDIDATE` until separate visual Art-Director promotion:
+Still visual candidates pending final room-context disposition:
 
 - Round Plant + shadow;
 - Planter Trough + shadow;
 - Coffee Machine + shadow;
 - Hologram Pedestal + shadow.
 
-v0.13.2 acceptance confirms the **spatial/runtime stabilization around these assets**, not their automatic visual promotion.
+---
 
-## CURRENT — Generated TS-01 feature/art parity + Gold Slice production
+## Transfer System production milestone — completed static Hero block
 
-The active work is no longer another compiler-stabilization pass. It is to turn the accepted generated structure into the representative final-quality Gold Slice.
+The Transfer hero cycle is now a proven complete production case.
 
-Current priorities:
+Key accepted results:
 
-1. preserve the accepted Layout-v3 semantic sequence: Family Living + Child + Hygiene → Main Hall → Transfer / PRIMUS;
-2. preserve accepted v0.13.2 spatial/door contracts while adding art;
-3. produce the missing **Transfer Apparatus / Core hero** at target quality;
-4. produce **Flow support + appropriate FloorFX grounding/path**;
-5. produce the missing **PRIMUS hero/system wall object / service-bank presentation**;
-6. replace only those remaining domestic/blockout Props that materially improve habitation/readability (child bed, personal/toy storage, hygiene fixture/support as justified);
-7. add restrained floor use/wear/grounding and lighting support only after hero hierarchy exists;
-8. compare Generated TS-01 against the intended Gold Slice quality bar on desktop and phone;
-9. require explicit final Art-Director/gameplay acceptance before Generated TS-01 may replace the hand-authored reference.
+- broad 4×6 Apparatus Hero establishes the Transfer Room focal point;
+- source and runtime scale are treated as separate authorities;
+- deterministic 256×384 Apparatus runtime materialization;
+- separate deterministic grounding shadow;
+- authored 16×24 quarter-tile silhouette collision compacted to runtime rectangles;
+- normal Human/Robot movement cannot cross visible machine mass;
+- transparent outer corner whitespace remains navigable;
+- Yellow Core remains a separate movable visual rather than baked Apparatus pixels;
+- Yellow Core accepted at 96×96 and centered on the Apparatus resting platform;
+- movable Core uses `transfer-fx`, not normal static Prop semantics.
 
-The existing composite renderer/Prop Art Registry already supports progressive replacement of semantic blockouts with production sprites and shadows. New art should consume that system rather than introduce a competing renderer or manual tile-patch architecture.
+These learnings are now recorded both in recipes and the dedicated historical lessons document.
 
-## Art production rules for the next assets
+---
 
-Before any production generation/edit:
+## CURRENT milestone — make the Gold Slice visually representative
+
+The generated TS-01 is structurally sound but still visually sparse. **Current priority is to make the Gold Slice beautiful/coherent before expanding campaign production or investing in full Transfer choreography.**
+
+Planned sequence:
+
+1. **Flow support + functional Transfer FloorFX**
+   - make the accepted Apparatus feel part of a coherent engineered system;
+   - add only functionally justified paths/grounding/support visuals;
+   - do not create a competing focal point.
+
+2. **PRIMUS hero/system wall object**
+   - establish the allocation/work-room identity;
+   - competent, ordered, attractive rather than villain-black;
+   - preserve open patrol/work center.
+
+3. **Useful domestic replacements**
+   - Child Bed;
+   - Toy / personal storage;
+   - minimal Hygiene fixture/support;
+   - only named functional objects that materially improve habitation.
+
+4. **Full-room cohesion and candidate disposition**
+   - accept/revise/remove Coffee/Plants/Hologram in context;
+   - remove obsolete blockouts;
+   - add missing grounding/contact shadows;
+   - restrained floor wear/use cues;
+   - lighting convergence with Transfer as primary warm local focus.
+
+5. **Desktop + phone Gold-Slice QA**
+   - hierarchy;
+   - readability;
+   - movement/collision;
+   - visual density;
+   - Numberdroid identity;
+   - explicit final acceptance.
+
+6. **Only after the static Gold Slice reaches the representative quality bar:**
+   - Human → Core → PICO choreography;
+   - body → body Transfer choreography;
+   - Core motion;
+   - synchronization/beam/energy FX;
+   - broader Transfer Ship content production.
+
+This ordering avoids polishing complex animation inside a room whose supporting visual language is still changing.
+
+---
+
+## Durable production lessons promoted from the Transfer cycle
+
+Before acting on live visual QA, classify the problem:
 
 ```text
-role/context read
-→ asset recipe updated
-→ production method selected
-→ geometry/material/alpha/packing authority declared
-→ exactly one source generation/edit when image generation is used
-→ source QA
-→ production extraction/build
-→ production-file QA
-→ registry/runtime integration
-→ tests/build/art validators
-→ live QA
-→ explicit acceptance
-→ recipe/index status update
+FUNCTION / SOURCE DESIGN
+PERSPECTIVE / STYLE
+RUNTIME CROP / SCALE / PADDING
+PLACEMENT / ROOM COMPOSITION
+COLLISION / USE-SPACE
+SHADOW / GROUNDING
+MOVABLE FX / CHOREOGRAPHY
 ```
 
-`QA`/`prüfen` never means regenerate.
+Only the first two normally justify another source generation.
 
-Do not make image pixels authoritative for collision, room topology, wall geometry or Door behavior.
+Additional durable rules:
 
-## After the TS-01 Gold Slice
+- source design and runtime scale are separate problems;
+- physical scale and Hero prominence are separate problems;
+- do not regenerate an approved source merely to resize it;
+- redesign a source only when its form cannot use the believable world footprint effectively;
+- shadow should be frozen after useful runtime scale converges;
+- PNG alpha is not gameplay collision authority;
+- shaped collision may be authored as deterministic silhouette/occupancy metadata while preserving transparent whitespace;
+- components that must move between environment and actors should not be forced into a static Prop lifecycle.
 
-Once Generated TS-01 passes as a coherent representative room:
+Generalized workflow details live in `docs/art/production/PROP_ASSET_WORKFLOW.md`.
 
-1. decide which art-production patterns become reusable Transfer Ship standards;
-2. promote proven level-design/Prop metadata into reusable world/archetype rule sets;
-3. build only the additional robot bodies/utility categories needed by the next playable Transfer Ship content;
-4. stress the compiler with a dense PRIMUS Floor, larger ship Floor and larger Bio-Ark/natural Floor;
-5. expand remaining Transfer Ship beats using the compiler + proven art grammar;
-6. run the explicit final Performance & Scale Pass before campaign-scale production readiness;
-7. write the final Agent Authoring Guide **last**, after workflows stop changing materially.
+---
+
+## After TS-01 Gold Slice acceptance
+
+Once Generated TS-01 passes as the representative quality bar:
+
+1. implement/polish Transfer choreography using accepted Apparatus/Core authorities;
+2. decide which art-production patterns become reusable Transfer Ship standards;
+3. promote proven level-design/Prop metadata into reusable world/archetype rule sets;
+4. build only additional robot bodies/utility categories needed by next playable content;
+5. stress the compiler with dense PRIMUS, larger ship and larger Bio-Ark/natural floors;
+6. expand remaining Transfer Ship beats using the compiler + proven art grammar;
+7. run explicit Performance & Scale Pass before campaign-scale production readiness;
+8. write final Agent Authoring Guide last, after workflows stop changing materially.
+
+---
 
 ## Deliberately open art/tool questions
 
-Do not silently freeze these:
+Do not silently freeze:
 
-- exact final asset inventory after the Transfer/PRIMUS hero pass;
-- whether the next hero/Prop sources justify implementing generic Freistellen;
-- exact reusable atlas/downscale tooling once another category proves the need;
-- final material source/retouch strategy for unique hero apparatus;
-- whether M3 layered-editor infrastructure is worth implementing after a concrete local-retouch need appears;
-- number and order of additional robot body production after the Gold Slice.
+- exact Flow-support asset inventory;
+- final PRIMUS system-object form;
+- exact domestic micro-set needed for finished Family read;
+- whether full-room cohesion reveals a concrete need for M3 layered retouching;
+- whether later Transfer FX justify a dedicated animation compositor/tool;
+- generic atlas/downscale tooling only if another category proves the need.
 
-## Deliberately open Level Compiler / Workbench questions
-
-The following are later extensions, not blockers for current art production:
-
-- natural-language LevelSpec front-end;
-- Connection selection/editing in Workbench;
-- per-instance Overrides for quantity-generated Props where production proves necessary;
-- reviewed import/apply/write-back workflow from Workbench to repository truth;
-- richer generated diffs/diagnostics;
-- campaign rule layering/stress-floor evidence;
-- final performance/scale limits.
-
-Do **not** describe already implemented topology, geometry, Prop placement, Trigger/Event runtime, Workbench or generated runtime emission as future work.
-
-## Deliberately open broader gameplay concepts
-
-Still open from campaign design and not the current task unless explicitly requested:
-
-- Beat 12 enemy/body encounter ordering relationship;
-- Beat 17 optional bonus Core strengthening/economy;
-- Treasure Golem/Beutedroide concept;
-- later Bio-Ark ecology mechanics;
-- multiplication/division protocol production;
-- larger adaptive-learning evidence engine;
-- broad body ability catalog.
-
-Do not let these deferred systems block the current Gold Slice.
+---
 
 ## Current acceptance discipline
 
-For art categories:
+For art:
 
 ```text
 recipe/method selected
 → source produced
 → source QA
+→ approved source archived
 → production asset built
 → production QA
-→ runtime integration
-→ tests/build/art validators
-→ live/deployed visual QA
-→ user acceptance
-→ recipe/index LIVE_ACCEPTED + freeze
+→ shadow/spatial integration as applicable
+→ tests/build
+→ deployed live QA
+→ explicit acceptance
+→ recipe/index status update
 ```
 
 For shared compiler/spatial contracts:
@@ -255,14 +283,8 @@ contract/spec
 → deterministic implementation
 → automated regression coverage
 → generated TS-01 proof
-→ deployed desktop/phone QA where relevant
+→ deployed QA
 → explicit live acceptance
 ```
 
-`Merged` is not `LIVE_ACCEPTED`, generated output is not authoritative merely because compilation succeeds, and a spatial PASS does not automatically promote candidate art.
-
-## Handoff / role-routing rule
-
-All new agents begin at `AGENTS.md` and `docs/agents/ROLE_ENTRYPOINTS.md`. Specialists read the minimum complete role bundle plus current source/code.
-
-A dated handoff can identify the exact next task, but it never overrides current code/contracts.
+`Merged` is not `LIVE_ACCEPTED`; `asset accepted` is not `Gold Slice accepted`.
