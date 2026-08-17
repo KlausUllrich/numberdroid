@@ -13,15 +13,15 @@ function contains(rect: { x: number; y: number; w: number; h: number }, x: numbe
 }
 
 describe("TS-01 Transfer Apparatus production contract", () => {
-  it("uses the approved 3x6 canvas and exact visual fit", () => {
+  it("uses the approved half-scale 2x3 canvas and exact visual fit", () => {
     const metadata = NUMBERDROID_PROP_REGISTRY["transfer-core"];
-    expect(metadata.footprintTiles).toEqual({ w: 3, h: 6 });
+    expect(metadata.footprintTiles).toEqual({ w: 2, h: 3 });
     expect(metadata.allowedRotations).toEqual([0]);
     expect(metadata.exactFit?.visualBoundsTiles).toEqual({
-      x: 0.34375,
-      y: 0.125,
-      w: 2.3125,
-      h: 5.75,
+      x: 0.421875,
+      y: 0.0625,
+      w: 1.15625,
+      h: 2.875,
     });
     expect(NUMBERDROID_PROP_ART_REGISTRY["transfer-core"]).toMatchObject({
       asset: "assets/deck/transfer-apparatus.png",
@@ -29,22 +29,22 @@ describe("TS-01 Transfer Apparatus production contract", () => {
     });
   });
 
-  it("keeps the Human bed and PICO Body Dock/exit physically open", () => {
+  it("keeps the Human bed and PICO Body Dock/exit physically open after scaling", () => {
     const parts = NUMBERDROID_PROP_COLLISION_PARTS["transfer-core"];
     expect(parts).toHaveLength(5);
 
     // Human receiving surface: player must be able to move into the center lane.
-    expect(parts.some((part) => contains(part, 1.5, 1.4))).toBe(false);
+    expect(parts.some((part) => contains(part, 1.0, 0.7))).toBe(false);
 
     // Core receiver is real machinery and should remain solid.
-    expect(parts.some((part) => contains(part, 1.5, 3.2))).toBe(true);
+    expect(parts.some((part) => contains(part, 1.0, 1.6))).toBe(true);
 
     // PICO staging slot and south drive-out lane must remain open.
-    expect(parts.some((part) => contains(part, 1.5, 4.8))).toBe(false);
-    expect(parts.some((part) => contains(part, 1.5, 5.7))).toBe(false);
+    expect(parts.some((part) => contains(part, 1.0, 2.4))).toBe(false);
+    expect(parts.some((part) => contains(part, 1.0, 2.9))).toBe(false);
   });
 
-  it("still places the enlarged Hero deterministically in generated TS-01", () => {
+  it("still places the smaller Hero deterministically in generated TS-01", () => {
     const semantic = compileLevelSpec(TS01_LEVEL_SPEC, NUMBERDROID_PROP_REGISTRY);
     const geometry = compileLevelGeometry(semantic);
     const navigation = compileLevelNavigation(geometry);
@@ -53,8 +53,8 @@ describe("TS-01 Transfer Apparatus production contract", () => {
 
     expect(core).toBeDefined();
     expect(core?.role).toBe("hero");
-    expect(core?.rect.w).toBe(3);
-    expect(core?.rect.h).toBe(6);
+    expect(core?.rect.w).toBe(2);
+    expect(core?.rect.h).toBe(3);
     expect(core?.reasons).toContain("room-center hero focus");
   });
 });
