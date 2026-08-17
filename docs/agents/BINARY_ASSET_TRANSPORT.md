@@ -4,128 +4,139 @@ Status: **binding repository transport rule for binary files**
 
 This document owns the safe transport of binary repository assets such as PNG, WEBP, JPG, ZIP, audio and other non-text files.
 
-Its purpose is to prevent large Base64 payloads from being serialized through ChatGPT/tool arguments, which can consume large context, make turns appear to hang, and destabilize long-running agent workflows.
+It is the highest-authority repository rule for binary transport and **supersedes older size-threshold wording** in parent/router documents. If another current document still says that inline Base64 is allowed below some byte ceiling, this contract wins.
 
-## 1. Core rule
+The purpose is to prevent binary data from being serialized through ChatGPT/model/tool text payloads. That path consumes model output/context, expands data, creates large JSON arguments and can make a turn appear to hang even when the underlying file is small by normal asset standards.
 
-**Do not use large inline Base64 payloads as a substitute for real file transport.**
+## 1. Core rule — no inline Base64 through the agent
 
-Before any binary write, determine the raw file size.
+For repository binary writes:
 
-```text
-raw binary <= 16 KiB
-→ connector Base64 may be used only if no direct file parameter exists and the operation is otherwise appropriate
+> **Inline Base64 in model-visible reasoning, assistant output, or tool arguments is prohibited regardless of file size.**
 
-raw binary > 16 KiB
-→ inline Base64 in a ChatGPT/tool payload is PROHIBITED
+Do not construct a Base64 representation merely because a connector exposes a string-based `create_blob(..., encoding="base64")` action.
 
-raw size unknown
-→ treat as >16 KiB until measured
-```
+The existence of such an API means the remote API can accept Base64. It does **not** mean serializing the whole binary through the language-model/tool channel is an acceptable agent workflow.
 
-The 16 KiB ceiling is a safety ceiling, not a target. Prefer real file transport even below it when available.
+This prohibition includes:
 
-Base64 expands binary data by roughly one third before JSON/tool framing, and the encoded text also consumes model/tool context. A file that is ordinary as a PNG can therefore become an unnecessarily large conversational payload.
+- `create_blob(content=<base64>)` constructed by the assistant;
+- UTF-8 text wrappers containing Base64;
+- data URIs;
+- raster bytes embedded into SVG/HTML/JS;
+- chunked Base64 across several calls;
+- temporary Base64 repository files reconstructed by CI;
+- repeated retries with a smaller/quantized binary solely to fit the model payload.
 
 ## 2. Mandatory executable preflight
 
-Before constructing **any** binary repository-write payload, run:
+Before any binary repository publication attempt, run:
 
 ```bash
 npm run repo:binary-preflight -- <local-or-mounted-file>
 ```
 
-The command reports:
+The command reports the raw size and estimated Base64 expansion for diagnostics, but its authorization result is categorical:
 
 ```text
-rawBytes
-base64Bytes
-base64ExpansionBytes
-inlineBase64LimitBytes
-inlineBase64Allowed
-recommendedTransport
+inlineBase64Allowed = false
+recommendedTransport = real-file-transport-required-or-BINARY_TRANSPORT_BLOCKED
 ```
 
-The result is authoritative for whether inline Base64 is permitted.
-
-Equivalent rule:
-
-```text
-inlineBase64Allowed = rawBytes <= 16384
-```
-
-For a call that specifically requires inline Base64, use the assertion mode:
+For any operation that would require the assistant to construct inline Base64, run the assertion mode:
 
 ```bash
 npm run repo:binary-preflight -- --require-inline <file>
 ```
 
-Exit code `2` means the inline path is prohibited. **Do not construct the Base64 string after that result.**
+Exit code `2` means the inline path is prohibited. Under the current contract this assertion **always rejects repository binary Base64**, regardless of raw byte size.
 
-CI runs `npm run repo:binary-preflight-test` to protect the guard logic itself.
+CI runs `npm run repo:binary-preflight-test` so the guard cannot silently drift back to a size-based exception.
 
-The preflight must happen **before** reading/encoding the entire binary into an assistant/tool argument. Measuring after Base64 serialization defeats the purpose.
+The preflight must happen before reading/encoding the binary into an assistant/tool argument.
 
-## 3. Preferred transport hierarchy
+## 3. Why there is no size exception
 
-Use this order:
+The Transfer Apparatus incident showed that a numeric threshold is the wrong model.
+
+Observed files/payloads during the same production pass:
+
+```text
+production candidate PNG
+raw      102,990 bytes
+Base64   137,320 characters
+
+quantized candidate PNG
+raw       25,174 bytes
+Base64    33,568 characters
+
+grounding-shadow PNG
+raw        8,298 bytes
+Base64    11,064 characters
+```
+
+The ~103 KiB PNG was successfully transported once through Base64, proving there is no simple low hard-limit such as 16 KiB or 100 KiB.
+
+However, the later shadow phase still spent an abnormally long time in Base64/commit preparation even though the raw shadow was only ~8 KiB. This demonstrates that **turn reliability depends on accumulated context, serialization work, tool framing and repeated binary-text handling — not only raw file size**.
+
+Base64 also expands binary by roughly one third before JSON/tool framing. More importantly, the encoded characters become model/tool text and therefore consume generation/context budget that should never be spent on opaque binary bytes.
+
+The durable fix is categorical: **binary bytes do not travel through the model text path.**
+
+## 4. Preferred transport hierarchy
 
 ### A. Connector action with a real file/path parameter
 
-If a connector action explicitly accepts a mounted/local file path or connector file reference, use that. Do not manually Base64-encode the file.
+If a connector action explicitly accepts a mounted/local file path, connector file reference or equivalent binary/file parameter, use it directly.
 
-### B. Authenticated local checkout + Git push
+Do not read the file into Base64 yourself.
 
-For larger binary assets, use an existing authenticated local repository checkout when the environment provides one:
+### B. Existing authenticated local checkout + normal Git transport
 
-1. verify the checkout/repository/branch;
-2. verify Git/`gh` authentication when needed;
-3. copy/create the binary at its intended repository path;
-4. `git add` the explicit binary path;
-5. commit;
+If the execution environment already provides an authenticated local checkout of this repository:
+
+1. verify the checkout and current branch;
+2. verify authentication as required by the repository workflow;
+3. create/copy the binary at its intended repository path;
+4. stage only the intended binary path(s);
+5. commit normally;
 6. push the focused branch;
-7. return to the GitHub connector for PR metadata/review/CI work.
+7. return to the GitHub connector for PR metadata, review and CI inspection.
 
-This is a **binary transport path**, not a fallback diagnostic for determining whether the GitHub connector is connected.
+This path transports the file through Git/GitHub as binary data rather than through the model's textual tool arguments.
 
-### C. No safe transport available
+Do **not** create/clone a local checkout merely as a speculative network fallback when repository workflow forbids that. The checkout must already be available/authenticated or explicitly provided by the environment/workflow.
 
-If neither a direct connector file action nor an authenticated local checkout is available, stop the binary write and report:
+### C. No real file transport available
+
+If neither A nor B is available, stop that binary publication step immediately and report:
 
 ```text
 BINARY_TRANSPORT_BLOCKED
 ```
 
-Continue any independent text/code/metadata work that does not falsely imply the binary was committed.
+Continue any independent text/code/metadata work that remains truthful, but do not claim the binary is committed, pushed, registered or deployed.
 
-Do not work around the block by:
+Failing fast is the intended behavior. A visible transport blocker is preferable to a multi-minute stuck agent turn.
 
-- pasting a large Base64 string into `create_blob` or another tool argument;
-- embedding the binary as a data URI;
-- wrapping raster data inside SVG/HTML/JS source;
-- splitting a large Base64 payload across several tool calls;
-- repeatedly retrying an oversized payload.
+## 5. Mandatory binary preflight record
 
-## 4. Mandatory preflight record
-
-Before a binary repository write, record internally:
+Before constructing any repository write for a binary file, record internally:
 
 ```text
 LOCAL/MOUNTED PATH
 RAW BYTE SIZE
 ESTIMATED BASE64 BYTE SIZE
 TARGET REPOSITORY PATH
-AVAILABLE TRANSPORT
-INLINE BASE64 AUTHORIZED? yes/no
+DIRECT FILE-AWARE CONNECTOR ACTION AVAILABLE? yes/no
+AUTHENTICATED LOCAL CHECKOUT AVAILABLE? yes/no
+SAFE TRANSPORT SELECTED
+INLINE BASE64 AUTHORIZED? no
 ```
 
-Use the executable preflight above rather than mental arithmetic.
+`INLINE BASE64 AUTHORIZED` is always `no` for repository binaries.
 
-If raw size is greater than 16,384 bytes, `INLINE BASE64 AUTHORIZED` must be `no`.
-
-Do this before constructing a tool payload. Never discover the payload is too large only after serializing it.
-
-## 5. State discipline
+## 6. State discipline
 
 Keep these states distinct:
 
@@ -141,34 +152,37 @@ LIVE_ACCEPTED
 
 A locally generated PNG is not committed merely because its recipe/code exists.
 
-A Git blob SHA is not sufficient unless a reachable branch/commit references the blob at the intended repository path.
+A remote blob SHA is not sufficient unless a reachable branch/commit references the blob at the intended repository path.
 
 Do not update art status to `RUNTIME_REGISTERED` until the actual binary file is reachable on the working branch and the runtime registry points to it.
 
-## 6. Current ChatGPT/GitHub environment rule
+## 7. Current ChatGPT/GitHub environment behavior
 
-The GitHub connector is preferred for structured repository reads/writes, PRs and CI metadata.
+The GitHub connector remains preferred for structured/textual repository reads/writes, PRs and CI metadata.
 
-However, connector-first does **not** mean “serialize any binary through JSON/Base64.” If the exposed connector lacks a direct binary-file parameter, apply this contract.
+For binary publication, inspect its actual exposed schema. If it offers only string/Base64 content and no real file parameter, that is **not a safe binary transport capability for this agent workflow**.
 
-Local Git/`gh` may be used for the specific large-binary transport gap only when an authenticated local checkout actually exists. Do not infer repository availability from local network state and do not perform speculative clone/network diagnostics merely because the connector exists.
+Likewise, local Git/`gh` is a valid binary path only when an authenticated local checkout actually exists. Do not infer repository availability from local network state and do not perform speculative clone/network diagnostics merely because the connector exists.
 
-## 7. Failure learned during TS-01 Transfer Apparatus production
+If neither safe path exists, use `BINARY_TRANSPORT_BLOCKED` rather than Base64.
 
-During Transfer Apparatus production, binary publication was attempted through the connector's Base64 `create_blob` path. The largest confirmed payload in that sequence was the production PNG at **102,990 raw bytes**, which expands to **137,320 Base64 bytes** before JSON/tool framing.
+## 8. Transfer Apparatus failure analysis — 2026-08-17
 
-The user-visible stall was noticed during the following shadow/publication step. The shadow file measured only about 8.2 KiB, so the evidence does **not** support claiming that the shadow itself was the oversized payload. The safer diagnosis is that the binary-publication path had already bloated the agent/tool turn and was operationally unsafe.
+During Transfer Apparatus production the agent repeatedly converted PNG files to Base64 in preparation for GitHub `create_blob` calls.
 
-This distinction matters: the root cause is the **transport representation and missing preflight**, not one particular asset type.
+What actually happened:
 
-Root causes:
+1. the approved/generated raster existed correctly as a local binary file;
+2. the agent converted it into a large opaque text string solely to satisfy a string-based connector action;
+3. one ~137k-character Base64 payload succeeded, which made the workflow appear viable;
+4. additional quantization/encoding passes created more binary-derived text and more tool/context work;
+5. later, while preparing the much smaller ~11k-character shadow Base64, the agent spent an abnormally long time in the Base64/commit phase and appeared stuck;
+6. therefore the failure was **not a reliable file-size limit** but an unsuitable transport architecture.
 
-1. binary transport was treated like an ordinary structured connector write;
-2. raw file size / encoded payload size was not gated before constructing the tool call;
-3. the repository workflow previously forced all remote writes through the connector without defining a binary exception;
-4. the environment did not have a guaranteed real-file connector path for the asset;
-5. the protection initially existed only as prose, not as an executable preflight.
+Root cause:
+
+> **Opaque binary bytes were routed through the language-model text channel instead of a file-aware transport.**
 
 Binding correction:
 
-> **Measure first with the executable preflight. Never inline Base64 above 16 KiB. Use real file transport when available; otherwise stop with `BINARY_TRANSPORT_BLOCKED`.**
+> **Never inline Base64 for repository binary writes. Use real file transport when available; otherwise stop immediately with `BINARY_TRANSPORT_BLOCKED`.**

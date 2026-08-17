@@ -61,10 +61,10 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
 - Verify current `main` HEAD and relevant GitHub Actions state before significant work.
 - Use focused branches/PRs for changes.
 - For structured/textual remote repository operations use the connected GitHub connector and the discovery/recovery rules in `docs/agents/REPOSITORY_WORKFLOW.md`.
-- **Before any binary repository write**, read `docs/agents/BINARY_ASSET_TRANSPORT.md`, measure raw byte size, and choose a real file-transport path before constructing a tool payload.
-- **Never inline Base64 for a binary larger than 16 KiB**. If raw size is unknown, treat it as too large until measured.
-- If a large binary cannot be published through a direct connector file action or an already-authenticated local checkout, stop that write as `BINARY_TRANSPORT_BLOCKED`; do not use Base64/data-URI/SVG/chunking workarounds.
-- Local Git/`gh` is allowed only for the specific large-binary transport gap when an authenticated checkout actually exists; it is not a diagnostic fallback for connector availability.
+- **Before any binary repository write**, read `docs/agents/BINARY_ASSET_TRANSPORT.md` and run the executable binary preflight before constructing a transport payload.
+- **Never inline Base64 for repository binary files, regardless of file size.** Do not route PNG/JPG/WEBP/ZIP/audio bytes through model-visible reasoning or string-based tool arguments.
+- If a binary cannot be published through a direct connector file/path action or an already-authenticated local checkout, stop that write as `BINARY_TRANSPORT_BLOCKED`; do not use Base64/data-URI/SVG/chunking/CI-reconstruction workarounds.
+- Local Git/`gh` is allowed only for the specific binary transport gap when an authenticated checkout actually exists; it is not a diagnostic fallback for connector availability.
 - If GitHub actions are not currently surfaced, **rediscover the GitHub connector/actions first** as defined in `docs/agents/REPOSITORY_WORKFLOW.md`; absence from the active tool schema is not evidence that repository access is unavailable.
 - Do not mix broad repository reorganization with gameplay changes.
 - Preserve `zahlenkern-prototyp-meta-v7.html` as the frozen behavioral reference; do not refactor it into production code.

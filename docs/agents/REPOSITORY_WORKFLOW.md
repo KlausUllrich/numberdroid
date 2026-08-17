@@ -26,8 +26,22 @@ For PNG/WEBP/JPG/ZIP/audio/other binary assets, follow `BINARY_ASSET_TRANSPORT.m
 Hard binary rule:
 
 ```text
-raw binary > 16 KiB  → inline Base64 is prohibited
-raw size unknown     → treat as >16 KiB until measured
+repository binary write
+→ inline Base64 through the model/tool text channel is prohibited
+```
+
+There is no byte-size exception. `BINARY_ASSET_TRANSPORT.md` is authoritative and supersedes older size-threshold guidance.
+
+Before any binary publication attempt, run the executable preflight:
+
+```bash
+npm run repo:binary-preflight -- <local-or-mounted-file>
+```
+
+For any path that would require assistant-constructed inline Base64, assertion mode must reject it:
+
+```bash
+npm run repo:binary-preflight -- --require-inline <file>
 ```
 
 Preferred order:
@@ -36,7 +50,7 @@ Preferred order:
 2. existing authenticated local checkout + focused Git commit/push for the binary transport gap;
 3. otherwise stop the binary write as `BINARY_TRANSPORT_BLOCKED`.
 
-Do not replace missing file transport with large `create_blob(base64)` payloads, data URIs, SVG wrapping, chunked Base64 calls or similar encodings.
+Do not replace missing file transport with `create_blob(base64)` payloads, data URIs, SVG wrapping, chunked Base64 calls, CI reconstruction tricks or repeated quantization intended only to squeeze binary data through the agent text channel.
 
 A local Git/`gh` path may be used **only for this concrete binary transport gap when an authenticated checkout already exists**. This is not permission to use local network diagnostics as a substitute for the connector or to infer GitHub availability from container networking.
 
@@ -67,7 +81,7 @@ Do **not** use the local/container network as a fallback transport or diagnostic
 
 A container/sandbox network failure says nothing about the availability of the GitHub connector. **Never infer “GitHub is unavailable” from a failed container-network command.**
 
-The only narrow local-Git exception is the already-authenticated **large-binary publish path** defined in `BINARY_ASSET_TRANSPORT.md`. Its prerequisites must be verified before use; if they are absent, report `BINARY_TRANSPORT_BLOCKED` rather than cloning or forcing a Base64 workaround.
+The only narrow local-Git exception is the already-authenticated **binary publish path** defined in `BINARY_ASSET_TRANSPORT.md`. Its prerequisites must be verified before use; if they are absent, report `BINARY_TRANSPORT_BLOCKED` rather than cloning or forcing a Base64 workaround.
 
 If the GitHub connector itself fails, report that connector failure explicitly and stop/retry through the connector for connector-owned operations. Do not silently switch transport paths.
 
@@ -79,6 +93,6 @@ During the Transfer Hall art passes, several transport failures occurred:
 
 1. the container-network fallback was mistakenly attempted and its DNS/network failure was incorrectly interpreted as missing GitHub access;
 2. later, GitHub actions were not currently surfaced in the active tool schema and that absence was again incorrectly interpreted as missing access instead of rediscovering the connected GitHub connector;
-3. during Transfer Apparatus production, a generated binary shadow was serialized as a very large Base64 GitHub tool payload, causing a bloated/slow turn that appeared to hang.
+3. during Transfer Apparatus production, generated PNG assets were repeatedly serialized into Base64 GitHub tool payloads. A large payload succeeded once, but later even a much smaller shadow payload contributed to a bloated/slow turn that appeared to hang.
 
-The connector discovery protocol prevents false “repository unavailable” conclusions. The binary transport contract prevents the opposite failure mode: forcing data through the connector in a representation that is technically possible but operationally unsafe for an agent turn.
+The connector discovery protocol prevents false “repository unavailable” conclusions. The binary transport contract prevents the opposite failure mode: forcing opaque file bytes through the language-model text path merely because an API technically accepts Base64.
