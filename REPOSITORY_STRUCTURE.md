@@ -18,7 +18,7 @@ This file defines where project information belongs and which directories are au
 ├─ src/                         # production application + compiler code
 ├─ public/                      # runtime/deploy assets only
 ├─ scripts/                     # deterministic build, art and validation tooling
-├─ art-source/                  # reproducible/current + archived art-authoring sources
+├─ art-source/                  # approved/current + reproducible + archived art-authoring sources
 └─ docs/                        # current documentation plus explicit history
 ```
 
@@ -48,22 +48,59 @@ Contains files the built application loads directly.
 Rules:
 - `public/` answers **what the game loads**, not necessarily **how the asset is authored**;
 - generated/materialized runtime images are outputs;
-- source prompts/material references/authoring recipes belong in `art-source/`;
+- approved high-resolution originals, source prompts/material references and authoring recipes belong in `art-source/`;
 - some legacy source-like SVGs remain in `public/` because current reference coverage is not yet sufficient to remove them safely; clean them only in a dedicated runtime-reference audit.
 
 ## `art-source/` — art authoring source
 
 ```text
 art-source/
+├─ approved/                    # immutable approved high-quality sources + family derivatives
 ├─ recipes/                     # canonical source contract per current production asset/category
 └─ archive/                     # superseded source artifacts retained only for historical/reference value
 ```
 
+### `art-source/approved/`
+
+Durable preservation archive for **Art-Director-approved high-resolution authoring sources**.
+
+Approved sources are grouped by **Campaign Area** and then by **Asset Family**:
+
+```text
+art-source/approved/
+├─ area-01-transfer-ship/
+├─ area-02-deep-ocean/
+├─ area-03-extreme-industry/
+├─ area-04-moon-vacuum/
+└─ area-05-bio-ark-primus/
+```
+
+Each Asset Family normally owns:
+
+```text
+<asset-family>/
+├─ README.md       # manifest/provenance/relationships
+├─ source/         # immutable byte-identical approved originals
+├─ production/     # processed/crop/fit/runtime-source derivatives
+├─ fx/             # related source-quality effects/components
+└─ animation/      # later animation-authoring sources/exports
+```
+
+An Asset Family may represent one simple asset or several tightly related components that should remain together for future editing/animation. Example: `transfer-system/` contains the Transfer Apparatus, yellow Core and Transfer FX; PICO remains a separate Character lifecycle.
+
+Binding preservation/process authority:
+
+- `docs/art/production/APPROVED_SOURCE_ARCHIVE.md`
+- `art-source/approved/README.md`
+- binary publication: `docs/agents/BINARY_ASSET_TRANSPORT.md`
+
+The approved original must remain unchanged. Runtime/downscaled derivatives never replace it as authoring authority.
+
 ### `art-source/recipes/`
 
-Preferred source of truth for current/revisitable production art. A recipe can contain deterministic geometry, collision geometry, topology, prompts, render settings, material references and an optional `source/` payload required for deterministic reconstruction.
+Preferred source of truth for current/revisitable production art **process and reproducibility**. A recipe can contain deterministic geometry, collision geometry, topology, prompts, render settings, material references and an optional `source/` payload required for deterministic reconstruction.
 
-Source payloads should live with the asset they reconstruct rather than in a generic runtime transport folder.
+Recipes explain how an asset is produced/revised. `art-source/approved/` preserves the actual approved source files. These roles are complementary, not duplicates.
 
 ### `art-source/archive/`
 
@@ -79,6 +116,7 @@ Contains repeatable processing and validation code.
 scripts/
 ├─ art/
 │  └─ toolkit/                  # reusable method-agnostic art-processing primitives
+├─ repo/                        # repository/transport preflights and guards
 ├─ validation/                  # reusable validators as this area grows
 └─ <small project-specific scripts>
 ```
@@ -87,7 +125,8 @@ Rules:
 - reusable deterministic mechanics belong under `scripts/art/toolkit/` when shared by multiple methods/categories;
 - recipes may reference toolkit code but must not duplicate generic mechanics;
 - asset-specific topology/settings remain with `art-source/recipes/`;
-- model calls/prompts belong to methods/skills or recipes, not low-level toolkit modules.
+- model calls/prompts belong to methods/skills or recipes, not low-level toolkit modules;
+- repository binary transport must follow the guards under `scripts/repo/` + `docs/agents/BINARY_ASSET_TRANSPORT.md`.
 
 ## `docs/` — documentation taxonomy
 
@@ -147,12 +186,13 @@ Everything else belongs under `docs/` or `art-source/` according to ownership.
 For art production:
 
 ```text
-art direction         → docs/art/
-method selection      → docs/art-production-methods/
-reusable mechanics    → docs/art-production-toolkit/ + scripts/art/toolkit/
-asset reproducibility → art-source/recipes/
-historical art source → art-source/archive/
-runtime output        → public/assets/...
+art direction             → docs/art/
+method selection          → docs/art-production-methods/
+reusable mechanics        → docs/art-production-toolkit/ + scripts/art/toolkit/
+approved source archive   → art-source/approved/
+asset reproducibility     → art-source/recipes/
+historical art source     → art-source/archive/
+runtime output            → public/assets/...
 ```
 
 For level generation:

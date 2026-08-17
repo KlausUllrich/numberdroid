@@ -1,13 +1,21 @@
 # Asset Recipe — TS-01 Transfer Apparatus / Core Hero
 
-Status: `DESIGN_REFINEMENT` — current highest-priority Gold Slice Prop/Hero; **no generated source is production-approved yet**.
+Status: **`SOURCE_APPROVED / ARCHIVE_PENDING`** — visual source approved by Klaus; large approved original is not yet durably published to the repository archive because safe binary transport is unavailable in the current execution environment.
 
 Current process authority:
 
 - `docs/agents/PROP_ARTIST_BRIEF.md`
 - `docs/art/production/PROP_ASSET_WORKFLOW.md`
+- `docs/art/production/APPROVED_SOURCE_ARCHIVE.md`
+- `docs/agents/BINARY_ASSET_TRANSPORT.md`
 - `docs/level-generation/PROP_AUTHORING_REQUIREMENTS.md`
 - `docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`
+
+Approved-source family manifest:
+
+- `art-source/approved/area-01-transfer-ship/transfer-system/README.md`
+
+---
 
 ## Visual / story purpose
 
@@ -20,7 +28,7 @@ It must make the first Transfer feel:
 - empowering;
 - understandable as a real process rather than generic sci-fi machinery.
 
-The player is still biologically human before this Transfer and leaves the sequence inhabiting PICO. The apparatus therefore has to communicate the central Numberdroid fantasy that a persistent **CORE/person moves into a BODY/SLOT**.
+The player is still biologically human before this Transfer and leaves the sequence inhabiting PICO. The apparatus therefore communicates the central Numberdroid fantasy that a persistent **CORE/person moves into a BODY/SLOT**.
 
 The machine must not read primarily as a generic teleporter, reactor, medical scanner, altar or glowing platform.
 
@@ -28,109 +36,131 @@ The same elegant Transfer technology later participates in the emotional reversa
 
 ---
 
-## Current approved function-to-form direction
+## Approved function-to-form direction
 
-The current design logic is now substantially clearer and should be treated as the basis for the next proposal.
-
-The apparatus must read as a **directed three-stage process**:
+The apparatus reads as a directed three-stage process:
 
 ```text
 HUMAN ENTRY / TRANSFER BED
         ↓
-YELLOW CORE / CORE TRANSFER
+CORE RECEIVER / TRANSFER NODE
         ↓
 EMPTY PICO BODY DOCK
         ↓
 CLEAR DRIVE-OUT DIRECTION
 ```
 
-### 1. Human entry / Transfer bed
+### Human entry / Transfer bed
 
-The first station must be an obvious destination for the still-biological player.
+- obvious destination for the still-biological player;
+- platform/bed/receiving surface visibly shaped for a human body;
+- readable human contour/recess/registration shape;
+- no actual biological character baked into the Prop;
+- function readable without labels or tiny UI.
 
-Preferred read:
-
-- a clear entry point the player can deliberately move toward;
-- a platform / bed / receiving surface that visibly belongs to a human body;
-- a readable human contour/recess/registration shape on that surface;
-- no actual human character baked into the Prop art;
-- the large form should say **“the human goes here”** without requiring labels or tiny UI.
-
-The human contour is a functional registration cue, not decoration.
-
-### 2. Yellow Core
+### Yellow Core
 
 The persistent person/Core is represented by the established **yellow / warm-amber sphere**.
 
-This symbol is important because the same visible ball can later move from robot body to robot body during ordinary Transfers.
+Binding runtime/source separation:
 
-The apparatus should therefore contain a clearly readable Core receiver/transfer node between the human station and the body dock.
+- the yellow Core is a separate movable Transfer-state visual;
+- the static Apparatus owns the receiver/socket/path framing;
+- the approved static Apparatus source does **not** permanently bake the yellow Core ball into the machine;
+- the Core will receive its own source/approval cycle and belongs to the same `transfer-system` Asset Family.
 
-Runtime authority:
+### PICO Body Dock
 
-- the **yellow Core sphere is a movable Transfer-state element**, not permanent static machinery;
-- the static apparatus may contain the socket/frame/path that makes the sphere's role obvious;
-- a visual design proposal may show the sphere to communicate the intended state;
-- the final static Prop production asset should not permanently bake a movable Core into the machine if runtime Transfer animation needs the sphere to travel.
-
-### 3. PICO body dock
-
-The receiving side is an **empty Body/SLOT dock** shaped for a robot body.
-
-Binding current decision:
-
-- **PICO itself is not part of the Transfer Apparatus Prop asset**;
-- PICO remains the existing separate Character/body asset;
-- the apparatus provides only the receiving cradle/dock/alignment structure;
-- runtime staging positions PICO in that dock before Transfer;
-- after Core sync/activation, PICO can drive out as the newly controlled player body.
-
-The dock must therefore make sense both empty and occupied.
-
-### 4. Exit direction
-
-The receiving dock must have a visually and physically clear direction from which the activated PICO can leave.
-
-Do not surround the receiving body with decorative structure that would make the drive-out path implausible.
+- receiving side is an empty robot Body/SLOT dock;
+- PICO itself is not baked into the static Prop;
+- PICO remains a separate Character/body asset;
+- runtime staging can position PICO in the dock before Transfer;
+- the dock must remain believable empty and occupied;
+- the exit direction must remain physically/visually clear.
 
 ---
 
-## Current size direction
+## Approved generated source
 
-The existing `3 × 3` coarse registry footprint is now considered a **provisional legacy baseline and likely too small for the approved functional read**.
+Klaus approved the latest isolated Apparatus source as the visual direction/source candidate.
 
-The next design proposal may deliberately explore a larger Hero footprint so that all three stages are readable at gameplay scale.
+Approved source characteristics:
 
-Likely design territory is approximately `4 × 4`, `4 × 5` or another similarly larger directed footprint, but **do not freeze a new numeric footprint before the approved visual/function layout proves what is needed**.
+- human receiving bed/contour reads clearly;
+- central Core receiver exists without a permanently baked yellow ball;
+- lower Body Dock is empty;
+- drive-out direction is clear;
+- perspective is sufficiently near-top-down for the intended Numberdroid Prop treatment;
+- transparent RGBA source is available.
 
-After source approval:
+Known approved-source provenance from the current working file:
 
-1. determine the smallest believable coarse footprint that preserves the three-stage read;
-2. update `propRegistry.ts` deliberately if the current 3×3 contract must change;
-3. re-run placement/clearance/room-layout QA;
-4. preserve separate visual, collision and Hero-clearance semantics.
+```text
+component:          transfer-apparatus
+approval date:      2026-08-17
+source type:        ChatGPT image generation
+image_gen gen_id:   f86f346b-10b2-4783-a30f-6b08f7239fd0
+format:             PNG RGBA, non-interlaced
+original size:      1122 × 1402 px
+raw bytes:          1,231,884
+sha256:             f19ccfba6af722577b6bd8c49a0be15e45473867421e98d22c1fd018de6da794
+```
 
-Do not shrink the design merely to preserve the old 3×3 blockout.
+Canonical archive target:
+
+```text
+art-source/approved/area-01-transfer-ship/transfer-system/
+└─ source/
+   └─ transfer-apparatus__approved-original__2026-08-17.png
+```
+
+### Archive status — important
+
+The actual byte-identical approved PNG is **not yet committed at that path**.
+
+Current truthful state:
+
+```text
+SOURCE_APPROVED
+LOCAL_BINARY_READY
+BINARY_TRANSPORT_BLOCKED
+ARCHIVE_PENDING
+```
+
+Reason:
+
+- current GitHub connector has no real binary file/path upload action;
+- no existing authenticated local repository checkout is available in the current execution environment;
+- `BINARY_ASSET_TRANSPORT.md` correctly prohibits inline Base64 through the agent.
+
+Do not claim `APPROVED_SOURCE_ARCHIVED` until the actual original PNG is reachable in the repository.
+
+Per current archive policy, downstream destructive/downscaling production should not become authoritative before this preservation gate is resolved unless Klaus explicitly changes that policy.
 
 ---
 
-## Current design learning / QA state
+## Asset Family relationship
 
-Several concept passes were explored. **None is yet production-source approved.**
+Campaign Area:
 
-Important learning:
+```text
+area-01-transfer-ship
+```
 
-1. circular glowing sci-fi platforms without distinct functional zones are too ambiguous;
-2. the form itself must explain **HUMAN → CORE → BODY/SLOT**;
-3. the source must work from the real Numberdroid near-top-down gameplay view rather than isometric/presentation perspective;
-4. excessive screens, plants, arches, hazard detail or decorative machinery obscure the central operation;
-5. one generated image must contain one proposal only — no A/B/C comparison sheet;
-6. shadow/FloorFX is produced only after the visible Prop source passes approval/production QA;
-7. a real robot body shown as permanent Prop pixels is wrong — the Body Dock is static, the robot is a Character;
-8. the yellow Core sphere is the persistent transferable identity and must be visually legible as such;
-9. the previous 3×3 blockout must not constrain the Hero if a larger footprint communicates the operation better.
+Asset Family:
 
-The most recent single-proposal concept was judged **promising in overall direction but REVISION REQUIRED**. Its strongest element was the readable human receiving surface. Required corrections are now captured in the approved function-to-form direction above.
+```text
+transfer-system
+```
+
+Family members:
+
+- Transfer Apparatus — primary static Hero Prop;
+- yellow Core — separate source-quality movable visual/FX component;
+- later Transfer FX;
+- later animation-authoring files combining Apparatus/Core when needed.
+
+PICO does **not** belong to this family archive as a source asset merely because it is staged in the dock; PICO has its own Character lifecycle.
 
 ---
 
@@ -142,12 +172,12 @@ Existing semantic Prop ID:
 transfer-core
 ```
 
-Current Spatial Prop Registry still says:
+Current executable Spatial Prop Registry on `main` still says:
 
 ```text
 attachment:           floor
 allowedRotations:     [0]
-coarse footprint:     3 × 3 tiles      # provisional / likely to grow
+coarse footprint:     3 × 3 tiles      # legacy/provisional
 placement role:       Hero
 placement preference: room center
 Door Clearance:       forbidden
@@ -155,23 +185,27 @@ primary path:         protected
 Hero clearance:       1 tile around coarse footprint
 ```
 
-Until deliberately changed, this remains the executable compiler baseline. It is not a requirement that the next visual proposal stay inside 3×3.
+The approved visual source is substantially more elongated than the old 3×3 blockout. Final coarse footprint, visual Exact-Fit bounds and multipart collision must be settled deliberately after the approved source is archived and production processing resumes.
 
-Final visual bounds, collision parts and placement envelope are authored after the visual source/function is approved and must follow the accepted v0.13.2 Exact-Fit contract.
+Do not shrink the source merely to preserve the historical 3×3 blockout.
+
+---
 
 ## Perspective
 
 Use the current Transfer Ship / Transfer Hall gameplay contracts:
 
 - fixed orthographic/top-down world;
-- environment Prop must remain compatible with the accepted near-top-down/ND Shallow Top-Down treatment;
+- environment Prop compatible with the accepted near-top-down/ND Shallow Top-Down treatment;
 - top surfaces/footprint carry the functional read;
 - no strong isometric extrusion;
 - no converging perspective;
 - no large frontal screens or side walls that only read from one camera direction;
-- any slight height reveal must remain subordinate to the top-down footprint/function.
+- slight height reveal remains subordinate to the top-down footprint/function.
 
-Previous concept rounds repeatedly showed too much vertical/isometric structure. Perspective is therefore a mandatory preflight before every new visual proposal.
+The approved source is accepted as sufficiently aligned for this Hero direction; final runtime-size QA still has to confirm that the read survives downscale.
+
+---
 
 ## Visual language
 
@@ -186,130 +220,78 @@ Use the approved Transfer Ship language rather than generic sci-fi:
 - elegant and competent, not industrial/hazard-heavy;
 - no generic military clamps, hazard stripes or dark-machine villain styling.
 
-## Production method / authority split
+---
 
-Current likely starting method:
+## Production method / authority split
 
 ```text
 Primary visible-source method: M1 Direct Generative Source
-Optional later cleanup:        deterministic source preparation / controlled local finishing as actually needed
-Visual silhouette authority:   approved generated/Artist source
+Visual silhouette authority:   approved generated source above
+Approved-source authority:     art-source/approved/.../transfer-system/source/
 Coarse placement authority:    propRegistry.ts / compiler
 Collision authority:           reviewed spatial metadata / propCollisionRegistry when needed
-Alpha/canvas authority:        deterministic production preparation after source approval
+Alpha/canvas authority:        deterministic production preparation after archive gate
 Shadow authority:              separate FloorFX step after Prop production QA
 PICO/body authority:           separate Character/entity; never baked into static Prop
-Core-sphere authority:         separate movable Transfer-state element when animation requires movement
+Core-sphere authority:         separate movable source/FX component in same Asset Family
 Scene illumination:            runtime LightOverlay, not baked into the Prop
 ```
 
-M1 remains the likely first visual-source method because this is a unique expressive Hero object with no modular connector topology. Do not invent deterministic `geometry.svg` as fake authority merely to imitate the Wall/Door workflow.
-
-If a later approved silhouette requires exact deterministic correction, add an M2-style mask/controlled step deliberately and document why.
+If the approved silhouette later requires exact deterministic correction, add an M2-style mask/controlled step deliberately and document why.
 
 ---
 
 ## Image-generation trigger contract
 
-This recipe inherits the binding keyword behavior from `PROP_ASSET_WORKFLOW.md`.
+This recipe inherits the hard authorization rule from:
 
-### `QA`
+- `docs/art/production/HARD_GENERATION_COMMAND_GATE.md`
+- `docs/art/production/IMAGE_GENERATION_TURN_CONTRACT.md`
 
-If the user's message contains the explicit trigger word **`QA`**:
+For Prop image generation, the current user message must be exactly the standalone command:
 
-- inspect only;
-- do not call `image_gen`;
-- report PASS / FAIL / REVISION REQUIRED and concrete reasons;
-- do not generate a replacement in the same turn.
+```text
+generieren
+```
 
-`QA` has priority over generation. If a message contains both `QA` and `generieren`, do not generate; require a later turn containing `generieren` without `QA`.
+`QA` remains inspection-only.
 
-### `generieren`
-
-For this Prop workflow, **`image_gen` may be called only when the user's current message explicitly contains the word `generieren`** (case-insensitive).
-
-No synonym or implicit continuation authorizes image generation. In particular, these do not authorize it by themselves:
-
-- `ok` / `ja`;
-- `weiter`;
-- `mach das`;
-- `ändern` / `überarbeiten`;
-- `nächste Variante`;
-- discussion of what the next image should contain.
-
-Those messages may refine the design or prompt, but generation waits for the literal `generieren` trigger.
-
-One `generieren` trigger authorizes **exactly one image-generation call for exactly one proposal**. The generated image ends that production turn and must be QA'd before another generation.
+The Apparatus itself does **not** currently need another image generation because its source is approved. The next separate generated visual expected for this Asset Family is the yellow Core when Klaus explicitly starts that source cycle.
 
 ---
 
-## Source-generation contract
+## Production / integration plan after archive gate
 
-Before any next image call:
+Only after the approved original is durably archived:
 
-1. read the Prop Artist Brief/current Story/Game/Art/Gold-Slice context;
-2. ensure the current function-to-form philosophy above still matches the user's latest direction;
-3. update this recipe if the functional contract changes;
-4. perform the perspective preflight;
-5. wait for the explicit user trigger **`generieren`**;
-6. generate **exactly one** isolated visual proposal.
-
-The next proposal should communicate:
-
-- obvious human entry/Transfer surface with human contour;
-- visual transition toward the yellow Core sphere/socket;
-- visual transition onward to an empty robot Body Dock;
-- clear drive-out direction from that dock;
-- larger Hero scale if needed for readability;
-- no actual PICO body baked into the Prop;
-- no actual biological character baked into the Prop.
-
-The generated source must contain:
-
-- one Transfer Apparatus proposal only;
-- transparent background when supported;
-- no room/floor/wall presentation plate;
-- no separate shadow/FloorFX candidate;
-- no comparison alternatives;
-- no explanatory labels or concept-board UI.
-
-After generation, stop. The next production action is source QA.
-
----
-
-## Production / integration plan after source approval
-
-Only after explicit source approval:
-
-1. normalize/crop/fit the approved alpha-bearing source through the current Prop preparation path where applicable;
-2. inspect the actual runtime-size production PNG;
-3. settle any required coarse-footprint change and revalidate TS-01 placement;
-4. author/review visual bounds, collision geometry and placement envelope deliberately;
-5. produce the separate grounding shadow/FloorFX asset;
-6. stage PICO as a separate runtime Character in the receiving dock;
-7. stage the yellow Core sphere as a separate Transfer-state element when animated movement is required;
-8. register Prop + shadow through `propArtRegistry.ts`;
-9. preserve spatial authority in `propRegistry.ts` / `propCollisionRegistry.ts`;
-10. run tests/build/art validation;
-11. inspect generated TS-01 on desktop + phone;
-12. obtain explicit live Art-Director acceptance;
-13. update this recipe/status.
+1. derive production Crop/Fit from the archived original;
+2. preserve useful processed masters under `art-source/approved/area-01-transfer-ship/transfer-system/production/`;
+3. inspect the actual runtime-size production PNG;
+4. settle coarse footprint and revalidate TS-01 placement;
+5. author/review visual bounds, multipart collision and placement envelope deliberately;
+6. produce separate grounding shadow/FloorFX;
+7. stage PICO as a separate runtime Character in the receiving dock;
+8. stage the separately approved yellow Core as a movable Transfer-state element;
+9. register Prop + shadow through `propArtRegistry.ts`;
+10. preserve spatial authority in `propRegistry.ts` / `propCollisionRegistry.ts`;
+11. run tests/build/art validation;
+12. inspect generated TS-01 on desktop + phone;
+13. obtain explicit live Art-Director acceptance;
+14. update this recipe/status.
 
 No atlas packing is required for the current generated TS-01 integration path unless a later demonstrated production need changes that decision.
 
-## Acceptance questions
+---
 
-The Transfer Apparatus does not pass merely because it looks impressive.
+## Acceptance questions for downstream production
 
-It must answer yes to questions such as:
+The visual source is approved, but runtime production still must confirm:
 
-- Can the player read the sequence **human → yellow Core → robot Body Dock**?
-- Is the human entry point obvious from the gameplay camera?
-- Is the yellow Core visually the same persistent identity that can later transfer between robot bodies?
-- Does the empty Body Dock clearly look like a place where PICO can wait and then drive out?
-- Does the dock still make sense when PICO is rendered as a separate Character?
-- Is the source/target relationship readable at runtime scale?
-- Does the object look empowering/civilian rather than sinister?
-- Does it fit the CORE/SLOT visual thesis?
-- Does its footprint/collision allow believable approach and exit?
-- Is the Transfer Hero clearly stronger than its later Flow/support assets without becoming generic visual noise?
+- does **human → Core receiver → robot Body Dock** remain readable at gameplay scale?
+- is the human entry point obvious from the gameplay camera?
+- can the separate yellow Core later move through the system without being visually redundant with baked art?
+- does the empty Body Dock clearly fit/stage PICO and allow drive-out?
+- does collision keep the intended dock/exit usable?
+- does the object remain empowering/civilian rather than sinister?
+- does it fit the CORE/SLOT visual thesis?
+- does its final footprint fit the Transfer room without sacrificing Hero readability?
