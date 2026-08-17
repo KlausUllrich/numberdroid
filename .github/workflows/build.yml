@@ -32,6 +32,9 @@ jobs:
       - name: Binary transport preflight self-test
         run: npm run repo:binary-preflight-test
 
+      - name: Approved source upload handoff self-test
+        run: npm run repo:approved-source-handoff-test
+
       - name: Art toolkit self-test
         run: npm run art:toolkit-test
 
