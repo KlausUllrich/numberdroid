@@ -77,7 +77,7 @@ USER_UPLOAD_VERIFIED
 
 ## Production derivative — Transfer Apparatus
 
-Current production state: **PRODUCTION_BUILT / RUNTIME_CANDIDATE / LIVE_QA_PENDING**
+Current production state: **PRODUCTION_BUILT / 4×6 RUNTIME_CANDIDATE / LIVE_QA_PENDING**
 
 The runtime candidate is generated deterministically from the archived authority by:
 
@@ -89,32 +89,37 @@ scripts/materialize-transfer-apparatus.mjs
 
 The runtime PNG is a build product, not a replacement for the large approved source.
 
-Verified CI materialization contract:
+### Live QA scale decision — 2026-08-17
+
+The approved Hero redesign was first integrated at `2 × 3` tiles. Live QA found the source design itself successful but the world presentation too small for the Transfer Room's primary focal point. Klaus explicitly approved doubling only the runtime/world scale while keeping the source artwork unchanged.
+
+Verified CI materialization contract after that QA decision:
 
 ```text
 source validation:       byte size + SHA-256 + 1086×1448 dimensions
 alpha cutoff:            4
 source alpha crop:       x=10, y=0, w=1065, h=1448
-runtime canvas:          128 × 192 px
-runtime tile canvas:     2 × 3 tiles @ 64 px/tile
-runtime margin:          4 px
-runtime content bounds:  x=4, y=14, w=120, h=163
-runtime SHA-256:         06cec70609b4eeff6aa319398f20d48eb09d16dd5adbd8492bd3689733c42bbc
+runtime canvas:          256 × 384 px
+runtime tile canvas:     4 × 6 tiles @ 64 px/tile
+runtime margin:          8 px
+runtime content bounds:  x=8, y=29, w=240, h=326
+runtime SHA-256:         29128f45d6fc3ce9ae97ed69e0df89565d9e6dbc0fe0961fca971668a9eb3ccd
 art registry state:      candidate
 shadow:                  not yet authored; intentionally deferred until live QA
 ```
 
 Spatial production contract:
 
-- coarse footprint remains `2 × 3`;
-- Transfer room remains `10 × 8` for isolated Hero-scale QA;
-- visual Exact-Fit follows the broader runtime content bounds;
-- collision is multipart rather than one 2×3 block;
+- coarse footprint is now `4 × 6`;
+- Transfer room remains `10 × 8`; the enlarged Hero plus one-tile Hero clearance fits the existing room without changing room geometry;
+- visual Exact-Fit follows the doubled runtime content bounds;
+- collision remains multipart rather than one 4×6 block;
 - Human receiving center lane remains physically open;
 - broad central Transfer/Core platform remains solid;
-- PICO Body Dock center and south drive-out lane remain physically open.
+- PICO Body Dock center and south drive-out lane remain physically open;
+- `transfer-intro-zone` is now anchored to the `hall-to-transfer` entrance instead of room center, because the center is intentionally occupied by the enlarged Hero platform; this also matches the intended first-view story timing.
 
-CI validation on PR #97 passes the full 176-test suite and Production Build with these contracts. Final live Art-Director QA of the new Hero source remains a separate state.
+CI validation on PR #98 passes the full 176-test suite and Production Build with these contracts. Final live Art-Director QA of the 4×6 presentation remains a separate state.
 
 ## Future Yellow Core source
 
