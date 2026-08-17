@@ -73,6 +73,8 @@ Before producing/editing gameplay art, follow the Artist route in `ROLE_ENTRYPOI
 
 For Prop or Prop-like environmental Hero work, `docs/agents/PROP_ARTIST_BRIEF.md` is the specialized direct onboarding route. It provides concise game/story/current-phase orientation and routes to the current Prop workflow, Level/Editor requirements, Art contracts, method/toolkit authorities, recipe and runtime consumers.
 
+For every ChatGPT `image_gen` call, also follow `docs/art/production/IMAGE_GENERATION_TURN_CONTRACT.md`. It owns the technical tool-channel / turn-ending behavior and is intentionally separate from asset-design rules.
+
 In particular:
 
 - select a production method before generation;
@@ -81,7 +83,9 @@ In particular:
 - **one Prop proposal per generated image**; do not put A/B/C alternatives or several versions on one canvas;
 - if alternatives are wanted, generate them as separate turns with QA/user steering between candidates;
 - for Prop work, `image_gen` may be called only when the current user message contains the literal trigger word **`generieren`**;
-- one `generieren` trigger authorizes exactly one image-generation call for one proposal, then the turn ends for QA;
+- one `generieren` trigger authorizes exactly one image-generation call for one proposal;
+- invoke `image_gen` only in the channel declared by the current tool schema; in the current ChatGPT environment this is **commentary**, never `final`;
+- after `image_gen` returns, emit **no additional assistant final response**; the tool return is the end of the generation turn;
 - the literal trigger word **`QA`** means inspection only and is a hard no-generation mode;
 - if `QA` and `generieren` occur in the same message, `QA` takes precedence and no image is generated;
 - `ok`, `ja`, `weiter`, `mach das`, `ändern`, `verbessern`, `nächste Variante` or similar conversational wording do not substitute for `generieren`;
