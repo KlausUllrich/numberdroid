@@ -155,9 +155,11 @@ Local Git/`gh` may be used for the specific large-binary transport gap only when
 
 ## 7. Failure learned during TS-01 Transfer Apparatus production
 
-During Transfer Apparatus production, a grounding-shadow PNG was encoded into a very large Base64 `create_blob` payload. The call massively expanded the assistant/tool turn and appeared to hang.
+During Transfer Apparatus production, binary publication was attempted through the connector's Base64 `create_blob` path. The largest confirmed payload in that sequence was the production PNG at **102,990 raw bytes**, which expands to **137,320 Base64 bytes** before JSON/tool framing.
 
-A related production PNG measured **102,990 raw bytes**, which would become **137,320 Base64 bytes** before JSON/tool framing. That illustrates why an ordinary small runtime image can still be a poor inline tool payload.
+The user-visible stall was noticed during the following shadow/publication step. The shadow file measured only about 8.2 KiB, so the evidence does **not** support claiming that the shadow itself was the oversized payload. The safer diagnosis is that the binary-publication path had already bloated the agent/tool turn and was operationally unsafe.
+
+This distinction matters: the root cause is the **transport representation and missing preflight**, not one particular asset type.
 
 Root causes:
 
