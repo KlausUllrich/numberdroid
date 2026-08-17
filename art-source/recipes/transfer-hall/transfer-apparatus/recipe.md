@@ -1,111 +1,170 @@
-# Asset Recipe — TS-01 Transfer Apparatus / Core Hero
+# Asset Recipe — TS-01 Transfer Apparatus
 
-Status: **`PRODUCTION_BUILT / RUNTIME_CANDIDATE / LIVE_QA_PENDING`**
+Status: **`SOURCE_ARCHIVED / 4×6 RUNTIME_ACCEPTED / SHADOW_ACCEPTED / COLLISION_ACCEPTED / LIVE_QA_PASS`**
 
-The visual source is approved and byte-identically archived. A deterministic runtime candidate is now built and spatially integrated on PR #95. It remains `candidate`: live visual QA and the separate grounding-shadow pass are still pending.
+The Transfer Apparatus is the accepted primary environmental Hero object of TS-01. Its static visual, runtime scale, grounding shadow, placement and normal-movement collision have all passed deployed live QA.
 
-Current process authority:
+Current authority:
 
-- `docs/agents/PROP_ARTIST_BRIEF.md`
 - `docs/art/production/PROP_ASSET_WORKFLOW.md`
 - `docs/art/production/APPROVED_SOURCE_ARCHIVE.md`
 - `docs/art/production/APPROVED_SOURCE_UPLOAD_HANDOFF.md`
 - `docs/agents/BINARY_ASSET_TRANSPORT.md`
 - `docs/level-generation/PROP_AUTHORING_REQUIREMENTS.md`
 - `docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`
+- `docs/history/experiments/TRANSFER_SYSTEM_HERO_PRODUCTION_LEARNINGS_2026-08-17.md`
 
-Asset Family manifest:
+Asset Family:
 
-- `art-source/approved/area-01-transfer-ship/transfer-system/README.md`
+`art-source/approved/area-01-transfer-ship/transfer-system/`
 
 ---
 
 ## Visual / story purpose
 
-The Transfer Apparatus is the primary environmental Hero object in TS-01.
+The Apparatus establishes the central Numberdroid fantasy that a persistent identity/Core can move between bodies.
 
-It must make the first Transfer feel desirable, precise and empowering while clearly communicating the central Numberdroid fantasy that a persistent **CORE/person moves into a BODY/SLOT**.
+It must make Transfer initially feel:
 
-The form must not read primarily as a generic teleporter, reactor, medical scanner, altar or glowing platform. The same elegant civilian technology later participates in the emotional reversal when the parents are transferred away, so the initial machine must not be visually coded as evil.
+- desirable;
+- precise;
+- technically competent;
+- empowering rather than sinister;
+- important enough that the Transfer Room is compositionally built around it.
 
-Approved function-to-form sequence:
+Accepted functional sequence:
 
 ```text
-HUMAN ENTRY / TRANSFER BED
+HUMAN ENTRY / RECEIVING AREA
         ↓
-CORE RECEIVER / TRANSFER NODE
+CENTRAL CORE PLATFORM / TRANSFER FOCUS
         ↓
-EMPTY PICO BODY DOCK
+BODY DOCK / OUTPUT
         ↓
-CLEAR SOUTH DRIVE-OUT DIRECTION
+CLEAR SOUTH EXIT DIRECTION
 ```
 
 Binding separations:
 
-- no biological character baked into the Prop;
-- yellow Core is a separate future movable source/FX component;
-- PICO is a separate Character/body asset;
-- static Apparatus owns the Human receiving surface, Core receiver/path and empty Body Dock.
+- no biological character baked into the Apparatus;
+- Yellow Core is a separate accepted movable visual component;
+- PICO/other bodies remain separate Character assets;
+- static Apparatus owns the receiving structure, resting platform and output/dock machinery.
 
 ---
 
-## Approved high-resolution source
+## Accepted high-resolution source
 
-Canonical archive source:
+Canonical source:
 
 ```text
-art-source/approved/area-01-transfer-ship/transfer-system/
-└─ source/
-   └─ transfer-apparatus__approved-original__2026-08-17.png
+art-source/approved/area-01-transfer-ship/transfer-system/source/
+└─ transfer-apparatus__approved-original__2026-08-17.png
 ```
 
-Verified provenance:
+Verified current provenance:
 
 ```text
 component:          transfer-apparatus
 approval date:      2026-08-17
 source type:        ChatGPT image generation
-image_gen gen_id:   f86f346b-10b2-4783-a30f-6b08f7239fd0
-format:             PNG RGBA, non-interlaced
-original size:      1122 × 1402 px
-raw bytes:          1,231,884
-sha256:             f19ccfba6af722577b6bd8c49a0be15e45473867421e98d22c1fd018de6da794
-git blob sha1:      1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
-archive verification: PASS
+image_gen gen_id:   533a11b1-0b1d-4a9a-9648-373c6617a847
+format:             PNG RGBA, 8-bit, non-interlaced
+original size:      1086 × 1448 px
+raw bytes:          1,962,107
+sha256:             4adecec81c5e241a0952e0ed353836d6776f60960e9c8d1cf6e53727e402812c
+git blob sha1:      72a6e775cf5b9ae935e9af68032566a56cff22c1
+repository verify:  PASS — byte-identical approved upload
 ```
 
-The archived original is immutable authoring authority. Runtime assets never replace it.
+The earlier approved source remains recoverable through Git history. The source above is the current visual authority.
+
+---
+
+## Accepted design language
+
+Final live-approved direction:
+
+- broad white/ceramic Hero silhouette;
+- graphite structural/recess details;
+- amber/yellow concentrated around Transfer/Core semantics;
+- restrained cyan system/status accents;
+- solid central platform for the separate Yellow Core;
+- readable Human intake and Body output/dock;
+- strong room focal point without generic military/hazard styling;
+- fixed orthographic / ND Shallow Top-Down compatibility.
+
+Color semantics learned during iteration:
+
+```text
+WHITE / CERAMIC  = maintained civilian high-tech shell
+GRAPHITE         = structure / technical depth
+AMBER / YELLOW   = Transfer / Core identity / primary energy focus
+CYAN / BLUE      = status / scan / stabilization / interface support
+```
+
+Too much amber read too strongly as a generic reactor; restrained cyan accents improved the controlled technical read.
+
+---
+
+## Source-design / scale lessons
+
+The production cycle explicitly separated three questions:
+
+1. Is the **functional source design** correct?
+2. Is the **physical world scale** believable next to PICO?
+3. Does the object have enough **Hero prominence** in the room?
+
+A runtime-scale issue must not automatically trigger source regeneration. Conversely, a physically plausible scale can still reveal that the source silhouette uses its available footprint poorly.
+
+The final design intentionally gains Hero weight through breadth, central focus and visual mass rather than making the Human receiving area implausibly huge.
+
+See the dedicated lessons record for the full iteration history.
 
 ---
 
 ## Deterministic production materialization
 
-Runtime candidate is generated from the archived original by:
+Accepted build path:
 
 ```text
 scripts/materialize-transfer-apparatus.mjs
 → scripts/art/toolkit/prop-source.mjs
 → public/assets/deck/transfer-apparatus.png
+→ public/assets/deck/transfer-apparatus-shadow.png
 ```
 
-The materializer validates source byte size, SHA-256 and dimensions before processing, then runs the proven alpha Crop/Fit path.
-
-Binding production settings / CI result:
+Accepted production contract:
 
 ```text
-source dimensions:       1122 × 1402 px
+source validation:       byte size + SHA-256 + 1086×1448 dimensions
 alpha cutoff:            4
-source alpha crop:       x=282, y=0, w=559, h=1391
-runtime canvas:          192 × 384 px
-runtime tile canvas:     3 × 6 tiles @ 64 px/tile
+source alpha crop:       x=10, y=0, w=1065, h=1448
+runtime canvas:          256 × 384 px
+runtime tile canvas:     4 × 6 tiles @ 64 px/tile
 runtime margin:          8 px
-runtime content bounds:  x=22, y=8, w=148, h=368
-runtime SHA-256:         d51ca49526553386128cdbe13b321a5927c7a244f0019919586b35f669b97a85
-art registry status:     candidate
-shadow:                  not yet authored
+runtime content bounds:  x=8, y=29, w=240, h=326
+runtime SHA-256:         29128f45d6fc3ce9ae97ed69e0df89565d9e6dbc0fe0961fca971668a9eb3ccd
 ```
 
-The source alpha crop and runtime content bounds are regression-checked by the materializer so source drift fails the build instead of silently changing the asset.
+The runtime PNG is a reproducible build product, not source authority.
+
+---
+
+## Shadow / grounding authority
+
+The accepted shadow is a separate deterministic FloorFX derivative generated after the runtime scale was settled.
+
+```text
+shadow canvas:           256 × 384 px
+source:                  accepted runtime silhouette
+method:                  thresholded silhouette + restrained deterministic blur
+runtime offset:          approximately +2 px X / +6 px Y
+shadow SHA-256:          2839b266b8181cded0ae4213741ba2124c0fd26bb2e07dd02f81eb22b658b511
+live QA:                 PASS
+```
+
+The shadow owns grounding only. It carries no collision and no scene-lighting authority.
 
 ---
 
@@ -117,142 +176,121 @@ Semantic Prop ID:
 transfer-core
 ```
 
-Current production contract on PR #95:
+Accepted contract:
 
 ```text
 attachment:           floor
 allowed rotations:    [0]
-coarse footprint:     3 × 6 tiles
+coarse footprint:     4 × 6 tiles
 placement role:       Hero
 room preference:      center
 Door Clearance:       forbidden
 primary path:         protected
-Hero clearance:       1 tile
-visual Exact-Fit:     x=0.34375, y=0.125, w=2.3125, h=5.75 tiles
+Hero clearance:       preserved by compiler constraints
+visual Exact-Fit:     x=0.125, y=0.453125, w=3.75, h=5.09375 tiles
+art registry status:  accepted
 ```
 
-The previously accepted TS-01 Transfer room was too short for the larger approved Hero. Placement QA proved the necessary change; only the vertical dimension was enlarged:
-
-```text
-transfer-room preferred geometry: 10 × 8 tiles
-height range: min 8 / preferred 8 / max 9
-```
-
-This is not cosmetic room growth: the 3×6 Hero plus authored Hero clearance could not legally place in the previous 6-tile-high room.
-
-### Multipart collision
-
-The Apparatus is not one solid 3×6 rectangle. Collision is authored as five physical machine regions:
-
-```text
-upper left Human-bed rail
-upper right Human-bed rail
-solid central Core receiver
-lower left Body-Dock rail
-lower right Body-Dock rail
-```
-
-Binding gameplay openings:
-
-- Human receiving center lane is open;
-- central Core receiver is solid;
-- PICO Body-Dock center is open;
-- south drive-out lane remains open.
-
-Regression tests explicitly protect those conditions.
+The Transfer Room remains 10×8 in the generated composition and comfortably supports the accepted 4×6 Hero plus circulation.
 
 ---
 
-## Perspective / visual language
+## Authored silhouette collision
 
-Use the accepted Transfer Ship language:
+The accepted Apparatus must block normal Human and Robot movement across every physically visible machine region while leaving transparent outer whitespace usable.
 
-- fixed orthographic/top-down world;
-- ND Shallow Top-Down treatment, top surfaces/footprint dominant;
-- no strong isometric extrusion or converging perspective;
-- maintained civilian machinery;
-- ceramic/light neutral construction;
-- graphite technical recesses;
-- warm amber/yellow reserved for CORE/Transfer identity;
-- restrained teal/cyan as system/status support;
-- no military hazard styling.
+A few broad rectangles proved inadequate. The accepted solution is:
 
-The approved source is accepted at source level; live runtime QA still decides whether the 192×384 candidate retains adequate read in the real room.
+```text
+collision authoring grid: 16 × 24 quarter-tile occupancy mask
+world canvas:             4 × 6 tiles
+compiled collision:       9 runtime rectangles
+normal Human movement:    blocked across visible machine body
+normal Robot movement:    blocked across visible machine body
+outer transparent corners: navigable
+```
+
+The mask is authored gameplay geometry in `propCollisionRegistry.ts`.
+
+Important rule:
+
+> Raster alpha is not runtime collision authority.
+
+The visual silhouette informed the authored mask, but gameplay collision remains deterministic metadata/code. Future Transfer choreography explicitly places/moves actors onto the machine by script rather than leaving permanent movement holes in ordinary collision.
+
+---
+
+## Yellow Core relationship
+
+The accepted Apparatus contains only the **resting platform**, not the Yellow Core itself.
+
+The Yellow Core is independently accepted and rendered as a separate `transfer-fx` component:
+
+`art-source/recipes/transfer-hall/yellow-core/recipe.md`
+
+Static resting composition:
+
+```text
+Transfer Apparatus FloorProp
++ Yellow Core transfer-fx
+= accepted TS-01 resting state
+```
+
+This separation is intentional preparation for later Transfer movement/animation.
 
 ---
 
 ## Authority split
 
 ```text
-Visual silhouette authority:   archived approved source
-Production transform:          deterministic materializer + Prop toolkit
-Coarse placement authority:    propRegistry.ts / compiler
-Collision authority:           propCollisionRegistry.ts
-Art registration:              propArtRegistry.ts (`candidate`)
-Shadow authority:              separate FloorFX after Production/Live QA
-PICO/body authority:           separate Character/entity
-Core-sphere authority:         separate movable component in transfer-system
-Scene illumination:            runtime LightOverlay
+Visual source authority:     archived approved Apparatus source
+Production transform:        deterministic materializer + Art Toolkit
+Coarse placement authority:  propRegistry.ts / compiler
+Collision authority:         propCollisionRegistry.ts scripted silhouette
+Art registration:            propArtRegistry.ts (`accepted`)
+Shadow authority:            separate deterministic FloorFX
+Yellow Core authority:       separate accepted movable transfer-fx component
+PICO/body authority:         separate Character/entity lifecycle
+Scene illumination:          runtime LightOverlay
 ```
 
-No atlas packing is required for this generated TS-01 path.
+No atlas packing is required for the current generated TS-01 path.
 
 ---
 
-## Image-generation trigger contract
+## Final live acceptance
 
-The Apparatus itself does not need another image-generation pass.
+The deployed 4×6 Apparatus, shadow and silhouette collision were explicitly reviewed and fully approved by Klaus on 2026-08-17.
 
-For any future Prop image generation, the hard authorization contract remains:
+Final state:
 
 ```text
-trim(currentUserMessage).toLowerCase() === "generieren"
+SOURCE APPROVED
+→ USER UPLOAD VERIFIED
+→ APPROVED SOURCE ARCHIVED
+→ 4×6 RUNTIME MATERIALIZED
+→ SHADOW BUILT
+→ SCRIPTED SILHOUETTE COLLISION BUILT
+→ TEST / BUILD PASS
+→ LIVE SCALE QA PASS
+→ LIVE SHADOW QA PASS
+→ LIVE MOVEMENT/COLLISION QA PASS
+→ ART REGISTRY ACCEPTED
 ```
 
-`QA` is inspection-only. One authorized call produces one visual proposal and ends that turn.
-
-The next new generated source expected in this Asset Family is the **yellow Core**, after its own function-to-form discussion and explicit `generieren` command.
+The static Apparatus is therefore frozen unless a concrete defect or deliberate revision is approved.
 
 ---
 
-## Current validation state
+## Deliberately separate future work
 
-PR #95 current production validation:
+The following do not reopen this accepted static asset:
 
-```text
-approved-source archive:                    PASS
-binary transport guard:                     PASS
-approved-source upload handoff self-test:   PASS
-Art Toolkit self-test:                      PASS
-Transfer Apparatus production tests:        PASS
-full test suite:                            176 / 176 PASS
-Production Build:                           PASS
-runtime materialization contract:           PASS
-live deployed Art-Director QA:              PENDING
-shadow / grounding QA:                      PENDING
-LIVE_ACCEPTED:                              NO
-```
+- Human → Core → PICO choreography;
+- body → body Transfer animation;
+- Yellow Core motion path;
+- beam/synchronization/energy FX;
+- temporary scripted actor positioning/collision overrides during Transfer;
+- animation authoring sources under `transfer-system/animation/`.
 
-Do not promote `propArtRegistry` status from `candidate` merely because CI is green.
-
----
-
-## Next steps
-
-1. merge/deploy the current runtime candidate;
-2. inspect the generated TS-01 Transfer room at gameplay scale;
-3. verify Human entry, Core receiver and empty PICO dock/drive-out remain visually understandable;
-4. verify scale/placement/collision in live play;
-5. if Production/Live QA passes, create the separate neutral grounding shadow/FloorFX;
-6. QA the combined Apparatus + shadow;
-7. begin the separate yellow-Core source cycle in the same `transfer-system` Asset Family;
-8. only after explicit final live acceptance promote the appropriate art state.
-
-Acceptance questions remain:
-
-- does **human → Core receiver → robot Body Dock** remain readable at gameplay scale?
-- is the Human entry point obvious?
-- can PICO plausibly be staged in and drive out of the open dock?
-- is the Core receiver clearly distinct from the later movable yellow Core?
-- does the object remain empowering/civilian rather than sinister?
-- does the larger 10×8 Transfer room still preserve the intended Hero focus?
+Current project priority is Gold-Slice visual completion before treating those animation tasks as the next major block.
