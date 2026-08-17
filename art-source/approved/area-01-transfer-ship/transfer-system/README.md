@@ -8,7 +8,7 @@ This family groups the visual authoring sources that belong to the same Transfer
 
 Current / planned components:
 
-- **Transfer Apparatus** — static environmental Hero machine with Human receiving area, Core platform and empty robot Body Dock;
+- **Transfer Apparatus** — static environmental Hero machine with Human receiving area, Core platform and robot Body Dock;
 - **Yellow Core** — separate movable identity/Transfer-state visual, not baked permanently into the Apparatus;
 - **Transfer FX** — later source elements for Core movement / synchronization / energy flow;
 - **Animation sources** — later layered/turnaround/source files needed by the animation toolchain.
@@ -77,17 +77,18 @@ USER_UPLOAD_VERIFIED
 
 ## Production derivative — Transfer Apparatus
 
-Current production state: **PRODUCTION_BUILT / 4×6 RUNTIME_CANDIDATE / LIVE_QA_PENDING**
+Current production state: **PRODUCTION_BUILT / 4×6 RUNTIME_CANDIDATE / SHADOW+COLLISION LIVE_QA_PENDING**
 
-The runtime candidate is generated deterministically from the archived authority by:
+The runtime candidate and its FloorFX shadow are generated deterministically from the archived authority by:
 
 ```text
 scripts/materialize-transfer-apparatus.mjs
 → scripts/art/toolkit/prop-source.mjs
 → public/assets/deck/transfer-apparatus.png
+→ public/assets/deck/transfer-apparatus-shadow.png
 ```
 
-The runtime PNG is a build product, not a replacement for the large approved source.
+The runtime PNG and shadow are build products, not replacements for the large approved source.
 
 ### Live QA scale decision — 2026-08-17
 
@@ -104,22 +105,37 @@ runtime tile canvas:     4 × 6 tiles @ 64 px/tile
 runtime margin:          8 px
 runtime content bounds:  x=8, y=29, w=240, h=326
 runtime SHA-256:         29128f45d6fc3ce9ae97ed69e0df89565d9e6dbc0fe0961fca971668a9eb3ccd
+shadow canvas:           256 × 384 px FloorFX
+shadow generation:       source silhouette threshold + soft deterministic blur + 2px/6px offset
+shadow SHA-256:          2839b266b8181cded0ae4213741ba2124c0fd26bb2e07dd02f81eb22b658b511
 art registry state:      candidate
-shadow:                  not yet authored; intentionally deferred until live QA
 ```
+
+### Live QA collision decision — 2026-08-17
+
+The first 4×6 integration used five broad rectangular collision parts. Live QA found two problems:
+
+1. normal Human/Robot movement could still cross the Human intake and lower dock portions of the visible machine;
+2. the broad central AABB unnecessarily blocked transparent floor in the four outer corners (LO / RO / RU / LU).
+
+The corrected contract is:
+
+- normal Human and Robot movement **cannot cross the visible Apparatus body**;
+- Transfer choreography later places/moves actors onto the machine explicitly by script rather than relying on holes in ordinary movement collision;
+- collision is authored as a deterministic `16 × 24` quarter-tile silhouette mask in `propCollisionRegistry.ts`;
+- the mask compacts into nine rectangular runtime collision parts;
+- transparent outer corner whitespace remains navigable;
+- the mask is authored gameplay geometry, not runtime PNG-alpha collision authority.
 
 Spatial production contract:
 
-- coarse footprint is now `4 × 6`;
-- Transfer room remains `10 × 8`; the enlarged Hero plus one-tile Hero clearance fits the existing room without changing room geometry;
-- visual Exact-Fit follows the doubled runtime content bounds;
-- collision remains multipart rather than one 4×6 block;
-- Human receiving center lane remains physically open;
-- broad central Transfer/Core platform remains solid;
-- PICO Body Dock center and south drive-out lane remain physically open;
-- `transfer-intro-zone` is now anchored to the `hall-to-transfer` entrance instead of room center, because the center is intentionally occupied by the enlarged Hero platform; this also matches the intended first-view story timing.
+- coarse placement footprint remains `4 × 6`;
+- Transfer room remains `10 × 8`; the Hero plus one-tile placement clearance fits without changing room geometry;
+- visual Exact-Fit follows the 4×6 runtime content bounds;
+- runtime collision follows the scripted silhouette rather than the complete 4×6 canvas;
+- the `transfer-intro-zone` remains anchored to the `hall-to-transfer` entrance, matching first-view story timing while the Hero occupies the room center.
 
-CI validation on PR #98 passes the full 176-test suite and Production Build with these contracts. Final live Art-Director QA of the 4×6 presentation remains a separate state.
+PR #99 validates the shadow registration and collision semantics, including regression points for the blocked machine centerline and all four navigable outer whitespace corners. Final live Art-Director QA of shadow weight and movement feel remains a separate state.
 
 ## Future Yellow Core source
 
