@@ -3,7 +3,10 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
-export const INLINE_BASE64_LIMIT_BYTES = 16 * 1024;
+// Kept as a report/compatibility field. Repository binary Base64 is now
+// categorically prohibited, so the effective byte ceiling is zero and the
+// authorization predicate below never permits the inline path.
+export const INLINE_BASE64_LIMIT_BYTES = 0;
 
 export function base64EncodedSize(rawBytes) {
   return 4 * Math.ceil(rawBytes / 3);
@@ -11,7 +14,7 @@ export function base64EncodedSize(rawBytes) {
 
 export function classifyBinaryTransport(rawBytes) {
   const encodedBytes = base64EncodedSize(rawBytes);
-  const inlineBase64Allowed = rawBytes <= INLINE_BASE64_LIMIT_BYTES;
+  const inlineBase64Allowed = false;
 
   return {
     rawBytes,
@@ -19,9 +22,7 @@ export function classifyBinaryTransport(rawBytes) {
     base64ExpansionBytes: encodedBytes - rawBytes,
     inlineBase64LimitBytes: INLINE_BASE64_LIMIT_BYTES,
     inlineBase64Allowed,
-    recommendedTransport: inlineBase64Allowed
-      ? "prefer-file-transport; connector-inline-base64-allowed-as-last-resort"
-      : "real-file-transport-required-or-BINARY_TRANSPORT_BLOCKED",
+    recommendedTransport: "real-file-transport-required-or-BINARY_TRANSPORT_BLOCKED",
   };
 }
 
@@ -63,12 +64,16 @@ async function main() {
   const result = {
     ok: true,
     file,
+    policy: "INLINE_REPOSITORY_BINARY_BASE64_PROHIBITED",
     ...classification,
   };
 
   console.log(JSON.stringify(result, null, 2));
 
-  if (requireInline && !classification.inlineBase64Allowed) {
+  // Assertion mode exists specifically to make accidental Base64 construction
+  // fail before the caller reads/encodes the binary. Under the current policy
+  // it therefore always rejects repository-binary inline transport.
+  if (requireInline) {
     process.exit(2);
   }
 }
