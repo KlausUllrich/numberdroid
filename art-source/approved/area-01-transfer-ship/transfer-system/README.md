@@ -28,7 +28,7 @@ transfer-system/
 
 ## Approved source record — Transfer Apparatus
 
-Current state: **APPROVED_SOURCE_ARCHIVED**
+Current source state: **APPROVED_SOURCE_ARCHIVED**
 
 The latest approved generated source is visually approved by Klaus and is the visual authority for the current Transfer Apparatus direction.
 
@@ -75,7 +75,46 @@ USER_UPLOAD_VERIFIED
 → APPROVED_SOURCE_ARCHIVED
 ```
 
-Production Crop/Fit/downscale work may now proceed from this archived original.
+## Production derivative — Transfer Apparatus
+
+Current production state: **PRODUCTION_BUILT / RUNTIME_CANDIDATE / LIVE_QA_PENDING**
+
+The runtime candidate is generated deterministically from the immutable archived original by:
+
+```text
+scripts/materialize-transfer-apparatus.mjs
+→ scripts/art/toolkit/prop-source.mjs
+→ public/assets/deck/transfer-apparatus.png
+```
+
+The runtime PNG is a build product, not a replacement for the large approved source.
+
+Verified CI materialization contract:
+
+```text
+source validation:       byte size + SHA-256 + 1122×1402 dimensions
+alpha cutoff:            4
+source alpha crop:       x=282, y=0, w=559, h=1391
+runtime canvas:          192 × 384 px
+runtime tile canvas:     3 × 6 tiles @ 64 px/tile
+runtime margin:          8 px
+runtime content bounds:  x=22, y=8, w=148, h=368
+runtime SHA-256:         d51ca49526553386128cdbe13b321a5927c7a244f0019919586b35f669b97a85
+art registry state:      candidate
+shadow:                  not yet authored; intentionally deferred until Production/Live QA
+```
+
+Spatial production contract:
+
+- coarse footprint: `3 × 6`;
+- Transfer room: preferred/required production height `8` tiles, width remains `10` preferred;
+- visual Exact-Fit follows the runtime content bounds;
+- collision is multipart rather than one 3×6 block;
+- Human receiving lane remains physically open;
+- central Core receiver remains solid;
+- PICO Body Dock center and south drive-out lane remain physically open.
+
+CI validation on PR #95 passes the full 176-test suite and Production Build with these contracts. Final visual/live Art-Director QA remains a separate state.
 
 ## Future yellow Core source
 

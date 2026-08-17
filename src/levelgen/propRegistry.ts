@@ -68,8 +68,15 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     placement: { requiredSpaceTags: ["hygiene"], preferWallAdjacent: true, preferOppositeDoor: true, forbidDoorClearance: true, forbidPrimaryPath: true },
   },
   "transfer-core": {
-    id: "transfer-core", tags: ["transfer", "hero", "machine", "core"], attachment: "floor", allowedRotations: [0], footprintTiles: { w: 3, h: 3 },
+    id: "transfer-core", tags: ["transfer", "hero", "machine", "core"], attachment: "floor", allowedRotations: [0], footprintTiles: { w: 3, h: 6 },
     placement: { preferRoomCenter: true, forbidDoorClearance: true, forbidPrimaryPath: true, clearanceAroundTiles: 1 },
+    // Approved source is deterministically fitted to a 192×384 (3×6 tile) canvas.
+    // Physical collision is deliberately multipart so the Human bed and PICO dock remain enterable.
+    exactFit: {
+      visualBoundsTiles: { x: 0.34375, y: 0.125, w: 2.3125, h: 5.75 },
+      placementEnvelope: "visual",
+      wallBoundary: "visual",
+    },
   },
   "transfer-hologram": {
     id: "transfer-hologram", tags: ["transfer", "control", "hologram", "support"], attachment: "floor", allowedRotations: [0, 90, 180, 270], footprintTiles: { w: 1, h: 1 },
