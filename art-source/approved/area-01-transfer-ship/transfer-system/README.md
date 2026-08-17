@@ -28,17 +28,17 @@ transfer-system/
 
 ## Approved source record — Transfer Apparatus
 
-Current state: **SOURCE_APPROVED / ARCHIVE_PENDING / USER_UPLOAD_REQUIRED**
+Current state: **APPROVED_SOURCE_ARCHIVED**
 
 The latest approved generated source is visually approved by Klaus and is the visual authority for the current Transfer Apparatus direction.
 
-Expected archive target:
+Archive path:
 
 ```text
 source/transfer-apparatus__approved-original__2026-08-17.png
 ```
 
-Verified source metadata from the approved original:
+Verified source metadata:
 
 ```text
 component:          transfer-apparatus
@@ -53,40 +53,29 @@ git blob sha1:      1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
 recipe:             art-source/recipes/transfer-hall/transfer-apparatus/recipe.md
 ```
 
-### Archive transport status
+### Manual upload verification — 2026-08-17
 
-The approved original has been prepared byte-identically under the canonical archive filename, but is **not yet committed to this repository path**.
+Klaus manually uploaded the prepared byte-identical approved original to the canonical archive path.
 
-The active GitHub connector exposes no real binary file/path upload action and `docs/agents/BINARY_ASSET_TRANSPORT.md` prohibits inline Base64 through the agent.
-
-Therefore the next required workflow step is the manual handoff defined by:
-
-`docs/art/production/APPROVED_SOURCE_UPLOAD_HANDOFF.md`
-
-State:
+The Agent verified the repository object without downloading/re-serializing the binary through the model:
 
 ```text
-LOCAL_BINARY_READY
-SOURCE_APPROVED
-BINARY_TRANSPORT_BLOCKED
-ARCHIVE_PENDING
-USER_UPLOAD_REQUIRED
+expected filename:  transfer-apparatus__approved-original__2026-08-17.png
+repository size:    1,231,884 bytes
+expected size:      1,231,884 bytes
+repository blob:    1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
+expected blob:      1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
+verification:       PASS
 ```
 
-After Klaus uploads the exact prepared file and replies `hochgeladen`, the Agent verifies:
-
-- exact target filename;
-- raw size `1,231,884` bytes;
-- GitHub blob SHA `1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1`.
-
-Only after that verification may this state become:
+Therefore the archive gate is closed:
 
 ```text
 USER_UPLOAD_VERIFIED
-APPROVED_SOURCE_ARCHIVED
+→ APPROVED_SOURCE_ARCHIVED
 ```
 
-Do not continue destructive/downscaling production before the archive gate closes unless Klaus explicitly changes the preservation policy.
+Production Crop/Fit/downscale work may now proceed from this archived original.
 
 ## Future yellow Core source
 
