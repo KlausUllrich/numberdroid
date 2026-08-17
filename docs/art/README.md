@@ -26,6 +26,7 @@ Do not infer current status from an old “next” paragraph inside a long art-d
 - Transfer Ship visual thesis: `direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-method Artist workflow: `production/ARTIST_AGENT_WORKFLOW.md`
 - **approved high-resolution source preservation:** `production/APPROVED_SOURCE_ARCHIVE.md` + `../../art-source/approved/README.md`
+- **manual approved-source user upload handoff:** `production/APPROVED_SOURCE_UPLOAD_HANDOFF.md`
 - **binding Prop function-analysis → user-alignment → single-source → QA → approval → archive → extraction → shadow → editor/runtime workflow:** `production/PROP_ASSET_WORKFLOW.md`
 - hard Prop generation authorization: `production/HARD_GENERATION_COMMAND_GATE.md`
 - ChatGPT image-tool turn execution: `production/IMAGE_GENERATION_TURN_CONTRACT.md`
@@ -63,6 +64,8 @@ Related components that should remain together for future authoring/animation us
 
 The byte-identical approved original is preserved before destructive/downscaling production work. Runtime files under `public/` never replace that high-quality source as authoring authority.
 
+If automatic binary publication is unavailable, the Artist must enter `USER_UPLOAD_REQUIRED` and give Klaus the complete handoff defined in `APPROVED_SOURCE_UPLOAD_HANDOFF.md`: prepared downloadable file, exact filename/branch/path, size + hashes, four upload steps, then verify after Klaus replies `hochgeladen`.
+
 ## Current TS-01 Gold Slice status
 
 ```text
@@ -75,8 +78,9 @@ Family Memory Console   LIVE_ACCEPTED
 Family Props Batch 2    LIVE_CANDIDATE
 Layout-v3 structure     ACCEPTED generated semantic baseline
 v0.13.2 stabilization   LIVE QA ACCEPTED
-Transfer Apparatus      SOURCE_APPROVED / ARCHIVE_PENDING
-Flow support / FloorFX  NEXT after Transfer hero
+Transfer Apparatus      APPROVED_SOURCE_ARCHIVED / PRODUCTION_READY
+Yellow Core             NEXT SOURCE ASSET in transfer-system
+Flow support / FloorFX  NEXT after Transfer hero/Core
 PRIMUS hero/system art  NEXT after Transfer/Flow
 Useful domestic assets  AFTER hero hierarchy
 Final room cohesion     AFTER production asset replacement
@@ -85,11 +89,11 @@ Other robots            AFTER Gold Slice as required
 
 The active problem is no longer “make the generated Floor spatially safe.” v0.13.2 is the accepted spatial/presentation stabilization baseline. The active problem is **Generated TS-01 feature/art parity and Gold Slice visual completion**.
 
-For the current Transfer Apparatus, the visual source itself is approved, but the full-resolution original still needs safe binary publication into `art-source/approved/area-01-transfer-ship/transfer-system/source/` before the archive gate is complete.
+The current Transfer Apparatus source is now both visually approved and durably archived. The manually uploaded source was verified by exact filename, raw byte size and Git blob SHA before the archive gate was closed.
 
 ### Important review-state distinction
 
-`SOURCE_APPROVED`, `APPROVED_SOURCE_ARCHIVED`, `PRODUCTION_QA_PASSED`, `RUNTIME_INTEGRATED`, `CI_GREEN`, `DEPLOYED` and `LIVE_ACCEPTED` are distinct states.
+`SOURCE_APPROVED`, `USER_UPLOAD_REQUIRED`, `APPROVED_SOURCE_ARCHIVED`, `PRODUCTION_QA_PASSED`, `RUNTIME_INTEGRATED`, `CI_GREEN`, `DEPLOYED` and `LIVE_ACCEPTED` are distinct states.
 
 Current candidate assets remain:
 
@@ -114,7 +118,7 @@ The current detailed sequence lives in `../planning/TS01_GOLD_SLICE_EXECUTION_PL
 
 In short:
 
-1. finish Transfer Apparatus approved-source archive, then production/integration;
+1. create production Crop/Fit + spatial integration for the archived Transfer Apparatus;
 2. create/approve/archive the yellow Core within the same `transfer-system` Asset Family;
 3. Flow support + justified FloorFX grounding/path;
 4. PRIMUS hero/system wall object / service presentation;
@@ -133,6 +137,7 @@ understand what the asset must do
 → use `QA` for inspection-only review
 → Klaus explicitly approves a source
 → archive the full approved original under Campaign Area + Asset Family
+→ if needed: USER_UPLOAD_REQUIRED → Klaus uploads → `hochgeladen` → verify
 → only then create production derivatives
 ```
 
