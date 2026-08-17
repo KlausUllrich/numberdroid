@@ -1,12 +1,16 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — 2026-08-17 after Transfer Apparatus + Yellow Core LIVE QA acceptance**
+Status: **current forward plan — 2026-08-17 after Flow source integration and TS-01 Floor-pass reprioritization**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
 Detailed TS-01 Gold Slice execution:
 
 `docs/planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`
+
+Current Floor treatment brief:
+
+`art-source/recipes/transfer-hall/floor-treatment/recipe.md`
 
 Transfer Hero production lessons:
 
@@ -97,7 +101,7 @@ Current proven method/tooling includes:
 
 - M1 Direct Generative Source;
 - M2 Controlled Art Pass;
-- M4 Procedural 2D Compositor for Walls/Doors;
+- M4 Procedural 2D Compositor for topology/material-critical 2D work;
 - deterministic approved-source validation;
 - Crop/Fit/downscale with premultiplied-alpha Lanczos;
 - deterministic shadow derivation;
@@ -113,7 +117,7 @@ M3 layered-editor infrastructure and broader generic Freistellen/atlas tooling r
 Frozen unless a concrete defect or deliberate revision appears:
 
 - **PICO** — LIVE_ACCEPTED source baseline;
-- **Floor** — accepted baseline;
+- **Floor base material family** — accepted baseline;
 - **Walls / Architecture** — LIVE_ACCEPTED;
 - **Doors** — LIVE_ACCEPTED;
 - **Family Table + shadow** — LIVE_ACCEPTED;
@@ -121,66 +125,77 @@ Frozen unless a concrete defect or deliberate revision appears:
 - **Transfer Apparatus + shadow + silhouette collision** — LIVE_ACCEPTED;
 - **Yellow Core static resting state** — LIVE_ACCEPTED at 96×96 on separate `transfer-fx` layer.
 
-Still visual candidates pending final room-context disposition:
+Still visual/runtime candidates pending final room-context disposition:
 
 - Round Plant + shadow;
 - Planter Trough + shadow;
 - Coffee Machine + shadow;
-- Hologram Pedestal + shadow.
+- Hologram Pedestal + shadow;
+- Flow Regulator — approved/archived source, 128×128 runtime candidate, live scale QA pending.
 
 ---
 
-## Transfer System production milestone — completed static Hero block
+## Transfer System static Hero milestone — established
 
-The Transfer hero cycle is now a proven complete production case.
+Accepted/proven:
 
-Key accepted results:
+- broad 4×6 Apparatus Hero;
+- deterministic 256×384 runtime materialization;
+- separate grounding shadow;
+- authored silhouette collision preserving transparent playable corners;
+- Yellow Core as a separate 96×96 movable `transfer-fx` visual;
+- source/runtime scale split;
+- movable components not forced into static Prop lifecycle.
 
-- broad 4×6 Apparatus Hero establishes the Transfer Room focal point;
-- source and runtime scale are treated as separate authorities;
-- deterministic 256×384 Apparatus runtime materialization;
-- separate deterministic grounding shadow;
-- authored 16×24 quarter-tile silhouette collision compacted to runtime rectangles;
-- normal Human/Robot movement cannot cross visible machine mass;
-- transparent outer corner whitespace remains navigable;
-- Yellow Core remains a separate movable visual rather than baked Apparatus pixels;
-- Yellow Core accepted at 96×96 and centered on the Apparatus resting platform;
-- movable Core uses `transfer-fx`, not normal static Prop semantics.
-
-These learnings are now recorded both in recipes and the dedicated historical lessons document.
+Flow support now extends this system without reopening the accepted Apparatus/Core.
 
 ---
 
 ## CURRENT milestone — make the Gold Slice visually representative
 
-The generated TS-01 is structurally sound but still visually sparse. **Current priority is to make the Gold Slice beautiful/coherent before expanding campaign production or investing in full Transfer choreography.**
+The generated TS-01 is structurally sound but still visually sparse/flat. **Current priority is to make the static Gold Slice beautiful/coherent before expanding campaign production or investing in full Transfer choreography.**
 
-Planned sequence:
+Current live review promoted floor identity/grounding from a late polish item to a major production block.
 
-1. **Flow support + functional Transfer FloorFX**
-   - make the accepted Apparatus feel part of a coherent engineered system;
-   - add only functionally justified paths/grounding/support visuals;
-   - do not create a competing focal point.
+### Planned sequence
 
-2. **PRIMUS hero/system wall object**
-   - establish the allocation/work-room identity;
+1. **TS-01 Floor identity / AO / wear + Transfer floor integration**
+   - different but related floor material treatment per room;
+   - subtle wall ambient occlusion / architectural grounding;
+   - use/wear/dirt based on plausible activity rather than global grunge;
+   - Transfer Hero floor anchoring/service registration;
+   - Main Hall circulation read;
+   - Family lived-in variation;
+   - PRIMUS systematic floor logic.
+
+2. **Complete Flow support integration**
+   - live-QA the existing 128×128 Flow Regulator candidate once Pages is available;
+   - finalize Flow collision/use-space and grounding shadow;
+   - add deterministic static Flow coupling bus as FloorFX;
+   - keep later active synchronization on separate `transfer-fx`.
+
+   This work is tightly coupled with step 1 and may be completed inside the same Floor/Transfer integration pass.
+
+3. **PRIMUS hero/system wall object**
+   - establish allocation/work-room identity;
    - competent, ordered, attractive rather than villain-black;
    - preserve open patrol/work center.
 
-3. **Useful domestic replacements**
+4. **Useful domestic replacements**
    - Child Bed;
    - Toy / personal storage;
    - minimal Hygiene fixture/support;
    - only named functional objects that materially improve habitation.
 
-4. **Full-room cohesion and candidate disposition**
+5. **Full-room cohesion and candidate disposition**
    - accept/revise/remove Coffee/Plants/Hologram in context;
    - remove obsolete blockouts;
-   - add missing grounding/contact shadows;
-   - restrained floor wear/use cues;
-   - lighting convergence with Transfer as primary warm local focus.
+   - tune grounding/shadows/AO;
+   - tune floor-treatment intensity rather than adding random texture;
+   - converge lighting with Transfer as primary warm local focus.
 
-5. **Desktop + phone Gold-Slice QA**
+6. **Desktop + phone Gold-Slice QA**
+   - room identity;
    - hierarchy;
    - readability;
    - movement/collision;
@@ -188,18 +203,48 @@ Planned sequence:
    - Numberdroid identity;
    - explicit final acceptance.
 
-6. **Only after the static Gold Slice reaches the representative quality bar:**
+7. **Only after the static Gold Slice reaches the representative quality bar:**
    - Human → Core → PICO choreography;
    - body → body Transfer choreography;
    - Core motion;
    - synchronization/beam/energy FX;
    - broader Transfer Ship content production.
 
-This ordering avoids polishing complex animation inside a room whose supporting visual language is still changing.
+---
+
+## Floor-treatment thesis now binding for TS-01
+
+The Transfer Ship should feel:
+
+> **clean, maintained, inhabited, used, not new, not sterile, not dirty.**
+
+A well-kept family home is a better cleanliness reference than a hospital/showroom.
+
+The Floor pass should not be one global dirt texture. It should combine:
+
+```text
+shared Transfer-Ship material family
++ room-specific Ground variation
++ wall/contact AO
++ room/use-specific wear
++ functional FloorFX
+```
+
+Production is expected to be predominantly deterministic/M4:
+
+- semantic room identity chooses the Ground variant;
+- Shared Wall Graph/architecture can drive static wall AO;
+- activity/traffic zones drive wear masks;
+- Flow endpoints drive exact FloorFX bus geometry;
+- `LightOverlay` remains actual scene illumination.
+
+Detailed contract:
+
+`art-source/recipes/transfer-hall/floor-treatment/recipe.md`
 
 ---
 
-## Durable production lessons promoted from the Transfer cycle
+## Durable production lessons
 
 Before acting on live visual QA, classify the problem:
 
@@ -217,16 +262,16 @@ Only the first two normally justify another source generation.
 
 Additional durable rules:
 
-- source design and runtime scale are separate problems;
-- physical scale and Hero prominence are separate problems;
+- source design and runtime scale are separate;
+- physical scale and Hero prominence are separate;
 - do not regenerate an approved source merely to resize it;
-- redesign a source only when its form cannot use the believable world footprint effectively;
 - shadow should be frozen after useful runtime scale converges;
 - PNG alpha is not gameplay collision authority;
-- shaped collision may be authored as deterministic silhouette/occupancy metadata while preserving transparent whitespace;
-- components that must move between environment and actors should not be forced into a static Prop lifecycle.
-
-Generalized workflow details live in `docs/art/production/PROP_ASSET_WORKFLOW.md`.
+- shaped collision may preserve transparent whitespace;
+- movable components need not use static Prop lifecycle;
+- accidental generated iconography is not semantic authority;
+- dirt/wear must communicate use/age rather than undirected noise;
+- AO/grounding is not scene illumination.
 
 ---
 
@@ -236,12 +281,13 @@ Once Generated TS-01 passes as the representative quality bar:
 
 1. implement/polish Transfer choreography using accepted Apparatus/Core authorities;
 2. decide which art-production patterns become reusable Transfer Ship standards;
-3. promote proven level-design/Prop metadata into reusable world/archetype rule sets;
-4. build only additional robot bodies/utility categories needed by next playable content;
-5. stress the compiler with dense PRIMUS, larger ship and larger Bio-Ark/natural floors;
-6. expand remaining Transfer Ship beats using the compiler + proven art grammar;
-7. run explicit Performance & Scale Pass before campaign-scale production readiness;
-8. write final Agent Authoring Guide last, after workflows stop changing materially.
+3. promote proven room-floor/AO/wear rules into reusable world/archetype rules if they survive QA;
+4. promote proven level-design/Prop metadata into reusable world/archetype rule sets;
+5. build only additional robot bodies/utility categories needed by next playable content;
+6. stress the compiler with dense PRIMUS, larger ship and larger Bio-Ark/natural floors;
+7. expand remaining Transfer Ship beats using compiler + proven art grammar;
+8. run explicit Performance & Scale Pass before campaign-scale readiness;
+9. write final Agent Authoring Guide last, after workflows stop changing materially.
 
 ---
 
@@ -249,12 +295,14 @@ Once Generated TS-01 passes as the representative quality bar:
 
 Do not silently freeze:
 
-- exact Flow-support asset inventory;
+- exact room floor material variants until live QA;
+- exact AO falloff/opacity values;
+- exact wear-mask algorithm/intensity;
+- whether room-floor treatment becomes a reusable Level Compiler material-profile system after TS-01 proof;
 - final PRIMUS system-object form;
 - exact domestic micro-set needed for finished Family read;
 - whether full-room cohesion reveals a concrete need for M3 layered retouching;
-- whether later Transfer FX justify a dedicated animation compositor/tool;
-- generic atlas/downscale tooling only if another category proves the need.
+- whether later Transfer FX justify a dedicated animation compositor/tool.
 
 ---
 
@@ -264,17 +312,16 @@ For art:
 
 ```text
 recipe/method selected
-→ source produced
-→ source QA
-→ approved source archived
-→ production asset built
+→ source/algorithm produced
 → production QA
-→ shadow/spatial integration as applicable
+→ runtime integration
 → tests/build
 → deployed live QA
 → explicit acceptance
 → recipe/index status update
 ```
+
+For generated/procedural floor treatment, source approval may be replaced by explicit algorithm/material-variant review when no generative source is used.
 
 For shared compiler/spatial contracts:
 
@@ -287,4 +334,4 @@ contract/spec
 → explicit live acceptance
 ```
 
-`Merged` is not `LIVE_ACCEPTED`; `asset accepted` is not `Gold Slice accepted`.
+`Merged` is not `LIVE_ACCEPTED`; `asset accepted` is not `Floor Treatment accepted`; neither is `Gold Slice accepted`.
