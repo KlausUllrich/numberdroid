@@ -73,7 +73,12 @@ Before producing/editing gameplay art, follow the Artist route in `ROLE_ENTRYPOI
 
 For Prop or Prop-like environmental Hero work, `docs/agents/PROP_ARTIST_BRIEF.md` is the specialized direct onboarding route. It provides concise game/story/current-phase orientation and routes to the current Prop workflow, Level/Editor requirements, Art contracts, method/toolkit authorities, recipe and runtime consumers.
 
-For every ChatGPT `image_gen` call, also follow `docs/art/production/IMAGE_GENERATION_TURN_CONTRACT.md`. It owns the technical tool-channel / turn-ending behavior and is intentionally separate from asset-design rules.
+For every ChatGPT `image_gen` call, also follow:
+
+- `docs/art/production/HARD_GENERATION_COMMAND_GATE.md` — **hard authorization predicate**;
+- `docs/art/production/IMAGE_GENERATION_TURN_CONTRACT.md` — tool-channel / turn-ending behavior.
+
+The hard generation command gate has priority over any older/broader wording elsewhere that merely says the message “contains” the word `generieren`.
 
 In particular:
 
@@ -82,13 +87,14 @@ In particular:
 - for a new/materially revised Prop, first explain the **function-to-form design philosophy in text** and give the user a correction gate before image generation;
 - **one Prop proposal per generated image**; do not put A/B/C alternatives or several versions on one canvas;
 - if alternatives are wanted, generate them as separate turns with QA/user steering between candidates;
-- for Prop work, `image_gen` may be called only when the current user message contains the literal trigger word **`generieren`**;
-- one `generieren` trigger authorizes exactly one image-generation call for one proposal;
+- for Prop work, `image_gen` is prohibited unless `trim(currentUserMessage).toLowerCase() === "generieren"`;
+- the entire trimmed current user message must therefore be exactly the standalone command **`generieren`**; mentioning that word inside a sentence is not authorization;
+- `Bitte generieren`, `noch einmal generieren`, `wir sollten eine Variante generieren`, questions/discussion containing the word, and all other mixed-content messages are **not** authorization;
+- authorization is derived from the **current user message only**, never carried forward from a previous turn, and is consumed after exactly one `image_gen` call;
 - invoke `image_gen` only in the channel declared by the current tool schema; in the current ChatGPT environment this is **commentary**, never `final`;
 - after `image_gen` returns, emit **no additional assistant final response**; the tool return is the end of the generation turn;
 - the literal trigger word **`QA`** means inspection only and is a hard no-generation mode;
-- if `QA` and `generieren` occur in the same message, `QA` takes precedence and no image is generated;
-- `ok`, `ja`, `weiter`, `mach das`, `ändern`, `verbessern`, `nächste Variante` or similar conversational wording do not substitute for `generieren`;
+- `ok`, `ja`, `weiter`, `mach das`, `ändern`, `verbessern`, `nächste Variante` or similar conversational wording do not substitute for the standalone `generieren` command;
 - generated source is not automatically a production runtime asset;
 - accepted/frozen categories are not reopened without a concrete defect or explicit approved revision.
 
