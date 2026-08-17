@@ -17,6 +17,7 @@ const EXPECTED_SOURCE_BYTES = 1_962_107;
 const EXPECTED_SOURCE_SHA256 = "4adecec81c5e241a0952e0ed353836d6776f60960e9c8d1cf6e53727e402812c";
 const EXPECTED_SOURCE_SIZE = { width: 1086, height: 1448 };
 const EXPECTED_ALPHA_CROP = { x: 10, y: 0, w: 1065, h: 1448 };
+const EXPECTED_SHADOW_SHA256 = "2839b266b8181cded0ae4213741ba2124c0fd26bb2e07dd02f81eb22b658b511";
 // Live QA approved the Hero redesign but found the 2×3 presentation too small.
 // Keep the exact approved source and double only its runtime/world presentation
 // to 4×6 tiles so the Transfer Room can visually center on the apparatus.
@@ -133,12 +134,16 @@ if (!sameBounds(prepared.contentBounds, EXPECTED_CONTENT_BOUNDS)) {
 }
 
 const shadowPng = createGroundingShadow(prepared.rgba, 256, 384);
+const shadowSha = createHash("sha256").update(shadowPng).digest("hex");
+if (shadowSha !== EXPECTED_SHADOW_SHA256) {
+  throw new Error(`Transfer Apparatus grounding shadow drifted: ${shadowSha}`);
+}
+
 mkdirSync(dirname(outputPath), { recursive: true });
 writeFileSync(outputPath, prepared.png);
 writeFileSync(shadowOutputPath, shadowPng);
 
 const runtimeSha = createHash("sha256").update(prepared.png).digest("hex");
-const shadowSha = createHash("sha256").update(shadowPng).digest("hex");
 console.log(`Transfer Apparatus: validated approved source ${sourceWidth}x${sourceHeight}`);
 console.log(`Transfer Apparatus: alpha crop ${JSON.stringify(prepared.sourceBounds)}`);
 console.log(`Transfer Apparatus: runtime content ${JSON.stringify(prepared.contentBounds)} in 256x384 canvas`);
