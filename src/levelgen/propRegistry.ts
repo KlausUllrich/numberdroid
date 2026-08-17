@@ -70,11 +70,12 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
   "transfer-core": {
     id: "transfer-core", tags: ["transfer", "hero", "machine", "core"], attachment: "floor", allowedRotations: [0], footprintTiles: { w: 2, h: 3 },
     placement: { preferRoomCenter: true, forbidDoorClearance: true, forbidPrimaryPath: true, clearanceAroundTiles: 1 },
-    // Same approved source, now rendered at roughly half world scale on a 128×192 (2×3 tile) canvas.
-    // The narrow machine retains substantial transparent side padding. Collision remains multipart so
-    // the Human bed and PICO dock/drive-out lane remain enterable.
+    // Approved Hero redesign keeps the 2×3 world scale while filling almost the
+    // complete canvas width. This restores focal presence without overscaling the
+    // Human bed relative to PICO. Collision remains multipart so the Human intake
+    // and PICO dock/drive-out lane remain enterable.
     exactFit: {
-      visualBoundsTiles: { x: 0.421875, y: 0.0625, w: 1.15625, h: 2.875 },
+      visualBoundsTiles: { x: 0.0625, y: 0.21875, w: 1.875, h: 2.546875 },
       placementEnvelope: "visual",
       wallBoundary: "visual",
     },
