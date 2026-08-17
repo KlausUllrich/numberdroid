@@ -2,7 +2,7 @@
 
 Status: **historical production record + reusable lessons**
 
-This document records the reasoning and production discoveries from bringing the TS-01 Transfer Apparatus and Yellow Core from provisional blockout to live-accepted runtime art. Durable generalized rules are also promoted into `docs/art/production/PROP_ASSET_WORKFLOW.md`; final asset authority lives in the corresponding recipes and approved-source manifests.
+This document records the reasoning and production discoveries from bringing the TS-01 Transfer Apparatus and Yellow Core from provisional blockout to live-accepted runtime art. Durable generalized rules are promoted into the binding `docs/art/production/LIVE_QA_ITERATION_CLASSIFICATION.md` addendum, which supplements `PROP_ASSET_WORKFLOW.md`; final asset authority lives in the corresponding recipes and approved-source manifests.
 
 ## 1. Outcome
 
