@@ -2,7 +2,7 @@
 
 Status: **FLOW REGULATOR SOURCE APPROVED + ARCHIVED / 128×128 RUNTIME CANDIDATE / LIVE QA PENDING — 2026-08-17**
 
-This recipe owns the current Flow support design for the TS-01 Gold Slice. The physical Flow Regulator source is approved and byte-identically archived. A first runtime-scale candidate is being integrated before shadow, collision refinement and the deterministic floor coupling bus are finalized.
+This recipe owns the current Flow support design for the TS-01 Gold Slice. The physical Flow Regulator source is approved and byte-identically archived. A first runtime-scale candidate is integrated before shadow, collision refinement and the deterministic floor coupling bus are finalized.
 
 Current authorities:
 
@@ -140,11 +140,13 @@ runtime canvas:          128 × 128 px
 runtime tile canvas:     2 × 2 tiles @ 64 px/tile
 runtime margin:          8 px
 runtime content bounds:  x=8, y=8, w=111, h=112
-runtime SHA-256:         pending first CI materialization
+runtime SHA-256:         d939e6dded6605f46876fbbc6139200eb22c1a35a84650c8833b77bb68600cee
 art registry status:     candidate
 shadow:                  intentionally pending runtime scale QA
 static Flow bus:         intentionally pending runtime scale/placement QA
 ```
+
+CI pins and validates the source metadata, crop/content bounds and runtime SHA so either source drift or production-transform drift fails the build.
 
 The 2×2 canvas matches the existing semantic solver reservation, but the visible source uses only about 111×112 px inside that canvas. The reservation therefore remains composition/use-space rather than a requirement that visible machine mass fill all four tiles.
 
@@ -268,7 +270,8 @@ SOURCE APPROVED
 → USER UPLOAD VERIFIED
 → APPROVED SOURCE ARCHIVED
 → 128×128 deterministic runtime candidate
-→ tests/build/deploy
+→ 178 / 178 tests PASS
+→ production build PASS
 → LIVE SCALE QA beside Apparatus + PICO
 → final visual/collision bounds
 → grounding shadow
