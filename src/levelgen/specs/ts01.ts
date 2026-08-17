@@ -79,7 +79,10 @@ export const TS01_LEVEL_SPEC: LevelSpec = {
       size: {
         class: "hero",
         width: { min: 8, preferred: 10, max: 12 },
-        height: { min: 5, preferred: 6, max: 8 },
+        // The approved 3×6 Hero plus one-tile Hero clearance needs eight
+        // interior tiles vertically. Preserve width; grow only the dimension
+        // proven necessary by production placement QA.
+        height: { min: 8, preferred: 8, max: 9 },
       },
       relations: [{ targetId: "main-hall", relation: "south_of", strength: "required" }],
     },
