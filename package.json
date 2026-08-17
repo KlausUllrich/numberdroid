@@ -9,6 +9,8 @@
     "render-doors": "node scripts/render-transfer-hall-door-art.mjs",
     "validate-art-seams": "node scripts/validate-wall-seams.mjs",
     "art:toolkit-test": "node scripts/art/toolkit/selftest.mjs",
+    "repo:binary-preflight": "node scripts/repo/binary-transport-preflight.mjs",
+    "repo:binary-preflight-test": "node scripts/repo/binary-transport-preflight.selftest.mjs",
     "predev": "npm run materialize-art && npm run render-walls && npm run render-doors",
     "dev": "vite",
     "test": "vitest run",
