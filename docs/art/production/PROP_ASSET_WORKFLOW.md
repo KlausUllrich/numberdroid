@@ -4,7 +4,7 @@ Status: **binding production contract for Props and Prop-like Hero setpieces**
 
 This document specializes `ARTIST_AGENT_WORKFLOW.md` for isolated gameplay Props. It does not replace the general Artist workflow, validation rules, method-selection gate, category recipe or Level Compiler placement rules. When rules overlap, the stricter rule wins.
 
-The purpose is to make Prop production reproducible without relying on chat memory and to keep **functional reasoning, user alignment, visual approval, technical extraction, spatial authoring and runtime integration** as distinct gates.
+The purpose is to make Prop production reproducible without relying on chat memory and to keep **functional reasoning, user alignment, visual approval, source preservation, technical extraction, spatial authoring and runtime integration** as distinct gates.
 
 ---
 
@@ -23,6 +23,7 @@ CURRENT CONTEXT / PHASE
 → WAIT FOR / ENTER `QA`
 → ASSISTANT SOURCE QA
 → KLAUS SOURCE APPROVAL
+→ APPROVED SOURCE ARCHIVE
 → PRODUCTION EXTRACTION / NORMALIZATION
 → PRODUCTION QA
 → SHADOW / GROUNDING
@@ -38,11 +39,15 @@ No later step may silently compensate for a failed earlier step.
 
 A good-looking Prop that does not communicate its function is a failed design, not a successful source awaiting technical cleanup.
 
+An approved source that has not yet been durably archived is **not ready for destructive/downscaling production work**.
+
 ---
 
 # 2. Two explicit trigger words — binding interaction contract
 
 For Prop / Prop-like Hero image work, use two explicit user keywords as hard mode switches.
+
+The higher-authority standalone command predicate in `HARD_GENERATION_COMMAND_GATE.md` controls whether image generation is actually authorized. Any older/broader wording here must be interpreted through that hard gate.
 
 ## `QA` — inspection mode
 
@@ -57,25 +62,17 @@ If the user's current message contains the explicit word **`QA`** (case-insensit
 
 `QA` has priority over generation.
 
-If the same user message contains both `QA` and `generieren`, **QA wins**. Do not generate. A later user turn must contain `generieren` without `QA` to authorize the next image.
-
 ## `generieren` — image-generation authorization
 
-For this workflow, `image_gen` may be called **only when the user's current message explicitly contains the word `generieren`** (case-insensitive).
+For Prop work, image generation is authorized only by the standalone current-user command defined in `HARD_GENERATION_COMMAND_GATE.md`.
 
-The following do **not** authorize image generation by themselves:
+Equivalent current predicate:
 
-- `ok`, `ja`, `gut`;
-- `weiter`;
-- `mach das`;
-- `ändern`, `überarbeiten`, `verbessern`;
-- `nächste Variante`;
-- discussion of what the next picture should show;
-- approval of the textual function-to-form philosophy without the literal word `generieren`.
+```text
+trim(currentUserMessage).toLowerCase() === "generieren"
+```
 
-Such messages may refine the concept, prompt, recipe or next plan. Image generation waits for the explicit `generieren` trigger.
-
-One `generieren` trigger authorizes:
+One authorized generation turn means:
 
 - exactly **one** image-generation call;
 - exactly **one** visual proposal;
@@ -83,8 +80,6 @@ One `generieren` trigger authorizes:
 - no integration/extraction after the generated image in the same turn.
 
 The generated image is the end of that production turn. It must be inspected before another generation.
-
-This trigger contract deliberately removes ambiguity between discussion, QA and expensive image-tool execution.
 
 ---
 
@@ -139,7 +134,7 @@ The explanation should be short enough to review but concrete enough to challeng
 
 This is a real correction/alignment gate.
 
-**Do not call image generation merely because the Artist has finished presenting the philosophy.** Even after alignment, wait for the explicit user trigger `generieren`.
+Do not call image generation merely because the Artist has finished presenting the philosophy. Even after alignment, wait for the standalone `generieren` command required by the hard generation gate.
 
 The purpose is to make conceptual mistakes cheap. It is much faster to correct “this looks like a teleporter, but it needs to communicate Core → Body transfer” in text than after several image generations.
 
@@ -169,13 +164,13 @@ If the user wants several visual alternatives, they are separate proposal cycles
 
 ```text
 Candidate A
-→ user says `generieren`
+→ user says standalone `generieren`
 → one image-generation turn
 → QA / user reaction
 
 Candidate B, if still wanted
 → revise direction as needed
-→ user says `generieren`
+→ user says standalone `generieren`
 → one image-generation turn
 → QA / user reaction
 ```
@@ -236,9 +231,11 @@ SHADOW PLAN
 EXACT-FIT / WALL-BOUNDARY PLAN
 RUNTIME ASSET PATH
 RECIPE PATH
+APPROVED ARCHIVE CAMPAIGN AREA
+APPROVED ARCHIVE ASSET FAMILY
 ```
 
-The Level Compiler mapping for these decisions is defined in `../../level-generation/PROP_AUTHORING_REQUIREMENTS.md`.
+The Level Compiler mapping for spatial decisions is defined in `../../level-generation/PROP_AUTHORING_REQUIREMENTS.md`.
 
 Do not generate an asset while its spatial role is still ambiguous. For example, a console that may be either wall-mounted or floor-standing needs that decision before art production because perspective, collision, rotations and editor behavior depend on it.
 
@@ -262,11 +259,9 @@ For ordinary Props and Hero objects:
 - no baked grounding shadow unless the recipe explicitly makes it inseparable;
 - no decorative structures whose only role is to make the image look more like concept art.
 
-The prompt should emphasize the **approved functional form**, not merely palette/style adjectives.
+The prompt should emphasize the approved functional form, not merely palette/style adjectives.
 
 For current Transfer Ship civilian-prop language, use the approved Numberdroid perspective contract from the relevant category recipe/art rules.
-
-The image call itself still waits for the literal `generieren` trigger defined above.
 
 ---
 
@@ -311,20 +306,68 @@ If the source is rejected:
 2. decide whether the failure is prompt execution, perspective, style or underlying function-to-form reasoning;
 3. if the design logic changes materially, present the revised philosophy in text first;
 4. update the recipe when durable learning changed;
-5. wait for a later explicit `generieren` trigger before making exactly one revised candidate.
+5. wait for a later standalone `generieren` command before making exactly one revised candidate.
 
 Do not crop or integrate a least-bad source.
 
+If the source is approved, proceed first to the archive gate below — **not directly to Crop/Fit**.
+
 ---
 
-# 11. Production extraction / normalization
+# 11. Approved source archive gate — mandatory
 
-The approved source is not automatically the runtime asset.
+After explicit source approval and before production extraction, preserve the highest-quality approved original according to:
+
+- `APPROVED_SOURCE_ARCHIVE.md`;
+- `../../../art-source/approved/README.md`;
+- `../../agents/BINARY_ASSET_TRANSPORT.md` for binary publication.
+
+Required decisions:
+
+```text
+CAMPAIGN AREA
+ASSET FAMILY
+COMPONENT NAME
+APPROVED ORIGINAL TARGET PATH
+SOURCE PROVENANCE / GEN-ID WHEN AVAILABLE
+DIMENSIONS / BYTE SIZE / SHA-256 WHEN AVAILABLE
+```
+
+Canonical Campaign Areas:
+
+```text
+area-01-transfer-ship
+area-02-deep-ocean
+area-03-extreme-industry
+area-04-moon-vacuum
+area-05-bio-ark-primus
+```
+
+Related assets that belong to one future authoring/animation workflow should share one **Asset Family**. Example: Transfer Apparatus + yellow Core + Transfer FX belong to `transfer-system/`.
+
+A source counts as archived only when the actual approved source file is durably reachable under `art-source/approved/...` and the family manifest identifies it.
+
+Do not mutate the approved original while archiving it.
+
+If binary transport is unavailable:
+
+```text
+SOURCE_APPROVED / ARCHIVE_PENDING
+BINARY_TRANSPORT_BLOCKED
+```
+
+Do not claim archive completion and do not proceed to destructive/downscaling production work by default. The purpose of this gate is precisely to prevent losing the large approved source needed for future animation/retouching.
+
+---
+
+# 12. Production extraction / normalization
+
+The archived approved source is not automatically the runtime asset.
 
 For alpha-bearing Prop sources, the reusable deterministic path is:
 
 ```text
-approved source PNG
+archived approved source PNG
 → validate/decode PNG
 → conservative low-alpha cleanup
 → crop to surviving alpha bounds
@@ -346,11 +389,13 @@ node scripts/art/prepare-prop-asset.mjs \
 
 This tool **does not perform semantic background removal**. If the approved source has an opaque or painted background, generic Freistellen remains a separate capability and must not be faked by thresholding arbitrary colors.
 
-The recipe records the actual extraction values used for the accepted production asset.
+Production derivatives should be preserved under the same Asset Family when they remain useful authoring masters, e.g. `art-source/approved/<area>/<family>/production/`, while runtime deployment output remains under `public/`.
+
+The recipe records the actual extraction values used for the accepted production asset and its archived-source relationship.
 
 ---
 
-# 12. Production QA
+# 13. Production QA
 
 Inspect the actual normalized runtime PNG independently from the approved large source.
 
@@ -372,13 +417,13 @@ Only the production asset proceeds to shadow/spatial integration.
 
 ---
 
-# 13. Shadow / grounding step
+# 14. Shadow / grounding step
 
 Grounding shadow is a separate `FloorFX` asset unless a category-specific exception is explicitly approved.
 
 The shadow is created **after** the visible Prop source/production asset is approved. It is not part of the initial visual-proposal image.
 
-If the shadow itself requires image generation, the same trigger rule applies: wait for the explicit word `generieren`, make exactly one shadow proposal, then stop for QA.
+If the shadow itself requires image generation, the same hard generation authorization rule applies: exactly one authorized proposal, then stop for QA.
 
 Default contract:
 
@@ -396,7 +441,7 @@ Klaus' final live review evaluates the combined Prop + shadow result in context.
 
 ---
 
-# 14. Spatial metadata finalization
+# 15. Spatial metadata finalization
 
 Art pixels never become gameplay geometry automatically.
 
@@ -420,7 +465,7 @@ If the asset requires a spatial rule the current registry/compiler cannot expres
 
 ---
 
-# 15. Level Editor / Workbench gate
+# 16. Level Editor / Workbench gate
 
 Before integration, confirm the asset is understandable to the current semantic Level Workbench.
 
@@ -441,7 +486,7 @@ Type-level asset rules belong in the Prop Registry. Level-instance intent belong
 
 ---
 
-# 16. Runtime integration
+# 17. Runtime integration
 
 For generated TS-01, the default production path is **individual registered assets**, not immediate global atlas packing.
 
@@ -460,7 +505,7 @@ Atlas packing is an optimization/asset-management concern and remains deferred u
 
 ---
 
-# 17. Integration QA and final acceptance
+# 18. Integration QA and final acceptance
 
 After registry integration:
 
@@ -473,11 +518,11 @@ After registry integration:
 7. obtain Klaus' live combined acceptance;
 8. update recipe/status to `LIVE_ACCEPTED` only then.
 
-`DESIGN PHILOSOPHY ALIGNED`, `SOURCE APPROVED`, `PRODUCTION QA PASSED`, `CI GREEN`, `MERGED`, `DEPLOYED` and `LIVE_ACCEPTED` are distinct states.
+`DESIGN PHILOSOPHY ALIGNED`, `SOURCE APPROVED`, `APPROVED SOURCE ARCHIVED`, `PRODUCTION QA PASSED`, `CI GREEN`, `MERGED`, `DEPLOYED` and `LIVE_ACCEPTED` are distinct states.
 
 ---
 
-# 18. Iteration discipline
+# 19. Iteration discipline
 
 Only one visual candidate is active at a time.
 
@@ -488,7 +533,7 @@ inspect / QA
 → identify the real failure
 → revise function-to-form philosophy/prompt as needed
 → tell the user what will change
-→ wait for `generieren`
+→ wait for standalone `generieren`
 → generate one new image
 → stop for QA again
 ```
