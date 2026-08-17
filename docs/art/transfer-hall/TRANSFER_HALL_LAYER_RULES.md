@@ -9,9 +9,10 @@ Status: **binding technical category contract — v0.13.2 generated spatial base
 3. Architecture: wall bands, corners, T-junctions, end caps and architectural door interfaces.
 4. WallProps: top-down wall equipment on transparent cells/sprites.
 5. FloorProps: top-down free-standing objects on transparent cells/sprites.
-6. Characters: player, NPC and enemy robots.
-7. LightOverlay: scene illumination, above world objects/characters but below UI.
-8. Overlay FX and UI: allegiance, scan, interaction and labels.
+6. Explicit movable world visuals such as accepted `transfer-fx` components when authored separately from normal Props.
+7. Characters: player, NPC and enemy robots.
+8. LightOverlay: scene illumination, above world objects/characters but below UI.
+9. Overlay FX and UI: allegiance, scan, interaction and labels.
 
 Props must never contain a floor/background plate. If removing a prop removes visible floor, the prop asset is wrong.
 
@@ -68,9 +69,10 @@ Canonical stabilized examples:
 
 - Family Table uses multipart table + seat collision;
 - Hologram pedestal uses a 0.70 × 0.70 tile physical collider;
+- accepted Transfer Apparatus uses authored silhouette collision so visible machine mass blocks normal movement while transparent outer corners remain traversable;
 - fallback Prop stubs are clipped/inset to the visible room interior.
 
-See `docs/level-generation/PROP_EXACT_FIT.md` and `GOLD_SLICE_REGRESSION_GATES.md`.
+See `docs/level-generation/PROP_EXACT_FIT.md`, `GOLD_SLICE_REGRESSION_GATES.md` and `docs/art/production/LIVE_QA_ITERATION_CLASSIFICATION.md`.
 
 ## Current production state
 
@@ -83,17 +85,18 @@ Family Table            LIVE_ACCEPTED
 Family Memory Console   LIVE_ACCEPTED
 Family Props Batch 2    LIVE_CANDIDATE
 v0.13.2 spatial pass    LIVE QA ACCEPTED
-Transfer Apparatus      CURRENT NEXT PRODUCTION ASSET
-Flow support / FloorFX  NEXT
+Transfer Apparatus      LIVE_ACCEPTED 4×6 + shadow + silhouette collision
+Yellow Core             LIVE_ACCEPTED 96×96 static resting state / transfer-fx
+Flow support / FloorFX  CURRENT DESIGN/PRODUCTION BLOCK
 PRIMUS hero/system art  NEXT
-Domestic replacements  AFTER HERO HIERARCHY
+Domestic replacements  AFTER TRANSFER/PRIMUS HIERARCHY
 ```
 
 The v0.13.2 PASS does not automatically promote `LIVE_CANDIDATE` images.
 
 ## New Hero / Prop asset rule
 
-The next art categories must consume the established generated composite/Exact-Fit architecture.
+New art categories must consume the established generated composite/Exact-Fit architecture.
 
 Before production:
 
@@ -102,7 +105,21 @@ Before production:
 - declare geometry/material/alpha/collision/packing ownership;
 - preserve accepted spatial semantics rather than changing map/game logic to rescue unsuitable art.
 
-Transfer Apparatus is the current highest-priority missing Hero asset. Flow and PRIMUS system art follow after the Transfer hero establishes the room's visual hierarchy.
+The Transfer Apparatus and Yellow Core static state are accepted and should not be reopened casually. Current work is Flow support / functional FloorFX, followed by PRIMUS system art and the remaining Gold-Slice completion passes.
+
+## Flow support / functional FloorFX — current design contract
+
+The current LevelSpec already contains `flow-station` as a normal support Prop near `transfer-core`, but existing story/art authority does not yet define its exact physical process. The dedicated recipe owns that current function-to-form alignment:
+
+`art-source/recipes/transfer-hall/flow-support/recipe.md`
+
+Current proposal separates:
+
+- a compact physical Flow Regulator as a normal FloorProp;
+- a flush deterministic coupling/service bus as FloorFX;
+- later active energy/synchronization motion as separate temporary `transfer-fx` rather than baked static art.
+
+This separation is provisional until user alignment, but the category/layer rule is binding: **do not bake a floor connection into the Flow Prop source and do not use FloorFX as collision or scene illumination.**
 
 ## Shadows / FloorFX
 
@@ -117,7 +134,7 @@ Grounding/contact shadows and floor-projected functional markings belong to Floo
 
 Scene illumination is never baked into ordinary Floor/Prop art. `LightOverlay` owns light that affects the scene/characters.
 
-TS-01 remains calm. The Transfer apparatus should become the strongest restrained warm local emissive focus while the actual illumination of nearby floor/PICO remains runtime lighting.
+TS-01 remains calm. The accepted Transfer Apparatus/Yellow Core own the strongest restrained warm local emissive hierarchy. Flow support should normally use cooler/cyan system-status language so it supports rather than competes with that focal point.
 
 ## Tile-state identity
 
