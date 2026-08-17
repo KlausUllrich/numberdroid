@@ -16,6 +16,7 @@ const EXPECTED_SOURCE_SHA256 = "e4ed4130e7a1c615986f2011237c78ddd5a4bb51c7e04158
 const EXPECTED_SOURCE_SIZE = { width: 1254, height: 1254 };
 const EXPECTED_ALPHA_CROP = { x: 49, y: 45, w: 1156, h: 1164 };
 const EXPECTED_CONTENT_BOUNDS = { x: 8, y: 8, w: 111, h: 112 };
+const EXPECTED_RUNTIME_SHA256 = "d939e6dded6605f46876fbbc6139200eb22c1a35a84650c8833b77bb68600cee";
 
 function sameBounds(actual, expected) {
   return actual.x === expected.x
@@ -62,10 +63,14 @@ if (!sameBounds(prepared.contentBounds, EXPECTED_CONTENT_BOUNDS)) {
   throw new Error(`Flow Regulator runtime content bounds drifted: ${JSON.stringify(prepared.contentBounds)}`);
 }
 
+const runtimeSha = createHash("sha256").update(prepared.png).digest("hex");
+if (runtimeSha !== EXPECTED_RUNTIME_SHA256) {
+  throw new Error(`Flow Regulator runtime SHA-256 drifted: ${runtimeSha}`);
+}
+
 mkdirSync(dirname(outputPath), { recursive: true });
 writeFileSync(outputPath, prepared.png);
 
-const runtimeSha = createHash("sha256").update(prepared.png).digest("hex");
 console.log(`Flow Regulator: validated approved source ${sourceWidth}x${sourceHeight}`);
 console.log(`Flow Regulator: alpha crop ${JSON.stringify(prepared.sourceBounds)}`);
 console.log(`Flow Regulator: runtime content ${JSON.stringify(prepared.contentBounds)} in 128x128 canvas`);
