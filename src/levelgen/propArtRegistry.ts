@@ -56,6 +56,11 @@ export const NUMBERDROID_PROP_ART_REGISTRY: PropArtRegistry = {
     shadowAsset: "assets/deck/family-hologram-pedestal-shadow.png",
     status: "candidate",
   },
+  "transfer-core": {
+    propId: "transfer-core",
+    asset: "assets/deck/transfer-apparatus.png",
+    status: "candidate",
+  },
 };
 
 export function propArtRegistration(propId: string) {
