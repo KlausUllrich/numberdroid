@@ -38,3 +38,25 @@ Design authority:
 - intended to be easy to remove from one body and insert into another.
 
 The original above is immutable after approval. Runtime derivatives are build products and do not replace source authority.
+
+## Yellow Core — runtime candidate
+
+The first in-game scale candidate is materialized deterministically by:
+
+```text
+scripts/materialize-yellow-core.mjs
+→ public/assets/deck/yellow-core.png
+```
+
+Verified CI production contract:
+
+```text
+source alpha crop:       x=155, y=116, w=946, h=968
+runtime canvas:          96 × 96 px
+runtime margin:          4 px
+runtime content bounds:  x=5, y=4, w=86, h=88
+runtime SHA-256:         b300e7d535aee21de75b6276c81b2c4973391d22dcb2bdcf79b50833f9d421ae
+runtime status:          candidate / live QA pending
+```
+
+The Core is emitted as a separate `transfer-fx` sprite centered on the accepted Transfer Apparatus resting platform. It is intentionally **not** a normal Prop and has no independent collision. This is a structural requirement so later Transfer choreography can move the same visual between the Apparatus and robot bodies.
