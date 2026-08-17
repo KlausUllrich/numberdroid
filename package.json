@@ -11,6 +11,8 @@
     "art:toolkit-test": "node scripts/art/toolkit/selftest.mjs",
     "repo:binary-preflight": "node scripts/repo/binary-transport-preflight.mjs",
     "repo:binary-preflight-test": "node scripts/repo/binary-transport-preflight.selftest.mjs",
+    "repo:approved-source-handoff": "node scripts/repo/approved-source-upload-handoff.mjs",
+    "repo:approved-source-handoff-test": "node scripts/repo/approved-source-upload-handoff.selftest.mjs",
     "predev": "npm run materialize-art && npm run render-walls && npm run render-doors",
     "dev": "vite",
     "test": "vitest run",

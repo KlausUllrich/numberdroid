@@ -8,6 +8,8 @@ Its purpose is to preserve the highest-quality approved source so later retouchi
 
 Repository location/naming is also summarized in `art-source/approved/README.md`.
 
+Manual user upload behavior is owned by `APPROVED_SOURCE_UPLOAD_HANDOFF.md`.
+
 ---
 
 ## 1. Binding state transition
@@ -16,6 +18,7 @@ For generated/painted Props, Hero assets and other revisitable visual sources:
 
 ```text
 SOURCE APPROVED
+→ APPROVED SOURCE ARCHIVE PREPARED
 → APPROVED SOURCE ARCHIVED
 → PRODUCTION EXTRACTION / NORMALIZATION
 ```
@@ -26,13 +29,20 @@ A source is not archived merely because it is visible in chat, returned by `imag
 
 The actual approved binary/source file must be durably reachable in the repository archive.
 
-If that cannot yet be done, use:
+If automatic real-file publication is unavailable, the required branch is:
 
 ```text
-SOURCE_APPROVED / ARCHIVE_PENDING
+SOURCE_APPROVED
+→ ARCHIVE_PENDING
+→ USER_UPLOAD_REQUIRED
+→ Klaus uploads the exact prepared file
+→ `hochgeladen`
+→ USER_UPLOAD_VERIFIED
+→ APPROVED_SOURCE_ARCHIVED
+→ PRODUCTION EXTRACTION / NORMALIZATION
 ```
 
-and follow `docs/agents/BINARY_ASSET_TRANSPORT.md`.
+The full user-facing handoff and verification contract is defined in `APPROVED_SOURCE_UPLOAD_HANDOFF.md`.
 
 Do not fake archive completion with Base64, data URIs or lower-resolution reconstruction.
 
@@ -134,6 +144,8 @@ Recommended filename:
 
 If another revision becomes authoritative, preserve both and mark the current authority in the family manifest.
 
+Before any manual upload handoff, the Agent prepares a byte-identical local/mounted copy under this exact canonical filename. Renaming/copying bytes is allowed; re-encoding the image is not.
+
 ---
 
 ## 6. Family manifest — mandatory
@@ -150,6 +162,7 @@ SOURCE PROVENANCE / GENERATION ID WHEN KNOWN
 ORIGINAL DIMENSIONS
 RAW BYTE SIZE
 SHA-256 WHEN AVAILABLE
+GIT BLOB SHA-1 WHEN AVAILABLE
 RECIPE PATH(S)
 ARCHIVE PATH(S)
 PRODUCTION DERIVATIVES / RELATIONSHIP
@@ -160,7 +173,81 @@ This manifest is descriptive metadata. It is not a substitute for the actual ori
 
 ---
 
-## 7. Production traceability
+## 7. Manual upload preparation — mandatory when automatic binary transport is unavailable
+
+If `docs/agents/BINARY_ASSET_TRANSPORT.md` determines that no safe real-file publication route is available, the Agent must not merely state that Klaus has to upload something manually.
+
+The Agent must prepare the handoff completely according to `APPROVED_SOURCE_UPLOAD_HANDOFF.md`.
+
+At minimum the Agent must provide:
+
+```text
+DOWNLOADABLE PREPARED ORIGINAL
+EXACT FILENAME
+EXACT GITHUB BRANCH
+EXACT TARGET FOLDER
+EXACT TARGET PATH
+RAW BYTE SIZE
+SHA-256
+GIT BLOB SHA-1
+SHORT GITHUB UPLOAD STEPS
+REPLY TRIGGER: `hochgeladen`
+```
+
+The Agent computes upload identity with:
+
+```bash
+npm run repo:approved-source-handoff -- \
+  --file <prepared-byte-identical-file> \
+  --target <art-source/approved/.../exact-filename> \
+  --branch <focused-branch>
+```
+
+The prepared local filename must exactly match the target archive filename.
+
+State:
+
+```text
+ARCHIVE_PENDING
+→ USER_UPLOAD_REQUIRED
+```
+
+This is a blocking production gate by default.
+
+---
+
+## 8. Manual upload verification after `hochgeladen`
+
+When Klaus replies `hochgeladen` for the active handoff, do not ask him to prove the upload manually and do not immediately continue production.
+
+The Agent verifies repository metadata for the exact target file:
+
+1. exact filename;
+2. raw byte size;
+3. GitHub blob SHA against the expected **Git blob SHA-1** computed from the local approved source.
+
+Matching Git blob SHA verifies byte identity without downloading/re-serializing the binary through the model text channel.
+
+If verification fails:
+
+```text
+USER_UPLOAD_VERIFICATION_FAILED
+```
+
+Report the mismatch and keep the archive gate open.
+
+If verification succeeds:
+
+```text
+USER_UPLOAD_VERIFIED
+→ APPROVED_SOURCE_ARCHIVED
+```
+
+Then update the family manifest and only then proceed to Production Extraction / Normalization.
+
+---
+
+## 9. Production traceability
 
 Every production derivative should remain traceable to:
 
@@ -175,7 +262,7 @@ A later animation workflow should start from `art-source/approved/.../source/` o
 
 ---
 
-## 8. Binary transport gate
+## 10. Binary transport gate
 
 Approved visual originals are usually binary and may be large.
 
@@ -185,18 +272,21 @@ Current invariant:
 
 > Repository binary bytes must not be serialized through the model/tool text channel as inline Base64.
 
-If no real file-aware connector action and no existing authenticated local checkout is available:
+If a real file-aware connector action or existing authenticated local checkout is available, use it and verify the resulting repository file.
+
+If neither is available:
 
 ```text
 BINARY_TRANSPORT_BLOCKED
 → ARCHIVE_PENDING
+→ USER_UPLOAD_REQUIRED
 ```
 
-Keep the truthful state and stop before claiming the source is archived.
+`BINARY_TRANSPORT_BLOCKED` is therefore a transport limitation, not the end of the workflow. The required next action is the prepared manual upload handoff to Klaus.
 
 ---
 
-## 9. Current Transfer System example
+## 11. Current Transfer System example
 
 Current intended family:
 
