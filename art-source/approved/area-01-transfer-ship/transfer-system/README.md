@@ -8,7 +8,7 @@ This family groups the visual authoring sources that belong to the same Transfer
 
 Current / planned components:
 
-- **Transfer Apparatus** — static environmental Hero machine with human receiving bed, Core receiver and empty robot Body Dock;
+- **Transfer Apparatus** — static environmental Hero machine with Human receiving area, Core platform and empty robot Body Dock;
 - **Yellow Core** — separate movable identity/Transfer-state visual, not baked permanently into the Apparatus;
 - **Transfer FX** — later source elements for Core movement / synchronization / energy flow;
 - **Animation sources** — later layered/turnaround/source files needed by the animation toolchain.
@@ -28,58 +28,58 @@ transfer-system/
 
 ## Approved source record — Transfer Apparatus
 
-Current source state: **APPROVED_SOURCE_ARCHIVED**
+Current source state: **APPROVED_SOURCE_ARCHIVED / CURRENT AUTHORITY**
 
-The latest approved generated source is visually approved by Klaus and is the visual authority for the current Transfer Apparatus direction.
+Klaus approved the revised Hero design after live scale QA. The design keeps the believable PICO-relative scale while using a much broader white/graphite Hero silhouette, amber Transfer energy and restrained cyan system accents. The central Core area is a solid platform intended to receive the separate Yellow Core later.
 
-Archive path:
+Canonical archive path:
 
 ```text
 source/transfer-apparatus__approved-original__2026-08-17.png
 ```
 
-Verified source metadata:
+Verified current source metadata:
 
 ```text
 component:          transfer-apparatus
 approval date:      2026-08-17
 source type:        ChatGPT image generation
-image_gen gen_id:   f86f346b-10b2-4783-a30f-6b08f7239fd0
-format:             PNG RGBA, non-interlaced
-original size:      1122 × 1402 px
-raw bytes:          1,231,884
-sha256:             f19ccfba6af722577b6bd8c49a0be15e45473867421e98d22c1fd018de6da794
-git blob sha1:      1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
+image_gen gen_id:   533a11b1-0b1d-4a9a-9648-373c6617a847
+format:             PNG RGBA, 8-bit, non-interlaced
+original size:      1086 × 1448 px
+raw bytes:          1,962,107
+sha256:             4adecec81c5e241a0952e0ed353836d6776f60960e9c8d1cf6e53727e402812c
+git blob sha1:      72a6e775cf5b9ae935e9af68032566a56cff22c1
 recipe:             art-source/recipes/transfer-hall/transfer-apparatus/recipe.md
 ```
 
-### Manual upload verification — 2026-08-17
+### Repository verification — 2026-08-17
 
-Klaus manually uploaded the prepared byte-identical approved original to the canonical archive path.
-
-The Agent verified the repository object without downloading/re-serializing the binary through the model:
+Klaus committed and pushed the newly approved source to the canonical archive path. The Agent compared repository metadata against the approved local source:
 
 ```text
-expected filename:  transfer-apparatus__approved-original__2026-08-17.png
-repository size:    1,231,884 bytes
-expected size:      1,231,884 bytes
-repository blob:    1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
-expected blob:      1b5a0fcb39250b7d4fc365bb8bab877ef7e779f1
+repository size:    1,962,107 bytes
+expected size:      1,962,107 bytes
+repository blob:    72a6e775cf5b9ae935e9af68032566a56cff22c1
+expected blob:      72a6e775cf5b9ae935e9af68032566a56cff22c1
 verification:       PASS
 ```
 
-Therefore the archive gate is closed:
+The previously approved source was replaced directly at the same path. It remains recoverable in Git history (parent state before commit `a6b53f151ffc2bd5a760dc9100a183b3a5f3033f`). Future approved revisions should normally coexist under distinct archive filenames rather than replace an approved source file.
+
+Therefore the current archive gate is closed:
 
 ```text
 USER_UPLOAD_VERIFIED
 → APPROVED_SOURCE_ARCHIVED
+→ CURRENT_SOURCE_AUTHORITY
 ```
 
 ## Production derivative — Transfer Apparatus
 
 Current production state: **PRODUCTION_BUILT / RUNTIME_CANDIDATE / LIVE_QA_PENDING**
 
-The runtime candidate is generated deterministically from the immutable archived original by:
+The runtime candidate is generated deterministically from the archived authority by:
 
 ```text
 scripts/materialize-transfer-apparatus.mjs
@@ -92,33 +92,33 @@ The runtime PNG is a build product, not a replacement for the large approved sou
 Verified CI materialization contract:
 
 ```text
-source validation:       byte size + SHA-256 + 1122×1402 dimensions
+source validation:       byte size + SHA-256 + 1086×1448 dimensions
 alpha cutoff:            4
-source alpha crop:       x=282, y=0, w=559, h=1391
-runtime canvas:          192 × 384 px
-runtime tile canvas:     3 × 6 tiles @ 64 px/tile
-runtime margin:          8 px
-runtime content bounds:  x=22, y=8, w=148, h=368
-runtime SHA-256:         d51ca49526553386128cdbe13b321a5927c7a244f0019919586b35f669b97a85
+source alpha crop:       x=10, y=0, w=1065, h=1448
+runtime canvas:          128 × 192 px
+runtime tile canvas:     2 × 3 tiles @ 64 px/tile
+runtime margin:          4 px
+runtime content bounds:  x=4, y=14, w=120, h=163
+runtime SHA-256:         06cec70609b4eeff6aa319398f20d48eb09d16dd5adbd8492bd3689733c42bbc
 art registry state:      candidate
-shadow:                  not yet authored; intentionally deferred until Production/Live QA
+shadow:                  not yet authored; intentionally deferred until live QA
 ```
 
 Spatial production contract:
 
-- coarse footprint: `3 × 6`;
-- Transfer room: preferred/required production height `8` tiles, width remains `10` preferred;
-- visual Exact-Fit follows the runtime content bounds;
-- collision is multipart rather than one 3×6 block;
-- Human receiving lane remains physically open;
-- central Core receiver remains solid;
+- coarse footprint remains `2 × 3`;
+- Transfer room remains `10 × 8` for isolated Hero-scale QA;
+- visual Exact-Fit follows the broader runtime content bounds;
+- collision is multipart rather than one 2×3 block;
+- Human receiving center lane remains physically open;
+- broad central Transfer/Core platform remains solid;
 - PICO Body Dock center and south drive-out lane remain physically open.
 
-CI validation on PR #95 passes the full 176-test suite and Production Build with these contracts. Final visual/live Art-Director QA remains a separate state.
+CI validation on PR #97 passes the full 176-test suite and Production Build with these contracts. Final live Art-Director QA of the new Hero source remains a separate state.
 
-## Future yellow Core source
+## Future Yellow Core source
 
-When the yellow Core receives its own explicit source approval, preserve its large approved original in this **same Asset Family**, normally under `fx/` or `source/` depending on whether it is treated as a primary family component.
+When the Yellow Core receives its own explicit source approval, preserve its large approved original in this **same Asset Family**, normally under `fx/` or `source/` depending on whether it is treated as a primary family component.
 
 Recommended naming:
 
