@@ -70,10 +70,10 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
   "transfer-core": {
     id: "transfer-core", tags: ["transfer", "hero", "machine", "core"], attachment: "floor", allowedRotations: [0], footprintTiles: { w: 4, h: 6 },
     placement: { preferRoomCenter: true, forbidDoorClearance: true, forbidPrimaryPath: true, clearanceAroundTiles: 1 },
-    // Live QA approved the Hero redesign itself but found the 2×3 world scale too
-    // small for the Transfer Room focal point. The exact same approved source is
-    // therefore presented at 4×6, with collision still multipart so Human intake
-    // and PICO dock/drive-out lane remain enterable.
+    // The approved source is presented at 4×6 as the Transfer Room Hero. Normal
+    // Human/Robot movement cannot cross the machine body; propCollisionRegistry
+    // scripts a silhouette-shaped physical mask while preserving transparent
+    // corner whitespace. Transfer choreography may override movement explicitly.
     exactFit: {
       visualBoundsTiles: { x: 0.125, y: 0.453125, w: 3.75, h: 5.09375 },
       placementEnvelope: "visual",
