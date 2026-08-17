@@ -79,9 +79,9 @@ export const TS01_LEVEL_SPEC: LevelSpec = {
       size: {
         class: "hero",
         width: { min: 8, preferred: 10, max: 12 },
-        // The approved 3×6 Hero plus one-tile Hero clearance needs eight
-        // interior tiles vertically. Preserve width; grow only the dimension
-        // proven necessary by production placement QA.
+        // The 4×6 Hero plus one-tile Hero clearance fits exactly in eight
+        // interior tiles vertically. Keep the proven 10×8 room unless later
+        // art-direction QA calls for a composition change rather than capacity.
         height: { min: 8, preferred: 8, max: 9 },
       },
       relations: [{ targetId: "main-hall", relation: "south_of", strength: "required" }],
@@ -210,8 +210,11 @@ export const TS01_LEVEL_SPEC: LevelSpec = {
     {
       id: "transfer-intro-zone",
       spaceId: "transfer-room",
-      anchor: { kind: "space-center" },
-      sizeTiles: { w: 4, h: 3 },
+      // Fire the first-view beat as the player actually enters the room. Anchoring
+      // at room center became invalid once the Hero grew to 4×6 because that area
+      // is intentionally occupied by the transfer platform.
+      anchor: { kind: "connection", targetId: "hall-to-transfer" },
+      sizeTiles: { w: 4, h: 2 },
       tags: ["story", "transfer", "first-view"],
     },
   ],
