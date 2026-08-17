@@ -27,7 +27,46 @@ The 16 KiB ceiling is a safety ceiling, not a target. Prefer real file transport
 
 Base64 expands binary data by roughly one third before JSON/tool framing, and the encoded text also consumes model/tool context. A file that is ordinary as a PNG can therefore become an unnecessarily large conversational payload.
 
-## 2. Preferred transport hierarchy
+## 2. Mandatory executable preflight
+
+Before constructing **any** binary repository-write payload, run:
+
+```bash
+npm run repo:binary-preflight -- <local-or-mounted-file>
+```
+
+The command reports:
+
+```text
+rawBytes
+base64Bytes
+base64ExpansionBytes
+inlineBase64LimitBytes
+inlineBase64Allowed
+recommendedTransport
+```
+
+The result is authoritative for whether inline Base64 is permitted.
+
+Equivalent rule:
+
+```text
+inlineBase64Allowed = rawBytes <= 16384
+```
+
+For a call that specifically requires inline Base64, use the assertion mode:
+
+```bash
+npm run repo:binary-preflight -- --require-inline <file>
+```
+
+Exit code `2` means the inline path is prohibited. **Do not construct the Base64 string after that result.**
+
+CI runs `npm run repo:binary-preflight-test` to protect the guard logic itself.
+
+The preflight must happen **before** reading/encoding the entire binary into an assistant/tool argument. Measuring after Base64 serialization defeats the purpose.
+
+## 3. Preferred transport hierarchy
 
 Use this order:
 
@@ -67,23 +106,26 @@ Do not work around the block by:
 - splitting a large Base64 payload across several tool calls;
 - repeatedly retrying an oversized payload.
 
-## 3. Mandatory preflight
+## 4. Mandatory preflight record
 
 Before a binary repository write, record internally:
 
 ```text
 LOCAL/MOUNTED PATH
 RAW BYTE SIZE
+ESTIMATED BASE64 BYTE SIZE
 TARGET REPOSITORY PATH
 AVAILABLE TRANSPORT
 INLINE BASE64 AUTHORIZED? yes/no
 ```
 
+Use the executable preflight above rather than mental arithmetic.
+
 If raw size is greater than 16,384 bytes, `INLINE BASE64 AUTHORIZED` must be `no`.
 
 Do this before constructing a tool payload. Never discover the payload is too large only after serializing it.
 
-## 4. State discipline
+## 5. State discipline
 
 Keep these states distinct:
 
@@ -103,7 +145,7 @@ A Git blob SHA is not sufficient unless a reachable branch/commit references the
 
 Do not update art status to `RUNTIME_REGISTERED` until the actual binary file is reachable on the working branch and the runtime registry points to it.
 
-## 5. Current ChatGPT/GitHub environment rule
+## 6. Current ChatGPT/GitHub environment rule
 
 The GitHub connector is preferred for structured repository reads/writes, PRs and CI metadata.
 
@@ -111,17 +153,20 @@ However, connector-first does **not** mean “serialize any binary through JSON/
 
 Local Git/`gh` may be used for the specific large-binary transport gap only when an authenticated local checkout actually exists. Do not infer repository availability from local network state and do not perform speculative clone/network diagnostics merely because the connector exists.
 
-## 6. Failure learned during TS-01 Transfer Apparatus production
+## 7. Failure learned during TS-01 Transfer Apparatus production
 
 During Transfer Apparatus production, a grounding-shadow PNG was encoded into a very large Base64 `create_blob` payload. The call massively expanded the assistant/tool turn and appeared to hang.
+
+A related production PNG measured **102,990 raw bytes**, which would become **137,320 Base64 bytes** before JSON/tool framing. That illustrates why an ordinary small runtime image can still be a poor inline tool payload.
 
 Root causes:
 
 1. binary transport was treated like an ordinary structured connector write;
 2. raw file size / encoded payload size was not gated before constructing the tool call;
 3. the repository workflow previously forced all remote writes through the connector without defining a binary exception;
-4. the environment did not have an authenticated local `gh`/checkout path, but this prerequisite was checked only after the oversized payload attempt.
+4. the environment did not have a guaranteed real-file connector path for the asset;
+5. the protection initially existed only as prose, not as an executable preflight.
 
 Binding correction:
 
-> **Measure first. Never inline Base64 above 16 KiB. Use real file transport when available; otherwise stop with `BINARY_TRANSPORT_BLOCKED`.**
+> **Measure first with the executable preflight. Never inline Base64 above 16 KiB. Use real file transport when available; otherwise stop with `BINARY_TRANSPORT_BLOCKED`.**
