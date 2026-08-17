@@ -16,7 +16,7 @@ describe("Level Compiler v0.13 Prop art registry", () => {
     expect(NUMBERDROID_PROP_ART_REGISTRY["planter-trough"].status).toBe("candidate");
     expect(NUMBERDROID_PROP_ART_REGISTRY["plant-round"].status).toBe("candidate");
     expect(NUMBERDROID_PROP_ART_REGISTRY["transfer-hologram"].status).toBe("candidate");
-    expect(NUMBERDROID_PROP_ART_REGISTRY["transfer-core"].status).toBe("candidate");
+    expect(NUMBERDROID_PROP_ART_REGISTRY["transfer-core"].status).toBe("accepted");
   });
 
   it("leaves unregistered production art as an intentional blockout fallback", () => {

@@ -17,7 +17,7 @@ function blocked(parts: readonly { x: number; y: number; w: number; h: number }[
 }
 
 describe("TS-01 Transfer Apparatus production contract", () => {
-  it("uses the approved Hero redesign on the doubled 4x6 canvas with a separate FloorFX shadow", () => {
+  it("uses the accepted Hero redesign on the doubled 4x6 canvas with a separate FloorFX shadow", () => {
     const metadata = NUMBERDROID_PROP_REGISTRY["transfer-core"];
     expect(metadata.footprintTiles).toEqual({ w: 4, h: 6 });
     expect(metadata.allowedRotations).toEqual([0]);
@@ -30,7 +30,7 @@ describe("TS-01 Transfer Apparatus production contract", () => {
     expect(NUMBERDROID_PROP_ART_REGISTRY["transfer-core"]).toMatchObject({
       asset: "assets/deck/transfer-apparatus.png",
       shadowAsset: "assets/deck/transfer-apparatus-shadow.png",
-      status: "candidate",
+      status: "accepted",
     });
   });
 
