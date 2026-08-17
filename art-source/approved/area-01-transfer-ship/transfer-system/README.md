@@ -2,7 +2,7 @@
 
 Campaign Area: `area-01-transfer-ship`
 
-Status: **Transfer Apparatus + Yellow Core static presentation LIVE_ACCEPTED**
+Status: **Transfer Apparatus + Yellow Core LIVE_ACCEPTED; Flow Regulator SOURCE_APPROVED / RUNTIME_CANDIDATE**
 
 This family groups source-quality visual components that belong to the same Transfer gameplay/story system and may later need to be animated or revised together.
 
@@ -10,7 +10,8 @@ This family groups source-quality visual components that belong to the same Tran
 
 - **Transfer Apparatus** — accepted static environmental Hero machine;
 - **Yellow Core** — accepted separate movable identity/Transfer-state visual;
-- **Transfer FX** — future movement/synchronization/energy components;
+- **Flow Regulator** — approved physical support-machine source; runtime scale candidate pending live QA;
+- **Transfer FX** — current/future floor coupling, movement, synchronization and energy components;
 - **Animation sources** — future layered/authoring files for Transfer choreography.
 
 PICO remains a separate Character asset even when staged in the Body Dock.
@@ -20,7 +21,7 @@ PICO remains a separate Character asset even when staged in the Body Dock.
 ```text
 transfer-system/
 ├─ README.md
-├─ source/       # immutable approved Apparatus originals
+├─ source/       # immutable approved primary machine originals
 ├─ production/   # useful Crop/Fit/runtime-source derivatives
 ├─ fx/           # Yellow Core + Transfer effect source authorities
 └─ animation/    # future animation authoring sources/exports
@@ -51,9 +52,7 @@ git blob sha1:      72a6e775cf5b9ae935e9af68032566a56cff22c1
 repository verify:  PASS — byte-identical approved upload
 ```
 
-The source is immutable authoring authority. Earlier source revisions remain recoverable through Git history.
-
-### Accepted Apparatus runtime
+Accepted runtime:
 
 ```text
 runtime asset:            public/assets/deck/transfer-apparatus.png
@@ -67,9 +66,7 @@ art registry:             accepted
 live QA:                  PASS
 ```
 
-### Accepted Apparatus collision
-
-Normal Human and Robot movement must not cross visible machine mass. Transparent outer corner whitespace remains traversable.
+Accepted collision:
 
 ```text
 authoring representation: 16 × 24 quarter-tile silhouette mask
@@ -79,7 +76,7 @@ runtime authority:        propCollisionRegistry.ts
 PNG alpha authority:      NO
 ```
 
-Transfer choreography later moves actors onto/through the machine explicitly by script rather than leaving holes in normal movement collision.
+Normal Human/Robot movement cannot cross visible machine mass; transparent outer corner whitespace remains traversable. Transfer choreography later moves actors onto/through the machine explicitly by script.
 
 Detailed recipe:
 
@@ -110,7 +107,7 @@ git blob sha1:      f5e0a9f0afe3f966afe3a7b0b08fe7438ac1b297
 repository verify:  PASS — byte-identical approved upload
 ```
 
-### Accepted Yellow Core runtime
+Accepted runtime:
 
 ```text
 runtime asset:            public/assets/deck/yellow-core.png
@@ -131,22 +128,79 @@ Detailed recipe:
 
 ---
 
-## Accepted static composition
+## Flow Regulator — approved source authority / runtime candidate
+
+Canonical approved source:
+
+```text
+source/flow-regulator__approved-original__2026-08-17.png
+```
+
+Verified metadata:
+
+```text
+component:          flow-regulator / semantic prop flow-station
+approval date:      2026-08-17
+source type:        ChatGPT image generation
+image_gen gen_id:   713991af-cc1b-4561-b431-682e9fcf8f15
+format:             PNG RGBA
+original size:      1254 × 1254 px
+raw bytes:          2,143,729
+sha256:             e4ed4130e7a1c615986f2011237c78ddd5a4bb51c7e041586327e8c5be992f1e
+git blob sha1:      721339138768c1244be6991a9da0fe57ee7d10cc
+repository verify:  PASS — byte-identical approved upload
+```
+
+The first generated Flow concept used an undefined generic wave icon. Klaus rejected that accidental symbol semantics; the approved source removes it and expresses Flow through regulator/coupler form instead. New diegetic symbols must be intentionally defined before entering Numberdroid visual language.
+
+First runtime candidate contract:
+
+```text
+materializer:             scripts/materialize-flow-regulator.mjs
+runtime asset:            public/assets/deck/flow-regulator.png
+coarse semantic canvas:   2 × 2 tiles @ 64 px/tile
+runtime canvas:           128 × 128 px
+runtime content bounds:   x=8, y=8, w=111, h=112
+art registry:             candidate
+shadow:                   pending live runtime-scale QA
+collision refinement:     pending live runtime-scale/use-space QA
+static Flow floor bus:    pending runtime scale/placement QA
+live QA:                  PENDING
+```
+
+The Flow Regulator is a normal physical support Prop. Unlike the Yellow Core, it does not need movable ownership semantics. The planned static Flow bus remains separate deterministic FloorFX and future active synchronization remains separate transfer-fx.
+
+Detailed recipe:
+
+`art-source/recipes/transfer-hall/flow-support/recipe.md`
+
+---
+
+## Current static system composition
+
+Accepted core state:
 
 ```text
 Transfer Apparatus FloorProp
 + deterministic Apparatus FloorFX shadow
 + Yellow Core transfer-fx resting sprite
-= LIVE_ACCEPTED TS-01 Transfer System static state
+= LIVE_ACCEPTED TS-01 Transfer Hero static state
 ```
 
-The Apparatus source does not bake in the Core, and the Yellow Core does not own the Apparatus collision.
+Current Flow extension candidate:
+
+```text
++ Flow Regulator physical FloorProp candidate
++ later deterministic static Flow coupling FloorFX
+```
+
+The Apparatus source does not bake in the Core, the Core owns no Apparatus collision, and Flow support does not redefine Core identity.
 
 ---
 
 ## Production learnings / authority
 
-The Transfer cycle established several reusable rules now promoted to general workflow documentation:
+Reusable rules established by the Transfer cycle:
 
 - source design and runtime scale are separate failure classes;
 - physical scale and Hero prominence are separate art-direction questions;
@@ -154,9 +208,14 @@ The Transfer cycle established several reusable rules now promoted to general wo
 - shadow should be finalized after useful runtime scale converges;
 - raster alpha is not collision authority;
 - shaped authored silhouette collision can preserve transparent playable whitespace;
-- movable visuals that transition between environment and actors should not be forced into static Prop semantics.
+- movable visuals that transition between environment and actors should not be forced into static Prop semantics;
+- accidental generated iconography is not semantic authority.
 
-Historical record:
+Binding live-QA classification:
+
+`docs/art/production/LIVE_QA_ITERATION_CLASSIFICATION.md`
+
+Historical Transfer Hero record:
 
 `docs/history/experiments/TRANSFER_SYSTEM_HERO_PRODUCTION_LEARNINGS_2026-08-17.md`
 
@@ -164,7 +223,7 @@ Historical record:
 
 ## Future Transfer choreography / FX
 
-The static family components are accepted. Future work may add:
+After Gold-Slice visual completion, future work may add:
 
 ```text
 animation/
@@ -172,10 +231,9 @@ animation/
   body-to-body transfer authoring sources
 
 fx/
+  static Flow coupling source-quality masters if needed
   synchronization / beam / energy components
-  transfer-state overlays if source-quality originals are needed
+  transfer-state overlays
 ```
 
-Future animation/FX work must preserve both accepted originals unchanged unless a deliberate source revision is separately approved.
-
-Current project plan places **Gold-Slice visual completion before full Transfer choreography** so complex animation is not polished inside a still-changing sparse room.
+Future animation/FX work must preserve accepted originals unchanged unless a deliberate source revision is separately approved.

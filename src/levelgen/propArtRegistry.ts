@@ -62,6 +62,11 @@ export const NUMBERDROID_PROP_ART_REGISTRY: PropArtRegistry = {
     shadowAsset: "assets/deck/transfer-apparatus-shadow.png",
     status: "accepted",
   },
+  "flow-station": {
+    propId: "flow-station",
+    asset: "assets/deck/flow-regulator.png",
+    status: "candidate",
+  },
 };
 
 export function propArtRegistration(propId: string) {
