@@ -10,6 +10,8 @@ Companion QA/process documents:
 
 - `docs/art/production/ART_ASSET_VALIDATION_RULES.md`
 - `docs/art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
+- `docs/art/production/APPROVED_SOURCE_ARCHIVE.md` — preservation of approved high-resolution originals
+- `docs/art/production/HARD_GENERATION_COMMAND_GATE.md` — hard Prop image-generation authorization predicate
 - `docs/art/production/IMAGE_GENERATION_TURN_CONTRACT.md` — technical ChatGPT `image_gen` channel/turn execution
 - `docs/art/production/PROP_ASSET_WORKFLOW.md` for Props and Prop-like Hero assets
 
@@ -25,6 +27,7 @@ The Artist owns:
 - method selection;
 - source generation/authoring;
 - source inspection;
+- preserving explicitly approved high-quality originals;
 - deterministic extraction/composition where required;
 - production-file QA;
 - runtime-scale/map-context QA;
@@ -67,6 +70,8 @@ ALLOWED CONTENT
 FORBIDDEN CONTENT
 MAP / GID CONTEXT
 SOURCE / RECIPE PATH
+APPROVED ARCHIVE CAMPAIGN AREA
+APPROVED ARCHIVE ASSET FAMILY
 EXTRACTION OR COMPOSITION PLAN
 QA TESTS
 ```
@@ -82,7 +87,7 @@ understand the world/game/story function
 → derive function-to-form philosophy
 → explain that philosophy textually to the user
 → allow correction
-→ wait for the explicit `generieren` trigger
+→ wait for the standalone `generieren` command
 → generate one visual proposal
 ```
 
@@ -119,9 +124,11 @@ Do not invent fake SVG geometry merely to satisfy a template. `PLANNED` is bette
 PREPARED
 → METHOD_SELECTED
 → DESIGN_INTENT_ALIGNED
-→ GENERATION_AUTHORIZED (`generieren`)
+→ GENERATION_AUTHORIZED when applicable
 → SOURCE_READY
-→ SOURCE_QA_PASSED (`QA` inspection)
+→ SOURCE_QA_PASSED
+→ SOURCE_APPROVED when explicit Art-Director approval is required
+→ APPROVED_SOURCE_ARCHIVED
 → PRODUCTION_BUILT
 → PRODUCTION_QA_PASSED
 → RUNTIME_INTEGRATED
@@ -132,7 +139,7 @@ PREPARED
 
 Method-specific workflows may add intermediate states. A failed state cannot silently advance.
 
-For Gold Slice Props, `PROP_ASSET_WORKFLOW.md` adds explicit textual user-alignment and Klaus source-approval gates.
+For generated/painted/revisitable visual assets, `APPROVED_SOURCE_ARCHIVE.md` defines the archive gate. For Gold Slice Props, `PROP_ASSET_WORKFLOW.md` adds explicit textual user-alignment and Klaus source-approval gates.
 
 ## Production prompt rule
 
@@ -158,7 +165,15 @@ If several alternatives are desired, they are separate image-generation turns an
 
 ## Explicit image-tool triggers — binding for Prop work
 
-For Prop / Prop-like Hero production, the user's current message controls image-tool execution through two explicit keywords.
+For Prop / Prop-like Hero production, `HARD_GENERATION_COMMAND_GATE.md` is the authorization authority.
+
+Current predicate:
+
+```text
+trim(currentUserMessage).toLowerCase() === "generieren"
+```
+
+Only that standalone command authorizes one Prop image-generation call.
 
 ### `QA`
 
@@ -169,17 +184,7 @@ If the message contains `QA`:
 - report the current source disposition and concrete reasons;
 - do not replace/regenerate in the same turn.
 
-If a message contains both `QA` and `generieren`, `QA` wins and no image is generated.
-
-### `generieren`
-
-For Prop / Prop-like Hero work, call `image_gen` only when the user's **current message contains the literal word `generieren`** (case-insensitive).
-
-Do not treat synonyms or conversational approval as equivalent authorization. `ok`, `ja`, `weiter`, `mach das`, `ändern`, `verbessern`, `nächste Variante` or similar wording may advance discussion but do not authorize the image tool.
-
-One `generieren` trigger authorizes exactly one image call for exactly one proposal.
-
-These keyword rules are intentionally stricter than ordinary conversational inference because repeated accidental generation during QA/discussion caused long, confusing turns.
+A QA/commentary message cannot pass the standalone generation predicate.
 
 ## Image-generation turn boundary — binding
 
@@ -220,6 +225,24 @@ Attractive but invalid art is still invalid.
 
 For Props, perspective and function-to-form are source gates; they are not deferred to runtime integration.
 
+## User / art-director approval and source archive gate
+
+When the user explicitly approves a generated/painted/revisitable visual source, do **not** immediately treat a crop/downscale/runtime derivative as the only saved master.
+
+Before destructive/downscaling production work:
+
+1. identify the canonical **Campaign Area**;
+2. identify the **Asset Family**;
+3. preserve the actual approved high-resolution original under `art-source/approved/<area>/<family>/`;
+4. record provenance/dimensions/hash/recipe relationship in the family manifest;
+5. only then proceed to production processing.
+
+Binding details: `APPROVED_SOURCE_ARCHIVE.md`.
+
+The archive original stays unchanged. Related components that will likely be authored/animated together may share one Asset Family even when runtime files are separate.
+
+If the approved original cannot be safely published because no real binary transport exists, use `SOURCE_APPROVED / ARCHIVE_PENDING` + `BINARY_TRANSPORT_BLOCKED` and do not claim archive completion. Follow `docs/agents/BINARY_ASSET_TRANSPORT.md`.
+
 ## Production build / extraction
 
 Generated or painted source material is not automatically the runtime asset.
@@ -240,6 +263,8 @@ The selected method defines which operations are authoritative.
 If a recurring deterministic operation is missing, classify it against the Art Production Toolkit before writing asset-specific duplicate code.
 
 For approved alpha-bearing Props, `scripts/art/prepare-prop-asset.mjs` is the current proven crop/fit path. It is not generic semantic background removal.
+
+Useful processed authoring masters may be retained under the same Asset Family `production/` folder while `public/` remains runtime/deploy output.
 
 ## Production QA
 
@@ -275,13 +300,13 @@ Do not change map/game logic merely to rescue unsuitable art unless the design i
 
 The user is the art director for Gold Slice work. A new target look/category should pass internal QA before being presented as a candidate for approval.
 
-For new Gold Slice Props, the user must first be able to correct the function-to-form philosophy before generation, and explicit source approval is required before extraction/shadow/integration as defined by `PROP_ASSET_WORKFLOW.md`.
+For new Gold Slice Props, the user must first be able to correct the function-to-form philosophy before generation, explicit source approval is required, and the approved original must pass the archive gate before extraction/shadow/integration as defined by `PROP_ASSET_WORKFLOW.md` + `APPROVED_SOURCE_ARCHIVE.md`.
 
-`CI green` and `merged` do not mean `visually accepted`.
+`CI green`, `merged`, `source approved`, `approved source archived`, and `visually accepted live` are distinct states.
 
 ## Integration gate
 
-Only after source and production QA pass:
+Only after source/archive and production QA pass:
 
 1. integrate the bounded asset;
 2. inspect the live room/game;
@@ -303,6 +328,7 @@ For Props, distinguish whether the failure is:
 - wrong perspective;
 - style/material mismatch;
 - prompt/tool execution;
+- source-archive/binary-transport problem;
 - extraction/alpha problem;
 - spatial/runtime integration problem.
 
@@ -331,7 +357,7 @@ Family Table                 LIVE_ACCEPTED
 Family Memory Console        LIVE_ACCEPTED
 Family Props Batch 2         LIVE_CANDIDATE
 v0.13.2 stabilization        LIVE QA ACCEPTED
-Transfer Apparatus / Core    CURRENT NEXT PRODUCTION ASSET
+Transfer Apparatus / Core    CURRENT — SOURCE APPROVED / ARCHIVE PENDING
 Flow support / FloorFX       NEXT
 PRIMUS hero/system art       NEXT
 Useful domestic assets       AFTER hero hierarchy
