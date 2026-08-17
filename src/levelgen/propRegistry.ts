@@ -68,8 +68,16 @@ export const NUMBERDROID_PROP_REGISTRY: PropRegistry = {
     placement: { requiredSpaceTags: ["hygiene"], preferWallAdjacent: true, preferOppositeDoor: true, forbidDoorClearance: true, forbidPrimaryPath: true },
   },
   "transfer-core": {
-    id: "transfer-core", tags: ["transfer", "hero", "machine", "core"], attachment: "floor", allowedRotations: [0], footprintTiles: { w: 3, h: 3 },
+    id: "transfer-core", tags: ["transfer", "hero", "machine", "core"], attachment: "floor", allowedRotations: [0], footprintTiles: { w: 3, h: 6 },
     placement: { preferRoomCenter: true, forbidDoorClearance: true, forbidPrimaryPath: true, clearanceAroundTiles: 1 },
+    // Approved source normalized to a 192×384 (3×6 tile) transparent canvas.
+    // The meaningful visible body is 146×364 px at offset (23,10).
+    // Physical collision is multipart so the lower PICO dock / drive-out lane remains open.
+    exactFit: {
+      visualBoundsTiles: { x: 0.359375, y: 0.15625, w: 2.28125, h: 5.6875 },
+      placementEnvelope: "visual",
+      wallBoundary: "visual",
+    },
   },
   "transfer-hologram": {
     id: "transfer-hologram", tags: ["transfer", "control", "hologram", "support"], attachment: "floor", allowedRotations: [0, 90, 180, 270], footprintTiles: { w: 1, h: 1 },
