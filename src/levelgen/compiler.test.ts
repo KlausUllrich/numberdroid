@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compileLevelSpec } from "./compiler";
+import { propCollisionLocalBounds } from "./propCollisionRegistry";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { deriveSubSeed } from "./seed";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
@@ -62,6 +63,22 @@ describe("Level Compiler v0 semantic contract", () => {
     });
     const toilet = plan.props.find((request) => request.id === "bathroom-toilet");
     expect(toilet?.metadata.placement.preferOppositeDoor).toBe(true);
+
+    const transfer = plan.props.find((request) => request.id === "transfer-core");
+    expect(transfer?.metadata.footprintTiles).toEqual({ w: 3, h: 6 });
+    expect(transfer?.metadata.exactFit?.visualBoundsTiles).toEqual({
+      x: 0.359375,
+      y: 0.15625,
+      w: 2.28125,
+      h: 5.6875,
+    });
+    if (!transfer) throw new Error("missing transfer-core prop request");
+    const collision = propCollisionLocalBounds(transfer.metadata);
+    expect(collision).toHaveLength(5);
+    // The lower Body Dock center / south exit must remain physically open for PICO.
+    expect(collision.some((part) =>
+      1.5 > part.x && 1.5 < part.x + part.w && 5.4 > part.y && 5.4 < part.y + part.h
+    )).toBe(false);
   });
 
   it("carries enemy placement intent and validates patrol-route references", () => {
