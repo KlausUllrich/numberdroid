@@ -64,6 +64,7 @@ describe("Level Compiler playable generated preview", () => {
       "wall-props",
       "floor-prop-blockouts",
       "floor-props",
+      "transfer-fx",
     ]);
     expect(floor.obstacles.length).toBe(TS01_GENERATED_PLAN.runtimeFloor.obstacles.length);
   });
