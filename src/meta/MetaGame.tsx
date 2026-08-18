@@ -14,6 +14,7 @@ import {
 } from "../game/scriptRuntime";
 import type { EncounterConfig, MetaState } from "../game/types";
 import { directionClassForFacing } from "./robotDirection";
+import { CharacterGroundingLayer } from "./CharacterGroundingLayer";
 import { DoorLayer } from "./DoorLayer";
 import { FloorVisual } from "./FloorVisual";
 import { HostileLayer, type EncounterRuntimePose } from "./HostileLayer";
@@ -716,6 +717,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
           />
 
           <div ref={playerRef} className={`zk-player ${meta.currentDeckSize} ${directionClassForFacing(pose.facing)}`} style={initialPlayerStyle}>
+            <CharacterGroundingLayer />
             <span className="zk-player-name">{body.name}</span>
             <span className="zk-directional-sprite" style={{ backgroundImage: `url(${body.directionalSprite})` }} aria-label="Dein Roboter" role="img" />
           </div>
