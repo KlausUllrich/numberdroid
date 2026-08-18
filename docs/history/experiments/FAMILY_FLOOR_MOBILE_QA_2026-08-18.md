@@ -1,6 +1,6 @@
 # TS-01 Family Floor — Mobile QA 2026-08-18
 
-Status: **PICO DIRECTIONAL CONTACT CALIBRATION IMPLEMENTED / LIVE QA PENDING / SOURCE REMAINS APPROVED**
+Status: **PLAYER GROUNDING LAYERS SEPARATED / LIVE QA PENDING / SOURCE REMAINS APPROVED**
 
 ## QA result
 
@@ -107,6 +107,40 @@ Correction:
 - all calibration is numeric/CSS presentation data — still **zero additional shadow image assets**.
 
 Current implementation scopes the first body-specific calibration to the accepted `directional-pico` asset. SENTRY, MAGNETAR and KRONOS deliberately retain the generic contact profile until live-scale inspection demonstrates that they require their own directional values. Do not pre-author eight shadow variants for bodies that have not failed QA.
+
+## Robot grounding — fourth live-QA correction: separate physical and affiliation layers
+
+The next front-view live screenshot exposed a structural problem rather than another mere percentage-tuning problem:
+
+- the PICO contact cores were no longer visibly readable;
+- the ambient shadow still sat at least ~6 px below the desired foot plane;
+- physical shadow and affiliation ring were still painted inside the same `::after` box, so moving one concern necessarily disturbed the other.
+
+**Classification: runtime layer-authority error. Source art remains accepted.**
+
+The player grounding architecture is now explicitly split:
+
+```text
+PLAYER BODY
+├── ::before  PHYSICAL GROUNDING
+│   ├── dark per-direction contact cores
+│   └── restrained neutral ambient shadow
+└── ::after   AFFILIATION ONLY
+    └── green ownership ring / glow
+```
+
+Rules introduced by this correction:
+
+- the player `::before` pseudo-layer is neutral and owns only physical grounding;
+- the player `::after` pseudo-layer owns only affiliation colour and no longer contains neutral shadow gradients;
+- the standard ambient-shadow center moves roughly 7–8 px upward relative to the combined PR #111 implementation;
+- contact cores are slightly larger/darker and intentionally overlap the visible foot plane rather than floating below it;
+- PICO keeps numeric per-direction contact coordinates; no raster shadow variants are introduced;
+- the player establishes its own isolated stacking context so both negative-z presentation layers remain behind the Character but above the world floor;
+- hostiles are intentionally not refactored in this bounded player-QA pass because their parent `::before` already owns perception/alert rings; they retain the existing combined treatment until a hostile live-QA failure justifies a dedicated structural change;
+- staged actors already have a dedicated shadow element and therefore do not share this coupling problem.
+
+This is the durable rule going forward: **physical grounding and affiliation FX must not share the same positioning authority when they need independent tuning.**
 
 ## Acceptance gate
 
