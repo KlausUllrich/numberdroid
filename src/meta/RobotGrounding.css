@@ -1,55 +1,107 @@
 /*
- * Shared robot grounding pass.
+ * Shared procedural CharacterGrounding pass.
  *
- * Textured Gold-Slice floors need a stronger neutral value anchor beneath every
- * body. Affiliation colour remains in the existing rings/glows; this layer adds
- * a dark, soft contact blob without changing body sprites, collision or scale.
+ * Physical grounding is deliberately independent from the eight-direction body
+ * sprites. Every robot gets the same two-stage construction:
+ *
+ *   1. small, dark contact points close to the feet / wheel contact area;
+ *   2. a much softer, lower-opacity ambient body shadow.
+ *
+ * Existing player/hostile/neutral affiliation borders and glows remain the
+ * ownership language. No direction-specific shadow PNGs are required.
  */
 
-.zk-player::after {
-  width: 68px;
-  height: 30px;
-  background:
-    radial-gradient(ellipse at 50% 56%, rgba(3, 8, 9, .66) 0 30%, rgba(3, 8, 9, .43) 46%, rgba(3, 8, 9, .14) 66%, transparent 79%),
-    radial-gradient(ellipse, rgba(57, 221, 135, .22) 0 30%, transparent 70%);
-  box-shadow: 0 7px 8px rgba(0, 0, 0, .40);
-  transform: translate(-50%, 27%);
+.zk-player,
+.zk-hostile {
+  --nd-ground-affiliation-rgb: 57, 221, 135;
+  --nd-ground-contact-rx: 4px;
+  --nd-ground-contact-ry: 2px;
+  --nd-ground-ambient-rx: 20px;
+  --nd-ground-ambient-ry: 6px;
 }
 
-.zk-player.large::after {
-  width: 114px;
-  height: 50px;
-  box-shadow: 0 10px 11px rgba(0, 0, 0, .42);
+.zk-hostile {
+  --nd-ground-affiliation-rgb: 228, 74, 60;
 }
 
+.zk-hostile.behavior-neutral {
+  --nd-ground-affiliation-rgb: 75, 141, 229;
+}
+
+.zk-player.large,
+.zk-hostile.large {
+  --nd-ground-contact-rx: 7px;
+  --nd-ground-contact-ry: 3.5px;
+  --nd-ground-ambient-rx: 35px;
+  --nd-ground-ambient-ry: 10px;
+}
+
+/*
+ * The existing ::after primitive still owns the affiliation ellipse/border.
+ * These layered gradients replace the old single heavy black blob:
+ * - the first two gradients are compact contact points;
+ * - the third is the neutral ambient body shadow;
+ * - the final layer is only a faint affiliation fill beneath the border.
+ *
+ * Contact points stay screen-relative instead of following the eight view
+ * frames. The directional source art is authored upright inside every frame,
+ * so the actual visible ground contacts remain near the lower part of the
+ * sprite without requiring eight separate shadow definitions.
+ */
+.zk-player::after,
 .zk-hostile::after {
-  width: 68px;
+  width: 58px;
   height: 30px;
   background:
-    radial-gradient(ellipse at 50% 56%, rgba(3, 8, 9, .64) 0 30%, rgba(3, 8, 9, .42) 46%, rgba(3, 8, 9, .14) 66%, transparent 79%),
-    radial-gradient(ellipse, rgba(228, 74, 60, .20) 0 30%, transparent 70%);
-  box-shadow: 0 7px 8px rgba(0, 0, 0, .40);
+    radial-gradient(
+      ellipse var(--nd-ground-contact-rx) var(--nd-ground-contact-ry) at 40% 78%,
+      rgba(0, 3, 4, .76) 0 28%,
+      rgba(0, 3, 4, .40) 58%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse var(--nd-ground-contact-rx) var(--nd-ground-contact-ry) at 60% 78%,
+      rgba(0, 3, 4, .76) 0 28%,
+      rgba(0, 3, 4, .40) 58%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse var(--nd-ground-ambient-rx) var(--nd-ground-ambient-ry) at 50% 67%,
+      rgba(3, 8, 9, .19) 0 22%,
+      rgba(3, 8, 9, .10) 52%,
+      rgba(3, 8, 9, .035) 72%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse at 50% 50%,
+      rgba(var(--nd-ground-affiliation-rgb), .10) 0 28%,
+      transparent 70%
+    );
+  box-shadow: none;
   transform: translate(-50%, 27%);
 }
 
+.zk-player.large::after,
 .zk-hostile.large::after {
-  width: 114px;
-  height: 50px;
-  box-shadow: 0 10px 11px rgba(0, 0, 0, .42);
+  width: 104px;
+  height: 48px;
+  transform: translate(-50%, 25%);
 }
 
-.zk-hostile.behavior-neutral::after {
-  border-color: #4d91edaa;
-  background:
-    radial-gradient(ellipse at 50% 56%, rgba(3, 8, 9, .64) 0 30%, rgba(3, 8, 9, .42) 46%, rgba(3, 8, 9, .14) 66%, transparent 79%),
-    radial-gradient(ellipse, rgba(75, 141, 229, .20) 0 30%, transparent 70%);
-}
-
+/*
+ * Staged actors currently expose a dedicated shadow element rather than the
+ * player/hostile affiliation ellipse. Give it the same physical hierarchy:
+ * dark local contacts over a restrained ambient shadow, with no coloured blob.
+ */
 .zk-staged-actor .staged-shadow {
-  left: 6%;
-  right: 6%;
-  bottom: 0;
-  height: 30%;
-  background: radial-gradient(ellipse, rgba(2, 7, 8, .62) 0 32%, rgba(2, 7, 8, .38) 50%, rgba(2, 7, 8, .12) 70%, transparent 82%);
-  filter: blur(4px);
+  left: 10%;
+  right: 10%;
+  bottom: 1%;
+  height: 26%;
+  background:
+    radial-gradient(ellipse 7% 12% at 41% 76%, rgba(0, 3, 4, .72) 0 30%, rgba(0, 3, 4, .36) 62%, transparent 100%),
+    radial-gradient(ellipse 7% 12% at 59% 76%, rgba(0, 3, 4, .72) 0 30%, rgba(0, 3, 4, .36) 62%, transparent 100%),
+    radial-gradient(ellipse 34% 22% at 50% 66%, rgba(2, 7, 8, .18) 0 24%, rgba(2, 7, 8, .09) 54%, transparent 100%);
+  filter: none;
+  box-shadow: none;
 }
