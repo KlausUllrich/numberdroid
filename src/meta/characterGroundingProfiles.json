@@ -5,8 +5,8 @@
       "assetNeedle": "directional-pico",
       "sourceFrameSize": 96,
       "ambient": {
-        "width": 74,
-        "height": 18,
+        "width": 86,
+        "height": 22,
         "offsetYFromContactMean": -2,
         "coreOpacity": 0.15,
         "midOpacity": 0.075
@@ -20,6 +20,7 @@
         {
           "name": "N",
           "footY": 86,
+          "presentationOffsetY": -2,
           "contacts": [
             { "x": 35.5, "y": 86 },
             { "x": 60, "y": 86 }
@@ -28,6 +29,7 @@
         {
           "name": "NE",
           "footY": 86,
+          "presentationOffsetY": -2,
           "contacts": [
             { "x": 34.5, "y": 81, "opacity": 0.72 },
             { "x": 60, "y": 86 }
@@ -43,6 +45,7 @@
         {
           "name": "SE",
           "footY": 87,
+          "presentationOffsetY": -1,
           "contacts": [
             { "x": 42, "y": 87 },
             { "x": 64, "y": 82, "opacity": 0.72 }

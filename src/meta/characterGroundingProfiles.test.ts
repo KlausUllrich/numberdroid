@@ -3,6 +3,7 @@ import grounding from "./characterGroundingProfiles.json";
 
 const EXPECTED_DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 const EXPECTED_PICO_FOOT_Y = [86, 86, 87, 87, 89, 92, 92, 95];
+const EXPECTED_PICO_PRESENTATION_OFFSET_Y = [-2, -2, 0, -1, 0, 0, 0, 0];
 
 describe("CharacterGrounding profiles", () => {
   it("preserves the measured eight-direction PICO foot planes", () => {
@@ -10,6 +11,14 @@ describe("CharacterGrounding profiles", () => {
     expect(pico.sourceFrameSize).toBe(96);
     expect(pico.directions.map((direction) => direction.name)).toEqual(EXPECTED_DIRECTIONS);
     expect(pico.directions.map((direction) => direction.footY)).toEqual(EXPECTED_PICO_FOOT_Y);
+  });
+
+  it("keeps live-QA presentation offsets separate from measured foot geometry", () => {
+    const pico = grounding.profiles.pico;
+    expect(pico.directions.map((direction) => direction.presentationOffsetY ?? 0)).toEqual(EXPECTED_PICO_PRESENTATION_OFFSET_Y);
+    for (const direction of pico.directions) {
+      expect(Math.abs(direction.presentationOffsetY ?? 0)).toBeLessThanOrEqual(3);
+    }
   });
 
   it("keeps all PICO contact geometry inside the authoritative source frame", () => {

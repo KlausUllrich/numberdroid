@@ -3,10 +3,11 @@
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-0 {
   --nd-ground-foot-y: 89.5833%;
+  --nd-ground-render-offset-y: -2.0833%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 87.5000%;
-  --nd-ground-ambient-rx: 38.5417%;
-  --nd-ground-ambient-ry: 9.3750%;
+  --nd-ground-ambient-rx: 44.7917%;
+  --nd-ground-ambient-ry: 11.4583%;
   --nd-ground-ambient-core-opacity: 0.150;
   --nd-ground-ambient-mid-opacity: 0.075;
   --nd-ground-contact-a-x: 36.9792%;
@@ -25,10 +26,11 @@
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-1 {
   --nd-ground-foot-y: 89.5833%;
+  --nd-ground-render-offset-y: -2.0833%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 84.8958%;
-  --nd-ground-ambient-rx: 38.5417%;
-  --nd-ground-ambient-ry: 9.3750%;
+  --nd-ground-ambient-rx: 44.7917%;
+  --nd-ground-ambient-ry: 11.4583%;
   --nd-ground-ambient-core-opacity: 0.150;
   --nd-ground-ambient-mid-opacity: 0.075;
   --nd-ground-contact-a-x: 35.9375%;
@@ -47,10 +49,11 @@
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-2 {
   --nd-ground-foot-y: 90.6250%;
+  --nd-ground-render-offset-y: 0.0000%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 88.5417%;
-  --nd-ground-ambient-rx: 38.5417%;
-  --nd-ground-ambient-ry: 9.3750%;
+  --nd-ground-ambient-rx: 44.7917%;
+  --nd-ground-ambient-ry: 11.4583%;
   --nd-ground-ambient-core-opacity: 0.150;
   --nd-ground-ambient-mid-opacity: 0.075;
   --nd-ground-contact-a-x: 48.4375%;
@@ -65,10 +68,11 @@
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-3 {
   --nd-ground-foot-y: 90.6250%;
+  --nd-ground-render-offset-y: -1.0417%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 85.9375%;
-  --nd-ground-ambient-rx: 38.5417%;
-  --nd-ground-ambient-ry: 9.3750%;
+  --nd-ground-ambient-rx: 44.7917%;
+  --nd-ground-ambient-ry: 11.4583%;
   --nd-ground-ambient-core-opacity: 0.150;
   --nd-ground-ambient-mid-opacity: 0.075;
   --nd-ground-contact-a-x: 43.7500%;
@@ -87,10 +91,11 @@
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-4 {
   --nd-ground-foot-y: 92.7083%;
+  --nd-ground-render-offset-y: 0.0000%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 90.6250%;
-  --nd-ground-ambient-rx: 38.5417%;
-  --nd-ground-ambient-ry: 9.3750%;
+  --nd-ground-ambient-rx: 44.7917%;
+  --nd-ground-ambient-ry: 11.4583%;
   --nd-ground-ambient-core-opacity: 0.150;
   --nd-ground-ambient-mid-opacity: 0.075;
   --nd-ground-contact-a-x: 36.9792%;
@@ -109,10 +114,11 @@
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-5 {
   --nd-ground-foot-y: 95.8333%;
+  --nd-ground-render-offset-y: 0.0000%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 90.6250%;
-  --nd-ground-ambient-rx: 38.5417%;
-  --nd-ground-ambient-ry: 9.3750%;
+  --nd-ground-ambient-rx: 44.7917%;
+  --nd-ground-ambient-ry: 11.4583%;
   --nd-ground-ambient-core-opacity: 0.150;
   --nd-ground-ambient-mid-opacity: 0.075;
   --nd-ground-contact-a-x: 39.0625%;
@@ -131,10 +137,11 @@
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-6 {
   --nd-ground-foot-y: 95.8333%;
+  --nd-ground-render-offset-y: 0.0000%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 93.7500%;
-  --nd-ground-ambient-rx: 38.5417%;
-  --nd-ground-ambient-ry: 9.3750%;
+  --nd-ground-ambient-rx: 44.7917%;
+  --nd-ground-ambient-ry: 11.4583%;
   --nd-ground-ambient-core-opacity: 0.150;
   --nd-ground-ambient-mid-opacity: 0.075;
   --nd-ground-contact-a-x: 51.5625%;
@@ -149,10 +156,11 @@
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-7 {
   --nd-ground-foot-y: 98.9583%;
+  --nd-ground-render-offset-y: 0.0000%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 95.3125%;
-  --nd-ground-ambient-rx: 38.5417%;
-  --nd-ground-ambient-ry: 9.3750%;
+  --nd-ground-ambient-rx: 44.7917%;
+  --nd-ground-ambient-ry: 11.4583%;
   --nd-ground-ambient-core-opacity: 0.150;
   --nd-ground-ambient-mid-opacity: 0.075;
   --nd-ground-contact-a-x: 44.2708%;
