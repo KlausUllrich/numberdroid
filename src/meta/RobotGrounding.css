@@ -1,0 +1,55 @@
+/*
+ * Shared robot grounding pass.
+ *
+ * Textured Gold-Slice floors need a stronger neutral value anchor beneath every
+ * body. Affiliation colour remains in the existing rings/glows; this layer adds
+ * a dark, soft contact blob without changing body sprites, collision or scale.
+ */
+
+.zk-player::after {
+  width: 68px;
+  height: 30px;
+  background:
+    radial-gradient(ellipse at 50% 56%, rgba(3, 8, 9, .66) 0 30%, rgba(3, 8, 9, .43) 46%, rgba(3, 8, 9, .14) 66%, transparent 79%),
+    radial-gradient(ellipse, rgba(57, 221, 135, .22) 0 30%, transparent 70%);
+  box-shadow: 0 7px 8px rgba(0, 0, 0, .40);
+  transform: translate(-50%, 27%);
+}
+
+.zk-player.large::after {
+  width: 114px;
+  height: 50px;
+  box-shadow: 0 10px 11px rgba(0, 0, 0, .42);
+}
+
+.zk-hostile::after {
+  width: 68px;
+  height: 30px;
+  background:
+    radial-gradient(ellipse at 50% 56%, rgba(3, 8, 9, .64) 0 30%, rgba(3, 8, 9, .42) 46%, rgba(3, 8, 9, .14) 66%, transparent 79%),
+    radial-gradient(ellipse, rgba(228, 74, 60, .20) 0 30%, transparent 70%);
+  box-shadow: 0 7px 8px rgba(0, 0, 0, .40);
+  transform: translate(-50%, 27%);
+}
+
+.zk-hostile.large::after {
+  width: 114px;
+  height: 50px;
+  box-shadow: 0 10px 11px rgba(0, 0, 0, .42);
+}
+
+.zk-hostile.behavior-neutral::after {
+  border-color: #4d91edaa;
+  background:
+    radial-gradient(ellipse at 50% 56%, rgba(3, 8, 9, .64) 0 30%, rgba(3, 8, 9, .42) 46%, rgba(3, 8, 9, .14) 66%, transparent 79%),
+    radial-gradient(ellipse, rgba(75, 141, 229, .20) 0 30%, transparent 70%);
+}
+
+.zk-staged-actor .staged-shadow {
+  left: 6%;
+  right: 6%;
+  bottom: 0;
+  height: 30%;
+  background: radial-gradient(ellipse, rgba(2, 7, 8, .62) 0 32%, rgba(2, 7, 8, .38) 50%, rgba(2, 7, 8, .12) 70%, transparent 82%);
+  filter: blur(4px);
+}

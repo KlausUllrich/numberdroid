@@ -7,6 +7,7 @@ import "./meta/MetaGame.css";
 import "./ui-polish.css";
 import "./art-direction.css";
 import "./levelgen/LevelCompilerWorkbench.css";
+import "./meta/RobotGrounding.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Numberdroid: #root fehlt.");
