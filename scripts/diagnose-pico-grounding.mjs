@@ -2,13 +2,14 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { decodePngRgba } from "./art/toolkit/prop-source.mjs";
+import { inflateSync } from "node:zlib";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sourceDir = join(root, "art-source/recipes/transfer-hall/robots/pico/source");
 const outDir = join(root, "artifacts/grounding");
 const FRAME_SIZE = 96;
 const FRAME_NAMES = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 function canonicalSourceBytes() {
   const files = readdirSync(sourceDir)
@@ -16,6 +17,107 @@ function canonicalSourceBytes() {
     .sort();
   if (files.length !== 4) throw new Error(`Expected 4 PICO source chunks, found ${files.length}.`);
   return Buffer.from(files.map((file) => readFileSync(join(sourceDir, file), "utf8").trim()).join(""), "base64");
+}
+
+function paeth(a, b, c) {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  if (pa <= pb && pa <= pc) return a;
+  if (pb <= pc) return b;
+  return c;
+}
+
+function unfilter(raw, rowBytes, height, filterBpp) {
+  const expected = height * (rowBytes + 1);
+  if (raw.length !== expected) throw new Error(`Indexed PNG inflated byte count mismatch: expected ${expected}, got ${raw.length}.`);
+  const out = Buffer.alloc(height * rowBytes);
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[y * (rowBytes + 1)];
+    const srcStart = y * (rowBytes + 1) + 1;
+    const rowStart = y * rowBytes;
+    const prevStart = (y - 1) * rowBytes;
+    for (let x = 0; x < rowBytes; x += 1) {
+      const value = raw[srcStart + x];
+      const left = x >= filterBpp ? out[rowStart + x - filterBpp] : 0;
+      const up = y > 0 ? out[prevStart + x] : 0;
+      const upLeft = y > 0 && x >= filterBpp ? out[prevStart + x - filterBpp] : 0;
+      if (filter === 0) out[rowStart + x] = value;
+      else if (filter === 1) out[rowStart + x] = (value + left) & 255;
+      else if (filter === 2) out[rowStart + x] = (value + up) & 255;
+      else if (filter === 3) out[rowStart + x] = (value + Math.floor((left + up) / 2)) & 255;
+      else if (filter === 4) out[rowStart + x] = (value + paeth(left, up, upLeft)) & 255;
+      else throw new Error(`Unsupported PNG filter ${filter}.`);
+    }
+  }
+  return out;
+}
+
+function paletteIndex(scanlines, rowBytes, bitDepth, x, y) {
+  const rowStart = y * rowBytes;
+  if (bitDepth === 8) return scanlines[rowStart + x];
+  const perByte = 8 / bitDepth;
+  const packed = scanlines[rowStart + Math.floor(x / perByte)];
+  const shift = 8 - bitDepth * ((x % perByte) + 1);
+  return (packed >> shift) & ((1 << bitDepth) - 1);
+}
+
+function decodeIndexedPngRgba(bytes) {
+  if (bytes.length < 33 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) throw new Error("PICO source is not PNG.");
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = -1;
+  let interlace = -1;
+  let palette = null;
+  let transparency = null;
+  const idat = [];
+
+  while (offset + 12 <= bytes.length) {
+    const length = bytes.readUInt32BE(offset);
+    const type = bytes.toString("ascii", offset + 4, offset + 8);
+    const start = offset + 8;
+    const end = start + length;
+    if (end + 4 > bytes.length) throw new Error(`PNG chunk ${type} exceeds bounds.`);
+    const data = bytes.subarray(start, end);
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8];
+      colorType = data[9];
+      interlace = data[12];
+    } else if (type === "PLTE") palette = Buffer.from(data);
+    else if (type === "tRNS") transparency = Buffer.from(data);
+    else if (type === "IDAT") idat.push(data);
+    else if (type === "IEND") break;
+    offset = end + 4;
+  }
+
+  if (colorType !== 3) throw new Error(`Expected indexed PICO PNG (type 3), got type ${colorType}.`);
+  if (![1, 2, 4, 8].includes(bitDepth)) throw new Error(`Unsupported indexed PNG bit depth ${bitDepth}.`);
+  if (interlace !== 0) throw new Error("Interlaced indexed PNG is not supported by grounding diagnostics.");
+  if (!palette || palette.length % 3 !== 0 || !idat.length) throw new Error("Indexed PNG missing PLTE or IDAT.");
+
+  const rowBytes = Math.ceil(width * bitDepth / 8);
+  const scanlines = unfilter(inflateSync(Buffer.concat(idat)), rowBytes, height, 1);
+  const rgba = new Uint8Array(width * height * 4);
+  const paletteEntries = palette.length / 3;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = paletteIndex(scanlines, rowBytes, bitDepth, x, y);
+      if (index >= paletteEntries) throw new Error(`Palette index ${index} exceeds ${paletteEntries} entries.`);
+      const po = index * 3;
+      const o = (y * width + x) * 4;
+      rgba[o] = palette[po];
+      rgba[o + 1] = palette[po + 1];
+      rgba[o + 2] = palette[po + 2];
+      rgba[o + 3] = transparency && index < transparency.length ? transparency[index] : 255;
+    }
+  }
+  return { width, height, bitDepth, colorType, paletteEntries, rgba };
 }
 
 function pixel(rgba, width, x, y) {
@@ -183,12 +285,21 @@ if (sourceBytes.length !== 14617 || sha256 !== "cb392e02da021ee2e33031021c6e7f01
   throw new Error(`PICO canonical source mismatch: bytes=${sourceBytes.length}, sha256=${sha256}`);
 }
 
-const decoded = decodePngRgba(sourceBytes);
+const decoded = decodeIndexedPngRgba(sourceBytes);
 if (decoded.width !== 768 || decoded.height !== 96) throw new Error(`Unexpected PICO dimensions ${decoded.width}x${decoded.height}.`);
 const analyses = FRAME_NAMES.map((_, index) => analyzeFrame(decoded.rgba, decoded.width, index));
 const report = {
   generatedAt: new Date().toISOString(),
-  source: { bytes: sourceBytes.length, sha256, width: decoded.width, height: decoded.height, frameSize: FRAME_SIZE },
+  source: {
+    bytes: sourceBytes.length,
+    sha256,
+    width: decoded.width,
+    height: decoded.height,
+    frameSize: FRAME_SIZE,
+    colorType: decoded.colorType,
+    bitDepth: decoded.bitDepth,
+    paletteEntries: decoded.paletteEntries,
+  },
   summary: {
     bakedShadowLikelyAnyFrame: analyses.some((a) => a.bakedShadowLikely),
     bakedShadowLikelyFrames: analyses.filter((a) => a.bakedShadowLikely).map((a) => a.name),
