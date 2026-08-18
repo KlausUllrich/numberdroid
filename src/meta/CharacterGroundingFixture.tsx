@@ -1,4 +1,5 @@
 import { BODIES } from "../game/catalog";
+import { CharacterGroundingLayer } from "./CharacterGroundingLayer";
 import "./MetaGameMotion.css";
 import "./CharacterGroundingFixture.css";
 
@@ -12,13 +13,16 @@ export function CharacterGroundingFixture() {
       {DIRECTIONS.map((name, index) => (
         <section className="zk-grounding-card" data-direction={name} key={name}>
           <span className="zk-grounding-card-label">{index} · {name}</span>
-          <div className={`zk-player standard dir-${index}`}>
-            <span
-              className="zk-directional-sprite"
-              style={{ backgroundImage: `url(${sprite})` }}
-              aria-label={`PICO ${name}`}
-              role="img"
-            />
+          <div className="zk-meta-world zk-grounding-card-world">
+            <div className={`zk-player standard dir-${index}`}>
+              <CharacterGroundingLayer />
+              <span
+                className="zk-directional-sprite"
+                style={{ backgroundImage: `url(${sprite})` }}
+                aria-label={`PICO ${name}`}
+                role="img"
+              />
+            </div>
           </div>
         </section>
       ))}
