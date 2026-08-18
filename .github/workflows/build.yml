@@ -47,16 +47,8 @@ jobs:
       - name: PICO grounding source diagnostic
         run: npm run diagnose:pico-grounding
 
-      - name: PICO grounding runtime preview
+      - name: PICO grounding synthetic preview
         run: npm run preview:pico-grounding
-
-      - name: Upload grounding diagnostic artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: actor-grounding-diagnostic
-          path: artifacts/grounding/
-          if-no-files-found: error
-          retention-days: 14
 
       - name: Test
         run: npm test
@@ -65,6 +57,57 @@ jobs:
         run: npm run build
         env:
           VITE_BUILD_SHA: ${{ github.sha }}
+
+      - name: Real-browser grounding render QA
+        run: |
+          CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CHROME" ]; then
+            echo "No Chrome/Chromium executable found on runner"
+            exit 1
+          fi
+
+          mkdir -p artifacts/grounding
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/numberdroid-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true' EXIT
+
+          READY=0
+          for attempt in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null 2>&1; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [ "$READY" != "1" ]; then
+            cat /tmp/numberdroid-preview.log
+            exit 1
+          fi
+
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=760,400 --virtual-time-budget=1000 \
+            --screenshot=artifacts/grounding/browser-grounding-normal.png \
+            'http://127.0.0.1:4173/?groundingFixture=1'
+
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=760,400 --virtual-time-budget=1000 \
+            --screenshot=artifacts/grounding/browser-grounding-off.png \
+            'http://127.0.0.1:4173/?groundingFixture=1&groundingOff=1'
+
+          "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --window-size=760,400 --virtual-time-budget=1000 \
+            --screenshot=artifacts/grounding/browser-grounding-debug.png \
+            'http://127.0.0.1:4173/?groundingFixture=1&groundingDebug=1'
+
+          node scripts/assert-grounding-browser-render.mjs \
+            artifacts/grounding/browser-grounding-normal.png \
+            artifacts/grounding/browser-grounding-off.png
+
+      - name: Upload grounding diagnostic artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: actor-grounding-diagnostic
+          path: artifacts/grounding/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
