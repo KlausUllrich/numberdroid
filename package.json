@@ -11,6 +11,7 @@
     "materialize-family-floor": "node scripts/materialize-family-floor.mjs",
     "generate:character-grounding": "node scripts/generate-character-grounding-css.mjs",
     "diagnose:pico-grounding": "node scripts/diagnose-pico-grounding.mjs",
+    "preview:pico-grounding": "node scripts/render-pico-grounding-runtime-preview.mjs",
     "render-walls": "node scripts/render-transfer-hall-walls.mjs",
     "render-doors": "node scripts/render-transfer-hall-door-art.mjs",
     "validate-art-seams": "node scripts/validate-wall-seams.mjs",
