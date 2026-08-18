@@ -1,6 +1,7 @@
 import type { CompositeFloorVisualDefinition, FloorDefinition } from "../game/types";
 import { compileRuntimeLevel } from "./emission";
 import type { RuntimeEmissionPlan } from "./emissionTypes";
+import { familyFloorSprites } from "./familyFloorPresentation";
 import { createPlayableCompilerPreview } from "./playablePreview";
 import { compileAndValidatePropExactFits } from "./propExactFitPlan";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
@@ -40,24 +41,37 @@ export const TS01_GENERATED_PLAN: RuntimeEmissionPlan = compileRuntimeLevel(TS01
  */
 export const TS01_GENERATED_EXACT_FITS = compileAndValidatePropExactFits(TS01_GENERATED_PLAN);
 
-function withTransferFx(floor: FloorDefinition): FloorDefinition {
+function withTs01ArtExtensions(floor: FloorDefinition): FloorDefinition {
   if (floor.visual.kind !== "composite") return floor;
+
+  // The accepted Floor remains the common ship base. Family rooms receive a
+  // deterministic 1x1 material overlay in the existing pre-Architecture
+  // FloorFX pass, before grounding shadows. This gives the current Gold Slice
+  // its first room-specific floor identity without changing collision/spatial
+  // truth or forcing a new renderer.
+  const familyTiles = familyFloorSprites(TS01_GENERATED_PLAN);
+  const layers = floor.visual.layers.map((layer) => {
+    if (layer.id !== "floor-fx" || layer.kind !== "sprites" || familyTiles.length === 0) return layer;
+    return { ...layer, sprites: [...familyTiles, ...layer.sprites] };
+  });
+
   const core = yellowCoreSprite(TS01_GENERATED_PLAN, TS01_GENERATED_EXACT_FITS);
-  if (!core) return floor;
   const visual: CompositeFloorVisualDefinition = {
     ...floor.visual,
-    layers: [
-      ...floor.visual.layers,
-      // Separate from the accepted Apparatus Prop so the Core can later move
-      // between bodies without changing Prop collision or the source artwork.
-      { id: "transfer-fx", kind: "sprites", sprites: [core] },
-    ],
+    layers: core
+      ? [
+          ...layers,
+          // Separate from the accepted Apparatus Prop so the Core can later move
+          // between bodies without changing Prop collision or the source artwork.
+          { id: "transfer-fx", kind: "sprites", sprites: [core] },
+        ]
+      : layers,
   };
   return { ...floor, visual };
 }
 
 /** Existing MetaGame-compatible floor plus presentation-only compiler overlays. */
-export const TS01_GENERATED_FLOOR: FloorDefinition = withTransferFx(createPlayableCompilerPreview(TS01_GENERATED_PLAN));
+export const TS01_GENERATED_FLOOR: FloorDefinition = withTs01ArtExtensions(createPlayableCompilerPreview(TS01_GENERATED_PLAN));
 
 /** Friendly URL alias; the canonical generated FloorDefinition keeps the LevelSpec id. */
 export const TS01_GENERATED_PREVIEW_ALIAS = "ts01-generated";
