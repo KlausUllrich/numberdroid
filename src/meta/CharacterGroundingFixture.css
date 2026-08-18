@@ -14,8 +14,6 @@
   position: relative;
   width: 168px;
   height: 168px;
-  display: grid;
-  place-items: center;
   overflow: hidden;
   border: 1px solid #71817d;
   background:
@@ -33,6 +31,16 @@
   font: 700 11px/1 ui-monospace, monospace;
 }
 
+.zk-grounding-card-world {
+  position: relative !important;
+  inset: auto !important;
+  width: 168px !important;
+  height: 168px !important;
+  display: grid;
+  place-items: center;
+  transform: none !important;
+}
+
 .zk-grounding-fixture .zk-player {
   position: relative !important;
   left: auto !important;
@@ -40,11 +48,7 @@
   transform: none !important;
 }
 
-/*
- * Production sizes are normally supplied under `.zk-meta-world`. The isolated
- * browser fixture intentionally does not recreate the game world wrapper, so it
- * repeats only that sizing contract while keeping the real sprite/grounding CSS.
- */
+/* The production size selector now applies through the real .zk-meta-world ancestor. */
 .zk-grounding-fixture .zk-player.standard .zk-directional-sprite {
   display: block;
   width: 52px;

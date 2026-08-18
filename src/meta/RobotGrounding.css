@@ -1,22 +1,21 @@
 @import "./CharacterGrounding.generated.css";
 
 /*
- * CharacterGrounding escalation architecture.
+ * CharacterGrounding runtime.
  *
- * Physical player grounding uses one coordinate plane only: the exact rendered
- * directional frame. Standard player + sprite = 52×52 px, large = 96×96 px.
- * Source-profile percentages therefore project directly into runtime pixels.
- *
- * After live QA proved the source/profile coordinates correct but the player
- * ::before paint invisible, physical grounding now uses the player element's
- * own background paint. The debug baseline already proved that this browser
- * paint path is visible and correctly aligned in the real game.
+ * Source-profile coordinates are authored on the exact directional source frame
+ * and projected directly onto the rendered player plane. Physical grounding is
+ * a real DOM layer inside .zk-player; it is not a background and not a negative-z
+ * pseudo-element. The layer is allowed to overflow below the 52x52 / 96x96 body
+ * frame so the contact shadow remains visible even where the opaque foot pixels
+ * cover the upper part of the contact ellipse.
  */
 
 .zk-player {
   width: 52px;
   height: 52px;
   isolation: isolate;
+  overflow: visible;
   --nd-ground-affiliation-rgb: 57, 221, 135;
 
   /* Conservative fallback for bodies not yet source-calibrated. */
@@ -39,37 +38,6 @@
   --nd-ground-contact-b-ry: 3.2%;
   --nd-ground-contact-b-opacity: .86;
   --nd-ground-contact-b-mid-opacity: .43;
-  --nd-ground-debug-layer: linear-gradient(transparent, transparent);
-
-  /*
-   * Physical grounding is painted by the same parent background path that the
-   * live debug baseline proved reliable. This is intentionally not a negative-z
-   * pseudo element and has no independent translated coordinate box.
-   */
-  background-image:
-    var(--nd-ground-debug-layer),
-    radial-gradient(
-      ellipse var(--nd-ground-contact-a-rx) var(--nd-ground-contact-a-ry)
-      at var(--nd-ground-contact-a-x) var(--nd-ground-contact-a-y),
-      rgb(0 3 4 / var(--nd-ground-contact-a-opacity)) 0 34%,
-      rgb(0 3 4 / var(--nd-ground-contact-a-mid-opacity)) 64%,
-      transparent 100%
-    ),
-    radial-gradient(
-      ellipse var(--nd-ground-contact-b-rx) var(--nd-ground-contact-b-ry)
-      at var(--nd-ground-contact-b-x) var(--nd-ground-contact-b-y),
-      rgb(0 3 4 / var(--nd-ground-contact-b-opacity)) 0 34%,
-      rgb(0 3 4 / var(--nd-ground-contact-b-mid-opacity)) 64%,
-      transparent 100%
-    ),
-    radial-gradient(
-      ellipse var(--nd-ground-ambient-rx) var(--nd-ground-ambient-ry)
-      at var(--nd-ground-ambient-x) var(--nd-ground-ambient-y),
-      rgb(3 8 9 / var(--nd-ground-ambient-core-opacity)) 0 24%,
-      rgb(3 8 9 / var(--nd-ground-ambient-mid-opacity)) 54%,
-      transparent 100%
-    );
-  background-repeat: no-repeat;
 }
 
 .zk-player.large {
@@ -77,7 +45,56 @@
   height: 96px;
 }
 
-/* Disable the failed physical pseudo-element path unconditionally. */
+/* Explicit physical-grounding DOM layer. */
+.zk-ground-shadow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.zk-ground-ambient,
+.zk-ground-contact {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.zk-ground-ambient {
+  left: var(--nd-ground-ambient-x);
+  top: var(--nd-ground-ambient-y);
+  width: calc(var(--nd-ground-ambient-rx) + var(--nd-ground-ambient-rx));
+  height: calc(var(--nd-ground-ambient-ry) + var(--nd-ground-ambient-ry));
+  transform: translate(-50%, -35%);
+  background: rgb(3 8 9 / var(--nd-ground-ambient-core-opacity));
+  filter: blur(2.2px);
+}
+
+.zk-ground-contact {
+  transform: translate(-50%, -18%);
+  background: #000304;
+  filter: blur(.55px);
+}
+
+.zk-ground-contact-a {
+  left: var(--nd-ground-contact-a-x);
+  top: var(--nd-ground-contact-a-y);
+  width: calc(var(--nd-ground-contact-a-rx) + var(--nd-ground-contact-a-rx));
+  height: calc(var(--nd-ground-contact-a-ry) + var(--nd-ground-contact-a-ry));
+  opacity: var(--nd-ground-contact-a-opacity);
+}
+
+.zk-ground-contact-b {
+  left: var(--nd-ground-contact-b-x);
+  top: var(--nd-ground-contact-b-y);
+  width: calc(var(--nd-ground-contact-b-rx) + var(--nd-ground-contact-b-rx));
+  height: calc(var(--nd-ground-contact-b-ry) + var(--nd-ground-contact-b-ry));
+  opacity: var(--nd-ground-contact-b-opacity);
+}
+
+/* Obsolete physical pseudo/background paths remain disabled. */
 .zk-player::before {
   content: none !important;
   display: none !important;
@@ -92,7 +109,7 @@
   z-index: 3;
 }
 
-/* Affiliation remains separate and may stay larger than the physical body. */
+/* Affiliation remains separate from physical grounding. */
 .zk-player::after {
   content: "";
   position: absolute;
@@ -114,40 +131,31 @@
   height: 46px;
 }
 
-/*
- * Browser QA can explicitly disable physical grounding without altering any
- * other visual layer. The paired screenshot must therefore differ only where
- * the neutral physical grounding is painted.
- */
-html[data-grounding-off="1"] .zk-player {
-  background-image: none !important;
+html[data-grounding-off="1"] .zk-ground-shadow {
+  display: none !important;
 }
 
 /*
- * Diagnostic mode. Cyan = exact runtime frame, yellow = measured foot plane,
- * magenta = authored contact centers. The yellow line is now injected as the
- * first background layer, so the physical shadow remains visible underneath it.
+ * Diagnostic mode. Cyan = exact player frame, yellow = measured source foot
+ * plane, magenta/orange outlines = the actual rendered DOM contact/ambient boxes.
  */
 html[data-grounding-debug="1"] .zk-player {
-  --nd-ground-debug-layer: linear-gradient(
+  outline: 1px solid #42dff5;
+  background: linear-gradient(
     to bottom,
     transparent calc(var(--nd-ground-foot-y) - 1px),
     #ffd45a calc(var(--nd-ground-foot-y) - 1px),
     #ffd45a calc(var(--nd-ground-foot-y) + 1px),
     transparent calc(var(--nd-ground-foot-y) + 1px)
   );
-  outline: 1px solid #42dff5;
 }
 
-html[data-grounding-debug="1"] .zk-player .zk-directional-sprite::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  pointer-events: none;
-  background:
-    radial-gradient(circle 4px at var(--nd-ground-contact-a-x) var(--nd-ground-contact-a-y), transparent 45%, #ff3fd1 48% 62%, transparent 66%),
-    radial-gradient(circle 4px at var(--nd-ground-contact-b-x) var(--nd-ground-contact-b-y), transparent 45%, rgb(255 63 209 / var(--nd-ground-contact-b-opacity)) 48% 62%, transparent 66%);
+html[data-grounding-debug="1"] .zk-ground-ambient {
+  box-shadow: 0 0 0 1px #ff9d42;
+}
+
+html[data-grounding-debug="1"] .zk-ground-contact {
+  box-shadow: 0 0 0 1px #ff3fd1;
 }
 
 html[data-grounding-debug="1"]::before {
