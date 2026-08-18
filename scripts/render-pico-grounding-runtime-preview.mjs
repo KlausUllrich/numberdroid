@@ -38,15 +38,16 @@ function checker(parts, x0, y0) {
 function drawGrounding(parts, direction, profile, x0, y0) {
   const contacts = direction.contacts;
   const meanY = contacts.reduce((sum, contact) => sum + contact.y, 0) / contacts.length;
+  const presentationOffsetY = runtime(direction.presentationOffsetY ?? 0) * VIEW_SCALE;
   const ambientY = runtime(meanY + profile.ambient.offsetYFromContactMean) * VIEW_SCALE;
   const ambientRx = runtime(profile.ambient.width / 2) * VIEW_SCALE;
   const ambientRy = runtime(profile.ambient.height / 2) * VIEW_SCALE;
-  parts.push(`<ellipse cx="${x0 + VIEW / 2}" cy="${y0 + ambientY}" rx="${ambientRx}" ry="${ambientRy}" fill="#030809" opacity="${profile.ambient.coreOpacity}"/>`);
+  parts.push(`<ellipse cx="${x0 + VIEW / 2}" cy="${y0 + ambientY + presentationOffsetY}" rx="${ambientRx}" ry="${ambientRy}" fill="#030809" opacity="${profile.ambient.coreOpacity}"/>`);
 
   for (const contact of contacts) {
     const rx = runtime(contact.radiusX ?? profile.contactDefaults.radiusX) * VIEW_SCALE;
     const ry = runtime(contact.radiusY ?? profile.contactDefaults.radiusY) * VIEW_SCALE;
-    parts.push(`<ellipse cx="${x0 + runtime(contact.x) * VIEW_SCALE}" cy="${y0 + runtime(contact.y) * VIEW_SCALE}" rx="${rx}" ry="${ry}" fill="#000304" opacity="${contact.opacity ?? profile.contactDefaults.opacity}"/>`);
+    parts.push(`<ellipse cx="${x0 + runtime(contact.x) * VIEW_SCALE}" cy="${y0 + runtime(contact.y) * VIEW_SCALE + presentationOffsetY}" rx="${rx}" ry="${ry}" fill="#000304" opacity="${contact.opacity ?? profile.contactDefaults.opacity}"/>`);
   }
 }
 
@@ -103,7 +104,8 @@ profile.directions.forEach((direction, index) => {
 
   const runtimeFoot = runtime(direction.footY).toFixed(2);
   const contactText = direction.contacts.map((contact) => `(${contact.x},${contact.y})`).join(" ");
-  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 16}">source footY ${direction.footY}/96 → runtime ${runtimeFoot}/52</text>`);
+  const presentationOffset = direction.presentationOffsetY ?? 0;
+  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 16}">source footY ${direction.footY}/96 → runtime ${runtimeFoot}/52 · renderY ${presentationOffset}</text>`);
   parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 31}">contacts ${contactText}</text>`);
 });
 
