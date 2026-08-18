@@ -49,7 +49,7 @@ For any operation that would require the assistant to construct inline Base64, r
 npm run repo:binary-preflight -- --require-inline <file>
 ```
 
-Exit code `2` means the inline path is prohibited. Under the current contract this assertion **always rejects repository binary Base64**, regardless of raw byte size.
+Exit code `2` means the inline path is prohibited. Under the current contract this assertion **always rejects repository binary Base64**, regardless of raw file size.
 
 CI runs `npm run repo:binary-preflight-test` so the guard cannot silently drift back to a size-based exception.
 
@@ -107,9 +107,36 @@ This path transports the file through Git/GitHub as binary data rather than thro
 
 Do **not** create/clone a local checkout merely as a speculative network fallback when repository workflow forbids that. The checkout must already be available/authenticated or explicitly provided by the environment/workflow.
 
-### C. No real file transport available
+### C. GitHub attachment staging + authenticated GitHub Actions checkout
 
-If neither A nor B is available, stop that binary publication step immediately and report:
+When the ChatGPT GitHub connector has no real binary/file parameter and the model container has no authenticated network checkout, use the repository's GitHub-native staging path:
+
+```text
+approved local/generated binary
+→ user drags the exact file into the persistent Binary Asset Staging issue
+→ GitHub stores the attachment as binary and returns an attachment URL
+→ agent reads only that URL + expected metadata
+→ agent creates one small `binary-import-requests/*.json` request
+→ `.github/workflows/import-approved-binary.yml` downloads the attachment inside GitHub Actions
+→ workflow verifies raw bytes + SHA-256 + Git blob SHA-1
+→ workflow commits the verified binary through its authenticated checkout
+```
+
+Binding rules:
+
+- the binary bytes never enter model-visible text/tool arguments;
+- only GitHub-owned attachment hosts are accepted;
+- the import target must live under `art-source/approved/`;
+- approved targets are immutable: an existing target path is rejected rather than overwritten;
+- expected byte count, SHA-256 and Git blob SHA-1 are mandatory;
+- the request file is deleted by the successful import commit;
+- runtime derivatives should still be created deterministically from the approved source in ordinary code/build work.
+
+This is considered a real-file transport path because the actual binary transfer is GitHub attachment storage → GitHub Actions filesystem → normal Git binary transport. The language model handles only metadata and URLs.
+
+### D. No real file transport available
+
+If none of A, B or C is available, stop that binary publication step immediately and report:
 
 ```text
 BINARY_TRANSPORT_BLOCKED
@@ -130,6 +157,7 @@ ESTIMATED BASE64 BYTE SIZE
 TARGET REPOSITORY PATH
 DIRECT FILE-AWARE CONNECTOR ACTION AVAILABLE? yes/no
 AUTHENTICATED LOCAL CHECKOUT AVAILABLE? yes/no
+GITHUB ATTACHMENT STAGING AVAILABLE? yes/no
 SAFE TRANSPORT SELECTED
 INLINE BASE64 AUTHORIZED? no
 ```
@@ -142,6 +170,8 @@ Keep these states distinct:
 
 ```text
 LOCAL_BINARY_READY
+ATTACHMENT_STAGED
+IMPORT_REQUEST_CREATED
 BINARY_TRANSPORT_BLOCKED
 BINARY_COMMITTED
 BINARY_PUSHED
@@ -152,6 +182,8 @@ LIVE_ACCEPTED
 
 A locally generated PNG is not committed merely because its recipe/code exists.
 
+A GitHub attachment is not repository source authority until the verified import commit places it at the intended `art-source/approved/...` path.
+
 A remote blob SHA is not sufficient unless a reachable branch/commit references the blob at the intended repository path.
 
 Do not update art status to `RUNTIME_REGISTERED` until the actual binary file is reachable on the working branch and the runtime registry points to it.
@@ -160,11 +192,13 @@ Do not update art status to `RUNTIME_REGISTERED` until the actual binary file is
 
 The GitHub connector remains preferred for structured/textual repository reads/writes, PRs and CI metadata.
 
-For binary publication, inspect its actual exposed schema. If it offers only string/Base64 content and no real file parameter, that is **not a safe binary transport capability for this agent workflow**.
+For binary publication, inspect its actual exposed schema. If it offers only string/Base64 content and no real file parameter, that is **not a safe direct binary transport capability for this agent workflow**.
 
 Likewise, local Git/`gh` is a valid binary path only when an authenticated local checkout actually exists. Do not infer repository availability from local network state and do not perform speculative clone/network diagnostics merely because the connector exists.
 
-If neither safe path exists, use `BINARY_TRANSPORT_BLOCKED` rather than Base64.
+For the current Numberdroid environment, the GitHub attachment staging workflow is the supported fallback when direct file upload is absent.
+
+If no safe path exists, use `BINARY_TRANSPORT_BLOCKED` rather than Base64.
 
 ## 8. Transfer Apparatus failure analysis — 2026-08-17
 
@@ -185,4 +219,4 @@ Root cause:
 
 Binding correction:
 
-> **Never inline Base64 for repository binary writes. Use real file transport when available; otherwise stop immediately with `BINARY_TRANSPORT_BLOCKED`.**
+> **Never inline Base64 for repository binary writes. Use real file transport when available; otherwise use GitHub attachment staging if configured; if not, stop immediately with `BINARY_TRANSPORT_BLOCKED`.**
