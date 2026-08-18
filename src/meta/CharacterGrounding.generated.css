@@ -14,11 +14,13 @@
   --nd-ground-contact-a-rx: 5.7292%;
   --nd-ground-contact-a-ry: 3.1250%;
   --nd-ground-contact-a-opacity: 0.900;
+  --nd-ground-contact-a-mid-opacity: 0.450;
   --nd-ground-contact-b-x: 62.5000%;
   --nd-ground-contact-b-y: 89.5833%;
   --nd-ground-contact-b-rx: 5.7292%;
   --nd-ground-contact-b-ry: 3.1250%;
   --nd-ground-contact-b-opacity: 0.900;
+  --nd-ground-contact-b-mid-opacity: 0.450;
 }
 
 .zk-player.dir-1 .zk-directional-sprite[style*="directional-pico"] {
@@ -34,11 +36,13 @@
   --nd-ground-contact-a-rx: 5.7292%;
   --nd-ground-contact-a-ry: 3.1250%;
   --nd-ground-contact-a-opacity: 0.720;
+  --nd-ground-contact-a-mid-opacity: 0.360;
   --nd-ground-contact-b-x: 62.5000%;
   --nd-ground-contact-b-y: 89.5833%;
   --nd-ground-contact-b-rx: 5.7292%;
   --nd-ground-contact-b-ry: 3.1250%;
   --nd-ground-contact-b-opacity: 0.900;
+  --nd-ground-contact-b-mid-opacity: 0.450;
 }
 
 .zk-player.dir-2 .zk-directional-sprite[style*="directional-pico"] {
@@ -54,7 +58,9 @@
   --nd-ground-contact-a-rx: 7.2917%;
   --nd-ground-contact-a-ry: 3.1250%;
   --nd-ground-contact-a-opacity: 0.900;
+  --nd-ground-contact-a-mid-opacity: 0.450;
   --nd-ground-contact-b-opacity: 0;
+  --nd-ground-contact-b-mid-opacity: 0;
 }
 
 .zk-player.dir-3 .zk-directional-sprite[style*="directional-pico"] {
@@ -70,11 +76,13 @@
   --nd-ground-contact-a-rx: 5.7292%;
   --nd-ground-contact-a-ry: 3.1250%;
   --nd-ground-contact-a-opacity: 0.900;
+  --nd-ground-contact-a-mid-opacity: 0.450;
   --nd-ground-contact-b-x: 66.6667%;
   --nd-ground-contact-b-y: 85.4167%;
   --nd-ground-contact-b-rx: 5.7292%;
   --nd-ground-contact-b-ry: 3.1250%;
   --nd-ground-contact-b-opacity: 0.720;
+  --nd-ground-contact-b-mid-opacity: 0.360;
 }
 
 .zk-player.dir-4 .zk-directional-sprite[style*="directional-pico"] {
@@ -90,11 +98,13 @@
   --nd-ground-contact-a-rx: 5.7292%;
   --nd-ground-contact-a-ry: 3.1250%;
   --nd-ground-contact-a-opacity: 0.900;
+  --nd-ground-contact-a-mid-opacity: 0.450;
   --nd-ground-contact-b-x: 62.5000%;
   --nd-ground-contact-b-y: 92.7083%;
   --nd-ground-contact-b-rx: 5.7292%;
   --nd-ground-contact-b-ry: 3.1250%;
   --nd-ground-contact-b-opacity: 0.900;
+  --nd-ground-contact-b-mid-opacity: 0.450;
 }
 
 .zk-player.dir-5 .zk-directional-sprite[style*="directional-pico"] {
@@ -110,11 +120,13 @@
   --nd-ground-contact-a-rx: 5.7292%;
   --nd-ground-contact-a-ry: 3.1250%;
   --nd-ground-contact-a-opacity: 0.700;
+  --nd-ground-contact-a-mid-opacity: 0.350;
   --nd-ground-contact-b-x: 60.4167%;
   --nd-ground-contact-b-y: 95.8333%;
   --nd-ground-contact-b-rx: 5.7292%;
   --nd-ground-contact-b-ry: 3.1250%;
   --nd-ground-contact-b-opacity: 0.900;
+  --nd-ground-contact-b-mid-opacity: 0.450;
 }
 
 .zk-player.dir-6 .zk-directional-sprite[style*="directional-pico"] {
@@ -130,7 +142,9 @@
   --nd-ground-contact-a-rx: 7.2917%;
   --nd-ground-contact-a-ry: 3.1250%;
   --nd-ground-contact-a-opacity: 0.900;
+  --nd-ground-contact-a-mid-opacity: 0.450;
   --nd-ground-contact-b-opacity: 0;
+  --nd-ground-contact-b-mid-opacity: 0;
 }
 
 .zk-player.dir-7 .zk-directional-sprite[style*="directional-pico"] {
@@ -146,9 +160,11 @@
   --nd-ground-contact-a-rx: 5.7292%;
   --nd-ground-contact-a-ry: 3.1250%;
   --nd-ground-contact-a-opacity: 0.780;
+  --nd-ground-contact-a-mid-opacity: 0.390;
   --nd-ground-contact-b-x: 69.7917%;
   --nd-ground-contact-b-y: 98.9583%;
   --nd-ground-contact-b-rx: 5.7292%;
   --nd-ground-contact-b-ry: 3.1250%;
   --nd-ground-contact-b-opacity: 0.900;
+  --nd-ground-contact-b-mid-opacity: 0.450;
 }
