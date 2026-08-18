@@ -1,6 +1,6 @@
 # TS-01 Family Floor — Mobile QA 2026-08-18
 
-Status: **SECOND GROUNDING PASS IMPLEMENTED / LIVE QA PENDING / SOURCE REMAINS APPROVED**
+Status: **PICO DIRECTIONAL CONTACT CALIBRATION IMPLEMENTED / LIVE QA PENDING / SOURCE REMAINS APPROVED**
 
 ## QA result
 
@@ -78,17 +78,45 @@ Implementation rules:
 - the treatment is procedural CSS and shared by player, hostile/neutral robots and staged actors;
 - standard and large bodies scale the same construction rather than using bespoke raster shadows;
 - **no eight-direction shadow PNG set is required for any Character**;
-- contact points remain screen-relative because each directional body frame is authored upright in its own sprite cell, so visible foot/wheel contact stays near the lower edge of the frame;
 - if a future body genuinely needs unusual contact geometry, adjust the shared/body presentation profile rather than authoring eight new shadow images;
 - no collision, movement, navigation, body scale or Character source art changes are involved.
 
+## Robot grounding — third live-QA correction: PICO contact calibration
+
+The following PICO live screenshot confirmed that the two-stage idea is correct, but also disproved one assumption from the second pass:
+
+> contact points cannot be fully direction-independent when the accepted turnaround contains different visible foot/wheel projections and transparent padding per view.
+
+Observed result:
+
+- the restrained ambient shadow is now close to the desired intensity but sits slightly too low;
+- the two dark contact points sit visibly below PICO instead of touching the visible lower body;
+- the error is strongest in the side view, where the two physical contacts overlap substantially in screen space.
+
+**Classification: direction-specific runtime contact placement. Source art remains accepted.**
+
+Correction:
+
+- move the shared ambient-shadow center only a few pixels upward;
+- keep the generic procedural shadow construction;
+- calibrate PICO contact coordinates for all eight accepted turnaround directions `N | NE | E | SE | S | SW | W | NW`;
+- front/back views retain two readable contacts;
+- diagonal views use slightly shifted contacts;
+- pure side views use a tighter pair and deliberately reduce the opacity of the visually rear/overlapping contact;
+- PICO contact ellipses are slightly smaller than the generic robot defaults;
+- all calibration is numeric/CSS presentation data — still **zero additional shadow image assets**.
+
+Current implementation scopes the first body-specific calibration to the accepted `directional-pico` asset. SENTRY, MAGNETAR and KRONOS deliberately retain the generic contact profile until live-scale inspection demonstrates that they require their own directional values. Do not pre-author eight shadow variants for bodies that have not failed QA.
+
 ## Acceptance gate
 
-Family Floor remains a runtime candidate until another mobile/desktop live pass confirms:
+Family Floor / CharacterGrounding remains a runtime candidate until another mobile/desktop live pass confirms:
 
 - no presentation-board gutters survive in the 64×64 floor tiles;
 - residual intentional panel seams are readable but not dominant;
 - the nine variants still feel coherent when pseudo-randomly distributed;
-- player and other robots visibly touch the floor at compact dark contact points;
-- the ambient shadow supports volume without becoming a conspicuous black decal;
-- affiliation colour remains readable as a separate layer above the neutral grounding treatment.
+- PICO visibly touches the floor in all eight views rather than floating above detached dots;
+- side-view secondary contact does not read as a separate object/decal;
+- the ambient shadow supports volume without becoming a conspicuous black decal or sitting visibly below the body;
+- affiliation colour remains readable as a separate layer above the neutral grounding treatment;
+- other robot bodies are only given dedicated contact-coordinate profiles when their own live QA requires them.
