@@ -38,8 +38,17 @@ jobs:
       - name: Art toolkit self-test
         run: npm run art:toolkit-test
 
-      - name: PICO grounding diagnostic
+      - name: Generate character grounding CSS
+        run: npm run generate:character-grounding
+
+      - name: Verify committed grounding CSS matches profile
+        run: git diff --exit-code -- src/meta/CharacterGrounding.generated.css
+
+      - name: PICO grounding source diagnostic
         run: npm run diagnose:pico-grounding
+
+      - name: PICO grounding runtime preview
+        run: npm run preview:pico-grounding
 
       - name: Upload grounding diagnostic artifact
         uses: actions/upload-artifact@v4
@@ -54,6 +63,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_BUILD_SHA: ${{ github.sha }}
 
       - name: Upload Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
