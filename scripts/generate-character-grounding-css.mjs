@@ -47,8 +47,8 @@ for (const [bodyId, profile] of Object.entries(data.profiles)) {
     lines.push(`  --nd-ground-foot-y: ${pct(direction.footY, source)};`);
     lines.push(`  --nd-ground-ambient-x: 50%;`);
     lines.push(`  --nd-ground-ambient-y: ${pct(ambientY, source)};`);
-    lines.push(`  --nd-ground-ambient-w: ${pct(profile.ambient.width, source)};`);
-    lines.push(`  --nd-ground-ambient-h: ${pct(profile.ambient.height, source)};`);
+    lines.push(`  --nd-ground-ambient-rx: ${pct(profile.ambient.width / 2, source)};`);
+    lines.push(`  --nd-ground-ambient-ry: ${pct(profile.ambient.height / 2, source)};`);
     lines.push(`  --nd-ground-ambient-core-opacity: ${profile.ambient.coreOpacity.toFixed(3)};`);
     lines.push(`  --nd-ground-ambient-mid-opacity: ${profile.ambient.midOpacity.toFixed(3)};`);
     lines.push(...contactVars(direction.contacts[0], defaults, "ground-contact-a", source));
