@@ -9,6 +9,10 @@
  *
  * Existing player/hostile/neutral affiliation borders and glows remain the
  * ownership language. No direction-specific shadow PNGs are required.
+ *
+ * PICO is the first body with per-view contact calibration. The selectors use
+ * the accepted directional asset identity only to scope that calibration; other
+ * bodies keep the generic defaults until their own live-scale QA is performed.
  */
 
 .zk-player,
@@ -16,8 +20,16 @@
   --nd-ground-affiliation-rgb: 57, 221, 135;
   --nd-ground-contact-rx: 4px;
   --nd-ground-contact-ry: 2px;
+  --nd-ground-contact-a-x: 40%;
+  --nd-ground-contact-a-y: 72%;
+  --nd-ground-contact-b-x: 60%;
+  --nd-ground-contact-b-y: 72%;
+  --nd-ground-contact-a-alpha: .76;
+  --nd-ground-contact-b-alpha: .76;
   --nd-ground-ambient-rx: 20px;
   --nd-ground-ambient-ry: 6px;
+  /* PR #110 live QA: the ambient read was only slightly too low. */
+  --nd-ground-ambient-y: 52%;
 }
 
 .zk-hostile {
@@ -37,16 +49,67 @@
 }
 
 /*
+ * PICO-3 per-direction contact calibration.
+ * Frame order is the accepted turnaround order: N, NE, E, SE, S, SW, W, NW.
+ *
+ * The actual authored PICO art has transparent padding below the visible feet.
+ * Therefore the contact centers sit much higher inside the affiliation ellipse
+ * than the generic defaults. Side views intentionally use a tighter pair and a
+ * weaker rear contact because the two visible ground points overlap strongly.
+ */
+.zk-player:has(.zk-directional-sprite[style*="directional-pico"]) {
+  --nd-ground-contact-rx: 3px;
+  --nd-ground-contact-ry: 1.5px;
+}
+
+.zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-0 {
+  --nd-ground-contact-a-x: 42%; --nd-ground-contact-a-y: 26%;
+  --nd-ground-contact-b-x: 58%; --nd-ground-contact-b-y: 26%;
+}
+
+.zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-1 {
+  --nd-ground-contact-a-x: 44%; --nd-ground-contact-a-y: 25%;
+  --nd-ground-contact-b-x: 56%; --nd-ground-contact-b-y: 23%;
+}
+
+.zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-2 {
+  --nd-ground-contact-a-x: 47%; --nd-ground-contact-a-y: 25%;
+  --nd-ground-contact-b-x: 54%; --nd-ground-contact-b-y: 22%;
+  --nd-ground-contact-b-alpha: .44;
+}
+
+.zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-3 {
+  --nd-ground-contact-a-x: 44%; --nd-ground-contact-a-y: 23%;
+  --nd-ground-contact-b-x: 56%; --nd-ground-contact-b-y: 25%;
+}
+
+.zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-4 {
+  --nd-ground-contact-a-x: 42%; --nd-ground-contact-a-y: 26%;
+  --nd-ground-contact-b-x: 58%; --nd-ground-contact-b-y: 26%;
+}
+
+.zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-5 {
+  --nd-ground-contact-a-x: 44%; --nd-ground-contact-a-y: 25%;
+  --nd-ground-contact-b-x: 56%; --nd-ground-contact-b-y: 23%;
+}
+
+.zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-6 {
+  --nd-ground-contact-a-x: 46%; --nd-ground-contact-a-y: 22%;
+  --nd-ground-contact-b-x: 53%; --nd-ground-contact-b-y: 25%;
+  --nd-ground-contact-a-alpha: .44;
+}
+
+.zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-7 {
+  --nd-ground-contact-a-x: 44%; --nd-ground-contact-a-y: 23%;
+  --nd-ground-contact-b-x: 56%; --nd-ground-contact-b-y: 25%;
+}
+
+/*
  * The existing ::after primitive still owns the affiliation ellipse/border.
- * These layered gradients replace the old single heavy black blob:
+ * These layered gradients provide physical grounding without adding art assets:
  * - the first two gradients are compact contact points;
  * - the third is the neutral ambient body shadow;
  * - the final layer is only a faint affiliation fill beneath the border.
- *
- * Contact points stay screen-relative instead of following the eight view
- * frames. The directional source art is authored upright inside every frame,
- * so the actual visible ground contacts remain near the lower part of the
- * sprite without requiring eight separate shadow definitions.
  */
 .zk-player::after,
 .zk-hostile::after {
@@ -54,19 +117,19 @@
   height: 30px;
   background:
     radial-gradient(
-      ellipse var(--nd-ground-contact-rx) var(--nd-ground-contact-ry) at 40% 78%,
-      rgba(0, 3, 4, .76) 0 28%,
+      ellipse var(--nd-ground-contact-rx) var(--nd-ground-contact-ry) at var(--nd-ground-contact-a-x) var(--nd-ground-contact-a-y),
+      rgba(0, 3, 4, var(--nd-ground-contact-a-alpha)) 0 28%,
       rgba(0, 3, 4, .40) 58%,
       transparent 100%
     ),
     radial-gradient(
-      ellipse var(--nd-ground-contact-rx) var(--nd-ground-contact-ry) at 60% 78%,
-      rgba(0, 3, 4, .76) 0 28%,
+      ellipse var(--nd-ground-contact-rx) var(--nd-ground-contact-ry) at var(--nd-ground-contact-b-x) var(--nd-ground-contact-b-y),
+      rgba(0, 3, 4, var(--nd-ground-contact-b-alpha)) 0 28%,
       rgba(0, 3, 4, .40) 58%,
       transparent 100%
     ),
     radial-gradient(
-      ellipse var(--nd-ground-ambient-rx) var(--nd-ground-ambient-ry) at 50% 67%,
+      ellipse var(--nd-ground-ambient-rx) var(--nd-ground-ambient-ry) at 50% var(--nd-ground-ambient-y),
       rgba(3, 8, 9, .19) 0 22%,
       rgba(3, 8, 9, .10) 52%,
       rgba(3, 8, 9, .035) 72%,
@@ -101,7 +164,7 @@
   background:
     radial-gradient(ellipse 7% 12% at 41% 76%, rgba(0, 3, 4, .72) 0 30%, rgba(0, 3, 4, .36) 62%, transparent 100%),
     radial-gradient(ellipse 7% 12% at 59% 76%, rgba(0, 3, 4, .72) 0 30%, rgba(0, 3, 4, .36) 62%, transparent 100%),
-    radial-gradient(ellipse 34% 22% at 50% 66%, rgba(2, 7, 8, .18) 0 24%, rgba(2, 7, 8, .09) 54%, transparent 100%);
+    radial-gradient(ellipse 34% 22% at 50% 58%, rgba(2, 7, 8, .18) 0 24%, rgba(2, 7, 8, .09) 54%, transparent 100%);
   filter: none;
   box-shadow: none;
 }
