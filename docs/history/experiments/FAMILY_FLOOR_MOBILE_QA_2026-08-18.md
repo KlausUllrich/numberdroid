@@ -1,6 +1,6 @@
 # TS-01 Family Floor — Mobile QA 2026-08-18
 
-Status: **IMPLEMENTATION CORRECTION IN PROGRESS / SOURCE REMAINS APPROVED**
+Status: **SECOND GROUNDING PASS IMPLEMENTED / LIVE QA PENDING / SOURCE REMAINS APPROVED**
 
 ## QA result
 
@@ -30,11 +30,11 @@ runtime = 64 × 64 px
 
 The source remains immutable. Runtime preparation now crops only these panel faces and then downsamples them deterministically.
 
-## Robot grounding
+## Robot grounding — first correction
 
 The existing player/robot affiliation ellipse primarily communicated ownership colour (green player, red hostile, blue neutral). On the richer Family material it did not provide enough neutral value grounding.
 
-Correction principle:
+The first correction used:
 
 ```text
 BODY / AFFILIATION COLOUR
@@ -44,13 +44,43 @@ SOFT DARK CONTACT BLOB
 EXISTING COLOURED RING / GLOW
 ```
 
-The added blob is presentation only:
+The added blob was presentation only:
 
 - larger than the previous apparent contact patch;
 - darker and softer;
 - neutral in value so it works across warm/cool room floors;
 - applied consistently to player, hostile/neutral robots and staged actors;
 - no change to collision radius, body scale, movement or navigation.
+
+## Robot grounding — second live-QA correction
+
+The next live pass showed that the single neutral blob over-corrected the problem. At gameplay scale it was too broad and too dark, while its uniform shape still left PICO reading slightly above the floor rather than physically touching it.
+
+**Classification: presentation/runtime grounding, not Character source art.**
+
+The durable correction is a shared procedural two-stage `CharacterGrounding` treatment:
+
+```text
+BODY SPRITE
+    +
+SMALL DARK CONTACT POINTS
+    +
+RESTRAINED SOFT AMBIENT SHADOW
+    +
+SEPARATE AFFILIATION BORDER / GLOW
+```
+
+Implementation rules:
+
+- two compact, high-value-contrast contact points provide the actual visual floor contact;
+- the former broad black blob becomes a narrower, much lower-opacity ambient shadow;
+- green/red/blue affiliation remains a separate visual language and is not used as physical shadow colour;
+- the treatment is procedural CSS and shared by player, hostile/neutral robots and staged actors;
+- standard and large bodies scale the same construction rather than using bespoke raster shadows;
+- **no eight-direction shadow PNG set is required for any Character**;
+- contact points remain screen-relative because each directional body frame is authored upright in its own sprite cell, so visible foot/wheel contact stays near the lower edge of the frame;
+- if a future body genuinely needs unusual contact geometry, adjust the shared/body presentation profile rather than authoring eight new shadow images;
+- no collision, movement, navigation, body scale or Character source art changes are involved.
 
 ## Acceptance gate
 
@@ -59,5 +89,6 @@ Family Floor remains a runtime candidate until another mobile/desktop live pass 
 - no presentation-board gutters survive in the 64×64 floor tiles;
 - residual intentional panel seams are readable but not dominant;
 - the nine variants still feel coherent when pseudo-randomly distributed;
-- player and other robots remain clearly grounded without looking as if they float over a black decal;
-- affiliation colour remains readable above the neutral blob shadow.
+- player and other robots visibly touch the floor at compact dark contact points;
+- the ambient shadow supports volume without becoming a conspicuous black decal;
+- affiliation colour remains readable as a separate layer above the neutral grounding treatment.
