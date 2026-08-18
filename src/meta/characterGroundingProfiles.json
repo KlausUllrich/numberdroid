@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "profiles": {
+    "pico": {
+      "assetNeedle": "directional-pico",
+      "sourceFrameSize": 96,
+      "ambient": {
+        "width": 74,
+        "height": 18,
+        "offsetYFromContactMean": -2,
+        "coreOpacity": 0.15,
+        "midOpacity": 0.075
+      },
+      "contactDefaults": {
+        "radiusX": 5.5,
+        "radiusY": 3,
+        "opacity": 0.9
+      },
+      "directions": [
+        {
+          "name": "N",
+          "footY": 86,
+          "contacts": [
+            { "x": 35.5, "y": 86 },
+            { "x": 60, "y": 86 }
+          ]
+        },
+        {
+          "name": "NE",
+          "footY": 86,
+          "contacts": [
+            { "x": 34.5, "y": 81, "opacity": 0.72 },
+            { "x": 60, "y": 86 }
+          ]
+        },
+        {
+          "name": "E",
+          "footY": 87,
+          "contacts": [
+            { "x": 46.5, "y": 87, "radiusX": 7 }
+          ]
+        },
+        {
+          "name": "SE",
+          "footY": 87,
+          "contacts": [
+            { "x": 42, "y": 87 },
+            { "x": 64, "y": 82, "opacity": 0.72 }
+          ]
+        },
+        {
+          "name": "S",
+          "footY": 89,
+          "contacts": [
+            { "x": 35.5, "y": 89 },
+            { "x": 60, "y": 89 }
+          ]
+        },
+        {
+          "name": "SW",
+          "footY": 92,
+          "contacts": [
+            { "x": 37.5, "y": 86, "opacity": 0.7 },
+            { "x": 58, "y": 92 }
+          ]
+        },
+        {
+          "name": "W",
+          "footY": 92,
+          "contacts": [
+            { "x": 49.5, "y": 92, "radiusX": 7 }
+          ]
+        },
+        {
+          "name": "NW",
+          "footY": 95,
+          "contacts": [
+            { "x": 42.5, "y": 92, "opacity": 0.78 },
+            { "x": 67, "y": 95 }
+          ]
+        }
+      ]
+    }
+  }
+}
