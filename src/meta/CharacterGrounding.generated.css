@@ -156,7 +156,7 @@
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-7 {
   --nd-ground-foot-y: 98.9583%;
-  --nd-ground-render-offset-y: 0.0000%;
+  --nd-ground-render-offset-y: -4.1667%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 95.3125%;
   --nd-ground-ambient-rx: 44.7917%;
