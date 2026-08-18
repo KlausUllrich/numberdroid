@@ -3,78 +3,52 @@
 /*
  * CharacterGrounding escalation architecture.
  *
- * The accepted directional sprite cell is the only authoritative coordinate
- * plane for physical player grounding. Player-box pseudo-element offsets are
- * intentionally disabled after three failed live-position iterations.
- *
- * PICO direction values are generated from characterGroundingProfiles.json.
- * Other player bodies retain a conservative normalized fallback until their own
- * source-pixel QA produces a dedicated profile.
+ * Physical player grounding uses one coordinate plane only: the exact rendered
+ * directional frame. Standard player + sprite = 52×52 px, large = 96×96 px.
+ * Source-profile percentages therefore project directly into runtime pixels.
+ * No secondary 58×24 shadow box and no independent Y translation remain.
  */
 
 .zk-player {
+  width: 52px;
+  height: 52px;
+  isolation: isolate;
   --nd-ground-affiliation-rgb: 57, 221, 135;
-}
 
-/* Kill the obsolete player-box physical shadow unconditionally. */
-.zk-player::before {
-  content: none !important;
-}
-
-/* Keep ownership/status language separate from physical grounding. */
-.zk-player::after {
-  width: 58px;
-  height: 30px;
-  background: radial-gradient(
-    ellipse at 50% 50%,
-    rgba(var(--nd-ground-affiliation-rgb), .10) 0 28%,
-    transparent 70%
-  );
-  box-shadow: none;
-  transform: translate(-50%, 27%);
-}
-
-.zk-player.large::after {
-  width: 104px;
-  height: 48px;
-  transform: translate(-50%, 25%);
-}
-
-/*
- * PLAYER PHYSICAL GROUNDING — exact directional-sprite plane.
- *
- * The sprite span itself is 52×52 for standard bodies and 96×96 for large
- * bodies. All contact/ambient coordinates below are therefore direct scaled
- * projections of the authored directional source cell; there is no second
- * translated shadow box and no top:50% parent-space conversion.
- */
-.zk-player .zk-directional-sprite {
-  position: relative;
-  overflow: visible;
-
-  /* Generic fallback profile for bodies not yet source-calibrated. */
+  /* Conservative fallback for bodies not yet source-calibrated. */
   --nd-ground-foot-y: 88%;
   --nd-ground-ambient-x: 50%;
-  --nd-ground-ambient-y: 84%;
-  --nd-ground-ambient-w: 72%;
-  --nd-ground-ambient-h: 18%;
+  --nd-ground-ambient-y: 86%;
+  --nd-ground-ambient-rx: 36%;
+  --nd-ground-ambient-ry: 9%;
   --nd-ground-ambient-core-opacity: .14;
   --nd-ground-ambient-mid-opacity: .07;
-
   --nd-ground-contact-a-x: 40%;
   --nd-ground-contact-a-y: 88%;
   --nd-ground-contact-a-rx: 6%;
   --nd-ground-contact-a-ry: 3.2%;
   --nd-ground-contact-a-opacity: .86;
-
+  --nd-ground-contact-a-mid-opacity: .43;
   --nd-ground-contact-b-x: 60%;
   --nd-ground-contact-b-y: 88%;
   --nd-ground-contact-b-rx: 6%;
   --nd-ground-contact-b-ry: 3.2%;
   --nd-ground-contact-b-opacity: .86;
+  --nd-ground-contact-b-mid-opacity: .43;
 }
 
-.zk-player .zk-directional-sprite::before {
+.zk-player.large {
+  width: 96px;
+  height: 96px;
+}
+
+.zk-player .zk-directional-sprite {
+  position: relative;
+  z-index: 2;
+}
+
+/* Physical grounding: same 52×52 / 96×96 plane as the sprite. */
+.zk-player::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -85,18 +59,18 @@
       ellipse var(--nd-ground-contact-a-rx) var(--nd-ground-contact-a-ry)
       at var(--nd-ground-contact-a-x) var(--nd-ground-contact-a-y),
       rgb(0 3 4 / var(--nd-ground-contact-a-opacity)) 0 34%,
-      rgb(0 3 4 / calc(var(--nd-ground-contact-a-opacity) * .50)) 64%,
+      rgb(0 3 4 / var(--nd-ground-contact-a-mid-opacity)) 64%,
       transparent 100%
     ),
     radial-gradient(
       ellipse var(--nd-ground-contact-b-rx) var(--nd-ground-contact-b-ry)
       at var(--nd-ground-contact-b-x) var(--nd-ground-contact-b-y),
       rgb(0 3 4 / var(--nd-ground-contact-b-opacity)) 0 34%,
-      rgb(0 3 4 / calc(var(--nd-ground-contact-b-opacity) * .50)) 64%,
+      rgb(0 3 4 / var(--nd-ground-contact-b-mid-opacity)) 64%,
       transparent 100%
     ),
     radial-gradient(
-      ellipse calc(var(--nd-ground-ambient-w) / 2) calc(var(--nd-ground-ambient-h) / 2)
+      ellipse var(--nd-ground-ambient-rx) var(--nd-ground-ambient-ry)
       at var(--nd-ground-ambient-x) var(--nd-ground-ambient-y),
       rgb(3 8 9 / var(--nd-ground-ambient-core-opacity)) 0 24%,
       rgb(3 8 9 / var(--nd-ground-ambient-mid-opacity)) 54%,
@@ -104,38 +78,68 @@
     );
 }
 
+/* Affiliation remains separate and may stay larger than the physical body. */
+.zk-player::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: -1;
+  width: 58px;
+  height: 30px;
+  border: 2px solid #34d986aa;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(var(--nd-ground-affiliation-rgb), .10) 0 28%, transparent 70%);
+  box-shadow: none;
+  transform: translate(-50%, 22%);
+  pointer-events: none;
+}
+
+.zk-player.large::after {
+  width: 104px;
+  height: 46px;
+}
+
 /*
- * Diagnostic mode: ?groundingDebug=1 sets data-grounding-debug on <html>.
- * The yellow line is the measured source foot baseline. Magenta rings show the
- * actual runtime contact centers. This makes a screenshot numerically useful.
+ * Diagnostic mode. Cyan = exact runtime frame, yellow = measured foot plane,
+ * magenta = authored contact centers. The build badge proves deployed revision.
  */
-html[data-grounding-debug="1"] .zk-player .zk-directional-sprite {
+html[data-grounding-debug="1"] .zk-player {
   outline: 1px solid #42dff5;
-  outline-offset: 0;
+}
+
+html[data-grounding-debug="1"] .zk-player::before {
+  box-shadow: inset 0 calc((var(--nd-ground-foot-y) - 50%) * 1) 0 -1px #ffd45a;
 }
 
 html[data-grounding-debug="1"] .zk-player .zk-directional-sprite::after {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 4;
   pointer-events: none;
   background:
     radial-gradient(circle 4px at var(--nd-ground-contact-a-x) var(--nd-ground-contact-a-y), transparent 45%, #ff3fd1 48% 62%, transparent 66%),
-    radial-gradient(circle 4px at var(--nd-ground-contact-b-x) var(--nd-ground-contact-b-y), transparent 45%, rgb(255 63 209 / var(--nd-ground-contact-b-opacity)) 48% 62%, transparent 66%),
-    linear-gradient(
-      to bottom,
-      transparent calc(var(--nd-ground-foot-y) - 1px),
-      #ffd45a calc(var(--nd-ground-foot-y) - 1px) calc(var(--nd-ground-foot-y) + 1px),
-      transparent calc(var(--nd-ground-foot-y) + 1px)
-    );
+    radial-gradient(circle 4px at var(--nd-ground-contact-b-x) var(--nd-ground-contact-b-y), transparent 45%, rgb(255 63 209 / var(--nd-ground-contact-b-opacity)) 48% 62%, transparent 66%);
+}
+
+html[data-grounding-debug="1"]::before {
+  content: "GROUNDING DEBUG · BUILD " attr(data-build-sha);
+  position: fixed;
+  z-index: 10000;
+  top: 4px;
+  left: 4px;
+  padding: 4px 7px;
+  border: 1px solid #ffd45a;
+  background: #111e;
+  color: #ffd45a;
+  font: 700 10px/1.2 ui-monospace, monospace;
+  pointer-events: none;
 }
 
 /*
- * HOSTILES / NEUTRALS
- *
- * Kept on the existing combined grounding treatment in this bounded player
- * escalation. Their parent ::before is reserved for perception/alert rings.
+ * Hostiles/neutrals are intentionally unchanged in this bounded player fix.
+ * Their ::before is already used by perception/alert presentation.
  */
 .zk-hostile {
   --nd-ground-contact-rx: 4px;
@@ -174,7 +178,6 @@ html[data-grounding-debug="1"] .zk-player .zk-directional-sprite::after {
   transform: translate(-50%, 25%);
 }
 
-/* Staged actors already own a dedicated shadow element. */
 .zk-staged-actor .staged-shadow {
   left: 10%;
   right: 10%;
