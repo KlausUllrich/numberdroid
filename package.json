@@ -9,6 +9,7 @@
     "materialize-yellow-core": "node scripts/materialize-yellow-core.mjs",
     "materialize-flow-regulator": "node scripts/materialize-flow-regulator.mjs",
     "materialize-family-floor": "node scripts/materialize-family-floor.mjs",
+    "diagnose:pico-grounding": "node scripts/diagnose-pico-grounding.mjs",
     "render-walls": "node scripts/render-transfer-hall-walls.mjs",
     "render-doors": "node scripts/render-transfer-hall-door-art.mjs",
     "validate-art-seams": "node scripts/validate-wall-seams.mjs",
