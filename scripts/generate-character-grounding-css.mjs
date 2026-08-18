@@ -43,8 +43,10 @@ for (const [bodyId, profile] of Object.entries(data.profiles)) {
     const selector = `.zk-player:has(.zk-directional-sprite[style*="${profile.assetNeedle}"]).dir-${index}`;
     const meanContactY = direction.contacts.reduce((sum, contact) => sum + contact.y, 0) / direction.contacts.length;
     const ambientY = meanContactY + profile.ambient.offsetYFromContactMean;
+    const presentationOffsetY = direction.presentationOffsetY ?? 0;
     lines.push(`${selector} {`);
     lines.push(`  --nd-ground-foot-y: ${pct(direction.footY, source)};`);
+    lines.push(`  --nd-ground-render-offset-y: ${pct(presentationOffsetY, source)};`);
     lines.push(`  --nd-ground-ambient-x: 50%;`);
     lines.push(`  --nd-ground-ambient-y: ${pct(ambientY, source)};`);
     lines.push(`  --nd-ground-ambient-rx: ${pct(profile.ambient.width / 2, source)};`);
