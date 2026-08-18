@@ -63,5 +63,5 @@ for (const [bodyId, profile] of Object.entries(data.profiles)) {
 }
 
 mkdirSync(dirname(outputPath), { recursive: true });
-writeFileSync(outputPath, `${lines.join("\n")}\n`);
+writeFileSync(outputPath, lines.join("\n"));
 console.log(`Character grounding CSS: generated ${outputPath}`);
