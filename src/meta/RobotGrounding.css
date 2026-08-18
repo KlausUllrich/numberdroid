@@ -20,6 +20,7 @@
 
   /* Conservative fallback for bodies not yet source-calibrated. */
   --nd-ground-foot-y: 88%;
+  --nd-ground-render-offset-y: 0%;
   --nd-ground-ambient-x: 50%;
   --nd-ground-ambient-y: 86%;
   --nd-ground-ambient-rx: 36%;
@@ -51,6 +52,7 @@
   inset: 0;
   z-index: 0;
   overflow: visible;
+  transform: translateY(var(--nd-ground-render-offset-y));
   pointer-events: none;
 }
 
