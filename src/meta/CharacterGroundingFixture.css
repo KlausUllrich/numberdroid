@@ -1,0 +1,41 @@
+.zk-grounding-fixture {
+  width: 740px;
+  height: 380px;
+  display: grid;
+  grid-template-columns: repeat(4, 168px);
+  grid-template-rows: repeat(2, 168px);
+  gap: 12px;
+  padding: 16px;
+  background: #242b2a;
+  color: #e9f2ef;
+}
+
+.zk-grounding-card {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #71817d;
+  background:
+    linear-gradient(90deg, transparent 49.5%, rgba(74, 83, 80, .12) 49.5% 50.5%, transparent 50.5%),
+    linear-gradient(transparent 49.5%, rgba(74, 83, 80, .12) 49.5% 50.5%, transparent 50.5%),
+    #d7d1c1;
+}
+
+.zk-grounding-card-label {
+  position: absolute;
+  z-index: 20;
+  top: 6px;
+  left: 7px;
+  color: #26312e;
+  font: 700 11px/1 ui-monospace, monospace;
+}
+
+.zk-grounding-fixture .zk-player {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+}
