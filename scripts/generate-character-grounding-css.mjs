@@ -40,7 +40,7 @@ for (const [bodyId, profile] of Object.entries(data.profiles)) {
     if (!Array.isArray(direction.contacts) || direction.contacts.length < 1 || direction.contacts.length > 2) {
       throw new Error(`${bodyId}/${direction.name}: expected 1 or 2 contacts.`);
     }
-    const selector = `.zk-player.dir-${index} .zk-directional-sprite[style*="${profile.assetNeedle}"]`;
+    const selector = `.zk-player:has(.zk-directional-sprite[style*="${profile.assetNeedle}"]).dir-${index}`;
     const meanContactY = direction.contacts.reduce((sum, contact) => sum + contact.y, 0) / direction.contacts.length;
     const ambientY = meanContactY + profile.ambient.offsetYFromContactMean;
     lines.push(`${selector} {`);
