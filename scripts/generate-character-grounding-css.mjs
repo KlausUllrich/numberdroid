@@ -12,12 +12,14 @@ function pct(value, sourceFrameSize) {
 }
 
 function contactVars(contact, defaults, prefix, sourceFrameSize) {
+  const opacity = contact.opacity ?? defaults.opacity;
   return [
     `  --nd-${prefix}-x: ${pct(contact.x, sourceFrameSize)};`,
     `  --nd-${prefix}-y: ${pct(contact.y, sourceFrameSize)};`,
     `  --nd-${prefix}-rx: ${pct(contact.radiusX ?? defaults.radiusX, sourceFrameSize)};`,
     `  --nd-${prefix}-ry: ${pct(contact.radiusY ?? defaults.radiusY, sourceFrameSize)};`,
-    `  --nd-${prefix}-opacity: ${(contact.opacity ?? defaults.opacity).toFixed(3)};`,
+    `  --nd-${prefix}-opacity: ${opacity.toFixed(3)};`,
+    `  --nd-${prefix}-mid-opacity: ${(opacity * 0.5).toFixed(3)};`,
   ];
 }
 
@@ -54,6 +56,7 @@ for (const [bodyId, profile] of Object.entries(data.profiles)) {
       lines.push(...contactVars(direction.contacts[1], defaults, "ground-contact-b", source));
     } else {
       lines.push(`  --nd-ground-contact-b-opacity: 0;`);
+      lines.push(`  --nd-ground-contact-b-mid-opacity: 0;`);
     }
     lines.push("}", "");
   });
