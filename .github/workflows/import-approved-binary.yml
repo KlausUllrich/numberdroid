@@ -1,0 +1,149 @@
+name: Import approved binary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'binary-import-requests/*.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: approved-binary-import
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Resolve and validate request
+        id: request
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          request="$(git diff-tree --no-commit-id --name-only -r "$GITHUB_SHA" \
+            | grep -E '^binary-import-requests/[^/]+\.json$' \
+            | head -n 1 || true)"
+
+          if [[ -z "$request" || ! -f "$request" ]]; then
+            echo "No single binary import request found in triggering commit." >&2
+            exit 1
+          fi
+
+          source_url="$(jq -er '.source_url' "$request")"
+          target_path="$(jq -er '.target_path' "$request")"
+          expected_sha256="$(jq -er '.sha256' "$request")"
+          expected_bytes="$(jq -er '.bytes' "$request")"
+          expected_blob="$(jq -er '.git_blob_sha1' "$request")"
+
+          case "$source_url" in
+            https://github.com/user-attachments/assets/*|https://private-user-images.githubusercontent.com/*)
+              ;;
+            *)
+              echo "Source URL is not an allowed GitHub attachment host: $source_url" >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ "$target_path" != art-source/approved/* ]]; then
+            echo "Target must be under art-source/approved/: $target_path" >&2
+            exit 1
+          fi
+
+          if [[ "$target_path" == /* || "$target_path" == *".."* ]]; then
+            echo "Unsafe target path: $target_path" >&2
+            exit 1
+          fi
+
+          case "$target_path" in
+            *.png|*.webp|*.jpg|*.jpeg|*.zip)
+              ;;
+            *)
+              echo "Unsupported approved-source extension: $target_path" >&2
+              exit 1
+              ;;
+          esac
+
+          if [[ -e "$target_path" ]]; then
+            echo "Approved-source target already exists and is immutable: $target_path" >&2
+            exit 1
+          fi
+
+          if ! [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "Invalid SHA-256 in request." >&2
+            exit 1
+          fi
+          if ! [[ "$expected_blob" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid Git blob SHA-1 in request." >&2
+            exit 1
+          fi
+          if ! [[ "$expected_bytes" =~ ^[0-9]+$ ]] || (( expected_bytes <= 0 || expected_bytes > 52428800 )); then
+            echo "Invalid or excessive byte count: $expected_bytes" >&2
+            exit 1
+          fi
+
+          {
+            echo "request=$request"
+            echo "source_url=$source_url"
+            echo "target_path=$target_path"
+            echo "expected_sha256=$expected_sha256"
+            echo "expected_bytes=$expected_bytes"
+            echo "expected_blob=$expected_blob"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download binary directly from GitHub attachment storage
+        shell: bash
+        env:
+          SOURCE_URL: ${{ steps.request.outputs.source_url }}
+          TARGET_PATH: ${{ steps.request.outputs.target_path }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$TARGET_PATH")"
+          curl --fail --location --retry 3 --retry-all-errors \
+            --connect-timeout 20 --max-time 180 \
+            "$SOURCE_URL" -o "$TARGET_PATH"
+
+      - name: Verify binary identity
+        shell: bash
+        env:
+          TARGET_PATH: ${{ steps.request.outputs.target_path }}
+          EXPECTED_SHA256: ${{ steps.request.outputs.expected_sha256 }}
+          EXPECTED_BYTES: ${{ steps.request.outputs.expected_bytes }}
+          EXPECTED_BLOB: ${{ steps.request.outputs.expected_blob }}
+        run: |
+          set -euo pipefail
+
+          actual_bytes="$(stat -c '%s' "$TARGET_PATH")"
+          actual_sha256="$(sha256sum "$TARGET_PATH" | awk '{print $1}')"
+          actual_blob="$(git hash-object "$TARGET_PATH")"
+
+          printf 'bytes:    expected=%s actual=%s\n' "$EXPECTED_BYTES" "$actual_bytes"
+          printf 'sha256:   expected=%s actual=%s\n' "$EXPECTED_SHA256" "$actual_sha256"
+          printf 'git blob: expected=%s actual=%s\n' "$EXPECTED_BLOB" "$actual_blob"
+          file "$TARGET_PATH"
+
+          [[ "$actual_bytes" == "$EXPECTED_BYTES" ]]
+          [[ "$actual_sha256" == "$EXPECTED_SHA256" ]]
+          [[ "$actual_blob" == "$EXPECTED_BLOB" ]]
+
+      - name: Commit verified approved binary
+        shell: bash
+        env:
+          REQUEST_PATH: ${{ steps.request.outputs.request }}
+          TARGET_PATH: ${{ steps.request.outputs.target_path }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          git add "$TARGET_PATH"
+          git rm "$REQUEST_PATH"
+          git commit -m "Import verified approved binary: $(basename "$TARGET_PATH")"
+          git push origin HEAD:main
