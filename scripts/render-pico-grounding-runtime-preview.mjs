@@ -39,12 +39,11 @@ function checker(parts, x0, y0) {
 
 function drawGrounding(parts, direction, profile, x0, y0) {
   const contacts = direction.contacts;
-  const meanY = contacts.reduce((sum, contact) => sum + contact.y, 0) / contacts.length;
   const presentationOffsetY = runtime(direction.presentationOffsetY ?? 0) * VIEW_SCALE;
-  const ambientY = runtime(meanY + profile.ambient.offsetYFromContactMean) * VIEW_SCALE;
+  const ambientY = runtime(direction.footY + profile.ambient.offsetYFromFoot) * VIEW_SCALE;
   const ambientRx = runtime(profile.ambient.width / 2) * VIEW_SCALE;
   const ambientRy = runtime(profile.ambient.height / 2) * VIEW_SCALE;
-  parts.push(`<ellipse cx="${x0 + VIEW / 2}" cy="${y0 + ambientY + presentationOffsetY}" rx="${ambientRx}" ry="${ambientRy}" fill="#030809" opacity="${profile.ambient.coreOpacity}"/>`);
+  parts.push(`<ellipse cx="${x0 + VIEW / 2}" cy="${y0 + ambientY}" rx="${ambientRx}" ry="${ambientRy}" fill="#030809" opacity="${profile.ambient.coreOpacity}"/>`);
 
   for (const contact of contacts) {
     const rx = runtime(contact.radiusX ?? profile.contactDefaults.radiusX) * VIEW_SCALE;
@@ -57,9 +56,11 @@ function drawSprite(parts, href, frameIndex, x0, y0) {
   parts.push(`<svg x="${x0}" y="${y0}" width="${VIEW}" height="${VIEW}" viewBox="${frameIndex * FRAME} 0 ${FRAME} ${FRAME}" preserveAspectRatio="none"><image href="${href}" x="0" y="0" width="768" height="96"/></svg>`);
 }
 
-function drawDebug(parts, direction, x0, y0) {
+function drawDebug(parts, direction, profile, x0, y0) {
   const footY = y0 + runtime(direction.footY) * VIEW_SCALE;
+  const ambientAnchorY = y0 + runtime(direction.footY + profile.ambient.offsetYFromFoot) * VIEW_SCALE;
   parts.push(`<line x1="${x0}" x2="${x0 + VIEW}" y1="${footY}" y2="${footY}" stroke="#ffd45a" stroke-width="2"/>`);
+  parts.push(`<line x1="${x0}" x2="${x0 + VIEW}" y1="${ambientAnchorY}" y2="${ambientAnchorY}" stroke="#ff9d42" stroke-width="1" stroke-dasharray="4 3"/>`);
   for (const contact of direction.contacts) {
     const cx = x0 + runtime(contact.x) * VIEW_SCALE;
     const cy = y0 + runtime(contact.y) * VIEW_SCALE;
@@ -105,16 +106,16 @@ profile.directions.forEach((direction, index) => {
   checker(parts, debugX, viewY);
   drawGrounding(parts, direction, profile, debugX, viewY);
   drawSprite(parts, href, index, debugX, viewY);
-  drawDebug(parts, direction, debugX, viewY);
+  drawDebug(parts, direction, profile, debugX, viewY);
 
   const runtimeFoot = runtime(direction.footY).toFixed(2);
   const contactText = direction.contacts.map((contact) => `(${contact.x},${contact.y})`).join(" ");
   const presentationOffset = direction.presentationOffsetY ?? 0;
-  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 16}">source footY ${direction.footY}/96 → runtime ${runtimeFoot}/52 · renderY ${presentationOffset}</text>`);
-  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 31}">contacts ${contactText}</text>`);
+  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 16}">footY ${direction.footY}/96 → ${runtimeFoot}/52 · ambient ΔY ${profile.ambient.offsetYFromFoot}</text>`);
+  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 31}">contacts ${contactText} · contact renderY ${presentationOffset}</text>`);
 });
 
 parts.push(`</svg>`);
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, "pico-grounding-runtime-preview.svg"), `${parts.join("\n")}\n`);
-console.log(`PICO grounding runtime preview: sanitized ${sanitized.removed.reduce((sum, entry) => sum + entry.visiblePixelsRemoved, 0)} detached source pixels and wrote 8-direction comparison`);
+console.log(`PICO grounding runtime preview: sanitized ${sanitized.removed.reduce((sum, entry) => sum + entry.visiblePixelsRemoved, 0)} detached source pixels and wrote foot-anchored 8-direction comparison`);

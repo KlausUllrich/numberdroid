@@ -5,9 +5,9 @@
       "assetNeedle": "directional-pico",
       "sourceFrameSize": 96,
       "ambient": {
-        "width": 86,
-        "height": 22,
-        "offsetYFromContactMean": -2,
+        "width": 92,
+        "height": 23,
+        "offsetYFromFoot": -5,
         "coreOpacity": 0.15,
         "midOpacity": 0.075
       },
