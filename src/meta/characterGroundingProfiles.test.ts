@@ -21,6 +21,13 @@ describe("CharacterGrounding profiles", () => {
     }
   });
 
+  it("keeps the NW rear contact attached after live QA", () => {
+    const nw = grounding.profiles.pico.directions[7];
+    expect(nw.name).toBe("NW");
+    expect(nw.contacts[1].x).toBe(62);
+    expect(nw.contacts[1].y).toBe(95);
+  });
+
   it("keeps all PICO contact geometry inside the authoritative source frame", () => {
     const pico = grounding.profiles.pico;
     for (const direction of pico.directions) {
