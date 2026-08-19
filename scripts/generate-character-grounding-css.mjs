@@ -47,15 +47,15 @@ for (const [bodyId, profile] of Object.entries(data.profiles)) {
     const presentationOffsetY = direction.presentationOffsetY ?? 0;
     const shadowOffsetY = direction.shadowOffsetY ?? 0;
     if (!Number.isFinite(shadowOffsetY)) throw new Error(`${bodyId}/${direction.name}: shadowOffsetY must be finite.`);
-    // The parent grounding layer applies both presentationOffsetY and the final
-    // human-QA shadowOffsetY. Pre-compensate only presentationOffsetY here so
-    // the ambient follows the shared foot-plane rule plus the explicit QA delta,
-    // while contacts preserve their pose-specific presentation calibration.
+    const combinedRenderOffsetY = presentationOffsetY + shadowOffsetY;
+    // presentationOffsetY preserves prior pose/contact calibration. shadowOffsetY
+    // is the explicit human-QA delta for the whole physical shadow. The ambient
+    // anchor compensates only presentationOffsetY, so the final rendered ambient
+    // keeps the shared foot-plane rule plus shadowOffsetY. Contacts receive both.
     const ambientY = direction.footY + profile.ambient.offsetYFromFoot - presentationOffsetY;
     lines.push(`${selector} {`);
     lines.push(`  --nd-ground-foot-y: ${pct(direction.footY, source)};`);
-    lines.push(`  --nd-ground-render-offset-y: ${pct(presentationOffsetY, source)};`);
-    lines.push(`  --nd-ground-shadow-offset-y: ${pct(shadowOffsetY, source)};`);
+    lines.push(`  --nd-ground-render-offset-y: ${pct(combinedRenderOffsetY, source)};`);
     lines.push(`  --nd-ground-ambient-x: 50%;`);
     lines.push(`  --nd-ground-ambient-y: ${pct(ambientY, source)};`);
     lines.push(`  --nd-ground-ambient-rx: ${pct(profile.ambient.width / 2, source)};`);
