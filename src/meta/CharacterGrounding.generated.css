@@ -155,10 +155,10 @@
 }
 
 .zk-player:has(.zk-directional-sprite[style*="directional-pico"]).dir-7 {
-  --nd-ground-foot-y: 98.9583%;
-  --nd-ground-render-offset-y: -4.1667%;
+  --nd-ground-foot-y: 95.8333%;
+  --nd-ground-render-offset-y: -3.1250%;
   --nd-ground-ambient-x: 50%;
-  --nd-ground-ambient-y: 95.3125%;
+  --nd-ground-ambient-y: 93.7500%;
   --nd-ground-ambient-rx: 44.7917%;
   --nd-ground-ambient-ry: 11.4583%;
   --nd-ground-ambient-core-opacity: 0.150;
@@ -169,10 +169,6 @@
   --nd-ground-contact-a-ry: 3.1250%;
   --nd-ground-contact-a-opacity: 0.780;
   --nd-ground-contact-a-mid-opacity: 0.390;
-  --nd-ground-contact-b-x: 64.5833%;
-  --nd-ground-contact-b-y: 98.9583%;
-  --nd-ground-contact-b-rx: 5.7292%;
-  --nd-ground-contact-b-ry: 3.1250%;
-  --nd-ground-contact-b-opacity: 0.900;
-  --nd-ground-contact-b-mid-opacity: 0.450;
+  --nd-ground-contact-b-opacity: 0;
+  --nd-ground-contact-b-mid-opacity: 0;
 }

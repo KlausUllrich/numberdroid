@@ -76,11 +76,10 @@
         },
         {
           "name": "NW",
-          "footY": 95,
-          "presentationOffsetY": -4,
+          "footY": 92,
+          "presentationOffsetY": -3,
           "contacts": [
-            { "x": 42.5, "y": 92, "opacity": 0.78 },
-            { "x": 62, "y": 95 }
+            { "x": 42.5, "y": 92, "opacity": 0.78 }
           ]
         }
       ]

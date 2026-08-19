@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import grounding from "./characterGroundingProfiles.json";
 
 const EXPECTED_DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-const EXPECTED_PICO_FOOT_Y = [86, 86, 87, 87, 89, 92, 92, 95];
-const EXPECTED_PICO_PRESENTATION_OFFSET_Y = [-2, -2, 0, -1, 0, 0, 0, -4];
+const EXPECTED_PICO_FOOT_Y = [86, 86, 87, 87, 89, 92, 92, 92];
+const EXPECTED_PICO_PRESENTATION_OFFSET_Y = [-2, -2, 0, -1, 0, 0, 0, -3];
 
 describe("CharacterGrounding profiles", () => {
-  it("preserves the measured eight-direction PICO foot planes", () => {
+  it("tracks the connected eight-direction PICO runtime foot planes", () => {
     const pico = grounding.profiles.pico;
     expect(pico.sourceFrameSize).toBe(96);
     expect(pico.directions.map((direction) => direction.name)).toEqual(EXPECTED_DIRECTIONS);
@@ -17,15 +17,15 @@ describe("CharacterGrounding profiles", () => {
     const pico = grounding.profiles.pico;
     expect(pico.directions.map((direction) => direction.presentationOffsetY ?? 0)).toEqual(EXPECTED_PICO_PRESENTATION_OFFSET_Y);
     for (const direction of pico.directions) {
-      expect(Math.abs(direction.presentationOffsetY ?? 0)).toBeLessThanOrEqual(4);
+      expect(Math.abs(direction.presentationOffsetY ?? 0)).toBeLessThanOrEqual(3);
     }
   });
 
-  it("keeps the NW rear contact attached after live QA", () => {
+  it("uses only the connected NW support instead of the rejected floating source fragment", () => {
     const nw = grounding.profiles.pico.directions[7];
     expect(nw.name).toBe("NW");
-    expect(nw.contacts[1].x).toBe(62);
-    expect(nw.contacts[1].y).toBe(95);
+    expect(nw.footY).toBe(92);
+    expect(nw.contacts).toEqual([{ x: 42.5, y: 92, opacity: 0.78 }]);
   });
 
   it("keeps all PICO contact geometry inside the authoritative source frame", () => {
