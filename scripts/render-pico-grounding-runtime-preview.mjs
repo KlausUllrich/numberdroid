@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { decodeDirectionalActorPngRgba, sanitizeDirectionalActorStrip } from "./art/toolkit/directional-actor-source.mjs";
+import { encodeRgbaPng } from "./art/toolkit/raster.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sourceDir = join(root, "art-source/recipes/transfer-hall/robots/pico/source");
@@ -55,7 +57,7 @@ function drawSprite(parts, href, frameIndex, x0, y0) {
   parts.push(`<svg x="${x0}" y="${y0}" width="${VIEW}" height="${VIEW}" viewBox="${frameIndex * FRAME} 0 ${FRAME} ${FRAME}" preserveAspectRatio="none"><image href="${href}" x="0" y="0" width="768" height="96"/></svg>`);
 }
 
-function drawDebug(parts, direction, profile, x0, y0) {
+function drawDebug(parts, direction, x0, y0) {
   const footY = y0 + runtime(direction.footY) * VIEW_SCALE;
   parts.push(`<line x1="${x0}" x2="${x0 + VIEW}" y1="${footY}" y2="${footY}" stroke="#ffd45a" stroke-width="2"/>`);
   for (const contact of direction.contacts) {
@@ -66,8 +68,11 @@ function drawDebug(parts, direction, profile, x0, y0) {
   parts.push(`<rect x="${x0}" y="${y0}" width="${VIEW}" height="${VIEW}" fill="none" stroke="#42dff5" stroke-width="1"/>`);
 }
 
-const sourceBytes = canonicalSourceBytes();
-const href = `data:image/png;base64,${sourceBytes.toString("base64")}`;
+const rawSourceBytes = canonicalSourceBytes();
+const decoded = decodeDirectionalActorPngRgba(rawSourceBytes);
+const sanitized = sanitizeDirectionalActorStrip({ rgba: decoded.rgba, width: decoded.width, height: decoded.height, frameSize: FRAME });
+const runtimeSourceBytes = encodeRgbaPng({ width: decoded.width, height: decoded.height, rgba: sanitized.rgba });
+const href = `data:image/png;base64,${runtimeSourceBytes.toString("base64")}`;
 const data = JSON.parse(readFileSync(profilePath, "utf8"));
 const profile = data.profiles.pico;
 if (!profile || profile.sourceFrameSize !== 96 || profile.directions.length !== 8) throw new Error("PICO grounding profile is incomplete.");
@@ -90,7 +95,7 @@ profile.directions.forEach((direction, index) => {
   const viewY = oy + 28;
 
   parts.push(`<text class="title" x="${ox + 12}" y="${oy + 18}">${index} · ${direction.name}</text>`);
-  parts.push(`<text class="label" x="${normalX}" y="${viewY - 5}">NORMAL RUNTIME ×3</text>`);
+  parts.push(`<text class="label" x="${normalX}" y="${viewY - 5}">SANITIZED RUNTIME ×3</text>`);
   parts.push(`<text class="label" x="${debugX}" y="${viewY - 5}">DEBUG RUNTIME ×3</text>`);
 
   checker(parts, normalX, viewY);
@@ -100,7 +105,7 @@ profile.directions.forEach((direction, index) => {
   checker(parts, debugX, viewY);
   drawGrounding(parts, direction, profile, debugX, viewY);
   drawSprite(parts, href, index, debugX, viewY);
-  drawDebug(parts, direction, profile, debugX, viewY);
+  drawDebug(parts, direction, debugX, viewY);
 
   const runtimeFoot = runtime(direction.footY).toFixed(2);
   const contactText = direction.contacts.map((contact) => `(${contact.x},${contact.y})`).join(" ");
@@ -112,4 +117,4 @@ profile.directions.forEach((direction, index) => {
 parts.push(`</svg>`);
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, "pico-grounding-runtime-preview.svg"), `${parts.join("\n")}\n`);
-console.log("PICO grounding runtime preview: wrote 8-direction 52px normal/debug comparison");
+console.log(`PICO grounding runtime preview: sanitized ${sanitized.removed.reduce((sum, entry) => sum + entry.visiblePixelsRemoved, 0)} detached source pixels and wrote 8-direction comparison`);
