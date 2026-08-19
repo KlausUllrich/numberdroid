@@ -40,7 +40,8 @@ function checker(parts, x0, y0) {
 function drawGrounding(parts, direction, profile, x0, y0) {
   const contacts = direction.contacts;
   const presentationOffsetY = runtime(direction.presentationOffsetY ?? 0) * VIEW_SCALE;
-  const ambientY = runtime(direction.footY + profile.ambient.offsetYFromFoot) * VIEW_SCALE;
+  const shadowOffsetY = runtime(direction.shadowOffsetY ?? 0) * VIEW_SCALE;
+  const ambientY = runtime(direction.footY + profile.ambient.offsetYFromFoot) * VIEW_SCALE + shadowOffsetY;
   const ambientRx = runtime(profile.ambient.width / 2) * VIEW_SCALE;
   const ambientRy = runtime(profile.ambient.height / 2) * VIEW_SCALE;
   parts.push(`<ellipse cx="${x0 + VIEW / 2}" cy="${y0 + ambientY}" rx="${ambientRx}" ry="${ambientRy}" fill="#030809" opacity="${profile.ambient.coreOpacity}"/>`);
@@ -48,7 +49,7 @@ function drawGrounding(parts, direction, profile, x0, y0) {
   for (const contact of contacts) {
     const rx = runtime(contact.radiusX ?? profile.contactDefaults.radiusX) * VIEW_SCALE;
     const ry = runtime(contact.radiusY ?? profile.contactDefaults.radiusY) * VIEW_SCALE;
-    parts.push(`<ellipse cx="${x0 + runtime(contact.x) * VIEW_SCALE}" cy="${y0 + runtime(contact.y) * VIEW_SCALE + presentationOffsetY}" rx="${rx}" ry="${ry}" fill="#000304" opacity="${contact.opacity ?? profile.contactDefaults.opacity}"/>`);
+    parts.push(`<ellipse cx="${x0 + runtime(contact.x) * VIEW_SCALE}" cy="${y0 + runtime(contact.y) * VIEW_SCALE + presentationOffsetY + shadowOffsetY}" rx="${rx}" ry="${ry}" fill="#000304" opacity="${contact.opacity ?? profile.contactDefaults.opacity}"/>`);
   }
 }
 
@@ -58,7 +59,8 @@ function drawSprite(parts, href, frameIndex, x0, y0) {
 
 function drawDebug(parts, direction, profile, x0, y0) {
   const footY = y0 + runtime(direction.footY) * VIEW_SCALE;
-  const ambientAnchorY = y0 + runtime(direction.footY + profile.ambient.offsetYFromFoot) * VIEW_SCALE;
+  const shadowOffsetY = runtime(direction.shadowOffsetY ?? 0) * VIEW_SCALE;
+  const ambientAnchorY = y0 + runtime(direction.footY + profile.ambient.offsetYFromFoot) * VIEW_SCALE + shadowOffsetY;
   parts.push(`<line x1="${x0}" x2="${x0 + VIEW}" y1="${footY}" y2="${footY}" stroke="#ffd45a" stroke-width="2"/>`);
   parts.push(`<line x1="${x0}" x2="${x0 + VIEW}" y1="${ambientAnchorY}" y2="${ambientAnchorY}" stroke="#ff9d42" stroke-width="1" stroke-dasharray="4 3"/>`);
   for (const contact of direction.contacts) {
@@ -111,11 +113,12 @@ profile.directions.forEach((direction, index) => {
   const runtimeFoot = runtime(direction.footY).toFixed(2);
   const contactText = direction.contacts.map((contact) => `(${contact.x},${contact.y})`).join(" ");
   const presentationOffset = direction.presentationOffsetY ?? 0;
-  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 16}">footY ${direction.footY}/96 → ${runtimeFoot}/52 · ambient ΔY ${profile.ambient.offsetYFromFoot}</text>`);
-  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 31}">contacts ${contactText} · contact renderY ${presentationOffset}</text>`);
+  const shadowOffset = direction.shadowOffsetY ?? 0;
+  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 16}">footY ${direction.footY}/96 → ${runtimeFoot}/52 · ambient ΔY ${profile.ambient.offsetYFromFoot + shadowOffset}</text>`);
+  parts.push(`<text class="small" x="${ox + 12}" y="${viewY + VIEW + 31}">contacts ${contactText} · renderY ${presentationOffset + shadowOffset} · QA ΔY ${shadowOffset}</text>`);
 });
 
 parts.push(`</svg>`);
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, "pico-grounding-runtime-preview.svg"), `${parts.join("\n")}\n`);
-console.log(`PICO grounding runtime preview: sanitized ${sanitized.removed.reduce((sum, entry) => sum + entry.visiblePixelsRemoved, 0)} detached source pixels and wrote foot-anchored 8-direction comparison`);
+console.log(`PICO grounding runtime preview: sanitized ${sanitized.removed.reduce((sum, entry) => sum + entry.visiblePixelsRemoved, 0)} detached source pixels and wrote manual-QA 8-direction comparison`);
