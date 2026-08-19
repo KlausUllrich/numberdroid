@@ -6,6 +6,7 @@ import { createPlayableCompilerPreview } from "./playablePreview";
 import { compileAndValidatePropExactFits } from "./propExactFitPlan";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
+import { transferFloorSprites } from "./transferFloorPresentation";
 import { yellowCoreSprite } from "./transferFxPresentation";
 import type { LevelSpec } from "./types";
 
@@ -44,15 +45,16 @@ export const TS01_GENERATED_EXACT_FITS = compileAndValidatePropExactFits(TS01_GE
 function withTs01ArtExtensions(floor: FloorDefinition): FloorDefinition {
   if (floor.visual.kind !== "composite") return floor;
 
-  // The accepted Floor remains the common ship base. Family rooms receive a
-  // deterministic 1x1 material overlay in the existing pre-Architecture
-  // FloorFX pass, before grounding shadows. This gives the current Gold Slice
-  // its first room-specific floor identity without changing collision/spatial
-  // truth or forcing a new renderer.
+  // The accepted Floor remains the common ship base. Room-specific material
+  // families are deterministic 1x1 overlays in the existing pre-Architecture
+  // FloorFX pass, before Prop/Actor grounding shadows. They are presentation
+  // only and do not alter compiler geometry, collision or navigation truth.
   const familyTiles = familyFloorSprites(TS01_GENERATED_PLAN);
+  const transferTiles = transferFloorSprites(TS01_GENERATED_PLAN);
+  const roomFloorTiles = [...familyTiles, ...transferTiles];
   const layers = floor.visual.layers.map((layer) => {
-    if (layer.id !== "floor-fx" || layer.kind !== "sprites" || familyTiles.length === 0) return layer;
-    return { ...layer, sprites: [...familyTiles, ...layer.sprites] };
+    if (layer.id !== "floor-fx" || layer.kind !== "sprites" || roomFloorTiles.length === 0) return layer;
+    return { ...layer, sprites: [...roomFloorTiles, ...layer.sprites] };
   });
 
   const core = yellowCoreSprite(TS01_GENERATED_PLAN, TS01_GENERATED_EXACT_FITS);
