@@ -1,6 +1,6 @@
 # Numberdroid Art — Current Authority / Status Index
 
-Status: **current art-domain router — 2026-08-17 after Flow source integration and Floor-pass reprioritization**
+Status: **current art-domain router — 2026-08-19 after PICO grounding acceptance**
 
 This file separates durable art rules from current production status. Older art documents may preserve historical branch names, first-pass lists or obsolete sequencing; use the current authorities below for status.
 
@@ -23,6 +23,7 @@ Do not infer current status from an old “next” paragraph inside a long art-d
 - Prop Artist onboarding: `../agents/PROP_ARTIST_BRIEF.md`
 - Transfer Ship visual thesis: `direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-method Artist workflow: `production/ARTIST_AGENT_WORKFLOW.md`
+- **directional actor physical grounding:** `production/ACTOR_GROUNDING_WORKFLOW.md` — source integrity, connected foot/support geometry, runtime sanitation, profile generation, browser/live QA and explicit human calibration overrides
 - Prop function-to-form / approval / archive / extraction / integration workflow: `production/PROP_ASSET_WORKFLOW.md`
 - live-QA change classification: `production/LIVE_QA_ITERATION_CLASSIFICATION.md`
 - approved source preservation: `production/APPROVED_SOURCE_ARCHIVE.md` + `../../art-source/approved/README.md`
@@ -74,7 +75,8 @@ The byte-identical approved original is preserved before destructive/downscaling
 ## Current TS-01 Gold Slice status
 
 ```text
-PICO                         LIVE_ACCEPTED source baseline
+PICO source                  LIVE_ACCEPTED
+PICO physical grounding      LIVE_ACCEPTED — PR #121 reference profile / source-integrity pipeline
 Floor base family            ACCEPTED BASELINE
 Walls / Architecture         LIVE_ACCEPTED
 Doors                        LIVE_ACCEPTED
@@ -97,7 +99,19 @@ GATE    → desktop + phone Gold-Slice acceptance
 LATER   → Transfer choreography / broader content
 ```
 
-The active problem is **not** spatial safety and is no longer the Transfer Hero itself. The generated level still looks visually sparse/flat; room-floor identity and grounding are now one of the highest-leverage missing systems.
+The active problem is **not** spatial safety, PICO grounding, or the Transfer Hero itself. The generated level still looks visually sparse/flat; room-floor identity and environmental grounding are now one of the highest-leverage missing systems.
+
+---
+
+## PICO grounding acceptance boundary
+
+PICO actor grounding is frozen after explicit 8-direction live approval on 2026-08-19.
+
+Binding workflow and regression reference:
+
+`production/ACTOR_GROUNDING_WORKFLOW.md`
+
+Future Artist/Technical Artist agents must not normalize the accepted per-direction offsets merely because a cleaner universal formula seems possible. Source-integrity automation establishes valid geometry; final perceptual calibration is explicit human-QA data. Reopen PICO grounding only for a demonstrated defect or deliberate revision.
 
 ---
 
@@ -188,7 +202,10 @@ Implications:
 - do not regenerate approved source merely to resize it;
 - source design and runtime scale are separate;
 - physical size and Hero prominence are separate;
-- freeze shadows after useful runtime scale converges;
+- for directional actors, source-integrity/connected-body analysis must precede shadow tuning;
+- automated grounding geometry does not replace explicit Human Live QA calibration;
+- accepted per-direction calibration belongs in profile data, never ad-hoc CSS;
+- freeze shadows after useful runtime scale and explicit live acceptance converge;
 - PNG alpha is not collision authority;
 - authored silhouette/occupancy collision can preserve playable whitespace;
 - movable environment/actor components need not use static Prop lifecycle;
@@ -250,10 +267,10 @@ Pending final composition-level disposition:
 
 ## Known deferred player-model issue
 
-A smaller issue with the player's own in-game model/presentation remains deliberately separate. Do not reopen accepted PICO art until classified.
+A smaller issue with the player's own in-game model/presentation remains deliberately separate. The accepted PICO grounding pass does not automatically resolve or redefine that issue. Do not reopen accepted PICO source/grounding until the separate defect is classified.
 
 ---
 
 ## Role-aware context
 
-Artists follow `../agents/ROLE_ENTRYPOINTS.md`. Prop-focused agents use `../agents/PROP_ARTIST_BRIEF.md` and then current planning/recipe authorities above.
+Artists follow `../agents/ROLE_ENTRYPOINTS.md`. Prop-focused agents use `../agents/PROP_ARTIST_BRIEF.md` and then current planning/recipe authorities above. Character/grounding tasks additionally follow `production/ACTOR_GROUNDING_WORKFLOW.md`.
