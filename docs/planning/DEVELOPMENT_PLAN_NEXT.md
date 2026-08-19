@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — 2026-08-17 after Flow source integration and TS-01 Floor-pass reprioritization**
+Status: **current forward plan — 2026-08-19 after PICO physical-grounding acceptance**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -11,6 +11,10 @@ Detailed TS-01 Gold Slice execution:
 Current Floor treatment brief:
 
 `art-source/recipes/transfer-hall/floor-treatment/recipe.md`
+
+Directional Actor grounding workflow:
+
+`docs/art/production/ACTOR_GROUNDING_WORKFLOW.md`
 
 Transfer Hero production lessons:
 
@@ -105,6 +109,10 @@ Current proven method/tooling includes:
 - deterministic approved-source validation;
 - Crop/Fit/downscale with premultiplied-alpha Lanczos;
 - deterministic shadow derivation;
+- directional-actor connected-component/source-integrity analysis;
+- deterministic runtime sanitation of proven detached actor-source artefacts;
+- profile-driven directional actor grounding with generated CSS and browser QA;
+- explicit human live-QA calibration stored as reproducible profile data;
 - explicit manual approved-source upload/verification path;
 - categorical prohibition on inline repository Base64 transport.
 
@@ -116,7 +124,8 @@ M3 layered-editor infrastructure and broader generic Freistellen/atlas tooling r
 
 Frozen unless a concrete defect or deliberate revision appears:
 
-- **PICO** — LIVE_ACCEPTED source baseline;
+- **PICO source/turnaround** — LIVE_ACCEPTED;
+- **PICO physical grounding** — LIVE_ACCEPTED on 2026-08-19; PR #121 reference profile; reusable workflow in `docs/art/production/ACTOR_GROUNDING_WORKFLOW.md`;
 - **Floor base material family** — accepted baseline;
 - **Walls / Architecture** — LIVE_ACCEPTED;
 - **Doors** — LIVE_ACCEPTED;
@@ -132,6 +141,35 @@ Still visual/runtime candidates pending final room-context disposition:
 - Coffee Machine + shadow;
 - Hologram Pedestal + shadow;
 - Flow Regulator — approved/archived source, 128×128 runtime candidate, live scale QA pending.
+
+---
+
+## Directional Actor grounding — accepted production standard
+
+PICO established the reusable grounding production pattern:
+
+```text
+approved directional source
+→ connected-component/source-integrity analysis
+→ deterministic runtime sanitation only for proven artefacts
+→ connected foot/support geometry
+→ profile-driven ambient + contact shadows
+→ generated runtime CSS
+→ automated 8-direction + real-scene QA
+→ explicit human per-direction calibration deltas
+→ live acceptance
+→ freeze
+```
+
+Important boundary:
+
+- automated geometry prevents impossible/detached grounding;
+- final perceptual calibration remains Human Live QA authority;
+- accepted per-direction deltas are stored in profile data rather than hidden CSS tweaks;
+- approved source geometry and human presentation offsets remain separate;
+- do not refactor accepted PICO offsets merely to impose a cleaner universal formula.
+
+This block is complete. It is not the current Gold-Slice priority.
 
 ---
 
@@ -155,7 +193,7 @@ Flow support now extends this system without reopening the accepted Apparatus/Co
 
 The generated TS-01 is structurally sound but still visually sparse/flat. **Current priority is to make the static Gold Slice beautiful/coherent before expanding campaign production or investing in full Transfer choreography.**
 
-Current live review promoted floor identity/grounding from a late polish item to a major production block.
+PICO grounding is now explicitly accepted/frozen. The next visual leverage remains room-floor identity, architectural AO, usage wear and Transfer floor integration.
 
 ### Planned sequence
 
@@ -169,7 +207,7 @@ Current live review promoted floor identity/grounding from a late polish item to
    - PRIMUS systematic floor logic.
 
 2. **Complete Flow support integration**
-   - live-QA the existing 128×128 Flow Regulator candidate once Pages is available;
+   - live-QA the existing 128×128 Flow Regulator candidate;
    - finalize Flow collision/use-space and grounding shadow;
    - add deterministic static Flow coupling bus as FloorFX;
    - keep later active synchronization on separate `transfer-fx`.
@@ -190,7 +228,7 @@ Current live review promoted floor identity/grounding from a late polish item to
 5. **Full-room cohesion and candidate disposition**
    - accept/revise/remove Coffee/Plants/Hologram in context;
    - remove obsolete blockouts;
-   - tune grounding/shadows/AO;
+   - tune environmental grounding/AO without reopening accepted PICO grounding absent a concrete defect;
    - tune floor-treatment intensity rather than adding random texture;
    - converge lighting with Transfer as primary warm local focus.
 
@@ -265,7 +303,9 @@ Additional durable rules:
 - source design and runtime scale are separate;
 - physical scale and Hero prominence are separate;
 - do not regenerate an approved source merely to resize it;
-- shadow should be frozen after useful runtime scale converges;
+- for directional actors, validate connected source/body geometry before tuning shadows;
+- use automation to prevent impossible states, then store Human Live QA calibration explicitly as data;
+- shadow should be frozen after useful runtime scale and live acceptance converge;
 - PNG alpha is not gameplay collision authority;
 - shaped collision may preserve transparent whitespace;
 - movable components need not use static Prop lifecycle;
@@ -284,10 +324,11 @@ Once Generated TS-01 passes as the representative quality bar:
 3. promote proven room-floor/AO/wear rules into reusable world/archetype rules if they survive QA;
 4. promote proven level-design/Prop metadata into reusable world/archetype rule sets;
 5. build only additional robot bodies/utility categories needed by next playable content;
-6. stress the compiler with dense PRIMUS, larger ship and larger Bio-Ark/natural floors;
-7. expand remaining Transfer Ship beats using compiler + proven art grammar;
-8. run explicit Performance & Scale Pass before campaign-scale readiness;
-9. write final Agent Authoring Guide last, after workflows stop changing materially.
+6. apply the accepted Actor Grounding Workflow to new directional bodies rather than re-deriving the process ad hoc;
+7. stress the compiler with dense PRIMUS, larger ship and larger Bio-Ark/natural floors;
+8. expand remaining Transfer Ship beats using compiler + proven art grammar;
+9. run explicit Performance & Scale Pass before campaign-scale readiness;
+10. write final Agent Authoring Guide last, after workflows stop changing materially.
 
 ---
 
@@ -303,6 +344,8 @@ Do not silently freeze:
 - exact domestic micro-set needed for finished Family read;
 - whether full-room cohesion reveals a concrete need for M3 layered retouching;
 - whether later Transfer FX justify a dedicated animation compositor/tool.
+
+Directional actor grounding is no longer in this open-question list; PICO established the production contract and explicit manual-calibration escape hatch.
 
 ---
 
@@ -320,6 +363,17 @@ recipe/method selected
 → explicit acceptance
 → recipe/index status update
 ```
+
+For directional actor grounding add:
+
+```text
+source-integrity analysis
+→ connected geometry
+→ automated grounding candidate
+→ explicit human calibration data
+```
+
+before final live acceptance.
 
 For generated/procedural floor treatment, source approval may be replaced by explicit algorithm/material-variant review when no generative source is used.
 
