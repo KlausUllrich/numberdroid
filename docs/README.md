@@ -52,7 +52,7 @@ Story is **triggered context** for roles such as Artist/Engineer unless the task
 ## Planning / decisions
 
 - `planning/DEVELOPMENT_PLAN_NEXT.md` — current project-level forward milestone plan.
-- `planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md` — **current detailed execution plan; now begins with new Transfer/Flow/PRIMUS production Art Assets after accepted v0.13.2 stabilization.**
+- `planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md` — **current detailed execution plan; current block is Floor identity/AO/wear + Transfer floor integration.**
 - `decisions/DECISIONS.md`
 
 ## Art — current contracts
@@ -65,18 +65,19 @@ Then as relevant:
 
 - direction: `art/direction/ART_DIRECTION_TRANSFER_SHIP.md`
 - cross-category production/QA: `art/production/`
+- **directional actor physical grounding:** `art/production/ACTOR_GROUNDING_WORKFLOW.md`
 - Transfer Hall category contracts: `art/transfer-hall/`
 - asset-specific reproducibility/status: `../art-source/recipes/transfer-hall/`
 
-Current TS-01 art direction after v0.13.2 acceptance:
+Current TS-01 art direction after PICO grounding acceptance:
 
 ```text
 accepted/frozen baseline
-→ Walls / Doors / Floor / PICO source / Family Table / Memory Console
+→ Walls / Doors / Floor base / PICO source + physical grounding / Family Table / Memory Console / Transfer Apparatus / Yellow Core
 
 current production
-→ Transfer Apparatus / Core hero
-→ Flow support / FloorFX
+→ room-specific Floor identity + AO + wear + Transfer floor anchoring
+→ complete Flow support integration
 → PRIMUS hero/system art
 → useful domestic replacements
 → final room cohesion / QA
@@ -100,13 +101,13 @@ Start at:
 - `art-production-toolkit/README.md`
 - `art-production-toolkit/CAPABILITY_INDEX.md`
 
-The toolkit documents reusable deterministic operations such as masks, compositing, connector canonicalization and QA. Only capabilities marked **PROVEN** may be assumed to exist. Generic Freistellen/background removal, seamless-material construction/validation and several packing/downscale utilities remain PLANNED until explicitly implemented/proven.
+The toolkit documents reusable deterministic operations such as masks, compositing, connector canonicalization, directional actor source integrity/runtime sanitation and QA. Only capabilities marked **PROVEN** may be assumed to exist. Generic Freistellen/background removal, seamless-material construction/validation and several packing/downscale utilities remain PLANNED until explicitly implemented/proven.
 
 ## Known deferred issue
 
 A smaller issue with the player's own in-game model/presentation is known as of 2026-08-16 and deliberately deferred for separate discussion.
 
-It is not a blocker for v0.13.2 acceptance or the next environment/hero Art Asset block. Do not interpret the note as permission to regenerate the accepted PICO source before the concrete issue is identified and routed to the appropriate Character/Engineering contract.
+PICO physical grounding is now independently **LIVE_ACCEPTED**. That acceptance does not imply the separate player-model issue is resolved. Do not regenerate the accepted PICO source or alter accepted grounding unless the concrete issue is identified and routed to the appropriate Character/Engineering contract.
 
 ## History
 

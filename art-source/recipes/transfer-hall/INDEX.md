@@ -4,7 +4,7 @@ This index tracks reproducible Gold-Slice source recipes. `main` remains runtime
 
 Current spatial/presentation baseline: **v0.13.2 LIVE QA ACCEPTED on 2026-08-16**.
 
-Current art milestone: **Transfer Apparatus + Yellow Core static presentation LIVE_ACCEPTED; Flow source integrated; Floor Treatment promoted to current major production block on 2026-08-17**.
+Current art milestone: **PICO source + physical grounding LIVE_ACCEPTED; Transfer Apparatus + Yellow Core static presentation LIVE_ACCEPTED; Flow source integrated; Floor Treatment remains the current major production block**.
 
 | Order | Asset/category | Status | Recipe | Notes |
 |---:|---|---|---|---|
@@ -17,15 +17,15 @@ Current art milestone: **Transfer Apparatus + Yellow Core static presentation LI
 | 7 | Flow support / functional FloorFX | **SOURCE_APPROVED + ARCHIVED / 128×128 RUNTIME_CANDIDATE — ACTIVE DEPENDENCY** | `flow-support/` | Live scale QA pending; then shadow/collision refinement and deterministic Flow coupling bus, coordinated with the Floor Treatment. |
 | 8 | PRIMUS wall object / system hero | **NEXT after Floor/Flow integration** | `primus-console/` | Precise, attractive system object; assignment/order language without villain-black styling. |
 | 9 | Useful domestic replacements | **AFTER Floor/Transfer/PRIMUS hierarchy** | coherent micro-set as needed | Child Bed, Toy/Personal Storage, Hygiene fixture/support and only surviving named functional placeholders. |
-| 10 | Gold-Slice cohesion / finishing | **AFTER production replacements** | room-level pass | Resolve candidate Family props, remove obsolete blockouts, tune floor/AO/grounding and lighting, then desktop + phone QA. |
-| 11 | PICO | **LIVE_ACCEPTED source baseline** | `robots/pico/` | Eight-view source frozen unless deliberate Character revision is requested. |
-| 12 | Utility / hostile / special robots | **AFTER GOLD SLICE as required** | one character recipe per body | Build only bodies required by subsequent playable content. |
+| 10 | Gold-Slice cohesion / finishing | **AFTER production replacements** | room-level pass | Resolve candidate Family props, remove obsolete blockouts, tune floor/AO/environmental grounding and lighting, then desktop + phone QA. |
+| 11 | PICO | **LIVE_ACCEPTED source + physical grounding** | `robots/pico/` | Eight-view source frozen. Grounding/source-integrity workflow live accepted 2026-08-19 after PR #121; exact calibration is recipe regression authority. |
+| 12 | Utility / hostile / special robots | **AFTER GOLD SLICE as required** | one character recipe per body | Build only bodies required by subsequent playable content; use the accepted Actor Grounding Workflow for directional bodies. |
 | 13 | Transfer choreography / animation FX | **AFTER static Gold-Slice acceptance unless explicitly reprioritized** | future `transfer-system/animation/` + FX recipes | Human → Core → PICO, body → body, synchronization/beam FX and scripted transfer staging. |
 
 ## Current Gold-Slice progression
 
 ```text
-PICO source baseline         LIVE_ACCEPTED
+PICO source + grounding      LIVE_ACCEPTED
 Floor base family            ACCEPTED BASELINE
 Walls                        LIVE_ACCEPTED
 Doors                        LIVE_ACCEPTED
@@ -39,10 +39,10 @@ Flow Regulator source        APPROVED + ARCHIVED
 Flow Regulator runtime       128×128 CANDIDATE / LIVE QA PENDING
 
 CURRENT → Room-specific Floor identity + wall AO + use/wear + Transfer floor anchoring
-ACTIVE  → Flow live-scale QA when Pages is available; finish Flow shadow/collision/bus inside Floor/Transfer pass
+ACTIVE  → Flow live-scale QA; finish Flow shadow/collision/bus inside Floor/Transfer pass
 NEXT    → PRIMUS hero/system art
 NEXT    → useful domestic replacements
-NEXT    → room cohesion + candidate disposition + lighting/grounding tune
+NEXT    → room cohesion + candidate disposition + lighting/environmental-grounding tune
 GATE    → desktop + phone Gold-Slice QA + explicit room acceptance
 LATER   → Transfer choreography / broader content production
 ```
@@ -54,6 +54,10 @@ Detailed room-level sequence and exit criteria:
 Floor Treatment brief:
 
 `art-source/recipes/transfer-hall/floor-treatment/recipe.md`
+
+Directional Actor grounding workflow:
+
+`docs/art/production/ACTOR_GROUNDING_WORKFLOW.md`
 
 Transfer Hero production learnings:
 
@@ -105,6 +109,8 @@ Before producing a final category, its recipe must state:
 - spatial/collision authority;
 - processing path;
 - QA requirements.
+
+Directional robot bodies additionally follow `docs/art/production/ACTOR_GROUNDING_WORKFLOW.md`: source integrity and connected geometry first, automated candidate second, explicit Human Live QA calibration last.
 
 Image generation remains subject to the hard standalone `generieren` gate. The Floor Treatment is expected to be primarily deterministic and therefore does **not** require image generation by default.
 
