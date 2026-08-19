@@ -13,12 +13,23 @@ describe("CharacterGrounding profiles", () => {
     expect(pico.directions.map((direction) => direction.footY)).toEqual(EXPECTED_PICO_FOOT_Y);
   });
 
-  it("keeps live-QA presentation offsets separate from measured foot geometry", () => {
+  it("keeps contact presentation offsets separate from measured foot geometry", () => {
     const pico = grounding.profiles.pico;
     expect(pico.directions.map((direction) => direction.presentationOffsetY ?? 0)).toEqual(EXPECTED_PICO_PRESENTATION_OFFSET_Y);
     for (const direction of pico.directions) {
       expect(Math.abs(direction.presentationOffsetY ?? 0)).toBeLessThanOrEqual(3);
     }
+  });
+
+  it("anchors one uniform ambient ellipse to every connected foot plane", () => {
+    const pico = grounding.profiles.pico;
+    expect(pico.ambient.width).toBe(92);
+    expect(pico.ambient.height).toBe(23);
+    expect(pico.ambient.offsetYFromFoot).toBe(-5);
+    expect("offsetYFromContactMean" in pico.ambient).toBe(false);
+
+    const renderedAmbientAnchors = pico.directions.map((direction) => direction.footY + pico.ambient.offsetYFromFoot);
+    expect(renderedAmbientAnchors).toEqual([81, 81, 82, 82, 84, 87, 87, 87]);
   });
 
   it("uses only the connected NW support instead of the rejected floating source fragment", () => {
