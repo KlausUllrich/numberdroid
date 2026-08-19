@@ -4,6 +4,8 @@ import grounding from "./characterGroundingProfiles.json";
 const EXPECTED_DIRECTIONS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 const EXPECTED_PICO_FOOT_Y = [86, 86, 87, 87, 89, 92, 92, 92];
 const EXPECTED_PICO_PRESENTATION_OFFSET_Y = [-2, -2, 0, -1, 0, 0, 0, -3];
+const EXPECTED_PICO_SHADOW_OFFSET_Y = [0, 0, -3, -2, -2, -3, -3, 2];
+const EXPECTED_PICO_COMBINED_RENDER_OFFSET_Y = [-2, -2, -3, -3, -2, -3, -3, -1];
 
 describe("CharacterGrounding profiles", () => {
   it("tracks the connected eight-direction PICO runtime foot planes", () => {
@@ -13,23 +15,42 @@ describe("CharacterGrounding profiles", () => {
     expect(pico.directions.map((direction) => direction.footY)).toEqual(EXPECTED_PICO_FOOT_Y);
   });
 
-  it("keeps contact presentation offsets separate from measured foot geometry", () => {
+  it("keeps pose calibration separate from the explicit human-QA shadow delta", () => {
     const pico = grounding.profiles.pico;
-    expect(pico.directions.map((direction) => direction.presentationOffsetY ?? 0)).toEqual(EXPECTED_PICO_PRESENTATION_OFFSET_Y);
+    const presentation = pico.directions.map((direction) => direction.presentationOffsetY ?? 0);
+    const shadow = pico.directions.map((direction) => direction.shadowOffsetY ?? 0);
+    expect(presentation).toEqual(EXPECTED_PICO_PRESENTATION_OFFSET_Y);
+    expect(shadow).toEqual(EXPECTED_PICO_SHADOW_OFFSET_Y);
+    expect(presentation.map((value, index) => value + shadow[index])).toEqual(EXPECTED_PICO_COMBINED_RENDER_OFFSET_Y);
     for (const direction of pico.directions) {
       expect(Math.abs(direction.presentationOffsetY ?? 0)).toBeLessThanOrEqual(3);
+      expect(Math.abs(direction.shadowOffsetY ?? 0)).toBeLessThanOrEqual(3);
     }
   });
 
-  it("anchors one uniform ambient ellipse to every connected foot plane", () => {
+  it("applies the manual QA ambient deltas relative to the connected foot planes", () => {
     const pico = grounding.profiles.pico;
     expect(pico.ambient.width).toBe(92);
     expect(pico.ambient.height).toBe(23);
     expect(pico.ambient.offsetYFromFoot).toBe(-5);
     expect("offsetYFromContactMean" in pico.ambient).toBe(false);
 
-    const renderedAmbientAnchors = pico.directions.map((direction) => direction.footY + pico.ambient.offsetYFromFoot);
-    expect(renderedAmbientAnchors).toEqual([81, 81, 82, 82, 84, 87, 87, 87]);
+    const renderedAmbientAnchors = pico.directions.map(
+      (direction) => direction.footY + pico.ambient.offsetYFromFoot + (direction.shadowOffsetY ?? 0),
+    );
+    expect(renderedAmbientAnchors).toEqual([81, 81, 79, 80, 82, 84, 84, 89]);
+  });
+
+  it("applies the requested NE contact move and 15 percent contact enlargement", () => {
+    const pico = grounding.profiles.pico;
+    expect(pico.contactDefaults.radiusX).toBeCloseTo(5.5 * 1.15, 6);
+    expect(pico.contactDefaults.radiusY).toBeCloseTo(3 * 1.15, 6);
+    expect(pico.directions[1].name).toBe("NE");
+    expect(pico.directions[1].contacts[0].x).toBe(37.5);
+    const eastContact = pico.directions[2].contacts[0];
+    const westContact = pico.directions[6].contacts[0];
+    expect("radiusX" in eastContact ? eastContact.radiusX : undefined).toBeCloseTo(7 * 1.15, 6);
+    expect("radiusX" in westContact ? westContact.radiusX : undefined).toBeCloseTo(7 * 1.15, 6);
   });
 
   it("uses only the connected NW support instead of the rejected floating source fragment", () => {

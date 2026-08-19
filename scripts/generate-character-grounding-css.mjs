@@ -45,14 +45,17 @@ for (const [bodyId, profile] of Object.entries(data.profiles)) {
     }
     const selector = `.zk-player:has(.zk-directional-sprite[style*="${profile.assetNeedle}"]).dir-${index}`;
     const presentationOffsetY = direction.presentationOffsetY ?? 0;
-    // .zk-ground-shadow applies the presentation offset to the whole grounding
-    // layer so contact shadows can stay pose-specific. Pre-compensate the
-    // ambient anchor here: after that parent transform every direction renders
-    // the ambient at exactly footY + offsetYFromFoot.
+    const shadowOffsetY = direction.shadowOffsetY ?? 0;
+    if (!Number.isFinite(shadowOffsetY)) throw new Error(`${bodyId}/${direction.name}: shadowOffsetY must be finite.`);
+    const combinedRenderOffsetY = presentationOffsetY + shadowOffsetY;
+    // presentationOffsetY preserves prior pose/contact calibration. shadowOffsetY
+    // is the explicit human-QA delta for the whole physical shadow. The ambient
+    // anchor compensates only presentationOffsetY, so the final rendered ambient
+    // keeps the shared foot-plane rule plus shadowOffsetY. Contacts receive both.
     const ambientY = direction.footY + profile.ambient.offsetYFromFoot - presentationOffsetY;
     lines.push(`${selector} {`);
     lines.push(`  --nd-ground-foot-y: ${pct(direction.footY, source)};`);
-    lines.push(`  --nd-ground-render-offset-y: ${pct(presentationOffsetY, source)};`);
+    lines.push(`  --nd-ground-render-offset-y: ${pct(combinedRenderOffsetY, source)};`);
     lines.push(`  --nd-ground-ambient-x: 50%;`);
     lines.push(`  --nd-ground-ambient-y: ${pct(ambientY, source)};`);
     lines.push(`  --nd-ground-ambient-rx: ${pct(profile.ambient.width / 2, source)};`);
