@@ -37,12 +37,16 @@ describe("TS-01 Transfer floor presentation", () => {
       sprite.id.startsWith("transfer-floor:base:") || sprite.id.startsWith("transfer-floor:service:")
     ));
 
+    // The Hero anchor is exactly 6x8 = 48 cells. The two-cell Hall opening sits
+    // in the remaining side strip in the compiled Layout-v3, so threshold tiles
+    // are additional room-floor cells rather than replacements for anchor edges.
     expect(corners).toHaveLength(4);
     expect(interior).toHaveLength(24);
+    expect(edges).toHaveLength(20);
+    expect(corners.length + edges.length + interior.length).toBe(48);
     expect(threshold).toHaveLength(2);
-    expect(edges).toHaveLength(18);
-    expect(corners.length + edges.length + interior.length + threshold.length).toBe(48);
-    expect(outside).toHaveLength(32);
+    expect(outside).toHaveLength(30);
+    expect(corners.length + edges.length + interior.length + threshold.length + outside.length).toBe(80);
 
     expect(new Set(corners.map((sprite) => sprite.asset)).size).toBe(1);
     expect(new Set(edges.map((sprite) => sprite.asset)).size).toBe(1);
