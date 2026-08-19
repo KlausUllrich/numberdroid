@@ -44,8 +44,10 @@ describe("TS-01 Transfer floor presentation", () => {
     expect(corners.length + edges.length + interior.length + threshold.length).toBe(48);
     expect(outside).toHaveLength(32);
 
-    expect(new Set(corners.map((sprite) => sprite.asset))).toEqual(new Set([expect.stringMatching(/transfer-floor-12\.png$/)]));
-    expect(new Set(edges.map((sprite) => sprite.asset))).toEqual(new Set([expect.stringMatching(/transfer-floor-08\.png$/)]));
+    expect(new Set(corners.map((sprite) => sprite.asset)).size).toBe(1);
+    expect(new Set(edges.map((sprite) => sprite.asset)).size).toBe(1);
+    for (const sprite of corners) expect(sprite.asset).toMatch(/transfer-floor-12\.png$/);
+    for (const sprite of edges) expect(sprite.asset).toMatch(/transfer-floor-08\.png$/);
     expect(new Set(interior.map((sprite) => sprite.asset)).size).toBeGreaterThan(1);
     for (const sprite of interior) expect(sprite.asset).toMatch(/transfer-floor-1[4-7]\.png$/);
     for (const sprite of threshold) expect(sprite.asset).toMatch(/transfer-floor-06\.png$/);
