@@ -35,15 +35,21 @@ for (const [bodyId, profile] of Object.entries(data.profiles)) {
   if (!Array.isArray(profile.directions) || profile.directions.length !== 8) {
     throw new Error(`${bodyId}: expected exactly 8 directional grounding entries.`);
   }
+  if (!Number.isFinite(profile.ambient?.offsetYFromFoot)) {
+    throw new Error(`${bodyId}: ambient.offsetYFromFoot must be a finite source-space value.`);
+  }
 
   profile.directions.forEach((direction, index) => {
     if (!Array.isArray(direction.contacts) || direction.contacts.length < 1 || direction.contacts.length > 2) {
       throw new Error(`${bodyId}/${direction.name}: expected 1 or 2 contacts.`);
     }
     const selector = `.zk-player:has(.zk-directional-sprite[style*="${profile.assetNeedle}"]).dir-${index}`;
-    const meanContactY = direction.contacts.reduce((sum, contact) => sum + contact.y, 0) / direction.contacts.length;
-    const ambientY = meanContactY + profile.ambient.offsetYFromContactMean;
     const presentationOffsetY = direction.presentationOffsetY ?? 0;
+    // .zk-ground-shadow applies the presentation offset to the whole grounding
+    // layer so contact shadows can stay pose-specific. Pre-compensate the
+    // ambient anchor here: after that parent transform every direction renders
+    // the ambient at exactly footY + offsetYFromFoot.
+    const ambientY = direction.footY + profile.ambient.offsetYFromFoot - presentationOffsetY;
     lines.push(`${selector} {`);
     lines.push(`  --nd-ground-foot-y: ${pct(direction.footY, source)};`);
     lines.push(`  --nd-ground-render-offset-y: ${pct(presentationOffsetY, source)};`);
