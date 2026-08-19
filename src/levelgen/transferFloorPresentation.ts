@@ -50,7 +50,7 @@ function transferSpace(plan: RuntimeEmissionPlan) {
     return space.kind === "room"
       && semantic?.kind === "room"
       && semantic.rationality === "ritual"
-      && semantic.tags.includes("transfer");
+      && (semantic.tags ?? []).includes("transfer");
   }) ?? null;
 }
 
