@@ -47,8 +47,10 @@ describe("CharacterGrounding profiles", () => {
     expect(pico.contactDefaults.radiusY).toBeCloseTo(3 * 1.15, 6);
     expect(pico.directions[1].name).toBe("NE");
     expect(pico.directions[1].contacts[0].x).toBe(37.5);
-    expect(pico.directions[2].contacts[0].radiusX).toBeCloseTo(7 * 1.15, 6);
-    expect(pico.directions[6].contacts[0].radiusX).toBeCloseTo(7 * 1.15, 6);
+    const eastContact = pico.directions[2].contacts[0];
+    const westContact = pico.directions[6].contacts[0];
+    expect("radiusX" in eastContact ? eastContact.radiusX : undefined).toBeCloseTo(7 * 1.15, 6);
+    expect("radiusX" in westContact ? westContact.radiusX : undefined).toBeCloseTo(7 * 1.15, 6);
   });
 
   it("uses only the connected NW support instead of the rejected floating source fragment", () => {
