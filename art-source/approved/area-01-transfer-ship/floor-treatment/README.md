@@ -28,7 +28,7 @@ The source is intentionally a cuttable tile atlas rather than a presentation boa
 ### Main Hall floor 6×6 atlas
 
 - file: `source/main-hall-floor-atlas-6x6__source-approved__2026-08-20.png`
-- status: **SOURCE_APPROVED / RUNTIME INTEGRATION CANDIDATE** by explicit user push/request on 2026-08-20
+- status: **SOURCE_APPROVED / RUNTIME QA ACTIVE** by explicit user push/request on 2026-08-20
 - dimensions: **1254 × 1254 px**
 - bytes: **2,847,955**
 - SHA-256: `bdf1fc2c4b6512b37c2bbd0702aa668a3bfb6e427212a8546953749f334d1914`
@@ -36,8 +36,18 @@ The source is intentionally a cuttable tile atlas rather than a presentation boa
 - runtime tile size: **64 × 64 px**
 - deterministic materializer: `scripts/materialize-main-hall-floor.mjs`
 - runtime presentation: `src/levelgen/mainHallFloorPresentation.ts`
+- semantic tile catalog: `src/levelgen/mainHallFloorTileMetadata.ts`
 
-The Main Hall source follows the strict equal-cell atlas rule. Generated gutter pitch still drifts slightly by row/column, so the materializer uses measured immutable panel-face bounds and normalizes each cell independently to 64×64. The runtime does **not** assume that every generated motif is a unique orientation: one canonical T-junction source tile is rotated deterministically to provide all four missing-direction variants (N/E/S/W), and one canonical corner is similarly rotated for all four corner orientations. This keeps connector geometry exact even when the image model produces redundant or imperfect directional source variants.
+The Main Hall source follows the strict equal-cell atlas rule. Generated gutter pitch still drifts slightly by row/column, so the materializer uses measured immutable panel-face bounds and normalizes each cell independently to 64×64.
+
+First live QA exposed two further source-vs-runtime problems that are now part of the production contract:
+
+1. generated atlas cells were presented as rounded standalone samples with a light board background, so their corner wedges became visible at gameplay scale;
+2. the same presentation frame put a line around every technical tile, producing broken/partially wall-occluded linework and making adjacent route graphics look random when line-bearing variants were selected by hash alone.
+
+Runtime materialization therefore removes the outer presentation frame uniformly before normalization. Floor tiles are **full-bleed runtime surfaces**, not rounded UI/sample cards.
+
+In addition, every Main Hall source cell now carries explicit metadata: role, connector directions, continuity profile, automatic-placement eligibility, wall suitability, selection priority and directional meaning where relevant. Generated alternates with uncalibrated connector geometry remain archived but are quarantined from automatic placement. A canonical T-junction and corner are rotated deterministically to provide all required orientations, while one calibrated straight pair owns the live circulation line. This prevents random line jumps while preserving the whole approved source atlas for future calibration.
 
 Main Hall arrows are materialized from the source but remain unused until explicit route/signage semantics request them. They must not be scattered as decorative navigation UI.
 
@@ -53,8 +63,11 @@ For future generated floor/tile atlases that are intended for deterministic extr
 6. never span one motif across multiple cells unless the production contract explicitly defines an exact integer multipart tile set;
 7. preserve the approved original unchanged;
 8. validate dimensions/hash/grid and crop actual panel faces, not naive `imageWidth / columns` divisions when gutters exist;
-9. normalize the extracted cells deterministically to runtime size;
-10. validate directional inventory semantically: rotations may canonicalize T/corner/arrow orientations, but all required runtime directions must be regression-tested;
-11. perform gameplay-scale QA after integration before promoting the room treatment to `LIVE_ACCEPTED`.
+9. strip presentation-only rounded frames/background from runtime floor faces; floor tiles must be full-bleed unless transparency has an explicit gameplay purpose;
+10. normalize the extracted cells deterministically to runtime size;
+11. store semantic metadata for every atlas cell before automatic placement: role, connectors/ports, continuity family, rotation policy, wall eligibility, runtime eligibility and any direction/signage meaning;
+12. never pseudo-randomly alternate line-bearing tiles unless their metadata guarantees compatible connector positions and continuity family;
+13. validate directional inventory semantically: rotations may canonicalize T/corner/arrow orientations, but all required runtime directions must be regression-tested;
+14. perform gameplay-scale QA after integration before promoting the room treatment to `LIVE_ACCEPTED`.
 
-This rule exists because Family, Transfer and Main Hall sources all demonstrated that generated presentation gutters cannot be assumed to fall on mathematically exact divisions even when the intended atlas grid is strict.
+This rule exists because Family, Transfer and Main Hall sources all demonstrated that generated presentation gutters cannot be assumed to fall on mathematically exact divisions, and Main Hall additionally demonstrated that visual similarity is not enough to infer semantic tile compatibility.
