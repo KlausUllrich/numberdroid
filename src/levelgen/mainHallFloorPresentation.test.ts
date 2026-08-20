@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { TS01_GENERATED_FLOOR, TS01_GENERATED_PLAN } from "./generatedTs01Preview";
 import { MAIN_HALL_TILE_CONTRACT, mainHallFloorSprites } from "./mainHallFloorPresentation";
 import { MAIN_HALL_FLOOR_TILE_METADATA, resolveMainHallNetworkTile } from "./mainHallFloorTileMetadata";
+import { MAIN_HALL_FLOOR_VISUAL_POLICY, shouldBranchMainHallSpine } from "./mainHallFloorVisualPolicy";
 
 describe("TS-01 Main Hall floor presentation", () => {
   it("covers every Main Hall corridor cell exactly once with the approved 6x6 tile family", () => {
@@ -33,7 +34,7 @@ describe("TS-01 Main Hall floor presentation", () => {
     }
   });
 
-  it("keeps a complete four-direction T-junction contract through canonical rotation", () => {
+  it("keeps a complete four-direction T-junction contract for future true corridor branches", () => {
     const variants = MAIN_HALL_TILE_CONTRACT.tJunctionByMissingDirection;
     expect(Object.keys(variants).sort()).toEqual(["east", "north", "south", "west"]);
     expect(new Set(Object.values(variants).map((variant) => variant.index))).toEqual(new Set([13]));
@@ -45,7 +46,7 @@ describe("TS-01 Main Hall floor presentation", () => {
     expect(resolveMainHallNetworkTile(["east", "north", "south"])).toMatchObject({ tile: { index: 13 }, rotation: 270 });
   });
 
-  it("uses one calibrated continuity family instead of random line-bearing straight variants", () => {
+  it("uses one calibrated continuity family for the circulation spine", () => {
     expect(resolveMainHallNetworkTile(["east", "west"])).toMatchObject({ tile: { index: 7 }, rotation: 0 });
     expect(resolveMainHallNetworkTile(["north", "south"])).toMatchObject({ tile: { index: 10 }, rotation: 0 });
     expect(resolveMainHallNetworkTile(["south"])).toMatchObject({ tile: { index: 23 }, rotation: 0 });
@@ -55,6 +56,20 @@ describe("TS-01 Main Hall floor presentation", () => {
     for (const sprite of sprites.filter((entry) => entry.id.startsWith("main-hall-floor:straight:"))) {
       expect(sprite.asset).toMatch(/main-hall-floor-(?:07|10)\.png$/);
     }
+  });
+
+  it("treats room doors as thresholds, not as traffic-line junctions", () => {
+    expect(shouldBranchMainHallSpine("room")).toBe(false);
+    expect(shouldBranchMainHallSpine("corridor")).toBe(true);
+
+    const sprites = mainHallFloorSprites(TS01_GENERATED_PLAN);
+    // TS-01 connects Main Hall only to rooms (Living, Transfer, PRIMUS), so the
+    // current slice should read as one straight Hall rather than a wiring graph.
+    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:junction-t:"))).toBe(false);
+    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:junction-cross:"))).toBe(false);
+    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:corner:"))).toBe(false);
+    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:straight:"))).toBe(true);
+    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:terminal:"))).toBe(true);
   });
 
   it("uses real Hall connections for thresholds and keeps navigation arrows reserved", () => {
@@ -83,35 +98,22 @@ describe("TS-01 Main Hall floor presentation", () => {
     const sprites = mainHallFloorSprites(TS01_GENERATED_PLAN);
     const thresholds = sprites.filter((sprite) => sprite.id.startsWith("main-hall-floor:threshold:"));
     expect(thresholds).toHaveLength(expectedThresholdCells.size);
-    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:junction-t:"))).toBe(true);
-    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:straight:"))).toBe(true);
 
-    // Atlas arrows 30-33 exist for future authored signage but are not scattered
-    // through TS-01 until route/sign semantics explicitly request them.
     for (const sprite of sprites) {
       expect(sprite.asset).not.toMatch(/main-hall-floor-3[0-3]\.png$/);
     }
   });
 
-  it("keeps wall-adjacent non-route cells calm instead of placing partially occluded service/wear graphics", () => {
-    const geometry = TS01_GENERATED_PLAN.events.actors.props.navigation.geometry;
-    const hall = geometry.spaces.find((space) => space.id === "main-hall");
-    expect(hall).toBeDefined();
-    if (!hall) return;
-    const bounds = geometry.bounds;
-    const sprites = mainHallFloorSprites(TS01_GENERATED_PLAN);
+  it("keeps all non-route, non-threshold cells on one calm base material", () => {
+    expect(MAIN_HALL_FLOOR_VISUAL_POLICY.baseTileIndex).toBe(0);
+    expect(MAIN_HALL_FLOOR_VISUAL_POLICY.reserveDecorativeServiceAndWear).toBe(true);
 
-    for (const sprite of sprites) {
-      const x = sprite.x / 64 + bounds.x;
-      const y = sprite.y / 64 + bounds.y;
-      const wallAdjacent = x === hall.rect.x
-        || y === hall.rect.y
-        || x === hall.rect.x + hall.rect.w - 1
-        || y === hall.rect.y + hall.rect.h - 1;
-      if (!wallAdjacent) continue;
-      if (sprite.id.includes(":threshold:") || sprite.id.includes(":straight:") || sprite.id.includes(":terminal:") || sprite.id.includes(":junction-") || sprite.id.includes(":corner:")) continue;
-      expect(sprite.id).toContain(":base:");
-    }
+    const sprites = mainHallFloorSprites(TS01_GENERATED_PLAN);
+    const baseSprites = sprites.filter((sprite) => sprite.id.startsWith("main-hall-floor:base:"));
+    expect(baseSprites.length).toBeGreaterThan(0);
+    for (const sprite of baseSprites) expect(sprite.asset).toMatch(/main-hall-floor-00\.png$/);
+    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:service:"))).toBe(false);
+    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:wear:"))).toBe(false);
   });
 
   it("renders Main Hall material before existing grounding shadows without changing layer ownership", () => {
