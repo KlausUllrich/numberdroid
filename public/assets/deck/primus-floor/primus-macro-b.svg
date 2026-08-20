@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<defs>
+  <linearGradient id="base" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#55646a"/><stop offset=".55" stop-color="#4f5d64"/><stop offset="1" stop-color="#47555b"/></linearGradient>
+  <pattern id="micro" width="31" height="23" patternUnits="userSpaceOnUse"><circle cx="7" cy="6" r=".5" fill="#d5dcde" opacity=".10"/><circle cx="25" cy="18" r=".5" fill="#1a252a" opacity=".18"/><path d="M3 17h7M18 4h9" stroke="#dde2e3" stroke-width=".45" opacity=".05"/></pattern>
+  <pattern id="ribH" width="10" height="4" patternUnits="userSpaceOnUse"><rect width="7" height="3" rx=".7" fill="#263238"/><path d="M1 1.2h5" stroke="#89969a" stroke-width=".5" opacity=".22"/></pattern>
+  <pattern id="ribV" width="4" height="10" patternUnits="userSpaceOnUse"><rect width="3" height="7" rx=".7" fill="#263238"/><path d="M1.2 1v5" stroke="#89969a" stroke-width=".5" opacity=".22"/></pattern>
+  <filter id="noise"><feTurbulence type="fractalNoise" baseFrequency=".04 .055" numOctaves="4" seed="31"/><feColorMatrix type="matrix" values=".33 .33 .33 0 0 .33 .33 .33 0 0 .33 .33 .33 0 0 0 0 0 .13 0"/></filter>
+</defs>
+<rect width="128" height="128" fill="url(#base)"/><rect width="128" height="128" fill="url(#micro)"/><rect width="128" height="128" filter="url(#noise)" opacity=".24"/>
+<path d="M11 4H117L124 11V117L117 124H11L4 117V11Z" fill="none" stroke="#27353b" stroke-width="3"/>
+<path d="M13 7H115L121 13V115L115 121H13L7 115V13Z" fill="none" stroke="#b4bdc0" stroke-opacity=".17" stroke-width="1"/>
+<rect x="18" y="4" width="92" height="4" fill="url(#ribH)"/><rect x="18" y="120" width="92" height="4" fill="url(#ribH)"/><rect x="4" y="18" width="4" height="92" fill="url(#ribV)"/><rect x="120" y="18" width="4" height="92" fill="url(#ribV)"/>
+<path d="M64 9V119M9 64H119" stroke="#334148" stroke-width="1.2" opacity=".75"/><path d="M65 9V119M9 65H119" stroke="#aab4b7" stroke-width=".6" opacity=".12"/>
+<path d="M7 27V14L14 7H27M101 7H114L121 14V27M7 101V114L14 121H27M101 121H114L121 114V101" fill="none" stroke="#4a5960" stroke-width="2.5"/>
+<g fill="#1f2a2f"><circle cx="15" cy="15" r="1.4"/><circle cx="113" cy="15" r="1.4"/><circle cx="15" cy="113" r="1.4"/><circle cx="113" cy="113" r="1.4"/><circle cx="64" cy="64" r="1.1"/></g>
+<rect x="88" y="17" width="21" height="10" rx="2" fill="#424f55" stroke="#334047" stroke-width="1" opacity=".75"/><path d="M92 21h8M92 24h13" stroke="#9aa7aa" stroke-width=".7" opacity=".22"/><rect x="104" y="18" width="2.4" height="2.4" rx=".7" fill="#55aaa5" opacity=".62"/>
+<path d="M30 88c16-3 27-2 42 1M58 38l8 1" stroke="#d0d6d8" stroke-width=".8" opacity=".06"/>
+</svg>
