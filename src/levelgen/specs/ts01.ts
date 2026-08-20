@@ -94,8 +94,11 @@ export const TS01_LEVEL_SPEC: LevelSpec = {
       rationality: "system",
       size: {
         class: "large",
-        width: { min: 7, preferred: 9, max: 11 },
-        height: { min: 6, preferred: 8, max: 10 },
+        // PRIMUS v2 uses a one-tile calm perimeter and exact 2×2 macro panels.
+        // 10×8 leaves an 8×6 macro domain after removing that perimeter, so no
+        // panel is ever clipped or visually reduced to a half/quarter at a wall.
+        width: { min: 10, preferred: 10, max: 10 },
+        height: { min: 8, preferred: 8, max: 8 },
       },
       relations: [{ targetId: "main-hall", relation: "north_east_of", strength: "preferred" }],
     },
