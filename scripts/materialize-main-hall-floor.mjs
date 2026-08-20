@@ -38,12 +38,12 @@ const PANEL_Y = [
   { y: 1045, height: 189 },
 ];
 
-// The generated source presents each cell as a rounded standalone sample plate.
-// That presentation frame is not part of the runtime floor tile. First live QA
-// exposed both the light corner wedges and the repeated edge rails under walls.
-// Removing the same inset from every approved cell converts the sample into a
-// full-bleed floor face while preserving internal route/junction geometry.
-const PRESENTATION_FRAME_INSET = 12;
+// Live QA pass #2 showed that 12 px removed the bright outer wedges but still
+// retained enough of the generated standalone-card border to create a noisy
+// per-64px grid in gameplay. 24 px reaches the actual reusable material face:
+// calm base tiles lose the decorative card frame while the calibrated traffic
+// strip/junction geometry still reaches the runtime edges continuously.
+const PRESENTATION_FRAME_INSET = 24;
 
 function cropRect(rgba, sourceWidth, x, y, width, height) {
   const out = new Uint8Array(width * height * 4);
