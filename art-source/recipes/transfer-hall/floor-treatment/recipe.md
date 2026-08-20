@@ -1,6 +1,6 @@
 # TS-01 Floor Treatment Brief / Recipe
 
-Status: **ACTIVE PRODUCTION — 2026-08-20; Family Living / Main Hall / Transfer Room v1 LIVE_ACCEPTED, remaining room identities + AO/wear/Flow still open**
+Status: **ACTIVE PRODUCTION — 2026-08-20; Family Living / Main Hall / Transfer Room v1 LIVE_ACCEPTED; PRIMUS v2 LIVE_CANDIDATE; Child/Hygiene + AO/wear/Flow still open**
 
 This brief defines the Gold-Slice floor-treatment pass for generated TS-01. The existing accepted Floor remains the **base material baseline**; this pass adds room identity, subtle age/use, contact grounding and functional floor integration without turning the Transfer Ship into a dirty industrial environment.
 
@@ -27,13 +27,13 @@ Family Child    OPEN — currently inherits domestic/family treatment
 Family Hygiene  OPEN — currently inherits domestic/family treatment
 Main Hall       LIVE_ACCEPTED v1
 Transfer Room   LIVE_ACCEPTED v1 incl. Hero floor anchoring
-PRIMUS          OPEN
+PRIMUS          LIVE_CANDIDATE v2 — systematic macro floor integrated; final Art-Director QA pending
 ```
 
 System progress:
 
 ```text
-B1 room identity        3 / 6 accepted
+B1 room identity        3 / 6 accepted + PRIMUS live candidate
 B2 wall AO              OPEN
 B3 usage/wear           OPEN
 B4 Transfer anchor      LIVE_ACCEPTED v1
@@ -50,8 +50,6 @@ The Transfer Ship is:
 
 > **clean, maintained, inhabited, used, not new, not sterile, not dirty.**
 
-A useful real-world analogy is a well-kept home with children: it is regularly cleaned and clearly cared for, but small marks, scuffs, duller high-traffic patches and occasional stains remain because people actually live there.
-
 Avoid both extremes:
 
 ```text
@@ -64,379 +62,262 @@ The floor should help explain **what each room is for** before additional Props 
 
 ---
 
-## 2. Core production decision — room identity first
-
-The largest intended improvement is **different floor character by room**, while all rooms remain recognizably part of one Transfer Ship material family.
-
-Do not solve this by applying one global dirt texture over the entire map.
-
-Instead:
+## 2. Layer / authority model
 
 ```text
-COMMON TRANSFER-SHIP MATERIAL FAMILY
-        +
-ROOM-SPECIFIC BASE VARIATION
-        +
-ROOM-SPECIFIC USE / WEAR
-        +
-STATIC CONTACT / WALL AO
-        +
-FUNCTIONAL FLOORFX WHERE JUSTIFIED
+GROUND
+- room material identity
+- calm base / macro panels
+- topology-critical structural seams where intentional
+- thresholds/material transitions
+
+FLOORFX
+- wall/contact AO
+- use/wear overlays
+- Prop grounding/contact shadows
+- contextual service/registration marks
+- Flow/service buses
+
+LIGHTOVERLAY
+- actual scene illumination only
 ```
 
-The result should increase room readability even if all Props are temporarily hidden.
+Ground/FloorFX never become collision or navigation authority.
 
 ---
 
-## 3. Layer / authority model
+## 3. Semantic floor / tile metadata — binding trigger
 
-### Ground — base material identity
-
-Ground owns:
-
-- walkable base surface;
-- room-specific material/tint/panel family;
-- large-scale panel seams and material variation;
-- threshold material transitions where required;
-- topology-critical floor seams only when intentionally part of the room language.
-
-Ground does **not** own:
-
-- Prop shadows;
-- wall AO overlays when generated separately;
-- active glow;
-- temporary effects;
-- collision;
-- arbitrary decorative route/wear variation.
-
-### FloorFX — non-light overlays
-
-FloorFX may own:
-
-- wall/contact ambient-occlusion treatment;
-- Prop grounding/contact shadows;
-- subtle wear/dirt/scuff overlays;
-- maintenance plates / functional registration graphics;
-- the static Flow coupling bus;
-- restrained service/docking marks;
-- contextual arrows/signage only when semantics justify them.
-
-FloorFX remains non-colliding and is **not scene illumination**.
-
-### LightOverlay — actual scene lighting
-
-LightOverlay alone owns light that affects nearby floor, Props or Characters.
-
----
-
-## 4. Semantic floor / tile metadata — binding trigger
-
-Any future floor atlas with connectors, directional marks, thresholds, route lines, corners, T-junctions, crossings, terminals or automatic placement must follow:
+Any floor atlas or modular surface with connectors, directional marks, thresholds, route lines, wall-edge variants, multi-cell pieces or automatic placement must follow:
 
 `docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md`
-
-The Main Hall pass proved that a generated atlas is only a **visual source** until explicit tile semantics exist.
 
 Required production sequence:
 
 ```text
-define tile inventory + semantics
-→ generate/author cuttable source
-→ archive approved source unchanged
-→ deterministic crop/full-bleed materialization
-→ per-cell semantic metadata
-→ topology-safe placement from actual Level semantics
-→ regression tests
+define tile/surface inventory + semantics
+→ define structural bands and usable placement domain
+→ generate/author source
+→ archive approved source unchanged when required
+→ deterministic crop/composition
+→ explicit metadata incl. spanTiles for multi-cell surfaces
+→ topology-safe placement from Level semantics
+→ exact-fit / continuity regression tests
 → deployed live QA
 ```
 
 Do not infer topology from pixel similarity or atlas index.
 
-### Main Hall reference lesson
-
-Binding accepted behavior:
+### Main Hall lesson — accepted
 
 - one calm longitudinal circulation spine;
 - room accesses are thresholds, not route T-junctions;
 - T/cross/corner graphics are reserved for actual corridor-to-corridor topology changes;
-- multi-tile room apertures do not create multiple visual route branches;
-- no false terminal before the Transfer threshold;
-- random service/wear Ground variants are avoided because they made the Hall read as patchwork;
-- uncalibrated generated tile alternatives remain archived but are not auto-placed.
+- multi-tile apertures do not create multiple visual route branches;
+- no false terminal before Transfer;
+- line-bearing variants are not pseudo-randomly swapped unless metadata guarantees continuity.
+
+### PRIMUS lesson — binding
+
+The first PRIMUS macro pass failed because a correct 2×2 surface was aligned to the room origin and a calm one-tile wall band was then drawn over it. That created visually **half/partial macro panels**.
+
+The correction is structural, not cosmetic:
+
+```text
+room size          10 × 8
+calm perimeter      1 tile on all sides
+usable macro domain 8 × 6
+macro span           2 × 2
+macro origin         room + (1,1)
+result               4 × 3 complete macros
+```
+
+Binding rule:
+
+> **Structural bands are removed from the macro domain before placement. The remaining width/height must divide exactly by the repeated multi-cell span.**
+
+If the domain does not divide exactly, change room geometry or author a deliberate terminal/fringe treatment. Never hide, clip or mask part of a macro to make it fit.
+
+For TS-01 this means the PRIMUS room is intentionally 10×8 rather than 9×8.
 
 ---
 
-## 5. Room-by-room floor identities
+## 4. Room-by-room floor identities
 
-### A. Family Living — LIVE_ACCEPTED v1
+### Family Living — LIVE_ACCEPTED v1
 
-Read:
-
-> cared-for family space inside a machine society
-
-Accepted baseline:
-
-- warmer civilian ceramic/composite identity;
+- warm civilian ceramic/composite identity;
 - calm medium/large panel rhythm;
 - lived-in but maintained;
-- materially distinct from Hall/Transfer.
+- future local activity evidence belongs primarily to B3 FloorFX.
 
-Do not regenerate/repaint the accepted base merely to add wear. Future local activity evidence belongs primarily to B3 FloorFX.
-
-### B. Family Child — OPEN
-
-Read:
-
-> a real child lives here, but it is still a Transfer Ship room
-
-Target:
+### Family Child — OPEN
 
 - related to Family Living;
 - slightly softer/warmer or more human-scaled panel rhythm;
 - modestly more micro-scuffing/use evidence;
-- optional restrained personal material accent if composition needs it;
-- no generic kids-room decals or saturated floor graphics.
+- no generic kids-room decals.
 
-### C. Family Hygiene — OPEN
+### Family Hygiene — OPEN
 
-Read:
-
-> cleaned frequently, functionally different, not a hospital
-
-Target:
-
-- slightly cooler/denser panel or micro-texture;
-- plausible non-slip read;
+- slightly cooler/denser/non-slip material character;
 - lower dirt level;
 - faint cleaning/water variation allowed;
 - not sterile white.
 
-### D. Main Hall — LIVE_ACCEPTED v1
-
-Read:
-
-> this is where bodies move through the ship
-
-Accepted baseline:
+### Main Hall — LIVE_ACCEPTED v1
 
 - neutral durable circulation material;
-- one calm longitudinal route/seam language;
+- one calm longitudinal route language;
 - room access handled by thresholds;
 - no false route branches;
-- no glowing navigation road;
-- one calm base outside the spine.
+- traffic wear belongs to B3 rather than random Ground variation.
 
-Future traffic wear belongs to B3 rather than random Ground tile alternation.
-
-### E. Transfer Room — LIVE_ACCEPTED v1
-
-Read:
-
-> important maintained ritual/technology chamber built around the Transfer system
-
-Accepted baseline:
+### Transfer Room — LIVE_ACCEPTED v1
 
 - premium light technical material family;
-- strongest large-scale alignment around the Apparatus;
+- strongest large-scale alignment around Apparatus;
 - dedicated installed Hero anchoring zone;
-- restrained cyan support/status language;
-- no giant decorative glowing ring.
+- restrained cyan support/status language.
 
-Still open around this accepted baseline:
+Still open around this accepted baseline: B2 AO, B3 approach/exit wear, B5 Flow integration.
 
-- B2 architectural/wall AO;
-- B3 Human approach / Robot exit wear;
-- B5 Flow shadow/collision/bus integration.
-
-### F. PRIMUS Allocation — OPEN
+### PRIMUS Allocation — LIVE_CANDIDATE v2
 
 Read:
 
 > optimized institutional work space, competent rather than sinister
 
-Target:
+Current v2 candidate:
 
-- slightly cooler, cleaner and more systematic than Main Hall;
-- regular modular grid / precise registration logic;
-- less random dirt distribution;
-- wear aligned with work slots/service banks/patrol paths;
-- restrained teal/cyan functional marks;
-- visually calm center for robots/patrol.
+- cooler/darker systematic material than Main Hall;
+- continuous authored 2×2 macro surfaces in the interior;
+- one-tile calm grey perimeter directly along walls;
+- real controlled-door threshold only at the actual Hall connection;
+- service approach overlays only at real `primus-service-bank` approach cells;
+- no invented `WORK SLOT`/number text or random conduit topology;
+- no partial macros along walls: room geometry and macro origin are fitted deliberately.
 
 Avoid villain-black flooring, aggressive red grids and excessive glowing circuitry.
 
 ---
 
-## 6. Thresholds / room transitions
+## 5. Thresholds / room transitions
 
-Different room floors must not look like unrelated games stitched together.
+Different room floors must remain one Transfer Ship family.
 
-Use controlled threshold transitions:
-
-- narrow material transitions;
-- seam alignment where practical;
-- shared ceramic/graphite family;
-- room variation primarily through panel scale, tint/value, micro-texture, wear logic and functional markings;
-- doors/openings visually explain where one room identity ends and the next begins.
-
-Important semantic rule:
+Use controlled threshold transitions and remember:
 
 > **A room threshold is not automatically route topology.**
 
-A room doorway may interrupt/transition material while the circulation spine remains conceptually straight toward it. Only actual corridor branching justifies junction-route tiles.
+Doors/openings define material transitions. Only actual corridor branching justifies junction-route tiles.
 
 ---
 
-## 7. Ambient occlusion / wall grounding — B2 OPEN
+## 6. Ambient occlusion / wall grounding — B2 OPEN
 
-Wall AO is recommended for the Gold Slice.
-
-Purpose:
-
-- ground the 30 px wall fascia into the floor;
-- make rooms feel less like flat polygons;
-- strengthen corners and architectural depth without perspective geometry;
-- visually integrate architecture and ground.
-
-Implementation principle:
-
-```text
-Shared Wall Graph / visible wall surface
-→ interior-side occlusion mask
-→ soft short falloff into walkable floor
-→ slightly stronger corner accumulation
-→ FloorFX AO layer
-```
+Use deterministic short-range FloorFX AO derived from actual architecture / Shared Wall Graph.
 
 Rules:
 
-- subtle, never black outline;
-- open door apertures must remain free of false AO;
-- no collision/navigation meaning;
+- subtle interior-side falloff;
+- slightly stronger corners allowed;
+- no fake AO across open apertures;
+- no collision semantics;
+- no scene-light claim;
 - avoid excessive double-darkening with Prop shadows.
-
-Exact values remain live-QA decisions.
 
 ---
 
-## 8. Wear / dirt system — B3 OPEN
+## 7. Wear / dirt system — B3 OPEN
 
 Use **usage evidence**, not generic dirt noise.
 
-Preferred categories:
+Preferred evidence:
 
-### Traffic wear
-
-- slightly duller/polished high-traffic bands;
-- small scuffs from bodies/wheels/feet;
-- direction follows actual circulation.
-
-### Local activity wear
-
-- Family Table / Coffee area;
+- Main Hall traffic band;
+- Family Table/Coffee area;
 - Child bed/storage zone;
 - Transfer Human approach / Robot exit;
-- PRIMUS work slots/service banks.
+- PRIMUS service-bank/patrol use after floor acceptance;
+- rare low-contrast scuffs/stains;
+- selected newer/older replacement panels.
 
-### Rare small stains / marks
-
-- few, low-contrast, irregular;
-- more plausible in Family spaces than PRIMUS;
-- never repeated at obvious tile intervals.
-
-### Age / maintenance variation
-
-- selected panels may be subtly newer/older;
-- replacement-panel variation is allowed;
-- maintained-over-time, not newly manufactured or derelict.
-
-Avoid:
-
-- globally tiled grunge;
-- high-frequency noise everywhere;
-- oil/rust/corrosion baseline;
-- dark dirt lines around every tile seam;
-- pseudo-random Ground variants that create patchwork.
+Avoid global tiled grunge, rust/oil baseline and pseudo-random Ground patchwork.
 
 ---
 
-## 9. Transfer / Flow floor relationship — B4 DONE, B5 OPEN
+## 8. Transfer / Flow floor relationship — B4 DONE, B5 OPEN
 
 ### Transfer Hero anchor — B4 LIVE_ACCEPTED
 
-The Apparatus now reads as installed into a dedicated floor system rather than dropped on generic tiles.
-
-Do not reopen the accepted anchor without a concrete defect.
+Do not reopen without a concrete defect.
 
 ### Flow relationship — B5 PARTIAL
 
 Still required:
 
-- final live scale decision for 128×128 Flow candidate;
+- final Flow scale decision;
 - collision/use-space finalization;
 - grounding shadow;
 - deterministic short coupling/service bus to Apparatus;
 - static bus in FloorFX;
-- later animation/synchronization on `transfer-fx` after Gold Slice gate.
+- later active synchronization after the Gold Slice gate.
 
 ---
 
-## 10. Generated atlas production rules
+## 9. Generated atlas / modular surface production rules
 
-For generated cuttable floor/tile atlases:
-
-1. define tile inventory **before** generation;
-2. use a strict equal-cell rectangular grid;
-3. no labels/headings/presentation furniture inside production pixels;
+1. define inventory and semantics before generation;
+2. use strict equal-cell grids for cuttable atlases;
+3. no labels/headings/presentation furniture in production pixels;
 4. use flat orthographic presentation;
-5. preserve approved original unchanged under `art-source/approved/`;
-6. measure actual cell faces when generated gutters/pitch drift;
-7. strip presentation-only rounded card/background frames for runtime full-bleed floor faces;
-8. normalize deterministically to runtime size;
-9. create semantic metadata before automatic placement;
-10. quarantine visually plausible but uncalibrated alternatives;
-11. regression-test required directions/topology;
-12. perform deployed gameplay-scale QA before `LIVE_ACCEPTED`.
+5. preserve approved originals where the archive contract applies;
+6. remove presentation-only gutters/card frames during materialization;
+7. store explicit `spanTiles` for multi-cell surfaces;
+8. define structural bands before placement;
+9. require exact divisibility of the usable domain by repeated macro spans;
+10. align placement origin to the usable domain, not blindly to room origin;
+11. quarantine uncalibrated alternatives;
+12. regression-test topology, wall behavior and multi-cell fit;
+13. perform deployed gameplay-scale QA before `LIVE_ACCEPTED`.
 
-Source appearance and semantic placement are separate authorities.
+Source appearance, semantic placement and room geometry are separate authorities but must satisfy one combined fit contract.
 
 ---
 
-## 11. Implementation order — current
+## 10. Implementation order — current
 
 ```text
-DONE  Family Living floor v1
-DONE  Transfer Room floor v1 + Hero anchor
-DONE  Main Hall floor v1 + semantic metadata proof
-NEXT  Child room floor identity
-NEXT  Hygiene room floor identity
-NEXT  PRIMUS room floor identity
-OPEN  wall AO FloorFX
-OPEN  authored use/wear FloorFX
-OPEN  Flow shadow/collision/bus
-THEN  full-room cohesion + desktop/phone Gold-Slice QA
+DONE      Family Living floor v1
+DONE      Transfer Room floor v1 + Hero anchor
+DONE      Main Hall floor v1 + semantic metadata proof
+CANDIDATE PRIMUS floor v2 + exact macro-fit / calm perimeter
+NEXT      Child room floor identity
+NEXT      Hygiene room floor identity
+OPEN      wall AO FloorFX
+OPEN      authored use/wear FloorFX
+OPEN      Flow shadow/collision/bus
+THEN      full-room cohesion + desktop/phone Gold-Slice QA
 ```
-
-Order among Child/Hygiene/PRIMUS may be adjusted for production efficiency, but accepted room baselines must not be reclassified as unfinished.
 
 ---
 
-## 12. Acceptance criteria
+## 11. Acceptance criteria
 
-The Floor Treatment as a **whole** passes when:
+The Floor Treatment as a whole passes when:
 
 - all six room identities are established;
 - rooms can be distinguished by floor character without labels;
 - every room still belongs to the same Transfer Ship;
-- Family spaces feel maintained/lived-in;
 - Main Hall reads as circulation space without false route semantics;
-- Transfer Room floor strengthens the Apparatus Hero rather than competing with it;
-- PRIMUS reads ordered/systematic;
-- wall AO adds depth without obvious outlines or fake aperture shadows;
+- Transfer strengthens the Apparatus Hero;
+- PRIMUS reads ordered/systematic without half macros or wall-edge line clutter;
+- wall AO adds depth without fake outlines;
 - wear follows plausible use rather than random noise;
-- semantic tile placement does not invent topology from pixels;
+- semantic placement does not invent topology from pixels;
+- every repeated multi-cell surface fits its usable domain exactly;
 - no FloorFX changes collision/pathfinding;
-- no fake scene illumination is baked into Ground/FloorFX;
 - desktop and phone views remain readable.
 
-Final Gold-Slice acceptance still requires full-room Art-Director/gameplay QA after PRIMUS/domestic/candidate disposition work.
+Final Gold-Slice acceptance still requires full-room Art-Director/gameplay QA.
