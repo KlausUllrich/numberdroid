@@ -2,6 +2,7 @@ import type { CompositeFloorVisualDefinition, FloorDefinition } from "../game/ty
 import { compileRuntimeLevel } from "./emission";
 import type { RuntimeEmissionPlan } from "./emissionTypes";
 import { familyFloorSprites } from "./familyFloorPresentation";
+import { mainHallFloorSprites } from "./mainHallFloorPresentation";
 import { createPlayableCompilerPreview } from "./playablePreview";
 import { compileAndValidatePropExactFits } from "./propExactFitPlan";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
@@ -50,8 +51,9 @@ function withTs01ArtExtensions(floor: FloorDefinition): FloorDefinition {
   // FloorFX pass, before Prop/Actor grounding shadows. They are presentation
   // only and do not alter compiler geometry, collision or navigation truth.
   const familyTiles = familyFloorSprites(TS01_GENERATED_PLAN);
+  const hallTiles = mainHallFloorSprites(TS01_GENERATED_PLAN);
   const transferTiles = transferFloorSprites(TS01_GENERATED_PLAN);
-  const roomFloorTiles = [...familyTiles, ...transferTiles];
+  const roomFloorTiles = [...familyTiles, ...hallTiles, ...transferTiles];
   const layers = floor.visual.layers.map((layer) => {
     if (layer.id !== "floor-fx" || layer.kind !== "sprites" || roomFloorTiles.length === 0) return layer;
     return { ...layer, sprites: [...roomFloorTiles, ...layer.sprites] };
