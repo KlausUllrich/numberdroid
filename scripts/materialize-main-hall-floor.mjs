@@ -38,6 +38,13 @@ const PANEL_Y = [
   { y: 1045, height: 189 },
 ];
 
+// The generated source presents each cell as a rounded standalone sample plate.
+// That presentation frame is not part of the runtime floor tile. First live QA
+// exposed both the light corner wedges and the repeated edge rails under walls.
+// Removing the same inset from every approved cell converts the sample into a
+// full-bleed floor face while preserving internal route/junction geometry.
+const PRESENTATION_FRAME_INSET = 12;
+
 function cropRect(rgba, sourceWidth, x, y, width, height) {
   const out = new Uint8Array(width * height * 4);
   for (let row = 0; row < height; row += 1) {
@@ -66,11 +73,13 @@ for (const panel of PANEL_X) {
   if (panel.x < 0 || panel.x + panel.width > decoded.width) {
     throw new Error(`Main Hall Floor x crop exceeds source: ${JSON.stringify(panel)}`);
   }
+  if (panel.width <= PRESENTATION_FRAME_INSET * 2) throw new Error("Main Hall Floor x panel too small for presentation-frame inset.");
 }
 for (const panel of PANEL_Y) {
   if (panel.y < 0 || panel.y + panel.height > decoded.height) {
     throw new Error(`Main Hall Floor y crop exceeds source: ${JSON.stringify(panel)}`);
   }
+  if (panel.height <= PRESENTATION_FRAME_INSET * 2) throw new Error("Main Hall Floor y panel too small for presentation-frame inset.");
 }
 
 mkdirSync(outputDir, { recursive: true });
@@ -88,10 +97,21 @@ for (let row = 0; row < PANEL_Y.length; row += 1) {
       xPanel.width,
       yPanel.height,
     );
-    const resized = resizeLanczosPremultiplied(
+
+    const faceWidth = xPanel.width - PRESENTATION_FRAME_INSET * 2;
+    const faceHeight = yPanel.height - PRESENTATION_FRAME_INSET * 2;
+    const fullBleedFace = cropRect(
       cropped,
       xPanel.width,
-      yPanel.height,
+      PRESENTATION_FRAME_INSET,
+      PRESENTATION_FRAME_INSET,
+      faceWidth,
+      faceHeight,
+    );
+    const resized = resizeLanczosPremultiplied(
+      fullBleedFace,
+      faceWidth,
+      faceHeight,
       RUNTIME_TILE,
       RUNTIME_TILE,
     );
@@ -103,6 +123,7 @@ for (let row = 0; row < PANEL_Y.length; row += 1) {
 }
 
 console.log(`Main Hall Floor: validated approved source ${decoded.width}x${decoded.height} / ${sourceSha}`);
-console.log("Main Hall Floor: extracted 6x6 panel faces from measured generated-grid bounds, excluding gutters");
+console.log("Main Hall Floor: extracted 6x6 measured panel faces, excluding generated gutters");
+console.log(`Main Hall Floor: removed ${PRESENTATION_FRAME_INSET}px source presentation frame on every side for full-bleed runtime faces`);
 console.log(`Main Hall Floor: materialized ${runtimeHashes.length} deterministic ${RUNTIME_TILE}x${RUNTIME_TILE} runtime tiles`);
 for (const value of runtimeHashes) console.log(`Main Hall Floor: ${value}`);
