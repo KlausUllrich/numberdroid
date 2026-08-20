@@ -111,6 +111,40 @@ function baseSurfaceSprites(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVis
   return sprites;
 }
 
+/**
+ * Calm wall band requested by live QA.
+ *
+ * Macro surfaces remain underneath so the room still has one continuous material
+ * system, but every solid room-boundary cell is visually covered by the plain
+ * grey fringe surface. This removes mechanical frame lines directly beside the
+ * wall fascia. Real threshold/service semantics are rendered afterwards and may
+ * deliberately replace the calm band where an actual opening/function exists.
+ */
+function wallFringeSprites(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVisualSpriteDefinition[] {
+  const bounds = plan.events.actors.props.navigation.bounds;
+  const tileSize = plan.tileSize;
+  const sprites: FloorVisualSpriteDefinition[] = [];
+  const right = room.rect.x + room.rect.w - 1;
+  const bottom = room.rect.y + room.rect.h - 1;
+
+  for (let y = room.rect.y; y <= bottom; y += 1) {
+    for (let x = room.rect.x; x <= right; x += 1) {
+      if (x !== room.rect.x && x !== right && y !== room.rect.y && y !== bottom) continue;
+      sprites.push({
+        id: `primus-floor:wall-fringe:${room.id}:${x}:${y}`,
+        asset: surfaceAsset("fringe"),
+        x: (x - bounds.x) * tileSize,
+        y: (y - bounds.y) * tileSize,
+        width: tileSize,
+        height: tileSize,
+        rotation: 0,
+      });
+    }
+  }
+
+  return sprites;
+}
+
 function controlledThresholdSprite(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVisualSpriteDefinition[] {
   const geometry = plan.events.actors.props.navigation.geometry;
   const semanticSpaces = new Map(geometry.semantic.spaces.map((space) => [space.id, space]));
@@ -164,8 +198,8 @@ function serviceApproachSprites(plan: RuntimeEmissionPlan, room: RoomInfo): Floo
     const sameRow = cells[0].y === cells[1].y;
     const sameColumn = cells[0].x === cells[1].x;
     if (sameRow) {
-      const [left, right] = [...cells].sort((a, b) => a.x - b.x);
-      if (right.x !== left.x + 1) throw new Error(`PRIMUS service-bank ${placement.id} horizontal approach is not contiguous.`);
+      const [left, rightCell] = [...cells].sort((a, b) => a.x - b.x);
+      if (rightCell.x !== left.x + 1) throw new Error(`PRIMUS service-bank ${placement.id} horizontal approach is not contiguous.`);
       result.push({
         id: `primus-floor:service-approach:${placement.id}`,
         asset: surfaceAsset("service-horizontal"),
@@ -176,8 +210,8 @@ function serviceApproachSprites(plan: RuntimeEmissionPlan, room: RoomInfo): Floo
         rotation: 0,
       });
     } else if (sameColumn) {
-      const [top, bottom] = [...cells].sort((a, b) => a.y - b.y);
-      if (bottom.y !== top.y + 1) throw new Error(`PRIMUS service-bank ${placement.id} vertical approach is not contiguous.`);
+      const [top, bottomCell] = [...cells].sort((a, b) => a.y - b.y);
+      if (bottomCell.y !== top.y + 1) throw new Error(`PRIMUS service-bank ${placement.id} vertical approach is not contiguous.`);
       result.push({
         id: `primus-floor:service-approach:${placement.id}`,
         asset: surfaceAsset("service-vertical"),
@@ -200,15 +234,17 @@ function serviceApproachSprites(plan: RuntimeEmissionPlan, room: RoomInfo): Floo
  *
  * Material and topology have separate authority:
  * - one 128px authored macro surface owns every complete 2x2 block;
+ * - plain grey wall-fringe tiles calm the full room perimeter;
  * - real Level semantics add a single multi-cell threshold and service overlays;
- * - those overlays sit above the continuous macro surface instead of deleting
- *   arbitrary macro quadrants, preventing the patchwork seen in the first pass.
+ * - those overlays sit above the continuous base instead of deleting arbitrary
+ *   macro quadrants, preventing patchwork while preserving semantic placement.
  */
 export function primusFloorSprites(plan: RuntimeEmissionPlan): FloorVisualSpriteDefinition[] {
   const room = primusRoom(plan);
   if (!room) return [];
   return [
     ...baseSurfaceSprites(plan, room),
+    ...wallFringeSprites(plan, room),
     ...controlledThresholdSprite(plan, room),
     ...serviceApproachSprites(plan, room),
   ];
