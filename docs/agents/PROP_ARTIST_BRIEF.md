@@ -6,6 +6,8 @@ Use this file when an agent is asked to create, revise, inspect or integrate a N
 
 This is the single onboarding route for Prop production. It provides game/story/project orientation and routes to the documents/code that own detailed rules. Current plans and exact recipes remain authoritative over any orientation snapshot here.
 
+If the task is actually a **Floor / tile atlas / modular surface system rather than a Prop**, route back to `ROLE_ENTRYPOINTS.md` + `../art/production/ARTIST_AGENT_WORKFLOW.md`. When directional/topological/automatic tile placement is involved, the **FLOOR / TILE METADATA trigger** additionally requires `../art/production/FLOOR_TILE_METADATA_CONTRACT.md` before generation.
+
 ---
 
 # 1. Role
@@ -73,8 +75,12 @@ Current visual milestone:
 
 ```text
 Transfer Apparatus + Yellow Core static Hero state   LIVE_ACCEPTED
+Family Living floor v1                               LIVE_ACCEPTED
+Main Hall floor v1                                   LIVE_ACCEPTED
+Transfer Room floor / Hero anchoring v1              LIVE_ACCEPTED
 
-CURRENT → Flow support / functional Transfer FloorFX
+CURRENT → Child / Hygiene / PRIMUS floor identities + wall AO / authored wear
+ACTIVE  → complete Flow support: scale / shadow / collision / floor bus
 NEXT    → PRIMUS hero/system art
 NEXT    → useful domestic blockout replacements
 NEXT    → full-room cohesion / candidate disposition / lighting
@@ -82,9 +88,9 @@ GATE    → desktop + phone Gold-Slice QA
 LATER   → full Transfer choreography / broader content
 ```
 
-The generated room is structurally sound but still visually sparse. Current priority is **make the Gold Slice representative and attractive**, not another compiler migration and not yet a large Transfer-animation polish block.
+The generated room is structurally sound. Current priority is **finish the remaining static Gold Slice**, not another compiler migration and not yet a large Transfer-animation polish block.
 
-Accepted/frozen baselines include PICO source art, Floor, Walls, Doors, Family Table, Family Memory Console, Transfer Apparatus and Yellow Core static resting state.
+Accepted/frozen baselines include PICO source/grounding, Floor base, Walls, Doors, Family Table, Family Memory Console, Transfer Apparatus/Core and the accepted Family Living/Main Hall/Transfer floor v1 baselines.
 
 Mandatory current-plan reading:
 
@@ -141,6 +147,10 @@ Read completely:
 7. `../art/production/ART_ASSET_VALIDATION_RULES.md`;
 8. `../art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`;
 9. `../level-generation/PROP_AUTHORING_REQUIREMENTS.md` when the asset uses Prop semantics.
+
+If a task turns out to involve modular Floor/tile art with directional/topological or automatic-placement semantics, the trigger in `ROLE_ENTRYPOINTS.md` additionally requires:
+
+- `../art/production/FLOOR_TILE_METADATA_CONTRACT.md`
 
 Do not reconstruct production workflow from chat memory or old handoffs.
 
@@ -291,7 +301,7 @@ Full rule: `../art/production/LIVE_QA_ITERATION_CLASSIFICATION.md`.
 
 ---
 
-# 9. Cross-domain triggers
+# 9. Cross-domain / category triggers
 
 Use `ROLE_ENTRYPOINTS.md` for full definitions.
 
@@ -301,7 +311,24 @@ Activate deeper work before deciding when a Prop requires:
 - **Game Design:** new/changed interaction, resource, blocking/drivability, tactical/progression meaning;
 - **Technical Artist/Engineering:** reusable tools, `src/` changes, collision/runtime integration, layer/render changes, animation behavior.
 
-Do not hide unresolved cross-domain choices inside visual art or one-off coordinates.
+### FLOOR / TILE METADATA trigger
+
+If the requested work is or becomes a modular Floor/tile atlas with directional/connective/topological semantics, it is no longer ordinary Prop-only work. Route to the Artist/Technical Artist path and read:
+
+`../art/production/FLOOR_TILE_METADATA_CONTRACT.md`
+
+Trigger examples:
+
+- straight seams/routes/channels;
+- corners / T-junctions / crossings / terminals;
+- thresholds / wall-edge variants;
+- arrows or directional marks;
+- rotation-dependent cells;
+- automatic runtime selection from Level/room/corridor semantics.
+
+This trigger activates **before generation** so the tile inventory and metadata contract are defined before pixels are produced.
+
+Do not hide unresolved cross-domain/category choices inside visual art or one-off coordinates.
 
 ---
 
@@ -321,6 +348,16 @@ Before generation/integration, the Artist should be able to state:
 - current recipe and approved Asset Family;
 - exact next workflow gate;
 - whether current user turn is QA, standalone `generieren`, or neither.
+
+If the work is modular floor/tile production, also state:
+
+- tile inventory;
+- connector/continuity contract;
+- rotation policy;
+- runtime/wall eligibility;
+- Ground-vs-FloorFX ownership;
+- deterministic crop/materialization plan;
+- topology/direction regression tests.
 
 If authority is missing, resolve it before generation rather than guessing.
 
