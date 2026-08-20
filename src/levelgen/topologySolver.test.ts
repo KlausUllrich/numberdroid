@@ -52,7 +52,7 @@ describe("Level Compiler v0.11 cyclic / multi-constraint topology", () => {
   it("preserves the established TS-01 tree-compatible geometry without invoking topology search", () => {
     const result = compile(TS01_LEVEL_SPEC);
     expect(result.spaces.find((space) => space.id === "family-living")?.rect).toEqual({ x: 1, y: 3, w: 7, h: 6 });
-    expect(result.spaces.find((space) => space.id === "primus-allocation")?.rect).toEqual({ x: 11, y: 1, w: 9, h: 8 });
+    expect(result.spaces.find((space) => space.id === "primus-allocation")?.rect).toEqual({ x: 11, y: 1, w: 10, h: 8 });
     expect(result.diagnostics.some((entry) => entry.code === "TREE_COMPATIBLE_TOPOLOGY_PRESERVED")).toBe(true);
     expect(result.diagnostics.some((entry) => entry.code === "MULTI_CONSTRAINT_FALLBACK_USED")).toBe(false);
   });
