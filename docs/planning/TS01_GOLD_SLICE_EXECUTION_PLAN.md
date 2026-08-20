@@ -1,6 +1,6 @@
 # Numberdroid — TS-01 Gold Slice Execution Plan
 
-Status: **CURRENT execution plan — 2026-08-20 after PRIMUS floor v2 macro-fit correction**
+Status: **CURRENT execution plan — 2026-08-20 after PRIMUS floor v2 LIVE_ACCEPTED**
 
 `DEVELOPMENT_PLAN_NEXT.md` remains the project-level roadmap. `docs/game-design/LEVEL_DESIGN_RULES.md` owns durable spatial principles. `docs/level-generation/GOLD_SLICE_REGRESSION_GATES.md` owns the permanent v0.13.2 spatial/presentation regression contract.
 
@@ -60,13 +60,13 @@ Frozen unless live QA exposes a concrete defect:
 - Family Living floor v1 — **LIVE_ACCEPTED**;
 - Main Hall floor v1 — **LIVE_ACCEPTED**;
 - Transfer Room floor / Hero anchoring v1 — **LIVE_ACCEPTED**;
+- PRIMUS floor v2 — **LIVE_ACCEPTED**;
 - Walls / Architecture — **LIVE_ACCEPTED**;
 - Doors — **LIVE_ACCEPTED**;
 - Family Table + shadow — **LIVE_ACCEPTED**;
 - Family Memory Console + shadow — **LIVE_ACCEPTED**;
 - Transfer Apparatus + shadow + silhouette collision — **LIVE_ACCEPTED**;
-- Yellow Core static resting state — **LIVE_ACCEPTED**;
-- PRIMUS floor v2 — **LIVE_CANDIDATE**, final Art-Director QA pending after exact macro fit.
+- Yellow Core static resting state — **LIVE_ACCEPTED**.
 
 Room-context candidates still requiring final disposition include Coffee Machine, Planter Trough, Round Plant, Hologram Pedestal and Flow Regulator.
 
@@ -83,9 +83,9 @@ Room-context candidates still requiring final disposition include Coffee Machine
 | Family Hygiene | **OPEN** | still inherits domestic/family treatment |
 | Main Hall | **LIVE_ACCEPTED v1** | calm circulation floor; room access ≠ route branch |
 | Transfer Room | **LIVE_ACCEPTED v1** | premium light floor + installed Hero anchor |
-| PRIMUS Allocation | **LIVE_CANDIDATE v2** | systematic 2×2 macro interior + calm wall band; exact-fit correction implemented |
+| PRIMUS Allocation | **LIVE_ACCEPTED v2** | systematic 2×2 macro interior + calm wall band; exact-fit correction accepted in live QA |
 
-Therefore B1 is **3/6 accepted + PRIMUS candidate**.
+Therefore B1 is **4/6 accepted**.
 
 ## B2 — Static wall AO
 
@@ -102,7 +102,7 @@ Use usage evidence rather than generic grunge:
 - Family activity zones;
 - Main Hall circulation;
 - Transfer Human approach / Robot exit;
-- PRIMUS service/patrol use after floor acceptance;
+- PRIMUS service/patrol use;
 - rare plausible low-contrast scuffs/stains;
 - no obvious repeated dirt tiles.
 
@@ -140,11 +140,11 @@ Accepted behavior:
 - generated card/gutter artifacts are removed during materialization;
 - uncalibrated generated alternatives remain quarantined.
 
-## PRIMUS proof — multi-cell fit
+## PRIMUS proof — accepted multi-cell fit
 
 The first PRIMUS wall-band pass still exposed half 2×2 panels because macros were aligned to the room origin and then covered by the calm perimeter.
 
-The binding correction is:
+The accepted correction is:
 
 ```text
 room                  10 × 8
@@ -161,7 +161,7 @@ General rule:
 
 If not, change the room geometry or author a deliberate terminal/fringe surface. Never clip, hide or mask part of a macro as a layout fix.
 
-For TS-01 the PRIMUS width is therefore intentionally changed from 9 to 10 tiles while height remains 8; macro placement shifts one tile inward vertically and horizontally.
+For TS-01 the PRIMUS width is therefore intentionally 10 tiles while height remains 8; macro placement shifts one tile inward vertically and horizontally.
 
 ---
 
@@ -193,7 +193,7 @@ For TS-01 the PRIMUS width is therefore intentionally changed from 9 to 10 tiles
 - thresholds for room access;
 - usage wear later in B3.
 
-## PRIMUS — live candidate
+## PRIMUS — accepted v2
 
 - controlled, aligned modular work-space character;
 - cooler/darker systematic material than Main Hall;
@@ -205,6 +205,8 @@ For TS-01 the PRIMUS width is therefore intentionally changed from 9 to 10 tiles
 - preserve open center for robots/patrol;
 - competent/attractive, not villain-black.
 
+Do not reopen the PRIMUS Ground identity merely to add wear; service/patrol evidence belongs to B3 FloorFX.
+
 ## Transfer — accepted base/anchor
 
 Preserve Apparatus ownership, open space, Yellow Core resting state, support cluster and accepted premium floor/anchor. Later additions are B2 AO, B3 approach/exit wear and B5 Flow integration.
@@ -214,19 +216,21 @@ Preserve Apparatus ownership, open space, Yellow Core resting state, support clu
 # 7. Current production sequence
 
 ```text
-DONE      Family Living floor v1
-DONE      Main Hall floor v1
-DONE      Transfer Room floor v1 + Hero anchor
-CANDIDATE PRIMUS floor v2 exact macro-fit
-NEXT      Child room floor identity
-NEXT      Hygiene room floor identity
-OPEN      wall AO FloorFX
-OPEN      authored use/wear FloorFX
-OPEN      Flow shadow/collision/bus
-THEN      full-room cohesion + desktop/phone Gold-Slice QA
+DONE  Family Living floor v1
+DONE  Main Hall floor v1
+DONE  Transfer Room floor v1 + Hero anchor
+DONE  PRIMUS floor v2 exact macro-fit
+NEXT  Child room floor identity
+NEXT  Hygiene room floor identity
+OPEN  wall AO FloorFX
+OPEN  authored use/wear FloorFX
+OPEN  Flow shadow/collision/bus
+THEN  full-room cohesion + desktop/phone Gold-Slice QA
 ```
 
-After/with PRIMUS floor acceptance, continue the PRIMUS hero/system wall object from:
+Continue floor identities **one room at a time**. Do not combine Child and Hygiene into one generation/integration pass merely for efficiency.
+
+After the floor-identity block, continue the PRIMUS hero/system wall object from:
 
 `art-source/recipes/transfer-hall/primus-console/recipe.md`
 
@@ -280,7 +284,8 @@ Binding reminders:
 - line-bearing variants may not pseudo-randomly alternate without continuity metadata;
 - room access and corridor topology are distinct;
 - structural perimeter bands must never hide part of a repeated multi-cell surface;
-- room geometry may be deliberately adjusted when exact visual modularity requires it.
+- room geometry may be deliberately adjusted when exact visual modularity requires it;
+- a successful code/CI pass is not visual acceptance; deployed gameplay-scale QA remains authoritative.
 
 ---
 

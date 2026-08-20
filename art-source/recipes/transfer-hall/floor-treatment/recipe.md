@@ -1,6 +1,6 @@
 # TS-01 Floor Treatment Brief / Recipe
 
-Status: **ACTIVE PRODUCTION — 2026-08-20; Family Living / Main Hall / Transfer Room v1 LIVE_ACCEPTED; PRIMUS v2 LIVE_CANDIDATE; Child/Hygiene + AO/wear/Flow still open**
+Status: **ACTIVE PRODUCTION — 2026-08-20; Family Living / Main Hall / Transfer Room / PRIMUS LIVE_ACCEPTED; Child/Hygiene + AO/wear/Flow still open**
 
 This brief defines the Gold-Slice floor-treatment pass for generated TS-01. The existing accepted Floor remains the **base material baseline**; this pass adds room identity, subtle age/use, contact grounding and functional floor integration without turning the Transfer Ship into a dirty industrial environment.
 
@@ -27,13 +27,13 @@ Family Child    OPEN — currently inherits domestic/family treatment
 Family Hygiene  OPEN — currently inherits domestic/family treatment
 Main Hall       LIVE_ACCEPTED v1
 Transfer Room   LIVE_ACCEPTED v1 incl. Hero floor anchoring
-PRIMUS          LIVE_CANDIDATE v2 — systematic macro floor integrated; final Art-Director QA pending
+PRIMUS          LIVE_ACCEPTED v2 — exact 2×2 macro fit + calm one-tile perimeter
 ```
 
 System progress:
 
 ```text
-B1 room identity        3 / 6 accepted + PRIMUS live candidate
+B1 room identity        4 / 6 accepted
 B2 wall AO              OPEN
 B3 usage/wear           OPEN
 B4 Transfer anchor      LIVE_ACCEPTED v1
@@ -117,7 +117,7 @@ Do not infer topology from pixel similarity or atlas index.
 - no false terminal before Transfer;
 - line-bearing variants are not pseudo-randomly swapped unless metadata guarantees continuity.
 
-### PRIMUS lesson — binding
+### PRIMUS lesson — accepted and binding
 
 The first PRIMUS macro pass failed because a correct 2×2 surface was aligned to the room origin and a calm one-tile wall band was then drawn over it. That created visually **half/partial macro panels**.
 
@@ -182,13 +182,13 @@ For TS-01 this means the PRIMUS room is intentionally 10×8 rather than 9×8.
 
 Still open around this accepted baseline: B2 AO, B3 approach/exit wear, B5 Flow integration.
 
-### PRIMUS Allocation — LIVE_CANDIDATE v2
+### PRIMUS Allocation — LIVE_ACCEPTED v2
 
 Read:
 
 > optimized institutional work space, competent rather than sinister
 
-Current v2 candidate:
+Accepted v2 baseline:
 
 - cooler/darker systematic material than Main Hall;
 - continuous authored 2×2 macro surfaces in the interior;
@@ -199,6 +199,8 @@ Current v2 candidate:
 - no partial macros along walls: room geometry and macro origin are fitted deliberately.
 
 Avoid villain-black flooring, aggressive red grids and excessive glowing circuitry.
+
+Do not reopen this base to add use evidence. Future patrol/service wear belongs to B3 FloorFX.
 
 ---
 
@@ -239,7 +241,7 @@ Preferred evidence:
 - Family Table/Coffee area;
 - Child bed/storage zone;
 - Transfer Human approach / Robot exit;
-- PRIMUS service-bank/patrol use after floor acceptance;
+- PRIMUS service-bank/patrol use;
 - rare low-contrast scuffs/stains;
 - selected newer/older replacement panels.
 
@@ -289,17 +291,19 @@ Source appearance, semantic placement and room geometry are separate authorities
 ## 10. Implementation order — current
 
 ```text
-DONE      Family Living floor v1
-DONE      Transfer Room floor v1 + Hero anchor
-DONE      Main Hall floor v1 + semantic metadata proof
-CANDIDATE PRIMUS floor v2 + exact macro-fit / calm perimeter
-NEXT      Child room floor identity
-NEXT      Hygiene room floor identity
-OPEN      wall AO FloorFX
-OPEN      authored use/wear FloorFX
-OPEN      Flow shadow/collision/bus
-THEN      full-room cohesion + desktop/phone Gold-Slice QA
+DONE  Family Living floor v1
+DONE  Transfer Room floor v1 + Hero anchor
+DONE  Main Hall floor v1 + semantic metadata proof
+DONE  PRIMUS floor v2 + exact macro-fit / calm perimeter
+NEXT  Child room floor identity
+NEXT  Hygiene room floor identity
+OPEN  wall AO FloorFX
+OPEN  authored use/wear FloorFX
+OPEN  Flow shadow/collision/bus
+THEN  full-room cohesion + desktop/phone Gold-Slice QA
 ```
+
+Proceed room-by-room; do not generate or integrate Child and Hygiene as one combined pass unless their shared recipe explicitly requires it.
 
 ---
 

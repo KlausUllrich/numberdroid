@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — 2026-08-20 after Family Living, Transfer Room and Main Hall floor v1 live acceptance**
+Status: **current forward plan — 2026-08-20 after PRIMUS floor v2 live acceptance**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -91,6 +91,8 @@ Workbench:
 
 v0.13.2 spatial/presentation stabilization remains **LIVE QA ACCEPTED** and should not be reopened to solve ordinary art problems.
 
+PRIMUS v2 deliberately changes one room dimension inside the accepted semantic layout: the room is now fixed at 10×8 so a one-tile calm perimeter leaves an exact 8×6 domain for complete 2×2 floor macros. This is an intentional art/layout fit correction, not a return to architecture migration.
+
 ---
 
 ## Art-production infrastructure — established
@@ -119,10 +121,11 @@ Current proven method/tooling includes:
 - explicit human live-QA calibration stored as reproducible profile data;
 - explicit manual approved-source upload/verification path;
 - deterministic cuttable floor-atlas extraction from measured cell faces rather than naive image division;
-- explicit semantic per-tile metadata for automatic placement: role, connectors, continuity family, rotation, wall/runtime eligibility and direction meaning;
+- explicit semantic per-tile/surface metadata for automatic placement: role, connectors, continuity family, span, rotation, wall/runtime eligibility and direction meaning;
+- exact multi-cell tiling-domain validation after structural bands are removed;
 - categorical prohibition on inline repository Base64 transport.
 
-Main Hall proved that **visual source pixels are not topology authority**. The binding reusable rule now lives in `docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md`.
+Main Hall proved that **visual source pixels are not topology authority**. PRIMUS proved that **a valid multi-cell asset is still invalid when room geometry/perimeter treatment exposes only part of it**. Both reusable rules live in `docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md`.
 
 M3 layered-editor infrastructure and broader generic Freistellen/atlas tooling remain deferred until a concrete need justifies them.
 
@@ -138,6 +141,7 @@ Frozen unless a concrete defect or deliberate revision appears:
 - **Family Living floor v1** — LIVE_ACCEPTED; warm civilian/lived-in material treatment already integrated;
 - **Main Hall floor v1** — LIVE_ACCEPTED on 2026-08-20; one calm circulation spine, room thresholds are not route branches, semantic tile metadata contract proven;
 - **Transfer Room floor / Hero anchoring v1** — LIVE_ACCEPTED; approved 6×6 atlas integrated with installed Hero-zone relationship;
+- **PRIMUS Allocation floor v2** — LIVE_ACCEPTED on 2026-08-20; systematic 2×2 macro interior, calm one-tile wall perimeter, exact 10×8 room fit, real threshold/service semantics only;
 - **Walls / Architecture** — LIVE_ACCEPTED;
 - **Doors** — LIVE_ACCEPTED;
 - **Family Table + shadow** — LIVE_ACCEPTED;
@@ -156,8 +160,7 @@ Still visual/runtime candidates pending final room-context disposition:
 Remaining room-floor identities:
 
 - **Child** — not yet differentiated from current domestic/family treatment;
-- **Hygiene** — not yet differentiated from current domestic/family treatment;
-- **PRIMUS Allocation** — not yet produced; still blockout/base presentation.
+- **Hygiene** — not yet differentiated from current domestic/family treatment.
 
 ---
 
@@ -209,7 +212,7 @@ Flow support now extends this system without reopening the accepted Apparatus/Co
 
 ## CURRENT milestone — finish the remaining static Gold Slice floor/environment pass
 
-The generated TS-01 is structurally sound and now has three accepted floor identities. **Current priority remains static Gold-Slice coherence before campaign expansion or full Transfer choreography.**
+The generated TS-01 is structurally sound and now has **four accepted floor identities**. **Current priority remains static Gold-Slice coherence before campaign expansion or full Transfer choreography.**
 
 Completed floor-identity proof:
 
@@ -217,6 +220,7 @@ Completed floor-identity proof:
 Family Living   LIVE_ACCEPTED
 Main Hall       LIVE_ACCEPTED
 Transfer Room   LIVE_ACCEPTED
+PRIMUS          LIVE_ACCEPTED
 ```
 
 Still open in the current floor/environment milestone:
@@ -224,7 +228,6 @@ Still open in the current floor/environment milestone:
 ```text
 Child identity          OPEN
 Hygiene identity        OPEN
-PRIMUS identity         OPEN
 Wall AO                 OPEN
 Usage/wear FloorFX      OPEN
 Flow floor relationship PARTIAL / OPEN
@@ -232,15 +235,15 @@ Flow floor relationship PARTIAL / OPEN
 
 ### Planned sequence
 
-1. **Complete TS-01 room-specific floor identities**
+1. **Complete TS-01 room-specific floor identities — one room at a time**
    - ~~Family Living~~ **DONE / LIVE_ACCEPTED**;
    - Child — next domestic material identity;
    - Hygiene — next functional/non-slip material identity;
    - ~~Main Hall~~ **DONE / LIVE_ACCEPTED**;
    - ~~Transfer Room + Hero floor anchoring~~ **DONE / LIVE_ACCEPTED**;
-   - PRIMUS systematic floor logic — still open.
+   - ~~PRIMUS systematic floor logic~~ **DONE / LIVE_ACCEPTED v2**.
 
-   The Main Hall pass established a reusable rule for semantic tiles: define a tile contract before generation, archive the approved source, extract deterministically, store per-cell metadata, and place from Level semantics. See `FLOOR_TILE_METADATA_CONTRACT.md`.
+   The Main Hall and PRIMUS passes jointly establish the reusable semantic-floor rule set: define semantics before generation, archive/extract deterministically, store explicit metadata, place from Level semantics, remove structural bands before repeated multi-cell placement, and require exact divisibility of the usable domain by the macro span. See `FLOOR_TILE_METADATA_CONTRACT.md`.
 
 2. **Add static wall ambient occlusion / architectural grounding**
    - derive from actual architecture/Shared Wall Graph;
@@ -253,7 +256,8 @@ Flow floor relationship PARTIAL / OPEN
    - Family Living activity zones;
    - Main Hall center traffic band;
    - Transfer Human approach / Robot exit;
-   - PRIMUS work-slot/patrol logic once its floor exists.
+   - PRIMUS service-bank/patrol logic;
+   - Child/Hygiene use evidence after those room identities are accepted.
 
 4. **Complete Flow support integration**
    - finalize 128×128 candidate scale decision;
@@ -262,7 +266,7 @@ Flow floor relationship PARTIAL / OPEN
    - keep later active synchronization on separate `transfer-fx`.
 
 5. **PRIMUS hero/system wall object**
-   - establish allocation/work-room identity;
+   - establish allocation/work-room identity above the now-accepted floor;
    - competent, ordered, attractive rather than villain-black;
    - preserve open patrol/work center.
 
@@ -319,6 +323,7 @@ Production is expected to be predominantly deterministic/M4 after visual source 
 
 - semantic room identity chooses the Ground family;
 - semantic tile metadata controls connector/topology-safe placement;
+- multi-cell spans and structural bands jointly define exact tiling domains;
 - Shared Wall Graph/architecture can drive static wall AO;
 - activity/traffic zones drive wear masks;
 - Flow endpoints drive exact FloorFX bus geometry;
@@ -340,6 +345,7 @@ FUNCTION / SOURCE DESIGN
 PERSPECTIVE / STYLE
 RUNTIME CROP / SCALE / PADDING
 PLACEMENT / ROOM COMPOSITION
+MULTI-CELL FIT / STRUCTURAL BAND ALIGNMENT
 COLLISION / USE-SPACE
 SHADOW / GROUNDING
 MOVABLE FX / CHOREOGRAPHY
@@ -363,8 +369,12 @@ Additional durable rules:
 - line-bearing tiles require explicit connectors/continuity metadata before automatic placement;
 - room access is not automatically corridor route topology;
 - cuttable generated atlases require deterministic full-bleed extraction; presentation gutters/rounded sample frames are not runtime floor art;
+- repeated multi-cell surfaces require `spanTiles`, an explicit usable-domain origin and exact divisibility after structural bands are removed;
+- never hide a partial macro under wall/perimeter FloorFX; change geometry or author a deliberate remainder treatment instead;
+- a room-size change is valid when it is the intentional semantic/layout fix and all geometry regressions are updated explicitly;
 - dirt/wear must communicate use/age rather than undirected noise;
-- AO/grounding is not scene illumination.
+- AO/grounding is not scene illumination;
+- CI green and merge are not substitutes for deployed Art-Director live acceptance.
 
 ---
 
@@ -389,7 +399,7 @@ Once Generated TS-01 passes as the representative quality bar:
 
 Do not silently freeze:
 
-- exact **remaining** Child/Hygiene/PRIMUS floor variants until live QA;
+- exact **remaining** Child/Hygiene floor variants until live QA;
 - exact AO falloff/opacity values;
 - exact wear-mask algorithm/intensity;
 - whether room-floor treatment becomes a reusable Level Compiler material-profile system after TS-01 proof;
@@ -399,7 +409,7 @@ Do not silently freeze:
 - whether full-room cohesion reveals a concrete need for M3 layered retouching;
 - whether later Transfer FX justify a dedicated animation compositor/tool.
 
-Family Living, Main Hall and Transfer Room floor v1 are no longer open visual targets absent a concrete defect. Directional actor grounding is also no longer open; PICO established the production contract and explicit manual-calibration escape hatch.
+Family Living, Main Hall, Transfer Room and PRIMUS floor baselines are no longer open visual targets absent a concrete defect. Directional actor grounding is also no longer open; PICO established the production contract and explicit manual-calibration escape hatch.
 
 ---
 
@@ -433,9 +443,10 @@ For semantic modular floor/tile work add:
 
 ```text
 tile inventory / semantic contract
-→ approved cuttable source
-→ deterministic extraction
-→ per-cell metadata
+→ approved cuttable source or authored material source
+→ deterministic extraction/composition
+→ per-cell/per-surface metadata incl. spanTiles
+→ structural-band subtraction + exact usable-domain fit
 → topology-safe placement
 → regression tests
 → deployed live QA
