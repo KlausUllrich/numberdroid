@@ -58,19 +58,19 @@ describe("TS-01 Main Hall floor presentation", () => {
     }
   });
 
-  it("treats room doors as thresholds, not traffic junctions or false route terminals", () => {
+  it("treats room doors as thresholds, not traffic junctions", () => {
     expect(shouldBranchMainHallSpine("room")).toBe(false);
     expect(shouldBranchMainHallSpine("corridor")).toBe(true);
 
     const sprites = mainHallFloorSprites(TS01_GENERATED_PLAN);
     // TS-01 connects Main Hall only to rooms (Living, Transfer, PRIMUS), so the
-    // current slice should read as one continuous straight Hall rather than a
-    // wiring graph or a route that visibly stops before Transfer.
+    // current slice should read as one straight Hall rather than a wiring graph.
+    // A terminal remains valid at a true closed end of the Hall; the dedicated
+    // Transfer regression below ensures no false terminal appears before Transfer.
     expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:junction-t:"))).toBe(false);
     expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:junction-cross:"))).toBe(false);
     expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:corner:"))).toBe(false);
     expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:straight:"))).toBe(true);
-    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:terminal:"))).toBe(false);
   });
 
   it("keeps the Hall spine straight immediately before the Transfer threshold", () => {
