@@ -11,9 +11,11 @@ import type { CardinalDirection, OrientationPreference } from "./types";
 const BASE_TILES = MAIN_HALL_FLOOR_TILE_METADATA.filter((entry) => entry.role === "base" && entry.runtimeEligible);
 const SERVICE_TILES = MAIN_HALL_FLOOR_TILE_METADATA.filter((entry) => entry.role === "service" && entry.runtimeEligible);
 const WEAR_TILES = MAIN_HALL_FLOOR_TILE_METADATA.filter((entry) => entry.role === "wear" && entry.runtimeEligible);
-const THRESHOLD_TILE = MAIN_HALL_FLOOR_TILE_METADATA.find((entry) => entry.role === "threshold" && entry.runtimeEligible);
-
-if (!THRESHOLD_TILE) throw new Error("Main Hall floor metadata is missing an eligible threshold tile.");
+const THRESHOLD_TILE_INDEX = (() => {
+  const tile = MAIN_HALL_FLOOR_TILE_METADATA.find((entry) => entry.role === "threshold" && entry.runtimeEligible);
+  if (!tile) throw new Error("Main Hall floor metadata is missing an eligible threshold tile.");
+  return tile.index;
+})();
 
 export const MAIN_HALL_TILE_CONTRACT = {
   tJunctionByMissingDirection: {
@@ -266,7 +268,7 @@ export function mainHallFloorSprites(plan: RuntimeEmissionPlan): FloorVisualSpri
 
       if (thresholdSide) {
         tile = {
-          index: THRESHOLD_TILE.index,
+          index: THRESHOLD_TILE_INDEX,
           rotation: thresholdRotation(thresholdSide),
           role: "threshold",
         };
