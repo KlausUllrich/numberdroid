@@ -5,6 +5,7 @@ import { familyFloorSprites } from "./familyFloorPresentation";
 import { mainHallFloorSprites } from "./mainHallFloorPresentation";
 import { createPlayableCompilerPreview } from "./playablePreview";
 import { compileAndValidatePropExactFits } from "./propExactFitPlan";
+import { primusFloorSprites } from "./primusFloorPresentation";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
 import { transferFloorSprites } from "./transferFloorPresentation";
@@ -53,7 +54,8 @@ function withTs01ArtExtensions(floor: FloorDefinition): FloorDefinition {
   const familyTiles = familyFloorSprites(TS01_GENERATED_PLAN);
   const hallTiles = mainHallFloorSprites(TS01_GENERATED_PLAN);
   const transferTiles = transferFloorSprites(TS01_GENERATED_PLAN);
-  const roomFloorTiles = [...familyTiles, ...hallTiles, ...transferTiles];
+  const primusTiles = primusFloorSprites(TS01_GENERATED_PLAN);
+  const roomFloorTiles = [...familyTiles, ...hallTiles, ...transferTiles, ...primusTiles];
   const layers = floor.visual.layers.map((layer) => {
     if (layer.id !== "floor-fx" || layer.kind !== "sprites" || roomFloorTiles.length === 0) return layer;
     return { ...layer, sprites: [...roomFloorTiles, ...layer.sprites] };
