@@ -82,12 +82,6 @@ function addEdge(network: Map<string, Set<Direction>>, a: Cell, b: Cell) {
   network.set(key(b), bSet);
 }
 
-function removeEdge(network: Map<string, Set<Direction>>, a: Cell, b: Cell) {
-  const direction = directionBetween(a, b);
-  network.get(key(a))?.delete(direction);
-  network.get(key(b))?.delete(opposite(direction));
-}
-
 function connectLine(network: Map<string, Set<Direction>>, from: Cell, to: Cell) {
   let current = { ...from };
   while (current.x !== to.x) {
@@ -197,32 +191,10 @@ function buildHallNetwork(plan: RuntimeEmissionPlan, hall: HallInfo) {
 
     const classification = connectionClass(plan, connection, hall.id);
     if (!classification || !shouldBranchMainHallSpine(classification)) {
-      // A room door is not a circulation-line junction. Keep the spine calm and
-      // straight. If a north/south room threshold intersects the spine, break
-      // the final route edge so the preceding route tile becomes a deliberate
-      // terminal rather than disappearing abruptly under the threshold tile.
-      if (classification === "room" && hall.orientation === "vertical") {
-        for (const { cell, side } of cells) {
-          if (cell.x !== spineX) continue;
-          if (side === "north" && cell.y + 1 < hall.rect.y + hall.rect.h) {
-            removeEdge(network, cell, { x: cell.x, y: cell.y + 1 });
-          }
-          if (side === "south" && cell.y - 1 >= hall.rect.y) {
-            removeEdge(network, cell, { x: cell.x, y: cell.y - 1 });
-          }
-        }
-      }
-      if (classification === "room" && hall.orientation === "horizontal") {
-        for (const { cell, side } of cells) {
-          if (cell.y !== spineY) continue;
-          if (side === "west" && cell.x + 1 < hall.rect.x + hall.rect.w) {
-            removeEdge(network, cell, { x: cell.x + 1, y: cell.y });
-          }
-          if (side === "east" && cell.x - 1 >= hall.rect.x) {
-            removeEdge(network, cell, { x: cell.x - 1, y: cell.y });
-          }
-        }
-      }
+      // Room access is a material threshold, not a circulation junction or a
+      // terminal. Keep the underlying Hall spine continuous through north/south
+      // room thresholds; the threshold artwork owns only the transition cell.
+      // This prevents a false "route ends here" marker before Transfer.
       continue;
     }
 
@@ -273,7 +245,8 @@ function baseTile() {
  *
  * The current Hall is intentionally simple: one continuous circulation spine,
  * calm base material, and real thresholds. Room doors do not create route-line
- * branches. Junction art is reserved for actual corridor topology changes.
+ * branches or false terminals. Junction art is reserved for actual corridor
+ * topology changes.
  */
 export function mainHallFloorSprites(plan: RuntimeEmissionPlan): FloorVisualSpriteDefinition[] {
   const hall = mainHall(plan);

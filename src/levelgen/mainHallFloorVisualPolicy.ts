@@ -6,7 +6,8 @@ import type { CardinalDirection } from "./types";
  * The Hall's route language is a circulation spine, not a wiring diagram. Room
  * doors are material transitions only. T/cross/corner graphics are reserved for
  * true corridor-to-corridor topology changes, where the circulation path itself
- * branches.
+ * branches. A room threshold must not create a visual route terminal immediately
+ * before the doorway; the circulation spine remains continuous through it.
  */
 export const MAIN_HALL_FLOOR_VISUAL_POLICY = {
   baseTileIndex: 0,
@@ -14,6 +15,7 @@ export const MAIN_HALL_FLOOR_VISUAL_POLICY = {
   roomConnectionsBranchSpine: false,
   corridorConnectionsBranchSpine: true,
   roomConnectionThresholds: true,
+  roomThresholdKeepsSpineContinuous: true,
   reserveDecorativeServiceAndWear: true,
   routeContinuityProfile: "hall-traffic-wide",
 } as const;
