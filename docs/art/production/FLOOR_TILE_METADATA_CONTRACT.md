@@ -1,14 +1,16 @@
 # Numberdroid — Floor / Tile Semantic Metadata Contract
 
-Status: **BINDING production contract — 2026-08-20 after Main Hall live QA**
+Status: **BINDING production contract — 2026-08-20 after Main Hall + PRIMUS live QA**
 
 This document defines how Numberdroid treats generated or authored modular floor/tile atlases once tile placement has semantic consequences.
 
-It exists because the Main Hall pass proved a durable production lesson:
+It exists because the Main Hall and PRIMUS passes proved two durable production lessons:
 
 > **A visually plausible tile atlas is not automatically a semantic tileset.**
 
-Two tiles can look similar while having different connector geometry, wall suitability, route meaning or runtime roles. Automatic placement must therefore consume explicit metadata rather than infer meaning from pixel similarity or raw atlas position.
+> **A valid multi-cell tile is not valid if room geometry or a structural band exposes only part of it.**
+
+Two tiles can look similar while having different connector geometry, wall suitability, route meaning or runtime roles. Likewise, an authored 2×2 surface can be internally correct but still fail in the level if it is aligned to the wrong origin or clipped by walls/perimeter treatment.
 
 This contract applies to floor tiles and other modular 2D surface systems with directional/topological meaning. It complements:
 
@@ -30,6 +32,7 @@ Read and apply this contract before generating, extracting, integrating or auto-
 - the atlas contains thresholds / doorway transitions;
 - the atlas contains wall-edge / border-specific variants;
 - several cells must visually connect across tile boundaries;
+- one authored surface spans multiple runtime cells (for example 2×2 macros or 1×2 thresholds);
 - rotation changes the meaning of a tile;
 - a tile is only safe beside certain geometry;
 - a runtime system will choose tiles automatically from semantic room/corridor data;
@@ -53,33 +56,34 @@ SOURCE EXTRACTION / MATERIALIZER
   deterministic resampling and runtime file production
 
 TILE METADATA
-  owns semantic meaning, connectors, rotation policy,
+  owns semantic meaning, connectors, span, rotation policy,
   wall/topology suitability and automatic-placement eligibility
 
 PLACEMENT LOGIC
-  owns which semantic request exists at a map cell
+  owns which semantic request exists at a map cell and the placement origin
 
 LEVEL / ROOM SEMANTICS
   owns whether something is a corridor, room access, wall edge,
-  route branch, threshold, service zone, etc.
+  route branch, threshold, service zone, perimeter band, etc.
 ```
 
-Pixels do **not** silently become topology authority.
+Pixels do **not** silently become topology authority. Runtime overlays do **not** silently become geometry fixes.
 
 ---
 
-## 3. Minimum metadata per atlas cell
+## 3. Minimum metadata per atlas cell / surface
 
-Every source cell that may reach runtime must have an explicit catalog entry.
+Every source cell or multi-cell surface that may reach runtime must have an explicit catalog entry.
 
 Minimum fields/concepts:
 
 ```text
-index / source cell id
+index / source cell id / surface id
 role
 runtimeEligible
 rotationPolicy
 wallSafe / boundary suitability
+spanTiles for multipart/macro surfaces
 selectionPriority when alternatives exist
 ```
 
@@ -103,6 +107,7 @@ Use category-specific roles, but prefer explicit names such as:
 
 ```text
 base
+macro
 service
 straight
 corner
@@ -114,6 +119,7 @@ arrow
 registration
 wear
 special
+fringe / perimeter
 ```
 
 Do not encode meaning only in comments like `tile 14 looks like a corner`.
@@ -127,10 +133,10 @@ For any tile whose graphic crosses an edge, store the source-space connector dir
 Example:
 
 ```text
-straight vertical  -> north + south
+straight vertical   -> north + south
 straight horizontal -> east + west
-T missing north    -> east + south + west
-corner SW          -> south + west
+T missing north     -> east + south + west
+corner SW           -> south + west
 terminal north wall -> south only
 ```
 
@@ -148,6 +154,7 @@ Use a continuity profile/family such as:
 hall-traffic-wide
 flow-bus-narrow
 primus-registration-line
+primus-macro-2x2
 ```
 
 Two tiles that merely look similar are not interchangeable.
@@ -158,7 +165,7 @@ Two tiles that merely look similar are not interchangeable.
 
 Generated atlases often produce redundant or imperfect directional alternatives. Rotation can be safer than trusting every generated direction independently.
 
-A canonical tile may provide all four orientations when:
+A canonical tile may provide multiple orientations when:
 
 - rotation preserves material/perspective logic;
 - connector positions rotate exactly;
@@ -179,17 +186,17 @@ Keep uncalibrated generated alternates in the approved source archive, but set `
 
 ## 6. Semantic placement rule — topology is not visual guesswork
 
-The placement system must first determine **what the map cell means**, then resolve a compatible tile.
+The placement system must first determine **what the map cell means**, then resolve a compatible tile/surface.
 
 Preferred flow:
 
 ```text
 actual Level/geometry semantics
-→ semantic request / route signature
+→ semantic request / route signature / structural band
 → metadata query
 → compatible candidate set
-→ deterministic selection / canonical rotation
-→ runtime sprite
+→ deterministic origin + selection / canonical rotation
+→ runtime sprite/surface
 ```
 
 Never use:
@@ -255,18 +262,88 @@ Metadata should therefore state whether a tile is safe beside a solid wall or ot
 Typical policy:
 
 ```text
-calm base         wallSafe = true
-threshold         wallSafe = true at matching aperture
-route straight    wallSafe = context-dependent
-service hatch     wallSafe = false unless authored there
-wear overlay      preferably FloorFX / authored use zone
+calm base/perimeter  wallSafe = true
+threshold            wallSafe = true at matching aperture
+route straight       wallSafe = context-dependent
+service hatch        wallSafe = false unless authored there
+wear overlay         preferably FloorFX / authored use zone
 ```
 
 Do not use random decorative variants directly under walls just because they are technically walkable floor cells.
 
 ---
 
-## 10. Generated atlas source vs runtime tile
+## 10. Multi-cell surface fit / macro-domain rule — binding PRIMUS lesson
+
+PRIMUS live QA exposed a second class of failure: a correct 2×2 macro was aligned to the room origin and then a one-tile calm wall band was drawn over it. The result was visually **half a macro** along the perimeter.
+
+This is prohibited.
+
+### Structural bands define the tiling domain
+
+If a room reserves any structural band before macros are placed — for example:
+
+- calm wall perimeter;
+- architectural inset;
+- permanent service trench;
+- non-tiled border;
+- other deterministic Ground region;
+
+then that band must be removed from the macro tiling domain **before** placement.
+
+For a room rectangle `W × H`, perimeter thickness `(L,R,T,B)` and macro span `mw × mh`:
+
+```text
+usableW = W - L - R
+usableH = H - T - B
+macroOriginX = roomX + L
+macroOriginY = roomY + T
+```
+
+Required invariant:
+
+```text
+usableW % mw === 0
+usableH % mh === 0
+```
+
+If this invariant fails, choose one of these fixes in order:
+
+1. **adjust room geometry** to the nearest intentional valid size;
+2. adjust an explicitly flexible structural band;
+3. author a deliberate terminal/fringe surface whose semantics are not pretending to be part of the macro.
+
+Do **not**:
+
+- place a macro under the band and hide half of it;
+- clip a 2×2 surface into a 2×1 or 1×1 remainder;
+- let CSS/overflow masking make a broken macro look acceptable;
+- fill leftover rows/columns with arbitrary macro fragments;
+- use a generic overlay as a geometry repair.
+
+### TS-01 PRIMUS canonical example
+
+PRIMUS uses:
+
+```text
+room             10 × 8
+calm perimeter    1 tile on every side
+usable interior   8 × 6
+macro span        2 × 2
+macro origin      room + (1,1)
+```
+
+Therefore the interior resolves to exactly `4 × 3 = 12` complete macros. No macro crosses the perimeter and no wall treatment hides part of a macro.
+
+### Overlay rule
+
+Threshold/service overlays may sit above the fitted base, but they must be authored as complete semantic surfaces. If an overlay makes the remainder of a macro look accidentally clipped, the base/overlay composition must be redesigned rather than accepted as a technical overlap.
+
+This rule applies to any multi-cell modular surface, not only PRIMUS.
+
+---
+
+## 11. Generated atlas source vs runtime tile
 
 Image-generated atlases frequently contain presentation artifacts:
 
@@ -292,7 +369,7 @@ A successful crop does not prove a tile is semantically safe to auto-place.
 
 ---
 
-## 11. Ground vs FloorFX
+## 12. Ground vs FloorFX
 
 Do not overload Ground with every possible detail just because the atlas contains it.
 
@@ -301,7 +378,7 @@ Preferred split:
 ```text
 GROUND
 - room material identity
-- calm base panels
+- calm base panels / macro surfaces
 - topology-critical structural seams where intentionally authored
 - thresholds/material transitions
 
@@ -318,7 +395,7 @@ The Main Hall pass demonstrated that random service/wear variants in Ground can 
 
 ---
 
-## 12. Generation contract for cuttable atlases
+## 13. Generation contract for cuttable atlases
 
 Before image generation, define the tile inventory and semantic contract first.
 
@@ -338,15 +415,15 @@ The Artist must know **before generation** which cells are base, route, threshol
 
 ---
 
-## 13. Required QA / tests
+## 14. Required QA / tests
 
 For a semantic tile family, validate at least:
 
 ### Catalog integrity
 
-- every source cell has metadata;
-- every index is unique;
-- every auto-placed tile is `runtimeEligible`;
+- every source cell/surface has metadata;
+- every id/index is unique;
+- every auto-placed surface is `runtimeEligible`;
 - quarantined alternatives cannot leak into automatic placement.
 
 ### Directional completeness
@@ -360,6 +437,14 @@ For a semantic tile family, validate at least:
 - adjacent line-bearing tiles belong to compatible continuity profiles;
 - route connectors match the requested topology;
 - no random seam/line jumps.
+
+### Multi-cell fit
+
+- every structural band is removed from the tiling domain before macro placement;
+- usable width/height divide exactly by each repeated macro span;
+- macro origins align to the usable-domain origin, not blindly to the room origin;
+- no macro cell is hidden by wall/perimeter treatment;
+- coverage tests prove full room coverage without overlap or partial macro fragments.
 
 ### Context
 
@@ -375,15 +460,16 @@ Automated semantic correctness is necessary but not sufficient. Inspect the actu
 - visual calm/noise;
 - repeated pattern visibility;
 - wall overlap;
+- partial/half macros;
 - false affordances;
 - misleading arrows/terminals;
 - material transition quality.
 
 ---
 
-## 14. Current reference implementation
+## 15. Current reference implementations
 
-Main Hall is the first proven implementation of this contract:
+### Main Hall — semantic topology reference
 
 - source: `art-source/approved/area-01-transfer-ship/floor-treatment/source/main-hall-floor-atlas-6x6__source-approved__2026-08-20.png`
 - materializer: `scripts/materialize-main-hall-floor.mjs`
@@ -392,18 +478,29 @@ Main Hall is the first proven implementation of this contract:
 - placement: `src/levelgen/mainHallFloorPresentation.ts`
 - regression tests: `src/levelgen/mainHallFloorPresentation.test.ts`
 
-The implementation is a reference, not a requirement that every future room use exactly the same schema.
+### PRIMUS — multi-cell fit reference
 
-The durable requirement is the **semantic metadata layer between source pixels and automatic placement**.
+- metadata: `src/levelgen/primusFloorTileMetadata.ts`
+- placement: `src/levelgen/primusFloorPresentation.ts`
+- room geometry: `src/levelgen/specs/ts01.ts`
+- regression tests: `src/levelgen/primusFloorPresentation.test.ts`
+
+The implementations are references, not requirements that every future room use exactly the same schema.
+
+The durable requirement is the **semantic metadata + exact layout-fit layer between source pixels and automatic placement**.
 
 ---
 
-## 15. Artist handoff checklist
+## 16. Artist handoff checklist
 
 Before declaring a new modular floor/tile family ready for integration, answer:
 
 ```text
-What semantic role does every cell have?
+What semantic role does every cell/surface have?
+What is each multi-cell span?
+What structural bands are excluded before placement?
+Does the usable region divide exactly by repeated macro spans?
+Where is the placement origin after those bands are removed?
 Which cells have edge connectors?
 Which connector positions/families are compatible?
 Which rotations are legal?
@@ -413,7 +510,7 @@ Which cells are safe at walls/boundaries?
 What is a room access vs a true route branch?
 Which details belong in Ground vs FloorFX?
 How will the source grid be cropped/materialized deterministically?
-Which directional/topology signatures are regression-tested?
+Which directional/topology/macro-fit cases are regression-tested?
 What requires live visual QA?
 ```
 
