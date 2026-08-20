@@ -89,6 +89,25 @@ Then read the minimum relevant files in `docs/story/`, starting with `STORY_WORL
 
 Then read the relevant `docs/game-design/` documents and durable rule section(s) in `GAMEPLAY_AND_ENGINEERING_RULES.md`.
 
+### FLOOR / TILE METADATA trigger — Artist must additionally read semantic tile contract when
+
+- producing a cuttable floor/tile atlas;
+- tiles contain straight routes/seams/channels;
+- corners, T-junctions, crossings or terminals exist;
+- thresholds, wall-edge variants, arrows or directional marks exist;
+- rotation changes tile meaning;
+- tiles must connect across cell boundaries;
+- generated alternatives may have incompatible connector geometry;
+- automatic runtime placement will choose cells from room/corridor/Level semantics.
+
+Then read:
+
+`docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md`
+
+This trigger activates **before generation**, not only at integration time. The Artist must define the tile inventory and semantic contract first; the pixels are not allowed to invent topology implicitly.
+
+If the task also changes runtime placement code/materializers/tests, the ENGINEERING / Technical Artist trigger below activates as well.
+
 ### ENGINEERING trigger — Artist becomes Artist + Engineer/Technical Artist when
 
 - changing `src/`;
@@ -119,6 +138,8 @@ Read:
 5. relevant code under `scripts/art/toolkit/`;
 6. the consuming asset recipe;
 7. relevant build scripts/package scripts.
+
+For semantic floor/tile atlas work, the FLOOR / TILE METADATA trigger in the Artist route is also mandatory.
 
 If the tool changes app/runtime rendering or map semantics, also read the Engineering bundle.
 
@@ -162,6 +183,8 @@ Read relevant `docs/story/` when runtime behavior exists specifically to stage/s
 ### ART trigger
 
 Read `docs/art/README.md` plus relevant art contracts/recipe before changing visual layer ownership, sprite/frame contracts, semantic colors, lighting, wall/door/prop presentation or accepted runtime art behavior.
+
+When engineering automatic modular floor/tile placement, also read `docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md`; route topology must come from semantic data + tile metadata rather than pixel inference.
 
 Do not refactor a LIVE_ACCEPTED art/runtime contract solely for code neatness without proving output equivalence and having a reason to reopen it.
 
@@ -255,6 +278,7 @@ Examples:
 - Artist discovers a family keepsake needs canonical content → Story trigger, then return to Artist.
 - Game Designer wants a door to require a key → Game Design + Engineering + Art triggers because logic, data and semantic presentation all change.
 - Artist wants a reusable background remover → Technical Artist trigger; Game Design/Story are unnecessary unless the prop content itself needs them.
+- Artist creates a directional floor atlas → Floor/Tile Metadata trigger; if it is auto-placed at runtime, add Technical Artist/Engineering.
 - Engineer changes robot sprite frame order → Art + Engineering trigger; no need to read unrelated campaign story.
 
 ---
