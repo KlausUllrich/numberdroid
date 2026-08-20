@@ -51,6 +51,33 @@ describe("TS-01 PRIMUS floor presentation", () => {
     }
   });
 
+  it("covers every room-wall cell with the plain grey fringe surface", () => {
+    const room = primusRoom();
+    expect(room).toBeDefined();
+    if (!room) return;
+    const bounds = TS01_GENERATED_PLAN.events.actors.props.navigation.bounds;
+    const sprites = primusFloorSprites(TS01_GENERATED_PLAN);
+    const wallFringe = sprites.filter((sprite) => sprite.id.startsWith("primus-floor:wall-fringe:"));
+    expect(wallFringe).toHaveLength(2 * room.rect.w + 2 * room.rect.h - 4);
+
+    const right = room.rect.x + room.rect.w - 1;
+    const bottom = room.rect.y + room.rect.h - 1;
+    for (const sprite of wallFringe) {
+      expect(sprite.width).toBe(64);
+      expect(sprite.height).toBe(64);
+      expect(sprite.asset).toMatch(/primus-fringe\.svg$/);
+      const x = sprite.x / 64 + bounds.x;
+      const y = sprite.y / 64 + bounds.y;
+      expect(x === room.rect.x || x === right || y === room.rect.y || y === bottom).toBe(true);
+    }
+
+    const lastWallFringe = sprites.reduce((index, sprite, current) => (
+      sprite.id.startsWith("primus-floor:wall-fringe:") ? current : index
+    ), -1);
+    const thresholdIndex = sprites.findIndex((sprite) => sprite.id.startsWith("primus-floor:threshold:"));
+    expect(thresholdIndex).toBeGreaterThan(lastWallFringe);
+  });
+
   it("stores multi-cell semantic metadata rather than per-quadrant visual guesses", () => {
     expect(new Set(PRIMUS_FLOOR_TILE_METADATA.map((entry) => entry.id)).size).toBe(PRIMUS_FLOOR_TILE_METADATA.length);
     const macros = PRIMUS_FLOOR_TILE_METADATA.filter((entry) => entry.role === "macro");
