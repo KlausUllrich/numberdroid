@@ -1,56 +1,116 @@
-export type PrimusFloorTileRole =
+export type PrimusFloorSurfaceRole =
   | "macro"
-  | "calm"
+  | "fringe"
   | "threshold"
   | "service-approach"
   | "maintenance";
 
 export type PrimusMacroVariant = "a" | "b";
-export type PrimusMacroPhase = "nw" | "ne" | "sw" | "se";
-export type PrimusPairSegment = "start" | "end";
 
-export type PrimusFloorTileMetadata = {
+export type PrimusFloorSurfaceMetadata = {
   id: string;
   asset: string;
-  role: PrimusFloorTileRole;
+  role: PrimusFloorSurfaceRole;
+  spanTiles: { w: number; h: number };
   runtimeEligible: boolean;
   wallSafe: boolean;
-  rotationPolicy: "fixed" | "quarter-turn";
+  rotationPolicy: "fixed" | "half-turn" | "quarter-turn";
   macroVariant?: PrimusMacroVariant;
-  macroPhase?: PrimusMacroPhase;
-  continuityProfile?: "primus-macro-2x2" | "primus-threshold-pair" | "primus-service-pair" | "primus-maintenance-pair";
-  pairSegment?: PrimusPairSegment;
+  continuityProfile?: "primus-macro-2x2" | "primus-threshold" | "primus-service-zone" | "primus-maintenance-zone";
   placementTags?: string[];
   note?: string;
 };
 
-const tile = (entry: PrimusFloorTileMetadata) => entry;
+const surface = (entry: PrimusFloorSurfaceMetadata) => entry;
 
-export const PRIMUS_FLOOR_TILE_METADATA: readonly PrimusFloorTileMetadata[] = [
-  tile({ id: "macro-a-nw", asset: "primus-base-a-nw.svg", role: "macro", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", macroVariant: "a", macroPhase: "nw", continuityProfile: "primus-macro-2x2" }),
-  tile({ id: "macro-a-ne", asset: "primus-base-a-ne.svg", role: "macro", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", macroVariant: "a", macroPhase: "ne", continuityProfile: "primus-macro-2x2" }),
-  tile({ id: "macro-a-sw", asset: "primus-base-a-sw.svg", role: "macro", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", macroVariant: "a", macroPhase: "sw", continuityProfile: "primus-macro-2x2" }),
-  tile({ id: "macro-a-se", asset: "primus-base-a-se.svg", role: "macro", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", macroVariant: "a", macroPhase: "se", continuityProfile: "primus-macro-2x2" }),
-
-  tile({ id: "macro-b-nw", asset: "primus-base-b-nw.svg", role: "macro", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", macroVariant: "b", macroPhase: "nw", continuityProfile: "primus-macro-2x2" }),
-  tile({ id: "macro-b-ne", asset: "primus-base-b-ne.svg", role: "macro", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", macroVariant: "b", macroPhase: "ne", continuityProfile: "primus-macro-2x2" }),
-  tile({ id: "macro-b-sw", asset: "primus-base-b-sw.svg", role: "macro", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", macroVariant: "b", macroPhase: "sw", continuityProfile: "primus-macro-2x2" }),
-  tile({ id: "macro-b-se", asset: "primus-base-b-se.svg", role: "macro", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", macroVariant: "b", macroPhase: "se", continuityProfile: "primus-macro-2x2" }),
-
-  tile({ id: "calm", asset: "primus-base-calm.svg", role: "calm", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", note: "Full-bleed fallback for odd room fringes and calm residual cells." }),
-
-  tile({ id: "threshold-west-upper", asset: "primus-threshold-west-upper.svg", role: "threshold", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", continuityProfile: "primus-threshold-pair", pairSegment: "start", placementTags: ["controlled-door", "west-boundary"], note: "TS-01 canonical controlled threshold upper segment. Connects only to the lower segment." }),
-  tile({ id: "threshold-west-lower", asset: "primus-threshold-west-lower.svg", role: "threshold", runtimeEligible: true, wallSafe: true, rotationPolicy: "fixed", continuityProfile: "primus-threshold-pair", pairSegment: "end", placementTags: ["controlled-door", "west-boundary"], note: "TS-01 canonical controlled threshold lower segment. Connects only to the upper segment." }),
-
-  tile({ id: "service-left", asset: "primus-service-approach-left.svg", role: "service-approach", runtimeEligible: true, wallSafe: false, rotationPolicy: "quarter-turn", continuityProfile: "primus-service-pair", pairSegment: "start", placementTags: ["primus-service-bank", "approach"], note: "Left member of a semantic 2-cell service-bank approach pair. Rotate 90° for vertical pairs." }),
-  tile({ id: "service-right", asset: "primus-service-approach-right.svg", role: "service-approach", runtimeEligible: true, wallSafe: false, rotationPolicy: "quarter-turn", continuityProfile: "primus-service-pair", pairSegment: "end", placementTags: ["primus-service-bank", "approach"], note: "Right member of a semantic 2-cell service-bank approach pair. Rotate 90° for vertical pairs." }),
-
-  tile({ id: "maintenance-left", asset: "primus-maintenance-left.svg", role: "maintenance", runtimeEligible: false, wallSafe: false, rotationPolicy: "quarter-turn", continuityProfile: "primus-maintenance-pair", pairSegment: "start", placementTags: ["maintenance"], note: "Reserved until a real maintenance zone exists in Level semantics." }),
-  tile({ id: "maintenance-right", asset: "primus-maintenance-right.svg", role: "maintenance", runtimeEligible: false, wallSafe: false, rotationPolicy: "quarter-turn", continuityProfile: "primus-maintenance-pair", pairSegment: "end", placementTags: ["maintenance"], note: "Reserved until a real maintenance zone exists in Level semantics." }),
+/**
+ * Semantic surface catalog for PRIMUS Allocation.
+ *
+ * The important production correction after the first live pass is that a 2x2
+ * macro is one authored 128x128 surface, not four independently shaded 64px
+ * cards. Threshold/service semantics are likewise authored as whole multi-cell
+ * overlays so their visual continuity cannot break at runtime tile boundaries.
+ */
+export const PRIMUS_FLOOR_TILE_METADATA: readonly PrimusFloorSurfaceMetadata[] = [
+  surface({
+    id: "macro-a",
+    asset: "primus-macro-a.svg",
+    role: "macro",
+    spanTiles: { w: 2, h: 2 },
+    runtimeEligible: true,
+    wallSafe: true,
+    rotationPolicy: "half-turn",
+    macroVariant: "a",
+    continuityProfile: "primus-macro-2x2",
+  }),
+  surface({
+    id: "macro-b",
+    asset: "primus-macro-b.svg",
+    role: "macro",
+    spanTiles: { w: 2, h: 2 },
+    runtimeEligible: true,
+    wallSafe: true,
+    rotationPolicy: "half-turn",
+    macroVariant: "b",
+    continuityProfile: "primus-macro-2x2",
+    note: "Rare material/service-history variation. Cyan is intentionally tiny and local.",
+  }),
+  surface({
+    id: "fringe",
+    asset: "primus-fringe.svg",
+    role: "fringe",
+    spanTiles: { w: 1, h: 1 },
+    runtimeEligible: true,
+    wallSafe: true,
+    rotationPolicy: "fixed",
+    note: "Calm full-bleed residual surface for odd room dimensions.",
+  }),
+  surface({
+    id: "threshold-west",
+    asset: "primus-threshold-west.svg",
+    role: "threshold",
+    spanTiles: { w: 1, h: 2 },
+    runtimeEligible: true,
+    wallSafe: true,
+    rotationPolicy: "fixed",
+    continuityProfile: "primus-threshold",
+    placementTags: ["controlled-door", "west-boundary"],
+    note: "One 1x2 authored surface; no cyan or conduit reaches the wall edge.",
+  }),
+  surface({
+    id: "service-horizontal",
+    asset: "primus-service-approach-horizontal.svg",
+    role: "service-approach",
+    spanTiles: { w: 2, h: 1 },
+    runtimeEligible: true,
+    wallSafe: false,
+    rotationPolicy: "fixed",
+    continuityProfile: "primus-service-zone",
+    placementTags: ["primus-service-bank", "approach"],
+  }),
+  surface({
+    id: "service-vertical",
+    asset: "primus-service-approach-vertical.svg",
+    role: "service-approach",
+    spanTiles: { w: 1, h: 2 },
+    runtimeEligible: true,
+    wallSafe: false,
+    rotationPolicy: "fixed",
+    continuityProfile: "primus-service-zone",
+    placementTags: ["primus-service-bank", "approach"],
+  }),
+  surface({
+    id: "maintenance-horizontal",
+    asset: "primus-maintenance-left.svg",
+    role: "maintenance",
+    spanTiles: { w: 2, h: 1 },
+    runtimeEligible: false,
+    wallSafe: false,
+    rotationPolicy: "quarter-turn",
+    continuityProfile: "primus-maintenance-zone",
+    placementTags: ["maintenance"],
+    note: "Reserved. Runtime remains disabled until a real Level maintenance zone exists.",
+  }),
 ] as const;
 
 export const PRIMUS_FLOOR_TILE_BY_ID = new Map(PRIMUS_FLOOR_TILE_METADATA.map((entry) => [entry.id, entry]));
-
-export function primusMacroTileId(variant: PrimusMacroVariant, phase: PrimusMacroPhase) {
-  return `macro-${variant}-${phase}`;
-}
