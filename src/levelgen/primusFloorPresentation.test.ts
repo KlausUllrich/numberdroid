@@ -15,50 +15,45 @@ describe("TS-01 PRIMUS floor presentation", () => {
     });
   }
 
-  it("covers the room once with continuous 2x2 macros plus quiet odd-dimension fringe", () => {
+  it("fits complete 2x2 macros exactly inside a one-tile calm perimeter", () => {
     const room = primusRoom();
     expect(room).toBeDefined();
     if (!room) return;
+    expect(room.rect.w).toBe(10);
+    expect(room.rect.h).toBe(8);
+    expect((room.rect.w - 2) % 2).toBe(0);
+    expect((room.rect.h - 2) % 2).toBe(0);
+
     const bounds = TS01_GENERATED_PLAN.events.actors.props.navigation.bounds;
     const first = primusFloorSprites(TS01_GENERATED_PLAN);
     const second = primusFloorSprites(TS01_GENERATED_PLAN);
     expect(first).toEqual(second);
 
-    const base = first.filter((sprite) => sprite.id.startsWith("primus-floor:macro:") || sprite.id.startsWith("primus-floor:fringe:"));
-    const covered = new Set<string>();
-    for (const sprite of base) {
-      const x0 = sprite.x / 64 + bounds.x;
-      const y0 = sprite.y / 64 + bounds.y;
-      const w = sprite.width / 64;
-      const h = sprite.height / 64;
-      for (let dy = 0; dy < h; dy += 1) {
-        for (let dx = 0; dx < w; dx += 1) {
-          const key = `${x0 + dx},${y0 + dy}`;
-          expect(covered.has(key)).toBe(false);
-          covered.add(key);
-        }
-      }
-    }
-    expect(covered.size).toBe(room.rect.w * room.rect.h);
+    const macros = first.filter((sprite) => sprite.id.startsWith("primus-floor:macro:"));
+    const wallFringe = first.filter((sprite) => sprite.id.startsWith("primus-floor:wall-fringe:"));
+    expect(macros).toHaveLength(((room.rect.w - 2) / 2) * ((room.rect.h - 2) / 2));
+    expect(wallFringe).toHaveLength(2 * room.rect.w + 2 * room.rect.h - 4);
 
-    const macros = base.filter((sprite) => sprite.id.startsWith("primus-floor:macro:"));
-    expect(macros.length).toBeGreaterThan(0);
+    const covered = new Set<string>();
     for (const sprite of macros) {
       expect(sprite.width).toBe(128);
       expect(sprite.height).toBe(128);
       expect([0, 180]).toContain(sprite.rotation ?? 0);
       expect(sprite.asset).toMatch(/primus-macro-[ab]\.svg$/);
+      const x0 = sprite.x / 64 + bounds.x;
+      const y0 = sprite.y / 64 + bounds.y;
+      expect(x0).toBeGreaterThanOrEqual(room.rect.x + 1);
+      expect(y0).toBeGreaterThanOrEqual(room.rect.y + 1);
+      expect(x0 + 1).toBeLessThan(room.rect.x + room.rect.w - 1);
+      expect(y0 + 1).toBeLessThan(room.rect.y + room.rect.h - 1);
+      for (let dy = 0; dy < 2; dy += 1) {
+        for (let dx = 0; dx < 2; dx += 1) {
+          const cell = `${x0 + dx},${y0 + dy}`;
+          expect(covered.has(cell)).toBe(false);
+          covered.add(cell);
+        }
+      }
     }
-  });
-
-  it("covers every room-wall cell with the plain grey fringe surface", () => {
-    const room = primusRoom();
-    expect(room).toBeDefined();
-    if (!room) return;
-    const bounds = TS01_GENERATED_PLAN.events.actors.props.navigation.bounds;
-    const sprites = primusFloorSprites(TS01_GENERATED_PLAN);
-    const wallFringe = sprites.filter((sprite) => sprite.id.startsWith("primus-floor:wall-fringe:"));
-    expect(wallFringe).toHaveLength(2 * room.rect.w + 2 * room.rect.h - 4);
 
     const right = room.rect.x + room.rect.w - 1;
     const bottom = room.rect.y + room.rect.h - 1;
@@ -69,13 +64,26 @@ describe("TS-01 PRIMUS floor presentation", () => {
       const x = sprite.x / 64 + bounds.x;
       const y = sprite.y / 64 + bounds.y;
       expect(x === room.rect.x || x === right || y === room.rect.y || y === bottom).toBe(true);
+      const cell = `${x},${y}`;
+      expect(covered.has(cell)).toBe(false);
+      covered.add(cell);
     }
 
+    expect(covered.size).toBe(room.rect.w * room.rect.h);
+  });
+
+  it("renders the calm perimeter before threshold/service semantics", () => {
+    const room = primusRoom();
+    expect(room).toBeDefined();
+    if (!room) return;
+    const sprites = primusFloorSprites(TS01_GENERATED_PLAN);
     const lastWallFringe = sprites.reduce((index, sprite, current) => (
       sprite.id.startsWith("primus-floor:wall-fringe:") ? current : index
     ), -1);
     const thresholdIndex = sprites.findIndex((sprite) => sprite.id.startsWith("primus-floor:threshold:"));
+    const serviceIndex = sprites.findIndex((sprite) => sprite.id.startsWith("primus-floor:service-approach:"));
     expect(thresholdIndex).toBeGreaterThan(lastWallFringe);
+    expect(serviceIndex).toBeGreaterThan(lastWallFringe);
   });
 
   it("stores multi-cell semantic metadata rather than per-quadrant visual guesses", () => {

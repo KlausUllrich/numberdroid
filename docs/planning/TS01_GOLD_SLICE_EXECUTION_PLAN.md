@@ -1,6 +1,6 @@
 # Numberdroid — TS-01 Gold Slice Execution Plan
 
-Status: **CURRENT detailed execution plan — 2026-08-20 after Family Living, Transfer Room and Main Hall floor v1 live acceptance**
+Status: **CURRENT execution plan — 2026-08-20 after PRIMUS floor v2 macro-fit correction**
 
 `DEVELOPMENT_PLAN_NEXT.md` remains the project-level roadmap. `docs/game-design/LEVEL_DESIGN_RULES.md` owns durable spatial principles. `docs/level-generation/GOLD_SLICE_REGRESSION_GATES.md` owns the permanent v0.13.2 spatial/presentation regression contract.
 
@@ -17,18 +17,17 @@ The current task is **static visual Gold-Slice completion**, not another archite
 
 TS-01 succeeds when the **generated** Transfer Hall feels like a believable, attractive Numberdroid place and a representative quality bar rather than a diagram of gameplay functions.
 
-The generated Floor must preserve:
+Preserve:
 
 - comfortable top-down movement;
 - clear Family → Hall → Transfer / PRIMUS progression;
-- Transfer as the strongest environmental Hero hierarchy;
-- Family/PRIMUS spatial and cultural contrast;
-- room identity that remains readable even before Props are considered;
-- desktop and phone readability;
-- accepted spatial/runtime behavior;
-- accepted art assets unless a concrete defect requires deliberate revision.
+- Transfer as strongest environmental Hero hierarchy;
+- Family/PRIMUS cultural contrast;
+- room identity readable before Props;
+- desktop + phone readability;
+- accepted runtime behavior and accepted art unless a concrete defect requires revision.
 
-The structural/runtime baseline is accepted. Current work is about **room identity, architectural grounding, lived-in/use evidence, missing room art and final cohesion**.
+The structural/runtime baseline is accepted. Current work is room identity, architectural grounding, use evidence, missing room art and final cohesion.
 
 ---
 
@@ -41,42 +40,35 @@ Preserve:
 - semantic Layout-v3 room sequence;
 - Shared Wall Graph / real apertures;
 - 30 px visible wall fascia / 10 px collision core;
-- accepted Door contract: 5 px leaf, aperture clipping, 520 ms open, 650 ms soft close;
-- widened Door Clearance and clean thresholds;
+- accepted Door contract and Door Clearance;
 - true-space Exact Fit with minimum sub-tile correction;
 - multipart / silhouette Prop collision where authored;
-- wall-safe fallback blockouts;
 - safe-interior patrol preference;
 - persistent Trigger/Event/access behavior.
 
-A smaller player-model/presentation issue is known and deliberately deferred. It must not trigger unrequested PICO regeneration.
+A smaller player-model/presentation issue remains deliberately deferred.
 
 ---
 
-# 3. Accepted art baseline
+# 3. Accepted / current art baseline
 
-Frozen unless live QA exposes a concrete defect or a deliberate revision is approved:
+Frozen unless live QA exposes a concrete defect:
 
-- **PICO source/turnaround** — LIVE_ACCEPTED;
-- **PICO physical grounding** — LIVE_ACCEPTED; reusable process in `docs/art/production/ACTOR_GROUNDING_WORKFLOW.md`;
-- **Floor base material family** — ACCEPTED BASELINE;
-- **Family Living floor v1** — LIVE_ACCEPTED;
-- **Main Hall floor v1** — LIVE_ACCEPTED;
-- **Transfer Room floor / Hero anchoring v1** — LIVE_ACCEPTED;
-- **Walls / Architecture** — LIVE_ACCEPTED 30 px M4 wall kit;
-- **Doors** — LIVE_ACCEPTED;
-- **Family Table + shadow** — LIVE_ACCEPTED;
-- **Family Memory Console + shadow** — LIVE_ACCEPTED;
-- **Transfer Apparatus + shadow + silhouette collision** — LIVE_ACCEPTED;
-- **Yellow Core static resting state** — LIVE_ACCEPTED at 96×96 on separate `transfer-fx` layer.
+- PICO source/turnaround — **LIVE_ACCEPTED**;
+- PICO physical grounding — **LIVE_ACCEPTED**;
+- Floor base family — **ACCEPTED BASELINE**;
+- Family Living floor v1 — **LIVE_ACCEPTED**;
+- Main Hall floor v1 — **LIVE_ACCEPTED**;
+- Transfer Room floor / Hero anchoring v1 — **LIVE_ACCEPTED**;
+- Walls / Architecture — **LIVE_ACCEPTED**;
+- Doors — **LIVE_ACCEPTED**;
+- Family Table + shadow — **LIVE_ACCEPTED**;
+- Family Memory Console + shadow — **LIVE_ACCEPTED**;
+- Transfer Apparatus + shadow + silhouette collision — **LIVE_ACCEPTED**;
+- Yellow Core static resting state — **LIVE_ACCEPTED**;
+- PRIMUS floor v2 — **LIVE_CANDIDATE**, final Art-Director QA pending after exact macro fit.
 
-Current room-context candidates:
-
-- Coffee Machine + shadow;
-- Planter Trough + shadow;
-- Round Plant + shadow;
-- Hologram Pedestal + shadow;
-- **Flow Regulator** — source approved + archived; 128×128 runtime candidate visible in live TS-01, but final scale/shadow/collision/use-space/bus acceptance remains open.
+Room-context candidates still requiring final disposition include Coffee Machine, Planter Trough, Round Plant, Hologram Pedestal and Flow Regulator.
 
 ---
 
@@ -86,461 +78,245 @@ Current room-context candidates:
 
 | Room | Status | Current note |
 |---|---|---|
-| Family Living | **LIVE_ACCEPTED v1** | warm civilian/lived-in family material; already integrated before the current Main Hall/Transfer passes |
-| Family Child | **OPEN** | currently inherits domestic/family treatment; still needs its own softer/personal identity |
-| Family Hygiene | **OPEN** | currently inherits domestic/family treatment; still needs cooler functional/non-slip identity |
-| Main Hall | **LIVE_ACCEPTED v1** | calm robust circulation floor; one longitudinal spine; room accesses are thresholds, not route branches |
-| Transfer Room | **LIVE_ACCEPTED v1** | approved 6×6 atlas; calm premium floor and installed Hero anchor around Apparatus |
-| PRIMUS Allocation | **OPEN** | still requires ordered/cool/systematic floor identity |
+| Family Living | **LIVE_ACCEPTED v1** | warm civilian/lived-in material |
+| Family Child | **OPEN** | still inherits domestic/family treatment |
+| Family Hygiene | **OPEN** | still inherits domestic/family treatment |
+| Main Hall | **LIVE_ACCEPTED v1** | calm circulation floor; room access ≠ route branch |
+| Transfer Room | **LIVE_ACCEPTED v1** | premium light floor + installed Hero anchor |
+| PRIMUS Allocation | **LIVE_CANDIDATE v2** | systematic 2×2 macro interior + calm wall band; exact-fit correction implemented |
 
-Therefore B1 is **3/6 room identities accepted**.
+Therefore B1 is **3/6 accepted + PRIMUS candidate**.
 
-## B2 — Static wall ambient occlusion / architectural grounding
+## B2 — Static wall AO
 
 Status: **OPEN**.
 
-Add deterministic short-range FloorFX AO derived from actual architecture / Shared Wall Graph.
+Use deterministic short-range FloorFX AO derived from actual architecture / Shared Wall Graph. No fake AO across apertures, no collision semantics, no scene-light claim.
 
-Rules:
-
-- subtle interior-side falloff;
-- slightly stronger corners allowed;
-- no fake AO across open apertures;
-- no collision semantics;
-- no scene-light claim;
-- do not double-darken Prop shadows excessively.
-
-## B3 — Usage / wear / dirt treatment
+## B3 — Usage / wear
 
 Status: **OPEN**.
 
 Use usage evidence rather than generic grunge:
 
 - Family activity zones;
-- Main Hall center circulation band;
+- Main Hall circulation;
 - Transfer Human approach / Robot exit;
-- PRIMUS work-slot/patrol wear after PRIMUS floor exists;
-- rare plausible small stains/scuffs only;
-- no obvious repeated dirt tiles;
-- no rust/oil/industrial grime as normal baseline.
-
-Main Hall live QA specifically proved that random service/wear Ground variation can make a narrow space read as patchwork. Contextual wear should therefore prefer authored/semantic FloorFX rather than arbitrary tile selection.
+- PRIMUS service/patrol use after floor acceptance;
+- rare plausible low-contrast scuffs/stains;
+- no obvious repeated dirt tiles.
 
 ## B4 — Transfer Hero floor anchoring
 
 Status: **COMPLETED / LIVE_ACCEPTED v1**.
 
-The Apparatus now has an installed relationship to the room through a dedicated floor family / anchoring zone rather than sitting on generic repeated floor.
-
-Future AO/wear/Flow effects may refine the room, but do not reopen the accepted base/anchor without a concrete defect.
+Do not reopen without a concrete defect.
 
 ## B5 — Complete Flow floor relationship
 
 Status: **PARTIAL / OPEN**.
 
-Still required:
-
-- final Flow scale decision;
-- Flow collision/use-space finalization;
-- Flow grounding shadow;
-- deterministic short coupling/service bus between Flow and Apparatus;
-- static bus in FloorFX;
-- later active synchronization remains `transfer-fx` work after Gold Slice gate.
+Still required: final scale, collision/use-space, grounding shadow, deterministic coupling/service bus, static bus in FloorFX; active synchronization remains later `transfer-fx` work.
 
 ---
 
-# 5. Main Hall v1 — accepted semantic tile proof
-
-Main Hall established a reusable production rule for modular semantic floors.
+# 5. Proven semantic-floor rules
 
 Binding contract:
 
 `docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md`
 
-Accepted Main Hall behavior:
+## Main Hall proof
+
+Accepted behavior:
 
 - one calm longitudinal circulation spine;
-- room doors/openings are material thresholds;
-- a room access is **not** a corridor-route T-junction;
-- T/cross/corner graphics are reserved for true corridor-to-corridor topology changes;
-- multi-tile apertures do not create one branch per aperture tile;
-- the Transfer threshold does not create a false route terminal before the room;
-- non-route Main Hall cells use a calm base rather than random service/wear tiles;
-- generated source-card frames/background are removed during deterministic full-bleed materialization;
-- all 36 atlas cells have explicit semantic metadata;
-- uncalibrated alternatives remain archived but are quarantined from automatic placement;
-- canonical T/corner rotations provide complete directional coverage when needed.
+- room doors/openings are thresholds;
+- room access is **not** corridor-route T topology;
+- T/cross/corner graphics only for true corridor-to-corridor topology;
+- multi-tile apertures do not create multiple branches;
+- no false terminal before Transfer;
+- non-route cells remain calm;
+- generated card/gutter artifacts are removed during materialization;
+- uncalibrated generated alternatives remain quarantined.
 
-Reference implementation:
+## PRIMUS proof — multi-cell fit
 
-- `src/levelgen/mainHallFloorTileMetadata.ts`
-- `src/levelgen/mainHallFloorVisualPolicy.ts`
-- `src/levelgen/mainHallFloorPresentation.ts`
-- `src/levelgen/mainHallFloorPresentation.test.ts`
-- `scripts/materialize-main-hall-floor.mjs`
+The first PRIMUS wall-band pass still exposed half 2×2 panels because macros were aligned to the room origin and then covered by the calm perimeter.
 
-Do not collapse this back into raw-index random selection.
+The binding correction is:
+
+```text
+room                  10 × 8
+calm perimeter         1 tile on every side
+usable macro interior  8 × 6
+macro span              2 × 2
+macro origin            room + (1,1)
+macro count             4 × 3 = 12 complete surfaces
+```
+
+General rule:
+
+> **Remove structural bands from the tiling domain before placing multi-cell surfaces. The remaining width/height must divide exactly by the repeated surface span.**
+
+If not, change the room geometry or author a deliberate terminal/fringe surface. Never clip, hide or mask part of a macro as a layout fix.
+
+For TS-01 the PRIMUS width is therefore intentionally changed from 9 to 10 tiles while height remains 8; macro placement shifts one tile inward vertically and horizontally.
 
 ---
 
-# 6. Room composition + floor identity rules
+# 6. Room composition / identity rules
 
-The short Transfer-Ship floor thesis remains:
-
-> **clean, maintained, inhabited, used, not new, not sterile, not dirty.**
-
-## Family Living — accepted floor baseline
-
-Composition:
+## Family Living — accepted
 
 - Family Table remains anchor;
-- Memory Console/Coffee remain supported or wall-related;
-- preserve breathing/use space around Table;
-- domestic composition should not become perfectly optimized.
+- Memory Console/Coffee remain supported/wall-related;
+- preserve breathing/use space;
+- future wear goes to B3 rather than base regeneration.
 
-Floor v1 is accepted. Future work should add contextual use/wear through B3 rather than regenerate the base family absent a concrete defect.
+## Child — next domestic identity
 
-## Child room — next domestic floor identity
-
-Composition:
-
-- add only assets that materially prove habitation: Child Bed, toy/personal storage, optional one additional personal cue if needed.
-
-Floor target:
-
-- related to Family Living but slightly softer/warmer or more human-scaled;
-- somewhat more micro-scuffing/use evidence;
+- related to Family Living but softer/warmer or more human-scaled;
+- modest personal/use evidence;
 - avoid childish decal clichés.
 
-## Hygiene room — next functional floor identity
+## Hygiene — next functional identity
 
-Composition:
+- cooler/denser/non-slip material;
+- cleaner than Family Living, not sterile white;
+- subtle cleaning/water variation allowed.
 
-- minimum art needed for immediate hygiene read.
-
-Floor target:
-
-- slightly cooler/denser/non-slip material character;
-- cleaner than Family Living but not sterile white;
-- very subtle cleaning/water variation may be used.
-
-## Main Hall — accepted floor baseline
-
-Composition:
-
-- comparatively uncluttered so Family → Transfer/PRIMUS branching remains obvious.
-
-Floor v1 is accepted:
+## Main Hall — accepted
 
 - neutral robust circulation material;
-- one calm directional center spine;
-- thresholds communicate room access;
-- no glowing navigation UI;
-- usage wear is a later contextual FloorFX pass, not random Ground noise.
+- calm center spine;
+- thresholds for room access;
+- usage wear later in B3.
 
-## PRIMUS allocation/work room — still open
+## PRIMUS — live candidate
 
-Composition:
+- controlled, aligned modular work-space character;
+- cooler/darker systematic material than Main Hall;
+- calm one-tile perimeter along walls;
+- complete 2×2 macros only in usable interior;
+- service overlays only on real service-bank approach cells;
+- actual controlled threshold only at Hall connection;
+- no invented work-slot text / random conduit semantics;
+- preserve open center for robots/patrol;
+- competent/attractive, not villain-black.
 
-- controlled, aligned, modular work-space character;
-- wall-backed system/service objects;
-- open center for robots/patrol;
-- competent/attractive, not generic evil-black machinery.
+## Transfer — accepted base/anchor
 
-Floor target:
-
-- slightly cooler and more systematic;
-- precise modular grid / registration logic;
-- less random dirt;
-- wear follows work slots and patrol paths;
-- restrained teal/cyan functional marks are allowed.
-
-## Transfer room — accepted base/anchor baseline
-
-The accepted 4×6 Apparatus owns the room.
-
-Preserve:
-
-- intentional open space around it;
-- Yellow Core centered on resting platform in static state;
-- Hologram/Flow/support as one coherent Transfer cluster;
-- normal movement collision as accepted authored silhouette contract;
-- accepted premium floor family and Hero anchoring zone.
-
-Still add later:
-
-- B2 wall/architectural AO;
-- B3 Human approach / Robot exit wear;
-- B5 Flow shadow/collision/bus.
+Preserve Apparatus ownership, open space, Yellow Core resting state, support cluster and accepted premium floor/anchor. Later additions are B2 AO, B3 approach/exit wear and B5 Flow integration.
 
 ---
 
-# 7. CURRENT production sequence — finish the Gold Slice first
-
-## COMPLETED — Asset Block A: Transfer Apparatus + Yellow Core
+# 7. Current production sequence
 
 ```text
-Transfer Apparatus: 4×6 Hero / source + runtime + shadow + collision LIVE_ACCEPTED
-Yellow Core:        96×96 separate movable transfer-fx resting state LIVE_ACCEPTED
+DONE      Family Living floor v1
+DONE      Main Hall floor v1
+DONE      Transfer Room floor v1 + Hero anchor
+CANDIDATE PRIMUS floor v2 exact macro-fit
+NEXT      Child room floor identity
+NEXT      Hygiene room floor identity
+OPEN      wall AO FloorFX
+OPEN      authored use/wear FloorFX
+OPEN      Flow shadow/collision/bus
+THEN      full-room cohesion + desktop/phone Gold-Slice QA
 ```
 
-## ACTIVE — Asset Block B: finish Floor / environment treatment
-
-### B1 room identities
-
-```text
-Family Living   DONE
-Main Hall       DONE
-Transfer Room   DONE
-Child           NEXT
-Hygiene         NEXT
-PRIMUS          NEXT
-```
-
-Use the semantic tile metadata trigger before any further directional/topological atlas production.
-
-### B2 wall AO
-
-OPEN after/alongside remaining room identities.
-
-### B3 usage/wear
-
-OPEN after enough room/material context exists to place use evidence intentionally.
-
-### B4 Transfer Hero floor anchoring
-
-DONE / LIVE_ACCEPTED v1.
-
-### B5 Flow floor relationship
-
-PARTIAL / OPEN.
-
-## NEXT — Asset Block C: PRIMUS hero/system wall object
-
-After/with PRIMUS floor identity:
-
-- precise, attractive, competent;
-- communicates assignment/order/system control;
-- ceramic/light-neutral + graphite with restrained teal/cyan status language;
-- no frontal cabinet/side-view logic;
-- no villain-black cliché;
-- preserve open patrol/work center;
-- wall protrusion/collision remains authored metadata.
-
-Use/revise:
+After/with PRIMUS floor acceptance, continue the PRIMUS hero/system wall object from:
 
 `art-source/recipes/transfer-hall/primus-console/recipe.md`
 
-## NEXT — Asset Block D: useful domestic replacements
-
-Only named functional objects that materially improve habitation:
-
-- Child Bed;
-- Toy / personal storage;
-- Hygiene fixture/support;
-- any surviving necessary placeholder.
-
-Prefer a few convincing objects over generic density.
-
-## NEXT — Asset Block E: full-room cohesion / candidate disposition
-
-Once major missing production assets exist:
-
-1. review Coffee Machine, Round Plant, Planter Trough and Hologram in complete composition;
-2. explicitly accept/revise/remove each candidate;
-3. remove obsolete blockouts;
-4. tune shadows/contact grounding;
-5. tune AO/wear intensity rather than adding random dirt;
-6. converge lighting hierarchy with Transfer as primary restrained warm local focus;
-7. verify Family feels lived-in and PRIMUS ordered without visual noise;
-8. do not casually repaint accepted Family Living/Main Hall/Transfer floor v1 baselines.
-
-## GATE — Asset Block F: Gold-Slice live acceptance
-
-Run generated TS-01 as one finished slice:
-
-- desktop QA;
-- phone landscape QA;
-- movement/collision QA;
-- hierarchy/readability QA;
-- floor/room-identity QA;
-- AO/wear QA;
-- blockout audit;
-- final Art-Director/gameplay acceptance.
-
-Only after this gate should Generated TS-01 be considered the representative Gold Slice.
-
-## AFTER THIS GATE — Transfer choreography / animation polish
-
-Then proceed to:
-
-- Human → Core → PICO choreography;
-- body → body Transfer choreography;
-- Core movement;
-- synchronization/beam/energy FX;
-- scripted actor placement/collision overrides during Transfer.
+Useful domestic replacements follow only where they materially improve habitation: Child Bed, toy/personal storage, hygiene fixture/support and surviving necessary placeholders.
 
 ---
 
-# 8. Floor production authority / implementation direction
-
-Recommended authority split:
+# 8. Floor production authority
 
 ```text
-Base room material variants    Ground / deterministic material set
-Room assignment                LevelSpec space identity / semantic room tags
-Tile meaning/connectors        explicit semantic tile metadata
-Route topology request         actual corridor/Level semantics
-Wall AO                        Shared Wall Graph / architecture-derived FloorFX
-Wear masks                     semantic activity/traffic zones + deterministic authored variation
-Prop grounding                 separate Prop shadow / contact FloorFX
-Transfer Hero floor anchor     accepted authored Ground composition + later FloorFX refinement
-Flow bus                       exact Prop relationship → deterministic FloorFX
-Scene illumination             LightOverlay
+Base room material       Ground / deterministic material set
+Room assignment          LevelSpec semantic room identity
+Tile/surface meaning     explicit metadata incl. spanTiles
+Structural band          Level/visual policy before macro placement
+Macro placement domain   room geometry minus structural bands
+Route topology           actual corridor/Level semantics
+Wall AO                  architecture-derived FloorFX
+Wear masks               semantic activity/traffic zones
+Prop grounding           separate shadow/contact FloorFX
+Flow bus                  exact Prop relationship → FloorFX
+Scene illumination        LightOverlay
 ```
 
-Do not use image generation to guess wall AO, traffic masks, door openings, Flow endpoints or route topology.
-
-For modular atlases:
-
-```text
-define tile inventory + semantics
-→ generate cuttable source
-→ archive approved source unchanged
-→ deterministic crop/full-bleed materialization
-→ explicit per-cell metadata
-→ semantic placement
-→ tests
-→ deployed live QA
-```
-
-Pixels never silently become topology authority.
+Do not use image generation to guess wall AO, traffic masks, door openings, Flow endpoints, route topology or multi-cell fit.
 
 ---
 
 # 9. Production / iteration rules
 
-Every visual issue must first be classified:
+Classify every visual defect before acting:
 
 ```text
 FUNCTION / SOURCE DESIGN
 PERSPECTIVE / STYLE
 RUNTIME CROP / SCALE / PADDING
 PLACEMENT / ROOM COMPOSITION
+MULTI-CELL FIT / STRUCTURAL BAND ALIGNMENT
 COLLISION / USE-SPACE
 SHADOW / GROUNDING
 MOVABLE FX / CHOREOGRAPHY
 ```
 
-Only source/function/perspective failures normally justify another source generation. Runtime scale/collision/shadow/floor-layout problems should use deterministic production/runtime tools first.
+Only source/function/perspective failures normally justify another source generation. Runtime scale, collision, shadow and floor-layout problems should use deterministic production/runtime tools first.
 
-Additional binding rules:
+Binding reminders:
 
 - physical size and Hero prominence are separate;
 - PNG alpha is not collision authority;
-- shaped collision can preserve transparent playable whitespace;
-- finalize useful runtime scale before freezing a shadow;
-- movable components need not use static Prop lifecycle;
-- new diegetic symbols require explicit semantic authority;
-- dirt/wear should communicate use and age, not exist as undirected visual noise;
-- generated atlas gutters/rounded presentation cards are not runtime floor art;
-- line-bearing tiles may not pseudo-randomly alternate unless connector/continuity metadata guarantees compatibility;
-- room access and corridor-route topology are distinct concepts.
+- new diegetic symbols require semantic authority;
+- generated gutters/card frames are not runtime floor art;
+- line-bearing variants may not pseudo-randomly alternate without continuity metadata;
+- room access and corridor topology are distinct;
+- structural perimeter bands must never hide part of a repeated multi-cell surface;
+- room geometry may be deliberately adjusted when exact visual modularity requires it.
 
 ---
 
-# 10. Generated runtime integration rule
+# 10. Runtime layer order
 
 ```text
 Ground — room material identity
-→ FloorFX — AO / wear overlays / shadows / functional floor marks
+→ FloorFX — AO / wear / shadows / functional floor marks
 → Architecture
-→ WallProp fallback / production WallProps
-→ FloorProp fallback / production FloorProps
-→ transfer-fx / explicit movable visuals
+→ WallProps
+→ FloorProps
+→ transfer-fx / movable visuals
 → runtime Characters / interaction layers
 → LightOverlay
 ```
 
-Normal Prop presentation uses `src/levelgen/propArtRegistry.ts`.
-
-Spatial truth remains in:
-
-- `propRegistry.ts`;
-- `propCollisionRegistry.ts`;
-- Exact-Fit metadata/validation;
-- semantic LevelSpec/placement.
-
-Ground/FloorFX/tile metadata never become implicit gameplay collision authority.
+Spatial truth remains in LevelSpec/placement, `propRegistry.ts`, `propCollisionRegistry.ts` and Exact-Fit metadata. Ground/FloorFX metadata never become implicit collision authority.
 
 ---
 
-# 11. Gold-Slice visual QA gate
+# 11. Gold-Slice QA gate
 
-## Room identity
+Before final acceptance verify:
 
-- Can Family / Hall / Transfer / PRIMUS be distinguished by floor character without floating labels?
-- Do Child and Hygiene read as distinct functions while remaining domestic relatives?
-- Do all rooms still belong to one Transfer Ship?
-- Does the ship feel maintained and used rather than sterile or dirty?
+- Family / Hall / Transfer / PRIMUS distinguishable without floating labels;
+- Child/Hygiene read as distinct functions while remaining domestic relatives;
+- Transfer remains strongest environmental focal point;
+- PRIMUS reads ordered/competent without stealing Hero role;
+- thresholds clean;
+- no false route branches;
+- no wall-overlapped or half multi-cell surfaces;
+- no pseudo-random Ground patchwork;
+- AO/wear subtle and usage-driven;
+- desktop and phone landscape readability;
+- movement/collision/access behavior unchanged.
 
-## Hierarchy
+Only after full-room Art-Director/gameplay acceptance should generated TS-01 be considered the representative Gold Slice.
 
-- Is Transfer unmistakably strongest environmental focal point?
-- Do Flow/support/floor anchoring reinforce rather than compete with it?
-- Does Family remain personal/warmer?
-- Does PRIMUS read ordered/competent without stealing Hero role?
-
-## Spatial plausibility
-
-- Are objects placed where humans/robots plausibly use them?
-- Are thresholds clean?
-- Are support objects coherent clusters?
-- Does transparent space around silhouettes remain navigable?
-- Does wear appear where actual traffic/activity occurs?
-- Do route graphics reflect actual corridor topology rather than every room access?
-
-## Runtime coherence
-
-- Do sprites/shadows/AO/collision align?
-- Do accepted Walls/Doors remain correct?
-- Are door apertures free of false wall AO?
-- Does no new FloorFX alter Door Clearance/use-space/navigation?
-- Do semantic tile connectors/rotations remain deterministic and regression-tested?
-
-## Gameplay scale
-
-- Do functions read on desktop?
-- Do room identities and AO survive phone landscape without becoming muddy?
-- Is density rich enough without noise?
-- Are repeated tile patterns acceptable at normal play scale?
-
-## Numberdroid identity
-
-- avoid generic dark military sci-fi;
-- keep CORE/SLOT/Transfer grammar recognizable;
-- Transfer should feel empowering;
-- Family should feel lived-in;
-- PRIMUS should feel ordered/competent rather than evil by default.
-
----
-
-# 12. Acceptance discipline
-
-For a room floor/tile family:
-
-```text
-tile contract / room intent
-→ source or deterministic material proposal
-→ source approval/archive when generative
-→ deterministic materialization
-→ semantic metadata when topology/direction matters
-→ runtime integration
-→ tests/build
-→ deployed live QA
-→ explicit acceptance
-→ recipe/plan/index update
-→ freeze absent concrete defect
-```
-
-Current accepted floor v1 baselines are **Family Living, Main Hall and Transfer Room**. They must not remain listed as unfinished work in future handoffs/plans.
+After that gate proceed to Transfer choreography / animation polish.

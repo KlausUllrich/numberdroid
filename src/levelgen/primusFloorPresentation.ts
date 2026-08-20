@@ -61,16 +61,30 @@ function macroVariant(blockX: number, blockY: number): PrimusMacroVariant {
   return ((blockX * 3 + blockY * 5) % 5 === 0) ? "b" : "a";
 }
 
+function assertMacroDomainFits(room: RoomInfo) {
+  const interiorWidth = room.rect.w - 2;
+  const interiorHeight = room.rect.h - 2;
+  if (interiorWidth <= 0 || interiorHeight <= 0 || interiorWidth % 2 !== 0 || interiorHeight % 2 !== 0) {
+    throw new Error(
+      `PRIMUS 2x2 macro domain must fit exactly inside the one-tile calm perimeter; room is ${room.rect.w}x${room.rect.h}, interior is ${interiorWidth}x${interiorHeight}.`,
+    );
+  }
+}
+
 function baseSurfaceSprites(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVisualSpriteDefinition[] {
+  assertMacroDomainFits(room);
   const bounds = plan.events.actors.props.navigation.bounds;
   const tileSize = plan.tileSize;
   const sprites: FloorVisualSpriteDefinition[] = [];
-  const covered = new Set<string>();
+  const interiorWidth = room.rect.w - 2;
+  const interiorHeight = room.rect.h - 2;
 
-  for (let localY = 0; localY + 1 < room.rect.h; localY += 2) {
-    for (let localX = 0; localX + 1 < room.rect.w; localX += 2) {
-      const blockX = Math.floor(localX / 2);
-      const blockY = Math.floor(localY / 2);
+  // The calm perimeter is a real layout band, not an overlay that may hide half
+  // of a macro. Macro origin is therefore shifted one tile inward on both axes.
+  for (let localY = 1; localY < 1 + interiorHeight; localY += 2) {
+    for (let localX = 1; localX < 1 + interiorWidth; localX += 2) {
+      const blockX = (localX - 1) / 2;
+      const blockY = (localY - 1) / 2;
       const variant = macroVariant(blockX, blockY);
       const x = room.rect.x + localX;
       const y = room.rect.y + localY;
@@ -84,27 +98,6 @@ function baseSurfaceSprites(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVis
         height: tileSize * 2,
         rotation,
       });
-      covered.add(key({ x, y }));
-      covered.add(key({ x: x + 1, y }));
-      covered.add(key({ x, y: y + 1 }));
-      covered.add(key({ x: x + 1, y: y + 1 }));
-    }
-  }
-
-  // Odd room dimensions are intentionally quiet. A fringe cell carries material
-  // only; it never introduces a partial macro frame or fake connector.
-  for (let y = room.rect.y; y < room.rect.y + room.rect.h; y += 1) {
-    for (let x = room.rect.x; x < room.rect.x + room.rect.w; x += 1) {
-      if (covered.has(key({ x, y }))) continue;
-      sprites.push({
-        id: `primus-floor:fringe:${room.id}:${x}:${y}`,
-        asset: surfaceAsset("fringe"),
-        x: (x - bounds.x) * tileSize,
-        y: (y - bounds.y) * tileSize,
-        width: tileSize,
-        height: tileSize,
-        rotation: 0,
-      });
     }
   }
 
@@ -114,11 +107,10 @@ function baseSurfaceSprites(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVis
 /**
  * Calm wall band requested by live QA.
  *
- * Macro surfaces remain underneath so the room still has one continuous material
- * system, but every solid room-boundary cell is visually covered by the plain
- * grey fringe surface. This removes mechanical frame lines directly beside the
- * wall fascia. Real threshold/service semantics are rendered afterwards and may
- * deliberately replace the calm band where an actual opening/function exists.
+ * The perimeter is now part of the macro-layout contract rather than a cover-up:
+ * macros start one tile inward and never extend beneath this band. Real threshold
+ * and service semantics are rendered afterwards and may deliberately replace the
+ * calm material where an actual opening/function exists.
  */
 function wallFringeSprites(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVisualSpriteDefinition[] {
   const bounds = plan.events.actors.props.navigation.bounds;
@@ -233,11 +225,10 @@ function serviceApproachSprites(plan: RuntimeEmissionPlan, room: RoomInfo): Floo
  * Deterministic PRIMUS floor treatment.
  *
  * Material and topology have separate authority:
- * - one 128px authored macro surface owns every complete 2x2 block;
- * - plain grey wall-fringe tiles calm the full room perimeter;
+ * - a one-tile calm perimeter is excluded from the 2x2 macro tiling domain;
+ * - the remaining interior must divide exactly into complete 2x2 macros;
  * - real Level semantics add a single multi-cell threshold and service overlays;
- * - those overlays sit above the continuous base instead of deleting arbitrary
- *   macro quadrants, preventing patchwork while preserving semantic placement.
+ * - no structural band is allowed to hide or clip a partial macro panel.
  */
 export function primusFloorSprites(plan: RuntimeEmissionPlan): FloorVisualSpriteDefinition[] {
   const room = primusRoom(plan);

@@ -18,8 +18,8 @@ describe("Level Compiler v0.1 geometry + shared wall contract", () => {
     expect(rect("family-hygiene")).toEqual({ x: 6, y: 9, w: 2, h: 3 });
     expect(rect("main-hall")).toEqual({ x: 8, y: 1, w: 3, h: 9 });
     expect(rect("transfer-room")).toEqual({ x: 8, y: 10, w: 10, h: 8 });
-    expect(rect("primus-allocation")).toEqual({ x: 11, y: 1, w: 9, h: 8 });
-    expect(result.bounds).toEqual({ x: 0, y: 0, w: 21, h: 19 });
+    expect(rect("primus-allocation")).toEqual({ x: 11, y: 1, w: 10, h: 8 });
+    expect(result.bounds).toEqual({ x: 0, y: 0, w: 22, h: 19 });
   });
 
   it("respects the explicit preferred corridor width and preserves all authored adjacencies", () => {
