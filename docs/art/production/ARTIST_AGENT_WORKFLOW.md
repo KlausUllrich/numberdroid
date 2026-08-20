@@ -11,7 +11,7 @@ Companion QA/process documents:
 - `docs/art/production/ART_ASSET_VALIDATION_RULES.md`
 - `docs/art/production/ART_ASSET_VALIDATION_PROCESS_ADDENDUM.md`
 - `docs/art/production/APPROVED_SOURCE_ARCHIVE.md` — preservation of approved high-resolution originals
-- `docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md` — semantic metadata / topology contract for modular floor and tile atlases
+- `docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md` — semantic metadata / topology / multi-cell-fit contract for modular floor and tile atlases
 - `docs/art/production/HARD_GENERATION_COMMAND_GATE.md` — hard Prop image-generation authorization predicate
 - `docs/art/production/IMAGE_GENERATION_TURN_CONTRACT.md` — technical ChatGPT `image_gen` channel/turn execution
 - `docs/art/production/PROP_ASSET_WORKFLOW.md` for Props and Prop-like Hero assets
@@ -81,7 +81,7 @@ The Task Card is a production constraint. It must never be rendered into product
 
 ## FLOOR / TILE METADATA trigger — binding
 
-If the task creates, edits, extracts or integrates a floor/tile atlas with any directional, edge, topology or automatic-placement semantics, read and apply:
+If the task creates, edits, extracts or integrates a floor/tile atlas with any directional, edge, topology, multi-cell or automatic-placement semantics, read and apply:
 
 `docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md`
 
@@ -92,15 +92,21 @@ This trigger is active when the source contains or may contain:
 - thresholds or wall-edge variants;
 - arrows/directional marks;
 - multipart/integer-grid pieces;
+- repeated multi-cell surfaces such as 2×2 macros;
+- structural perimeter/inset bands that change the usable tiling domain;
 - cells that only work in certain rotations or beside certain geometry;
 - generated alternatives that are visually similar but may not connect exactly;
 - any tile family selected automatically from Level/room/corridor semantics.
 
-Before generation, the Task Card must then additionally define:
+Before generation or integration, the Task Card must then additionally define:
 
 ```text
 TILE INVENTORY / CELL COUNT
 SEMANTIC ROLE PER CELL OR CELL RANGE
+MULTI-CELL SPAN / spanTiles
+STRUCTURAL BANDS EXCLUDED FROM TILING
+USABLE TILING DOMAIN + PLACEMENT ORIGIN
+EXACT DIVISIBILITY / REMAINDER POLICY
 CONNECTOR / PORT CONTRACT
 CONTINUITY FAMILIES
 ROTATION POLICY
@@ -108,10 +114,10 @@ WALL / BOUNDARY ELIGIBILITY
 RUNTIME ELIGIBILITY / RESERVED CELLS
 GROUND VS FLOORFX OWNERSHIP
 DETERMINISTIC EXTRACTION / CROP PLAN
-TOPOLOGY + DIRECTION REGRESSION TESTS
+TOPOLOGY + DIRECTION + MULTI-CELL-FIT REGRESSION TESTS
 ```
 
-Do **not** generate a visually attractive atlas first and decide later what the cells mean. A source atlas becomes a production semantic tileset only after explicit metadata exists.
+Do **not** generate a visually attractive atlas first and decide later what the cells mean. Do **not** place a repeated multi-cell surface under a wall/perimeter band and hide the clipped portion with an overlay. A source atlas becomes a production semantic tileset only after explicit metadata and exact layout-fit rules exist.
 
 ## Function / intent gate for Props and Hero objects
 
@@ -293,7 +299,7 @@ Build the production asset according to the selected method:
 - controlled downscale;
 - runtime packaging.
 
-For modular floor/tile families with semantic placement, `FLOOR_TILE_METADATA_CONTRACT.md` is additionally binding: source extraction and semantic placement are separate authorities, and raw atlas indices must not be chosen as topology by visual guesswork.
+For modular floor/tile families with semantic placement, `FLOOR_TILE_METADATA_CONTRACT.md` is additionally binding: source extraction, semantic placement and multi-cell fit are separate authorities, and raw atlas indices must not be chosen as topology by visual guesswork.
 
 The selected method defines which operations are authoritative.
 
@@ -323,7 +329,7 @@ Automated measurements supplement visual QA; they do not decide whether the art 
 
 For modular seams, always pair a match metric with a negative control as defined in `SEMANTIC_CONNECTOR_CANONICALIZATION.md`.
 
-For semantic modular floors/tiles also validate the metadata catalog, directional/topology completeness, continuity profiles, wall/boundary eligibility and actual room-vs-corridor placement semantics defined in `FLOOR_TILE_METADATA_CONTRACT.md`.
+For semantic modular floors/tiles also validate the metadata catalog, directional/topology completeness, continuity profiles, wall/boundary eligibility, exact multi-cell domain fit and actual room-vs-corridor placement semantics defined in `FLOOR_TILE_METADATA_CONTRACT.md`. A repeated macro may not be considered valid when only part of it remains visible after wall/perimeter treatment.
 
 ## Map-context / runtime-context QA
 
@@ -333,7 +339,7 @@ For characters inspect actual runtime frame selection/order and gameplay scale.
 
 For props/setpieces inspect visual footprint, alpha, collision footprint, layer ownership, contact shadow and contact with surrounding environment.
 
-Do not change map/game logic merely to rescue unsuitable art unless the design itself is being intentionally revised and the cross-domain trigger has been followed.
+Do not change map/game logic merely to rescue unsuitable art unless the design itself is being intentionally revised and the cross-domain trigger has been followed. When a room-size change is the deliberate correct fix for exact modular fit, update the LevelSpec and all geometry regression expectations explicitly rather than hiding the mismatch in presentation code.
 
 ## User / art-director gate
 
@@ -357,7 +363,7 @@ Only after source/archive and production QA pass:
 
 For Props, spatial/editor metadata must also pass `docs/level-generation/PROP_AUTHORING_REQUIREMENTS.md`; pixels must not silently define placement or collision.
 
-For semantic tile families, tile metadata must be durable and versioned before an automatic placement system is considered accepted.
+For semantic tile families, tile metadata and exact multi-cell fit rules must be durable and versioned before an automatic placement system is considered accepted.
 
 ## Failure report
 
@@ -379,6 +385,8 @@ For modular floor/tile families, additionally distinguish:
 - missing/incorrect tile metadata;
 - connector/continuity incompatibility;
 - false topology semantics (for example room access treated as corridor branch);
+- multi-cell span/domain mismatch;
+- structural band hiding or clipping a repeated surface;
 - visually excessive but semantically valid variation.
 
 Fix the correct layer instead of rerolling blindly.
@@ -403,9 +411,9 @@ Floor base                   ACCEPTED BASELINE
 Family Living floor          LIVE_ACCEPTED v1
 Main Hall floor              LIVE_ACCEPTED v1
 Transfer Room floor/anchor   LIVE_ACCEPTED v1
+PRIMUS floor identity        LIVE_ACCEPTED v2
 Child floor identity         NEXT / not yet differentiated
 Hygiene floor identity       NEXT / not yet differentiated
-PRIMUS floor identity        NEXT / not yet differentiated
 Wall AO / usage wear         NEXT floor-treatment systems
 Walls                        LIVE_ACCEPTED
 Doors                        LIVE_ACCEPTED
