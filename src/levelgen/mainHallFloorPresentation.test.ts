@@ -58,18 +58,44 @@ describe("TS-01 Main Hall floor presentation", () => {
     }
   });
 
-  it("treats room doors as thresholds, not as traffic-line junctions", () => {
+  it("treats room doors as thresholds, not traffic junctions or false route terminals", () => {
     expect(shouldBranchMainHallSpine("room")).toBe(false);
     expect(shouldBranchMainHallSpine("corridor")).toBe(true);
 
     const sprites = mainHallFloorSprites(TS01_GENERATED_PLAN);
     // TS-01 connects Main Hall only to rooms (Living, Transfer, PRIMUS), so the
-    // current slice should read as one straight Hall rather than a wiring graph.
+    // current slice should read as one continuous straight Hall rather than a
+    // wiring graph or a route that visibly stops before Transfer.
     expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:junction-t:"))).toBe(false);
     expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:junction-cross:"))).toBe(false);
     expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:corner:"))).toBe(false);
     expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:straight:"))).toBe(true);
-    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:terminal:"))).toBe(true);
+    expect(sprites.some((sprite) => sprite.id.startsWith("main-hall-floor:terminal:"))).toBe(false);
+  });
+
+  it("keeps the Hall spine straight immediately before the Transfer threshold", () => {
+    const geometry = TS01_GENERATED_PLAN.events.actors.props.navigation.geometry;
+    const hall = geometry.spaces.find((space) => space.id === "main-hall");
+    const transferConnection = geometry.connections.find((connection) => (
+      connection.id === "hall-to-transfer" && (connection.from === "main-hall" || connection.to === "main-hall")
+    ));
+    expect(hall).toBeDefined();
+    expect(transferConnection).toBeDefined();
+    if (!hall || !transferConnection) return;
+
+    const side = transferConnection.from === hall.id ? transferConnection.fromSide : transferConnection.toSide;
+    expect(side).toBe("south");
+
+    const spineX = hall.rect.x + Math.floor((hall.rect.w - 1) / 2);
+    const predecessorY = hall.rect.y + hall.rect.h - 2;
+    const bounds = geometry.bounds;
+    const sprite = mainHallFloorSprites(TS01_GENERATED_PLAN).find((entry) => (
+      entry.x === (spineX - bounds.x) * 64 && entry.y === (predecessorY - bounds.y) * 64
+    ));
+
+    expect(sprite).toBeDefined();
+    expect(sprite?.id).toContain("main-hall-floor:straight:");
+    expect(sprite?.asset).toMatch(/main-hall-floor-10\.png$/);
   });
 
   it("uses real Hall connections for thresholds and keeps navigation arrows reserved", () => {
