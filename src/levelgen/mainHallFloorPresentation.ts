@@ -1,30 +1,32 @@
 import { publicAsset } from "../game/assets";
 import type { FloorVisualSpriteDefinition } from "../game/types";
 import type { RuntimeEmissionPlan } from "./emissionTypes";
+import {
+  MAIN_HALL_FLOOR_TILE_METADATA,
+  resolveMainHallNetworkTile,
+  type QuarterRotation,
+} from "./mainHallFloorTileMetadata";
 import type { CardinalDirection, OrientationPreference } from "./types";
 
-const BASE_VARIANTS = [0, 0, 1, 1, 2, 3] as const;
-const STRAIGHT_HORIZONTAL = [6, 7, 8] as const;
-const STRAIGHT_VERTICAL = [9, 10, 11] as const;
-const JUNCTION_CROSS = 12;
-const JUNCTION_T_CANONICAL = 13; // source arms: west + east + south (missing north)
-const CORNER_CANONICAL = 17; // source arms: west + south
-const THRESHOLD_CANONICAL = 21; // source boundary detail on south edge
-const SERVICE_VARIANTS = [24, 25, 26, 27, 28, 29] as const;
-const WEAR_VARIANTS = [34, 35] as const;
+const BASE_TILES = MAIN_HALL_FLOOR_TILE_METADATA.filter((entry) => entry.role === "base" && entry.runtimeEligible);
+const SERVICE_TILES = MAIN_HALL_FLOOR_TILE_METADATA.filter((entry) => entry.role === "service" && entry.runtimeEligible);
+const WEAR_TILES = MAIN_HALL_FLOOR_TILE_METADATA.filter((entry) => entry.role === "wear" && entry.runtimeEligible);
+const THRESHOLD_TILE = MAIN_HALL_FLOOR_TILE_METADATA.find((entry) => entry.role === "threshold" && entry.runtimeEligible);
+
+if (!THRESHOLD_TILE) throw new Error("Main Hall floor metadata is missing an eligible threshold tile.");
 
 export const MAIN_HALL_TILE_CONTRACT = {
   tJunctionByMissingDirection: {
-    north: { index: JUNCTION_T_CANONICAL, rotation: 0 },
-    east: { index: JUNCTION_T_CANONICAL, rotation: 90 },
-    south: { index: JUNCTION_T_CANONICAL, rotation: 180 },
-    west: { index: JUNCTION_T_CANONICAL, rotation: 270 },
+    north: { index: 13, rotation: 0 },
+    east: { index: 13, rotation: 90 },
+    south: { index: 13, rotation: 180 },
+    west: { index: 13, rotation: 270 },
   },
   cornerByDirections: {
-    "south+west": { index: CORNER_CANONICAL, rotation: 0 },
-    "north+west": { index: CORNER_CANONICAL, rotation: 90 },
-    "east+north": { index: CORNER_CANONICAL, rotation: 180 },
-    "east+south": { index: CORNER_CANONICAL, rotation: 270 },
+    "south+west": { index: 17, rotation: 0 },
+    "north+west": { index: 17, rotation: 90 },
+    "east+north": { index: 17, rotation: 180 },
+    "east+south": { index: 17, rotation: 270 },
   },
   arrowByDirection: {
     north: { index: 30, rotation: 0 },
@@ -41,8 +43,6 @@ type HallInfo = {
   rect: { x: number; y: number; w: number; h: number };
   orientation: Exclude<OrientationPreference, "any">;
 };
-
-const DIRECTIONS: Direction[] = ["north", "east", "south", "west"];
 
 function stableHash(value: string) {
   let hash = 0x811c9dc5;
@@ -189,65 +189,65 @@ function buildHallNetwork(plan: RuntimeEmissionPlan, hall: HallInfo) {
   return { network, thresholds };
 }
 
-function thresholdRotation(side: Direction) {
+function thresholdRotation(side: Direction): QuarterRotation {
   if (side === "south") return 0;
   if (side === "west") return 90;
   if (side === "north") return 180;
   return 270;
 }
 
-function networkTile(directions: Set<Direction>, x: number, y: number) {
-  const has = (direction: Direction) => directions.has(direction);
-  const count = directions.size;
-
-  if (count === 4) return { index: JUNCTION_CROSS, rotation: 0, role: "junction-cross" };
-  if (count === 3) {
-    const missing = DIRECTIONS.find((direction) => !has(direction));
-    if (!missing) throw new Error("Main Hall T-junction could not resolve its missing direction.");
-    const tile = MAIN_HALL_TILE_CONTRACT.tJunctionByMissingDirection[missing];
-    return { ...tile, role: "junction-t" };
+function networkTile(directions: Set<Direction>) {
+  if (directions.size === 0) return null;
+  const resolved = resolveMainHallNetworkTile([...directions]);
+  if (!resolved) {
+    throw new Error(`Main Hall metadata has no calibrated tile for route signature ${[...directions].sort().join("+")}.`);
   }
-  if (count === 2) {
-    if (has("north") && has("south")) {
-      const index = STRAIGHT_VERTICAL[stableHash(`main-hall-v:${x}:${y}`) % STRAIGHT_VERTICAL.length];
-      return { index, rotation: 0, role: "straight" };
-    }
-    if (has("east") && has("west")) {
-      const index = STRAIGHT_HORIZONTAL[stableHash(`main-hall-h:${x}:${y}`) % STRAIGHT_HORIZONTAL.length];
-      return { index, rotation: 0, role: "straight" };
-    }
-    if (has("south") && has("west")) return { index: CORNER_CANONICAL, rotation: 0, role: "corner" };
-    if (has("north") && has("west")) return { index: CORNER_CANONICAL, rotation: 90, role: "corner" };
-    if (has("north") && has("east")) return { index: CORNER_CANONICAL, rotation: 180, role: "corner" };
-    return { index: CORNER_CANONICAL, rotation: 270, role: "corner" };
-  }
-  if (count === 1) {
-    const vertical = has("north") || has("south");
-    const variants = vertical ? STRAIGHT_VERTICAL : STRAIGHT_HORIZONTAL;
-    const index = variants[stableHash(`main-hall-end:${x}:${y}`) % variants.length];
-    return { index, rotation: 0, role: "straight" };
-  }
-  return null;
+  return {
+    index: resolved.tile.index,
+    rotation: resolved.rotation,
+    role: resolved.tile.role,
+  };
 }
 
-function baseTile(spaceId: string, x: number, y: number) {
-  const hash = stableHash(`${spaceId}:${x}:${y}`);
-  if (hash % 37 === 0) {
-    return { index: WEAR_VARIANTS[(hash >>> 8) % WEAR_VARIANTS.length], role: "wear" };
+function isWallAdjacent(hall: HallInfo, x: number, y: number) {
+  return x === hall.rect.x
+    || y === hall.rect.y
+    || x === hall.rect.x + hall.rect.w - 1
+    || y === hall.rect.y + hall.rect.h - 1;
+}
+
+function pickByHash<T>(values: readonly T[], hash: number, shift = 0) {
+  if (values.length === 0) throw new Error("Main Hall floor metadata group unexpectedly empty.");
+  return values[(hash >>> shift) % values.length];
+}
+
+function baseTile(hall: HallInfo, x: number, y: number) {
+  const hash = stableHash(`${hall.id}:${x}:${y}`);
+  const atWall = isWallAdjacent(hall, x, y);
+
+  // Do not put isolated hatches/wear graphics directly beside walls. First live
+  // QA showed that presentation-edge detail gets partially occluded by the wall
+  // fascia and reads as broken linework. Wall-adjacent non-route cells therefore
+  // stay calm base material; semantic thresholds own actual wall transitions.
+  if (!atWall && hash % 37 === 0) {
+    const tile = pickByHash(WEAR_TILES, hash, 8);
+    return { index: tile.index, role: tile.role };
   }
-  if (hash % 29 === 0) {
-    return { index: SERVICE_VARIANTS[(hash >>> 10) % SERVICE_VARIANTS.length], role: "service" };
+  if (!atWall && hash % 29 === 0) {
+    const tile = pickByHash(SERVICE_TILES, hash, 10);
+    return { index: tile.index, role: tile.role };
   }
-  return { index: BASE_VARIANTS[hash % BASE_VARIANTS.length], role: "base" };
+  const tile = pickByHash(BASE_TILES, hash);
+  return { index: tile.index, role: tile.role };
 }
 
 /**
  * Presentation-only Main Hall floor treatment for generated TS-01.
  *
- * The hall network is derived from actual corridor geometry and connections.
- * Longitudinal straight pieces establish circulation; T/cross/corner pieces are
- * chosen from network adjacency; every real opening/door gets a threshold. The
- * source arrow tiles remain reserved until route-signage semantics are authored.
+ * Route placement is metadata-driven: every automatically placed route tile has
+ * an explicit connector signature / continuity profile. Raw atlas indices are
+ * never randomized for line-bearing tiles. This keeps the Hall spine and branch
+ * graphics continuous and makes source alternates opt-in after calibration.
  */
 export function mainHallFloorSprites(plan: RuntimeEmissionPlan): FloorVisualSpriteDefinition[] {
   const hall = mainHall(plan);
@@ -262,16 +262,16 @@ export function mainHallFloorSprites(plan: RuntimeEmissionPlan): FloorVisualSpri
     for (let x = hall.rect.x; x < hall.rect.x + hall.rect.w; x += 1) {
       const cell = { x, y };
       const thresholdSide = thresholds.get(key(cell));
-      let tile: { index: number; rotation?: number; role: string };
+      let tile: { index: number; rotation?: QuarterRotation; role: string };
 
       if (thresholdSide) {
         tile = {
-          index: THRESHOLD_CANONICAL,
+          index: THRESHOLD_TILE.index,
           rotation: thresholdRotation(thresholdSide),
           role: "threshold",
         };
       } else {
-        tile = networkTile(network.get(key(cell)) ?? new Set<Direction>(), x, y) ?? baseTile(hall.id, x, y);
+        tile = networkTile(network.get(key(cell)) ?? new Set<Direction>()) ?? baseTile(hall, x, y);
       }
 
       sprites.push({
