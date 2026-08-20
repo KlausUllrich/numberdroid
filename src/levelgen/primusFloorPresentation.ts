@@ -1,26 +1,20 @@
 import { publicAsset } from "../game/assets";
 import type { FloorVisualSpriteDefinition } from "../game/types";
 import type { RuntimeEmissionPlan } from "./emissionTypes";
-import {
-  PRIMUS_FLOOR_TILE_BY_ID,
-  primusMacroTileId,
-  type PrimusMacroPhase,
-  type PrimusMacroVariant,
-} from "./primusFloorTileMetadata";
+import { PRIMUS_FLOOR_TILE_BY_ID, type PrimusMacroVariant } from "./primusFloorTileMetadata";
 
 type Cell = { x: number; y: number };
 type RoomInfo = { id: string; rect: { x: number; y: number; w: number; h: number } };
-type SpriteChoice = { tileId: string; rotation?: number; role: string };
 type GeometryConnection = RuntimeEmissionPlan["events"]["actors"]["props"]["navigation"]["geometry"]["connections"][number];
 
 function key(cell: Cell) {
   return `${cell.x},${cell.y}`;
 }
 
-function tileAsset(tileId: string) {
-  const metadata = PRIMUS_FLOOR_TILE_BY_ID.get(tileId);
+function surfaceAsset(surfaceId: string) {
+  const metadata = PRIMUS_FLOOR_TILE_BY_ID.get(surfaceId);
   if (!metadata || !metadata.runtimeEligible) {
-    throw new Error(`PRIMUS floor requested unavailable tile metadata: ${tileId}`);
+    throw new Error(`PRIMUS floor requested unavailable surface metadata: ${surfaceId}`);
   }
   return publicAsset(`assets/deck/primus-floor/${metadata.asset}`);
 }
@@ -63,35 +57,97 @@ function boundaryCellsForConnection(connection: GeometryConnection, room: RoomIn
   return cells;
 }
 
-function controlledThresholdOverrides(plan: RuntimeEmissionPlan, room: RoomInfo) {
+function macroVariant(blockX: number, blockY: number): PrimusMacroVariant {
+  return ((blockX * 3 + blockY * 5) % 5 === 0) ? "b" : "a";
+}
+
+function baseSurfaceSprites(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVisualSpriteDefinition[] {
+  const bounds = plan.events.actors.props.navigation.bounds;
+  const tileSize = plan.tileSize;
+  const sprites: FloorVisualSpriteDefinition[] = [];
+  const covered = new Set<string>();
+
+  for (let localY = 0; localY + 1 < room.rect.h; localY += 2) {
+    for (let localX = 0; localX + 1 < room.rect.w; localX += 2) {
+      const blockX = Math.floor(localX / 2);
+      const blockY = Math.floor(localY / 2);
+      const variant = macroVariant(blockX, blockY);
+      const x = room.rect.x + localX;
+      const y = room.rect.y + localY;
+      const rotation = ((blockX + blockY * 2) % 2 === 0) ? 0 : 180;
+      sprites.push({
+        id: `primus-floor:macro:${variant}:${room.id}:${x}:${y}`,
+        asset: surfaceAsset(`macro-${variant}`),
+        x: (x - bounds.x) * tileSize,
+        y: (y - bounds.y) * tileSize,
+        width: tileSize * 2,
+        height: tileSize * 2,
+        rotation,
+      });
+      covered.add(key({ x, y }));
+      covered.add(key({ x: x + 1, y }));
+      covered.add(key({ x, y: y + 1 }));
+      covered.add(key({ x: x + 1, y: y + 1 }));
+    }
+  }
+
+  // Odd room dimensions are intentionally quiet. A fringe cell carries material
+  // only; it never introduces a partial macro frame or fake connector.
+  for (let y = room.rect.y; y < room.rect.y + room.rect.h; y += 1) {
+    for (let x = room.rect.x; x < room.rect.x + room.rect.w; x += 1) {
+      if (covered.has(key({ x, y }))) continue;
+      sprites.push({
+        id: `primus-floor:fringe:${room.id}:${x}:${y}`,
+        asset: surfaceAsset("fringe"),
+        x: (x - bounds.x) * tileSize,
+        y: (y - bounds.y) * tileSize,
+        width: tileSize,
+        height: tileSize,
+        rotation: 0,
+      });
+    }
+  }
+
+  return sprites;
+}
+
+function controlledThresholdSprite(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVisualSpriteDefinition[] {
   const geometry = plan.events.actors.props.navigation.geometry;
   const semanticSpaces = new Map(geometry.semantic.spaces.map((space) => [space.id, space]));
-  const overrides = new Map<string, SpriteChoice>();
-
   const connection = geometry.connections.find((candidate) => {
     if (candidate.from !== room.id && candidate.to !== room.id) return false;
     const otherId = candidate.from === room.id ? candidate.to : candidate.from;
     return semanticSpaces.get(otherId)?.kind === "corridor";
   });
-  if (!connection) return overrides;
+  if (!connection) return [];
 
   const side = roomConnectionSide(connection, room.id);
   const cells = boundaryCellsForConnection(connection, room);
-  if (cells.length !== 2) {
-    throw new Error(`PRIMUS floor v1 expects a 2-cell controlled threshold, got ${cells.length}.`);
+  if (cells.length !== 2 || side !== "west") {
+    throw new Error(`PRIMUS floor v2 expects one 2-cell west threshold, got ${cells.length} cells on ${side ?? "none"}.`);
   }
-  if (side !== "west") {
-    throw new Error(`PRIMUS floor v1 has calibrated threshold art only for west-side access, got ${side ?? "none"}.`);
+  const [upper, lower] = [...cells].sort((a, b) => a.y - b.y || a.x - b.x);
+  if (upper.x !== lower.x || lower.y !== upper.y + 1) {
+    throw new Error("PRIMUS west threshold cells must be one contiguous vertical pair.");
   }
 
-  const [upper, lower] = [...cells].sort((a, b) => a.y - b.y || a.x - b.x);
-  overrides.set(key(upper), { tileId: "threshold-west-upper", role: "threshold" });
-  overrides.set(key(lower), { tileId: "threshold-west-lower", role: "threshold" });
-  return overrides;
+  const bounds = plan.events.actors.props.navigation.bounds;
+  const tileSize = plan.tileSize;
+  return [{
+    id: `primus-floor:threshold:${room.id}:${upper.x}:${upper.y}`,
+    asset: surfaceAsset("threshold-west"),
+    x: (upper.x - bounds.x) * tileSize,
+    y: (upper.y - bounds.y) * tileSize,
+    width: tileSize,
+    height: tileSize * 2,
+    rotation: 0,
+  }];
 }
 
-function serviceApproachOverrides(plan: RuntimeEmissionPlan, room: RoomInfo) {
-  const overrides = new Map<string, SpriteChoice>();
+function serviceApproachSprites(plan: RuntimeEmissionPlan, room: RoomInfo): FloorVisualSpriteDefinition[] {
+  const bounds = plan.events.actors.props.navigation.bounds;
+  const tileSize = plan.tileSize;
+  const result: FloorVisualSpriteDefinition[] = [];
   const placements = plan.events.actors.props.placements.filter((placement) => (
     placement.spaceId === room.id && placement.propId === "primus-service-bank"
   ));
@@ -107,82 +163,53 @@ function serviceApproachOverrides(plan: RuntimeEmissionPlan, room: RoomInfo) {
 
     const sameRow = cells[0].y === cells[1].y;
     const sameColumn = cells[0].x === cells[1].x;
-    if (!sameRow && !sameColumn) {
-      throw new Error(`PRIMUS service-bank ${placement.id} approach cells are not a contiguous pair.`);
-    }
-
     if (sameRow) {
       const [left, right] = [...cells].sort((a, b) => a.x - b.x);
-      overrides.set(key(left), { tileId: "service-left", role: "service-approach" });
-      overrides.set(key(right), { tileId: "service-right", role: "service-approach" });
-    } else {
+      if (right.x !== left.x + 1) throw new Error(`PRIMUS service-bank ${placement.id} horizontal approach is not contiguous.`);
+      result.push({
+        id: `primus-floor:service-approach:${placement.id}`,
+        asset: surfaceAsset("service-horizontal"),
+        x: (left.x - bounds.x) * tileSize,
+        y: (left.y - bounds.y) * tileSize,
+        width: tileSize * 2,
+        height: tileSize,
+        rotation: 0,
+      });
+    } else if (sameColumn) {
       const [top, bottom] = [...cells].sort((a, b) => a.y - b.y);
-      // Canonical left/right pair rotated clockwise: left becomes top, right bottom.
-      overrides.set(key(top), { tileId: "service-left", rotation: 90, role: "service-approach" });
-      overrides.set(key(bottom), { tileId: "service-right", rotation: 90, role: "service-approach" });
+      if (bottom.y !== top.y + 1) throw new Error(`PRIMUS service-bank ${placement.id} vertical approach is not contiguous.`);
+      result.push({
+        id: `primus-floor:service-approach:${placement.id}`,
+        asset: surfaceAsset("service-vertical"),
+        x: (top.x - bounds.x) * tileSize,
+        y: (top.y - bounds.y) * tileSize,
+        width: tileSize,
+        height: tileSize * 2,
+        rotation: 0,
+      });
+    } else {
+      throw new Error(`PRIMUS service-bank ${placement.id} approach cells are not a contiguous pair.`);
     }
   }
 
-  return overrides;
-}
-
-function macroChoice(room: RoomInfo, x: number, y: number): SpriteChoice {
-  const localX = x - room.rect.x;
-  const localY = y - room.rect.y;
-
-  // Preserve complete 2x2 macro panels. An odd residual row/column becomes one
-  // calm full-bleed strip rather than exposing a half-panel frame.
-  if ((room.rect.w % 2 === 1 && localX === room.rect.w - 1)
-    || (room.rect.h % 2 === 1 && localY === room.rect.h - 1)) {
-    return { tileId: "calm", role: "calm" };
-  }
-
-  const phase: PrimusMacroPhase = localY % 2 === 0
-    ? (localX % 2 === 0 ? "nw" : "ne")
-    : (localX % 2 === 0 ? "sw" : "se");
-  const blockX = Math.floor(localX / 2);
-  const blockY = Math.floor(localY / 2);
-  // Variation is selected once per complete 2x2 macro panel, never per 64px cell.
-  const variant: PrimusMacroVariant = ((blockX * 3 + blockY * 5) % 7 === 0) ? "b" : "a";
-  return { tileId: primusMacroTileId(variant, phase), role: "macro" };
+  return result;
 }
 
 /**
- * Deterministic M4 PRIMUS floor treatment.
+ * Deterministic PRIMUS floor treatment.
  *
- * The generated atlas explorations remain visual references only. Runtime geometry
- * is constructed from explicit semantic metadata: complete 2x2 macro panels,
- * the real controlled-door threshold and the actual service-bank approach cells.
- * No arbitrary work-slot text, random conduit tiles or decorative route graphics
- * are inferred from pixels.
+ * Material and topology have separate authority:
+ * - one 128px authored macro surface owns every complete 2x2 block;
+ * - real Level semantics add a single multi-cell threshold and service overlays;
+ * - those overlays sit above the continuous macro surface instead of deleting
+ *   arbitrary macro quadrants, preventing the patchwork seen in the first pass.
  */
 export function primusFloorSprites(plan: RuntimeEmissionPlan): FloorVisualSpriteDefinition[] {
   const room = primusRoom(plan);
   if (!room) return [];
-
-  const threshold = controlledThresholdOverrides(plan, room);
-  const service = serviceApproachOverrides(plan, room);
-  const bounds = plan.events.actors.props.navigation.bounds;
-  const tileSize = plan.tileSize;
-  const sprites: FloorVisualSpriteDefinition[] = [];
-
-  for (let y = room.rect.y; y < room.rect.y + room.rect.h; y += 1) {
-    for (let x = room.rect.x; x < room.rect.x + room.rect.w; x += 1) {
-      const cellKey = key({ x, y });
-      // Boundary transition owns the cell; service semantics own interior approach
-      // cells; the remaining surface is the calm systematic macro material.
-      const choice = threshold.get(cellKey) ?? service.get(cellKey) ?? macroChoice(room, x, y);
-      sprites.push({
-        id: `primus-floor:${choice.role}:${room.id}:${x}:${y}`,
-        asset: tileAsset(choice.tileId),
-        x: (x - bounds.x) * tileSize,
-        y: (y - bounds.y) * tileSize,
-        width: tileSize,
-        height: tileSize,
-        rotation: choice.rotation ?? 0,
-      });
-    }
-  }
-
-  return sprites;
+  return [
+    ...baseSurfaceSprites(plan, room),
+    ...controlledThresholdSprite(plan, room),
+    ...serviceApproachSprites(plan, room),
+  ];
 }
