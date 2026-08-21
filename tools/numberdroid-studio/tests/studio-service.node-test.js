@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
+// Kept outside Vitest's discovery pattern; this package uses Node's test runner.
 import { AGENT, OWNER, PROJECT_ID, agentSourceCommand, command, createHarness, createProject, issueGrant } from './test-helpers.js';
 
 test('commits immutable revisions with attributed activity and a task-scoped grant', async () => {

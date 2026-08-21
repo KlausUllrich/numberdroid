@@ -12,8 +12,8 @@
     "check": "node --check packages/application/src/studio-service.js && node --check packages/mcp-server/src/index.js && node --check apps/studio-server/src/server.js",
     "dev": "node apps/studio-server/src/server.js",
     "demo:seed": "node apps/studio-server/src/seed-demo.js",
-    "test": "node --test tests/*.test.js",
-    "test:watch": "node --test --watch tests/*.test.js"
+    "test": "node --test tests/*.node-test.js",
+    "test:watch": "node --test --watch tests/*.node-test.js"
   },
   "exports": {
     ".": "./packages/application/src/index.js",
