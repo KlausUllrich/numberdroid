@@ -34,6 +34,8 @@ export function familyFloorSprites(plan: RuntimeEmissionPlan): FloorVisualSprite
   for (const space of geometry.spaces) {
     const semantic = semanticSpaces.get(space.id);
     if (space.kind !== "room" || semantic?.kind !== "room" || semantic.rationality !== "domestic") continue;
+    // Hygiene owns a separately approved calm non-slip material family.
+    if (space.id === "family-hygiene") continue;
 
     for (let y = space.rect.y; y < space.rect.y + space.rect.h; y += 1) {
       for (let x = space.rect.x; x < space.rect.x + space.rect.w; x += 1) {

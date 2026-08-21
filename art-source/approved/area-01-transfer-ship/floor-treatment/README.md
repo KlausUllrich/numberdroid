@@ -63,6 +63,24 @@ The Main Hall traffic graphic is a **circulation spine, not a wiring diagram**.
 
 This rule was added after live QA showed that connecting every room opening into the traffic strip produced technically connected but visually arbitrary T/corner patterns. A room access point and a circulation-network branch are different semantics and must not share the same placement rule.
 
+### Family Hygiene floor 2×2 source board
+
+- file: `source/family-hygiene-floor-2x2__source-approved__2026-08-21.png`
+- status: **SOURCE_APPROVED / APPROVED_SOURCE_ARCHIVED / PRODUCTION INTEGRATION ACTIVE**
+- approval: explicit user Source QA PASS on 2026-08-21
+- dimensions: **1254 × 1254 px**
+- bytes: **2,720,519**
+- SHA-256: `67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e`
+- Git blob SHA-1: `806e322b3e787b70318586d796067fb3c54181dc`
+- logical source grid: **2 × 2 / four compatible 1×1 material candidates**
+- measured material-face crops: **600 × 600 px**, with presentation gutters excluded
+- runtime tile size: **64 × 64 px**
+- deterministic materializer: `scripts/materialize-family-hygiene-floor.mjs`
+- runtime presentation: `src/levelgen/familyHygieneFloorPresentation.ts`
+- semantic tile catalog: `src/levelgen/familyHygieneFloorTileMetadata.ts`
+
+Source QA and deterministic crop previews confirmed strict top-down Ground identity, compatible full-bleed edges and clean 3×3 repetition. The live 2×3 room uses one dominant base on four cells plus only two separated compatible secondaries; the fourth approved candidate remains available but is deliberately not sampled into this tiny room.
+
 ## Binding generated-atlas rule
 
 For future generated floor/tile atlases that are intended for deterministic extraction:

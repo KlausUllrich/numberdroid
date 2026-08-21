@@ -206,7 +206,7 @@ Do not reopen this base to add use evidence. Future patrol/service wear belongs 
 
 ## 4A. Family Hygiene v1 — production contract
 
-Status: **PREPARED / SOURCE NOT YET GENERATED**
+Status: **SOURCE_APPROVED / APPROVED_SOURCE_ARCHIVED / PRODUCTION INTEGRATION ACTIVE**
 
 This room is intentionally produced before Child by explicit Art-Director reprioritization on 2026-08-21. It remains a separate room pass; no Child source or integration is bundled into this work.
 
@@ -257,14 +257,24 @@ QA                          source category/perspective/palette; full-bleed crop
 
 ### Tile / surface metadata contract
 
-| Source cell | Surface id | Role | spanTiles | runtimeEligible before source QA | wallSafe | Rotation | Connectors |
+| Source cell | Surface id | Role | spanTiles | runtimeEligible after source QA | wallSafe | Rotation | Connectors |
 |---:|---|---|---|---|---|---|---|
-| 0 | `hygiene-base-a` | dominant calm non-slip base | 1×1 | false | pending | invariant | none |
-| 1 | `hygiene-base-b` | compatible secondary base | 1×1 | false | pending | invariant | none |
-| 2 | `hygiene-fine-a` | fine-material alternative | 1×1 | false | pending | invariant | none |
-| 3 | `hygiene-fine-b` | fine-material alternative | 1×1 | false | pending | invariant | none |
+| 0 | `hygiene-base-a` | dominant calm non-slip base | 1×1 | true | true | invariant | none |
+| 1 | `hygiene-base-b` | compatible secondary base | 1×1 | true | true | invariant | none |
+| 2 | `hygiene-fine-a` | fine-material alternative | 1×1 | true | true | invariant | none |
+| 3 | `hygiene-fine-b` | fine-material alternative | 1×1 | true | true | invariant | none |
 
-All four source cells belong to continuity family `family-hygiene-calm-v1` only after source/repetition QA confirms compatible full-bleed edges. Source QA may quarantine cells rather than forcing all four into runtime.
+Source and deterministic 3×3 repetition QA on 2026-08-21 confirmed all four cells as compatible full-bleed members of continuity family `family-hygiene-calm-v1`. The tiny v1 room still uses only three candidates so approval does not become random placement.
+
+Approved source record:
+
+```text
+dimensions    1254 × 1254 px
+bytes         2,720,519
+SHA-256       67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e
+Git blob SHA  806e322b3e787b70318586d796067fb3c54181dc
+crop contract 2 × 2 measured 600 × 600 material faces at x=[14,640], y=[14,639]
+```
 
 ```text
 structural full-tile bands  none
@@ -281,7 +291,7 @@ FloorFX ownership           later drain/service/water-use evidence, wear and AO
 
 The live placement must remain deliberately calm: one approved base dominates at least four of the six cells; at most two cells use a compatible secondary material. Do not hash all approved candidates across this tiny room and do not create an obvious checkerboard.
 
-### Planned deterministic implementation after source approval
+### Deterministic implementation
 
 - add `scripts/materialize-family-hygiene-floor.mjs` with immutable source byte/hash/dimension validation and measured face crops;
 - materialize individual 64×64 outputs during `predev` / `prebuild`; runtime derivatives need not be committed;

@@ -3,13 +3,16 @@ import { TS01_GENERATED_FLOOR, TS01_GENERATED_PLAN } from "./generatedTs01Previe
 import { familyFloorSprites } from "./familyFloorPresentation";
 
 describe("TS-01 Family floor presentation", () => {
-  it("covers every domestic room tile with a deterministic 1x1 Family material tile", () => {
+  it("covers every generic domestic room tile while leaving Hygiene to its specialized material", () => {
     const geometry = TS01_GENERATED_PLAN.events.actors.props.navigation.geometry;
     const semanticSpaces = new Map(geometry.semantic.spaces.map((space) => [space.id, space]));
     const expectedCount = geometry.spaces
       .filter((space) => {
         const semantic = semanticSpaces.get(space.id);
-        return space.kind === "room" && semantic?.kind === "room" && semantic.rationality === "domestic";
+        return space.kind === "room"
+          && semantic?.kind === "room"
+          && semantic.rationality === "domestic"
+          && space.id !== "family-hygiene";
       })
       .reduce((sum, space) => sum + space.rect.w * space.rect.h, 0);
 
@@ -19,6 +22,7 @@ describe("TS-01 Family floor presentation", () => {
     expect(first).toEqual(second);
     expect(first).toHaveLength(expectedCount);
     expect(new Set(first.map((sprite) => sprite.asset)).size).toBeGreaterThan(1);
+    expect(first.some((sprite) => sprite.id.startsWith("family-floor:family-hygiene:"))).toBe(false);
     for (const sprite of first) {
       expect(sprite.width).toBe(64);
       expect(sprite.height).toBe(64);
