@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-21
 - **Repository:** `KlausUllrich/numberdroid`
-- **Status:** Checkpoint 1A, 1B, and 2A user-accepted; Checkpoint 2B implemented candidate pending CI/browser evidence and user acceptance; 2C blocked
+- **Status:** Checkpoint 1A, 1B, and 2A user-accepted; Checkpoint 2B implemented and CI/browser-verified candidate pending user acceptance; 2C blocked
 - **Baseline `main` SHA at handoff preparation:** `1e1f0ce09a7c996f24cf6b216e400d57cb6dc666`
 - **Accepted Studio implementation SHA:** `41fad464cd2f904666f7dfecc8437f2286c3254c`
 - **Protected Checkpoint 1A SHA:** `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`
@@ -13,7 +13,7 @@
 - **Secondary roles, activated by triggers:** Technical Artist, QA, Game Design, Level Generation/Runtime Integration, Security
 - **Next milestone:** freeze, publish, and verify the Checkpoint 2B atlas-cutter candidate
 
-> **Continuation update, 2026-08-22:** Checkpoint 2B is implemented and locally frozen at 108/108 tests with final adversarial GO, but it is not user-accepted. Schema v8, deterministic Family Hygiene crops, durable `ATLAS_PREVIEW` jobs, exact 15-tool/two-template MCP discovery, job controls, state-specific integrity, and snapshot-consistent backup are candidate behavior. Dedicated GitHub Actions/real-Chrome evidence and the user major gate remain pending. Continue from `tools/numberdroid-studio/docs/CHECKPOINT_2B_STATUS.md` and `docs/history/handoffs/HANDOFF_2026-08-22_NUMBERDROID_STUDIO_CHECKPOINT_2B.md`. Do not start 2C or infer merge/release/publication/provider authority.
+> **Continuation update, 2026-08-22:** Checkpoint 2B is implemented, locally frozen at 108/108 tests with final adversarial GO, and verified by GitHub Actions run `32536489638` plus six inspected real-Chrome screenshots. Feature commit `ae250378943258770330d53c6ec685a94e17dd0e` and CI-verified code/harness head `073ee13d96f429a256b7dc39dac40f1b2a20787b` are the published candidate code; the latter is the parent of the evidence-only documentation commit. It is not user-accepted; the user major gate remains pending. Continue from `tools/numberdroid-studio/docs/CHECKPOINT_2B_STATUS.md` and `docs/history/handoffs/HANDOFF_2026-08-22_NUMBERDROID_STUDIO_CHECKPOINT_2B.md`. Do not start 2C or infer merge/release/publication/provider authority.
 
 > **Continuation update, 2026-08-21:** Checkpoint 2A was explicitly accepted after the first candidate's cropped-preview rejection and the repaired workflow review. The first 2B fixture is importing the approved Family Hygiene image and making individual tiles; the workflow and provider-free boundary are accepted. Checkpoint 2B planning and implementation are authorized, while merge, release, publication, provider work, and Checkpoint 2C remain unauthorized. The exact scope, evidence, limits, and decision are recorded in `tools/numberdroid-studio/docs/CHECKPOINT_2A_STATUS.md` and `docs/history/handoffs/HANDOFF_2026-08-21_NUMBERDROID_STUDIO_CHECKPOINT_2A.md`. The historical planning text below remains useful context but no longer describes current implementation status.
 
@@ -181,7 +181,7 @@ The package boundary is proven by tests, but `packages/numberdroid-adapter` and 
 - atomic creation/budget, output promotion, apply, and authorized job-control audit; worker authority recovery and quiesced shutdown;
 - state-specific integrity, snapshot-consistent backup, exact 15-tool/two-resource-template MCP surface, and no binary/base64/path/credential leakage;
 - frozen local verification 108/108, focused 44/44, adversarial 23/23 and 36/36 GO, official MCP 5/5, protected evidence verified;
-- dedicated published CI/browser identities and user acceptance still pending.
+- published CI/browser evidence is green and inspected; only user acceptance remains pending. Valid artifact ID `9465621951`, digest `sha256:a175bb3566a2e58f084d1e8f38bb29d7ea57b319dd73ced234210e19242fa077`. Run `32536098819` / artifact `9465493940` are invalid and must not be cited.
 
 ### Planned and not implemented after the 2B candidate
 
@@ -220,7 +220,7 @@ Exit evidence: the user can import the chosen approved atlas, inspect a real pre
 
 ### 2B — Visual atlas cutter
 
-**Implemented candidate, acceptance pending.** Source zoom/overlay, regular-grid proposal, manual and variable integer rectangles, include/exclude preview, deterministic slice artifacts, explicit stable remapping, and durable job controls are implemented. Pixel analysis does not decide semantic or topology state. The remaining work is published CI/browser verification and one user major gate, not more unreviewed feature scope.
+**Implemented and CI/browser-verified candidate, acceptance pending.** Source zoom/overlay, regular-grid proposal, manual and variable integer rectangles, include/exclude preview, deterministic slice artifacts, explicit stable remapping, and durable job controls are implemented. Pixel analysis does not decide semantic or topology state. The remaining work is one user major gate, not more unreviewed feature scope.
 
 Exit evidence still required: the user visually adjusts cuts, sees exact rectangle coordinates and resulting tile previews, exercises job visibility/control, commits them once, retries idempotently, and verifies deterministic artifacts after restart. Re-cutting cannot silently retarget an existing slice identity.
 
@@ -434,4 +434,4 @@ After the mandatory reading and state verification, report:
 4. a bounded 2A plan with data model/migrations, UI flow, MCP changes, tests, visual evidence, risks, and rollback;
 5. the explicit user decision needed for the first real atlas fixture and, separately, whether provider-backed generation is in 2A or only its adapter seam.
 
-The explicit 2A acceptance authorized the now-implemented 2B candidate. Continue with 2B publication, CI/browser verification, and the user major gate through the 2026-08-22 handoff; do not begin 2C, rooms, export, animation, provider work, or repository publication before their separate prerequisites and checkpoint authority exist.
+The explicit 2A acceptance authorized the now-published and CI/browser-verified 2B candidate. Continue with the user major gate through the 2026-08-22 handoff; do not begin 2C, rooms, export, animation, provider work, or repository publication before their separate prerequisites and checkpoint authority exist.

@@ -6,11 +6,11 @@ The product lives in this self-contained folder so it can be moved into a standa
 
 ## Status
 
-Checkpoint 1 is the accepted foundation and Checkpoint 2A was user-accepted on 2026-08-21. **Checkpoint 2B is now an implemented candidate, but it is not user-accepted.** The candidate cuts explicit integer rectangles from an approved PNG, renders a source-resolution SVG editor and deterministic previews, commits stable slice heads with explicit recut remapping, and runs the preview work as durable, bounded `ATLAS_PREVIEW` jobs. It advances the default SQLite workspace to schema v8. Dedicated real-Chrome CI evidence and the user's major-gate review remain pending until the candidate is published to Draft PR #135. Checkpoint 2C, providers, rooms, export, materialization, and publication remain blocked. See the [2B candidate record](docs/CHECKPOINT_2B_STATUS.md), [2A acceptance record](docs/CHECKPOINT_2A_STATUS.md), and [roadmap](docs/ROADMAP.md).
+Checkpoint 1 is the accepted foundation and Checkpoint 2A was user-accepted on 2026-08-21. **Checkpoint 2B is an implemented, CI-verified candidate, but it is not user-accepted.** The candidate cuts explicit integer rectangles from an approved PNG, renders a source-resolution SVG editor and deterministic previews, commits stable slice heads with explicit recut remapping, and runs the preview work as durable, bounded `ATLAS_PREVIEW` jobs. It advances the default SQLite workspace to schema v8. GitHub Actions run `32536489638` passed both root and Studio jobs, and all six dedicated real-Chrome screenshots were inspected without crop, overflow, resource, or browser-error findings. The user's major-gate review remains pending. Checkpoint 2C, providers, rooms, export, materialization, and publication remain blocked. See the [2B candidate record](docs/CHECKPOINT_2B_STATUS.md), [2A acceptance record](docs/CHECKPOINT_2A_STATUS.md), and [roadmap](docs/ROADMAP.md).
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoint 1 and 2A accepted; Checkpoint 2B candidate pending CI and user acceptance; Checkpoint 2C blocked |
+| Product contract | Checkpoint 1 and 2A accepted; Checkpoint 2B candidate CI/browser-verified and pending user acceptance; Checkpoint 2C blocked |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Accepted source workflow plus atlas grid proposal, explicit rectangles, zoom, inclusion, previews, remap choice, and job controls |
 | Agent access | 15 tools and two resource templates when the durable attempt/job stores are live; owner decision remains human-only |

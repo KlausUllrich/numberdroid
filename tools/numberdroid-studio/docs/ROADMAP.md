@@ -86,7 +86,7 @@ Exit decision: **approved by the user on 2026-08-21.** Checkpoint 1 is complete 
 
 ## Checkpoint 2 — Source, atlas, and asset-library vertical slice
 
-**Status: 2A user-accepted on 2026-08-21; 2B is an implemented candidate pending dedicated CI/browser evidence and explicit user acceptance; 2C remains blocked.** Draft PR #135 remains draft and unmerged. Candidate completion does not imply release, publication, provider, room, export, or 2C authority.
+**Status: 2A user-accepted on 2026-08-21; 2B is an implemented and CI/browser-verified candidate pending explicit user acceptance; 2C remains blocked.** Draft PR #135 remains draft and unmerged. Candidate verification does not imply release, publication, provider, room, export, or 2C authority.
 
 **Outcome:** an approved atlas becomes reproducible, visually searchable assets without repository editing.
 
@@ -116,9 +116,9 @@ The accepted workflow uses the approved Family Hygiene floor 2×2 source, pinned
 
 2B candidate evidence currently pins the 1254×1254 approved source to four 622×622 rectangles at `(3,3)`, `(629,3)`, `(3,629)`, and `(629,629)`. Its deterministic outputs are four 1,548,341-byte PNGs with the hashes recorded in `CHECKPOINT_2B_STATUS.md`. Schema v8 provides durable `ATLAS_PREVIEW` jobs with `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, `APPLIED`, and `DISCARDED` states, a three-attempt ceiling, immutable creator authority, state-specific integrity, and snapshot-consistent backup. When the job and attempt stores are live, MCP advertises exactly 15 tools and two resource templates.
 
-2B user verification is intentionally deferred until the root agent has frozen and published the candidate, GitHub Actions is green, and the dedicated real-Chrome cutter evidence has been inspected. At that major gate the user will import/open the approved source, apply or adjust the 2×2 proposal, inspect exact rectangles and previews, exercise a job control, commit the four slice heads, restart, and confirm the same geometry/digests/state. Acceptance will decide cutter accuracy, job visibility/control, remap clarity, and preview usability only.
+The 2B candidate is ready for its major user verification: the root agent froze and published the candidate, GitHub Actions run `32536489638` is green, and all six dedicated real-Chrome cutter/inspector/committed screenshots were inspected successfully at 1440×900 and 1060×900. The user will import/open the approved source, apply or adjust the 2×2 proposal, inspect exact rectangles and previews, exercise a job control, commit the four slice heads, restart, and confirm the same geometry/digests/state. Acceptance will decide cutter accuracy, job visibility/control, remap clarity, and preview usability only.
 
-2B exit decision: **pending explicit user acceptance.** Frozen local verification passes 108/108 Node tests, the focused UI/MCP/job set passes 44/44, the final adversarial sets pass 23/23 and 36/36 with a GO recommendation, the official MCP suite passes 5/5, and protected evidence is verified. The published commit, GitHub Actions/browser artifact identities, and user decision remain pending.
+2B exit decision: **pending explicit user acceptance.** Frozen local verification passes 108/108 Node tests, the focused UI/MCP/job set passes 44/44, the final adversarial sets pass 23/23 and 36/36 with a GO recommendation, the official MCP suite passes 5/5, and protected evidence is verified. Feature commit `ae250378943258770330d53c6ec685a94e17dd0e` plus the harness repair at CI-verified code/harness head `073ee13d96f429a256b7dc39dac40f1b2a20787b` passed GitHub Actions run `32536489638`; that head is the parent of the evidence-only documentation commit. The valid evidence artifact is `9465621951`. Only the user decision remains pending.
 
 Checkpoint 2C user verification remains separate: create a small named asset family, add placement/connectivity metadata, ask an agent to complete a bounded batch, reject one proposal, and confirm that source provenance and revisions remain inspectable.
 

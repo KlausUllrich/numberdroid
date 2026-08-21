@@ -1,11 +1,13 @@
 # Numberdroid Studio — Checkpoint 2B Candidate Record
 
 - **Date:** 2026-08-22
-- **Status:** implemented candidate; dedicated CI/browser evidence and explicit user acceptance pending
+- **Status:** implemented and CI/browser-verified candidate; explicit user acceptance pending
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135` — remains draft and unmerged
 - **Accepted prerequisite:** Checkpoint 2A, recorded in `CHECKPOINT_2A_STATUS.md`
-- **Next gate:** root-agent freeze, publish, green CI and visual-evidence inspection, then one major user verification
+- **Feature commit:** `ae250378943258770330d53c6ec685a94e17dd0e`
+- **CI-verified code/harness head:** `073ee13d96f429a256b7dc39dac40f1b2a20787b` — parent of the evidence-only documentation commit
+- **Next gate:** one major user verification
 
 This record describes the frozen Checkpoint 2B contract that the candidate is intended to prove. It is not an acceptance record. It grants no merge, release, publication, provider, Checkpoint 2C, room, export, or materialization authority.
 
@@ -122,10 +124,19 @@ Frozen local verification after implementation, repair, independent review, and 
 - official MCP suite: **5/5 passed**;
 - protected Checkpoint 1 evidence: **VERIFIED**;
 - final integrity-tamper coverage includes the repaired state-specific job/reference case;
-- dedicated Checkpoint 2B real-Chrome CI run, published commit, artifact ID/digest, browser version, and screenshot inspection: **pending publication and Actions**;
+- feature commit `ae250378943258770330d53c6ec685a94e17dd0e` plus the one-file evidence-harness repair at CI-verified code/harness head `073ee13d96f429a256b7dc39dac40f1b2a20787b`, parent of the evidence-only documentation commit;
+- GitHub Actions Build run [`32536489638`](https://github.com/KlausUllrich/numberdroid/actions/runs/32536489638), run #2023: root build job `96938286296` and Studio job `96938286431` both succeeded;
+- evidence runtime: Chrome `151.0.7922.137`, DevTools protocol `1.3`;
+- valid 2B artifact: `numberdroid-studio-checkpoint-2b-visual`, ID `9465621951`, 2,836,421 bytes, digest `sha256:a175bb3566a2e58f084d1e8f38bb29d7ea57b319dd73ced234210e19242fa077`, created `2026-08-21T23:22:49Z`, expires `2026-09-04T23:22:48Z`;
+- artifact ZIP digest was independently recomputed and matches the Actions identity;
+- artifact contents: `fixture.json`, `server.log`, two DOM snapshots, six PNG screenshots, and six observation JSON files — 16 files total;
+- all six screenshots were personally inspected: cutter canvas, rectangle inspector, and committed slices at 1440×900 and 1060×900 show the complete source, exact rectangles, responsive layout, and no crop or overflow;
+- every observation records project `numberdroid-studio-checkpoint-2b`, revision 7, Activity 7, `ready: true`, `APPLIED` 4/4 on attempt 1, four overlays, four committed previews, zero runtime/network errors, no horizontal overflow, and zero Header overlaps;
+- both viewport interactions prove zoom 1254/2508/fit, exclusion clearing remap state, explicit v1 remap, keyboard `x` 3→4 and height 622→623, with zero post-interaction errors;
+- the fixture source digest and all four output digests/dimensions match the pinned local record;
 - explicit user major-gate decision: **pending; do not infer from automated results**.
 
-The CI capture must prepare the pinned source, define the four rectangles, run and apply the preview job, and capture cutter/inspector/committed views at 1440×900 and 1060×900. It must assert exact source and overlay geometry, four remap controls, successful project-scoped resources, keyboard focus retention after a one-pixel edit, accessibility/label state, no horizontal overflow, and no browser/network errors.
+The first run `32536098819` and artifact `9465493940` are invalid evidence and MUST NOT be cited. They exposed a selector false positive in the evidence harness. The one-file repair was adversarially GO-reviewed, and only the successful identities above represent the candidate.
 
 ## Known limits and blocked work
 
@@ -134,8 +145,8 @@ The CI capture must prepare the pinned source, define the four rectangles, run a
 - Job processing is local and single-service. This is not remote/team execution.
 - A terminal discarded result releases Studio references but does not synchronously erase shared/unreferenced CAS bytes; explicit retention-delayed garbage collection remains authoritative.
 - Source/atlas detail resource templates, subscriptions, general batch execution, and isolated task branches remain later work.
-- Checkpoint 2C asset-library semantics, providers, rooms, levels, Numberdroid adapter/export, materialization, Git commit, publish, and release remain blocked.
+- Checkpoint 2C asset-library semantics, providers, rooms, levels, Numberdroid adapter/export, production-asset materialization/commits, publishing, and release remain blocked. Candidate and evidence-only documentation commits do not grant those production authorities.
 
 ## Major-gate protocol
 
-The user should test only after the coordinating agent has frozen the diff, published it to the existing draft branch without force, observed green CI, and inspected the dedicated browser artifact. The user gate then covers cutter layout, coordinate accuracy, preview usefulness, explicit remap clarity, job visibility/control, committed slice results, and restart persistence. Only an explicit user acceptance may convert this candidate record into an acceptance record and unblock planning for 2C.
+The coordinating agent has frozen and published the diff, observed green CI, independently verified the artifact digest, and inspected every dedicated browser screenshot/observation. The candidate is ready for the user gate covering cutter layout, coordinate accuracy, preview usefulness, explicit remap clarity, job visibility/control, committed slice results, and restart persistence. Only explicit user acceptance may convert this candidate record into an acceptance record and unblock planning for 2C.

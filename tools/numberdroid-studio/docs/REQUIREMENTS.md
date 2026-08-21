@@ -259,7 +259,7 @@ Checkpoint 1 is complete because both 1A and 1B were explicitly accepted. Checkp
 
 ### Checkpoint 2B — visual atlas cutter
 
-**Status: implemented candidate; not user-accepted.** Frozen local verification passes all 108/108 Node tests, including the focused UI/MCP/job and adversarial suites, and the protected evidence is verified. Dedicated GitHub Actions real-Chrome evidence and the explicit user major-gate decision remain pending. Draft PR #135 stays draft and unmerged; this candidate does not authorize Checkpoint 2C, provider work, rooms, export, materialization, publication, or release.
+**Status: implemented and CI-verified candidate; not user-accepted.** Frozen local verification passes all 108/108 Node tests, including the focused UI/MCP/job and adversarial suites, and the protected evidence is verified. GitHub Actions run `32536489638` passed both root and Studio jobs; all six dedicated real-Chrome screenshots and observations were inspected successfully. The explicit user major-gate decision remains pending. Draft PR #135 stays draft and unmerged; this candidate does not authorize Checkpoint 2C, provider work, rooms, export, materialization, publication, or release.
 
 1. The accepted Family Hygiene source remains the exact PNG with SHA-256 `67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e`, 2,720,519 bytes, and 1254×1254 dimensions.
 2. A non-authoritative 2×2 proposal yields four explicit 622×622 rectangles at `(3,3)`, `(629,3)`, `(3,629)`, and `(629,629)`. The user can inspect and edit source-resolution integer geometry through the SVG overlay and structured controls at fit, 100%, or 200% zoom.
@@ -273,7 +273,7 @@ Checkpoint 1 is complete because both 1A and 1B were explicitly accepted. Checkp
 10. SQLite schema v8 includes migrations 0007 (`aa951c02158f76f6343819271b78816e211bfe3015cc9f4f979947a075ef25e9`) and 0008 (`2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730`). Integrity is state-specific for job revisions/metadata/references; backup requires complete semantic/CAS integrity and preserves a snapshot-consistent database/CAS pair.
 11. With both durable stores live, official MCP discovery is exactly 15 tools and two templates: the project resource and `studio://projects/{projectId}/jobs/{jobId}`. Atlas grid/define/preview/commit and job read/cancel/retry/discard use the shared application core; agent controls require the original task/object authority and their authorized attempt record is committed atomically with the job transition.
 12. JSON/MCP/job results expose only redacted metadata and resource links. The candidate returns no bitmap/base64 payload, grant ID, credential, arbitrary URI, local path, stack trace, or raw worker error.
-13. Dedicated real-Chrome CI must still prove the cutter and committed views at 1440×900 and 1060×900, exact overlay/source geometry, retained keyboard focus, resource success, accessibility, containment, and absence of browser/network/layout errors before the root agent presents the major user gate.
+13. Dedicated real-Chrome CI proves the cutter, inspector, and committed views at 1440×900 and 1060×900. The inspected evidence records exact overlay/source geometry, retained keyboard focus, successful resources, accessibility, containment, no crop/overflow, and zero browser/network errors. This automated/visual evidence does not substitute for the pending user decision.
 
 ## 10. Open decisions and recommended defaults
 

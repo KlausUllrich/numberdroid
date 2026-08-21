@@ -2,15 +2,16 @@
 
 - **Date:** 2026-08-22
 - **Repository:** `KlausUllrich/numberdroid`
-- **Status:** Checkpoint 2B implemented candidate; final frozen verification, GitHub CI/browser evidence, and user acceptance pending
+- **Status:** Checkpoint 2B implemented and CI/browser-verified candidate; user acceptance pending
 - **Baseline `main` head at creation:** `1e1f0ce09a7c996f24cf6b216e400d57cb6dc666` from the current Checkpoint 2 line; receiver MUST re-verify current `main`
-- **Baseline draft-branch head before 2B publication:** `de0a6460293155965cb92b81c8114bb66fe7b1f4` last verified; receiver MUST re-read the remote head before any update
-- **Baseline CI / Pages state:** accepted 2A run `32525797103` was green; Pages was intentionally skipped because Studio is a local authoring service; dedicated 2B CI has not run yet
+- **Feature commit:** `ae250378943258770330d53c6ec685a94e17dd0e`
+- **CI-verified code/harness head:** `073ee13d96f429a256b7dc39dac40f1b2a20787b` — parent of the evidence-only documentation commit; receiver MUST re-read the remote head before any update
+- **CI / Pages state:** Build run `32536489638` passed root job `96938286296` and Studio job `96938286431`; Pages was intentionally skipped because Studio is a local authoring service
 - **Development branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135` — `https://github.com/KlausUllrich/numberdroid/pull/135`; keep draft and unmerged
 - **Primary receiving role:** Coordinator / QA Integrator
 - **Secondary / trigger roles:** Authoring-tool Engineer, Security, Technical Artist, repository integration
-- **Next milestone / task:** freeze, publish, and independently verify Checkpoint 2B; present one major user gate only after green CI and inspected browser evidence
+- **Next milestone / task:** present and complete the one major Checkpoint 2B user gate
 
 This handoff is a dated task snapshot. Current code and current binding contracts outrank it. It authorizes no merge, release, binary publication, provider integration, Checkpoint 2C, room work, export, materialization, or publish action.
 
@@ -58,7 +59,7 @@ The primary QA/Integrator route then inspects the actual implementation and test
 - schema v8 and an exact 15-tool/two-resource-template MCP candidate surface;
 - CI preparation/capture code for dedicated 2B cutter, inspector, and committed views.
 
-These features have backend evidence but no published 2B Actions run or user acceptance at handoff creation.
+These features have frozen local, published CI, and inspected browser evidence. They still have no user acceptance.
 
 ### Planned / not implemented
 
@@ -74,8 +75,8 @@ These features have backend evidence but no published 2B Actions run or user acc
 | Decision | Owner | Required before |
 | --- | --- | --- |
 | Does the cutter layout, coordinate editing, preview, explicit remap, and job control feel acceptable? | User | accepting 2B |
-| Is the final frozen test/CI/browser evidence complete and internally consistent? | Coordinator / independent verifier | presenting the user gate |
-| Any 2B defect found by final adversarial review | Coordinator + implementing engineer | publishing or asking the user to test |
+| Final frozen test/CI/browser evidence | Resolved: coordinator / independent verifier | complete; candidate may enter the user gate |
+| Final adversarial disposition | Resolved: GO after harness repair | complete; no open blocker |
 | Whether to start 2C | User, after explicit 2B acceptance | any asset-library semantics work |
 
 ## 3. Exact fixture and deterministic output
@@ -194,26 +195,23 @@ Run every Studio Node test and pay special attention to:
 - Official MCP suite: **5/5 passed**.
 - Protected Checkpoint 1 evidence: **VERIFIED**.
 - The final integrity-tamper gap is closed and included in the passing state-specific job/reference coverage.
-- The draft-branch commit, GitHub Actions run, Chrome version, artifact ID/digest, screenshot count, and visual inspection are intentionally pending publication.
+- Feature commit: `ae250378943258770330d53c6ec685a94e17dd0e`; one-file evidence-harness repair at CI-verified code/harness head `073ee13d96f429a256b7dc39dac40f1b2a20787b`, parent of the evidence-only documentation commit.
+- GitHub Actions Build run [`32536489638`](https://github.com/KlausUllrich/numberdroid/actions/runs/32536489638), run #2023: root job `96938286296` and Studio job `96938286431` succeeded.
+- Chrome `151.0.7922.137`, DevTools protocol `1.3`.
+- Valid evidence artifact ID `9465621951`: 2,836,421 bytes, digest `sha256:a175bb3566a2e58f084d1e8f38bb29d7ea57b319dd73ced234210e19242fa077`, created `2026-08-21T23:22:49Z`, expires `2026-09-04T23:22:48Z`. Its ZIP digest was independently recomputed and matches.
+- Artifact contents: `fixture.json`, `server.log`, two DOM snapshots, six PNGs, and six observation files — 16 files total.
+- All six cutter/inspector/committed screenshots at 1440×900 and 1060×900 were inspected: the full source is contained; exact rectangles and responsive layout are visible; crop and overflow are absent.
+- Every observation records project `numberdroid-studio-checkpoint-2b`, revision 7, Activity 7, ready, `APPLIED` 4/4 attempt 1, four overlays, four committed previews, zero runtime/network errors, no horizontal overflow, and zero Header overlaps.
+- Both viewports prove zoom 1254/2508/fit, exclude/remap clearing, explicit v1 remap, keyboard `x` 3→4 and height 622→623, and zero post-interaction errors.
+- Fixture source and all four output digests/dimensions match the local pins.
+- Run `32536098819` and artifact `9465493940` are invalid and MUST NOT be cited; they exposed the repaired selector false positive. The repair received adversarial GO.
 
 ## 8. Exact next actions
 
-1. Stop concurrent implementation/document edits and inspect the complete diff.
-2. Have the independent adversary review the frozen tree, especially job authority, atomicity, resource ownership, shutdown, integrity/backup, UI retry/race behavior, and documentation claims.
-3. Run from `tools/numberdroid-studio/`:
-
-   ```bash
-   npm test
-   npm run build
-   NUMBERDROID_EVIDENCE_REQUIRE_PRODUCTION_ADAPTER=1 npm run evidence:verify
-   ```
-
-4. Run `git diff --check` and relevant root repository tests/preflights. Preserve the accepted Checkpoint 1 and 2A evidence.
-5. Replace provisional verification text with exact frozen counts/identities.
-6. Re-read the remote draft-branch head. Publish only the confirmed textual/code paths to the existing branch without force; do not merge.
-7. Wait for both root and isolated Studio Actions jobs. Inspect the dedicated 2B artifact and every 1440×900 and 1060×900 cutter/inspector/committed screenshot. Confirm source/overlay geometry, four remap controls, one-pixel keyboard edit with retained focus, successful resources, accessibility, no crop, no overflow, and no browser/network errors.
-8. If any check fails, return to plan/implement/adversary/verify. Do not ask the user to debug an unfrozen candidate.
-9. Only after all checks pass, give the user exact launch steps and walk through one major 2B verification scenario. Await explicit acceptance before changing the status or planning 2C.
+1. Give the user exact launch steps and walk through one major 2B verification scenario.
+2. Ask only about cutter layout/accuracy, preview usability, explicit remap clarity, job visibility/control, committed results, and restart persistence.
+3. If the user finds a defect, return it to the plan/implement/adversary/verify loop without starting 2C.
+4. If and only if the user explicitly accepts, update the candidate/status/handoff with the decision and then ask separately for authority to plan 2C. Do not merge or publish production assets by implication.
 
 ## 9. Process lessons carried forward
 
