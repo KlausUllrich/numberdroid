@@ -358,7 +358,9 @@ try {
           linkTabIndex: link?.tabIndex ?? null,
           captionId: source.querySelector('.source-preview-frame figcaption')?.id ?? null,
           captionText: source.querySelector('.source-preview-frame figcaption')?.textContent ?? null,
-          actionCount: source.querySelectorAll('.source-review-actions button').length,
+          reviewMutationCount: source.querySelectorAll(
+            '[data-source-review-decision], [data-source-review-propose]',
+          ).length,
         };
       });
       const aspectRatioProbes = [...document.querySelectorAll('#source-preview-aspect-probes [data-probe]')].map((preview) => {
@@ -643,7 +645,7 @@ try {
       assert(approved.text.includes('APPROVED_SOURCE') && approved.text.includes('USER_APPROVED')
         && approved.text.includes('human_upload') && approved.text.includes('1254×1254')
         && approved.text.includes('2720519'), 'The approved source lifecycle/provenance/identity is not visible.');
-      assert(approved.actionCount === 0, 'An approved source still exposes a review mutation control.');
+      assert(approved.reviewMutationCount === 0, 'An approved source still exposes a review mutation control.');
       assert(layout.stagedIntakes.length === 1 && layout.stagedIntakes[0].hasResume
         && layout.stagedIntakes[0].hasDiscard, 'The durable staged intake lacks Resume or Discard recovery.');
       assert(layout.sourceForm.present && layout.sourceForm.labelledFields === 8
