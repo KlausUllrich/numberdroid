@@ -11,12 +11,14 @@ import {
   SqliteAgentAttemptStore,
   SqliteArtifactMetadataStore,
   SqliteHostBindingStore,
+  SqliteJobStore,
   SqliteProjectStore,
   SqliteSourceIntakeStore,
 } from '../../../packages/persistence/src/index.js';
 import { ensureDemoProject, runDemoAction } from './demo-project.js';
 import { createHumanAgentAccessController } from './human-agent-access.js';
-import { projectHttpProjection } from './http-projections.js';
+import { jobHttpProjection, projectHttpProjection } from './http-projections.js';
+import { AtlasPreviewWorker } from './atlas-preview-worker.js';
 import {
   defaultMcpPairingEndpoint,
   McpPairingBroker,
@@ -53,14 +55,14 @@ function sendJson(response, status, value) {
 }
 
 function errorStatus(error) {
-  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND'].includes(error.code)) return 404;
-  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING'].includes(error.code)) return 409;
-  if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
+  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND', 'JOB_NOT_FOUND'].includes(error.code)) return 404;
+  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'ENTITY_VERSION_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING', 'JOB_STATE_CONFLICT', 'JOB_ATTEMPT_CONFLICT', 'JOB_ATTEMPT_LIMIT', 'JOB_INPUT_MISMATCH', 'JOB_OUTPUT_MISMATCH'].includes(error.code)) return 409;
+  if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'JOB_AUTHORITY_MISMATCH', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
   if (error.code === 'ARTIFACT_TOO_LARGE') return 413;
   if (['ARTIFACT_DIGEST_MISMATCH', 'ARTIFACT_METADATA_CONFLICT'].includes(error.code)) return 409;
-  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_MALFORMED', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED', 'PROVENANCE_PARAMETER_FORBIDDEN'].includes(error.code)) return 400;
+  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_MALFORMED', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED', 'PROVENANCE_PARAMETER_FORBIDDEN', 'ATLAS_RECT_INVALID', 'ATLAS_RECT_LIMIT', 'ATLAS_RECT_DUPLICATE', 'ATLAS_RECT_DUPLICATE_ID', 'ATLAS_RECT_OVERLAP', 'ATLAS_RECT_OUT_OF_BOUNDS', 'ATLAS_REMAP_INVALID', 'ATLAS_REMAP_NOT_ONE_TO_ONE', 'ATLAS_PADDING_POLICY_UNSUPPORTED', 'ATLAS_GRID_INVALID', 'ATLAS_OUTPUT_LIMIT', 'ATLAS_OUTPUT_BYTES_LIMIT', 'ATLAS_PNG_UNSUPPORTED', 'ATLAS_SOURCE_REQUIRED', 'ATLAS_SOURCE_MISMATCH'].includes(error.code)) return 400;
   if (error.code === 'SOURCE_INTAKE_NOT_FOUND') return 404;
-  if (['ARTIFACT_STORE_DISABLED', 'SOURCE_INTAKE_STORE_DISABLED', 'AGENT_ATTEMPT_LEDGER_REQUIRED'].includes(error.code)) return 503;
+  if (['ARTIFACT_STORE_DISABLED', 'SOURCE_INTAKE_STORE_DISABLED', 'AGENT_ATTEMPT_LEDGER_REQUIRED', 'JOB_STORE_DISABLED'].includes(error.code)) return 503;
   return 500;
 }
 
@@ -140,6 +142,26 @@ function sourceMutationRoute(pathname) {
     projectId: decodeURIComponent(review[1]),
     sourceId: decodeURIComponent(review[2]),
     resource: 'review',
+  } : null;
+}
+
+function atlasRoute(pathname) {
+  const proposal = /^\/api\/projects\/([^/]+)\/atlases\/grid-proposal$/.exec(pathname);
+  if (proposal) return { projectId: decodeURIComponent(proposal[1]), atlasId: null, action: 'grid-proposal' };
+  const mutation = /^\/api\/projects\/([^/]+)\/atlases\/([^/]+)\/(definition|preview|commit)$/.exec(pathname);
+  return mutation ? {
+    projectId: decodeURIComponent(mutation[1]),
+    atlasId: decodeURIComponent(mutation[2]),
+    action: mutation[3],
+  } : null;
+}
+
+function jobRoute(pathname) {
+  const match = /^\/api\/projects\/([^/]+)\/jobs\/([^/]+)(?:\/(cancel|retry|discard))?$/.exec(pathname);
+  return match ? {
+    projectId: decodeURIComponent(match[1]),
+    jobId: decodeURIComponent(match[2]),
+    action: match[3] ?? 'read',
   } : null;
 }
 
@@ -258,6 +280,7 @@ const ATTEMPT_DENIAL_CODES = new Set([
   'FORBIDDEN', 'GRANT_REQUIRED', 'GRANT_NOT_FOUND', 'GRANT_REVOKED', 'GRANT_ACTOR_MISMATCH',
   'GRANT_TASK_MISMATCH', 'GRANT_BRANCH_MISMATCH', 'GRANT_EXPIRED', 'GRANT_SCOPE_MISSING',
   'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'CONTEXT_PROJECT_MISMATCH',
+  'JOB_AUTHORITY_MISMATCH',
   'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'ARTIFACT_URI_REQUIRED',
 ]);
 
@@ -266,6 +289,9 @@ function safeAttemptId(value) {
 }
 
 function attemptActivity(attempt) {
+  const summary = attempt.status === 'AUTHORIZED'
+    ? 'Agent command authorized.'
+    : `Agent command ${attempt.status.toLowerCase()}: ${attempt.errorCode}.`;
   return {
     id: `activity:${attempt.attemptId}`,
     projectId: attempt.projectId,
@@ -276,7 +302,7 @@ function attemptActivity(attempt) {
     commandId: attempt.commandId,
     commandType: attempt.commandType ?? 'unknown',
     status: attempt.status.toLowerCase(),
-    summary: `Agent command ${attempt.status.toLowerCase()}: ${attempt.errorCode}.`,
+    summary,
     changes: [],
   };
 }
@@ -349,6 +375,7 @@ function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoin
           NUMBERDROID_STUDIO_PROJECT_ID: projectId,
           NUMBERDROID_STUDIO_PAIRING_ENDPOINT: pairingEndpoint,
           NUMBERDROID_STUDIO_AGENT_AUDIT_READY: '1',
+          NUMBERDROID_STUDIO_JOB_STORE_READY: '1',
         },
       },
     },
@@ -364,6 +391,8 @@ export function createStudioHttpServer({
   artifactMetadataStore = null,
   sourceIntakeStore = null,
   agentAttemptStore = null,
+  jobStore = null,
+  atlasPreviewWorker = null,
 }) {
   if (!studioService) throw new TypeError('studioService is required.');
   const humanUiCsrfToken = randomBytes(32).toString('base64url');
@@ -432,6 +461,7 @@ export function createStudioHttpServer({
             executionContext,
             { signal: requestAbort.signal },
           );
+          if (definition?.type === 'atlas.preview.slices') atlasPreviewWorker?.kick();
         } catch (rawError) {
           const error = asStudioError(rawError);
           if (agentAttemptStore?.isLive === true) {
@@ -477,6 +507,160 @@ export function createStudioHttpServer({
           bindingExecutionContext(binding),
           { signal: requestAbort.signal },
         ));
+        return;
+      }
+      if (request.method === 'POST' && [
+        '/internal/mcp/atlas-grid-proposal',
+        '/internal/mcp/job-read',
+        '/internal/mcp/job-cancel',
+        '/internal/mcp/job-retry',
+        '/internal/mcp/job-discard',
+      ].includes(url.pathname)) {
+        assertLoopbackServiceRequest(request);
+        if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
+        const binding = hostBindingStore.resolve(bearerToken(request));
+        const context = bindingExecutionContext(binding);
+        const projectView = await studioService.readProjectTrusted(binding.projectId);
+        const attemptId = `attempt.${randomUUID()}`;
+        const definition = {
+          '/internal/mcp/atlas-grid-proposal': { operation: 'proposeAtlasGrid', commandType: 'atlas.propose.grid', atomicAudit: false, auditAuthorized: false },
+          '/internal/mcp/job-read': { operation: 'readJob', commandType: 'job.read', atomicAudit: false, auditAuthorized: false },
+          '/internal/mcp/job-cancel': { operation: 'cancelJob', commandType: 'job.cancel', atomicAudit: true },
+          '/internal/mcp/job-retry': { operation: 'retryJob', commandType: 'job.retry', atomicAudit: true },
+          '/internal/mcp/job-discard': { operation: 'discardJob', commandType: 'job.discard', atomicAudit: true },
+        }[url.pathname];
+        const attempt = {
+          attemptId,
+          projectId: binding.projectId,
+          correlationId: context.correlationId,
+          actorId: binding.actor.id,
+          taskId: safeAttemptId(binding.taskId),
+          branchId: binding.branchId,
+          commandId: null,
+          commandType: definition.commandType,
+          targetKind: 'project',
+          targetId: binding.projectId,
+          observedRevision: projectView.revision,
+        };
+        let result;
+        try {
+          if (agentAttemptStore?.isLive !== true) {
+            throw new StudioError('AGENT_ATTEMPT_LEDGER_REQUIRED', 'Specialized MCP operations require a durable attempt ledger.');
+          }
+          const body = await readJsonBody(request, { maxBytes: 128 * 1024 });
+          if (body?.projectId !== binding.projectId) {
+            throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside this HostBinding.', {
+              requestedProjectId: body?.projectId,
+              contextProjectId: binding.projectId,
+            });
+          }
+          const safeJobId = definition.commandType.startsWith('job.') ? safeAttemptId(body?.jobId) : null;
+          if (safeJobId) {
+            attempt.targetKind = 'job';
+            attempt.targetId = safeJobId;
+          }
+          await assertExecutableBindingPolicy(studioService, binding);
+          result = await studioService[definition.operation](body, context, {
+            signal: requestAbort.signal,
+            ...(definition.atomicAudit ? { authorizedAttempt: attempt } : {}),
+          });
+          if (definition.commandType.startsWith('job.')) result = jobHttpProjection(result);
+          if (definition.operation === 'retryJob') atlasPreviewWorker?.kick();
+        } catch (rawError) {
+          const error = asStudioError(rawError);
+          if (agentAttemptStore?.isLive === true) {
+            agentAttemptStore.recordFailure({
+              ...attempt,
+              status: ATTEMPT_DENIAL_CODES.has(error.code) ? 'DENIED' : 'FAILED',
+              errorCode: error.code,
+              details: redactInternalDetails(error.details),
+            });
+          }
+          throw error;
+        }
+        if (definition.auditAuthorized) {
+          agentAttemptStore.recordAuthorized({
+            ...attempt,
+            details: typeof result?.state === 'string' ? { state: result.state } : {},
+          });
+        }
+        sendJson(response, 200, result);
+        return;
+      }
+      const atlasRequest = atlasRoute(url.pathname);
+      if (request.method === 'POST' && atlasRequest) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
+        const projectView = await studioService.readProjectTrusted(atlasRequest.projectId);
+        const context = humanOwnerContext(projectView);
+        if (atlasRequest.action === 'grid-proposal') {
+          assertExactKeys(body, new Set([
+            'expectedRevision', 'sourceId', 'rows', 'columns', 'margins', 'gapX', 'gapY', 'rectangleIdPrefix',
+          ]), 'Atlas grid proposal');
+          sendJson(response, 200, await studioService.proposeAtlasGrid({
+            schemaVersion: 1,
+            projectId: atlasRequest.projectId,
+            ...body,
+          }, context, { signal: requestAbort.signal }));
+          return;
+        }
+        if (atlasRequest.action === 'definition') {
+          assertExactKeys(body, new Set([
+            'expectedRevision', 'idempotencyKey', 'sourceId', 'name', 'expectedAtlasVersion', 'rectangles',
+          ]), 'Atlas definition request');
+          const command = humanCommandDto(atlasRequest.projectId, body, 'atlas.define.rects', {
+            atlasId: atlasRequest.atlasId,
+            sourceId: body.sourceId,
+            name: body.name,
+            expectedAtlasVersion: body.expectedAtlasVersion,
+            rectangles: body.rectangles,
+          });
+          sendJson(response, 200, await studioService.execute(command, context, { signal: requestAbort.signal }));
+          return;
+        }
+        assertExactKeys(body, new Set([
+          'expectedRevision', 'idempotencyKey', 'expectedAtlasVersion', 'expectedDefinitionFingerprint', 'jobId',
+        ]), `Atlas ${atlasRequest.action} request`);
+        const type = atlasRequest.action === 'preview' ? 'atlas.preview.slices' : 'atlas.commit.slices';
+        const command = humanCommandDto(atlasRequest.projectId, body, type, {
+          atlasId: atlasRequest.atlasId,
+          expectedAtlasVersion: body.expectedAtlasVersion,
+          expectedDefinitionFingerprint: body.expectedDefinitionFingerprint,
+          jobId: body.jobId,
+        });
+        const result = await studioService.execute(command, context, { signal: requestAbort.signal });
+        if (atlasRequest.action === 'preview') atlasPreviewWorker?.kick();
+        sendJson(response, 200, result);
+        return;
+      }
+      const jobRequest = jobRoute(url.pathname);
+      if (request.method === 'GET' && jobRequest?.action === 'read') {
+        const projectView = await studioService.readProjectTrusted(jobRequest.projectId);
+        sendJson(response, 200, jobHttpProjection(await studioService.readJob({
+          schemaVersion: 1,
+          projectId: jobRequest.projectId,
+          jobId: jobRequest.jobId,
+        }, humanOwnerContext(projectView), { signal: requestAbort.signal })));
+        return;
+      }
+      if (request.method === 'POST' && jobRequest && ['cancel', 'retry', 'discard'].includes(jobRequest.action)) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 4096 });
+        assertExactKeys(body, new Set([
+          'operationIdempotencyKey', ...(jobRequest.action === 'retry' ? ['expectedAttempt'] : []),
+        ]), `Job ${jobRequest.action} request`);
+        const projectView = await studioService.readProjectTrusted(jobRequest.projectId);
+        const method = jobRequest.action === 'retry'
+          ? 'retryJob'
+          : (jobRequest.action === 'discard' ? 'discardJob' : 'cancelJob');
+        const result = await studioService[method]({
+          schemaVersion: 1,
+          projectId: jobRequest.projectId,
+          jobId: jobRequest.jobId,
+          ...body,
+        }, humanOwnerContext(projectView), { signal: requestAbort.signal });
+        if (jobRequest.action === 'retry') atlasPreviewWorker?.kick();
+        sendJson(response, 200, result);
         return;
       }
       const sourceIntake = sourceIntakeRoute(url.pathname);
@@ -776,7 +960,15 @@ export async function startStudioHttpServer({
   const store = storeMode === 'sqlite'
     ? await SqliteProjectStore.open({ filename: resolve(dataDirectory, 'studio.sqlite') })
     : new JsonProjectStore({ directory: dataDirectory });
-  const studioService = new StudioService({ store, clock, agentAttemptAuditReady: storeMode === 'sqlite' });
+  const jobStore = storeMode === 'sqlite'
+    ? new SqliteJobStore({ workspace: store.workspace })
+    : null;
+  const studioService = new StudioService({
+    store,
+    clock,
+    agentAttemptAuditReady: storeMode === 'sqlite',
+    jobStore,
+  });
   const hostBindingStore = storeMode === 'sqlite'
     ? new SqliteHostBindingStore({ workspace: store.workspace })
     : null;
@@ -800,6 +992,9 @@ export async function startStudioHttpServer({
   const agentAttemptStore = storeMode === 'sqlite'
     ? new SqliteAgentAttemptStore({ workspace: store.workspace })
     : null;
+  const atlasPreviewWorker = storeMode === 'sqlite'
+    ? new AtlasPreviewWorker({ jobStore, artifactStore, artifactMetadataStore, clock })
+    : null;
   const server = createStudioHttpServer({
     studioService,
     hostBindingStore,
@@ -809,13 +1004,30 @@ export async function startStudioHttpServer({
     artifactMetadataStore,
     sourceIntakeStore,
     agentAttemptStore,
+    jobStore,
+    atlasPreviewWorker,
   });
-  if (typeof store.close === 'function') server.once('close', () => store.close());
-  if (pairing) server.once('close', () => pairing.close().catch(() => {}));
+  const closeHttpServer = server.close.bind(server);
+  let shutdownPromise = null;
+  server.close = (callback) => {
+    if (!shutdownPromise) {
+      const workerStopped = atlasPreviewWorker?.stop() ?? Promise.resolve();
+      const httpClosed = new Promise((resolveClose, rejectClose) => {
+        closeHttpServer((error) => (error ? rejectClose(error) : resolveClose()));
+      });
+      shutdownPromise = Promise.all([workerStopped, httpClosed, pairing?.close() ?? Promise.resolve()])
+        .then(() => { if (typeof store.close === 'function') store.close(); });
+    }
+    if (typeof callback === 'function') {
+      shutdownPromise.then(() => callback()).catch((error) => callback(error));
+    }
+    return server;
+  };
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
     server.listen(port, host, resolveListen);
   });
+  atlasPreviewWorker?.start();
   return {
     server,
     studioService,
@@ -826,6 +1038,8 @@ export async function startStudioHttpServer({
     artifactMetadataStore,
     sourceIntakeStore,
     agentAttemptStore,
+    jobStore,
+    atlasPreviewWorker,
     address: server.address(),
     dataDirectory,
     storeMode,

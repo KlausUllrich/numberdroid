@@ -75,6 +75,10 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **ATL-004.** Every slice MUST retain its source artifact, exact integer rectangle, optional pivot, transparent-padding policy, and derivation revision.
 - **ATL-005.** A slice identity MUST survive a recut when the designer explicitly maps the replacement; otherwise a new identity is required.
 - **ATL-006.** Cutting MUST be repeatable and produce byte-identical output for identical inputs and parameters, where the image codec permits deterministic encoding.
+- **ATL-007.** Included rectangles MUST be bounded by the source, non-overlapping, uniquely identified, and limited by explicit rectangle, pixel, and output-byte budgets before a job is created.
+- **ATL-008.** A committed slice replacement MUST be one-to-one and compare the expected prior slice version. Excluded rectangles MUST NOT replace a committed slice.
+- **ATL-009.** The cutter MUST preserve source-resolution integer coordinates at every visual zoom level. Pointer and keyboard edits MUST have equivalent structured numeric controls and MUST retain focus after a keyboard edit.
+- **ATL-010.** Preview output metadata MUST be verified against the canonical processor, exact rectangle, dimensions, media type, byte size, digest, input revision, and definition fingerprint before it can become a committed slice version.
 
 ### 5.4 Visual Asset Library
 
@@ -146,6 +150,9 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **AGT-012.** The trusted MCP host MUST inject authenticated actor/task/grant execution context per call. MCP tool arguments MUST NOT accept authority fields that let an agent claim or select an actor, task, or grant.
 - **AGT-013.** Local HostBinding credentials MUST be delivered only to a short-lived waiting host over a non-browser loopback pairing channel after explicit human verification. Browser responses, DOM, clipboard configuration, URLs, storage, resources, and logs MUST NOT receive raw credentials or grant IDs.
 - **AGT-014.** HostBinding coordinates are immutable. Grant narrowing, widening, renewal, and `Off` MUST revoke affected bindings; no stale token may be aligned with or resurrected onto a later grant.
+- **AGT-015.** A job created by an agent MUST retain its immutable creator actor/task/branch/grant coordinates. Claim, retry, cancellation, discard, output publication, and semantic apply MUST re-authorize the operation at the applicable safe boundary; another task MUST NOT take control of the job.
+- **AGT-016.** Job creation MUST consume its semantic command, job count, and complete estimated output-byte budget once in the same transaction as the input revision. Retry MUST be bounded and MUST NOT silently create a second semantic command or charge the same logical output twice.
+- **AGT-017.** Agent-visible job projections MUST expose redacted structured state, events, result metadata, and same-origin resource links without raw binary data, credentials, grant IDs, machine paths, stack traces, or unsanitized worker errors.
 
 ### 5.10 Animations (V2 reservation)
 
@@ -249,6 +256,24 @@ Checkpoint 1 is complete because both 1A and 1B were explicitly accepted. Checkp
 9. Accepted agent commands remain semantic revision Activity entries. Every denied or failed mutation reaching `/internal/mcp/execute` after valid HostBinding resolution is durably appended once as a final redacted Activity record; inability to write that record fails closed. Pre-binding authentication/pairing failures remain operational security logs because no trusted project/actor exists to attribute.
 10. The real Family Hygiene source fixture retains SHA-256 `67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e`, 2,720,519 bytes, and 1254×1254 dimensions through intake, preview, review, and restart. Separate schema-v6 fixtures prove backup/restore and integrity preservation for claimed intake, lineage, and attempt state.
 11. Protected Checkpoint 1 command/evidence behavior and the legacy `source.register` contract remain unchanged. Atlas cutting, generated derivatives, provider invocation, durable image jobs, asset semantics, bundles, room work, and export remain later gates.
+
+### Checkpoint 2B — visual atlas cutter
+
+**Status: implemented candidate; not user-accepted.** Frozen local verification passes all 108/108 Node tests, including the focused UI/MCP/job and adversarial suites, and the protected evidence is verified. Dedicated GitHub Actions real-Chrome evidence and the explicit user major-gate decision remain pending. Draft PR #135 stays draft and unmerged; this candidate does not authorize Checkpoint 2C, provider work, rooms, export, materialization, publication, or release.
+
+1. The accepted Family Hygiene source remains the exact PNG with SHA-256 `67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e`, 2,720,519 bytes, and 1254×1254 dimensions.
+2. A non-authoritative 2×2 proposal yields four explicit 622×622 rectangles at `(3,3)`, `(629,3)`, `(3,629)`, and `(629,629)`. The user can inspect and edit source-resolution integer geometry through the SVG overlay and structured controls at fit, 100%, or 200% zoom.
+3. The editor supports manual/variable rectangles, include/exclude, exact numeric editing, pointer editing, keyboard editing, preview, and an explicit per-rectangle choice between creating a new slice identity and replacing one prior slice version. A recut never retargets an identity implicitly.
+4. Rectangle validation rejects unsafe integers, duplicates, overlap, out-of-bounds geometry, invalid pivots/remaps, more than 64 rectangles, more than 64 Mi output pixels, or a canonical slice exceeding 16 MiB before job creation. Checkpoint 2B accepts approved PNG sources for cutting; unsupported/malformed/interlaced/transparency-chunk inputs fail closed.
+5. `atlas.define.rects` atomically revisions the authoritative definition. `atlas.preview.slices` atomically creates the input revision, immutable job, initial job event, complete output-byte reservation, job-count charge, command charge, Activity, and idempotency result. Unknown client outcomes are resolved by replaying the same logical operation key and immutable request.
+6. The only 2B job kind is `ATLAS_PREVIEW`. Its states are `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, `APPLIED`, and `DISCARDED`; there is no `WAITING_FOR_USER` or response tool. Jobs have at most three attempts and explicit idempotent read, cancel, retry, and terminal-unapplied discard operations.
+7. The worker uses immutable input revision/fingerprint/rectangles, checks cancellation and original agent authority at safe points, recovers expired leases, atomically publishes each verified output with its temporary reference and progress event, sanitizes failures, and is quiesced before database shutdown.
+8. `atlas.commit.slices` verifies exact canonical digest, media type, byte size, dimensions, processor, rectangle, source, fingerprint, and input ownership before one atomic semantic revision promotes stable slice heads, installs permanent slice references, releases temporary job references, marks the job `APPLIED`, and writes Activity/idempotency evidence.
+9. Identical input produces four deterministic 622×622 RGBA PNGs of 1,548,341 bytes each, pinned respectively to `ef83efbee4b00ec49679f0409ba6f33423729b9d67946ba45f3ab119a91886f2`, `3781086c30598cf8c07582f9b830e3343e0e1363f2e7c17d35a6678eeeb41c7e`, `9d4c867156c590d372c9c7ef955596c919d717821b65ea992db0e7606cde2526`, and `a63dceb520a894a3e91e547d93e15d154873f04bb32e0ac8f8354ca7d2150318` in row-major rectangle order.
+10. SQLite schema v8 includes migrations 0007 (`aa951c02158f76f6343819271b78816e211bfe3015cc9f4f979947a075ef25e9`) and 0008 (`2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730`). Integrity is state-specific for job revisions/metadata/references; backup requires complete semantic/CAS integrity and preserves a snapshot-consistent database/CAS pair.
+11. With both durable stores live, official MCP discovery is exactly 15 tools and two templates: the project resource and `studio://projects/{projectId}/jobs/{jobId}`. Atlas grid/define/preview/commit and job read/cancel/retry/discard use the shared application core; agent controls require the original task/object authority and their authorized attempt record is committed atomically with the job transition.
+12. JSON/MCP/job results expose only redacted metadata and resource links. The candidate returns no bitmap/base64 payload, grant ID, credential, arbitrary URI, local path, stack trace, or raw worker error.
+13. Dedicated real-Chrome CI must still prove the cutter and committed views at 1440×900 and 1060×900, exact overlay/source geometry, retained keyboard focus, resource success, accessibility, containment, and absence of browser/network/layout errors before the root agent presents the major user gate.
 
 ## 10. Open decisions and recommended defaults
 

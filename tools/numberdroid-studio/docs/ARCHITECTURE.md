@@ -50,13 +50,14 @@ apps/studio-admin        migration, integrity, backup, and restore CLI
 packages/domain          pure contracts, validation, and command catalog
 packages/application     shared command/query and authorization core
 packages/persistence     SQLite/CAS plus protected JSON migration adapter
+packages/preview         deterministic audited PNG crop processor
 packages/mcp-server      semantic catalog and official MCP adapter
 fixtures + scripts       deterministic evidence and verification
 ```
 
-SQLite/content-addressed persistence and the official MCP transport are the accepted operational path. The Checkpoint 2A candidate adds source intake/review and its audit/recovery tables without changing that boundary. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service process is an accepted transitional packaging choice, not the final standalone packaging model.
+SQLite/content-addressed persistence and the official MCP transport are the accepted operational path. Checkpoint 2A added source intake/review and its audit/recovery tables. The Checkpoint 2B candidate adds the preview package, durable atlas jobs, job resources, and an in-process worker without changing the inward dependency boundary. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service/worker process is an accepted transitional packaging choice, not the final standalone packaging model.
 
-The sections below describe the target topology as checkpoints introduce it. A named target package is not implemented merely because it appears in this document. In particular, `apps/studio-ui`, `apps/studio-service`, `packages/preview`, and `packages/numberdroid-adapter` do not yet exist as working packages.
+The sections below describe the target topology as checkpoints introduce it. A named target package is not implemented merely because it appears in this document. In particular, `apps/studio-ui`, `apps/studio-service`, and `packages/numberdroid-adapter` do not yet exist as working packages; their current responsibilities remain in the combined server or are deferred.
 
 ### `apps/studio-ui`
 
@@ -80,7 +81,7 @@ SQLite repositories, migrations, transaction implementation, event/revision stor
 
 ### `packages/preview`
 
-Deterministic image slicing, thumbnailing, compositing, overlay data, and visual QA projections. It consumes artifacts and semantic models through ports; it does not decide semantics from pixels.
+Checkpoint 2B implements the deterministic exact-PNG crop kernel in this package. It validates and decodes bounded non-interlaced 8-bit RGB/RGBA PNG input, verifies chunk order and CRC, rejects unsupported transparency chunks, crops exact source pixels, and emits a processor-owned canonical RGBA PNG whose digest and byte size are deterministic. It consumes artifacts and semantic models through ports; it does not decide semantics from pixels. Thumbnailing and compositing remain later work.
 
 The preview projection also owns deterministic Asset Library card states: resolved image, processing, missing artifact, unsupported media, and load failure. Each state has a stable kind-aware fallback descriptor so the UI never has to infer meaning from a failed image element or expose a filesystem path.
 
@@ -230,7 +231,7 @@ The local service owns one SQLite database per workspace or one database with ex
 
 One command transaction includes events, revision and parent links, aggregate versions, projection updates, activity, idempotency result, command-required findings, and grant budget consumption. Migrations run transactionally where SQLite permits; multi-phase migrations use explicit durable states and recovery instructions. The service does not expose a writable API until migration and integrity checks complete.
 
-Accepted Checkpoint 1 tables include `projects`, `revisions`, `revision_parents`, `activity_events`, `aggregate_versions`, `projections`, `idempotency_records`, `grants`, `migration_runs`, `artifacts`, `artifact_references`, `cas_gc_marks`, `host_bindings`, and `human_agent_access_operations`, plus the migration ledger maintained by the runner. Candidate schema v6 adds `source_intakes` and `agent_attempts`. Later checkpoints add branch heads, jobs/job events, and durable findings only with versioned migrations and recovery tests. Projection tables are rebuildable from events plus verified snapshots.
+Accepted Checkpoint 1 tables include `projects`, `revisions`, `revision_parents`, `activity_events`, `aggregate_versions`, `projections`, `idempotency_records`, `grants`, `migration_runs`, `artifacts`, `artifact_references`, `cas_gc_marks`, `host_bindings`, and `human_agent_access_operations`, plus the migration ledger maintained by the runner. Accepted schema v6 adds `source_intakes` and the original final-attempt ledger. Candidate schema v8 adds `jobs`, `job_events`, immutable creator authority and output-byte accounting, and extends `agent_attempts` with atomic `AUTHORIZED` control records. Migration 0007 is pinned to `aa951c02158f76f6343819271b78816e211bfe3015cc9f4f979947a075ef25e9`; migration 0008 is pinned to `2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730`. Branch heads and durable findings remain later work. Projection tables are rebuildable from events plus verified snapshots.
 
 SQLite is an infrastructure adapter. Tests use a conforming in-memory repository only where the same contract suite also runs against SQLite. Fault injection covers every commit boundary, restart/recovery, WAL checkpoint behavior, busy writers, concurrent readers, backup/restore, and projection rebuild/hash comparison.
 
@@ -247,6 +248,20 @@ The human loopback upload streams through CAS with an intake-specific maximum of
 V2 source projections preserve complete provider-neutral provenance and an explicit lifecycle. Human uploads cannot carry generation metadata. Imported-generation records require provider/model/prompt but their bounded parameter tree rejects secret-like keys, local paths, and external URI values. Referenced artifacts must already be `LIVE` and referenced by the same project. Original preview is a read of the verified source CAS object, not a thumbnail or processing job.
 
 `agent_attempts` stores only final `DENIED` or `FAILED` outcomes for mutation calls that reach the private execution bridge after a valid HostBinding resolves a trusted project/actor. It stores a safe project target, observed revision, semantic command identity when valid, stable error code, and allowlisted redacted details. Accepted commands remain in the semantic revision Activity ledger; there are no non-atomic `STARTED` or `COMMITTED` request rows. If a required attempt row cannot be written, the call fails closed. Pairing, missing/invalid bearer, and other pre-binding failures stay in operational security logs because there is no trusted project/actor to append.
+
+### Checkpoint 2B atlas definitions and durable jobs
+
+An `AtlasDefinition` is a versioned semantic projection over one approved PNG source. It contains exact safe-integer rectangles, explicit inclusion, optional local pivot, the only accepted padding policy (`preserve_exact_rect`), and optional one-to-one replacement of an expected prior slice version. Included rectangles are unique, in bounds, non-overlapping, limited to 64 entries and 67,108,864 aggregate output pixels, and rejected before job creation if one canonical output would exceed 16 MiB. A stable fingerprint binds the source dimensions, processor identity, and complete normalized rectangle list.
+
+`atlas.define.rects` is a normal semantic revision. `atlas.preview.slices` precomputes the complete deterministic output-byte budget, then one SQLite transaction commits the semantic input revision and Activity together with one immutable `ATLAS_PREVIEW` job, its `QUEUED` event, creator actor/task/branch/grant coordinates, job-count and artifact-byte usage, and both semantic/job idempotency records. A replay cannot charge or enqueue again. A new definition/preview is blocked until the prior job has been applied or discarded so temporary results cannot become ambiguous.
+
+The worker claims with a lease, revalidates the original agent grant/task/object scope and expiry/revocation, reads the source by expected digest, and processes immutable rectangles only. Each canonical output is published through one transaction that verifies current lease ownership and authority, installs exact artifact metadata and a temporary `job_output` reference, advances progress, and appends the job event together. This prevents an expired worker from publishing after another worker recovers the lease. Cancellation is cooperative at safe points; failures are reduced to stable codes and safe messages. Startup recovers expired work within the global three-attempt ceiling. Shutdown first stops new claims and awaits the worker's current loop before closing SQLite.
+
+The state set is `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, `APPLIED`, and `DISCARDED`. `FAILED` and `CANCELLED` can be retried with the same immutable input while the next attempt is at most three. A terminal unapplied job can be explicitly discarded, releasing every temporary output reference; an applied job cannot be discarded. There is no `WAITING_FOR_USER` state or job response operation in 2B.
+
+`atlas.commit.slices` joins the job outputs to live CAS metadata and revalidates processor/source/fingerprint/input revision plus canonical digest, media type, dimensions, byte size, rectangle, and replacement version. One transaction creates stable slice heads/versions, appends the semantic revision and Activity, installs permanent `atlas_slice` references, removes temporary job references, marks the job `APPLIED` with the exact applied revision, and records idempotency. Cancel/retry/discard similarly commit the authorized attempt audit in the same SQLite transaction as the job transition.
+
+Workspace integrity is state-specific: it validates input and applied revision semantics, atlas/source/fingerprint ownership, event sequence/state, exact output metadata, creator coordinates, and the allowed temporary/permanent CAS references for each state. A stale job reference is a finding. Backup now runs this complete semantic and CAS integrity check before opening a snapshot and copies the referenced CAS closure for that same database snapshot; backup is refused if the precondition fails or the closure changes.
 
 ### 1A JSON migration and rollback
 
@@ -286,13 +301,13 @@ Two commands cannot silently update the same aggregate version. Different agents
 
 Revert emits compensating semantic events on a new revision. History, attribution, and prior exported snapshots remain intact.
 
-## 9. Planned jobs and expanded observability
+## 9. Implemented atlas jobs and expanded observability
 
-Durable jobs are not implemented through the Checkpoint 2A candidate. Original-source preview is synchronous and does not justify a job. Accepted semantic commands remain revision Activity; 2A adds final-only durable denied/failed records for bound agent mutations, closing `AGT-008` at that implemented boundary. In later checkpoints, image slicing batches, generated derivatives, validation, generation-provider calls, bundle creation, and export are durable jobs. A job records input revision and artifact references so a retry cannot accidentally operate on newer state.
+Checkpoint 2B implements durable jobs for deterministic atlas preview slicing. The original-source preview remains synchronous; generation providers, general derivative processing, validation, bundles, and export do not gain jobs by implication. Every atlas job records its exact semantic input revision, definition fingerprint, source digest, normalized rectangles, processor identity, creator authority, output-byte reservation, progress, events, and artifact metadata so a retry cannot switch to a newer project head.
 
-Job states are `QUEUED`, `RUNNING`, `WAITING_FOR_USER`, `SUCCEEDED`, `FAILED`, and `CANCELLED`. State transitions append job events. Cancellation is cooperative and visible; non-cancellable commit windows are short and explicitly reported.
+The implemented state set is `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, `APPLIED`, and `DISCARDED`. State transitions append monotonically sequenced events. Cancellation is cooperative and visible; atomic metadata/reference/progress and semantic-apply windows are not interruptible. Retry is explicit, uses the same immutable input, and is capped at three total attempts. Discard is explicit for terminal unapplied work and releases temporary output references. The candidate deliberately has no `WAITING_FOR_USER` state or response command.
 
-The target observability model gives command, MCP request, validation run, and job events shared correlation IDs, and exposes the same redacted activity projection to humans and agents. The 2A attempt ledger covers final bound-agent mutation failures/denials but is not a general request-duration or job-correlation ledger. Logs and attempt rows must redact tokens, grant IDs, prompts, idempotency values, artifact URIs, and machine-specific sensitive paths.
+The human UI and authorized agents can read the same redacted job projection, including progress/events and same-origin output preview links while temporary results are live. Job operations are attributed to `job` targets. For an agent, the original task/binding authority and current grant remain mandatory, and each authorized cancel/retry/discard record is atomic with the transition. Denied and failed bridge attempts continue to use final redacted attempt records. No projection/log/attempt contains tokens, grant IDs, prompts, raw idempotency keys, machine paths, stack traces, unsanitized worker messages, bitmap bytes, or base64 payloads.
 
 ## 10. Validation architecture
 
@@ -339,7 +354,7 @@ GitHub integration receives files from a verified export manifest. It is downstr
 - Read resources enforce project and object scope, not only mutation tools.
 - Publish is a separate high-risk capability with short expiry and a complete preview/manifest.
 
-Checkpoint 1 threat-focused tests cover its implemented grant/HostBinding forgery and widening paths, expired/revoked grants, cross-project references, stale replay, idempotency collisions, artifact/path validation, size/hash failures, cancellation at the atomic boundary, and unauthorized reads. Later feature checkpoints extend the suite to jobs, archives, providers, branch review, export, and publish escalation before those capabilities are advertised.
+Checkpoint 1 threat-focused tests cover its implemented grant/HostBinding forgery and widening paths, expired/revoked grants, cross-project references, stale replay, idempotency collisions, artifact/path validation, size/hash failures, cancellation at the atomic boundary, and unauthorized reads. Checkpoint 2B extends that suite to immutable job authority, cross-task controls, retry ceilings, lease recovery/stale-worker races, cancellation/discard reference release, sanitized failures, atomic output promotion/apply/audit, shutdown quiescence, state-specific integrity, and backup snapshot consistency. Archives, providers, branch review, export, and publish escalation remain later gates.
 
 ## 13. Standalone extraction
 
@@ -358,7 +373,7 @@ Extraction should require changing workspace/package publishing configuration, C
 
 ## 14. Architecture acceptance tests
 
-At each checkpoint, reviewers MUST be able to demonstrate the checks that correspond to capabilities implemented by that checkpoint. Checkpoint 1 proves package isolation, UI/MCP command equivalence for its implemented commands, SQLite/CAS migration and recovery, protected visual behavior, and fail-closed authority. The 2A candidate additionally proves atomic staged-intake claim/abandon, provenance/lineage validation, source lifecycle, exact original preview, schema-v6 recovery, bounded MCP authority/budgets, and redacted final attempt audit. Branch review/merge and Numberdroid export checks below are later-checkpoint targets.
+At each checkpoint, reviewers MUST be able to demonstrate the checks that correspond to capabilities implemented by that checkpoint. Checkpoint 1 proves package isolation, UI/MCP command equivalence for its implemented commands, SQLite/CAS migration and recovery, protected visual behavior, and fail-closed authority. Accepted 2A additionally proves atomic staged-intake claim/abandon, provenance/lineage validation, source lifecycle, exact original preview, schema-v6 recovery, bounded MCP authority/budgets, and redacted final attempt audit. The 2B candidate additionally proves exact/deterministic PNG crops, stable remap semantics, atomic durable-job creation/output/apply/control audit, authority revalidation, bounded recovery, state-specific integrity, snapshot-consistent backup, and equivalent UI/MCP job operation. Branch review/merge and Numberdroid export checks below are later-checkpoint targets.
 
 - a forbidden import test prevents core packages from referencing UI/MCP/SQLite/Numberdroid;
 - the accepted 1A visual/demo baseline remains reproducible, and approved additive UI changes do not alter its command outcomes;
@@ -373,6 +388,12 @@ At each checkpoint, reviewers MUST be able to demonstrate the checks that corres
 - the real Family Hygiene bytes survive source intake, original preview, owner review, and restart with the same hash/dimensions; separate schema-v6 fixtures prove backup, restore, lineage, intake, attempt, and integrity preservation;
 - a source-intake fault cannot claim the intake, charge artifact bytes, or create revision/source/lineage references independently;
 - denied/failed bound-agent mutations append one redacted final Activity record, while an audit-write fault fails the attempted call closed;
+- the exact Family Hygiene rectangles produce four canonical 1,548,341-byte outputs with the pinned digests in `CHECKPOINT_2B_STATUS.md`, and a restart preserves the same slice heads and `APPLIED` job;
+- an atlas preview fault cannot independently commit its semantic revision, job, budget, initial event, output metadata/reference, progress, applied slice revision, or authorized job-control audit;
+- retry never exceeds three attempts or switches input revision; revoked/expired/cross-task authority cannot claim, publish, cancel, retry, discard, or apply the job;
+- cancellation, failure, discard, recovery, and apply retain exactly the references permitted for their state, and graceful shutdown awaits the active worker before SQLite closes;
+- official audit/job-ready MCP discovery is exactly 15 tools and the two project/job resource templates; job results expose resource links rather than bitmap data, paths, or base64;
+- a complete integrity pass is required before backup, and the backed-up database and CAS closure remain valid under concurrent terminal-job discard;
 - once Checkpoint 4 implements task branches, an agent branch can be inspected, rejected, merged, and reverted without deleting history;
 - once Checkpoint 5 implements the adapter, exports match golden manifests for stable fixtures;
 - `AUTO_ACCEPTED_BY_POLICY` never appears as `USER_APPROVED`.

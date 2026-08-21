@@ -12,6 +12,7 @@ const allowedDependencies = {
   domain: new Set(['domain']),
   application: new Set(['application', 'domain']),
   persistence: new Set(['persistence', 'application', 'domain']),
+  preview: new Set(['preview', 'domain']),
   'mcp-server': new Set(['mcp-server', 'application', 'domain']),
 };
 

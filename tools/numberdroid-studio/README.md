@@ -6,18 +6,18 @@ The product lives in this self-contained folder so it can be moved into a standa
 
 ## Status
 
-Checkpoint 1 is the accepted foundation. **Checkpoint 2A was user-accepted on 2026-08-21, and Checkpoint 2B planning and implementation are authorized.** The accepted slice adds bounded PNG/WebP intake into project-scoped CAS, resumable staged intake, provider-neutral provenance/lineage, original-byte preview, explicit owner approval/rejection, schema v6 recovery, and durable redacted denied/failed Activity records for bound agent mutations. The first 2B fixture is importing the approved Family Hygiene image and making individual tiles. The provider-free constraint remains accepted; asset-library semantics in 2C remain blocked. This status does not imply merge, release, publication, or provider authority. See the [2A acceptance record](docs/CHECKPOINT_2A_STATUS.md), [1B acceptance record](docs/CHECKPOINT_1B_STATUS.md), and [roadmap](docs/ROADMAP.md).
+Checkpoint 1 is the accepted foundation and Checkpoint 2A was user-accepted on 2026-08-21. **Checkpoint 2B is now an implemented candidate, but it is not user-accepted.** The candidate cuts explicit integer rectangles from an approved PNG, renders a source-resolution SVG editor and deterministic previews, commits stable slice heads with explicit recut remapping, and runs the preview work as durable, bounded `ATLAS_PREVIEW` jobs. It advances the default SQLite workspace to schema v8. Dedicated real-Chrome CI evidence and the user's major-gate review remain pending until the candidate is published to Draft PR #135. Checkpoint 2C, providers, rooms, export, materialization, and publication remain blocked. See the [2B candidate record](docs/CHECKPOINT_2B_STATUS.md), [2A acceptance record](docs/CHECKPOINT_2A_STATUS.md), and [roadmap](docs/ROADMAP.md).
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoint 1 and 2A accepted; Checkpoint 2B authorized; Checkpoint 2C blocked |
+| Product contract | Checkpoint 1 and 2A accepted; Checkpoint 2B candidate pending CI and user acceptance; Checkpoint 2C blocked |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
-| Human UI | Protected shell plus source import, staged-intake recovery, original preview, and explicit source review |
-| Agent access | Seven tools when the SQLite attempt ledger is live; owner decision remains human-only |
-| Persistence | SQLite schema v6 WAL ledger and SHA-256 CAS; JSON remains protected migration input/regression only |
+| Human UI | Accepted source workflow plus atlas grid proposal, explicit rectangles, zoom, inclusion, previews, remap choice, and job controls |
+| Agent access | 15 tools and two resource templates when the durable attempt/job stores are live; owner decision remains human-only |
+| Persistence | SQLite schema v8 WAL ledger, durable atlas jobs/events, and SHA-256 CAS; JSON remains protected migration input/regression only |
 | Numberdroid export | Adapter boundary specified; production publishing deferred |
 
-## Run the accepted Checkpoint 2A slice locally
+## Run the accepted 2A slice and the 2B candidate locally
 
 Requirements: Node.js 22 or newer. Dependencies and the official MCP client/server versions are pinned by `package-lock.json`.
 
@@ -29,9 +29,9 @@ npm run evidence:verify
 npm run dev
 ```
 
-Open `http://127.0.0.1:4317`, choose **Create / load demo**, then open **Sources**. Import a PNG or WebP, inspect the original CAS preview and provenance, choose **Propose for review**, and explicitly approve or reject it. A staged upload that did not commit remains visible with **Resume** and **Discard** controls after restart. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is authoritative, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
+Open `http://127.0.0.1:4317`, choose **Create / load demo**, then open **Sources**. Import a PNG or WebP, inspect the original CAS preview and provenance, choose **Propose for review**, and explicitly approve or reject it. For an approved PNG, open the atlas cutter, propose or edit integer rectangles, choose inclusion and recut identity explicitly, build the previews, inspect the job, and commit the slices. A staged upload that did not commit remains visible with **Resume** and **Discard** controls after restart. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is authoritative, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
 
-Checkpoint 2A source intake is synchronous and bounded to 16 MiB and 4096×4096. It calls no provider, creates no image-processing job or derivative thumbnail, and never sends the source off-device. The preview serves the verified original CAS bytes. Provider selection, egress, credentials, cost policy, and reproducibility expectations require a later explicit decision.
+Checkpoint 2A source intake remains synchronous and bounded to 16 MiB and 4096×4096. It calls no provider and serves the verified original CAS bytes. Checkpoint 2B adds local, deterministic PNG cutting only; WebP remains valid for intake/original preview but cannot be cut by the 2B processor. Provider selection, egress, credentials, cost policy, and reproducibility expectations require a later explicit decision.
 
 The accepted 2A slice remains deliberately single-user and refuses a non-loopback HTTP listener. A future remote/team deployment requires authenticated HTTP/TLS and is a separate adapter, not an environment-variable widening of this local service.
 
@@ -69,7 +69,7 @@ Migration writes a protected JSON copy, source manifest, parity report, and `cut
 
 `admin integrity` checks SQLite integrity and foreign keys plus every distinct referenced CAS object. It verifies that referenced metadata is `LIVE`, the digest-addressed object exists, its SHA-256 digest matches, and its byte length agrees with SQLite. It prints an `artifacts.findings` array and exits with status `2` whenever SQLite or any referenced artifact fails. An empty findings array with exit status `0` is required before cutover, backup, or recovery acceptance.
 
-Schema v6 also verifies staged/claimed/abandoned source-intake references, permanent source-lineage references, and the final-only denied/failed agent-attempt ledger. Migration 0006 is transactional and restart-tested; backup and restore preserve both tables with their referenced CAS objects.
+Schema v8 also verifies staged/claimed/abandoned source-intake references, permanent source-lineage references, the authorized/denied/failed agent-attempt ledger, job state and event invariants, exact input/applied revision ownership, and state-specific temporary/permanent CAS references. Backup first runs the complete semantic/CAS integrity precondition and then captures a snapshot-consistent database/CAS pair. Migration 0007 is pinned to `aa951c02158f76f6343819271b78816e211bfe3015cc9f4f979947a075ef25e9`; migration 0008 is pinned to `2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730`.
 
 ## Accepted Checkpoint 1 baseline
 
@@ -92,7 +92,7 @@ Checkpoint 1B adds two approved visual requirements without authorizing a broade
 
 ## Accepted Checkpoint 1 implementation layout
 
-The accepted foundation currently uses these physical boundaries:
+The current candidate uses these physical boundaries:
 
 ```text
 tools/numberdroid-studio/
@@ -103,6 +103,7 @@ tools/numberdroid-studio/
 ├── packages/domain/             # contracts, validation, errors, command catalog
 ├── packages/application/        # command/query core and storage port
 ├── packages/persistence/        # SQLite, CAS, migration, backup, JSON regression adapter
+├── packages/preview/            # deterministic audited PNG decode/crop/encode
 ├── packages/mcp-server/         # secured semantic catalog and official MCP adapter
 ├── fixtures/                    # protected deterministic evidence
 ├── scripts/                     # verification/evidence preparation
@@ -146,6 +147,7 @@ Enemy/NPC design, enemy routes, NPC animation, combat encounter authoring, and f
 - [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
 - [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)
 - [Accepted Checkpoint 2A source workflow](docs/CHECKPOINT_2A_STATUS.md)
+- [Checkpoint 2B candidate](docs/CHECKPOINT_2B_STATUS.md)
 
 These documents are normative for the Studio implementation. If code and documentation disagree, the discrepancy must be resolved explicitly; it must not become an accidental new contract.
 

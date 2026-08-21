@@ -86,7 +86,7 @@ Exit decision: **approved by the user on 2026-08-21.** Checkpoint 1 is complete 
 
 ## Checkpoint 2 — Source, atlas, and asset-library vertical slice
 
-**Status: 2A user-accepted on 2026-08-21; 2B planning and implementation authorized; 2C remains blocked.** Acceptance does not imply merge, release, publication, or provider authority, and Draft PR #135 remains draft.
+**Status: 2A user-accepted on 2026-08-21; 2B is an implemented candidate pending dedicated CI/browser evidence and explicit user acceptance; 2C remains blocked.** Draft PR #135 remains draft and unmerged. Candidate completion does not imply release, publication, provider, room, export, or 2C authority.
 
 **Outcome:** an approved atlas becomes reproducible, visually searchable assets without repository editing.
 
@@ -105,7 +105,7 @@ Deliverables:
 Internal implementation gates:
 
 1. **2A — Source intake and review (accepted):** bounded local upload into CAS, discriminated provenance and project-live lineage, original-byte preview, durable Resume/Discard recovery, explicit owner review lifecycle, schema v6 integrity/recovery, two scoped MCP mutations, and final-only denied/failed bound-agent Activity. Original preview requires no image-processing job, so 2A deliberately creates none. The user accepted this workflow and its provider-free constraint.
-2. **2B — Visual atlas cutter (authorized):** import the approved Family Hygiene image as the first fixture and make its individual tiles through zoom/grid overlay, deterministic regular-grid proposal, manual/variable rectangles, include/exclude preview, derived slice artifacts, and explicit stable remapping when a recut would replace a slice.
+2. **2B — Visual atlas cutter (candidate):** the approved Family Hygiene PNG is cut through a source-resolution SVG overlay with fit/100%/200% zoom, deterministic regular-grid proposal, manual/variable integer rectangles, include/exclude preview, deterministic derived PNGs, and explicit stable remapping when a recut replaces a slice. Preview work runs as a durable bounded job with read/cancel/retry/discard controls; semantic apply is a separate atomic revision.
 3. **2C — Asset-library semantics:** create `surface`, `prop`, and `item` identities from slices; visual bulk naming/metadata preview; placement/connectivity/collision validation; equivalent bounded MCP batch operations; and a verified portable-bundle round trip.
 
 The accepted workflow uses the approved Family Hygiene floor 2×2 source, pinned by its repository path, SHA-256, byte length, and dimensions. The user selected importing that image and making individual tiles as the first 2B fixture. `AGT-008` is closed for denied/failed mutation attempts that reach the private execution bridge after valid HostBinding resolution; unauthenticated pre-binding traffic has no trusted project/actor attribution and remains in operational security logs.
@@ -114,7 +114,13 @@ The accepted workflow uses the approved Family Hygiene floor 2×2 source, pinned
 
 2A exit decision: **accepted by the user on 2026-08-21.** The Family Hygiene fixture, intake/recovery UX, source lifecycle, complete original-preview behavior, and provider-free boundary are accepted; 2B planning and implementation are authorized. Checkpoint 2C remains a separate gate.
 
-User verification scenario: import one approved atlas, adjust cuts visually, create a small named asset family, add placement/connectivity metadata, ask an agent to complete a bounded batch, reject one proposal, and confirm that source provenance and revisions remain inspectable.
+2B candidate evidence currently pins the 1254×1254 approved source to four 622×622 rectangles at `(3,3)`, `(629,3)`, `(3,629)`, and `(629,629)`. Its deterministic outputs are four 1,548,341-byte PNGs with the hashes recorded in `CHECKPOINT_2B_STATUS.md`. Schema v8 provides durable `ATLAS_PREVIEW` jobs with `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, `APPLIED`, and `DISCARDED` states, a three-attempt ceiling, immutable creator authority, state-specific integrity, and snapshot-consistent backup. When the job and attempt stores are live, MCP advertises exactly 15 tools and two resource templates.
+
+2B user verification is intentionally deferred until the root agent has frozen and published the candidate, GitHub Actions is green, and the dedicated real-Chrome cutter evidence has been inspected. At that major gate the user will import/open the approved source, apply or adjust the 2×2 proposal, inspect exact rectangles and previews, exercise a job control, commit the four slice heads, restart, and confirm the same geometry/digests/state. Acceptance will decide cutter accuracy, job visibility/control, remap clarity, and preview usability only.
+
+2B exit decision: **pending explicit user acceptance.** Frozen local verification passes 108/108 Node tests, the focused UI/MCP/job set passes 44/44, the final adversarial sets pass 23/23 and 36/36 with a GO recommendation, the official MCP suite passes 5/5, and protected evidence is verified. The published commit, GitHub Actions/browser artifact identities, and user decision remain pending.
+
+Checkpoint 2C user verification remains separate: create a small named asset family, add placement/connectivity metadata, ask an agent to complete a bounded batch, reject one proposal, and confirm that source provenance and revisions remain inspectable.
 
 Exit decision: approve cutting accuracy, metadata vocabulary, source lifecycle, and asset browsing speed.
 

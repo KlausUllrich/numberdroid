@@ -39,6 +39,54 @@ function allowlistedDetails(details) {
     .map(([key, value]) => [key, typeof value === 'string' ? value.slice(0, 160) : value]));
 }
 
+function insertFinalAttempt(database, {
+  attemptId,
+  projectId,
+  correlationId,
+  actorId,
+  taskId = null,
+  branchId,
+  commandId = null,
+  commandType = 'unknown',
+  targetKind = 'project',
+  targetId,
+  observedRevision,
+  status,
+  errorCode,
+  details = {},
+  occurredAt = new Date().toISOString(),
+}) {
+  for (const [field, value] of Object.entries({ attemptId, projectId, correlationId, actorId, branchId, targetId })) {
+    invariant(ID_PATTERN.test(value), 'VALIDATION_ERROR', `${field} must be a valid ID.`);
+  }
+  invariant(['project', 'job'].includes(targetKind), 'VALIDATION_ERROR', 'Only a safe project or job target may be stored.');
+  invariant(['AUTHORIZED', 'DENIED', 'FAILED'].includes(status), 'VALIDATION_ERROR', 'Only final authorized, denied, or failed attempts may be stored.');
+  if (status === 'AUTHORIZED') {
+    invariant(errorCode === null, 'VALIDATION_ERROR', 'An authorized attempt cannot have an errorCode.');
+  } else {
+    invariant(typeof errorCode === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/.test(errorCode), 'VALIDATION_ERROR', 'A safe errorCode is required.');
+  }
+  invariant(Number.isInteger(observedRevision) && observedRevision >= 0, 'VALIDATION_ERROR', 'A valid observedRevision is required.');
+  invariant(details && !Array.isArray(details) && typeof details === 'object', 'VALIDATION_ERROR', 'Attempt details must be an object.');
+  database.prepare(`
+    INSERT INTO agent_attempts(
+      attempt_id, project_id, correlation_id, actor_id, task_id, branch_id,
+      command_id, command_type, target_kind, target_id, observed_revision,
+      status, error_code, redacted_details_json, occurred_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    attemptId, projectId, correlationId, actorId,
+    safeOptionalId(taskId, 'taskId'), branchId, safeOptionalId(commandId, 'commandId'),
+    typeof commandType === 'string' ? commandType.slice(0, 100) : 'unknown',
+    targetKind, targetId, observedRevision, status, errorCode,
+    JSON.stringify(allowlistedDetails(details)), occurredAt,
+  );
+}
+
+export function insertAuthorizedAgentAttempt(database, attempt) {
+  insertFinalAttempt(database, { ...attempt, status: 'AUTHORIZED', errorCode: null });
+}
+
 export class SqliteAgentAttemptStore {
   #workspace;
 
@@ -49,47 +97,14 @@ export class SqliteAgentAttemptStore {
 
   get isLive() { return true; }
 
-  recordFailure({
-    attemptId,
-    projectId,
-    correlationId,
-    actorId,
-    taskId = null,
-    branchId,
-    commandId = null,
-    commandType = 'unknown',
-    targetKind = 'project',
-    targetId,
-    observedRevision,
-    status,
-    errorCode,
-    details = {},
-    occurredAt = new Date().toISOString(),
-  }) {
-    for (const [field, value] of Object.entries({ attemptId, projectId, correlationId, actorId, branchId, targetId })) {
-      invariant(ID_PATTERN.test(value), 'VALIDATION_ERROR', `${field} must be a valid ID.`);
-    }
-    invariant(targetKind === 'project', 'VALIDATION_ERROR', 'Only a safe project target may be stored.');
-    invariant(['DENIED', 'FAILED'].includes(status), 'VALIDATION_ERROR', 'Only final denied or failed attempts may be stored.');
-    invariant(typeof errorCode === 'string' && /^[A-Z][A-Z0-9_]{0,99}$/.test(errorCode), 'VALIDATION_ERROR', 'A safe errorCode is required.');
-    invariant(Number.isInteger(observedRevision) && observedRevision >= 0, 'VALIDATION_ERROR', 'A valid observedRevision is required.');
-    invariant(details && !Array.isArray(details) && typeof details === 'object', 'VALIDATION_ERROR', 'Attempt details must be an object.');
-    this.#workspace.transaction((database) => {
-      database.prepare(`
-        INSERT INTO agent_attempts(
-          attempt_id, project_id, correlation_id, actor_id, task_id, branch_id,
-          command_id, command_type, target_kind, target_id, observed_revision,
-          status, error_code, redacted_details_json, occurred_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        attemptId, projectId, correlationId, actorId,
-        safeOptionalId(taskId, 'taskId'), branchId, safeOptionalId(commandId, 'commandId'),
-        typeof commandType === 'string' ? commandType.slice(0, 100) : 'unknown',
-        targetKind, targetId, observedRevision, status, errorCode,
-        JSON.stringify(allowlistedDetails(details)), occurredAt,
-      );
-    });
-    return this.get(attemptId);
+  recordAuthorized(attempt) {
+    this.#workspace.transaction((database) => insertAuthorizedAgentAttempt(database, attempt));
+    return this.get(attempt.attemptId);
+  }
+
+  recordFailure(attempt) {
+    this.#workspace.transaction((database) => insertFinalAttempt(database, attempt));
+    return this.get(attempt.attemptId);
   }
 
   get(attemptId) {

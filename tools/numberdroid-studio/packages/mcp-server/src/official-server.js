@@ -171,6 +171,36 @@ export function buildOfficialMcpServer({
     },
   );
 
+  const jobRead = catalog.find(({ name }) => name === 'studio_job_read');
+  if (jobRead) {
+    server.registerResource(
+      'studio-job',
+      new ResourceTemplate('studio://projects/{projectId}/jobs/{jobId}', { list: undefined }),
+      {
+        title: 'Studio job state',
+        description: 'Current authorized state, progress, results, and project-scoped preview links for a durable Studio job.',
+        mimeType: 'application/json',
+      },
+      async (uri, { projectId, jobId }, invocationContext) => {
+        const operation = operationContext(invocationContext, requestAbortRegistry);
+        try {
+          const value = await jobRead.execute({ schemaVersion: 1, projectId, jobId }, operation.context);
+          return {
+            contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }],
+          };
+        } catch (error) {
+          if (operation.signal.aborted) throw error;
+          const value = officialErrorPayload(error);
+          return {
+            contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }],
+          };
+        } finally {
+          operation.cleanup();
+        }
+      },
+    );
+  }
+
   if (serverContext?.era) {
     process.stderr.write(`[numberdroid-studio] MCP era: ${serverContext.era}\n`);
   }

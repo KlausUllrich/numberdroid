@@ -20,6 +20,7 @@ const gateway = new LocalStudioGateway({
     label: process.env.NUMBERDROID_STUDIO_HOST_LABEL ?? 'Local MCP host',
   }),
   agentAttemptAuditReady: process.env.NUMBERDROID_STUDIO_AGENT_AUDIT_READY === '1',
+  durableJobStoreReady: process.env.NUMBERDROID_STUDIO_JOB_STORE_READY === '1',
 });
 
 serveOfficialMcpStdio({

@@ -1,6 +1,7 @@
 import { ProjectStore, headRevision, projectSummary } from '../../../application/src/project-store.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
+import { canonicalRgbaPngByteSize } from '../../../domain/src/atlas-definition.js';
 import { SqliteWorkspace } from './sqlite-workspace.js';
 
 function parseJson(value, label) {
@@ -235,6 +236,159 @@ function writeRevision(database, projectId, revision) {
   `).run(projectId, revision.number, revision.parentRevision);
 }
 
+function createAtlasPreviewJob(database, projectId, revision) {
+  if (revision.command.type !== 'atlas.preview.slices') return;
+  const job = revision.result.job;
+  invariant(job?.projectId === projectId && job.requestedRevision === revision.number, 'INVALID_REVISION', 'Atlas preview revision contains an invalid job intent.');
+  invariant(fingerprint(job.input) === job.inputFingerprint, 'JOB_INPUT_FINGERPRINT_MISMATCH', 'Atlas preview job intent fingerprint is invalid.');
+  const outputArtifactBytes = job.input.rectangles
+    .filter((rectangle) => rectangle.included)
+    .reduce((total, rectangle) => total + canonicalRgbaPngByteSize(rectangle.width, rectangle.height), 0);
+  invariant(
+    Number.isSafeInteger(outputArtifactBytes) && outputArtifactBytes > 0
+      && job.outputArtifactBytes === outputArtifactBytes,
+    'INVALID_REVISION',
+    'Atlas preview revision contains invalid deterministic output byte accounting.',
+  );
+  if (revision.command.actor?.kind === 'agent') {
+    const priorRevision = database.prepare(`
+      SELECT revision_json FROM revisions WHERE project_id = ? AND revision_number = ?
+    `).get(projectId, revision.parentRevision);
+    const priorSnapshot = parseJson(priorRevision?.revision_json ?? '', 'revisions.revision_json').snapshot;
+    const priorGrant = priorSnapshot.grants.find((grant) => grant.id === revision.command.grantId);
+    const nextGrant = revision.snapshot.grants.find((grant) => grant.id === revision.command.grantId);
+    invariant(priorGrant && nextGrant, 'INVALID_GRANT_PROJECTION', 'Atlas preview agent grant projection is missing.');
+    invariant(
+      nextGrant.usage.jobs === priorGrant.usage.jobs + 1
+        && nextGrant.usage.jobs <= nextGrant.budget.maxJobs
+        && nextGrant.usage.artifactBytes === priorGrant.usage.artifactBytes + outputArtifactBytes
+        && nextGrant.usage.artifactBytes <= nextGrant.budget.maxArtifactBytes,
+      'INVALID_GRANT_PROJECTION',
+      'Atlas preview jobs and output artifact bytes must be charged exactly once within the semantic transaction.',
+      { projectId },
+    );
+  }
+  database.prepare(`
+    INSERT INTO jobs(
+      project_id, job_id, job_kind, input_revision, atlas_id, source_id,
+      creator_actor_kind, creator_actor_id, creator_task_id, creator_branch_id,
+      creator_grant_id, output_artifact_bytes,
+      input_fingerprint, idempotency_key, input_json, state, attempt,
+      progress_current, progress_total, cancel_requested, lease_owner,
+      lease_expires_at, output_json, result_json, error_json, created_at,
+      started_at, finished_at, updated_at, applied_revision
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'QUEUED', 1, 0, 0, 0,
+      NULL, NULL, NULL, NULL, NULL, ?, NULL, NULL, ?, NULL)
+  `).run(
+    projectId,
+    job.jobId,
+    job.kind,
+    revision.number,
+    job.input.atlasId,
+    job.input.sourceId,
+    revision.command.actor.kind,
+    revision.command.actor.id,
+    revision.command.taskId,
+    revision.command.actor.kind === 'agent'
+      ? revision.snapshot.grants.find((grant) => grant.id === revision.command.grantId)?.branchId
+      : 'branch.main',
+    revision.command.grantId,
+    outputArtifactBytes,
+    job.inputFingerprint,
+    job.idempotencyKey,
+    JSON.stringify(job.input),
+    job.createdAt,
+    job.createdAt,
+  );
+  database.prepare(`
+    INSERT INTO job_events(
+      project_id, job_id, event_sequence, attempt, event_type, state,
+      safe_point, progress_current, progress_total, operation_idempotency_key,
+      details_json, occurred_at
+    ) VALUES (?, ?, 1, 1, 'QUEUED', 'QUEUED', 'semantic_revision', 0, 0, NULL, '{}', ?)
+  `).run(projectId, job.jobId, job.createdAt);
+}
+
+function applyAtlasPreviewJob(database, projectId, revision) {
+  if (revision.command.type !== 'atlas.commit.slices') return;
+  const { jobId, slices } = revision.result;
+  const job = database.prepare(`
+    SELECT state, applied_revision, output_json FROM jobs
+    WHERE project_id = ? AND job_id = ?
+  `).get(projectId, jobId);
+  invariant(job, 'JOB_NOT_FOUND', 'The atlas preview job does not exist.', { projectId, jobId });
+  invariant(job.state === 'SUCCEEDED' && job.applied_revision === null, 'JOB_STATE_CONFLICT', 'The atlas preview job is not ready to apply.', { jobId, state: job.state });
+  const outputs = parseJson(job.output_json ?? '[]', 'jobs.output_json');
+  const outputByRectangle = new Map(outputs.map((output) => [output.rectangleId, output]));
+  invariant(outputByRectangle.size === slices.length, 'JOB_OUTPUT_MISMATCH', 'Committed slices do not match the durable job outputs.', { jobId });
+  for (const slice of slices) {
+    const output = outputByRectangle.get(slice.rectangleId);
+    invariant(
+      output?.digest === slice.digest
+        && output.mediaType === slice.mediaType
+        && Number(output.byteSize) === slice.byteSize
+        && Number(output.width) === slice.width && Number(output.height) === slice.height,
+      'JOB_OUTPUT_MISMATCH',
+      'A committed slice differs from its durable preview output.',
+      { jobId, rectangleId: slice.rectangleId },
+    );
+    const temporaryReference = database.prepare(`
+      SELECT artifacts.state AS state, artifacts.media_type AS media_type,
+        artifacts.byte_size AS byte_size, artifacts.width AS width, artifacts.height AS height
+      FROM artifact_references
+      JOIN artifacts ON artifacts.digest = artifact_references.digest
+      WHERE artifact_references.project_id = ?
+        AND artifact_references.owner_kind = 'job_output'
+        AND artifact_references.owner_id = ?
+        AND artifact_references.digest = ?
+    `).get(projectId, jobId, slice.digest);
+    invariant(
+      temporaryReference?.state === 'LIVE'
+        && temporaryReference.media_type === slice.mediaType
+        && Number(temporaryReference.byte_size) === slice.byteSize
+        && Number(temporaryReference.width) === slice.width
+        && Number(temporaryReference.height) === slice.height,
+      'ARTIFACT_NOT_LIVE',
+      'A preview output lost its exact LIVE job artifact before commit.',
+      { jobId, digest: slice.digest },
+    );
+    database.prepare(`
+      INSERT INTO artifact_references(project_id, owner_kind, owner_id, digest, created_revision)
+      VALUES (?, 'atlas_slice', ?, ?, ?)
+    `).run(projectId, `${slice.sliceId}.v${slice.version}`, slice.digest, revision.number);
+  }
+  database.prepare(`
+    DELETE FROM artifact_references
+    WHERE project_id = ? AND owner_kind = 'job_output' AND owner_id = ?
+  `).run(projectId, jobId);
+  const applied = database.prepare(`
+    UPDATE jobs SET state = 'APPLIED', applied_revision = ?, updated_at = ?
+    WHERE project_id = ? AND job_id = ? AND state = 'SUCCEEDED' AND applied_revision IS NULL
+  `).run(revision.number, revision.committedAt, projectId, jobId);
+  invariant(Number(applied.changes) === 1, 'JOB_STATE_CONFLICT', 'The atlas preview job changed before atomic application.', { jobId });
+  const sequence = Number(database.prepare(`
+    SELECT coalesce(max(event_sequence), 0) + 1 AS sequence
+    FROM job_events WHERE project_id = ? AND job_id = ?
+  `).get(projectId, jobId).sequence);
+  database.prepare(`
+    INSERT INTO job_events(
+      project_id, job_id, event_sequence, attempt, event_type, state,
+      safe_point, progress_current, progress_total, operation_idempotency_key,
+      details_json, occurred_at
+    )
+    SELECT project_id, job_id, ?, attempt, 'APPLIED', 'APPLIED',
+      'semantic_commit', progress_current, progress_total, ?, ?, ?
+    FROM jobs WHERE project_id = ? AND job_id = ?
+  `).run(
+    sequence,
+    revision.command.idempotencyKey,
+    JSON.stringify({ appliedRevision: revision.number }),
+    revision.committedAt,
+    projectId,
+    jobId,
+  );
+}
+
 function writeActivity(database, projectId, revision) {
   database.prepare(`
     INSERT INTO activity_events(event_id, project_id, revision_number, occurred_at, event_json)
@@ -305,6 +459,7 @@ export class SqliteProjectStore extends ProjectStore {
 
   get workspace() { return this.#workspace; }
   get supportsAtomicSourceIntakeClaims() { return true; }
+  get supportsAtomicAtlasJobs() { return true; }
 
   async createProject(document, { legacyGrants = false } = {}) {
     invariant(document.revisions.length === 1, 'INVALID_REVISION', 'A new SQLite project needs exactly one revision.');
@@ -400,6 +555,8 @@ export class SqliteProjectStore extends ProjectStore {
         );
         writeRevision(database, projectId, revision);
         this.#workspace.fault('after_revision_insert');
+        createAtlasPreviewJob(database, projectId, revision);
+        this.#workspace.fault('after_atlas_preview_job_create');
         writeActivity(database, projectId, revision);
         this.#workspace.fault('after_activity_insert');
         writeProjection(database, projectId, revision);
@@ -412,6 +569,8 @@ export class SqliteProjectStore extends ProjectStore {
         this.#workspace.fault('after_source_artifact_reference');
         claimSourceIntake(database, projectId, revision);
         this.#workspace.fault('after_source_intake_claim');
+        applyAtlasPreviewJob(database, projectId, revision);
+        this.#workspace.fault('after_atlas_preview_job_apply');
 
         const document = {
           formatVersion: 1,

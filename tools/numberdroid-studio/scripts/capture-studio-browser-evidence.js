@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -16,6 +16,7 @@ const observationPath = outputPath.replace(/\.png$/i, '.observation.json');
 const expectedWorkspace = new URL(pageUrl).hash.slice(1) || 'overview';
 const agentAccessEvidence = new URL(pageUrl).searchParams.get('visualFixture') === 'agent-access';
 const checkpoint2aFocus = new URL(pageUrl).searchParams.get('visualFocus');
+const checkpoint2bFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const profileDirectory = await mkdtemp(`${tmpdir()}/numberdroid-studio-chrome-`);
 
 function assert(condition, message) {
@@ -164,9 +165,16 @@ try {
          && document.documentElement.dataset.visualRevision === '4'
          && document.documentElement.dataset.visualActivityCount === '5'
          && document.documentElement.dataset.visualConnectionState === 'Live'`
-      : `document.getElementById('connection-label')?.textContent === 'Live'
-       && document.getElementById('revision-label')?.textContent === 'Revision 5'
-       && document.querySelector(${JSON.stringify(`[data-workspace="${expectedWorkspace}"]`)})?.classList.contains('active')`;
+      : mode === 'checkpoint-2b'
+        ? `document.documentElement.dataset.visualEvidenceReady === 'true'
+           && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
+           && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-2b'
+           && document.documentElement.dataset.visualRevision === '7'
+           && document.documentElement.dataset.visualActivityCount === '7'
+           && document.documentElement.dataset.visualConnectionState === 'Live'`
+        : `document.getElementById('connection-label')?.textContent === 'Live'
+         && document.getElementById('revision-label')?.textContent === 'Revision 5'
+         && document.querySelector(${JSON.stringify(`[data-workspace="${expectedWorkspace}"]`)})?.classList.contains('active')`;
   const readyDeadline = Date.now() + 15_000;
   let ready = false;
   while (Date.now() < readyDeadline) {
@@ -181,6 +189,43 @@ try {
     await delay(100);
   }
   assert(ready, `${mode} ${expectedWorkspace} did not reach screenshot readiness.`);
+  if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources') {
+    await devtools.send('Runtime.evaluate', {
+      expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click()`,
+      returnByValue: true,
+    }, sessionId);
+    let cutterReady = false;
+    const cutterDeadline = Date.now() + 15_000;
+    while (Date.now() < cutterDeadline) {
+      const result = await devtools.send('Runtime.evaluate', {
+        expression: `document.querySelectorAll('[data-cutter-overlay] g').length === 4
+          && document.querySelectorAll('[data-rectangle-row]').length === 4
+          && document.querySelector('.cutter-canvas img')?.complete
+          && document.querySelector('.cutter-canvas img')?.naturalWidth === 1254
+          && document.querySelector('.cutter-canvas img')?.naturalHeight === 1254
+          && document.querySelectorAll('.slice-preview-grid.committed .slice-preview').length === 4
+          && [...document.querySelectorAll('.slice-preview-grid.committed img')]
+            .every((image) => image.complete && image.naturalWidth === 622 && image.naturalHeight === 622)
+          && document.querySelector('.cutter-job-status')?.textContent.includes('APPLIED')`,
+        returnByValue: true,
+      }, sessionId);
+      if (result.result?.value === true) {
+        cutterReady = true;
+        break;
+      }
+      await delay(100);
+    }
+    assert(cutterReady, 'Checkpoint 2B cutter did not load its exact rectangles, APPLIED job, and committed previews.');
+    const focusSelector = checkpoint2bFocus === 'committed-slices'
+      ? '.slice-preview-grid.committed'
+      : checkpoint2bFocus === 'rectangle-inspector'
+        ? '.rectangle-inspector'
+        : '.cutter-scroll';
+    await devtools.send('Runtime.evaluate', {
+      expression: `document.querySelector(${JSON.stringify(focusSelector)})?.scrollIntoView({ block: 'center' })`,
+      returnByValue: true,
+    }, sessionId);
+  }
   if (mode === 'checkpoint-2a' && checkpoint2aFocus === 'approved-source') {
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector('[data-source-id="source.family-hygiene-approved"] .source-preview.ready')?.scrollIntoView({ block: 'center' })`,
@@ -336,6 +381,22 @@ try {
         hasDiscard: Boolean(intake.querySelector('[data-discard-source-intake]')),
       }));
       const sourceForm = document.querySelector('[data-source-intake-form]');
+      const cutter = document.querySelector('[data-atlas-cutter]');
+      const cutterScroller = cutter?.querySelector('.cutter-scroll');
+      const cutterCanvas = cutter?.querySelector('.cutter-canvas');
+      const cutterOverlay = cutter?.querySelector('[data-cutter-overlay]');
+      const cutterSourceImage = cutterCanvas?.querySelector('img');
+      const committedPreviews = [...(cutter?.querySelectorAll('.slice-preview-grid.committed .slice-preview') ?? [])]
+        .map((preview) => {
+          const image = preview.querySelector('img');
+          return {
+            rect: rect(preview),
+            loaded: Boolean(image?.complete && image.naturalWidth > 0),
+            naturalWidth: image?.naturalWidth ?? 0,
+            naturalHeight: image?.naturalHeight ?? 0,
+            objectFit: image ? getComputedStyle(image).objectFit : null,
+          };
+        });
       const activityText = document.getElementById('workspace-content')?.textContent ?? '';
       return {
         workspace: ${JSON.stringify(expectedWorkspace)},
@@ -361,6 +422,49 @@ try {
           labelledFields: sourceForm?.querySelectorAll('label').length ?? 0,
           hasLiveStatus: sourceForm?.querySelector('[role="status"][aria-live="polite"]') !== null,
           submitDisabled: sourceForm?.querySelector('button[type="submit"]')?.disabled ?? null,
+        },
+        cutter: {
+          present: Boolean(cutter),
+          rect: rect(cutter),
+          scroller: rect(cutterScroller),
+          scrollerOverflowX: cutterScroller ? getComputedStyle(cutterScroller).overflowX : null,
+          canvas: rect(cutterCanvas),
+          overlay: rect(cutterOverlay),
+          sourceImageLoaded: Boolean(cutterSourceImage?.complete && cutterSourceImage.naturalWidth > 0),
+          sourceImageNaturalWidth: cutterSourceImage?.naturalWidth ?? 0,
+          sourceImageNaturalHeight: cutterSourceImage?.naturalHeight ?? 0,
+          overlayRectangleCount: cutterOverlay?.querySelectorAll('g').length ?? 0,
+          overlayRectangles: [...(cutterOverlay?.querySelectorAll('g') ?? [])].map((group) => {
+            const shape = group.querySelector('[data-cutter-move]');
+            return {
+              rectangleId: group.dataset.rectangleId,
+              x: Number(shape?.getAttribute('x')),
+              y: Number(shape?.getAttribute('y')),
+              width: Number(shape?.getAttribute('width')),
+              height: Number(shape?.getAttribute('height')),
+              label: shape?.getAttribute('aria-label') ?? null,
+            };
+          }),
+          focusableMoveCount: cutterOverlay?.querySelectorAll('[data-cutter-move][tabindex="0"]').length ?? 0,
+          focusableResizeCount: cutterOverlay?.querySelectorAll('[data-cutter-resize][tabindex="0"]').length ?? 0,
+          rectangleRowCount: cutter?.querySelectorAll('[data-rectangle-row]').length ?? 0,
+          numericInputCount: cutter?.querySelectorAll('input[type="number"][data-rectangle-field]').length ?? 0,
+          includeInputCount: cutter?.querySelectorAll('[data-rectangle-field="included"]').length ?? 0,
+          remapControlCount: cutter?.querySelectorAll('[data-rectangle-field="replacesSliceId"]').length ?? 0,
+          remapOptionCount: cutter?.querySelectorAll('[data-rectangle-field="replacesSliceId"] option').length ?? 0,
+          jobEvents: [...(cutter?.querySelectorAll('[data-job-event-sequence]') ?? [])].map((item) => ({
+            sequence: Number(item.dataset.jobEventSequence),
+            type: item.dataset.jobEventType,
+            text: item.textContent,
+          })),
+          committedPreviews,
+          inspector: rect(cutter?.querySelector('.rectangle-inspector')),
+          committedGrid: rect(cutter?.querySelector('.slice-preview-grid.committed')),
+          status: cutter?.querySelector('.cutter-job-status')?.textContent ?? null,
+          hasSave: Boolean(cutter?.querySelector('[data-save-atlas]')),
+          hasPreview: Boolean(cutter?.querySelector('[data-preview-atlas]')),
+          hasCommit: Boolean(cutter?.querySelector('[data-commit-atlas]')),
+          helpText: cutter?.querySelector('.cutter-heading p:not(.eyebrow)')?.textContent ?? null,
         },
         activityText,
         agentPanel: {
@@ -414,7 +518,7 @@ try {
     const value = `${event.params?.response?.url ?? ''} ${event.params?.entry?.url ?? ''} ${event.params?.entry?.text ?? ''}`;
     return value.includes('/favicon.ico');
   };
-  const protocolErrors = devtools.events.filter((event) => (
+  const protocolErrors = () => devtools.events.filter((event) => (
     event.method === 'Runtime.exceptionThrown'
       || event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error' && !ignoredFavicon(event)
       || event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error'
@@ -423,7 +527,7 @@ try {
         && event.params?.response?.status >= 400
         && new URL(event.params.response.url).origin === new URL(pageUrl).origin && !ignoredFavicon(event)
   ));
-  assert(protocolErrors.length === 0, `Chrome recorded ${protocolErrors.length} runtime/network error(s).`);
+  assert(protocolErrors().length === 0, `Chrome recorded ${protocolErrors().length} runtime/network error(s).`);
 
   if (mode === 'candidate') {
     assert(layout.visualEvidenceReady === 'true', 'Candidate screenshot was taken before the app readiness signal.');
@@ -566,6 +670,61 @@ try {
       assert(!layout.activityText.includes('audit-sentinel-secret'), 'Activity leaked the audit redaction sentinel.');
     }
   }
+  if (mode === 'checkpoint-2b') {
+    assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
+      'Checkpoint 2B screenshot was taken before error-free readiness.');
+    assert(layout.projectId === 'numberdroid-studio-checkpoint-2b'
+      && layout.revision === 7 && layout.activityCount === 7 && layout.connectionState === 'Live',
+    'Checkpoint 2B screenshot is not bound to the prepared revision-7 fixture.');
+    if (expectedWorkspace === 'sources') {
+      const cutter = layout.cutter;
+      assert(cutter.present && cutter.overlayRectangleCount === 4 && cutter.rectangleRowCount === 4,
+        'Checkpoint 2B cutter does not show the four canonical explicit rectangles.');
+      assert(JSON.stringify(cutter.overlayRectangles.map(({ x, y, width, height }) => [x, y, width, height]))
+        === JSON.stringify([[3, 3, 622, 622], [629, 3, 622, 622], [3, 629, 622, 622], [629, 629, 622, 622]])
+        && cutter.overlayRectangles.every(({ label }) => label?.includes('width 622, height 622')),
+      'The source-coordinate overlay differs from the pinned Family Hygiene half-open rectangles.');
+      assert(cutter.focusableMoveCount === 4 && cutter.focusableResizeCount === 4
+        && cutter.numericInputCount === 16 && cutter.includeInputCount === 4
+        && cutter.remapControlCount === 4 && cutter.remapOptionCount === 20,
+      'The cutter lost its keyboard-accessible overlay, authoritative numeric controls, or explicit recut mapping controls.');
+      assert(cutter.scrollerOverflowX === 'auto' && cutter.canvas.width >= 320
+        && Math.abs(cutter.canvas.width - cutter.canvas.height) <= 1
+        && Math.abs(cutter.overlay.width - cutter.canvas.width) <= 1
+        && Math.abs(cutter.overlay.height - cutter.canvas.height) <= 1,
+      'The source-resolution canvas no longer stays square, overlaid, and locally scrollable.');
+      assert(cutter.sourceImageLoaded && cutter.sourceImageNaturalWidth === 1254
+        && cutter.sourceImageNaturalHeight === 1254,
+      'The cutter canvas did not load the complete approved 1254×1254 source.');
+      assert(cutter.committedPreviews.length === 4
+        && cutter.committedPreviews.every((preview) => preview.loaded
+          && preview.naturalWidth === 622 && preview.naturalHeight === 622
+          && preview.objectFit === 'contain'),
+      'The four committed 622×622 slice previews are not loaded and contained.');
+      assert(cutter.status?.startsWith('APPLIED · 4/4 · attempt 1')
+        && cutter.hasSave && cutter.hasPreview && !cutter.hasCommit,
+      'The cutter action state no longer reflects an already-applied one-time commit.');
+      assert(JSON.stringify(cutter.jobEvents.map(({ sequence, type }) => [sequence, type]))
+        === JSON.stringify([
+          [1, 'QUEUED'], [2, 'RUNNING'], [3, 'PROGRESS'], [4, 'PROGRESS'],
+          [5, 'PROGRESS'], [6, 'PROGRESS'], [7, 'SUCCEEDED'], [8, 'APPLIED'],
+        ]) && !/"operationIdempotencyKey"|"grantId"|"lease"|"workerId"|"token"|\/workspace|file:/i.test(JSON.stringify(cutter.jobEvents)),
+      'The visible durable job history is incomplete, out of order, or exposes internal authority/worker fields.');
+      assert(cutter.helpText.includes('does not resize') && cutter.helpText.includes('does not')
+        && cutter.helpText.includes('Asset Library'),
+      'The cutter lost its explicit Checkpoint 2B scope boundary.');
+      if (checkpoint2bFocus === 'committed-slices') {
+        assert(cutter.committedPreviews.some((preview) => preview.rect?.bottom > 0 && preview.rect?.y < height),
+          'The committed slice previews are not visible in the evidence viewport.');
+      } else if (checkpoint2bFocus === 'rectangle-inspector') {
+        assert(cutter.inspector?.bottom > 0 && cutter.inspector?.y < height,
+          'The rectangle inspector is not visible in the evidence viewport.');
+      } else {
+        assert(cutter.scroller?.bottom > 0 && cutter.scroller?.y < height,
+          'The cutter canvas is not visible in the evidence viewport.');
+      }
+    }
+  }
 
   const screenshot = await devtools.send('Page.captureScreenshot', {
     format: 'png', fromSurface: true, captureBeyondViewport: false,
@@ -576,6 +735,141 @@ try {
       returnByValue: true,
     }, sessionId)
     : null;
+  let checkpoint2bInteractionEvidence = null;
+  if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources' && checkpoint2bFocus === 'cutter-canvas') {
+    const zoom100 = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const select = document.querySelector('[data-cutter-zoom]');
+        select.value = '1'; select.dispatchEvent(new Event('change', { bubbles: true }));
+        const canvas = document.querySelector('.cutter-canvas'); const scroller = document.querySelector('.cutter-scroll');
+        return { width: canvas?.style.width, scrollWidth: scroller?.scrollWidth, clientWidth: scroller?.clientWidth };
+      })()`, returnByValue: true,
+    }, sessionId);
+    assert(zoom100.result?.value?.width === '1254px'
+      && zoom100.result.value.scrollWidth > zoom100.result.value.clientWidth,
+    '100% zoom did not preserve the 1254-source-pixel canvas with local horizontal scrolling.');
+    const zoom200 = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const select = document.querySelector('[data-cutter-zoom]');
+        select.value = '2'; select.dispatchEvent(new Event('change', { bubbles: true }));
+        const canvas = document.querySelector('.cutter-canvas'); const scroller = document.querySelector('.cutter-scroll');
+        return { width: canvas?.style.width, scrollWidth: scroller?.scrollWidth, clientWidth: scroller?.clientWidth };
+      })()`, returnByValue: true,
+    }, sessionId);
+    assert(zoom200.result?.value?.width === '2508px'
+      && zoom200.result.value.scrollWidth > zoom200.result.value.clientWidth,
+    '200% zoom did not preserve the 2508-CSS-pixel canvas with local horizontal scrolling.');
+    const restoredFit = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const select = document.querySelector('[data-cutter-zoom]');
+        select.value = 'fit'; select.dispatchEvent(new Event('change', { bubbles: true }));
+        return { zoom: document.querySelector('[data-cutter-zoom]')?.value,
+          width: document.querySelector('.cutter-canvas')?.style.width };
+      })()`, returnByValue: true,
+    }, sessionId);
+    assert(restoredFit.result?.value?.zoom === 'fit' && restoredFit.result.value.width === '',
+      'Fit zoom did not restore the responsive cutter canvas.');
+    const excluded = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        document.querySelector('[data-rectangle-index="0"][data-rectangle-field="included"]')?.click();
+        const remap = document.querySelector('[data-rectangle-index="0"][data-rectangle-field="replacesSliceId"]');
+        return { excluded: document.querySelector('[data-rectangle-id="rect.family.0.0"]')?.classList.contains('excluded'),
+          included: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="included"]')?.checked,
+          remapDisabled: remap?.disabled, remapValue: remap?.value };
+      })()`, returnByValue: true,
+    }, sessionId);
+    assert(excluded.result?.value?.excluded === true && excluded.result.value.included === false
+      && excluded.result.value.remapDisabled === true && excluded.result.value.remapValue === '',
+    'Include/exclude did not update both the overlay and explicit recut control.');
+    const remapped = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        document.querySelector('[data-rectangle-index="0"][data-rectangle-field="included"]')?.click();
+        const select = document.querySelector('[data-rectangle-index="0"][data-rectangle-field="replacesSliceId"]');
+        const selected = select?.options[1]?.value; select.value = selected;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        const current = document.querySelector('[data-rectangle-index="0"][data-rectangle-field="replacesSliceId"]');
+        return { selected, value: current?.value,
+          mapping: document.querySelector('[data-rectangle-row="0"] small')?.textContent,
+          others: [...document.querySelectorAll('[data-rectangle-field="replacesSliceId"]')].slice(1).map((entry) => entry.value) };
+      })()`, returnByValue: true,
+    }, sessionId);
+    assert(remapped.result?.value?.selected && remapped.result.value.value === remapped.result.value.selected
+      && remapped.result.value.mapping === `Replaces ${remapped.result.value.selected} v1`
+      && remapped.result.value.others.every((value) => value === ''),
+    'Explicit recut mapping did not retain its exact v1 slice identity or altered unrelated rectangles.');
+    const keyboardFocus = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const target = document.querySelector('[data-cutter-move="0"]');
+        target?.focus();
+        return { focused: document.activeElement === target, x: target?.getAttribute('x') };
+      })()`,
+      returnByValue: true,
+    }, sessionId);
+    assert(keyboardFocus.result?.value?.focused === true, 'The first cutter rectangle cannot receive keyboard focus.');
+    await devtools.send('Input.dispatchKeyEvent', {
+      type: 'rawKeyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39,
+    }, sessionId);
+    await devtools.send('Input.dispatchKeyEvent', {
+      type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39,
+    }, sessionId);
+    await devtools.send('Runtime.evaluate', {
+      expression: `new Promise((resolve) => requestAnimationFrame(resolve))`,
+      awaitPromise: true,
+      returnByValue: true,
+    }, sessionId);
+    const keyboardResult = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const target = document.querySelector('[data-cutter-move="0"]');
+        return { focused: document.activeElement === target, x: target?.getAttribute('x') };
+      })()`,
+      returnByValue: true,
+    }, sessionId);
+    assert(keyboardResult.result?.value?.focused === true
+      && Number(keyboardResult.result.value.x) === Number(keyboardFocus.result.value.x) + 1,
+    'Arrow-key rectangle movement did not update one source pixel while retaining overlay focus.');
+    const resizeFocus = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const target = document.querySelector('[data-cutter-resize="0"]');
+        target?.focus();
+        return { focused: document.activeElement === target,
+          height: target?.closest('g')?.querySelector('[data-cutter-move]')?.getAttribute('height') };
+      })()`, returnByValue: true,
+    }, sessionId);
+    await devtools.send('Input.dispatchKeyEvent', {
+      type: 'rawKeyDown', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40,
+    }, sessionId);
+    await devtools.send('Input.dispatchKeyEvent', {
+      type: 'keyUp', key: 'ArrowDown', code: 'ArrowDown', windowsVirtualKeyCode: 40,
+    }, sessionId);
+    await devtools.send('Runtime.evaluate', {
+      expression: `new Promise((resolve) => requestAnimationFrame(resolve))`, awaitPromise: true, returnByValue: true,
+    }, sessionId);
+    const resizeResult = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const target = document.querySelector('[data-cutter-resize="0"]');
+        return { focused: document.activeElement === target,
+          height: target?.closest('g')?.querySelector('[data-cutter-move]')?.getAttribute('height') };
+      })()`, returnByValue: true,
+    }, sessionId);
+    assert(resizeFocus.result?.value?.focused === true && resizeResult.result?.value?.focused === true
+      && Number(resizeResult.result.value.height) === Number(resizeFocus.result.value.height) + 1,
+    'Arrow-key rectangle resize did not update one source pixel while retaining handle focus.');
+    const postInteractionErrors = await devtools.send('Runtime.evaluate', {
+      expression: `Number(document.documentElement.dataset.visualErrorCount ?? 0)`, returnByValue: true,
+    }, sessionId);
+    assert(postInteractionErrors.result?.value === 0,
+      'Checkpoint 2B local control interactions recorded an uncaught browser error.');
+    assert(protocolErrors().length === 0,
+      `Chrome recorded ${protocolErrors().length} runtime/network error(s) after Checkpoint 2B interactions.`);
+    checkpoint2bInteractionEvidence = {
+      zoomCssWidths: [zoom100.result.value.width, zoom200.result.value.width, restoredFit.result.value.width],
+      includeExclude: excluded.result.value,
+      explicitReplacement: remapped.result.value,
+      keyboardMove: { before: Number(keyboardFocus.result.value.x), after: Number(keyboardResult.result.value.x) },
+      keyboardResize: { before: Number(resizeFocus.result.value.height), after: Number(resizeResult.result.value.height) },
+      postInteractionRuntimeNetworkErrors: 0,
+    };
+  }
   await mkdir(dirname(outputPath), { recursive: true });
   await writeFile(outputPath, Buffer.from(screenshot.data, 'base64'));
   if (domPath) {
@@ -591,6 +885,7 @@ try {
     screenshotAfterReadinessInSameSession: true,
     runtimeNetworkErrors: 0,
     layout,
+    interactions: checkpoint2bInteractionEvidence,
   };
   await writeFile(observationPath, `${JSON.stringify(observation, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify({ status: 'CAPTURED', output: outputPath, workspace: expectedWorkspace, width })}\n`);

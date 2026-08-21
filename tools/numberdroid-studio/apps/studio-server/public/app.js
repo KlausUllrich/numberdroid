@@ -1,12 +1,15 @@
 const visualFixture = new URLSearchParams(location.search).get('visualFixture');
+const MAX_ATLAS_JOB_ATTEMPTS = 3;
 const visualEvidenceErrors = [];
 if (visualFixture) {
   document.documentElement.dataset.visualEvidenceReady = 'false';
   window.addEventListener('error', (event) => {
     visualEvidenceErrors.push(event.message || 'window error');
+    document.documentElement.dataset.visualErrorCount = String(visualEvidenceErrors.length);
   });
   window.addEventListener('unhandledrejection', (event) => {
     visualEvidenceErrors.push(event.reason?.message || 'unhandled rejection');
+    document.documentElement.dataset.visualErrorCount = String(visualEvidenceErrors.length);
   });
 }
 
@@ -28,6 +31,10 @@ const state = {
   sourceDraft: null,
   resumingIntakeId: null,
   sourceOperationKeys: new Map(),
+  cutter: null,
+  cutterJob: null,
+  cutterJobEvents: [],
+  cutterPending: false,
   workspace: location.hash.slice(1) || 'overview',
   refreshing: false,
 };
@@ -56,6 +63,13 @@ const elements = Object.fromEntries(
     'agent-launcher-panel', 'agent-launcher-config', 'agent-launcher-copy',
   ].map((id) => [id, document.getElementById(id)]),
 );
+
+function setCutterPending(pending) {
+  state.cutterPending = pending;
+  elements['project-select'].disabled = pending;
+  elements['refresh-button'].disabled = pending || state.refreshing;
+  elements['demo-button'].disabled = pending;
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -428,8 +442,300 @@ function stagedSourceIntakes() {
   return section;
 }
 
+function cutterNumber(name, value, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const input = document.createElement('input');
+  input.type = 'number'; input.name = name; input.value = String(value); input.min = String(min); input.max = String(max); input.step = '1';
+  return input;
+}
+
+function currentCutterAtlas() {
+  return (state.project?.snapshot.atlases ?? []).find((atlas) => atlas.id === state.cutter?.atlasId) ?? null;
+}
+
+function openCutter(source) {
+  const existing = (state.project?.snapshot.atlases ?? []).find((atlas) => atlas.sourceId === source.id) ?? null;
+  const familyDefaults = source.width === 1254 && source.height === 1254;
+  state.cutter = {
+    sourceId: source.id,
+    atlasId: existing?.id ?? `atlas.${source.id}`.slice(0, 128),
+    name: existing?.name ?? `${source.name} cuts`,
+    zoom: 'fit',
+    showGrid: true,
+    dirty: false,
+    syncedVersion: existing?.definitionVersion ?? 0,
+    rectangles: structuredClone(existing?.rectangles ?? []),
+    grid: {
+      rows: 2, columns: 2,
+      top: familyDefaults ? 3 : 0, right: familyDefaults ? 3 : 0,
+      bottom: familyDefaults ? 3 : 0, left: familyDefaults ? 3 : 0,
+      gapX: familyDefaults ? 4 : 0, gapY: familyDefaults ? 4 : 0,
+    },
+    operations: { define: null, preview: null, commit: null, cancel: null, retry: null, discard: null },
+  };
+  state.cutterJob = null;
+  state.cutterJobEvents = [];
+  if (existing?.latestPreviewJobId) void loadCutterJob(existing.latestPreviewJobId);
+  renderWorkspace();
+}
+
+async function loadCutterJob(jobId, { throwOnError = false } = {}) {
+  if (!state.project || !state.cutter || !jobId) return false;
+  const requestedProjectId = state.project.projectId;
+  const requestedAtlasId = state.cutter.atlasId;
+  try {
+    const response = await api(`/api/projects/${encodeURIComponent(requestedProjectId)}/jobs/${encodeURIComponent(jobId)}`);
+    if (state.project?.projectId !== requestedProjectId || state.cutter?.atlasId !== requestedAtlasId) return false;
+    if (response.job.atlasId !== requestedAtlasId) return false;
+    const currentAtlas = currentCutterAtlas();
+    if (currentAtlas?.latestPreviewJobId !== jobId) return false;
+    state.cutterJob = response.job;
+    state.cutterJobEvents = response.events ?? [];
+    const operations = state.cutter.operations;
+    if (operations.preview?.jobId === jobId) operations.preview = null;
+    if (operations.commit?.jobId === jobId && response.job.state === 'APPLIED') operations.commit = null;
+    if (operations.cancel && (response.job.cancelRequested || response.job.state === 'CANCELLED')) operations.cancel = null;
+    if (operations.retry && response.job.attempt > operations.retry.expectedAttempt) operations.retry = null;
+    if (operations.discard && response.job.state === 'DISCARDED') operations.discard = null;
+    renderWorkspace();
+    if (['QUEUED', 'RUNNING'].includes(response.job.state)) setTimeout(() => loadCutterJob(jobId), 300);
+    return true;
+  } catch (error) {
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+    if (throwOnError) throw error;
+    if (state.cutterJob?.jobId === jobId && ['QUEUED', 'RUNNING'].includes(state.cutterJob.state)) {
+      setTimeout(() => loadCutterJob(jobId), 1000);
+    }
+    return false;
+  }
+}
+
+function invalidateCutterOperations() {
+  if (state.cutter) state.cutter.operations = {
+    define: null, preview: null, commit: null, cancel: null, retry: null, discard: null,
+  };
+}
+
+function markCutterDefinitionDirty() {
+  if (!state.cutter) return;
+  const { cancel, retry, discard } = state.cutter.operations;
+  state.cutter.dirty = true;
+  state.cutter.operations = {
+    define: null, preview: null, commit: null, cancel, retry, discard,
+  };
+}
+
+function cutterPreviewCard(output, index, projectId) {
+  const figure = document.createElement('figure'); figure.className = 'slice-preview';
+  const image = document.createElement('img');
+  image.src = output.preview?.resourceUri ?? `/api/projects/${encodeURIComponent(projectId)}/artifacts/sha256/${output.digest}`;
+  image.alt = output.preview?.alt ?? `Slice preview ${output.rectangleId}`;
+  image.loading = visualFixture ? 'eager' : 'lazy'; image.decoding = 'async';
+  const caption = document.createElement('figcaption');
+  caption.textContent = `${index + 1} · ${output.rectangleId} · ${output.width}×${output.height}`;
+  figure.append(image, caption); return figure;
+}
+
+function renderCutter(source) {
+  const cutter = state.cutter;
+  const atlas = currentCutterAtlas();
+  const section = document.createElement('section'); section.className = 'atlas-cutter'; section.dataset.atlasCutter = '';
+  const heading = document.createElement('div'); heading.className = 'cutter-heading';
+  const copy = document.createElement('div');
+  const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Checkpoint 2B · source-resolution crop';
+  const title = document.createElement('h2'); title.textContent = cutter.name;
+  const help = document.createElement('p');
+  help.textContent = 'Define exact half-open integer rectangles on the approved original. Preview produces deterministic PNG crops; it does not resize, clean seams, infer gameplay meaning, or create Asset Library entries.';
+  copy.append(eyebrow, title, help);
+  const close = document.createElement('button'); close.type = 'button'; close.className = 'secondary'; close.textContent = 'Close cutter'; close.dataset.closeCutter = '';
+  close.disabled = state.cutterPending;
+  heading.append(copy, close); section.append(heading);
+
+  const gridForm = document.createElement('form'); gridForm.className = 'cutter-grid-form'; gridForm.dataset.cutterGridForm = '';
+  const gridFields = document.createElement('div'); gridFields.className = 'cutter-grid-fields';
+  for (const [name, label, value] of [
+    ['rows', 'Rows', cutter.grid.rows], ['columns', 'Columns', cutter.grid.columns],
+    ['top', 'Top margin', cutter.grid.top], ['right', 'Right margin', cutter.grid.right],
+    ['bottom', 'Bottom margin', cutter.grid.bottom], ['left', 'Left margin', cutter.grid.left],
+    ['gapX', 'X gap', cutter.grid.gapX], ['gapY', 'Y gap', cutter.grid.gapY],
+  ]) {
+    const input = cutterNumber(name, value, { min: name === 'rows' || name === 'columns' ? 1 : 0, max: 4096 });
+    input.disabled = state.cutterPending;
+    gridFields.append(labeledField(label, input));
+  }
+  const propose = document.createElement('button'); propose.type = 'submit'; propose.textContent = 'Propose regular grid'; propose.disabled = state.cutterPending;
+  const proposalNote = document.createElement('p'); proposalNote.className = 'cutter-note';
+  proposalNote.textContent = 'Arithmetic proposal only. Nothing becomes authoritative until you save the explicit rectangle list below.';
+  gridForm.append(gridFields, propose, proposalNote); section.append(gridForm);
+
+  const toolbar = document.createElement('div'); toolbar.className = 'cutter-toolbar';
+  const zoom = document.createElement('select'); zoom.dataset.cutterZoom = '';
+  for (const [value, label] of [['fit', 'Fit'], ['1', '100%'], ['2', '200%']]) {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; zoom.append(option);
+  }
+  zoom.value = cutter.zoom;
+  const gridToggle = document.createElement('input'); gridToggle.type = 'checkbox'; gridToggle.checked = cutter.showGrid; gridToggle.dataset.cutterGridToggle = '';
+  toolbar.append(labeledField('Zoom', zoom), labeledField('Visual grid', gridToggle));
+  const sourceMeta = document.createElement('span'); sourceMeta.textContent = `${source.width}×${source.height} · approved PNG · ${source.artifactUri.slice(-12)}`;
+  toolbar.append(sourceMeta); section.append(toolbar);
+
+  const scroller = document.createElement('div'); scroller.className = 'cutter-scroll';
+  const canvas = document.createElement('div'); canvas.className = `cutter-canvas ${cutter.showGrid ? 'show-grid' : ''}`;
+  canvas.dataset.zoom = cutter.zoom;
+  if (cutter.zoom !== 'fit') canvas.style.width = `${source.width * Number(cutter.zoom)}px`;
+  canvas.style.aspectRatio = `${source.width} / ${source.height}`;
+  const image = document.createElement('img'); image.src = source.preview.resourceUri; image.alt = `${source.name} cutter source`; image.draggable = false;
+  const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  overlay.setAttribute('viewBox', `0 0 ${source.width} ${source.height}`); overlay.dataset.cutterOverlay = '';
+  overlay.setAttribute('aria-label', 'Atlas rectangle overlay');
+  for (const [index, rectangle] of cutter.rectangles.entries()) {
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.dataset.rectangleId = rectangle.rectangleId; group.classList.toggle('excluded', !rectangle.included);
+    const shape = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    for (const [name, value] of Object.entries({ x: rectangle.x, y: rectangle.y, width: rectangle.width, height: rectangle.height })) shape.setAttribute(name, String(value));
+    shape.setAttribute('tabindex', state.cutterPending ? '-1' : '0'); shape.setAttribute('role', 'button');
+    shape.setAttribute('aria-disabled', String(state.cutterPending));
+    shape.setAttribute('aria-label', `${rectangle.rectangleId}: x ${rectangle.x}, y ${rectangle.y}, width ${rectangle.width}, height ${rectangle.height}${rectangle.included ? '' : ', excluded'}`);
+    shape.dataset.cutterMove = String(index);
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', String(rectangle.x + 10)); label.setAttribute('y', String(rectangle.y + 24)); label.textContent = String(index + 1);
+    const handle = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    handle.setAttribute('x', String(rectangle.x + rectangle.width - 12)); handle.setAttribute('y', String(rectangle.y + rectangle.height - 12));
+    handle.setAttribute('width', '24'); handle.setAttribute('height', '24'); handle.setAttribute('tabindex', state.cutterPending ? '-1' : '0');
+    handle.setAttribute('role', 'button'); handle.setAttribute('aria-label', `Resize ${rectangle.rectangleId} from its bottom-right corner`);
+    handle.setAttribute('aria-disabled', String(state.cutterPending));
+    handle.classList.add('resize-handle'); handle.dataset.cutterResize = String(index);
+    group.append(shape, label, handle); overlay.append(group);
+  }
+  canvas.append(image, overlay); scroller.append(canvas); section.append(scroller);
+
+  const inspector = document.createElement('div'); inspector.className = 'rectangle-inspector';
+  const inspectorHeading = sectionHeading('Exact rectangles', 'Numeric fields are authoritative and keyboard accessible. Drag a rectangle to move it; drag its square handle to resize.');
+  inspector.append(inspectorHeading);
+  if (!cutter.rectangles.length) {
+    inspector.append(emptyState('No rectangles yet', 'Enter grid values above, or add a manual rectangle.'));
+  } else {
+    const table = document.createElement('div'); table.className = 'rectangle-table';
+    for (const [index, rectangle] of cutter.rectangles.entries()) {
+      const row = document.createElement('fieldset'); row.className = 'rectangle-row'; row.dataset.rectangleRow = String(index);
+      const legend = document.createElement('legend'); legend.textContent = `${index + 1} · ${rectangle.rectangleId}`; row.append(legend);
+      for (const field of ['x', 'y', 'width', 'height']) {
+        const input = cutterNumber(field, rectangle[field], { min: field === 'width' || field === 'height' ? 1 : 0, max: field === 'x' || field === 'width' ? source.width : source.height });
+        input.disabled = state.cutterPending;
+        input.dataset.rectangleIndex = String(index); input.dataset.rectangleField = field; row.append(labeledField(field.toUpperCase(), input));
+      }
+      const included = document.createElement('input'); included.type = 'checkbox'; included.checked = rectangle.included;
+      included.disabled = state.cutterPending;
+      included.dataset.rectangleIndex = String(index); included.dataset.rectangleField = 'included';
+      row.append(labeledField('Include', included));
+      const replacement = document.createElement('select');
+      replacement.dataset.rectangleIndex = String(index); replacement.dataset.rectangleField = 'replacesSliceId';
+      const newIdentity = document.createElement('option'); newIdentity.value = ''; newIdentity.textContent = 'Create new slice identity';
+      replacement.append(newIdentity);
+      for (const slice of atlas?.sliceHeads ?? []) {
+        const option = document.createElement('option'); option.value = slice.sliceId;
+        option.textContent = `Replace ${slice.sliceId} v${slice.version}`; replacement.append(option);
+      }
+      replacement.value = rectangle.replacesSliceId ?? '';
+      replacement.disabled = state.cutterPending || !rectangle.included || !(atlas?.sliceHeads.length);
+      row.append(labeledField('Recut identity', replacement));
+      if (rectangle.replacesSliceId) {
+        const mapping = document.createElement('small'); mapping.textContent = `Replaces ${rectangle.replacesSliceId} v${rectangle.expectedSliceVersion}`; row.append(mapping);
+      }
+      table.append(row);
+    }
+    inspector.append(table);
+  }
+  const add = document.createElement('button'); add.type = 'button'; add.className = 'secondary'; add.textContent = 'Add manual rectangle'; add.dataset.addRectangle = '';
+  add.disabled = state.cutterPending; inspector.append(add); section.append(inspector);
+
+  const actions = document.createElement('div'); actions.className = 'cutter-actions';
+  const unresolvedJob = state.cutterJob && !['APPLIED', 'DISCARDED'].includes(state.cutterJob.state);
+  const save = document.createElement('button'); save.type = 'button'; save.textContent = atlas ? 'Save revised rectangles' : 'Save atlas definition'; save.dataset.saveAtlas = '';
+  save.disabled = state.cutterPending || !cutter.rectangles.length || Boolean(unresolvedJob);
+  if (unresolvedJob) save.title = 'Commit or discard the current preview job before replacing this atlas definition.';
+  const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'secondary'; preview.textContent = 'Build slice previews'; preview.dataset.previewAtlas = '';
+  preview.disabled = state.cutterPending || !atlas || cutter.dirty || Boolean(unresolvedJob);
+  if (unresolvedJob) preview.title = 'Apply or discard the current preview job before queuing another.';
+  actions.append(save, preview);
+  if (state.cutterJob && ['QUEUED', 'RUNNING'].includes(state.cutterJob.state) && !state.cutterJob.cancelRequested) {
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary'; cancel.textContent = 'Cancel job'; cancel.dataset.cancelCutterJob = '';
+    cancel.disabled = state.cutterPending;
+    actions.append(cancel);
+  }
+  if (state.cutterJob && ['FAILED', 'CANCELLED'].includes(state.cutterJob.state) && state.cutterJob.attempt < MAX_ATLAS_JOB_ATTEMPTS) {
+    const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'secondary'; retry.textContent = 'Retry job'; retry.dataset.retryCutterJob = '';
+    retry.disabled = state.cutterPending;
+    actions.append(retry);
+  }
+  if (state.cutterJob?.state === 'SUCCEEDED') {
+    const commit = document.createElement('button'); commit.type = 'button'; commit.textContent = 'Commit these slices once'; commit.dataset.commitAtlas = '';
+    commit.disabled = state.cutterPending;
+    actions.append(commit);
+  }
+  if (state.cutterJob && ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(state.cutterJob.state)) {
+    const discard = document.createElement('button'); discard.type = 'button'; discard.className = 'secondary';
+    discard.textContent = 'Discard previews'; discard.dataset.discardCutterJob = '';
+    discard.disabled = state.cutterPending;
+    actions.append(discard);
+  }
+  const status = document.createElement('span'); status.className = 'cutter-job-status';
+  status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+  const jobError = state.cutterJob?.error;
+  const cancellationText = state.cutterJob?.cancelRequested ? ' · cancellation requested' : '';
+  const errorText = jobError ? ` · ${jobError.code || 'JOB_FAILED'}: ${jobError.message || 'Preview processing failed.'}` : '';
+  status.textContent = state.cutterJob
+    ? `${state.cutterJob.state} · ${state.cutterJob.progress.current}/${state.cutterJob.progress.total} · attempt ${state.cutterJob.attempt}${cancellationText}${errorText}`
+    : (atlas ? `Definition v${atlas.definitionVersion} saved` : 'Unsaved definition');
+  actions.append(status); section.append(actions);
+
+  if (unresolvedJob && cutter.dirty) {
+    const guidance = document.createElement('p'); guidance.className = 'cutter-note';
+    guidance.textContent = state.cutterJob.state === 'SUCCEEDED'
+      ? 'These edits are local. Commit or discard the succeeded previews before saving a replacement definition.'
+      : ['FAILED', 'CANCELLED'].includes(state.cutterJob.state)
+        ? 'These edits are local. Retry or discard this job before saving a replacement definition.'
+        : 'These edits are local. Cancel the running job, wait for cancellation, then discard it before saving a replacement definition.';
+    section.append(guidance);
+  }
+  if (state.cutterJob && ['FAILED', 'CANCELLED'].includes(state.cutterJob.state)
+      && state.cutterJob.attempt >= MAX_ATLAS_JOB_ATTEMPTS) {
+    const exhausted = document.createElement('p'); exhausted.className = 'cutter-note';
+    exhausted.textContent = 'The bounded retry limit is exhausted. Discard this job before starting a replacement preview.';
+    section.append(exhausted);
+  }
+  if (state.cutterJobEvents.length) {
+    const history = document.createElement('ol'); history.className = 'cutter-job-events';
+    for (const entry of state.cutterJobEvents) {
+      const item = document.createElement('li');
+      item.dataset.jobEventSequence = String(entry.sequence); item.dataset.jobEventType = entry.type;
+      const label = document.createElement('strong'); label.textContent = `${entry.type} · attempt ${entry.attempt}`;
+      const detail = document.createElement('span');
+      detail.textContent = `${entry.progress.current}/${entry.progress.total}${entry.safePoint ? ` · ${entry.safePoint}` : ''} · ${entry.occurredAt}`;
+      item.append(label, detail); history.append(item);
+    }
+    section.append(sectionHeading('Durable job events', 'Redacted transition history for cancellation, retry, completion, apply, and discard.'), history);
+  }
+
+  const previewOutputs = ['SUCCEEDED', 'APPLIED'].includes(state.cutterJob?.state)
+    ? (state.cutterJob.outputs ?? [])
+    : [];
+  if (previewOutputs.length) {
+    const previews = document.createElement('div'); previews.className = 'slice-preview-grid';
+    previewOutputs.forEach((output, index) => previews.append(cutterPreviewCard(output, index, state.project.projectId)));
+    section.append(sectionHeading('Job previews', 'Temporary outputs remain job-owned until the explicit commit below.'), previews);
+  }
+  if (atlas?.sliceHeads.length) {
+    const committedGrid = document.createElement('div'); committedGrid.className = 'slice-preview-grid committed';
+    atlas.sliceHeads.forEach((slice, index) => committedGrid.append(cutterPreviewCard({ ...slice, rectangleId: `${slice.rectangleId} · ${slice.sliceId} v${slice.version}` }, index, state.project.projectId)));
+    section.append(sectionHeading('Committed slice heads', 'Stable slice identities. These are still crops, not semantic surfaces, props, or items.'), committedGrid);
+  }
+  return section;
+}
+
 function renderSources(items) {
   const fragment = document.createDocumentFragment();
+  const cutterSource = state.cutter && items.find((source) => source.id === state.cutter.sourceId);
+  if (cutterSource) fragment.append(renderCutter(cutterSource));
   fragment.append(sourceIntakePanel());
   const staged = stagedSourceIntakes();
   if (staged) fragment.append(staged);
@@ -462,6 +768,10 @@ function renderSources(items) {
       propose.type = 'button'; propose.textContent = 'Propose for review';
       propose.className = 'secondary'; propose.dataset.sourceReviewPropose = ''; propose.dataset.sourceId = item.id;
       actions.append(propose);
+    }
+    if (lifecycle === 'APPROVED_SOURCE' && review === 'USER_APPROVED' && item.mediaType === 'image/png') {
+      const cutterButton = document.createElement('button'); cutterButton.type = 'button'; cutterButton.textContent = 'Open cutter';
+      cutterButton.dataset.openCutter = item.id; cutterButton.className = 'secondary'; cutterButton.disabled = state.cutterPending; actions.append(cutterButton);
     }
     sourceCard.append(actions); grid.append(sourceCard);
   }
@@ -516,8 +826,8 @@ function renderOverview(snapshot) {
       'Foundation checks stable IDs, source references, crop bounds shape, artifact URIs, authorization, and revision consistency.',
       [['Domain invariants', 'enforced'], ['Level compiler', 'not connected in C1A']],
     ),
-    card('Background jobs', 'Reserved', 'Generation, slicing, preview, validation, and export jobs enter with the asset vertical slice.', [
-      ['Queue', 'not advertised yet'], ['Running', 0], ['Failed', 0],
+    card('Atlas preview jobs', 'Checkpoint 2B', 'Approved PNG slicing runs as a durable job with progress, cancellation, bounded retry, explicit commit, and explicit discard.', [
+      ['Implemented', 'atlas preview only'], ['Not included', 'generation, validation, export'],
     ]),
     card('Room authoring', 'Next checkpoint', 'Hallway and single-room composition will consume the approved library.'),
     card('MCP transport', 'Official 2026-07-28', 'Local stdio uses private host pairing and the same semantic command core as this visual shell.'),
@@ -709,8 +1019,10 @@ async function loadProjects(preferredProjectId) {
   await loadProject(elements['project-select'].value);
 }
 
+let projectLoadGeneration = 0;
 async function loadProject(projectId) {
   if (!projectId) return;
+  const generation = ++projectLoadGeneration;
   if (state.project?.projectId && state.project.projectId !== projectId) state.showMcpLauncherConfig = false;
   const [project, activity, agentAccess, sourceIntakes] = await Promise.all([
     api(`/api/projects/${encodeURIComponent(projectId)}`),
@@ -718,7 +1030,29 @@ async function loadProject(projectId) {
     api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`),
     api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`),
   ]);
+  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   state.project = project; state.activity = activity.events;
+  if (state.cutter) {
+    const sourceExists = project.snapshot.sources.some((source) => source.id === state.cutter.sourceId);
+    if (!sourceExists) state.cutter = null;
+    else {
+      const atlas = (project.snapshot.atlases ?? []).find((candidate) => candidate.id === state.cutter.atlasId);
+      if (atlas && !state.cutter.dirty && atlas.definitionVersion !== state.cutter.syncedVersion) {
+        state.cutter.rectangles = structuredClone(atlas.rectangles);
+        state.cutter.name = atlas.name;
+        state.cutter.syncedVersion = atlas.definitionVersion;
+      }
+      if (!atlas?.latestPreviewJobId) {
+        state.cutterJob = null; state.cutterJobEvents = [];
+      } else if (state.cutterJob?.jobId !== atlas.latestPreviewJobId) {
+        state.cutterJob = null; state.cutterJobEvents = [];
+        void loadCutterJob(atlas.latestPreviewJobId);
+      } else if (['QUEUED', 'RUNNING'].includes(state.cutterJob?.state)
+          || state.cutterJobEvents.at(-1)?.state !== state.cutterJob?.state) {
+        void loadCutterJob(atlas.latestPreviewJobId);
+      }
+    }
+  }
   state.agentAccess = agentAccess.effectivePolicy; state.agentAccessCsrf = agentAccess.csrfToken;
   state.hostBindingSupport = agentAccess.hostBindingSupport;
   state.hostBindings = agentAccess.hostBindings;
@@ -729,6 +1063,7 @@ async function loadProject(projectId) {
     state.resumingIntakeId = null;
   }
   renderProject();
+  return true;
 }
 
 async function requestAgentAccess(mode, {
@@ -774,7 +1109,7 @@ async function requestAgentAccess(mode, {
 }
 
 async function refresh({ quiet = false } = {}) {
-  if (state.refreshing) return;
+  if (state.refreshing || state.cutterPending) return;
   state.refreshing = true; elements['refresh-button'].disabled = true;
   try {
     await loadProjects(state.project?.projectId);
@@ -790,7 +1125,7 @@ async function refresh({ quiet = false } = {}) {
     renderAgentAccess();
     if (!quiet) showToast(`${error.code || 'ERROR'}: ${error.message}`);
   } finally {
-    state.refreshing = false; elements['refresh-button'].disabled = false;
+    state.refreshing = false; elements['refresh-button'].disabled = state.cutterPending;
   }
 }
 
@@ -800,8 +1135,14 @@ elements['workspace-nav'].addEventListener('click', (event) => {
   state.workspace = link.dataset.workspace; location.hash = state.workspace; renderWorkspace();
   void publishVisualEvidence();
 });
-elements['project-select'].addEventListener('change', () => loadProject(elements['project-select'].value));
-elements['refresh-button'].addEventListener('click', () => refresh());
+elements['project-select'].addEventListener('change', () => {
+  if (state.cutterPending) {
+    elements['project-select'].value = state.project?.projectId ?? '';
+    return;
+  }
+  void loadProject(elements['project-select'].value);
+});
+elements['refresh-button'].addEventListener('click', () => { if (!state.cutterPending) void refresh(); });
 elements['agent-access-select'].addEventListener('change', () => {
   const mode = elements['agent-access-select'].value;
   if (mode === 'custom' || mode === 'propose_draft') {
@@ -898,6 +1239,292 @@ elements['agent-launcher-copy'].addEventListener('click', async () => {
     showToast('Clipboard access was denied. Select and copy the configuration manually.');
   }
 });
+elements['workspace-content'].addEventListener('submit', async (event) => {
+  const form = event.target.closest('[data-cutter-grid-form]');
+  if (!form || !state.project || !state.cutter || !state.agentAccessCsrf) return;
+  event.preventDefault();
+  if (state.cutterPending) return;
+  const fields = new FormData(form);
+  const number = (name) => Number(fields.get(name));
+  state.cutter.grid = Object.fromEntries(['rows', 'columns', 'top', 'right', 'bottom', 'left', 'gapX', 'gapY'].map((name) => [name, number(name)]));
+  state.cutterPending = true; renderWorkspace();
+  try {
+    const response = await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/atlases/grid-proposal`, {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: JSON.stringify({
+        expectedRevision: state.project.revision,
+        sourceId: state.cutter.sourceId,
+        rows: state.cutter.grid.rows,
+        columns: state.cutter.grid.columns,
+        margins: {
+          top: state.cutter.grid.top, right: state.cutter.grid.right,
+          bottom: state.cutter.grid.bottom, left: state.cutter.grid.left,
+        },
+        gapX: state.cutter.grid.gapX,
+        gapY: state.cutter.grid.gapY,
+        rectangleIdPrefix: `rect.${state.cutter.atlasId}`.slice(0, 122),
+      }),
+    });
+    if (response.proposal.findings.length) {
+      showToast(response.proposal.findings.map((finding) => finding.message).join(' '));
+    } else {
+      state.cutter.rectangles = structuredClone(response.proposal.rectangles);
+      markCutterDefinitionDirty();
+      showToast(`${response.proposal.rectangles.length} source-resolution rectangles proposed.`);
+    }
+  } catch (error) {
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+  } finally {
+    state.cutterPending = false; renderWorkspace();
+  }
+});
+
+elements['workspace-content'].addEventListener('change', (event) => {
+  if (!state.cutter) return;
+  const zoom = event.target.closest('[data-cutter-zoom]');
+  if (zoom) { state.cutter.zoom = zoom.value; renderWorkspace(); return; }
+  const grid = event.target.closest('[data-cutter-grid-toggle]');
+  if (grid) { state.cutter.showGrid = grid.checked; renderWorkspace(); return; }
+  const input = event.target.closest('[data-rectangle-index][data-rectangle-field]');
+  if (!input) return;
+  if (state.cutterPending) return;
+  const rectangle = state.cutter.rectangles[Number(input.dataset.rectangleIndex)];
+  if (!rectangle) return;
+  const field = input.dataset.rectangleField;
+  if (field === 'included') {
+    rectangle.included = input.checked;
+    if (!rectangle.included) {
+      rectangle.replacesSliceId = null;
+      rectangle.expectedSliceVersion = null;
+    }
+  } else if (field === 'replacesSliceId') {
+    const slice = currentCutterAtlas()?.sliceHeads.find((candidate) => candidate.sliceId === input.value) ?? null;
+    rectangle.replacesSliceId = slice?.sliceId ?? null;
+    rectangle.expectedSliceVersion = slice?.version ?? null;
+  } else rectangle[field] = Number(input.value);
+  markCutterDefinitionDirty(); renderWorkspace();
+});
+
+elements['workspace-content'].addEventListener('click', async (event) => {
+  const open = event.target.closest('[data-open-cutter]');
+  if (open) {
+    if (state.cutterPending) return;
+    const source = state.project?.snapshot.sources.find((candidate) => candidate.id === open.dataset.openCutter);
+    if (source) openCutter(source);
+    return;
+  }
+  if (event.target.closest('[data-close-cutter]')) {
+    if (state.cutterPending) return;
+    state.cutter = null; state.cutterJob = null; state.cutterJobEvents = []; renderWorkspace(); return;
+  }
+  if (!state.cutter || !state.project || !state.agentAccessCsrf) return;
+  if (state.cutterPending) return;
+  if (event.target.closest('[data-add-rectangle]')) {
+    const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
+    state.cutter.rectangles.push({
+      rectangleId: `rect.manual.${crypto.randomUUID()}`,
+      x: 0, y: 0, width: Math.min(64, source.width), height: Math.min(64, source.height),
+      included: true, pivot: null, transparentPaddingPolicy: 'preserve_exact_rect',
+      replacesSliceId: null, expectedSliceVersion: null,
+    });
+    markCutterDefinitionDirty(); renderWorkspace(); return;
+  }
+  const atlas = currentCutterAtlas();
+  const save = event.target.closest('[data-save-atlas]');
+  const preview = event.target.closest('[data-preview-atlas]');
+  const commit = event.target.closest('[data-commit-atlas]');
+  const cancel = event.target.closest('[data-cancel-cutter-job]');
+  const retry = event.target.closest('[data-retry-cutter-job]');
+  const discard = event.target.closest('[data-discard-cutter-job]');
+  if (!save && !preview && !commit && !cancel && !retry && !discard) return;
+  const operationProjectId = state.project.projectId;
+  const operationRevision = state.project.revision;
+  const operationAtlasId = state.cutter.atlasId;
+  const operationCutter = state.cutter;
+  const operationCsrf = state.agentAccessCsrf;
+  const operationJobId = state.cutterJob?.jobId ?? null;
+  const operationJobAttempt = state.cutterJob?.attempt ?? null;
+  const operationStillCurrent = () => state.project?.projectId === operationProjectId
+    && state.cutter === operationCutter && state.cutter?.atlasId === operationAtlasId;
+  const acceptJobMutationResponse = (response) => {
+    if (response?.projectId !== operationProjectId || response.job?.jobId !== operationJobId
+        || response.job?.atlasId !== operationAtlasId) {
+      const error = new Error('The job mutation response does not match the active cutter context.');
+      error.code = 'CUTTER_CONTEXT_CHANGED';
+      throw error;
+    }
+    state.cutterJob = response.job;
+    state.cutterJobEvents = response.events ?? [];
+  };
+  setCutterPending(true); renderWorkspace();
+  try {
+    if (save) {
+      const operation = operationCutter.operations.define ??= {
+        expectedRevision: operationRevision,
+        idempotencyKey: `atlas-define.${crypto.randomUUID()}`,
+        sourceId: operationCutter.sourceId,
+        name: operationCutter.name,
+        expectedAtlasVersion: atlas?.definitionVersion ?? 0,
+        rectangles: structuredClone(operationCutter.rectangles),
+      };
+      const response = await api(`/api/projects/${encodeURIComponent(operationProjectId)}/atlases/${encodeURIComponent(operationAtlasId)}/definition`, {
+        method: 'POST', headers: { 'x-numberdroid-studio-csrf': operationCsrf },
+        body: JSON.stringify(operation),
+      });
+      if (!operationStillCurrent()) return;
+      operationCutter.dirty = false; operationCutter.syncedVersion = response.value.definitionVersion;
+      state.cutterJob = null; state.cutterJobEvents = [];
+      invalidateCutterOperations();
+      await loadProject(operationProjectId); showToast(`Atlas definition v${response.value.definitionVersion} saved.`);
+    } else if (preview) {
+      const operation = operationCutter.operations.preview ??= {
+        expectedRevision: operationRevision,
+        idempotencyKey: `atlas-preview.${crypto.randomUUID()}`,
+        expectedAtlasVersion: atlas.definitionVersion,
+        expectedDefinitionFingerprint: atlas.definitionFingerprint,
+        jobId: `job.atlas.${crypto.randomUUID()}`,
+      };
+      await api(`/api/projects/${encodeURIComponent(operationProjectId)}/atlases/${encodeURIComponent(operationAtlasId)}/preview`, {
+        method: 'POST', headers: { 'x-numberdroid-studio-csrf': operationCsrf },
+        body: JSON.stringify(operation),
+      });
+      if (!operationStillCurrent()) return;
+      await loadProject(operationProjectId);
+      const loaded = await loadCutterJob(operation.jobId, { throwOnError: true });
+      if (!loaded) {
+        const error = new Error('The cutter context changed before the queued job could be reconciled.');
+        error.code = 'CUTTER_CONTEXT_CHANGED';
+        throw error;
+      }
+      operationCutter.operations.preview = null; operationCutter.operations.commit = null;
+      showToast('Durable slice preview queued.');
+    } else if (commit) {
+      if (!window.confirm('Commit exactly these succeeded preview outputs as stable slice heads? This does not create semantic assets.')) return;
+      const operation = operationCutter.operations.commit ??= {
+        expectedRevision: operationRevision,
+        idempotencyKey: `atlas-commit.${crypto.randomUUID()}`,
+        expectedAtlasVersion: atlas.definitionVersion,
+        expectedDefinitionFingerprint: atlas.definitionFingerprint,
+        jobId: operationJobId,
+      };
+      const response = await api(`/api/projects/${encodeURIComponent(operationProjectId)}/atlases/${encodeURIComponent(operationAtlasId)}/commit`, {
+        method: 'POST', headers: { 'x-numberdroid-studio-csrf': operationCsrf },
+        body: JSON.stringify(operation),
+      });
+      if (!operationStillCurrent()) return;
+      state.cutterJob = { ...state.cutterJob, state: 'APPLIED', appliedRevision: response.revision };
+      await loadProject(operationProjectId); void loadCutterJob(operationJobId); showToast('Slice heads committed atomically.');
+      operationCutter.operations.commit = null;
+    } else if (cancel) {
+      const operation = operationCutter.operations.cancel ??= {
+        operationIdempotencyKey: `job-cancel.${crypto.randomUUID()}`,
+      };
+      const response = await api(`/api/projects/${encodeURIComponent(operationProjectId)}/jobs/${encodeURIComponent(operationJobId)}/cancel`, {
+        method: 'POST', headers: { 'x-numberdroid-studio-csrf': operationCsrf },
+        body: JSON.stringify(operation),
+      });
+      if (!operationStillCurrent()) return;
+      acceptJobMutationResponse(response); operationCutter.operations.cancel = null; renderWorkspace();
+      void loadCutterJob(operationJobId); showToast('Cancellation requested.');
+    } else if (retry) {
+      const operation = operationCutter.operations.retry ??= {
+        expectedAttempt: operationJobAttempt,
+        operationIdempotencyKey: `job-retry.${crypto.randomUUID()}`,
+      };
+      const response = await api(`/api/projects/${encodeURIComponent(operationProjectId)}/jobs/${encodeURIComponent(operationJobId)}/retry`, {
+        method: 'POST', headers: { 'x-numberdroid-studio-csrf': operationCsrf },
+        body: JSON.stringify(operation),
+      });
+      if (!operationStillCurrent()) return;
+      acceptJobMutationResponse(response); operationCutter.operations.retry = null; renderWorkspace();
+      void loadCutterJob(operationJobId); showToast('A new durable attempt was queued.');
+    } else if (discard) {
+      if (!window.confirm('Discard this unapplied preview job and release its temporary outputs? The job cannot be committed afterward.')) return;
+      const operation = operationCutter.operations.discard ??= {
+        operationIdempotencyKey: `job-discard.${crypto.randomUUID()}`,
+      };
+      const response = await api(`/api/projects/${encodeURIComponent(operationProjectId)}/jobs/${encodeURIComponent(operationJobId)}/discard`, {
+        method: 'POST', headers: { 'x-numberdroid-studio-csrf': operationCsrf },
+        body: JSON.stringify(operation),
+      });
+      if (!operationStillCurrent()) return;
+      acceptJobMutationResponse(response); renderWorkspace();
+      await loadProject(operationProjectId); void loadCutterJob(operationJobId);
+      operationCutter.operations.discard = null; showToast('Temporary slice previews discarded.');
+    }
+  } catch (error) {
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+    if (state.project?.projectId === operationProjectId) await loadProject(operationProjectId).catch(() => {});
+    const pendingJobId = operationCutter.operations.commit?.jobId ?? operationCutter.operations.preview?.jobId ?? operationJobId;
+    if (pendingJobId) await loadCutterJob(pendingJobId).catch(() => {});
+  } finally {
+    setCutterPending(false); renderWorkspace();
+  }
+});
+
+function cutterSvgPoint(svg, event) {
+  const point = svg.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
+  return point.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+let cutterDrag = null;
+elements['workspace-content'].addEventListener('pointerdown', (event) => {
+  if (state.cutterPending) return;
+  const resize = event.target.closest('[data-cutter-resize]');
+  const move = event.target.closest('[data-cutter-move]');
+  const target = resize || move;
+  if (!target || !state.cutter) return;
+  const index = Number(target.dataset.cutterResize ?? target.dataset.cutterMove);
+  const svg = target.closest('svg'); const point = cutterSvgPoint(svg, event);
+  cutterDrag = { index, mode: resize ? 'resize' : 'move', svg, start: point, original: { ...state.cutter.rectangles[index] }, target };
+  target.setPointerCapture?.(event.pointerId); event.preventDefault();
+});
+elements['workspace-content'].addEventListener('pointermove', (event) => {
+  if (!cutterDrag || !state.cutter || state.cutterPending) return;
+  const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
+  const point = cutterSvgPoint(cutterDrag.svg, event);
+  const dx = Math.round(point.x - cutterDrag.start.x); const dy = Math.round(point.y - cutterDrag.start.y);
+  const rectangle = state.cutter.rectangles[cutterDrag.index];
+  if (cutterDrag.mode === 'move') {
+    rectangle.x = Math.max(0, Math.min(source.width - rectangle.width, cutterDrag.original.x + dx));
+    rectangle.y = Math.max(0, Math.min(source.height - rectangle.height, cutterDrag.original.y + dy));
+  } else {
+    rectangle.width = Math.max(1, Math.min(source.width - rectangle.x, cutterDrag.original.width + dx));
+    rectangle.height = Math.max(1, Math.min(source.height - rectangle.y, cutterDrag.original.height + dy));
+  }
+  const group = cutterDrag.target.closest('g'); const [shape, label, handle] = group.children;
+  shape.setAttribute('x', rectangle.x); shape.setAttribute('y', rectangle.y); shape.setAttribute('width', rectangle.width); shape.setAttribute('height', rectangle.height);
+  label.setAttribute('x', rectangle.x + 10); label.setAttribute('y', rectangle.y + 24);
+  handle.setAttribute('x', rectangle.x + rectangle.width - 12); handle.setAttribute('y', rectangle.y + rectangle.height - 12);
+});
+elements['workspace-content'].addEventListener('pointerup', () => {
+  if (!cutterDrag) return;
+  if (state.cutterPending) { cutterDrag = null; return; }
+  cutterDrag = null; markCutterDefinitionDirty(); renderWorkspace();
+});
+elements['workspace-content'].addEventListener('keydown', (event) => {
+  const resize = event.target.closest('[data-cutter-resize]');
+  const move = event.target.closest('[data-cutter-move]');
+  if ((!resize && !move) || !state.cutter || state.cutterPending || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  const index = Number((resize || move).dataset.cutterResize ?? (resize || move).dataset.cutterMove);
+  const rectangle = state.cutter.rectangles[index];
+  const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
+  const step = event.shiftKey ? 10 : 1;
+  const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
+  const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
+  if (resize) {
+    rectangle.width = Math.max(1, Math.min(source.width - rectangle.x, rectangle.width + dx));
+    rectangle.height = Math.max(1, Math.min(source.height - rectangle.y, rectangle.height + dy));
+  } else {
+    rectangle.x = Math.max(0, Math.min(source.width - rectangle.width, rectangle.x + dx));
+    rectangle.y = Math.max(0, Math.min(source.height - rectangle.height, rectangle.y + dy));
+  }
+  markCutterDefinitionDirty(); event.preventDefault(); renderWorkspace();
+  const focusSelector = resize ? `[data-cutter-resize="${index}"]` : `[data-cutter-move="${index}"]`;
+  requestAnimationFrame(() => document.querySelector(focusSelector)?.focus());
+});
+
 elements['workspace-content'].addEventListener('submit', async (event) => {
   const form = event.target.closest('[data-source-intake-form]');
   if (!form || !state.project || !state.agentAccessCsrf) return;
@@ -1072,6 +1699,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   showToast(`${state.labResult.code}: ${state.labResult.message}`);
 });
 elements['demo-button'].addEventListener('click', async () => {
+  if (state.cutterPending) return;
   elements['demo-button'].disabled = true;
   try {
     const project = await api('/api/demo', {
@@ -1081,7 +1709,7 @@ elements['demo-button'].addEventListener('click', async () => {
   } catch (error) {
     showToast(`${error.code || 'ERROR'}: ${error.message}`);
   } finally {
-    elements['demo-button'].disabled = false;
+    elements['demo-button'].disabled = state.cutterPending;
   }
 });
 window.addEventListener('hashchange', () => {

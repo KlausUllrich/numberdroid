@@ -17,8 +17,9 @@ export class LocalStudioGateway {
   #baseUrl;
   #bindingTokenPromise;
   #agentAttemptAuditReady;
+  #durableJobStoreReady;
 
-  constructor({ baseUrl, bindingToken, bindingTokenProvider = null, agentAttemptAuditReady = false }) {
+  constructor({ baseUrl, bindingToken, bindingTokenProvider = null, agentAttemptAuditReady = false, durableJobStoreReady = false }) {
     this.#baseUrl = new URL(baseUrl);
     if (!bindingToken && typeof bindingTokenProvider !== 'function') {
       throw new StudioError('HOST_BINDING_REQUIRED', 'A HostBinding token or private pairing provider is required.');
@@ -27,6 +28,7 @@ export class LocalStudioGateway {
       ? Promise.resolve(bindingToken)
       : Promise.resolve().then(bindingTokenProvider);
     this.#agentAttemptAuditReady = agentAttemptAuditReady === true;
+    this.#durableJobStoreReady = durableJobStoreReady === true;
   }
 
   get commandCatalog() {
@@ -35,6 +37,10 @@ export class LocalStudioGateway {
 
   get agentAttemptAuditReady() {
     return this.#agentAttemptAuditReady;
+  }
+
+  get durableJobStoreReady() {
+    return this.#durableJobStoreReady;
   }
 
   async #request(path, value, { signal } = {}) {
@@ -92,5 +98,26 @@ export class LocalStudioGateway {
 
   async readProject({ projectId }, _opaqueHostContext, options = {}) {
     return this.#request('/internal/mcp/read-project', { schemaVersion: 1, projectId }, options);
+  }
+
+
+  async proposeAtlasGrid(request, _opaqueHostContext, options = {}) {
+    return this.#request('/internal/mcp/atlas-grid-proposal', request, options);
+  }
+
+  async readJob(request, _opaqueHostContext, options = {}) {
+    return this.#request('/internal/mcp/job-read', request, options);
+  }
+
+  async cancelJob(request, _opaqueHostContext, options = {}) {
+    return this.#request('/internal/mcp/job-cancel', request, options);
+  }
+
+  async retryJob(request, _opaqueHostContext, options = {}) {
+    return this.#request('/internal/mcp/job-retry', request, options);
+  }
+
+  async discardJob(request, _opaqueHostContext, options = {}) {
+    return this.#request('/internal/mcp/job-discard', request, options);
   }
 }

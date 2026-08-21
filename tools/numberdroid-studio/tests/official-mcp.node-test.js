@@ -10,8 +10,12 @@ import { Client, SdkErrorCode } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import {
   ContentAddressedArtifactStore, SqliteAgentAttemptStore, SqliteArtifactMetadataStore,
-  SqliteHostBindingStore, SqliteProjectStore, SqliteSourceIntakeStore,
+  SqliteHostBindingStore, SqliteJobStore, SqliteProjectStore, SqliteSourceIntakeStore,
 } from '../packages/persistence/src/index.js';
+import { StudioService } from '../packages/application/src/index.js';
+import { canonicalRgbaPngByteSize } from '../packages/domain/src/index.js';
+import { encodeCanonicalRgbaPng } from '../packages/preview/src/index.js';
+import { fingerprint } from '../packages/application/src/value-utils.js';
 import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
 import {
   defaultMcpPairingEndpoint, McpPairingBroker, startMcpPairingSocket,
@@ -22,10 +26,15 @@ import {
 import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 const studioRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const ONE_PIXEL_PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-  'base64',
-);
+const ONE_PIXEL_PNG = encodeCanonicalRgbaPng({ width: 1, height: 1, rgba: Buffer.from([0, 0, 0, 255]) });
+const OBSERVABLE_JOB_ID = 'job.official-mcp.preview';
+const OBSERVABLE_JOB_INPUT = Object.freeze({
+  schemaVersion: 1,
+  kind: 'ATLAS_PREVIEW',
+  atlasId: 'atlas.official-mcp',
+  sourceId: 'source.official-mcp',
+  rectangles: [{ rectangleId: 'rect.official-mcp', x: 0, y: 0, width: 1, height: 1, included: true }],
+});
 
 async function mcpFixture(context) {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-official-mcp-'));
@@ -33,9 +42,25 @@ async function mcpFixture(context) {
     filename: join(directory, 'studio.sqlite'),
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  const { studio } = createHarness(store);
-  await createProject(studio);
-  await issueGrant(studio, { scopes: ['project.read', 'source.write', 'source.intake.commit', 'asset.write', 'project.status.write'] });
+  const { studio: setupStudio } = createHarness(store);
+  await createProject(setupStudio);
+  await issueGrant(setupStudio, { scopes: ['project.read', 'source.write', 'source.intake.commit', 'asset.write', 'atlas.write', 'project.status.write'] });
+  const jobStore = new SqliteJobStore({ workspace: store.workspace });
+  jobStore.create({
+    projectId: PROJECT_ID,
+    jobId: OBSERVABLE_JOB_ID,
+    kind: 'ATLAS_PREVIEW',
+    inputRevision: 2,
+    atlasId: OBSERVABLE_JOB_INPUT.atlasId,
+    sourceId: OBSERVABLE_JOB_INPUT.sourceId,
+    creator: { actor: AGENT, taskId: 'task.atlas', branchId: 'branch.task.atlas', grantId: 'grant.atlas' },
+    outputArtifactBytes: canonicalRgbaPngByteSize(1, 1),
+    inputFingerprint: fingerprint(OBSERVABLE_JOB_INPUT),
+    idempotencyKey: 'idem.official-mcp.preview',
+    input: OBSERVABLE_JOB_INPUT,
+    createdAt: '2026-08-21T12:00:09.000Z',
+  });
+  const studio = new StudioService({ store, jobStore, agentAttemptAuditReady: true });
   const artifactStore = new ContentAddressedArtifactStore({ rootDirectory: join(directory, 'artifacts') });
   const artifact = await artifactStore.ingest(ONE_PIXEL_PNG, { mediaType: 'image/png' });
   const artifactMetadataStore = new SqliteArtifactMetadataStore({ workspace: store.workspace });
@@ -43,9 +68,28 @@ async function mcpFixture(context) {
   const agentAttemptStore = new SqliteAgentAttemptStore({ workspace: store.workspace });
   artifactMetadataStore.registerAndReference(artifact, {
     projectId: PROJECT_ID,
-    ownerKind: 'upload',
-    ownerId: 'upload.official-mcp-fixture',
+    ownerKind: 'job_output',
+    ownerId: OBSERVABLE_JOB_ID,
     createdRevision: 2,
+  });
+  jobStore.claimNext({
+    workerId: 'worker.official-mcp',
+    leaseMs: 10_000,
+    now: '2026-08-21T12:00:10.000Z',
+  });
+  jobStore.succeed(PROJECT_ID, OBSERVABLE_JOB_ID, {
+    workerId: 'worker.official-mcp',
+    outputs: [{
+      rectangleId: 'rect.official-mcp',
+      digest: artifact.digest,
+      mediaType: artifact.mediaType,
+      byteSize: artifact.byteSize,
+      width: artifact.width,
+      height: artifact.height,
+    }],
+    result: { processorId: 'fixture.official-mcp' },
+    operationIdempotencyKey: 'complete.official-mcp.preview',
+    now: '2026-08-21T12:00:11.000Z',
   });
   const bindings = new SqliteHostBindingStore({
     workspace: store.workspace,
@@ -73,6 +117,7 @@ async function mcpFixture(context) {
     artifactMetadataStore,
     sourceIntakeStore,
     agentAttemptStore,
+    jobStore,
   });
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
@@ -105,6 +150,7 @@ function childTransport({ token, serviceUrl, pairingEndpoint }) {
     NUMBERDROID_STUDIO_PROJECT_ID: PROJECT_ID,
     NUMBERDROID_STUDIO_SERVICE_URL: serviceUrl,
     NUMBERDROID_STUDIO_AGENT_AUDIT_READY: '1',
+    NUMBERDROID_STUDIO_JOB_STORE_READY: '1',
     ...(token
       ? { NUMBERDROID_STUDIO_BINDING_TOKEN: token }
       : { NUMBERDROID_STUDIO_PAIRING_ENDPOINT: pairingEndpoint }),
@@ -132,6 +178,23 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
 
   const { tools } = await client.listTools();
   const names = tools.map(({ name }) => name);
+  assert.deepEqual([...names].sort(), [
+    'studio_asset_define',
+    'studio_atlas_commit_slices',
+    'studio_atlas_define_rects',
+    'studio_atlas_preview_slices',
+    'studio_atlas_propose_grid',
+    'studio_command_catalog_list',
+    'studio_job_cancel',
+    'studio_job_discard',
+    'studio_job_read',
+    'studio_job_retry',
+    'studio_project_read',
+    'studio_project_status_set',
+    'studio_source_intake_commit',
+    'studio_source_register',
+    'studio_source_review_propose',
+  ]);
   assert.ok(names.includes('studio_project_read'));
   assert.ok(names.includes('studio_source_register'));
   assert.ok(names.includes('studio_source_intake_commit'));
@@ -143,6 +206,17 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   assert.equal(sourceTool.inputSchema.properties.actor, undefined);
   assert.equal(sourceTool.inputSchema.properties.grantId, undefined);
   assert.equal(sourceTool.inputSchema.additionalProperties, false);
+  const jobReadTool = tools.find(({ name }) => name === 'studio_job_read');
+  assert.deepEqual(Object.keys(jobReadTool.inputSchema.properties).sort(), ['jobId', 'projectId', 'schemaVersion']);
+  assert.deepEqual([...jobReadTool.inputSchema.required].sort(), ['jobId', 'projectId', 'schemaVersion']);
+  assert.equal(jobReadTool.inputSchema.additionalProperties, false);
+  assert.equal(jobReadTool.annotations.readOnlyHint, true);
+  assert.equal(jobReadTool.annotations.destructiveHint, false);
+  const { resourceTemplates } = await client.listResourceTemplates();
+  assert.deepEqual(resourceTemplates.map(({ uriTemplate }) => uriTemplate).sort(), [
+    'studio://projects/{projectId}',
+    'studio://projects/{projectId}/jobs/{jobId}',
+  ]);
 
   const resourceRequest = client.readResource({ uri: `studio://projects/${PROJECT_ID}` });
   for (let attempt = 0; attempt < 50 && fixture.pairingBroker.list(PROJECT_ID).length === 0; attempt += 1) {
@@ -173,6 +247,82 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   assert.equal(project.revision, 2);
   assert.equal(project.snapshot.grants, undefined);
   assert.doesNotMatch(JSON.stringify(project), /grant\.atlas|binding\./);
+
+  const previewJobResource = `studio://projects/${PROJECT_ID}/jobs/${OBSERVABLE_JOB_ID}`;
+  const jobResourceMatch = /^studio:\/\/projects\/([^/]+)\/jobs\/([^/]+)$/.exec(previewJobResource);
+  assert.ok(jobResourceMatch);
+  const observedJob = await client.callTool({
+    name: 'studio_job_read',
+    arguments: {
+      schemaVersion: 1,
+      projectId: jobResourceMatch[1],
+      jobId: jobResourceMatch[2],
+    },
+  });
+  assert.equal(observedJob.isError, undefined, JSON.stringify(observedJob));
+  assert.equal(observedJob.structuredContent.projectId, PROJECT_ID);
+  assert.equal(observedJob.structuredContent.job.jobId, OBSERVABLE_JOB_ID);
+  assert.equal(observedJob.structuredContent.job.state, 'SUCCEEDED');
+  assert.deepEqual(observedJob.structuredContent.job.outputs[0].preview, {
+    schemaVersion: 1,
+    state: 'READY',
+    resourceUri: `/api/projects/${PROJECT_ID}/artifacts/sha256/${fixture.artifact.digest}`,
+    alt: 'Atlas preview rect.official-mcp',
+  });
+  assert.deepEqual(observedJob.structuredContent.events.map((event) => event.type), ['QUEUED', 'RUNNING', 'SUCCEEDED']);
+  assert.ok(observedJob.structuredContent.events.every((event) => !Object.hasOwn(event, 'operationIdempotencyKey')));
+  assert.doesNotMatch(JSON.stringify(observedJob), /file:|\/workspace|base64/);
+  const previewResponse = await fetch(new URL(
+    observedJob.structuredContent.job.outputs[0].preview.resourceUri,
+    fixture.serviceUrl,
+  ));
+  assert.equal(previewResponse.status, 200);
+  assert.deepEqual(Buffer.from(await previewResponse.arrayBuffer()), ONE_PIXEL_PNG);
+
+  const observedJobResource = await client.readResource({ uri: previewJobResource });
+  const observedJobResourceBody = JSON.parse(observedJobResource.contents[0].text);
+  assert.equal(observedJobResource.contents[0].uri, previewJobResource);
+  assert.equal(observedJobResourceBody.projectId, PROJECT_ID);
+  assert.equal(observedJobResourceBody.job.jobId, OBSERVABLE_JOB_ID);
+  assert.deepEqual(
+    observedJobResourceBody.job.outputs[0].preview,
+    observedJob.structuredContent.job.outputs[0].preview,
+  );
+
+  const crossProjectJobResource = await client.readResource({
+    uri: `studio://projects/project.other/jobs/${OBSERVABLE_JOB_ID}`,
+  });
+  const crossProjectJobResourceBody = JSON.parse(crossProjectJobResource.contents[0].text);
+  assert.equal(crossProjectJobResourceBody.status, 'ERROR');
+  assert.equal(crossProjectJobResourceBody.error.code, 'CONTEXT_PROJECT_MISMATCH');
+  assert.doesNotMatch(JSON.stringify(crossProjectJobResourceBody), /job\.official-mcp|grant\.atlas|\/workspace/);
+  assert.equal(fixture.store.workspace.database.prepare(`
+    SELECT count(*) AS count FROM agent_attempts WHERE command_type = 'job.read' AND status = 'AUTHORIZED'
+  `).get().count, 0);
+
+  const invalidJobRead = await client.callTool({
+    name: 'studio_job_read',
+    arguments: {
+      schemaVersion: 1,
+      projectId: PROJECT_ID,
+      jobId: OBSERVABLE_JOB_ID,
+      jobResource: previewJobResource,
+    },
+  });
+  assert.equal(invalidJobRead.isError, true);
+  assert.match(invalidJobRead.content[0].text, /^Input validation error:/);
+
+  const crossProjectJobRead = await client.callTool({
+    name: 'studio_job_read',
+    arguments: {
+      schemaVersion: 1,
+      projectId: 'project.other',
+      jobId: OBSERVABLE_JOB_ID,
+    },
+  });
+  assert.equal(crossProjectJobRead.isError, true);
+  assert.equal(crossProjectJobRead.structuredContent.error.code, 'CONTEXT_PROJECT_MISMATCH');
+  assert.doesNotMatch(JSON.stringify(crossProjectJobRead), /job\.official-mcp|grant\.atlas|\/workspace/);
 
   const malformed = await client.callTool({
     name: 'studio_source_register',
@@ -473,7 +623,7 @@ test('official stdio MCP redacts malformed frame diagnostics', async (context) =
       child.stderr.on('data', inspect);
       inspect();
     }),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Malformed frame produced no generic diagnostic.')), 2_000)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Malformed frame produced no generic diagnostic.')), 10_000)),
   ]);
   assert.doesNotMatch(stdout, new RegExp(sentinel));
   assert.doesNotMatch(stderr, new RegExp(sentinel));

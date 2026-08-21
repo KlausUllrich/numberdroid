@@ -230,6 +230,29 @@ export function sourcePreviewProjection(source, { projectId = null } = {}) {
   };
 }
 
+export function jobHttpProjection(jobView) {
+  const projected = structuredClone(jobView);
+  if (!Array.isArray(projected.job?.outputs)) return projected;
+  projected.job.outputs = projected.job.outputs.map((output) => {
+    const ready = ['SUCCEEDED', 'APPLIED'].includes(projected.job.state)
+      && typeof projected.projectId === 'string'
+      && /^[a-f0-9]{64}$/.test(output.digest ?? '')
+      && SUPPORTED_PREVIEW_MEDIA.has(output.mediaType);
+    return {
+      ...output,
+      preview: {
+        schemaVersion: 1,
+        state: ready ? 'READY' : (SUPPORTED_PREVIEW_MEDIA.has(output.mediaType) ? 'MISSING' : 'UNSUPPORTED'),
+        resourceUri: ready
+          ? `/api/projects/${encodeURIComponent(projected.projectId)}/artifacts/sha256/${output.digest}`
+          : null,
+        alt: `Atlas preview ${output.rectangleId}`,
+      },
+    };
+  });
+  return projected;
+}
+
 export function projectHttpProjection(projectView) {
   const sourceById = new Map(projectView.snapshot.sources.map((source) => [source.id, source]));
   return {
@@ -239,6 +262,18 @@ export function projectHttpProjection(projectView) {
       sources: projectView.snapshot.sources.map((source) => ({
         ...structuredClone(source),
         preview: sourcePreviewProjection(source, { projectId: projectView.projectId }),
+      })),
+      atlases: (projectView.snapshot.atlases ?? []).map((atlas) => ({
+        ...structuredClone(atlas),
+        sliceHeads: atlas.sliceHeads.map((slice) => ({
+          ...structuredClone(slice),
+          preview: {
+            schemaVersion: 1,
+            state: 'READY',
+            resourceUri: `/api/projects/${encodeURIComponent(projectView.projectId)}/artifacts/sha256/${slice.digest}`,
+            alt: `${atlas.name} slice ${slice.rectangleId}`,
+          },
+        })),
       })),
       assets: projectView.snapshot.assets.map((asset) => ({
         ...structuredClone(asset),

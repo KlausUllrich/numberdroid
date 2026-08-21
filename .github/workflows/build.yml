@@ -186,7 +186,7 @@ jobs:
         working-directory: tools/numberdroid-studio
         run: NUMBERDROID_EVIDENCE_REQUIRE_PRODUCTION_ADAPTER=1 npm run evidence:verify
 
-      - name: Capture Studio 1A, 1B, and 2A browser evidence
+      - name: Capture Studio 1A, 1B, 2A, and 2B browser evidence
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
@@ -207,10 +207,12 @@ jobs:
           BASELINE_PID=""
           CANDIDATE_PID=""
           CHECKPOINT_2A_PID=""
+          CHECKPOINT_2B_PID=""
           cleanup() {
             if [ -n "$BASELINE_PID" ]; then kill "$BASELINE_PID" 2>/dev/null || true; fi
             if [ -n "$CANDIDATE_PID" ]; then kill "$CANDIDATE_PID" 2>/dev/null || true; fi
             if [ -n "$CHECKPOINT_2A_PID" ]; then kill "$CHECKPOINT_2A_PID" 2>/dev/null || true; fi
+            if [ -n "$CHECKPOINT_2B_PID" ]; then kill "$CHECKPOINT_2B_PID" 2>/dev/null || true; fi
           }
           trap cleanup EXIT
           mkdir -p "$EVIDENCE/baseline-1a" "$EVIDENCE/candidate-1b/dom"
@@ -321,6 +323,29 @@ jobs:
           wait "$CHECKPOINT_2A_PID" 2>/dev/null || true
           CHECKPOINT_2A_PID=""
 
+          CHECKPOINT_2B_DATA="$RUNNER_TEMP/numberdroid-studio-checkpoint-2b-data"
+          CHECKPOINT_2B_EVIDENCE="$GITHUB_WORKSPACE/artifacts/studio-checkpoint-2b"
+          mkdir -p "$CHECKPOINT_2B_EVIDENCE/dom"
+          node tools/numberdroid-studio/scripts/prepare-checkpoint-2b-visual-evidence.js \
+            "$CHECKPOINT_2B_DATA" > "$CHECKPOINT_2B_EVIDENCE/fixture.json"
+          NUMBERDROID_STUDIO_DATA="$CHECKPOINT_2B_DATA" NUMBERDROID_STUDIO_PORT=4320 \
+            node tools/numberdroid-studio/apps/studio-server/src/server.js \
+            > "$CHECKPOINT_2B_EVIDENCE/server.log" 2>&1 &
+          CHECKPOINT_2B_PID=$!
+          wait_for_studio http://127.0.0.1:4320 "$CHECKPOINT_2B_EVIDENCE/server.log"
+          for width in 1440 1060; do
+            capture "$width" "$CHECKPOINT_2B_EVIDENCE/cutter-canvas-$width.png" \
+              'http://127.0.0.1:4320/?visualFixture=checkpoint-2b&visualFocus=cutter-canvas#sources' checkpoint-2b \
+              "$CHECKPOINT_2B_EVIDENCE/dom/cutter-canvas-$width.html"
+            capture "$width" "$CHECKPOINT_2B_EVIDENCE/rectangle-inspector-$width.png" \
+              'http://127.0.0.1:4320/?visualFixture=checkpoint-2b&visualFocus=rectangle-inspector#sources' checkpoint-2b
+            capture "$width" "$CHECKPOINT_2B_EVIDENCE/committed-slices-$width.png" \
+              'http://127.0.0.1:4320/?visualFixture=checkpoint-2b&visualFocus=committed-slices#sources' checkpoint-2b
+          done
+          kill "$CHECKPOINT_2B_PID"
+          wait "$CHECKPOINT_2B_PID" 2>/dev/null || true
+          CHECKPOINT_2B_PID=""
+
       - name: Upload Studio visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -336,5 +361,14 @@ jobs:
         with:
           name: numberdroid-studio-checkpoint-2a-visual
           path: artifacts/studio-checkpoint-2a/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Studio Checkpoint 2B visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: numberdroid-studio-checkpoint-2b-visual
+          path: artifacts/studio-checkpoint-2b/
           if-no-files-found: error
           retention-days: 14

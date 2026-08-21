@@ -6,7 +6,7 @@ The MCP server is a first-class Studio client for agents. It exposes the same se
 
 Checkpoint 1B implemented and the user accepted MCP 2026-07-28 through the official maintained SDK. The protocol SDK and transport remain replaceable adapters; Studio command semantics do not depend on a specific MCP revision. Checkpoint 1A contained only a host-injected agent adapter/tool catalog and MUST NOT be described as a complete MCP server.
 
-The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. The Checkpoint 2A candidate adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. This is additive, pending user acceptance, and not a permission-model rewrite.
+The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. Accepted Checkpoint 2A adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. The Checkpoint 2B candidate adds atlas and durable-job operations only when both the attempt and job stores are live. These are additive surfaces, not a permission-model rewrite; 2B still awaits CI/browser evidence and user acceptance.
 
 Accepted transport: local stdio through the official SDK v2 `serveStdio(() => buildServer(), { legacy: "reject" })` entry, so the wire protocol is MCP `2026-07-28`. A child-process contract test negotiates `server/discover` and asserts that revision. The MCP protocol core is treated as stateless: protocol discovery/capability negotiation is not an identity or authorization session. A later team deployment may add authenticated Streamable HTTP without changing tool schemas or authoring behavior.
 
@@ -61,13 +61,14 @@ The selected label, DOM state, URL, browser storage, and UI request payload are 
 
 Resources are the preferred way to discover and inspect current state. All resources enforce project/object read scope and expose their projection revision.
 
-### Implemented and advertised in accepted Checkpoint 1
+### Implemented resource templates in the Checkpoint 2B candidate
 
 ```text
 studio://projects/{projectId}
+studio://projects/{projectId}/jobs/{jobId}
 ```
 
-This resource returns the current authorized, redacted project-head projection. The official server does not advertise resource listing or any other URI pattern yet.
+The first template returns the current authorized, redacted project-head projection. The job template returns the same project-scoped, authority-checked, redacted projection as `studio_job_read`, including structured progress/events and output preview resource links when they are live. The official server advertises exactly these two templates; it does not advertise resource listing or any other URI pattern yet.
 
 ### Planned V1 resource surface
 
@@ -88,7 +89,6 @@ studio://projects/{projectId}/assets/{assetId}
 studio://projects/{projectId}/rooms/{roomId}
 studio://projects/{projectId}/levels/{levelId}
 studio://projects/{projectId}/tasks/{taskId}
-studio://projects/{projectId}/jobs/{jobId}
 studio://projects/{projectId}/validation?revision={revisionId}
 studio://projects/{projectId}/exports/{snapshotId}
 studio://artifacts/sha256/{digest}
@@ -176,14 +176,27 @@ Names below are the intended stable semantic surface. Checkpoint implementation 
 
 `studio_project_create` is a human-only application command and is deliberately filtered from the official agent catalog. Grant issue/revoke commands are likewise owner-only and never advertised to agents.
 
-### Additive Checkpoint 2A candidate when durable audit is live
+### Additive accepted Checkpoint 2A surface when durable audit is live
 
 - `studio_source_intake_commit` — atomically claim a project-scoped staged intake and create a V2 source with validated provider-neutral provenance;
 - `studio_source_review_propose` — move a newly imported/generated V2 source into explicit owner review without deciding it.
 
-These tools are advertised only when the launcher and running SQLite service declare the final attempt ledger live. The private service checks that condition again before dispatch, so a forged launcher flag cannot bypass it. `studio_source_intake_commit` requires the distinct `source.intake.commit` capability, project object scope, command budget, and artifact-byte budget. `studio_source_review_propose` requires `source.review.propose`. The tool input references an already staged project intake and canonical CAS metadata; it never accepts binary bytes, a local path, provider credential, or arbitrary external artifact location.
+These tools are advertised only when the launcher and running SQLite service declare the attempt ledger live. The private service checks that condition again before dispatch, so a forged launcher flag cannot bypass it. `studio_source_intake_commit` requires the distinct `source.intake.commit` capability, project object scope, command budget, and artifact-byte budget. `studio_source_review_propose` requires `source.review.propose`. The tool input references an already staged project intake and canonical CAS metadata; it never accepts binary bytes, a local path, provider credential, or arbitrary external artifact location.
 
-Owner-only `source.review.decide` is used by the human UI and is never advertised. The audit-ready discovery surface is therefore exactly seven tools total and one project resource. With the audit flag absent, the accepted five-tool surface remains and the two candidate mutations fail closed from discovery.
+Owner-only `source.review.decide` is used by the human UI and is never advertised. With the audit store live but no durable job store, discovery is exactly seven tools and one project resource template. With the audit flag absent, the accepted five-tool surface remains and the two source mutations fail closed from discovery.
+
+### Checkpoint 2B candidate surface when durable audit and jobs are live
+
+- `studio_atlas_propose_grid` — read-only calculation of a non-authoritative regular-grid proposal against an approved source revision;
+- `studio_atlas_define_rects` — commit exact authoritative rectangles, inclusion, pivots, and explicit recut mapping;
+- `studio_atlas_preview_slices` — atomically create the semantic input revision and one durable `ATLAS_PREVIEW` job with its complete budget charge;
+- `studio_atlas_commit_slices` — atomically promote a succeeded job's verified outputs to stable slice heads/versions and mark it `APPLIED`;
+- `studio_job_read` — read the redacted project-scoped job projection and resource links;
+- `studio_job_cancel` — idempotently request cooperative cancellation of queued/running work;
+- `studio_job_retry` — idempotently queue the next attempt for failed/cancelled work, with `expectedAttempt` and a three-attempt ceiling;
+- `studio_job_discard` — idempotently release temporary outputs from terminal unapplied work and mark it `DISCARDED`.
+
+Together with the accepted seven tools, the audit/job-ready official server advertises exactly 15 tools and the two resource templates above. `studio_job_cancel`, `studio_job_retry`, and `studio_job_discard` require the original agent task/object authority and commit their `AUTHORIZED` attempt record atomically with the job transition. Job read and resource read are project-scoped. No job schema accepts actor/task/branch/grant identity, bytes, base64, credentials, local paths, or arbitrary artifact URIs.
 
 ### Planned foundation and task expansion — later V1
 
@@ -195,16 +208,12 @@ Owner-only `source.review.decide` is used by the human UI and is never advertise
 
 Grant mint/revoke endpoints exist for the authenticated human UI/service API. They MUST NOT be advertised as agent-callable MCP mutation tools. MCP resources expose the effective, redacted grant so the agent can plan within its authority.
 
-### Later source and atlas tools — Checkpoint 2B and beyond
+### Later source/provider tools
 
 - `studio_source_generate`
 - `studio_source_register_generation`
-- `studio_atlas_propose_grid`
-- `studio_atlas_define_rects`
-- `studio_atlas_preview_slices`
-- `studio_atlas_commit_slices`
 
-`studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. `studio_atlas_propose_grid` may use image analysis but cannot mark rectangles authoritative. `studio_atlas_commit_slices` receives explicit integer rectangles and produces artifact/resource URIs.
+`studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 
 ### Asset library tools — Checkpoint 2
 
@@ -266,28 +275,28 @@ The result maps each input operation to events/findings and returns one revision
 
 An agent cannot use a broad batch wrapper to bypass a missing capability for a contained command.
 
-## 8. Planned jobs
+## 8. Checkpoint 2B durable atlas jobs
 
-Durable jobs are not implemented through Checkpoint 2A. Original-source preview reads the verified CAS object synchronously and creates no derivative. When a later long-running tool is introduced, it returns:
+`studio_atlas_preview_slices` returns immediately after the semantic input revision and durable job have committed atomically:
 
 ```json
 {
   "status": "ACCEPTED",
   "jobId": "job_...",
   "jobResource": "studio://projects/project_.../jobs/job_...",
-  "inputRevisionId": "rev_..."
+  "inputRevisionId": "revision:6"
 }
 ```
 
-Agents follow progress through job resources/subscriptions where supported. Job events include phase, completed/total units when meaningful, findings, artifact links, and whether cancellation is currently safe.
+Agents follow progress through `studio_job_read` or `studio://projects/{projectId}/jobs/{jobId}`. Job events include state, attempt, monotonic sequence, completed/total units, safe point, and redacted details. Succeeded outputs contain exact digest, media type, byte size, dimensions, rectangle identity, and a same-origin preview resource URI; they never contain image bytes, base64, local paths, grant IDs, or unsanitized failures.
 
 Job controls:
 
-- `studio_job_cancel` — cooperative cancellation within the task/grant scope;
-- `studio_job_retry` — new attempt with the same immutable input after retry policy checks;
-- `studio_job_respond` — provide requested structured input for `WAITING_FOR_USER` only when the response is within the grant.
+- `studio_job_cancel` — cooperative cancellation within the original task/grant/object scope;
+- `studio_job_retry` — new attempt with the same immutable input after expected-attempt and three-attempt-limit checks;
+- `studio_job_discard` — release temporary outputs from `SUCCEEDED`, `FAILED`, or `CANCELLED` work that was not applied.
 
-A job never switches to a newer project head automatically. Results identify the exact input revision and become stale if the caller chooses not to merge/apply them.
+The complete state set is `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, `APPLIED`, and `DISCARDED`. There is no `WAITING_FOR_USER` state and no `studio_job_respond`. A retry never switches to a newer project head. `studio_atlas_commit_slices` compare-and-swaps the exact input/fingerprint/output contract and moves `SUCCEEDED` to `APPLIED`; definition changes require the prior preview to be applied or discarded. Cancellation, retry, discard, output publication, and apply recheck immutable creator authority at their safe boundaries. Authorized job-control audit and the state transition share one SQLite transaction.
 
 ## 9. Errors and conflicts
 
@@ -318,7 +327,7 @@ Protocol/tool invocation failure is distinct from a successful command that prod
 
 ## 10. Human-visible agent operation
 
-Accepted semantic commands append to the revision Activity timeline with actor/task/revision attribution. The Checkpoint 2A candidate also records exactly one final `DENIED` or `FAILED` row for every mutation attempt that reaches `/internal/mcp/execute` after a valid HostBinding resolves trusted project and actor context. Only stable error codes and allowlisted scalar details are retained; prompts, idempotency keys, tokens, grant IDs, artifact URIs, payloads, and paths are excluded. The UI merges these rows into the chronological Activity projection without inventing a semantic revision.
+Accepted semantic commands append to the revision Activity timeline with actor/task/revision attribution. Accepted Checkpoint 2A also records exactly one final `DENIED` or `FAILED` row for every mutation attempt that reaches `/internal/mcp/execute` after a valid HostBinding resolves trusted project and actor context. Only stable error codes and allowlisted scalar details are retained; prompts, idempotency keys, tokens, grant IDs, artifact URIs, payloads, and paths are excluded. The UI merges these rows into the chronological Activity projection without inventing a semantic revision.
 
 There are deliberately no non-atomic request `STARTED`/`COMMITTED` rows: successful commands already have atomic semantic Activity, and an audit-write failure on a denied/failed attempt makes that call fail closed. Invalid/missing bearer tokens, pairing failures, and other pre-binding traffic stay in redacted operational security logs because no trusted project/actor exists to attribute. That boundary is the exact 2A closure of `AGT-008`, not a claim of complete request/job telemetry.
 
@@ -332,7 +341,7 @@ The target V1 activity timeline displays every MCP tool call that reaches applic
 - duration, job/correlation IDs, findings, and changed resource links;
 - review disposition (`PENDING`, `USER_APPROVED`, `USER_REJECTED`, or `AUTO_ACCEPTED_BY_POLICY`).
 
-The accepted user can revoke the grant/HostBinding from the Header. Job cancellation arrives when durable jobs are implemented. Agent changes remaining on isolated draft branches is a Checkpoint 4 target; Checkpoint 1 has no branch-head/review/merge workflow, so `Propose in draft` fails closed.
+The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2B adds visible read/cancel/retry/discard controls for its atlas-preview jobs, and the agent receives the equivalent scoped MCP operations. Agent changes remaining on isolated draft branches is a Checkpoint 4 target; the current candidate has no branch-head/review/merge workflow, so `Propose in draft` fails closed.
 
 ## 11. Security invariants
 
@@ -347,7 +356,7 @@ The accepted user can revoke the grant/HostBinding from the Header. Job cancella
 - Prompt or source metadata is untrusted content and cannot redefine capabilities or system behavior.
 - Publish requires a separate short-lived grant and explicit snapshot/manifest identity.
 
-Client cancellation is propagated through the official MCP request context, the local HTTP bridge, and the application service. Reads and synchronous mutations check cancellation before persistence and immediately before their atomic write. Once an atomic store call has begun it is not interrupted: the client may no longer know whether that one commit completed, so it MUST retry the same logical command with the same idempotency key. The replay then returns the original committed revision or proves that no commit occurred; cancellation never licenses a second mutation. Long-running jobs add their own documented cooperative safe points in later checkpoints.
+Client cancellation is propagated through the official MCP request context, the local HTTP bridge, and the application service. Reads and synchronous mutations check cancellation before persistence and immediately before their atomic write. Once an atomic store call has begun it is not interrupted: the client may no longer know whether that one commit completed, so it MUST retry the same logical command with the same idempotency key. The replay then returns the original committed revision or proves that no commit occurred; cancellation never licenses a second mutation. Atlas jobs additionally persist a cancel request and stop cooperatively before claim, before each crop/output publication, or at the next documented worker safe point; they do not interrupt an atomic output or semantic-apply transaction.
 
 ## 12. MCP acceptance and adversarial tests
 
@@ -374,8 +383,10 @@ Accepted Checkpoint 1B protocol tests continue to prove:
 17. Asset Library cards receive an authorized preview URI or an explicit fallback state, never a local path or embedded bitmap;
 18. replacing the 1A host-only adapter with stdio preserves the protected baseline's semantic command results, actor attribution, revisions, and activity projection.
 
-The Checkpoint 2A candidate extends those tests with exact seven-tool audit-ready discovery; distinct intake/review scopes; project object and artifact-byte budgets; staged-intake claim/recovery; canonical source and lineage references; bounded discriminated provenance; human-only decision; final-only redacted denied/failed Activity; audit-write fail-closed behavior; and byte-identical Family Hygiene preview/reopen evidence.
+Accepted Checkpoint 2A extends those tests with exact seven-tool audit-ready discovery; distinct intake/review scopes; project object and artifact-byte budgets; staged-intake claim/recovery; canonical source and lineage references; bounded discriminated provenance; human-only decision; final-only redacted denied/failed Activity; audit-write fail-closed behavior; and byte-identical Family Hygiene preview/reopen evidence.
 
-The following target checks remain for the checkpoint that introduces the feature: atomic batch rollback and batch budget accounting; durable job/cancellation outcomes; resource-level source/atlas/asset detail resources; isolated task-branch review/merge; and publish authorization.
+The Checkpoint 2B candidate extends them with exact 15-tool/two-template discovery; non-authoritative grid proposal; source-resolution rectangle validation; deterministic pinned PNG outputs; semantic/job creation atomicity; complete one-time budget charge; job/resource read equivalence; cancel/retry/discard idempotency; three-attempt enforcement; immutable creator-task authority; revoked/expired/cross-task denial; authorized-control audit atomicity; worker lease recovery and stale-worker exclusion; sanitized failures; exact output metadata and reference ownership; atomic semantic apply; restart/recovery; state-specific integrity; snapshot-consistent backup; and quiesced shutdown.
+
+The following target checks remain for the checkpoint that introduces the feature: general atomic batch rollback and batch budget accounting; source/atlas/asset detail resources beyond the current project/job templates; isolated task-branch review/merge; and publish authorization.
 
 Later checkpoints extend this same suite for every advertised authoring tool. A tool is not considered delivered merely because it appears in documentation; it must be discoverable, schema-tested, authorized, observable, and exercised end to end.

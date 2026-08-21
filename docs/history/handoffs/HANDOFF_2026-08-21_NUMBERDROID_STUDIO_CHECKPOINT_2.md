@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-21
 - **Repository:** `KlausUllrich/numberdroid`
-- **Status:** Checkpoint 1A, 1B, and 2A user-accepted; Checkpoint 2B authorized, 2C blocked
+- **Status:** Checkpoint 1A, 1B, and 2A user-accepted; Checkpoint 2B implemented candidate pending CI/browser evidence and user acceptance; 2C blocked
 - **Baseline `main` SHA at handoff preparation:** `1e1f0ce09a7c996f24cf6b216e400d57cb6dc666`
 - **Accepted Studio implementation SHA:** `41fad464cd2f904666f7dfecc8437f2286c3254c`
 - **Protected Checkpoint 1A SHA:** `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`
@@ -11,7 +11,9 @@
 - **Baseline CI / Pages:** accepted Studio PR run `32493595981` passed root `build` and isolated `studio`; Pages/deployment was intentionally skipped because Studio is a local authoring service. Re-check current `main`, PR head, and Actions before doing new work.
 - **Primary receiving role:** Coordinator / Authoring-tool Engineer
 - **Secondary roles, activated by triggers:** Technical Artist, QA, Game Design, Level Generation/Runtime Integration, Security
-- **Next milestone:** Checkpoint 2 — Source, Atlas Cutter, and Asset Library vertical slice
+- **Next milestone:** freeze, publish, and verify the Checkpoint 2B atlas-cutter candidate
+
+> **Continuation update, 2026-08-22:** Checkpoint 2B is implemented and locally frozen at 108/108 tests with final adversarial GO, but it is not user-accepted. Schema v8, deterministic Family Hygiene crops, durable `ATLAS_PREVIEW` jobs, exact 15-tool/two-template MCP discovery, job controls, state-specific integrity, and snapshot-consistent backup are candidate behavior. Dedicated GitHub Actions/real-Chrome evidence and the user major gate remain pending. Continue from `tools/numberdroid-studio/docs/CHECKPOINT_2B_STATUS.md` and `docs/history/handoffs/HANDOFF_2026-08-22_NUMBERDROID_STUDIO_CHECKPOINT_2B.md`. Do not start 2C or infer merge/release/publication/provider authority.
 
 > **Continuation update, 2026-08-21:** Checkpoint 2A was explicitly accepted after the first candidate's cropped-preview rejection and the repaired workflow review. The first 2B fixture is importing the approved Family Hygiene image and making individual tiles; the workflow and provider-free boundary are accepted. Checkpoint 2B planning and implementation are authorized, while merge, release, publication, provider work, and Checkpoint 2C remain unauthorized. The exact scope, evidence, limits, and decision are recorded in `tools/numberdroid-studio/docs/CHECKPOINT_2A_STATUS.md` and `docs/history/handoffs/HANDOFF_2026-08-21_NUMBERDROID_STUDIO_CHECKPOINT_2A.md`. The historical planning text below remains useful context but no longer describes current implementation status.
 
@@ -52,7 +54,10 @@ There is no nested `tools/numberdroid-studio/AGENTS.md` at this handoff. The roo
 11. `tools/numberdroid-studio/docs/ROADMAP.md` — long verification loop, Checkpoint 2 gates, later checkpoint boundaries.
 12. `tools/numberdroid-studio/docs/CHECKPOINT_1A_BASELINE.md` — permanent protected visual/behavior fixture.
 13. `tools/numberdroid-studio/docs/CHECKPOINT_1B_STATUS.md` — accepted implementation/evidence identity and explicit non-features.
-14. This handoff — only after the current contracts above.
+14. `tools/numberdroid-studio/docs/CHECKPOINT_2A_STATUS.md` — accepted source workflow and fixture.
+15. `tools/numberdroid-studio/docs/CHECKPOINT_2B_STATUS.md` — implemented-but-unaccepted candidate contract and evidence.
+16. `docs/history/handoffs/HANDOFF_2026-08-22_NUMBERDROID_STUDIO_CHECKPOINT_2B.md` — current continuation snapshot.
+17. This handoff — historical planning context only after the current contracts above.
 
 ### C. Accepted implementation and test boundary
 
@@ -130,9 +135,9 @@ Accepted evidence:
 
 Actions artifact retention is temporary (recorded through 2026-09-04). No screenshot bytes were committed as permanent goldens. The protected fixture, reproducible capture workflow, artifact digest/manifest metadata, viewport record, user decision, and exact run/commit identities are durable; regenerate visual evidence after expiry unless a later explicitly authorized binary-evidence task publishes permanent goldens.
 
-### Implemented but deliberately small
+### Historical accepted Checkpoint 1B surface
 
-The accepted official MCP server advertises exactly:
+The accepted Checkpoint 1B base MCP server advertised exactly:
 
 - `studio_command_catalog_list`
 - `studio_project_read`
@@ -158,21 +163,31 @@ Its mutation input is:
 
 Revisions are integers. `branchId`, actor, task, grant, and binding are trusted execution context and are forbidden in tool input. Committed results use `{schemaVersion, projectId, revision, value, event, replayed}`. Do not implement against the richer future result examples without versioning the contract and tests.
 
-`studio_project_create` is filtered from the agent catalog. Human grant issue/revoke operations are also owner-only. The many source/atlas/asset/room/job/batch/export URI and tool names in `MCP_CONTRACT.md` are planned surface, not current discovery results.
+`studio_project_create` is filtered from the agent catalog. Human grant issue/revoke operations are also owner-only. Accepted 2A and the current 2B candidate add versioned tools/resources to this base. The exact current audit/job-ready candidate surface is 15 tools and two templates and is listed in `CHECKPOINT_2B_STATUS.md`; asset/room/batch/export names remain planned.
 
-### Known gap that must remain visible
+### Historical Checkpoint 1 gap, closed by accepted 2A and extended by 2B
 
-Accepted commands are durable Activity entries. Denied and failed calls are fail-closed and immediately return a redacted structured result, but Checkpoint 1 does **not** append them to the durable Activity ledger. Full `AGT-008` coverage remains open. Do not say “every denied attempt is durably audited” until code, migrations/projections, privacy rules, UI, MCP tests, and recovery tests prove it.
+Checkpoint 1 did not append denied/failed bound-agent calls to durable Activity. Accepted 2A closed that exact `AGT-008` boundary with final redacted `DENIED`/`FAILED` records after valid HostBinding resolution. Candidate schema v8 additionally records `AUTHORIZED` job controls atomically with cancel/retry/discard transitions. Pre-binding authentication/pairing failures still have no trusted project/actor attribution and remain redacted operational security logs.
 
 The package boundary is proven by tests, but `packages/numberdroid-adapter` and its contract/golden fixtures do not exist yet. They belong to Checkpoint 5. Do not claim Numberdroid materialization or publication.
 
-### Planned and not implemented
+### Checkpoint 2B candidate — implemented, not user-accepted
 
-- user-facing source import/review/approval workflow;
+- exact Family Hygiene rectangles `(3,3,622,622)`, `(629,3,622,622)`, `(3,629,622,622)`, and `(629,629,622,622)`;
+- four deterministic 1,548,341-byte 622×622 canonical RGBA PNG outputs with pinned hashes in `CHECKPOINT_2B_STATUS.md`;
+- source-resolution visual cutter with proposal/manual/include/remap controls and retained keyboard focus;
+- schema v8 migrations 0007 `aa951c02158f76f6343819271b78816e211bfe3015cc9f4f979947a075ef25e9` and 0008 `2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730`;
+- durable `ATLAS_PREVIEW` states `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELLED`, `APPLIED`, and `DISCARDED`, with at most three attempts and explicit read/cancel/retry/discard;
+- atomic creation/budget, output promotion, apply, and authorized job-control audit; worker authority recovery and quiesced shutdown;
+- state-specific integrity, snapshot-consistent backup, exact 15-tool/two-resource-template MCP surface, and no binary/base64/path/credential leakage;
+- frozen local verification 108/108, focused 44/44, adversarial 23/23 and 36/36 GO, official MCP 5/5, protected evidence verified;
+- dedicated published CI/browser identities and user acceptance still pending.
+
+### Planned and not implemented after the 2B candidate
+
 - provider-backed generation, credentials, egress, and cost enforcement;
-- atlas grid proposal, manual/variable rectangles, cut/re-cut, derived slice previews, stable remapping;
 - bulk asset naming and semantic metadata authoring;
-- durable image-processing jobs, batch execution, progress/resource subscriptions;
+- general batch execution and progress/resource subscriptions beyond project/job reads;
 - portable project-bundle round trip;
 - isolated task branches, proposal comparison, merge/review dispositions, Custom editor;
 - room/hallway canvas, set dressing, finalization, and level composition;
@@ -199,15 +214,15 @@ Checkpoint 2 outcome: one approved atlas becomes reproducible, visually searchab
 
 ### 2A — Source intake and review
 
-Implement local file intake into CAS, complete provenance/lineage, thumbnail/preview, and explicit review lifecycle. Add only the durable job seam actually needed for image work. Keep provider generation behind a port until the user chooses provider, allowed egress, credential storage, cost budget, and reproduction expectations.
+**Accepted historical gate.** Local file intake into CAS, complete provenance/lineage, contained original preview, staged recovery, explicit review lifecycle, and final bound-agent attempt audit are implemented and user-accepted. Provider generation remains blocked until the user chooses provider, allowed egress, credential storage, cost budget, and reproduction expectations.
 
 Exit evidence: the user can import the chosen approved atlas, inspect a real preview and provenance, approve/reject it explicitly, restart, and see the identical source/revision state. An agent with the right HostBinding can perform the same semantic operation without receiving local paths or credentials.
 
 ### 2B — Visual atlas cutter
 
-Implement source zoom, checker/grid overlay, regular-grid proposal, manual and variable integer rectangles, include/exclude preview, deterministic slice artifacts, and explicit stable remapping when a recut replaces prior imagery. Pixel analysis may suggest rectangles but never makes semantic or topology decisions.
+**Implemented candidate, acceptance pending.** Source zoom/overlay, regular-grid proposal, manual and variable integer rectangles, include/exclude preview, deterministic slice artifacts, explicit stable remapping, and durable job controls are implemented. Pixel analysis does not decide semantic or topology state. The remaining work is published CI/browser verification and one user major gate, not more unreviewed feature scope.
 
-Exit evidence: the user visually adjusts cuts, sees exact rectangle coordinates and resulting tile previews, commits them once, retries idempotently, and verifies deterministic artifacts after restart. Re-cutting cannot silently retarget an existing Asset identity.
+Exit evidence still required: the user visually adjusts cuts, sees exact rectangle coordinates and resulting tile previews, exercises job visibility/control, commits them once, retries idempotently, and verifies deterministic artifacts after restart. Re-cutting cannot silently retarget an existing slice identity.
 
 ### 2C — Asset Library semantics
 
@@ -419,4 +434,4 @@ After the mandatory reading and state verification, report:
 4. a bounded 2A plan with data model/migrations, UI flow, MCP changes, tests, visual evidence, risks, and rollback;
 5. the explicit user decision needed for the first real atlas fixture and, separately, whether provider-backed generation is in 2A or only its adapter seam.
 
-The original 2B block above was satisfied by the explicit 2A acceptance. That authority is limited to 2B planning and implementation; do not begin 2C, rooms, export, animation, provider work, or repository publication before their separate prerequisites and checkpoint authority exist.
+The explicit 2A acceptance authorized the now-implemented 2B candidate. Continue with 2B publication, CI/browser verification, and the user major gate through the 2026-08-22 handoff; do not begin 2C, rooms, export, animation, provider work, or repository publication before their separate prerequisites and checkpoint authority exist.

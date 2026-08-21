@@ -15,6 +15,8 @@ export const SQLITE_MIGRATIONS = Object.freeze([
   { version: 4, name: 'host_bindings', file: '0004_host_bindings.sql', checksum: '20fa7666371cac545958d25d3c94db4a6653aa0f76e84ef61eb1f349e854acfc' },
   { version: 5, name: 'agent_access_operations', file: '0005_agent_access_operations.sql', checksum: 'c9a47d62a420555a47571fa8d1513801b8b5c8a1b79638eadcc20346132519f3' },
   { version: 6, name: 'source_intakes_and_agent_attempts', file: '0006_source_intakes_and_agent_attempts.sql', checksum: 'f7b785a60bf02cd0d03944d4bd5983a4845bd715bf2a8a88f9c3ddf8c5a419f5' },
+  { version: 7, name: 'jobs_and_job_events', file: '0007_jobs_and_job_events.sql', checksum: 'aa951c02158f76f6343819271b78816e211bfe3015cc9f4f979947a075ef25e9' },
+  { version: 8, name: 'authorized_agent_attempts', file: '0008_authorized_agent_attempts.sql', checksum: '2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730' },
 ]);
 
 function sha256(text) {

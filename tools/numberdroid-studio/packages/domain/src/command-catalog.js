@@ -34,6 +34,32 @@ const provenanceV2 = {
   },
 };
 
+const atlasRectangle = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'rectangleId', 'x', 'y', 'width', 'height', 'included', 'pivot',
+    'transparentPaddingPolicy', 'replacesSliceId', 'expectedSliceVersion',
+  ],
+  properties: {
+    rectangleId: id,
+    x: { type: 'integer', minimum: 0 },
+    y: { type: 'integer', minimum: 0 },
+    width: { type: 'integer', minimum: 1 },
+    height: { type: 'integer', minimum: 1 },
+    included: { type: 'boolean' },
+    pivot: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: ['x', 'y'],
+      properties: { x: { type: 'integer', minimum: 0 }, y: { type: 'integer', minimum: 0 } },
+    },
+    transparentPaddingPolicy: { type: 'string', enum: ['preserve_exact_rect'] },
+    replacesSliceId: { ...id, type: ['string', 'null'] },
+    expectedSliceVersion: { type: ['integer', 'null'], minimum: 1 },
+  },
+};
+
 const definitions = [
   {
     type: 'project.create',
@@ -210,6 +236,69 @@ const definitions = [
         sourceId: id,
         disposition: { type: 'string', enum: ['APPROVED', 'REJECTED'] },
         note: { type: ['string', 'null'], maxLength: 2000 },
+      },
+    },
+  },
+  {
+    type: 'atlas.define.rects',
+    toolName: 'studio_atlas_define_rects',
+    description: 'Create or revise explicit source-resolution rectangles for an approved PNG source.',
+    requiredScope: 'atlas.write',
+    requiredObjectScope: 'project',
+    ownerOnly: false,
+    requiresDurableAgentLedger: true,
+    payloadSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['atlasId', 'sourceId', 'name', 'expectedAtlasVersion', 'rectangles'],
+      properties: {
+        atlasId: id,
+        sourceId: id,
+        name: { ...nonEmpty, maxLength: 160 },
+        expectedAtlasVersion: { type: 'integer', minimum: 0 },
+        rectangles: { type: 'array', minItems: 1, maxItems: 64, items: atlasRectangle },
+      },
+    },
+  },
+  {
+    type: 'atlas.preview.slices',
+    toolName: 'studio_atlas_preview_slices',
+    description: 'Start a durable deterministic crop preview for the current approved atlas definition.',
+    requiredScope: 'atlas.write',
+    requiredObjectScope: 'project',
+    ownerOnly: false,
+    requiresDurableAgentLedger: true,
+    requiresDurableJobStore: true,
+    payloadSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['atlasId', 'expectedAtlasVersion', 'expectedDefinitionFingerprint', 'jobId'],
+      properties: {
+        atlasId: id,
+        expectedAtlasVersion: { type: 'integer', minimum: 1 },
+        expectedDefinitionFingerprint: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+        jobId: id,
+      },
+    },
+  },
+  {
+    type: 'atlas.commit.slices',
+    toolName: 'studio_atlas_commit_slices',
+    description: 'Atomically promote one succeeded preview job into stable atlas slice heads.',
+    requiredScope: 'atlas.write',
+    requiredObjectScope: 'project',
+    ownerOnly: false,
+    requiresDurableAgentLedger: true,
+    requiresDurableJobStore: true,
+    payloadSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['atlasId', 'expectedAtlasVersion', 'expectedDefinitionFingerprint', 'jobId'],
+      properties: {
+        atlasId: id,
+        expectedAtlasVersion: { type: 'integer', minimum: 1 },
+        expectedDefinitionFingerprint: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+        jobId: id,
       },
     },
   },

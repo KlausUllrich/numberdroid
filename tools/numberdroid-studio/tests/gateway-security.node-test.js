@@ -80,6 +80,52 @@ test('gateway normalizes malformed service responses without echoing bytes', asy
   );
 });
 
+test('job observation uses only the private read bridge and never forwards opaque host authority', async (context) => {
+  const token = 'j'.repeat(43);
+  let observed = null;
+  const bridge = createServer(async (request, response) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    observed = {
+      method: request.method,
+      path: request.url,
+      authorization: request.headers.authorization,
+      body: JSON.parse(Buffer.concat(chunks).toString('utf8')),
+    };
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({
+      schemaVersion: 1,
+      projectId: 'project.job-observation',
+      job: { jobId: 'job.preview.1', state: 'QUEUED' },
+    }));
+  });
+  const gateway = new LocalStudioGateway({
+    baseUrl: await listen(context, bridge),
+    bindingToken: token,
+    agentAttemptAuditReady: true,
+    durableJobStoreReady: true,
+  });
+  const result = await gateway.readJob({
+    schemaVersion: 1,
+    projectId: 'project.job-observation',
+    jobId: 'job.preview.1',
+  }, {
+    actor: { id: 'forged.actor', kind: 'agent' },
+    grantId: 'forged.grant',
+  });
+  assert.equal(result.job.state, 'QUEUED');
+  assert.deepEqual(observed, {
+    method: 'POST',
+    path: '/internal/mcp/job-read',
+    authorization: `Bearer ${token}`,
+    body: {
+      schemaVersion: 1,
+      projectId: 'project.job-observation',
+      jobId: 'job.preview.1',
+    },
+  });
+});
+
 test('pairing connection failures use a stable code without exposing the endpoint', async (context) => {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-pairing-unavailable-'));
   context.after(() => rm(directory, { recursive: true, force: true }));

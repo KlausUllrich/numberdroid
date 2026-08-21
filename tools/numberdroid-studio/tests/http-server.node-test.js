@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { StudioService } from '../packages/application/src/index.js';
 import { InMemoryProjectStore } from '../packages/persistence/src/index.js';
 import { createStudioHttpServer, startStudioHttpServer } from '../apps/studio-server/src/server.js';
-import { assetPreviewProjection } from '../apps/studio-server/src/http-projections.js';
+import { assetPreviewProjection, jobHttpProjection } from '../apps/studio-server/src/http-projections.js';
 
 async function humanMutationHeaders(base) {
   const session = await fetch(`${base}/api/ui-session`).then((response) => response.json());
@@ -49,6 +49,23 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /PROCESSING: 'Preview processing'/);
   assert.match(clientScript, /LOAD_FAILED: 'Preview failed'/);
   assert.match(clientScript, /window\.confirm/);
+  assert.match(clientScript, /operations: \{ define: null, preview: null, commit: null, cancel: null, retry: null, discard: null \}/);
+  assert.match(clientScript, /operations\.define \?\?=/);
+  assert.match(clientScript, /operations\.preview \?\?=/);
+  assert.match(clientScript, /operations\.commit \?\?=/);
+  assert.match(clientScript, /operations\.discard \?\?=/);
+  assert.match(clientScript, /data-discard-cutter-job/);
+  assert.match(clientScript, /Commit or discard the current preview job/);
+  assert.match(clientScript, /aria-live', 'polite/);
+  assert.match(clientScript, /response\.job\.atlasId !== requestedAtlasId/);
+  assert.match(clientScript, /currentAtlas\?\.latestPreviewJobId !== jobId/);
+  assert.match(clientScript, /cutterButton\.disabled = state\.cutterPending/);
+  assert.match(clientScript, /response\?\.projectId !== operationProjectId/);
+  assert.match(clientScript, /response\.job\?\.jobId !== operationJobId/);
+  assert.match(clientScript, /state\.cutterJob = response\.job/);
+  assert.match(clientScript, /state\.cutterJobEvents = response\.events \?\? \[\]/);
+  assert.match(clientScript, /state\.cutterJobEvents\.at\(-1\)\?\.state !== state\.cutterJob\?\.state/);
+  assert.match(clientScript, /body: JSON\.stringify\(operation\)/);
   assert.match(clientScript, /Publish is never included/);
   assert.match(clientScript, /Command budget/);
   assert.match(clientScript, /MCP host authorized/);
@@ -373,5 +390,42 @@ test('asset preview projection always yields a same-origin preview or a distinct
     resourceUri: `/api/projects/project.preview/artifacts/sha256/${'b'.repeat(64)}`,
     kind: 'surface',
     alt: 'Clean tile preview',
+  });
+});
+
+test('job output projection yields only project-scoped same-origin preview resources', () => {
+  const digest = 'c'.repeat(64);
+  const projected = jobHttpProjection({
+    schemaVersion: 1,
+    projectId: 'project.preview',
+    job: {
+      jobId: 'job.preview',
+      state: 'SUCCEEDED',
+      outputs: [{
+        rectangleId: 'rect.preview', digest, mediaType: 'image/png',
+        byteSize: 4, width: 1, height: 1,
+      }],
+    },
+  });
+  assert.deepEqual(projected.job.outputs[0].preview, {
+    schemaVersion: 1,
+    state: 'READY',
+    resourceUri: `/api/projects/project.preview/artifacts/sha256/${digest}`,
+    alt: 'Atlas preview rect.preview',
+  });
+  assert.equal(jobHttpProjection({
+    schemaVersion: 1,
+    projectId: 'project.preview',
+    job: { state: 'SUCCEEDED', outputs: [{ rectangleId: 'rect.bad', digest: 'not-a-digest', mediaType: 'image/png' }] },
+  }).job.outputs[0].preview.resourceUri, null);
+  assert.deepEqual(jobHttpProjection({
+    schemaVersion: 1,
+    projectId: 'project.preview',
+    job: { state: 'DISCARDED', outputs: [{ rectangleId: 'rect.old', digest, mediaType: 'image/png' }] },
+  }).job.outputs[0].preview, {
+    schemaVersion: 1,
+    state: 'MISSING',
+    resourceUri: null,
+    alt: 'Atlas preview rect.old',
   });
 });

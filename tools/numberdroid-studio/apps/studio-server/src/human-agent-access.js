@@ -17,7 +17,7 @@ const PRESETS = Object.freeze({
   }),
   execute_scoped: Object.freeze({
     rank: 3,
-    scopes: Object.freeze(['project.read', 'source.write', 'source.intake.commit', 'source.review.propose', 'asset.write', 'project.status.write']),
+    scopes: Object.freeze(['project.read', 'source.write', 'source.intake.commit', 'source.review.propose', 'atlas.write', 'asset.write', 'project.status.write']),
     durationMs: 60 * 60 * 1000,
     budget: Object.freeze({ maxCommands: 100, maxJobs: 10, maxArtifactBytes: 536870912, maxCostCents: 0 }),
   }),

@@ -1,4 +1,4 @@
-import { StudioError } from '../../domain/src/index.js';
+import { MAX_ATLAS_JOB_ATTEMPTS, StudioError } from '../../domain/src/index.js';
 
 function commandInputSchema(definition) {
   return {
@@ -34,7 +34,8 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
   const agentDefinitions = studioService.commandCatalog.filter(
     (definition) => !definition.ownerOnly
       && definition.type !== 'project.create'
-      && (!definition.requiresDurableAgentLedger || studioService.agentAttemptAuditReady === true),
+      && (!definition.requiresDurableAgentLedger || studioService.agentAttemptAuditReady === true)
+      && (!definition.requiresDurableJobStore || studioService.durableJobStoreReady === true),
   );
 
   async function authority(invocationContext, requestedProjectId) {
@@ -81,6 +82,115 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
     },
   }));
 
+  const atlasJobTools = studioService.durableJobStoreReady === true
+    && studioService.agentAttemptAuditReady === true ? [
+    {
+      name: 'studio_atlas_propose_grid',
+      title: 'Propose an atlas grid',
+      description: 'Calculate a non-authoritative regular-grid proposal for an approved PNG source without pixel inference or mutation.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'expectedRevision', 'sourceId', 'rows', 'columns', 'margins', 'gapX', 'gapY'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] },
+          projectId: { type: 'string' },
+          expectedRevision: { type: 'integer', minimum: 1 },
+          sourceId: { type: 'string' },
+          rows: { type: 'integer', minimum: 1, maximum: 64 },
+          columns: { type: 'integer', minimum: 1, maximum: 64 },
+          margins: {
+            type: 'object', additionalProperties: false,
+            required: ['top', 'right', 'bottom', 'left'],
+            properties: Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [side, { type: 'integer', minimum: 0 }])),
+          },
+          gapX: { type: 'integer', minimum: 0 },
+          gapY: { type: 'integer', minimum: 0 },
+          rectangleIdPrefix: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.proposeAtlasGrid(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_job_read',
+      title: 'Read a Studio job',
+      description: 'Read the current durable state and result metadata for a project-scoped Studio job.',
+      inputSchema: {
+        type: 'object', additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'jobId'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] },
+          projectId: { type: 'string' },
+          jobId: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.readJob(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_job_cancel',
+      title: 'Cancel a Studio job',
+      description: 'Request durable cooperative cancellation of a queued or running atlas preview job.',
+      inputSchema: {
+        type: 'object', additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'jobId', 'operationIdempotencyKey'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' },
+          jobId: { type: 'string' }, operationIdempotencyKey: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.cancelJob(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_job_retry',
+      title: 'Retry a Studio job',
+      description: 'Queue a new audited attempt for a failed or cancelled atlas preview job.',
+      inputSchema: {
+        type: 'object', additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'jobId', 'expectedAttempt', 'operationIdempotencyKey'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' },
+          jobId: { type: 'string' }, expectedAttempt: { type: 'integer', minimum: 1, maximum: MAX_ATLAS_JOB_ATTEMPTS },
+          operationIdempotencyKey: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.retryJob(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_job_discard',
+      title: 'Discard a Studio job',
+      description: 'Release temporary outputs from a terminal unapplied job; applied jobs cannot be discarded.',
+      inputSchema: {
+        type: 'object', additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'jobId', 'operationIdempotencyKey'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' },
+          jobId: { type: 'string' }, operationIdempotencyKey: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.discardJob(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+  ] : [];
+
   return [
     {
       name: 'studio_command_catalog_list',
@@ -117,6 +227,7 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
       },
     },
     ...commandTools,
+    ...atlasJobTools,
   ];
 }
 

@@ -1,4 +1,10 @@
 import { COMMAND_DEFINITIONS, KNOWN_GRANT_SCOPES, getCommandDefinition, listCommandDefinitions } from '../../domain/src/command-catalog.js';
+import {
+  ATLAS_PROCESSOR_ID,
+  canonicalRgbaPngByteSize,
+  proposeRegularGrid,
+  validateAtlasRectangles,
+} from '../../domain/src/atlas-definition.js';
 import { StudioError, invariant } from '../../domain/src/errors.js';
 import { headRevision } from './project-store.js';
 import {
@@ -95,6 +101,12 @@ function assertNoEmbeddedDataUris(value, path = 'payload') {
   }
 }
 
+function assertExactFields(record, allowed, label) {
+  for (const key of Object.keys(record)) {
+    invariant(allowed.has(key), 'VALIDATION_ERROR', `${label} contains an unsupported field: ${key}.`, { field: key });
+  }
+}
+
 function commandFingerprint(command) {
   return fingerprint({
     schemaVersion: command.schemaVersion,
@@ -185,6 +197,19 @@ function assertReplayMatches(revision, incomingFingerprint) {
   );
 }
 
+function previewOutputArtifactBytes(snapshot, atlasId) {
+  const atlas = snapshot.atlases?.find((candidate) => candidate.id === atlasId);
+  invariant(atlas && Array.isArray(atlas.rectangles), 'ENTITY_NOT_FOUND', 'The atlas definition does not exist.', { atlasId });
+  let total = 0;
+  for (const rectangle of atlas.rectangles.filter((candidate) => candidate.included)) {
+    const byteSize = canonicalRgbaPngByteSize(rectangle.width, rectangle.height);
+    invariant(total <= Number.MAX_SAFE_INTEGER - byteSize, 'ATLAS_OUTPUT_LIMIT', 'Atlas preview byte accounting overflowed.');
+    total += byteSize;
+  }
+  invariant(total > 0, 'ATLAS_RECT_INVALID', 'Atlas preview requires at least one included rectangle.');
+  return total;
+}
+
 function assertAuthorized(command, snapshot, definition, now) {
   if (command.actor.kind === 'human' && command.actor.id === snapshot.project.ownerId) {
     return;
@@ -236,6 +261,19 @@ function assertAuthorized(command, snapshot, definition, now) {
       'BUDGET_EXCEEDED',
       'The source intake would exceed the grant artifact byte budget.',
       { consumed: grant.usage.artifactBytes, requested: byteSize, limit: grant.budget.maxArtifactBytes },
+    );
+  }
+  if (command.type === 'atlas.preview.slices') {
+    const outputArtifactBytes = previewOutputArtifactBytes(snapshot, command.payload?.atlasId);
+    invariant(grant.usage.jobs < grant.budget.maxJobs, 'BUDGET_EXCEEDED', 'The grant job budget is exhausted.', {
+      consumed: grant.usage.jobs,
+      limit: grant.budget.maxJobs,
+    });
+    invariant(
+      grant.usage.artifactBytes + outputArtifactBytes <= grant.budget.maxArtifactBytes,
+      'BUDGET_EXCEEDED',
+      'The deterministic preview outputs would exceed the grant artifact byte budget.',
+      { consumed: grant.usage.artifactBytes, requested: outputArtifactBytes, limit: grant.budget.maxArtifactBytes },
     );
   }
 }
@@ -374,7 +412,93 @@ function sourceReview(source) {
   };
 }
 
-function applyCommand(command, snapshot, now) {
+function approvedPngSource(snapshot, sourceId) {
+  const source = snapshot.sources.find((candidate) => candidate.id === sourceId);
+  invariant(source, 'ENTITY_NOT_FOUND', 'The atlas source does not exist.', { sourceId });
+  invariant(
+    source.schemaVersion === 2
+      && source.lifecycle?.state === 'APPROVED_SOURCE'
+      && source.review?.disposition === 'USER_APPROVED',
+    'ATLAS_SOURCE_NOT_APPROVED',
+    'Atlas cutting requires an explicitly user-approved V2 source.',
+    { sourceId, lifecycle: source.lifecycle?.state, disposition: source.review?.disposition },
+  );
+  invariant(source.mediaType === 'image/png', 'ATLAS_PNG_UNSUPPORTED', 'Checkpoint 2B cuts approved PNG sources only.', {
+    sourceId,
+    mediaType: source.mediaType,
+  });
+  const digest = CANONICAL_ARTIFACT_URI.exec(source.artifactUri)?.[0]?.slice('studio://artifacts/sha256/'.length);
+  invariant(digest && /^[a-f0-9]{64}$/.test(digest), 'ARTIFACT_URI_REQUIRED', 'Atlas source must use a canonical Studio CAS URI.', { sourceId });
+  return { source, digest };
+}
+
+function assertAtlasHead(atlas, payload) {
+  invariant(atlas, 'ENTITY_NOT_FOUND', 'The atlas definition does not exist.', { atlasId: payload.atlasId });
+  invariant(
+    atlas.definitionVersion === payload.expectedAtlasVersion,
+    'ENTITY_VERSION_CONFLICT',
+    'The atlas definition changed after this operation was prepared.',
+    { atlasId: atlas.id, expectedVersion: payload.expectedAtlasVersion, actualVersion: atlas.definitionVersion },
+  );
+  invariant(
+    atlas.definitionFingerprint === payload.expectedDefinitionFingerprint,
+    'ENTITY_VERSION_CONFLICT',
+    'The atlas definition fingerprint changed after this operation was prepared.',
+    { atlasId: atlas.id },
+  );
+}
+
+function externalJobProjection(job) {
+  const projected = deepClone(job);
+  delete projected.idempotencyKey;
+  delete projected.lease;
+  if (projected.creator) delete projected.creator.grantId;
+  if (Array.isArray(projected.outputs)) {
+    const ready = ['SUCCEEDED', 'APPLIED'].includes(projected.state);
+    projected.outputs = projected.outputs.map((output) => ({
+      ...output,
+      preview: {
+        schemaVersion: 1,
+        state: ready ? 'READY' : 'MISSING',
+        resourceUri: ready
+          ? `/api/projects/${encodeURIComponent(projected.projectId)}/artifacts/sha256/${output.digest}`
+          : null,
+        alt: `Atlas preview ${output.rectangleId}`,
+      },
+    }));
+  }
+  return projected;
+}
+
+function externalJobEventProjection(event) {
+  return {
+    schemaVersion: 1,
+    sequence: event.sequence,
+    attempt: event.attempt,
+    type: event.type,
+    state: event.state,
+    safePoint: event.safePoint,
+    progress: deepClone(event.progress),
+    details: deepClone(event.details),
+    occurredAt: event.occurredAt,
+  };
+}
+
+function assertJobOriginAuthority(job, executionContext, snapshot) {
+  if (executionContext.actor.kind === 'human' && executionContext.actor.id === snapshot.project.ownerId) return;
+  invariant(
+    executionContext.actor.kind === 'agent'
+      && job.creator?.actor?.kind === 'agent'
+      && job.creator.actor.id === executionContext.actor.id
+      && job.creator.taskId === executionContext.taskId
+      && job.creator.branchId === executionContext.branchId
+      && job.creator.grantId === executionContext.grantId,
+    'JOB_AUTHORITY_MISMATCH',
+    'This job belongs to another task or HostBinding.',
+  );
+}
+
+function applyCommand(command, snapshot, now, { atlasJob = null, priorAtlasJob = null } = {}) {
   const payload = command.payload;
   const next = deepClone(snapshot);
   next.project.updatedAt = now;
@@ -623,6 +747,265 @@ function applyCommand(command, snapshot, now) {
         changes: [{ entityType: 'source', entityId: sourceId, operation: decision === 'APPROVED' ? 'approved' : 'rejected' }],
       };
     }
+    case 'atlas.define.rects': {
+      const atlasId = requireId(payload.atlasId, 'payload.atlasId');
+      const sourceId = requireId(payload.sourceId, 'payload.sourceId');
+      const { source, digest: sourceDigest } = approvedPngSource(next, sourceId);
+      next.atlases ??= [];
+      const existingIndex = next.atlases.findIndex((candidate) => candidate.id === atlasId);
+      const existing = existingIndex >= 0 ? next.atlases[existingIndex] : null;
+      if (existing?.latestPreviewJobId) {
+        invariant(priorAtlasJob && ['APPLIED', 'DISCARDED'].includes(priorAtlasJob.state), 'JOB_STATE_CONFLICT', 'Discard or apply the current atlas preview before redefining rectangles.', {
+          state: priorAtlasJob?.state ?? 'MISSING',
+        });
+      }
+      const expectedAtlasVersion = requireInteger(payload.expectedAtlasVersion, 'payload.expectedAtlasVersion', { min: 0 });
+      invariant(
+        expectedAtlasVersion === (existing?.definitionVersion ?? 0),
+        'ENTITY_VERSION_CONFLICT',
+        'The atlas definition changed after these rectangles were prepared.',
+        { atlasId, expectedVersion: expectedAtlasVersion, actualVersion: existing?.definitionVersion ?? 0 },
+      );
+      invariant(!existing || existing.sourceId === sourceId, 'ENTITY_STATE_CONFLICT', 'An atlas identity cannot be retargeted to another source.', {
+        atlasId,
+        existingSourceId: existing?.sourceId,
+        requestedSourceId: sourceId,
+      });
+      const validated = validateAtlasRectangles(payload.rectangles, {
+        sourceWidth: source.width,
+        sourceHeight: source.height,
+      });
+      for (const rectangle of validated.rectangles.filter((candidate) => candidate.replacesSliceId !== null)) {
+        const prior = existing?.sliceHeads.find((slice) => slice.sliceId === rectangle.replacesSliceId);
+        invariant(prior, 'ATLAS_REMAP_TARGET_NOT_FOUND', 'A replacement mapping names no slice head in this atlas.', {
+          atlasId,
+          rectangleId: rectangle.rectangleId,
+          replacesSliceId: rectangle.replacesSliceId,
+        });
+        invariant(prior.version === rectangle.expectedSliceVersion, 'ENTITY_VERSION_CONFLICT', 'A replacement slice head changed after the recut was prepared.', {
+          sliceId: prior.sliceId,
+          expectedVersion: rectangle.expectedSliceVersion,
+          actualVersion: prior.version,
+        });
+      }
+      const definitionVersion = (existing?.definitionVersion ?? 0) + 1;
+      const definitionFingerprint = fingerprint({
+        schemaVersion: 1,
+        processorId: ATLAS_PROCESSOR_ID,
+        sourceId,
+        sourceDigest,
+        sourceWidth: source.width,
+        sourceHeight: source.height,
+        rectangles: validated.rectangles,
+      });
+      const atlas = {
+        schemaVersion: 1,
+        id: atlasId,
+        name: requireString(payload.name, 'payload.name', { max: 160 }),
+        sourceId,
+        sourceDigest,
+        sourceMediaType: source.mediaType,
+        sourceWidth: source.width,
+        sourceHeight: source.height,
+        processorId: ATLAS_PROCESSOR_ID,
+        definitionVersion,
+        definitionFingerprint,
+        rectangleFingerprint: validated.fingerprint,
+        rectangles: validated.rectangles,
+        sliceHeads: existing?.sliceHeads ?? [],
+        latestPreviewJobId: null,
+        definedAt: existing?.definedAt ?? now,
+        definedBy: existing?.definedBy ?? command.actor.id,
+        updatedAt: now,
+        updatedBy: command.actor.id,
+      };
+      if (existingIndex >= 0) next.atlases[existingIndex] = atlas;
+      else next.atlases.push(atlas);
+      return {
+        snapshot: next,
+        result: {
+          atlasId,
+          definitionVersion,
+          definitionFingerprint,
+          rectangleFingerprint: validated.fingerprint,
+          includedCount: validated.includedCount,
+        },
+        summary: `Atlas ${atlasId} definition ${definitionVersion} recorded from approved source ${sourceId}.`,
+        changes: [{ entityType: 'atlas', entityId: atlasId, operation: existing ? 'definition_revised' : 'created' }],
+      };
+    }
+    case 'atlas.preview.slices': {
+      const atlasId = requireId(payload.atlasId, 'payload.atlasId');
+      const jobId = requireId(payload.jobId, 'payload.jobId');
+      next.atlases ??= [];
+      const atlasIndex = next.atlases.findIndex((candidate) => candidate.id === atlasId);
+      const atlas = next.atlases[atlasIndex];
+      assertAtlasHead(atlas, payload);
+      if (atlas.latestPreviewJobId) {
+        invariant(priorAtlasJob && ['APPLIED', 'DISCARDED'].includes(priorAtlasJob.state), 'JOB_STATE_CONFLICT', 'Discard or apply the current atlas preview before starting another.', {
+          state: priorAtlasJob?.state ?? 'MISSING',
+        });
+      }
+      approvedPngSource(next, atlas.sourceId);
+      const outputArtifactBytes = previewOutputArtifactBytes(next, atlasId);
+      if (command.actor.kind === 'agent') {
+        const grantIndex = next.grants.findIndex((grant) => grant.id === command.grantId);
+        next.grants[grantIndex] = {
+          ...next.grants[grantIndex],
+          usage: {
+            ...next.grants[grantIndex].usage,
+            jobs: next.grants[grantIndex].usage.jobs + 1,
+            artifactBytes: next.grants[grantIndex].usage.artifactBytes + outputArtifactBytes,
+          },
+        };
+      }
+      next.atlases[atlasIndex] = { ...atlas, latestPreviewJobId: jobId, updatedAt: now, updatedBy: command.actor.id };
+      const jobInput = {
+        schemaVersion: 1,
+        kind: 'ATLAS_PREVIEW',
+        atlasId,
+        atlasDefinitionVersion: atlas.definitionVersion,
+        atlasDefinitionFingerprint: atlas.definitionFingerprint,
+        processorId: atlas.processorId,
+        sourceId: atlas.sourceId,
+        sourceDigest: atlas.sourceDigest,
+        sourceMediaType: atlas.sourceMediaType,
+        sourceWidth: atlas.sourceWidth,
+        sourceHeight: atlas.sourceHeight,
+        rectangles: atlas.rectangles,
+      };
+      const job = {
+        jobId,
+        projectId: command.projectId,
+        kind: 'ATLAS_PREVIEW',
+        idempotencyKey: command.idempotencyKey,
+        inputFingerprint: fingerprint(jobInput),
+        input: jobInput,
+        outputArtifactBytes,
+        createdAt: now,
+        createdBy: command.actor.id,
+        requestedRevision: command.baseRevision + 1,
+      };
+      return {
+        snapshot: next,
+        result: {
+          status: 'ACCEPTED',
+          jobId,
+          jobResource: `studio://projects/${command.projectId}/jobs/${jobId}`,
+          inputRevisionId: `revision:${command.baseRevision + 1}`,
+          job,
+        },
+        summary: `Atlas ${atlasId} deterministic slice preview queued as ${jobId}.`,
+        changes: [{ entityType: 'job', entityId: jobId, operation: 'queued' }],
+      };
+    }
+    case 'atlas.commit.slices': {
+      const atlasId = requireId(payload.atlasId, 'payload.atlasId');
+      const jobId = requireId(payload.jobId, 'payload.jobId');
+      next.atlases ??= [];
+      const atlasIndex = next.atlases.findIndex((candidate) => candidate.id === atlasId);
+      const atlas = next.atlases[atlasIndex];
+      assertAtlasHead(atlas, payload);
+      invariant(atlasJob?.projectId === command.projectId && atlasJob.jobId === jobId, 'JOB_NOT_FOUND', 'The preview job does not exist in this project.', { jobId });
+      invariant(atlasJob.state === 'SUCCEEDED' && atlasJob.appliedRevision === null, 'JOB_STATE_CONFLICT', 'Only an unapplied succeeded preview job can be committed.', {
+        jobId,
+        state: atlasJob.state,
+        appliedRevision: atlasJob.appliedRevision,
+      });
+      invariant(
+        atlasJob.input?.atlasId === atlasId
+          && atlasJob.input?.atlasDefinitionVersion === atlas.definitionVersion
+          && atlasJob.input?.atlasDefinitionFingerprint === atlas.definitionFingerprint
+          && atlasJob.input?.sourceDigest === atlas.sourceDigest,
+        'JOB_INPUT_MISMATCH',
+        'The preview job was not produced from the current atlas definition and approved source.',
+        { jobId, atlasId },
+      );
+      const outputByRectangle = new Map((atlasJob.outputs ?? []).map((output) => [output.rectangleId, output]));
+      const included = atlas.rectangles.filter((rectangle) => rectangle.included);
+      invariant(outputByRectangle.size === included.length, 'JOB_OUTPUT_MISMATCH', 'Preview job outputs do not match the included rectangle count.', { jobId });
+      const headById = new Map(atlas.sliceHeads.map((slice) => [slice.sliceId, slice]));
+      const committed = [];
+      for (const rectangle of included) {
+        const output = outputByRectangle.get(rectangle.rectangleId);
+        invariant(
+          output && output.mediaType === 'image/png'
+            && output.width === rectangle.width && output.height === rectangle.height
+            && output.byteSize === canonicalRgbaPngByteSize(rectangle.width, rectangle.height)
+            && typeof output.digest === 'string' && /^[a-f0-9]{64}$/.test(output.digest),
+          'JOB_OUTPUT_MISMATCH',
+          'A preview output does not match its exact rectangle.',
+          { jobId, rectangleId: rectangle.rectangleId },
+        );
+        let sliceId;
+        let version;
+        let priorDigest = null;
+        if (rectangle.replacesSliceId !== null) {
+          const prior = headById.get(rectangle.replacesSliceId);
+          invariant(prior && prior.version === rectangle.expectedSliceVersion, 'ENTITY_VERSION_CONFLICT', 'A mapped slice head changed before commit.', { sliceId: rectangle.replacesSliceId });
+          sliceId = prior.sliceId;
+          version = prior.version + 1;
+          priorDigest = prior.digest;
+        } else {
+          sliceId = `slice.${fingerprint({ atlasId, definitionVersion: atlas.definitionVersion, rectangleId: rectangle.rectangleId }).slice(0, 32)}`;
+          invariant(!headById.has(sliceId), 'ENTITY_EXISTS', 'The derived slice identity already exists; use an explicit replacement mapping.', { sliceId });
+          version = 1;
+        }
+        const slice = {
+          schemaVersion: 1,
+          sliceId,
+          version,
+          atlasId,
+          sourceId: atlas.sourceId,
+          sourceDigest: atlas.sourceDigest,
+          definitionVersion: atlas.definitionVersion,
+          definitionFingerprint: atlas.definitionFingerprint,
+          rectangleId: rectangle.rectangleId,
+          rectangle: deepClone(rectangle),
+          processorId: atlas.processorId,
+          digest: output.digest,
+          artifactUri: `studio://artifacts/sha256/${output.digest}`,
+          mediaType: 'image/png',
+          byteSize: output.byteSize,
+          width: output.width,
+          height: output.height,
+          priorDigest,
+          committedAt: now,
+          committedBy: command.actor.id,
+          jobId,
+        };
+        headById.set(sliceId, slice);
+        committed.push(slice);
+      }
+      next.atlases[atlasIndex] = {
+        ...atlas,
+        sliceHeads: [...headById.values()],
+        latestPreviewJobId: jobId,
+        lastCommittedJobId: jobId,
+        updatedAt: now,
+        updatedBy: command.actor.id,
+      };
+      return {
+        snapshot: next,
+        result: {
+          atlasId,
+          jobId,
+          slices: committed.map((slice) => ({
+            sliceId: slice.sliceId,
+            version: slice.version,
+            rectangleId: slice.rectangleId,
+            artifactUri: slice.artifactUri,
+            digest: slice.digest,
+            mediaType: slice.mediaType,
+            byteSize: slice.byteSize,
+            width: slice.width,
+            height: slice.height,
+          })),
+        },
+        summary: `${committed.length} deterministic slices committed from atlas ${atlasId}.`,
+        changes: committed.map((slice) => ({ entityType: 'atlas_slice', entityId: slice.sliceId, operation: slice.version === 1 ? 'created' : 'replaced' })),
+      };
+    }
     case 'asset.define': {
       const assetId = requireId(payload.assetId, 'payload.assetId');
       invariant(!next.assets.some((asset) => asset.id === assetId), 'ENTITY_EXISTS', 'The asset ID already exists.', {
@@ -735,12 +1118,14 @@ export class StudioService {
   #store;
   #clock;
   #agentAttemptAuditReady;
+  #jobStore;
 
-  constructor({ store, clock = () => new Date().toISOString(), agentAttemptAuditReady = false }) {
+  constructor({ store, clock = () => new Date().toISOString(), agentAttemptAuditReady = false, jobStore = null }) {
     invariant(store, 'VALIDATION_ERROR', 'A ProjectStore is required.');
     this.#store = store;
     this.#clock = clock;
     this.#agentAttemptAuditReady = agentAttemptAuditReady === true;
+    this.#jobStore = jobStore;
   }
 
   get commandCatalog() {
@@ -749,6 +1134,10 @@ export class StudioService {
 
   get agentAttemptAuditReady() {
     return this.#agentAttemptAuditReady;
+  }
+
+  get durableJobStoreReady() {
+    return this.#jobStore?.isLive === true && this.#store.supportsAtomicAtlasJobs === true;
   }
 
   async execute(rawCommand, trustedExecutionContext, { signal } = {}) {
@@ -805,6 +1194,13 @@ export class StudioService {
         'V2 source intake commits require the authoritative SQLite intake store.',
       );
     }
+    if (definition.requiresDurableJobStore) {
+      invariant(
+        this.durableJobStoreReady,
+        'JOB_STORE_DISABLED',
+        'Atlas preview and commit require the authoritative SQLite job store.',
+      );
+    }
     const head = headRevision(existing);
     invariant(command.baseRevision === head.number, 'REVISION_CONFLICT', 'The project changed after the command was prepared.', {
       projectId: command.projectId,
@@ -812,7 +1208,16 @@ export class StudioService {
       actualRevision: head.number,
     });
     assertAuthorized(command, head.snapshot, definition, now);
-    const applied = applyCommand(command, head.snapshot, now);
+    const atlasJob = command.type === 'atlas.commit.slices'
+      ? this.#jobStore.get(command.projectId, requireId(command.payload.jobId, 'payload.jobId'))
+      : null;
+    const priorAtlas = ['atlas.define.rects', 'atlas.preview.slices'].includes(command.type)
+      ? head.snapshot.atlases?.find((candidate) => candidate.id === command.payload.atlasId)
+      : null;
+    const priorAtlasJob = priorAtlas?.latestPreviewJobId
+      ? this.#jobStore.get(command.projectId, priorAtlas.latestPreviewJobId)
+      : null;
+    const applied = applyCommand(command, head.snapshot, now, { atlasJob, priorAtlasJob });
     const revision = createRevision({
       command,
       number: head.number + 1,
@@ -853,6 +1258,177 @@ export class StudioService {
     }
     assertReplayMatches(prior, commandHash);
     return replayResult(prior);
+  }
+
+  async proposeAtlasGrid(rawRequest, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
+    const request = requireRecord(rawRequest, 'request');
+    assertExactFields(request, new Set([
+      'schemaVersion', 'projectId', 'expectedRevision', 'sourceId', 'rows', 'columns',
+      'margins', 'gapX', 'gapY', 'rectangleIdPrefix',
+    ]), 'Atlas grid proposal request');
+    for (const field of AUTHORITY_FIELDS) {
+      invariant(!Object.hasOwn(request, field), 'UNTRUSTED_AUTHORITY_FIELD', `Atlas grid proposal must not contain authority field: ${field}.`, { field });
+    }
+    invariant(request.schemaVersion === 1, 'SCHEMA_VERSION_UNSUPPORTED', 'Unsupported atlas proposal schema version.');
+    const projectId = requireId(request.projectId, 'projectId');
+    const executionContext = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId);
+    signal?.throwIfAborted();
+    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
+    const head = headRevision(document);
+    const expectedRevision = requireInteger(request.expectedRevision, 'expectedRevision', { min: 1 });
+    invariant(head.number === expectedRevision, 'REVISION_CONFLICT', 'The project changed after the grid proposal was prepared.', {
+      projectId,
+      expectedRevision,
+      actualRevision: head.number,
+    });
+    assertAuthorized(
+      { ...executionContext, projectId, type: 'project.read' },
+      head.snapshot,
+      { ownerOnly: false, requiredScope: 'project.read' },
+      this.#clock(),
+    );
+    const sourceId = requireId(request.sourceId, 'sourceId');
+    const { source, digest } = approvedPngSource(head.snapshot, sourceId);
+    const proposal = proposeRegularGrid({
+      sourceWidth: source.width,
+      sourceHeight: source.height,
+      rows: request.rows,
+      columns: request.columns,
+      margins: request.margins,
+      gapX: request.gapX,
+      gapY: request.gapY,
+      rectangleIdPrefix: request.rectangleIdPrefix ?? `rect.${sourceId}`,
+    });
+    return deepFreeze({
+      schemaVersion: 1,
+      projectId,
+      revision: head.number,
+      source: {
+        sourceId,
+        digest,
+        mediaType: source.mediaType,
+        width: source.width,
+        height: source.height,
+        approvalDisposition: source.review.disposition,
+      },
+      proposal: deepClone(proposal),
+    });
+  }
+
+  async readJob(rawRequest, trustedExecutionContext, { signal } = {}) {
+    const { request, job } = await this.#authorizedJobRequest(rawRequest, trustedExecutionContext, {
+      signal,
+      allowedFields: new Set(['schemaVersion', 'projectId', 'jobId']),
+      requiredScope: 'project.read',
+    });
+    return deepFreeze({
+      schemaVersion: 1,
+      projectId: request.projectId,
+      job: externalJobProjection(job),
+      events: this.#jobStore.listEvents(request.projectId, request.jobId).map(externalJobEventProjection),
+    });
+  }
+
+  async cancelJob(rawRequest, trustedExecutionContext, { signal, authorizedAttempt = null } = {}) {
+    const { request } = await this.#authorizedJobRequest(rawRequest, trustedExecutionContext, {
+      signal,
+      allowedFields: new Set(['schemaVersion', 'projectId', 'jobId', 'operationIdempotencyKey']),
+      requiredScope: 'atlas.write',
+    });
+    const operationIdempotencyKey = requireId(request.operationIdempotencyKey, 'operationIdempotencyKey');
+    signal?.throwIfAborted();
+    const job = this.#jobStore.requestCancel(request.projectId, request.jobId, {
+      operationIdempotencyKey,
+      now: this.#clock(),
+      authorizedAttempt,
+    });
+    return deepFreeze({
+      schemaVersion: 1,
+      projectId: request.projectId,
+      job: externalJobProjection(job),
+      events: this.#jobStore.listEvents(request.projectId, request.jobId).map(externalJobEventProjection),
+    });
+  }
+
+  async retryJob(rawRequest, trustedExecutionContext, { signal, authorizedAttempt = null } = {}) {
+    const { request } = await this.#authorizedJobRequest(rawRequest, trustedExecutionContext, {
+      signal,
+      allowedFields: new Set(['schemaVersion', 'projectId', 'jobId', 'expectedAttempt', 'operationIdempotencyKey']),
+      requiredScope: 'atlas.write',
+    });
+    const expectedAttempt = requireInteger(request.expectedAttempt, 'expectedAttempt', { min: 1 });
+    const operationIdempotencyKey = requireId(request.operationIdempotencyKey, 'operationIdempotencyKey');
+    signal?.throwIfAborted();
+    const job = this.#jobStore.retry(request.projectId, request.jobId, {
+      expectedAttempt,
+      operationIdempotencyKey,
+      now: this.#clock(),
+      authorizedAttempt,
+    });
+    return deepFreeze({
+      schemaVersion: 1,
+      projectId: request.projectId,
+      job: externalJobProjection(job),
+      events: this.#jobStore.listEvents(request.projectId, request.jobId).map(externalJobEventProjection),
+    });
+  }
+
+  async discardJob(rawRequest, trustedExecutionContext, { signal, authorizedAttempt = null } = {}) {
+    const { request } = await this.#authorizedJobRequest(rawRequest, trustedExecutionContext, {
+      signal,
+      allowedFields: new Set(['schemaVersion', 'projectId', 'jobId', 'operationIdempotencyKey']),
+      requiredScope: 'atlas.write',
+    });
+    const operationIdempotencyKey = requireId(request.operationIdempotencyKey, 'operationIdempotencyKey');
+    signal?.throwIfAborted();
+    const job = this.#jobStore.discard(request.projectId, request.jobId, {
+      operationIdempotencyKey,
+      now: this.#clock(),
+      authorizedAttempt,
+    });
+    return deepFreeze({
+      schemaVersion: 1,
+      projectId: request.projectId,
+      job: externalJobProjection(job),
+      events: this.#jobStore.listEvents(request.projectId, request.jobId).map(externalJobEventProjection),
+    });
+  }
+
+  async #authorizedJobRequest(rawRequest, trustedExecutionContext, {
+    signal,
+    allowedFields,
+    requiredScope,
+  }) {
+    signal?.throwIfAborted();
+    invariant(this.durableJobStoreReady, 'JOB_STORE_DISABLED', 'Durable jobs require the authoritative SQLite job store.');
+    const request = requireRecord(rawRequest, 'request');
+    assertExactFields(request, allowedFields, 'Job request');
+    for (const field of AUTHORITY_FIELDS) {
+      invariant(!Object.hasOwn(request, field), 'UNTRUSTED_AUTHORITY_FIELD', `Job request must not contain authority field: ${field}.`, { field });
+    }
+    invariant(request.schemaVersion === 1, 'SCHEMA_VERSION_UNSUPPORTED', 'Unsupported job request schema version.');
+    const normalizedRequest = {
+      ...request,
+      projectId: requireId(request.projectId, 'projectId'),
+      jobId: requireId(request.jobId, 'jobId'),
+    };
+    const executionContext = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(normalizedRequest.projectId);
+    signal?.throwIfAborted();
+    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId: normalizedRequest.projectId });
+    const head = headRevision(document);
+    assertAuthorized(
+      { ...executionContext, projectId: normalizedRequest.projectId, type: requiredScope === 'project.read' ? 'project.read' : 'job.operation' },
+      head.snapshot,
+      { ownerOnly: false, requiredScope },
+      this.#clock(),
+    );
+    const job = this.#jobStore.get(normalizedRequest.projectId, normalizedRequest.jobId);
+    invariant(job, 'JOB_NOT_FOUND', 'The job does not exist.', { projectId: normalizedRequest.projectId, jobId: normalizedRequest.jobId });
+    assertJobOriginAuthority(job, executionContext, head.snapshot);
+    return { request: normalizedRequest, job, head };
   }
 
   async readProjectTrusted(projectId) {
