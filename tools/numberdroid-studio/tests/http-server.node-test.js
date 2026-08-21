@@ -4,8 +4,24 @@ import assert from 'node:assert/strict';
 // Kept outside Vitest's discovery pattern; this package uses Node's test runner.
 import { StudioService } from '../packages/application/src/index.js';
 import { InMemoryProjectStore } from '../packages/persistence/src/index.js';
-import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
+import { createStudioHttpServer, startStudioHttpServer } from '../apps/studio-server/src/server.js';
 import { assetPreviewProjection } from '../apps/studio-server/src/http-projections.js';
+
+async function humanMutationHeaders(base) {
+  const session = await fetch(`${base}/api/ui-session`).then((response) => response.json());
+  return {
+    origin: base,
+    'sec-fetch-site': 'same-origin',
+    'x-numberdroid-studio-csrf': session.csrfToken,
+  };
+}
+
+test('Checkpoint 1B refuses a non-loopback HTTP listener before opening workspace data', async () => {
+  await assert.rejects(
+    startStudioHttpServer({ host: '0.0.0.0', storeMode: 'json' }),
+    (error) => error.code === 'LOOPBACK_HOST_REQUIRED',
+  );
+});
 
 test('visual shell is clickable, creates the demo through commands, and exposes live activity', async (context) => {
   const studioService = new StudioService({ store: new InMemoryProjectStore() });
@@ -36,6 +52,14 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /Publish is never included/);
   assert.match(clientScript, /Command budget/);
   assert.match(clientScript, /MCP host authorized/);
+  const overviewRenderer = clientScript.slice(
+    clientScript.indexOf('function renderOverview'), clientScript.indexOf('function renderCollection'),
+  );
+  const collectionRenderer = clientScript.slice(
+    clientScript.indexOf('function renderCollection'), clientScript.indexOf('function renderActivityWorkspace'),
+  );
+  assert.doesNotMatch(overviewRenderer, /workspace === 'assets'/);
+  assert.match(collectionRenderer, /workspace === 'assets'.*asset-grid/s);
   assert.doesNotMatch(clientScript, /localStorage/);
   assert.doesNotMatch(clientScript, /NUMBERDROID_STUDIO_BINDING_TOKEN/);
   const styles = await fetch(`${base}/styles.css`).then((response) => response.text());
@@ -43,7 +67,11 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(styles, /aspect-ratio: 1/);
   assert.match(styles, /object-fit: contain/);
 
-  const demoResponse = await fetch(`${base}/api/demo`, { method: 'POST' });
+  const blindDemo = await fetch(`${base}/api/demo`, { method: 'POST' });
+  assert.equal(blindDemo.status, 403);
+  assert.equal((await blindDemo.json()).error.code, 'UI_ORIGIN_REQUIRED');
+  const humanHeaders = await humanMutationHeaders(base);
+  const demoResponse = await fetch(`${base}/api/demo`, { method: 'POST', headers: humanHeaders });
   assert.equal(demoResponse.status, 200);
   const demo = await demoResponse.json();
   assert.equal(demo.revision, 5);
@@ -158,24 +186,24 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.equal(activity.events.length, 5);
   assert.ok(activity.events.some((event) => event.actor.kind === 'agent' && event.taskId));
 
-  const retryResponse = await fetch(`${base}/api/demo/action?action=idempotent-retry`, { method: 'POST' });
+  const retryResponse = await fetch(`${base}/api/demo/action?action=idempotent-retry`, { method: 'POST', headers: humanHeaders });
   assert.equal(retryResponse.status, 200);
   const retry = await retryResponse.json();
   assert.equal(retry.replayed, true);
   assert.equal(retry.revision, 3);
   assert.equal((await studioService.readProjectTrusted(demo.projectId)).revision, 5);
 
-  const staleResponse = await fetch(`${base}/api/demo/action?action=stale-write`, { method: 'POST' });
+  const staleResponse = await fetch(`${base}/api/demo/action?action=stale-write`, { method: 'POST', headers: humanHeaders });
   assert.equal(staleResponse.status, 409);
   assert.equal((await staleResponse.json()).error.code, 'REVISION_CONFLICT');
   assert.equal((await studioService.readProjectTrusted(demo.projectId)).revision, 5);
 
-  const revokeResponse = await fetch(`${base}/api/demo/action?action=revoke-grant`, { method: 'POST' });
+  const revokeResponse = await fetch(`${base}/api/demo/action?action=revoke-grant`, { method: 'POST', headers: humanHeaders });
   assert.equal(revokeResponse.status, 200);
   const revoke = await revokeResponse.json();
   assert.equal(revoke.revision, 6);
 
-  const deniedResponse = await fetch(`${base}/api/demo/action?action=post-revoke-attempt`, { method: 'POST' });
+  const deniedResponse = await fetch(`${base}/api/demo/action?action=post-revoke-attempt`, { method: 'POST', headers: humanHeaders });
   assert.equal(deniedResponse.status, 403);
   assert.equal((await deniedResponse.json()).error.code, 'GRANT_REVOKED');
   const finalProject = await studioService.readProjectTrusted(demo.projectId);
@@ -208,7 +236,8 @@ test('human Agent access presets rotate immutable grants with confirmation and i
   context.after(() => new Promise((resolve) => server.close(resolve)));
   const { port } = server.address();
   const base = `http://127.0.0.1:${port}`;
-  const demo = await fetch(`${base}/api/demo`, { method: 'POST' }).then((response) => response.json());
+  const humanHeaders = await humanMutationHeaders(base);
+  const demo = await fetch(`${base}/api/demo`, { method: 'POST', headers: humanHeaders }).then((response) => response.json());
   const initialAccess = await fetch(`${base}/api/projects/${demo.projectId}/agent-access`).then((response) => response.json());
   assert.deepEqual(initialAccess.effectivePolicy.presets.read_only.scopes, ['project.read']);
   assert.ok(!initialAccess.effectivePolicy.presets.execute_scoped.scopes.some((scope) => scope.includes('publish')));
@@ -227,26 +256,29 @@ test('human Agent access presets rotate immutable grants with confirmation and i
   const proposalResponse = await change({ mode: 'propose_draft', idempotencyKey: 'access.proposal' });
   assert.equal(proposalResponse.status, 200);
   const proposal = await proposalResponse.json();
-  assert.equal(proposal.changed, true);
-  assert.equal(proposal.idempotentReplay, false);
-  assert.equal(proposal.effectivePolicy.state, 'ACTIVE_DRAFT');
+  assert.equal(proposal.changed, false);
+  assert.equal(proposal.effectivePolicy.draftWorkspaceRequired, true);
+  assert.equal(proposal.effectivePolicy.warnings.at(-1).code, 'DRAFT_BRANCH_NOT_AVAILABLE_1B');
   let project = await studioService.readProjectTrusted(demo.projectId);
-  assert.equal(project.revision, 7);
-  assert.equal(project.snapshot.grants.length, 2);
-  assert.ok(project.snapshot.grants[0].revokedAt);
-  let active = project.snapshot.grants.find((grant) => !grant.revokedAt);
-  assert.deepEqual(active.scopes, ['asset.write', 'project.read', 'source.write']);
-  assert.equal(active.branchId, 'branch.demo-atlas');
-  assert.deepEqual(active.objectScopes, [{ kind: 'project', id: demo.projectId }]);
-  assert.equal(active.budget.maxCommands, 50);
-  assert.ok(Date.parse(active.expiresAt) > Date.now());
-  assert.ok(!active.scopes.some((scope) => scope.includes('publish')));
+  assert.equal(project.revision, 5);
 
-  const replay = await change({ mode: 'propose_draft', idempotencyKey: 'access.proposal' }).then((response) => response.json());
+  const readOnlyResponse = await change({
+    mode: 'read_only', confirmBroaderAccess: true, idempotencyKey: 'access.read-only',
+  });
+  assert.equal(readOnlyResponse.status, 200);
+  const readOnlyInitial = await readOnlyResponse.json();
+  assert.equal(readOnlyInitial.effectivePolicy.state, 'ACTIVE_READ_ONLY');
+  project = await studioService.readProjectTrusted(demo.projectId);
+  assert.equal((await studioService.readProjectTrusted(demo.projectId)).revision, 7);
+  let active = project.snapshot.grants.find((grant) => !grant.revokedAt);
+  assert.deepEqual(active.scopes, ['project.read']);
+  assert.equal(active.branchId, 'branch.demo-atlas');
+
+  const replay = await change({ mode: 'read_only', idempotencyKey: 'access.read-only' }).then((response) => response.json());
   assert.equal(replay.idempotentReplay, true);
   assert.equal((await studioService.readProjectTrusted(demo.projectId)).revision, 7);
 
-  const reusedKey = await change({ mode: 'read_only', idempotencyKey: 'access.proposal' });
+  const reusedKey = await change({ mode: 'execute_scoped', idempotencyKey: 'access.read-only' });
   assert.equal(reusedKey.status, 409);
   assert.equal((await reusedKey.json()).error.code, 'IDEMPOTENCY_CONFLICT');
   assert.equal((await studioService.readProjectTrusted(demo.projectId)).revision, 7);
@@ -302,18 +334,26 @@ test('human Agent access presets rotate immutable grants with confirmation and i
 });
 
 test('asset preview projection always yields a same-origin preview or a distinct accessible fallback', () => {
-  const asset = { id: 'asset.preview', name: 'Preview tile', kind: 'surface' };
+  const asset = { id: 'asset.preview', name: 'Preview tile', kind: 'surface', region: { x: 0, y: 0, width: 16, height: 16 } };
   assert.equal(assetPreviewProjection(asset, null).state, 'MISSING');
   assert.equal(assetPreviewProjection(asset, { artifactUri: 'studio://artifact', mediaType: 'image/svg+xml' }).state, 'UNSUPPORTED');
   assert.equal(assetPreviewProjection(asset, { artifactUri: 'studio://artifact', mediaType: 'image/png' }).state, 'PROCESSING');
   assert.equal(assetPreviewProjection({ ...asset, preview: { state: 'READY', resourceUri: 'https://evil.example/asset.png' } }, {}).state, 'LOAD_FAILED');
+  assert.equal(assetPreviewProjection(asset, {
+    artifactUri: `studio://artifacts/sha256/${'a'.repeat(64)}`,
+    mediaType: 'image/png', width: 32, height: 32,
+  }, { projectId: 'project.preview' }).state, 'PROCESSING');
   assert.deepEqual(assetPreviewProjection({
     ...asset,
-    preview: { state: 'READY', resourceUri: '/api/previews/sha256/demo', alt: 'Clean tile preview' },
+    preview: {
+      state: 'READY',
+      resourceUri: `/api/projects/project.preview/artifacts/sha256/${'b'.repeat(64)}`,
+      alt: 'Clean tile preview',
+    },
   }, {}), {
     schemaVersion: 1,
     state: 'READY',
-    resourceUri: '/api/previews/sha256/demo',
+    resourceUri: `/api/projects/project.preview/artifacts/sha256/${'b'.repeat(64)}`,
     kind: 'surface',
     alt: 'Clean tile preview',
   });

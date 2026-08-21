@@ -42,11 +42,11 @@ function sendJson(response, status, value) {
 
 function errorStatus(error) {
   if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND'].includes(error.code)) return 404;
-  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED'].includes(error.code)) return 409;
+  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE'].includes(error.code)) return 409;
   if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
   if (error.code === 'ARTIFACT_TOO_LARGE') return 413;
   if (['ARTIFACT_DIGEST_MISMATCH', 'ARTIFACT_METADATA_CONFLICT'].includes(error.code)) return 409;
-  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST'].includes(error.code)) return 400;
+  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED'].includes(error.code)) return 400;
   if (error.code === 'ARTIFACT_STORE_DISABLED') return 503;
   return 500;
 }
@@ -179,6 +179,40 @@ function redactInternalDetails(value) {
     .map(([key, entry]) => [key, redactInternalDetails(entry)]));
 }
 
+function validateMcpSourceArtifact(command, artifactMetadataStore) {
+  if (command.type !== 'source.register') return null;
+  if (!artifactMetadataStore) {
+    throw new StudioError('ARTIFACT_STORE_DISABLED', 'MCP source registration requires the SQLite artifact store.');
+  }
+  const match = /^studio:\/\/artifacts\/sha256\/([a-f0-9]{64})$/.exec(command.payload?.artifactUri ?? '');
+  if (!match) {
+    throw new StudioError('ARTIFACT_URI_REQUIRED', 'MCP source registration requires a canonical Studio CAS URI.');
+  }
+  const digest = match[1];
+  const artifact = artifactMetadataStore.getArtifact(digest);
+  if (!artifact || artifact.state !== 'LIVE' || !artifactMetadataStore.hasProjectReference(command.projectId, digest)) {
+    throw new StudioError('ARTIFACT_NOT_LIVE', 'The source artifact must be uploaded, live, and referenced by this project before agent registration.');
+  }
+  if (artifact.mediaType !== command.payload.mediaType
+    || artifact.width !== command.payload.width || artifact.height !== command.payload.height) {
+    throw new StudioError('ARTIFACT_METADATA_CONFLICT', 'Source media type and dimensions must match verified CAS metadata.', {
+      expectedMediaType: artifact.mediaType,
+      expectedWidth: artifact.width,
+      expectedHeight: artifact.height,
+    });
+  }
+  return digest;
+}
+
+async function assertExecutableBindingPolicy(studioService, binding) {
+  const projectView = await studioService.readProjectTrusted(binding.projectId);
+  const grant = projectView.snapshot.grants.find((candidate) => candidate.id === binding.grantId);
+  const scopes = new Set(grant?.scopes ?? []);
+  if (!scopes.has('project.status.write') && (scopes.has('source.write') || scopes.has('asset.write'))) {
+    throw new StudioError('DRAFT_BRANCH_NOT_AVAILABLE_1B', 'This legacy draft binding cannot mutate the shared project head. Rotate it to a supported 1B policy.');
+  }
+}
+
 function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoint) {
   const origin = loopbackOrigin(`http://${request.headers.host ?? ''}`);
   const remoteAddress = request.socket.remoteAddress ?? '';
@@ -226,6 +260,10 @@ export function createStudioHttpServer({
         sendJson(response, 200, { schemaVersion: 1, commands: studioService.commandCatalog });
         return;
       }
+      if (request.method === 'GET' && url.pathname === '/api/ui-session') {
+        sendJson(response, 200, { schemaVersion: 1, csrfToken: humanUiCsrfToken });
+        return;
+      }
       if (request.method === 'GET' && url.pathname === '/api/projects') {
         sendJson(response, 200, { schemaVersion: 1, projects: await studioService.listProjectsTrusted() });
         return;
@@ -245,7 +283,10 @@ export function createStudioHttpServer({
             contextProjectId: binding.projectId,
           });
         }
-        sendJson(response, 200, await studioService.execute(body.command, bindingExecutionContext(binding)));
+        await assertExecutableBindingPolicy(studioService, binding);
+        const sourceDigest = validateMcpSourceArtifact(body.command, artifactMetadataStore);
+        const result = await studioService.execute(body.command, bindingExecutionContext(binding));
+        sendJson(response, 200, result);
         return;
       }
       if (request.method === 'POST' && url.pathname === '/internal/mcp/read-project') {
@@ -390,10 +431,12 @@ export function createStudioHttpServer({
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/demo') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
         sendJson(response, 200, await ensureDemoProject(studioService));
         return;
       }
       if (request.method === 'POST' && url.pathname === '/api/demo/action') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
         sendJson(response, 200, await runDemoAction(studioService, url.searchParams.get('action')));
         return;
       }
@@ -426,6 +469,13 @@ export async function startStudioHttpServer({
   storeMode = process.env.NUMBERDROID_STUDIO_STORE ?? 'sqlite',
 } = {}) {
   if (!['sqlite', 'json'].includes(storeMode)) throw new TypeError('storeMode must be sqlite or json.');
+  if (!['127.0.0.1', 'localhost', '::1'].includes(host)) {
+    throw new StudioError(
+      'LOOPBACK_HOST_REQUIRED',
+      'Checkpoint 1B is a local single-user service and may listen only on loopback.',
+      { host },
+    );
+  }
   const store = storeMode === 'sqlite'
     ? await SqliteProjectStore.open({ filename: resolve(dataDirectory, 'studio.sqlite') })
     : new JsonProjectStore({ directory: dataDirectory });
@@ -456,7 +506,7 @@ export async function startStudioHttpServer({
     artifactMetadataStore,
   });
   if (typeof store.close === 'function') server.once('close', () => store.close());
-  if (pairingServer) server.once('close', () => pairingServer.close());
+  if (pairing) server.once('close', () => pairing.close().catch(() => {}));
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
     server.listen(port, host, resolveListen);

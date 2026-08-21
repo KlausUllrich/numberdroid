@@ -6,7 +6,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-import { SqliteHostBindingStore, SqliteProjectStore } from '../packages/persistence/src/index.js';
+import {
+  ContentAddressedArtifactStore, SqliteArtifactMetadataStore, SqliteHostBindingStore, SqliteProjectStore,
+} from '../packages/persistence/src/index.js';
 import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
 import {
   defaultMcpPairingEndpoint, McpPairingBroker, startMcpPairingSocket,
@@ -17,6 +19,10 @@ import {
 import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 const studioRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const ONE_PIXEL_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  'base64',
+);
 
 async function mcpFixture(context) {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-official-mcp-'));
@@ -26,7 +32,16 @@ async function mcpFixture(context) {
   });
   const { studio } = createHarness(store);
   await createProject(studio);
-  await issueGrant(studio);
+  await issueGrant(studio, { scopes: ['project.read', 'source.write', 'asset.write', 'project.status.write'] });
+  const artifactStore = new ContentAddressedArtifactStore({ rootDirectory: join(directory, 'artifacts') });
+  const artifact = await artifactStore.ingest(ONE_PIXEL_PNG, { mediaType: 'image/png' });
+  const artifactMetadataStore = new SqliteArtifactMetadataStore({ workspace: store.workspace });
+  artifactMetadataStore.registerAndReference(artifact, {
+    projectId: PROJECT_ID,
+    ownerKind: 'upload',
+    ownerId: 'upload.official-mcp-fixture',
+    createdRevision: 2,
+  });
   const bindings = new SqliteHostBindingStore({
     workspace: store.workspace,
     clock: () => '2026-08-21T12:00:10.000Z',
@@ -49,6 +64,8 @@ async function mcpFixture(context) {
     hostBindingStore: bindings,
     pairingBroker,
     pairingEndpoint: pairing.endpoint,
+    artifactStore,
+    artifactMetadataStore,
   });
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
@@ -56,15 +73,17 @@ async function mcpFixture(context) {
   });
   context.after(async () => {
     await new Promise((resolveClose) => server.close(resolveClose));
-    await new Promise((resolveClose) => pairing.server.close(resolveClose));
+    await pairing.close();
     store.close();
     await rm(directory, { recursive: true, force: true });
   });
   return {
     studio,
+    store,
     token: issued.token,
     pairingBroker,
     pairingEndpoint: pairing.endpoint,
+    artifact,
     serviceUrl: `http://127.0.0.1:${server.address().port}/`,
   };
 }
@@ -155,10 +174,10 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
       payload: {
         sourceId: 'source.mcp-atlas',
         name: 'MCP atlas',
-        artifactUri: 'studio://artifacts/sha256/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        artifactUri: fixture.artifact.uri,
         mediaType: 'image/png',
-        width: 1024,
-        height: 1024,
+        width: 1,
+        height: 1,
         provenance: { prompt: 'Agent-authored atlas registration', seed: 742 },
       },
     },
@@ -167,6 +186,10 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   assert.equal(mutation.structuredContent.revision, 3);
   assert.equal(mutation.structuredContent.event.actor.id, AGENT.id);
   assert.doesNotMatch(JSON.stringify(mutation), /grant\.atlas|binding\./);
+  assert.equal(fixture.store.workspace.database.prepare(`
+    SELECT count(*) AS count FROM artifact_references
+    WHERE project_id = ? AND owner_kind = 'source' AND owner_id = ? AND digest = ?
+  `).get(PROJECT_ID, 'source.mcp-atlas', fixture.artifact.digest).count, 1);
 
   const spoof = await client.callTool({
     name: 'studio_source_register',

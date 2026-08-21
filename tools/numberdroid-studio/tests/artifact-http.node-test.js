@@ -127,3 +127,46 @@ test('human upload produces a project-scoped CAS resource and a READY Asset Libr
   assert.equal(crossProject.status, 404);
   assert.equal((await crossProject.json()).error.code, 'ARTIFACT_NOT_FOUND');
 });
+
+test('canonical source revision and its CAS reference roll back in one SQLite transaction', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'numberdroid-artifact-atomic-'));
+  let failReferenceCommit = false;
+  const store = await SqliteProjectStore.open({
+    filename: join(directory, 'studio.sqlite'),
+    databaseFactory: nodeSqliteDatabaseFactory,
+    faultInjector(point) {
+      if (failReferenceCommit && point === 'after_source_artifact_reference') throw new Error('source reference crash');
+    },
+  });
+  context.after(async () => {
+    store.close();
+    await rm(directory, { recursive: true, force: true });
+  });
+  const { studio } = createHarness(store);
+  await createProject(studio);
+  const artifactStore = new ContentAddressedArtifactStore({ rootDirectory: join(directory, 'artifacts') });
+  const artifact = await artifactStore.ingest(ONE_PIXEL_PNG, { mediaType: 'image/png' });
+  const metadata = new SqliteArtifactMetadataStore({ workspace: store.workspace });
+  metadata.registerAndReference(artifact, {
+    projectId: PROJECT_ID, ownerKind: 'upload', ownerId: 'upload.atomic', createdRevision: 1,
+  });
+  failReferenceCommit = true;
+  await assert.rejects(studio.execute(command({
+    commandId: 'cmd.atomic-source',
+    idempotencyKey: 'idem.atomic-source',
+    type: 'source.register',
+    expectedVersion: 1,
+    payload: {
+      sourceId: 'source.atomic', name: 'Atomic source', artifactUri: artifact.uri,
+      mediaType: 'image/png', width: 1, height: 1,
+      provenance: { prompt: 'Atomic CAS source', seed: 1 },
+    },
+  }), OWNER_CONTEXT), /source reference crash/);
+  const project = await studio.readProjectTrusted(PROJECT_ID);
+  assert.equal(project.revision, 1);
+  assert.equal(project.snapshot.sources.length, 0);
+  assert.equal(store.workspace.database.prepare(`
+    SELECT count(*) AS count FROM artifact_references
+    WHERE project_id = ? AND owner_kind = 'source'
+  `).get(PROJECT_ID).count, 0);
+});

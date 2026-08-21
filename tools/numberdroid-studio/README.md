@@ -6,7 +6,7 @@ The product lives in this self-contained folder so it can be moved into a standa
 
 ## Status
 
-Checkpoint 1 is the foundation checkpoint and is deliberately split in two. **Checkpoint 1A was visually accepted by the user on 2026-08-21** and remains the protected baseline. **Checkpoint 1B is implemented as a verification candidate and is not yet user-accepted.** It preserves the shell while adding SQLite/CAS durability, an official MCP 2026-07-28 stdio transport, private human-approved host pairing, a service-backed Header Agent access selector, and preview/fallback regions on every Asset Library card. Asset cutting, room authoring, and runtime export follow as vertical slices; see [the roadmap](docs/ROADMAP.md).
+Checkpoint 1 is the foundation checkpoint and is deliberately split in two. **Checkpoint 1A was visually accepted by the user on 2026-08-21** and remains the protected baseline. **Checkpoint 1B is implemented as a verification candidate and is not yet user-accepted.** It preserves the shell while adding SQLite/CAS durability, an official MCP 2026-07-28 stdio transport, private human-approved host pairing, a service-backed Header Agent access selector, and preview/fallback regions on every Asset Library card. Asset cutting, room authoring, and runtime export follow as vertical slices; see the [current 1B status](docs/CHECKPOINT_1B_STATUS.md) and [roadmap](docs/ROADMAP.md).
 
 | Area | Current status |
 | --- | --- |
@@ -30,6 +30,8 @@ npm run dev
 
 Open `http://127.0.0.1:4317`, choose **Create / load demo**, and inspect Overview, Sources, Asset library, and Activity. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is the authoritative ledger, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
 
+Checkpoint 1B is deliberately single-user and refuses a non-loopback HTTP listener. A future remote/team deployment requires authenticated HTTP/TLS and is a separate adapter, not an environment-variable widening of this local service.
+
 The server enforces one authoritative SQLite writer. `NUMBERDROID_STUDIO_STORE=json npm run dev` launches the protected JSON regression adapter explicitly; never run JSON and SQLite as simultaneous writers for the same logical workspace.
 
 ## Connect a local MCP host
@@ -44,7 +46,7 @@ MCP stdout is protocol-only. Pairing state and protocol diagnostics go to stderr
 
 ## Administration, migration, and recovery
 
-Stop the Studio process before administrative commands. Every destination must be new; commands refuse to overwrite it.
+Stop the Studio process before administrative commands. Backup and restore destinations must be new. `migrate-json` creates a migration-intent identity file and may reopen only the same matching partial migration after a crash; it refuses unrelated directories, other migration IDs, changed source manifests, foreign projects, or non-migration data.
 
 ```bash
 # Inspect and protect a C1A JSON source before cutover
@@ -60,7 +62,9 @@ npm run admin -- verify-backup /path/to/new-backup
 npm run admin -- restore /path/to/new-backup /path/to/new-restored-data
 ```
 
-Migration writes a protected JSON copy, source manifest, parity report, and `cutoverPerformed: false`; selecting the new data directory remains an explicit operator step. Exercise launch and integrity checks on the restored destination before replacing any active pointer.
+Migration writes a protected JSON copy, source manifest, parity report, and `cutoverPerformed: false`; selecting the new data directory remains an explicit operator step. If migration stops, rerun the exact same command with the same frozen source, destination, and migration ID. The destination identity and every already-copied project are verified before continuation; never rename or edit the intent file to force reuse of another store.
+
+`admin integrity` checks SQLite integrity and foreign keys plus every distinct referenced CAS object. It verifies that referenced metadata is `LIVE`, the digest-addressed object exists, its SHA-256 digest matches, and its byte length agrees with SQLite. It prints an `artifacts.findings` array and exits with status `2` whenever SQLite or any referenced artifact fails. An empty findings array with exit status `0` is required before cutover, backup, or recovery acceptance.
 
 ## Protected 1A baseline and 1B additions
 
@@ -68,7 +72,7 @@ The accepted navigation, information hierarchy, revision/activity visibility, de
 
 Checkpoint 1B adds two approved visual requirements without authorizing a broader redesign:
 
-- a persistent Header **Agent mode** pull-down showing `Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`; it displays service-returned effective policy but never creates client-side authority;
+- a persistent Header **Agent mode** pull-down with implemented `Off`, `Read only`, and `Execute scoped task`; the visible `Propose in draft` and `Custom…` entries are marked for later and grant nothing until branch/editor workflows exist;
 - a small preview region on every Asset Library card, using an authorized image resource or an accessible kind-aware fallback for processing, missing, unsupported, or failed media.
 
 ## Product principles

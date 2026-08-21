@@ -66,9 +66,9 @@ The header gains one compact, persistent control with these options:
 
 - `Off` — no active agent mutation posture;
 - `Read only` — project/task-scoped inspection only;
-- `Propose in draft` — dry-run and draft-branch proposal capabilities only;
+- `Propose in draft` — reserved and visibly unavailable in 1B until dry-run plus isolated draft-branch heads are real;
 - `Execute scoped task` — only the task/branch/object/capability/budget/expiry returned by the service;
-- `Custom…` — opens the human-only detailed task/grant editor.
+- `Custom…` — reserved and visibly unavailable in 1B until the human-only detailed task/grant editor exists.
 
 The control renders `REQUESTING`, active mode, `EXPIRED`, `REVOKED`, `DENIED`, and `SERVICE_UNAVAILABLE` states textually. It exposes a concise effective-policy summary and warns before authority broadens. No `Full access` or `Publish` option exists. Client state never authorizes an MCP call; the trusted host/service independently validates the concrete grant each time.
 
@@ -79,7 +79,7 @@ Every card reserves a small stable preview region. It shows an authorized artifa
 ## Open visual decisions for the 1B checkpoint
 
 - Final compact label/icon treatment for the Header Agent mode control.
-- Whether the effective-policy detail opens as an anchored popover or a side panel. The recommended default is a popover for the summary with `Custom…` opening the existing detailed workspace/panel pattern.
+- Whether the effective-policy detail opens as an anchored popover or a side panel. Checkpoint 1B uses a viewport-bounded popover; the later `Custom…` editor may use the existing detailed workspace/panel pattern.
 - Exact preview-region size and checkerboard treatment. The recommended default is a square region large enough to distinguish a floor surface from a prop while keeping current card density, using `contain` rather than cropping.
 
 The options, security semantics, inactive/error states, warnings, and existence of a preview/fallback are already binding; only these presentation details remain for user verification.

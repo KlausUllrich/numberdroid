@@ -22,7 +22,8 @@ const elements = Object.fromEntries(
     'activity-list', 'activity-count', 'connection-dot', 'connection-label', 'toast',
     'agent-access-select', 'agent-access-state', 'agent-access-panel', 'agent-access-close',
     'agent-access-details', 'agent-access-warnings', 'agent-access-retry',
-    'agent-launcher-show', 'agent-binding-support', 'agent-pending-list', 'agent-binding-list',
+    'agent-launcher-show', 'agent-binding-support', 'agent-pending-empty', 'agent-pending-list',
+    'agent-binding-empty', 'agent-binding-list',
     'agent-launcher-panel', 'agent-launcher-config', 'agent-launcher-copy',
   ].map((id) => [id, document.getElementById(id)]),
 );
@@ -65,15 +66,25 @@ function renderAgentAccess() {
   elements['agent-access-select'].disabled = disabled || policy?.state === 'REQUESTING';
   elements['agent-access-state'].disabled = disabled;
   elements['agent-access-select'].value = policy?.mode ?? 'off';
-  elements['agent-access-state'].textContent = accessStateLabels[policy?.state] ?? 'OFF';
+  const policyLabel = accessStateLabels[policy?.state] ?? 'OFF';
+  const activeHostCount = state.hostBindings.filter((binding) => binding.status === 'ACTIVE').length;
+  const hostLabel = activeHostCount ? `${activeHostCount} HOST${activeHostCount === 1 ? '' : 'S'}` : 'NO HOST';
+  elements['agent-access-state'].textContent = `${policyLabel} · ${hostLabel}`;
+  elements['agent-access-state'].setAttribute(
+    'aria-label',
+    `Agent policy ${policyLabel}; ${activeHostCount} authorized active ${activeHostCount === 1 ? 'host' : 'hosts'}. Open details.`,
+  );
   elements['agent-access-state'].dataset.state = policy?.state ?? 'OFF';
   elements['agent-access-retry'].hidden = !state.pendingAgentAccess;
   const hasActivePolicy = Boolean(policy?.state?.startsWith('ACTIVE'));
+  const canAuthorizeHost = hasActivePolicy && policy?.mode !== 'propose_draft';
   elements['agent-launcher-show'].disabled = state.hostBindingSupport !== 'AVAILABLE' || !state.mcpLauncherConfig;
   elements['agent-binding-support'].textContent = state.hostBindingSupport === 'AVAILABLE'
-    ? (hasActivePolicy
+    ? (canAuthorizeHost
       ? 'Start the local host, then authorize its waiting verification code here.'
-      : 'Choose an active Agent access mode before authorizing a waiting host.')
+      : policy?.mode === 'propose_draft'
+        ? 'Draft host authorization waits for real branch heads in a later checkpoint.'
+        : 'Choose an active Agent access mode before authorizing a waiting host.')
     : 'MCP connections require the SQLite Studio store.';
 
   const details = [];
@@ -117,11 +128,12 @@ function renderAgentAccess() {
     approve.type = 'button'; approve.textContent = 'Authorize';
     approve.dataset.approvePendingHost = pending.pendingHostId;
     approve.dataset.verificationCode = pending.verificationCode;
-    approve.disabled = !hasActivePolicy;
+    approve.disabled = !canAuthorizeHost;
     item.append(approve);
     return item;
   });
   elements['agent-pending-list'].replaceChildren(...pendingNodes);
+  elements['agent-pending-empty'].hidden = pendingNodes.length > 0;
 
   const bindingNodes = state.hostBindings.map((binding) => {
     const item = document.createElement('li');
@@ -139,6 +151,7 @@ function renderAgentAccess() {
     return item;
   });
   elements['agent-binding-list'].replaceChildren(...bindingNodes);
+  elements['agent-binding-empty'].hidden = bindingNodes.length > 0;
   elements['agent-launcher-panel'].hidden = !state.showMcpLauncherConfig || !state.mcpLauncherConfig;
   elements['agent-launcher-config'].textContent = state.mcpLauncherConfig
     ? JSON.stringify(state.mcpLauncherConfig, null, 2)
@@ -328,6 +341,7 @@ function renderCollection(items, workspace) {
   }
   const grid = document.createElement('div');
   grid.className = 'card-grid';
+  if (workspace === 'assets') grid.classList.add('asset-grid');
   for (const item of items) {
     if (workspace === 'sources') {
       grid.append(card(item.name, item.mediaType, item.provenance.prompt, [
@@ -409,6 +423,8 @@ function renderProject() {
 }
 
 async function loadProjects(preferredProjectId) {
+  const session = await api('/api/ui-session');
+  state.agentAccessCsrf = session.csrfToken;
   const response = await api('/api/projects');
   state.projects = response.projects;
   const prior = preferredProjectId || elements['project-select'].value;
@@ -416,7 +432,7 @@ async function loadProjects(preferredProjectId) {
   if (!state.projects.length) {
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
-    state.agentAccess = null; state.agentAccessCsrf = null; setAgentAccessPanel(false); renderProject(); return;
+    state.agentAccess = null; setAgentAccessPanel(false); renderProject(); return;
   }
   for (const project of state.projects) {
     const option = document.createElement('option'); option.value = project.projectId;
@@ -443,8 +459,6 @@ async function loadProject(projectId) {
   state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
   renderProject();
 }
-
-const accessModeRanks = { off: 0, read_only: 1, propose_draft: 2, execute_scoped: 3, custom: 0 };
 
 async function requestAgentAccess(mode, {
   confirmBroaderAccess = false,
@@ -518,18 +532,18 @@ elements['project-select'].addEventListener('change', () => loadProject(elements
 elements['refresh-button'].addEventListener('click', () => refresh());
 elements['agent-access-select'].addEventListener('change', () => {
   const mode = elements['agent-access-select'].value;
-  if (mode === 'custom') {
+  if (mode === 'custom' || mode === 'propose_draft') {
     requestAgentAccess(mode);
     return;
   }
   const currentMode = state.agentAccess?.mode ?? 'off';
-  const broader = (accessModeRanks[mode] ?? 0) > (accessModeRanks[currentMode] ?? 0);
+  const broader = mode !== 'off' && mode !== currentMode;
   const preset = state.agentAccess?.presets?.[mode];
   const presetDetails = preset
     ? `\nScopes: ${preset.scopes.join(', ')}\nBranch: ${preset.branchId || 'none'}\nObjects: ${preset.objectScopes.map((scope) => `${scope.kind}:${scope.id}`).join(', ')}\nCommand budget: ${preset.budget.maxCommands}\nExpires: ${new Date(preset.expiresAt).toLocaleString()}`
     : '';
   const confirmed = !broader || window.confirm(
-    `Broaden Agent access from “${currentMode.replaceAll('_', ' ')}” to “${mode.replaceAll('_', ' ')}”?\n\n`
+    `Replace Agent access “${currentMode.replaceAll('_', ' ')}” with “${mode.replaceAll('_', ' ')}”?\n\n`
     + `The service resolved the following immutable grant:${presetDetails}\n\nPublish is never included.`,
   );
   if (!confirmed) {
@@ -542,6 +556,15 @@ elements['agent-access-state'].addEventListener('click', () => {
   setAgentAccessPanel(elements['agent-access-panel'].hidden);
 });
 elements['agent-access-close'].addEventListener('click', () => setAgentAccessPanel(false));
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || elements['agent-access-panel'].hidden) return;
+  setAgentAccessPanel(false);
+  elements['agent-access-state'].focus();
+});
+document.addEventListener('click', (event) => {
+  if (elements['agent-access-panel'].hidden || event.target.closest('.agent-access-control')) return;
+  setAgentAccessPanel(false);
+});
 elements['agent-access-retry'].addEventListener('click', () => {
   if (state.pendingAgentAccess) requestAgentAccess(state.pendingAgentAccess.mode, state.pendingAgentAccess);
 });
@@ -605,7 +628,9 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   if (!button) return;
   button.disabled = true;
   try {
-    const response = await api(`/api/demo/action?action=${encodeURIComponent(button.dataset.demoAction)}`, { method: 'POST' });
+    const response = await api(`/api/demo/action?action=${encodeURIComponent(button.dataset.demoAction)}`, {
+      method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+    });
     state.labResult = {
       ok: true,
       action: button.textContent,
@@ -621,7 +646,9 @@ elements['workspace-content'].addEventListener('click', async (event) => {
 elements['demo-button'].addEventListener('click', async () => {
   elements['demo-button'].disabled = true;
   try {
-    const project = await api('/api/demo', { method: 'POST' });
+    const project = await api('/api/demo', {
+      method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+    });
     await loadProjects(project.projectId); showToast('Demo created through the transactional command core.');
   } catch (error) {
     showToast(`${error.code || 'ERROR'}: ${error.message}`);
@@ -634,4 +661,5 @@ window.addEventListener('hashchange', () => {
 });
 
 await refresh({ quiet: true });
+if (new URLSearchParams(location.search).get('visualFixture') === 'agent-access') setAgentAccessPanel(true);
 setInterval(() => refresh({ quiet: true }), 5000);

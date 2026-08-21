@@ -187,3 +187,15 @@ test('artifact payloads are references rather than embedded base64 data', async 
   );
   assert.equal((await studio.readProjectTrusted(PROJECT_ID)).revision, 2);
 });
+
+test('agent reads redact legacy external artifact locations', async () => {
+  const { studio } = createHarness();
+  await createProject(studio);
+  await issueGrant(studio);
+  await studio.execute(agentSourceCommand(), AGENT_CONTEXT);
+  const agentView = await studio.readProject({ projectId: PROJECT_ID }, AGENT_CONTEXT);
+  assert.equal(agentView.snapshot.sources[0].artifactUri, null);
+  assert.equal(agentView.snapshot.sources[0].artifactAvailability, 'LEGACY_EXTERNAL_LOCATION_REDACTED');
+  assert.equal((await studio.readProjectTrusted(PROJECT_ID)).snapshot.sources[0].artifactUri,
+    'studio://project.family-hygiene/artifacts/source.atlas.png');
+});

@@ -26,10 +26,14 @@ const PRESETS = Object.freeze({
 const MODES = new Set(['off', ...Object.keys(PRESETS), 'custom']);
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
-function activeGrant(snapshot, now) {
-  return [...snapshot.grants].reverse().find((grant) => (
+function activeGrants(snapshot, now) {
+  return snapshot.grants.filter((grant) => (
     !grant.revokedAt && (!grant.expiresAt || Date.parse(grant.expiresAt) > Date.parse(now))
-  )) ?? null;
+  ));
+}
+
+function activeGrant(snapshot, now) {
+  return activeGrants(snapshot, now).at(-1) ?? null;
 }
 
 function latestGrant(snapshot) {
@@ -41,19 +45,36 @@ function redactedBinding(binding) {
   return redacted;
 }
 
-function modeRank(mode) {
-  return mode === 'off' ? 0 : (PRESETS[mode]?.rank ?? 0);
-}
-
 function stableOperationId(projectId, idempotencyKey) {
   return createHash('sha256').update(`${projectId}\0${idempotencyKey}`, 'utf8').digest('hex').slice(0, 40);
 }
 
-function grantMatchesPreset(grant, mode) {
+function grantMatchesPreset(grant, mode, now) {
   const preset = PRESETS[mode];
   if (!grant || !preset || grant.scopes.length !== preset.scopes.length) return false;
   const actualScopes = new Set(grant.scopes);
-  return preset.scopes.every((scope) => actualScopes.has(scope));
+  const boundedExpiry = grant.expiresAt
+    && Date.parse(grant.expiresAt) > Date.parse(now)
+    && Date.parse(grant.expiresAt) <= Date.parse(now) + preset.durationMs;
+  const boundedBudget = grant.budget && Object.entries(preset.budget)
+    .every(([key, value]) => Number.isInteger(grant.budget[key]) && grant.budget[key] <= value);
+  return preset.scopes.every((scope) => actualScopes.has(scope)) && boundedExpiry && boundedBudget;
+}
+
+function broadensGrant(grant, preset, now) {
+  if (!grant) return true;
+  const existingScopes = new Set(grant.scopes);
+  if (preset.scopes.some((scope) => !existingScopes.has(scope))) return true;
+  const targetExpiry = Date.parse(now) + preset.durationMs;
+  if (grant.expiresAt && targetExpiry > Date.parse(grant.expiresAt)) return true;
+  if (!grant.budget || !grant.usage) return true;
+  const remaining = {
+    maxCommands: Math.max(0, grant.budget.maxCommands - grant.usage.commands),
+    maxJobs: Math.max(0, grant.budget.maxJobs - grant.usage.jobs),
+    maxArtifactBytes: Math.max(0, grant.budget.maxArtifactBytes - grant.usage.artifactBytes),
+    maxCostCents: Math.max(0, grant.budget.maxCostCents - grant.usage.costCents),
+  };
+  return Object.entries(preset.budget).some(([key, value]) => value > remaining[key]);
 }
 
 function validateRequest(body) {
@@ -196,16 +217,19 @@ export function createHumanAgentAccessController({
     let projectView = await studioService.readProjectTrusted(projectId);
     let now = clock();
     let currentPolicy = effectiveAgentAccessProjection(projectView, { now });
-    const currentActiveGrant = activeGrant(projectView.snapshot, now);
+    const currentActiveGrants = activeGrants(projectView.snapshot, now);
+    const currentActiveGrant = currentActiveGrants.at(-1) ?? null;
     if (request.mode === currentPolicy.mode
       && currentPolicy.state.startsWith('ACTIVE')
-      && grantMatchesPreset(currentActiveGrant, request.mode)) {
+      && currentActiveGrants.length === 1
+      && grantMatchesPreset(currentActiveGrant, request.mode, now)) {
       return { changed: false, effectivePolicy: await read(projectId) };
     }
-    if (request.mode === 'off' && !activeGrant(projectView.snapshot, now)) {
+    if (request.mode === 'off' && currentActiveGrants.length === 0) {
       return { changed: false, effectivePolicy: await read(projectId) };
     }
-    if (modeRank(request.mode) > modeRank(currentPolicy.mode) && !request.confirmBroaderAccess) {
+    if (request.mode !== 'off' && broadensGrant(currentActiveGrant, PRESETS[request.mode], now)
+      && !request.confirmBroaderAccess) {
       throw new StudioError(
         'BROADER_ACCESS_CONFIRMATION_REQUIRED',
         'Broader Agent access requires explicit human confirmation.',
@@ -222,13 +246,16 @@ export function createHumanAgentAccessController({
       );
     }
 
-    if (existingActive && !existingActive.revokedAt) {
+    for (const grant of currentActiveGrants) {
+      const grantSuffix = createHash('sha256').update(grant.id, 'utf8').digest('hex').slice(0, 12);
       await executeOwnerAtHead(studioService, projectId, {
-        commandId: operation.revokeCommandId,
-        idempotencyKey: operation.revokeIdempotencyKey,
+        commandId: `${operation.revokeCommandId}.${grantSuffix}`,
+        idempotencyKey: `${operation.revokeIdempotencyKey}.${grantSuffix}`,
         type: 'grant.revoke',
-        payload: { grantId: existingActive.id, reason: `Header Agent access changed to ${request.mode}.` },
+        payload: { grantId: grant.id, reason: `Header Agent access changed to ${request.mode}.` },
       });
+    }
+    if (currentActiveGrants.length) {
       hostBindingStore?.revokeActiveForProject(projectId, {
         revokedBy: projectView.snapshot.project.ownerId,
         reason: `Bound grant was replaced by Header Agent access mode ${request.mode}.`,
@@ -266,11 +293,11 @@ export function createHumanAgentAccessController({
 
   async function change(projectId, rawBody) {
     const request = validateRequest(rawBody);
-    if (request.mode === 'custom') {
+    if (request.mode === 'custom' || request.mode === 'propose_draft') {
       const projectView = await studioService.readProjectTrusted(projectId);
       return {
         changed: false,
-        effectivePolicy: policyWithPresetSummaries(projectView, clock(), 'custom'),
+        effectivePolicy: policyWithPresetSummaries(projectView, clock(), request.mode),
       };
     }
 
@@ -353,28 +380,49 @@ export function createHumanAgentAccessController({
       if (!grant) {
         throw new StudioError('GRANT_NOT_ACTIVE', 'Choose an active Agent access mode before creating an MCP connection.');
       }
-      const issued = hostBindingStore.issue({
-        projectId,
-        grantId: grant.id,
-        agentId: grant.agentId,
-        taskId: grant.taskId,
-        branchId: grant.branchId,
-        issuedBy: projectView.snapshot.project.ownerId,
-        expiresAt: grant.expiresAt ?? null,
-      });
-      const result = {
-        schemaVersion: 1,
-        binding: redactedBinding(issued.binding),
-        pendingHostId: request.pendingHostId,
-      };
-      pairingBroker.approve(projectId, request.pendingHostId, {
-        token: issued.token,
-        binding: result.binding,
-      });
-      hostBindingStore.completeAgentAccessOperation({
-        projectId, idempotencyKey: operationKey, fingerprint, result,
-      });
-      return { ...result, idempotentReplay: false };
+      if (effectiveAgentAccessProjection(projectView, { now }).mode === 'propose_draft') {
+        throw new StudioError('DRAFT_BRANCH_NOT_AVAILABLE_1B', 'Draft MCP hosts require isolated branch heads, which are not available in Checkpoint 1B.');
+      }
+      let issued = null;
+      try {
+        issued = hostBindingStore.issue({
+          projectId,
+          grantId: grant.id,
+          agentId: grant.agentId,
+          taskId: grant.taskId,
+          branchId: grant.branchId,
+          issuedBy: projectView.snapshot.project.ownerId,
+          expiresAt: grant.expiresAt ?? null,
+        });
+        const result = {
+          schemaVersion: 1,
+          binding: redactedBinding(issued.binding),
+          pendingHostId: request.pendingHostId,
+        };
+        pairingBroker.approve(projectId, request.pendingHostId, {
+          token: issued.token,
+          binding: result.binding,
+        });
+        hostBindingStore.completeAgentAccessOperation({
+          projectId, idempotencyKey: operationKey, fingerprint, result,
+        });
+        return { ...result, idempotentReplay: false };
+      } catch (error) {
+        if (issued) {
+          try {
+            hostBindingStore.revoke(issued.binding.bindingId, {
+              revokedBy: projectView.snapshot.project.ownerId,
+              reason: 'Pairing delivery failed before authorization completed.',
+            });
+          } catch {
+            // A concurrent revocation is already fail-closed.
+          }
+        }
+        hostBindingStore.abandonAgentAccessOperation({
+          projectId, idempotencyKey: operationKey, fingerprint,
+        });
+        throw error;
+      }
     });
     hostMutationQueue = run.catch(() => undefined);
     return run;

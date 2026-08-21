@@ -11,7 +11,7 @@ import {
 } from '../apps/studio-server/src/mcp-pairing-broker.js';
 import { pairWithStudio } from '../apps/studio-mcp/src/pairing-client.js';
 import {
-  AGENT, OWNER, OWNER_CONTEXT, PROJECT_ID, agentSourceCommand, command,
+  AGENT, OWNER, OWNER_CONTEXT, PROJECT_ID, command,
   createHarness, createProject, issueGrant,
 } from './test-helpers.js';
 import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
@@ -26,7 +26,7 @@ async function fixture(context) {
   context.after(() => store.close());
   const { studio } = createHarness(store);
   await createProject(studio);
-  await issueGrant(studio);
+  await issueGrant(studio, { scopes: ['project.read', 'source.write', 'asset.write', 'project.status.write'] });
   const bindingStore = new SqliteHostBindingStore({
     workspace: store.workspace,
     clock: () => '2026-08-21T12:00:10.000Z',
@@ -48,7 +48,7 @@ async function listenWithPairing(context, directory, studioService, hostBindingS
   const pairingBroker = new McpPairingBroker();
   const pairingEndpoint = defaultMcpPairingEndpoint(directory);
   const pairing = await startMcpPairingSocket({ broker: pairingBroker, endpoint: pairingEndpoint });
-  context.after(() => new Promise((resolve) => pairing.server.close(resolve)));
+  context.after(() => pairing.close());
   const server = createStudioHttpServer({
     studioService, hostBindingStore, pairingBroker, pairingEndpoint: pairing.endpoint,
   });
@@ -128,7 +128,13 @@ test('private loopback bridge resolves HostBinding per call and revocation block
   assert.equal(read.snapshot.grants, undefined);
   assert.doesNotMatch(JSON.stringify(read), /grant\.atlas|binding\./);
 
-  const source = agentSourceCommand();
+  const source = command({
+    commandId: 'cmd.host.status',
+    idempotencyKey: 'idem.host.status',
+    type: 'project.status.set',
+    expectedVersion: 2,
+    payload: { status: 'active', note: 'HostBinding execution proof' },
+  });
   const executeResponse = await post(base, '/internal/mcp/execute', issued.token, {
     schemaVersion: 1,
     command: source,
@@ -156,7 +162,9 @@ test('private loopback bridge resolves HostBinding per call and revocation block
       'sec-fetch-site': 'same-origin',
       'x-numberdroid-studio-csrf': access.csrfToken,
     },
-    body: JSON.stringify({ mode: 'read_only', idempotencyKey: 'binding.narrow.read-only' }),
+    body: JSON.stringify({
+      mode: 'read_only', confirmBroaderAccess: true, idempotencyKey: 'binding.narrow.read-only',
+    }),
   });
   assert.equal(narrowedResponse.status, 200);
   const narrowed = await narrowedResponse.json();
@@ -190,10 +198,12 @@ test('private loopback bridge resolves HostBinding per call and revocation block
   assert.equal((await reboundRead.json()).revision, 5);
   const deniedWrite = await post(base, '/internal/mcp/execute', freshToken, {
     schemaVersion: 1,
-    command: agentSourceCommand({
+    command: command({
       commandId: 'cmd.denied.after-narrow',
       idempotencyKey: 'idem.denied.after-narrow',
+      type: 'project.status.set',
       expectedVersion: 5,
+      payload: { status: 'paused' },
     }),
   });
   assert.equal(deniedWrite.status, 403);
@@ -370,4 +380,81 @@ test('Header Agent access idempotency survives controller restart and rejects ke
     (error) => error.code === 'IDEMPOTENCY_CONFLICT',
   );
   assert.deepEqual(await studio.readProjectTrusted(PROJECT_ID), afterChange);
+});
+
+test('Off revokes every active grant instead of falling back to an older grant', async (context) => {
+  const { studio, bindingStore } = await fixture(context);
+  await studio.execute(command({
+    commandId: 'cmd.grant.second-active',
+    idempotencyKey: 'idem.grant.second-active',
+    type: 'grant.issue',
+    expectedVersion: 2,
+    payload: {
+      grantId: 'grant.second-active',
+      agentId: AGENT.id,
+      taskId: 'task.second-active',
+      branchId: 'branch.second-active',
+      scopes: ['project.read'],
+      objectScopes: [{ kind: 'project', id: PROJECT_ID }],
+      budget: { maxCommands: 10, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
+    },
+  }), OWNER_CONTEXT);
+  const controller = createHumanAgentAccessController({ studioService: studio, hostBindingStore: bindingStore });
+  const result = await controller.change(PROJECT_ID, { mode: 'off', idempotencyKey: 'off.all-active' });
+  assert.equal(result.effectivePolicy.mode, 'off');
+  const project = await studio.readProjectTrusted(PROJECT_ID);
+  assert.equal(project.snapshot.grants.filter((grant) => !grant.revokedAt).length, 0);
+});
+
+test('scope additions require confirmation even when the coarse policy label is unchanged', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'numberdroid-capability-diff-'));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const store = await SqliteProjectStore.open({
+    filename: join(directory, 'studio.sqlite'), databaseFactory: nodeSqliteDatabaseFactory,
+  });
+  context.after(() => store.close());
+  const { studio } = createHarness(store);
+  await createProject(studio);
+  await issueGrant(studio, { scopes: ['project.read', 'project.status.write'] });
+  const bindingStore = new SqliteHostBindingStore({ workspace: store.workspace });
+  const controller = createHumanAgentAccessController({ studioService: studio, hostBindingStore: bindingStore });
+  await assert.rejects(
+    controller.change(PROJECT_ID, { mode: 'execute_scoped', idempotencyKey: 'execute.add-capabilities' }),
+    (error) => error.code === 'BROADER_ACCESS_CONFIRMATION_REQUIRED'
+      && error.details.scopes.includes('source.write') && error.details.scopes.includes('asset.write'),
+  );
+  assert.equal((await studio.readProjectTrusted(PROJECT_ID)).revision, 2);
+});
+
+test('failed pairing delivery revokes the ghost binding and abandons its operation', async (context) => {
+  const { studio, store, bindingStore } = await fixture(context);
+  const vanishedBroker = {
+    get() { return { pendingHostId: 'pending-host.vanished' }; },
+    approve() { throw Object.assign(new Error('host disconnected'), { code: 'HOST_PAIRING_NOT_FOUND' }); },
+    list() { return []; },
+  };
+  const controller = createHumanAgentAccessController({
+    studioService: studio, hostBindingStore: bindingStore, pairingBroker: vanishedBroker,
+  });
+  await assert.rejects(controller.createBinding(PROJECT_ID, {
+    pendingHostId: 'pending-host.vanished',
+    confirm: true,
+    idempotencyKey: 'pairing.vanished',
+  }), (error) => error.code === 'HOST_PAIRING_NOT_FOUND');
+  assert.equal(bindingStore.listForProject(PROJECT_ID).filter((binding) => binding.status === 'ACTIVE').length, 0);
+  assert.equal(store.workspace.database.prepare(
+    "SELECT count(*) AS count FROM human_agent_access_operations WHERE idempotency_key LIKE 'binding-approve.%'",
+  ).get().count, 0);
+});
+
+test('pairing shutdown closes a waiting host without waiting for the socket TTL', async () => {
+  const broker = new McpPairingBroker();
+  const pairing = await startMcpPairingSocket({ broker, endpoint: 'tcp://127.0.0.1:0' });
+  const waiting = pairWithStudio({ endpoint: pairing.endpoint, projectId: PROJECT_ID, label: 'Shutdown host' });
+  for (let attempt = 0; attempt < 50 && broker.list(PROJECT_ID).length === 0; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  assert.equal(broker.list(PROJECT_ID).length, 1);
+  await pairing.close();
+  await assert.rejects(waiting);
 });

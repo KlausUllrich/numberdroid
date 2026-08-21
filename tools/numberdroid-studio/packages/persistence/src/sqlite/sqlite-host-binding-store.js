@@ -102,6 +102,20 @@ export class SqliteHostBindingStore {
     });
   }
 
+  abandonAgentAccessOperation({ projectId, idempotencyKey, fingerprint }) {
+    const project = requireId(projectId, 'projectId');
+    const key = requireId(idempotencyKey, 'idempotencyKey');
+    invariant(typeof fingerprint === 'string' && fingerprint.length > 0, 'VALIDATION_ERROR', 'Agent access fingerprint is required.');
+    return this.#workspace.transaction((database) => {
+      const removed = database.prepare(`
+        DELETE FROM human_agent_access_operations
+        WHERE project_id = ? AND idempotency_key = ?
+          AND request_fingerprint = ? AND status = 'IN_PROGRESS'
+      `).run(project, key, fingerprint);
+      return { schemaVersion: 1, abandoned: Number(removed.changes) === 1 };
+    });
+  }
+
   issue({ projectId, grantId, agentId, taskId, branchId, issuedBy, expiresAt = null }) {
     const issuedAt = requireIsoDate(this.#clock(), 'clock');
     const record = {

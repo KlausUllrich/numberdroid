@@ -20,9 +20,9 @@
               <select id="agent-access-select" aria-describedby="agent-access-state" disabled>
                 <option value="off">Off</option>
                 <option value="read_only">Read only</option>
-                <option value="propose_draft">Propose in draft</option>
+                <option value="propose_draft">Propose in draft (later)</option>
                 <option value="execute_scoped">Execute scoped task</option>
-                <option value="custom">Custom…</option>
+                <option value="custom">Custom… (later)</option>
               </select>
               <button id="agent-access-state" class="access-state" type="button" aria-expanded="false" aria-controls="agent-access-panel" disabled>OFF</button>
             </div>
@@ -35,9 +35,13 @@
                   <strong>MCP connections</strong>
                   <button id="agent-launcher-show" class="secondary" type="button">Show host setup</button>
                 </div>
-                <p id="agent-binding-support" class="connection-help"></p>
-                <ul id="agent-pending-list" class="binding-list pending-host-list"></ul>
-                <ul id="agent-binding-list" class="binding-list"></ul>
+                <p id="agent-binding-support" class="connection-help" aria-live="polite"></p>
+                <p class="connection-section-label">Waiting for approval</p>
+                <p id="agent-pending-empty" class="binding-empty">No waiting hosts.</p>
+                <ul id="agent-pending-list" class="binding-list pending-host-list" aria-label="MCP hosts waiting for approval" aria-live="polite"></ul>
+                <p class="connection-section-label">Authorized hosts</p>
+                <p id="agent-binding-empty" class="binding-empty">No authorized hosts.</p>
+                <ul id="agent-binding-list" class="binding-list" aria-label="Authorized MCP hosts"></ul>
                 <section id="agent-launcher-panel" class="binding-once" aria-label="Secret-free MCP host configuration" hidden>
                   <strong>Start the local MCP host</strong>
                   <p>This setup contains no credential. Return here to authorize the waiting host by its verification code.</p>

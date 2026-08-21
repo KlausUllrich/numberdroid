@@ -180,9 +180,9 @@ Human UI commands use the same envelope; a locally authenticated human context s
 
 ### Agent mode is a policy projection, not authority
 
-The persistent Header Agent mode control is a human-facing posture selector. Its choices (`Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`) request a service operation; they are not local permission flags. The local service verifies the loopback human UI request, creates/selects/revokes the concrete task grant as allowed, then returns a redacted `EffectiveAgentPolicy` projection containing state, project/task/branch, capability and object-scope summary, expiry, budget, and job count. A separate section lists redacted pending and authorized MCP hosts. Browser configuration contains only command, project, service URL, and loopback pairing endpoint; it never contains a HostBinding token or grant ID.
+The persistent Header Agent mode control is a human-facing posture selector. Its choices (`Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`) request a service operation; they are not local permission flags. Checkpoint 1B implements only Off/read/scoped execution. Draft proposal is fail-closed until the revision model has isolated branch heads, and Custom is fail-closed until the detailed editor ships. The local service verifies the loopback human UI request, creates/selects/revokes the concrete task grant as allowed, then returns a redacted `EffectiveAgentPolicy` projection containing state, project/task/branch, capability and object-scope summary, expiry, budget, and job count. A separate section lists redacted pending and authorized MCP hosts. Browser configuration contains only command, project, service URL, and loopback pairing endpoint; it never contains a HostBinding token or grant ID.
 
-The UI renders only that projection. It cannot forge an `ACTIVE` state, attach a grant to an MCP invocation, or widen a policy by changing client state. On service disconnect it renders `SERVICE_UNAVAILABLE`, which carries no authority. `EXPIRED`, `REVOKED`, and `DENIED` are likewise inactive. Broadening from read/draft to execute requires a warning/confirmation; finalization/export remain separate commands and publish is never a header posture.
+The UI renders only that projection. It cannot forge an `ACTIVE` state, attach a grant to an MCP invocation, or widen a policy by changing client state. On service disconnect it renders `SERVICE_UNAVAILABLE`, which carries no authority. `EXPIRED`, `REVOKED`, and `DENIED` are likewise inactive. Any capability/time/budget expansion requires a warning/confirmation based on the concrete grant diff rather than a coarse mode rank; finalization/export remain separate commands and publish is never a header posture.
 
 Application command flow:
 
@@ -299,6 +299,7 @@ GitHub integration receives files from a verified export manifest. It is downstr
 
 - The local service binds to loopback by default and refuses non-local connections unless explicitly configured.
 - MCP stdio is the initial 1B transport. Future network transports require per-call authenticated host context, origin controls, and TLS at the deployment boundary.
+- The 1B HTTP service refuses non-loopback bind addresses. Remote/team access must arrive through a separately authenticated deployment adapter; it cannot expose the local single-user API by changing the bind host.
 - Local host approval uses a raw loopback pairing listener rather than an HTTP/browser route for credential delivery. The verification request is in memory, expires quickly, is single-use, and disappears on service or host disconnect.
 - HostBinding coordinates never change. Any grant posture rotation revokes bindings before a new immutable grant can be host-bound; stale tokens cannot acquire new rights.
 - Grants are immutable, signed or server-authenticated capabilities identified by opaque IDs. Only authenticated human roles can mint or widen them.

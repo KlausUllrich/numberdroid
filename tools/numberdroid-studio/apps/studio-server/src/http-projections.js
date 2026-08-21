@@ -115,7 +115,18 @@ export function effectiveAgentAccessProjection(projectView, { requestedMode, now
       customEditorRequired: true,
       warnings: [
         ...policy.warnings,
-        warning('CUSTOM_REQUIRES_HUMAN_EDITOR', 'Custom access is configured in a separate human-only grant editor; this selection grants nothing.', 'info'),
+        warning('CUSTOM_NOT_AVAILABLE_1B', 'The detailed Custom policy editor is reserved for a later checkpoint; no authority changed. Use a bounded preset in 1B.', 'info'),
+      ],
+    };
+  }
+  if (requestedMode === 'propose_draft') {
+    return {
+      ...structuredClone(policy),
+      requestedMode,
+      draftWorkspaceRequired: true,
+      warnings: [
+        ...policy.warnings,
+        warning('DRAFT_BRANCH_NOT_AVAILABLE_1B', 'Propose in draft needs isolated branch heads. It is reserved for a later checkpoint and grants nothing in 1B.', 'info'),
       ],
     };
   }
@@ -143,8 +154,7 @@ export function effectiveAgentAccessProjection(projectView, { requestedMode, now
 
 function safePreviewResource(resourceUri) {
   return typeof resourceUri === 'string'
-    && (/^\/api\/projects\/[^/]+\/artifacts\/sha256\/[a-f0-9]{64}$/.test(resourceUri)
-      || resourceUri.startsWith('/api/previews/'));
+    && /^\/api\/projects\/[^/]+\/artifacts\/sha256\/[a-f0-9]{64}$/.test(resourceUri);
 }
 
 function fallbackPreview(asset, state) {
@@ -176,7 +186,10 @@ export function assetPreviewProjection(asset, source, { projectId = null } = {})
   if (!source?.artifactUri) return fallbackPreview(asset, 'MISSING');
   if (!SUPPORTED_PREVIEW_MEDIA.has(source.mediaType)) return fallbackPreview(asset, 'UNSUPPORTED');
   const digest = /^studio:\/\/artifacts\/sha256\/([a-f0-9]{64})$/.exec(source.artifactUri)?.[1] ?? null;
-  if (digest && projectId) {
+  const wholeSourceRegion = Number.isInteger(source.width) && Number.isInteger(source.height)
+    && asset.region?.x === 0 && asset.region?.y === 0
+    && asset.region?.width === source.width && asset.region?.height === source.height;
+  if (digest && projectId && wholeSourceRegion) {
     return {
       schemaVersion: 1,
       state: 'READY',

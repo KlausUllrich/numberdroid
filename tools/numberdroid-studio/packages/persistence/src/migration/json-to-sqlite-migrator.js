@@ -170,6 +170,88 @@ async function copyProtectedBaseline(sourceDirectory, backupDirectory, manifest)
   });
 }
 
+function tableCount(database, table) {
+  const exists = database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
+  return exists ? Number(database.prepare(`SELECT count(*) AS count FROM ${table}`).get().count) : 0;
+}
+
+async function assertDestinationIdentity({ database, source, manifest, migrationId }) {
+  const sourceProjects = new Map(manifest.projects.map((project) => [project.projectId, project]));
+  invariant(
+    sourceProjects.size === manifest.projects.length,
+    'MIGRATION_INVALID_SOURCE',
+    'The JSON source contains duplicate project IDs.',
+  );
+  const runs = database.prepare('SELECT migration_id, source_manifest_hash, status, report_json FROM migration_runs ORDER BY migration_id').all();
+  const existingRun = runs.find((run) => run.migration_id === migrationId) ?? null;
+  invariant(
+    runs.every((run) => run.migration_id === migrationId),
+    'MIGRATION_DESTINATION_IDENTITY_MISMATCH',
+    'Destination belongs to a different JSON migration.',
+    { migrationId, existingMigrationIds: runs.map((run) => run.migration_id) },
+  );
+  if (existingRun) {
+    invariant(
+      existingRun.source_manifest_hash === manifest.manifestHash,
+      'MIGRATION_SOURCE_CHANGED',
+      'Migration source changed between attempts.',
+    );
+  }
+
+  const projectIds = database.prepare('SELECT project_id FROM projects ORDER BY project_id').all()
+    .map((row) => row.project_id);
+  if (!existingRun) {
+    invariant(
+      projectIds.length === 0,
+      'MIGRATION_DESTINATION_IDENTITY_MISMATCH',
+      'A new JSON migration requires an empty destination project store.',
+      { projectIds },
+    );
+  }
+  invariant(
+    projectIds.every((projectId) => sourceProjects.has(projectId)),
+    'MIGRATION_DESTINATION_IDENTITY_MISMATCH',
+    'Destination contains a project outside this JSON source manifest.',
+    { projectIds },
+  );
+
+  for (const table of [
+    'artifacts',
+    'artifact_references',
+    'cas_gc_marks',
+    'host_bindings',
+    'human_agent_access_operations',
+  ]) {
+    invariant(
+      tableCount(database, table) === 0,
+      'MIGRATION_DESTINATION_IDENTITY_MISMATCH',
+      `Destination contains non-migration data in ${table}.`,
+      { table },
+    );
+  }
+
+  for (const projectId of projectIds) {
+    const evidence = sourceProjects.get(projectId);
+    const sourceDocument = JSON.parse(await readFile(join(source, evidence.filename), 'utf8'));
+    const revisionRows = database.prepare(`
+      SELECT revision_json FROM revisions WHERE project_id = ? ORDER BY revision_number
+    `).all(projectId);
+    const destinationDocument = {
+      formatVersion: sourceDocument.formatVersion,
+      projectId: sourceDocument.projectId,
+      createdAt: sourceDocument.createdAt,
+      revisions: revisionRows.map((row) => JSON.parse(row.revision_json)),
+    };
+    invariant(
+      fingerprint(destinationDocument) === fingerprint(sourceDocument),
+      'MIGRATION_DESTINATION_IDENTITY_MISMATCH',
+      'A partially migrated destination project differs from the protected JSON source.',
+      { projectId },
+    );
+  }
+  return existingRun;
+}
+
 export async function migrateJsonToSqlite({
   sourceDirectory,
   destinationDirectory,
@@ -185,17 +267,14 @@ export async function migrateJsonToSqlite({
   invariant(source !== destination && !destination.startsWith(`${source}/`), 'MIGRATION_UNSAFE_DESTINATION', 'Destination must be separate from the source baseline.');
   await mkdir(destination, { recursive: true, mode: 0o700 });
   const manifest = await createJsonSourceManifest(source);
+  const database = store.workspace.database;
+  const existingRun = await assertDestinationIdentity({ database, source, manifest, migrationId });
   const backupDirectory = join(destination, 'protected-json', migrationId);
   await copyProtectedBaseline(source, backupDirectory, manifest);
-
-  const database = store.workspace.database;
-  const existingRun = database.prepare('SELECT * FROM migration_runs WHERE migration_id = ?').get(migrationId);
   if (existingRun?.status === 'VERIFIED') {
-    invariant(existingRun.source_manifest_hash === manifest.manifestHash, 'MIGRATION_SOURCE_CHANGED', 'Migration ID was already used for another source manifest.');
     return JSON.parse(existingRun.report_json);
   }
   if (existingRun) {
-    invariant(existingRun.source_manifest_hash === manifest.manifestHash, 'MIGRATION_SOURCE_CHANGED', 'Migration source changed between attempts.');
     database.prepare(`UPDATE migration_runs SET status = 'RUNNING', completed_at = NULL, report_json = NULL WHERE migration_id = ?`).run(migrationId);
   } else {
     database.prepare(`

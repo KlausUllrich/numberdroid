@@ -120,7 +120,9 @@ export async function startMcpPairingSocket({ broker, endpoint }) {
     await mkdir(dirname(socketEndpoint), { recursive: true, mode: 0o700 });
     await rm(socketEndpoint, { force: true });
   }
+  const sockets = new Set();
   const server = createServer((socket) => {
+    sockets.add(socket);
     let buffer = Buffer.alloc(0);
     let registered = false;
     let pendingHostId = null;
@@ -160,6 +162,7 @@ export async function startMcpPairingSocket({ broker, endpoint }) {
       }
     });
     socket.once('close', () => {
+      sockets.delete(socket);
       if (pendingHostId && !terminal) broker.cancel(pendingHostId);
     });
   });
@@ -176,5 +179,15 @@ export async function startMcpPairingSocket({ broker, endpoint }) {
     broker.close();
     if (socketEndpoint && process.platform !== 'win32') rm(socketEndpoint, { force: true }).catch(() => {});
   });
-  return { server, endpoint: actualEndpoint };
+  let closing = null;
+  const close = () => {
+    if (closing) return closing;
+    closing = new Promise((resolveClose, rejectClose) => {
+      broker.close();
+      for (const socket of sockets) socket.destroy();
+      server.close((error) => (error ? rejectClose(error) : resolveClose()));
+    });
+    return closing;
+  };
+  return { server, endpoint: actualEndpoint, close };
 }

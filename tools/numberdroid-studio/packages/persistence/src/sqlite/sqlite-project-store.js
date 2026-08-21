@@ -68,6 +68,39 @@ function writeGrants(database, projectId, snapshot, options) {
   }
 }
 
+function writeCanonicalSourceArtifactReference(database, projectId, revision) {
+  if (revision.command.type !== 'source.register') return;
+  const sourceId = revision.result.sourceId;
+  const source = revision.snapshot.sources.find((candidate) => candidate.id === sourceId);
+  const match = /^studio:\/\/artifacts\/sha256\/([a-f0-9]{64})$/.exec(source?.artifactUri ?? '');
+  if (!match) return;
+  const digest = match[1];
+  const artifact = database.prepare(`
+    SELECT media_type, width, height, state FROM artifacts WHERE digest = ?
+  `).get(digest);
+  invariant(artifact && artifact.state === 'LIVE', 'ARTIFACT_NOT_LIVE', 'Canonical source artifact must be registered and LIVE.', {
+    digest,
+  });
+  invariant(
+    artifact.media_type === source.mediaType
+      && Number(artifact.width) === source.width && Number(artifact.height) === source.height,
+    'ARTIFACT_METADATA_CONFLICT',
+    'Canonical source metadata must match the verified artifact row.',
+    { digest },
+  );
+  const existingProjectReference = database.prepare(`
+    SELECT 1 FROM artifact_references WHERE project_id = ? AND digest = ? LIMIT 1
+  `).get(projectId, digest);
+  invariant(existingProjectReference, 'ARTIFACT_NOT_LIVE', 'Canonical source artifact must already belong to this project.', {
+    digest,
+  });
+  database.prepare(`
+    INSERT OR IGNORE INTO artifact_references(
+      project_id, owner_kind, owner_id, digest, created_revision
+    ) VALUES (?, 'source', ?, ?, ?)
+  `).run(projectId, sourceId, digest, revision.number);
+}
+
 function writeRevision(database, projectId, revision) {
   database.prepare(`
     INSERT INTO revisions(
@@ -264,6 +297,8 @@ export class SqliteProjectStore extends ProjectStore {
         this.#workspace.fault('after_idempotency_insert');
         writeGrants(database, projectId, revision.snapshot, { legacy: legacyGrants, now: revision.committedAt });
         this.#workspace.fault('after_grant_projection');
+        writeCanonicalSourceArtifactReference(database, projectId, revision);
+        this.#workspace.fault('after_source_artifact_reference');
 
         const document = {
           formatVersion: 1,

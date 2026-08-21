@@ -159,6 +159,16 @@ function proposalResult(revision, definition) {
   });
 }
 
+function redactAgentOnlySourceLocations(snapshot) {
+  const redacted = deepClone(snapshot);
+  redacted.sources = redacted.sources.map((source) => (
+    /^studio:\/\/artifacts\/sha256\/[a-f0-9]{64}$/.test(source.artifactUri)
+      ? source
+      : { ...source, artifactUri: null, artifactAvailability: 'LEGACY_EXTERNAL_LOCATION_REDACTED' }
+  ));
+  return redacted;
+}
+
 function assertReplayMatches(revision, incomingFingerprint) {
   invariant(
     revision.command.fingerprint === incomingFingerprint,
@@ -609,7 +619,7 @@ export class StudioService {
     );
     if (actor.kind === 'agent') {
       const effectiveGrant = head.snapshot.grants.find((grant) => grant.id === grantId);
-      const { grants: _secretGrants, ...redactedSnapshot } = deepClone(head.snapshot);
+      const { grants: _secretGrants, ...redactedSnapshot } = redactAgentOnlySourceLocations(head.snapshot);
       return deepFreeze({
         schemaVersion: 1,
         projectId,

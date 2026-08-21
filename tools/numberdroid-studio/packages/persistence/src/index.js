@@ -2,6 +2,7 @@ export { InMemoryProjectStore } from './in-memory-project-store.js';
 export { JsonProjectStore } from './json-project-store.js';
 export { ContentAddressedArtifactStore } from './artifacts/content-addressed-artifact-store.js';
 export { createWorkspaceBackup, restoreWorkspaceBackup, verifyWorkspaceBackup } from './backup/workspace-backup.js';
+export { verifyWorkspaceIntegrity } from './integrity/workspace-integrity.js';
 export { createJsonSourceManifest, migrateJsonToSqlite } from './migration/json-to-sqlite-migrator.js';
 export { SqliteArtifactMetadataStore } from './sqlite/sqlite-artifact-metadata-store.js';
 export { SqliteHostBindingStore } from './sqlite/sqlite-host-binding-store.js';
