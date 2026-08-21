@@ -116,11 +116,12 @@ const definitions = [
         provenance: {
           type: 'object',
           required: ['prompt'],
+          additionalProperties: false,
           properties: {
-            prompt: nonEmpty,
+            prompt: { ...nonEmpty, maxLength: 20000 },
             seed: { type: ['string', 'number', 'null'] },
-            model: { type: ['string', 'null'] },
-            generator: { type: ['string', 'null'] },
+            model: { type: ['string', 'null'], maxLength: 200 },
+            generator: { type: ['string', 'null'], maxLength: 200 },
           },
         },
       },

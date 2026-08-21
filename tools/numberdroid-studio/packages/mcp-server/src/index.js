@@ -75,7 +75,7 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
         expectedVersion: input.expectedVersion,
         dryRun: input.dryRun ?? false,
         payload: input.payload,
-      }, context);
+      }, context, { signal: invocationContext?.mcpReq?.signal });
     },
   }));
 
@@ -107,7 +107,11 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
           });
         }
         const context = await authority(invocationContext, input.projectId);
-        return studioService.readProject({ projectId: input.projectId }, context);
+        return studioService.readProject(
+          { projectId: input.projectId },
+          context,
+          { signal: invocationContext?.mcpReq?.signal },
+        );
       },
     },
     ...commandTools,

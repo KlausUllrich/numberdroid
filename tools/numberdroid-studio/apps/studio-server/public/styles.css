@@ -145,5 +145,16 @@ h2, h3 { margin: 0; }
 
 @media (max-width: 1200px) {
   .app-shell { grid-template-columns: 190px minmax(540px, 1fr) 300px; }
+  .topbar { padding: 0 14px; }
+  .brand { gap: 8px; }
+  .brand-mark { width: 32px; height: 32px; }
+  .brand strong { font-size: 14px; }
+  .brand small { display: none; }
+  .project-controls { gap: 5px; }
+  .agent-access-input { gap: 4px; }
+  .agent-access-input select { width: 150px; }
+  .access-state { min-width: 95px; }
+  .project-controls > select { min-width: 155px; }
+  .project-controls > button { padding: 8px 9px; font-size: 11px; }
   main { padding: 24px; }
 }

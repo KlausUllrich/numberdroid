@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Client } from '@modelcontextprotocol/client';
+import { Client, SdkErrorCode } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import {
   ContentAddressedArtifactStore, SqliteArtifactMetadataStore, SqliteHostBindingStore, SqliteProjectStore,
@@ -161,6 +162,79 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   assert.equal(project.snapshot.grants, undefined);
   assert.doesNotMatch(JSON.stringify(project), /grant\.atlas|binding\./);
 
+  const malformed = await client.callTool({
+    name: 'studio_source_register',
+    arguments: {
+      schemaVersion: 1,
+      commandId: 'cmd.mcp.malformed',
+      idempotencyKey: 'idem.mcp.malformed',
+      projectId: PROJECT_ID,
+      baseRevision: 2,
+      expectedVersion: 2,
+      payload: {
+        name: 'Missing source id',
+        artifactUri: fixture.artifact.uri,
+        mediaType: 'image/png',
+        provenance: { prompt: 'Schema validation must reject this input.' },
+      },
+    },
+  });
+  assert.equal(malformed.isError, true);
+  assert.match(malformed.content[0].text, /^Input validation error:/);
+  assert.equal(malformed.structuredContent, undefined);
+  assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 2);
+
+  const promptBoundary = await client.callTool({
+    name: 'studio_source_register',
+    arguments: {
+      schemaVersion: 1,
+      commandId: 'cmd.mcp.prompt-boundary',
+      idempotencyKey: 'idem.mcp.prompt-boundary',
+      projectId: PROJECT_ID,
+      baseRevision: 2,
+      expectedVersion: 2,
+      payload: {
+        sourceId: 'source.mcp-prompt-boundary',
+        name: 'Prompt boundary source',
+        artifactUri: fixture.artifact.uri,
+        mediaType: 'image/png',
+        width: 1,
+        height: 1,
+        provenance: { prompt: 'p'.repeat(20_001) },
+      },
+    },
+  });
+  assert.equal(promptBoundary.isError, true);
+  assert.match(promptBoundary.content[0].text, /^Input validation error:/);
+  assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 2);
+
+  const oversizedSentinel = `oversized-seed-${'x'.repeat(1_100_000)}`;
+  const oversized = await client.callTool({
+    name: 'studio_source_register',
+    arguments: {
+      schemaVersion: 1,
+      commandId: 'cmd.mcp.oversized',
+      idempotencyKey: 'idem.mcp.oversized',
+      projectId: PROJECT_ID,
+      baseRevision: 2,
+      expectedVersion: 2,
+      payload: {
+        sourceId: 'source.mcp-oversized',
+        name: 'Oversized source',
+        artifactUri: fixture.artifact.uri,
+        mediaType: 'image/png',
+        width: 1,
+        height: 1,
+        provenance: { prompt: 'Payload limit contract', seed: oversizedSentinel },
+      },
+    },
+  });
+  assert.equal(oversized.isError, true);
+  assert.equal(oversized.structuredContent.error.code, 'BODY_TOO_LARGE');
+  assert.match(oversized.content[0].text, /BODY_TOO_LARGE/);
+  assert.doesNotMatch(JSON.stringify(oversized), /oversized-seed-xxxxxxxx/);
+  assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 2);
+
   const mutation = await client.callTool({
     name: 'studio_source_register',
     arguments: {
@@ -239,6 +313,127 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   assert.doesNotMatch(JSON.stringify(denied), /grant\.atlas|binding\./);
   assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 4);
 
+  await client.close();
+});
+
+test('official stdio MCP propagates cancellation to the local Studio request', async (context) => {
+  let requestStartedResolve;
+  let requestClosedResolve;
+  const requestStarted = new Promise((resolveStarted) => { requestStartedResolve = resolveStarted; });
+  const requestClosed = new Promise((resolveClosed) => { requestClosedResolve = resolveClosed; });
+  let requestCount = 0;
+  const slowService = createServer((request, response) => {
+    requestCount += 1;
+    if (requestCount === 1) {
+      requestStartedResolve();
+      response.once('close', requestClosedResolve);
+      return;
+    }
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.end(JSON.stringify({
+      schemaVersion: 1,
+      projectId: PROJECT_ID,
+      revision: 7,
+      snapshot: { project: { id: PROJECT_ID, name: 'Recovered after cancellation' } },
+    }));
+  });
+  await new Promise((resolveListen, reject) => {
+    slowService.once('error', reject);
+    slowService.listen(0, '127.0.0.1', resolveListen);
+  });
+  context.after(() => new Promise((resolveClose) => slowService.close(resolveClose)));
+
+  const client = new Client(
+    { name: 'numberdroid-studio-cancellation-test', version: '1.0.0' },
+    { versionNegotiation: { mode: { pin: '2026-07-28' } } },
+  );
+  context.after(() => client.close().catch(() => {}));
+  await client.connect(childTransport({
+    token: 'c'.repeat(43),
+    serviceUrl: `http://127.0.0.1:${slowService.address().port}/`,
+  }));
+
+  const controller = new AbortController();
+  const pending = client.callTool({
+    name: 'studio_project_read',
+    arguments: { schemaVersion: 1, projectId: PROJECT_ID },
+  }, { signal: controller.signal });
+  await requestStarted;
+  controller.abort();
+  await assert.rejects(pending, (error) => error?.code === SdkErrorCode.RequestTimeout);
+  await Promise.race([
+    requestClosed,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Cancelled Studio request remained open.')), 2_000)),
+  ]);
+  const recovered = await client.callTool({
+    name: 'studio_project_read',
+    arguments: { schemaVersion: 1, projectId: PROJECT_ID },
+  });
+  assert.equal(recovered.isError, undefined, JSON.stringify(recovered));
+  assert.equal(recovered.structuredContent.revision, 7);
+  await client.close();
+});
+
+test('official stdio MCP returns a structured, redacted service-unavailable error', async (context) => {
+  const unavailable = createServer();
+  await new Promise((resolveListen, reject) => {
+    unavailable.once('error', reject);
+    unavailable.listen(0, '127.0.0.1', resolveListen);
+  });
+  const port = unavailable.address().port;
+  await new Promise((resolveClose) => unavailable.close(resolveClose));
+
+  const token = 's'.repeat(43);
+  const client = new Client(
+    { name: 'numberdroid-studio-service-failure-test', version: '1.0.0' },
+    { versionNegotiation: { mode: { pin: '2026-07-28' } } },
+  );
+  context.after(() => client.close().catch(() => {}));
+  await client.connect(childTransport({
+    token,
+    serviceUrl: `http://127.0.0.1:${port}/`,
+  }));
+  const denied = await client.callTool({
+    name: 'studio_project_read',
+    arguments: { schemaVersion: 1, projectId: PROJECT_ID },
+  });
+  assert.equal(denied.isError, true);
+  assert.equal(denied.structuredContent.error.code, 'STUDIO_SERVICE_UNAVAILABLE');
+  assert.doesNotMatch(JSON.stringify(denied), new RegExp(token));
+
+  let responseMode = 'malformed';
+  const recoveredService = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'application/json' });
+    if (responseMode === 'malformed') {
+      response.end('private-malformed-response');
+      return;
+    }
+    response.end(JSON.stringify({
+      schemaVersion: 1,
+      projectId: PROJECT_ID,
+      revision: 8,
+      snapshot: { project: { id: PROJECT_ID, name: 'Recovered service' } },
+    }));
+  });
+  await new Promise((resolveListen, reject) => {
+    recoveredService.once('error', reject);
+    recoveredService.listen(port, '127.0.0.1', resolveListen);
+  });
+  context.after(() => new Promise((resolveClose) => recoveredService.close(resolveClose)));
+  const malformed = await client.callTool({
+    name: 'studio_project_read',
+    arguments: { schemaVersion: 1, projectId: PROJECT_ID },
+  });
+  assert.equal(malformed.isError, true);
+  assert.equal(malformed.structuredContent.error.code, 'STUDIO_SERVICE_PROTOCOL_ERROR');
+  assert.doesNotMatch(JSON.stringify(malformed), /private-malformed-response/);
+  responseMode = 'valid';
+  const recovered = await client.callTool({
+    name: 'studio_project_read',
+    arguments: { schemaVersion: 1, projectId: PROJECT_ID },
+  });
+  assert.equal(recovered.isError, undefined, JSON.stringify(recovered));
+  assert.equal(recovered.structuredContent.revision, 8);
   await client.close();
 });
 

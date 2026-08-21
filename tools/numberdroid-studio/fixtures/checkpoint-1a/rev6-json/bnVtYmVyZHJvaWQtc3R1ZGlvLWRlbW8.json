@@ -1,0 +1,704 @@
+{
+  "formatVersion": 1,
+  "projectId": "numberdroid-studio-demo",
+  "createdAt": "2026-08-21T13:42:52.274Z",
+  "revisions": [
+    {
+      "id": "revision:1",
+      "number": 1,
+      "parentRevision": 0,
+      "committedAt": "2026-08-21T13:42:52.274Z",
+      "command": {
+        "schemaVersion": 1,
+        "commandId": "demo.create",
+        "idempotencyKey": "demo.create",
+        "type": "project.create",
+        "actor": {
+          "id": "local.designer",
+          "kind": "human",
+          "displayName": "Local designer"
+        },
+        "taskId": null,
+        "grantId": null,
+        "fingerprint": "08595ac08cb9d6593329b99c47c6cc1ae8a4c149dc8c053dde24e6040bc7c250"
+      },
+      "snapshot": {
+        "project": {
+          "id": "numberdroid-studio-demo",
+          "name": "Family Hygiene Studio Demo",
+          "description": "A safe local project demonstrating human-visible agent work.",
+          "ownerId": "local.designer",
+          "status": "draft",
+          "statusNote": null,
+          "createdAt": "2026-08-21T13:42:52.274Z",
+          "updatedAt": "2026-08-21T13:42:52.274Z"
+        },
+        "grants": [],
+        "sources": [],
+        "assets": [],
+        "rooms": [],
+        "levels": []
+      },
+      "result": {
+        "projectId": "numberdroid-studio-demo"
+      },
+      "event": {
+        "id": "activity:demo.create",
+        "projectId": "numberdroid-studio-demo",
+        "revision": 1,
+        "occurredAt": "2026-08-21T13:42:52.274Z",
+        "actor": {
+          "id": "local.designer",
+          "kind": "human",
+          "displayName": "Local designer"
+        },
+        "taskId": null,
+        "commandId": "demo.create",
+        "commandType": "project.create",
+        "status": "committed",
+        "summary": "Project Family Hygiene Studio Demo created.",
+        "changes": [
+          {
+            "entityType": "project",
+            "entityId": "numberdroid-studio-demo",
+            "operation": "created"
+          }
+        ]
+      }
+    },
+    {
+      "id": "revision:2",
+      "number": 2,
+      "parentRevision": 1,
+      "committedAt": "2026-08-21T13:42:52.279Z",
+      "command": {
+        "schemaVersion": 1,
+        "commandId": "demo.grant-atlas-agent",
+        "idempotencyKey": "demo.grant-atlas-agent",
+        "type": "grant.issue",
+        "actor": {
+          "id": "local.designer",
+          "kind": "human",
+          "displayName": "Local designer"
+        },
+        "taskId": null,
+        "grantId": null,
+        "fingerprint": "eb879ae4d7a25192017a7d32bf133458e3ecccb8caabd4ccc59a154b1536efb7"
+      },
+      "snapshot": {
+        "project": {
+          "id": "numberdroid-studio-demo",
+          "name": "Family Hygiene Studio Demo",
+          "description": "A safe local project demonstrating human-visible agent work.",
+          "ownerId": "local.designer",
+          "status": "draft",
+          "statusNote": null,
+          "createdAt": "2026-08-21T13:42:52.274Z",
+          "updatedAt": "2026-08-21T13:42:52.279Z"
+        },
+        "grants": [
+          {
+            "id": "grant.demo-atlas",
+            "agentId": "atlas.agent",
+            "taskId": "demo.atlas-bootstrap",
+            "branchId": "branch.demo-atlas",
+            "scopes": [
+              "asset.write",
+              "project.read",
+              "project.status.write",
+              "source.write"
+            ],
+            "objectScopes": [
+              {
+                "kind": "project",
+                "id": "numberdroid-studio-demo"
+              }
+            ],
+            "budget": {
+              "maxCommands": 100,
+              "maxJobs": 10,
+              "maxArtifactBytes": 536870912,
+              "maxCostCents": 0
+            },
+            "usage": {
+              "commands": 0,
+              "jobs": 0,
+              "artifactBytes": 0,
+              "costCents": 0
+            },
+            "expiresAt": null,
+            "issuedAt": "2026-08-21T13:42:52.279Z",
+            "issuedBy": "local.designer",
+            "revokedAt": null,
+            "revokeReason": null,
+            "status": "ACTIVE"
+          }
+        ],
+        "sources": [],
+        "assets": [],
+        "rooms": [],
+        "levels": []
+      },
+      "result": {
+        "grantId": "grant.demo-atlas"
+      },
+      "event": {
+        "id": "activity:demo.grant-atlas-agent",
+        "projectId": "numberdroid-studio-demo",
+        "revision": 2,
+        "occurredAt": "2026-08-21T13:42:52.279Z",
+        "actor": {
+          "id": "local.designer",
+          "kind": "human",
+          "displayName": "Local designer"
+        },
+        "taskId": null,
+        "commandId": "demo.grant-atlas-agent",
+        "commandType": "grant.issue",
+        "status": "committed",
+        "summary": "Grant grant.demo-atlas issued to atlas.agent for task demo.atlas-bootstrap.",
+        "changes": [
+          {
+            "entityType": "grant",
+            "entityId": "grant.demo-atlas",
+            "operation": "created"
+          }
+        ]
+      }
+    },
+    {
+      "id": "revision:3",
+      "number": 3,
+      "parentRevision": 2,
+      "committedAt": "2026-08-21T13:42:52.283Z",
+      "command": {
+        "schemaVersion": 1,
+        "commandId": "demo.register-atlas",
+        "idempotencyKey": "demo.register-atlas",
+        "type": "source.register",
+        "actor": {
+          "id": "atlas.agent",
+          "kind": "agent",
+          "displayName": "Atlas agent"
+        },
+        "taskId": "demo.atlas-bootstrap",
+        "grantId": "grant.demo-atlas",
+        "fingerprint": "d54b87a055588f65144459a3cdd7f44811a79defae5fbf5c91af9f47f742df9e"
+      },
+      "snapshot": {
+        "project": {
+          "id": "numberdroid-studio-demo",
+          "name": "Family Hygiene Studio Demo",
+          "description": "A safe local project demonstrating human-visible agent work.",
+          "ownerId": "local.designer",
+          "status": "draft",
+          "statusNote": null,
+          "createdAt": "2026-08-21T13:42:52.274Z",
+          "updatedAt": "2026-08-21T13:42:52.283Z"
+        },
+        "grants": [
+          {
+            "id": "grant.demo-atlas",
+            "agentId": "atlas.agent",
+            "taskId": "demo.atlas-bootstrap",
+            "branchId": "branch.demo-atlas",
+            "scopes": [
+              "asset.write",
+              "project.read",
+              "project.status.write",
+              "source.write"
+            ],
+            "objectScopes": [
+              {
+                "kind": "project",
+                "id": "numberdroid-studio-demo"
+              }
+            ],
+            "budget": {
+              "maxCommands": 100,
+              "maxJobs": 10,
+              "maxArtifactBytes": 536870912,
+              "maxCostCents": 0
+            },
+            "usage": {
+              "commands": 1,
+              "jobs": 0,
+              "artifactBytes": 0,
+              "costCents": 0
+            },
+            "expiresAt": null,
+            "issuedAt": "2026-08-21T13:42:52.279Z",
+            "issuedBy": "local.designer",
+            "revokedAt": null,
+            "revokeReason": null,
+            "status": "ACTIVE"
+          }
+        ],
+        "sources": [
+          {
+            "id": "source.family-hygiene-atlas",
+            "name": "Family Hygiene generated atlas",
+            "artifactUri": "studio://numberdroid-studio-demo/artifacts/family-hygiene-atlas.png",
+            "mediaType": "image/png",
+            "width": 1024,
+            "height": 1024,
+            "provenance": {
+              "prompt": "Orthographic sci-fi hygiene room tile atlas, isolated cells, no labels.",
+              "seed": 742031,
+              "model": "demo-generator",
+              "generator": "agent-atlas-workflow"
+            },
+            "registeredAt": "2026-08-21T13:42:52.283Z",
+            "registeredBy": "atlas.agent"
+          }
+        ],
+        "assets": [],
+        "rooms": [],
+        "levels": []
+      },
+      "result": {
+        "sourceId": "source.family-hygiene-atlas"
+      },
+      "event": {
+        "id": "activity:demo.register-atlas",
+        "projectId": "numberdroid-studio-demo",
+        "revision": 3,
+        "occurredAt": "2026-08-21T13:42:52.283Z",
+        "actor": {
+          "id": "atlas.agent",
+          "kind": "agent",
+          "displayName": "Atlas agent"
+        },
+        "taskId": "demo.atlas-bootstrap",
+        "commandId": "demo.register-atlas",
+        "commandType": "source.register",
+        "status": "committed",
+        "summary": "Source source.family-hygiene-atlas registered with reproducible provenance.",
+        "changes": [
+          {
+            "entityType": "source",
+            "entityId": "source.family-hygiene-atlas",
+            "operation": "created"
+          }
+        ]
+      }
+    },
+    {
+      "id": "revision:4",
+      "number": 4,
+      "parentRevision": 3,
+      "committedAt": "2026-08-21T13:42:52.287Z",
+      "command": {
+        "schemaVersion": 1,
+        "commandId": "demo.define-floor-tile",
+        "idempotencyKey": "demo.define-floor-tile",
+        "type": "asset.define",
+        "actor": {
+          "id": "atlas.agent",
+          "kind": "agent",
+          "displayName": "Atlas agent"
+        },
+        "taskId": "demo.atlas-bootstrap",
+        "grantId": "grant.demo-atlas",
+        "fingerprint": "957a67d9a227df646d98c43071123122c3ad633cd0f1a6fe405a8d98ea7ac929"
+      },
+      "snapshot": {
+        "project": {
+          "id": "numberdroid-studio-demo",
+          "name": "Family Hygiene Studio Demo",
+          "description": "A safe local project demonstrating human-visible agent work.",
+          "ownerId": "local.designer",
+          "status": "draft",
+          "statusNote": null,
+          "createdAt": "2026-08-21T13:42:52.274Z",
+          "updatedAt": "2026-08-21T13:42:52.287Z"
+        },
+        "grants": [
+          {
+            "id": "grant.demo-atlas",
+            "agentId": "atlas.agent",
+            "taskId": "demo.atlas-bootstrap",
+            "branchId": "branch.demo-atlas",
+            "scopes": [
+              "asset.write",
+              "project.read",
+              "project.status.write",
+              "source.write"
+            ],
+            "objectScopes": [
+              {
+                "kind": "project",
+                "id": "numberdroid-studio-demo"
+              }
+            ],
+            "budget": {
+              "maxCommands": 100,
+              "maxJobs": 10,
+              "maxArtifactBytes": 536870912,
+              "maxCostCents": 0
+            },
+            "usage": {
+              "commands": 2,
+              "jobs": 0,
+              "artifactBytes": 0,
+              "costCents": 0
+            },
+            "expiresAt": null,
+            "issuedAt": "2026-08-21T13:42:52.279Z",
+            "issuedBy": "local.designer",
+            "revokedAt": null,
+            "revokeReason": null,
+            "status": "ACTIVE"
+          }
+        ],
+        "sources": [
+          {
+            "id": "source.family-hygiene-atlas",
+            "name": "Family Hygiene generated atlas",
+            "artifactUri": "studio://numberdroid-studio-demo/artifacts/family-hygiene-atlas.png",
+            "mediaType": "image/png",
+            "width": 1024,
+            "height": 1024,
+            "provenance": {
+              "prompt": "Orthographic sci-fi hygiene room tile atlas, isolated cells, no labels.",
+              "seed": 742031,
+              "model": "demo-generator",
+              "generator": "agent-atlas-workflow"
+            },
+            "registeredAt": "2026-08-21T13:42:52.283Z",
+            "registeredBy": "atlas.agent"
+          }
+        ],
+        "assets": [
+          {
+            "id": "tile.hygiene.floor.clean-a",
+            "sourceId": "source.family-hygiene-atlas",
+            "name": "Clean hygiene floor A",
+            "kind": "surface",
+            "region": {
+              "x": 0,
+              "y": 0,
+              "width": 128,
+              "height": 128
+            },
+            "properties": {
+              "role": "floor",
+              "topology": "fill",
+              "collision": "none",
+              "family": "family-hygiene"
+            },
+            "status": "in_review",
+            "definedAt": "2026-08-21T13:42:52.287Z",
+            "definedBy": "atlas.agent"
+          }
+        ],
+        "rooms": [],
+        "levels": []
+      },
+      "result": {
+        "assetId": "tile.hygiene.floor.clean-a"
+      },
+      "event": {
+        "id": "activity:demo.define-floor-tile",
+        "projectId": "numberdroid-studio-demo",
+        "revision": 4,
+        "occurredAt": "2026-08-21T13:42:52.287Z",
+        "actor": {
+          "id": "atlas.agent",
+          "kind": "agent",
+          "displayName": "Atlas agent"
+        },
+        "taskId": "demo.atlas-bootstrap",
+        "commandId": "demo.define-floor-tile",
+        "commandType": "asset.define",
+        "status": "committed",
+        "summary": "surface asset tile.hygiene.floor.clean-a defined from source source.family-hygiene-atlas.",
+        "changes": [
+          {
+            "entityType": "asset",
+            "entityId": "tile.hygiene.floor.clean-a",
+            "operation": "created"
+          }
+        ]
+      }
+    },
+    {
+      "id": "revision:5",
+      "number": 5,
+      "parentRevision": 4,
+      "committedAt": "2026-08-21T13:42:52.290Z",
+      "command": {
+        "schemaVersion": 1,
+        "commandId": "demo.request-review",
+        "idempotencyKey": "demo.request-review",
+        "type": "project.status.set",
+        "actor": {
+          "id": "atlas.agent",
+          "kind": "agent",
+          "displayName": "Atlas agent"
+        },
+        "taskId": "demo.atlas-bootstrap",
+        "grantId": "grant.demo-atlas",
+        "fingerprint": "e1d8d2bbfa2f24c0f8a48801e3189065fdef49e8395a3e981b24b0da0df4db50"
+      },
+      "snapshot": {
+        "project": {
+          "id": "numberdroid-studio-demo",
+          "name": "Family Hygiene Studio Demo",
+          "description": "A safe local project demonstrating human-visible agent work.",
+          "ownerId": "local.designer",
+          "status": "in_review",
+          "statusNote": "Generated source and first tile are ready for human review.",
+          "createdAt": "2026-08-21T13:42:52.274Z",
+          "updatedAt": "2026-08-21T13:42:52.290Z"
+        },
+        "grants": [
+          {
+            "id": "grant.demo-atlas",
+            "agentId": "atlas.agent",
+            "taskId": "demo.atlas-bootstrap",
+            "branchId": "branch.demo-atlas",
+            "scopes": [
+              "asset.write",
+              "project.read",
+              "project.status.write",
+              "source.write"
+            ],
+            "objectScopes": [
+              {
+                "kind": "project",
+                "id": "numberdroid-studio-demo"
+              }
+            ],
+            "budget": {
+              "maxCommands": 100,
+              "maxJobs": 10,
+              "maxArtifactBytes": 536870912,
+              "maxCostCents": 0
+            },
+            "usage": {
+              "commands": 3,
+              "jobs": 0,
+              "artifactBytes": 0,
+              "costCents": 0
+            },
+            "expiresAt": null,
+            "issuedAt": "2026-08-21T13:42:52.279Z",
+            "issuedBy": "local.designer",
+            "revokedAt": null,
+            "revokeReason": null,
+            "status": "ACTIVE"
+          }
+        ],
+        "sources": [
+          {
+            "id": "source.family-hygiene-atlas",
+            "name": "Family Hygiene generated atlas",
+            "artifactUri": "studio://numberdroid-studio-demo/artifacts/family-hygiene-atlas.png",
+            "mediaType": "image/png",
+            "width": 1024,
+            "height": 1024,
+            "provenance": {
+              "prompt": "Orthographic sci-fi hygiene room tile atlas, isolated cells, no labels.",
+              "seed": 742031,
+              "model": "demo-generator",
+              "generator": "agent-atlas-workflow"
+            },
+            "registeredAt": "2026-08-21T13:42:52.283Z",
+            "registeredBy": "atlas.agent"
+          }
+        ],
+        "assets": [
+          {
+            "id": "tile.hygiene.floor.clean-a",
+            "sourceId": "source.family-hygiene-atlas",
+            "name": "Clean hygiene floor A",
+            "kind": "surface",
+            "region": {
+              "x": 0,
+              "y": 0,
+              "width": 128,
+              "height": 128
+            },
+            "properties": {
+              "role": "floor",
+              "topology": "fill",
+              "collision": "none",
+              "family": "family-hygiene"
+            },
+            "status": "in_review",
+            "definedAt": "2026-08-21T13:42:52.287Z",
+            "definedBy": "atlas.agent"
+          }
+        ],
+        "rooms": [],
+        "levels": []
+      },
+      "result": {
+        "status": "in_review"
+      },
+      "event": {
+        "id": "activity:demo.request-review",
+        "projectId": "numberdroid-studio-demo",
+        "revision": 5,
+        "occurredAt": "2026-08-21T13:42:52.290Z",
+        "actor": {
+          "id": "atlas.agent",
+          "kind": "agent",
+          "displayName": "Atlas agent"
+        },
+        "taskId": "demo.atlas-bootstrap",
+        "commandId": "demo.request-review",
+        "commandType": "project.status.set",
+        "status": "committed",
+        "summary": "Project status changed to in_review.",
+        "changes": [
+          {
+            "entityType": "project",
+            "entityId": "numberdroid-studio-demo",
+            "operation": "status_changed"
+          }
+        ]
+      }
+    },
+    {
+      "id": "revision:6",
+      "number": 6,
+      "parentRevision": 5,
+      "committedAt": "2026-08-21T13:44:00.000Z",
+      "command": {
+        "schemaVersion": 1,
+        "commandId": "demo.control.revoke-grant",
+        "idempotencyKey": "demo.control.revoke-grant",
+        "type": "grant.revoke",
+        "actor": {
+          "id": "local.designer",
+          "kind": "human",
+          "displayName": "Local designer"
+        },
+        "taskId": null,
+        "grantId": null,
+        "fingerprint": "3b91bab79208480fe4ce4d80448a58bcf74fb69c5f91e11f7e200a039959ac16"
+      },
+      "snapshot": {
+        "project": {
+          "id": "numberdroid-studio-demo",
+          "name": "Family Hygiene Studio Demo",
+          "description": "A safe local project demonstrating human-visible agent work.",
+          "ownerId": "local.designer",
+          "status": "in_review",
+          "statusNote": "Generated source and first tile are ready for human review.",
+          "createdAt": "2026-08-21T13:42:52.274Z",
+          "updatedAt": "2026-08-21T13:44:00.000Z"
+        },
+        "grants": [
+          {
+            "id": "grant.demo-atlas",
+            "agentId": "atlas.agent",
+            "taskId": "demo.atlas-bootstrap",
+            "branchId": "branch.demo-atlas",
+            "scopes": [
+              "asset.write",
+              "project.read",
+              "project.status.write",
+              "source.write"
+            ],
+            "objectScopes": [
+              {
+                "kind": "project",
+                "id": "numberdroid-studio-demo"
+              }
+            ],
+            "budget": {
+              "maxCommands": 100,
+              "maxJobs": 10,
+              "maxArtifactBytes": 536870912,
+              "maxCostCents": 0
+            },
+            "usage": {
+              "commands": 3,
+              "jobs": 0,
+              "artifactBytes": 0,
+              "costCents": 0
+            },
+            "expiresAt": null,
+            "issuedAt": "2026-08-21T13:42:52.279Z",
+            "issuedBy": "local.designer",
+            "revokedAt": "2026-08-21T13:44:00.000Z",
+            "revokeReason": "Checkpoint 1A user-control demonstration.",
+            "status": "REVOKED"
+          }
+        ],
+        "sources": [
+          {
+            "id": "source.family-hygiene-atlas",
+            "name": "Family Hygiene generated atlas",
+            "artifactUri": "studio://numberdroid-studio-demo/artifacts/family-hygiene-atlas.png",
+            "mediaType": "image/png",
+            "width": 1024,
+            "height": 1024,
+            "provenance": {
+              "prompt": "Orthographic sci-fi hygiene room tile atlas, isolated cells, no labels.",
+              "seed": 742031,
+              "model": "demo-generator",
+              "generator": "agent-atlas-workflow"
+            },
+            "registeredAt": "2026-08-21T13:42:52.283Z",
+            "registeredBy": "atlas.agent"
+          }
+        ],
+        "assets": [
+          {
+            "id": "tile.hygiene.floor.clean-a",
+            "sourceId": "source.family-hygiene-atlas",
+            "name": "Clean hygiene floor A",
+            "kind": "surface",
+            "region": {
+              "x": 0,
+              "y": 0,
+              "width": 128,
+              "height": 128
+            },
+            "properties": {
+              "role": "floor",
+              "topology": "fill",
+              "collision": "none",
+              "family": "family-hygiene"
+            },
+            "status": "in_review",
+            "definedAt": "2026-08-21T13:42:52.287Z",
+            "definedBy": "atlas.agent"
+          }
+        ],
+        "rooms": [],
+        "levels": []
+      },
+      "result": {
+        "grantId": "grant.demo-atlas"
+      },
+      "event": {
+        "id": "activity:demo.control.revoke-grant",
+        "projectId": "numberdroid-studio-demo",
+        "revision": 6,
+        "occurredAt": "2026-08-21T13:44:00.000Z",
+        "actor": {
+          "id": "local.designer",
+          "kind": "human",
+          "displayName": "Local designer"
+        },
+        "taskId": null,
+        "commandId": "demo.control.revoke-grant",
+        "commandType": "grant.revoke",
+        "status": "committed",
+        "summary": "Grant grant.demo-atlas revoked.",
+        "changes": [
+          {
+            "entityType": "grant",
+            "entityId": "grant.demo-atlas",
+            "operation": "revoked"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -30,11 +30,17 @@ export function pairWithStudio({ endpoint, projectId, label = 'Local MCP host' }
         } else if (message.status === 'AUTHORIZED' && message.token) {
           resolve(message.token);
         } else if (message.error || message.status === 'REJECTED') {
-          reject(new StudioError(message.error?.code ?? 'HOST_PAIRING_REJECTED', message.error?.message ?? 'MCP host pairing was rejected.'));
+          const code = typeof message.error?.code === 'string' && /^[A-Z][A-Z0-9_]*$/.test(message.error.code)
+            ? message.error.code
+            : 'HOST_PAIRING_REJECTED';
+          reject(new StudioError(code, 'MCP host pairing was rejected.'));
         }
       }
     });
-    socket.once('error', reject);
+    socket.once('error', () => reject(new StudioError(
+      'HOST_PAIRING_UNAVAILABLE',
+      'The private Studio pairing endpoint is unavailable.',
+    )));
     socket.once('close', () => reject(new StudioError('HOST_PAIRING_CLOSED', 'Studio pairing closed before authorization.')));
   });
 }

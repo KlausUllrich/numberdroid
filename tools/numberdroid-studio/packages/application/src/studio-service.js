@@ -495,11 +495,13 @@ export class StudioService {
     return listCommandDefinitions();
   }
 
-  async execute(rawCommand, trustedExecutionContext) {
+  async execute(rawCommand, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
     const command = validateEnvelope(rawCommand, trustedExecutionContext);
     const definition = getCommandDefinition(command.type);
     const commandHash = commandFingerprint(command);
     const existing = await this.#store.loadProject(command.projectId);
+    signal?.throwIfAborted();
 
     if (existing) {
       if (!command.dryRun) {
@@ -526,6 +528,7 @@ export class StudioService {
         return proposalResult(revision, definition);
       }
       try {
+        signal?.throwIfAborted();
         await this.#store.createProject({
           formatVersion: 1,
           projectId: command.projectId,
@@ -559,6 +562,9 @@ export class StudioService {
     }
 
     try {
+      // Last cancellable safe point: once the atomic store call starts, a
+      // retry with the same idempotency key resolves any unknown outcome.
+      signal?.throwIfAborted();
       await this.#store.appendRevision(command.projectId, command.baseRevision, revision);
       return committedResult(revision);
     } catch (error) {
@@ -599,7 +605,8 @@ export class StudioService {
     });
   }
 
-  async readProject(request, trustedExecutionContext) {
+  async readProject(request, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
     const input = requireRecord(request, 'request');
     for (const field of AUTHORITY_FIELDS) {
       invariant(!Object.hasOwn(input, field), 'UNTRUSTED_AUTHORITY_FIELD', `Read request must not contain authority field: ${field}.`, {
@@ -609,6 +616,7 @@ export class StudioService {
     const projectId = requireId(input.projectId, 'projectId');
     const { actor, taskId, grantId, branchId } = validateExecutionContext(trustedExecutionContext);
     const document = await this.#store.loadProject(projectId);
+    signal?.throwIfAborted();
     invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
     const head = headRevision(document);
     assertAuthorized(

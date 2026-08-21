@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "1A",
+  "baselineCommit": "2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d",
+  "sourceManifestHash": "7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673",
+  "expected": {
+    "projectId": "numberdroid-studio-demo",
+    "visualHeadRevision": 5,
+    "visualActivityCount": 5,
+    "migrationHeadRevision": 6,
+    "migrationActivityCount": 6,
+    "sourceCount": 1,
+    "assetCount": 1,
+    "projectStatus": "in_review"
+  },
+  "visualEvidence": {
+    "status": "PENDING_CI_AND_USER_ACCEPTANCE",
+    "baselineViewports": [
+      { "width": 1440, "height": 900 },
+      { "width": 1060, "height": 900 }
+    ]
+  }
+}

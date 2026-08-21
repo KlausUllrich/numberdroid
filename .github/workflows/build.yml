@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -153,11 +155,13 @@ jobs:
 
   studio:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -177,3 +181,89 @@ jobs:
       - name: Check Studio build
         working-directory: tools/numberdroid-studio
         run: npm run build
+
+      - name: Verify protected Checkpoint 1A evidence
+        working-directory: tools/numberdroid-studio
+        run: npm run evidence:verify
+
+      - name: Capture Studio 1A and 1B browser evidence
+        run: |
+          set -euo pipefail
+          CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
+          if [ -z "$CHROME" ]; then
+            echo "No Chrome/Chromium executable found on runner"
+            exit 1
+          fi
+          export STUDIO_VISUAL_BROWSER="$($CHROME --version)"
+
+          EVIDENCE="$GITHUB_WORKSPACE/artifacts/studio-visual"
+          BASELINE_WORKTREE="$RUNNER_TEMP/numberdroid-studio-c1a"
+          BASELINE_DATA="$RUNNER_TEMP/numberdroid-studio-c1a-data"
+          CANDIDATE_DATA="$RUNNER_TEMP/numberdroid-studio-c1b-data"
+          mkdir -p "$EVIDENCE/baseline-1a" "$EVIDENCE/candidate-1b"
+          git worktree add --detach "$BASELINE_WORKTREE" 2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d
+          cp -R tools/numberdroid-studio/fixtures/checkpoint-1a/json-ledger "$BASELINE_DATA"
+
+          NUMBERDROID_STUDIO_DATA="$BASELINE_DATA" \
+          NUMBERDROID_STUDIO_STORE=json \
+          NUMBERDROID_STUDIO_PORT=4318 \
+            node "$BASELINE_WORKTREE/tools/numberdroid-studio/apps/studio-server/src/server.js" \
+            > "$EVIDENCE/baseline-server.log" 2>&1 &
+          BASELINE_PID=$!
+
+          wait_for_studio() {
+            local url="$1"
+            local log="$2"
+            for attempt in $(seq 1 60); do
+              if curl -fsS "$url/health" >/dev/null 2>&1; then return 0; fi
+              sleep 0.25
+            done
+            cat "$log"
+            return 1
+          }
+          capture() {
+            local width="$1"
+            local output="$2"
+            local url="$3"
+            "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
+              --force-device-scale-factor=1 --window-size="$width,900" --virtual-time-budget=1600 \
+              --screenshot="$output" "$url"
+          }
+
+          wait_for_studio http://127.0.0.1:4318 "$EVIDENCE/baseline-server.log"
+          for workspace in overview sources assets rooms levels activity; do
+            capture 1440 "$EVIDENCE/baseline-1a/$workspace-1440.png" \
+              "http://127.0.0.1:4318/#$workspace"
+          done
+          kill "$BASELINE_PID"
+          wait "$BASELINE_PID" 2>/dev/null || true
+
+          node tools/numberdroid-studio/scripts/prepare-visual-evidence.js "$CANDIDATE_DATA" \
+            > "$EVIDENCE/candidate-fixture.json"
+          NUMBERDROID_STUDIO_DATA="$CANDIDATE_DATA" NUMBERDROID_STUDIO_PORT=4317 \
+            node tools/numberdroid-studio/apps/studio-server/src/server.js \
+            > "$EVIDENCE/candidate-server.log" 2>&1 &
+          CANDIDATE_PID=$!
+          trap 'kill "$CANDIDATE_PID" 2>/dev/null || true' EXIT
+          wait_for_studio http://127.0.0.1:4317 "$EVIDENCE/candidate-server.log"
+          for workspace in overview sources assets rooms levels activity; do
+            capture 1440 "$EVIDENCE/candidate-1b/$workspace-1440.png" \
+              "http://127.0.0.1:4317/#$workspace"
+          done
+          capture 1440 "$EVIDENCE/candidate-1b/overview-agent-access-1440.png" \
+            'http://127.0.0.1:4317/?visualFixture=agent-access#overview'
+          capture 1060 "$EVIDENCE/candidate-1b/overview-agent-access-1060.png" \
+            'http://127.0.0.1:4317/?visualFixture=agent-access#overview'
+          capture 1060 "$EVIDENCE/candidate-1b/assets-1060.png" \
+            'http://127.0.0.1:4317/#assets'
+
+          node tools/numberdroid-studio/scripts/assert-studio-visual-evidence.js "$EVIDENCE"
+
+      - name: Upload Studio visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: numberdroid-studio-checkpoint-1b-visual
+          path: artifacts/studio-visual/
+          if-no-files-found: error
+          retention-days: 14

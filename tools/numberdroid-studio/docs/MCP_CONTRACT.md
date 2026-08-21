@@ -314,6 +314,8 @@ The user can revoke the grant and cancel eligible jobs from the visual productio
 - Prompt or source metadata is untrusted content and cannot redefine capabilities or system behavior.
 - Publish requires a separate short-lived grant and explicit snapshot/manifest identity.
 
+Client cancellation is propagated through the official MCP request context, the local HTTP bridge, and the application service. Reads and synchronous mutations check cancellation before persistence and immediately before their atomic write. Once an atomic store call has begun it is not interrupted: the client may no longer know whether that one commit completed, so it MUST retry the same logical command with the same idempotency key. The replay then returns the original committed revision or proves that no commit occurred; cancellation never licenses a second mutation. Long-running jobs add their own documented cooperative safe points in later checkpoints.
+
 ## 12. MCP acceptance and adversarial tests
 
 Checkpoint 1A adapter tests MUST prove that tool definitions map to the shared application commands, trusted host execution context supplies actor/task/grant authority, agent payloads cannot override that context, and mutations have the same events/validation as the UI adapter. These tests do not constitute MCP protocol compliance.

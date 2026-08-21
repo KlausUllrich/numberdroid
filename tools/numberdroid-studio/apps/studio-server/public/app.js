@@ -58,6 +58,12 @@ const accessStateLabels = {
 function setAgentAccessPanel(open) {
   elements['agent-access-panel'].hidden = !open;
   elements['agent-access-state'].setAttribute('aria-expanded', String(open));
+  const policyLabel = elements['agent-access-state'].dataset.policyLabel ?? 'OFF';
+  const activeHostCount = Number(elements['agent-access-state'].dataset.activeHostCount ?? 0);
+  elements['agent-access-state'].setAttribute(
+    'aria-label',
+    `Agent policy ${policyLabel}; ${activeHostCount} authorized active ${activeHostCount === 1 ? 'host' : 'hosts'}. ${open ? 'Close' : 'Open'} details.`,
+  );
 }
 
 function renderAgentAccess() {
@@ -70,22 +76,24 @@ function renderAgentAccess() {
   const activeHostCount = state.hostBindings.filter((binding) => binding.status === 'ACTIVE').length;
   const hostLabel = activeHostCount ? `${activeHostCount} HOST${activeHostCount === 1 ? '' : 'S'}` : 'NO HOST';
   elements['agent-access-state'].textContent = `${policyLabel} · ${hostLabel}`;
-  elements['agent-access-state'].setAttribute(
-    'aria-label',
-    `Agent policy ${policyLabel}; ${activeHostCount} authorized active ${activeHostCount === 1 ? 'host' : 'hosts'}. Open details.`,
-  );
+  elements['agent-access-state'].dataset.policyLabel = policyLabel;
+  elements['agent-access-state'].dataset.activeHostCount = String(activeHostCount);
+  setAgentAccessPanel(!elements['agent-access-panel'].hidden);
   elements['agent-access-state'].dataset.state = policy?.state ?? 'OFF';
   elements['agent-access-retry'].hidden = !state.pendingAgentAccess;
   const hasActivePolicy = Boolean(policy?.state?.startsWith('ACTIVE'));
   const canAuthorizeHost = hasActivePolicy && policy?.mode !== 'propose_draft';
   elements['agent-launcher-show'].disabled = state.hostBindingSupport !== 'AVAILABLE' || !state.mcpLauncherConfig;
-  elements['agent-binding-support'].textContent = state.hostBindingSupport === 'AVAILABLE'
+  const bindingSupport = state.hostBindingSupport === 'AVAILABLE'
     ? (canAuthorizeHost
       ? 'Start the local host, then authorize its waiting verification code here.'
       : policy?.mode === 'propose_draft'
         ? 'Draft host authorization waits for real branch heads in a later checkpoint.'
         : 'Choose an active Agent access mode before authorizing a waiting host.')
     : 'MCP connections require the SQLite Studio store.';
+  if (elements['agent-binding-support'].textContent !== bindingSupport) {
+    elements['agent-binding-support'].textContent = bindingSupport;
+  }
 
   const details = [];
   if (policy) {
@@ -132,7 +140,13 @@ function renderAgentAccess() {
     item.append(approve);
     return item;
   });
-  elements['agent-pending-list'].replaceChildren(...pendingNodes);
+  const pendingFingerprint = JSON.stringify(state.pendingHosts.map((pending) => [
+    pending.pendingHostId, pending.label, pending.verificationCode, pending.expiresAt, canAuthorizeHost,
+  ]));
+  if (elements['agent-pending-list'].dataset.renderFingerprint !== pendingFingerprint) {
+    elements['agent-pending-list'].replaceChildren(...pendingNodes);
+    elements['agent-pending-list'].dataset.renderFingerprint = pendingFingerprint;
+  }
   elements['agent-pending-empty'].hidden = pendingNodes.length > 0;
 
   const bindingNodes = state.hostBindings.map((binding) => {
@@ -150,7 +164,13 @@ function renderAgentAccess() {
     }
     return item;
   });
-  elements['agent-binding-list'].replaceChildren(...bindingNodes);
+  const bindingFingerprint = JSON.stringify(state.hostBindings.map((binding) => [
+    binding.bindingId, binding.actor?.id, binding.status, binding.taskId, binding.revokedAt,
+  ]));
+  if (elements['agent-binding-list'].dataset.renderFingerprint !== bindingFingerprint) {
+    elements['agent-binding-list'].replaceChildren(...bindingNodes);
+    elements['agent-binding-list'].dataset.renderFingerprint = bindingFingerprint;
+  }
   elements['agent-binding-empty'].hidden = bindingNodes.length > 0;
   elements['agent-launcher-panel'].hidden = !state.showMcpLauncherConfig || !state.mcpLauncherConfig;
   elements['agent-launcher-config'].textContent = state.mcpLauncherConfig
@@ -555,7 +575,10 @@ elements['agent-access-select'].addEventListener('change', () => {
 elements['agent-access-state'].addEventListener('click', () => {
   setAgentAccessPanel(elements['agent-access-panel'].hidden);
 });
-elements['agent-access-close'].addEventListener('click', () => setAgentAccessPanel(false));
+elements['agent-access-close'].addEventListener('click', () => {
+  setAgentAccessPanel(false);
+  elements['agent-access-state'].focus();
+});
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape' || elements['agent-access-panel'].hidden) return;
   setAgentAccessPanel(false);

@@ -48,6 +48,8 @@ The 1B implementation must produce one review bundle containing:
 
 Missing evidence blocks 1B cutover; it does not invalidate the 1A acceptance.
 
+The machine-verifiable fixture evidence now lives in `fixtures/checkpoint-1a/`. Its protected revision-6 migration source manifest hash is `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`; `npm run evidence:verify` must reproduce the six-step control flow and verified parity report without changing either frozen JSON ledger. Representative screenshots remain pending until the 1B browser CI run and subsequent user visual acceptance.
+
 ## Migration and rollback protection
 
 1. Stop the 1A writer before capture. Copy its entire JSON data directory to a dated protected location and write a digest manifest.

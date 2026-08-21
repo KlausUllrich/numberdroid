@@ -174,9 +174,24 @@ function assertHumanUiMutation(request, csrfToken) {
 function redactInternalDetails(value) {
   if (Array.isArray(value)) return value.map(redactInternalDetails);
   if (!value || typeof value !== 'object') return value;
+  const sensitiveKeys = new Set([
+    'authorization', 'bindingId', 'bindingToken', 'cause', 'directory', 'endpoint',
+    'filename', 'grantId', 'path', 'socket', 'token',
+  ]);
   return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !['grantId', 'bindingId', 'bindingToken', 'token', 'authorization'].includes(key))
+    .filter(([key]) => !sensitiveKeys.has(key))
     .map(([key, entry]) => [key, redactInternalDetails(entry)]));
+}
+
+function internalMcpErrorProjection(error) {
+  if (error.code === 'INTERNAL_ERROR') {
+    return { code: 'INTERNAL_ERROR', message: 'Unexpected Studio error.', details: {} };
+  }
+  return {
+    code: error.code,
+    message: error.message,
+    details: redactInternalDetails(error.details),
+  };
 }
 
 function validateMcpSourceArtifact(command, artifactMetadataStore) {
@@ -247,6 +262,12 @@ export function createStudioHttpServer({
 
   return createServer(async (request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1');
+    const requestAbort = new AbortController();
+    const abortIfUnfinished = () => {
+      if (!response.writableEnded) requestAbort.abort();
+    };
+    request.once('aborted', abortIfUnfinished);
+    response.once('close', abortIfUnfinished);
     try {
       if (request.method === 'GET' && staticFiles.has(url.pathname)) {
         await serveStatic(url.pathname, response);
@@ -285,7 +306,11 @@ export function createStudioHttpServer({
         }
         await assertExecutableBindingPolicy(studioService, binding);
         const sourceDigest = validateMcpSourceArtifact(body.command, artifactMetadataStore);
-        const result = await studioService.execute(body.command, bindingExecutionContext(binding));
+        const result = await studioService.execute(
+          body.command,
+          bindingExecutionContext(binding),
+          { signal: requestAbort.signal },
+        );
         sendJson(response, 200, result);
         return;
       }
@@ -307,6 +332,7 @@ export function createStudioHttpServer({
         sendJson(response, 200, await studioService.readProject(
           { projectId: body.projectId },
           bindingExecutionContext(binding),
+          { signal: requestAbort.signal },
         ));
         return;
       }
@@ -450,13 +476,14 @@ export function createStudioHttpServer({
       response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
       response.end('Not found\n');
     } catch (rawError) {
+      if (requestAbort.signal.aborted && response.destroyed) return;
       const error = asStudioError(rawError);
-      const details = url.pathname.startsWith('/internal/mcp/')
-        ? redactInternalDetails(error.details)
-        : error.details;
+      const projected = url.pathname.startsWith('/internal/mcp/')
+        ? internalMcpErrorProjection(error)
+        : { code: error.code, message: error.message, details: error.details };
       sendJson(response, errorStatus(error), {
         schemaVersion: 1,
-        error: { code: error.code, message: error.message, details },
+        error: projected,
       });
     }
   });

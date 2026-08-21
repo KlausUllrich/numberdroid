@@ -52,6 +52,8 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /Publish is never included/);
   assert.match(clientScript, /Command budget/);
   assert.match(clientScript, /MCP host authorized/);
+  assert.match(clientScript, /dataset\.renderFingerprint/);
+  assert.match(clientScript, /Close' : 'Open/);
   const overviewRenderer = clientScript.slice(
     clientScript.indexOf('function renderOverview'), clientScript.indexOf('function renderCollection'),
   );
@@ -66,6 +68,8 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(styles, /\.asset-preview/);
   assert.match(styles, /aspect-ratio: 1/);
   assert.match(styles, /object-fit: contain/);
+  assert.match(styles, /@media \(max-width: 1200px\)/);
+  assert.match(styles, /\.agent-access-input select \{ width: 150px/);
 
   const blindDemo = await fetch(`${base}/api/demo`, { method: 'POST' });
   assert.equal(blindDemo.status, 403);

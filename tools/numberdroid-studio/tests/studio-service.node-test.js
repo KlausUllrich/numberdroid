@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { StudioService } from '../packages/application/src/index.js';
+import { InMemoryProjectStore } from '../packages/persistence/src/index.js';
 
 // Kept outside Vitest's discovery pattern; this package uses Node's test runner.
 import {
@@ -31,6 +33,35 @@ test('command boundary rejects unsupported schema versions without mutation', as
     (error) => error.code === 'SCHEMA_VERSION_UNSUPPORTED',
   );
   await assert.rejects(studio.readProjectTrusted(PROJECT_ID), (error) => error.code === 'PROJECT_NOT_FOUND');
+});
+
+test('cancellation before the atomic append safe point leaves history unchanged', async () => {
+  const backingStore = new InMemoryProjectStore();
+  const setup = new StudioService({ store: backingStore });
+  await createProject(setup);
+  const controller = new AbortController();
+  const cancellingStore = {
+    async loadProject(projectId) {
+      const document = await backingStore.loadProject(projectId);
+      controller.abort();
+      return document;
+    },
+    createProject: (...args) => backingStore.createProject(...args),
+    appendRevision: (...args) => backingStore.appendRevision(...args),
+    listProjects: (...args) => backingStore.listProjects(...args),
+  };
+  const studio = new StudioService({ store: cancellingStore });
+  await assert.rejects(
+    studio.execute(command({
+      commandId: 'cmd.cancelled',
+      idempotencyKey: 'idem.cancelled',
+      type: 'project.status.set',
+      expectedVersion: 1,
+      payload: { status: 'active' },
+    }), OWNER_CONTEXT, { signal: controller.signal }),
+    (error) => error?.name === 'AbortError',
+  );
+  assert.equal((await setup.readProjectTrusted(PROJECT_ID)).revision, 1);
 });
 
 test('command DTO cannot carry actor, task, grant, branch, or binding authority', async () => {

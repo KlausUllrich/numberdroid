@@ -10,6 +10,8 @@ This record preserves the current implementation and review state before the use
 - Header pull-down separates effective grant posture from pending/authorized host state. Off revokes every active grant and HostBinding; grant rotation never rebinds an old token.
 - Asset Library cards always show a bounded small preview or an accessible fallback. A crop never displays the whole source atlas as if it were the tile; it remains `PROCESSING` until a real crop preview exists.
 - Local UI mutations, including demo actions, require loopback same-origin plus the current CSRF token. The service refuses non-loopback listeners.
+- The protected 1A ledger, digest/source manifest, and normalized JSON-to-SQLite parity report are committed under `fixtures/checkpoint-1a/`; `npm run evidence:verify` recreates the migration in a fresh destination and compares the complete stable evidence projection.
+- PNG ingestion validates chunk structure, CRCs, image parameters, bounded decompression, row filters, and terminal chunks before CAS publication; WebP validates the complete RIFF/chunk envelope. Header-shaped or truncated files are rejected without residue.
 
 ## Explicitly deferred and fail-closed
 
@@ -26,7 +28,8 @@ This record preserves the current implementation and review state before the use
 - MCP source registration requires an already uploaded live project-scoped CAS object with matching verified metadata;
 - agent reads redact legacy external/file artifact locations;
 - popover overflow, keyboard dismissal/focus return, host-count visibility, list labels/empty states, long labels, and stacking are covered.
+- official MCP coverage now exercises malformed input, oversized payloads, cancellation propagation to the local HTTP request, structured service-unavailable errors, revocation, unbound tokens, and secret redaction; dependency-backed execution remains a CI gate.
 
 ## Verification gate
 
-The candidate is not user-accepted and the draft PR must not merge. Before asking for approval: run the complete local suite, official-dependency CI, deterministic browser screenshots at representative viewports, independent security/architecture rereview, and root diff verification.
+The candidate is not user-accepted and the draft PR must not merge. The protected fixture/parity and locally executable persistence/UI suites are verified. Before asking for approval: run official-dependency CI, deterministic browser screenshots at representative viewports, independent security/architecture rereview, and root diff verification.

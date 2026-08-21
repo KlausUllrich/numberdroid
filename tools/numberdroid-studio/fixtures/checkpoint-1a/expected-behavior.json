@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d",
+  "projectId": "numberdroid-studio-demo",
+  "fixtureFilename": "bnVtYmVyZHJvaWQtc3R1ZGlvLWRlbW8.json",
+  "observed": {
+    "revision5": {
+      "headRevision": 5,
+      "activityCount": 5,
+      "counts": { "grants": 1, "sources": 1, "assets": 1, "rooms": 0, "levels": 0 }
+    },
+    "controls": {
+      "idempotentRetry": { "resultRevision": 3, "replayed": true },
+      "staleWrite": { "errorCode": "REVISION_CONFLICT" },
+      "revokeGrant": { "resultRevision": 6 },
+      "postRevokeAttempt": { "errorCode": "GRANT_REVOKED" }
+    },
+    "revision6": {
+      "headRevision": 6,
+      "activityCount": 6,
+      "sourceCount": 1,
+      "absentSourceId": true,
+      "grant": {
+        "id": "grant.demo-atlas",
+        "status": "REVOKED",
+        "revokeReason": "Checkpoint 1A user-control demonstration.",
+        "commandsUsed": 3
+      }
+    }
+  }
+}

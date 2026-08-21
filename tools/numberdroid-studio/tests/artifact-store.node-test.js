@@ -66,11 +66,16 @@ test('CAS rejects malformed, oversized, over-dimension, mismatched, and traversa
   const root = await tempDirectory(context, 'numberdroid-cas-limits-');
   const store = new ContentAddressedArtifactStore({
     rootDirectory: root,
-    limits: { 'image/png': { maxBytes: 32, maxWidth: 100, maxHeight: 100 } },
+    limits: { 'image/png': { maxBytes: 1024, maxWidth: 100, maxHeight: 100 } },
   });
 
-  await assert.rejects(store.ingest(Buffer.alloc(33), { mediaType: 'image/png' }), (error) => error.code === 'ARTIFACT_TOO_LARGE');
+  await assert.rejects(store.ingest(Buffer.alloc(1025), { mediaType: 'image/png' }), (error) => error.code === 'ARTIFACT_TOO_LARGE');
   await assert.rejects(store.ingest(Buffer.alloc(24), { mediaType: 'image/png' }), (error) => error.code === 'ARTIFACT_MEDIA_MISMATCH');
+  const truncatedPng = pngHeader().subarray(0, -12);
+  await assert.rejects(store.ingest(truncatedPng, { mediaType: 'image/png' }), (error) => error.code === 'ARTIFACT_MALFORMED');
+  const badCrcPng = Buffer.from(pngHeader());
+  badCrcPng[29] ^= 0xff;
+  await assert.rejects(store.ingest(badCrcPng, { mediaType: 'image/png' }), (error) => error.code === 'ARTIFACT_MALFORMED');
   await assert.rejects(store.ingest(pngHeader({ width: 101, height: 1 }), { mediaType: 'image/png' }), (error) => error.code === 'ARTIFACT_DIMENSIONS_EXCEEDED');
   await assert.rejects(
     store.ingest(pngHeader(), { mediaType: 'image/png', expectedDigest: '0'.repeat(64) }),

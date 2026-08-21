@@ -55,6 +55,7 @@ export function buildOfficialMcpServer({ studioGateway, contextProvider, serverC
         try {
           return toolResult(await tool.execute(input, invocationContext));
         } catch (error) {
+          if (invocationContext?.mcpReq?.signal?.aborted) throw error;
           return toolError(error);
         }
       },
@@ -77,6 +78,7 @@ export function buildOfficialMcpServer({ studioGateway, contextProvider, serverC
           contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }],
         };
       } catch (error) {
+        if (invocationContext?.mcpReq?.signal?.aborted) throw error;
         const value = errorPayload(error);
         return {
           contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }],

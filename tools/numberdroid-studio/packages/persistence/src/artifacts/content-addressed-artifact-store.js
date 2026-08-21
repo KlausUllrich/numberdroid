@@ -4,7 +4,7 @@ import { copyFile, link, lstat, mkdir, open, readdir, rename, stat, unlink, writ
 import { createReadStream } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
-import { inspectImageHeader } from './image-metadata.js';
+import { inspectImageHeader, verifyImageFile } from './image-metadata.js';
 
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 
@@ -111,6 +111,7 @@ export class ContentAddressedArtifactStore {
       );
       await handle.sync();
       await handle.close();
+      await verifyImageFile(stagingPath, mediaType);
 
       const digest = hash.digest('hex');
       invariant(!expectedDigest || expectedDigest === digest, 'ARTIFACT_DIGEST_MISMATCH', 'Artifact digest differs from expectedDigest.', {

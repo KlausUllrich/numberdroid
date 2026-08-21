@@ -25,6 +25,7 @@ Requirements: Node.js 22 or newer. Dependencies and the official MCP client/serv
 cd tools/numberdroid-studio
 npm ci
 npm test
+npm run evidence:verify
 npm run dev
 ```
 
