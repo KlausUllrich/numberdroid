@@ -125,6 +125,10 @@ export async function startMcpPairingSocket({ broker, endpoint }) {
     let registered = false;
     let pendingHostId = null;
     let terminal = false;
+    socket.on('error', () => {
+      // Disconnects race with process/client shutdown. The pending request is
+      // removed by the close handler and no credential is retained here.
+    });
     socket.setTimeout(6 * 60 * 1000, () => socket.destroy());
     socket.on('data', (chunk) => {
       if (registered) return;
