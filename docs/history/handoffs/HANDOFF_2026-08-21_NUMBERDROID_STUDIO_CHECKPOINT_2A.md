@@ -37,9 +37,10 @@ Not implemented or authorized:
 ## Stable identities
 
 - baseline branch head before 2A: `a3231aeb6b93ee29455f5037824cd419d257b1d4`;
-- candidate implementation commit: `c274b046fd7e2e3165470128b14e13ed6bbb60e7`;
-- successful candidate CI: run `32521812841`, Chrome `151.0.7922.137`;
-- Checkpoint 2A visual artifact: ID `9460863029`, digest `sha256:ce78afb3321f703c257052d2d85ac40070899b5c4a738b0ce549787c1578f207`, retained through 2026-09-04;
+- superseded first candidate: `c274b046fd7e2e3165470128b14e13ed6bbb60e7`; user visual review rejected its cropped source preview even though run `32521812841` was green;
+- repaired candidate implementation: `31ddbbb838d419879229f878fe0b43a99a3b7459`;
+- successful repaired-candidate CI: run `32525797103`, Chrome `151.0.7922.137`;
+- repaired Checkpoint 2A visual artifact: ID `9462174308`, digest `sha256:da97f9e3e350d6dcc6ffa71bf80bbb4d04431a8e94cc731e9372db6714816a37`, retained through 2026-09-04;
 - accepted Studio implementation: `41fad464cd2f904666f7dfecc8437f2286c3254c`;
 - protected Checkpoint 1A: `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`;
 - protected manifest: `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`;
