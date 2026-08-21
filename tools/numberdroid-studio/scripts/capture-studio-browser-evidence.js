@@ -183,13 +183,40 @@ try {
   assert(ready, `${mode} ${expectedWorkspace} did not reach screenshot readiness.`);
   if (mode === 'checkpoint-2a' && checkpoint2aFocus === 'approved-source') {
     await devtools.send('Runtime.evaluate', {
-      expression: `document.querySelector('[data-source-id="source.family-hygiene-approved"]')?.scrollIntoView({ block: 'center' })`,
+      expression: `document.querySelector('[data-source-id="source.family-hygiene-approved"] .source-preview.ready')?.scrollIntoView({ block: 'center' })`,
       returnByValue: true,
     }, sessionId);
   }
   if (mode === 'checkpoint-2a' && checkpoint2aFocus === 'staged-intake') {
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector('.staged-source-intakes')?.scrollIntoView({ block: 'center' })`,
+      returnByValue: true,
+    }, sessionId);
+  }
+  if (mode === 'checkpoint-2a' && expectedWorkspace === 'sources') {
+    await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        if (document.getElementById('source-preview-aspect-probes')) return;
+        const probes = document.createElement('div');
+        probes.id = 'source-preview-aspect-probes';
+        probes.setAttribute('aria-hidden', 'true');
+        probes.style.cssText = 'position:fixed;left:-10000px;top:0;visibility:hidden';
+        const addProbe = async (name, width, height, mediaType) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          canvas.getContext('2d').fillRect(0, 0, width, height);
+          const frame = document.createElement('figure'); frame.className = 'source-preview-frame';
+          const preview = document.createElement('a'); preview.className = 'source-preview ready';
+          preview.dataset.probe = name; preview.dataset.mediaType = mediaType;
+          const image = document.createElement('img'); image.src = canvas.toDataURL(mediaType);
+          preview.append(image); frame.append(preview); probes.append(frame);
+          await image.decode();
+        };
+        document.body.append(probes);
+        await addProbe('extreme-wide-png', 4096, 1, 'image/png');
+        await addProbe('extreme-tall-webp', 1, 4096, 'image/webp');
+      })()`,
+      awaitPromise: true,
       returnByValue: true,
     }, sessionId);
   }
@@ -208,6 +235,22 @@ try {
           right: value.right, bottom: value.bottom };
       };
       const overlaps = (a, b) => a && b && a.x < b.right && a.right > b.x && a.y < b.bottom && a.bottom > b.y;
+      const boxMetrics = (node) => {
+        if (!node) return null;
+        const style = getComputedStyle(node);
+        return {
+          padding: {
+            top: parseFloat(style.paddingTop), right: parseFloat(style.paddingRight),
+            bottom: parseFloat(style.paddingBottom), left: parseFloat(style.paddingLeft),
+          },
+          border: {
+            top: parseFloat(style.borderTopWidth), right: parseFloat(style.borderRightWidth),
+            bottom: parseFloat(style.borderBottomWidth), left: parseFloat(style.borderLeftWidth),
+          },
+          overflowX: style.overflowX,
+          overflowY: style.overflowY,
+        };
+      };
       const headerNodes = [
         document.querySelector('.agent-access-control'),
         document.getElementById('project-select'),
@@ -236,6 +279,8 @@ try {
           assetId: card.dataset.assetId,
           card: rect(card),
           preview: rect(preview),
+          previewBox: boxMetrics(preview),
+          image: rect(image),
           previewState: preview?.dataset.previewState ?? null,
           hasImage: Boolean(image),
           loadedImage: Boolean(image?.complete && image.naturalWidth > 0),
@@ -245,15 +290,43 @@ try {
       const sources = [...document.querySelectorAll('.source-card')].map((source) => {
         const preview = source.querySelector('.source-preview');
         const image = preview?.querySelector('img');
+        const link = source.querySelector('a.source-preview.ready');
         return {
           sourceId: source.dataset.sourceId,
           text: source.textContent,
           card: rect(source),
           preview: rect(preview),
+          previewBox: boxMetrics(preview),
+          image: rect(image),
           previewState: preview?.dataset.previewState ?? null,
           loadedImage: Boolean(image?.complete && image.naturalWidth > 0),
+          naturalWidth: image?.naturalWidth ?? 0,
+          naturalHeight: image?.naturalHeight ?? 0,
           objectFit: image ? getComputedStyle(image).objectFit : null,
+          objectPosition: image ? getComputedStyle(image).objectPosition : null,
+          linkHref: link?.href ?? null,
+          linkTarget: link?.target ?? null,
+          linkRel: link?.rel ?? null,
+          linkReferrerPolicy: link?.referrerPolicy ?? null,
+          linkLabel: link?.getAttribute('aria-label') ?? null,
+          linkDescribedBy: link?.getAttribute('aria-describedby') ?? null,
+          linkTabIndex: link?.tabIndex ?? null,
+          captionId: source.querySelector('.source-preview-frame figcaption')?.id ?? null,
+          captionText: source.querySelector('.source-preview-frame figcaption')?.textContent ?? null,
           actionCount: source.querySelectorAll('.source-review-actions button').length,
+        };
+      });
+      const aspectRatioProbes = [...document.querySelectorAll('#source-preview-aspect-probes [data-probe]')].map((preview) => {
+        const image = preview.querySelector('img');
+        return {
+          name: preview.dataset.probe,
+          mediaType: preview.dataset.mediaType,
+          preview: rect(preview),
+          previewBox: boxMetrics(preview),
+          image: rect(image),
+          naturalWidth: image?.naturalWidth ?? 0,
+          naturalHeight: image?.naturalHeight ?? 0,
+          objectFit: image ? getComputedStyle(image).objectFit : null,
         };
       });
       const stagedIntakes = [...document.querySelectorAll('.staged-source-intakes li')].map((intake) => ({
@@ -280,6 +353,7 @@ try {
         headerOutsideTopbar,
         cards,
         sources,
+        aspectRatioProbes,
         stagedIntakes,
         sourceForm: {
           present: Boolean(sourceForm),
@@ -307,6 +381,34 @@ try {
   assert(layout.headerOverlapCount === 0, `Header controls overlap at ${width}px.`);
   assert(layout.brandControlsOverlap === false, `Studio brand overlaps Header controls at ${width}px.`);
   assert(layout.headerOutsideTopbar === false, `Header content leaves the Topbar bounds at ${width}px.`);
+  const assertImageWithinPreview = (entry, label) => {
+    const { preview, previewBox, image } = entry;
+    assert(preview && previewBox && image, `${label} has no measurable preview image.`);
+    const content = {
+      x: preview.x + previewBox.border.left + previewBox.padding.left,
+      y: preview.y + previewBox.border.top + previewBox.padding.top,
+      right: preview.right - previewBox.border.right - previewBox.padding.right,
+      bottom: preview.bottom - previewBox.border.bottom - previewBox.padding.bottom,
+    };
+    assert(previewBox.padding.top >= 5 && previewBox.padding.right >= 5
+      && previewBox.padding.bottom >= 5 && previewBox.padding.left >= 5
+      && previewBox.overflowX === 'visible' && previewBox.overflowY === 'visible',
+    `${label} preview lost its non-clipping content inset.`);
+    assert(image.x >= content.x - 1 && image.y >= content.y - 1
+      && image.right <= content.right + 1 && image.bottom <= content.bottom + 1,
+    `${label} image element leaves its preview content box.`);
+  };
+  const assertRenderedAspect = (entry, label) => {
+    const renderedAspect = entry.image.width / entry.image.height;
+    const naturalAspect = entry.naturalWidth / entry.naturalHeight;
+    assert(Number.isFinite(renderedAspect) && renderedAspect > 0
+      && Math.abs((renderedAspect / naturalAspect) - 1) <= 0.15,
+    `${label} rendered aspect no longer approximates its natural aspect.`);
+  };
+  for (const source of layout.sources.filter(({ loadedImage }) => loadedImage)) {
+    assertImageWithinPreview(source, source.sourceId);
+    assertRenderedAspect(source, source.sourceId);
+  }
 
   const ignoredFavicon = (event) => {
     const value = `${event.params?.response?.url ?? ''} ${event.params?.entry?.url ?? ''} ${event.params?.entry?.text ?? ''}`;
@@ -356,6 +458,84 @@ try {
       assert(approved?.previewState === 'READY' && approved.loadedImage,
         'The Family Hygiene original-source preview is not loaded.');
       assert(approved.objectFit === 'contain', 'The original-source preview no longer preserves its aspect ratio.');
+      assert(approved.objectPosition === '50% 50%', 'The original-source preview is no longer centered.');
+      assert(approved.naturalWidth === 1254 && approved.naturalHeight === 1254,
+        'The Family Hygiene preview did not load the complete 1254×1254 original.');
+      assertImageWithinPreview(approved, 'Family Hygiene');
+      assertRenderedAspect(approved, 'Family Hygiene');
+      assert(approved.preview?.width <= 221 && Math.abs(approved.preview.width - approved.preview.height) <= 1,
+        'The original-source preview is no longer a contained square of at most 220px.');
+      assert(approved.linkHref === new URL('/api/projects/numberdroid-studio-checkpoint-2a/artifacts/sha256/67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e', pageUrl).href,
+        'The source preview link no longer targets the project-scoped original CAS resource.');
+      assert(approved.linkTarget === '_blank' && approved.linkRel.split(/\s+/).includes('noopener')
+        && approved.linkRel.split(/\s+/).includes('noreferrer') && approved.linkTabIndex === 0
+        && approved.linkReferrerPolicy === 'no-referrer',
+      'The original-source link is not keyboard-accessible or safely isolated in a new tab.');
+      assert(approved.linkLabel === 'Open Family Hygiene floor 2×2 original source image in a new tab',
+        'The original-source link lost its accessible new-tab label.');
+      assert(approved.captionText === 'Open original in new tab ↗'
+        && approved.linkDescribedBy === approved.captionId,
+      'The source preview lost its visible, accessibility-associated new-tab affordance.');
+      assert(layout.aspectRatioProbes.length === 2, 'The arbitrary-aspect source containment probes are missing.');
+      for (const probe of layout.aspectRatioProbes) {
+        assert(probe.objectFit === 'contain' && probe.preview.width <= 221
+          && Math.abs(probe.preview.width - probe.preview.height) <= 1,
+        `${probe.name} no longer uses the bounded square source preview.`);
+        assertImageWithinPreview(probe, probe.name);
+        assertRenderedAspect(probe, probe.name);
+      }
+      assert(layout.aspectRatioProbes.some((probe) => probe.mediaType === 'image/png'
+        && probe.naturalWidth === 4096 && probe.naturalHeight === 1),
+      'The extreme-wide PNG containment probe did not retain its natural dimensions.');
+      assert(layout.aspectRatioProbes.some((probe) => probe.mediaType === 'image/webp'
+        && probe.naturalWidth === 1 && probe.naturalHeight === 4096),
+      'The extreme-tall WebP containment probe did not retain its natural dimensions.');
+      const targetIdsBeforeOpen = new Set((await devtools.send('Target.getTargets')).targetInfos.map(({ targetId: id }) => id));
+      const focused = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const link = document.querySelector('[data-source-id="source.family-hygiene-approved"] a.source-preview.ready');
+          link.focus();
+          return document.activeElement === link;
+        })()`,
+        returnByValue: true,
+      }, sessionId);
+      assert(focused.result?.value === true, 'The original-source link could not receive keyboard focus.');
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+      }, sessionId);
+      let originalTarget = null;
+      for (let attempt = 0; attempt < 30 && !originalTarget; attempt += 1) {
+        const targets = (await devtools.send('Target.getTargets')).targetInfos;
+        originalTarget = targets.find((target) => !targetIdsBeforeOpen.has(target.targetId)
+          && target.type === 'page' && target.url === approved.linkHref) ?? null;
+        if (!originalTarget) await delay(50);
+      }
+      assert(originalTarget, 'Pressing Enter on the source preview did not open its original CAS image in a new browser tab.');
+      const attachedOriginal = await devtools.send('Target.attachToTarget', {
+        targetId: originalTarget.targetId,
+        flatten: true,
+      });
+      await devtools.send('Runtime.enable', {}, attachedOriginal.sessionId);
+      let originalSecurity = null;
+      for (let attempt = 0; attempt < 30 && !originalSecurity; attempt += 1) {
+        const evaluatedOriginal = await devtools.send('Runtime.evaluate', {
+          expression: `document.readyState === 'complete' ? ({
+            url: location.href,
+            openerIsNull: window.opener === null,
+            referrer: document.referrer,
+          }) : null`,
+          returnByValue: true,
+        }, attachedOriginal.sessionId);
+        originalSecurity = evaluatedOriginal.result?.value ?? null;
+        if (!originalSecurity) await delay(50);
+      }
+      assert(originalSecurity?.url === approved.linkHref && originalSecurity.openerIsNull === true
+        && originalSecurity.referrer === '',
+      'The keyboard-opened original tab lost its exact URL, null opener, or empty referrer boundary.');
+      await devtools.send('Target.closeTarget', { targetId: originalTarget.targetId });
       assert(approved.text.includes('APPROVED_SOURCE') && approved.text.includes('USER_APPROVED')
         && approved.text.includes('human_upload') && approved.text.includes('1254×1254')
         && approved.text.includes('2720519'), 'The approved source lifecycle/provenance/identity is not visible.');
@@ -374,9 +554,8 @@ try {
           'The Resume/Discard recovery row is not visible in the recovery screenshot.');
       }
       if (checkpoint2aFocus === 'approved-source') {
-        assert(approved.card?.bottom > 0 && approved.card?.y < height
-          && approved.preview?.bottom > 0 && approved.preview?.y < height,
-        'The approved source and its original preview are not visible in the approved-source screenshot.');
+        assert(approved.preview?.y >= 0 && approved.preview?.bottom <= height,
+          'The full approved-source preview rect is not contained in the 900px viewport.');
       }
     }
     if (expectedWorkspace === 'activity') {

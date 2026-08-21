@@ -263,8 +263,19 @@ function sourcePreview(source) {
     return fallback;
   }
   const figure = document.createElement('figure');
-  figure.className = 'source-preview ready';
-  figure.dataset.previewState = 'READY';
+  figure.className = 'source-preview-frame';
+  const link = document.createElement('a');
+  link.className = 'source-preview ready';
+  link.dataset.previewState = 'READY';
+  link.href = preview.resourceUri;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.referrerPolicy = 'no-referrer';
+  link.setAttribute('aria-label', `Open ${source.name} original source image in a new tab`);
+  const caption = document.createElement('figcaption');
+  caption.id = `source-preview-hint-${source.id}`;
+  caption.textContent = 'Open original in new tab ↗';
+  link.setAttribute('aria-describedby', caption.id);
   const image = document.createElement('img');
   image.src = preview.resourceUri;
   image.alt = preview.alt || `${source.name} original source preview`;
@@ -279,7 +290,7 @@ function sourcePreview(source) {
     const label = document.createElement('strong'); label.textContent = 'Original source failed to load';
     failed.append(label); figure.replaceWith(failed);
   }, { once: true });
-  figure.append(image);
+  link.append(image); figure.append(link, caption);
   return figure;
 }
 

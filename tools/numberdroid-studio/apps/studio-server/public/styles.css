@@ -124,8 +124,12 @@ h2, h3 { margin: 0; }
 .staged-source-intakes li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .staged-source-intakes li span { flex: 1 1 280px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .source-card { min-width: 0; }
-.source-preview { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; margin: 0 0 14px; overflow: hidden; border: 1px solid #315046; border-radius: 8px; background: #0b1512; }
-.source-preview img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.source-preview-frame { width: min(100%, 220px); min-width: 0; margin: 0 0 14px; }
+.source-preview { display: flex; align-items: center; justify-content: center; width: min(100%, 220px); max-width: 220px; min-width: 0; min-height: 0; aspect-ratio: 1; margin: 0 0 14px; padding: 6px; overflow: visible; border: 1px solid #315046; border-radius: 8px; background: #0b1512; }
+.source-preview-frame .source-preview { width: 100%; margin: 0; }
+.source-preview.ready:hover, .source-preview.ready:focus-visible { border-color: var(--mint); outline: 2px solid #6ee7ba66; outline-offset: 2px; }
+.source-preview img { display: block; width: auto; height: auto; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; object-position: center; image-rendering: pixelated; }
+.source-preview-frame figcaption { margin-top: 6px; color: var(--cyan); font-size: 10px; line-height: 1.3; }
 .source-preview.fallback { padding: 16px; color: var(--muted); text-align: center; }
 .source-preview.fallback strong { font-size: 11px; }
 .source-review-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }

@@ -54,6 +54,15 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /MCP host authorized/);
   assert.match(clientScript, /dataset\.renderFingerprint/);
   assert.match(clientScript, /Close' : 'Open/);
+  const sourcePreviewRenderer = clientScript.slice(
+    clientScript.indexOf('function sourcePreview'), clientScript.indexOf('function card'),
+  );
+  assert.match(sourcePreviewRenderer, /link\.target = '_blank'/);
+  assert.match(sourcePreviewRenderer, /link\.rel = 'noopener noreferrer'/);
+  assert.match(sourcePreviewRenderer, /link\.referrerPolicy = 'no-referrer'/);
+  assert.match(sourcePreviewRenderer, /Open .* original source image in a new tab/);
+  assert.match(sourcePreviewRenderer, /caption\.textContent = 'Open original in new tab ↗'/);
+  assert.match(sourcePreviewRenderer, /link\.setAttribute\('aria-describedby', caption\.id\)/);
   const overviewRenderer = clientScript.slice(
     clientScript.indexOf('function renderOverview'), clientScript.indexOf('function renderCollection'),
   );
@@ -68,6 +77,10 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(styles, /\.asset-preview/);
   assert.match(styles, /aspect-ratio: 1/);
   assert.match(styles, /object-fit: contain/);
+  assert.match(styles, /\.source-preview-frame \{ width: min\(100%, 220px\)/);
+  assert.match(styles, /\.source-preview \{[^}]*display: flex[^}]*align-items: center[^}]*justify-content: center[^}]*max-width: 220px[^}]*min-width: 0[^}]*min-height: 0[^}]*aspect-ratio: 1[^}]*padding: 6px[^}]*overflow: visible/);
+  assert.match(styles, /\.source-preview img \{[^}]*width: auto[^}]*height: auto[^}]*min-width: 0[^}]*min-height: 0[^}]*max-width: 100%[^}]*max-height: 100%[^}]*object-fit: contain[^}]*object-position: center/);
+  assert.match(styles, /\.source-preview-frame figcaption/);
   assert.match(styles, /@media \(max-width: 1200px\)/);
   assert.match(styles, /\.agent-access-input select \{ width: 150px/);
 
