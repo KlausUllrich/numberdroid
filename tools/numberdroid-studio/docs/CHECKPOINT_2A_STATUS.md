@@ -5,6 +5,7 @@
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135`
 - **Baseline branch head before 2A:** `a3231aeb6b93ee29455f5037824cd419d257b1d4`
+- **Candidate implementation commit:** `c274b046fd7e2e3165470128b14e13ed6bbb60e7`
 - **Accepted Studio implementation:** `41fad464cd2f904666f7dfecc8437f2286c3254c`
 - **Protected Checkpoint 1A commit:** `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`
 - **Protected manifest SHA-256:** `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`
@@ -98,7 +99,15 @@ Accepted agent commands already create atomic semantic Activity. For denied/fail
 - Legacy `source.register` application behavior is byte-for-byte unchanged.
 - The CI workflow prepares a deterministic revision-4 Family Hygiene workspace plus one recoverable staged intake and one redacted denied attempt, then captures eight real-Chrome screenshots at 1440×900 and 1060×900: intake form, staged recovery, approved source, and Activity. The capture asserts loaded original preview, visible lifecycle/review/origin, Resume/Discard recovery, labelled/live form state, denied Activity, no browser/network errors, no horizontal overflow, and Header containment.
 
-The final candidate commit, CI run, browser version, and visual artifact digest are supplied in the user checkpoint after GitHub Actions completes. Automated evidence does not count as user approval.
+GitHub evidence for the candidate implementation commit:
+
+- Actions run [`32521812841`](https://github.com/KlausUllrich/numberdroid/actions/runs/32521812841), Build workflow run 2011: root `build` and isolated `studio` succeeded; Pages was intentionally skipped for this local authoring service.
+- The Studio job ran the full 76-test suite, build checks, strict protected Checkpoint 1A verification, and all real-Chrome captures from a full Git checkout.
+- Browser: Chrome `151.0.7922.137` using DevTools protocol `1.3`.
+- Checkpoint 2A artifact: `numberdroid-studio-checkpoint-2a-visual`, ID `9460863029`, 3,411,273 bytes, digest `sha256:ce78afb3321f703c257052d2d85ac40070899b5c4a738b0ce549787c1578f207`, retained through 2026-09-04.
+- The coordinator inspected all eight artifact screenshots after the automated assertions passed. The two viewports show readable intake, recoverable staged state, the contained original preview and approval metadata, and the redacted denial in both Activity surfaces without a visual blocker.
+
+Automated and coordinator evidence does not count as user approval.
 
 ## Known limits
 
