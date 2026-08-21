@@ -24,7 +24,8 @@ export function jsonSchemaToZod(schema) {
   let result;
 
   if (schema.enum) {
-    result = z.enum(schema.enum);
+    const literals = schema.enum.map((value) => z.literal(value));
+    result = literals.length === 1 ? literals[0] : z.union(literals);
   } else if (type === 'string') {
     result = z.string();
     if (schema.minLength !== undefined) result = result.min(schema.minLength);
