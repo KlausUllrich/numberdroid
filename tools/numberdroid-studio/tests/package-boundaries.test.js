@@ -1,0 +1,44 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile, readdir } from 'node:fs/promises';
+import { dirname, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const studioRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const packagesRoot = resolve(studioRoot, 'packages');
+const allowedDependencies = {
+  domain: new Set(['domain']),
+  application: new Set(['application', 'domain']),
+  persistence: new Set(['persistence', 'application', 'domain']),
+  'mcp-server': new Set(['mcp-server', 'application', 'domain']),
+};
+
+async function javascriptFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map((entry) => {
+    const path = resolve(directory, entry.name);
+    return entry.isDirectory() ? javascriptFiles(path) : path.endsWith('.js') ? [path] : [];
+  }));
+  return nested.flat();
+}
+
+test('standalone package imports obey inward dependency direction and contain no Numberdroid coupling', async () => {
+  const files = await javascriptFiles(packagesRoot);
+  assert.ok(files.length > 0);
+  for (const file of files) {
+    const sourcePackage = relative(packagesRoot, file).split(sep)[0];
+    const source = await readFile(file, 'utf8');
+    const imports = [...source.matchAll(/(?:from\s+|import\s*)['"]([^'"]+)['"]/g)].map((match) => match[1]);
+    for (const specifier of imports) {
+      assert.doesNotMatch(specifier, /numberdroid/i, `${relative(studioRoot, file)} imports Numberdroid internals`);
+      if (!specifier.startsWith('.')) continue;
+      const resolvedImport = resolve(dirname(file), specifier);
+      if (!resolvedImport.startsWith(packagesRoot + sep)) continue;
+      const targetPackage = relative(packagesRoot, resolvedImport).split(sep)[0];
+      assert.ok(
+        allowedDependencies[sourcePackage]?.has(targetPackage),
+        `${sourcePackage} must not depend on outward package ${targetPackage} (${relative(studioRoot, file)})`,
+      );
+    }
+  }
+});

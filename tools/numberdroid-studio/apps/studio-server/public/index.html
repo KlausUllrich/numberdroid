@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Numberdroid Studio</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#overview" aria-label="Numberdroid Studio overview">
+          <span class="brand-mark" aria-hidden="true">N</span>
+          <span><strong>Numberdroid Studio</strong><small>Local authoring foundation</small></span>
+        </a>
+        <div class="project-controls">
+          <label class="sr-only" for="project-select">Project</label>
+          <select id="project-select" aria-label="Active project"></select>
+          <button id="demo-button" class="secondary" type="button">Create / load demo</button>
+          <button id="refresh-button" type="button">Refresh live status</button>
+        </div>
+      </header>
+
+      <aside class="workspace-nav" aria-label="Studio workspaces">
+        <p class="nav-label">Workspaces</p>
+        <nav id="workspace-nav">
+          <a class="active" href="#overview" data-workspace="overview"><span>01</span>Overview</a>
+          <a href="#sources" data-workspace="sources"><span>02</span>Sources</a>
+          <a href="#assets" data-workspace="assets"><span>03</span>Asset library</a>
+          <a href="#rooms" data-workspace="rooms"><span>04</span>Rooms</a>
+          <a href="#levels" data-workspace="levels"><span>05</span>Levels</a>
+          <a href="#activity" data-workspace="activity"><span>06</span>Activity</a>
+        </nav>
+        <div class="connection-state">
+          <span id="connection-dot" class="status-dot"></span>
+          <span><strong id="connection-label">Connecting</strong><small>Loopback project store</small></span>
+        </div>
+      </aside>
+
+      <main id="workspace" tabindex="-1">
+        <section class="hero">
+          <div>
+            <p class="eyebrow" id="workspace-eyebrow">Project overview</p>
+            <h1 id="project-name">No project selected</h1>
+            <p id="project-description">Create the safe demo project to see the shared command core in action.</p>
+          </div>
+          <div class="review-state">
+            <span id="project-status" class="status-pill">empty</span>
+            <small id="revision-label">Revision —</small>
+          </div>
+        </section>
+
+        <section id="workspace-content" class="workspace-content" aria-live="polite"></section>
+      </main>
+
+      <aside class="activity-panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Agent observable</p><h2>Activity feed</h2></div>
+          <span id="activity-count" class="count">0</span>
+        </div>
+        <ol id="activity-list" class="activity-list"></ol>
+      </aside>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

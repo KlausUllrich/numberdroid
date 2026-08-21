@@ -1,0 +1,26 @@
+{
+  "name": "@numberdroid/studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first, agent-first visual authoring foundation for Numberdroid rooms and levels.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm run check",
+    "check": "node --check packages/application/src/studio-service.js && node --check packages/mcp-server/src/index.js && node --check apps/studio-server/src/server.js",
+    "dev": "node apps/studio-server/src/server.js",
+    "demo:seed": "node apps/studio-server/src/seed-demo.js",
+    "test": "node --test tests/*.test.js",
+    "test:watch": "node --test --watch tests/*.test.js"
+  },
+  "exports": {
+    ".": "./packages/application/src/index.js",
+    "./domain": "./packages/domain/src/index.js",
+    "./application": "./packages/application/src/index.js",
+    "./persistence": "./packages/persistence/src/index.js",
+    "./mcp-server": "./packages/mcp-server/src/index.js",
+    "./http-server": "./apps/studio-server/src/server.js"
+  }
+}

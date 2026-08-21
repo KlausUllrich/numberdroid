@@ -18,6 +18,7 @@ This file defines where project information belongs and which directories are au
 ├─ src/                         # production application + compiler code
 ├─ public/                      # runtime/deploy assets only
 ├─ scripts/                     # deterministic build, art and validation tooling
+├─ tools/                       # extractable local authoring applications
 ├─ art-source/                  # approved/current + reproducible + archived art-authoring sources
 └─ docs/                        # current documentation plus explicit history
 ```
@@ -127,6 +128,22 @@ Rules:
 - asset-specific topology/settings remain with `art-source/recipes/`;
 - model calls/prompts belong to methods/skills or recipes, not low-level toolkit modules;
 - repository binary transport must follow the guards under `scripts/repo/` + `docs/agents/BINARY_ASSET_TRANSPORT.md`.
+
+## `tools/` — extractable authoring applications
+
+Contains local authoring products whose lifecycle and dependency graph are deliberately separate from the game runtime.
+
+### `tools/numberdroid-studio/`
+
+Numberdroid Studio is the local-first visual asset, room and level-authoring product. Its requirements, architecture, application packages, development service and tests live together so the subtree can later move to a standalone repository.
+
+Rules:
+- Studio is not part of the root npm workspace or the game Vite/TypeScript build;
+- Studio domain/application packages must not import Numberdroid runtime internals;
+- only its future `packages/numberdroid-adapter/` may know Numberdroid compiler, repository or export contracts;
+- Studio's local database/artifact data is never committed;
+- GitHub remains an explicit export/publication boundary, not the interactive authoring store;
+- Studio-specific product documentation belongs under `tools/numberdroid-studio/docs/`; root documentation should link rather than duplicate it.
 
 ## `docs/` — documentation taxonomy
 

@@ -1,0 +1,4 @@
+.numberdroid-studio/
+node_modules/
+coverage/
+*.log

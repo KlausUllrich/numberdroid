@@ -150,3 +150,30 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  studio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/numberdroid-studio/package-lock.json
+
+      - name: Install Studio dependencies
+        working-directory: tools/numberdroid-studio
+        run: npm ci --no-audit --no-fund
+
+      - name: Test Studio
+        working-directory: tools/numberdroid-studio
+        run: npm test
+
+      - name: Check Studio build
+        working-directory: tools/numberdroid-studio
+        run: npm run build
