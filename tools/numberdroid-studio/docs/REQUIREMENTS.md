@@ -236,7 +236,7 @@ Checkpoint 1 is complete because both 1A and 1B were explicitly accepted. Checkp
 
 ### Checkpoint 2A — source intake and review
 
-**Status: implementation candidate awaiting explicit user acceptance.** Passing automated or adversarial verification does not close the gate.
+**Status: user-accepted on 2026-08-21.** The user accepted the source workflow and provider-free constraint, selected importing the approved Family Hygiene image and making individual tiles as the first fixture, and authorized Checkpoint 2B planning and implementation. This does not authorize merge, release, publication, provider work, or Checkpoint 2C.
 
 1. A loopback human UI can stream a PNG/WebP of at most 16 MiB and 4096×4096 into project-scoped CAS with media, dimensions, byte length, and claimed SHA-256 verified before use.
 2. The staged intake is durable and idempotent. Commit atomically creates one V2 source revision, canonical source reference, lineage references, intake claim, Activity event, and grant artifact-byte charge; a fault leaves all of them at the prior state.
@@ -266,8 +266,8 @@ These are deliberately open until validated by implementation or user testing. T
 | Auto acceptance | Allowed only for explicit low-risk policy scopes | Must never be reported as user approval. |
 | Header Agent access behavior | Accepted service-backed `Off`/read/`Scoped run` selector; draft/custom visible but fail-closed | `Scoped run` means `Execute scoped task`; the anchored detail popover is accepted. Revisit only for a concrete defect or the later Custom editor. |
 | Publish authority | Separate, short-lived human grant | Publishing is higher risk than authoring. |
-| First Checkpoint 2 fixture | Family Hygiene floor 2×2 candidate | User confirms at the 2A gate; replace only with another approved, hash-pinned source. |
-| Provider integration | No provider in 2A | Choose provider, egress, credential store, cost budget, and reproduction policy before network work. |
+| First Checkpoint 2 fixture | Import the approved Family Hygiene image and make individual tiles | Accepted at the 2A gate; replace only with another explicitly approved, hash-pinned source. |
+| Provider integration | No provider in 2A | Accepted at the 2A gate; choose provider, egress, credential store, cost budget, and reproduction policy before any network work. |
 | Staged-intake retention | Explicit durable Resume/Discard | Add expiry only with a visible retention policy and recovery evidence. |
 | Animation model | Reserved identity in V1, authoring in V2 | Avoids migration of asset and placement references. |
 

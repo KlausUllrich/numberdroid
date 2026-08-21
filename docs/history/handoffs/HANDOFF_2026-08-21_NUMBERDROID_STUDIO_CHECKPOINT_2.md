@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-21
 - **Repository:** `KlausUllrich/numberdroid`
-- **Status:** Checkpoint 1A and 1B user-accepted; Checkpoint 2 planned and not started
+- **Status:** Checkpoint 1A, 1B, and 2A user-accepted; Checkpoint 2B authorized, 2C blocked
 - **Baseline `main` SHA at handoff preparation:** `1e1f0ce09a7c996f24cf6b216e400d57cb6dc666`
 - **Accepted Studio implementation SHA:** `41fad464cd2f904666f7dfecc8437f2286c3254c`
 - **Protected Checkpoint 1A SHA:** `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`
@@ -13,7 +13,7 @@
 - **Secondary roles, activated by triggers:** Technical Artist, QA, Game Design, Level Generation/Runtime Integration, Security
 - **Next milestone:** Checkpoint 2 — Source, Atlas Cutter, and Asset Library vertical slice
 
-> **Continuation update, 2026-08-21:** Checkpoint 2A has been implemented on the existing draft branch and is awaiting the user's major-checkpoint acceptance. The exact candidate scope, evidence, limits, and 2B block are recorded in `tools/numberdroid-studio/docs/CHECKPOINT_2A_STATUS.md` and `docs/history/handoffs/HANDOFF_2026-08-21_NUMBERDROID_STUDIO_CHECKPOINT_2A.md`. The historical planning text below remains useful context but no longer describes current implementation status.
+> **Continuation update, 2026-08-21:** Checkpoint 2A was explicitly accepted after the first candidate's cropped-preview rejection and the repaired workflow review. The first 2B fixture is importing the approved Family Hygiene image and making individual tiles; the workflow and provider-free boundary are accepted. Checkpoint 2B planning and implementation are authorized, while merge, release, publication, provider work, and Checkpoint 2C remain unauthorized. The exact scope, evidence, limits, and decision are recorded in `tools/numberdroid-studio/docs/CHECKPOINT_2A_STATUS.md` and `docs/history/handoffs/HANDOFF_2026-08-21_NUMBERDROID_STUDIO_CHECKPOINT_2A.md`. The historical planning text below remains useful context but no longer describes current implementation status.
 
 ## 1. Start here: do not trust this handoff over current contracts
 
@@ -180,7 +180,7 @@ The package boundary is proven by tests, but `packages/numberdroid-adapter` and 
 - animated tiles/props (V2);
 - NPC/enemy design, animation, encounter placement, or route authoring (separate products).
 
-### Open decisions and owner
+### Historical decisions and owner
 
 | Decision | Owner | Required before |
 | --- | --- | --- |
@@ -190,6 +190,8 @@ The package boundary is proven by tests, but `packages/numberdroid-adapter` and 
 | Branch/PR strategy after Checkpoint 1 acceptance | Klaus / user | starting implementation commits for Checkpoint 2 |
 
 The 1B Header/popup/preview visual questions are closed. They are not open decisions for the receiving agent.
+
+The 2A gate resolved the first three rows: the user selected the approved Family Hygiene image for import and individual-tile creation, accepted the provider-free 2A boundary, and accepted the implementation that closes `AGT-008` for trusted bound-agent failures. Branch/PR, merge, and publication authority were not granted.
 
 ## 4. Checkpoint 2 scope and recommended internal gates
 
@@ -213,7 +215,7 @@ Create stable `surface`, `prop`, and `item` identities from slices. Add visual b
 
 Exit evidence: user and agent can inspect every available asset visually, propose and review a bounded family update, reject one proposal without partial mutation, and export/import the slice with matching hashes and identities.
 
-Before committing the 2A plan, ask the user which approved atlas is the first realistic fixture. The approved Family Hygiene floor atlas is an obvious candidate, but do not silently choose it.
+Historical instruction, now satisfied: before committing the 2A plan, ask the user which approved atlas is the first realistic fixture. The user selected importing the approved Family Hygiene floor image and making its individual tiles.
 
 ## 5. Required working loop
 
@@ -407,7 +409,7 @@ Generic catalog/UI work does not trigger these domains.
 - GitHub is an explicit export/publication boundary, not the interactive database.
 - PR #135 is draft and unmerged at handoff. Do not merge without explicit user authorization.
 
-## 8. First response expected from the receiving agent
+## 8. Historical first response expected from the receiving agent
 
 After the mandatory reading and state verification, report:
 
@@ -417,4 +419,4 @@ After the mandatory reading and state verification, report:
 4. a bounded 2A plan with data model/migrations, UI flow, MCP changes, tests, visual evidence, risks, and rollback;
 5. the explicit user decision needed for the first real atlas fixture and, separately, whether provider-backed generation is in 2A or only its adapter seam.
 
-Do not begin 2B, rooms, export, animation, or repository publication before their prerequisites and checkpoint authority exist.
+The original 2B block above was satisfied by the explicit 2A acceptance. That authority is limited to 2B planning and implementation; do not begin 2C, rooms, export, animation, provider work, or repository publication before their separate prerequisites and checkpoint authority exist.

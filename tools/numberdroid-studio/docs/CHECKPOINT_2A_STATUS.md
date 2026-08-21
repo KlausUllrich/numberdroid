@@ -1,17 +1,17 @@
-# Numberdroid Studio — Checkpoint 2A Candidate
+# Numberdroid Studio — Checkpoint 2A Acceptance Record
 
 - **Date:** 2026-08-21
-- **Status:** implementation and verification candidate; explicit user acceptance pending
+- **Status:** user-accepted; Checkpoint 2B planning and implementation authorized
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135`
 - **Baseline branch head before 2A:** `a3231aeb6b93ee29455f5037824cd419d257b1d4`
 - **Repaired candidate implementation commit:** `31ddbbb838d419879229f878fe0b43a99a3b7459`
 - **Superseded first candidate:** `c274b046fd7e2e3165470128b14e13ed6bbb60e7` — rejected during user visual review because the source preview cropped the bottom of the image
-- **Accepted Studio implementation:** `41fad464cd2f904666f7dfecc8437f2286c3254c`
+- **Accepted Checkpoint 1B Studio implementation:** `41fad464cd2f904666f7dfecc8437f2286c3254c`
 - **Protected Checkpoint 1A commit:** `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`
 - **Protected manifest SHA-256:** `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`
 
-This record describes the candidate that is ready for the user's major Checkpoint 2A review. It does not record acceptance, merge authority, release, publication, or permission to start 2B.
+This record preserves the candidate and repair evidence the user reviewed and records the explicit Checkpoint 2A acceptance. Acceptance authorizes Checkpoint 2B planning and implementation only; it does not authorize merge, release, publication, provider work, or Checkpoint 2C.
 
 ## Outcome
 
@@ -112,7 +112,7 @@ GitHub evidence for the repaired candidate implementation commit:
 - Chrome now measures the image and preview content boxes, proves all image edges are contained, checks extreme-wide PNG and extreme-tall WebP geometry, requires the full preview inside both evidence viewports, and exercises the new-tab link with Enter.
 - The coordinator inspected all eight repaired screenshots. At 1440×900 and 1060×900 all four Family Hygiene panels are complete, the compact preview and caption are visible, and no new layout blocker is present.
 
-Automated and coordinator evidence does not count as user approval.
+Automated and coordinator evidence did not count as user approval; the user subsequently accepted the repaired workflow explicitly.
 
 ## Known limits
 
@@ -142,13 +142,13 @@ npm run dev
 7. Pair an MCP host under **Scoped run** and confirm seven tools are discovered; verify that owner decision is absent and revoked/over-budget/wrong-scope calls do not mutate the project.
 8. Restart with the same data directory and confirm source identity, preview, review, revision, and Activity remain unchanged.
 
-## Decisions at the major gate
+## Decisions recorded at the major gate
 
-The user is asked to decide only:
+The user's explicit acceptance is normalized as follows:
 
-1. accept or reject Family Hygiene as the first realistic Checkpoint 2 fixture;
-2. accept or reject the intake/recovery, original-preview, lifecycle, and owner-review workflow;
-3. confirm that 2A remains provider-free until provider/egress/credential/cost/reproduction policy is chosen;
-4. accept Checkpoint 2A and authorize planning/implementation of 2B, or return specific findings for another 2A loop.
+1. the first realistic fixture is the approved Family Hygiene image, imported so Checkpoint 2B can make its individual tiles;
+2. the intake/recovery, complete original-preview, lifecycle, and owner-review workflow is accepted;
+3. the provider-free constraint is accepted: provider, egress, credentials, cost, and reproduction policy remain outside 2A and require a later explicit decision;
+4. Checkpoint 2A is accepted and Checkpoint 2B planning and implementation are authorized.
 
-Until explicit acceptance, 2B is blocked and Draft PR #135 remains draft and unmerged.
+Draft PR #135 remains draft and unmerged. This decision grants no merge, release, publication, provider, or Checkpoint 2C authority.

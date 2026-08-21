@@ -86,7 +86,7 @@ Exit decision: **approved by the user on 2026-08-21.** Checkpoint 1 is complete 
 
 ## Checkpoint 2 — Source, atlas, and asset-library vertical slice
 
-**Status: 2A implementation candidate awaiting user acceptance; 2B and 2C remain blocked.** The candidate stays on Draft PR #135 and does not imply merge, release, or provider authority.
+**Status: 2A user-accepted on 2026-08-21; 2B planning and implementation authorized; 2C remains blocked.** Acceptance does not imply merge, release, publication, or provider authority, and Draft PR #135 remains draft.
 
 **Outcome:** an approved atlas becomes reproducible, visually searchable assets without repository editing.
 
@@ -104,15 +104,15 @@ Deliverables:
 
 Internal implementation gates:
 
-1. **2A — Source intake and review (candidate):** bounded local upload into CAS, discriminated provenance and project-live lineage, original-byte preview, durable Resume/Discard recovery, explicit owner review lifecycle, schema v6 integrity/recovery, two scoped MCP mutations, and final-only denied/failed bound-agent Activity. Original preview requires no image-processing job, so 2A deliberately creates none. Provider generation remains unimplemented until provider, egress, credential, cost, and reproduction policy are chosen.
-2. **2B — Visual atlas cutter:** zoom/grid overlay, deterministic regular-grid proposal, manual/variable rectangles, include/exclude preview, derived slice artifacts, and explicit stable remapping when a recut would replace a slice.
+1. **2A — Source intake and review (accepted):** bounded local upload into CAS, discriminated provenance and project-live lineage, original-byte preview, durable Resume/Discard recovery, explicit owner review lifecycle, schema v6 integrity/recovery, two scoped MCP mutations, and final-only denied/failed bound-agent Activity. Original preview requires no image-processing job, so 2A deliberately creates none. The user accepted this workflow and its provider-free constraint.
+2. **2B — Visual atlas cutter (authorized):** import the approved Family Hygiene image as the first fixture and make its individual tiles through zoom/grid overlay, deterministic regular-grid proposal, manual/variable rectangles, include/exclude preview, derived slice artifacts, and explicit stable remapping when a recut would replace a slice.
 3. **2C — Asset-library semantics:** create `surface`, `prop`, and `item` identities from slices; visual bulk naming/metadata preview; placement/connectivity/collision validation; equivalent bounded MCP batch operations; and a verified portable-bundle round trip.
 
-The candidate uses the recommended approved Family Hygiene floor 2×2 source, pinned by its repository path, SHA-256, byte length, and dimensions. That choice remains provisional until the user accepts this 2A gate. `AGT-008` is closed for denied/failed mutation attempts that reach the private execution bridge after valid HostBinding resolution; unauthenticated pre-binding traffic has no trusted project/actor attribution and remains in operational security logs.
+The accepted workflow uses the approved Family Hygiene floor 2×2 source, pinned by its repository path, SHA-256, byte length, and dimensions. The user selected importing that image and making individual tiles as the first 2B fixture. `AGT-008` is closed for denied/failed mutation attempts that reach the private execution bridge after valid HostBinding resolution; unauthenticated pre-binding traffic has no trusted project/actor attribution and remains in operational security logs.
 
 2A user verification scenario: import the approved source, inspect the original preview and provenance, restart from a staged intake and use **Resume** or **Discard**, propose it for review, approve or reject explicitly, then confirm the final lifecycle and Activity. Verify the MCP host discovers seven tools only when the SQLite audit ledger is live and never discovers the owner decision.
 
-2A exit decision: approve or reject the Family Hygiene fixture, intake/recovery UX, source lifecycle, original-preview behavior, and the provider-free boundary. Only acceptance unblocks 2B.
+2A exit decision: **accepted by the user on 2026-08-21.** The Family Hygiene fixture, intake/recovery UX, source lifecycle, complete original-preview behavior, and provider-free boundary are accepted; 2B planning and implementation are authorized. Checkpoint 2C remains a separate gate.
 
 User verification scenario: import one approved atlas, adjust cuts visually, create a small named asset family, add placement/connectivity metadata, ask an agent to complete a bounded batch, reject one proposal, and confirm that source provenance and revisions remain inspectable.
 

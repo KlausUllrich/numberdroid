@@ -1,15 +1,15 @@
-# Handoff — Numberdroid Studio Checkpoint 2A Candidate
+# Handoff — Numberdroid Studio Checkpoint 2A Acceptance
 
 - **Date:** 2026-08-21
-- **Status:** candidate awaiting explicit user acceptance
+- **Status:** user-accepted; Checkpoint 2B planning and implementation authorized
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135`
-- **Next allowed work:** verification fixes and documentation reconciliation only; Checkpoint 2B remains blocked
-- **Authoritative candidate record:** `tools/numberdroid-studio/docs/CHECKPOINT_2A_STATUS.md`
+- **Next allowed work:** Checkpoint 2B planning and implementation within the accepted fixture and provider-free boundary
+- **Authoritative acceptance record:** `tools/numberdroid-studio/docs/CHECKPOINT_2A_STATUS.md`
 
 ## Receiving instruction
 
-Do not infer acceptance from green tests, CI, elapsed time, or silence. Do not merge, mark the PR ready, invoke a provider, add atlas cutting, or start 2B until the user explicitly accepts this major gate.
+The user explicitly accepted this major gate after the cropped-preview rejection and repaired-candidate review. The accepted first fixture is importing the approved Family Hygiene image and making individual tiles in 2B; the source workflow and provider-free constraint are accepted. Do not infer merge, release, publication, provider, or Checkpoint 2C authority from this acceptance.
 
 Before changing the candidate, read the root repository instructions and all current Studio contracts in the order recorded by the original Checkpoint 2 handoff. Re-verify current `main`, PR head, Actions state, migration checksum, protected manifest, and fixture identity. Current code and contracts outrank this handoff.
 
@@ -41,13 +41,15 @@ Not implemented or authorized:
 - repaired candidate implementation: `31ddbbb838d419879229f878fe0b43a99a3b7459`;
 - successful repaired-candidate CI: run `32525797103`, Chrome `151.0.7922.137`;
 - repaired Checkpoint 2A visual artifact: ID `9462174308`, digest `sha256:da97f9e3e350d6dcc6ffa71bf80bbb4d04431a8e94cc731e9372db6714816a37`, retained through 2026-09-04;
-- accepted Studio implementation: `41fad464cd2f904666f7dfecc8437f2286c3254c`;
+- accepted Checkpoint 1B Studio implementation: `41fad464cd2f904666f7dfecc8437f2286c3254c`;
 - protected Checkpoint 1A: `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`;
 - protected manifest: `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`;
 - Family Hygiene source: SHA-256 `67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e`, 2,720,519 bytes, 1254×1254;
 - migration 0006: SHA-256 `f7b785a60bf02cd0d03944d4bd5983a4845bd715bf2a8a88f9c3ddf8c5a419f5`.
 
-## Gate protocol
+## Historical gate protocol
+
+This protocol produced the accepted result and is retained as process evidence. Its 2B acceptance condition is now satisfied; 2C remains blocked.
 
 1. Implementation/verifier/adversary/root checks must all pass against the same frozen diff.
 2. Publish only to the existing draft branch with a non-forced update after checking remote-head drift.
