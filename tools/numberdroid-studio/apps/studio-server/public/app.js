@@ -1,3 +1,15 @@
+const visualFixture = new URLSearchParams(location.search).get('visualFixture');
+const visualEvidenceErrors = [];
+if (visualFixture) {
+  document.documentElement.dataset.visualEvidenceReady = 'false';
+  window.addEventListener('error', (event) => {
+    visualEvidenceErrors.push(event.message || 'window error');
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    visualEvidenceErrors.push(event.reason?.message || 'unhandled rejection');
+  });
+}
+
 const state = {
   projects: [],
   project: null,
@@ -205,10 +217,11 @@ function assetPreview(asset) {
   if (preview?.state !== 'READY' || !preview.resourceUri) return previewFallback(asset, preview?.state);
   const figure = document.createElement('figure');
   figure.className = 'asset-preview ready';
+  figure.dataset.previewState = 'READY';
   const image = document.createElement('img');
   image.src = preview.resourceUri;
   image.alt = preview.alt || `${asset.name} preview`;
-  image.loading = 'lazy'; image.decoding = 'async';
+  image.loading = visualFixture ? 'eager' : 'lazy'; image.decoding = 'async';
   image.addEventListener('error', () => figure.replaceWith(previewFallback(asset, 'LOAD_FAILED')), { once: true });
   figure.append(image);
   return figure;
@@ -372,6 +385,7 @@ function renderCollection(items, workspace) {
         ['ID', item.id], ['Source', item.sourceId], ['Status', item.status], ['Role', item.properties.role],
       ]);
       assetCard.classList.add('asset-card');
+      assetCard.dataset.assetId = item.id;
       assetCard.prepend(assetPreview(item));
       grid.append(assetCard);
     }
@@ -440,6 +454,52 @@ function renderProject() {
   elements['project-status'].textContent = project?.status || 'empty';
   elements['revision-label'].textContent = state.project ? `Revision ${state.project.revision}` : 'Revision —';
   renderWorkspace(); renderActivity(); renderAgentAccess();
+}
+
+async function publishVisualEvidence() {
+  if (!visualFixture) return;
+  const root = document.documentElement;
+  root.dataset.visualEvidenceReady = 'false';
+  root.dataset.visualProjectId = state.project?.projectId ?? 'none';
+  root.dataset.visualRevision = String(state.project?.revision ?? -1);
+  root.dataset.visualActivityCount = String(state.activity.length);
+  root.dataset.visualConnectionState = elements['connection-label'].textContent ?? 'Unknown';
+  if (!state.project || elements['connection-label'].textContent !== 'Live') return;
+  const pendingImages = [...document.querySelectorAll('.asset-preview.ready img')];
+  await Promise.all(pendingImages.map((image) => {
+    if (image.complete) return Promise.resolve();
+    return new Promise((resolveImage) => {
+      const timeout = setTimeout(resolveImage, 2_000);
+      const settle = () => {
+        clearTimeout(timeout);
+        resolveImage();
+      };
+      image.addEventListener('load', settle, { once: true });
+      image.addEventListener('error', settle, { once: true });
+    });
+  }));
+  await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+
+  const loadedImages = [...document.querySelectorAll('.asset-preview.ready img')]
+    .filter((image) => image.complete && image.naturalWidth > 0);
+  const processingFallbacks = document.querySelectorAll(
+    '.asset-preview.fallback[data-preview-state="PROCESSING"]',
+  );
+  root.dataset.visualWorkspace = state.workspace;
+  root.dataset.horizontalOverflow = String(
+    root.scrollWidth > root.clientWidth || document.body.scrollWidth > document.body.clientWidth,
+  );
+  root.dataset.agentPanelOpen = String(
+    !elements['agent-access-panel'].hidden
+      && elements['agent-access-state'].getAttribute('aria-expanded') === 'true',
+  );
+  root.dataset.assetCardCount = String(document.querySelectorAll('.asset-card').length);
+  root.dataset.readyImageCount = String(loadedImages.length);
+  root.dataset.processingFallbackCount = String(processingFallbacks.length);
+  root.dataset.visualErrorCount = String(visualEvidenceErrors.length);
+  root.dataset.agentPolicyMode = state.agentAccess?.mode ?? 'none';
+  root.dataset.agentPolicyState = state.agentAccess?.state ?? 'none';
+  root.dataset.visualEvidenceReady = 'true';
 }
 
 async function loadProjects(preferredProjectId) {
@@ -547,6 +607,7 @@ elements['workspace-nav'].addEventListener('click', (event) => {
   const link = event.target.closest('[data-workspace]');
   if (!link) return;
   state.workspace = link.dataset.workspace; location.hash = state.workspace; renderWorkspace();
+  void publishVisualEvidence();
 });
 elements['project-select'].addEventListener('change', () => loadProject(elements['project-select'].value));
 elements['refresh-button'].addEventListener('click', () => refresh());
@@ -681,8 +742,10 @@ elements['demo-button'].addEventListener('click', async () => {
 });
 window.addEventListener('hashchange', () => {
   state.workspace = location.hash.slice(1) || 'overview'; renderWorkspace();
+  void publishVisualEvidence();
 });
 
 await refresh({ quiet: true });
-if (new URLSearchParams(location.search).get('visualFixture') === 'agent-access') setAgentAccessPanel(true);
-setInterval(() => refresh({ quiet: true }), 5000);
+if (visualFixture === 'agent-access') setAgentAccessPanel(true);
+await publishVisualEvidence();
+if (!visualFixture) setInterval(() => refresh({ quiet: true }), 5000);

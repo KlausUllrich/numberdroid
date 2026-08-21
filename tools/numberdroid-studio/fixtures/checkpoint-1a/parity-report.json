@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "migrationId": "checkpoint-1a-to-1b",
   "sourceManifestHash": "7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673",
-  "destinationSchemaVersion": 1,
+  "destinationSchemaVersion": 5,
   "status": "VERIFIED",
   "integrity": {
     "ok": true,
@@ -11,6 +11,29 @@
     ],
     "foreignKeys": [],
     "userVersion": 5
+  },
+  "workspaceIntegrity": {
+    "schemaVersion": 1,
+    "ok": true,
+    "database": {
+      "ok": true,
+      "integrity": [
+        "ok"
+      ],
+      "foreignKeys": [],
+      "userVersion": 5
+    },
+    "artifacts": {
+      "ok": true,
+      "referencedCount": 0,
+      "verifiedCount": 0,
+      "findings": []
+    }
+  },
+  "casManifest": {
+    "schemaVersion": 1,
+    "algorithm": "sha256",
+    "entries": []
   },
   "cutoverPerformed": false,
   "projects": [

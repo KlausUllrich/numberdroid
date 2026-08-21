@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -341,7 +342,10 @@ test('official stdio MCP propagates cancellation to the local Studio request', a
     slowService.once('error', reject);
     slowService.listen(0, '127.0.0.1', resolveListen);
   });
-  context.after(() => new Promise((resolveClose) => slowService.close(resolveClose)));
+  context.after(() => {
+    slowService.closeAllConnections();
+    return new Promise((resolveClose) => slowService.close(resolveClose));
+  });
 
   const client = new Client(
     { name: 'numberdroid-studio-cancellation-test', version: '1.0.0' },
@@ -372,6 +376,44 @@ test('official stdio MCP propagates cancellation to the local Studio request', a
   assert.equal(recovered.isError, undefined, JSON.stringify(recovered));
   assert.equal(recovered.structuredContent.revision, 7);
   await client.close();
+});
+
+test('official stdio MCP redacts malformed frame diagnostics', async (context) => {
+  const fixture = await mcpFixture(context);
+  const sentinel = 'PRIVATE_MALFORMED_FRAME_SENTINEL';
+  const child = spawn(process.execPath, [resolve(studioRoot, 'apps/studio-mcp/src/main.js')], {
+    cwd: studioRoot,
+    env: {
+      ...process.env,
+      NUMBERDROID_STUDIO_PROJECT_ID: PROJECT_ID,
+      NUMBERDROID_STUDIO_SERVICE_URL: fixture.serviceUrl,
+      NUMBERDROID_STUDIO_BINDING_TOKEN: fixture.token,
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => { stdout += chunk; });
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  context.after(() => {
+    child.kill('SIGKILL');
+  });
+  child.stdin.write(`{"jsonrpc":"2.0","sentinel":"${sentinel}"}\n`);
+  await Promise.race([
+    new Promise((resolveDiagnostic) => {
+      const inspect = () => {
+        if (stderr.includes('MCP_TRANSPORT_ERROR')) resolveDiagnostic();
+      };
+      child.stderr.on('data', inspect);
+      inspect();
+    }),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Malformed frame produced no generic diagnostic.')), 2_000)),
+  ]);
+  assert.doesNotMatch(stdout, new RegExp(sentinel));
+  assert.doesNotMatch(stderr, new RegExp(sentinel));
+  assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 2);
 });
 
 test('official stdio MCP returns a structured, redacted service-unavailable error', async (context) => {

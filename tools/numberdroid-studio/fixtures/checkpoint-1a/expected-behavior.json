@@ -7,7 +7,15 @@
     "revision5": {
       "headRevision": 5,
       "activityCount": 5,
-      "counts": { "grants": 1, "sources": 1, "assets": 1, "rooms": 0, "levels": 0 }
+      "activity": [
+        { "id": "activity:demo.create", "actorId": "local.designer", "actorKind": "human", "taskId": null },
+        { "id": "activity:demo.grant-atlas-agent", "actorId": "local.designer", "actorKind": "human", "taskId": null },
+        { "id": "activity:demo.register-atlas", "actorId": "atlas.agent", "actorKind": "agent", "taskId": "demo.atlas-bootstrap" },
+        { "id": "activity:demo.define-floor-tile", "actorId": "atlas.agent", "actorKind": "agent", "taskId": "demo.atlas-bootstrap" },
+        { "id": "activity:demo.request-review", "actorId": "atlas.agent", "actorKind": "agent", "taskId": "demo.atlas-bootstrap" }
+      ],
+      "counts": { "grants": 1, "sources": 1, "assets": 1, "rooms": 0, "levels": 0 },
+      "projectStatus": "in_review"
     },
     "controls": {
       "idempotentRetry": { "resultRevision": 3, "replayed": true },
@@ -18,6 +26,14 @@
     "revision6": {
       "headRevision": 6,
       "activityCount": 6,
+      "activity": [
+        { "id": "activity:demo.create", "actorId": "local.designer", "actorKind": "human", "taskId": null },
+        { "id": "activity:demo.grant-atlas-agent", "actorId": "local.designer", "actorKind": "human", "taskId": null },
+        { "id": "activity:demo.register-atlas", "actorId": "atlas.agent", "actorKind": "agent", "taskId": "demo.atlas-bootstrap" },
+        { "id": "activity:demo.define-floor-tile", "actorId": "atlas.agent", "actorKind": "agent", "taskId": "demo.atlas-bootstrap" },
+        { "id": "activity:demo.request-review", "actorId": "atlas.agent", "actorKind": "agent", "taskId": "demo.atlas-bootstrap" },
+        { "id": "activity:demo.control.revoke-grant", "actorId": "local.designer", "actorKind": "human", "taskId": null }
+      ],
       "sourceCount": 1,
       "absentSourceId": true,
       "grant": {
@@ -26,6 +42,18 @@
         "revokeReason": "Checkpoint 1A user-control demonstration.",
         "commandsUsed": 3
       }
+    },
+    "restarted": {
+      "revision": 6,
+      "activityCount": 6,
+      "activity": [
+        { "id": "activity:demo.create", "actorId": "local.designer", "actorKind": "human", "taskId": null },
+        { "id": "activity:demo.grant-atlas-agent", "actorId": "local.designer", "actorKind": "human", "taskId": null },
+        { "id": "activity:demo.register-atlas", "actorId": "atlas.agent", "actorKind": "agent", "taskId": "demo.atlas-bootstrap" },
+        { "id": "activity:demo.define-floor-tile", "actorId": "atlas.agent", "actorKind": "agent", "taskId": "demo.atlas-bootstrap" },
+        { "id": "activity:demo.request-review", "actorId": "atlas.agent", "actorKind": "agent", "taskId": "demo.atlas-bootstrap" },
+        { "id": "activity:demo.control.revoke-grant", "actorId": "local.designer", "actorKind": "human", "taskId": null }
+      ]
     }
   }
 }

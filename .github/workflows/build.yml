@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.22.0
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -166,7 +166,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.22.0
           cache: npm
           cache-dependency-path: tools/numberdroid-studio/package-lock.json
 
@@ -184,7 +184,7 @@ jobs:
 
       - name: Verify protected Checkpoint 1A evidence
         working-directory: tools/numberdroid-studio
-        run: npm run evidence:verify
+        run: NUMBERDROID_EVIDENCE_REQUIRE_PRODUCTION_ADAPTER=1 npm run evidence:verify
 
       - name: Capture Studio 1A and 1B browser evidence
         run: |
@@ -195,12 +195,23 @@ jobs:
             exit 1
           fi
           export STUDIO_VISUAL_BROWSER="$($CHROME --version)"
+          export STUDIO_VISUAL_CANDIDATE_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          export TZ=UTC
+          export LANG=C.UTF-8
+          export LC_ALL=C.UTF-8
 
           EVIDENCE="$GITHUB_WORKSPACE/artifacts/studio-visual"
           BASELINE_WORKTREE="$RUNNER_TEMP/numberdroid-studio-c1a"
           BASELINE_DATA="$RUNNER_TEMP/numberdroid-studio-c1a-data"
           CANDIDATE_DATA="$RUNNER_TEMP/numberdroid-studio-c1b-data"
-          mkdir -p "$EVIDENCE/baseline-1a" "$EVIDENCE/candidate-1b"
+          BASELINE_PID=""
+          CANDIDATE_PID=""
+          cleanup() {
+            if [ -n "$BASELINE_PID" ]; then kill "$BASELINE_PID" 2>/dev/null || true; fi
+            if [ -n "$CANDIDATE_PID" ]; then kill "$CANDIDATE_PID" 2>/dev/null || true; fi
+          }
+          trap cleanup EXIT
+          mkdir -p "$EVIDENCE/baseline-1a" "$EVIDENCE/candidate-1b/dom"
           git worktree add --detach "$BASELINE_WORKTREE" 2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d
           cp -R tools/numberdroid-studio/fixtures/checkpoint-1a/json-ledger "$BASELINE_DATA"
 
@@ -225,18 +236,29 @@ jobs:
             local width="$1"
             local output="$2"
             local url="$3"
-            "$CHROME" --headless=new --no-sandbox --disable-gpu --hide-scrollbars \
-              --force-device-scale-factor=1 --window-size="$width,900" --virtual-time-budget=1600 \
-              --screenshot="$output" "$url"
+            local mode="$4"
+            local dom_output="${5:-}"
+            if [ -n "$dom_output" ]; then
+              node tools/numberdroid-studio/scripts/capture-studio-browser-evidence.js \
+                "$CHROME" "$width" "$output" "$url" "$mode" "$dom_output"
+            else
+              node tools/numberdroid-studio/scripts/capture-studio-browser-evidence.js \
+                "$CHROME" "$width" "$output" "$url" "$mode"
+            fi
           }
 
           wait_for_studio http://127.0.0.1:4318 "$EVIDENCE/baseline-server.log"
-          for workspace in overview sources assets rooms levels activity; do
-            capture 1440 "$EVIDENCE/baseline-1a/$workspace-1440.png" \
-              "http://127.0.0.1:4318/#$workspace"
+          node tools/numberdroid-studio/scripts/assert-studio-baseline-visual-state.js \
+            http://127.0.0.1:4318 "$EVIDENCE"
+          for width in 1440 1060; do
+            for workspace in overview sources assets rooms levels activity; do
+              capture "$width" "$EVIDENCE/baseline-1a/$workspace-$width.png" \
+                "http://127.0.0.1:4318/#$workspace" baseline
+            done
           done
           kill "$BASELINE_PID"
           wait "$BASELINE_PID" 2>/dev/null || true
+          BASELINE_PID=""
 
           node tools/numberdroid-studio/scripts/prepare-visual-evidence.js "$CANDIDATE_DATA" \
             > "$EVIDENCE/candidate-fixture.json"
@@ -244,19 +266,32 @@ jobs:
             node tools/numberdroid-studio/apps/studio-server/src/server.js \
             > "$EVIDENCE/candidate-server.log" 2>&1 &
           CANDIDATE_PID=$!
-          trap 'kill "$CANDIDATE_PID" 2>/dev/null || true' EXIT
           wait_for_studio http://127.0.0.1:4317 "$EVIDENCE/candidate-server.log"
-          for workspace in overview sources assets rooms levels activity; do
-            capture 1440 "$EVIDENCE/candidate-1b/$workspace-1440.png" \
-              "http://127.0.0.1:4317/#$workspace"
+          for width in 1440 1060; do
+            for workspace in overview sources assets rooms levels activity; do
+              if [ "$width" = "1060" ]; then
+                capture "$width" "$EVIDENCE/candidate-1b/$workspace-$width.png" \
+                  "http://127.0.0.1:4317/?visualFixture=evidence#$workspace" candidate \
+                  "$EVIDENCE/candidate-1b/dom/$workspace-1060.html"
+              else
+                capture "$width" "$EVIDENCE/candidate-1b/$workspace-$width.png" \
+                  "http://127.0.0.1:4317/?visualFixture=evidence#$workspace" candidate
+              fi
+            done
           done
-          capture 1440 "$EVIDENCE/candidate-1b/overview-agent-access-1440.png" \
-            'http://127.0.0.1:4317/?visualFixture=agent-access#overview'
-          capture 1060 "$EVIDENCE/candidate-1b/overview-agent-access-1060.png" \
-            'http://127.0.0.1:4317/?visualFixture=agent-access#overview'
-          capture 1060 "$EVIDENCE/candidate-1b/assets-1060.png" \
-            'http://127.0.0.1:4317/#assets'
+          for width in 1440 1060; do
+            if [ "$width" = "1060" ]; then
+              capture "$width" "$EVIDENCE/candidate-1b/overview-agent-access-$width.png" \
+                'http://127.0.0.1:4317/?visualFixture=agent-access#overview' candidate \
+                "$EVIDENCE/candidate-1b/dom/agent-access-1060.html"
+            else
+              capture "$width" "$EVIDENCE/candidate-1b/overview-agent-access-$width.png" \
+                'http://127.0.0.1:4317/?visualFixture=agent-access#overview' candidate
+            fi
+          done
 
+          node tools/numberdroid-studio/scripts/assert-studio-live-visual-state.js \
+            http://127.0.0.1:4317 "$EVIDENCE"
           node tools/numberdroid-studio/scripts/assert-studio-visual-evidence.js "$EVIDENCE"
 
       - name: Upload Studio visual evidence

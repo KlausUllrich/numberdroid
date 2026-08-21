@@ -52,7 +52,7 @@ export function jsonSchemaToZod(schema) {
     if (schema.additionalProperties === false) result = result.strict();
     else if (schema.additionalProperties && typeof schema.additionalProperties === 'object') {
       result = z.object(shape).catchall(jsonSchemaToZod(schema.additionalProperties));
-    }
+    } else result = result.catchall(z.unknown());
   } else {
     result = z.unknown();
   }

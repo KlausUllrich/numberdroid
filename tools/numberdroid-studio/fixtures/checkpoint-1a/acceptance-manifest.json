@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "checkpoint": "1A",
   "baselineCommit": "2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d",
+  "visualFixtureSha256": "ca03b283bd2e17c703ea5424b0aefa22adef8052294260e5f152e8ed9a3d0b19",
   "sourceManifestHash": "7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673",
   "expected": {
     "projectId": "numberdroid-studio-demo",

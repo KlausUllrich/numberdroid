@@ -494,6 +494,7 @@ export async function startStudioHttpServer({
   host = process.env.NUMBERDROID_STUDIO_HOST ?? '127.0.0.1',
   port = Number(process.env.NUMBERDROID_STUDIO_PORT ?? 4317),
   storeMode = process.env.NUMBERDROID_STUDIO_STORE ?? 'sqlite',
+  clock = () => new Date().toISOString(),
 } = {}) {
   if (!['sqlite', 'json'].includes(storeMode)) throw new TypeError('storeMode must be sqlite or json.');
   if (!['127.0.0.1', 'localhost', '::1'].includes(host)) {
@@ -506,7 +507,7 @@ export async function startStudioHttpServer({
   const store = storeMode === 'sqlite'
     ? await SqliteProjectStore.open({ filename: resolve(dataDirectory, 'studio.sqlite') })
     : new JsonProjectStore({ directory: dataDirectory });
-  const studioService = new StudioService({ store });
+  const studioService = new StudioService({ store, clock });
   const hostBindingStore = storeMode === 'sqlite'
     ? new SqliteHostBindingStore({ workspace: store.workspace })
     : null;
