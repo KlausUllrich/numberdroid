@@ -43,9 +43,11 @@ User verification scenario:
 7. restart the development service with the same data directory and confirm revision 6 and the audit history remain visible;
 8. approve or reject the interaction, visibility, and authority model; do not treat this as approval of JSON persistence or a complete MCP server.
 
-Decision recorded: the interaction model and visual shell are accepted as the 1B baseline. The implementation MUST retain a runnable frozen JSON fixture, expected command/revision/activity results, the accepted source revision/commit, and representative screenshots. Acceptance does not make the JSON store production-ready and does not complete Checkpoint 1.
+Decision recorded: the interaction model and visual shell were accepted as the 1B baseline. The implementation retains a runnable frozen JSON fixture, expected command/revision/activity results, the accepted source revision/commit, a reproducible browser-capture workflow, and the accepted visual run/digest/viewport record. The screenshot bytes themselves remain in a retention-limited Actions artifact rather than permanent repository goldens. Acceptance did not make the JSON store production-ready; later acceptance of 1B completed Checkpoint 1.
 
 ## Checkpoint 1B — SQLite/CAS and official MCP transport
+
+**Status: user-accepted on 2026-08-21.** Accepted implementation `41fad464cd2f904666f7dfecc8437f2286c3254c`; CI run `32493595981`; 65 tests; 26 Chrome screenshots; local production-adapter and visual review passed. The durable acceptance record is `CHECKPOINT_1B_STATUS.md`. Draft PR #135 remains unmerged; checkpoint acceptance is not merge or release authority.
 
 **Outcome:** the development foundation becomes a durable local-authoring and protocol foundation suitable for the asset slice.
 
@@ -58,7 +60,7 @@ Deliverables:
 - official MCP 2026-07-28 SDK with local stdio transport;
 - stateless MCP protocol core whose trusted host injects actor/task/grant execution context for every tool call;
 - scoped project/resources, first read/mutation tools, runtime-validated schemas, structured concurrency errors, clean shutdown, protocol-only stdout, and durable activity evidence;
-- persistent Header Agent mode selector with implemented `Off`, `Read only`, and `Execute scoped task`; `Propose in draft` and `Custom…` stay visibly fail-closed until branch heads/editor workflows exist;
+- persistent Header Agent access selector with implemented `Off`, `Read only`, and semantic `Execute scoped task` (visible `Scoped run`); `Propose in draft` and `Custom…` stay visibly fail-closed until branch heads/editor workflows exist;
 - private loopback MCP-host pairing: secret-free launcher setup, short-lived verification code, explicit Header approval, digest-only credential storage, redacted binding status/revoke, and no credential exposure to browser surfaces;
 - an effective-policy detail/warning for scope, branch, capabilities, expiry, budget, and broadening; finalization/export/publish remain separate;
 - a small preview region on every Asset Library card, with authorized image resource or distinct accessible kind-aware fallback for processing/missing/unsupported/failure;
@@ -73,16 +75,18 @@ User verification scenario:
 3. confirm project IDs, revision/activity history, grant revocation, validation, and visible navigation match the 1A baseline;
 4. import a small artifact and verify its digest-backed resource link, restart integrity, and duplicate-content behavior;
 5. inspect Asset Library cards with a valid preview and each fallback class; confirm no card is blank and semantic controls remain usable;
-6. use the Header Agent mode selector to move from `Off` to read-only and scoped execution; select the visibly deferred draft/custom entries and confirm they grant nothing; inspect warnings/effective policy and confirm client-side state cannot grant authority;
+6. use the Header Agent access selector to move from `Off` to read-only and `Scoped run`; select the visibly deferred draft/custom entries and confirm they grant nothing; inspect warnings/effective policy and confirm client-side state cannot grant authority;
 7. copy the secret-free host setup, start the stdio MCP host, match its verification code in the Header, authorize it, and discover only implemented tools/resources with diagnostics off stdout;
 8. attempt a mutation without host authority, with a stale revision, and after revocation; observe denial/conflict without partial changes;
 9. exercise one granted mutation and idempotent retry through MCP and compare its events/result with the UI path;
 10. create a live backup, restore it, and compare database/CAS manifests; simulate migration failure before cutover and confirm 1A still launches unchanged;
 11. test documented rollback with preserved SQLite/CAS/recovery evidence and no silent loss of post-cutover writes.
 
-Exit decision: approve local durability, artifact handling, and official agent protocol behavior. Only then is Checkpoint 1 complete and the asset vertical slice unblocked.
+Exit decision: **approved by the user on 2026-08-21.** Checkpoint 1 is complete and the asset vertical slice is unblocked.
 
 ## Checkpoint 2 — Source, atlas, and asset-library vertical slice
+
+**Status: next; planned, not started.** Use the same long verification loop and keep room/canvas work in Checkpoint 3.
 
 **Outcome:** an approved atlas becomes reproducible, visually searchable assets without repository editing.
 
@@ -97,6 +101,14 @@ Deliverables:
 - bulk naming/metadata preview and semantic validation;
 - equivalent MCP batch workflow and durable image-processing jobs;
 - portable project bundle round trip for the slice.
+
+Internal implementation gates:
+
+1. **2A — Source intake and review:** local upload into CAS, complete provenance and lineage, thumbnail/preview, explicit review lifecycle, and the minimum durable job seam required by image processing. Provider generation remains behind a port until provider, egress, credential, and cost policy are chosen.
+2. **2B — Visual atlas cutter:** zoom/grid overlay, deterministic regular-grid proposal, manual/variable rectangles, include/exclude preview, derived slice artifacts, and explicit stable remapping when a recut would replace a slice.
+3. **2C — Asset-library semantics:** create `surface`, `prop`, and `item` identities from slices; visual bulk naming/metadata preview; placement/connectivity/collision validation; equivalent bounded MCP batch operations; and a verified portable-bundle round trip.
+
+Before 2A planning is frozen, the user chooses the first realistic approved atlas fixture. Family Hygiene is the obvious candidate because an approved source already exists, but it must not be silently assumed. Durable denied/failed Activity entries under `AGT-008` are also a known foundation gap to schedule explicitly rather than hide inside unrelated atlas work.
 
 User verification scenario: import one approved atlas, adjust cuts visually, create a small named asset family, add placement/connectivity metadata, ask an agent to complete a bounded batch, reject one proposal, and confirm that source provenance and revisions remain inspectable.
 
@@ -206,4 +218,4 @@ Each accepted checkpoint updates a concise decision log with:
 
 This prevents future agents from reinterpreting an accepted workflow based only on code or chat history.
 
-Current open 1B visual decision: the Header Agent mode control is required, but its final compact label/icon treatment and whether effective-policy details open as a popover or side panel require user verification. The security states, options, warnings, and service-backed authority boundary are not open.
+Resolved 1B visual decision: the Header uses the **Agent access** pull-down, compact `Scoped run` label, separate host-status indicator, anchored policy popover, and a preview/fallback region on every Asset Library card. These are accepted regression inputs; only a concrete defect or deliberate later user checkpoint reopens them.

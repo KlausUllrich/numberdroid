@@ -41,7 +41,22 @@ The domain and application packages MUST NOT import any UI framework, MCP SDK, d
 
 ## 3. Package topology
 
-Checkpoint 1A already separates `packages/domain`, `packages/application`, `packages/persistence`, and `packages/mcp-server`. The development server and JSON adapter remain transitional, while the shared command boundary and host-injected authority are proven. Checkpoint 1B introduces SQLite/content-addressed persistence and the official MCP transport without changing those inward-only boundaries. The transitional JSON store is never an accepted persistence implementation for the asset slice.
+Checkpoint 1 is accepted. Its actual transitional topology is:
+
+```text
+apps/studio-server       one-writer local service plus visual shell
+apps/studio-mcp          official MCP stdio host and private service bridge
+apps/studio-admin        migration, integrity, backup, and restore CLI
+packages/domain          pure contracts, validation, and command catalog
+packages/application     shared command/query and authorization core
+packages/persistence     SQLite/CAS plus protected JSON migration adapter
+packages/mcp-server      semantic catalog and official MCP adapter
+fixtures + scripts       deterministic evidence and verification
+```
+
+SQLite/content-addressed persistence and the official MCP transport are now the accepted operational path. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service process is an accepted transitional packaging choice, not the final standalone packaging model.
+
+The sections below describe the target topology as checkpoints introduce it. A named target package is not implemented merely because it appears in this document. In particular, `apps/studio-ui`, `apps/studio-service`, `packages/preview`, and `packages/numberdroid-adapter` do not yet exist as working packages.
 
 ### `apps/studio-ui`
 
@@ -87,7 +102,7 @@ Small deterministic project bundles, images, expected slices, command/event hist
 
 The user visually accepted the Checkpoint 1A shell on 2026-08-21. Its navigation, information hierarchy, project/revision/activity visibility, demo command outcomes, and host-injected authority behavior are now regression inputs, not disposable scaffolding.
 
-Before 1B changes persistence or transport, the project records the accepted source revision/commit, fixture and expected revision/activity counts, and representative screenshots. The 1A application remains runnable against a copied frozen JSON data directory. 1B is an infrastructure substitution behind existing application ports; it may add the approved Header Agent mode selector and card preview/fallback but must not silently redesign the accepted shell. Any broader visual change returns to a user checkpoint.
+Checkpoint 1B completed that infrastructure substitution behind the existing application ports and was accepted on 2026-08-21. The protected source commit, fixture, expected revision/activity counts, migration parity record, reproducible capture workflow, and exact visual evidence run/digest/viewport record are retained. The 26 screenshot bytes are currently only in a retention-limited Actions artifact; permanent screenshot goldens have not been published. The 1A application remains runnable against a copied frozen JSON data directory. Later checkpoints may build on the approved Header Agent access selector and card preview/fallback but must not silently redesign the accepted shell. Any broader visual change returns to a user checkpoint.
 
 ## 4. Domain model
 
@@ -156,31 +171,37 @@ Each transition is a separate command with separate authorization and evidence.
 
 ## 6. Command and query model
 
-All mutations use a common internal envelope. Actor, task, grant, and correlation fields are supplied by a trusted host execution context; an MCP caller cannot assert or replace them through tool arguments:
+All mutations use a common command DTO plus a separate trusted execution context. An MCP caller cannot assert or replace actor, task, grant, branch, or correlation fields through tool arguments. The accepted Checkpoint 1 shapes are:
 
 ```json
 {
-  "commandId": "cmd_...",
-  "commandType": "asset.metadata.update",
   "schemaVersion": 1,
-  "actor": { "actorId": "agent_...", "actorType": "agent" },
-  "projectId": "project_...",
-  "taskId": "task_...",
-  "grantId": "grant_...",
-  "branchId": "branch_...",
-  "baseRevision": "rev_...",
-  "expectedVersion": 7,
+  "commandId": "cmd_...",
   "idempotencyKey": "client-unique-key",
+  "type": "asset.define",
+  "projectId": "project_...",
+  "baseRevision": 7,
+  "expectedVersion": 7,
   "dryRun": false,
   "payload": {}
 }
 ```
 
-Human UI commands use the same envelope; a locally authenticated human context supplies its actor and authorization. The MCP host injects its bound agent/task/grant context after tool-input validation. System commands identify both the initiating actor and the system executor. The application API separates these values as `execute(commandDto, trustedExecutionContext)`: `commandDto` contains no actor, task, grant, binding, or issuer field. Application handlers MUST reject authority fields that arrive inside an untrusted command or payload.
+```json
+{
+  "actor": { "id": "agent_...", "kind": "agent", "displayName": "Atlas Agent" },
+  "taskId": "task_...",
+  "grantId": "grant_...",
+  "branchId": "branch_...",
+  "correlationId": "corr_..."
+}
+```
 
-### Agent mode is a policy projection, not authority
+Human UI commands use the same command DTO; a locally authenticated human context supplies its actor and authorization. The MCP host injects its bound agent/task/grant context after tool-input validation. System commands identify both the initiating actor and the system executor. The application API separates these values as `execute(commandDto, trustedExecutionContext)`: `commandDto` contains no actor, task, grant, branch, binding, or issuer field. Application handlers MUST reject authority fields that arrive inside an untrusted command or payload.
 
-The persistent Header Agent mode control is a human-facing posture selector. Its choices (`Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`) request a service operation; they are not local permission flags. Checkpoint 1B implements only Off/read/scoped execution. Draft proposal is fail-closed until the revision model has isolated branch heads, and Custom is fail-closed until the detailed editor ships. The local service verifies the loopback human UI request, creates/selects/revokes the concrete task grant as allowed, then returns a redacted `EffectiveAgentPolicy` projection containing state, project/task/branch, capability and object-scope summary, expiry, budget, and job count. A separate section lists redacted pending and authorized MCP hosts. Browser configuration contains only command, project, service URL, and loopback pairing endpoint; it never contains a HostBinding token or grant ID.
+### Agent access is a policy projection, not authority
+
+The persistent Header Agent access control is a human-facing posture selector. Its choices (`Off`, `Read only`, `Propose in draft`, the compact accepted label `Scoped run`, and `Custom…`) request a service operation; they are not local permission flags. `Scoped run` maps to the semantic mode `Execute scoped task` / `execute_scoped`. Checkpoint 1B implements only Off/read/scoped execution. Draft proposal is fail-closed until the revision model has isolated branch heads, and Custom is fail-closed until the detailed editor ships. The local service verifies the loopback human UI request, creates/selects/revokes the concrete task grant as allowed, then returns a redacted `EffectiveAgentPolicy` projection containing state, project/task/branch, capability and object-scope summary, expiry, budget, and job count. A separate section lists redacted pending and authorized MCP hosts. Browser configuration contains only command, project, service URL, and loopback pairing endpoint; it never contains a HostBinding token or grant ID.
 
 The UI renders only that projection. It cannot forge an `ACTIVE` state, attach a grant to an MCP invocation, or widen a policy by changing client state. On service disconnect it renders `SERVICE_UNAVAILABLE`, which carries no authority. `EXPIRED`, `REVOKED`, and `DENIED` are likewise inactive. Any capability/time/budget expansion requires a warning/confirmation based on the concrete grant diff rather than a coarse mode rank; finalization/export remain separate commands and publish is never a header posture.
 
@@ -192,10 +213,10 @@ Application command flow:
 4. Check idempotency and optimistic concurrency.
 5. Load aggregates at `baseRevision` inside the unit of work.
 6. Evaluate domain invariants and calculate events.
-7. Run required synchronous validation; enqueue expensive validation as a durable job only where finalization rules permit.
+7. Run required synchronous validation; later checkpoints enqueue expensive validation as a durable job only where finalization rules permit.
 8. On dry run, return proposed events/diff/findings without commit.
 9. Atomically append events, update projections, consume grant budget, create a revision, and record activity.
-10. Publish post-commit notifications and job work.
+10. In later checkpoints, publish post-commit notifications and job work.
 
 An exception before commit changes nothing. A repeated idempotency key with the identical payload returns the original result; reuse with a different payload is an error.
 
@@ -209,7 +230,7 @@ The local service owns one SQLite database per workspace or one database with ex
 
 One command transaction includes events, revision and parent links, aggregate versions, projection updates, activity, idempotency result, command-required findings, and grant budget consumption. Migrations run transactionally where SQLite permits; multi-phase migrations use explicit durable states and recovery instructions. The service does not expose a writable API until migration and integrity checks complete.
 
-Logical tables include projects, branches, events, revisions, revision parents, aggregate versions, projections, artifacts, artifact references, grants, jobs, job events, findings, idempotency records, and schema migrations. Projection tables are rebuildable from events plus verified snapshots.
+Accepted Checkpoint 1 tables include `projects`, `revisions`, `revision_parents`, `activity_events`, `aggregate_versions`, `projections`, `idempotency_records`, `grants`, `migration_runs`, `artifacts`, `artifact_references`, `cas_gc_marks`, `host_bindings`, and `human_agent_access_operations`, plus the migration ledger maintained by the runner. Later checkpoints add branch heads, jobs/job events, and durable findings only with versioned migrations and recovery tests. Projection tables are rebuildable from events plus verified snapshots.
 
 SQLite is an infrastructure adapter. Tests use a conforming in-memory repository only where the same contract suite also runs against SQLite. Fault injection covers every commit boundary, restart/recovery, WAL checkpoint behavior, busy writers, concurrent readers, backup/restore, and projection rebuild/hash comparison.
 
@@ -228,19 +249,19 @@ Migration is copy-and-verify, never in-place conversion:
 3. migrate into a new SQLite database and CAS staging destination using a versioned idempotent migration ID;
 4. verify identifiers, ordering, grant/revocation state, semantic projection hashes, findings, artifact references, and visible demo outcomes;
 5. atomically switch the configured active-store pointer only after all checks pass;
-6. retain the JSON baseline, new database/CAS, and migration report through the 1B acceptance/retention window.
+6. retain the JSON baseline, accepted database/CAS evidence, and migration report permanently as regression and recovery evidence after 1B acceptance.
 
 JSON and SQLite never run as concurrent authoritative writers. A failed migration leaves the active pointer untouched and can safely restart against the staged destination. Rollback preserves the SQLite/CAS state for diagnosis and returns to the frozen JSON baseline only through an explicit operator action. If 1B accepted writes occurred after cutover, the service first creates a verified recovery bundle/down-export; it never silently loses those revisions merely to make older code start.
 
 C1A grant history is migrated for audit only. Every legacy grant is marked `LEGACY_UNBOUND` and cannot authorize a 1B call; the human must issue a new immutable 1B grant and create a new host binding. Unresolved legacy artifact URIs remain explicit `MISSING_ARTIFACT` findings and are never converted into invented CAS digests.
 
-### Portable bundle
+### Planned portable bundle
 
-A project bundle contains a versioned normalized manifest, event/revision data or a portable projection with audit data, referenced CAS blobs, adapter configuration, and integrity hashes. Import verifies every digest before making the project visible. Bundles do not include secrets or machine-specific absolute paths.
+A portable project bundle is not implemented in Checkpoint 1. Its target contract contains a versioned normalized manifest, event/revision data or a portable projection with audit data, referenced CAS blobs, adapter configuration, and integrity hashes. Import verifies every digest before making the project visible. Bundles do not include secrets or machine-specific absolute paths.
 
-## 8. Revision DAG and multi-agent work
+## 8. Planned V1 revision DAG and multi-agent work
 
-Every accepted semantic command creates one revision node, or a documented batch command creates one revision for its atomic event set. Nodes have one or more parents. Branch heads are mutable pointers updated by compare-and-swap; revisions are immutable.
+Checkpoint 1 creates a linear immutable revision sequence on the shared head and records a bound `branchId` only as authority metadata; isolated branch heads, merge commits, review disposition, and compensating reverts are not implemented. The target V1 model below adds a revision DAG: every accepted semantic command creates one revision node, or a documented batch command creates one revision for its atomic event set. Nodes have one or more parents. Branch heads are mutable pointers updated by compare-and-swap; revisions are immutable.
 
 The default agent workflow is:
 
@@ -257,13 +278,13 @@ Two commands cannot silently update the same aggregate version. Different agents
 
 Revert emits compensating semantic events on a new revision. History, attribution, and prior exported snapshots remain intact.
 
-## 9. Jobs and observability
+## 9. Planned jobs and expanded observability
 
-Image slicing batches, thumbnail generation, validation, generation-provider calls, bundle creation, and export are durable jobs. A job records input revision and artifact references so a retry cannot accidentally operate on newer state.
+Durable jobs are not implemented in Checkpoint 1. Checkpoint 1 durably records accepted semantic commands, while denied/failed Activity records remain the explicit `AGT-008` gap. In later checkpoints, image slicing batches, thumbnail generation, validation, generation-provider calls, bundle creation, and export are durable jobs. A job records input revision and artifact references so a retry cannot accidentally operate on newer state.
 
 Job states are `QUEUED`, `RUNNING`, `WAITING_FOR_USER`, `SUCCEEDED`, `FAILED`, and `CANCELLED`. State transitions append job events. Cancellation is cooperative and visible; non-cancellable commit windows are short and explicitly reported.
 
-All command, MCP request, validation run, and job events share correlation IDs. The production board consumes the same activity projection exposed to agents. Logs must redact tokens, grant secrets if any, prompts marked private, and machine-specific sensitive paths.
+The target observability model gives command, MCP request, validation run, and job events shared correlation IDs, and exposes the same redacted activity projection to humans and agents. Checkpoint 1 accepts optional command correlation context but does not yet implement the complete durable request/job correlation ledger. Logs must redact tokens, grant secrets if any, prompts marked private, and machine-specific sensitive paths.
 
 ## 10. Validation architecture
 
@@ -279,9 +300,9 @@ Validation layers:
 
 Pixel/image analysis produces suggestions and quality findings, not authoritative semantic state. Full compiler validation is run on every accepted edit when the existing Numberdroid authoring contract requires it; performance optimization may cache inputs but MUST not weaken the result.
 
-## 11. Deterministic export boundary
+## 11. Planned deterministic export boundary
 
-The application freezes an `ExportSnapshot` before invoking an adapter. The Numberdroid adapter then:
+The Numberdroid adapter and its golden fixtures are not implemented until Checkpoint 5. Its target flow begins when the application freezes an `ExportSnapshot`; the adapter then:
 
 1. verifies required finalized assets/rooms and artifact integrity;
 2. maps stable Studio identities to deterministic Numberdroid semantic IDs and paths;
@@ -297,20 +318,20 @@ GitHub integration receives files from a verified export manifest. It is downstr
 
 ## 12. Security and trust boundaries
 
-- The local service binds to loopback by default and refuses non-local connections unless explicitly configured.
+- The accepted local service is loopback-only and hard-refuses non-local bind addresses; no configuration may widen that listener.
 - MCP stdio is the initial 1B transport. Future network transports require per-call authenticated host context, origin controls, and TLS at the deployment boundary.
 - The 1B HTTP service refuses non-loopback bind addresses. Remote/team access must arrive through a separately authenticated deployment adapter; it cannot expose the local single-user API by changing the bind host.
 - Local host approval uses a raw loopback pairing listener rather than an HTTP/browser route for credential delivery. The verification request is in memory, expires quickly, is single-use, and disappears on service or host disconnect.
 - HostBinding coordinates never change. Any grant posture rotation revokes bindings before a new immutable grant can be host-bound; stale tokens cannot acquire new rights.
 - Grants are immutable, signed or server-authenticated capabilities identified by opaque IDs. Only authenticated human roles can mint or widen them.
-- The Header Agent mode control displays service-returned effective policy; its DOM/client state, selected label, and browser storage are never authorization inputs.
+- The Header Agent access control displays service-returned effective policy; its DOM/client state, selected label, and browser storage are never authorization inputs.
 - Tool payloads cannot name arbitrary filesystem paths. Imports use approved file handles/roots; exports use configured destinations and manifest-relative paths.
 - Archive and image processing defends against traversal, decompression bombs, oversized dimensions, malformed codecs, and symlink escapes.
 - Provider credentials remain in a local secret store and never enter project bundles, events, prompts returned to ungranted readers, or MCP logs.
 - Read resources enforce project and object scope, not only mutation tools.
 - Publish is a separate high-risk capability with short expiry and a complete preview/manifest.
 
-Threat-focused tests cover grant forgery/widening, expired/revoked grants, cross-project object references, stale replay, idempotency collisions, path traversal, artifact hash mismatch, oversized input, cancellation races, unauthorized resource reads, and publish escalation.
+Checkpoint 1 threat-focused tests cover its implemented grant/HostBinding forgery and widening paths, expired/revoked grants, cross-project references, stale replay, idempotency collisions, artifact/path validation, size/hash failures, cancellation at the atomic boundary, and unauthorized reads. Later feature checkpoints extend the suite to jobs, archives, providers, branch review, export, and publish escalation before those capabilities are advertised.
 
 ## 13. Standalone extraction
 
@@ -329,7 +350,7 @@ Extraction should require changing workspace/package publishing configuration, C
 
 ## 14. Architecture acceptance tests
 
-At each checkpoint, reviewers MUST be able to demonstrate:
+At each checkpoint, reviewers MUST be able to demonstrate the checks that correspond to capabilities implemented by that checkpoint. Checkpoint 1 proves package isolation, UI/MCP command equivalence for its implemented commands, SQLite/CAS migration and recovery, protected visual behavior, and fail-closed authority. Branch review/merge and Numberdroid export checks below are later-checkpoint targets, not Checkpoint 1 claims.
 
 - a forbidden import test prevents core packages from referencing UI/MCP/SQLite/Numberdroid;
 - the accepted 1A visual/demo baseline remains reproducible, and approved additive UI changes do not alter its command outcomes;
@@ -341,6 +362,6 @@ At each checkpoint, reviewers MUST be able to demonstrate:
 - resource authorization prevents cross-project reads;
 - artifact digest and bundle integrity failures are detected before use;
 - every Asset Library card renders either its authorized preview or a stable accessible fallback without exposing local paths;
-- an agent branch can be inspected, rejected, merged, and reverted without deleting history;
-- exports match golden manifests for stable fixtures;
+- once Checkpoint 4 implements task branches, an agent branch can be inspected, rejected, merged, and reverted without deleting history;
+- once Checkpoint 5 implements the adapter, exports match golden manifests for stable fixtures;
 - `AUTO_ACCEPTED_BY_POLICY` never appears as `USER_APPROVED`.

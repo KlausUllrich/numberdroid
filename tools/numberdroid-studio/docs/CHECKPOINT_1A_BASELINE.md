@@ -1,12 +1,12 @@
 # Checkpoint 1A — Accepted Visual Baseline
 
-Status: **visually accepted by the user on 2026-08-21** and protected during Checkpoint 1B.
+Status: **visually accepted by the user on 2026-08-21** and preserved as the permanent regression contract after Checkpoint 1B acceptance. Visual screenshot bytes have the separate retention limitation documented below.
 
-This record distinguishes what was accepted from what remains development-only. The visual shell, information hierarchy, observable command flow, and authority presentation are accepted. The JSON project store is not production persistence, the transport-neutral agent catalog is not a complete MCP server, and full Checkpoint 1 is not complete until 1B is accepted.
+This historical baseline record distinguishes what was accepted in 1A from what remained development-only at that time. The visual shell, information hierarchy, observable command flow, and authority presentation were accepted. The JSON project store was not production persistence and the transport-neutral agent catalog was not a complete MCP server. Checkpoint 1B subsequently replaced those operational paths with accepted SQLite/CAS persistence and the official MCP transport; full Checkpoint 1 is now complete.
 
 ## Protected experience
 
-Checkpoint 1B MUST preserve these baseline characteristics:
+Checkpoint 1B preserved, and later checkpoints MUST continue to preserve, these baseline characteristics:
 
 - the Numberdroid Studio top bar with active-project selection and explicit demo/status actions;
 - the ordered workspaces `Overview`, `Sources`, `Asset library`, `Rooms`, `Levels`, and `Activity`;
@@ -17,7 +17,7 @@ Checkpoint 1B MUST preserve these baseline characteristics:
 - keyboard-reachable navigation and textual state independent of color;
 - shared command behavior for human and host-injected agent calls.
 
-Checkpoint 1B may add the explicitly approved Header Agent mode selector and the Asset Library card preview/fallback. It MUST NOT use these additions to restructure navigation, remove the persistent activity context, change the accepted visual language broadly, or conceal revision/authority state. A broader redesign requires its own user verification.
+Checkpoint 1B was allowed to add the explicitly approved Header Agent access selector and the Asset Library card preview/fallback. It did not use these additions to restructure navigation, remove the persistent activity context, change the accepted visual language broadly, or conceal revision/authority state. A broader later redesign requires its own user verification.
 
 ## Protected behavior fixture
 
@@ -30,11 +30,11 @@ The accepted demo flow is the regression scenario:
 5. **Try agent after revoke** returns `GRANT_REVOKED` without creating a source, revision, or activity entry.
 6. Restarting against the same copied data directory preserves revision 6 and its audit history.
 
-The immutable source-baseline record is commit `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`, which published this document before 1B implementation commits. The release/checkpoint record MUST retain that SHA together with fixture file digests and representative screenshots; a mutable branch name is not sufficient evidence.
+The immutable source-baseline record is commit `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`, which published this document before 1B implementation commits. The release/checkpoint record MUST retain that SHA together with fixture file digests, capture instructions, and the visual evidence run/digest/viewport record; a mutable branch name is not sufficient evidence. The current screenshot bytes are retention-limited Actions output, not permanent repository goldens.
 
-## Required regression evidence before 1B cutover
+## Regression evidence delivered for 1B cutover
 
-The 1B implementation must produce one review bundle containing:
+The accepted 1B implementation produced one review bundle containing:
 
 - immutable 1A source commit SHA;
 - hashes of the protected JSON data/fixture files;
@@ -46,9 +46,9 @@ The 1B implementation must produce one review bundle containing:
 - dependency-boundary and UI/MCP command-equivalence results;
 - migration ID, destination schema version, database integrity result, and CAS manifest.
 
-Missing evidence blocks 1B cutover; it does not invalidate the 1A acceptance.
+The accepted evidence gate was satisfied. Any future missing or non-reproducible item is a regression; it does not invalidate the historical 1A acceptance.
 
-The machine-verifiable fixture evidence now lives in `fixtures/checkpoint-1a/`. Its protected revision-6 migration source manifest hash is `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`; `npm run evidence:verify` must reproduce the six-step control flow and verified parity report without changing either frozen JSON ledger. Representative screenshots remain pending until the 1B browser CI run and subsequent user visual acceptance.
+The machine-verifiable fixture evidence lives in `fixtures/checkpoint-1a/`. Its protected revision-6 migration source manifest hash is `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`; `npm run evidence:verify` must reproduce the six-step control flow and verified parity report without changing either frozen JSON ledger. The accepted 1B browser run delivered 26 representative screenshots at `1440×900` and `1060×900`; its durable evidence identity and the temporary artifact retention limit are recorded in `CHECKPOINT_1B_STATUS.md`.
 
 ## Migration and rollback protection
 
@@ -57,12 +57,12 @@ The machine-verifiable fixture evidence now lives in `fixtures/checkpoint-1a/`. 
 3. Verify IDs, ordering, revisions, activity, grants, validation, semantic projection hashes, and artifact references before switching the active-store pointer.
 4. Keep the pointer on JSON when migration or parity verification fails. The staged destination and report remain available for diagnosis or safe retry.
 5. After successful verification, stop the writer and switch one explicit active-store pointer. JSON and SQLite never serve as concurrent authoritative writers.
-6. Retain the protected JSON baseline, SQLite database, CAS, logs, and migration report through 1B user acceptance and the documented retention window.
+6. Retain the protected JSON baseline and stable machine-readable migration/evidence records permanently after 1B user acceptance. Operational database/CAS copies, logs, and screenshot artifacts follow their documented backup/retention policies and must not be called permanent unless actually published as protected evidence.
 7. If 1B receives writes after cutover, create and verify a recovery bundle/down-export before any software rollback. Returning to the frozen JSON baseline must state the revision boundary and cannot silently discard newer work.
 
 ## Additive 1B visual contract
 
-### Header Agent mode
+### Header Agent access
 
 The header gains one compact, persistent control with these options:
 
@@ -78,10 +78,10 @@ The control renders `REQUESTING`, active mode, `EXPIRED`, `REVOKED`, `DENIED`, a
 
 Every card reserves a small stable preview region. It shows an authorized artifact preview with transparency and aspect ratio preserved, or a distinct accessible fallback for `PROCESSING`, `MISSING`, `UNSUPPORTED`, or `LOAD_FAILED`. A fallback includes asset kind and textual state, never a local path, and leaves all semantic card actions usable.
 
-## Open visual decisions for the 1B checkpoint
+## Visual decisions resolved by the 1B checkpoint
 
-- Final compact label/icon treatment for the Header Agent mode control.
-- Whether the effective-policy detail opens as an anchored popover or a side panel. Checkpoint 1B uses a viewport-bounded popover; the later `Custom…` editor may use the existing detailed workspace/panel pattern.
-- Exact preview-region size and checkerboard treatment. The recommended default is a square region large enough to distinguish a floor surface from a prop while keeping current card density, using `contain` rather than cropping.
+- The Header control is labelled **Agent access**; semantic `Execute scoped task` is rendered compactly as **Scoped run**.
+- Effective-policy detail uses the accepted viewport-bounded anchored popover. The later `Custom…` editor may use the existing detailed workspace/panel pattern.
+- Asset cards use the accepted square preview/checkerboard treatment with `contain`, or a distinct accessible fallback.
 
-The options, security semantics, inactive/error states, warnings, and existence of a preview/fallback are already binding; only these presentation details remain for user verification.
+These accepted decisions remain the regression baseline. A later checkpoint may revisit them for a concrete defect or a deliberate new user checkpoint, not incidentally.

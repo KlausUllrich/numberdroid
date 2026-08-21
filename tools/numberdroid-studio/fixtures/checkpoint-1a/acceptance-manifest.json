@@ -15,7 +15,15 @@
     "projectStatus": "in_review"
   },
   "visualEvidence": {
-    "status": "PENDING_CI_AND_USER_ACCEPTANCE",
+    "status": "USER_ACCEPTED",
+    "acceptedAt": "2026-08-21",
+    "acceptedImplementationCommit": "41fad464cd2f904666f7dfecc8437f2286c3254c",
+    "workflowRunId": 32493595981,
+    "artifactId": 9450775977,
+    "artifactName": "numberdroid-studio-checkpoint-1b-visual",
+    "artifactDigest": "sha256:7fde350eb04be8c3bcc48098ac597d72ad8cf08dee1d652c1e0609755e0e997e",
+    "artifactRetentionThrough": "2026-09-04",
+    "permanentScreenshotBytesCommitted": false,
     "baselineViewports": [
       { "width": 1440, "height": 900 },
       { "width": 1060, "height": 900 }

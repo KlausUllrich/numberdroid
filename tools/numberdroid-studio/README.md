@@ -6,18 +6,18 @@ The product lives in this self-contained folder so it can be moved into a standa
 
 ## Status
 
-Checkpoint 1 is the foundation checkpoint and is deliberately split in two. **Checkpoint 1A was visually accepted by the user on 2026-08-21** and remains the protected baseline. **Checkpoint 1B is implemented as a verification candidate and is not yet user-accepted.** It preserves the shell while adding SQLite/CAS durability, an official MCP 2026-07-28 stdio transport, private human-approved host pairing, a service-backed Header Agent access selector, and preview/fallback regions on every Asset Library card. Asset cutting, room authoring, and runtime export follow as vertical slices; see the [current 1B status](docs/CHECKPOINT_1B_STATUS.md) and [roadmap](docs/ROADMAP.md).
+Checkpoint 1 is the foundation checkpoint and is deliberately split in two. **Checkpoint 1A and Checkpoint 1B were explicitly accepted by the user on 2026-08-21; Checkpoint 1 is complete.** The protected 1A shell remains a permanent regression baseline. The accepted 1B foundation adds SQLite/CAS durability, an official MCP 2026-07-28 stdio transport, private human-approved host pairing, a service-backed Header Agent access selector, and preview/fallback regions on every Asset Library card. Checkpoint 2 — source intake, visual atlas cutting, and semantic asset-library authoring — is next and is not implemented yet. See the [1B acceptance record](docs/CHECKPOINT_1B_STATUS.md) and [roadmap](docs/ROADMAP.md).
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoint 1B verification candidate; user acceptance pending |
-| Standalone boundary | Checkpoint 1A: package and dependency rules defined |
+| Product contract | Checkpoint 1 complete and user-accepted; Checkpoint 2 is next |
+| Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Protected 1A shell plus Header access pull-down, private host-pairing status, and Asset card previews/fallbacks |
 | Agent access | Official MCP 2026-07-28 stdio; immutable HostBindings; private loopback pairing; per-call grant validation |
 | Persistence | SQLite WAL ledger and SHA-256 CAS by default; JSON retained only for protected migration input/regression |
 | Numberdroid export | Adapter boundary specified; production publishing deferred |
 
-## Run the Checkpoint 1B candidate locally
+## Run the accepted Checkpoint 1 foundation locally
 
 Requirements: Node.js 22 or newer. Dependencies and the official MCP client/server versions are pinned by `package-lock.json`.
 
@@ -67,13 +67,13 @@ Migration writes a protected JSON copy, source manifest, parity report, and `cut
 
 `admin integrity` checks SQLite integrity and foreign keys plus every distinct referenced CAS object. It verifies that referenced metadata is `LIVE`, the digest-addressed object exists, its SHA-256 digest matches, and its byte length agrees with SQLite. It prints an `artifacts.findings` array and exits with status `2` whenever SQLite or any referenced artifact fails. An empty findings array with exit status `0` is required before cutover, backup, or recovery acceptance.
 
-## Protected 1A baseline and 1B additions
+## Accepted Checkpoint 1 baseline
 
-The accepted navigation, information hierarchy, revision/activity visibility, demo command outcomes, and host-injected authority behavior MUST remain reproducible throughout 1B. Before migration work, record the accepted source revision/commit, copy the JSON fixture read-only, capture its integrity manifest and expected counts/hashes, and retain representative screenshots. See [the baseline record](docs/CHECKPOINT_1A_BASELINE.md).
+The accepted navigation, information hierarchy, revision/activity visibility, demo command outcomes, and host-injected authority behavior MUST remain reproducible after 1B. The protected source commit, read-only JSON fixtures, integrity manifest, expected counts/hashes, reproducible browser capture workflow, and accepted run/digest/viewport record remain regression evidence for later checkpoints. The 26 screenshot bytes are currently only in a retention-limited Actions artifact; permanent screenshot goldens have not been published. See [the 1A baseline record](docs/CHECKPOINT_1A_BASELINE.md) and [1B acceptance record](docs/CHECKPOINT_1B_STATUS.md).
 
 Checkpoint 1B adds two approved visual requirements without authorizing a broader redesign:
 
-- a persistent Header **Agent mode** pull-down with implemented `Off`, `Read only`, and `Execute scoped task`; the visible `Propose in draft` and `Custom…` entries are marked for later and grant nothing until branch/editor workflows exist;
+- a persistent Header **Agent access** pull-down with implemented `Off`, `Read only`, and semantic `Execute scoped task` authority, rendered compactly as the user-accepted `Scoped run`; the visible `Propose in draft` and `Custom…` entries are marked for later and grant nothing until branch/editor workflows exist;
 - a small preview region on every Asset Library card, using an authorized image resource or an accessible kind-aware fallback for processing, missing, unsupported, or failed media.
 
 ## Product principles
@@ -86,23 +86,28 @@ Checkpoint 1B adds two approved visual requirements without authorizing a broade
 6. **Least authority for agents.** A human creates bounded grants. Reading, editing, finalizing, and publishing are distinct capabilities.
 7. **Exportable product.** No package except the Numberdroid adapter may depend on Numberdroid repository internals.
 
-## Checkpoint 1A implementation layout
+## Accepted Checkpoint 1 implementation layout
 
-Checkpoint 1A is intentionally dependency-free and compact:
+The accepted foundation currently uses these physical boundaries:
 
 ```text
 tools/numberdroid-studio/
-├── apps/studio-server/          # local dev host plus visual shell
+├── apps/
+│   ├── studio-server/           # one-writer local service plus visual shell
+│   ├── studio-mcp/              # official MCP stdio host and private bridge
+│   └── studio-admin/            # migration, integrity, backup, and restore CLI
 ├── packages/domain/             # contracts, validation, errors, command catalog
 ├── packages/application/        # command/query core and storage port
-├── packages/persistence/        # in-memory and atomic JSON development adapters
-├── packages/mcp-server/         # secured MCP-shaped catalog/dispatcher seam
-└── docs/
+├── packages/persistence/        # SQLite, CAS, migration, backup, JSON regression adapter
+├── packages/mcp-server/         # secured semantic catalog and official MCP adapter
+├── fixtures/                    # protected deterministic evidence
+├── scripts/                     # verification/evidence preparation
+└── docs/                        # product and architecture contracts
 ```
 
-These are physical package boundaries, not facade names: domain has no outward dependency, application owns the storage port, persistence implements it, and the MCP-shaped adapter calls application commands. The combined development server is transitional. No 1A package may import Numberdroid internals.
+These are physical package boundaries, not facade names: domain has no outward dependency, application owns the storage port, persistence implements it, and the MCP adapter calls application commands through the running one-writer service. The combined UI/service host remains an accepted transitional packaging choice. No accepted core package imports Numberdroid internals. Empty reserved package directories do not count as implemented packages or capabilities.
 
-## Workspace layout as the product grows
+## Target workspace layout as the product grows
 
 ```text
 tools/numberdroid-studio/
@@ -120,7 +125,7 @@ tools/numberdroid-studio/
 └── docs/                        # product and architecture contract
 ```
 
-The folders are introduced only when a checkpoint needs them. Empty scaffolding is avoided.
+This is a target topology, not a statement that every listed folder exists today. Folders are introduced only when a checkpoint needs them; empty scaffolding is avoided.
 
 ## Scope
 
@@ -135,6 +140,7 @@ Enemy/NPC design, enemy routes, NPC animation, combat encounter authoring, and f
 - [MCP contract](docs/MCP_CONTRACT.md)
 - [Roadmap and user checkpoints](docs/ROADMAP.md)
 - [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
+- [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)
 
 These documents are normative for the Studio implementation. If code and documentation disagree, the discrepancy must be resolved explicitly; it must not become an accidental new contract.
 
@@ -147,4 +153,4 @@ Stop the Studio process before moving a data directory. Prefer the verified admi
 3. To recover, stop Studio, rename the new data directory out of the way, restore the backup directory to `.numberdroid-studio/`, and restart.
 4. Run `npm run admin -- integrity <restored-directory>`, then confirm the expected project revision, activity count, and Asset previews before continuing work.
 
-Never merge data directories, copy only a live SQLite main file, edit ledgers manually, or reuse a restore destination. C1A migration is copy-and-verify into a new SQLite/CAS destination; the original baseline remains untouched until 1B acceptance. Cutover is explicit, JSON and SQLite are never concurrent authoritative writers, and rollback preserves the failed/new destination plus recovery evidence instead of silently discarding post-cutover work.
+Never merge data directories, copy only a live SQLite main file, edit ledgers manually, or reuse a restore destination. C1A migration is copy-and-verify into a new SQLite/CAS destination; the original baseline remains untouched as accepted regression and migration evidence even after 1B acceptance. Cutover is explicit, JSON and SQLite are never concurrent authoritative writers, and rollback preserves the failed/new destination plus recovery evidence instead of silently discarding post-cutover work.
