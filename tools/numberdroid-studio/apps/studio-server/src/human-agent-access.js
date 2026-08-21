@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { StudioError } from '../../../packages/domain/src/index.js';
 import { effectiveAgentAccessProjection } from './http-projections.js';
 
@@ -38,6 +38,10 @@ function latestGrant(snapshot) {
 
 function modeRank(mode) {
   return mode === 'off' ? 0 : (PRESETS[mode]?.rank ?? 0);
+}
+
+function stableOperationId(projectId, idempotencyKey) {
+  return createHash('sha256').update(`${projectId}\0${idempotencyKey}`, 'utf8').digest('hex').slice(0, 40);
 }
 
 function grantMatchesPreset(grant, mode) {
@@ -142,7 +146,6 @@ export function createHumanAgentAccessController({
   studioService,
   hostBindingStore = null,
   clock = () => new Date().toISOString(),
-  idFactory = randomUUID,
 } = {}) {
   if (!studioService) throw new TypeError('studioService is required.');
   const operations = new Map();
@@ -161,6 +164,11 @@ export function createHumanAgentAccessController({
     if (request.mode === currentPolicy.mode
       && currentPolicy.state.startsWith('ACTIVE')
       && grantMatchesPreset(currentActiveGrant, request.mode)) {
+      hostBindingStore?.alignBindingsToGrant({
+        projectId,
+        toGrantId: currentActiveGrant.id,
+        reboundBy: projectView.snapshot.project.ownerId,
+      });
       return { changed: false, effectivePolicy: await read(projectId) };
     }
     if (request.mode === 'off' && !activeGrant(projectView.snapshot, now)) {
@@ -215,10 +223,9 @@ export function createHumanAgentAccessController({
           },
         });
       }
-      if (hostBindingStore && target.id !== operation.newGrantId) {
-        hostBindingStore.rebindGrant({
+      if (hostBindingStore) {
+        hostBindingStore.alignBindingsToGrant({
           projectId,
-          fromGrantId: target.id,
           toGrantId: operation.newGrantId,
           reboundBy: projectView.snapshot.project.ownerId,
         });
@@ -250,14 +257,14 @@ export function createHumanAgentAccessController({
       return { ...structuredClone(result), idempotentReplay: true };
     }
 
-    const operationId = idFactory();
+    const operationId = stableOperationId(projectId, request.idempotencyKey);
     const operation = {
       fingerprint,
       revokeCommandId: `header-access.revoke.${operationId}`,
       revokeIdempotencyKey: `header-access.revoke.${operationId}`,
       issueCommandId: `header-access.issue.${operationId}`,
       issueIdempotencyKey: `header-access.issue.${operationId}`,
-      newGrantId: `grant.header-access.${idFactory()}`,
+      newGrantId: `grant.header-access.${operationId}`,
     };
     const run = mutationQueue.then(() => perform(projectId, request, operation));
     operation.promise = run;

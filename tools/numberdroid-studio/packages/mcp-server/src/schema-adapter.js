@@ -12,7 +12,15 @@ function singleType(schema) {
  */
 export function jsonSchemaToZod(schema) {
   if (!schema || typeof schema !== 'object') return z.unknown();
-  const { type, nullable } = singleType(schema);
+  const declaredTypes = Array.isArray(schema.type) ? schema.type : [schema.type];
+  const nonNullTypes = declaredTypes.filter((candidate) => candidate && candidate !== 'null');
+  const nullable = declaredTypes.includes('null');
+  if (!schema.enum && nonNullTypes.length > 1) {
+    const variants = nonNullTypes.map((type) => jsonSchemaToZod({ ...schema, type }));
+    const union = z.union(variants);
+    return nullable ? union.nullable() : union;
+  }
+  const { type } = singleType(schema);
   let result;
 
   if (schema.enum) {

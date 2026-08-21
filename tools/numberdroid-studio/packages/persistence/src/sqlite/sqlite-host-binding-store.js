@@ -168,6 +168,30 @@ export class SqliteHostBindingStore {
     });
   }
 
+  alignBindingsToGrant({ projectId, toGrantId, reboundBy }) {
+    const project = requireId(projectId, 'projectId');
+    const to = requireId(toGrantId, 'toGrantId');
+    requireId(reboundBy, 'reboundBy');
+    return this.#workspace.transaction((database) => {
+      const target = database.prepare(`
+        SELECT grant_id, agent_id, task_id, branch_id, authorization_status, status, revoked_at
+        FROM grants WHERE project_id = ? AND grant_id = ?
+      `).get(project, to);
+      invariant(target, 'GRANT_NOT_FOUND', 'HostBinding alignment requires the target grant.');
+      invariant(
+        target.authorization_status === 'ACTIVE' && target.status === 'ACTIVE' && target.revoked_at === null,
+        'GRANT_NOT_ACTIVE',
+        'HostBinding alignment target must be an active, non-legacy grant.',
+      );
+      const updated = database.prepare(`
+        UPDATE host_bindings SET grant_id = ?
+        WHERE project_id = ? AND agent_id = ? AND task_id = ? AND branch_id = ?
+          AND grant_id <> ? AND revoked_at IS NULL
+      `).run(to, project, target.agent_id, target.task_id, target.branch_id, to);
+      return { schemaVersion: 1, projectId: project, reboundBindings: Number(updated.changes) };
+    });
+  }
+
   listForProject(projectId) {
     const id = requireId(projectId, 'projectId');
     const now = requireIsoDate(this.#clock(), 'clock');

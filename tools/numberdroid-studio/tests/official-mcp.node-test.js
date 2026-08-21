@@ -118,7 +118,7 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
       },
     },
   });
-  assert.equal(mutation.isError, undefined);
+  assert.equal(mutation.isError, undefined, JSON.stringify(mutation));
   assert.equal(mutation.structuredContent.revision, 3);
   assert.equal(mutation.structuredContent.event.actor.id, AGENT.id);
   assert.doesNotMatch(JSON.stringify(mutation), /grant\.atlas|binding\./);
@@ -167,7 +167,7 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
     },
   });
   assert.equal(denied.isError, true);
-  assert.equal(denied.structuredContent.error.code, 'GRANT_REVOKED');
+  assert.match(denied.content[0].text, /GRANT_REVOKED/);
   assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 4);
 
   await client.close();
@@ -187,7 +187,7 @@ test('official stdio MCP rejects an unbound bearer without leaking it', async (c
     arguments: { schemaVersion: 1, projectId: PROJECT_ID },
   });
   assert.equal(denied.isError, true);
-  assert.equal(denied.structuredContent.error.code, 'HOST_BINDING_NOT_FOUND');
+  assert.match(denied.content[0].text, /HOST_BINDING_NOT_FOUND/);
   assert.doesNotMatch(JSON.stringify(denied), new RegExp(fakeToken));
   await client.close();
 });
