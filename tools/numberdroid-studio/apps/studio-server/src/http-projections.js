@@ -201,12 +201,45 @@ export function assetPreviewProjection(asset, source, { projectId = null } = {})
   return fallbackPreview(asset, 'PROCESSING');
 }
 
+export function sourcePreviewProjection(source, { projectId = null } = {}) {
+  if (!SUPPORTED_PREVIEW_MEDIA.has(source.mediaType)) {
+    return {
+      schemaVersion: 1,
+      state: 'UNSUPPORTED',
+      resourceUri: null,
+      alt: `${source.name} source preview unavailable`,
+      derivative: false,
+    };
+  }
+  const digest = /^studio:\/\/artifacts\/sha256\/([a-f0-9]{64})$/.exec(source.artifactUri ?? '')?.[1] ?? null;
+  if (!digest || !projectId) {
+    return {
+      schemaVersion: 1,
+      state: 'MISSING',
+      resourceUri: null,
+      alt: `${source.name} source preview unavailable`,
+      derivative: false,
+    };
+  }
+  return {
+    schemaVersion: 1,
+    state: 'READY',
+    resourceUri: `/api/projects/${encodeURIComponent(projectId)}/artifacts/sha256/${digest}`,
+    alt: `${source.name} original source preview`,
+    derivative: false,
+  };
+}
+
 export function projectHttpProjection(projectView) {
   const sourceById = new Map(projectView.snapshot.sources.map((source) => [source.id, source]));
   return {
     ...structuredClone(projectView),
     snapshot: {
       ...structuredClone(projectView.snapshot),
+      sources: projectView.snapshot.sources.map((source) => ({
+        ...structuredClone(source),
+        preview: sourcePreviewProjection(source, { projectId: projectView.projectId }),
+      })),
       assets: projectView.snapshot.assets.map((asset) => ({
         ...structuredClone(asset),
         preview: assetPreviewProjection(asset, sourceById.get(asset.sourceId), { projectId: projectView.projectId }),

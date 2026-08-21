@@ -64,6 +64,8 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **SRC-004.** Approval MUST be an explicit lifecycle transition. Importing, generating, or visually opening a source MUST NOT approve it.
 - **SRC-005.** A source MAY have multiple derived atlases and assets without copying the original bytes.
 - **SRC-006.** A configured generation provider MUST be invokable as a durable job with an explicit prompt, seed policy, parameters, output limits, cost/budget policy, and network-egress disclosure. Its result MUST create a complete `GenerationRecord` before it can be reviewed.
+- **SRC-007.** A staged source intake MUST remain project-scoped and recoverable until it is atomically claimed by a source revision or explicitly abandoned; an incomplete request MUST NOT create a partial source or silently release the staged reference.
+- **SRC-008.** Human upload and imported-generation provenance MUST be discriminated. Human uploads MUST NOT invent provider metadata; imported-generation records MUST name their provider/model and MUST NOT retain credentials, local paths, or arbitrary external URIs in generation parameters.
 
 ### 5.3 Atlas Cutter
 
@@ -193,7 +195,7 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **NFR-006 — Testability.** Domain and application logic MUST run without UI, MCP transport, or Numberdroid checkout. Adapter contract tests use deterministic fixtures.
 - **NFR-007 — Privacy.** Prompts, source images, and local paths remain local unless an explicit provider generation or publish action says otherwise.
 
-## 9. Checkpoint 1 acceptance criteria
+## 9. Checkpoint acceptance criteria
 
 Checkpoint 1 was split into two user-verifiable deliveries. Both were explicitly accepted on 2026-08-21, so the foundation checkpoint is complete and Checkpoint 2 is unblocked. Acceptance does not merge Draft PR #135 or imply release/publication authority.
 
@@ -232,6 +234,22 @@ Checkpoint 1 was split into two user-verifiable deliveries. Both were explicitly
 
 Checkpoint 1 is complete because both 1A and 1B were explicitly accepted. Checkpoint 2 must use the accepted SQLite/CAS store and official MCP boundary; it cannot regress to the JSON development store or host-only adapter.
 
+### Checkpoint 2A — source intake and review
+
+**Status: implementation candidate awaiting explicit user acceptance.** Passing automated or adversarial verification does not close the gate.
+
+1. A loopback human UI can stream a PNG/WebP of at most 16 MiB and 4096×4096 into project-scoped CAS with media, dimensions, byte length, and claimed SHA-256 verified before use.
+2. The staged intake is durable and idempotent. Commit atomically creates one V2 source revision, canonical source reference, lineage references, intake claim, Activity event, and grant artifact-byte charge; a fault leaves all of them at the prior state.
+3. A staged intake remains visible after restart and has explicit idempotent **Resume** and **Discard** recovery. Checkpoint 2A uses no automatic expiry.
+4. V2 provenance discriminates `human_upload` from `imported_generation`, validates existing project-live lineage artifacts and parent sources, bounds nested parameters, and rejects secret-bearing keys, paths, and external URI values.
+5. The lifecycle is explicit: `IMPORTED` or `GENERATED` → `REVIEWED` → `APPROVED_SOURCE` or terminal `REJECTED`. Opening or previewing does not approve; rejection requires a reason; owner decision is not advertised to agents.
+6. Preview serves the verified original CAS object through a same-origin resource with no derivative job. Source bytes, paths, credentials, and provider traffic never enter JSON/MCP payloads.
+7. SQLite schema v6 transactionally adds source intakes and final-only agent attempts. Integrity, migration-resume, backup, restore, and source-reopen tests cover their references and exact fixture bytes.
+8. An audit-ready SQLite MCP host advertises exactly the accepted five tools plus `studio_source_intake_commit` and `studio_source_review_propose`. The new commands require distinct scopes, project object scope, immutable HostBinding context, command/artifact budgets, and idempotent retry.
+9. Accepted agent commands remain semantic revision Activity entries. Every denied or failed mutation reaching `/internal/mcp/execute` after valid HostBinding resolution is durably appended once as a final redacted Activity record; inability to write that record fails closed. Pre-binding authentication/pairing failures remain operational security logs because no trusted project/actor exists to attribute.
+10. The real Family Hygiene source fixture retains SHA-256 `67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e`, 2,720,519 bytes, and 1254×1254 dimensions through intake, preview, review, and restart. Separate schema-v6 fixtures prove backup/restore and integrity preservation for claimed intake, lineage, and attempt state.
+11. Protected Checkpoint 1 command/evidence behavior and the legacy `source.register` contract remain unchanged. Atlas cutting, generated derivatives, provider invocation, durable image jobs, asset semantics, bundles, room work, and export remain later gates.
+
 ## 10. Open decisions and recommended defaults
 
 These are deliberately open until validated by implementation or user testing. The recommendation is binding only as an interim default.
@@ -248,6 +266,9 @@ These are deliberately open until validated by implementation or user testing. T
 | Auto acceptance | Allowed only for explicit low-risk policy scopes | Must never be reported as user approval. |
 | Header Agent access behavior | Accepted service-backed `Off`/read/`Scoped run` selector; draft/custom visible but fail-closed | `Scoped run` means `Execute scoped task`; the anchored detail popover is accepted. Revisit only for a concrete defect or the later Custom editor. |
 | Publish authority | Separate, short-lived human grant | Publishing is higher risk than authoring. |
+| First Checkpoint 2 fixture | Family Hygiene floor 2×2 candidate | User confirms at the 2A gate; replace only with another approved, hash-pinned source. |
+| Provider integration | No provider in 2A | Choose provider, egress, credential store, cost budget, and reproduction policy before network work. |
+| Staged-intake retention | Explicit durable Resume/Discard | Add expiry only with a visible retention policy and recovery evidence. |
 | Animation model | Reserved identity in V1, authoring in V2 | Avoids migration of asset and placement references. |
 
 Open product questions for later user checkpoints include: desired room canvas dimensions and zoom behavior, first canonical asset taxonomy, whether source generation providers are built in or imported by manifest, production bundle format, and the exact Level Compiler invocation boundary.

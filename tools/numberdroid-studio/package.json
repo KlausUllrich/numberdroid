@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "npm run check",
-    "check": "node --check packages/application/src/studio-service.js && node --check packages/mcp-server/src/index.js && node --check packages/mcp-server/src/official-server.js && node --check apps/studio-server/src/server.js && node --check apps/studio-server/src/mcp-pairing-broker.js && node --check apps/studio-mcp/src/main.js && node --check apps/studio-admin/src/main.js",
+    "check": "node --check packages/application/src/studio-service.js && node --check packages/persistence/src/sqlite/sqlite-source-intake-store.js && node --check packages/persistence/src/sqlite/sqlite-agent-attempt-store.js && node --check packages/mcp-server/src/index.js && node --check packages/mcp-server/src/official-server.js && node --check apps/studio-server/src/server.js && node --check apps/studio-server/src/mcp-pairing-broker.js && node --check apps/studio-server/public/app.js && node --check apps/studio-mcp/src/main.js && node --check apps/studio-admin/src/main.js",
     "dev": "node apps/studio-server/src/server.js",
     "demo:seed": "node apps/studio-server/src/seed-demo.js",
     "evidence:verify": "node scripts/checkpoint-1a-evidence.js",

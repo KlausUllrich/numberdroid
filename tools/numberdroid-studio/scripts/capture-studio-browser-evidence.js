@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -15,6 +15,7 @@ const domPath = domArgument ? resolve(domArgument) : null;
 const observationPath = outputPath.replace(/\.png$/i, '.observation.json');
 const expectedWorkspace = new URL(pageUrl).hash.slice(1) || 'overview';
 const agentAccessEvidence = new URL(pageUrl).searchParams.get('visualFixture') === 'agent-access';
+const checkpoint2aFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const profileDirectory = await mkdtemp(`${tmpdir()}/numberdroid-studio-chrome-`);
 
 function assert(condition, message) {
@@ -156,7 +157,14 @@ try {
        && document.documentElement.dataset.visualRevision === '7'
        && document.documentElement.dataset.visualActivityCount === '7'
        && document.documentElement.dataset.visualConnectionState === 'Live'`
-    : `document.getElementById('connection-label')?.textContent === 'Live'
+    : mode === 'checkpoint-2a'
+      ? `document.documentElement.dataset.visualEvidenceReady === 'true'
+         && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
+         && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-2a'
+         && document.documentElement.dataset.visualRevision === '4'
+         && document.documentElement.dataset.visualActivityCount === '5'
+         && document.documentElement.dataset.visualConnectionState === 'Live'`
+      : `document.getElementById('connection-label')?.textContent === 'Live'
        && document.getElementById('revision-label')?.textContent === 'Revision 5'
        && document.querySelector(${JSON.stringify(`[data-workspace="${expectedWorkspace}"]`)})?.classList.contains('active')`;
   const readyDeadline = Date.now() + 15_000;
@@ -173,6 +181,18 @@ try {
     await delay(100);
   }
   assert(ready, `${mode} ${expectedWorkspace} did not reach screenshot readiness.`);
+  if (mode === 'checkpoint-2a' && checkpoint2aFocus === 'approved-source') {
+    await devtools.send('Runtime.evaluate', {
+      expression: `document.querySelector('[data-source-id="source.family-hygiene-approved"]')?.scrollIntoView({ block: 'center' })`,
+      returnByValue: true,
+    }, sessionId);
+  }
+  if (mode === 'checkpoint-2a' && checkpoint2aFocus === 'staged-intake') {
+    await devtools.send('Runtime.evaluate', {
+      expression: `document.querySelector('.staged-source-intakes')?.scrollIntoView({ block: 'center' })`,
+      returnByValue: true,
+    }, sessionId);
+  }
   await devtools.send('Runtime.evaluate', {
     expression: `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`,
     awaitPromise: true,
@@ -222,6 +242,28 @@ try {
           objectFit: image ? getComputedStyle(image).objectFit : null,
         };
       });
+      const sources = [...document.querySelectorAll('.source-card')].map((source) => {
+        const preview = source.querySelector('.source-preview');
+        const image = preview?.querySelector('img');
+        return {
+          sourceId: source.dataset.sourceId,
+          text: source.textContent,
+          card: rect(source),
+          preview: rect(preview),
+          previewState: preview?.dataset.previewState ?? null,
+          loadedImage: Boolean(image?.complete && image.naturalWidth > 0),
+          objectFit: image ? getComputedStyle(image).objectFit : null,
+          actionCount: source.querySelectorAll('.source-review-actions button').length,
+        };
+      });
+      const stagedIntakes = [...document.querySelectorAll('.staged-source-intakes li')].map((intake) => ({
+        text: intake.textContent,
+        rect: rect(intake),
+        hasResume: Boolean(intake.querySelector('[data-resume-source-intake]')),
+        hasDiscard: Boolean(intake.querySelector('[data-discard-source-intake]')),
+      }));
+      const sourceForm = document.querySelector('[data-source-intake-form]');
+      const activityText = document.getElementById('workspace-content')?.textContent ?? '';
       return {
         workspace: ${JSON.stringify(expectedWorkspace)},
         viewport: { width: innerWidth, height: innerHeight, devicePixelRatio },
@@ -237,6 +279,16 @@ try {
         brandControlsOverlap: overlaps(brandRect, projectControlsRect),
         headerOutsideTopbar,
         cards,
+        sources,
+        stagedIntakes,
+        sourceForm: {
+          present: Boolean(sourceForm),
+          rect: rect(sourceForm),
+          labelledFields: sourceForm?.querySelectorAll('label').length ?? 0,
+          hasLiveStatus: sourceForm?.querySelector('[role="status"][aria-live="polite"]') !== null,
+          submitDisabled: sourceForm?.querySelector('button[type="submit"]')?.disabled ?? null,
+        },
+        activityText,
         agentPanel: {
           open: Boolean(panel && !panel.hidden && document.getElementById('agent-access-state')?.getAttribute('aria-expanded') === 'true'),
           visible: Boolean(panelRect && panelStyle && panelStyle.display !== 'none' && panelStyle.visibility !== 'hidden'
@@ -290,6 +342,49 @@ try {
     }
     if (agentAccessEvidence) {
       assert(layout.agentPanel.open && layout.agentPanel.visible, 'Agent access popover is not visibly contained in the screenshot viewport.');
+    }
+  }
+  if (mode === 'checkpoint-2a') {
+    assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
+      'Checkpoint 2A screenshot was taken before error-free readiness.');
+    assert(layout.projectId === 'numberdroid-studio-checkpoint-2a'
+      && layout.revision === 4 && layout.activityCount === 5 && layout.connectionState === 'Live',
+    'Checkpoint 2A screenshot is not bound to the prepared revision-4 fixture.');
+    if (expectedWorkspace === 'sources') {
+      const approved = layout.sources.find((source) => source.sourceId === 'source.family-hygiene-approved');
+      assert(layout.sources.length === 1, 'Checkpoint 2A source view must contain exactly the approved fixture source.');
+      assert(approved?.previewState === 'READY' && approved.loadedImage,
+        'The Family Hygiene original-source preview is not loaded.');
+      assert(approved.objectFit === 'contain', 'The original-source preview no longer preserves its aspect ratio.');
+      assert(approved.text.includes('APPROVED_SOURCE') && approved.text.includes('USER_APPROVED')
+        && approved.text.includes('human_upload') && approved.text.includes('1254×1254')
+        && approved.text.includes('2720519'), 'The approved source lifecycle/provenance/identity is not visible.');
+      assert(approved.actionCount === 0, 'An approved source still exposes a review mutation control.');
+      assert(layout.stagedIntakes.length === 1 && layout.stagedIntakes[0].hasResume
+        && layout.stagedIntakes[0].hasDiscard, 'The durable staged intake lacks Resume or Discard recovery.');
+      assert(layout.sourceForm.present && layout.sourceForm.labelledFields === 8
+        && layout.sourceForm.hasLiveStatus && layout.sourceForm.submitDisabled === false,
+      'The source intake form is missing its labelled fields, live status, or enabled submit control.');
+      if (checkpoint2aFocus === null) {
+        assert(layout.sourceForm.rect?.bottom > 0 && layout.sourceForm.rect?.y < height,
+          'The source intake form is not visible in the intake screenshot.');
+      }
+      if (checkpoint2aFocus === 'staged-intake') {
+        assert(layout.stagedIntakes[0].rect?.bottom > 0 && layout.stagedIntakes[0].rect?.y < height,
+          'The Resume/Discard recovery row is not visible in the recovery screenshot.');
+      }
+      if (checkpoint2aFocus === 'approved-source') {
+        assert(approved.card?.bottom > 0 && approved.card?.y < height
+          && approved.preview?.bottom > 0 && approved.preview?.y < height,
+        'The approved source and its original preview are not visible in the approved-source screenshot.');
+      }
+    }
+    if (expectedWorkspace === 'activity') {
+      assert(layout.activityText.includes('Agent command denied: GRANT_SCOPE_MISSING.')
+        && layout.activityText.includes('source.review.propose')
+        && layout.activityText.includes('atlas.agent'),
+      'The durable denied-attempt Activity evidence is not visible.');
+      assert(!layout.activityText.includes('audit-sentinel-secret'), 'Activity leaked the audit redaction sentinel.');
     }
   }
 

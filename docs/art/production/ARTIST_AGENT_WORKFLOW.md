@@ -413,7 +413,7 @@ Main Hall floor              LIVE_ACCEPTED v1
 Transfer Room floor/anchor   LIVE_ACCEPTED v1
 PRIMUS floor identity        LIVE_ACCEPTED v2
 Child floor identity         NEXT / not yet differentiated
-Hygiene floor identity       NEXT / not yet differentiated
+Hygiene floor source         SOURCE_APPROVED / runtime integration NEXT
 Wall AO / usage wear         NEXT floor-treatment systems
 Walls                        LIVE_ACCEPTED
 Doors                        LIVE_ACCEPTED

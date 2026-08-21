@@ -67,10 +67,22 @@ export class ContentAddressedArtifactStore {
     return join(this.#live, digest.slice(0, 2), digest.slice(2, 4), digest);
   }
 
-  async ingest(input, { mediaType, expectedDigest = null } = {}) {
+  async ingest(input, { mediaType, expectedDigest = null, limits = null } = {}) {
     await this.initialize();
-    const limit = this.#limits[mediaType];
-    invariant(limit, 'ARTIFACT_UNSUPPORTED_MEDIA', `Unsupported artifact media type: ${mediaType}.`, { mediaType });
+    const configuredLimit = this.#limits[mediaType];
+    invariant(configuredLimit, 'ARTIFACT_UNSUPPORTED_MEDIA', `Unsupported artifact media type: ${mediaType}.`, { mediaType });
+    const limit = limits === null ? configuredLimit : {
+      maxBytes: Math.min(configuredLimit.maxBytes, limits.maxBytes),
+      maxWidth: Math.min(configuredLimit.maxWidth, limits.maxWidth),
+      maxHeight: Math.min(configuredLimit.maxHeight, limits.maxHeight),
+    };
+    invariant(
+      Number.isInteger(limit.maxBytes) && limit.maxBytes > 0
+        && Number.isInteger(limit.maxWidth) && limit.maxWidth > 0
+        && Number.isInteger(limit.maxHeight) && limit.maxHeight > 0,
+      'VALIDATION_ERROR',
+      'Artifact intake limits must be positive integers.',
+    );
     if (expectedDigest !== null) this.#assertDigest(expectedDigest);
 
     const stagingPath = join(this.#staging, `${randomUUID()}.part`);

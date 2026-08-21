@@ -38,7 +38,11 @@ export async function createProject(studio) {
   return studio.execute(command({ commandId: 'cmd.create', idempotencyKey: 'idem.create' }), OWNER_CONTEXT);
 }
 
-export async function issueGrant(studio, { scopes = ['project.read', 'source.write', 'asset.write'], expectedVersion = 1 } = {}) {
+export async function issueGrant(studio, {
+  scopes = ['project.read', 'source.write', 'asset.write'],
+  expectedVersion = 1,
+  budget = { maxCommands: 100, maxJobs: 10, maxArtifactBytes: 536870912, maxCostCents: 0 },
+} = {}) {
   return studio.execute(command({
     commandId: 'cmd.grant',
     idempotencyKey: 'idem.grant',
@@ -51,7 +55,7 @@ export async function issueGrant(studio, { scopes = ['project.read', 'source.wri
       branchId: AGENT_CONTEXT.branchId,
       scopes,
       objectScopes: [{ kind: 'project', id: PROJECT_ID }],
-      budget: { maxCommands: 100, maxJobs: 10, maxArtifactBytes: 536870912, maxCostCents: 0 },
+      budget,
     },
   }), OWNER_CONTEXT);
 }

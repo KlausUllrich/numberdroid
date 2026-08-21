@@ -1,6 +1,6 @@
 # TS-01 Floor Treatment Brief / Recipe
 
-Status: **ACTIVE PRODUCTION — 2026-08-20; Family Living / Main Hall / Transfer Room / PRIMUS LIVE_ACCEPTED; Child/Hygiene + AO/wear/Flow still open**
+Status: **ACTIVE PRODUCTION — 2026-08-21; Family Living / Main Hall / Transfer Room / PRIMUS LIVE_ACCEPTED; Hygiene source approved with runtime integration open; Child + AO/wear/Flow still open**
 
 This brief defines the Gold-Slice floor-treatment pass for generated TS-01. The existing accepted Floor remains the **base material baseline**; this pass adds room identity, subtle age/use, contact grounding and functional floor integration without turning the Transfer Ship into a dirty industrial environment.
 
@@ -24,7 +24,7 @@ Room identity progress:
 ```text
 Family Living   LIVE_ACCEPTED v1
 Family Child    OPEN — currently inherits domestic/family treatment
-Family Hygiene  OPEN — currently inherits domestic/family treatment
+Family Hygiene  SOURCE_APPROVED — runtime materialization/integration still open
 Main Hall       LIVE_ACCEPTED v1
 Transfer Room   LIVE_ACCEPTED v1 incl. Hero floor anchoring
 PRIMUS          LIVE_ACCEPTED v2 — exact 2×2 macro fit + calm one-tile perimeter
@@ -33,7 +33,7 @@ PRIMUS          LIVE_ACCEPTED v2 — exact 2×2 macro fit + calm one-tile perime
 System progress:
 
 ```text
-B1 room identity        4 / 6 accepted
+B1 room identity        4 / 6 live accepted; Hygiene source approved
 B2 wall AO              OPEN
 B3 usage/wear           OPEN
 B4 Transfer anchor      LIVE_ACCEPTED v1
@@ -158,7 +158,7 @@ For TS-01 this means the PRIMUS room is intentionally 10×8 rather than 9×8.
 - modestly more micro-scuffing/use evidence;
 - no generic kids-room decals.
 
-### Family Hygiene — OPEN
+### Family Hygiene — SOURCE_APPROVED / RUNTIME OPEN
 
 - slightly cooler/denser/non-slip material character;
 - lower dirt level;
@@ -296,7 +296,7 @@ DONE  Transfer Room floor v1 + Hero anchor
 DONE  Main Hall floor v1 + semantic metadata proof
 DONE  PRIMUS floor v2 + exact macro-fit / calm perimeter
 NEXT  Child room floor identity
-NEXT  Hygiene room floor identity
+NEXT  Hygiene approved-source materialization and runtime integration
 OPEN  wall AO FloorFX
 OPEN  authored use/wear FloorFX
 OPEN  Flow shadow/collision/bus

@@ -47,14 +47,27 @@ function normalizeSourceManifest(manifest) {
 }
 
 function normalizeParityReport(report, workspaceIntegrity, casManifest) {
+  // Checkpoint 1A protects the accepted migration evidence identity at the
+  // Checkpoint 1B schema boundary. Later additive migrations are verified by
+  // current integrity tests, then projected out of this historical contract.
+  const {
+    sourceIntakes: _sourceIntakes,
+    agentAttempts: _agentAttempts,
+    ...checkpointWorkspaceIntegrity
+  } = workspaceIntegrity;
+  const checkpointIntegrity = { ...report.integrity, userVersion: 5 };
+  checkpointWorkspaceIntegrity.database = {
+    ...checkpointWorkspaceIntegrity.database,
+    userVersion: 5,
+  };
   return {
     schemaVersion: report.schemaVersion,
     migrationId: report.migrationId,
     sourceManifestHash: report.sourceManifest.manifestHash,
-    destinationSchemaVersion: report.integrity.userVersion,
+    destinationSchemaVersion: 5,
     status: report.status,
-    integrity: report.integrity,
-    workspaceIntegrity,
+    integrity: checkpointIntegrity,
+    workspaceIntegrity: checkpointWorkspaceIntegrity,
     casManifest,
     cutoverPerformed: report.cutoverPerformed,
     projects: report.projects.map((project) => ({

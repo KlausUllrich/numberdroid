@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -8,9 +8,11 @@ import { StudioError, asStudioError } from '../../../packages/domain/src/index.j
 import {
   ContentAddressedArtifactStore,
   JsonProjectStore,
+  SqliteAgentAttemptStore,
   SqliteArtifactMetadataStore,
   SqliteHostBindingStore,
   SqliteProjectStore,
+  SqliteSourceIntakeStore,
 } from '../../../packages/persistence/src/index.js';
 import { ensureDemoProject, runDemoAction } from './demo-project.js';
 import { createHumanAgentAccessController } from './human-agent-access.js';
@@ -28,6 +30,15 @@ const staticFiles = new Map([
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
 ]);
+const SECURITY_RESPONSE_HEADERS = {
+  'cross-origin-resource-policy': 'same-origin',
+  'referrer-policy': 'no-referrer',
+};
+const SOURCE_INTAKE_LIMITS = {
+  maxBytes: 16 * 1024 * 1024,
+  maxWidth: 4096,
+  maxHeight: 4096,
+};
 
 function sendJson(response, status, value) {
   const body = `${JSON.stringify(value)}\n`;
@@ -36,18 +47,20 @@ function sendJson(response, status, value) {
     'content-length': Buffer.byteLength(body),
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
+    ...SECURITY_RESPONSE_HEADERS,
   });
   response.end(body);
 }
 
 function errorStatus(error) {
   if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND'].includes(error.code)) return 404;
-  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE'].includes(error.code)) return 409;
+  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING'].includes(error.code)) return 409;
   if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
   if (error.code === 'ARTIFACT_TOO_LARGE') return 413;
   if (['ARTIFACT_DIGEST_MISMATCH', 'ARTIFACT_METADATA_CONFLICT'].includes(error.code)) return 409;
-  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED'].includes(error.code)) return 400;
-  if (error.code === 'ARTIFACT_STORE_DISABLED') return 503;
+  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_MALFORMED', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED', 'PROVENANCE_PARAMETER_FORBIDDEN'].includes(error.code)) return 400;
+  if (error.code === 'SOURCE_INTAKE_NOT_FOUND') return 404;
+  if (['ARTIFACT_STORE_DISABLED', 'SOURCE_INTAKE_STORE_DISABLED', 'AGENT_ATTEMPT_LEDGER_REQUIRED'].includes(error.code)) return 503;
   return 500;
 }
 
@@ -88,6 +101,7 @@ async function serveStatic(pathname, response) {
     'content-security-policy': "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'",
     'x-content-type-options': 'nosniff',
     'x-frame-options': 'DENY',
+    ...SECURITY_RESPONSE_HEADERS,
   });
   response.end(body);
 }
@@ -107,6 +121,25 @@ function agentBindingRoute(pathname) {
   return match ? {
     projectId: decodeURIComponent(match[1]),
     bindingId: match[2] ? decodeURIComponent(match[2]) : null,
+  } : null;
+}
+
+function sourceIntakeRoute(pathname) {
+  const match = /^\/api\/projects\/([^/]+)\/source-intakes(?:\/([^/]+)\/abandon)?$/.exec(pathname);
+  return match ? {
+    projectId: decodeURIComponent(match[1]),
+    intakeId: match[2] ? decodeURIComponent(match[2]) : null,
+  } : null;
+}
+
+function sourceMutationRoute(pathname) {
+  const collection = /^\/api\/projects\/([^/]+)\/sources$/.exec(pathname);
+  if (collection) return { projectId: decodeURIComponent(collection[1]), sourceId: null, resource: 'collection' };
+  const review = /^\/api\/projects\/([^/]+)\/sources\/([^/]+)\/review$/.exec(pathname);
+  return review ? {
+    projectId: decodeURIComponent(review[1]),
+    sourceId: decodeURIComponent(review[2]),
+    resource: 'review',
   } : null;
 }
 
@@ -195,7 +228,7 @@ function internalMcpErrorProjection(error) {
 }
 
 function validateMcpSourceArtifact(command, artifactMetadataStore) {
-  if (command.type !== 'source.register') return null;
+  if (!['source.register', 'source.intake.commit'].includes(command.type)) return null;
   if (!artifactMetadataStore) {
     throw new StudioError('ARTIFACT_STORE_DISABLED', 'MCP source registration requires the SQLite artifact store.');
   }
@@ -209,14 +242,87 @@ function validateMcpSourceArtifact(command, artifactMetadataStore) {
     throw new StudioError('ARTIFACT_NOT_LIVE', 'The source artifact must be uploaded, live, and referenced by this project before agent registration.');
   }
   if (artifact.mediaType !== command.payload.mediaType
+    || (command.type === 'source.intake.commit' && artifact.byteSize !== command.payload.byteSize)
     || artifact.width !== command.payload.width || artifact.height !== command.payload.height) {
     throw new StudioError('ARTIFACT_METADATA_CONFLICT', 'Source media type and dimensions must match verified CAS metadata.', {
       expectedMediaType: artifact.mediaType,
+      expectedByteSize: artifact.byteSize,
       expectedWidth: artifact.width,
       expectedHeight: artifact.height,
     });
   }
   return digest;
+}
+
+const ATTEMPT_DENIAL_CODES = new Set([
+  'FORBIDDEN', 'GRANT_REQUIRED', 'GRANT_NOT_FOUND', 'GRANT_REVOKED', 'GRANT_ACTOR_MISMATCH',
+  'GRANT_TASK_MISMATCH', 'GRANT_BRANCH_MISMATCH', 'GRANT_EXPIRED', 'GRANT_SCOPE_MISSING',
+  'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'CONTEXT_PROJECT_MISMATCH',
+  'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'ARTIFACT_URI_REQUIRED',
+]);
+
+function safeAttemptId(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value) ? value : null;
+}
+
+function attemptActivity(attempt) {
+  return {
+    id: `activity:${attempt.attemptId}`,
+    projectId: attempt.projectId,
+    revision: attempt.observedRevision,
+    occurredAt: attempt.occurredAt,
+    actor: attempt.actor,
+    taskId: attempt.taskId,
+    commandId: attempt.commandId,
+    commandType: attempt.commandType ?? 'unknown',
+    status: attempt.status.toLowerCase(),
+    summary: `Agent command ${attempt.status.toLowerCase()}: ${attempt.errorCode}.`,
+    changes: [],
+  };
+}
+
+function humanOwnerContext(projectView) {
+  return {
+    actor: { id: projectView.snapshot.project.ownerId, kind: 'human', displayName: 'Local designer' },
+    taskId: null,
+    grantId: null,
+    branchId: 'branch.main',
+    correlationId: `ui.${randomUUID()}`,
+  };
+}
+
+function humanCommandId(projectId, idempotencyKey, type) {
+  const suffix = createHash('sha256').update(`${projectId}\0${idempotencyKey}\0${type}`, 'utf8').digest('hex').slice(0, 32);
+  return `cmd.ui.${suffix}`;
+}
+
+function assertExactKeys(body, allowed, label) {
+  if (!body || Array.isArray(body) || typeof body !== 'object') {
+    throw new StudioError('VALIDATION_ERROR', `${label} must be an object.`);
+  }
+  if (Object.keys(body).some((key) => !allowed.has(key))) {
+    throw new StudioError('VALIDATION_ERROR', `${label} contains an unsupported field.`);
+  }
+}
+
+function humanCommandDto(projectId, body, type, payload) {
+  if (!safeAttemptId(body.idempotencyKey)) {
+    throw new StudioError('VALIDATION_ERROR', 'A valid idempotencyKey is required.');
+  }
+  if (!Number.isInteger(body.expectedRevision) || body.expectedRevision < 1) {
+    throw new StudioError('VALIDATION_ERROR', 'A valid expectedRevision is required.');
+  }
+  return {
+    schemaVersion: 1,
+    commandId: humanCommandId(projectId, body.idempotencyKey, type),
+    idempotencyKey: body.idempotencyKey,
+    type,
+    projectId,
+    baseRevision: body.expectedRevision,
+    expectedVersion: body.expectedRevision,
+    dryRun: false,
+    payload,
+  };
 }
 
 async function assertExecutableBindingPolicy(studioService, binding) {
@@ -242,6 +348,7 @@ function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoin
           NUMBERDROID_STUDIO_SERVICE_URL: `${origin.origin}/`,
           NUMBERDROID_STUDIO_PROJECT_ID: projectId,
           NUMBERDROID_STUDIO_PAIRING_ENDPOINT: pairingEndpoint,
+          NUMBERDROID_STUDIO_AGENT_AUDIT_READY: '1',
         },
       },
     },
@@ -255,6 +362,8 @@ export function createStudioHttpServer({
   pairingEndpoint = null,
   artifactStore = null,
   artifactMetadataStore = null,
+  sourceIntakeStore = null,
+  agentAttemptStore = null,
 }) {
   if (!studioService) throw new TypeError('studioService is required.');
   const humanUiCsrfToken = randomBytes(32).toString('base64url');
@@ -293,24 +402,58 @@ export function createStudioHttpServer({
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
         const binding = hostBindingStore.resolve(bearerToken(request));
-        const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
-        if (!body || Array.isArray(body) || typeof body !== 'object' || body.schemaVersion !== 1
-          || !body.command || Object.keys(body).some((key) => !['schemaVersion', 'command'].includes(key))) {
-          throw new StudioError('VALIDATION_ERROR', 'The MCP execution bridge requires schemaVersion 1 and a command DTO.');
+        const executionContext = bindingExecutionContext(binding);
+        const projectView = await studioService.readProjectTrusted(binding.projectId);
+        const attemptId = `attempt.${randomUUID()}`;
+        let definition = null;
+        let commandId = null;
+        let result;
+        try {
+          const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
+          if (!body || Array.isArray(body) || typeof body !== 'object' || body.schemaVersion !== 1
+            || !body.command || Object.keys(body).some((key) => !['schemaVersion', 'command'].includes(key))) {
+            throw new StudioError('VALIDATION_ERROR', 'The MCP execution bridge requires schemaVersion 1 and a command DTO.');
+          }
+          definition = studioService.commandCatalog.find((candidate) => candidate.type === body.command.type);
+          commandId = safeAttemptId(body.command.commandId);
+          if (body.command.projectId !== binding.projectId) {
+            throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside this HostBinding.', {
+              requestedProjectId: body.command.projectId,
+              contextProjectId: binding.projectId,
+            });
+          }
+          if (definition?.requiresDurableAgentLedger && agentAttemptStore?.isLive !== true) {
+            throw new StudioError('AGENT_ATTEMPT_LEDGER_REQUIRED', 'This agent mutation is disabled until a durable attempt ledger is available.');
+          }
+          await assertExecutableBindingPolicy(studioService, binding);
+          validateMcpSourceArtifact(body.command, artifactMetadataStore);
+          result = await studioService.execute(
+            body.command,
+            executionContext,
+            { signal: requestAbort.signal },
+          );
+        } catch (rawError) {
+          const error = asStudioError(rawError);
+          if (agentAttemptStore?.isLive === true) {
+            agentAttemptStore.recordFailure({
+              attemptId,
+              projectId: binding.projectId,
+              correlationId: executionContext.correlationId,
+              actorId: binding.actor.id,
+              taskId: safeAttemptId(binding.taskId),
+              branchId: binding.branchId,
+              commandId,
+              commandType: definition?.type ?? 'unknown',
+              targetKind: 'project',
+              targetId: binding.projectId,
+              observedRevision: projectView.revision,
+              status: ATTEMPT_DENIAL_CODES.has(error.code) ? 'DENIED' : 'FAILED',
+              errorCode: error.code,
+              details: redactInternalDetails(error.details),
+            });
+          }
+          throw error;
         }
-        if (body.command.projectId !== binding.projectId) {
-          throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside this HostBinding.', {
-            requestedProjectId: body.command.projectId,
-            contextProjectId: binding.projectId,
-          });
-        }
-        await assertExecutableBindingPolicy(studioService, binding);
-        const sourceDigest = validateMcpSourceArtifact(body.command, artifactMetadataStore);
-        const result = await studioService.execute(
-          body.command,
-          bindingExecutionContext(binding),
-          { signal: requestAbort.signal },
-        );
         sendJson(response, 200, result);
         return;
       }
@@ -334,6 +477,126 @@ export function createStudioHttpServer({
           bindingExecutionContext(binding),
           { signal: requestAbort.signal },
         ));
+        return;
+      }
+      const sourceIntake = sourceIntakeRoute(url.pathname);
+      if (request.method === 'POST' && sourceIntake && sourceIntake.intakeId === null) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        if (!artifactStore || !sourceIntakeStore) {
+          throw new StudioError('SOURCE_INTAKE_STORE_DISABLED', 'Source intake requires the SQLite content-addressed store.');
+        }
+        const idempotencyKey = request.headers['x-numberdroid-idempotency-key'];
+        if (!safeAttemptId(idempotencyKey)) {
+          throw new StudioError('VALIDATION_ERROR', 'A valid x-numberdroid-idempotency-key header is required.');
+        }
+        const origin = request.headers['x-numberdroid-source-origin'] ?? 'human_upload';
+        if (!['human_upload', 'imported_generation'].includes(origin)) {
+          throw new StudioError('VALIDATION_ERROR', 'Invalid x-numberdroid-source-origin header.');
+        }
+        const projectView = await studioService.readProjectTrusted(sourceIntake.projectId);
+        const mediaType = String(request.headers['content-type'] ?? '').split(';', 1)[0].trim().toLowerCase();
+        const expectedDigest = request.headers['x-numberdroid-expected-sha256'] ?? null;
+        const declaredLength = Number(request.headers['content-length'] ?? 0);
+        if (Number.isFinite(declaredLength) && declaredLength > SOURCE_INTAKE_LIMITS.maxBytes) {
+          throw new StudioError('ARTIFACT_TOO_LARGE', 'Source intake exceeds the synchronous byte limit.', { maxBytes: SOURCE_INTAKE_LIMITS.maxBytes });
+        }
+        const ingested = await artifactStore.ingest(request, {
+          mediaType,
+          expectedDigest,
+          limits: SOURCE_INTAKE_LIMITS,
+        });
+        const intake = sourceIntakeStore.stage(ingested, {
+          projectId: sourceIntake.projectId,
+          intakeId: `intake.${randomUUID()}`,
+          idempotencyKey,
+          origin,
+          createdRevision: projectView.revision,
+        });
+        sendJson(response, intake.replayed ? 200 : 201, {
+          schemaVersion: 1,
+          projectId: sourceIntake.projectId,
+          intakeId: intake.intakeId,
+          state: intake.state,
+          origin: intake.origin,
+          replayed: intake.replayed,
+          artifact: {
+            ...intake.intake.artifact,
+            resourceUri: `/api/projects/${encodeURIComponent(sourceIntake.projectId)}/artifacts/sha256/${intake.digest}`,
+            deduplicated: ingested.deduplicated,
+          },
+        });
+        return;
+      }
+      if (request.method === 'GET' && sourceIntake && sourceIntake.intakeId === null) {
+        await studioService.readProjectTrusted(sourceIntake.projectId);
+        if (!sourceIntakeStore) throw new StudioError('SOURCE_INTAKE_STORE_DISABLED', 'Source intake requires SQLite.');
+        sendJson(response, 200, {
+          schemaVersion: 1,
+          projectId: sourceIntake.projectId,
+          intakes: sourceIntakeStore.list(sourceIntake.projectId).map(({ idempotencyKey: _idempotencyKey, ...intake }) => intake),
+        });
+        return;
+      }
+      if (request.method === 'POST' && sourceIntake?.intakeId) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        if (!sourceIntakeStore) throw new StudioError('SOURCE_INTAKE_STORE_DISABLED', 'Source intake requires SQLite.');
+        const body = await readJsonBody(request, { maxBytes: 1024 });
+        assertExactKeys(body, new Set(['idempotencyKey']), 'Source intake abandon request');
+        const projectView = await studioService.readProjectTrusted(sourceIntake.projectId);
+        const abandoned = sourceIntakeStore.abandon(sourceIntake.projectId, sourceIntake.intakeId, {
+          idempotencyKey: body.idempotencyKey,
+          abandonedBy: projectView.snapshot.project.ownerId,
+        });
+        const { idempotencyKey: _uploadKey, intake: _intake, ...safeAbandoned } = abandoned;
+        sendJson(response, 200, { schemaVersion: 1, ...safeAbandoned });
+        return;
+      }
+      const sourceMutation = sourceMutationRoute(url.pathname);
+      if (request.method === 'POST' && sourceMutation?.resource === 'collection') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 128 * 1024 });
+        assertExactKeys(body, new Set([
+          'expectedRevision', 'idempotencyKey', 'intakeId', 'sourceId', 'name', 'artifactUri',
+          'mediaType', 'byteSize', 'width', 'height', 'provenance',
+        ]), 'Source commit request');
+        const projectView = await studioService.readProjectTrusted(sourceMutation.projectId);
+        const command = humanCommandDto(sourceMutation.projectId, body, 'source.intake.commit', {
+          intakeId: body.intakeId,
+          sourceId: body.sourceId,
+          name: body.name,
+          artifactUri: body.artifactUri,
+          mediaType: body.mediaType,
+          byteSize: body.byteSize,
+          width: body.width,
+          height: body.height,
+          provenance: body.provenance,
+        });
+        sendJson(response, 200, await studioService.execute(command, humanOwnerContext(projectView), { signal: requestAbort.signal }));
+        return;
+      }
+      if (request.method === 'POST' && sourceMutation?.resource === 'review') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 8192 });
+        assertExactKeys(body, new Set([
+          'expectedRevision', 'idempotencyKey', 'action', 'disposition', 'note', 'confirm',
+        ]), 'Source review request');
+        if (!['propose', 'decide'].includes(body.action)) {
+          throw new StudioError('VALIDATION_ERROR', 'Source review action must be propose or decide.');
+        }
+        if (body.action === 'decide' && body.confirm !== true) {
+          throw new StudioError('FORBIDDEN', 'A source review decision requires explicit human confirmation.');
+        }
+        if (body.action === 'decide' && body.disposition === 'REJECTED'
+          && (typeof body.note !== 'string' || !body.note.trim())) {
+          throw new StudioError('VALIDATION_ERROR', 'A rejection note is required.');
+        }
+        const projectView = await studioService.readProjectTrusted(sourceMutation.projectId);
+        const type = body.action === 'propose' ? 'source.review.propose' : 'source.review.decide';
+        const payload = body.action === 'propose'
+          ? { sourceId: sourceMutation.sourceId, note: body.note ?? null }
+          : { sourceId: sourceMutation.sourceId, disposition: body.disposition, note: body.note ?? null };
+        const command = humanCommandDto(sourceMutation.projectId, body, type, payload);
+        sendJson(response, 200, await studioService.execute(command, humanOwnerContext(projectView), { signal: requestAbort.signal }));
         return;
       }
       const artifact = artifactRoute(url.pathname);
@@ -389,6 +652,7 @@ export function createStudioHttpServer({
           'cache-control': 'private, max-age=31536000, immutable',
           'content-security-policy': "default-src 'none'; frame-ancestors 'none'",
           'x-content-type-options': 'nosniff',
+          ...SECURITY_RESPONSE_HEADERS,
         });
         stream.on('error', (error) => response.destroy(error));
         stream.pipe(response);
@@ -421,10 +685,15 @@ export function createStudioHttpServer({
       }
       if (request.method === 'GET' && project?.resource === 'activity') {
         const afterRevision = Number(url.searchParams.get('afterRevision') ?? 0);
+        const committedEvents = await studioService.listActivityTrusted(project.projectId, { afterRevision });
+        const attemptEvents = (agentAttemptStore?.listForProject(project.projectId, { afterRevision }) ?? [])
+          .map(attemptActivity);
         sendJson(response, 200, {
           schemaVersion: 1,
           projectId: project.projectId,
-          events: await studioService.listActivityTrusted(project.projectId, { afterRevision }),
+          events: [...committedEvents, ...attemptEvents].sort((left, right) => (
+            left.occurredAt.localeCompare(right.occurredAt) || left.id.localeCompare(right.id)
+          )),
         });
         return;
       }
@@ -473,7 +742,7 @@ export function createStudioHttpServer({
         });
         return;
       }
-      response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+      response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', ...SECURITY_RESPONSE_HEADERS });
       response.end('Not found\n');
     } catch (rawError) {
       if (requestAbort.signal.aborted && response.destroyed) return;
@@ -507,7 +776,7 @@ export async function startStudioHttpServer({
   const store = storeMode === 'sqlite'
     ? await SqliteProjectStore.open({ filename: resolve(dataDirectory, 'studio.sqlite') })
     : new JsonProjectStore({ directory: dataDirectory });
-  const studioService = new StudioService({ store, clock });
+  const studioService = new StudioService({ store, clock, agentAttemptAuditReady: storeMode === 'sqlite' });
   const hostBindingStore = storeMode === 'sqlite'
     ? new SqliteHostBindingStore({ workspace: store.workspace })
     : null;
@@ -525,6 +794,12 @@ export async function startStudioHttpServer({
   const artifactMetadataStore = storeMode === 'sqlite'
     ? new SqliteArtifactMetadataStore({ workspace: store.workspace })
     : null;
+  const sourceIntakeStore = storeMode === 'sqlite'
+    ? new SqliteSourceIntakeStore({ workspace: store.workspace })
+    : null;
+  const agentAttemptStore = storeMode === 'sqlite'
+    ? new SqliteAgentAttemptStore({ workspace: store.workspace })
+    : null;
   const server = createStudioHttpServer({
     studioService,
     hostBindingStore,
@@ -532,6 +807,8 @@ export async function startStudioHttpServer({
     pairingEndpoint,
     artifactStore,
     artifactMetadataStore,
+    sourceIntakeStore,
+    agentAttemptStore,
   });
   if (typeof store.close === 'function') server.once('close', () => store.close());
   if (pairing) server.once('close', () => pairing.close().catch(() => {}));
@@ -547,6 +824,8 @@ export async function startStudioHttpServer({
     pairingEndpoint,
     artifactStore,
     artifactMetadataStore,
+    sourceIntakeStore,
+    agentAttemptStore,
     address: server.address(),
     dataDirectory,
     storeMode,

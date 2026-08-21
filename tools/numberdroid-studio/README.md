@@ -6,18 +6,18 @@ The product lives in this self-contained folder so it can be moved into a standa
 
 ## Status
 
-Checkpoint 1 is the foundation checkpoint and is deliberately split in two. **Checkpoint 1A and Checkpoint 1B were explicitly accepted by the user on 2026-08-21; Checkpoint 1 is complete.** The protected 1A shell remains a permanent regression baseline. The accepted 1B foundation adds SQLite/CAS durability, an official MCP 2026-07-28 stdio transport, private human-approved host pairing, a service-backed Header Agent access selector, and preview/fallback regions on every Asset Library card. Checkpoint 2 — source intake, visual atlas cutting, and semantic asset-library authoring — is next and is not implemented yet. See the [1B acceptance record](docs/CHECKPOINT_1B_STATUS.md) and [roadmap](docs/ROADMAP.md).
+Checkpoint 1 is the accepted foundation. **Checkpoint 2A is now an implementation candidate awaiting the user's major-checkpoint review; it is not accepted, merged, or released.** The candidate adds bounded PNG/WebP intake into project-scoped CAS, resumable staged intake, provider-neutral provenance/lineage, original-byte preview, explicit owner approval/rejection, schema v6 recovery, and durable redacted denied/failed Activity records for bound agent mutations. Atlas cutting and asset-library semantics remain in 2B/2C. See the [2A candidate record](docs/CHECKPOINT_2A_STATUS.md), [1B acceptance record](docs/CHECKPOINT_1B_STATUS.md), and [roadmap](docs/ROADMAP.md).
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoint 1 complete and user-accepted; Checkpoint 2 is next |
+| Product contract | Checkpoint 1 accepted; Checkpoint 2A candidate pending user review |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
-| Human UI | Protected 1A shell plus Header access pull-down, private host-pairing status, and Asset card previews/fallbacks |
-| Agent access | Official MCP 2026-07-28 stdio; immutable HostBindings; private loopback pairing; per-call grant validation |
-| Persistence | SQLite WAL ledger and SHA-256 CAS by default; JSON retained only for protected migration input/regression |
+| Human UI | Protected shell plus source import, staged-intake recovery, original preview, and explicit source review |
+| Agent access | Seven tools when the SQLite attempt ledger is live; owner decision remains human-only |
+| Persistence | SQLite schema v6 WAL ledger and SHA-256 CAS; JSON remains protected migration input/regression only |
 | Numberdroid export | Adapter boundary specified; production publishing deferred |
 
-## Run the accepted Checkpoint 1 foundation locally
+## Run the Checkpoint 2A candidate locally
 
 Requirements: Node.js 22 or newer. Dependencies and the official MCP client/server versions are pinned by `package-lock.json`.
 
@@ -29,9 +29,11 @@ npm run evidence:verify
 npm run dev
 ```
 
-Open `http://127.0.0.1:4317`, choose **Create / load demo**, and inspect Overview, Sources, Asset library, and Activity. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is the authoritative ledger, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
+Open `http://127.0.0.1:4317`, choose **Create / load demo**, then open **Sources**. Import a PNG or WebP, inspect the original CAS preview and provenance, choose **Propose for review**, and explicitly approve or reject it. A staged upload that did not commit remains visible with **Resume** and **Discard** controls after restart. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is authoritative, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
 
-Checkpoint 1B is deliberately single-user and refuses a non-loopback HTTP listener. A future remote/team deployment requires authenticated HTTP/TLS and is a separate adapter, not an environment-variable widening of this local service.
+Checkpoint 2A source intake is synchronous and bounded to 16 MiB and 4096×4096. It calls no provider, creates no image-processing job or derivative thumbnail, and never sends the source off-device. The preview serves the verified original CAS bytes. Provider selection, egress, credentials, cost policy, and reproducibility expectations require a later explicit decision.
+
+The candidate remains deliberately single-user and refuses a non-loopback HTTP listener. A future remote/team deployment requires authenticated HTTP/TLS and is a separate adapter, not an environment-variable widening of this local service.
 
 The server enforces one authoritative SQLite writer. `NUMBERDROID_STUDIO_STORE=json npm run dev` launches the protected JSON regression adapter explicitly; never run JSON and SQLite as simultaneous writers for the same logical workspace.
 
@@ -66,6 +68,8 @@ npm run admin -- restore /path/to/new-backup /path/to/new-restored-data
 Migration writes a protected JSON copy, source manifest, parity report, and `cutoverPerformed: false`; selecting the new data directory remains an explicit operator step. If migration stops, rerun the exact same command with the same frozen source, destination, and migration ID. The destination identity and every already-copied project are verified before continuation; never rename or edit the intent file to force reuse of another store.
 
 `admin integrity` checks SQLite integrity and foreign keys plus every distinct referenced CAS object. It verifies that referenced metadata is `LIVE`, the digest-addressed object exists, its SHA-256 digest matches, and its byte length agrees with SQLite. It prints an `artifacts.findings` array and exits with status `2` whenever SQLite or any referenced artifact fails. An empty findings array with exit status `0` is required before cutover, backup, or recovery acceptance.
+
+Schema v6 also verifies staged/claimed/abandoned source-intake references, permanent source-lineage references, and the final-only denied/failed agent-attempt ledger. Migration 0006 is transactional and restart-tested; backup and restore preserve both tables with their referenced CAS objects.
 
 ## Accepted Checkpoint 1 baseline
 
@@ -141,6 +145,7 @@ Enemy/NPC design, enemy routes, NPC animation, combat encounter authoring, and f
 - [Roadmap and user checkpoints](docs/ROADMAP.md)
 - [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
 - [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)
+- [Checkpoint 2A candidate](docs/CHECKPOINT_2A_STATUS.md)
 
 These documents are normative for the Studio implementation. If code and documentation disagree, the discrepancy must be resolved explicitly; it must not become an accidental new contract.
 

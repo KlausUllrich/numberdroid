@@ -23,9 +23,26 @@ const state = {
   mcpLauncherConfig: null,
   showMcpLauncherConfig: false,
   labResult: null,
+  sourceMutationPending: false,
+  sourceIntakes: [],
+  sourceDraft: null,
+  resumingIntakeId: null,
+  sourceOperationKeys: new Map(),
   workspace: location.hash.slice(1) || 'overview',
   refreshing: false,
 };
+
+function sourceOperationKey(operation, target = 'pending') {
+  const key = `${operation}:${state.project?.projectId ?? 'none'}:${target}`;
+  if (!state.sourceOperationKeys.has(key)) {
+    state.sourceOperationKeys.set(key, `${operation}.${crypto.randomUUID()}`);
+  }
+  return state.sourceOperationKeys.get(key);
+}
+
+function clearSourceOperationKey(operation, target = 'pending') {
+  state.sourceOperationKeys.delete(`${operation}:${state.project?.projectId ?? 'none'}:${target}`);
+}
 
 const elements = Object.fromEntries(
   [
@@ -52,6 +69,11 @@ async function api(path, options = {}) {
     throw error;
   }
   return body;
+}
+
+async function sha256Hex(blob) {
+  const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function showToast(message) {
@@ -227,6 +249,40 @@ function assetPreview(asset) {
   return figure;
 }
 
+function sourcePreview(source) {
+  const preview = source.preview;
+  if (preview?.state !== 'READY' || !preview.resourceUri) {
+    const fallback = document.createElement('div');
+    fallback.className = 'source-preview fallback';
+    fallback.dataset.previewState = preview?.state ?? 'MISSING';
+    fallback.setAttribute('role', 'img');
+    fallback.setAttribute('aria-label', preview?.alt ?? `${source.name} source preview unavailable`);
+    const label = document.createElement('strong');
+    label.textContent = preview?.state === 'UNSUPPORTED' ? 'Unsupported source media' : 'Original source unavailable';
+    fallback.append(label);
+    return fallback;
+  }
+  const figure = document.createElement('figure');
+  figure.className = 'source-preview ready';
+  figure.dataset.previewState = 'READY';
+  const image = document.createElement('img');
+  image.src = preview.resourceUri;
+  image.alt = preview.alt || `${source.name} original source preview`;
+  image.loading = visualFixture ? 'eager' : 'lazy';
+  image.decoding = 'async';
+  image.addEventListener('error', () => {
+    const failed = document.createElement('div');
+    failed.className = 'source-preview fallback';
+    failed.dataset.previewState = 'LOAD_FAILED';
+    failed.setAttribute('role', 'img');
+    failed.setAttribute('aria-label', `${source.name} original source preview failed to load`);
+    const label = document.createElement('strong'); label.textContent = 'Original source failed to load';
+    failed.append(label); figure.replaceWith(failed);
+  }, { once: true });
+  figure.append(image);
+  return figure;
+}
+
 function card(title, tag, body, properties = []) {
   const article = document.createElement('article');
   article.className = 'card';
@@ -277,6 +333,129 @@ function sectionHeading(title, description) {
   copy.append(heading, paragraph);
   wrapper.append(copy);
   return wrapper;
+}
+
+function labeledField(labelText, input) {
+  const label = document.createElement('label');
+  const copy = document.createElement('span'); copy.textContent = labelText;
+  label.append(copy, input);
+  return label;
+}
+
+function sourceIntakePanel() {
+  const stagedIntake = state.sourceIntakes.find((intake) => (
+    intake.state === 'STAGED' && intake.intakeId === state.resumingIntakeId
+  ));
+  const draft = state.sourceDraft ?? {};
+  const form = document.createElement('form');
+  form.className = 'source-intake-form';
+  form.dataset.sourceIntakeForm = '';
+  const heading = document.createElement('div');
+  const title = document.createElement('h2'); title.textContent = stagedIntake ? 'Resume staged source' : 'Import source';
+  const help = document.createElement('p');
+  help.textContent = 'PNG or WebP is ingested into project-scoped CAS first, then committed through one semantic intake command. No provider is called.';
+  heading.append(title, help);
+
+  const file = document.createElement('input');
+  file.type = 'file'; file.name = 'file'; file.accept = 'image/png,image/webp'; file.required = !stagedIntake;
+  file.disabled = Boolean(stagedIntake);
+  const sourceId = document.createElement('input');
+  sourceId.name = 'sourceId'; sourceId.required = true; sourceId.maxLength = 128; sourceId.placeholder = 'source.family-hygiene-floor';
+  sourceId.pattern = '[A-Za-z0-9][A-Za-z0-9._:-]{0,127}';
+  sourceId.value = draft.sourceId ?? '';
+  const name = document.createElement('input');
+  name.name = 'name'; name.required = true; name.maxLength = 160; name.placeholder = 'Family Hygiene floor atlas';
+  name.value = draft.name ?? '';
+  const origin = document.createElement('select'); origin.name = 'origin';
+  for (const [value, label] of [['human_upload', 'Human upload'], ['imported_generation', 'Imported generation record']]) {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; origin.append(option);
+  }
+  origin.value = stagedIntake?.origin ?? draft.origin ?? 'human_upload';
+  origin.disabled = Boolean(stagedIntake);
+  const prompt = document.createElement('textarea'); prompt.name = 'prompt'; prompt.maxLength = 20000; prompt.rows = 3;
+  prompt.value = draft.prompt ?? '';
+  const provider = document.createElement('input'); provider.name = 'provider'; provider.maxLength = 500; provider.placeholder = 'Optional provider record';
+  provider.value = draft.provider ?? '';
+  const model = document.createElement('input'); model.name = 'model'; model.maxLength = 500; model.placeholder = 'Optional model';
+  model.value = draft.model ?? '';
+  const modelVersion = document.createElement('input'); modelVersion.name = 'modelVersion'; modelVersion.maxLength = 500; modelVersion.placeholder = 'Optional model version';
+  modelVersion.value = draft.modelVersion ?? '';
+  const fields = document.createElement('div'); fields.className = 'source-intake-fields';
+  fields.append(
+    labeledField('Source image', file), labeledField('Stable source ID', sourceId),
+    labeledField('Display name', name), labeledField('Origin', origin),
+    labeledField('Prompt / source note', prompt), labeledField('Provider', provider),
+    labeledField('Model', model), labeledField('Model version', modelVersion),
+  );
+  const submit = document.createElement('button');
+  submit.type = 'submit'; submit.textContent = state.sourceMutationPending ? 'Importing…' : 'Import source';
+  submit.disabled = state.sourceMutationPending || !state.agentAccessCsrf;
+  const status = document.createElement('p');
+  status.dataset.sourceStatus = ''; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+  status.textContent = stagedIntake ? `Ready to commit staged intake ${stagedIntake.intakeId}.` : '';
+  form.append(heading, fields, status, submit);
+  return form;
+}
+
+function stagedSourceIntakes() {
+  const staged = state.sourceIntakes.filter((intake) => intake.state === 'STAGED');
+  if (!staged.length) return null;
+  const section = document.createElement('section'); section.className = 'staged-source-intakes';
+  section.append(sectionHeading('Staged source intakes', 'Resume a durable intake or explicitly discard it. Staged references remain protected until one of these actions succeeds.'));
+  const list = document.createElement('ul');
+  for (const intake of staged) {
+    const item = document.createElement('li');
+    const copy = document.createElement('span');
+    copy.textContent = `${intake.intakeId} · ${intake.origin} · ${intake.intake.artifact.width}×${intake.intake.artifact.height}`;
+    const resume = document.createElement('button');
+    resume.type = 'button'; resume.className = 'secondary'; resume.textContent = 'Resume'; resume.dataset.resumeSourceIntake = intake.intakeId;
+    const discard = document.createElement('button');
+    discard.type = 'button'; discard.className = 'secondary'; discard.textContent = 'Discard'; discard.dataset.discardSourceIntake = intake.intakeId;
+    item.append(copy, resume, discard); list.append(item);
+  }
+  section.append(list);
+  return section;
+}
+
+function renderSources(items) {
+  const fragment = document.createDocumentFragment();
+  fragment.append(sourceIntakePanel());
+  const staged = stagedSourceIntakes();
+  if (staged) fragment.append(staged);
+  if (!items.length) {
+    fragment.append(emptyState('No sources registered', 'Import a PNG or WebP with explicit origin and provenance.'));
+    return fragment;
+  }
+  const grid = document.createElement('div'); grid.className = 'card-grid source-grid';
+  for (const item of items) {
+    const review = item.review?.disposition ?? 'LEGACY_UNREVIEWED';
+    const lifecycle = item.lifecycle?.state ?? 'LEGACY_REGISTERED';
+    const sourceCard = card(item.name, item.mediaType, item.provenance.prompt || 'No generation prompt recorded.', [
+      ['ID', item.id], ['Artifact', item.artifactUri], ['Origin', item.provenance.origin || 'legacy'],
+      ['Lifecycle', lifecycle], ['Review', review], ['Seed', item.provenance.seed],
+      ['Dimensions', item.width && item.height ? `${item.width}×${item.height}` : null], ['Bytes', item.byteSize],
+      ['Provider', item.provenance.provider || item.provenance.generator], ['Model', item.provenance.model],
+    ]);
+    sourceCard.classList.add('source-card'); sourceCard.dataset.sourceId = item.id;
+    sourceCard.prepend(sourcePreview(item));
+    const actions = document.createElement('div'); actions.className = 'source-review-actions';
+    if (lifecycle === 'REVIEWED' && review === 'PENDING') {
+      for (const [disposition, label] of [['APPROVED', 'Approve source'], ['REJECTED', 'Reject source']]) {
+        const button = document.createElement('button');
+        button.type = 'button'; button.textContent = label; button.dataset.sourceReviewDecision = disposition;
+        button.dataset.sourceId = item.id; if (disposition === 'REJECTED') button.className = 'secondary';
+        actions.append(button);
+      }
+    } else if (['IMPORTED', 'GENERATED'].includes(lifecycle) && review === 'PENDING') {
+      const propose = document.createElement('button');
+      propose.type = 'button'; propose.textContent = 'Propose for review';
+      propose.className = 'secondary'; propose.dataset.sourceReviewPropose = ''; propose.dataset.sourceId = item.id;
+      actions.append(propose);
+    }
+    sourceCard.append(actions); grid.append(sourceCard);
+  }
+  fragment.append(sectionHeading('Source library', 'Original CAS previews are displayed without derivative processing.'), grid);
+  return fragment;
 }
 
 function renderOverview(snapshot) {
@@ -376,11 +555,7 @@ function renderCollection(items, workspace) {
   grid.className = 'card-grid';
   if (workspace === 'assets') grid.classList.add('asset-grid');
   for (const item of items) {
-    if (workspace === 'sources') {
-      grid.append(card(item.name, item.mediaType, item.provenance.prompt, [
-        ['ID', item.id], ['Artifact', item.artifactUri], ['Seed', item.provenance.seed], ['Model', item.provenance.model],
-      ]));
-    } else if (workspace === 'assets') {
+    if (workspace === 'assets') {
       const assetCard = card(item.name, item.kind, `Crop ${item.region.width}×${item.region.height} at ${item.region.x}, ${item.region.y}.`, [
         ['ID', item.id], ['Source', item.sourceId], ['Status', item.status], ['Role', item.properties.role],
       ]);
@@ -394,7 +569,7 @@ function renderCollection(items, workspace) {
 }
 
 function renderActivityWorkspace() {
-  if (!state.activity.length) return emptyState('No committed activity', 'Every accepted command will appear here with actor and revision.');
+  if (!state.activity.length) return emptyState('No activity', 'Accepted commands and durable denied or failed agent attempts will appear here.');
   const grid = document.createElement('div');
   grid.className = 'card-grid';
   for (const event of [...state.activity].reverse()) {
@@ -422,7 +597,7 @@ function renderWorkspace() {
   const snapshot = state.project.snapshot;
   let content;
   if (state.workspace === 'overview') content = renderOverview(snapshot);
-  else if (state.workspace === 'sources') content = renderCollection(snapshot.sources, 'sources');
+  else if (state.workspace === 'sources') content = renderSources(snapshot.sources);
   else if (state.workspace === 'assets') content = renderCollection(snapshot.assets, 'assets');
   else if (state.workspace === 'rooms') content = renderCollection(snapshot.rooms, 'rooms');
   else if (state.workspace === 'levels') content = renderCollection(snapshot.levels, 'levels');
@@ -526,10 +701,11 @@ async function loadProjects(preferredProjectId) {
 async function loadProject(projectId) {
   if (!projectId) return;
   if (state.project?.projectId && state.project.projectId !== projectId) state.showMcpLauncherConfig = false;
-  const [project, activity, agentAccess] = await Promise.all([
+  const [project, activity, agentAccess, sourceIntakes] = await Promise.all([
     api(`/api/projects/${encodeURIComponent(projectId)}`),
     api(`/api/projects/${encodeURIComponent(projectId)}/activity`),
     api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`),
+    api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`),
   ]);
   state.project = project; state.activity = activity.events;
   state.agentAccess = agentAccess.effectivePolicy; state.agentAccessCsrf = agentAccess.csrfToken;
@@ -537,6 +713,10 @@ async function loadProject(projectId) {
   state.hostBindings = agentAccess.hostBindings;
   state.pendingHosts = agentAccess.pendingHosts;
   state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
+  state.sourceIntakes = sourceIntakes.intakes;
+  if (state.resumingIntakeId && !state.sourceIntakes.some((intake) => intake.intakeId === state.resumingIntakeId && intake.state === 'STAGED')) {
+    state.resumingIntakeId = null;
+  }
   renderProject();
 }
 
@@ -705,6 +885,159 @@ elements['agent-launcher-copy'].addEventListener('click', async () => {
     showToast('Secret-free MCP host setup copied.');
   } catch {
     showToast('Clipboard access was denied. Select and copy the configuration manually.');
+  }
+});
+elements['workspace-content'].addEventListener('submit', async (event) => {
+  const form = event.target.closest('[data-source-intake-form]');
+  if (!form || !state.project || !state.agentAccessCsrf) return;
+  event.preventDefault();
+  const fields = new FormData(form);
+  const file = fields.get('file');
+  const stagedIntake = state.sourceIntakes.find((intake) => (
+    intake.state === 'STAGED' && intake.intakeId === state.resumingIntakeId
+  ));
+  if (!stagedIntake && (!(file instanceof File) || file.size === 0)) return;
+  const sourceOrigin = stagedIntake?.origin ?? String(fields.get('origin'));
+  state.sourceDraft = {
+    sourceId: String(fields.get('sourceId')), name: String(fields.get('name')), origin: sourceOrigin,
+    prompt: String(fields.get('prompt') ?? ''), provider: String(fields.get('provider') ?? ''),
+    model: String(fields.get('model') ?? ''), modelVersion: String(fields.get('modelVersion') ?? ''),
+  };
+  const status = form.querySelector('[data-source-status]');
+  const submit = form.querySelector('button[type="submit"]');
+  state.sourceMutationPending = true; form.setAttribute('aria-busy', 'true'); submit.disabled = true;
+  status.textContent = stagedIntake ? 'Committing staged source…' : 'Verifying and staging source…';
+  try {
+    let intake = stagedIntake ? { intakeId: stagedIntake.intakeId, artifact: stagedIntake.intake.artifact } : null;
+    if (!intake) {
+      const expectedDigest = await sha256Hex(file);
+      intake = await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/source-intakes`, {
+        method: 'POST',
+        headers: {
+          'content-type': file.type,
+          'x-numberdroid-studio-csrf': state.agentAccessCsrf,
+          'x-numberdroid-idempotency-key': sourceOperationKey('source-intake-upload'),
+          'x-numberdroid-source-origin': sourceOrigin,
+          'x-numberdroid-expected-sha256': expectedDigest,
+        },
+        body: file,
+      });
+      clearSourceOperationKey('source-intake-upload');
+      state.resumingIntakeId = intake.intakeId;
+      status.textContent = 'Source staged; committing semantic revision…';
+    }
+    const nullable = (value) => String(value || '').trim() || null;
+    const generated = sourceOrigin === 'imported_generation';
+    await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/sources`, {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: JSON.stringify({
+        expectedRevision: state.project.revision,
+        idempotencyKey: sourceOperationKey('source-intake-commit', intake.intakeId),
+        intakeId: intake.intakeId,
+        sourceId: String(fields.get('sourceId')),
+        name: String(fields.get('name')),
+        artifactUri: intake.artifact.uri,
+        mediaType: intake.artifact.mediaType,
+        byteSize: intake.artifact.byteSize,
+        width: intake.artifact.width,
+        height: intake.artifact.height,
+        provenance: {
+          origin: sourceOrigin,
+          prompt: generated ? nullable(fields.get('prompt')) : null,
+          negativePrompt: null,
+          seed: null,
+          provider: generated ? nullable(fields.get('provider')) : null,
+          model: generated ? nullable(fields.get('model')) : null,
+          modelVersion: generated ? nullable(fields.get('modelVersion')) : null,
+          generator: null,
+          parameters: {},
+          referenceArtifactUris: [],
+          parentSourceIds: [],
+        },
+      }),
+    });
+    clearSourceOperationKey('source-intake-commit', intake.intakeId);
+    state.sourceDraft = null; state.resumingIntakeId = null;
+    await loadProject(state.project.projectId);
+    showToast('Source imported through an atomic intake claim.');
+  } catch (error) {
+    status.textContent = `${error.code || 'ERROR'}: ${error.message}`;
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+    await loadProject(state.project.projectId).catch(() => {});
+  } finally {
+    state.sourceMutationPending = false;
+    if (form.isConnected) {
+      form.removeAttribute('aria-busy'); submit.disabled = !state.agentAccessCsrf;
+    }
+  }
+});
+elements['workspace-content'].addEventListener('click', async (event) => {
+  const resume = event.target.closest('[data-resume-source-intake]');
+  const discard = event.target.closest('[data-discard-source-intake]');
+  if (!resume && !discard) return;
+  const intakeId = (resume || discard).dataset.resumeSourceIntake ?? (resume || discard).dataset.discardSourceIntake;
+  if (resume) {
+    state.resumingIntakeId = intakeId;
+    state.sourceDraft = null;
+    renderWorkspace();
+    elements['workspace-content'].querySelector('[name="sourceId"]')?.focus();
+    return;
+  }
+  if (!state.project || !state.agentAccessCsrf
+    || !window.confirm('Discard this staged source intake and release its temporary project reference?')) return;
+  discard.disabled = true;
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/source-intakes/${encodeURIComponent(intakeId)}/abandon`, {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: JSON.stringify({ idempotencyKey: sourceOperationKey('source-intake-abandon', intakeId) }),
+    });
+    clearSourceOperationKey('source-intake-abandon', intakeId);
+    if (state.resumingIntakeId === intakeId) state.resumingIntakeId = null;
+    await loadProject(state.project.projectId);
+    showToast('Staged source intake discarded.');
+  } catch (error) {
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+    await loadProject(state.project.projectId).catch(() => {});
+  }
+});
+elements['workspace-content'].addEventListener('click', async (event) => {
+  const propose = event.target.closest('[data-source-review-propose]');
+  const decide = event.target.closest('[data-source-review-decision]');
+  const button = propose || decide;
+  if (!button || !state.project || !state.agentAccessCsrf) return;
+  const action = propose ? 'propose' : 'decide';
+  const disposition = decide?.dataset.sourceReviewDecision;
+  let note = null;
+  if (disposition === 'REJECTED') {
+    note = window.prompt('Why is this source being rejected? A reason is required.');
+    if (note === null) return;
+    note = note.trim();
+    if (!note) {
+      showToast('A rejection reason is required.');
+      return;
+    }
+  }
+  if (action === 'decide' && !window.confirm(`${disposition === 'APPROVED' ? 'Approve' : 'Reject'} this original source? This records an explicit owner decision.`)) return;
+  button.disabled = true;
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/sources/${encodeURIComponent(button.dataset.sourceId)}/review`, {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: JSON.stringify({
+        expectedRevision: state.project.revision,
+        idempotencyKey: `source-review.${crypto.randomUUID()}`,
+        action,
+        ...(note ? { note } : {}),
+        ...(disposition ? { disposition, confirm: true } : {}),
+      }),
+    });
+    await loadProject(state.project.projectId);
+    showToast(action === 'propose' ? 'Source proposed for human review.' : `Source ${disposition.toLowerCase()}.`);
+  } catch (error) {
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+    await loadProject(state.project.projectId).catch(() => {});
   }
 });
 elements['workspace-content'].addEventListener('click', async (event) => {

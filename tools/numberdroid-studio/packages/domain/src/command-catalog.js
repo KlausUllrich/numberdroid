@@ -7,6 +7,32 @@ function deepFreeze(value) {
 
 const id = { type: 'string', minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' };
 const nonEmpty = { type: 'string', minLength: 1 };
+const nullableShortText = { type: ['string', 'null'], maxLength: 500 };
+const provenanceV2 = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'origin', 'prompt', 'negativePrompt', 'seed', 'provider', 'model', 'modelVersion',
+    'generator', 'parameters', 'referenceArtifactUris', 'parentSourceIds',
+  ],
+  properties: {
+    origin: { type: 'string', enum: ['human_upload', 'imported_generation'] },
+    prompt: { type: ['string', 'null'], maxLength: 20000 },
+    negativePrompt: { type: ['string', 'null'], maxLength: 20000 },
+    seed: { type: ['string', 'number', 'null'] },
+    provider: nullableShortText,
+    model: nullableShortText,
+    modelVersion: nullableShortText,
+    generator: nullableShortText,
+    parameters: { type: 'object' },
+    referenceArtifactUris: {
+      type: 'array',
+      maxItems: 100,
+      items: { type: 'string', format: 'uri' },
+    },
+    parentSourceIds: { type: 'array', maxItems: 100, uniqueItems: true, items: id },
+  },
+};
 
 const definitions = [
   {
@@ -124,6 +150,66 @@ const definitions = [
             generator: { type: ['string', 'null'], maxLength: 200 },
           },
         },
+      },
+    },
+  },
+  {
+    type: 'source.intake.commit',
+    toolName: 'studio_source_intake_commit',
+    description: 'Claim a project-scoped staged source intake and commit its provider-neutral provenance.',
+    requiredScope: 'source.intake.commit',
+    requiredObjectScope: 'project',
+    ownerOnly: false,
+    requiresDurableAgentLedger: true,
+    payloadSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['intakeId', 'sourceId', 'name', 'artifactUri', 'mediaType', 'byteSize', 'width', 'height', 'provenance'],
+      properties: {
+        intakeId: id,
+        sourceId: id,
+        name: { ...nonEmpty, maxLength: 160 },
+        artifactUri: { type: 'string', format: 'uri' },
+        mediaType: { type: 'string', enum: ['image/png', 'image/webp'] },
+        byteSize: { type: 'integer', minimum: 1 },
+        width: { type: 'integer', minimum: 1 },
+        height: { type: 'integer', minimum: 1 },
+        provenance: provenanceV2,
+      },
+    },
+  },
+  {
+    type: 'source.review.propose',
+    toolName: 'studio_source_review_propose',
+    description: 'Propose a registered source for explicit human review without deciding approval.',
+    requiredScope: 'source.review.propose',
+    requiredObjectScope: 'project',
+    ownerOnly: false,
+    requiresDurableAgentLedger: true,
+    payloadSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['sourceId'],
+      properties: {
+        sourceId: id,
+        note: { type: ['string', 'null'], maxLength: 2000 },
+      },
+    },
+  },
+  {
+    type: 'source.review.decide',
+    toolName: 'studio_source_review_decide',
+    description: 'Record the project owner\'s explicit approval or rejection of a proposed source.',
+    requiredScope: 'source.review.decide',
+    ownerOnly: true,
+    payloadSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['sourceId', 'disposition'],
+      properties: {
+        sourceId: id,
+        disposition: { type: 'string', enum: ['APPROVED', 'REJECTED'] },
+        note: { type: ['string', 'null'], maxLength: 2000 },
       },
     },
   },

@@ -6,7 +6,7 @@ The MCP server is a first-class Studio client for agents. It exposes the same se
 
 Checkpoint 1B implemented and the user accepted MCP 2026-07-28 through the official maintained SDK. The protocol SDK and transport remain replaceable adapters; Studio command semantics do not depend on a specific MCP revision. Checkpoint 1A contained only a host-injected agent adapter/tool catalog and MUST NOT be described as a complete MCP server.
 
-The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics; it is a transport implementation, not a permission-model rewrite or UI redesign. Durable Activity entries for denied/failed calls remain a known gap under `AGT-008`.
+The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. The Checkpoint 2A candidate adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. This is additive, pending user acceptance, and not a permission-model rewrite.
 
 Accepted transport: local stdio through the official SDK v2 `serveStdio(() => buildServer(), { legacy: "reject" })` entry, so the wire protocol is MCP `2026-07-28`. A child-process contract test negotiates `server/discover` and asserts that revision. The MCP protocol core is treated as stateless: protocol discovery/capability negotiation is not an identity or authorization session. A later team deployment may add authenticated Streamable HTTP without changing tool schemas or authoring behavior.
 
@@ -166,7 +166,7 @@ The richer `APPLIED`/`PROPOSED` result with changed-resource links, review dispo
 
 Names below are the intended stable semantic surface. Checkpoint implementation status must be discoverable from the server; an unavailable future tool is not advertised.
 
-### Advertised in accepted Checkpoint 1B
+### Always advertised from the accepted Checkpoint 1B surface
 
 - `studio_command_catalog_list` — read the exact command definitions exposed to agents;
 - `studio_project_read` — read the authorized redacted project head;
@@ -175,6 +175,15 @@ Names below are the intended stable semantic surface. Checkpoint implementation 
 - `studio_asset_define` — define a draft/in-review `surface`, `prop`, or `item` crop from a registered source.
 
 `studio_project_create` is a human-only application command and is deliberately filtered from the official agent catalog. Grant issue/revoke commands are likewise owner-only and never advertised to agents.
+
+### Additive Checkpoint 2A candidate when durable audit is live
+
+- `studio_source_intake_commit` — atomically claim a project-scoped staged intake and create a V2 source with validated provider-neutral provenance;
+- `studio_source_review_propose` — move a newly imported/generated V2 source into explicit owner review without deciding it.
+
+These tools are advertised only when the launcher and running SQLite service declare the final attempt ledger live. The private service checks that condition again before dispatch, so a forged launcher flag cannot bypass it. `studio_source_intake_commit` requires the distinct `source.intake.commit` capability, project object scope, command budget, and artifact-byte budget. `studio_source_review_propose` requires `source.review.propose`. The tool input references an already staged project intake and canonical CAS metadata; it never accepts binary bytes, a local path, provider credential, or arbitrary external artifact location.
+
+Owner-only `source.review.decide` is used by the human UI and is never advertised. The audit-ready discovery surface is therefore exactly seven tools total and one project resource. With the audit flag absent, the accepted five-tool surface remains and the two candidate mutations fail closed from discovery.
 
 ### Planned foundation and task expansion — later V1
 
@@ -186,12 +195,10 @@ Names below are the intended stable semantic surface. Checkpoint implementation 
 
 Grant mint/revoke endpoints exist for the authenticated human UI/service API. They MUST NOT be advertised as agent-callable MCP mutation tools. MCP resources expose the effective, redacted grant so the agent can plan within its authority.
 
-### Source and atlas tools — Checkpoint 2
+### Later source and atlas tools — Checkpoint 2B and beyond
 
-- `studio_source_import`
 - `studio_source_generate`
 - `studio_source_register_generation`
-- `studio_source_propose_review`
 - `studio_atlas_propose_grid`
 - `studio_atlas_define_rects`
 - `studio_atlas_preview_slices`
@@ -261,7 +268,7 @@ An agent cannot use a broad batch wrapper to bypass a missing capability for a c
 
 ## 8. Planned jobs
 
-Durable jobs are not implemented in Checkpoint 1. When introduced, long-running tools return:
+Durable jobs are not implemented through Checkpoint 2A. Original-source preview reads the verified CAS object synchronously and creates no derivative. When a later long-running tool is introduced, it returns:
 
 ```json
 {
@@ -311,7 +318,9 @@ Protocol/tool invocation failure is distinct from a successful command that prod
 
 ## 10. Human-visible agent operation
 
-Checkpoint 1 durably appends accepted semantic commands to the same activity timeline used by the UI and preserves actor/task/revision attribution. A denied or failed request returns a structured redacted error and is visible immediately to the caller/UI control, but it does **not** yet append a durable Activity entry. Durable denied/failed request audit is a known gap under `AGT-008`.
+Accepted semantic commands append to the revision Activity timeline with actor/task/revision attribution. The Checkpoint 2A candidate also records exactly one final `DENIED` or `FAILED` row for every mutation attempt that reaches `/internal/mcp/execute` after a valid HostBinding resolves trusted project and actor context. Only stable error codes and allowlisted scalar details are retained; prompts, idempotency keys, tokens, grant IDs, artifact URIs, payloads, and paths are excluded. The UI merges these rows into the chronological Activity projection without inventing a semantic revision.
+
+There are deliberately no non-atomic request `STARTED`/`COMMITTED` rows: successful commands already have atomic semantic Activity, and an audit-write failure on a denied/failed attempt makes that call fail closed. Invalid/missing bearer tokens, pairing failures, and other pre-binding traffic stay in redacted operational security logs because no trusted project/actor exists to attribute. That boundary is the exact 2A closure of `AGT-008`, not a claim of complete request/job telemetry.
 
 The target V1 activity timeline displays every MCP tool call that reaches application policy, with:
 
@@ -333,7 +342,7 @@ The accepted user can revoke the grant/HostBinding from the Header. Job cancella
 - Browser-visible MCP launcher setup is secret-free. Raw HostBinding material crosses only the pending host's loopback pairing connection and the private host-to-service channel; it is never persisted in plaintext.
 - Agent project reads omit the complete grant collection. A successful Checkpoint 1 read returns only the caller's active `effectivePolicy` (`taskId`, `branchId`, scopes, object scopes, budget/usage, `status: "active"`, and expiry), without its grant ID or any foreign agent/grant data. Revoked or expired grants are rejected before a projection is returned; separate redacted Header projections communicate inactive states to the human UI.
 - All identifiers are parsed as opaque values; no URI/path segment becomes a filesystem path without adapter validation.
-- Imports enforce media type, byte/dimension limits, digest verification, and configured roots/file handles.
+- Source intake enforces PNG/WebP media, a 16 MiB and 4096×4096 synchronous bound, claimed digest verification, project-scoped staged ownership, and no path-bearing input. Generic CAS operations retain their separately configured limits.
 - Tool descriptions are not authority. Server policy is the only authorization source.
 - Prompt or source metadata is untrusted content and cannot redefine capabilities or system behavior.
 - Publish requires a separate short-lived grant and explicit snapshot/manifest identity.
@@ -344,7 +353,7 @@ Client cancellation is propagated through the official MCP request context, the 
 
 Checkpoint 1A adapter tests proved that tool definitions map to the shared application commands, trusted host execution context supplies actor/task/grant authority, agent payloads cannot override that context, and mutations have the same events/validation as the UI adapter. Those tests alone did not constitute MCP protocol compliance.
 
-Accepted Checkpoint 1B protocol tests prove:
+Accepted Checkpoint 1B protocol tests continue to prove:
 
 1. the official MCP 2026-07-28 SDK server starts as a clean subprocess, negotiates capabilities, and supports tool/resource discovery through stdio without treating connection state as authorization;
 2. a scoped project resource can be read and an out-of-scope resource cannot;
@@ -360,11 +369,13 @@ Accepted Checkpoint 1B protocol tests prove:
 12. accepted agent commands are visible with true actor/task/revision attribution;
 13. cross-project IDs, unknown schema fields, embedded binary data, and malformed/oversized artifact input are rejected safely;
 14. stdout contains protocol frames only, while diagnostics are redacted to stderr/structured results; malformed frames and graceful shutdown cannot corrupt Studio state;
-15. only the five implemented underscore-named tools and one project resource documented above are advertised, and their published schemas match runtime validation;
+15. the accepted surface without the 2A audit-ready flag remains five underscore-named tools and one project resource, and published schemas match runtime validation;
 16. the service-backed Header Agent access state matches the effective policy but changing client-side selector state cannot change authorization;
 17. Asset Library cards receive an authorized preview URI or an explicit fallback state, never a local path or embedded bitmap;
 18. replacing the 1A host-only adapter with stdio preserves the protected baseline's semantic command results, actor attribution, revisions, and activity projection.
 
-The following target checks remain for the checkpoint that introduces the feature: atomic batch rollback and batch budget accounting; durable job/cancellation outcomes; durable denied/failed Activity entries and review dispositions; resource-level source/atlas/asset previews; isolated task-branch review/merge; and publish authorization.
+The Checkpoint 2A candidate extends those tests with exact seven-tool audit-ready discovery; distinct intake/review scopes; project object and artifact-byte budgets; staged-intake claim/recovery; canonical source and lineage references; bounded discriminated provenance; human-only decision; final-only redacted denied/failed Activity; audit-write fail-closed behavior; and byte-identical Family Hygiene preview/reopen evidence.
+
+The following target checks remain for the checkpoint that introduces the feature: atomic batch rollback and batch budget accounting; durable job/cancellation outcomes; resource-level source/atlas/asset detail resources; isolated task-branch review/merge; and publish authorization.
 
 Later checkpoints extend this same suite for every advertised authoring tool. A tool is not considered delivered merely because it appears in documentation; it must be discoverable, schema-tested, authorized, observable, and exercised end to end.

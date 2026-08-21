@@ -18,6 +18,9 @@ const PROJECT_STATUSES = ['draft', 'active', 'paused', 'in_review', 'archived'];
 const SOURCE_MEDIA_TYPES = ['image/png', 'image/webp'];
 const ASSET_KINDS = ['surface', 'prop', 'item'];
 const ASSET_STATUSES = ['draft', 'in_review'];
+const SOURCE_ORIGINS = ['human_upload', 'imported_generation'];
+const SOURCE_REVIEW_DECISIONS = ['APPROVED', 'REJECTED'];
+const CANONICAL_ARTIFACT_URI = /^studio:\/\/artifacts\/sha256\/[a-f0-9]{64}$/;
 
 const AUTHORITY_FIELDS = ['actor', 'taskId', 'grantId', 'branchId', 'bindingToken', 'issuerActorId'];
 
@@ -226,6 +229,15 @@ function assertAuthorized(command, snapshot, definition, now) {
     consumed: grant.usage.commands,
     limit: grant.budget.maxCommands,
   });
+  if (command.type === 'source.intake.commit') {
+    const byteSize = requireInteger(command.payload?.byteSize, 'payload.byteSize', { min: 1 });
+    invariant(
+      grant.usage.artifactBytes + byteSize <= grant.budget.maxArtifactBytes,
+      'BUDGET_EXCEEDED',
+      'The source intake would exceed the grant artifact byte budget.',
+      { consumed: grant.usage.artifactBytes, requested: byteSize, limit: grant.budget.maxArtifactBytes },
+    );
+  }
 }
 
 function validateScopes(value) {
@@ -257,6 +269,108 @@ function validateBudget(value) {
     maxCostCents: budget.maxCostCents === undefined
       ? 0
       : requireInteger(budget.maxCostCents, 'payload.budget.maxCostCents', { min: 0 }),
+  };
+}
+
+function nullableString(value, field, { max = 500 } = {}) {
+  return value === null ? null : requireString(value, field, { max });
+}
+
+const PROVENANCE_SECRET_KEY = /(?:api.?key|auth(?:orization)?|cookie|credential|password|private.?key|secret|token)/i;
+const PROVENANCE_LOCATION_VALUE = /^(?:[A-Za-z][A-Za-z0-9+.-]*:|[\\/]|[A-Za-z]:[\\/])|(?:^|[\\/])\.\.(?:[\\/]|$)/;
+
+function validateProvenanceParameters(value) {
+  let nodes = 0;
+  function visit(candidate, field, depth) {
+    nodes += 1;
+    invariant(nodes <= 200 && depth <= 5, 'VALIDATION_ERROR', 'payload.provenance.parameters exceeds its structural bounds.');
+    if (candidate === null || typeof candidate === 'boolean') return candidate;
+    if (typeof candidate === 'number') {
+      invariant(Number.isFinite(candidate), 'VALIDATION_ERROR', `${field} must be finite.`);
+      return candidate;
+    }
+    if (typeof candidate === 'string') {
+      invariant(candidate.length <= 2000, 'VALIDATION_ERROR', `${field} is too long.`);
+      invariant(!PROVENANCE_LOCATION_VALUE.test(candidate), 'PROVENANCE_PARAMETER_FORBIDDEN', 'Provenance parameters cannot contain paths or URIs.', { field });
+      return candidate;
+    }
+    if (Array.isArray(candidate)) {
+      invariant(candidate.length <= 50, 'VALIDATION_ERROR', `${field} has too many entries.`);
+      return candidate.map((entry, index) => visit(entry, `${field}[${index}]`, depth + 1));
+    }
+    const record = requireRecord(candidate, field);
+    const entries = Object.entries(record);
+    invariant(entries.length <= 50, 'VALIDATION_ERROR', `${field} has too many fields.`);
+    return Object.fromEntries(entries.map(([key, entry]) => {
+      invariant(key.length > 0 && key.length <= 100, 'VALIDATION_ERROR', `${field} has an invalid parameter name.`);
+      invariant(!PROVENANCE_SECRET_KEY.test(key), 'PROVENANCE_PARAMETER_FORBIDDEN', 'Provenance parameters cannot contain secret-bearing fields.', { field: `${field}.${key}` });
+      return [key, visit(entry, `${field}.${key}`, depth + 1)];
+    }));
+  }
+  const result = visit(requireRecord(value, 'payload.provenance.parameters'), 'payload.provenance.parameters', 0);
+  invariant(Buffer.byteLength(JSON.stringify(result), 'utf8') <= 16 * 1024, 'VALIDATION_ERROR', 'payload.provenance.parameters is too large.');
+  return result;
+}
+
+function validateProvenanceV2(value) {
+  const provenance = requireRecord(value, 'payload.provenance');
+  invariant(Array.isArray(provenance.referenceArtifactUris), 'VALIDATION_ERROR', 'payload.provenance.referenceArtifactUris must be an array.');
+  invariant(provenance.referenceArtifactUris.length <= 100, 'VALIDATION_ERROR', 'payload.provenance.referenceArtifactUris has too many entries.');
+  const referenceArtifactUris = provenance.referenceArtifactUris.map((uri, index) => {
+    const canonical = requireArtifactUri(uri, `payload.provenance.referenceArtifactUris[${index}]`);
+    invariant(CANONICAL_ARTIFACT_URI.test(canonical), 'ARTIFACT_URI_REQUIRED', 'V2 provenance references require canonical Studio CAS URIs.', {
+      field: `payload.provenance.referenceArtifactUris[${index}]`,
+    });
+    return canonical;
+  });
+  invariant(Array.isArray(provenance.parentSourceIds), 'VALIDATION_ERROR', 'payload.provenance.parentSourceIds must be an array.');
+  invariant(provenance.parentSourceIds.length <= 100, 'VALIDATION_ERROR', 'payload.provenance.parentSourceIds has too many entries.');
+  const parentSourceIds = provenance.parentSourceIds.map((sourceId, index) => (
+    requireId(sourceId, `payload.provenance.parentSourceIds[${index}]`)
+  ));
+  invariant(new Set(parentSourceIds).size === parentSourceIds.length, 'VALIDATION_ERROR', 'payload.provenance.parentSourceIds must be unique.');
+  const seed = provenance.seed;
+  invariant(
+    typeof seed === 'string' || typeof seed === 'number' && Number.isFinite(seed) || seed === null,
+    'VALIDATION_ERROR',
+    'payload.provenance.seed must be a string, finite number, or null.',
+  );
+  const result = {
+    origin: requireEnum(provenance.origin, 'payload.provenance.origin', SOURCE_ORIGINS),
+    prompt: nullableString(provenance.prompt, 'payload.provenance.prompt', { max: 20000 }),
+    negativePrompt: nullableString(provenance.negativePrompt, 'payload.provenance.negativePrompt', { max: 20000 }),
+    seed,
+    provider: nullableString(provenance.provider, 'payload.provenance.provider'),
+    model: nullableString(provenance.model, 'payload.provenance.model'),
+    modelVersion: nullableString(provenance.modelVersion, 'payload.provenance.modelVersion'),
+    generator: nullableString(provenance.generator, 'payload.provenance.generator'),
+    parameters: validateProvenanceParameters(provenance.parameters),
+    referenceArtifactUris,
+    parentSourceIds,
+  };
+  if (result.origin === 'human_upload') {
+    invariant(
+      result.prompt === null && result.negativePrompt === null && result.seed === null
+        && result.provider === null && result.model === null && result.modelVersion === null
+        && result.generator === null && Object.keys(result.parameters).length === 0,
+      'VALIDATION_ERROR',
+      'human_upload provenance cannot include generation metadata.',
+    );
+  } else {
+    invariant(result.prompt && result.provider && result.model, 'VALIDATION_ERROR', 'imported_generation provenance requires prompt, provider, and model.');
+  }
+  return result;
+}
+
+function sourceReview(source) {
+  return source.review ?? {
+    disposition: 'PENDING',
+    proposedAt: null,
+    proposedBy: null,
+    proposalNote: null,
+    decidedAt: null,
+    decidedBy: null,
+    decisionNote: null,
   };
 }
 
@@ -373,6 +487,142 @@ function applyCommand(command, snapshot, now) {
         changes: [{ entityType: 'source', entityId: sourceId, operation: 'created' }],
       };
     }
+    case 'source.intake.commit': {
+      const intakeId = requireId(payload.intakeId, 'payload.intakeId');
+      const sourceId = requireId(payload.sourceId, 'payload.sourceId');
+      invariant(!next.sources.some((source) => source.id === sourceId), 'ENTITY_EXISTS', 'The source ID already exists.', {
+        sourceId,
+      });
+      const artifactUri = requireArtifactUri(payload.artifactUri, 'payload.artifactUri');
+      invariant(CANONICAL_ARTIFACT_URI.test(artifactUri), 'ARTIFACT_URI_REQUIRED', 'V2 source intake requires a canonical Studio CAS URI.');
+      const provenance = validateProvenanceV2(payload.provenance);
+      for (const parentSourceId of provenance.parentSourceIds) {
+        invariant(next.sources.some((source) => source.id === parentSourceId), 'ENTITY_NOT_FOUND', 'A provenance parent source does not exist.', {
+          parentSourceId,
+        });
+      }
+      const source = {
+        schemaVersion: 2,
+        id: sourceId,
+        intakeId,
+        name: requireString(payload.name, 'payload.name', { max: 160 }),
+        artifactUri,
+        mediaType: requireEnum(payload.mediaType, 'payload.mediaType', SOURCE_MEDIA_TYPES),
+        byteSize: requireInteger(payload.byteSize, 'payload.byteSize', { min: 1 }),
+        width: requireInteger(payload.width, 'payload.width', { min: 1 }),
+        height: requireInteger(payload.height, 'payload.height', { min: 1 }),
+        provenance,
+        lifecycle: {
+          state: provenance.origin === 'human_upload' ? 'IMPORTED' : 'GENERATED',
+          changedAt: now,
+          changedBy: command.actor.id,
+        },
+        review: sourceReview({}),
+        registeredAt: now,
+        registeredBy: command.actor.id,
+      };
+      if (command.actor.kind === 'agent') {
+        const grantIndex = next.grants.findIndex((grant) => grant.id === command.grantId);
+        next.grants[grantIndex] = {
+          ...next.grants[grantIndex],
+          usage: {
+            ...next.grants[grantIndex].usage,
+            artifactBytes: next.grants[grantIndex].usage.artifactBytes + source.byteSize,
+          },
+        };
+      }
+      next.sources.push(source);
+      return {
+        snapshot: next,
+        result: { sourceId, intakeId },
+        summary: `Source intake ${intakeId} committed as ${sourceId}.`,
+        changes: [{ entityType: 'source', entityId: sourceId, operation: 'created' }],
+      };
+    }
+    case 'source.review.propose': {
+      const sourceId = requireId(payload.sourceId, 'payload.sourceId');
+      const index = next.sources.findIndex((source) => source.id === sourceId);
+      invariant(index >= 0, 'ENTITY_NOT_FOUND', 'The source does not exist.', { sourceId });
+      invariant(next.sources[index].schemaVersion === 2, 'ENTITY_STATE_CONFLICT', 'Legacy sources must be re-imported through V2 intake before review.', {
+        sourceId,
+      });
+      const current = sourceReview(next.sources[index]);
+      invariant(
+        ['IMPORTED', 'GENERATED'].includes(next.sources[index].lifecycle?.state) && current.disposition === 'PENDING',
+        'ENTITY_STATE_CONFLICT',
+        'Only a newly imported or generated V2 source can be proposed for review.',
+        { sourceId, lifecycle: next.sources[index].lifecycle?.state, disposition: current.disposition },
+      );
+      next.sources[index] = {
+        ...next.sources[index],
+        lifecycle: {
+          state: 'REVIEWED',
+          changedAt: now,
+          changedBy: command.actor.id,
+        },
+        review: {
+          ...current,
+          proposedAt: now,
+          proposedBy: command.actor.id,
+          proposalNote: payload.note === undefined ? null : nullableString(payload.note, 'payload.note', { max: 2000 }),
+          decidedAt: null,
+          decidedBy: null,
+          decisionNote: null,
+        },
+      };
+      return {
+        snapshot: next,
+        result: { sourceId, lifecycle: 'REVIEWED', reviewDisposition: 'PENDING' },
+        summary: `Source ${sourceId} proposed for human review.`,
+        changes: [{ entityType: 'source', entityId: sourceId, operation: 'review_proposed' }],
+      };
+    }
+    case 'source.review.decide': {
+      const sourceId = requireId(payload.sourceId, 'payload.sourceId');
+      const index = next.sources.findIndex((source) => source.id === sourceId);
+      invariant(index >= 0, 'ENTITY_NOT_FOUND', 'The source does not exist.', { sourceId });
+      invariant(next.sources[index].schemaVersion === 2, 'ENTITY_STATE_CONFLICT', 'Legacy sources must be re-imported through V2 intake before review.', {
+        sourceId,
+      });
+      const current = sourceReview(next.sources[index]);
+      invariant(
+        next.sources[index].lifecycle?.state === 'REVIEWED'
+          && current.disposition === 'PENDING' && current.proposedAt !== null,
+        'ENTITY_STATE_CONFLICT',
+        'Only a proposed V2 source can receive a review decision.',
+        {
+        sourceId,
+        lifecycle: next.sources[index].lifecycle?.state,
+        disposition: current.disposition,
+        },
+      );
+      const decision = requireEnum(payload.disposition, 'payload.disposition', SOURCE_REVIEW_DECISIONS);
+      const decisionNote = payload.note === undefined ? null : nullableString(payload.note, 'payload.note', { max: 2000 });
+      invariant(decision !== 'REJECTED' || decisionNote?.trim(), 'VALIDATION_ERROR', 'A rejection note is required.');
+      const lifecycleState = decision === 'APPROVED' ? 'APPROVED_SOURCE' : 'REJECTED';
+      const reviewDisposition = decision === 'APPROVED' ? 'USER_APPROVED' : 'USER_REJECTED';
+      next.sources[index] = {
+        ...next.sources[index],
+        lifecycle: {
+          state: lifecycleState,
+          changedAt: now,
+          changedBy: command.actor.id,
+        },
+        review: {
+          ...current,
+          disposition: reviewDisposition,
+          decidedAt: now,
+          decidedBy: command.actor.id,
+          decisionNote,
+        },
+      };
+      return {
+        snapshot: next,
+        result: { sourceId, lifecycle: lifecycleState, reviewDisposition },
+        summary: `Source ${sourceId} review decision: ${reviewDisposition}.`,
+        changes: [{ entityType: 'source', entityId: sourceId, operation: decision === 'APPROVED' ? 'approved' : 'rejected' }],
+      };
+    }
     case 'asset.define': {
       const assetId = requireId(payload.assetId, 'payload.assetId');
       invariant(!next.assets.some((asset) => asset.id === assetId), 'ENTITY_EXISTS', 'The asset ID already exists.', {
@@ -484,15 +734,21 @@ function createProjectRevision(command, now, commandHash) {
 export class StudioService {
   #store;
   #clock;
+  #agentAttemptAuditReady;
 
-  constructor({ store, clock = () => new Date().toISOString() }) {
+  constructor({ store, clock = () => new Date().toISOString(), agentAttemptAuditReady = false }) {
     invariant(store, 'VALIDATION_ERROR', 'A ProjectStore is required.');
     this.#store = store;
     this.#clock = clock;
+    this.#agentAttemptAuditReady = agentAttemptAuditReady === true;
   }
 
   get commandCatalog() {
     return listCommandDefinitions();
+  }
+
+  get agentAttemptAuditReady() {
+    return this.#agentAttemptAuditReady;
   }
 
   async execute(rawCommand, trustedExecutionContext, { signal } = {}) {
@@ -542,6 +798,13 @@ export class StudioService {
     }
 
     invariant(existing, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId: command.projectId });
+    if (command.type === 'source.intake.commit') {
+      invariant(
+        this.#store.supportsAtomicSourceIntakeClaims === true,
+        'SOURCE_INTAKE_STORE_DISABLED',
+        'V2 source intake commits require the authoritative SQLite intake store.',
+      );
+    }
     const head = headRevision(existing);
     invariant(command.baseRevision === head.number, 'REVISION_CONFLICT', 'The project changed after the command was prepared.', {
       projectId: command.projectId,

@@ -16,8 +16,9 @@ function redactedRemoteDetails(value) {
 export class LocalStudioGateway {
   #baseUrl;
   #bindingTokenPromise;
+  #agentAttemptAuditReady;
 
-  constructor({ baseUrl, bindingToken, bindingTokenProvider = null }) {
+  constructor({ baseUrl, bindingToken, bindingTokenProvider = null, agentAttemptAuditReady = false }) {
     this.#baseUrl = new URL(baseUrl);
     if (!bindingToken && typeof bindingTokenProvider !== 'function') {
       throw new StudioError('HOST_BINDING_REQUIRED', 'A HostBinding token or private pairing provider is required.');
@@ -25,10 +26,15 @@ export class LocalStudioGateway {
     this.#bindingTokenPromise = bindingToken
       ? Promise.resolve(bindingToken)
       : Promise.resolve().then(bindingTokenProvider);
+    this.#agentAttemptAuditReady = agentAttemptAuditReady === true;
   }
 
   get commandCatalog() {
     return listCommandDefinitions();
+  }
+
+  get agentAttemptAuditReady() {
+    return this.#agentAttemptAuditReady;
   }
 
   async #request(path, value, { signal } = {}) {

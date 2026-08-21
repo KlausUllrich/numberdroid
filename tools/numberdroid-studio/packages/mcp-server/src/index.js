@@ -32,7 +32,9 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
   }
 
   const agentDefinitions = studioService.commandCatalog.filter(
-    (definition) => !definition.ownerOnly && definition.type !== 'project.create',
+    (definition) => !definition.ownerOnly
+      && definition.type !== 'project.create'
+      && (!definition.requiresDurableAgentLedger || studioService.agentAttemptAuditReady === true),
   );
 
   async function authority(invocationContext, requestedProjectId) {

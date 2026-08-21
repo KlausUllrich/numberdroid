@@ -86,13 +86,13 @@ Exit decision: **approved by the user on 2026-08-21.** Checkpoint 1 is complete 
 
 ## Checkpoint 2 — Source, atlas, and asset-library vertical slice
 
-**Status: next; planned, not started.** Use the same long verification loop and keep room/canvas work in Checkpoint 3.
+**Status: 2A implementation candidate awaiting user acceptance; 2B and 2C remain blocked.** The candidate stays on Draft PR #135 and does not imply merge, release, or provider authority.
 
 **Outcome:** an approved atlas becomes reproducible, visually searchable assets without repository editing.
 
 Deliverables:
 
-- source import and provider-backed generation, including prompt/seed/model/lineage, explicit egress, and cost budgets;
+- source import and provider-neutral generation records, including prompt/seed/model/lineage; provider-backed generation remains separately gated by egress, credentials, cost, and reproducibility decisions;
 - immutable CAS ingestion and thumbnail previews;
 - source review and approval lifecycle;
 - regular-grid proposal plus manual/variable rectangle atlas editor;
@@ -104,11 +104,15 @@ Deliverables:
 
 Internal implementation gates:
 
-1. **2A — Source intake and review:** local upload into CAS, complete provenance and lineage, thumbnail/preview, explicit review lifecycle, and the minimum durable job seam required by image processing. Provider generation remains behind a port until provider, egress, credential, and cost policy are chosen.
+1. **2A — Source intake and review (candidate):** bounded local upload into CAS, discriminated provenance and project-live lineage, original-byte preview, durable Resume/Discard recovery, explicit owner review lifecycle, schema v6 integrity/recovery, two scoped MCP mutations, and final-only denied/failed bound-agent Activity. Original preview requires no image-processing job, so 2A deliberately creates none. Provider generation remains unimplemented until provider, egress, credential, cost, and reproduction policy are chosen.
 2. **2B — Visual atlas cutter:** zoom/grid overlay, deterministic regular-grid proposal, manual/variable rectangles, include/exclude preview, derived slice artifacts, and explicit stable remapping when a recut would replace a slice.
 3. **2C — Asset-library semantics:** create `surface`, `prop`, and `item` identities from slices; visual bulk naming/metadata preview; placement/connectivity/collision validation; equivalent bounded MCP batch operations; and a verified portable-bundle round trip.
 
-Before 2A planning is frozen, the user chooses the first realistic approved atlas fixture. Family Hygiene is the obvious candidate because an approved source already exists, but it must not be silently assumed. Durable denied/failed Activity entries under `AGT-008` are also a known foundation gap to schedule explicitly rather than hide inside unrelated atlas work.
+The candidate uses the recommended approved Family Hygiene floor 2×2 source, pinned by its repository path, SHA-256, byte length, and dimensions. That choice remains provisional until the user accepts this 2A gate. `AGT-008` is closed for denied/failed mutation attempts that reach the private execution bridge after valid HostBinding resolution; unauthenticated pre-binding traffic has no trusted project/actor attribution and remains in operational security logs.
+
+2A user verification scenario: import the approved source, inspect the original preview and provenance, restart from a staged intake and use **Resume** or **Discard**, propose it for review, approve or reject explicitly, then confirm the final lifecycle and Activity. Verify the MCP host discovers seven tools only when the SQLite audit ledger is live and never discovers the owner decision.
+
+2A exit decision: approve or reject the Family Hygiene fixture, intake/recovery UX, source lifecycle, original-preview behavior, and the provider-free boundary. Only acceptance unblocks 2B.
 
 User verification scenario: import one approved atlas, adjust cuts visually, create a small named asset family, add placement/connectivity metadata, ask an agent to complete a bounded batch, reject one proposal, and confirm that source provenance and revisions remain inspectable.
 

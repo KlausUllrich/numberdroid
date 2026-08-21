@@ -13,6 +13,8 @@
 - **Secondary roles, activated by triggers:** Technical Artist, QA, Game Design, Level Generation/Runtime Integration, Security
 - **Next milestone:** Checkpoint 2 — Source, Atlas Cutter, and Asset Library vertical slice
 
+> **Continuation update, 2026-08-21:** Checkpoint 2A has been implemented on the existing draft branch and is awaiting the user's major-checkpoint acceptance. The exact candidate scope, evidence, limits, and 2B block are recorded in `tools/numberdroid-studio/docs/CHECKPOINT_2A_STATUS.md` and `docs/history/handoffs/HANDOFF_2026-08-21_NUMBERDROID_STUDIO_CHECKPOINT_2A.md`. The historical planning text below remains useful context but no longer describes current implementation status.
+
 ## 1. Start here: do not trust this handoff over current contracts
 
 You are continuing a local-first, agent-first visual authoring tool that lives inside Numberdroid but is intentionally encapsulated for later extraction. Current binding repository instructions and code outrank this historical handoff. Do not merge PR #135, publish assets, or start a broader checkpoint because this document exists.

@@ -101,6 +101,116 @@ function writeCanonicalSourceArtifactReference(database, projectId, revision) {
   `).run(projectId, sourceId, digest, revision.number);
 }
 
+function claimSourceIntake(database, projectId, revision) {
+  if (revision.command.type !== 'source.intake.commit') return;
+  const { sourceId, intakeId } = revision.result;
+  const source = revision.snapshot.sources.find((candidate) => candidate.id === sourceId);
+  invariant(source?.schemaVersion === 2 && source.intakeId === intakeId, 'INVALID_REVISION', 'V2 source revision does not match its intake result.', {
+    projectId,
+    sourceId,
+    intakeId,
+  });
+  const intake = database.prepare(`
+    SELECT digest, origin, state, claimed_source_id, claimed_revision
+    FROM source_intakes WHERE project_id = ? AND intake_id = ?
+  `).get(projectId, intakeId);
+  invariant(intake, 'SOURCE_INTAKE_NOT_FOUND', 'The source intake does not exist in this project.', {
+    projectId,
+    intakeId,
+  });
+  invariant(intake.state === 'STAGED', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'The source intake is no longer available to claim.', {
+    projectId,
+    intakeId,
+    state: intake.state,
+    claimedSourceId: intake.claimed_source_id,
+    claimedRevision: intake.claimed_revision,
+  });
+  const match = /^studio:\/\/artifacts\/sha256\/([a-f0-9]{64})$/.exec(source.artifactUri);
+  invariant(match?.[1] === intake.digest, 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'The committed source does not match the staged intake artifact.', {
+    projectId,
+    intakeId,
+  });
+  invariant(source.provenance?.origin === intake.origin, 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'The committed provenance origin does not match the staged intake.', {
+    projectId,
+    intakeId,
+  });
+  const artifact = database.prepare(`
+    SELECT media_type, byte_size, width, height, state FROM artifacts WHERE digest = ?
+  `).get(intake.digest);
+  invariant(artifact?.state === 'LIVE', 'ARTIFACT_NOT_LIVE', 'The source intake artifact is not LIVE.', {
+    digest: intake.digest,
+  });
+  invariant(
+    artifact.media_type === source.mediaType
+      && Number(artifact.byte_size) === source.byteSize
+      && Number(artifact.width) === source.width && Number(artifact.height) === source.height,
+    'ARTIFACT_METADATA_CONFLICT',
+    'Source intake media type and dimensions must match the verified artifact row.',
+    { digest: intake.digest },
+  );
+  if (revision.command.actor?.kind === 'agent') {
+    const priorRevision = database.prepare(`
+      SELECT revision_json FROM revisions WHERE project_id = ? AND revision_number = ?
+    `).get(projectId, revision.parentRevision);
+    const priorSnapshot = parseJson(priorRevision?.revision_json ?? '', 'revisions.revision_json').snapshot;
+    const priorGrant = priorSnapshot.grants.find((grant) => grant.id === revision.command.grantId);
+    const nextGrant = revision.snapshot.grants.find((grant) => grant.id === revision.command.grantId);
+    invariant(priorGrant && nextGrant, 'INVALID_GRANT_PROJECTION', 'Source intake agent grant projection is missing.');
+    invariant(
+      nextGrant.usage.artifactBytes === priorGrant.usage.artifactBytes + source.byteSize
+        && nextGrant.usage.artifactBytes <= nextGrant.budget.maxArtifactBytes,
+      'INVALID_GRANT_PROJECTION',
+      'Source intake artifact bytes must be charged exactly once within the claim transaction.',
+      { projectId, grantId: revision.command.grantId },
+    );
+  }
+  const stagedReference = database.prepare(`
+    SELECT 1 FROM artifact_references
+    WHERE project_id = ? AND owner_kind = 'source_intake' AND owner_id = ? AND digest = ?
+  `).get(projectId, intakeId, intake.digest);
+  invariant(stagedReference, 'SOURCE_INTAKE_REFERENCE_MISSING', 'The source intake lost its project-scoped artifact reference.', {
+    projectId,
+    intakeId,
+  });
+  database.prepare(`
+    INSERT INTO artifact_references(project_id, owner_kind, owner_id, digest, created_revision)
+    VALUES (?, 'source', ?, ?, ?)
+  `).run(projectId, sourceId, intake.digest, revision.number);
+  const referenceArtifacts = new Set(source.provenance?.referenceArtifactUris ?? []);
+  for (const referenceArtifactUri of referenceArtifacts) {
+    const referenceMatch = /^studio:\/\/artifacts\/sha256\/([a-f0-9]{64})$/.exec(referenceArtifactUri);
+    invariant(referenceMatch, 'ARTIFACT_URI_REQUIRED', 'Source lineage requires canonical Studio CAS URIs.');
+    const referenceDigest = referenceMatch[1];
+    const liveProjectReference = database.prepare(`
+      SELECT 1
+      FROM artifacts
+      JOIN artifact_references ON artifact_references.digest = artifacts.digest
+      WHERE artifacts.digest = ? AND artifacts.state = 'LIVE'
+        AND artifact_references.project_id = ?
+      LIMIT 1
+    `).get(referenceDigest, projectId);
+    invariant(liveProjectReference, 'ARTIFACT_NOT_LIVE', 'A source lineage artifact is not LIVE in this project.');
+    database.prepare(`
+      INSERT OR IGNORE INTO artifact_references(
+        project_id, owner_kind, owner_id, digest, created_revision
+      ) VALUES (?, 'source_lineage', ?, ?, ?)
+    `).run(projectId, sourceId, referenceDigest, revision.number);
+  }
+  const claimed = database.prepare(`
+    UPDATE source_intakes
+    SET state = 'CLAIMED', claimed_source_id = ?, claimed_revision = ?
+    WHERE project_id = ? AND intake_id = ? AND state = 'STAGED'
+  `).run(sourceId, revision.number, projectId, intakeId);
+  invariant(Number(claimed.changes) === 1, 'SOURCE_INTAKE_ALREADY_CLAIMED', 'The source intake claim lost a concurrent race.', {
+    projectId,
+    intakeId,
+  });
+  database.prepare(`
+    DELETE FROM artifact_references
+    WHERE project_id = ? AND owner_kind = 'source_intake' AND owner_id = ? AND digest = ?
+  `).run(projectId, intakeId, intake.digest);
+}
+
 function writeRevision(database, projectId, revision) {
   database.prepare(`
     INSERT INTO revisions(
@@ -194,6 +304,7 @@ export class SqliteProjectStore extends ProjectStore {
   }
 
   get workspace() { return this.#workspace; }
+  get supportsAtomicSourceIntakeClaims() { return true; }
 
   async createProject(document, { legacyGrants = false } = {}) {
     invariant(document.revisions.length === 1, 'INVALID_REVISION', 'A new SQLite project needs exactly one revision.');
@@ -299,6 +410,8 @@ export class SqliteProjectStore extends ProjectStore {
         this.#workspace.fault('after_grant_projection');
         writeCanonicalSourceArtifactReference(database, projectId, revision);
         this.#workspace.fault('after_source_artifact_reference');
+        claimSourceIntake(database, projectId, revision);
+        this.#workspace.fault('after_source_intake_claim');
 
         const document = {
           formatVersion: 1,

@@ -11,13 +11,13 @@ const PRESETS = Object.freeze({
   }),
   propose_draft: Object.freeze({
     rank: 2,
-    scopes: Object.freeze(['project.read', 'source.write', 'asset.write']),
+    scopes: Object.freeze(['project.read', 'source.write', 'source.intake.commit', 'source.review.propose', 'asset.write']),
     durationMs: 4 * 60 * 60 * 1000,
     budget: Object.freeze({ maxCommands: 50, maxJobs: 10, maxArtifactBytes: 268435456, maxCostCents: 0 }),
   }),
   execute_scoped: Object.freeze({
     rank: 3,
-    scopes: Object.freeze(['project.read', 'source.write', 'asset.write', 'project.status.write']),
+    scopes: Object.freeze(['project.read', 'source.write', 'source.intake.commit', 'source.review.propose', 'asset.write', 'project.status.write']),
     durationMs: 60 * 60 * 1000,
     budget: Object.freeze({ maxCommands: 100, maxJobs: 10, maxArtifactBytes: 536870912, maxCostCents: 0 }),
   }),

@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { Client, SdkErrorCode } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import {
-  ContentAddressedArtifactStore, SqliteArtifactMetadataStore, SqliteHostBindingStore, SqliteProjectStore,
+  ContentAddressedArtifactStore, SqliteAgentAttemptStore, SqliteArtifactMetadataStore,
+  SqliteHostBindingStore, SqliteProjectStore, SqliteSourceIntakeStore,
 } from '../packages/persistence/src/index.js';
 import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
 import {
@@ -34,10 +35,12 @@ async function mcpFixture(context) {
   });
   const { studio } = createHarness(store);
   await createProject(studio);
-  await issueGrant(studio, { scopes: ['project.read', 'source.write', 'asset.write', 'project.status.write'] });
+  await issueGrant(studio, { scopes: ['project.read', 'source.write', 'source.intake.commit', 'asset.write', 'project.status.write'] });
   const artifactStore = new ContentAddressedArtifactStore({ rootDirectory: join(directory, 'artifacts') });
   const artifact = await artifactStore.ingest(ONE_PIXEL_PNG, { mediaType: 'image/png' });
   const artifactMetadataStore = new SqliteArtifactMetadataStore({ workspace: store.workspace });
+  const sourceIntakeStore = new SqliteSourceIntakeStore({ workspace: store.workspace });
+  const agentAttemptStore = new SqliteAgentAttemptStore({ workspace: store.workspace });
   artifactMetadataStore.registerAndReference(artifact, {
     projectId: PROJECT_ID,
     ownerKind: 'upload',
@@ -68,6 +71,8 @@ async function mcpFixture(context) {
     pairingEndpoint: pairing.endpoint,
     artifactStore,
     artifactMetadataStore,
+    sourceIntakeStore,
+    agentAttemptStore,
   });
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
@@ -86,6 +91,8 @@ async function mcpFixture(context) {
     pairingBroker,
     pairingEndpoint: pairing.endpoint,
     artifact,
+    sourceIntakeStore,
+    agentAttemptStore,
     serviceUrl: `http://127.0.0.1:${server.address().port}/`,
   };
 }
@@ -97,6 +104,7 @@ function childTransport({ token, serviceUrl, pairingEndpoint }) {
   Object.assign(env, {
     NUMBERDROID_STUDIO_PROJECT_ID: PROJECT_ID,
     NUMBERDROID_STUDIO_SERVICE_URL: serviceUrl,
+    NUMBERDROID_STUDIO_AGENT_AUDIT_READY: '1',
     ...(token
       ? { NUMBERDROID_STUDIO_BINDING_TOKEN: token }
       : { NUMBERDROID_STUDIO_PAIRING_ENDPOINT: pairingEndpoint }),
@@ -126,6 +134,9 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   const names = tools.map(({ name }) => name);
   assert.ok(names.includes('studio_project_read'));
   assert.ok(names.includes('studio_source_register'));
+  assert.ok(names.includes('studio_source_intake_commit'));
+  assert.ok(names.includes('studio_source_review_propose'));
+  assert.ok(!names.includes('studio_source_review_decide'));
   assert.ok(!names.includes('studio_grant_issue'));
   assert.ok(!names.includes('studio_grant_revoke'));
   const sourceTool = tools.find(({ name }) => name === 'studio_source_register');
@@ -235,6 +246,11 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   assert.match(oversized.content[0].text, /BODY_TOO_LARGE/);
   assert.doesNotMatch(JSON.stringify(oversized), /oversized-seed-xxxxxxxx/);
   assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 2);
+  const oversizedAttempt = fixture.store.workspace.database.prepare(`
+    SELECT * FROM agent_attempts WHERE error_code = 'BODY_TOO_LARGE' ORDER BY occurred_at DESC LIMIT 1
+  `).get();
+  assert.equal(oversizedAttempt.status, 'FAILED');
+  assert.doesNotMatch(JSON.stringify(oversizedAttempt), /oversized-seed|idem\.mcp\.oversized|studio:\/\/|\/workspace/);
 
   const mutation = await client.callTool({
     name: 'studio_source_register',
@@ -289,11 +305,59 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   assert.equal(spoof.isError, true);
   assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 3);
 
+  fixture.sourceIntakeStore.stage(fixture.artifact, {
+    projectId: PROJECT_ID,
+    intakeId: 'intake.mcp-v2',
+    idempotencyKey: 'intake.mcp-v2',
+    origin: 'imported_generation',
+    createdRevision: 3,
+  });
+  const v2Mutation = await client.callTool({
+    name: 'studio_source_intake_commit',
+    arguments: {
+      schemaVersion: 1,
+      commandId: 'cmd.mcp.source-v2',
+      idempotencyKey: 'idem.mcp.source-v2',
+      projectId: PROJECT_ID,
+      baseRevision: 3,
+      expectedVersion: 3,
+      payload: {
+        intakeId: 'intake.mcp-v2',
+        sourceId: 'source.mcp-v2',
+        name: 'Imported MCP source',
+        artifactUri: fixture.artifact.uri,
+        mediaType: 'image/png',
+        byteSize: fixture.artifact.byteSize,
+        width: 1,
+        height: 1,
+        provenance: {
+          origin: 'imported_generation',
+          prompt: 'Provider-neutral MCP generation record',
+          negativePrompt: null,
+          seed: 742,
+          provider: 'fixture-provider',
+          model: 'fixture-model',
+          modelVersion: '2026-08',
+          generator: null,
+          parameters: {},
+          referenceArtifactUris: [],
+          parentSourceIds: [],
+        },
+      },
+    },
+  });
+  assert.equal(v2Mutation.isError, undefined, JSON.stringify(v2Mutation));
+  assert.equal(v2Mutation.structuredContent.revision, 4);
+  assert.equal(fixture.sourceIntakeStore.get(PROJECT_ID, 'intake.mcp-v2').state, 'CLAIMED');
+  assert.equal(fixture.store.workspace.database.prepare(`
+    SELECT count(*) AS count FROM agent_attempts WHERE command_id = 'cmd.mcp.source-v2'
+  `).get().count, 0);
+
   await fixture.studio.execute(command({
     commandId: 'cmd.mcp.revoke',
     idempotencyKey: 'idem.mcp.revoke',
     type: 'grant.revoke',
-    expectedVersion: 3,
+    expectedVersion: 4,
     payload: { grantId: 'grant.atlas', reason: 'MCP revocation contract test' },
   }), OWNER_CONTEXT);
   const denied = await client.callTool({
@@ -303,8 +367,8 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
       commandId: 'cmd.mcp.after-revoke',
       idempotencyKey: 'idem.mcp.after-revoke',
       projectId: PROJECT_ID,
-      baseRevision: 4,
-      expectedVersion: 4,
+      baseRevision: 5,
+      expectedVersion: 5,
       dryRun: false,
       payload: { status: 'active' },
     },
@@ -312,7 +376,7 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   assert.equal(denied.isError, true);
   assert.match(denied.content[0].text, /GRANT_REVOKED/);
   assert.doesNotMatch(JSON.stringify(denied), /grant\.atlas|binding\./);
-  assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 4);
+  assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 5);
 
   await client.close();
 });

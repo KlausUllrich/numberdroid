@@ -5,7 +5,9 @@ export { createWorkspaceBackup, restoreWorkspaceBackup, verifyWorkspaceBackup } 
 export { verifyWorkspaceIntegrity } from './integrity/workspace-integrity.js';
 export { createJsonSourceManifest, migrateJsonToSqlite } from './migration/json-to-sqlite-migrator.js';
 export { SqliteArtifactMetadataStore } from './sqlite/sqlite-artifact-metadata-store.js';
+export { SqliteAgentAttemptStore } from './sqlite/sqlite-agent-attempt-store.js';
 export { SqliteHostBindingStore } from './sqlite/sqlite-host-binding-store.js';
 export { SqliteProjectStore } from './sqlite/sqlite-project-store.js';
+export { SqliteSourceIntakeStore } from './sqlite/sqlite-source-intake-store.js';
 export { SqliteWorkspace } from './sqlite/sqlite-workspace.js';
 export { SQLITE_MIGRATIONS, loadMigrationDefinitions, runSqliteMigrations } from './sqlite/migration-runner.js';
