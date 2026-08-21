@@ -168,7 +168,15 @@ jobs:
 
       - name: Install Studio dependencies
         working-directory: tools/numberdroid-studio
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
+
+      - name: Upload generated Studio lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-package-lock
+          path: tools/numberdroid-studio/package-lock.json
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Test Studio
         working-directory: tools/numberdroid-studio
