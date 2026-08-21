@@ -48,6 +48,13 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **UI-001.** The home workspace MUST show projects, active agent tasks, running jobs, validation blockers, pending reviews, and recent revisions.
 - **UI-002.** It MUST expose a chronological activity timeline with actor, command, target, status, revision, and human-readable summary.
 - **UI-003.** The user MUST be able to move from an activity entry to the affected object and diff.
+- **UI-004.** The persistent header MUST show an understandable **Agent mode** control for the current project/task context. It MUST show its effective state in text, not by color alone.
+- **UI-005.** The Agent mode pull-down MUST offer these user-facing postures: `Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`. `Custom…` opens the detailed task/grant editor; `finalize`, `export`, and `publish` are never implied by a posture.
+- **UI-006.** Selecting a posture is an authenticated human request to the local service. The UI MUST render only the service-returned effective policy and MUST NOT manufacture, cache as authority, or widen a grant locally.
+- **UI-007.** For an active posture, the header MUST make task, branch, concise scope/capability summary, expiry, and remaining budget discoverable without leaving the current workspace. A running-job count and a direct route to activity SHOULD be visible.
+- **UI-008.** The header MUST represent at least `OFF`, `REQUESTING`, `ACTIVE_READ_ONLY`, `ACTIVE_DRAFT`, `ACTIVE_EXECUTE`, `EXPIRED`, `REVOKED`, `DENIED`, and `SERVICE_UNAVAILABLE`. Expired, revoked, denied, or unavailable states MUST never look active.
+- **UI-009.** Moving to broader authority MUST show a concise warning that names the newly enabled capabilities, object scope, branch, expiry, and budget before the service request is confirmed. Narrowing to `Off` or revoking authority MUST remain immediate and easy.
+- **UI-010.** The pull-down MUST NOT offer an unbounded `Full access` shortcut. Finalization/export require separate explicit controls; production publish requires its own short-lived grant and confirmation outside the header selector.
 
 ### 5.2 Source and Generation
 
@@ -77,6 +84,9 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **AST-006.** Bulk naming and metadata assignment MUST show a preview and resulting validation before commit.
 - **AST-007.** Props and items MUST be referenceable from room set dressing by semantic ID, not by source filename or atlas coordinates.
 - **AST-008.** Required current Numberdroid semantics, including exact-fit footprints and explicit connectivity/collision, MUST be representable without loss.
+- **AST-009.** Every Asset Library card MUST reserve a small, consistently sized preview region. A successfully resolved visual artifact MUST be rendered there with transparency visible and without changing the asset's aspect ratio.
+- **AST-010.** A card MUST never have a blank or collapsed preview. Missing artifact, processing, unsupported media, and load failure MUST each use a deterministic accessible fallback that includes the asset kind and a textual status; these states MUST NOT be confused with an intentionally empty/transparent asset.
+- **AST-011.** Preview loading MUST use the authorized artifact/resource URI and MUST NOT expose local filesystem paths. Preview failure MUST leave naming, metadata, selection, and inspection usable.
 
 ### 5.5 Room and Hallway Designer
 
@@ -159,6 +169,18 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **ARC-005.** Cross-boundary data MUST use versioned DTOs and documented schemas.
 - **ARC-006.** Extracting the folder MUST require replacing workspace wiring and adapter configuration, not rewriting domain code.
 
+### 7.1 Accepted baseline and migration protection
+
+- **BASE-001.** Checkpoint 1A's visual shell and verified interaction flow are user-accepted as of 2026-08-21. They MUST remain reproducible as a protected baseline while 1B is developed.
+- **BASE-002.** 1B MUST preserve the accepted navigation, information hierarchy, activity/revision visibility, demo semantics, and host-injected authority behavior. A visual redesign requires a separate user checkpoint. The approved Agent mode selector and Asset Library preview/fallback are additive requirements, not permission for a broader redesign.
+- **BASE-003.** The accepted 1A revision/commit, fixture inputs, expected revision/activity counts, and representative visual screenshots MUST be recorded as regression evidence before 1B cutover.
+- **MIG-001.** The 1A JSON directory MUST be treated as read-only migration input. Migration MUST first create a dated backup plus integrity manifest and MUST NOT delete, rewrite, or merge the source ledger.
+- **MIG-002.** JSON-to-SQLite/CAS migration MUST be versioned, idempotent, resumable or safely restartable, and staged into a new destination. A failure MUST leave both the accepted 1A data and the previously active destination usable.
+- **MIG-003.** Before cutover, migration verification MUST compare project/aggregate IDs, head revision, event and activity ordering/counts, grants/revocations, semantic projection hashes, artifact references, and validation summaries. Cutover occurs only after all required parity checks pass.
+- **MIG-004.** Cutover MUST be one explicit configuration/pointer change after the writer is stopped. Studio MUST never run JSON and SQLite as concurrent authoritative writers.
+- **MIG-005.** Rollback MUST preserve the failed/new SQLite database, CAS, logs, and migration report for diagnosis. Returning to the frozen 1A JSON baseline MUST be explicit; post-cutover 1B writes MUST NOT be silently discarded and require a verified recovery/export before rollback.
+- **MIG-006.** The C1A application and fixture MUST remain launchable against a copied baseline data directory until 1B is user-accepted. C1B code MUST have regression tests that compare its visible projection and command outcomes with the protected baseline.
+
 ## 8. Quality attributes
 
 - **NFR-001 — Determinism.** IDs, slicing, manifests, previews used for QA, and exports must be deterministic wherever inputs are identical.
@@ -175,6 +197,8 @@ Checkpoint 1 is split into two user-verifiable deliveries. Acceptance of 1A auth
 
 ### Checkpoint 1A — architecture and development foundation
 
+**Status: visually accepted by the user on 2026-08-21.** This acceptance protects the shell and interaction model as the 1B baseline; it does not approve JSON as production persistence or claim MCP protocol completion.
+
 1. The Studio starts from its own subfolder and shows a visual project/activity shell.
 2. UI and a host-injected agent adapter call the same tested application command handler; neither writes storage directly.
 3. A project can be created/opened locally and survives restart through the persistence port using the explicitly labelled dependency-free JSON development store.
@@ -186,14 +210,21 @@ Checkpoint 1 is split into two user-verifiable deliveries. Acceptance of 1A auth
 
 ### Checkpoint 1B — production local store and official MCP boundary
 
-1. SQLite in WAL mode replaces the JSON development store, with versioned migrations, transactional revisions/events, backup/reset documentation, and the shared persistence contract suite.
-2. The content-addressed artifact store performs streamed, hash-verified, atomic writes and returns URI references only.
-3. A human can mint and revoke a task-scoped grant; an ungranted, expired, revoked, or out-of-scope mutation is denied.
-4. The official MCP 2026-07-28 SDK/stdio transport lists Studio resources/tools, reads a scoped project resource, performs at least one granted mutation, rejects it without authority, and returns structured conflicts.
-5. The MCP protocol core is stateless with respect to authorization; the trusted host injects actor/task/grant execution context for each call.
-6. UI and MCP adapter equivalence tests produce the same domain events and validation for the same command.
-7. Fault-injection, permission, artifact-integrity, idempotency, and concurrency tests pass against SQLite/CAS.
-8. The Numberdroid adapter boundary has contract fixtures but cannot publish production output in this checkpoint.
+1. SQLite runs in WAL mode with foreign keys enabled, a bounded busy timeout, one authoritative writer, explicit schema version, transactional migrations, and clean shutdown/checkpoint behavior.
+2. One transaction atomically commits command events, revision/revision parents, aggregate versions, projections, activity, idempotency result, validation findings required by the command, and grant-budget consumption. Crash/fault tests prove that none can commit alone.
+3. The SQLite adapter passes the shared persistence contract suite, restart/recovery tests, concurrent-reader/single-writer tests, integrity checks, and supported backup/restore verification.
+4. The C1A JSON migration satisfies `MIG-001` through `MIG-006`; the user can inspect a migration report and no automatic step destroys or overwrites the protected baseline.
+5. CAS ingestion streams into same-filesystem staging, enforces media/size/dimension limits, calculates SHA-256, verifies any claimed digest, durably closes the file, and atomically renames it to an immutable digest-sharded location.
+6. Database references store artifact URI, digest, media type, size, and required image dimensions. Tool and normal JSON responses contain URI/resource links rather than base64 or arbitrary filesystem paths.
+7. CAS deduplication, missing/corrupt-blob detection, reference tracking, backup/restore, and retention-delayed mark/sweep garbage collection are tested. Failed transactions may leave only quarantined/unreferenced blobs, never live references to incomplete content.
+8. The official MCP 2026-07-28 SDK/stdio transport starts as a subprocess through SDK v2 `serveStdio` in strict modern mode, negotiates `server/discover`, proves the active `2026-07-28` revision, lists only implemented underscore-named tools/resources, reads a scoped project resource, performs at least one granted mutation, and maps application conflicts/errors to structured protocol results.
+9. MCP stdout is reserved for protocol frames; diagnostics use redacted stderr/structured logs. Clean shutdown, malformed input, cancellation, oversized payload, and host/service failure behavior are tested.
+10. The MCP protocol core is stateless with respect to authorization. A service-minted opaque HostBinding on a private bridge is resolved and revalidated per call; the trusted service injects actor/task/branch/grant/correlation context separately from the command DTO. Agent tool schemas do not accept authority fields and cannot expose grant mint/revoke operations. C1A grants migrate only as inactive `LEGACY_UNBOUND` audit history.
+11. A human can request/select/revoke a task-scoped policy through the service-backed Header Agent mode control. Ungranted, expired, revoked, over-budget, project/task/branch/object-out-of-scope, and attempted authority-override mutations are denied and visibly audited.
+12. UI and MCP adapter equivalence tests produce the same domain events, revision, validation, idempotency behavior, and actor attribution for the same semantic command.
+13. The protected C1A visual regression and demo interaction suite still passes. Every Asset Library card shows either a valid preview or the defined accessible fallback.
+14. Install, data-location, migration, integrity-check, backup, restore, rollback, protocol-diagnostic, and safe-reset instructions are exercised on the supported platform.
+15. The Numberdroid adapter boundary has contract fixtures but cannot publish production output in this checkpoint.
 
 Checkpoint 1 is complete only after both 1A and 1B are explicitly accepted. The asset vertical slice cannot be accepted on the JSON development store or host-only agent adapter.
 
@@ -211,6 +242,7 @@ These are deliberately open until validated by implementation or user testing. T
 | Asset IDs | Random or monotonic opaque IDs plus editable human slug | Identity must not change when names/paths change. |
 | Branch policy | Agent gets a task branch by default | Avoids surprise changes to the user's active draft. |
 | Auto acceptance | Allowed only for explicit low-risk policy scopes | Must never be reported as user approval. |
+| Header Agent mode behavior | Service-backed posture selector with `Off`, `Read only`, `Propose in draft`, `Execute scoped task`, `Custom…` | Exact compact wording/iconography remains subject to 1B visual verification; no posture creates client-side authority. |
 | Publish authority | Separate, short-lived human grant | Publishing is higher risk than authoring. |
 | Animation model | Reserved identity in V1, authoring in V2 | Avoids migration of asset and placement references. |
 

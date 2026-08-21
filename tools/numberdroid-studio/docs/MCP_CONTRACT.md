@@ -6,11 +6,13 @@ The MCP server is a first-class Studio client for agents. It exposes the same se
 
 Checkpoint 1B MUST implement MCP 2026-07-28 through the official maintained SDK. The protocol SDK and transport remain replaceable adapters; Studio command semantics do not depend on a specific MCP revision. Checkpoint 1A contains only a host-injected agent adapter/tool catalog and MUST NOT be described as a complete MCP server.
 
-Initial 1B transport: local stdio. The MCP protocol core is treated as stateless: protocol initialization/capability negotiation is not an identity or authorization session. A later team deployment may add authenticated Streamable HTTP without changing tool schemas or authoring behavior.
+The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. Adding the official transport MUST preserve the accepted command outcomes, activity visibility, and host-injected authority semantics; it is a transport implementation, not a permission-model rewrite or UI redesign.
+
+Initial 1B transport: local stdio. It MUST use the official SDK v2 `serveStdio(() => buildServer(), { legacy: "reject" })` entry so the wire protocol is actually MCP `2026-07-28`; directly connecting `McpServer` to `StdioServerTransport` is insufficient because that path remains the legacy era. A child-process contract test MUST negotiate `server/discover` and assert `2026-07-28`. The MCP protocol core is treated as stateless: protocol discovery/capability negotiation is not an identity or authorization session. A later team deployment may add authenticated Streamable HTTP without changing tool schemas or authoring behavior.
 
 ## 2. Host execution context
 
-An MCP client MUST NOT supply or assert its actor, task, or grant as tool arguments. A trusted MCP host authenticates the caller through deployment-specific means and injects an immutable execution context for each invocation. Connection lifetime and protocol initialization do not confer mutation rights.
+An MCP client MUST NOT supply or assert its actor, task, branch, grant, or binding as tool arguments. A human-authorized Studio service mints an opaque `HostBinding` credential for the local MCP launcher. The stdio bridge presents that credential only on its private service channel; the service stores only its digest, resolves it to a project/task/branch/grant tuple, and injects an immutable execution context for each invocation. The bridge does not open the database directly. Connection lifetime, discovery, request envelopes, client identity metadata, and protocol initialization do not confer mutation rights.
 
 The injected execution context consists of:
 
@@ -22,6 +24,8 @@ The injected execution context consists of:
 - `correlationId`: end-to-end trace across tool, command, job, and event.
 
 Each invocation is evaluated independently against the host-injected context and current grant state. Agent-supplied target IDs are matched against that context; they cannot widen it. The agent cannot create, widen, renew, select, or override a grant. Revocation takes effect before the next command/job step; queued jobs re-check authority at documented safe boundaries.
+
+C1A grants are historical records after migration and are forced to `LEGACY_UNBOUND`; they never become host credentials. A 1B human grant is immutable. Widening or renewing it creates a new grant and revokes/supersedes the old one.
 
 ### Grant fields
 
@@ -43,6 +47,12 @@ Each invocation is evaluated independently against the host-injected context and
 ```
 
 Capability families include read, source write/approve, generation execute, atlas write, asset write/finalize, room write/finalize, level write/finalize, validation run/disposition, export build/materialize, and publish. Provider cost and artifact-byte budgets are enforced in addition to ordinary command/job budgets. `publish` is never implied by another capability.
+
+### Header Agent mode relationship
+
+The Header Agent mode selector is a human UI for requesting a posture and inspecting the service-returned effective policy. `Off`, `Read only`, `Propose in draft`, and `Execute scoped task` map to bounded policy templates; `Custom…` opens a detailed human-only grant editor. The service may issue/select/revoke a concrete grant only after authenticating and authorizing that human request.
+
+The selected label, DOM state, URL, browser storage, and UI request payload are not MCP authority. The trusted host independently binds current actor/task/grant context to each invocation and revalidates it. A revoked/expired/denied selector state grants nothing; `SERVICE_UNAVAILABLE` fails closed. The selector never supplies publish authority and its human-only grant operations are not advertised as MCP tools.
 
 ## 3. Resources
 
@@ -71,6 +81,8 @@ studio://artifacts/sha256/{digest}
 ```
 
 List resources return summaries and pagination cursors. Detail resources return versioned JSON projections plus resource links to large previews/artifacts. Image bytes are fetched through a resource/artifact URI; they are never embedded as base64 in JSON.
+
+Asset summaries include a small authorized `previewResource` when available and a structured `previewState` otherwise (`PROCESSING`, `MISSING`, `UNSUPPORTED`, or `LOAD_FAILED`) so clients can render the same deterministic kind-aware fallback. A preview failure never removes the semantic asset resource.
 
 Resources that describe mutable heads MUST include `revisionId`, aggregate `version`, and `etag`/content hash so an agent can construct safe mutations.
 
@@ -163,7 +175,7 @@ Grant mint/revoke endpoints exist for the authenticated human UI/service API. Th
 - `studio_atlas_preview_slices`
 - `studio_atlas_commit_slices`
 
-`source.generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. `propose_grid` may use image analysis but cannot mark rectangles authoritative. `commit_slices` receives explicit integer rectangles and produces artifact/resource URIs.
+`studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. `studio_atlas_propose_grid` may use image analysis but cannot mark rectangles authoritative. `studio_atlas_commit_slices` receives explicit integer rectangles and produces artifact/resource URIs.
 
 ### Asset library tools — Checkpoint 2
 
@@ -307,7 +319,7 @@ Checkpoint 1A adapter tests MUST prove that tool definitions map to the shared a
 
 Checkpoint 1B protocol tests MUST prove:
 
-1. official MCP 2026-07-28 server startup, capability negotiation, and tool/resource discovery work through stdio without treating connection state as authorization;
+1. the official MCP 2026-07-28 SDK server starts as a clean subprocess, negotiates capabilities, and supports tool/resource discovery through stdio without treating connection state as authorization;
 2. a scoped project resource can be read and an out-of-scope resource cannot;
 3. the same logical command through UI adapter and MCP produces the same domain events and validation;
 4. mutation without, after expiry of, and after revocation of a grant is denied;
@@ -320,6 +332,11 @@ Checkpoint 1B protocol tests MUST prove:
 11. binary results are resource/artifact links, never base64 payloads;
 12. `finalize`, `export`, and `publish` do not follow from ordinary write access;
 13. agent action is visible with true actor and correct review disposition;
-14. malformed URIs, path traversal, cross-project IDs, oversized inputs, and artifact hash mismatch are rejected safely.
+14. malformed URIs, path traversal, cross-project IDs, oversized inputs, unknown schema fields, and artifact hash mismatch are rejected safely;
+15. stdout contains protocol frames only, while diagnostics are redacted to stderr/structured logs; malformed frames and graceful shutdown cannot corrupt Studio state;
+16. only implemented underscore-named tools/resources are advertised and their published JSON schemas match runtime validation;
+17. the service-backed Header Agent mode state matches the effective policy but changing client-side selector state cannot change authorization;
+18. Asset Library resources return an authorized preview URI or an explicit fallback state, never a local path or embedded bitmap;
+19. replacing the 1A host-only adapter with stdio preserves the protected baseline's semantic command results, actor attribution, revisions, and activity projection.
 
 Later checkpoints extend this same suite for every advertised authoring tool. A tool is not considered delivered merely because it appears in documentation; it must be discoverable, schema-tested, authorized, observable, and exercised end to end.

@@ -6,13 +6,13 @@ The product lives in this self-contained folder so it can be moved into a standa
 
 ## Status
 
-Checkpoint 1 is the foundation checkpoint and is deliberately split in two. This first change set delivers **Checkpoint 1A**: binding architecture, a dependency-free JSON development store, a shared command core, a host-injected agent adapter, and a visual foundation shell. **Checkpoint 1B** replaces the development persistence with SQLite plus a content-addressed artifact store and adds the official MCP 2026-07-28 SDK/stdio transport. The foundation is not complete until 1B is accepted. Asset cutting, room authoring, and runtime export follow as vertical slices; see [the roadmap](docs/ROADMAP.md).
+Checkpoint 1 is the foundation checkpoint and is deliberately split in two. **Checkpoint 1A was visually accepted by the user on 2026-08-21**: its shell and verified interaction flow are now a protected baseline. It provides binding architecture, a dependency-free JSON development store, a shared command core, a host-injected agent adapter, and the visual shell. **Checkpoint 1B** must preserve that baseline while replacing development persistence with SQLite plus a content-addressed artifact store and adding the official MCP 2026-07-28 SDK/stdio transport. The foundation is not complete until 1B is accepted. Asset cutting, room authoring, and runtime export follow as vertical slices; see [the roadmap](docs/ROADMAP.md).
 
 | Area | Current status |
 | --- | --- |
 | Product contract | Checkpoint 1A: binding requirements documented |
 | Standalone boundary | Checkpoint 1A: package and dependency rules defined |
-| Human UI | Checkpoint 1A: foundation shell delivered for user verification |
+| Human UI | Checkpoint 1A: visually accepted and protected as the 1B baseline |
 | Agent access | Checkpoint 1A: host-injected adapter; official MCP transport follows in 1B |
 | Persistence | Checkpoint 1A: JSON development store; SQLite and CAS required in 1B |
 | Numberdroid export | Adapter boundary specified; production publishing deferred |
@@ -31,6 +31,15 @@ npm run dev
 Open `http://127.0.0.1:4317`, choose **Create / load demo**, and inspect Overview, Sources, Asset library, and Activity. The demo is persisted under `.numberdroid-studio/` unless `NUMBERDROID_STUDIO_DATA` points to another local directory.
 
 This is a development checkpoint: do not use the JSON adapter as a multi-process production database. Checkpoint 1B replaces it with SQLite and a content-addressed artifact store.
+
+## Protected 1A baseline and 1B additions
+
+The accepted navigation, information hierarchy, revision/activity visibility, demo command outcomes, and host-injected authority behavior MUST remain reproducible throughout 1B. Before migration work, record the accepted source revision/commit, copy the JSON fixture read-only, capture its integrity manifest and expected counts/hashes, and retain representative screenshots. See [the baseline record](docs/CHECKPOINT_1A_BASELINE.md).
+
+Checkpoint 1B adds two approved visual requirements without authorizing a broader redesign:
+
+- a persistent Header **Agent mode** pull-down showing `Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`; it displays service-returned effective policy but never creates client-side authority;
+- a small preview region on every Asset Library card, using an authorized image resource or an accessible kind-aware fallback for processing, missing, unsupported, or failed media.
 
 ## Product principles
 
@@ -90,6 +99,7 @@ Enemy/NPC design, enemy routes, NPC animation, combat encounter authoring, and f
 - [Architecture](docs/ARCHITECTURE.md)
 - [MCP contract](docs/MCP_CONTRACT.md)
 - [Roadmap and user checkpoints](docs/ROADMAP.md)
+- [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
 
 These documents are normative for the Studio implementation. If code and documentation disagree, the discrepancy must be resolved explicitly; it must not become an accidental new contract.
 
@@ -102,4 +112,4 @@ The JSON adapter is development-only, but its project ledger is recoverable. Sto
 3. To recover, stop Studio, rename the new data directory out of the way, restore the backup directory to `.numberdroid-studio/`, and restart.
 4. Confirm the expected project revision and activity count before continuing work.
 
-Never merge two JSON directories or edit their ledgers manually. Checkpoint 1B will add supported SQLite backup, restore, integrity diagnostics, and migration tooling.
+Never merge two JSON directories or edit their ledgers manually. Checkpoint 1B migration is copy-and-verify into a new SQLite/CAS destination; the original baseline remains untouched until 1B acceptance. Cutover is explicit, JSON and SQLite are never concurrent authoritative writers, and rollback preserves the failed/new destination plus recovery evidence instead of silently discarding post-cutover work.

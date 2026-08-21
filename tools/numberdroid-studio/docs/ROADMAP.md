@@ -16,6 +16,8 @@ No checkpoint may claim user approval from silence or from an automated policy r
 
 ## Checkpoint 1A — Architecture and observable development shell
 
+**Status: visually accepted by the user on 2026-08-21.** The accepted shell and interaction flow are the protected baseline for 1B. This records visual/workflow acceptance only; JSON persistence and the host-only agent adapter remain development implementations.
+
 **Outcome:** a separately runnable Studio skeleton proves the product boundary, shared command path, host-injected agent authority, and visual audit model without claiming production persistence or a complete MCP transport.
 
 Deliverables:
@@ -41,7 +43,7 @@ User verification scenario:
 7. restart the development service with the same data directory and confirm revision 6 and the audit history remain visible;
 8. approve or reject the interaction, visibility, and authority model; do not treat this as approval of JSON persistence or a complete MCP server.
 
-Exit decision: approve the interaction model, visible audit information, standalone boundary, and host-injected authority model, then authorize 1B. Acceptance does not make the JSON store production-ready and does not complete Checkpoint 1.
+Decision recorded: the interaction model and visual shell are accepted as the 1B baseline. The implementation MUST retain a runnable frozen JSON fixture, expected command/revision/activity results, the accepted source revision/commit, and representative screenshots. Acceptance does not make the JSON store production-ready and does not complete Checkpoint 1.
 
 ## Checkpoint 1B — SQLite/CAS and official MCP transport
 
@@ -50,24 +52,32 @@ Exit decision: approve the interaction model, visible audit information, standal
 Deliverables:
 
 - SQLite in WAL mode, versioned migrations, transactional event/revision/projection/idempotency/grant updates, and backup/reset flow;
-- streamed SHA-256 content-addressed artifact storage, integrity checks, retention-safe garbage collection, and URI delivery;
+- one-writer/reader concurrency, foreign-key/integrity checks, fault-safe commit, SQLite-native live backup/restore, and tested projection rebuild;
+- copy-and-verify migration from the protected 1A JSON directory into a new destination, with source digest manifest, parity report, explicit cutover pointer, and non-destructive rollback;
+- streamed same-filesystem SHA-256 content-addressed artifact storage, size/media/dimension limits, atomic placement, corruption/missing detection, retention-safe mark/sweep garbage collection, paired backup/restore, and URI delivery;
 - official MCP 2026-07-28 SDK with local stdio transport;
 - stateless MCP protocol core whose trusted host injects actor/task/grant execution context for every tool call;
-- scoped project resources, first read/mutation tools, structured concurrency errors, and durable activity evidence;
-- human grant mint/revoke UI/API outside the agent-callable MCP tool surface;
+- scoped project/resources, first read/mutation tools, runtime-validated schemas, structured concurrency errors, clean shutdown, protocol-only stdout, and durable activity evidence;
+- persistent Header Agent mode selector with `Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`, backed by human-only service grant operations outside the agent-callable MCP tool surface;
+- an effective-policy detail/warning for scope, branch, capabilities, expiry, budget, and broadening; finalization/export/publish remain separate;
+- a small preview region on every Asset Library card, with authorized image resource or distinct accessible kind-aware fallback for processing/missing/unsupported/failure;
 - equivalence, permission, persistence, crash/fault, concurrency, artifact, and protocol contract tests;
+- protected 1A visual and command-outcome regression suite;
 - supported-platform instructions for install, launch, data location, backup, restore, reset, and diagnostics.
 
 User verification scenario:
 
-1. migrate the 1A sample project into SQLite and restart it;
-2. import a small artifact and verify its digest-backed resource link;
-3. discover tools/resources through the official stdio MCP transport;
-4. attempt a mutation without host authority and observe denial;
-5. mint a narrow human grant, bind it through the trusted host, and observe one attributed revision;
-6. revoke the grant and confirm a later stateless call is denied;
-7. exercise idempotent retry and stale-revision conflict through MCP;
-8. back up, reset, restore, and compare the project revision/activity.
+1. launch the protected 1A fixture and compare the accepted shell/screenshots and command outcomes;
+2. stop its writer, create a source manifest/backup, migrate a copy into SQLite/CAS, inspect the parity report, and restart 1B;
+3. confirm project IDs, revision/activity history, grant revocation, validation, and visible navigation match the 1A baseline;
+4. import a small artifact and verify its digest-backed resource link, restart integrity, and duplicate-content behavior;
+5. inspect Asset Library cards with a valid preview and each fallback class; confirm no card is blank and semantic controls remain usable;
+6. use the Header Agent mode selector to move from `Off` to read-only, draft proposal, and scoped execution; inspect warnings/effective policy and confirm client-side state cannot grant authority;
+7. discover only implemented tools/resources through the official stdio MCP transport, with diagnostics off stdout;
+8. attempt a mutation without host authority, with a stale revision, and after revocation; observe denial/conflict without partial changes;
+9. exercise one granted mutation and idempotent retry through MCP and compare its events/result with the UI path;
+10. create a live backup, restore it, and compare database/CAS manifests; simulate migration failure before cutover and confirm 1A still launches unchanged;
+11. test documented rollback with preserved SQLite/CAS/recovery evidence and no silent loss of post-cutover writes.
 
 Exit decision: approve local durability, artifact handling, and official agent protocol behavior. Only then is Checkpoint 1 complete and the asset vertical slice unblocked.
 
@@ -194,3 +204,5 @@ Each accepted checkpoint updates a concise decision log with:
 - exact revision/commit and fixture versions tested.
 
 This prevents future agents from reinterpreting an accepted workflow based only on code or chat history.
+
+Current open 1B visual decision: the Header Agent mode control is required, but its final compact label/icon treatment and whether effective-policy details open as a popover or side panel require user verification. The security states, options, warnings, and service-backed authority boundary are not open.

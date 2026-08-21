@@ -67,11 +67,13 @@ SQLite repositories, migrations, transaction implementation, event/revision stor
 
 Deterministic image slicing, thumbnailing, compositing, overlay data, and visual QA projections. It consumes artifacts and semantic models through ports; it does not decide semantics from pixels.
 
+The preview projection also owns deterministic Asset Library card states: resolved image, processing, missing artifact, unsupported media, and load failure. Each state has a stable kind-aware fallback descriptor so the UI never has to infer meaning from a failed image element or expose a filesystem path.
+
 Apps and transport infrastructure host configured generation-provider adapters behind an application port. Provider credentials and network calls remain outside the domain; a generation job records the provider/model response, prompt/seed/options, cost evidence where available, and immutable output artifact before exposing it for review.
 
 ### `packages/mcp-server`
 
-Protocol transport plus semantic tool/resource mapping. Its trusted host authenticates the caller and injects actor/task/grant execution context for each call; the adapter validates DTOs, invokes application handlers, and translates results into MCP content/resource links. Protocol connection state is not authorization. This package contains no authoring rules.
+Protocol transport plus semantic tool/resource mapping. The stdio bridge does not open SQLite or the CAS directly: it calls the running one-writer Studio service over a private loopback/IPC boundary using a server-minted opaque `HostBinding` credential. Only a digest of that credential is stored. On every call the service resolves the binding, reloads the current immutable grant, and injects actor/task/branch/grant execution context before application dispatch. Protocol connection state, client envelope metadata, and tool arguments are not authorization. This package contains no authoring rules.
 
 ### `packages/numberdroid-adapter`
 
@@ -80,6 +82,12 @@ The only package allowed to know Numberdroid repository layout, Level Spec, comp
 ### `fixtures`
 
 Small deterministic project bundles, images, expected slices, command/event histories, and Numberdroid adapter golden outputs shared by unit, integration, UI, MCP, and contract tests.
+
+### 3.1 Protected Checkpoint 1A baseline
+
+The user visually accepted the Checkpoint 1A shell on 2026-08-21. Its navigation, information hierarchy, project/revision/activity visibility, demo command outcomes, and host-injected authority behavior are now regression inputs, not disposable scaffolding.
+
+Before 1B changes persistence or transport, the project records the accepted source revision/commit, fixture and expected revision/activity counts, and representative screenshots. The 1A application remains runnable against a copied frozen JSON data directory. 1B is an infrastructure substitution behind existing application ports; it may add the approved Header Agent mode selector and card preview/fallback but must not silently redesign the accepted shell. Any broader visual change returns to a user checkpoint.
 
 ## 4. Domain model
 
@@ -168,7 +176,13 @@ All mutations use a common internal envelope. Actor, task, grant, and correlatio
 }
 ```
 
-Human UI commands use the same envelope; a locally authenticated human context supplies its actor and authorization. The MCP host injects its bound agent/task/grant context after tool-input validation. System commands identify both the initiating actor and the system executor. Application handlers MUST ignore or reject authority fields that arrive inside an untrusted payload.
+Human UI commands use the same envelope; a locally authenticated human context supplies its actor and authorization. The MCP host injects its bound agent/task/grant context after tool-input validation. System commands identify both the initiating actor and the system executor. The application API separates these values as `execute(commandDto, trustedExecutionContext)`: `commandDto` contains no actor, task, grant, binding, or issuer field. Application handlers MUST reject authority fields that arrive inside an untrusted command or payload.
+
+### Agent mode is a policy projection, not authority
+
+The persistent Header Agent mode control is a human-facing posture selector. Its choices (`Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`) request a service operation; they are not local permission flags. The service authenticates the human, creates/selects/revokes the concrete task grant as allowed, then returns a redacted `EffectiveAgentPolicy` projection containing state, project/task/branch, capability and object-scope summary, expiry, budget, and job count.
+
+The UI renders only that projection. It cannot forge an `ACTIVE` state, attach a grant to an MCP invocation, or widen a policy by changing client state. On service disconnect it renders `SERVICE_UNAVAILABLE`, which carries no authority. `EXPIRED`, `REVOKED`, and `DENIED` are likewise inactive. Broadening from read/draft to execute requires a warning/confirmation; finalization/export remain separate commands and publish is never a header posture.
 
 Application command flow:
 
@@ -191,17 +205,34 @@ Queries are side-effect-free and read versioned projections. Strongly consistent
 
 ### SQLite
 
-The local service owns one SQLite database per workspace or one database with explicit project isolation. The initial default is one workspace database in WAL mode with foreign keys enabled. Transactions include events, revisions, projection updates, activity, idempotency result, and grant budget consumption.
+The local service owns one SQLite database per workspace or one database with explicit project isolation. The initial default is one workspace database in WAL mode with foreign keys enabled, a bounded busy timeout, one authoritative writer, and explicit schema/user versioning. Live backups use the SQLite backup API or a documented checkpointed procedure; copying only the main file while WAL writes are active is forbidden.
+
+One command transaction includes events, revision and parent links, aggregate versions, projection updates, activity, idempotency result, command-required findings, and grant budget consumption. Migrations run transactionally where SQLite permits; multi-phase migrations use explicit durable states and recovery instructions. The service does not expose a writable API until migration and integrity checks complete.
 
 Logical tables include projects, branches, events, revisions, revision parents, aggregate versions, projections, artifacts, artifact references, grants, jobs, job events, findings, idempotency records, and schema migrations. Projection tables are rebuildable from events plus verified snapshots.
 
-SQLite is an infrastructure adapter. Tests use a conforming in-memory repository only where the same contract suite also runs against SQLite.
+SQLite is an infrastructure adapter. Tests use a conforming in-memory repository only where the same contract suite also runs against SQLite. Fault injection covers every commit boundary, restart/recovery, WAL checkpoint behavior, busy writers, concurrent readers, backup/restore, and projection rebuild/hash comparison.
 
 ### Content-addressed store
 
-Artifacts are immutable and addressed by SHA-256. Writes stream to a temporary file, calculate/verify the digest, then atomically rename into a shard path. Metadata is committed only after durable artifact placement. A failed database transaction may leave an unreferenced blob, which explicit garbage collection can safely reclaim after retention.
+Artifacts are immutable and addressed by SHA-256. Writes stream into a bounded same-filesystem staging area, enforce media/byte/image-dimension limits, calculate and verify the digest, durably close the file, then atomically rename it into a digest-sharded path. Existing digest content is verified/deduplicated rather than overwritten. Metadata is committed only after durable artifact placement. A failed database transaction may leave a quarantined/unreferenced blob, which explicit retention-delayed mark/sweep garbage collection can safely reclaim.
 
-Logical URIs use `studio://` resources. Binary retrieval resolves to authenticated local artifact endpoints or resource links. Tool payloads never carry base64 images.
+Logical URIs use `studio://` resources. Binary retrieval resolves to authenticated local artifact endpoints or resource links. Tool payloads never carry base64 images or local paths. Reads fail closed on missing/digest-mismatched content; integrity audit, backup, and restore operate over the database/CAS pair and verify their manifest.
+
+### 1A JSON migration and rollback
+
+Migration is copy-and-verify, never in-place conversion:
+
+1. stop the 1A writer and copy its JSON directory to a dated protected baseline;
+2. write a manifest containing source files/digests, Studio/schema version, project heads, aggregate/event/activity counts, and accepted fixture evidence;
+3. migrate into a new SQLite database and CAS staging destination using a versioned idempotent migration ID;
+4. verify identifiers, ordering, grant/revocation state, semantic projection hashes, findings, artifact references, and visible demo outcomes;
+5. atomically switch the configured active-store pointer only after all checks pass;
+6. retain the JSON baseline, new database/CAS, and migration report through the 1B acceptance/retention window.
+
+JSON and SQLite never run as concurrent authoritative writers. A failed migration leaves the active pointer untouched and can safely restart against the staged destination. Rollback preserves the SQLite/CAS state for diagnosis and returns to the frozen JSON baseline only through an explicit operator action. If 1B accepted writes occurred after cutover, the service first creates a verified recovery bundle/down-export; it never silently loses those revisions merely to make older code start.
+
+C1A grant history is migrated for audit only. Every legacy grant is marked `LEGACY_UNBOUND` and cannot authorize a 1B call; the human must issue a new immutable 1B grant and create a new host binding. Unresolved legacy artifact URIs remain explicit `MISSING_ARTIFACT` findings and are never converted into invented CAS digests.
 
 ### Portable bundle
 
@@ -269,6 +300,7 @@ GitHub integration receives files from a verified export manifest. It is downstr
 - The local service binds to loopback by default and refuses non-local connections unless explicitly configured.
 - MCP stdio is the initial 1B transport. Future network transports require per-call authenticated host context, origin controls, and TLS at the deployment boundary.
 - Grants are immutable, signed or server-authenticated capabilities identified by opaque IDs. Only authenticated human roles can mint or widen them.
+- The Header Agent mode control displays service-returned effective policy; its DOM/client state, selected label, and browser storage are never authorization inputs.
 - Tool payloads cannot name arbitrary filesystem paths. Imports use approved file handles/roots; exports use configured destinations and manifest-relative paths.
 - Archive and image processing defends against traversal, decompression bombs, oversized dimensions, malformed codecs, and symlink escapes.
 - Provider credentials remain in a local secret store and never enter project bundles, events, prompts returned to ungranted readers, or MCP logs.
@@ -297,12 +329,15 @@ Extraction should require changing workspace/package publishing configuration, C
 At each checkpoint, reviewers MUST be able to demonstrate:
 
 - a forbidden import test prevents core packages from referencing UI/MCP/SQLite/Numberdroid;
+- the accepted 1A visual/demo baseline remains reproducible, and approved additive UI changes do not alter its command outcomes;
 - UI and MCP produce equivalent events for the same command fixture;
 - repository contract tests pass against in-memory and SQLite adapters;
+- JSON-to-SQLite migration is idempotent, preserves semantic/event/activity hashes, leaves its source untouched, and can fail before cutover without changing the active store;
 - crash/fault injection cannot create a revision without its events or vice versa;
 - stale and duplicate requests have deterministic outcomes;
 - resource authorization prevents cross-project reads;
 - artifact digest and bundle integrity failures are detected before use;
+- every Asset Library card renders either its authorized preview or a stable accessible fallback without exposing local paths;
 - an agent branch can be inspected, rejected, merged, and reverted without deleting history;
 - exports match golden manifests for stable fixtures;
 - `AUTO_ACCEPTED_BY_POLICY` never appears as `USER_APPROVED`.
