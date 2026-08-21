@@ -204,6 +204,99 @@ Do not reopen this base to add use evidence. Future patrol/service wear belongs 
 
 ---
 
+## 4A. Family Hygiene v1 — production contract
+
+Status: **PREPARED / SOURCE NOT YET GENERATED**
+
+This room is intentionally produced before Child by explicit Art-Director reprioritization on 2026-08-21. It remains a separate room pass; no Child source or integration is bundled into this work.
+
+### Authority declaration
+
+```text
+ASSET CATEGORY             Family Hygiene Ground material tiles
+RUNTIME REQUIREMENTS       64×64 px opaque full-bleed 1×1 tiles
+GEOMETRY AUTHORITY         deterministic 1×1 runtime cells / measured crop
+MATERIAL AUTHORITY         M1 generated source candidates after Art-Director alignment
+EDGE / TOPOLOGY AUTHORITY  no connectors; metadata explicitly declares none
+ALPHA / BACKGROUND         opaque full-bleed Ground; no transparency/card background
+PACKING / RUNTIME          deterministic materializer + individual runtime PNGs
+SELECTED METHOD / HYBRID   M1 material/source board → deterministic extraction/resample
+KNOWN FAILURE MODE         hospital-white/industrial read, card gutters, tile checkerboard,
+                           directional grooves, random use of all candidates
+```
+
+M4 does not need to invent the material appearance for this pass because the room requires no connector geometry, multi-cell macro or procedural topology. Deterministic production still owns crop, exact runtime dimensions, metadata, placement and QA.
+
+### Asset Task Card
+
+```text
+CATEGORY                    Family Hygiene Floor v1
+SOURCE TARGET               art-source/approved/area-01-transfer-ship/floor-treatment/
+                             source/family-hygiene-floor-2x2__source-approved__2026-08-21.png
+SOURCE GRID                  strict 2×2 / four equal square 1×1 candidates
+RUNTIME OUTPUT              public/assets/deck/family-hygiene-floor/
+                             family-hygiene-floor-00..03.png
+RUNTIME TILE                64×64 px
+PERSPECTIVE                 strict orthographic top-down / no visible vertical faces
+BACKGROUND                  opaque, full-bleed material faces after extraction
+PALETTE                     cooler pearl/ceramic grey + muted blue-grey mineral variation;
+                             restrained family warmth; no dominant teal, amber or black
+MATERIAL READ               fine isotropic non-slip microtexture; clean and maintained;
+                             denser than Living, not sterile, wet-room plausible
+ALLOWED                     tiny value/material variation; extremely restrained cleaning/
+                             water finish variation that remains Ground identity
+FORBIDDEN                   drains, route lines, arrows, labels, icons, toys, hazard stripes,
+                             directional grooves, hospital white, industrial grates, grime,
+                             baked wall AO, scene illumination or story-specific content
+MAP CONTEXT                 family-hygiene room only; 2×3 = six complete 1×1 cells
+EXTRACTION                  measure four material faces; remove source-board gutters/frame;
+                             premultiplied-alpha Lanczos normalization to exact 64×64
+QA                          source category/perspective/palette; full-bleed crop; 3×3 repeats;
+                             actual 2×3 room assembly; gameplay scale; desktop + phone live QA
+```
+
+### Tile / surface metadata contract
+
+| Source cell | Surface id | Role | spanTiles | runtimeEligible before source QA | wallSafe | Rotation | Connectors |
+|---:|---|---|---|---|---|---|---|
+| 0 | `hygiene-base-a` | dominant calm non-slip base | 1×1 | false | pending | invariant | none |
+| 1 | `hygiene-base-b` | compatible secondary base | 1×1 | false | pending | invariant | none |
+| 2 | `hygiene-fine-a` | fine-material alternative | 1×1 | false | pending | invariant | none |
+| 3 | `hygiene-fine-b` | fine-material alternative | 1×1 | false | pending | invariant | none |
+
+All four source cells belong to continuity family `family-hygiene-calm-v1` only after source/repetition QA confirms compatible full-bleed edges. Source QA may quarantine cells rather than forcing all four into runtime.
+
+```text
+structural full-tile bands  none
+room domain                 2 × 3
+placement origin            family-hygiene room origin
+surface span                1 × 1
+divisibility                2 % 1 = 0; 3 % 1 = 0
+remainder policy            none
+route / connector topology  none
+threshold ownership         existing connection/material transition; not this source board
+Ground ownership            room material identity only
+FloorFX ownership           later drain/service/water-use evidence, wear and AO
+```
+
+The live placement must remain deliberately calm: one approved base dominates at least four of the six cells; at most two cells use a compatible secondary material. Do not hash all approved candidates across this tiny room and do not create an obvious checkerboard.
+
+### Planned deterministic implementation after source approval
+
+- add `scripts/materialize-family-hygiene-floor.mjs` with immutable source byte/hash/dimension validation and measured face crops;
+- materialize individual 64×64 outputs during `predev` / `prebuild`; runtime derivatives need not be committed;
+- add durable per-cell metadata in `src/levelgen/familyHygieneFloorTileMetadata.ts`;
+- add `familyHygieneFloorSprites()` in its own presentation module;
+- exclude `family-hygiene` from the accepted generic Family overlay while preserving Living/Child unchanged;
+- insert Hygiene sprites in the existing pre-Architecture room-floor sequence without changing collision/navigation;
+- regression-test exactly six Hygiene sprites, no double-render with the generic Family floor, metadata integrity, deterministic selection, 1×1 fit and existing layer order.
+
+### Generation prompt intent
+
+Generate exactly one production source board containing only four equal square top-down floor-material candidates in a strict 2×2 grid. Each candidate is one complete 1×1 tile face, not a multi-cell composition. The family is a refined civilian Transfer-Ship hygiene floor: slightly cooler and denser than Family Living, pearl/ceramic grey with muted blue-grey mineral variation, fine isotropic non-slip microtexture, clean and maintained but not sterile white. The four candidates are closely related material variants, not different designs. No labels, text, presentation legend, drains, route marks, arrows, symbols, props, walls, doors, perspective, directional grooves, hazard stripes, neon circuitry, grime, baked AO or lighting.
+
+---
+
 ## 5. Thresholds / room transitions
 
 Different room floors must remain one Transfer Ship family.
