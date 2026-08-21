@@ -14,6 +14,26 @@
           <span><strong>Numberdroid Studio</strong><small>Local authoring foundation</small></span>
         </a>
         <div class="project-controls">
+          <div class="agent-access-control">
+            <label for="agent-access-select">Agent access</label>
+            <div class="agent-access-input">
+              <select id="agent-access-select" aria-describedby="agent-access-state" disabled>
+                <option value="off">Off</option>
+                <option value="read_only">Read only</option>
+                <option value="propose_draft">Propose in draft</option>
+                <option value="execute_scoped">Execute scoped task</option>
+                <option value="custom">Custom…</option>
+              </select>
+              <button id="agent-access-state" class="access-state" type="button" aria-expanded="false" aria-controls="agent-access-panel" disabled>OFF</button>
+            </div>
+            <section id="agent-access-panel" class="agent-access-panel" aria-label="Effective agent policy" hidden>
+              <div class="policy-heading"><strong>Effective policy</strong><button id="agent-access-close" type="button" aria-label="Close effective policy">×</button></div>
+              <dl id="agent-access-details" class="policy-details"></dl>
+              <ul id="agent-access-warnings" class="policy-warnings"></ul>
+              <button id="agent-access-retry" class="secondary policy-retry" type="button" hidden>Retry last access change</button>
+              <p>Header selection never creates or widens authority. The local service and trusted host validate the concrete grant for every call.</p>
+            </section>
+          </div>
           <label class="sr-only" for="project-select">Project</label>
           <select id="project-select" aria-label="Active project"></select>
           <button id="demo-button" class="secondary" type="button">Create / load demo</button>

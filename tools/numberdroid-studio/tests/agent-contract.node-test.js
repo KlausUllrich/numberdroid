@@ -3,13 +3,16 @@ import assert from 'node:assert/strict';
 
 // Kept outside Vitest's discovery pattern; this package uses Node's test runner.
 import { createAgentToolCatalog, findAgentTool } from '../packages/mcp-server/src/index.js';
-import { AGENT, OWNER, PROJECT_ID, agentSourceCommand, command, createHarness, createProject, issueGrant } from './test-helpers.js';
+import {
+  AGENT, AGENT_CONTEXT, OWNER, OWNER_CONTEXT, PROJECT_ID,
+  agentSourceCommand, command, createHarness, createProject, issueGrant,
+} from './test-helpers.js';
 
 test('MCP-shaped catalog exposes no owner-only tools and receives authority only from its host', async () => {
   const { studio } = createHarness();
   await createProject(studio);
   await issueGrant(studio);
-  const trustedContext = { projectId: PROJECT_ID, actor: AGENT, taskId: 'task.atlas', grantId: 'grant.atlas' };
+  const trustedContext = { projectId: PROJECT_ID, ...AGENT_CONTEXT };
   const tools = createAgentToolCatalog(studio, { contextProvider: async () => trustedContext });
   const names = tools.map((tool) => tool.name);
   assert.ok(!names.includes('studio_project_create'));
@@ -58,7 +61,7 @@ test('MCP host project context prevents cross-project confused deputy even with 
     idempotencyKey: 'idem.other-create',
     projectId: otherProjectId,
     payload: { name: 'Other project', ownerId: OWNER.id },
-  }));
+  }), OWNER_CONTEXT);
   await studio.execute(command({
     commandId: 'cmd.other-grant',
     idempotencyKey: 'idem.other-grant',
@@ -69,9 +72,12 @@ test('MCP host project context prevents cross-project confused deputy even with 
       grantId: 'grant.atlas',
       agentId: AGENT.id,
       taskId: 'task.atlas',
+      branchId: 'branch.task.atlas',
       scopes: ['project.read', 'source.write'],
+      objectScopes: [{ kind: 'project', id: otherProjectId }],
+      budget: { maxCommands: 10, maxJobs: 0, maxArtifactBytes: 0 },
     },
-  }));
+  }), OWNER_CONTEXT);
 
   const tools = createAgentToolCatalog(studio, {
     contextProvider: async () => ({
@@ -79,6 +85,7 @@ test('MCP host project context prevents cross-project confused deputy even with 
       actor: AGENT,
       taskId: 'task.atlas',
       grantId: 'grant.atlas',
+      branchId: 'branch.task.atlas',
     }),
   });
   const sourceTool = findAgentTool(tools, 'studio_source_register');
@@ -108,13 +115,14 @@ test('direct application and agent adapter produce identical semantics for the s
   await issueGrant(adapterHarness.studio);
 
   const source = agentSourceCommand();
-  const directResult = await directHarness.studio.execute(source);
+  const directResult = await directHarness.studio.execute(source, AGENT_CONTEXT);
   const tools = createAgentToolCatalog(adapterHarness.studio, {
     contextProvider: async () => ({
       projectId: PROJECT_ID,
       actor: AGENT,
       taskId: 'task.atlas',
       grantId: 'grant.atlas',
+      branchId: 'branch.task.atlas',
     }),
   });
   const toolResult = await findAgentTool(tools, 'studio_source_register').execute({
@@ -148,15 +156,19 @@ test('agent project reads expose only a redacted effective policy, never grant I
       grantId: 'grant.foreign-secret',
       agentId: 'other.agent',
       taskId: 'task.foreign',
+      branchId: 'branch.task.foreign',
       scopes: ['project.read'],
+      objectScopes: [{ kind: 'project', id: PROJECT_ID }],
+      budget: { maxCommands: 10, maxJobs: 0, maxArtifactBytes: 0 },
     },
-  }));
+  }), OWNER_CONTEXT);
   const tools = createAgentToolCatalog(studio, {
     contextProvider: async () => ({
       projectId: PROJECT_ID,
       actor: AGENT,
       taskId: 'task.atlas',
       grantId: 'grant.atlas',
+      branchId: 'branch.task.atlas',
     }),
   });
   const result = await findAgentTool(tools, 'studio_project_read').execute({
@@ -168,7 +180,11 @@ test('agent project reads expose only a redacted effective policy, never grant I
   assert.equal(result.snapshot.grants, undefined);
   assert.deepEqual(result.effectivePolicy, {
     taskId: 'task.atlas',
+    branchId: 'branch.task.atlas',
     scopes: ['asset.write', 'project.read', 'source.write'],
+    objectScopes: [{ kind: 'project', id: PROJECT_ID }],
+    budget: { maxCommands: 100, maxJobs: 10, maxArtifactBytes: 536870912, maxCostCents: 0 },
+    usage: { commands: 0, jobs: 0, artifactBytes: 0, costCents: 0 },
     status: 'active',
     expiresAt: null,
   });

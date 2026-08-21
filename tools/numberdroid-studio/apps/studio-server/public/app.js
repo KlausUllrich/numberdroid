@@ -2,6 +2,9 @@ const state = {
   projects: [],
   project: null,
   activity: [],
+  agentAccess: null,
+  agentAccessCsrf: null,
+  pendingAgentAccess: null,
   labResult: null,
   workspace: location.hash.slice(1) || 'overview',
   refreshing: false,
@@ -12,6 +15,8 @@ const elements = Object.fromEntries(
     'project-select', 'demo-button', 'refresh-button', 'workspace-nav', 'workspace-content',
     'workspace-eyebrow', 'project-name', 'project-description', 'project-status', 'revision-label',
     'activity-list', 'activity-count', 'connection-dot', 'connection-label', 'toast',
+    'agent-access-select', 'agent-access-state', 'agent-access-panel', 'agent-access-close',
+    'agent-access-details', 'agent-access-warnings', 'agent-access-retry',
   ].map((id) => [id, document.getElementById(id)]),
 );
 
@@ -34,6 +39,95 @@ function showToast(message) {
   elements.toast.classList.add('visible');
   clearTimeout(showToast.timeout);
   showToast.timeout = setTimeout(() => elements.toast.classList.remove('visible'), 2600);
+}
+
+const accessStateLabels = {
+  OFF: 'OFF', REQUESTING: 'REQUESTING', ACTIVE_READ_ONLY: 'READ ONLY', ACTIVE_DRAFT: 'DRAFT',
+  ACTIVE_EXECUTE: 'SCOPED', EXPIRED: 'EXPIRED', REVOKED: 'REVOKED', DENIED: 'DENIED',
+  SERVICE_UNAVAILABLE: 'UNAVAILABLE',
+};
+
+function setAgentAccessPanel(open) {
+  elements['agent-access-panel'].hidden = !open;
+  elements['agent-access-state'].setAttribute('aria-expanded', String(open));
+}
+
+function renderAgentAccess() {
+  const policy = state.agentAccess;
+  const disabled = !state.project || !policy;
+  elements['agent-access-select'].disabled = disabled || policy?.state === 'REQUESTING';
+  elements['agent-access-state'].disabled = disabled;
+  elements['agent-access-select'].value = policy?.mode ?? 'off';
+  elements['agent-access-state'].textContent = accessStateLabels[policy?.state] ?? 'OFF';
+  elements['agent-access-state'].dataset.state = policy?.state ?? 'OFF';
+  elements['agent-access-retry'].hidden = !state.pendingAgentAccess;
+
+  const details = [];
+  if (policy) {
+    details.push(
+      ['Mode', policy.mode?.replaceAll('_', ' ')],
+      ['Task', policy.taskId],
+      ['Branch', policy.branchId || 'none'],
+      ['Scopes', policy.scopes?.join(', ') || 'none'],
+      ['Objects', policy.objectScopes?.map((scope) => `${scope.kind}:${scope.id}`).join(', ') || 'none'],
+      ['Expires', policy.expiresAt || 'not set'],
+      ['Budget', policy.budget?.remaining
+        ? `${policy.budget.remaining.commands}/${policy.budget.limits.maxCommands} commands remain`
+        : policy.budget?.status?.replaceAll('_', ' ').toLowerCase() || 'not available'],
+      ['Running jobs', policy.runningJobs ?? 0],
+    );
+  }
+  const detailNodes = [];
+  for (const [label, value] of details) {
+    const term = document.createElement('dt'); term.textContent = label;
+    const description = document.createElement('dd'); description.textContent = String(value ?? '—');
+    detailNodes.push(term, description);
+  }
+  elements['agent-access-details'].replaceChildren(...detailNodes);
+
+  const warnings = (policy?.warnings ?? []).map((entry) => {
+    const item = document.createElement('li');
+    item.dataset.severity = entry.severity;
+    item.textContent = entry.message;
+    return item;
+  });
+  elements['agent-access-warnings'].replaceChildren(...warnings);
+}
+
+const previewStateLabels = {
+  PROCESSING: 'Preview processing', MISSING: 'Preview missing',
+  UNSUPPORTED: 'Unsupported media', LOAD_FAILED: 'Preview failed',
+};
+
+function previewFallback(asset, requestedState) {
+  const previewState = previewStateLabels[requestedState] ? requestedState : 'MISSING';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'asset-preview fallback';
+  wrapper.dataset.previewState = previewState;
+  wrapper.setAttribute('role', 'img');
+  wrapper.setAttribute('aria-label', `${asset.kind} preview: ${previewStateLabels[previewState]}`);
+  const glyph = document.createElement('span');
+  glyph.className = 'preview-glyph'; glyph.setAttribute('aria-hidden', 'true');
+  glyph.textContent = { surface: '▦', prop: '◆', item: '●' }[asset.kind] ?? '◇';
+  const copy = document.createElement('span');
+  const kind = document.createElement('small'); kind.textContent = asset.kind;
+  const status = document.createElement('strong'); status.textContent = previewStateLabels[previewState];
+  copy.append(kind, status); wrapper.append(glyph, copy);
+  return wrapper;
+}
+
+function assetPreview(asset) {
+  const preview = asset.preview;
+  if (preview?.state !== 'READY' || !preview.resourceUri) return previewFallback(asset, preview?.state);
+  const figure = document.createElement('figure');
+  figure.className = 'asset-preview ready';
+  const image = document.createElement('img');
+  image.src = preview.resourceUri;
+  image.alt = preview.alt || `${asset.name} preview`;
+  image.loading = 'lazy'; image.decoding = 'async';
+  image.addEventListener('error', () => figure.replaceWith(previewFallback(asset, 'LOAD_FAILED')), { once: true });
+  figure.append(image);
+  return figure;
 }
 
 function card(title, tag, body, properties = []) {
@@ -185,9 +279,12 @@ function renderCollection(items, workspace) {
         ['ID', item.id], ['Artifact', item.artifactUri], ['Seed', item.provenance.seed], ['Model', item.provenance.model],
       ]));
     } else if (workspace === 'assets') {
-      grid.append(card(item.name, item.kind, `Crop ${item.region.width}×${item.region.height} at ${item.region.x}, ${item.region.y}.`, [
+      const assetCard = card(item.name, item.kind, `Crop ${item.region.width}×${item.region.height} at ${item.region.x}, ${item.region.y}.`, [
         ['ID', item.id], ['Source', item.sourceId], ['Status', item.status], ['Role', item.properties.role],
-      ]));
+      ]);
+      assetCard.classList.add('asset-card');
+      assetCard.prepend(assetPreview(item));
+      grid.append(assetCard);
     }
   }
   return grid;
@@ -253,7 +350,7 @@ function renderProject() {
   elements['project-description'].textContent = project?.description || 'Create the safe demo project to see the shared command core in action.';
   elements['project-status'].textContent = project?.status || 'empty';
   elements['revision-label'].textContent = state.project ? `Revision ${state.project.revision}` : 'Revision —';
-  renderWorkspace(); renderActivity();
+  renderWorkspace(); renderActivity(); renderAgentAccess();
 }
 
 async function loadProjects(preferredProjectId) {
@@ -263,7 +360,8 @@ async function loadProjects(preferredProjectId) {
   elements['project-select'].replaceChildren();
   if (!state.projects.length) {
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
-    elements['project-select'].append(option); state.project = null; state.activity = []; renderProject(); return;
+    elements['project-select'].append(option); state.project = null; state.activity = [];
+    state.agentAccess = null; state.agentAccessCsrf = null; setAgentAccessPanel(false); renderProject(); return;
   }
   for (const project of state.projects) {
     const option = document.createElement('option'); option.value = project.projectId;
@@ -276,11 +374,55 @@ async function loadProjects(preferredProjectId) {
 
 async function loadProject(projectId) {
   if (!projectId) return;
-  const [project, activity] = await Promise.all([
+  const [project, activity, agentAccess] = await Promise.all([
     api(`/api/projects/${encodeURIComponent(projectId)}`),
     api(`/api/projects/${encodeURIComponent(projectId)}/activity`),
+    api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`),
   ]);
-  state.project = project; state.activity = activity.events; renderProject();
+  state.project = project; state.activity = activity.events;
+  state.agentAccess = agentAccess.effectivePolicy; state.agentAccessCsrf = agentAccess.csrfToken;
+  renderProject();
+}
+
+const accessModeRanks = { off: 0, read_only: 1, propose_draft: 2, execute_scoped: 3, custom: 0 };
+
+async function requestAgentAccess(mode, {
+  confirmBroaderAccess = false,
+  idempotencyKey = crypto.randomUUID(),
+} = {}) {
+  if (!state.project || !state.agentAccessCsrf) return;
+  const previous = state.agentAccess;
+  const request = { mode, confirmBroaderAccess, idempotencyKey };
+  state.agentAccess = { ...previous, requestedMode: mode, state: 'REQUESTING' };
+  renderAgentAccess();
+  try {
+    const response = await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/agent-access`, {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: JSON.stringify(request),
+    });
+    state.agentAccess = response.effectivePolicy;
+    state.agentAccessCsrf = response.csrfToken;
+    state.pendingAgentAccess = null;
+    if (response.changed) await loadProject(state.project.projectId);
+    else renderAgentAccess();
+    if (mode === 'custom' || state.agentAccess.state === 'DENIED' || state.agentAccess.warnings?.length) {
+      setAgentAccessPanel(true);
+    }
+    showToast(response.idempotentReplay
+      ? 'The original Agent access result was returned without another grant change.'
+      : `Effective agent access: ${accessStateLabels[state.agentAccess.state] ?? state.agentAccess.state}.`);
+  } catch (error) {
+    const retryable = !error.code || error.code === 'INTERNAL_ERROR';
+    state.pendingAgentAccess = retryable ? request : null;
+    state.agentAccess = {
+      ...(previous ?? { mode: 'off', scopes: [], warnings: [] }),
+      requestedMode: mode,
+      state: retryable ? 'SERVICE_UNAVAILABLE' : 'DENIED',
+      warnings: [{ severity: 'warning', message: `${error.code || 'ERROR'}: ${error.message}` }],
+    };
+    renderAgentAccess(); setAgentAccessPanel(true);
+  }
 }
 
 async function refresh({ quiet = false } = {}) {
@@ -292,6 +434,12 @@ async function refresh({ quiet = false } = {}) {
     if (!quiet) showToast('Project status refreshed.');
   } catch (error) {
     elements['connection-dot'].classList.remove('online'); elements['connection-label'].textContent = 'Offline';
+    state.agentAccess = {
+      ...(state.agentAccess ?? { mode: 'off', scopes: [], warnings: [] }),
+      state: 'SERVICE_UNAVAILABLE',
+      warnings: [{ severity: 'warning', message: 'The local service is unavailable; header selection grants nothing.' }],
+    };
+    renderAgentAccess();
     if (!quiet) showToast(`${error.code || 'ERROR'}: ${error.message}`);
   } finally {
     state.refreshing = false; elements['refresh-button'].disabled = false;
@@ -305,6 +453,35 @@ elements['workspace-nav'].addEventListener('click', (event) => {
 });
 elements['project-select'].addEventListener('change', () => loadProject(elements['project-select'].value));
 elements['refresh-button'].addEventListener('click', () => refresh());
+elements['agent-access-select'].addEventListener('change', () => {
+  const mode = elements['agent-access-select'].value;
+  if (mode === 'custom') {
+    requestAgentAccess(mode);
+    return;
+  }
+  const currentMode = state.agentAccess?.mode ?? 'off';
+  const broader = (accessModeRanks[mode] ?? 0) > (accessModeRanks[currentMode] ?? 0);
+  const preset = state.agentAccess?.presets?.[mode];
+  const presetDetails = preset
+    ? `\nScopes: ${preset.scopes.join(', ')}\nBranch: ${preset.branchId || 'none'}\nObjects: ${preset.objectScopes.map((scope) => `${scope.kind}:${scope.id}`).join(', ')}\nCommand budget: ${preset.budget.maxCommands}\nExpires: ${new Date(preset.expiresAt).toLocaleString()}`
+    : '';
+  const confirmed = !broader || window.confirm(
+    `Broaden Agent access from “${currentMode.replaceAll('_', ' ')}” to “${mode.replaceAll('_', ' ')}”?\n\n`
+    + `The service resolved the following immutable grant:${presetDetails}\n\nPublish is never included.`,
+  );
+  if (!confirmed) {
+    renderAgentAccess();
+    return;
+  }
+  requestAgentAccess(mode, { confirmBroaderAccess: broader });
+});
+elements['agent-access-state'].addEventListener('click', () => {
+  setAgentAccessPanel(elements['agent-access-panel'].hidden);
+});
+elements['agent-access-close'].addEventListener('click', () => setAgentAccessPanel(false));
+elements['agent-access-retry'].addEventListener('click', () => {
+  if (state.pendingAgentAccess) requestAgentAccess(state.pendingAgentAccess.mode, state.pendingAgentAccess);
+});
 elements['workspace-content'].addEventListener('click', async (event) => {
   const button = event.target.closest('[data-demo-action]');
   if (!button) return;

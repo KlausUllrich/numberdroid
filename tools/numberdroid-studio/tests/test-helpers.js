@@ -4,6 +4,13 @@ import { InMemoryProjectStore } from '../packages/persistence/src/index.js';
 export const OWNER = { id: 'designer.one', kind: 'human', displayName: 'Designer One' };
 export const AGENT = { id: 'atlas.agent', kind: 'agent', displayName: 'Atlas Agent' };
 export const PROJECT_ID = 'project.family-hygiene';
+export const OWNER_CONTEXT = { actor: OWNER, taskId: null, grantId: null, branchId: 'branch.main' };
+export const AGENT_CONTEXT = {
+  actor: AGENT,
+  taskId: 'task.atlas',
+  grantId: 'grant.atlas',
+  branchId: 'branch.task.atlas',
+};
 
 export function createHarness(store = new InMemoryProjectStore()) {
   let tick = 0;
@@ -22,14 +29,13 @@ export function command(overrides = {}) {
     baseRevision: version,
     expectedVersion: version,
     dryRun: false,
-    actor: OWNER,
     payload: { name: 'Family Hygiene', ownerId: OWNER.id },
     ...overrides,
   };
 }
 
 export async function createProject(studio) {
-  return studio.execute(command({ commandId: 'cmd.create', idempotencyKey: 'idem.create' }));
+  return studio.execute(command({ commandId: 'cmd.create', idempotencyKey: 'idem.create' }), OWNER_CONTEXT);
 }
 
 export async function issueGrant(studio, { scopes = ['project.read', 'source.write', 'asset.write'], expectedVersion = 1 } = {}) {
@@ -38,9 +44,16 @@ export async function issueGrant(studio, { scopes = ['project.read', 'source.wri
     idempotencyKey: 'idem.grant',
     type: 'grant.issue',
     expectedVersion,
-    taskId: null,
-    payload: { grantId: 'grant.atlas', agentId: AGENT.id, taskId: 'task.atlas', scopes },
-  }));
+    payload: {
+      grantId: 'grant.atlas',
+      agentId: AGENT.id,
+      taskId: 'task.atlas',
+      branchId: AGENT_CONTEXT.branchId,
+      scopes,
+      objectScopes: [{ kind: 'project', id: PROJECT_ID }],
+      budget: { maxCommands: 100, maxJobs: 10, maxArtifactBytes: 536870912, maxCostCents: 0 },
+    },
+  }), OWNER_CONTEXT);
 }
 
 export function agentSourceCommand(overrides = {}) {
@@ -49,9 +62,6 @@ export function agentSourceCommand(overrides = {}) {
     idempotencyKey: 'idem.source',
     type: 'source.register',
     expectedVersion: 2,
-    actor: AGENT,
-    taskId: 'task.atlas',
-    grantId: 'grant.atlas',
     payload: {
       sourceId: 'source.atlas',
       name: 'Generated atlas',

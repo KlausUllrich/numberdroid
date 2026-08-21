@@ -19,8 +19,30 @@ const SOURCE_MEDIA_TYPES = ['image/png', 'image/webp'];
 const ASSET_KINDS = ['surface', 'prop', 'item'];
 const ASSET_STATUSES = ['draft', 'in_review'];
 
-function validateEnvelope(raw) {
+const AUTHORITY_FIELDS = ['actor', 'taskId', 'grantId', 'branchId', 'bindingToken', 'issuerActorId'];
+
+function validateExecutionContext(raw) {
+  const context = requireRecord(raw, 'trustedExecutionContext');
+  const actor = requireActor(context.actor);
+  return {
+    actor,
+    taskId: context.taskId === undefined || context.taskId === null ? null : requireId(context.taskId, 'trustedExecutionContext.taskId'),
+    grantId: context.grantId === undefined || context.grantId === null ? null : requireId(context.grantId, 'trustedExecutionContext.grantId'),
+    branchId: context.branchId === undefined || context.branchId === null ? null : requireId(context.branchId, 'trustedExecutionContext.branchId'),
+    correlationId: context.correlationId === undefined || context.correlationId === null
+      ? null
+      : requireId(context.correlationId, 'trustedExecutionContext.correlationId'),
+  };
+}
+
+function validateEnvelope(raw, rawExecutionContext) {
   const envelope = requireRecord(raw, 'command');
+  for (const field of AUTHORITY_FIELDS) {
+    invariant(!Object.hasOwn(envelope, field), 'UNTRUSTED_AUTHORITY_FIELD', `Command DTO must not contain authority field: ${field}.`, {
+      field,
+    });
+  }
+  const executionContext = validateExecutionContext(rawExecutionContext);
   const schemaVersion = requireInteger(envelope.schemaVersion, 'schemaVersion', { min: 1 });
   const type = requireString(envelope.type, 'type', { max: 100 });
   const dryRun = envelope.dryRun === undefined ? false : envelope.dryRun;
@@ -49,9 +71,7 @@ function validateEnvelope(raw) {
     baseRevision,
     expectedVersion,
     dryRun,
-    actor: requireActor(envelope.actor),
-    taskId: envelope.taskId === undefined || envelope.taskId === null ? null : requireId(envelope.taskId, 'taskId'),
-    grantId: envelope.grantId === undefined || envelope.grantId === null ? null : requireId(envelope.grantId, 'grantId'),
+    ...executionContext,
     payload,
   };
 }
@@ -82,6 +102,7 @@ function commandFingerprint(command) {
     actor: command.actor,
     taskId: command.taskId,
     grantId: command.grantId,
+    branchId: command.branchId,
     payload: command.payload,
   });
 }
@@ -175,6 +196,9 @@ function assertAuthorized(command, snapshot, definition, now) {
   invariant(grant.taskId === command.taskId, 'GRANT_TASK_MISMATCH', 'The grant belongs to another task.', {
     grantId: grant.id,
   });
+  invariant(grant.branchId === command.branchId, 'GRANT_BRANCH_MISMATCH', 'The grant belongs to another branch.', {
+    expectedBranchId: grant.branchId,
+  });
   invariant(!grant.expiresAt || Date.parse(grant.expiresAt) > Date.parse(now), 'GRANT_EXPIRED', 'The grant has expired.', {
     grantId: grant.id,
     expiresAt: grant.expiresAt,
@@ -182,6 +206,15 @@ function assertAuthorized(command, snapshot, definition, now) {
   invariant(grant.scopes.includes(definition.requiredScope), 'GRANT_SCOPE_MISSING', 'The grant lacks the required scope.', {
     grantId: grant.id,
     requiredScope: definition.requiredScope,
+  });
+  invariant(
+    grant.objectScopes.some((scope) => scope.kind === 'project' && scope.id === command.projectId),
+    'OBJECT_SCOPE_DENIED',
+    'The grant does not cover this project object scope.',
+  );
+  invariant(grant.usage.commands < grant.budget.maxCommands, 'BUDGET_EXCEEDED', 'The grant command budget is exhausted.', {
+    consumed: grant.usage.commands,
+    limit: grant.budget.maxCommands,
   });
 }
 
@@ -194,10 +227,43 @@ function validateScopes(value) {
   return scopes.sort();
 }
 
+function validateObjectScopes(value) {
+  invariant(Array.isArray(value) && value.length > 0, 'VALIDATION_ERROR', 'objectScopes must be a non-empty array.');
+  return value.map((candidate, index) => {
+    const scope = requireRecord(candidate, `payload.objectScopes[${index}]`);
+    return {
+      kind: requireString(scope.kind, `payload.objectScopes[${index}].kind`, { max: 100 }),
+      id: requireId(scope.id, `payload.objectScopes[${index}].id`),
+    };
+  });
+}
+
+function validateBudget(value) {
+  const budget = requireRecord(value, 'payload.budget');
+  return {
+    maxCommands: requireInteger(budget.maxCommands, 'payload.budget.maxCommands', { min: 1 }),
+    maxJobs: requireInteger(budget.maxJobs, 'payload.budget.maxJobs', { min: 0 }),
+    maxArtifactBytes: requireInteger(budget.maxArtifactBytes, 'payload.budget.maxArtifactBytes', { min: 0 }),
+    maxCostCents: budget.maxCostCents === undefined
+      ? 0
+      : requireInteger(budget.maxCostCents, 'payload.budget.maxCostCents', { min: 0 }),
+  };
+}
+
 function applyCommand(command, snapshot, now) {
   const payload = command.payload;
   const next = deepClone(snapshot);
   next.project.updatedAt = now;
+  if (command.actor.kind === 'agent') {
+    const grantIndex = next.grants.findIndex((grant) => grant.id === command.grantId);
+    next.grants[grantIndex] = {
+      ...next.grants[grantIndex],
+      usage: {
+        ...next.grants[grantIndex].usage,
+        commands: next.grants[grantIndex].usage.commands + 1,
+      },
+    };
+  }
 
   switch (command.type) {
     case 'grant.issue': {
@@ -211,12 +277,17 @@ function applyCommand(command, snapshot, now) {
         id: grantId,
         agentId: requireId(payload.agentId, 'payload.agentId'),
         taskId,
+        branchId: requireId(payload.branchId, 'payload.branchId'),
         scopes: validateScopes(payload.scopes),
+        objectScopes: validateObjectScopes(payload.objectScopes),
+        budget: validateBudget(payload.budget),
+        usage: { commands: 0, jobs: 0, artifactBytes: 0, costCents: 0 },
         expiresAt: payload.expiresAt ? requireIsoDate(payload.expiresAt, 'payload.expiresAt') : null,
         issuedAt: now,
         issuedBy: command.actor.id,
         revokedAt: null,
         revokeReason: null,
+        status: 'ACTIVE',
       };
       next.grants.push(grant);
       return {
@@ -237,6 +308,7 @@ function applyCommand(command, snapshot, now) {
         ...next.grants[index],
         revokedAt: now,
         revokeReason: optionalString(payload.reason, 'payload.reason', { max: 500 }),
+        status: 'REVOKED',
       };
       return {
         snapshot: next,
@@ -413,8 +485,8 @@ export class StudioService {
     return listCommandDefinitions();
   }
 
-  async execute(rawCommand) {
-    const command = validateEnvelope(rawCommand);
+  async execute(rawCommand, trustedExecutionContext) {
+    const command = validateEnvelope(rawCommand, trustedExecutionContext);
     const definition = getCommandDefinition(command.type);
     const commandHash = commandFingerprint(command);
     const existing = await this.#store.loadProject(command.projectId);
@@ -517,17 +589,20 @@ export class StudioService {
     });
   }
 
-  async readProject(request) {
+  async readProject(request, trustedExecutionContext) {
     const input = requireRecord(request, 'request');
+    for (const field of AUTHORITY_FIELDS) {
+      invariant(!Object.hasOwn(input, field), 'UNTRUSTED_AUTHORITY_FIELD', `Read request must not contain authority field: ${field}.`, {
+        field,
+      });
+    }
     const projectId = requireId(input.projectId, 'projectId');
-    const actor = requireActor(input.actor);
-    const taskId = input.taskId === undefined || input.taskId === null ? null : requireId(input.taskId, 'taskId');
-    const grantId = input.grantId === undefined || input.grantId === null ? null : requireId(input.grantId, 'grantId');
+    const { actor, taskId, grantId, branchId } = validateExecutionContext(trustedExecutionContext);
     const document = await this.#store.loadProject(projectId);
     invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
     const head = headRevision(document);
     assertAuthorized(
-      { actor, taskId, grantId, type: 'project.read' },
+      { actor, taskId, grantId, branchId, projectId, type: 'project.read' },
       head.snapshot,
       { ownerOnly: false, requiredScope: 'project.read' },
       this.#clock(),
@@ -542,7 +617,11 @@ export class StudioService {
         snapshot: redactedSnapshot,
         effectivePolicy: {
           taskId: effectiveGrant.taskId,
+          branchId: effectiveGrant.branchId,
           scopes: [...effectiveGrant.scopes],
+          objectScopes: deepClone(effectiveGrant.objectScopes),
+          budget: deepClone(effectiveGrant.budget),
+          usage: deepClone(effectiveGrant.usage),
           status: 'active',
           expiresAt: effectiveGrant.expiresAt,
         },

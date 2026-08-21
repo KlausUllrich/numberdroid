@@ -37,10 +37,10 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
 
   async function authority(invocationContext, requestedProjectId) {
     const context = await contextProvider(invocationContext);
-    if (!context?.actor || context.actor.kind !== 'agent' || !context.projectId || !context.taskId || !context.grantId) {
+    if (!context?.projectId) {
       throw new StudioError(
         'UNTRUSTED_AGENT_CONTEXT',
-        'The MCP host did not provide project, agent, task, and grant authority.',
+        'The MCP host did not provide a trusted project binding.',
       );
     }
     if (context.projectId !== requestedProjectId) {
@@ -75,10 +75,7 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
         expectedVersion: input.expectedVersion,
         dryRun: input.dryRun ?? false,
         payload: input.payload,
-        actor: context.actor,
-        taskId: context.taskId,
-        grantId: context.grantId,
-      });
+      }, context);
     },
   }));
 
@@ -110,7 +107,7 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
           });
         }
         const context = await authority(invocationContext, input.projectId);
-        return studioService.readProject({ projectId: input.projectId, ...context });
+        return studioService.readProject({ projectId: input.projectId }, context);
       },
     },
     ...commandTools,
@@ -124,3 +121,6 @@ export function findAgentTool(tools, name) {
   }
   return tool;
 }
+
+export { buildOfficialMcpServer, serveOfficialMcpStdio } from './official-server.js';
+export { jsonSchemaToZod } from './schema-adapter.js';

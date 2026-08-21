@@ -1,11 +1,20 @@
 import { readFile } from 'node:fs/promises';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { StudioService } from '../../../packages/application/src/index.js';
-import { asStudioError } from '../../../packages/domain/src/index.js';
-import { JsonProjectStore } from '../../../packages/persistence/src/index.js';
+import { StudioError, asStudioError } from '../../../packages/domain/src/index.js';
+import {
+  ContentAddressedArtifactStore,
+  JsonProjectStore,
+  SqliteArtifactMetadataStore,
+  SqliteHostBindingStore,
+  SqliteProjectStore,
+} from '../../../packages/persistence/src/index.js';
 import { ensureDemoProject, runDemoAction } from './demo-project.js';
+import { createHumanAgentAccessController } from './human-agent-access.js';
+import { projectHttpProjection } from './http-projections.js';
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = resolve(moduleDirectory, '../public');
@@ -27,11 +36,41 @@ function sendJson(response, status, value) {
 }
 
 function errorStatus(error) {
-  if (error.code === 'PROJECT_NOT_FOUND') return 404;
-  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT'].includes(error.code)) return 409;
-  if (error.code.startsWith('GRANT_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH'].includes(error.code)) return 403;
-  if (['VALIDATION_ERROR', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN'].includes(error.code)) return 400;
+  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND'].includes(error.code)) return 404;
+  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED'].includes(error.code)) return 409;
+  if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
+  if (error.code === 'ARTIFACT_TOO_LARGE') return 413;
+  if (['ARTIFACT_DIGEST_MISMATCH', 'ARTIFACT_METADATA_CONFLICT'].includes(error.code)) return 409;
+  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST'].includes(error.code)) return 400;
+  if (error.code === 'ARTIFACT_STORE_DISABLED') return 503;
   return 500;
+}
+
+function assertLoopbackServiceRequest(request) {
+  const hostUrl = loopbackOrigin(`http://${request.headers.host ?? ''}`);
+  const remoteAddress = request.socket.remoteAddress ?? '';
+  const loopbackRemote = remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
+  if (!hostUrl || !loopbackRemote) {
+    throw new StudioError('HOST_BINDING_CHANNEL_FORBIDDEN', 'The private MCP bridge is available only over loopback.');
+  }
+}
+
+function bearerToken(request) {
+  const authorization = request.headers.authorization;
+  if (typeof authorization !== 'string' || !authorization.startsWith('Bearer ')) {
+    throw new StudioError('HOST_BINDING_REQUIRED', 'The private MCP bridge requires a HostBinding bearer token.');
+  }
+  return authorization.slice('Bearer '.length);
+}
+
+function bindingExecutionContext(binding) {
+  return {
+    actor: binding.actor,
+    taskId: binding.taskId,
+    grantId: binding.grantId,
+    branchId: binding.branchId,
+    correlationId: `mcp.${randomUUID()}`,
+  };
 }
 
 async function serveStatic(pathname, response) {
@@ -49,12 +88,80 @@ async function serveStatic(pathname, response) {
 }
 
 function projectRoute(pathname) {
-  const match = /^\/api\/projects\/([^/]+)(?:\/(activity))?$/.exec(pathname);
+  const match = /^\/api\/projects\/([^/]+)(?:\/(activity|agent-access))?$/.exec(pathname);
   return match ? { projectId: decodeURIComponent(match[1]), resource: match[2] ?? 'snapshot' } : null;
 }
 
-export function createStudioHttpServer({ studioService }) {
+function artifactRoute(pathname) {
+  const match = /^\/api\/projects\/([^/]+)\/artifacts(?:\/sha256\/([a-f0-9]{64}))?$/.exec(pathname);
+  return match ? { projectId: decodeURIComponent(match[1]), digest: match[2] ?? null } : null;
+}
+
+async function readJsonBody(request, { maxBytes = 4096 } = {}) {
+  const contentType = request.headers['content-type'] ?? '';
+  if (!contentType.toLowerCase().startsWith('application/json')) {
+    throw new StudioError('CONTENT_TYPE_REQUIRED', 'This endpoint requires application/json.');
+  }
+  const declaredLength = Number(request.headers['content-length'] ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new StudioError('BODY_TOO_LARGE', 'The request body is too large.', { maxBytes });
+  }
+  const chunks = [];
+  let byteLength = 0;
+  for await (const chunk of request) {
+    byteLength += chunk.length;
+    if (byteLength > maxBytes) throw new StudioError('BODY_TOO_LARGE', 'The request body is too large.', { maxBytes });
+    chunks.push(chunk);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    throw new StudioError('INVALID_JSON', 'The request body is not valid JSON.');
+  }
+}
+
+function loopbackOrigin(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:') return null;
+    if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) return null;
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function tokenMatches(actual, expected) {
+  if (typeof actual !== 'string') return false;
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
+}
+
+function assertHumanUiMutation(request, csrfToken) {
+  const hostUrl = loopbackOrigin(`http://${request.headers.host ?? ''}`);
+  const originUrl = loopbackOrigin(request.headers.origin ?? '');
+  if (!originUrl) throw new StudioError('UI_ORIGIN_REQUIRED', 'A loopback same-origin browser request is required.');
+  if (!hostUrl || originUrl.host !== hostUrl.host) {
+    throw new StudioError('UI_ORIGIN_FORBIDDEN', 'The request Origin does not match this loopback Studio service.');
+  }
+  if (request.headers['sec-fetch-site'] && request.headers['sec-fetch-site'] !== 'same-origin') {
+    throw new StudioError('UI_ORIGIN_FORBIDDEN', 'Cross-site UI requests are not allowed.');
+  }
+  if (!tokenMatches(request.headers['x-numberdroid-studio-csrf'], csrfToken)) {
+    throw new StudioError('CSRF_INVALID', 'The human UI request is missing its current CSRF token.');
+  }
+}
+
+export function createStudioHttpServer({
+  studioService,
+  hostBindingStore = null,
+  artifactStore = null,
+  artifactMetadataStore = null,
+}) {
   if (!studioService) throw new TypeError('studioService is required.');
+  const humanUiCsrfToken = randomBytes(32).toString('base64url');
+  const humanAgentAccess = createHumanAgentAccessController({ studioService, hostBindingStore });
 
   return createServer(async (request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1');
@@ -75,9 +182,106 @@ export function createStudioHttpServer({ studioService }) {
         sendJson(response, 200, { schemaVersion: 1, projects: await studioService.listProjectsTrusted() });
         return;
       }
+      if (request.method === 'POST' && url.pathname === '/internal/mcp/execute') {
+        assertLoopbackServiceRequest(request);
+        if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
+        const binding = hostBindingStore.resolve(bearerToken(request));
+        const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
+        if (!body || Array.isArray(body) || typeof body !== 'object' || body.schemaVersion !== 1
+          || !body.command || Object.keys(body).some((key) => !['schemaVersion', 'command'].includes(key))) {
+          throw new StudioError('VALIDATION_ERROR', 'The MCP execution bridge requires schemaVersion 1 and a command DTO.');
+        }
+        if (body.command.projectId !== binding.projectId) {
+          throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside this HostBinding.', {
+            requestedProjectId: body.command.projectId,
+            contextProjectId: binding.projectId,
+          });
+        }
+        sendJson(response, 200, await studioService.execute(body.command, bindingExecutionContext(binding)));
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/internal/mcp/read-project') {
+        assertLoopbackServiceRequest(request);
+        if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
+        const binding = hostBindingStore.resolve(bearerToken(request));
+        const body = await readJsonBody(request, { maxBytes: 4096 });
+        if (!body || Array.isArray(body) || typeof body !== 'object' || body.schemaVersion !== 1
+          || typeof body.projectId !== 'string' || Object.keys(body).some((key) => !['schemaVersion', 'projectId'].includes(key))) {
+          throw new StudioError('VALIDATION_ERROR', 'The MCP read bridge requires schemaVersion 1 and projectId.');
+        }
+        if (body.projectId !== binding.projectId) {
+          throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside this HostBinding.', {
+            requestedProjectId: body.projectId,
+            contextProjectId: binding.projectId,
+          });
+        }
+        sendJson(response, 200, await studioService.readProject(
+          { projectId: body.projectId },
+          bindingExecutionContext(binding),
+        ));
+        return;
+      }
+      const artifact = artifactRoute(url.pathname);
+      if (request.method === 'POST' && artifact && artifact.digest === null) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        if (!artifactStore || !artifactMetadataStore) {
+          throw new StudioError('ARTIFACT_STORE_DISABLED', 'This Studio service has no content-addressed artifact store.');
+        }
+        const projectView = await studioService.readProjectTrusted(artifact.projectId);
+        const mediaType = String(request.headers['content-type'] ?? '').split(';', 1)[0].trim().toLowerCase();
+        const expectedDigest = request.headers['x-numberdroid-expected-sha256'] ?? null;
+        const ingested = await artifactStore.ingest(request, { mediaType, expectedDigest });
+        const ownerId = `upload.${randomUUID()}`;
+        artifactMetadataStore.registerAndReference(ingested, {
+          projectId: artifact.projectId,
+          ownerKind: 'upload',
+          ownerId,
+          createdRevision: projectView.revision,
+        });
+        sendJson(response, 201, {
+          schemaVersion: 1,
+          projectId: artifact.projectId,
+          ownerId,
+          artifact: {
+            digest: ingested.digest,
+            uri: ingested.uri,
+            mediaType: ingested.mediaType,
+            byteSize: ingested.byteSize,
+            width: ingested.width,
+            height: ingested.height,
+            resourceUri: `/api/projects/${encodeURIComponent(artifact.projectId)}/artifacts/sha256/${ingested.digest}`,
+            deduplicated: ingested.deduplicated,
+          },
+        });
+        return;
+      }
+      if (request.method === 'GET' && artifact?.digest) {
+        if (!artifactStore || !artifactMetadataStore) {
+          throw new StudioError('ARTIFACT_STORE_DISABLED', 'This Studio service has no content-addressed artifact store.');
+        }
+        await studioService.readProjectTrusted(artifact.projectId);
+        if (!artifactMetadataStore.hasProjectReference(artifact.projectId, artifact.digest)) {
+          throw new StudioError('ARTIFACT_NOT_FOUND', 'The project has no reference to this artifact.');
+        }
+        const metadata = artifactMetadataStore.getArtifact(artifact.digest);
+        if (!metadata || metadata.state !== 'LIVE') {
+          throw new StudioError('ARTIFACT_NOT_LIVE', 'The artifact is not available for preview.');
+        }
+        const stream = await artifactStore.createReadStream(artifact.digest);
+        response.writeHead(200, {
+          'content-type': metadata.mediaType,
+          'content-length': metadata.byteSize,
+          'cache-control': 'private, max-age=31536000, immutable',
+          'content-security-policy': "default-src 'none'; frame-ancestors 'none'",
+          'x-content-type-options': 'nosniff',
+        });
+        stream.on('error', (error) => response.destroy(error));
+        stream.pipe(response);
+        return;
+      }
       const project = projectRoute(url.pathname);
       if (request.method === 'GET' && project?.resource === 'snapshot') {
-        sendJson(response, 200, await studioService.readProjectTrusted(project.projectId));
+        sendJson(response, 200, projectHttpProjection(await studioService.readProjectTrusted(project.projectId)));
         return;
       }
       if (request.method === 'GET' && project?.resource === 'activity') {
@@ -86,6 +290,25 @@ export function createStudioHttpServer({ studioService }) {
           schemaVersion: 1,
           projectId: project.projectId,
           events: await studioService.listActivityTrusted(project.projectId, { afterRevision }),
+        });
+        return;
+      }
+      if (request.method === 'GET' && project?.resource === 'agent-access') {
+        sendJson(response, 200, {
+          schemaVersion: 1,
+          effectivePolicy: await humanAgentAccess.read(project.projectId),
+          csrfToken: humanUiCsrfToken,
+        });
+        return;
+      }
+      if (request.method === 'POST' && project?.resource === 'agent-access') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request);
+        const result = await humanAgentAccess.change(project.projectId, body);
+        sendJson(response, 200, {
+          schemaVersion: 1,
+          ...result,
+          csrfToken: humanUiCsrfToken,
         });
         return;
       }
@@ -120,15 +343,44 @@ export async function startStudioHttpServer({
   dataDirectory = resolve(process.env.NUMBERDROID_STUDIO_DATA ?? '.numberdroid-studio'),
   host = process.env.NUMBERDROID_STUDIO_HOST ?? '127.0.0.1',
   port = Number(process.env.NUMBERDROID_STUDIO_PORT ?? 4317),
+  storeMode = process.env.NUMBERDROID_STUDIO_STORE ?? 'sqlite',
 } = {}) {
-  const store = new JsonProjectStore({ directory: dataDirectory });
+  if (!['sqlite', 'json'].includes(storeMode)) throw new TypeError('storeMode must be sqlite or json.');
+  const store = storeMode === 'sqlite'
+    ? await SqliteProjectStore.open({ filename: resolve(dataDirectory, 'studio.sqlite') })
+    : new JsonProjectStore({ directory: dataDirectory });
   const studioService = new StudioService({ store });
-  const server = createStudioHttpServer({ studioService });
+  const hostBindingStore = storeMode === 'sqlite'
+    ? new SqliteHostBindingStore({ workspace: store.workspace })
+    : null;
+  const artifactStore = storeMode === 'sqlite'
+    ? new ContentAddressedArtifactStore({ rootDirectory: resolve(dataDirectory, 'artifacts') })
+    : null;
+  await artifactStore?.initialize();
+  const artifactMetadataStore = storeMode === 'sqlite'
+    ? new SqliteArtifactMetadataStore({ workspace: store.workspace })
+    : null;
+  const server = createStudioHttpServer({
+    studioService,
+    hostBindingStore,
+    artifactStore,
+    artifactMetadataStore,
+  });
+  if (typeof store.close === 'function') server.once('close', () => store.close());
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
     server.listen(port, host, resolveListen);
   });
-  return { server, studioService, address: server.address(), dataDirectory };
+  return {
+    server,
+    studioService,
+    hostBindingStore,
+    artifactStore,
+    artifactMetadataStore,
+    address: server.address(),
+    dataDirectory,
+    storeMode,
+  };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

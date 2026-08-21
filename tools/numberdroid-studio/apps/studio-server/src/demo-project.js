@@ -5,6 +5,9 @@ const OWNER = { id: 'local.designer', kind: 'human', displayName: 'Local designe
 const AGENT = { id: 'atlas.agent', kind: 'agent', displayName: 'Atlas agent' };
 const TASK_ID = 'demo.atlas-bootstrap';
 const GRANT_ID = 'grant.demo-atlas';
+const BRANCH_ID = 'branch.demo-atlas';
+const OWNER_CONTEXT = { actor: OWNER, taskId: null, grantId: null, branchId: 'branch.main' };
+const AGENT_CONTEXT = { actor: AGENT, taskId: TASK_ID, grantId: GRANT_ID, branchId: BRANCH_ID };
 
 async function headOrNull(studio) {
   try {
@@ -17,7 +20,7 @@ async function headOrNull(studio) {
   }
 }
 
-async function executeAtHead(studio, partial) {
+async function executeAtHead(studio, partial, executionContext = OWNER_CONTEXT) {
   const current = await headOrNull(studio);
   return studio.execute({
     ...partial,
@@ -26,7 +29,7 @@ async function executeAtHead(studio, partial) {
     baseRevision: current?.revision ?? 0,
     expectedVersion: current?.revision ?? 0,
     dryRun: false,
-  });
+  }, executionContext);
 }
 
 function atlasSourceRegistration() {
@@ -34,9 +37,6 @@ function atlasSourceRegistration() {
     commandId: 'demo.register-atlas',
     idempotencyKey: 'demo.register-atlas',
     type: 'source.register',
-    actor: AGENT,
-    taskId: TASK_ID,
-    grantId: GRANT_ID,
     payload: {
       sourceId: 'source.family-hygiene-atlas',
       name: 'Family Hygiene generated atlas',
@@ -61,7 +61,6 @@ export async function ensureDemoProject(studio) {
       commandId: 'demo.create',
       idempotencyKey: 'demo.create',
       type: 'project.create',
-      actor: OWNER,
       payload: {
         name: 'Family Hygiene Studio Demo',
         description: 'A safe local project demonstrating human-visible agent work.',
@@ -76,19 +75,21 @@ export async function ensureDemoProject(studio) {
       commandId: 'demo.grant-atlas-agent',
       idempotencyKey: 'demo.grant-atlas-agent',
       type: 'grant.issue',
-      actor: OWNER,
       payload: {
         grantId: GRANT_ID,
         agentId: AGENT.id,
         taskId: TASK_ID,
+        branchId: BRANCH_ID,
         scopes: ['project.read', 'source.write', 'asset.write', 'project.status.write'],
+        objectScopes: [{ kind: 'project', id: DEMO_PROJECT_ID }],
+        budget: { maxCommands: 100, maxJobs: 10, maxArtifactBytes: 536870912, maxCostCents: 0 },
       },
     });
     current = await headOrNull(studio);
   }
 
   if (!current.snapshot.sources.some((source) => source.id === 'source.family-hygiene-atlas')) {
-    await executeAtHead(studio, atlasSourceRegistration());
+    await executeAtHead(studio, atlasSourceRegistration(), AGENT_CONTEXT);
     current = await headOrNull(studio);
   }
 
@@ -97,9 +98,6 @@ export async function ensureDemoProject(studio) {
       commandId: 'demo.define-floor-tile',
       idempotencyKey: 'demo.define-floor-tile',
       type: 'asset.define',
-      actor: AGENT,
-      taskId: TASK_ID,
-      grantId: GRANT_ID,
       payload: {
         assetId: 'tile.hygiene.floor.clean-a',
         sourceId: 'source.family-hygiene-atlas',
@@ -114,7 +112,7 @@ export async function ensureDemoProject(studio) {
         },
         status: 'in_review',
       },
-    });
+    }, AGENT_CONTEXT);
     current = await headOrNull(studio);
   }
 
@@ -123,11 +121,8 @@ export async function ensureDemoProject(studio) {
       commandId: 'demo.request-review',
       idempotencyKey: 'demo.request-review',
       type: 'project.status.set',
-      actor: AGENT,
-      taskId: TASK_ID,
-      grantId: GRANT_ID,
       payload: { status: 'in_review', note: 'Generated source and first tile are ready for human review.' },
-    });
+    }, AGENT_CONTEXT);
   }
 
   return studio.readProjectTrusted(DEMO_PROJECT_ID);
@@ -144,7 +139,7 @@ export async function runDemoAction(studio, action) {
         baseRevision: 2,
         expectedVersion: 2,
         dryRun: false,
-      });
+      }, AGENT_CONTEXT);
     case 'stale-write': {
       const staleVersion = Math.max(0, current.revision - 1);
       return studio.execute({
@@ -156,16 +151,14 @@ export async function runDemoAction(studio, action) {
         baseRevision: staleVersion,
         expectedVersion: staleVersion,
         dryRun: false,
-        actor: OWNER,
         payload: { status: 'active', note: 'This control-lab command is intentionally stale.' },
-      });
+      }, OWNER_CONTEXT);
     }
     case 'revoke-grant':
       return executeAtHead(studio, {
         commandId: 'demo.control.revoke-grant',
         idempotencyKey: 'demo.control.revoke-grant',
         type: 'grant.revoke',
-        actor: OWNER,
         payload: { grantId: GRANT_ID, reason: 'Checkpoint 1A user-control demonstration.' },
       });
     case 'post-revoke-attempt':
@@ -173,9 +166,6 @@ export async function runDemoAction(studio, action) {
         commandId: 'demo.control.post-revoke-attempt',
         idempotencyKey: 'demo.control.post-revoke-attempt',
         type: 'source.register',
-        actor: AGENT,
-        taskId: TASK_ID,
-        grantId: GRANT_ID,
         payload: {
           sourceId: 'source.should-be-denied',
           name: 'Denied source',
@@ -183,7 +173,7 @@ export async function runDemoAction(studio, action) {
           mediaType: 'image/png',
           provenance: { prompt: 'This write must never commit after revocation.', seed: 0 },
         },
-      });
+      }, AGENT_CONTEXT);
     default:
       throw new StudioError('VALIDATION_ERROR', 'Unknown fixed demo action.', {
         action,

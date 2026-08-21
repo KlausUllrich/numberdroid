@@ -9,11 +9,20 @@
   },
   "scripts": {
     "build": "npm run check",
-    "check": "node --check packages/application/src/studio-service.js && node --check packages/mcp-server/src/index.js && node --check apps/studio-server/src/server.js",
+    "check": "node --check packages/application/src/studio-service.js && node --check packages/mcp-server/src/index.js && node --check packages/mcp-server/src/official-server.js && node --check apps/studio-server/src/server.js && node --check apps/studio-mcp/src/main.js",
     "dev": "node apps/studio-server/src/server.js",
     "demo:seed": "node apps/studio-server/src/seed-demo.js",
+    "mcp": "node apps/studio-mcp/src/main.js",
     "test": "node --test tests/*.node-test.js",
     "test:watch": "node --test --watch tests/*.node-test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "better-sqlite3": "13.0.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0"
   },
   "exports": {
     ".": "./packages/application/src/index.js",

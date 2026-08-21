@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioService } from '../packages/application/src/index.js';
 import { JsonProjectStore } from '../packages/persistence/src/index.js';
-import { PROJECT_ID, command, createHarness, createProject } from './test-helpers.js';
+import { OWNER_CONTEXT, PROJECT_ID, command, createHarness, createProject } from './test-helpers.js';
 
 test('JSON adapter atomically persists and reloads the append-only revision ledger', async (context) => {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-studio-'));
@@ -18,7 +18,7 @@ test('JSON adapter atomically persists and reloads the append-only revision ledg
   await studio.execute(command({
     commandId: 'cmd.active', idempotencyKey: 'idem.active', type: 'project.status.set', expectedVersion: 1,
     payload: { status: 'active' },
-  }));
+  }), OWNER_CONTEXT);
 
   const reloaded = new StudioService({ store: new JsonProjectStore({ directory }) });
   const project = await reloaded.readProjectTrusted(PROJECT_ID);
@@ -38,7 +38,7 @@ test('store compare-and-swap permits only one command at the same expectedVersio
     const commands = ['active', 'paused'].map((status) => studio.execute(command({
       commandId: `cmd.${status}`, idempotencyKey: `idem.${status}`, type: 'project.status.set', expectedVersion: 1,
       payload: { status },
-    })));
+    }), OWNER_CONTEXT));
     const settled = await Promise.allSettled(commands);
     assert.equal(settled.filter((result) => result.status === 'fulfilled').length, 1);
     assert.equal(settled.filter((result) => result.status === 'rejected' && result.reason.code === 'REVISION_CONFLICT').length, 1);

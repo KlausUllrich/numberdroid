@@ -35,12 +35,34 @@ const definitions = [
     payloadSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['grantId', 'agentId', 'taskId', 'scopes'],
+      required: ['grantId', 'agentId', 'taskId', 'branchId', 'scopes', 'objectScopes', 'budget'],
       properties: {
         grantId: id,
         agentId: id,
         taskId: id,
+        branchId: id,
         scopes: { type: 'array', minItems: 1, uniqueItems: true, items: nonEmpty },
+        objectScopes: {
+          type: 'array',
+          minItems: 1,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['kind', 'id'],
+            properties: { kind: nonEmpty, id },
+          },
+        },
+        budget: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['maxCommands', 'maxJobs', 'maxArtifactBytes'],
+          properties: {
+            maxCommands: { type: 'integer', minimum: 1 },
+            maxJobs: { type: 'integer', minimum: 0 },
+            maxArtifactBytes: { type: 'integer', minimum: 0 },
+            maxCostCents: { type: 'integer', minimum: 0 },
+          },
+        },
         expiresAt: { type: ['string', 'null'], format: 'date-time' },
       },
     },
