@@ -12,7 +12,7 @@ Initial 1B transport: local stdio. It MUST use the official SDK v2 `serveStdio((
 
 ## 2. Host execution context
 
-An MCP client MUST NOT supply or assert its actor, task, branch, grant, or binding as tool arguments. A human-authorized Studio service mints an opaque `HostBinding` credential for the local MCP launcher. The stdio bridge presents that credential only on its private service channel; the service stores only its digest, resolves it to a project/task/branch/grant tuple, and injects an immutable execution context for each invocation. The bridge does not open the database directly. Connection lifetime, discovery, request envelopes, client identity metadata, and protocol initialization do not confer mutation rights.
+An MCP client MUST NOT supply or assert its actor, task, branch, grant, or binding as tool arguments. The local stdio host first registers a short-lived pending request over a non-browser loopback pairing channel and can complete protocol discovery without mutation authority. The Header panel shows only its redacted label, expiry, and verification code. After explicit human confirmation, the Studio service mints an opaque `HostBinding` and delivers the raw token directly to that waiting host connection. Browser responses, DOM, URLs, clipboard setup, storage, logs, and public resources never receive it. The service stores only its SHA-256 digest. The stdio bridge then presents the token only on its private loopback service channel; the service resolves it to an immutable project/task/branch/grant tuple and injects execution context for each invocation. The bridge does not open the database directly. Connection lifetime, discovery, request envelopes, client identity metadata, and protocol initialization do not confer mutation rights.
 
 The injected execution context consists of:
 
@@ -25,7 +25,7 @@ The injected execution context consists of:
 
 Each invocation is evaluated independently against the host-injected context and current grant state. Agent-supplied target IDs are matched against that context; they cannot widen it. The agent cannot create, widen, renew, select, or override a grant. Revocation takes effect before the next command/job step; queued jobs re-check authority at documented safe boundaries.
 
-C1A grants are historical records after migration and are forced to `LEGACY_UNBOUND`; they never become host credentials. A 1B human grant is immutable. Widening or renewing it creates a new grant and revokes/supersedes the old one.
+C1A grants are historical records after migration and are forced to `LEGACY_UNBOUND`; they never become host credentials. A 1B human grant and its HostBinding coordinates are immutable. Narrowing, widening, or renewing a grant revokes its existing HostBindings, creates a new grant after required confirmation, and requires a new private host approval. `Off` revokes every active HostBinding; an old token can never be aligned to a later grant or silently resurrected.
 
 ### Grant fields
 
@@ -50,9 +50,9 @@ Capability families include read, source write/approve, generation execute, atla
 
 ### Header Agent mode relationship
 
-The Header Agent mode selector is a human UI for requesting a posture and inspecting the service-returned effective policy. `Off`, `Read only`, `Propose in draft`, and `Execute scoped task` map to bounded policy templates; `Custom…` opens a detailed human-only grant editor. The service may issue/select/revoke a concrete grant only after authenticating and authorizing that human request.
+The Header Agent mode selector is a human UI for requesting a posture and inspecting the service-returned effective policy. `Off`, `Read only`, `Propose in draft`, and `Execute scoped task` map to bounded policy templates; `Custom…` opens a detailed human-only grant editor. The service may issue/select/revoke a concrete grant only after authenticating and authorizing that human request. Grant posture and host authorization are displayed separately: an active posture without an authorized binding does not imply that an agent is connected.
 
-The selected label, DOM state, URL, browser storage, and UI request payload are not MCP authority. The trusted host independently binds current actor/task/grant context to each invocation and revalidates it. A revoked/expired/denied selector state grants nothing; `SERVICE_UNAVAILABLE` fails closed. The selector never supplies publish authority and its human-only grant operations are not advertised as MCP tools.
+The selected label, DOM state, URL, browser storage, and UI request payload are not MCP authority. A host approval request may name only a short-lived `pendingHostId`, explicit confirmation, and idempotency key; actor/task/branch/grant/scopes/budget/token/publish fields are rejected. The trusted service independently binds current actor/task/grant context to each invocation and revalidates it. A revoked/expired/denied selector state grants nothing; `SERVICE_UNAVAILABLE` fails closed. The selector never supplies publish authority and its human-only grant/pair/revoke operations are not advertised as MCP tools.
 
 ## 3. Resources
 
@@ -306,6 +306,7 @@ The user can revoke the grant and cancel eligible jobs from the visual productio
 - Agent-visible tools cannot mint/widen grants, change their actor ID, escape their project/branch, or select an arbitrary storage/export path.
 - Resource reads are authorized independently from tool calls.
 - Host credentials, grant IDs, and transport credentials are not returned in logs or broad resources; agents receive only a redacted effective-policy view sufficient to plan allowed work.
+- Browser-visible MCP launcher setup is secret-free. Raw HostBinding material crosses only the pending host's loopback pairing connection and the private host-to-service channel; it is never persisted in plaintext.
 - Agent project reads omit the complete grant collection. They return only the caller's `effectivePolicy` (`taskId`, scopes, active/revoked/expired status, and expiry), without its grant ID or any foreign agent/grant data.
 - All identifiers are parsed as opaque values; no URI/path segment becomes a filesystem path without adapter validation.
 - Imports enforce media type, byte/dimension limits, digest verification, and configured roots/file handles.

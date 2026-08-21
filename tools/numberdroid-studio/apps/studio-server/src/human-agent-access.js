@@ -36,6 +36,11 @@ function latestGrant(snapshot) {
   return snapshot.grants.at(-1) ?? null;
 }
 
+function redactedBinding(binding) {
+  const { grantId: _grantId, ...redacted } = binding;
+  return redacted;
+}
+
 function modeRank(mode) {
   return mode === 'off' ? 0 : (PRESETS[mode]?.rank ?? 0);
 }
@@ -75,6 +80,35 @@ function validateRequest(body) {
     confirmBroaderAccess: body.confirmBroaderAccess === true,
     idempotencyKey: body.idempotencyKey ?? null,
   };
+}
+
+function validateBindingApproval(body) {
+  if (!body || Array.isArray(body) || typeof body !== 'object') {
+    throw new StudioError('VALIDATION_ERROR', 'MCP host approval must be an object.');
+  }
+  const allowedKeys = new Set(['pendingHostId', 'confirm', 'idempotencyKey']);
+  if (Object.keys(body).some((key) => !allowedKeys.has(key))) {
+    throw new StudioError('VALIDATION_ERROR', 'MCP host approval contains an unsupported field.');
+  }
+  if (typeof body.pendingHostId !== 'string' || !body.pendingHostId.startsWith('pending-host.')) {
+    throw new StudioError('VALIDATION_ERROR', 'A valid pendingHostId is required.');
+  }
+  if (body.confirm !== true) throw new StudioError('HOST_PAIRING_CONFIRMATION_REQUIRED', 'MCP host approval requires explicit confirmation.');
+  if (typeof body.idempotencyKey !== 'string' || !IDEMPOTENCY_PATTERN.test(body.idempotencyKey)) {
+    throw new StudioError('VALIDATION_ERROR', 'A valid idempotencyKey is required for MCP host approval.');
+  }
+  return body;
+}
+
+function validateBindingRevoke(body) {
+  if (!body || Array.isArray(body) || typeof body !== 'object') {
+    throw new StudioError('VALIDATION_ERROR', 'MCP host revocation must be an object.');
+  }
+  if (Object.keys(body).some((key) => key !== 'idempotencyKey')
+    || typeof body.idempotencyKey !== 'string' || !IDEMPOTENCY_PATTERN.test(body.idempotencyKey)) {
+    throw new StudioError('VALIDATION_ERROR', 'MCP host revocation requires only a valid idempotencyKey.');
+  }
+  return body;
 }
 
 function confirmationDetails(projectView, mode, now) {
@@ -145,11 +179,13 @@ async function executeOwnerAtHead(studioService, projectId, command, { retries =
 export function createHumanAgentAccessController({
   studioService,
   hostBindingStore = null,
+  pairingBroker = null,
   clock = () => new Date().toISOString(),
 } = {}) {
   if (!studioService) throw new TypeError('studioService is required.');
   const operations = new Map();
   let mutationQueue = Promise.resolve();
+  let hostMutationQueue = Promise.resolve();
 
   async function read(projectId) {
     const projectView = await studioService.readProjectTrusted(projectId);
@@ -164,11 +200,6 @@ export function createHumanAgentAccessController({
     if (request.mode === currentPolicy.mode
       && currentPolicy.state.startsWith('ACTIVE')
       && grantMatchesPreset(currentActiveGrant, request.mode)) {
-      hostBindingStore?.alignBindingsToGrant({
-        projectId,
-        toGrantId: currentActiveGrant.id,
-        reboundBy: projectView.snapshot.project.ownerId,
-      });
       return { changed: false, effectivePolicy: await read(projectId) };
     }
     if (request.mode === 'off' && !activeGrant(projectView.snapshot, now)) {
@@ -198,6 +229,10 @@ export function createHumanAgentAccessController({
         type: 'grant.revoke',
         payload: { grantId: existingActive.id, reason: `Header Agent access changed to ${request.mode}.` },
       });
+      hostBindingStore?.revokeActiveForProject(projectId, {
+        revokedBy: projectView.snapshot.project.ownerId,
+        reason: `Bound grant was replaced by Header Agent access mode ${request.mode}.`,
+      });
     }
 
     if (request.mode !== 'off') {
@@ -221,13 +256,6 @@ export function createHumanAgentAccessController({
             budget: structuredClone(preset.budget),
             expiresAt: new Date(Date.parse(now) + preset.durationMs).toISOString(),
           },
-        });
-      }
-      if (hostBindingStore) {
-        hostBindingStore.alignBindingsToGrant({
-          projectId,
-          toGrantId: operation.newGrantId,
-          reboundBy: projectView.snapshot.project.ownerId,
         });
       }
     }
@@ -257,6 +285,15 @@ export function createHumanAgentAccessController({
       return { ...structuredClone(result), idempotentReplay: true };
     }
 
+    const persisted = hostBindingStore?.beginAgentAccessOperation({
+      projectId,
+      idempotencyKey: request.idempotencyKey,
+      fingerprint,
+    });
+    if (persisted?.status === 'COMPLETED') {
+      return { ...structuredClone(persisted.result), idempotentReplay: true };
+    }
+
     const operationId = stableOperationId(projectId, request.idempotencyKey);
     const operation = {
       fingerprint,
@@ -272,6 +309,12 @@ export function createHumanAgentAccessController({
     mutationQueue = run.catch(() => undefined);
     try {
       const result = await run;
+      hostBindingStore?.completeAgentAccessOperation({
+        projectId,
+        idempotencyKey: request.idempotencyKey,
+        fingerprint,
+        result,
+      });
       return { ...structuredClone(result), idempotentReplay: false };
     } catch (error) {
       operations.delete(operationKey);
@@ -279,7 +322,97 @@ export function createHumanAgentAccessController({
     }
   }
 
-  return Object.freeze({ read, change });
+  async function listBindings(projectId) {
+    await studioService.readProjectTrusted(projectId);
+    return hostBindingStore?.listForProject(projectId) ?? [];
+  }
+
+  async function listPendingHosts(projectId) {
+    await studioService.readProjectTrusted(projectId);
+    return pairingBroker?.list(projectId) ?? [];
+  }
+
+  async function createBinding(projectId, rawBody) {
+    if (!hostBindingStore || !pairingBroker) {
+      throw new StudioError('HOST_BINDING_DISABLED', 'MCP HostBindings require the SQLite Studio store.');
+    }
+    const request = validateBindingApproval(rawBody);
+    const operationKey = `binding-approve.${stableOperationId(projectId, request.idempotencyKey)}`;
+    const fingerprint = JSON.stringify({ projectId, pendingHostId: request.pendingHostId, action: 'approve' });
+    const run = hostMutationQueue.then(async () => {
+      const persisted = hostBindingStore.beginAgentAccessOperation({
+        projectId, idempotencyKey: operationKey, fingerprint,
+      });
+      if (persisted.status === 'COMPLETED') {
+        return { ...persisted.result, idempotentReplay: true };
+      }
+      pairingBroker.get(projectId, request.pendingHostId);
+      const projectView = await studioService.readProjectTrusted(projectId);
+      const now = clock();
+      const grant = activeGrant(projectView.snapshot, now);
+      if (!grant) {
+        throw new StudioError('GRANT_NOT_ACTIVE', 'Choose an active Agent access mode before creating an MCP connection.');
+      }
+      const issued = hostBindingStore.issue({
+        projectId,
+        grantId: grant.id,
+        agentId: grant.agentId,
+        taskId: grant.taskId,
+        branchId: grant.branchId,
+        issuedBy: projectView.snapshot.project.ownerId,
+        expiresAt: grant.expiresAt ?? null,
+      });
+      const result = {
+        schemaVersion: 1,
+        binding: redactedBinding(issued.binding),
+        pendingHostId: request.pendingHostId,
+      };
+      pairingBroker.approve(projectId, request.pendingHostId, {
+        token: issued.token,
+        binding: result.binding,
+      });
+      hostBindingStore.completeAgentAccessOperation({
+        projectId, idempotencyKey: operationKey, fingerprint, result,
+      });
+      return { ...result, idempotentReplay: false };
+    });
+    hostMutationQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  async function revokeBinding(projectId, bindingId, rawBody) {
+    if (!hostBindingStore) {
+      throw new StudioError('HOST_BINDING_DISABLED', 'MCP HostBindings require the SQLite Studio store.');
+    }
+    const request = validateBindingRevoke(rawBody);
+    const operationKey = `binding-revoke.${stableOperationId(projectId, request.idempotencyKey)}`;
+    const fingerprint = JSON.stringify({ projectId, bindingId, action: 'revoke' });
+    const run = hostMutationQueue.then(async () => {
+      const persisted = hostBindingStore.beginAgentAccessOperation({
+        projectId, idempotencyKey: operationKey, fingerprint,
+      });
+      if (persisted.status === 'COMPLETED') return { ...persisted.result, idempotentReplay: true };
+      const projectView = await studioService.readProjectTrusted(projectId);
+      const binding = hostBindingStore.listForProject(projectId).find((candidate) => candidate.bindingId === bindingId);
+      if (!binding) {
+        throw new StudioError('HOST_BINDING_NOT_FOUND', 'The MCP connection does not belong to this project.');
+      }
+      const result = binding.status === 'REVOKED'
+        ? { schemaVersion: 1, bindingId, revokedAt: binding.revokedAt }
+        : hostBindingStore.revoke(bindingId, {
+          revokedBy: projectView.snapshot.project.ownerId,
+          reason: 'Revoked from the human Agent access panel.',
+        });
+      hostBindingStore.completeAgentAccessOperation({
+        projectId, idempotencyKey: operationKey, fingerprint, result,
+      });
+      return { ...result, idempotentReplay: false };
+    });
+    hostMutationQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  return Object.freeze({ read, change, listBindings, listPendingHosts, createBinding, revokeBinding });
 }
 
 export const AGENT_ACCESS_PRESETS = PRESETS;

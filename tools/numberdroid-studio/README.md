@@ -6,20 +6,20 @@ The product lives in this self-contained folder so it can be moved into a standa
 
 ## Status
 
-Checkpoint 1 is the foundation checkpoint and is deliberately split in two. **Checkpoint 1A was visually accepted by the user on 2026-08-21**: its shell and verified interaction flow are now a protected baseline. It provides binding architecture, a dependency-free JSON development store, a shared command core, a host-injected agent adapter, and the visual shell. **Checkpoint 1B** must preserve that baseline while replacing development persistence with SQLite plus a content-addressed artifact store and adding the official MCP 2026-07-28 SDK/stdio transport. The foundation is not complete until 1B is accepted. Asset cutting, room authoring, and runtime export follow as vertical slices; see [the roadmap](docs/ROADMAP.md).
+Checkpoint 1 is the foundation checkpoint and is deliberately split in two. **Checkpoint 1A was visually accepted by the user on 2026-08-21** and remains the protected baseline. **Checkpoint 1B is implemented as a verification candidate and is not yet user-accepted.** It preserves the shell while adding SQLite/CAS durability, an official MCP 2026-07-28 stdio transport, private human-approved host pairing, a service-backed Header Agent access selector, and preview/fallback regions on every Asset Library card. Asset cutting, room authoring, and runtime export follow as vertical slices; see [the roadmap](docs/ROADMAP.md).
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoint 1A: binding requirements documented |
+| Product contract | Checkpoint 1B verification candidate; user acceptance pending |
 | Standalone boundary | Checkpoint 1A: package and dependency rules defined |
-| Human UI | Checkpoint 1A: visually accepted and protected as the 1B baseline |
-| Agent access | Checkpoint 1A: host-injected adapter; official MCP transport follows in 1B |
-| Persistence | Checkpoint 1A: JSON development store; SQLite and CAS required in 1B |
+| Human UI | Protected 1A shell plus Header access pull-down, private host-pairing status, and Asset card previews/fallbacks |
+| Agent access | Official MCP 2026-07-28 stdio; immutable HostBindings; private loopback pairing; per-call grant validation |
+| Persistence | SQLite WAL ledger and SHA-256 CAS by default; JSON retained only for protected migration input/regression |
 | Numberdroid export | Adapter boundary specified; production publishing deferred |
 
-## Run Checkpoint 1A locally
+## Run the Checkpoint 1B candidate locally
 
-Requirements: Node.js 22 or newer. The checkpoint has no third-party runtime dependencies.
+Requirements: Node.js 22 or newer. Dependencies and the official MCP client/server versions are pinned by `package-lock.json`.
 
 ```bash
 cd tools/numberdroid-studio
@@ -28,9 +28,39 @@ npm test
 npm run dev
 ```
 
-Open `http://127.0.0.1:4317`, choose **Create / load demo**, and inspect Overview, Sources, Asset library, and Activity. The demo is persisted under `.numberdroid-studio/` unless `NUMBERDROID_STUDIO_DATA` points to another local directory.
+Open `http://127.0.0.1:4317`, choose **Create / load demo**, and inspect Overview, Sources, Asset library, and Activity. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is the authoritative ledger, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
 
-This is a development checkpoint: do not use the JSON adapter as a multi-process production database. Checkpoint 1B replaces it with SQLite and a content-addressed artifact store.
+The server enforces one authoritative SQLite writer. `NUMBERDROID_STUDIO_STORE=json npm run dev` launches the protected JSON regression adapter explicitly; never run JSON and SQLite as simultaneous writers for the same logical workspace.
+
+## Connect a local MCP host
+
+1. In the Header **Agent access** pull-down, choose the narrowest suitable posture and confirm any broadening.
+2. Open the effective-policy badge and choose **Show host setup**. Copy this secret-free MCP server entry into the local agent host.
+3. Start/restart that host. Its stdio server starts immediately while its private loopback pairing request appears in the Header panel with a six-digit verification code.
+4. Compare the code with the host diagnostic on stderr, then choose **Authorize**. The opaque credential travels only over the non-browser pairing channel and is held by the host process; it is never returned to the DOM, clipboard configuration, URL, logs, or browser storage.
+5. The panel now lists the redacted authorized binding. **Revoke** stops it immediately. Changing posture revokes existing bindings; create and authorize a new host request for the new immutable grant. `Off` revokes all active bindings and they never reactivate later.
+
+MCP stdout is protocol-only. Pairing state and protocol diagnostics go to stderr. The Header distinguishes an active policy from an authorized host: a `SCOPED` policy alone does not mean that an agent is connected.
+
+## Administration, migration, and recovery
+
+Stop the Studio process before administrative commands. Every destination must be new; commands refuse to overwrite it.
+
+```bash
+# Inspect and protect a C1A JSON source before cutover
+npm run admin -- manifest-json /path/to/frozen-json
+npm run admin -- migrate-json /path/to/frozen-json /path/to/new-1b-data migration-2026-08-21
+
+# Verify and back up a SQLite/CAS workspace
+npm run admin -- integrity /path/to/1b-data
+npm run admin -- backup /path/to/1b-data /path/to/new-backup
+npm run admin -- verify-backup /path/to/new-backup
+
+# Restore only into a new destination
+npm run admin -- restore /path/to/new-backup /path/to/new-restored-data
+```
+
+Migration writes a protected JSON copy, source manifest, parity report, and `cutoverPerformed: false`; selecting the new data directory remains an explicit operator step. Exercise launch and integrity checks on the restored destination before replacing any active pointer.
 
 ## Protected 1A baseline and 1B additions
 
@@ -105,11 +135,11 @@ These documents are normative for the Studio implementation. If code and documen
 
 ## Safe reset and recovery
 
-The JSON adapter is development-only, but its project ledger is recoverable. Stop the Studio process before moving its data directory.
+Stop the Studio process before moving a data directory. Prefer the verified administration flow above for durable recovery.
 
 1. For a reset, rename `.numberdroid-studio/` to a dated backup such as `.numberdroid-studio.backup-2026-08-21/` instead of deleting it.
 2. Start Studio again; it creates a new empty data directory. Use **Create / load demo** if a test fixture is wanted.
 3. To recover, stop Studio, rename the new data directory out of the way, restore the backup directory to `.numberdroid-studio/`, and restart.
-4. Confirm the expected project revision and activity count before continuing work.
+4. Run `npm run admin -- integrity <restored-directory>`, then confirm the expected project revision, activity count, and Asset previews before continuing work.
 
-Never merge two JSON directories or edit their ledgers manually. Checkpoint 1B migration is copy-and-verify into a new SQLite/CAS destination; the original baseline remains untouched until 1B acceptance. Cutover is explicit, JSON and SQLite are never concurrent authoritative writers, and rollback preserves the failed/new destination plus recovery evidence instead of silently discarding post-cutover work.
+Never merge data directories, copy only a live SQLite main file, edit ledgers manually, or reuse a restore destination. C1A migration is copy-and-verify into a new SQLite/CAS destination; the original baseline remains untouched until 1B acceptance. Cutover is explicit, JSON and SQLite are never concurrent authoritative writers, and rollback preserves the failed/new destination plus recovery evidence instead of silently discarding post-cutover work.

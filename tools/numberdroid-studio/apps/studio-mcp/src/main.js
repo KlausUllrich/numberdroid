@@ -1,5 +1,6 @@
 import { LocalStudioGateway } from './local-studio-gateway.js';
 import { serveOfficialMcpStdio } from '../../../packages/mcp-server/src/index.js';
+import { pairWithStudio } from './pairing-client.js';
 
 function requiredEnvironment(name) {
   const value = process.env[name];
@@ -8,9 +9,17 @@ function requiredEnvironment(name) {
 }
 
 const baseUrl = process.env.NUMBERDROID_STUDIO_SERVICE_URL ?? 'http://127.0.0.1:4317/';
-const bindingToken = requiredEnvironment('NUMBERDROID_STUDIO_BINDING_TOKEN');
 const projectId = requiredEnvironment('NUMBERDROID_STUDIO_PROJECT_ID');
-const gateway = new LocalStudioGateway({ baseUrl, bindingToken });
+const bindingToken = process.env.NUMBERDROID_STUDIO_BINDING_TOKEN ?? null;
+const gateway = new LocalStudioGateway({
+  baseUrl,
+  bindingToken,
+  bindingTokenProvider: bindingToken ? null : () => pairWithStudio({
+    endpoint: requiredEnvironment('NUMBERDROID_STUDIO_PAIRING_ENDPOINT'),
+    projectId,
+    label: process.env.NUMBERDROID_STUDIO_HOST_LABEL ?? 'Local MCP host',
+  }),
+});
 
 serveOfficialMcpStdio({
   studioGateway: gateway,

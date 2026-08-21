@@ -9,7 +9,13 @@ function tokenDigest(token) {
 }
 
 function bindingProjection(row, now) {
-  const expired = row.expires_at !== null && Date.parse(row.expires_at) <= Date.parse(now);
+  const bindingExpired = row.expires_at !== null && Date.parse(row.expires_at) <= Date.parse(now);
+  const grantExpired = row.grant_authorization_status === 'EXPIRED'
+    || (row.grant_expires_at !== undefined && row.grant_expires_at !== null
+      && Date.parse(row.grant_expires_at) <= Date.parse(now));
+  const grantRevoked = (row.grant_revoked_at !== undefined && row.grant_revoked_at !== null)
+    || ['REVOKED', 'LEGACY_UNBOUND'].includes(row.grant_authorization_status);
+  const revokedAt = row.revoked_at ?? (grantRevoked ? row.grant_revoked_at : null);
   return {
     schemaVersion: 1,
     bindingId: row.binding_id,
@@ -21,9 +27,11 @@ function bindingProjection(row, now) {
     issuedBy: row.issued_by,
     issuedAt: row.issued_at,
     expiresAt: row.expires_at,
-    revokedAt: row.revoked_at,
+    revokedAt,
     revokeReason: row.revoke_reason,
-    status: row.revoked_at ? 'REVOKED' : expired ? 'EXPIRED' : 'ACTIVE',
+    status: row.revoked_at || grantRevoked
+      ? 'REVOKED'
+      : bindingExpired || grantExpired ? 'EXPIRED' : 'ACTIVE',
   };
 }
 
@@ -36,6 +44,62 @@ export class SqliteHostBindingStore {
     invariant(typeof clock === 'function', 'VALIDATION_ERROR', 'HostBinding clock must be a function.');
     this.#workspace = workspace;
     this.#clock = clock;
+  }
+
+  beginAgentAccessOperation({ projectId, idempotencyKey, fingerprint }) {
+    const project = requireId(projectId, 'projectId');
+    const key = requireId(idempotencyKey, 'idempotencyKey');
+    invariant(typeof fingerprint === 'string' && fingerprint.length > 0, 'VALIDATION_ERROR', 'Agent access fingerprint is required.');
+    const now = requireIsoDate(this.#clock(), 'clock');
+    return this.#workspace.transaction((database) => {
+      const existing = database.prepare(`
+        SELECT request_fingerprint, status, result_json
+        FROM human_agent_access_operations
+        WHERE project_id = ? AND idempotency_key = ?
+      `).get(project, key);
+      if (existing) {
+        invariant(
+          existing.request_fingerprint === fingerprint,
+          'IDEMPOTENCY_CONFLICT',
+          'The Agent access idempotency key was reused for another request.',
+        );
+        return {
+          schemaVersion: 1,
+          status: existing.status,
+          result: existing.result_json ? JSON.parse(existing.result_json) : null,
+        };
+      }
+      database.prepare(`
+        INSERT INTO human_agent_access_operations(
+          project_id, idempotency_key, request_fingerprint, status,
+          result_json, started_at, completed_at
+        ) VALUES (?, ?, ?, 'IN_PROGRESS', NULL, ?, NULL)
+      `).run(project, key, fingerprint, now);
+      return { schemaVersion: 1, status: 'STARTED', result: null };
+    });
+  }
+
+  completeAgentAccessOperation({ projectId, idempotencyKey, fingerprint, result }) {
+    const project = requireId(projectId, 'projectId');
+    const key = requireId(idempotencyKey, 'idempotencyKey');
+    invariant(typeof fingerprint === 'string' && fingerprint.length > 0, 'VALIDATION_ERROR', 'Agent access fingerprint is required.');
+    const now = requireIsoDate(this.#clock(), 'clock');
+    return this.#workspace.transaction((database) => {
+      const operation = database.prepare(`
+        SELECT request_fingerprint, status, result_json
+        FROM human_agent_access_operations
+        WHERE project_id = ? AND idempotency_key = ?
+      `).get(project, key);
+      invariant(operation, 'IDEMPOTENCY_OPERATION_NOT_FOUND', 'The Agent access operation was not started.');
+      invariant(operation.request_fingerprint === fingerprint, 'IDEMPOTENCY_CONFLICT', 'The Agent access request fingerprint changed.');
+      if (operation.status === 'COMPLETED') return JSON.parse(operation.result_json);
+      database.prepare(`
+        UPDATE human_agent_access_operations
+        SET status = 'COMPLETED', result_json = ?, completed_at = ?
+        WHERE project_id = ? AND idempotency_key = ?
+      `).run(JSON.stringify(result), now, project, key);
+      return structuredClone(result);
+    });
   }
 
   issue({ projectId, grantId, agentId, taskId, branchId, issuedBy, expiresAt = null }) {
@@ -136,59 +200,22 @@ export class SqliteHostBindingStore {
     });
   }
 
-  rebindGrant({ projectId, fromGrantId, toGrantId, reboundBy }) {
+  revokeActiveForProject(projectId, { revokedBy, reason = null } = {}) {
     const project = requireId(projectId, 'projectId');
-    const from = requireId(fromGrantId, 'fromGrantId');
-    const to = requireId(toGrantId, 'toGrantId');
-    requireId(reboundBy, 'reboundBy');
-    invariant(from !== to, 'VALIDATION_ERROR', 'HostBinding grant rotation requires a different target grant.');
+    requireId(revokedBy, 'revokedBy');
+    const now = requireIsoDate(this.#clock(), 'clock');
     return this.#workspace.transaction((database) => {
-      const grants = database.prepare(`
-        SELECT grant_id, agent_id, task_id, branch_id, authorization_status, status, revoked_at
-        FROM grants WHERE project_id = ? AND grant_id IN (?, ?)
-      `).all(project, from, to);
-      const prior = grants.find((grant) => grant.grant_id === from);
-      const target = grants.find((grant) => grant.grant_id === to);
-      invariant(prior && target, 'GRANT_NOT_FOUND', 'HostBinding rotation requires both the prior and target grants.');
-      invariant(
-        target.authorization_status === 'ACTIVE' && target.status === 'ACTIVE' && target.revoked_at === null,
-        'GRANT_NOT_ACTIVE',
-        'HostBinding rotation target must be an active, non-legacy grant.',
-      );
-      invariant(
-        prior.agent_id === target.agent_id && prior.task_id === target.task_id && prior.branch_id === target.branch_id,
-        'HOST_BINDING_GRANT_MISMATCH',
-        'HostBinding rotation cannot change its agent, task, or branch.',
-      );
       const updated = database.prepare(`
-        UPDATE host_bindings SET grant_id = ?
-        WHERE project_id = ? AND grant_id = ? AND revoked_at IS NULL
-      `).run(to, project, from);
-      return { schemaVersion: 1, projectId: project, reboundBindings: Number(updated.changes) };
-    });
-  }
-
-  alignBindingsToGrant({ projectId, toGrantId, reboundBy }) {
-    const project = requireId(projectId, 'projectId');
-    const to = requireId(toGrantId, 'toGrantId');
-    requireId(reboundBy, 'reboundBy');
-    return this.#workspace.transaction((database) => {
-      const target = database.prepare(`
-        SELECT grant_id, agent_id, task_id, branch_id, authorization_status, status, revoked_at
-        FROM grants WHERE project_id = ? AND grant_id = ?
-      `).get(project, to);
-      invariant(target, 'GRANT_NOT_FOUND', 'HostBinding alignment requires the target grant.');
-      invariant(
-        target.authorization_status === 'ACTIVE' && target.status === 'ACTIVE' && target.revoked_at === null,
-        'GRANT_NOT_ACTIVE',
-        'HostBinding alignment target must be an active, non-legacy grant.',
-      );
-      const updated = database.prepare(`
-        UPDATE host_bindings SET grant_id = ?
-        WHERE project_id = ? AND agent_id = ? AND task_id = ? AND branch_id = ?
-          AND grant_id <> ? AND revoked_at IS NULL
-      `).run(to, project, target.agent_id, target.task_id, target.branch_id, to);
-      return { schemaVersion: 1, projectId: project, reboundBindings: Number(updated.changes) };
+        UPDATE host_bindings
+        SET revoked_at = ?, revoke_reason = ?
+        WHERE project_id = ? AND revoked_at IS NULL
+      `).run(now, reason, project);
+      return {
+        schemaVersion: 1,
+        projectId: project,
+        revokedAt: now,
+        revokedBindings: Number(updated.changes),
+      };
     });
   }
 
@@ -196,7 +223,15 @@ export class SqliteHostBindingStore {
     const id = requireId(projectId, 'projectId');
     const now = requireIsoDate(this.#clock(), 'clock');
     return this.#workspace.database.prepare(`
-      SELECT * FROM host_bindings WHERE project_id = ? ORDER BY issued_at, binding_id
+      SELECT hb.*,
+        g.authorization_status AS grant_authorization_status,
+        g.status AS grant_status,
+        g.revoked_at AS grant_revoked_at,
+        g.expires_at AS grant_expires_at
+      FROM host_bindings hb
+      JOIN grants g ON g.project_id = hb.project_id AND g.grant_id = hb.grant_id
+      WHERE hb.project_id = ?
+      ORDER BY hb.issued_at, hb.binding_id
     `).all(id).map((row) => {
       const binding = bindingProjection(row, now);
       const { grantId: _secretGrantId, ...redacted } = binding;

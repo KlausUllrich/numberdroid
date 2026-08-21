@@ -55,7 +55,7 @@ function basePolicy(projectView, now) {
   const warnings = [];
   if (access.grant && access.state.startsWith('ACTIVE')) {
     if (!access.grant.expiresAt) {
-      warnings.push(warning('NO_EXPIRY_C1A', 'This C1A grant has no expiry. The service still validates it for every command.'));
+      warnings.push(warning('NO_EXPIRY_LEGACY', 'This legacy grant has no expiry. Rotate it through a bounded Header policy before authorizing a host.'));
     }
     const remainingCommands = access.grant.budget && access.grant.usage
       ? access.grant.budget.maxCommands - access.grant.usage.commands
@@ -125,13 +125,13 @@ export function effectiveAgentAccessProjection(projectView, { requestedMode, now
 
   const messages = {
     off: policy.state.startsWith('ACTIVE')
-      ? 'Selecting Off cannot revoke an existing grant. Use the human grant control; the current grant remains service-enforced.'
+      ? 'Off requires a confirmed service operation that revokes the current grant and all bound MCP hosts.'
       : 'No active grant exists.',
     read_only: policy.state === 'ACTIVE_EXECUTE'
-      ? 'The active grant is broader than Read only. A client-side selection cannot narrow it; issue a dedicated read-only grant.'
+      ? 'Read only requires a service-side grant rotation and revokes hosts bound to the broader grant.'
       : 'No active read-only grant is available for this project and task.',
-    propose_draft: 'Draft-only proposal authority requires a host-enforced task branch. C1A cannot create that authority from the header.',
-    execute_scoped: 'No active service-validated write grant is available for scoped execution.',
+    propose_draft: 'Draft-only proposal authority requires a confirmed service-side grant on the existing task branch.',
+    execute_scoped: 'Scoped execution requires explicit broadening confirmation and a new immutable grant.',
   };
   return {
     ...structuredClone(policy),

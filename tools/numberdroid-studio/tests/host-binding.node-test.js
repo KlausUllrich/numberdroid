@@ -5,6 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SqliteHostBindingStore, SqliteProjectStore } from '../packages/persistence/src/index.js';
 import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
+import { createHumanAgentAccessController } from '../apps/studio-server/src/human-agent-access.js';
+import {
+  defaultMcpPairingEndpoint, McpPairingBroker, startMcpPairingSocket,
+} from '../apps/studio-server/src/mcp-pairing-broker.js';
+import { pairWithStudio } from '../apps/studio-mcp/src/pairing-client.js';
 import {
   AGENT, OWNER, OWNER_CONTEXT, PROJECT_ID, agentSourceCommand, command,
   createHarness, createProject, issueGrant,
@@ -37,6 +42,26 @@ async function listen(context, studioService, hostBindingStore) {
   });
   context.after(() => new Promise((resolve) => server.close(resolve)));
   return `http://127.0.0.1:${server.address().port}`;
+}
+
+async function listenWithPairing(context, directory, studioService, hostBindingStore) {
+  const pairingBroker = new McpPairingBroker();
+  const pairingEndpoint = defaultMcpPairingEndpoint(directory);
+  const pairing = await startMcpPairingSocket({ broker: pairingBroker, endpoint: pairingEndpoint });
+  context.after(() => new Promise((resolve) => pairing.server.close(resolve)));
+  const server = createStudioHttpServer({
+    studioService, hostBindingStore, pairingBroker, pairingEndpoint: pairing.endpoint,
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  context.after(() => new Promise((resolve) => server.close(resolve)));
+  return {
+    base: `http://127.0.0.1:${server.address().port}`,
+    pairingBroker,
+    pairingEndpoint: pairing.endpoint,
+  };
 }
 
 function post(base, path, token, body) {
@@ -134,16 +159,36 @@ test('private loopback bridge resolves HostBinding per call and revocation block
     body: JSON.stringify({ mode: 'read_only', idempotencyKey: 'binding.narrow.read-only' }),
   });
   assert.equal(narrowedResponse.status, 200);
-  assert.equal((await narrowedResponse.json()).effectivePolicy.mode, 'read_only');
-  const rebound = bindingStore.resolve(issued.token);
-  assert.notEqual(rebound.grantId, 'grant.atlas');
-  const reboundRead = await post(base, '/internal/mcp/read-project', issued.token, {
+  const narrowed = await narrowedResponse.json();
+  assert.equal(narrowed.effectivePolicy.mode, 'read_only');
+  assert.equal(narrowed.hostBindings[0].status, 'REVOKED');
+  assert.throws(() => bindingStore.resolve(issued.token), (error) => error.code === 'HOST_BINDING_REVOKED');
+  const staleBindingRead = await post(base, '/internal/mcp/read-project', issued.token, {
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+  });
+  assert.equal(staleBindingRead.status, 403);
+  assert.equal((await staleBindingRead.json()).error.code, 'HOST_BINDING_REVOKED');
+
+  const narrowedProject = await studio.readProjectTrusted(PROJECT_ID);
+  const narrowedGrant = narrowedProject.snapshot.grants.find((grant) => !grant.revokedAt);
+  const freshBinding = bindingStore.issue({
+    projectId: PROJECT_ID,
+    grantId: narrowedGrant.id,
+    agentId: narrowedGrant.agentId,
+    taskId: narrowedGrant.taskId,
+    branchId: narrowedGrant.branchId,
+    issuedBy: OWNER.id,
+    expiresAt: narrowedGrant.expiresAt,
+  });
+  const freshToken = freshBinding.token;
+  const reboundRead = await post(base, '/internal/mcp/read-project', freshToken, {
     schemaVersion: 1,
     projectId: PROJECT_ID,
   });
   assert.equal(reboundRead.status, 200);
   assert.equal((await reboundRead.json()).revision, 5);
-  const deniedWrite = await post(base, '/internal/mcp/execute', issued.token, {
+  const deniedWrite = await post(base, '/internal/mcp/execute', freshToken, {
     schemaVersion: 1,
     command: agentSourceCommand({
       commandId: 'cmd.denied.after-narrow',
@@ -154,22 +199,26 @@ test('private loopback bridge resolves HostBinding per call and revocation block
   assert.equal(deniedWrite.status, 403);
   assert.equal((await deniedWrite.json()).error.code, 'GRANT_SCOPE_MISSING');
 
+  const current = await studio.readProjectTrusted(PROJECT_ID);
+  const activeGrant = current.snapshot.grants.find((grant) => !grant.revokedAt);
   await studio.execute(command({
     commandId: 'cmd.revoke.after-binding',
     idempotencyKey: 'idem.revoke.after-binding',
     type: 'grant.revoke',
     expectedVersion: 5,
-    payload: { grantId: rebound.grantId, reason: 'test immediate revocation' },
+    payload: { grantId: activeGrant.id, reason: 'test immediate revocation' },
   }), OWNER_CONTEXT);
-  const denied = await post(base, '/internal/mcp/read-project', issued.token, {
+  const denied = await post(base, '/internal/mcp/read-project', freshToken, {
     schemaVersion: 1,
     projectId: PROJECT_ID,
   });
   assert.equal(denied.status, 403);
-  assert.equal((await denied.json()).error.code, 'GRANT_REVOKED');
+  const deniedBody = await denied.json();
+  assert.equal(deniedBody.error.code, 'GRANT_REVOKED');
+  assert.doesNotMatch(JSON.stringify(deniedBody), /grant\.|binding\./);
 
-  bindingStore.revoke(issued.binding.bindingId, { revokedBy: OWNER.id, reason: 'host stopped' });
-  assert.throws(() => bindingStore.resolve(issued.token), (error) => error.code === 'HOST_BINDING_REVOKED');
+  bindingStore.revoke(freshBinding.binding.bindingId, { revokedBy: OWNER.id, reason: 'host stopped' });
+  assert.throws(() => bindingStore.resolve(freshToken), (error) => error.code === 'HOST_BINDING_REVOKED');
 });
 
 test('HostBinding issue refuses mismatched, legacy, or inactive grant coordinates', async (context) => {
@@ -182,4 +231,143 @@ test('HostBinding issue refuses mismatched, legacy, or inactive grant coordinate
     branchId: 'branch.task.atlas',
     issuedBy: OWNER.id,
   }), (error) => error.code === 'HOST_BINDING_GRANT_MISMATCH');
+});
+
+test('human UI authorizes a private pending MCP host without receiving its credential', async (context) => {
+  const { directory, studio, bindingStore } = await fixture(context);
+  const { base, pairingBroker, pairingEndpoint } = await listenWithPairing(context, directory, studio, bindingStore);
+  const access = await fetch(`${base}/api/projects/${PROJECT_ID}/agent-access`).then((response) => response.json());
+  const headers = {
+    'content-type': 'application/json',
+    origin: base,
+    'sec-fetch-site': 'same-origin',
+    'x-numberdroid-studio-csrf': access.csrfToken,
+  };
+
+  assert.equal(access.hostBindingSupport, 'AVAILABLE');
+  assert.equal(access.mcpLauncherConfig.mcpServers.numberdroidStudio.env.NUMBERDROID_STUDIO_PAIRING_ENDPOINT, pairingEndpoint);
+  assert.equal(access.mcpLauncherConfig.mcpServers.numberdroidStudio.env.NUMBERDROID_STUDIO_BINDING_TOKEN, undefined);
+  assert.doesNotMatch(JSON.stringify(access), /NUMBERDROID_STUDIO_BINDING_TOKEN/);
+
+  const pairedToken = pairWithStudio({ endpoint: pairingEndpoint, projectId: PROJECT_ID, label: 'Contract host' });
+  for (let attempt = 0; attempt < 50 && pairingBroker.list(PROJECT_ID).length === 0; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  const pending = pairingBroker.list(PROJECT_ID)[0];
+  assert.equal(pending.label, 'Contract host');
+  assert.match(pending.verificationCode, /^\d{6}$/);
+
+  const approve = () => fetch(`${base}/api/projects/${PROJECT_ID}/agent-access/bindings`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      pendingHostId: pending.pendingHostId,
+      confirm: true,
+      idempotencyKey: 'binding.approve.contract-host',
+    }),
+  });
+  const approvalResponses = await Promise.all([approve(), approve()]);
+  assert.deepEqual(approvalResponses.map((response) => response.status), [201, 201]);
+  const approvals = await Promise.all(approvalResponses.map((response) => response.json()));
+  assert.deepEqual(approvals.map(({ idempotentReplay }) => idempotentReplay).sort(), [false, true]);
+  const issued = approvals.find(({ idempotentReplay }) => !idempotentReplay);
+  assert.equal(issued.binding.grantId, undefined);
+  assert.equal(issued.binding.projectId, PROJECT_ID);
+  assert.equal(issued.binding.status, 'ACTIVE');
+  assert.equal(issued.token, undefined);
+  assert.equal(issued.mcpConfig, undefined);
+  assert.doesNotMatch(JSON.stringify(issued), /NUMBERDROID_STUDIO_BINDING_TOKEN|grant\.atlas/);
+  const token = await pairedToken;
+  assert.match(token, /^[A-Za-z0-9_-]{40,}$/);
+
+  const visible = await fetch(`${base}/api/projects/${PROJECT_ID}/agent-access`).then((response) => response.json());
+  assert.equal(visible.hostBindingSupport, 'AVAILABLE');
+  assert.equal(visible.hostBindings.length, 1);
+  assert.equal(visible.hostBindings[0].grantId, undefined);
+  assert.doesNotMatch(JSON.stringify(visible), new RegExp(token));
+
+  const read = await post(base, '/internal/mcp/read-project', token, {
+    schemaVersion: 1, projectId: PROJECT_ID,
+  });
+  assert.equal(read.status, 200);
+
+  const revoke = await fetch(
+    `${base}/api/projects/${PROJECT_ID}/agent-access/bindings/${encodeURIComponent(issued.binding.bindingId)}/revoke`,
+    { method: 'POST', headers, body: JSON.stringify({ idempotencyKey: 'binding.revoke.contract-host' }) },
+  );
+  assert.equal(revoke.status, 200);
+  assert.equal((await revoke.json()).bindingId, issued.binding.bindingId);
+  assert.throws(() => bindingStore.resolve(token), (error) => error.code === 'HOST_BINDING_REVOKED');
+
+  const revokeReplay = await fetch(
+    `${base}/api/projects/${PROJECT_ID}/agent-access/bindings/${encodeURIComponent(issued.binding.bindingId)}/revoke`,
+    { method: 'POST', headers, body: JSON.stringify({ idempotencyKey: 'binding.revoke.contract-host' }) },
+  ).then((response) => response.json());
+  assert.equal(revokeReplay.idempotentReplay, true);
+
+  const revokedVisible = await fetch(`${base}/api/projects/${PROJECT_ID}/agent-access`).then((response) => response.json());
+  assert.equal(revokedVisible.hostBindings[0].status, 'REVOKED');
+  assert.equal(revokedVisible.hostBindings[0].grantId, undefined);
+});
+
+test('turning Agent access off permanently revokes bindings so later re-enable cannot resurrect them', async (context) => {
+  const { studio, bindingStore } = await fixture(context);
+  const issued = bindingStore.issue({
+    projectId: PROJECT_ID,
+    grantId: 'grant.atlas',
+    agentId: AGENT.id,
+    taskId: 'task.atlas',
+    branchId: 'branch.task.atlas',
+    issuedBy: OWNER.id,
+  });
+  const base = await listen(context, studio, bindingStore);
+  const access = await fetch(`${base}/api/projects/${PROJECT_ID}/agent-access`).then((response) => response.json());
+  const headers = {
+    'content-type': 'application/json',
+    origin: base,
+    'sec-fetch-site': 'same-origin',
+    'x-numberdroid-studio-csrf': access.csrfToken,
+  };
+  const change = (body) => fetch(`${base}/api/projects/${PROJECT_ID}/agent-access`, {
+    method: 'POST', headers, body: JSON.stringify(body),
+  });
+
+  const off = await change({ mode: 'off', idempotencyKey: 'binding.off' });
+  assert.equal(off.status, 200);
+  assert.equal((await off.json()).hostBindings[0].status, 'REVOKED');
+  assert.throws(() => bindingStore.resolve(issued.token), (error) => error.code === 'HOST_BINDING_REVOKED');
+
+  const on = await change({
+    mode: 'read_only', confirmBroaderAccess: true, idempotencyKey: 'binding.on-again',
+  });
+  assert.equal(on.status, 200);
+  assert.equal((await on.json()).effectivePolicy.mode, 'read_only');
+  assert.throws(() => bindingStore.resolve(issued.token), (error) => error.code === 'HOST_BINDING_REVOKED');
+});
+
+test('Header Agent access idempotency survives controller restart and rejects key reuse before mutation', async (context) => {
+  const { studio, bindingStore } = await fixture(context);
+  const first = createHumanAgentAccessController({ studioService: studio, hostBindingStore: bindingStore });
+  const changed = await first.change(PROJECT_ID, {
+    mode: 'read_only', idempotencyKey: 'durable.header.read-only',
+  });
+  assert.equal(changed.changed, true);
+  assert.equal(changed.idempotentReplay, false);
+  const afterChange = await studio.readProjectTrusted(PROJECT_ID);
+
+  const restarted = createHumanAgentAccessController({ studioService: studio, hostBindingStore: bindingStore });
+  const replay = await restarted.change(PROJECT_ID, {
+    mode: 'read_only', idempotencyKey: 'durable.header.read-only',
+  });
+  assert.equal(replay.changed, true);
+  assert.equal(replay.idempotentReplay, true);
+  assert.deepEqual(await studio.readProjectTrusted(PROJECT_ID), afterChange);
+
+  await assert.rejects(
+    restarted.change(PROJECT_ID, {
+      mode: 'execute_scoped', confirmBroaderAccess: true, idempotencyKey: 'durable.header.read-only',
+    }),
+    (error) => error.code === 'IDEMPOTENCY_CONFLICT',
+  );
+  assert.deepEqual(await studio.readProjectTrusted(PROJECT_ID), afterChange);
 });

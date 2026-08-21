@@ -3,11 +3,16 @@ import { StudioError } from '../../../packages/domain/src/index.js';
 
 export class LocalStudioGateway {
   #baseUrl;
-  #bindingToken;
+  #bindingTokenPromise;
 
-  constructor({ baseUrl, bindingToken }) {
+  constructor({ baseUrl, bindingToken, bindingTokenProvider = null }) {
     this.#baseUrl = new URL(baseUrl);
-    this.#bindingToken = bindingToken;
+    if (!bindingToken && typeof bindingTokenProvider !== 'function') {
+      throw new StudioError('HOST_BINDING_REQUIRED', 'A HostBinding token or private pairing provider is required.');
+    }
+    this.#bindingTokenPromise = bindingToken
+      ? Promise.resolve(bindingToken)
+      : Promise.resolve().then(bindingTokenProvider);
   }
 
   get commandCatalog() {
@@ -15,10 +20,11 @@ export class LocalStudioGateway {
   }
 
   async #request(path, value) {
+    const bindingToken = await this.#bindingTokenPromise;
     const response = await fetch(new URL(path, this.#baseUrl), {
       method: 'POST',
       headers: {
-        authorization: `Bearer ${this.#bindingToken}`,
+        authorization: `Bearer ${bindingToken}`,
         'content-type': 'application/json',
       },
       body: JSON.stringify(value),

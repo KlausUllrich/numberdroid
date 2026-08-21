@@ -15,6 +15,11 @@ import {
 import { ensureDemoProject, runDemoAction } from './demo-project.js';
 import { createHumanAgentAccessController } from './human-agent-access.js';
 import { projectHttpProjection } from './http-projections.js';
+import {
+  defaultMcpPairingEndpoint,
+  McpPairingBroker,
+  startMcpPairingSocket,
+} from './mcp-pairing-broker.js';
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = resolve(moduleDirectory, '../public');
@@ -36,8 +41,8 @@ function sendJson(response, status, value) {
 }
 
 function errorStatus(error) {
-  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND'].includes(error.code)) return 404;
-  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED'].includes(error.code)) return 409;
+  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND'].includes(error.code)) return 404;
+  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED'].includes(error.code)) return 409;
   if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
   if (error.code === 'ARTIFACT_TOO_LARGE') return 413;
   if (['ARTIFACT_DIGEST_MISMATCH', 'ARTIFACT_METADATA_CONFLICT'].includes(error.code)) return 409;
@@ -97,6 +102,14 @@ function artifactRoute(pathname) {
   return match ? { projectId: decodeURIComponent(match[1]), digest: match[2] ?? null } : null;
 }
 
+function agentBindingRoute(pathname) {
+  const match = /^\/api\/projects\/([^/]+)\/agent-access\/bindings(?:\/([^/]+)\/revoke)?$/.exec(pathname);
+  return match ? {
+    projectId: decodeURIComponent(match[1]),
+    bindingId: match[2] ? decodeURIComponent(match[2]) : null,
+  } : null;
+}
+
 async function readJsonBody(request, { maxBytes = 4096 } = {}) {
   const contentType = request.headers['content-type'] ?? '';
   if (!contentType.toLowerCase().startsWith('application/json')) {
@@ -139,6 +152,11 @@ function tokenMatches(actual, expected) {
 }
 
 function assertHumanUiMutation(request, csrfToken) {
+  const remoteAddress = request.socket.remoteAddress ?? '';
+  const loopbackRemote = remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
+  if (!loopbackRemote) {
+    throw new StudioError('UI_ORIGIN_FORBIDDEN', 'Human UI mutations are available only from the local loopback session.');
+  }
   const hostUrl = loopbackOrigin(`http://${request.headers.host ?? ''}`);
   const originUrl = loopbackOrigin(request.headers.origin ?? '');
   if (!originUrl) throw new StudioError('UI_ORIGIN_REQUIRED', 'A loopback same-origin browser request is required.');
@@ -153,15 +171,45 @@ function assertHumanUiMutation(request, csrfToken) {
   }
 }
 
+function redactInternalDetails(value) {
+  if (Array.isArray(value)) return value.map(redactInternalDetails);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !['grantId', 'bindingId', 'bindingToken', 'token', 'authorization'].includes(key))
+    .map(([key, entry]) => [key, redactInternalDetails(entry)]));
+}
+
+function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoint) {
+  const origin = loopbackOrigin(`http://${request.headers.host ?? ''}`);
+  const remoteAddress = request.socket.remoteAddress ?? '';
+  const loopbackRemote = remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
+  if (!pairingBroker || !origin || !loopbackRemote) return null;
+  return {
+    mcpServers: {
+      numberdroidStudio: {
+        command: process.execPath,
+        args: [resolve(moduleDirectory, '../../studio-mcp/src/main.js')],
+        env: {
+          NUMBERDROID_STUDIO_SERVICE_URL: `${origin.origin}/`,
+          NUMBERDROID_STUDIO_PROJECT_ID: projectId,
+          NUMBERDROID_STUDIO_PAIRING_ENDPOINT: pairingEndpoint,
+        },
+      },
+    },
+  };
+}
+
 export function createStudioHttpServer({
   studioService,
   hostBindingStore = null,
+  pairingBroker = null,
+  pairingEndpoint = null,
   artifactStore = null,
   artifactMetadataStore = null,
 }) {
   if (!studioService) throw new TypeError('studioService is required.');
   const humanUiCsrfToken = randomBytes(32).toString('base64url');
-  const humanAgentAccess = createHumanAgentAccessController({ studioService, hostBindingStore });
+  const humanAgentAccess = createHumanAgentAccessController({ studioService, hostBindingStore, pairingBroker });
 
   return createServer(async (request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1');
@@ -279,6 +327,26 @@ export function createStudioHttpServer({
         stream.pipe(response);
         return;
       }
+      const agentBinding = agentBindingRoute(url.pathname);
+      if (request.method === 'POST' && agentBinding && agentBinding.bindingId === null) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 1024 });
+        const issued = await humanAgentAccess.createBinding(agentBinding.projectId, body);
+        sendJson(response, 201, {
+          schemaVersion: 1,
+          ...issued,
+        });
+        return;
+      }
+      if (request.method === 'POST' && agentBinding?.bindingId) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 512 });
+        sendJson(response, 200, {
+          schemaVersion: 1,
+          ...(await humanAgentAccess.revokeBinding(agentBinding.projectId, agentBinding.bindingId, body)),
+        });
+        return;
+      }
       const project = projectRoute(url.pathname);
       if (request.method === 'GET' && project?.resource === 'snapshot') {
         sendJson(response, 200, projectHttpProjection(await studioService.readProjectTrusted(project.projectId)));
@@ -297,6 +365,12 @@ export function createStudioHttpServer({
         sendJson(response, 200, {
           schemaVersion: 1,
           effectivePolicy: await humanAgentAccess.read(project.projectId),
+          hostBindingSupport: hostBindingStore && pairingBroker ? 'AVAILABLE' : 'SQLITE_REQUIRED',
+          hostBindings: await humanAgentAccess.listBindings(project.projectId),
+          pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),
+          mcpLauncherConfig: mcpLauncherProjection(
+            request, project.projectId, pairingBroker, pairingEndpoint,
+          ),
           csrfToken: humanUiCsrfToken,
         });
         return;
@@ -308,6 +382,9 @@ export function createStudioHttpServer({
         sendJson(response, 200, {
           schemaVersion: 1,
           ...result,
+          hostBindingSupport: hostBindingStore && pairingBroker ? 'AVAILABLE' : 'SQLITE_REQUIRED',
+          hostBindings: await humanAgentAccess.listBindings(project.projectId),
+          pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),
           csrfToken: humanUiCsrfToken,
         });
         return;
@@ -331,9 +408,12 @@ export function createStudioHttpServer({
       response.end('Not found\n');
     } catch (rawError) {
       const error = asStudioError(rawError);
+      const details = url.pathname.startsWith('/internal/mcp/')
+        ? redactInternalDetails(error.details)
+        : error.details;
       sendJson(response, errorStatus(error), {
         schemaVersion: 1,
-        error: { code: error.code, message: error.message, details: error.details },
+        error: { code: error.code, message: error.message, details },
       });
     }
   });
@@ -353,6 +433,13 @@ export async function startStudioHttpServer({
   const hostBindingStore = storeMode === 'sqlite'
     ? new SqliteHostBindingStore({ workspace: store.workspace })
     : null;
+  const pairingBroker = storeMode === 'sqlite' ? new McpPairingBroker() : null;
+  const requestedPairingEndpoint = pairingBroker ? defaultMcpPairingEndpoint(dataDirectory) : null;
+  const pairing = pairingBroker
+    ? await startMcpPairingSocket({ broker: pairingBroker, endpoint: requestedPairingEndpoint })
+    : null;
+  const pairingServer = pairing?.server ?? null;
+  const pairingEndpoint = pairing?.endpoint ?? null;
   const artifactStore = storeMode === 'sqlite'
     ? new ContentAddressedArtifactStore({ rootDirectory: resolve(dataDirectory, 'artifacts') })
     : null;
@@ -363,10 +450,13 @@ export async function startStudioHttpServer({
   const server = createStudioHttpServer({
     studioService,
     hostBindingStore,
+    pairingBroker,
+    pairingEndpoint,
     artifactStore,
     artifactMetadataStore,
   });
   if (typeof store.close === 'function') server.once('close', () => store.close());
+  if (pairingServer) server.once('close', () => pairingServer.close());
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
     server.listen(port, host, resolveListen);
@@ -375,6 +465,8 @@ export async function startStudioHttpServer({
     server,
     studioService,
     hostBindingStore,
+    pairingBroker,
+    pairingEndpoint,
     artifactStore,
     artifactMetadataStore,
     address: server.address(),

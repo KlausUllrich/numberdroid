@@ -30,8 +30,23 @@
               <div class="policy-heading"><strong>Effective policy</strong><button id="agent-access-close" type="button" aria-label="Close effective policy">×</button></div>
               <dl id="agent-access-details" class="policy-details"></dl>
               <ul id="agent-access-warnings" class="policy-warnings"></ul>
+              <div class="mcp-connections">
+                <div class="connection-heading">
+                  <strong>MCP connections</strong>
+                  <button id="agent-launcher-show" class="secondary" type="button">Show host setup</button>
+                </div>
+                <p id="agent-binding-support" class="connection-help"></p>
+                <ul id="agent-pending-list" class="binding-list pending-host-list"></ul>
+                <ul id="agent-binding-list" class="binding-list"></ul>
+                <section id="agent-launcher-panel" class="binding-once" aria-label="Secret-free MCP host configuration" hidden>
+                  <strong>Start the local MCP host</strong>
+                  <p>This setup contains no credential. Return here to authorize the waiting host by its verification code.</p>
+                  <pre id="agent-launcher-config"></pre>
+                  <button id="agent-launcher-copy" class="secondary" type="button">Copy host setup</button>
+                </section>
+              </div>
               <button id="agent-access-retry" class="secondary policy-retry" type="button" hidden>Retry last access change</button>
-              <p>Header selection never creates or widens authority. The local service and trusted host validate the concrete grant for every call.</p>
+              <p>DOM state grants nothing. Only a confirmed local-service operation may rotate policy, and every host call revalidates its immutable grant.</p>
             </section>
           </div>
           <label class="sr-only" for="project-select">Project</label>

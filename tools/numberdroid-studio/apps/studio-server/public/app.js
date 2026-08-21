@@ -5,6 +5,11 @@ const state = {
   agentAccess: null,
   agentAccessCsrf: null,
   pendingAgentAccess: null,
+  hostBindingSupport: 'SQLITE_REQUIRED',
+  hostBindings: [],
+  pendingHosts: [],
+  mcpLauncherConfig: null,
+  showMcpLauncherConfig: false,
   labResult: null,
   workspace: location.hash.slice(1) || 'overview',
   refreshing: false,
@@ -17,6 +22,8 @@ const elements = Object.fromEntries(
     'activity-list', 'activity-count', 'connection-dot', 'connection-label', 'toast',
     'agent-access-select', 'agent-access-state', 'agent-access-panel', 'agent-access-close',
     'agent-access-details', 'agent-access-warnings', 'agent-access-retry',
+    'agent-launcher-show', 'agent-binding-support', 'agent-pending-list', 'agent-binding-list',
+    'agent-launcher-panel', 'agent-launcher-config', 'agent-launcher-copy',
   ].map((id) => [id, document.getElementById(id)]),
 );
 
@@ -61,6 +68,13 @@ function renderAgentAccess() {
   elements['agent-access-state'].textContent = accessStateLabels[policy?.state] ?? 'OFF';
   elements['agent-access-state'].dataset.state = policy?.state ?? 'OFF';
   elements['agent-access-retry'].hidden = !state.pendingAgentAccess;
+  const hasActivePolicy = Boolean(policy?.state?.startsWith('ACTIVE'));
+  elements['agent-launcher-show'].disabled = state.hostBindingSupport !== 'AVAILABLE' || !state.mcpLauncherConfig;
+  elements['agent-binding-support'].textContent = state.hostBindingSupport === 'AVAILABLE'
+    ? (hasActivePolicy
+      ? 'Start the local host, then authorize its waiting verification code here.'
+      : 'Choose an active Agent access mode before authorizing a waiting host.')
+    : 'MCP connections require the SQLite Studio store.';
 
   const details = [];
   if (policy) {
@@ -92,6 +106,43 @@ function renderAgentAccess() {
     return item;
   });
   elements['agent-access-warnings'].replaceChildren(...warnings);
+
+  const pendingNodes = state.pendingHosts.map((pending) => {
+    const item = document.createElement('li');
+    const copy = document.createElement('span');
+    const name = document.createElement('strong'); name.textContent = `${pending.label} · ${pending.verificationCode}`;
+    const detail = document.createElement('small'); detail.textContent = `waiting · expires ${pending.expiresAt}`;
+    copy.append(name, detail); item.append(copy);
+    const approve = document.createElement('button');
+    approve.type = 'button'; approve.textContent = 'Authorize';
+    approve.dataset.approvePendingHost = pending.pendingHostId;
+    approve.dataset.verificationCode = pending.verificationCode;
+    approve.disabled = !hasActivePolicy;
+    item.append(approve);
+    return item;
+  });
+  elements['agent-pending-list'].replaceChildren(...pendingNodes);
+
+  const bindingNodes = state.hostBindings.map((binding) => {
+    const item = document.createElement('li');
+    const copy = document.createElement('span');
+    const name = document.createElement('strong'); name.textContent = binding.actor?.id || 'Agent';
+    const detail = document.createElement('small');
+    detail.textContent = `${binding.status.toLowerCase()} · ${binding.taskId} · ${binding.bindingId}`;
+    copy.append(name, detail); item.append(copy);
+    if (binding.status === 'ACTIVE') {
+      const revoke = document.createElement('button');
+      revoke.type = 'button'; revoke.className = 'secondary'; revoke.textContent = 'Revoke';
+      revoke.dataset.revokeBinding = binding.bindingId;
+      item.append(revoke);
+    }
+    return item;
+  });
+  elements['agent-binding-list'].replaceChildren(...bindingNodes);
+  elements['agent-launcher-panel'].hidden = !state.showMcpLauncherConfig || !state.mcpLauncherConfig;
+  elements['agent-launcher-config'].textContent = state.mcpLauncherConfig
+    ? JSON.stringify(state.mcpLauncherConfig, null, 2)
+    : '';
 }
 
 const previewStateLabels = {
@@ -184,13 +235,17 @@ function sectionHeading(title, description) {
 
 function renderOverview(snapshot) {
   const fragment = document.createDocumentFragment();
-  const visibleGrant = snapshot.grants.find((grant) => !grant.revokedAt) || snapshot.grants[0];
+  const isActiveGrant = (grant) => !grant.revokedAt
+    && (!grant.expiresAt || Date.parse(grant.expiresAt) > Date.now())
+    && !['REVOKED', 'EXPIRED', 'LEGACY_UNBOUND'].includes(grant.status);
+  const activeGrants = snapshot.grants.filter(isActiveGrant);
+  const visibleGrant = activeGrants.at(-1) || snapshot.grants.at(-1);
   const metrics = document.createElement('div');
   metrics.className = 'metric-grid';
   const values = [
     ['Sources', snapshot.sources.length], ['Assets', snapshot.assets.length],
     ['Rooms', snapshot.rooms.length], ['Levels', snapshot.levels.length],
-    ['Active grants', snapshot.grants.filter((grant) => !grant.revokedAt).length],
+    ['Active grants', activeGrants.length],
   ];
   for (const [label, value] of values) {
     const metric = document.createElement('article');
@@ -207,9 +262,9 @@ function renderOverview(snapshot) {
     card('Atlas & asset semantics', 'Foundation', 'Source crops become stable semantic asset IDs without pixel-inferred gameplay.'),
     card(
       'Agent task authority',
-      snapshot.grants.some((grant) => !grant.revokedAt) ? 'Granted' : 'Human only',
-      snapshot.grants.some((grant) => !grant.revokedAt)
-        ? `${snapshot.grants.filter((grant) => !grant.revokedAt).length} task-scoped grant(s) are visible and revocable.`
+      activeGrants.length ? 'Granted' : 'Human only',
+      activeGrants.length
+        ? `${activeGrants.length} task-scoped grant(s) are visible and revocable.`
         : 'No agent currently has mutation authority.',
       visibleGrant ? [
         ['Agent', visibleGrant.agentId],
@@ -225,11 +280,11 @@ function renderOverview(snapshot) {
       'Foundation checks stable IDs, source references, crop bounds shape, artifact URIs, authorization, and revision consistency.',
       [['Domain invariants', 'enforced'], ['Level compiler', 'not connected in C1A']],
     ),
-    card('Background jobs', 'None running', 'Generation, slicing, preview, validation, and export become durable observable jobs in C1B.', [
-      ['Queue', 'not connected in C1A'], ['Running', 0], ['Failed', 0],
+    card('Background jobs', 'Reserved', 'Generation, slicing, preview, validation, and export jobs enter with the asset vertical slice.', [
+      ['Queue', 'not advertised yet'], ['Running', 0], ['Failed', 0],
     ]),
     card('Room authoring', 'Next checkpoint', 'Hallway and single-room composition will consume the approved library.'),
-    card('MCP transport', 'Adapter seam', 'The tested tool catalog is ready for the official SDK transport in Checkpoint 1B.'),
+    card('MCP transport', 'Official 2026-07-28', 'Local stdio uses private host pairing and the same semantic command core as this visual shell.'),
   );
   fragment.append(grid);
   fragment.append(sectionHeading('User control lab', 'Run these fixed semantic actions in order; no generic mutation endpoint is exposed.'));
@@ -374,6 +429,7 @@ async function loadProjects(preferredProjectId) {
 
 async function loadProject(projectId) {
   if (!projectId) return;
+  if (state.project?.projectId && state.project.projectId !== projectId) state.showMcpLauncherConfig = false;
   const [project, activity, agentAccess] = await Promise.all([
     api(`/api/projects/${encodeURIComponent(projectId)}`),
     api(`/api/projects/${encodeURIComponent(projectId)}/activity`),
@@ -381,6 +437,10 @@ async function loadProject(projectId) {
   ]);
   state.project = project; state.activity = activity.events;
   state.agentAccess = agentAccess.effectivePolicy; state.agentAccessCsrf = agentAccess.csrfToken;
+  state.hostBindingSupport = agentAccess.hostBindingSupport;
+  state.hostBindings = agentAccess.hostBindings;
+  state.pendingHosts = agentAccess.pendingHosts;
+  state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
   renderProject();
 }
 
@@ -403,6 +463,9 @@ async function requestAgentAccess(mode, {
     });
     state.agentAccess = response.effectivePolicy;
     state.agentAccessCsrf = response.csrfToken;
+    state.hostBindingSupport = response.hostBindingSupport;
+    state.hostBindings = response.hostBindings;
+    state.pendingHosts = response.pendingHosts;
     state.pendingAgentAccess = null;
     if (response.changed) await loadProject(state.project.projectId);
     else renderAgentAccess();
@@ -481,6 +544,61 @@ elements['agent-access-state'].addEventListener('click', () => {
 elements['agent-access-close'].addEventListener('click', () => setAgentAccessPanel(false));
 elements['agent-access-retry'].addEventListener('click', () => {
   if (state.pendingAgentAccess) requestAgentAccess(state.pendingAgentAccess.mode, state.pendingAgentAccess);
+});
+elements['agent-launcher-show'].addEventListener('click', () => {
+  state.showMcpLauncherConfig = !state.showMcpLauncherConfig;
+  renderAgentAccess(); setAgentAccessPanel(true);
+});
+elements['agent-pending-list'].addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-approve-pending-host]');
+  if (!button || !state.project || !state.agentAccessCsrf) return;
+  if (!window.confirm(`Authorize the waiting MCP host with verification code ${button.dataset.verificationCode}?`)) return;
+  button.disabled = true;
+  try {
+    const response = await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/agent-access/bindings`, {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: JSON.stringify({
+        pendingHostId: button.dataset.approvePendingHost,
+        confirm: true,
+        idempotencyKey: crypto.randomUUID(),
+      }),
+    });
+    await loadProject(state.project.projectId);
+    setAgentAccessPanel(true);
+    showToast(response.idempotentReplay ? 'Original MCP host approval returned.' : 'MCP host authorized.');
+  } catch (error) {
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+    await loadProject(state.project.projectId);
+  }
+});
+elements['agent-binding-list'].addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-revoke-binding]');
+  if (!button || !state.project || !state.agentAccessCsrf) return;
+  if (!window.confirm('Revoke this MCP connection? Its credential will stop working immediately.')) return;
+  button.disabled = true;
+  try {
+    await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/agent-access/bindings/${encodeURIComponent(button.dataset.revokeBinding)}/revoke`, {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: JSON.stringify({ idempotencyKey: crypto.randomUUID() }),
+    });
+    await loadProject(state.project.projectId);
+    setAgentAccessPanel(true);
+    showToast('MCP connection revoked.');
+  } catch (error) {
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+    await loadProject(state.project.projectId);
+  }
+});
+elements['agent-launcher-copy'].addEventListener('click', async () => {
+  if (!state.mcpLauncherConfig) return;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(state.mcpLauncherConfig, null, 2));
+    showToast('Secret-free MCP host setup copied.');
+  } catch {
+    showToast('Clipboard access was denied. Select and copy the configuration manually.');
+  }
 });
 elements['workspace-content'].addEventListener('click', async (event) => {
   const button = event.target.closest('[data-demo-action]');

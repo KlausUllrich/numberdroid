@@ -59,6 +59,7 @@ Deliverables:
 - stateless MCP protocol core whose trusted host injects actor/task/grant execution context for every tool call;
 - scoped project/resources, first read/mutation tools, runtime-validated schemas, structured concurrency errors, clean shutdown, protocol-only stdout, and durable activity evidence;
 - persistent Header Agent mode selector with `Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`, backed by human-only service grant operations outside the agent-callable MCP tool surface;
+- private loopback MCP-host pairing: secret-free launcher setup, short-lived verification code, explicit Header approval, digest-only credential storage, redacted binding status/revoke, and no credential exposure to browser surfaces;
 - an effective-policy detail/warning for scope, branch, capabilities, expiry, budget, and broadening; finalization/export/publish remain separate;
 - a small preview region on every Asset Library card, with authorized image resource or distinct accessible kind-aware fallback for processing/missing/unsupported/failure;
 - equivalence, permission, persistence, crash/fault, concurrency, artifact, and protocol contract tests;
@@ -73,7 +74,7 @@ User verification scenario:
 4. import a small artifact and verify its digest-backed resource link, restart integrity, and duplicate-content behavior;
 5. inspect Asset Library cards with a valid preview and each fallback class; confirm no card is blank and semantic controls remain usable;
 6. use the Header Agent mode selector to move from `Off` to read-only, draft proposal, and scoped execution; inspect warnings/effective policy and confirm client-side state cannot grant authority;
-7. discover only implemented tools/resources through the official stdio MCP transport, with diagnostics off stdout;
+7. copy the secret-free host setup, start the stdio MCP host, match its verification code in the Header, authorize it, and discover only implemented tools/resources with diagnostics off stdout;
 8. attempt a mutation without host authority, with a stale revision, and after revocation; observe denial/conflict without partial changes;
 9. exercise one granted mutation and idempotent retry through MCP and compare its events/result with the UI path;
 10. create a live backup, restore it, and compare database/CAS manifests; simulate migration failure before cutover and confirm 1A still launches unchanged;

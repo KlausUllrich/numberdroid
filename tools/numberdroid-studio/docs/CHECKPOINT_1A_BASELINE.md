@@ -30,7 +30,7 @@ The accepted demo flow is the regression scenario:
 5. **Try agent after revoke** returns `GRANT_REVOKED` without creating a source, revision, or activity entry.
 6. Restarting against the same copied data directory preserves revision 6 and its audit history.
 
-The commit/revision that publishes this baseline document is the source baseline. The release/checkpoint record MUST store that immutable commit SHA together with fixture file digests and representative screenshots; a mutable branch name is not sufficient evidence.
+The immutable source-baseline record is commit `2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d`, which published this document before 1B implementation commits. The release/checkpoint record MUST retain that SHA together with fixture file digests and representative screenshots; a mutable branch name is not sufficient evidence.
 
 ## Required regression evidence before 1B cutover
 

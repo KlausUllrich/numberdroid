@@ -24,7 +24,9 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(page, /Agent access/);
   assert.match(page, /Propose in draft/);
   assert.match(page, /Effective agent policy/);
-  assert.match(page, /Header selection never creates or widens authority/);
+  assert.match(page, /DOM state grants nothing/);
+  assert.match(page, /Show host setup/);
+  assert.match(page, /authorize the waiting host/);
   const clientScript = await fetch(`${base}/app.js`).then((response) => response.text());
   assert.match(clientScript, /idempotent-retry/);
   assert.match(clientScript, /post-revoke-attempt/);
@@ -33,6 +35,9 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /window\.confirm/);
   assert.match(clientScript, /Publish is never included/);
   assert.match(clientScript, /Command budget/);
+  assert.match(clientScript, /MCP host authorized/);
+  assert.doesNotMatch(clientScript, /localStorage/);
+  assert.doesNotMatch(clientScript, /NUMBERDROID_STUDIO_BINDING_TOKEN/);
   const styles = await fetch(`${base}/styles.css`).then((response) => response.text());
   assert.match(styles, /\.asset-preview/);
   assert.match(styles, /aspect-ratio: 1/);
@@ -70,6 +75,8 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
     'off', 'read_only', 'propose_draft', 'execute_scoped', 'custom',
   ]);
   assert.equal(typeof access.csrfToken, 'string');
+  assert.equal(access.hostBindingSupport, 'SQLITE_REQUIRED');
+  assert.deepEqual(access.hostBindings, []);
 
   const missingOrigin = await fetch(`${base}/api/projects/${demo.projectId}/agent-access`, {
     method: 'POST',

@@ -9,6 +9,9 @@ import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { SqliteHostBindingStore, SqliteProjectStore } from '../packages/persistence/src/index.js';
 import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
 import {
+  defaultMcpPairingEndpoint, McpPairingBroker, startMcpPairingSocket,
+} from '../apps/studio-server/src/mcp-pairing-broker.js';
+import {
   AGENT, OWNER, OWNER_CONTEXT, PROJECT_ID, command, createHarness, createProject, issueGrant,
 } from './test-helpers.js';
 import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
@@ -36,34 +39,52 @@ async function mcpFixture(context) {
     branchId: 'branch.task.atlas',
     issuedBy: OWNER.id,
   });
-  const server = createStudioHttpServer({ studioService: studio, hostBindingStore: bindings });
+  const pairingBroker = new McpPairingBroker();
+  const pairing = await startMcpPairingSocket({
+    broker: pairingBroker,
+    endpoint: defaultMcpPairingEndpoint(directory),
+  });
+  const server = createStudioHttpServer({
+    studioService: studio,
+    hostBindingStore: bindings,
+    pairingBroker,
+    pairingEndpoint: pairing.endpoint,
+  });
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolveListen);
   });
   context.after(async () => {
     await new Promise((resolveClose) => server.close(resolveClose));
+    await new Promise((resolveClose) => pairing.server.close(resolveClose));
     store.close();
     await rm(directory, { recursive: true, force: true });
   });
   return {
     studio,
     token: issued.token,
+    pairingBroker,
+    pairingEndpoint: pairing.endpoint,
     serviceUrl: `http://127.0.0.1:${server.address().port}/`,
   };
 }
 
-function childTransport({ token, serviceUrl }) {
+function childTransport({ token, serviceUrl, pairingEndpoint }) {
+  const env = { ...process.env };
+  delete env.NUMBERDROID_STUDIO_BINDING_TOKEN;
+  delete env.NUMBERDROID_STUDIO_PAIRING_ENDPOINT;
+  Object.assign(env, {
+    NUMBERDROID_STUDIO_PROJECT_ID: PROJECT_ID,
+    NUMBERDROID_STUDIO_SERVICE_URL: serviceUrl,
+    ...(token
+      ? { NUMBERDROID_STUDIO_BINDING_TOKEN: token }
+      : { NUMBERDROID_STUDIO_PAIRING_ENDPOINT: pairingEndpoint }),
+  });
   return new StdioClientTransport({
     command: process.execPath,
     args: [resolve(studioRoot, 'apps/studio-mcp/src/main.js')],
     cwd: studioRoot,
-    env: {
-      ...process.env,
-      NUMBERDROID_STUDIO_BINDING_TOKEN: token,
-      NUMBERDROID_STUDIO_PROJECT_ID: PROJECT_ID,
-      NUMBERDROID_STUDIO_SERVICE_URL: serviceUrl,
-    },
+    env,
     stderr: 'pipe',
   });
 }
@@ -74,7 +95,7 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
     { name: 'numberdroid-studio-contract-test', version: '1.0.0' },
     { versionNegotiation: { mode: { pin: '2026-07-28' } } },
   );
-  const transport = childTransport(fixture);
+  const transport = childTransport({ ...fixture, token: null });
   context.after(() => client.close().catch(() => {}));
   await client.connect(transport);
   assert.equal(client.getProtocolEra(), 'modern');
@@ -91,7 +112,31 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   assert.equal(sourceTool.inputSchema.properties.grantId, undefined);
   assert.equal(sourceTool.inputSchema.additionalProperties, false);
 
-  const resource = await client.readResource({ uri: `studio://projects/${PROJECT_ID}` });
+  const resourceRequest = client.readResource({ uri: `studio://projects/${PROJECT_ID}` });
+  for (let attempt = 0; attempt < 50 && fixture.pairingBroker.list(PROJECT_ID).length === 0; attempt += 1) {
+    await new Promise((resolveWait) => setTimeout(resolveWait, 10));
+  }
+  const pendingHost = fixture.pairingBroker.list(PROJECT_ID)[0];
+  assert.ok(pendingHost);
+  const access = await fetch(`${fixture.serviceUrl}api/projects/${PROJECT_ID}/agent-access`).then((response) => response.json());
+  const approvalResponse = await fetch(`${fixture.serviceUrl}api/projects/${PROJECT_ID}/agent-access/bindings`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      origin: fixture.serviceUrl.slice(0, -1),
+      'sec-fetch-site': 'same-origin',
+      'x-numberdroid-studio-csrf': access.csrfToken,
+    },
+    body: JSON.stringify({
+      pendingHostId: pendingHost.pendingHostId,
+      confirm: true,
+      idempotencyKey: 'official-mcp.pairing.approve',
+    }),
+  });
+  assert.equal(approvalResponse.status, 201);
+  const approval = await approvalResponse.json();
+  assert.doesNotMatch(JSON.stringify(approval), /NUMBERDROID_STUDIO_BINDING_TOKEN|grant\.atlas|token/);
+  const resource = await resourceRequest;
   const project = JSON.parse(resource.contents[0].text);
   assert.equal(project.revision, 2);
   assert.equal(project.snapshot.grants, undefined);
@@ -168,6 +213,7 @@ test('official stdio MCP pins 2026-07-28 and preserves HostBinding authority', a
   });
   assert.equal(denied.isError, true);
   assert.match(denied.content[0].text, /GRANT_REVOKED/);
+  assert.doesNotMatch(JSON.stringify(denied), /grant\.atlas|binding\./);
   assert.equal((await fixture.studio.readProjectTrusted(PROJECT_ID)).revision, 4);
 
   await client.close();

@@ -73,7 +73,7 @@ Apps and transport infrastructure host configured generation-provider adapters b
 
 ### `packages/mcp-server`
 
-Protocol transport plus semantic tool/resource mapping. The stdio bridge does not open SQLite or the CAS directly: it calls the running one-writer Studio service over a private loopback/IPC boundary using a server-minted opaque `HostBinding` credential. Only a digest of that credential is stored. On every call the service resolves the binding, reloads the current immutable grant, and injects actor/task/branch/grant execution context before application dispatch. Protocol connection state, client envelope metadata, and tool arguments are not authorization. This package contains no authoring rules.
+Protocol transport plus semantic tool/resource mapping. The stdio bridge does not open SQLite or the CAS directly. It registers a short-lived pending host over a raw loopback pairing socket that browsers cannot speak, starts MCP discovery without authority, and receives a server-minted opaque `HostBinding` only after matching human approval in the Header panel. It then calls the running one-writer Studio service over the private loopback bridge. Only a digest of the credential is stored. On every call the service resolves the immutable binding, reloads its current grant, and injects actor/task/branch/grant execution context before application dispatch. Protocol connection state, client envelope metadata, and tool arguments are not authorization. This package contains no authoring rules.
 
 ### `packages/numberdroid-adapter`
 
@@ -180,7 +180,7 @@ Human UI commands use the same envelope; a locally authenticated human context s
 
 ### Agent mode is a policy projection, not authority
 
-The persistent Header Agent mode control is a human-facing posture selector. Its choices (`Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`) request a service operation; they are not local permission flags. The service authenticates the human, creates/selects/revokes the concrete task grant as allowed, then returns a redacted `EffectiveAgentPolicy` projection containing state, project/task/branch, capability and object-scope summary, expiry, budget, and job count.
+The persistent Header Agent mode control is a human-facing posture selector. Its choices (`Off`, `Read only`, `Propose in draft`, `Execute scoped task`, and `Custom…`) request a service operation; they are not local permission flags. The local service verifies the loopback human UI request, creates/selects/revokes the concrete task grant as allowed, then returns a redacted `EffectiveAgentPolicy` projection containing state, project/task/branch, capability and object-scope summary, expiry, budget, and job count. A separate section lists redacted pending and authorized MCP hosts. Browser configuration contains only command, project, service URL, and loopback pairing endpoint; it never contains a HostBinding token or grant ID.
 
 The UI renders only that projection. It cannot forge an `ACTIVE` state, attach a grant to an MCP invocation, or widen a policy by changing client state. On service disconnect it renders `SERVICE_UNAVAILABLE`, which carries no authority. `EXPIRED`, `REVOKED`, and `DENIED` are likewise inactive. Broadening from read/draft to execute requires a warning/confirmation; finalization/export remain separate commands and publish is never a header posture.
 
@@ -299,6 +299,8 @@ GitHub integration receives files from a verified export manifest. It is downstr
 
 - The local service binds to loopback by default and refuses non-local connections unless explicitly configured.
 - MCP stdio is the initial 1B transport. Future network transports require per-call authenticated host context, origin controls, and TLS at the deployment boundary.
+- Local host approval uses a raw loopback pairing listener rather than an HTTP/browser route for credential delivery. The verification request is in memory, expires quickly, is single-use, and disappears on service or host disconnect.
+- HostBinding coordinates never change. Any grant posture rotation revokes bindings before a new immutable grant can be host-bound; stale tokens cannot acquire new rights.
 - Grants are immutable, signed or server-authenticated capabilities identified by opaque IDs. Only authenticated human roles can mint or widen them.
 - The Header Agent mode control displays service-returned effective policy; its DOM/client state, selected label, and browser storage are never authorization inputs.
 - Tool payloads cannot name arbitrary filesystem paths. Imports use approved file handles/roots; exports use configured destinations and manifest-relative paths.
