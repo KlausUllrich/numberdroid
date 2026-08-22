@@ -1996,7 +1996,35 @@ elements['workspace-content'].addEventListener('keydown', (event) => {
 });
 
 if (visualFixture) {
+  const cutterPointerTrace = [];
+  const recordCutterPointerEvent = (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    cutterPointerTrace.push({
+      sequence: cutterPointerTrace.length + 1,
+      type: event.type,
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      button: event.button,
+      buttons: event.buttons,
+      exactProbeTarget: target === window.__cutterDragProbeTarget,
+      targetMoveIndex: target?.closest('[data-cutter-move]')?.dataset.cutterMove ?? null,
+      targetConnected: target?.isConnected ?? false,
+      hasPointerCapture: Boolean(target?.hasPointerCapture?.(event.pointerId)),
+    });
+    if (cutterPointerTrace.length > 24) cutterPointerTrace.shift();
+  };
+  for (const type of ['pointerdown', 'gotpointercapture', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture']) {
+    elements['workspace-content'].addEventListener(type, recordCutterPointerEvent);
+  }
   window.__numberdroidStudioVisualTest = Object.freeze({
+    resetCutterPointerTrace() {
+      cutterPointerTrace.length = 0;
+      return cutterPointerTrace.length;
+    },
+    clearCutterPointerTrace() {
+      cutterPointerTrace.length = 0;
+      return cutterPointerTrace.length;
+    },
     forceChangedCutterProjectionRender() {
       if (!state.cutter || !state.cutterJob) return null;
       state.cutterJob = {
@@ -2014,12 +2042,14 @@ if (visualFixture) {
     cutterInteractionState() {
       return {
         dragActive: Boolean(cutterDrag),
+        pointerId: cutterDrag?.pointerId ?? null,
         changed: cutterDrag?.changed ?? false,
         targetConnected: cutterDrag?.target?.isConnected ?? false,
         hasPointerCapture: Boolean(cutterDrag?.target?.hasPointerCapture?.(cutterDrag.pointerId)),
         deferred: state.cutterDeferredRender,
         dirty: state.cutter?.dirty ?? null,
         marker: state.cutterJob?.visualFixtureProjectionMarker ?? null,
+        pointerTrace: cutterPointerTrace.slice(),
       };
     },
   });

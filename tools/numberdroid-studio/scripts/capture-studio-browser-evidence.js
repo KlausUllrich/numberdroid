@@ -1436,8 +1436,10 @@ try {
         };
         const point = { x: (visible.left + visible.right) / 2, y: (visible.top + visible.bottom) / 2 };
         const hit = document.elementFromPoint(point.x, point.y);
+        const traceReset = window.__numberdroidStudioVisualTest?.resetCutterPointerTrace() === 0;
         return {
           point,
+          traceReset,
           hitTarget: hit === target,
           hitTag: hit?.tagName ?? null,
           hitMoveIndex: hit?.dataset?.cutterMove ?? null,
@@ -1455,7 +1457,8 @@ try {
     }, sessionId);
     assert(dragSetup.result?.value?.left > 0 && dragSetup.result.value.top > 0
       && dragSetup.result.value.visibleWidth > 30 && dragSetup.result.value.visibleHeight > 30
-      && dragSetup.result.value.hitTarget === true,
+      && dragSetup.result.value.hitTarget === true
+      && dragSetup.result.value.traceReset === true,
     `The drag-continuity probe could not establish an exact visible hit target with nonzero nested scroll: ${JSON.stringify(dragSetup.result?.value)}`);
     const dragPoint = dragSetup.result.value.point;
     let mousePressed = false;
@@ -1463,6 +1466,7 @@ try {
     let dragMoved;
     let duringDrag;
     let afterDrag;
+    let dragCleanup;
     try {
       mousePressed = true;
       await devtools.send('Input.dispatchMouseEvent', {
@@ -1508,6 +1512,25 @@ try {
             const target = window.__cutterDragProbeTarget;
             const scroller = document.querySelector('.cutter-scroll');
             const interaction = window.__numberdroidStudioVisualTest?.cutterInteractionState();
+            const pointerTrace = interaction?.pointerTrace ?? [];
+            const pointerDown = pointerTrace.findLast((entry) => entry.type === 'pointerdown');
+            const pointerMove = pointerTrace.findLast((entry) => entry.type === 'pointermove');
+            const settlementEvents = pointerDown
+              ? pointerTrace.filter((entry) => entry.sequence > pointerDown.sequence
+                && ['pointerup', 'pointercancel', 'lostpointercapture'].includes(entry.type))
+              : [];
+            const streamContinues = pointerDown && pointerMove
+              && pointerMove.sequence > pointerDown.sequence
+              && pointerMove.pointerId === pointerDown.pointerId
+              && pointerMove.pointerId === interaction?.pointerId
+              && (pointerDown.buttons & 1) === 1
+              && pointerDown.exactProbeTarget === true
+              && pointerDown.targetMoveIndex === '0'
+              && (pointerMove.buttons & 1) === 1
+              && pointerMove.exactProbeTarget === true
+              && pointerMove.targetMoveIndex === '0'
+              && pointerMove.targetConnected === true
+              && settlementEvents.length === 0;
             const x = target?.getAttribute('x');
             const y = target?.getAttribute('y');
             observation = {
@@ -1515,12 +1538,13 @@ try {
                 && interaction.changed === true
                 && interaction.dirty === true
                 && interaction.targetConnected === true
-                && interaction.hasPointerCapture === true
+                && streamContinues
                 && (x !== ${JSON.stringify(dragSetup.result.value.x)} || y !== ${JSON.stringify(dragSetup.result.value.y)}),
               frame,
               interaction,
               targetConnected: target?.isConnected,
               sameTarget: document.querySelector('[data-cutter-move="0"]') === target,
+              pointerStream: { pointerDown, pointerMove, settlementEvents, streamContinues },
               x,
               y,
               left: scroller?.scrollLeft,
@@ -1539,7 +1563,7 @@ try {
         && dragMoved.result.value.interaction.changed === true
         && dragMoved.result.value.interaction.dirty === true
         && dragMoved.result.value.interaction.targetConnected === true
-        && dragMoved.result.value.interaction.hasPointerCapture === true
+        && dragMoved.result.value.pointerStream.streamContinues === true
         && dragMoved.result.value.targetConnected === true
         && dragMoved.result.value.sameTarget === true
         && (dragMoved.result.value.x !== dragSetup.result.value.x
@@ -1548,7 +1572,7 @@ try {
         && dragMoved.result.value.top === dragSetup.result.value.top
         && dragMoved.result.value.windowLeft === dragSetup.result.value.windowLeft
         && dragMoved.result.value.windowTop === dragSetup.result.value.windowTop,
-      `The captured cutter drag did not move and retain changed/dirty/capture/DOM/scroll state before the external-render probe: ${JSON.stringify({ setup: dragSetup.result?.value, pressed: dragPressed.result?.value, moved: dragMoved.result?.value })}`);
+      `The captured cutter drag did not move and retain the same active pointer stream, changed/dirty state, DOM, and scroll before the external-render probe: ${JSON.stringify({ setup: dragSetup.result?.value, pressed: dragPressed.result?.value, moved: dragMoved.result?.value })}`);
       duringDrag = await devtools.send('Runtime.evaluate', {
       expression: `(() => {
         const hook = window.__numberdroidStudioVisualTest;
@@ -1574,7 +1598,7 @@ try {
         && duringDrag.result.value.interaction?.changed === true
         && duringDrag.result.value.interaction.dirty === true
         && duringDrag.result.value.interaction.targetConnected === true
-        && duringDrag.result.value.interaction.hasPointerCapture === true
+        && dragMoved.result.value.pointerStream.streamContinues === true
         && duringDrag.result.value.targetConnected === true
         && duringDrag.result.value.sameTarget === true
         && (duringDrag.result.value.x !== dragSetup.result.value.x
@@ -1597,6 +1621,13 @@ try {
             const target = document.querySelector('[data-cutter-move="0"]');
             const scroller = document.querySelector('.cutter-scroll');
             const interaction = hook?.cutterInteractionState();
+            const pointerTrace = interaction?.pointerTrace ?? [];
+            const pointerDown = pointerTrace.findLast((entry) => entry.type === 'pointerdown');
+            const pointerUp = pointerTrace.findLast((entry) => entry.type === 'pointerup');
+            const releaseObserved = pointerDown && pointerUp
+              && pointerUp.sequence > pointerDown.sequence
+              && pointerUp.pointerId === pointerDown.pointerId
+              && pointerUp.buttons === 0;
             const oldTargetConnected = window.__cutterDragProbeTarget?.isConnected;
             const targetReplaced = target !== window.__cutterDragProbeTarget;
             const x = target?.getAttribute('x');
@@ -1610,7 +1641,8 @@ try {
                 && oldTargetConnected === false
                 && targetReplaced === true
                 && inspectorX === x
-                && inspectorY === y,
+                && inspectorY === y
+                && releaseObserved,
               frame,
               interaction,
               oldTargetConnected,
@@ -1619,6 +1651,7 @@ try {
               y,
               inspectorX,
               inspectorY,
+              pointerStream: { pointerDown, pointerUp, releaseObserved },
               left: scroller?.scrollLeft,
               top: scroller?.scrollTop,
               context: scroller?.dataset.cutterScrollContext,
@@ -1653,7 +1686,36 @@ try {
           button: 'left', buttons: 0, clickCount: 1,
         }, sessionId).catch(() => {});
       }
+      dragCleanup = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          let observation;
+          for (let frame = 0; frame < 30; frame += 1) {
+            const interaction = window.__numberdroidStudioVisualTest?.cutterInteractionState();
+            const pointerTrace = interaction?.pointerTrace ?? [];
+            const pointerDown = pointerTrace.findLast((entry) => entry.type === 'pointerdown');
+            const pointerUp = pointerTrace.findLast((entry) => entry.type === 'pointerup');
+            const releaseMatches = pointerDown && pointerUp
+              && pointerUp.sequence > pointerDown.sequence
+              && pointerUp.pointerId === pointerDown.pointerId
+              && pointerUp.buttons === 0;
+            observation = { frame, interaction, pointerDown, pointerUp, releaseMatches };
+            if (releaseMatches) break;
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+          const traceCleared = window.__numberdroidStudioVisualTest?.clearCutterPointerTrace() === 0;
+          window.__cutterDragProbeTarget = null;
+          return {
+            ...observation,
+            traceCleared,
+            targetCleared: window.__cutterDragProbeTarget === null,
+          };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId).catch((error) => ({ result: { value: { cleanupError: error.message } } }));
     }
+    assert(dragCleanup.result?.value?.releaseMatches === true
+      && dragCleanup.result.value.traceCleared === true
+      && dragCleanup.result.value.targetCleared === true,
+    `The drag probe did not release the same pointer and clear its fixture target: ${JSON.stringify(dragCleanup.result?.value)}`);
     const closeReopenReset = await devtools.send('Runtime.evaluate', {
       expression: `(async () => {
         const zoom = document.querySelector('[data-cutter-zoom]');
@@ -1723,6 +1785,7 @@ try {
         moved: dragMoved.result.value,
         during: duringDrag.result.value,
         after: afterDrag.result.value,
+        cleanup: dragCleanup.result.value,
       },
       closeReopenReset: closeReopenReset.result.value,
       postInteractionRuntimeNetworkErrors: 0,

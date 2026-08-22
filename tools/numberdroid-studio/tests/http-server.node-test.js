@@ -88,6 +88,12 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /changed: cutterDrag\?\.changed \?\? false/);
   assert.match(clientScript, /targetConnected: cutterDrag\?\.target\?\.isConnected \?\? false/);
   assert.match(clientScript, /hasPointerCapture: Boolean\(cutterDrag\?\.target\?\.hasPointerCapture\?\.\(cutterDrag\.pointerId\)\)/);
+  assert.match(clientScript, /const cutterPointerTrace = \[\]/);
+  assert.match(clientScript, /\['pointerdown', 'gotpointercapture', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture'\]/);
+  assert.match(clientScript, /pointerId: cutterDrag\?\.pointerId \?\? null/);
+  assert.match(clientScript, /pointerTrace: cutterPointerTrace\.slice\(\)/);
+  assert.match(clientScript, /resetCutterPointerTrace\(\)[\s\S]*cutterPointerTrace\.length = 0/);
+  assert.match(clientScript, /clearCutterPointerTrace\(\)[\s\S]*cutterPointerTrace\.length = 0/);
   assert.match(clientScript, /scroller\.dataset\.cutterScrollContext = cutterScrollContext\(\)/);
   const workspaceRenderStart = clientScript.indexOf('function renderWorkspace');
   const workspaceRender = clientScript.slice(
@@ -267,6 +273,7 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(browserEvidenceScript, /forceChangedCutterProjectionRender/);
   assert.match(browserEvidenceScript, /document\.elementFromPoint\(point\.x, point\.y\)/);
   assert.match(browserEvidenceScript, /dragSetup\.result\.value\.hitTarget === true/);
+  assert.match(browserEvidenceScript, /dragSetup\.result\.value\.traceReset === true/);
   const dragPressed = browserEvidenceScript.indexOf('dragPressed = await');
   const dragMoved = browserEvidenceScript.indexOf('dragMoved = await');
   const duringDrag = browserEvidenceScript.indexOf('duringDrag = await');
@@ -275,8 +282,16 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(browserEvidenceScript, /dragPressed\.result\?\.value\?\.observed === true[\s\S]*dragPressed\.result\.value\.interaction\?\.dragActive === true/);
   assert.match(browserEvidenceScript, /dragMoved\.result\?\.value\?\.observed === true[\s\S]*dragMoved\.result\.value\.interaction\?\.dragActive === true/);
   assert.match(browserEvidenceScript, /for \(let frame = 0; frame < 30; frame \+= 1\)/);
-  assert.match(browserEvidenceScript, /interaction\.hasPointerCapture === true/);
   assert.match(browserEvidenceScript, /interaction\.changed === true/);
+  assert.match(browserEvidenceScript, /pointerMove\.pointerId === pointerDown\.pointerId/);
+  assert.match(browserEvidenceScript, /\(pointerDown\.buttons & 1\) === 1/);
+  assert.match(browserEvidenceScript, /pointerDown\.exactProbeTarget === true/);
+  assert.match(browserEvidenceScript, /pointerDown\.targetMoveIndex === '0'/);
+  assert.match(browserEvidenceScript, /\(pointerMove\.buttons & 1\) === 1/);
+  assert.match(browserEvidenceScript, /pointerMove\.exactProbeTarget === true/);
+  assert.match(browserEvidenceScript, /pointerMove\.targetMoveIndex === '0'/);
+  assert.match(browserEvidenceScript, /settlementEvents\.length === 0/);
+  assert.match(browserEvidenceScript, /dragMoved\.result\.value\.pointerStream\.streamContinues === true/);
   assert.match(browserEvidenceScript, /pressed: dragPressed\.result\?\.value, moved: dragMoved\.result\?\.value/);
   assert.match(browserEvidenceScript, /forced\?\.dragActive === true/);
   assert.match(browserEvidenceScript, /forced\.deferred === true/);
@@ -286,7 +301,26 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(browserEvidenceScript, /dragContinuity: \{[\s\S]*pressed: dragPressed\.result\.value,[\s\S]*moved: dragMoved\.result\.value,[\s\S]*during: duringDrag\.result\.value/);
   assert.match(browserEvidenceScript, /afterDrag = await[\s\S]*for \(let frame = 0; frame < 30; frame \+= 1\)[\s\S]*oldTargetConnected === false[\s\S]*inspectorX === x[\s\S]*if \(observation\.observed\) return observation/);
   assert.match(browserEvidenceScript, /afterDrag\.result\?\.value\?\.observed === true/);
+  assert.match(browserEvidenceScript, /pointerUp\.pointerId === pointerDown\.pointerId/);
+  assert.match(browserEvidenceScript, /pointerUp\.buttons === 0/);
+  assert.match(browserEvidenceScript, /releaseObserved/);
   assert.match(browserEvidenceScript, /finally \{[\s\S]*if \(mousePressed\)[\s\S]*type: 'mouseReleased'/);
+  const pressCapturePhase = browserEvidenceScript.slice(dragPressed, dragMoved);
+  const movedCapturePhase = browserEvidenceScript.slice(dragMoved, duringDrag);
+  const releaseStart = browserEvidenceScript.indexOf("type: 'mouseReleased'", duringDrag);
+  const duringCapturePhase = browserEvidenceScript.slice(duringDrag, releaseStart);
+  assert.match(pressCapturePhase, /interaction\.hasPointerCapture === true/);
+  assert.doesNotMatch(movedCapturePhase, /interaction\.hasPointerCapture === true/);
+  assert.doesNotMatch(duringCapturePhase, /interaction\.hasPointerCapture === true/);
+  assert.match(browserEvidenceScript, /type: 'mouseMoved'[\s\S]*button: 'none', buttons: 1/);
+  assert.match(browserEvidenceScript, /dragCleanup = await[\s\S]*releaseMatches[\s\S]*clearCutterPointerTrace\(\)[\s\S]*window\.__cutterDragProbeTarget = null/);
+  assert.match(browserEvidenceScript, /dragCleanup\.result\.value\.traceCleared === true/);
+  assert.match(browserEvidenceScript, /cleanup: dragCleanup\.result\.value/);
+  const traceReset = browserEvidenceScript.indexOf('resetCutterPointerTrace()');
+  const mousePress = browserEvidenceScript.indexOf("type: 'mousePressed'", traceReset);
+  const traceClear = browserEvidenceScript.indexOf('clearCutterPointerTrace()', mousePress);
+  assert.ok(traceReset >= 0 && mousePress > traceReset && traceClear > mousePress,
+    'Pointer telemetry must reset before the gesture and clear only during final cleanup.');
   assert.match(browserEvidenceScript, /scrollLeft === 0 && restoredFit\.result\.value\.scrollTop === 0/);
   assert.match(browserEvidenceScript, /document\.querySelector\('\[data-cutter-move="0"\]'\)\?\.closest\('g'\)/);
   assert.doesNotMatch(browserEvidenceScript, /data-rectangle-id="rect\.family\.0\.0"/);
