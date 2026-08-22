@@ -293,7 +293,7 @@ Post-acceptance failed run `32571622269` (both Studio attempts failed; artifact 
 
 ### Checkpoint 3 — room and hallway designer
 
-**Status: implemented candidate with local domain/application/persistence/HTTP/MCP/UI and portable-bundle verification; not user-accepted.** Checkpoint 2C acceptance remains deferred and will be decided together with Checkpoint 3. Publication, CI/browser evidence, and the combined walkthrough remain candidate-gate work; none implies acceptance. The bounded implementation authority and exact non-scope are frozen in `CHECKPOINT_3_CONTRACT.md`.
+**Status: implemented and published candidate with domain/application/persistence/HTTP/MCP/UI, portable-bundle, CI, and Chrome evidence verification; not user-accepted.** Checkpoint 2C acceptance remains deferred and will be decided together with Checkpoint 3. The combined user walkthrough remains the sole open candidate-gate decision; green automation does not imply acceptance. The bounded implementation authority and exact non-scope are frozen in `CHECKPOINT_3_CONTRACT.md`; published pins are recorded in `CHECKPOINT_3_STATUS.md`.
 
 1. A human can create one bounded room archetype and one hallway archetype, then create concrete DRAFT variants with visible dimensions, origin, structural-surface and set-dressing layers, connector edges, and game-design → level-design → room-design intent trace.
 2. Every placement references one exact V2 asset/version/metadata version and uses explicit cell anchor, cardinal rotation, layer, and adapter-safe semantic data. No pixel, filename, path, atlas coordinate, or current asset head becomes placement authority.

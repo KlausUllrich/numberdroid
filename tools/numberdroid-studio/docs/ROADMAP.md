@@ -128,7 +128,7 @@ Exit decision: Checkpoint 2B cutting accuracy, job workflow, recut mapping, and 
 
 ## Checkpoint 3 — Room and hallway designer
 
-**Status: implemented candidate with local domain/application/persistence/HTTP/MCP/UI and portable-bundle verification; not user-accepted.** The remaining candidate-gate work is publication, CI/browser evidence, and the combined user walkthrough. The frozen bounded implementation contract is `CHECKPOINT_3_CONTRACT.md`. The final user gate combines the deferred Checkpoint 2C decision with Checkpoint 3. This authority does not include providers, general branch/merge workflow, level composition, Numberdroid export/materialization/publication, PR merge, or release.
+**Status: implemented and published candidate with green domain/application/persistence/HTTP/MCP/UI, portable-bundle, CI, and Chrome evidence verification; not user-accepted.** The remaining candidate-gate work is the combined user walkthrough. The frozen bounded implementation contract is `CHECKPOINT_3_CONTRACT.md`, and published candidate pins are in `CHECKPOINT_3_STATUS.md`. The final user gate combines the deferred Checkpoint 2C decision with Checkpoint 3. This authority does not include providers, general branch/merge workflow, level composition, Numberdroid export/materialization/publication, PR merge, or release.
 
 **Outcome:** the user can author and finalize a single room or hallway using the visible asset vocabulary.
 

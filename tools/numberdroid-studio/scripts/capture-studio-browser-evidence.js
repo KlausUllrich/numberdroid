@@ -372,10 +372,8 @@ try {
       }, sessionId);
     }
   }
-  if (mode === 'checkpoint-3' && expectedWorkspace === 'rooms') {
-    const focusSelector = checkpoint3Focus === 'proposal'
-      ? '[data-room-proposal]'
-      : '.room-designer-layout';
+  if (mode === 'checkpoint-3' && expectedWorkspace === 'rooms' && checkpoint3Focus === 'proposal') {
+    const focusSelector = '[data-room-proposal]';
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector(${JSON.stringify(focusSelector)})?.scrollIntoView({ block: 'center' })`,
       returnByValue: true,
