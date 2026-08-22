@@ -269,6 +269,8 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(browserEvidenceScript, /afterDrag\.result\.value\.inspectorY === afterDrag\.result\.value\.y/);
   assert.match(browserEvidenceScript, /dragContinuity:/);
   assert.match(browserEvidenceScript, /scrollLeft === 0 && restoredFit\.result\.value\.scrollTop === 0/);
+  assert.match(browserEvidenceScript, /document\.querySelector\('\[data-cutter-move="0"\]'\)\?\.closest\('g'\)/);
+  assert.doesNotMatch(browserEvidenceScript, /data-rectangle-id="rect\.family\.0\.0"/);
   assert.match(browserEvidenceScript, /closeReopenReset/);
   assert.match(browserEvidenceScript, /after\.context !== closeReopenReset\.result\.value\.before\.context/);
   assert.match(browserEvidenceScript, /after\.left === 0/);

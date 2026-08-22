@@ -1325,12 +1325,15 @@ try {
       expression: `(() => {
         document.querySelector('[data-rectangle-index="0"][data-rectangle-field="included"]')?.click();
         const remap = document.querySelector('[data-rectangle-index="0"][data-rectangle-field="replacesSliceId"]');
-        return { excluded: document.querySelector('[data-rectangle-id="rect.family.0.0"]')?.classList.contains('excluded'),
+        const firstOverlay = document.querySelector('[data-cutter-move="0"]')?.closest('g');
+        return { excluded: firstOverlay?.classList.contains('excluded'),
+          overlayRectangleId: firstOverlay?.dataset.rectangleId,
           included: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="included"]')?.checked,
           remapDisabled: remap?.disabled, remapValue: remap?.value };
       })()`, returnByValue: true,
     }, sessionId);
-    assert(excluded.result?.value?.excluded === true && excluded.result.value.included === false
+    assert(excluded.result?.value?.excluded === true && excluded.result.value.overlayRectangleId
+      && excluded.result.value.included === false
       && excluded.result.value.remapDisabled === true && excluded.result.value.remapValue === '',
     'Include/exclude did not update both the overlay and explicit recut control.');
     const remapped = await devtools.send('Runtime.evaluate', {
