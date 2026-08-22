@@ -81,6 +81,12 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /committed\?\.schemaVersion !== 1 \|\| committed\.projectId !== operationProjectId[\s\S]*committed\.revision !== operationRevision \+ 1/);
   assert.match(clientScript, /let durableIntakeReady = Boolean\(stagedIntake\)/);
   assert.match(clientScript, /resetSourceIntakeForm\(\);[\s\S]*renderWorkspace\(\);[\s\S]*remains staged; retry commits this exact artifact or discard it/);
+  const sourceFailureRecovery = clientScript.slice(
+    clientScript.indexOf('const needsStagedRecovery'), clientScript.indexOf('} finally {', clientScript.indexOf('const needsStagedRecovery')),
+  );
+  assert.doesNotMatch(sourceFailureRecovery, /resetSourceIntakeForm\(\);\s*renderWorkspace\(\)/);
+  assert.match(sourceFailureRecovery, /const projectReloaded =[\s\S]*await loadProject\(operationProjectId\)/);
+  assert.match(sourceFailureRecovery, /needsStagedRecovery && !projectReloaded/);
   const sourcePendingHelper = clientScript.slice(
     clientScript.indexOf('function setSourceIntakeFormPending'), clientScript.indexOf('function sourceOperationKey'),
   );
@@ -97,6 +103,28 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(browserEvidenceScript, /commitFailureRecovery\.oldFileCount === 0/);
   assert.match(browserEvidenceScript, /commitFailureRecovery\.currentFileDisabled === true/);
   assert.match(browserEvidenceScript, /liveStatusOutsideInert === true/);
+  assert.match(browserEvidenceScript, /sourceImportSyntheticEventRange = \{/);
+  const syntheticProtocolFilter = browserEvidenceScript.slice(
+    browserEvidenceScript.indexOf('const isExpectedSyntheticSourceImportError'),
+    browserEvidenceScript.indexOf('const allProtocolErrors'),
+  );
+  assert.match(syntheticProtocolFilter, /index < range\.start \|\| index >= range\.end/);
+  assert.match(syntheticProtocolFilter, /range\.projectId !== 'numberdroid-studio-checkpoint-2a'/);
+  assert.match(syntheticProtocolFilter, /operationRevision !== 4/);
+  assert.match(syntheticProtocolFilter, /revisionLabelAfter !== 'Revision 4'/);
+  assert.match(syntheticProtocolFilter, /FAMILY_HYGIENE_DIGEST/);
+  assert.match(syntheticProtocolFilter, /parsed\.href !== fixtureArtifactUrl/);
+  assert.match(syntheticProtocolFilter, /event\.params\?\.type === 'Image'/);
+  assert.match(syntheticProtocolFilter, /event\.params\?\.errorText === 'net::ERR_ABORTED'/);
+  assert.match(syntheticProtocolFilter, /event\.method === 'Log\.entryAdded'/);
+  assert.match(syntheticProtocolFilter, /ERR_ABORTED/);
+  assert.doesNotMatch(
+    syntheticProtocolFilter,
+    /Runtime\.exceptionThrown|Runtime\.consoleAPICalled|Network\.responseReceived/,
+  );
+  assert.match(browserEvidenceScript, /networkAborts\.length <= 1 && pairedLogs\.length <= 1/);
+  assert.match(browserEvidenceScript, /expectedSyntheticRuntimeNetworkErrorSummaries/);
+  assert.match(browserEvidenceScript, /unexpected\.map\(protocolErrorSummary\)\.join/);
   assert.match(clientScript, /response\?\.projectId !== operationProjectId/);
   assert.match(clientScript, /response\.job\?\.jobId !== operationJobId/);
   assert.match(clientScript, /state\.cutterJob = response\.job/);

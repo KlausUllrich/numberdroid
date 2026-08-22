@@ -9,6 +9,7 @@ if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline'
 }
 const width = Number(widthArgument);
 const height = 900;
+const FAMILY_HYGIENE_DIGEST = '67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e';
 if (!Number.isInteger(width) || width < 800) throw new Error('WIDTH must be an integer of at least 800.');
 const outputPath = resolve(outputArgument);
 const domPath = domArgument ? resolve(domArgument) : null;
@@ -192,6 +193,7 @@ try {
   let sourceFileRefreshRetention = null;
   let sourceFileResumeTransition = null;
   let sourceImportOperationIsolation = null;
+  let sourceImportSyntheticEventRange = null;
   if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources') {
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click()`,
@@ -303,6 +305,7 @@ try {
       && sourceFileRefreshRetention.status?.includes('Ready to import'),
     'A same-project refresh replaced or cleared the selected source file input.');
     if (checkpoint2aFocus === 'staged-intake') {
+      const syntheticEventStart = devtools.events.length;
       const isolation = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
           const operationProjectId = document.documentElement.dataset.visualProjectId;
@@ -566,6 +569,23 @@ try {
         && sourceFileResumeTransition.heading === 'Resume staged source'
         && sourceFileResumeTransition.status?.startsWith('Ready to commit staged intake '),
       'Resume staged intake did not clear the selected new-source file and replace it with the staged form.');
+      await devtools.send('Runtime.evaluate', {
+        expression: `Promise.all([...document.querySelectorAll('.source-preview img')].map((image) => {
+          if (image.complete) return Promise.resolve();
+          return new Promise((resolveImage) => {
+            image.addEventListener('load', resolveImage, { once: true });
+            image.addEventListener('error', resolveImage, { once: true });
+          });
+        }))`,
+        awaitPromise: true,
+        returnByValue: true,
+      }, sessionId);
+      await delay(100);
+      sourceImportSyntheticEventRange = {
+        start: syntheticEventStart,
+        end: devtools.events.length,
+        projectId: sourceImportOperationIsolation.operationProjectId,
+      };
     }
   }
   await devtools.send('Runtime.evaluate', {
@@ -823,7 +843,23 @@ try {
     const value = `${event.params?.response?.url ?? ''} ${event.params?.entry?.url ?? ''} ${event.params?.entry?.text ?? ''}`;
     return value.includes('/favicon.ico');
   };
-  const protocolErrors = () => devtools.events.filter((event) => (
+  const protocolEventRecords = () => {
+    const requestUrls = new Map();
+    for (const event of devtools.events) {
+      if (event.method === 'Network.requestWillBeSent' && event.params?.requestId) {
+        requestUrls.set(event.params.requestId, event.params.request?.url ?? '');
+      }
+    }
+    return devtools.events.map((event, index) => ({
+      event,
+      index,
+      url: event.params?.response?.url
+        ?? event.params?.entry?.url
+        ?? requestUrls.get(event.params?.requestId)
+        ?? '',
+    }));
+  };
+  const isProtocolError = ({ event }) => (
     event.method === 'Runtime.exceptionThrown'
       || event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error' && !ignoredFavicon(event)
       || event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error'
@@ -831,8 +867,67 @@ try {
       || event.method === 'Network.responseReceived'
         && event.params?.response?.status >= 400
         && new URL(event.params.response.url).origin === new URL(pageUrl).origin && !ignoredFavicon(event)
-  ));
-  assert(protocolErrors().length === 0, `Chrome recorded ${protocolErrors().length} runtime/network error(s).`);
+  );
+  const isExpectedSyntheticSourceImportError = ({ event, index, url }) => {
+    const range = sourceImportSyntheticEventRange;
+    if (!range || index < range.start || index >= range.end) return false;
+    if (range.projectId !== 'numberdroid-studio-checkpoint-2a'
+      || sourceImportOperationIsolation?.delayedStageCount !== 1
+      || sourceImportOperationIsolation?.delayedCommitCount !== 1
+      || sourceImportOperationIsolation?.operationRevision !== 4
+      || sourceImportOperationIsolation?.revisionLabelAfter !== 'Revision 4') return false;
+    let parsed;
+    try { parsed = new URL(url, pageUrl); } catch { return false; }
+    const fixtureArtifactUrl = new URL(
+      `/api/projects/${encodeURIComponent(range.projectId)}/artifacts/sha256/${FAMILY_HYGIENE_DIGEST}`,
+      pageUrl,
+    ).href;
+    if (parsed.href !== fixtureArtifactUrl) return false;
+    if (event.method === 'Log.entryAdded') {
+      return event.params?.entry?.level === 'error'
+        && /ERR_ABORTED/.test(event.params?.entry?.text ?? '');
+    }
+    return event.method === 'Network.loadingFailed'
+      && event.params?.type === 'Image'
+      && event.params?.errorText === 'net::ERR_ABORTED';
+  };
+  const allProtocolErrors = () => protocolEventRecords().filter(isProtocolError);
+  const expectedSyntheticProtocolErrors = () => allProtocolErrors().filter(isExpectedSyntheticSourceImportError);
+  const protocolErrors = () => allProtocolErrors().filter((record) => !isExpectedSyntheticSourceImportError(record));
+  const protocolErrorSummary = (record) => {
+    const { event, index, url } = record;
+    const text = event.params?.entry?.text
+      ?? event.params?.exceptionDetails?.exception?.description
+      ?? event.params?.exceptionDetails?.text
+      ?? '';
+    return JSON.stringify({
+      index,
+      method: event.method,
+      url: String(url).slice(0, 240),
+      status: event.params?.response?.status ?? null,
+      type: event.params?.type ?? event.params?.entry?.level ?? null,
+      canceled: event.params?.canceled ?? null,
+      errorText: event.params?.errorText ?? null,
+      text: String(text).slice(0, 240),
+    });
+  };
+  const assertNoProtocolErrors = (label) => {
+    const unexpected = protocolErrors();
+    assert(unexpected.length === 0,
+      `${label}: Chrome recorded ${unexpected.length} unexpected runtime/network error(s): `
+        + unexpected.map(protocolErrorSummary).join(' | '));
+  };
+  const assertSyntheticProtocolErrorsBounded = () => {
+    const expected = expectedSyntheticProtocolErrors();
+    const networkAborts = expected.filter(({ event }) => event.method === 'Network.loadingFailed');
+    const pairedLogs = expected.filter(({ event }) => event.method === 'Log.entryAdded');
+    assert(networkAborts.length <= 1 && pairedLogs.length <= 1
+      && (pairedLogs.length === 0 || networkAborts.length === 1),
+    'Synthetic source-import probe exceeded its single fixture-preview abort allowance: '
+      + expected.map(protocolErrorSummary).join(' | '));
+  };
+  assertSyntheticProtocolErrorsBounded();
+  assertNoProtocolErrors('Before screenshot assertions');
 
   if (mode === 'candidate') {
     assert(layout.visualEvidenceReady === 'true', 'Candidate screenshot was taken before the app readiness signal.');
@@ -1164,8 +1259,7 @@ try {
     }, sessionId);
     assert(postInteractionErrors.result?.value === 0,
       'Checkpoint 2B local control interactions recorded an uncaught browser error.');
-    assert(protocolErrors().length === 0,
-      `Chrome recorded ${protocolErrors().length} runtime/network error(s) after Checkpoint 2B interactions.`);
+    assertNoProtocolErrors('After Checkpoint 2B interactions');
     checkpoint2bInteractionEvidence = {
       zoomCssWidths: [zoom100.result.value.width, zoom200.result.value.width, restoredFit.result.value.width],
       includeExclude: excluded.result.value,
@@ -1189,6 +1283,8 @@ try {
     protocolVersion: browserVersion.protocolVersion,
     screenshotAfterReadinessInSameSession: true,
     runtimeNetworkErrors: 0,
+    expectedSyntheticRuntimeNetworkErrors: expectedSyntheticProtocolErrors().length,
+    expectedSyntheticRuntimeNetworkErrorSummaries: expectedSyntheticProtocolErrors().map(protocolErrorSummary),
     sourceFileRefreshRetention,
     sourceFileResumeTransition,
     sourceImportOperationIsolation,
