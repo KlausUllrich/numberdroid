@@ -5,8 +5,9 @@
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135` — remains open, draft, unmerged, and unreleased
 - **Accepted prerequisites:** Checkpoint 2A and Checkpoint 2B
-- **Published candidate commit:** pending GitHub publication
-- **Published CI/evidence:** pending GitHub verification
+- **Published candidate commit:** `0382ad1827db56c07be3a32b59dc43dff78500ba`
+- **Published CI/evidence:** run `32580111158` — root job `97048089489` and Studio job `97048089540` passed
+- **Dedicated evidence artifact:** `9477603132` (`numberdroid-studio-checkpoint-2c-evidence`), 2,060,358 bytes, `sha256:4dccfa1fbcdae7ae19c5bcafc3fed122c2225ce11e9857ee85a4db2bc715b204`
 - **Independent verifier:** GO after reproducing and clearing all four initial NO-GO findings
 
 This record describes the Checkpoint 2C candidate. It does not record user acceptance and grants no merge, release, provider, room, Numberdroid/runtime/repository export, materialization, publication, or downstream-checkpoint authority. The only import/export operation authorized in this checkpoint is an offline, project-scoped portable Studio bundle round trip.
@@ -67,7 +68,7 @@ The local Family Hygiene export → import → export proof produced byte-identi
 - imported live authority/work queues: zero
 - imported sanitized APPLIED histories: one
 
-CI regenerates and verifies this proof; the published artifact pins remain pending until the candidate commit is available remotely.
+CI regenerated and verified this proof at candidate commit `0382ad1827db56c07be3a32b59dc43dff78500ba`. The dedicated artifact contains exactly 24 files: one evidence manifest plus 23 declared evidence files. Independent download verification matched every declared file byte size and SHA-256, and matched the artifact ZIP digest reported by GitHub. The retention-limited artifact was created on 2026-08-22 and expires on 2026-09-05.
 
 ## Family Hygiene user fixture
 
@@ -95,8 +96,10 @@ No bitmap evidence is committed to the repository. CI publishes screenshots, DOM
 - protected Checkpoint 1A parity: **passed** after projecting only additive v9 sections out of the frozen historical comparison;
 - Family Hygiene pending/applied fixture preparation: **passed** locally;
 - SQLite Family Hygiene bundle export/import/re-export: **passed** locally with byte-identical canonical project/manifest documents;
-- root repository tests/build: pending published CI;
-- Chrome 1440/1060 screenshot and observation review: pending published CI;
+- root repository tests/build: **passed** in published CI job `97048089489`;
+- complete Studio verification and evidence workflow: **passed** in published CI job `97048089540`;
+- Chrome `151.0.7922.137` 1440/1060 screenshot and observation review: **passed** across six independently inspected captures, with zero recorded visual/runtime errors, no horizontal overflow, no header collision, exact READY previews, legible proposal diffs, and the dirty focused rejection draft/selection/local scroll/page scroll preserved through passive refresh;
+- published evidence artifact manifest: **23/23 entries independently matched** by byte size and SHA-256; artifact ZIP SHA-256 matched GitHub's `4dccfa1fbcdae7ae19c5bcafc3fed122c2225ce11e9857ee85a4db2bc715b204` pin;
 - independent adversarial disposition: **GO** — all four initial blocker reproductions now fail closed or preserve the required version/closure semantics.
 
 ## Short user walkthrough after green published CI
@@ -109,4 +112,4 @@ No bitmap evidence is committed to the repository. CI publishes screenshots, DOM
 
 ## Gate disposition
 
-The candidate must not be presented for user acceptance until its commit is published to the draft branch, both CI jobs are green, the dedicated evidence artifact is downloaded and independently inspected, and the fresh adversarial verifier returns GO. Even after those checks, acceptance requires the user's explicit visual/workflow decision. PR #135 stays draft, open, and unmerged.
+The publication, two-job CI, evidence download/inspection, and fresh adversarial GO preconditions are satisfied for candidate commit `0382ad1827db56c07be3a32b59dc43dff78500ba`. The checkpoint is ready for the short user walkthrough above, but remains unaccepted until the user's explicit visual/workflow decision. PR #135 stays draft, open, and unmerged.
