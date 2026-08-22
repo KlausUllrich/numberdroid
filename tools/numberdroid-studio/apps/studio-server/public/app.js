@@ -2014,6 +2014,9 @@ if (visualFixture) {
     cutterInteractionState() {
       return {
         dragActive: Boolean(cutterDrag),
+        changed: cutterDrag?.changed ?? false,
+        targetConnected: cutterDrag?.target?.isConnected ?? false,
+        hasPointerCapture: Boolean(cutterDrag?.target?.hasPointerCapture?.(cutterDrag.pointerId)),
         deferred: state.cutterDeferredRender,
         dirty: state.cutter?.dirty ?? null,
         marker: state.cutterJob?.visualFixtureProjectionMarker ?? null,

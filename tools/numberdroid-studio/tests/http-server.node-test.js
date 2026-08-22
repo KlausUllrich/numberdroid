@@ -85,6 +85,9 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /addEventListener\('pointercancel', settleCutterDrag\)/);
   assert.match(clientScript, /addEventListener\('lostpointercapture', settleCutterDrag\)/);
   assert.match(clientScript, /if \(visualFixture\) \{[\s\S]*forceChangedCutterProjectionRender/);
+  assert.match(clientScript, /changed: cutterDrag\?\.changed \?\? false/);
+  assert.match(clientScript, /targetConnected: cutterDrag\?\.target\?\.isConnected \?\? false/);
+  assert.match(clientScript, /hasPointerCapture: Boolean\(cutterDrag\?\.target\?\.hasPointerCapture\?\.\(cutterDrag\.pointerId\)\)/);
   assert.match(clientScript, /scroller\.dataset\.cutterScrollContext = cutterScrollContext\(\)/);
   const workspaceRenderStart = clientScript.indexOf('function renderWorkspace');
   const workspaceRender = clientScript.slice(
@@ -262,12 +265,28 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(browserEvidenceScript, /scrollPreservation: scrollRefresh\.result\.value/);
   assert.match(browserEvidenceScript, /committedGridDraft: committedGridDraft\.result\.value/);
   assert.match(browserEvidenceScript, /forceChangedCutterProjectionRender/);
+  assert.match(browserEvidenceScript, /document\.elementFromPoint\(point\.x, point\.y\)/);
+  assert.match(browserEvidenceScript, /dragSetup\.result\.value\.hitTarget === true/);
+  const dragPressed = browserEvidenceScript.indexOf('dragPressed = await');
+  const dragMoved = browserEvidenceScript.indexOf('dragMoved = await');
+  const duringDrag = browserEvidenceScript.indexOf('duringDrag = await');
+  assert.ok(dragPressed >= 0 && dragMoved > dragPressed && duringDrag > dragMoved,
+    'Browser evidence must establish and move the captured drag before forcing an external projection.');
+  assert.match(browserEvidenceScript, /dragPressed\.result\?\.value\?\.observed === true[\s\S]*dragPressed\.result\.value\.interaction\?\.dragActive === true/);
+  assert.match(browserEvidenceScript, /dragMoved\.result\?\.value\?\.observed === true[\s\S]*dragMoved\.result\.value\.interaction\?\.dragActive === true/);
+  assert.match(browserEvidenceScript, /for \(let frame = 0; frame < 30; frame \+= 1\)/);
+  assert.match(browserEvidenceScript, /interaction\.hasPointerCapture === true/);
+  assert.match(browserEvidenceScript, /interaction\.changed === true/);
+  assert.match(browserEvidenceScript, /pressed: dragPressed\.result\?\.value, moved: dragMoved\.result\?\.value/);
   assert.match(browserEvidenceScript, /forced\?\.dragActive === true/);
   assert.match(browserEvidenceScript, /forced\.deferred === true/);
   assert.match(browserEvidenceScript, /oldTargetConnected === false/);
   assert.match(browserEvidenceScript, /afterDrag\.result\.value\.inspectorX === afterDrag\.result\.value\.x/);
   assert.match(browserEvidenceScript, /afterDrag\.result\.value\.inspectorY === afterDrag\.result\.value\.y/);
-  assert.match(browserEvidenceScript, /dragContinuity:/);
+  assert.match(browserEvidenceScript, /dragContinuity: \{[\s\S]*pressed: dragPressed\.result\.value,[\s\S]*moved: dragMoved\.result\.value,[\s\S]*during: duringDrag\.result\.value/);
+  assert.match(browserEvidenceScript, /afterDrag = await[\s\S]*for \(let frame = 0; frame < 30; frame \+= 1\)[\s\S]*oldTargetConnected === false[\s\S]*inspectorX === x[\s\S]*if \(observation\.observed\) return observation/);
+  assert.match(browserEvidenceScript, /afterDrag\.result\?\.value\?\.observed === true/);
+  assert.match(browserEvidenceScript, /finally \{[\s\S]*if \(mousePressed\)[\s\S]*type: 'mouseReleased'/);
   assert.match(browserEvidenceScript, /scrollLeft === 0 && restoredFit\.result\.value\.scrollTop === 0/);
   assert.match(browserEvidenceScript, /document\.querySelector\('\[data-cutter-move="0"\]'\)\?\.closest\('g'\)/);
   assert.doesNotMatch(browserEvidenceScript, /data-rectangle-id="rect\.family\.0\.0"/);

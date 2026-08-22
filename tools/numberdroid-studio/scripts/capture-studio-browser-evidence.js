@@ -1416,13 +1416,14 @@ try {
     assert(resizeResult.result.value.inspectorHeight === resizeResult.result.value.height,
       'Arrow-key rectangle resize left the numeric inspector behind the authoritative SVG geometry.');
     const dragSetup = await devtools.send('Runtime.evaluate', {
-      expression: `(() => {
+      expression: `(async () => {
         const zoom = document.querySelector('[data-cutter-zoom]');
         zoom.value = '2'; zoom.dispatchEvent(new Event('change', { bubbles: true }));
         const scroller = document.querySelector('.cutter-scroll');
-        scroller.scrollIntoView({ block: 'center', inline: 'nearest' });
+        scroller.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' });
         scroller.scrollLeft = Math.min(43, scroller.scrollWidth - scroller.clientWidth);
         scroller.scrollTop = Math.min(57, scroller.scrollHeight - scroller.clientHeight);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const target = document.querySelector('[data-cutter-move="0"]');
         window.__cutterDragProbeTarget = target;
         const targetRect = target.getBoundingClientRect();
@@ -1433,8 +1434,13 @@ try {
           top: Math.max(targetRect.top, scrollerRect.top),
           bottom: Math.min(targetRect.bottom, scrollerRect.bottom),
         };
+        const point = { x: (visible.left + visible.right) / 2, y: (visible.top + visible.bottom) / 2 };
+        const hit = document.elementFromPoint(point.x, point.y);
         return {
-          point: { x: (visible.left + visible.right) / 2, y: (visible.top + visible.bottom) / 2 },
+          point,
+          hitTarget: hit === target,
+          hitTag: hit?.tagName ?? null,
+          hitMoveIndex: hit?.dataset?.cutterMove ?? null,
           context: scroller.dataset.cutterScrollContext,
           left: scroller.scrollLeft,
           top: scroller.scrollTop,
@@ -1445,19 +1451,105 @@ try {
           visibleWidth: visible.right - visible.left,
           visibleHeight: visible.bottom - visible.top,
         };
-      })()`, returnByValue: true,
+      })()`, awaitPromise: true, returnByValue: true,
     }, sessionId);
     assert(dragSetup.result?.value?.left > 0 && dragSetup.result.value.top > 0
-      && dragSetup.result.value.visibleWidth > 30 && dragSetup.result.value.visibleHeight > 30,
-    'The drag-continuity probe could not establish a visible target with nonzero nested scroll.');
+      && dragSetup.result.value.visibleWidth > 30 && dragSetup.result.value.visibleHeight > 30
+      && dragSetup.result.value.hitTarget === true,
+    `The drag-continuity probe could not establish an exact visible hit target with nonzero nested scroll: ${JSON.stringify(dragSetup.result?.value)}`);
     const dragPoint = dragSetup.result.value.point;
-    await devtools.send('Input.dispatchMouseEvent', {
-      type: 'mousePressed', x: dragPoint.x, y: dragPoint.y, button: 'left', buttons: 1, clickCount: 1,
-    }, sessionId);
-    await devtools.send('Input.dispatchMouseEvent', {
-      type: 'mouseMoved', x: dragPoint.x + 18, y: dragPoint.y + 14, button: 'none', buttons: 1,
-    }, sessionId);
-    const duringDrag = await devtools.send('Runtime.evaluate', {
+    let mousePressed = false;
+    let dragPressed;
+    let dragMoved;
+    let duringDrag;
+    let afterDrag;
+    try {
+      mousePressed = true;
+      await devtools.send('Input.dispatchMouseEvent', {
+        type: 'mousePressed', x: dragPoint.x, y: dragPoint.y, button: 'left', buttons: 1, clickCount: 1,
+      }, sessionId);
+      dragPressed = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          let observation;
+          for (let frame = 0; frame < 30; frame += 1) {
+            const target = window.__cutterDragProbeTarget;
+            const interaction = window.__numberdroidStudioVisualTest?.cutterInteractionState();
+            observation = {
+              observed: interaction?.dragActive === true
+                && interaction.targetConnected === true
+                && interaction.hasPointerCapture === true,
+              frame,
+              interaction,
+              targetConnected: target?.isConnected,
+              sameTarget: document.querySelector('[data-cutter-move="0"]') === target,
+              x: target?.getAttribute('x'),
+              y: target?.getAttribute('y'),
+            };
+            if (observation.observed) return observation;
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+          return observation;
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      assert(dragPressed.result?.value?.observed === true
+        && dragPressed.result.value.interaction?.dragActive === true
+        && dragPressed.result.value.interaction.targetConnected === true
+        && dragPressed.result.value.interaction.hasPointerCapture === true
+        && dragPressed.result.value.targetConnected === true
+        && dragPressed.result.value.sameTarget === true,
+      `The CDP drag probe did not establish an active captured cutter drag: ${JSON.stringify({ setup: dragSetup.result?.value, pressed: dragPressed.result?.value })}`);
+      await devtools.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved', x: dragPoint.x + 18, y: dragPoint.y + 14, button: 'none', buttons: 1,
+      }, sessionId);
+      dragMoved = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          let observation;
+          for (let frame = 0; frame < 30; frame += 1) {
+            const target = window.__cutterDragProbeTarget;
+            const scroller = document.querySelector('.cutter-scroll');
+            const interaction = window.__numberdroidStudioVisualTest?.cutterInteractionState();
+            const x = target?.getAttribute('x');
+            const y = target?.getAttribute('y');
+            observation = {
+              observed: interaction?.dragActive === true
+                && interaction.changed === true
+                && interaction.dirty === true
+                && interaction.targetConnected === true
+                && interaction.hasPointerCapture === true
+                && (x !== ${JSON.stringify(dragSetup.result.value.x)} || y !== ${JSON.stringify(dragSetup.result.value.y)}),
+              frame,
+              interaction,
+              targetConnected: target?.isConnected,
+              sameTarget: document.querySelector('[data-cutter-move="0"]') === target,
+              x,
+              y,
+              left: scroller?.scrollLeft,
+              top: scroller?.scrollTop,
+              windowLeft: window.scrollX,
+              windowTop: window.scrollY,
+            };
+            if (observation.observed) return observation;
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+          return observation;
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      assert(dragMoved.result?.value?.observed === true
+        && dragMoved.result.value.interaction?.dragActive === true
+        && dragMoved.result.value.interaction.changed === true
+        && dragMoved.result.value.interaction.dirty === true
+        && dragMoved.result.value.interaction.targetConnected === true
+        && dragMoved.result.value.interaction.hasPointerCapture === true
+        && dragMoved.result.value.targetConnected === true
+        && dragMoved.result.value.sameTarget === true
+        && (dragMoved.result.value.x !== dragSetup.result.value.x
+          || dragMoved.result.value.y !== dragSetup.result.value.y)
+        && dragMoved.result.value.left === dragSetup.result.value.left
+        && dragMoved.result.value.top === dragSetup.result.value.top
+        && dragMoved.result.value.windowLeft === dragSetup.result.value.windowLeft
+        && dragMoved.result.value.windowTop === dragSetup.result.value.windowTop,
+      `The captured cutter drag did not move and retain changed/dirty/capture/DOM/scroll state before the external-render probe: ${JSON.stringify({ setup: dragSetup.result?.value, pressed: dragPressed.result?.value, moved: dragMoved.result?.value })}`);
+      duringDrag = await devtools.send('Runtime.evaluate', {
       expression: `(() => {
         const hook = window.__numberdroidStudioVisualTest;
         const forced = hook?.forceChangedCutterProjectionRender();
@@ -1476,62 +1568,92 @@ try {
           windowTop: window.scrollY,
         };
       })()`, returnByValue: true,
-    }, sessionId);
-    assert(duringDrag.result?.value?.forced?.dragActive === true
-      && duringDrag.result.value.forced.deferred === true
-      && duringDrag.result.value.interaction?.dirty === true
-      && duringDrag.result.value.targetConnected === true
-      && duringDrag.result.value.sameTarget === true
-      && (duringDrag.result.value.x !== dragSetup.result.value.x
-        || duringDrag.result.value.y !== dragSetup.result.value.y)
-      && duringDrag.result.value.left === dragSetup.result.value.left
-      && duringDrag.result.value.top === dragSetup.result.value.top
-      && duringDrag.result.value.windowLeft === dragSetup.result.value.windowLeft
-      && duringDrag.result.value.windowTop === dragSetup.result.value.windowTop,
-    'A changed external cutter projection was not deferred safely during the captured drag.');
-    await devtools.send('Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x: dragPoint.x + 18, y: dragPoint.y + 14,
-      button: 'left', buttons: 0, clickCount: 1,
-    }, sessionId);
-    await devtools.send('Runtime.evaluate', {
-      expression: `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`,
-      awaitPromise: true, returnByValue: true,
-    }, sessionId);
-    const afterDrag = await devtools.send('Runtime.evaluate', {
-      expression: `(() => {
-        const hook = window.__numberdroidStudioVisualTest;
-        const target = document.querySelector('[data-cutter-move="0"]');
-        const scroller = document.querySelector('.cutter-scroll');
-        return {
-          interaction: hook?.cutterInteractionState(),
-          oldTargetConnected: window.__cutterDragProbeTarget?.isConnected,
-          targetReplaced: target !== window.__cutterDragProbeTarget,
-          x: target?.getAttribute('x'),
-          y: target?.getAttribute('y'),
-          inspectorX: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="x"]')?.value,
-          inspectorY: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="y"]')?.value,
-          left: scroller?.scrollLeft,
-          top: scroller?.scrollTop,
-          context: scroller?.dataset.cutterScrollContext,
-          windowLeft: window.scrollX,
-          windowTop: window.scrollY,
-        };
-      })()`, returnByValue: true,
-    }, sessionId);
-    assert(afterDrag.result?.value?.interaction?.dragActive === false
-      && afterDrag.result.value.interaction.deferred === false
-      && afterDrag.result.value.interaction.dirty === true
-      && afterDrag.result.value.interaction.marker === duringDrag.result.value.forced.marker
-      && afterDrag.result.value.oldTargetConnected === false
-      && afterDrag.result.value.targetReplaced === true
-      && afterDrag.result.value.inspectorX === afterDrag.result.value.x
-      && afterDrag.result.value.inspectorY === afterDrag.result.value.y
-      && afterDrag.result.value.left === dragSetup.result.value.left
-      && afterDrag.result.value.top === dragSetup.result.value.top
-      && afterDrag.result.value.context === dragSetup.result.value.context
-      && afterDrag.result.value.windowLeft === dragSetup.result.value.windowLeft
-      && afterDrag.result.value.windowTop === dragSetup.result.value.windowTop,
-    'The deferred external render did not settle the drag into synchronized inspector/SVG state and exact scroll context.');
+      }, sessionId);
+      assert(duringDrag.result?.value?.forced?.dragActive === true
+        && duringDrag.result.value.forced.deferred === true
+        && duringDrag.result.value.interaction?.changed === true
+        && duringDrag.result.value.interaction.dirty === true
+        && duringDrag.result.value.interaction.targetConnected === true
+        && duringDrag.result.value.interaction.hasPointerCapture === true
+        && duringDrag.result.value.targetConnected === true
+        && duringDrag.result.value.sameTarget === true
+        && (duringDrag.result.value.x !== dragSetup.result.value.x
+          || duringDrag.result.value.y !== dragSetup.result.value.y)
+        && duringDrag.result.value.left === dragSetup.result.value.left
+        && duringDrag.result.value.top === dragSetup.result.value.top
+        && duringDrag.result.value.windowLeft === dragSetup.result.value.windowLeft
+        && duringDrag.result.value.windowTop === dragSetup.result.value.windowTop,
+      `A changed external cutter projection was not deferred safely during the captured drag: ${JSON.stringify({ setup: dragSetup.result?.value, pressed: dragPressed.result?.value, moved: dragMoved.result?.value, during: duringDrag.result?.value })}`);
+      await devtools.send('Input.dispatchMouseEvent', {
+        type: 'mouseReleased', x: dragPoint.x + 18, y: dragPoint.y + 14,
+        button: 'left', buttons: 0, clickCount: 1,
+      }, sessionId);
+      mousePressed = false;
+      afterDrag = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          let observation;
+          for (let frame = 0; frame < 30; frame += 1) {
+            const hook = window.__numberdroidStudioVisualTest;
+            const target = document.querySelector('[data-cutter-move="0"]');
+            const scroller = document.querySelector('.cutter-scroll');
+            const interaction = hook?.cutterInteractionState();
+            const oldTargetConnected = window.__cutterDragProbeTarget?.isConnected;
+            const targetReplaced = target !== window.__cutterDragProbeTarget;
+            const x = target?.getAttribute('x');
+            const y = target?.getAttribute('y');
+            const inspectorX = document.querySelector('[data-rectangle-index="0"][data-rectangle-field="x"]')?.value;
+            const inspectorY = document.querySelector('[data-rectangle-index="0"][data-rectangle-field="y"]')?.value;
+            observation = {
+              observed: interaction?.dragActive === false
+                && interaction.deferred === false
+                && interaction.marker === ${JSON.stringify(duringDrag.result.value.forced.marker)}
+                && oldTargetConnected === false
+                && targetReplaced === true
+                && inspectorX === x
+                && inspectorY === y,
+              frame,
+              interaction,
+              oldTargetConnected,
+              targetReplaced,
+              x,
+              y,
+              inspectorX,
+              inspectorY,
+              left: scroller?.scrollLeft,
+              top: scroller?.scrollTop,
+              context: scroller?.dataset.cutterScrollContext,
+              windowLeft: window.scrollX,
+              windowTop: window.scrollY,
+            };
+            if (observation.observed) return observation;
+            await new Promise((resolve) => requestAnimationFrame(resolve));
+          }
+          return observation;
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      assert(afterDrag.result?.value?.observed === true
+        && afterDrag.result.value.interaction?.dragActive === false
+        && afterDrag.result.value.interaction.deferred === false
+        && afterDrag.result.value.interaction.dirty === true
+        && afterDrag.result.value.interaction.marker === duringDrag.result.value.forced.marker
+        && afterDrag.result.value.oldTargetConnected === false
+        && afterDrag.result.value.targetReplaced === true
+        && afterDrag.result.value.inspectorX === afterDrag.result.value.x
+        && afterDrag.result.value.inspectorY === afterDrag.result.value.y
+        && afterDrag.result.value.left === dragSetup.result.value.left
+        && afterDrag.result.value.top === dragSetup.result.value.top
+        && afterDrag.result.value.context === dragSetup.result.value.context
+        && afterDrag.result.value.windowLeft === dragSetup.result.value.windowLeft
+        && afterDrag.result.value.windowTop === dragSetup.result.value.windowTop,
+      `The deferred external render did not settle the drag into synchronized inspector/SVG state and exact scroll context: ${JSON.stringify({ setup: dragSetup.result?.value, pressed: dragPressed.result?.value, moved: dragMoved.result?.value, during: duringDrag.result?.value, after: afterDrag.result?.value })}`);
+    } finally {
+      if (mousePressed) {
+        await devtools.send('Input.dispatchMouseEvent', {
+          type: 'mouseReleased', x: dragPoint.x + 18, y: dragPoint.y + 14,
+          button: 'left', buttons: 0, clickCount: 1,
+        }, sessionId).catch(() => {});
+      }
+    }
     const closeReopenReset = await devtools.send('Runtime.evaluate', {
       expression: `(async () => {
         const zoom = document.querySelector('[data-cutter-zoom]');
@@ -1595,7 +1717,13 @@ try {
       explicitReplacement: remapped.result.value,
       keyboardMove: { before: Number(keyboardFocus.result.value.x), after: Number(keyboardResult.result.value.x) },
       keyboardResize: { before: Number(resizeFocus.result.value.height), after: Number(resizeResult.result.value.height) },
-      dragContinuity: { before: dragSetup.result.value, during: duringDrag.result.value, after: afterDrag.result.value },
+      dragContinuity: {
+        before: dragSetup.result.value,
+        pressed: dragPressed.result.value,
+        moved: dragMoved.result.value,
+        during: duringDrag.result.value,
+        after: afterDrag.result.value,
+      },
       closeReopenReset: closeReopenReset.result.value,
       postInteractionRuntimeNetworkErrors: 0,
     };
