@@ -194,6 +194,7 @@ try {
   let sourceFileResumeTransition = null;
   let sourceImportOperationIsolation = null;
   let sourceImportSyntheticEventRange = null;
+  let sourceIdPatternValidity = null;
   if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources') {
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click()`,
@@ -244,6 +245,27 @@ try {
     }, sessionId);
   }
   if (mode === 'checkpoint-2a' && expectedWorkspace === 'sources') {
+    const patternValidity = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const input = document.querySelector('[data-source-intake-form] [name="sourceId"]');
+        const priorValue = input.value;
+        input.value = 'source.family_hygiene:floor-01';
+        const valid = { checkValidity: input.checkValidity(), patternMismatch: input.validity.patternMismatch };
+        input.value = 'source/path';
+        const invalid = { checkValidity: input.checkValidity(), patternMismatch: input.validity.patternMismatch };
+        input.value = priorValue;
+        return { pattern: input.pattern, valid, invalid, priorValue, restoredValue: input.value };
+      })()`,
+      returnByValue: true,
+    }, sessionId);
+    sourceIdPatternValidity = patternValidity.result?.value ?? null;
+    assert(sourceIdPatternValidity?.pattern === '[A-Za-z0-9][A-Za-z0-9._:\\-]{0,127}'
+      && sourceIdPatternValidity.valid?.checkValidity === true
+      && sourceIdPatternValidity.valid.patternMismatch === false
+      && sourceIdPatternValidity.invalid?.checkValidity === false
+      && sourceIdPatternValidity.invalid.patternMismatch === true
+      && sourceIdPatternValidity.restoredValue === sourceIdPatternValidity.priorValue,
+    'Chrome did not enforce the source ID UnicodeSets pattern with a literal escaped hyphen.');
     await devtools.send('Runtime.evaluate', {
       expression: `(async () => {
         if (document.getElementById('source-preview-aspect-probes')) return;
@@ -1288,6 +1310,7 @@ try {
     sourceFileRefreshRetention,
     sourceFileResumeTransition,
     sourceImportOperationIsolation,
+    sourceIdPatternValidity,
     layout,
     interactions: checkpoint2bInteractionEvidence,
   };

@@ -65,6 +65,14 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /selectedSourceFile\?\.files\?\.length > 0/);
   assert.match(clientScript, /sourceFileChooserActive/);
   assert.match(clientScript, /Selected .* Ready to import/);
+  assert.match(clientScript, /sourceId\.pattern = '\[A-Za-z0-9\]\[A-Za-z0-9\._:\\\\-\]\{0,127\}'/);
+  const sourceIdPattern = new RegExp('^(?:[A-Za-z0-9][A-Za-z0-9._:\\-]{0,127})$', 'v');
+  for (const accepted of ['a', 'source.family_hygiene:floor-01', `a${'z'.repeat(127)}`]) {
+    assert.equal(sourceIdPattern.test(accepted), true, `Expected source ID ${accepted} to satisfy the browser pattern.`);
+  }
+  for (const rejected of ['', '-source', 'source/path', 'source id', `a${'z'.repeat(128)}`]) {
+    assert.equal(sourceIdPattern.test(rejected), false, `Expected source ID ${rejected} to fail the browser pattern.`);
+  }
   assert.match(clientScript, /resetSourceIntakeForm\(\)/);
   assert.match(clientScript, /Resume staged intake .* selected file .* current import form will be cleared/s);
   assert.match(clientScript, /if \(file\) file\.value = ''/);
@@ -97,6 +105,13 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
     new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8',
   );
   assert.match(browserEvidenceScript, /allFormControlsDisabled/);
+  assert.match(browserEvidenceScript, /sourceIdPatternValidity/);
+  assert.match(browserEvidenceScript, /input\.value = 'source\.family_hygiene:floor-01'/);
+  assert.match(browserEvidenceScript, /input\.value = 'source\/path'/);
+  assert.match(browserEvidenceScript, /input\.checkValidity\(\)/);
+  assert.match(browserEvidenceScript, /input\.validity\.patternMismatch/);
+  assert.match(browserEvidenceScript, /sourceIdPatternValidity\?\.pattern === '\[A-Za-z0-9\]\[A-Za-z0-9\._:\\\\-\]\{0,127\}'/);
+  assert.match(browserEvidenceScript, /restoredValue === sourceIdPatternValidity\.priorValue/);
   assert.match(browserEvidenceScript, /selectedProjectWhilePending/);
   assert.match(browserEvidenceScript, /expectedRevision === sourceImportOperationIsolation\.operationRevision/);
   assert.match(browserEvidenceScript, /mismatch\.commitCount === 0/);

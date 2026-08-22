@@ -450,7 +450,7 @@ function sourceIntakePanel() {
   file.disabled = Boolean(stagedIntake);
   const sourceId = document.createElement('input');
   sourceId.name = 'sourceId'; sourceId.required = true; sourceId.maxLength = 128; sourceId.placeholder = 'source.family-hygiene-floor';
-  sourceId.pattern = '[A-Za-z0-9][A-Za-z0-9._:-]{0,127}';
+  sourceId.pattern = '[A-Za-z0-9][A-Za-z0-9._:\\-]{0,127}';
   sourceId.value = draft.sourceId ?? '';
   const name = document.createElement('input');
   name.name = 'name'; name.required = true; name.maxLength = 160; name.placeholder = 'Family Hygiene floor atlas';
