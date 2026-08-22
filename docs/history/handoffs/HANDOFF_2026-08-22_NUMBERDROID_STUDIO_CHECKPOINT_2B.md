@@ -1,18 +1,19 @@
-# Handoff — Numberdroid Studio Checkpoint 2B Candidate
+# Handoff — Numberdroid Studio Checkpoint 2B Accepted
 
 - **Date:** 2026-08-22
 - **Repository:** `KlausUllrich/numberdroid`
-- **Status:** second user-reported Checkpoint 2B gate blocker repaired; replacement CI/browser-verified candidate; user acceptance pending
+- **Status:** explicitly user-accepted on 2026-08-22 after the complete live walkthrough
 - **Baseline `main` head at creation:** `1e1f0ce09a7c996f24cf6b216e400d57cb6dc666` from the current Checkpoint 2 line; receiver MUST re-verify current `main`
 - **Feature commit:** `ae250378943258770330d53c6ec685a94e17dd0e`
 - **Product-repair head:** `2e68a81cb00c52da552bd12b5356d18f13772ee8`; earlier repair commits include `2d8e5bfe379add0423f80919d5ae9e70c61a5fdd` and `d8b6efdd626c7d931f169914c5c65cba240156c5`
 - **Current repair commits:** product `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d`; selector-only harness follow-up `04d876da750f348e24de9420be1ff59c349bc092`; receiver MUST re-read the remote head before any update
-- **CI / Pages state:** Build run `32568108922` passed Studio job `97019592824` and root job `97019592908`; Pages was intentionally skipped because Studio is a local authoring service
+- **Accepted head:** `309c24961f89389047db837471b2e434dd13e149`
+- **CI / Pages state:** repaired-evidence run `32568108922` passed Studio job `97019592824` and root job `97019592908`; docs-head run `32568704927` passed Studio job `97020985366` and root job `97020985521`; Pages was intentionally skipped because Studio is a local authoring service
 - **Development branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135` — `https://github.com/KlausUllrich/numberdroid/pull/135`; keep open, draft, and unmerged
 - **Primary receiving role:** Coordinator / QA Integrator
 - **Secondary / trigger roles:** Authoring-tool Engineer, Security, Technical Artist, repository integration
-- **Next milestone / task:** repeat and complete the one major Checkpoint 2B user gate
+- **Next milestone / task:** none implied; await separate user authorization before any Checkpoint 2C planning
 
 This handoff is a dated task snapshot. Current code and current binding contracts outrank it. It authorizes no merge, release, binary publication, provider integration, Checkpoint 2C, room work, export, materialization, or publish action.
 
@@ -48,8 +49,9 @@ The primary QA/Integrator route then inspects the actual implementation and test
 - Provider-free operation. The source is imported locally; no provider, credential, egress, or cost policy exists.
 - Family Hygiene source identity: PNG, 2,720,519 bytes, 1254×1254, SHA-256 `67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e`.
 - Protected manifest SHA-256 `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
+- Checkpoint 2B visual cutter, job, apply, recut, close/reopen, and restart workflow at accepted head `309c24961f89389047db837471b2e434dd13e149`, with explicit user acceptance recorded on 2026-08-22.
 
-### Implemented but not accepted
+### Checkpoint 2B accepted / frozen
 
 - source-resolution visual atlas cutter with fit/100%/200% zoom, SVG rectangle overlay, pointer/keyboard/numeric editing, inclusion, preview, and explicit per-rectangle new/replacement identity;
 - non-authoritative regular-grid proposal plus authoritative explicit rectangle revisions;
@@ -57,10 +59,14 @@ The primary QA/Integrator route then inspects the actual implementation and test
 - durable `ATLAS_PREVIEW` jobs with immutable input/creator authority, complete one-time job/output-byte budget, progress/events, leases/recovery, cancel/retry/discard, three-attempt ceiling, and quiesced shutdown;
 - atomic output metadata/reference/progress publication and atomic semantic slice apply;
 - state-specific integrity and snapshot-consistent database/CAS backup;
-- schema v8 and an exact 15-tool/two-resource-template MCP candidate surface;
+- schema v8 and the accepted exact 15-tool/two-resource-template MCP surface;
 - CI preparation/capture code for dedicated 2B cutter, inspector, and committed views.
 
-These features have frozen local, published CI, and inspected browser evidence. The first live gate's detached native-file-input blocker was repaired. The next live gate reached the cutter and exposed another five-second refresh defect: after grid proposal, the large image's local scrollbar jumped to the top. Unconditional passive replacement plus focused-draft, poll-ownership/stale-context, and captured-drag races were repaired in `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d`; selector-only `04d876da750f348e24de9420be1ff59c349bc092` removed the harness's stale generated-ID assumption. The prior `a3d9` candidate is superseded, and the current replacement still has no user acceptance.
+These features have frozen local, published CI, and inspected browser evidence. The first live gate's detached native-file-input blocker was repaired. The next live gate reached the cutter and exposed another five-second refresh defect: after grid proposal, the large image's local scrollbar jumped to the top. Unconditional passive replacement plus focused-draft, poll-ownership/stale-context, and captured-drag races were repaired in `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d`; selector-only `04d876da750f348e24de9420be1ff59c349bc092` removed the harness's stale generated-ID assumption. The prior `a3d9` candidate remains superseded. The user completed the repaired walkthrough at head `309c24961f89389047db837471b2e434dd13e149` and explicitly accepted Checkpoint 2B on 2026-08-22.
+
+The accepted walkthrough retained both image axes, focused `Top margin = 5`, and page position through a 12+ second passive refresh; saved the definition; completed `SUCCEEDED` 4/4 preview and `APPLIED` 4/4 commit on attempt 1 with four distinct quadrants and four stable v1 heads; exercised explicit recut mapping; discarded unsaved `X = 4`/remap on close/reopen while retaining saved `X = 3` and v1 heads; and preserved the approved source, exact rectangles, applied job, v1 previews, Fit/no-jump state, and no duplication through a full service restart.
+
+Accepted nonblocking UX finding: canonical slice IDs are unusable as primary human labels. A future UI should present ordinal **Slice 1–64** labels primarily and keep the canonical ID secondary and copyable. The user explicitly deferred this improvement and accepted 2B without it.
 
 ### Planned / not implemented
 
@@ -75,10 +81,10 @@ These features have frozen local, published CI, and inspected browser evidence. 
 
 | Decision | Owner | Required before |
 | --- | --- | --- |
-| Does the cutter layout, coordinate editing, preview, explicit remap, and job control feel acceptable? | User | accepting 2B |
-| Final repaired test/CI/browser evidence | Resolved: coordinator / independent verifier | complete; candidate may repeat the user gate |
+| Cutter layout, coordinate editing, preview, explicit remap, job control, and restart persistence | Resolved: user accepted on 2026-08-22 | complete |
+| Final repaired test/CI/browser evidence | Resolved: coordinator / independent verifier | complete; supports the accepted gate |
 | Final adversarial disposition | Resolved: GO after harness repair | complete; no open blocker |
-| Whether to start 2C | User, after explicit 2B acceptance | any asset-library semantics work |
+| Whether to start 2C | User, by separate explicit authorization | any asset-library semantics work |
 
 ## 3. Exact fixture and deterministic output
 
@@ -124,7 +130,7 @@ The worker must recheck revoke/expiry/task/object scope at claim and output safe
 
 Integrity is state-specific and links input/applied revisions to the matching atlas/source/fingerprint/slices and allowed reference owners. Backup requires a complete semantic/CAS integrity pass and copies one snapshot-consistent database/CAS closure. Never copy only a live SQLite main file or downgrade v8 in place.
 
-## 5. MCP candidate surface
+## 5. MCP surface
 
 When both durable stores are live, discovery is exactly 15 tools:
 
@@ -198,6 +204,7 @@ Run every Studio Node test and pay special attention to:
 - The final integrity-tamper gap is closed and included in the passing state-specific job/reference coverage.
 - Current repairs: product `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d`; selector-only harness follow-up `04d876da750f348e24de9420be1ff59c349bc092`.
 - GitHub Actions run [`32568108922`](https://github.com/KlausUllrich/numberdroid/actions/runs/32568108922): Studio job `97019592824` and root job `97019592908` succeeded.
+- Docs-head GitHub Actions run `32568704927`: Studio job `97020985366` and root job `97020985521` succeeded.
 - Chrome `151.0.7922.137`, DevTools protocol `1.3`.
 - Valid 2A artifact ID `9473018855`: 2,157,707 bytes, digest `sha256:55937b09b896b0a0417cc818f9d9eb64b415b0d5256606c364a75b4fa983ef89`, created `2026-08-22T08:17:49Z`, expires `2026-09-05T08:17:48Z`. Its downloaded ZIP digest was independently recomputed and matches.
 - The 2A artifact has 20 files: fixture/server records, two approved-source DOM snapshots, eight PNGs, and eight observations. All six Sources observations record correct fully-contained before-layout/final focus, exact source-ID pattern validity, retained file selection, staged recovery/operation isolation where applicable, and zero unexpected/synthetic/runtime/visual errors.
@@ -207,14 +214,16 @@ Run every Studio Node test and pay special attention to:
 - Every observation records project `numberdroid-studio-checkpoint-2b`, revision 7, Activity 7, ready, `APPLIED` 4/4 attempt 1, four overlays, four committed previews, zero runtime/network errors, no horizontal overflow, and zero Header overlaps.
 - Both viewports prove unchanged passive refresh retains the same DOM/focus, uncommitted `top=5`, local X321/Y417, and window position; necessary render yields y5/h621 and retains scroll; the VM race harness proves one poll owner and rejects stale identities; drag replacement is deferred with dirty and inspector/SVG agreement plus exact local/window scroll; close/reopen creates a new Fit instance at 0,0; runtime/network errors are zero.
 - Fixture source and all four output digests/dimensions match the local pins.
-- The formerly current `a3d9` run `32561781843` is superseded by the user-reported scrollbar defect. Failed run `32567878956` and 2B artifact `9474582144` are diagnostic only: all new product assertions passed, but the harness retained a stale generated-rectangle-ID selector. Earlier invalid/diagnostic runs remain non-evidence. Only run `32568108922` and artifact `9474639509` identify the current 2B candidate.
+- The formerly current `a3d9` run `32561781843` is superseded by the user-reported scrollbar defect. Failed run `32567878956` and 2B artifact `9474582144` are diagnostic only: all new product assertions passed, but the harness retained a stale generated-rectangle-ID selector. Earlier invalid/diagnostic runs remain non-evidence. Run `32568108922` and artifact `9474639509` identify the repaired browser evidence; explicit user acceptance is recorded separately at head `309c24961f89389047db837471b2e434dd13e149`.
+- Live acceptance retained image X/Y, focused `Top margin = 5`, and page position through a 12+ second passive refresh; save succeeded; preview reached `SUCCEEDED` 4/4 attempt 1 with distinct quadrants; commit reached `APPLIED` 4/4 attempt 1 with stable v1 heads; recut mapping worked; close/reopen discarded unsaved `X = 4`/remap while retaining saved `X = 3` and v1 heads; and a full service restart preserved the approved source, exact rectangles, applied job, previews, Fit/no-jump state, and no duplication.
+- Explicit user decision: **Checkpoint 2B accepted on 2026-08-22.** Canonical IDs as primary human labels are deferred nonblocking UX debt; future UI should use ordinal **Slice 1–64** labels primarily and canonical IDs secondarily/copyably.
 
 ## 8. Exact next actions
 
-1. Give the user exact update/relaunch steps and repeat only the failed scrollbar/focus gate; do not make the user repeat already-passed import, source-review, preview, or exact-grid gates.
-2. If the repair passes, resume at the next unverified cutter action and ask only about preview usability, explicit remap clarity, job visibility/control, committed results, and restart persistence.
-3. If the user finds a defect, return it to the plan/implement/adversary/verify loop without starting 2C.
-4. If and only if the user explicitly accepts, update the candidate/status/handoff with the decision and then ask separately for authority to plan 2C. Do not merge or publish production assets by implication.
+1. Preserve the accepted Checkpoint 2B behavior and its rejected/diagnostic evidence history.
+2. Keep PR #135 open, draft, and unmerged unless the user separately authorizes a merge action.
+3. Do not start Checkpoint 2C, providers, rooms, export, materialization, publication, merge, or release without separate explicit authorization.
+4. When a later UI gate authorizes label work, present ordinal **Slice 1–64** as the primary human label and the canonical slice ID as secondary/copyable; do not treat this deferred finding as a reason to reopen 2B acceptance.
 
 ## 9. Process lessons carried forward
 
@@ -223,13 +232,13 @@ Run every Studio Node test and pay special attention to:
 - A worker lease is authority to attempt work, not permission to publish after the lease or grant changes. Output metadata/reference/progress must share the ownership compare-and-swap.
 - Durable job output is budgeted artifact work even before semantic apply. Charge once at job creation and release references by state; do not count retries as new semantic work.
 - Job-control audit that commits after the transition can lie after a crash. Authorized attempt and transition belong in the same transaction.
-- Documentation must distinguish accepted 2A, implemented 2B candidate, green CI, visually inspected evidence, user acceptance, merge, and release as separate states.
+- Documentation must distinguish accepted 2A, accepted 2B, green CI, visually inspected evidence, user acceptance, merge, and release as separate states.
 
 ## 10. Final receiver launch protocol
 
 1. verify current `main`, draft PR head/state, and Actions;
 2. read the universal bootstrap and Studio files listed above;
 3. inspect actual source, migrations, worker, UI, MCP registrations, and tests;
-4. summarize the frozen candidate and report any authority conflict;
+4. summarize the frozen accepted checkpoint and report any authority conflict;
 5. complete the exact verification/publish sequence without expanding scope;
-6. do not cross the user major gate, 2C gate, merge gate, provider gate, or publication gate without explicit authorization.
+6. do not infer 2C, merge, provider, release, or publication authority from the completed 2B user gate.

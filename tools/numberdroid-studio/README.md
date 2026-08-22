@@ -6,18 +6,18 @@ The product lives in this self-contained folder so it can be moved into a standa
 
 ## Status
 
-Checkpoint 1 is the accepted foundation and Checkpoint 2A was user-accepted on 2026-08-21. **Checkpoint 2B is a repaired, CI/browser-verified candidate, but it is not user-accepted.** After the earlier native-file-input repair, the next live gate exposed a second defect: after **Propose regular grid**, the cutter image's local scrollbar jumped to the top on the five-second refresh. The cause was unconditional passive rerendering plus adjacent focus, polling, and active-drag races. Product repair `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d` preserves unchanged cutter DOM/focus/scroll, bounds one poll owner, restores compatible necessary renders, and defers external replacement during a captured drag; selector-only repair `04d876da750f348e24de9420be1ff59c349bc092` keeps the evidence independent of regenerated rectangle IDs. GitHub Actions run `32568108922` is green with 109/109 tests and dedicated Chrome 151 evidence at both 1440×900 and 1060×900. The previous `a3d9a18e5deb0d9049e7ba6f879ad22eea1dfb29` candidate is superseded by the user-reported scroll defect. The user's repeat major-gate review remains pending; PR #135 remains open, draft, and unmerged. Checkpoint 2C, merge, release, providers, rooms, export, materialization, and publication remain blocked. See the [2B candidate record](docs/CHECKPOINT_2B_STATUS.md), [2A acceptance record](docs/CHECKPOINT_2A_STATUS.md), and [roadmap](docs/ROADMAP.md).
+Checkpoint 1 is the accepted foundation, Checkpoint 2A was user-accepted on 2026-08-21, and **Checkpoint 2B was explicitly user-accepted on 2026-08-22 after the live walkthrough at head `309c24961f89389047db837471b2e434dd13e149`.** The earlier native-file-input and five-second cutter-scroll blockers remain part of the rejection history. Product repair `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d` preserves unchanged cutter DOM/focus/scroll, bounds one poll owner, restores compatible necessary renders, and defers external replacement during a captured drag; selector-only repair `04d876da750f348e24de9420be1ff59c349bc092` keeps the evidence independent of regenerated rectangle IDs. GitHub Actions run `32568108922` and artifact `9474639509` remain the pinned repaired browser evidence; docs-head run `32568704927` also passed Studio job `97020985366` and root job `97020985521`. In the live acceptance pass, a 12+ second passive refresh preserved both cutter axes, focused `Top margin = 5`, and page position; definition save, 4/4 preview, 4/4 atomic apply, explicit recut mapping, close/reopen discard of unsaved edits, and a full service restart all behaved as required without duplication. The user noted one nonblocking UX issue: canonical slice IDs are unsuitable as primary human labels. A future UI should show ordinal **Slice 1–64** labels first and keep the canonical ID secondary and copyable; the user explicitly deferred that improvement and accepted 2B without it. PR #135 remains open, draft, and unmerged. Checkpoint 2C, merge, release, providers, rooms, export, materialization, and publication remain blocked. See the [2B acceptance record](docs/CHECKPOINT_2B_STATUS.md), [2A acceptance record](docs/CHECKPOINT_2A_STATUS.md), and [roadmap](docs/ROADMAP.md).
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoint 1 and 2A accepted; Checkpoint 2B candidate CI/browser-verified and pending user acceptance; Checkpoint 2C blocked |
+| Product contract | Checkpoints 1, 2A, and 2B user-accepted; Checkpoint 2C blocked pending separate authorization |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
-| Human UI | Accepted 2A source workflow; repaired 2B candidate adds atlas grid proposal, explicit rectangles, zoom, inclusion, previews, remap choice, and job controls |
+| Human UI | Accepted 2A source workflow and accepted 2B atlas cutter; ordinal-first slice labels remain deferred nonblocking UX debt |
 | Agent access | 15 tools and two resource templates when the durable attempt/job stores are live; owner decision remains human-only |
 | Persistence | SQLite schema v8 WAL ledger, durable atlas jobs/events, and SHA-256 CAS; JSON remains protected migration input/regression only |
 | Numberdroid export | Adapter boundary specified; production publishing deferred |
 
-## Run the accepted 2A slice and the 2B candidate locally
+## Run the accepted 2A and 2B slices locally
 
 Requirements: Node.js 22 or newer. Dependencies and the official MCP client/server versions are pinned by `package-lock.json`.
 
@@ -92,7 +92,7 @@ Checkpoint 1B adds two approved visual requirements without authorizing a broade
 
 ## Accepted Checkpoint 1 implementation layout
 
-The current candidate uses these physical boundaries:
+The accepted implementation uses these physical boundaries:
 
 ```text
 tools/numberdroid-studio/
@@ -147,7 +147,7 @@ Enemy/NPC design, enemy routes, NPC animation, combat encounter authoring, and f
 - [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
 - [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)
 - [Accepted Checkpoint 2A source workflow](docs/CHECKPOINT_2A_STATUS.md)
-- [Checkpoint 2B candidate](docs/CHECKPOINT_2B_STATUS.md)
+- [Checkpoint 2B acceptance record](docs/CHECKPOINT_2B_STATUS.md)
 
 These documents are normative for the Studio implementation. If code and documentation disagree, the discrepancy must be resolved explicitly; it must not become an accidental new contract.
 

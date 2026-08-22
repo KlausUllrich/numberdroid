@@ -1,20 +1,21 @@
-# Numberdroid Studio — Checkpoint 2B Candidate Record
+# Numberdroid Studio — Checkpoint 2B Acceptance Record
 
 - **Date:** 2026-08-22
-- **Status:** second user-reported gate blocker repaired; replacement CI/browser-verified candidate; explicit user acceptance pending
+- **Status:** explicitly user-accepted on 2026-08-22 after the complete live walkthrough
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135` — remains open, draft, and unmerged
 - **Accepted prerequisite:** Checkpoint 2A, recorded in `CHECKPOINT_2A_STATUS.md`
 - **Feature commit:** `ae250378943258770330d53c6ec685a94e17dd0e`
 - **Product-repair chain:** `2d8e5bfe379add0423f80919d5ae9e70c61a5fdd`, `d8b6efdd626c7d931f169914c5c65cba240156c5`, through `2e68a81cb00c52da552bd12b5356d18f13772ee8`
 - **Current repair commits:** product `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d`; selector-only harness follow-up `04d876da750f348e24de9420be1ff59c349bc092`
-- **Next gate:** repeat the one major user verification
+- **Accepted head:** `309c24961f89389047db837471b2e434dd13e149`
+- **Next gate:** none implied; Checkpoint 2C requires separate user authorization
 
-This record describes the frozen Checkpoint 2B contract that the candidate is intended to prove. It is not an acceptance record. It grants no merge, release, publication, provider, Checkpoint 2C, room, export, or materialization authority.
+This record describes the frozen Checkpoint 2B contract and its explicit user acceptance. Acceptance grants no merge, release, publication, provider, Checkpoint 2C, room, export, or materialization authority.
 
 ## Outcome
 
-The candidate turns one approved PNG source into deterministic, inspectable slice versions without repository editing:
+The accepted slice turns one approved PNG source into deterministic, inspectable slice versions without repository editing:
 
 1. the user or an authorized agent proposes a non-authoritative regular grid or supplies explicit rectangles;
 2. the source-resolution cutter shows the geometry over the approved original and provides equivalent structured controls;
@@ -61,7 +62,7 @@ Every output is a 622×622 canonical RGBA PNG produced by `numberdroid-studio.ex
 - The original source remains a small contained preview with a keyboard-accessible **Open original in new tab ↗** link.
 - The cutter uses a source-resolution SVG overlay at fit, 100%, and 200% zoom. Display scale never changes integer source coordinates.
 - Regular-grid calculation is a proposal only. Manual/variable rectangles, include/exclude, numeric editing, pointer editing, keyboard editing, and preview remain explicit.
-- Every included rectangle has a unique opaque ID, positive safe-integer size, in-bounds geometry, and no overlap. The candidate permits at most 64 rectangles and 67,108,864 aggregate output pixels; a canonical output above 16 MiB is rejected before work is enqueued.
+- Every included rectangle has a unique opaque ID, positive safe-integer size, in-bounds geometry, and no overlap. The accepted contract permits at most 64 rectangles and 67,108,864 aggregate output pixels; a canonical output above 16 MiB is rejected before work is enqueued.
 - Each row explicitly selects either a new slice identity or one existing `sliceId` plus expected version. Replacement is one-to-one. An excluded rectangle cannot replace a slice.
 - Keyboard movement changes exactly one source pixel per unmodified arrow key and retains focus after the SVG element is rerendered. The numeric inspector remains the accessible non-canvas alternative.
 
@@ -87,14 +88,14 @@ Semantic apply verifies exact job/input revision, atlas/source/fingerprint/proce
 
 ## Schema, integrity, backup, and recovery
 
-The candidate workspace is SQLite schema v8:
+The accepted workspace is SQLite schema v8:
 
 - migration 0007 `jobs_and_job_events`: `aa951c02158f76f6343819271b78816e211bfe3015cc9f4f979947a075ef25e9`;
 - migration 0008 `authorized_agent_attempts`: `2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730`.
 
 Integrity checks exact input/applied revision semantics, atlas/source/fingerprint ownership, job/event state, output metadata, immutable creator coordinates, and state-specific temporary/permanent references. Stale or mismatched job references are findings. Backup refuses a workspace that fails complete SQLite/semantic/CAS integrity and then preserves a snapshot-consistent database plus referenced CAS closure. Restore verification covers every job state, event, output/reference class, and applied slice projection represented in the snapshot.
 
-Rollback requires stopping the writer and restoring a verified pre-v8 database/CAS pair into a new destination, or running prior code against a preserved pre-v8 workspace. Do not downgrade or edit a v8 database in place. Preserve the v8 candidate workspace for diagnosis and recovery evidence.
+Rollback requires stopping the writer and restoring a verified pre-v8 database/CAS pair into a new destination, or running prior code against a preserved pre-v8 workspace. Do not downgrade or edit a v8 database in place. Preserve the accepted v8 workspace for diagnosis and recovery evidence.
 
 ## MCP surface
 
@@ -137,6 +138,7 @@ Frozen local verification after implementation, repair, independent review, and 
 - final integrity-tamper coverage includes the repaired state-specific job/reference case;
 - current repairs `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d` and selector-only `04d876da750f348e24de9420be1ff59c349bc092`;
 - GitHub Actions run [`32568108922`](https://github.com/KlausUllrich/numberdroid/actions/runs/32568108922): Studio job `97019592824` and root job `97019592908` succeeded;
+- docs-head GitHub Actions run `32568704927`: Studio job `97020985366` and root job `97020985521` succeeded;
 - evidence runtime: Chrome `151.0.7922.137`, DevTools protocol `1.3`;
 - valid 2A artifact: `numberdroid-studio-checkpoint-2a-visual`, ID `9473018855`, 2,157,707 bytes, digest `sha256:55937b09b896b0a0417cc818f9d9eb64b415b0d5256606c364a75b4fa983ef89`, created `2026-08-22T08:17:49Z`, expires `2026-09-05T08:17:48Z`;
 - valid 2B artifact: `numberdroid-studio-checkpoint-2b-visual`, ID `9474639509`, 2,838,857 bytes, digest `sha256:86366bc207fe081effeb8825b7cc4586026654fbe1c83ce026e1e12e6fc7ebd8`, expires `2026-09-05T10:40:37Z`;
@@ -147,9 +149,13 @@ Frozen local verification after implementation, repair, independent review, and 
 - every observation records project `numberdroid-studio-checkpoint-2b`, revision 7, Activity 7, `ready: true`, `APPLIED` 4/4 on attempt 1, four overlays, four committed previews, zero runtime/network errors, no horizontal overflow, and zero Header overlaps;
 - both viewport interactions prove unchanged passive refresh keeps the same cutter/scroller/field DOM, focused uncommitted `top=5`, local X321/Y417, and window position; the necessary proposal render yields exact y5/h621 geometry while retaining scroll; the VM race harness proves one poll owner and rejects stale project/source/atlas/job/instance identities; active-drag evidence proves deferred replacement, early dirty state, inspector/SVG agreement, and exact local/window scroll; close/reopen creates a new Fit instance at local 0,0; runtime/network errors remain zero;
 - the fixture source digest and all four output digests/dimensions match the pinned local record;
-- explicit user major-gate decision: **pending; do not infer from automated results**.
+- explicit user major-gate decision: **accepted on 2026-08-22 at head `309c24961f89389047db837471b2e434dd13e149` after the complete live walkthrough**.
 
-The formerly current `a3d9` run `32561781843` is superseded by the user's scrollbar report and MUST NOT be cited as the current 2B candidate. Failed run `32567878956` and 2B artifact `9474582144` are diagnostic only: the new scroll/grid/poll/drag product probes passed, but the harness still selected the pre-reproposal rectangle ID. Earlier invalid and diagnostic runs remain historical non-evidence. Only run `32568108922` and 2B artifact `9474639509` represent the current repaired 2B candidate; they still do not constitute user acceptance.
+The formerly current `a3d9` run `32561781843` is superseded by the user's scrollbar report and MUST NOT be cited as repaired 2B evidence. Failed run `32567878956` and 2B artifact `9474582144` are diagnostic only: the new scroll/grid/poll/drag product probes passed, but the harness still selected the pre-reproposal rectangle ID. Earlier invalid and diagnostic runs remain historical non-evidence. Run `32568108922` and 2B artifact `9474639509` remain the pinned repaired browser evidence; the explicit live decision above, not CI alone, records user acceptance.
+
+The accepted live walkthrough proved that a 12+ second passive refresh retained image X/Y, focused `Top margin = 5`, and page position; definition save succeeded; preview reached `SUCCEEDED` 4/4 on attempt 1 with four distinct quadrants; commit reached `APPLIED` 4/4 on attempt 1 with four stable v1 slice heads; and explicit recut mapping functioned. On close/reopen, unsaved `X = 4` and the unsaved remap vanished while saved `X = 3` and the v1 heads remained. After a full service restart, the approved source, exact rectangles, applied job, v1 previews, Fit/no-jump state, and absence of duplication all persisted.
+
+The user also reported a nonblocking UX finding: canonical slice IDs are unusable as primary human labels. A future UI should show ordinal **Slice 1–64** labels primarily, with the canonical ID secondary and copyable. The user explicitly asked not to fix this now and accepted Checkpoint 2B with it deferred.
 
 ## Known limits and blocked work
 
@@ -158,8 +164,8 @@ The formerly current `a3d9` run `32561781843` is superseded by the user's scroll
 - Job processing is local and single-service. This is not remote/team execution.
 - A terminal discarded result releases Studio references but does not synchronously erase shared/unreferenced CAS bytes; explicit retention-delayed garbage collection remains authoritative.
 - Source/atlas detail resource templates, subscriptions, general batch execution, and isolated task branches remain later work.
-- Checkpoint 2C asset-library semantics, providers, rooms, levels, Numberdroid adapter/export, production-asset materialization/commits, publishing, and release remain blocked. Candidate and evidence-only documentation commits do not grant those production authorities.
+- Checkpoint 2C asset-library semantics, providers, rooms, levels, Numberdroid adapter/export, production-asset materialization/commits, publishing, merge, and release remain blocked. Checkpoint acceptance and evidence-only documentation commits do not grant those separate authorities.
 
-## Major-gate protocol
+## Gate disposition
 
-The coordinating agent has frozen and published the repair diff, observed green CI, independently verified the artifact digest, and inspected every dedicated browser screenshot/observation. The next user action is a narrow repeat of the failed scrollbar/focus gate; already-passed import, source-review, preview, and exact-grid gates need not be repeated. If that repair passes, the walkthrough resumes at the next unverified cutter action and continues through preview usefulness, explicit remap clarity, job visibility/control, committed slice results, and restart persistence. Only explicit user acceptance may convert this candidate record into an acceptance record and unblock planning for 2C.
+The coordinating agent froze the repair diff, observed green CI, independently verified the artifact digest, and inspected every dedicated browser screenshot/observation before the live walkthrough. The user then completed the repaired scrollbar/focus gate and the remaining preview, apply, recut, close/reopen, and restart checks and explicitly accepted Checkpoint 2B. PR #135 remains open, draft, and unmerged. Do not start Checkpoint 2C, provider work, rooms, export, materialization, publication, merge, or release without a separate explicit authorization.
