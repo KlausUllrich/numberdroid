@@ -118,6 +118,18 @@ export class SqliteWorkspace {
     }
   }
 
+  readTransaction(operation) {
+    this.#database.exec('BEGIN');
+    try {
+      const result = operation(this.#database);
+      this.#database.exec('COMMIT');
+      return result;
+    } catch (error) {
+      try { this.#database.exec('ROLLBACK'); } catch {}
+      throw error;
+    }
+  }
+
   integrityCheck() {
     const integrity = this.#database.prepare('PRAGMA integrity_check').all().map((row) => Object.values(row)[0]);
     const foreignKeys = this.#database.prepare('PRAGMA foreign_key_check').all();

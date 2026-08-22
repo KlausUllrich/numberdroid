@@ -143,7 +143,7 @@ test('projection rebuild is deterministic and migrations reject checksum/version
   assert.equal(rebuilt.projectionHash, expected);
   assert.equal(store.workspace.database.prepare("SELECT projection_hash FROM projections WHERE projection_type = 'project_head'").get().projection_hash, expected);
   const migrations = await loadMigrationDefinitions();
-  assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
   store.close();
 
   const raw = nodeSqliteDatabaseFactory(filename);
@@ -205,9 +205,9 @@ test('schema migration faults roll back the individual version and safely resume
 
   const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
   context.after(() => resumed.close());
-  assert.equal(resumed.integrityCheck().userVersion, 8);
+  assert.equal(resumed.integrityCheck().userVersion, 9);
   assert.deepEqual(
     resumed.workspace.database.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),
-    [1, 2, 3, 4, 5, 6, 7, 8],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9],
   );
 });

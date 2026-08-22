@@ -11,7 +11,8 @@ function redactTerminalDetails(value) {
     'filename', 'grantId', 'path', 'socket', 'token',
   ]);
   return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !sensitiveKeys.has(key))
+    .filter(([key]) => !sensitiveKeys.has(key)
+      && !/(?:secret|password|credential|privatekey)/i.test(key))
     .map(([key, entry]) => [key, redactTerminalDetails(entry)]));
 }
 
@@ -185,6 +186,42 @@ export function buildOfficialMcpServer({
         const operation = operationContext(invocationContext, requestAbortRegistry);
         try {
           const value = await jobRead.execute({ schemaVersion: 1, projectId, jobId }, operation.context);
+          return {
+            contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }],
+          };
+        } catch (error) {
+          if (operation.signal.aborted) throw error;
+          const value = officialErrorPayload(error);
+          return {
+            contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }],
+          };
+        } finally {
+          operation.cleanup();
+        }
+      },
+    );
+  }
+
+  const assetQuery = catalog.find(({ name }) => name === 'studio_asset_query');
+  if (assetQuery) {
+    server.registerResource(
+      'studio-asset',
+      new ResourceTemplate('studio://projects/{projectId}/assets/{assetId}', { list: undefined }),
+      {
+        title: 'Studio V2 asset',
+        description: 'Current authorized V2 asset head, immutable slice lineage, findings, and proposal provenance.',
+        mimeType: 'application/json',
+      },
+      async (uri, { projectId, assetId }, invocationContext) => {
+        const operation = operationContext(invocationContext, requestAbortRegistry);
+        try {
+          const value = await assetQuery.execute({
+            schemaVersion: 1,
+            projectId,
+            assetId,
+            includeProposals: false,
+            limit: 1,
+          }, operation.context);
           return {
             contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }],
           };

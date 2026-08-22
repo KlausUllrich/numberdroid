@@ -389,6 +389,738 @@ function applyAtlasPreviewJob(database, projectId, revision) {
   );
 }
 
+function currentSliceHead(snapshot, sliceId) {
+  for (const atlas of snapshot.atlases ?? []) {
+    const slice = (atlas.sliceHeads ?? []).find((candidate) => candidate.sliceId === sliceId);
+    if (slice) return slice;
+  }
+  return null;
+}
+
+function historicalSliceVersion(database, projectId, sliceId, sliceVersion) {
+  const rows = database.prepare(`
+    SELECT revision_number, revision_json
+    FROM revisions
+    WHERE project_id = ? AND command_type = 'atlas.commit.slices'
+    ORDER BY revision_number DESC
+  `).all(projectId);
+  for (const row of rows) {
+    const historical = parseJson(row.revision_json, 'revisions.revision_json');
+    const committed = (historical.result?.slices ?? []).find((candidate) => (
+      candidate.sliceId === sliceId && candidate.version === sliceVersion
+    ));
+    if (!committed) continue;
+    const slice = currentSliceHead(historical.snapshot, sliceId);
+    invariant(
+      slice?.version === sliceVersion && slice.digest === committed.digest,
+      'ASSET_SLICE_HISTORY_CORRUPT',
+      'The historical committed slice does not agree with its semantic revision.',
+      { projectId, sliceId, sliceVersion, revision: Number(row.revision_number) },
+    );
+    return { slice, committedRevision: Number(row.revision_number) };
+  }
+  const imported = database.prepare(`
+    SELECT * FROM asset_slice_bindings
+    WHERE project_id = ? AND slice_id = ? AND slice_version = ?
+      AND provenance = 'bundle_import'
+  `).get(projectId, sliceId, sliceVersion);
+  if (imported) {
+    const rectangle = parseJson(imported.rectangle_json, 'asset_slice_bindings.rectangle_json');
+    return {
+      committedRevision: Number(imported.committed_revision),
+      slice: {
+        schemaVersion: 1,
+        sliceId: imported.slice_id,
+        version: Number(imported.slice_version),
+        atlasId: imported.atlas_id,
+        sourceId: imported.source_id,
+        sourceDigest: imported.source_digest,
+        definitionVersion: Number(imported.atlas_definition_version),
+        definitionFingerprint: imported.atlas_definition_fingerprint,
+        rectangleId: imported.rectangle_id,
+        rectangle: { rectangleId: imported.rectangle_id, ...rectangle },
+        processorId: imported.processor_id,
+        digest: imported.artifact_digest,
+        artifactUri: imported.artifact_uri,
+        mediaType: imported.media_type,
+        byteSize: Number(imported.byte_size),
+        width: Number(imported.width),
+        height: Number(imported.height),
+        priorDigest: imported.prior_digest,
+        committedAt: imported.committed_at,
+        committedBy: imported.committed_by,
+        jobId: imported.job_id,
+      },
+    };
+  }
+  return null;
+}
+
+function exactSliceBinding(database, projectId, revision, item, { requireCurrentHead = true } = {}) {
+  const sliceId = item.sliceId;
+  const sliceVersion = item.expectedSliceVersion ?? item.sliceVersion;
+  invariant(Number.isSafeInteger(sliceVersion) && sliceVersion >= 1, 'ASSET_SLICE_BINDING_INVALID', 'An exact positive slice version is required.', {
+    projectId,
+    sliceId,
+  });
+  const historical = historicalSliceVersion(database, projectId, sliceId, sliceVersion);
+  invariant(historical, 'ASSET_SLICE_NOT_COMMITTED', 'The exact committed slice version does not exist in this project.', {
+    projectId,
+    sliceId,
+    sliceVersion,
+  });
+  const { slice, committedRevision } = historical;
+  const current = currentSliceHead(revision.snapshot, sliceId);
+  if (requireCurrentHead) {
+    invariant(current?.version === sliceVersion, 'ENTITY_VERSION_CONFLICT', 'The slice head changed after the asset proposal was prepared.', {
+      projectId,
+      sliceId,
+      expectedVersion: sliceVersion,
+      actualVersion: current?.version ?? null,
+    });
+  }
+  const ownerId = `${sliceId}.v${sliceVersion}`;
+  const artifact = database.prepare(`
+    SELECT a.digest, a.uri, a.media_type, a.byte_size, a.width, a.height, a.state
+    FROM artifact_references r
+    JOIN artifacts a ON a.digest = r.digest
+    WHERE r.project_id = ? AND r.owner_kind = 'atlas_slice'
+      AND r.owner_id = ? AND r.digest = ?
+  `).get(projectId, ownerId, slice.digest);
+  invariant(
+    artifact?.state === 'LIVE'
+      && artifact.uri === slice.artifactUri
+      && artifact.media_type === slice.mediaType
+      && Number(artifact.byte_size) === slice.byteSize
+      && Number(artifact.width) === slice.width
+      && Number(artifact.height) === slice.height,
+    'ASSET_SLICE_ARTIFACT_INVALID',
+    'The exact slice lost its matching LIVE project artifact reference.',
+    { projectId, sliceId, sliceVersion, digest: slice.digest },
+  );
+  const sourceArtifact = database.prepare(`
+    SELECT a.digest, a.state
+    FROM artifacts a
+    JOIN artifact_references r ON r.digest = a.digest
+    WHERE r.project_id = ? AND a.digest = ? AND a.state = 'LIVE'
+      AND r.owner_kind IN ('source', 'source_lineage')
+    LIMIT 1
+  `).get(projectId, slice.sourceDigest);
+  invariant(sourceArtifact, 'ASSET_SOURCE_LINEAGE_INVALID', 'The slice source artifact is not LIVE and project-scoped.', {
+    projectId,
+    sliceId,
+    sourceDigest: slice.sourceDigest,
+  });
+  const { rectangleId: _duplicateRectangleId, ...rectangle } = slice.rectangle;
+  const exact = {
+    projectId,
+    sliceId: slice.sliceId,
+    sliceVersion: slice.version,
+    atlasId: slice.atlasId,
+    sourceId: slice.sourceId,
+    sourceDigest: slice.sourceDigest,
+    definitionVersion: slice.definitionVersion,
+    definitionFingerprint: slice.definitionFingerprint,
+    rectangleId: slice.rectangleId,
+    rectangle: structuredClone(rectangle),
+    processorId: slice.processorId,
+    digest: slice.digest,
+    artifactUri: slice.artifactUri,
+    mediaType: slice.mediaType,
+    byteSize: slice.byteSize,
+    width: slice.width,
+    height: slice.height,
+    priorDigest: slice.priorDigest,
+    committedRevision,
+  };
+  if (item.sliceBinding) {
+    invariant(
+      fingerprint(item.sliceBinding) === fingerprint(exact),
+      'ASSET_SLICE_BINDING_MISMATCH',
+      'The proposal slice binding does not match the server-resolved immutable lineage.',
+      { projectId, sliceId, sliceVersion },
+    );
+  }
+  return { exact, historicalSlice: slice };
+}
+
+function writeAssetSliceBinding(database, projectId, revision, item, { requireCurrentHead = true } = {}) {
+  const { exact, historicalSlice } = exactSliceBinding(database, projectId, revision, item, { requireCurrentHead });
+  const rectangle = exact.rectangle;
+  database.prepare(`
+    INSERT OR IGNORE INTO asset_slice_bindings(
+      project_id, slice_id, slice_version, atlas_id, source_id, source_digest,
+      atlas_definition_version, atlas_definition_fingerprint, rectangle_id,
+      rectangle_json, rect_x, rect_y, rect_width, rect_height, pivot_x, pivot_y,
+      processor_id, artifact_digest, artifact_uri, media_type, byte_size, width,
+      height, prior_digest, committed_revision, bound_revision, committed_at,
+      committed_by, job_id, provenance
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?, 'native_revision')
+  `).run(
+    projectId,
+    exact.sliceId,
+    exact.sliceVersion,
+    exact.atlasId,
+    exact.sourceId,
+    exact.sourceDigest,
+    exact.definitionVersion,
+    exact.definitionFingerprint,
+    exact.rectangleId,
+    JSON.stringify(rectangle),
+    rectangle.x,
+    rectangle.y,
+    rectangle.width,
+    rectangle.height,
+    rectangle.pivot?.x ?? null,
+    rectangle.pivot?.y ?? null,
+    exact.processorId,
+    exact.digest,
+    exact.artifactUri,
+    exact.mediaType,
+    exact.byteSize,
+    exact.width,
+    exact.height,
+    exact.priorDigest,
+    exact.committedRevision,
+    revision.number,
+    historicalSlice.committedAt,
+    historicalSlice.committedBy,
+    historicalSlice.jobId,
+  );
+  const stored = mapAssetSliceBinding(database.prepare(`
+    SELECT * FROM asset_slice_bindings
+    WHERE project_id = ? AND slice_id = ? AND slice_version = ?
+  `).get(projectId, exact.sliceId, exact.sliceVersion));
+  const storedExact = {
+    projectId: stored.projectId,
+    sliceId: stored.sliceId,
+    sliceVersion: stored.sliceVersion,
+    atlasId: stored.atlasId,
+    sourceId: stored.sourceId,
+    sourceDigest: stored.sourceDigest,
+    definitionVersion: stored.atlasDefinitionVersion,
+    definitionFingerprint: stored.atlasDefinitionFingerprint,
+    rectangleId: stored.rectangleId,
+    rectangle: stored.rectangle,
+    processorId: stored.processorId,
+    digest: stored.digest,
+    artifactUri: stored.artifactUri,
+    mediaType: stored.mediaType,
+    byteSize: stored.byteSize,
+    width: stored.width,
+    height: stored.height,
+    priorDigest: stored.priorDigest,
+    committedRevision: stored.committedRevision,
+  };
+  invariant(fingerprint(storedExact) === fingerprint(exact), 'ASSET_SLICE_BINDING_CONFLICT', 'The durable slice binding conflicts with exact historical lineage.', {
+    projectId,
+    sliceId: exact.sliceId,
+    sliceVersion: exact.sliceVersion,
+  });
+  return exact;
+}
+
+function writeProposalFinding(database, projectId, proposalId, itemId, finding, findingOrder) {
+  database.prepare(`
+    INSERT INTO asset_proposal_item_findings(
+      project_id, proposal_id, item_id, finding_id, finding_order, severity,
+      rule_id, target_kind, target_id, path, explanation, remediation,
+      validator_version, finding_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    projectId,
+    proposalId,
+    itemId,
+    finding.findingId,
+    findingOrder,
+    finding.severity,
+    finding.ruleId,
+    finding.targetKind,
+    finding.targetId,
+    finding.path,
+    finding.explanation,
+    finding.remediation,
+    finding.validatorVersion,
+    JSON.stringify(finding),
+  );
+}
+
+function writeVersionFinding(database, projectId, asset, finding, findingOrder) {
+  database.prepare(`
+    INSERT INTO asset_version_findings(
+      project_id, asset_id, asset_version, finding_id, finding_order, severity,
+      rule_id, target_kind, target_id, path, explanation, remediation,
+      validator_version, finding_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    projectId,
+    asset.assetId,
+    asset.assetVersion,
+    finding.findingId,
+    findingOrder,
+    finding.severity,
+    finding.ruleId,
+    finding.targetKind,
+    finding.targetId,
+    finding.path,
+    finding.explanation,
+    finding.remediation,
+    finding.validatorVersion,
+    JSON.stringify(finding),
+  );
+}
+
+function priorSnapshot(database, projectId, revision) {
+  const row = database.prepare(`
+    SELECT revision_json FROM revisions
+    WHERE project_id = ? AND revision_number = ?
+  `).get(projectId, revision.parentRevision);
+  return parseJson(row?.revision_json ?? '', 'revisions.revision_json').snapshot;
+}
+
+function writeAssetProposalSubmission(database, projectId, revision, fault) {
+  if (revision.command.type !== 'asset.proposal.submit') return;
+  const proposal = revision.snapshot.assetLibrary?.proposals?.find((candidate) => (
+    candidate.proposalId === revision.result.proposalId
+  ));
+  invariant(
+    proposal?.state === 'PENDING'
+      && proposal.proposalVersion === 1
+      && proposal.submittedRevision === revision.number
+      && proposal.items.length === revision.result.itemCount,
+    'INVALID_REVISION',
+    'The asset proposal result does not match the durable proposal projection.',
+    { projectId, proposalId: revision.result.proposalId },
+  );
+  if (revision.command.actor?.kind === 'agent') {
+    const before = priorSnapshot(database, projectId, revision);
+    const priorGrant = before.grants.find((grant) => grant.id === revision.command.grantId);
+    const nextGrant = revision.snapshot.grants.find((grant) => grant.id === revision.command.grantId);
+    invariant(
+      priorGrant && nextGrant
+        && nextGrant.usage.commands === priorGrant.usage.commands + proposal.items.length
+        && nextGrant.usage.commands <= nextGrant.budget.maxCommands,
+      'INVALID_GRANT_PROJECTION',
+      'Asset proposal commands must be charged exactly once per contained item.',
+      { projectId, itemCount: proposal.items.length },
+    );
+  }
+  for (const item of proposal.items) {
+    writeAssetSliceBinding(database, projectId, revision, item);
+    fault('after_asset_slice_binding');
+  }
+  const proposerActor = proposal.proposer?.actor ?? revision.command.actor;
+  database.prepare(`
+    INSERT INTO asset_proposals(
+      project_id, proposal_id, schema_version, base_revision, created_revision,
+      status, item_count, request_fingerprint, proposer_actor_kind,
+      proposer_actor_id, proposer_task_id, proposer_branch_id,
+      proposer_grant_id, created_at, decided_revision, applied_revision
+    ) VALUES (?, ?, 1, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+  `).run(
+    projectId,
+    proposal.proposalId,
+    revision.parentRevision,
+    revision.number,
+    proposal.items.length,
+    proposal.fingerprint,
+    proposerActor.kind,
+    proposerActor.id,
+    proposal.proposer?.taskId ?? null,
+    proposal.proposer?.branchId ?? (proposerActor.kind === 'human' ? 'branch.main' : null),
+    proposerActor.kind === 'agent' ? proposal.proposer?.grantId : null,
+    proposal.submittedAt,
+  );
+  fault('after_asset_proposal_insert');
+  const priorAssets = new Map((priorSnapshot(database, projectId, revision).assetLibrary?.assets ?? []).map((asset) => [asset.assetId, asset]));
+  for (const item of proposal.items) {
+    const before = priorAssets.get(item.assetId) ?? null;
+    const diff = {
+      operation: item.operation,
+      before: before ? {
+        assetVersion: before.assetVersion,
+        metadataVersion: before.metadataVersion,
+        name: before.name,
+        kind: before.kind,
+        metadata: before.metadata,
+        sliceBinding: before.sliceBinding,
+      } : null,
+      after: {
+        name: item.name,
+        kind: item.kind,
+        metadata: item.metadata,
+        sliceBinding: item.sliceBinding,
+      },
+    };
+    invariant(
+      item.diff && fingerprint(item.diff) === fingerprint(diff),
+      'ASSET_PROPOSAL_DIFF_MISMATCH',
+      'The durable proposal diff does not match the exact before/after state.',
+      { proposalId: proposal.proposalId, itemId: item.itemId },
+    );
+    database.prepare(`
+      INSERT INTO asset_proposal_items(
+        project_id, proposal_id, item_id, item_order, operation, asset_id,
+        expected_asset_version, expected_metadata_version, slice_id, slice_version,
+        desired_name, desired_kind, desired_metadata_json,
+        desired_metadata_fingerprint, diff_json, finding_fingerprint
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      projectId,
+      proposal.proposalId,
+      item.itemId,
+      item.ordinal,
+      item.operation,
+      item.assetId,
+      item.expectedAssetVersion,
+      item.expectedMetadataVersion,
+      item.sliceId,
+      item.expectedSliceVersion,
+      item.name,
+      item.kind,
+      JSON.stringify(item.metadata),
+      item.metadataFingerprint,
+      JSON.stringify(item.diff),
+      fingerprint(item.findings),
+    );
+    fault('after_asset_proposal_item_insert');
+    for (const [findingOrder, finding] of item.findings.entries()) {
+      writeProposalFinding(database, projectId, proposal.proposalId, item.itemId, finding, findingOrder);
+      fault('after_asset_proposal_finding_insert');
+    }
+  }
+}
+
+function writeAssetProposalDecision(database, projectId, revision, fault) {
+  if (revision.command.type !== 'asset.proposal.decide') return;
+  const proposal = revision.snapshot.assetLibrary?.proposals?.find((candidate) => (
+    candidate.proposalId === revision.result.proposalId
+  ));
+  invariant(
+    proposal?.state === 'DECIDED'
+      && proposal.proposalVersion === 2
+      && proposal.decisionRevision === revision.number,
+    'INVALID_REVISION',
+    'The asset proposal decision does not match the durable projection.',
+    { projectId, proposalId: revision.result.proposalId },
+  );
+  const durable = database.prepare(`
+    SELECT status, item_count FROM asset_proposals
+    WHERE project_id = ? AND proposal_id = ?
+  `).get(projectId, proposal.proposalId);
+  invariant(durable?.status === 'PENDING' && Number(durable.item_count) === proposal.items.length, 'ASSET_PROPOSAL_STATE_CONFLICT', 'Only one complete decision may resolve a pending proposal.', {
+    projectId,
+    proposalId: proposal.proposalId,
+  });
+  for (const item of proposal.items) {
+    const decision = item.decision;
+    invariant(decision?.decisionRevision === revision.number, 'INVALID_REVISION', 'Every proposal item requires one decision in the decision revision.', {
+      proposalId: proposal.proposalId,
+      itemId: item.itemId,
+    });
+    database.prepare(`
+      INSERT INTO asset_proposal_decisions(
+        project_id, proposal_id, item_id, decision, rejection_reason,
+        decision_revision, decided_at, decided_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      projectId,
+      proposal.proposalId,
+      item.itemId,
+      decision.disposition,
+      decision.disposition === 'REJECTED' ? decision.reason : null,
+      revision.number,
+      decision.decidedAt,
+      decision.decidedBy,
+    );
+    fault('after_asset_proposal_decision_insert');
+  }
+  const updated = database.prepare(`
+    UPDATE asset_proposals SET status = 'DECIDED', decided_revision = ?
+    WHERE project_id = ? AND proposal_id = ? AND status = 'PENDING'
+  `).run(revision.number, projectId, proposal.proposalId);
+  invariant(Number(updated.changes) === 1, 'ASSET_PROPOSAL_STATE_CONFLICT', 'The proposal decision lost a concurrent race.');
+  fault('after_asset_proposal_decision_status');
+}
+
+function writeAssetVersion(database, projectId, revision, asset, fault, {
+  proposalId = null,
+  proposalItemId = null,
+  requireCurrentSliceHead = true,
+} = {}) {
+  const priorHead = database.prepare(`
+    SELECT h.asset_version, h.metadata_version, v.metadata_fingerprint
+    FROM asset_heads h
+    JOIN asset_versions v
+      ON v.project_id = h.project_id AND v.asset_id = h.asset_id
+      AND v.asset_version = h.asset_version
+    WHERE h.project_id = ? AND h.asset_id = ?
+  `).get(projectId, asset.assetId);
+  const expectedVersion = priorHead ? Number(priorHead.asset_version) + 1 : 1;
+  invariant(asset.assetVersion === expectedVersion, 'ASSET_VERSION_CONFLICT', 'The next immutable asset version is not consecutive.', {
+    projectId,
+    assetId: asset.assetId,
+    expectedVersion,
+    actualVersion: asset.assetVersion,
+  });
+  const expectedMetadataVersion = priorHead
+    ? Number(priorHead.metadata_version) + (priorHead.metadata_fingerprint === asset.metadataFingerprint ? 0 : 1)
+    : 1;
+  invariant(asset.metadataVersion === expectedMetadataVersion, 'ASSET_METADATA_VERSION_CONFLICT', 'Metadata version must change if and only if typed metadata changes.', {
+    projectId,
+    assetId: asset.assetId,
+    expectedMetadataVersion,
+    actualMetadataVersion: asset.metadataVersion,
+  });
+  const binding = writeAssetSliceBinding(database, projectId, revision, {
+    sliceId: asset.sliceBinding.sliceId,
+    expectedSliceVersion: asset.sliceBinding.sliceVersion,
+    sliceBinding: asset.sliceBinding,
+  }, { requireCurrentHead: requireCurrentSliceHead });
+  fault('after_asset_version_slice_binding');
+  database.prepare(`
+    INSERT INTO asset_versions(
+      project_id, asset_id, asset_version, metadata_version,
+      previous_asset_version, name, kind, lifecycle, slice_id, slice_version,
+      metadata_json, metadata_fingerprint, findings_fingerprint,
+      accepted_warning_ids_json, created_revision, created_at, created_by,
+      proposal_id, proposal_item_id, provenance
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'native_revision')
+  `).run(
+    projectId,
+    asset.assetId,
+    asset.assetVersion,
+    asset.metadataVersion,
+    priorHead ? Number(priorHead.asset_version) : null,
+    asset.name,
+    asset.kind,
+    asset.lifecycle,
+    binding.sliceId,
+    binding.sliceVersion,
+    JSON.stringify(asset.metadata),
+    asset.metadataFingerprint,
+    fingerprint(asset.findings),
+    JSON.stringify(asset.warningDispositions ?? []),
+    revision.number,
+    asset.updatedAt ?? asset.createdAt ?? revision.committedAt,
+    asset.updatedBy ?? asset.createdBy ?? revision.command.actor.id,
+    proposalId,
+    proposalItemId,
+  );
+  fault('after_asset_version_insert');
+  for (const [findingOrder, finding] of asset.findings.entries()) {
+    writeVersionFinding(database, projectId, asset, finding, findingOrder);
+    fault('after_asset_version_finding_insert');
+  }
+  database.prepare(`
+    INSERT INTO artifact_references(project_id, owner_kind, owner_id, digest, created_revision)
+    VALUES (?, 'asset_version', ?, ?, ?)
+  `).run(projectId, `${asset.assetId}.v${asset.assetVersion}`, binding.digest, revision.number);
+  fault('after_asset_version_reference_insert');
+  database.prepare(`
+    INSERT INTO asset_heads(
+      project_id, asset_id, asset_version, metadata_version, name, kind,
+      lifecycle, slice_id, slice_version, updated_revision
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(project_id, asset_id) DO UPDATE SET
+      asset_version = excluded.asset_version,
+      metadata_version = excluded.metadata_version,
+      name = excluded.name,
+      kind = excluded.kind,
+      lifecycle = excluded.lifecycle,
+      slice_id = excluded.slice_id,
+      slice_version = excluded.slice_version,
+      updated_revision = excluded.updated_revision
+  `).run(
+    projectId,
+    asset.assetId,
+    asset.assetVersion,
+    asset.metadataVersion,
+    asset.name,
+    asset.kind,
+    asset.lifecycle,
+    binding.sliceId,
+    binding.sliceVersion,
+    revision.number,
+  );
+  fault('after_asset_head_update');
+  database.prepare(`
+    DELETE FROM asset_head_tags WHERE project_id = ? AND asset_id = ?
+  `).run(projectId, asset.assetId);
+  const insertTag = database.prepare(`
+    INSERT INTO asset_head_tags(project_id, asset_id, tag, tag_order)
+    VALUES (?, ?, ?, ?)
+  `);
+  for (const [tagOrder, tag] of (asset.metadata.tags ?? []).entries()) {
+    insertTag.run(projectId, asset.assetId, tag, tagOrder);
+  }
+  fault('after_asset_head_tags_update');
+}
+
+function writeAssetProposalApplication(database, projectId, revision, fault) {
+  if (revision.command.type !== 'asset.proposal.apply') return;
+  const proposal = revision.snapshot.assetLibrary?.proposals?.find((candidate) => (
+    candidate.proposalId === revision.result.proposalId
+  ));
+  invariant(
+    proposal?.state === 'APPLIED'
+      && proposal.proposalVersion === 3
+      && proposal.appliedRevision === revision.number,
+    'INVALID_REVISION',
+    'The asset proposal application does not match the durable projection.',
+    { projectId, proposalId: revision.result.proposalId },
+  );
+  const durable = database.prepare(`
+    SELECT status, item_count FROM asset_proposals
+    WHERE project_id = ? AND proposal_id = ?
+  `).get(projectId, proposal.proposalId);
+  invariant(durable?.status === 'DECIDED' && Number(durable.item_count) === proposal.items.length, 'ASSET_PROPOSAL_STATE_CONFLICT', 'Only a completely decided proposal can be applied.', {
+    projectId,
+    proposalId: proposal.proposalId,
+  });
+  const assets = revision.snapshot.assetLibrary?.assets ?? [];
+  let acceptedCount = 0;
+  let rejectedCount = 0;
+  for (const item of proposal.items) {
+    const decision = database.prepare(`
+      SELECT decision FROM asset_proposal_decisions
+      WHERE project_id = ? AND proposal_id = ? AND item_id = ?
+    `).get(projectId, proposal.proposalId, item.itemId);
+    invariant(decision?.decision === item.decision?.disposition, 'ASSET_PROPOSAL_DECISION_CONFLICT', 'The projected item decision differs from durable review.', {
+      proposalId: proposal.proposalId,
+      itemId: item.itemId,
+    });
+    exactSliceBinding(database, projectId, revision, item);
+    if (decision.decision === 'REJECTED') {
+      rejectedCount += 1;
+      invariant(!revision.result.appliedAssetIds.includes(item.assetId), 'INVALID_REVISION', 'A rejected proposal item cannot create an asset version.', { itemId: item.itemId });
+      continue;
+    }
+    acceptedCount += 1;
+    const currentHead = database.prepare(`
+      SELECT asset_version, metadata_version FROM asset_heads
+      WHERE project_id = ? AND asset_id = ?
+    `).get(projectId, item.assetId);
+    invariant(
+      Number(currentHead?.asset_version ?? 0) === item.expectedAssetVersion
+        && Number(currentHead?.metadata_version ?? 0) === item.expectedMetadataVersion,
+      'ENTITY_VERSION_CONFLICT',
+      'An asset changed after the proposal was prepared.',
+      { assetId: item.assetId },
+    );
+    const asset = assets.find((candidate) => (
+      candidate.assetId === item.assetId
+        && candidate.proposal?.proposalId === proposal.proposalId
+        && candidate.proposal?.itemId === item.itemId
+        && candidate.proposal?.appliedRevision === revision.number
+    ));
+    invariant(asset && revision.result.appliedAssetIds.includes(asset.assetId), 'INVALID_REVISION', 'An accepted proposal item has no matching applied asset head.', {
+      proposalId: proposal.proposalId,
+      itemId: item.itemId,
+    });
+    writeAssetVersion(database, projectId, revision, asset, fault, {
+      proposalId: proposal.proposalId,
+      proposalItemId: item.itemId,
+    });
+  }
+  invariant(
+    acceptedCount === revision.result.appliedAssetIds.length
+      && rejectedCount === revision.result.rejectedItemIds.length,
+    'INVALID_REVISION',
+    'Proposal application counts do not match its accepted and rejected subset.',
+  );
+  database.prepare(`
+    INSERT INTO asset_proposal_applications(
+      project_id, proposal_id, application_revision, accepted_count,
+      rejected_count, applied_at, applied_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    projectId,
+    proposal.proposalId,
+    revision.number,
+    acceptedCount,
+    rejectedCount,
+    proposal.appliedAt,
+    proposal.appliedBy,
+  );
+  fault('after_asset_proposal_application_insert');
+  const updated = database.prepare(`
+    UPDATE asset_proposals SET status = 'APPLIED', applied_revision = ?
+    WHERE project_id = ? AND proposal_id = ? AND status = 'DECIDED'
+  `).run(revision.number, projectId, proposal.proposalId);
+  invariant(Number(updated.changes) === 1, 'ASSET_PROPOSAL_STATE_CONFLICT', 'The proposal application lost a concurrent race.');
+  fault('after_asset_proposal_application_status');
+}
+
+function writeAssetLifecycleVersion(database, projectId, revision, fault) {
+  if (revision.command.type !== 'asset.lifecycle.set') return;
+  const asset = revision.snapshot.assetLibrary?.assets?.find((candidate) => (
+    candidate.assetId === revision.result.assetId
+      && candidate.assetVersion === revision.result.assetVersion
+  ));
+  invariant(asset && asset.lifecycle === revision.result.lifecycle, 'INVALID_REVISION', 'The lifecycle result does not match the projected asset version.', {
+    projectId,
+    assetId: revision.result.assetId,
+  });
+  writeAssetVersion(database, projectId, revision, asset, fault, {
+    proposalId: asset.proposal?.proposalId ?? null,
+    proposalItemId: asset.proposal?.itemId ?? null,
+    requireCurrentSliceHead: false,
+  });
+  fault('after_asset_lifecycle_write');
+}
+
+function writeAssetLibraryRevision(database, projectId, revision, fault) {
+  writeAssetProposalSubmission(database, projectId, revision, fault);
+  writeAssetProposalDecision(database, projectId, revision, fault);
+  writeAssetProposalApplication(database, projectId, revision, fault);
+  writeAssetLifecycleVersion(database, projectId, revision, fault);
+}
+
+function rebuildAssetHeads(database, projectId) {
+  database.prepare('DELETE FROM asset_head_tags WHERE project_id = ?').run(projectId);
+  database.prepare('DELETE FROM asset_heads WHERE project_id = ?').run(projectId);
+  const versions = database.prepare(`
+    SELECT v.* FROM asset_versions v
+    JOIN (
+      SELECT project_id, asset_id, max(asset_version) AS asset_version
+      FROM asset_versions WHERE project_id = ? GROUP BY project_id, asset_id
+    ) latest
+      ON latest.project_id = v.project_id AND latest.asset_id = v.asset_id
+      AND latest.asset_version = v.asset_version
+    ORDER BY v.asset_id
+  `).all(projectId);
+  const insertHead = database.prepare(`
+    INSERT INTO asset_heads(
+      project_id, asset_id, asset_version, metadata_version, name, kind,
+      lifecycle, slice_id, slice_version, updated_revision
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const insertTag = database.prepare(`
+    INSERT INTO asset_head_tags(project_id, asset_id, tag, tag_order)
+    VALUES (?, ?, ?, ?)
+  `);
+  for (const version of versions) {
+    insertHead.run(
+      projectId,
+      version.asset_id,
+      version.asset_version,
+      version.metadata_version,
+      version.name,
+      version.kind,
+      version.lifecycle,
+      version.slice_id,
+      version.slice_version,
+      version.created_revision,
+    );
+    const metadata = parseJson(version.metadata_json, 'asset_versions.metadata_json');
+    for (const [tagOrder, tag] of (metadata.tags ?? []).entries()) {
+      insertTag.run(projectId, version.asset_id, tag, tagOrder);
+    }
+  }
+}
+
 function writeActivity(database, projectId, revision) {
   database.prepare(`
     INSERT INTO activity_events(event_id, project_id, revision_number, occurred_at, event_json)
@@ -444,6 +1176,100 @@ function mapSqliteError(error, details = {}) {
   return error;
 }
 
+function mapAssetSliceBinding(row) {
+  if (!row) return null;
+  return {
+    projectId: row.project_id,
+    sliceId: row.slice_id,
+    sliceVersion: Number(row.slice_version),
+    atlasId: row.atlas_id,
+    sourceId: row.source_id,
+    sourceDigest: row.source_digest,
+    atlasDefinitionVersion: Number(row.atlas_definition_version),
+    atlasDefinitionFingerprint: row.atlas_definition_fingerprint,
+    rectangleId: row.rectangle_id,
+    rectangle: parseJson(row.rectangle_json, 'asset_slice_bindings.rectangle_json'),
+    processorId: row.processor_id,
+    digest: row.artifact_digest,
+    artifactUri: row.artifact_uri,
+    mediaType: row.media_type,
+    byteSize: Number(row.byte_size),
+    width: Number(row.width),
+    height: Number(row.height),
+    priorDigest: row.prior_digest,
+    committedRevision: Number(row.committed_revision),
+    boundRevision: Number(row.bound_revision),
+    committedAt: row.committed_at,
+    committedBy: row.committed_by,
+    jobId: row.job_id,
+    provenance: row.provenance,
+  };
+}
+
+function mapAssetVersion(row) {
+  if (!row) return null;
+  return {
+    projectId: row.project_id,
+    assetId: row.asset_id,
+    assetVersion: Number(row.asset_version),
+    metadataVersion: Number(row.metadata_version),
+    previousAssetVersion: row.previous_asset_version === null ? null : Number(row.previous_asset_version),
+    name: row.name,
+    kind: row.kind,
+    lifecycle: row.lifecycle,
+    sliceId: row.slice_id,
+    sliceVersion: Number(row.slice_version),
+    metadata: parseJson(row.metadata_json, 'asset_versions.metadata_json'),
+    metadataFingerprint: row.metadata_fingerprint,
+    findingsFingerprint: row.findings_fingerprint,
+    acceptedWarningIds: parseJson(row.accepted_warning_ids_json, 'asset_versions.accepted_warning_ids_json'),
+    createdRevision: Number(row.created_revision),
+    createdAt: row.created_at,
+    createdBy: row.created_by,
+    proposalId: row.proposal_id,
+    proposalItemId: row.proposal_item_id,
+    provenance: row.provenance,
+  };
+}
+
+function mapAssetFinding(row) {
+  return {
+    findingId: row.finding_id,
+    order: Number(row.finding_order),
+    severity: row.severity,
+    ruleId: row.rule_id,
+    targetKind: row.target_kind,
+    targetId: row.target_id,
+    path: row.path,
+    explanation: row.explanation,
+    remediation: row.remediation,
+    validatorVersion: row.validator_version,
+  };
+}
+
+function mapAssetProposal(row) {
+  if (!row) return null;
+  return {
+    projectId: row.project_id,
+    proposalId: row.proposal_id,
+    schemaVersion: Number(row.schema_version),
+    baseRevision: Number(row.base_revision),
+    createdRevision: Number(row.created_revision),
+    status: row.status,
+    itemCount: Number(row.item_count),
+    requestFingerprint: row.request_fingerprint,
+    proposer: {
+      actorKind: row.proposer_actor_kind,
+      actorId: row.proposer_actor_id,
+      taskId: row.proposer_task_id,
+      branchId: row.proposer_branch_id,
+    },
+    createdAt: row.created_at,
+    decidedRevision: row.decided_revision === null ? null : Number(row.decided_revision),
+    appliedRevision: row.applied_revision === null ? null : Number(row.applied_revision),
+  };
+}
+
 export class SqliteProjectStore extends ProjectStore {
   #workspace;
 
@@ -460,6 +1286,8 @@ export class SqliteProjectStore extends ProjectStore {
   get workspace() { return this.#workspace; }
   get supportsAtomicSourceIntakeClaims() { return true; }
   get supportsAtomicAtlasJobs() { return true; }
+  get supportsAtomicAssetLibrary() { return true; }
+  get supportsDurableAssetStore() { return true; }
 
   async createProject(document, { legacyGrants = false } = {}) {
     invariant(document.revisions.length === 1, 'INVALID_REVISION', 'A new SQLite project needs exactly one revision.');
@@ -571,6 +1399,8 @@ export class SqliteProjectStore extends ProjectStore {
         this.#workspace.fault('after_source_intake_claim');
         applyAtlasPreviewJob(database, projectId, revision);
         this.#workspace.fault('after_atlas_preview_job_apply');
+        writeAssetLibraryRevision(database, projectId, revision, (point) => this.#workspace.fault(point));
+        this.#workspace.fault('after_asset_library_revision');
 
         const document = {
           formatVersion: 1,
@@ -601,6 +1431,206 @@ export class SqliteProjectStore extends ProjectStore {
     return this.#workspace.database.prepare('SELECT summary_json FROM projects ORDER BY project_id')
       .all().map((row) => parseJson(row.summary_json, 'projects.summary_json'))
       .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  getAssetSliceBinding(projectId, sliceId, sliceVersion) {
+    const row = this.#workspace.database.prepare(`
+      SELECT * FROM asset_slice_bindings
+      WHERE project_id = ? AND slice_id = ? AND slice_version = ?
+    `).get(projectId, sliceId, sliceVersion);
+    return mapAssetSliceBinding(row);
+  }
+
+  listAssetHeads(projectId, {
+    kind = null,
+    lifecycle = null,
+    tag = null,
+    search = null,
+    limit = 200,
+    offset = 0,
+  } = {}) {
+    invariant(Number.isSafeInteger(limit) && limit >= 1 && limit <= 500, 'VALIDATION_ERROR', 'Asset query limit must be between 1 and 500.');
+    invariant(Number.isSafeInteger(offset) && offset >= 0, 'VALIDATION_ERROR', 'Asset query offset must be a non-negative integer.');
+    const rows = this.#workspace.database.prepare(`
+      SELECT h.*, v.metadata_json, v.metadata_fingerprint, v.findings_fingerprint,
+        b.artifact_digest, b.artifact_uri, b.media_type, b.byte_size, b.width, b.height
+      FROM asset_heads h
+      JOIN asset_versions v
+        ON v.project_id = h.project_id AND v.asset_id = h.asset_id
+        AND v.asset_version = h.asset_version
+      JOIN asset_slice_bindings b
+        ON b.project_id = v.project_id AND b.slice_id = v.slice_id
+        AND b.slice_version = v.slice_version
+      WHERE h.project_id = ?
+        AND (? IS NULL OR h.kind = ?)
+        AND (? IS NULL OR h.lifecycle = ?)
+        AND (? IS NULL OR EXISTS (
+          SELECT 1 FROM asset_head_tags t
+          WHERE t.project_id = h.project_id AND t.asset_id = h.asset_id AND t.tag = ?
+        ))
+        AND (? IS NULL OR instr(lower(h.name || ' ' || h.asset_id), lower(?)) > 0)
+      ORDER BY lower(h.name), h.asset_id
+      LIMIT ? OFFSET ?
+    `).all(
+      projectId,
+      kind, kind,
+      lifecycle, lifecycle,
+      tag, tag,
+      search, search,
+      limit, offset,
+    );
+    const tags = this.#workspace.database.prepare(`
+      SELECT tag FROM asset_head_tags
+      WHERE project_id = ? AND asset_id = ? ORDER BY tag_order
+    `);
+    return rows.map((row) => ({
+      projectId: row.project_id,
+      assetId: row.asset_id,
+      assetVersion: Number(row.asset_version),
+      metadataVersion: Number(row.metadata_version),
+      name: row.name,
+      kind: row.kind,
+      lifecycle: row.lifecycle,
+      sliceId: row.slice_id,
+      sliceVersion: Number(row.slice_version),
+      updatedRevision: Number(row.updated_revision),
+      tags: tags.all(projectId, row.asset_id).map((entry) => entry.tag),
+      metadata: parseJson(row.metadata_json, 'asset_versions.metadata_json'),
+      metadataFingerprint: row.metadata_fingerprint,
+      findingsFingerprint: row.findings_fingerprint,
+      imagery: {
+        digest: row.artifact_digest,
+        artifactUri: row.artifact_uri,
+        mediaType: row.media_type,
+        byteSize: Number(row.byte_size),
+        width: Number(row.width),
+        height: Number(row.height),
+      },
+    }));
+  }
+
+  getAsset(projectId, assetId) {
+    const head = this.#workspace.database.prepare(`
+      SELECT * FROM asset_heads WHERE project_id = ? AND asset_id = ?
+    `).get(projectId, assetId);
+    if (!head) return null;
+    const versions = this.#workspace.database.prepare(`
+      SELECT * FROM asset_versions
+      WHERE project_id = ? AND asset_id = ? ORDER BY asset_version
+    `).all(projectId, assetId).map(mapAssetVersion);
+    const findingRows = this.#workspace.database.prepare(`
+      SELECT * FROM asset_version_findings
+      WHERE project_id = ? AND asset_id = ?
+      ORDER BY asset_version, finding_order
+    `).all(projectId, assetId);
+    const findingsByVersion = new Map();
+    for (const row of findingRows) {
+      const version = Number(row.asset_version);
+      const findings = findingsByVersion.get(version) ?? [];
+      findings.push(mapAssetFinding(row));
+      findingsByVersion.set(version, findings);
+    }
+    const tags = this.#workspace.database.prepare(`
+      SELECT tag FROM asset_head_tags
+      WHERE project_id = ? AND asset_id = ? ORDER BY tag_order
+    `).all(projectId, assetId).map((row) => row.tag);
+    return {
+      projectId,
+      assetId,
+      head: {
+        assetVersion: Number(head.asset_version),
+        metadataVersion: Number(head.metadata_version),
+        name: head.name,
+        kind: head.kind,
+        lifecycle: head.lifecycle,
+        sliceId: head.slice_id,
+        sliceVersion: Number(head.slice_version),
+        updatedRevision: Number(head.updated_revision),
+        tags,
+      },
+      versions: versions.map((version) => ({
+        ...version,
+        sliceBinding: this.getAssetSliceBinding(projectId, version.sliceId, version.sliceVersion),
+        findings: findingsByVersion.get(version.assetVersion) ?? [],
+      })),
+    };
+  }
+
+  listAssetProposals(projectId, { status = null, limit = 200, offset = 0 } = {}) {
+    invariant(Number.isSafeInteger(limit) && limit >= 1 && limit <= 500, 'VALIDATION_ERROR', 'Proposal query limit must be between 1 and 500.');
+    invariant(Number.isSafeInteger(offset) && offset >= 0, 'VALIDATION_ERROR', 'Proposal query offset must be a non-negative integer.');
+    return this.#workspace.database.prepare(`
+      SELECT * FROM asset_proposals
+      WHERE project_id = ? AND (? IS NULL OR status = ?)
+      ORDER BY created_revision DESC, proposal_id
+      LIMIT ? OFFSET ?
+    `).all(projectId, status, status, limit, offset).map(mapAssetProposal);
+  }
+
+  getAssetProposal(projectId, proposalId) {
+    const proposal = mapAssetProposal(this.#workspace.database.prepare(`
+      SELECT * FROM asset_proposals WHERE project_id = ? AND proposal_id = ?
+    `).get(projectId, proposalId));
+    if (!proposal) return null;
+    const itemRows = this.#workspace.database.prepare(`
+      SELECT * FROM asset_proposal_items
+      WHERE project_id = ? AND proposal_id = ? ORDER BY item_order
+    `).all(projectId, proposalId);
+    const findingRows = this.#workspace.database.prepare(`
+      SELECT * FROM asset_proposal_item_findings
+      WHERE project_id = ? AND proposal_id = ? ORDER BY item_id, finding_order
+    `).all(projectId, proposalId);
+    const decisionRows = this.#workspace.database.prepare(`
+      SELECT * FROM asset_proposal_decisions
+      WHERE project_id = ? AND proposal_id = ? ORDER BY item_id
+    `).all(projectId, proposalId);
+    const findingsByItem = new Map();
+    for (const row of findingRows) {
+      const findings = findingsByItem.get(row.item_id) ?? [];
+      findings.push(mapAssetFinding(row));
+      findingsByItem.set(row.item_id, findings);
+    }
+    const decisionsByItem = new Map(decisionRows.map((row) => [row.item_id, {
+      decision: row.decision,
+      rejectionReason: row.rejection_reason,
+      decisionRevision: Number(row.decision_revision),
+      decidedAt: row.decided_at,
+      decidedBy: row.decided_by,
+    }]));
+    const application = this.#workspace.database.prepare(`
+      SELECT * FROM asset_proposal_applications
+      WHERE project_id = ? AND proposal_id = ?
+    `).get(projectId, proposalId);
+    return {
+      ...proposal,
+      items: itemRows.map((row) => ({
+        itemId: row.item_id,
+        order: Number(row.item_order),
+        operation: row.operation,
+        assetId: row.asset_id,
+        expectedAssetVersion: Number(row.expected_asset_version),
+        expectedMetadataVersion: Number(row.expected_metadata_version),
+        sliceId: row.slice_id,
+        sliceVersion: Number(row.slice_version),
+        desired: {
+          name: row.desired_name,
+          kind: row.desired_kind,
+          metadata: parseJson(row.desired_metadata_json, 'asset_proposal_items.desired_metadata_json'),
+          metadataFingerprint: row.desired_metadata_fingerprint,
+        },
+        diff: parseJson(row.diff_json, 'asset_proposal_items.diff_json'),
+        findingFingerprint: row.finding_fingerprint,
+        findings: findingsByItem.get(row.item_id) ?? [],
+        decision: decisionsByItem.get(row.item_id) ?? null,
+      })),
+      application: application ? {
+        applicationRevision: Number(application.application_revision),
+        acceptedCount: Number(application.accepted_count),
+        rejectedCount: Number(application.rejected_count),
+        appliedAt: application.applied_at,
+        appliedBy: application.applied_by,
+      } : null,
+    };
   }
 
   async importProjectDocument(document, { legacyGrants = true } = {}) {
@@ -640,6 +1670,7 @@ export class SqliteProjectStore extends ProjectStore {
         legacy: revision.snapshot.grants.some((grant) => grant.authorizationStatus === 'LEGACY_UNBOUND'),
         now: revision.committedAt,
       });
+      rebuildAssetHeads(database, projectId);
     });
     return { projectId, revision: revision.number, projectionHash: fingerprint(revision.snapshot) };
   }

@@ -9,7 +9,8 @@ function redactedRemoteDetails(value) {
     'filename', 'grantId', 'path', 'socket', 'token',
   ]);
   return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !sensitiveKeys.has(key))
+    .filter(([key]) => !sensitiveKeys.has(key)
+      && !/(?:secret|password|credential|privatekey)/i.test(key))
     .map(([key, entry]) => [key, redactedRemoteDetails(entry)]));
 }
 
@@ -18,8 +19,16 @@ export class LocalStudioGateway {
   #bindingTokenPromise;
   #agentAttemptAuditReady;
   #durableJobStoreReady;
+  #durableAssetStoreReady;
 
-  constructor({ baseUrl, bindingToken, bindingTokenProvider = null, agentAttemptAuditReady = false, durableJobStoreReady = false }) {
+  constructor({
+    baseUrl,
+    bindingToken,
+    bindingTokenProvider = null,
+    agentAttemptAuditReady = false,
+    durableJobStoreReady = false,
+    durableAssetStoreReady = false,
+  }) {
     this.#baseUrl = new URL(baseUrl);
     if (!bindingToken && typeof bindingTokenProvider !== 'function') {
       throw new StudioError('HOST_BINDING_REQUIRED', 'A HostBinding token or private pairing provider is required.');
@@ -29,6 +38,7 @@ export class LocalStudioGateway {
       : Promise.resolve().then(bindingTokenProvider);
     this.#agentAttemptAuditReady = agentAttemptAuditReady === true;
     this.#durableJobStoreReady = durableJobStoreReady === true;
+    this.#durableAssetStoreReady = durableAssetStoreReady === true;
   }
 
   get commandCatalog() {
@@ -41,6 +51,10 @@ export class LocalStudioGateway {
 
   get durableJobStoreReady() {
     return this.#durableJobStoreReady;
+  }
+
+  get durableAssetStoreReady() {
+    return this.#durableAssetStoreReady;
   }
 
   async #request(path, value, { signal } = {}) {
@@ -107,6 +121,10 @@ export class LocalStudioGateway {
 
   async readJob(request, _opaqueHostContext, options = {}) {
     return this.#request('/internal/mcp/job-read', request, options);
+  }
+
+  async queryAssets(request, _opaqueHostContext, options = {}) {
+    return this.#request('/internal/mcp/asset-query', request, options);
   }
 
   async cancelJob(request, _opaqueHostContext, options = {}) {

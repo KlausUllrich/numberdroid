@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -18,6 +18,8 @@ const expectedWorkspace = new URL(pageUrl).hash.slice(1) || 'overview';
 const agentAccessEvidence = new URL(pageUrl).searchParams.get('visualFixture') === 'agent-access';
 const checkpoint2aFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint2bFocus = new URL(pageUrl).searchParams.get('visualFocus');
+const checkpoint2cFocus = new URL(pageUrl).searchParams.get('visualFocus');
+const checkpoint2cPhase = new URL(pageUrl).searchParams.get('visualPhase') ?? 'applied';
 const profileDirectory = await mkdtemp(`${tmpdir()}/numberdroid-studio-chrome-`);
 
 function assert(condition, message) {
@@ -173,6 +175,13 @@ try {
            && document.documentElement.dataset.visualRevision === '7'
            && document.documentElement.dataset.visualActivityCount === '7'
            && document.documentElement.dataset.visualConnectionState === 'Live'`
+        : mode === 'checkpoint-2c'
+          ? `document.documentElement.dataset.visualEvidenceReady === 'true'
+             && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
+             && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-2c'
+             && document.documentElement.dataset.visualRevision === ${JSON.stringify(checkpoint2cPhase === 'pending' ? '9' : '11')}
+             && document.documentElement.dataset.visualActivityCount === ${JSON.stringify(checkpoint2cPhase === 'pending' ? '9' : '12')}
+             && document.documentElement.dataset.visualConnectionState === 'Live'`
         : `document.getElementById('connection-label')?.textContent === 'Live'
          && document.getElementById('revision-label')?.textContent === 'Revision 5'
          && document.querySelector(${JSON.stringify(`[data-workspace="${expectedWorkspace}"]`)})?.classList.contains('active')`;
@@ -197,6 +206,7 @@ try {
   let sourceIdPatternValidity = null;
   let checkpoint2aSourceFocusBeforeLayout = null;
   let checkpoint2aSourceFocusFinal = null;
+  let checkpoint2cInteractionEvidence = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
     const focus = checkpoint2aFocus ?? 'intake-form';
@@ -267,6 +277,91 @@ try {
       expression: `document.querySelector(${JSON.stringify(focusSelector)})?.scrollIntoView({ block: 'center' })`,
       returnByValue: true,
     }, sessionId);
+  }
+  if (mode === 'checkpoint-2c' && expectedWorkspace === 'assets') {
+    if (checkpoint2cPhase === 'pending') {
+      const setup = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const items = [...document.querySelectorAll('[data-proposal-item]')];
+          const item = items.at(-1);
+          const disposition = item?.querySelector('[data-proposal-disposition]');
+          if (!item || !disposition) return { ready: false };
+          disposition.value = 'REJECTED';
+          disposition.dispatchEvent(new Event('change', { bubbles: true }));
+          const currentItem = [...document.querySelectorAll('[data-proposal-item]')].at(-1);
+          const reason = currentItem?.querySelector('[data-proposal-reason]');
+          const scroller = document.querySelector('[data-asset-scroll="proposal-items"]');
+          if (!reason || !scroller) return { ready: false };
+          reason.value = 'Evidence draft retained across passive refresh.';
+          reason.dispatchEvent(new Event('input', { bubbles: true }));
+          scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+          reason.scrollIntoView({ block: 'center' });
+          window.scrollBy(0, 120);
+          reason.focus(); reason.setSelectionRange(9, 14);
+          return {
+            ready: true,
+            reasonNode: reason,
+            value: reason.value,
+            selectionStart: reason.selectionStart,
+            selectionEnd: reason.selectionEnd,
+            localScrollTop: scroller.scrollTop,
+            pageScrollY: scrollY,
+            startedAt: performance.now(),
+          };
+        })()`,
+        returnByValue: false,
+      }, sessionId);
+      assert(setup.result?.objectId, 'Checkpoint 2C could not prepare the focused dirty decision draft.');
+      await devtools.send('Runtime.evaluate', {
+        expression: `document.getElementById('refresh-button')?.click()`, returnByValue: true,
+      }, sessionId);
+      await delay(6_250);
+      await devtools.send('Runtime.evaluate', {
+        expression: `document.getElementById('refresh-button')?.click()`, returnByValue: true,
+      }, sessionId);
+      await delay(6_250);
+      const retained = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const item = [...document.querySelectorAll('[data-proposal-item]')].at(-1);
+          const reason = item?.querySelector('[data-proposal-reason]');
+          const scroller = document.querySelector('[data-asset-scroll="proposal-items"]');
+          return {
+            elapsedMs: performance.now() - ${setup.result.description ? '0' : '0'},
+            value: reason?.value ?? null,
+            rejectionReason: item?.dataset.proposalRejectionReason ?? null,
+            focused: document.activeElement === reason,
+            selectionStart: reason?.selectionStart ?? null,
+            selectionEnd: reason?.selectionEnd ?? null,
+            localScrollTop: scroller?.scrollTop ?? null,
+            pageScrollY: scrollY,
+            proposalState: document.querySelector('[data-asset-proposal]')?.dataset.proposalState ?? null,
+            revision: document.documentElement.dataset.visualRevision ?? null,
+            errorCount: Number(document.documentElement.dataset.visualErrorCount ?? -1),
+          };
+        })()`,
+        returnByValue: true,
+      }, sessionId);
+      checkpoint2cInteractionEvidence = retained.result?.value ?? null;
+      assert(checkpoint2cInteractionEvidence?.value === 'Evidence draft retained across passive refresh.'
+        && checkpoint2cInteractionEvidence.rejectionReason === checkpoint2cInteractionEvidence.value
+        && checkpoint2cInteractionEvidence.focused === true
+        && checkpoint2cInteractionEvidence.selectionStart === 9
+        && checkpoint2cInteractionEvidence.selectionEnd === 14
+        && checkpoint2cInteractionEvidence.localScrollTop > 0
+        && checkpoint2cInteractionEvidence.pageScrollY > 0
+        && checkpoint2cInteractionEvidence.proposalState === 'PENDING'
+        && checkpoint2cInteractionEvidence.revision === '9'
+        && checkpoint2cInteractionEvidence.errorCount === 0,
+      `Checkpoint 2C dirty decision state did not survive two passive refreshes across 12.5 seconds: ${JSON.stringify(checkpoint2cInteractionEvidence)}`);
+    } else {
+      const focusSelector = checkpoint2cFocus === 'proposal'
+        ? '[data-asset-proposal]'
+        : '[data-asset-scroll="asset-inventory"]';
+      await devtools.send('Runtime.evaluate', {
+        expression: `document.querySelector(${JSON.stringify(focusSelector)})?.scrollIntoView({ block: 'center' })`,
+        returnByValue: true,
+      }, sessionId);
+    }
   }
   if (mode === 'checkpoint-2a' && expectedWorkspace === 'sources') {
     const patternValidity = await devtools.send('Runtime.evaluate', {
@@ -699,9 +794,36 @@ try {
           previewState: preview?.dataset.previewState ?? null,
           hasImage: Boolean(image),
           loadedImage: Boolean(image?.complete && image.naturalWidth > 0),
+          naturalWidth: image?.naturalWidth ?? 0,
+          naturalHeight: image?.naturalHeight ?? 0,
           objectFit: image ? getComputedStyle(image).objectFit : null,
+          text: card.textContent,
+          v2: card.classList.contains('asset-v2-card'),
         };
       });
+      const assetProposal = document.querySelector('[data-asset-proposal]');
+      const proposalItems = [...document.querySelectorAll('[data-proposal-item]')].map((item) => ({
+        itemId: item.dataset.proposalItem,
+        rejectionReason: item.dataset.proposalRejectionReason ?? null,
+        text: item.textContent,
+        previewState: item.querySelector('.asset-preview')?.dataset.previewState ?? null,
+        loadedImage: Boolean(item.querySelector('.asset-preview img')?.complete
+          && item.querySelector('.asset-preview img')?.naturalWidth > 0),
+        diffRowCount: item.querySelectorAll('.proposal-diff tbody tr').length,
+        canonicalIds: [...item.querySelectorAll('.canonical-copy code')].map((node) => node.textContent),
+      }));
+      const assetLibrary = {
+        proposalId: assetProposal?.dataset.assetProposal ?? null,
+        proposalState: assetProposal?.dataset.proposalState ?? null,
+        proposalItems,
+        decisionControlCount: assetProposal?.querySelectorAll('[data-proposal-disposition]').length ?? 0,
+        applyControlCount: assetProposal?.querySelectorAll('[data-proposal-apply]').length ?? 0,
+        canonicalIds: [...document.querySelectorAll('.canonical-copy code')].map((node) => node.textContent),
+        ordinalLabels: [...document.querySelectorAll('.asset-provenance strong, .proposal-identity strong, .slice-vocabulary-card h4')]
+          .map((node) => node.textContent).filter((value) => /Slice [1-4]/.test(value)),
+        inventoryRect: rect(document.querySelector('[data-asset-scroll="asset-inventory"]')),
+        proposalRect: rect(assetProposal),
+      };
       const sources = [...document.querySelectorAll('.source-card')].map((source) => {
         const preview = source.querySelector('.source-preview');
         const image = preview?.querySelector('img');
@@ -785,6 +907,7 @@ try {
         brandControlsOverlap: overlaps(brandRect, projectControlsRect),
         headerOutsideTopbar,
         cards,
+        assetLibrary,
         sources,
         aspectRatioProbes,
         stagedIntakes,
@@ -995,6 +1118,51 @@ try {
     }
     if (agentAccessEvidence) {
       assert(layout.agentPanel.open && layout.agentPanel.visible, 'Agent access popover is not visibly contained in the screenshot viewport.');
+    }
+  }
+  if (mode === 'checkpoint-2c') {
+    assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
+      'Checkpoint 2C screenshot was taken before error-free readiness.');
+    assert(layout.projectId === 'numberdroid-studio-checkpoint-2c'
+      && layout.connectionState === 'Live',
+    'Checkpoint 2C screenshot is not bound to the prepared live fixture.');
+    if (expectedWorkspace === 'assets' && checkpoint2cPhase === 'pending') {
+      assert(layout.revision === 9 && layout.activityCount === 9,
+        'Checkpoint 2C pending evidence is not bound to the revision-9 proposal fixture.');
+      assert(layout.cards.length === 0
+        && layout.assetLibrary.proposalId === 'proposal.family-hygiene-2c'
+        && layout.assetLibrary.proposalState === 'PENDING'
+        && layout.assetLibrary.proposalItems.length === 4
+        && layout.assetLibrary.decisionControlCount === 4,
+      'Checkpoint 2C pending proposal review is incomplete.');
+      assert(layout.assetLibrary.proposalItems.every(({ previewState, loadedImage, diffRowCount, canonicalIds }) => (
+        previewState === 'READY' && loadedImage && diffRowCount === 10 && canonicalIds.length === 2
+      )), 'Checkpoint 2C pending items lost READY previews, deterministic diffs, or copyable identities.');
+      assert(checkpoint2cInteractionEvidence?.value === 'Evidence draft retained across passive refresh.',
+        'Checkpoint 2C pending evidence omitted the 12.5-second passive-refresh interaction proof.');
+    }
+    if (expectedWorkspace === 'assets' && checkpoint2cPhase === 'applied') {
+      assert(layout.revision === 11 && layout.activityCount === 12,
+        'Checkpoint 2C applied evidence is not bound to revision 11 plus one final denied audit result.');
+      assert(layout.cards.length === 3
+        && layout.cards.every(({ v2, previewState, loadedImage, naturalWidth, naturalHeight, objectFit, text }) => (
+          v2 && previewState === 'READY' && loadedImage && naturalWidth === 622 && naturalHeight === 622
+            && objectFit === 'contain' && text.includes('DRAFT') && !text.includes('FINAL')
+        )), 'Checkpoint 2C inventory does not contain three exact READY 622×622 non-final V2 cards.');
+      assert(JSON.stringify(layout.cards.map(({ assetId }) => assetId)) === JSON.stringify([
+        'asset.family-hygiene.1', 'asset.family-hygiene.2', 'asset.family-hygiene.3',
+      ]), 'Checkpoint 2C accepted-subset inventory has the wrong stable asset identities.');
+      const rejected = layout.assetLibrary.proposalItems.find(({ itemId }) => itemId === 'item.family-hygiene.4');
+      assert(layout.assetLibrary.proposalId === 'proposal.family-hygiene-2c'
+        && layout.assetLibrary.proposalState === 'APPLIED'
+        && layout.assetLibrary.proposalItems.length === 4
+        && rejected?.rejectionReason === 'Reserve this fourth variant for a later visual review.'
+        && rejected.text.includes('Rejected: Reserve this fourth variant for a later visual review.')
+        && !layout.cards.some(({ assetId }) => assetId === 'asset.family-hygiene.4'),
+      'Checkpoint 2C rejected proposal item is not inspectable or incorrectly created an asset.');
+      assert(new Set(layout.assetLibrary.ordinalLabels.map((value) => /Slice ([1-4])/.exec(value)?.[1]).filter(Boolean)).size === 4
+        && layout.assetLibrary.canonicalIds.length >= 14,
+      'Checkpoint 2C evidence lost ordinal-first slice labels or copyable canonical IDs.');
     }
   }
   if (mode === 'checkpoint-2a') {
@@ -1813,6 +1981,8 @@ try {
     sourceIdPatternValidity,
     checkpoint2aSourceFocusBeforeLayout,
     checkpoint2aSourceFocusFinal,
+    checkpoint2cPhase: mode === 'checkpoint-2c' ? checkpoint2cPhase : null,
+    checkpoint2cInteractionEvidence,
     layout,
     interactions: checkpoint2bInteractionEvidence,
   };

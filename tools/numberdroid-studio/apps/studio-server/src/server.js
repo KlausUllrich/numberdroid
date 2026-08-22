@@ -55,14 +55,14 @@ function sendJson(response, status, value) {
 }
 
 function errorStatus(error) {
-  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND', 'JOB_NOT_FOUND'].includes(error.code)) return 404;
-  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'ENTITY_VERSION_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING', 'JOB_STATE_CONFLICT', 'JOB_ATTEMPT_CONFLICT', 'JOB_ATTEMPT_LIMIT', 'JOB_INPUT_MISMATCH', 'JOB_OUTPUT_MISMATCH'].includes(error.code)) return 409;
+  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND', 'JOB_NOT_FOUND', 'ASSET_NOT_FOUND', 'ASSET_PROPOSAL_NOT_FOUND', 'ASSET_SLICE_NOT_FOUND'].includes(error.code)) return 404;
+  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'ENTITY_VERSION_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING', 'JOB_STATE_CONFLICT', 'JOB_ATTEMPT_CONFLICT', 'JOB_ATTEMPT_LIMIT', 'JOB_INPUT_MISMATCH', 'JOB_OUTPUT_MISMATCH', 'ASSET_LIFECYCLE_BLOCKED', 'ASSET_LIFECYCLE_TRANSITION_INVALID', 'ASSET_PROPOSAL_DECISION_DUPLICATE', 'ASSET_PROPOSAL_DECISION_INCOMPLETE', 'ASSET_PROPOSAL_DUPLICATE_ASSET', 'ASSET_PROPOSAL_DUPLICATE_ITEM', 'ASSET_PROPOSAL_VERSION_INVALID', 'ASSET_SLICE_STALE', 'ASSET_WARNING_NOT_FOUND', 'ASSET_WARNING_UNDISPOSITIONED'].includes(error.code)) return 409;
   if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'JOB_AUTHORITY_MISMATCH', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
   if (error.code === 'ARTIFACT_TOO_LARGE') return 413;
   if (['ARTIFACT_DIGEST_MISMATCH', 'ARTIFACT_METADATA_CONFLICT'].includes(error.code)) return 409;
-  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_MALFORMED', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED', 'PROVENANCE_PARAMETER_FORBIDDEN', 'ATLAS_RECT_INVALID', 'ATLAS_RECT_LIMIT', 'ATLAS_RECT_DUPLICATE', 'ATLAS_RECT_DUPLICATE_ID', 'ATLAS_RECT_OVERLAP', 'ATLAS_RECT_OUT_OF_BOUNDS', 'ATLAS_REMAP_INVALID', 'ATLAS_REMAP_NOT_ONE_TO_ONE', 'ATLAS_PADDING_POLICY_UNSUPPORTED', 'ATLAS_GRID_INVALID', 'ATLAS_OUTPUT_LIMIT', 'ATLAS_OUTPUT_BYTES_LIMIT', 'ATLAS_PNG_UNSUPPORTED', 'ATLAS_SOURCE_REQUIRED', 'ATLAS_SOURCE_MISMATCH'].includes(error.code)) return 400;
+  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_MALFORMED', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED', 'PROVENANCE_PARAMETER_FORBIDDEN', 'ATLAS_RECT_INVALID', 'ATLAS_RECT_LIMIT', 'ATLAS_RECT_DUPLICATE', 'ATLAS_RECT_DUPLICATE_ID', 'ATLAS_RECT_OVERLAP', 'ATLAS_RECT_OUT_OF_BOUNDS', 'ATLAS_REMAP_INVALID', 'ATLAS_REMAP_NOT_ONE_TO_ONE', 'ATLAS_PADDING_POLICY_UNSUPPORTED', 'ATLAS_GRID_INVALID', 'ATLAS_OUTPUT_LIMIT', 'ATLAS_OUTPUT_BYTES_LIMIT', 'ATLAS_PNG_UNSUPPORTED', 'ATLAS_SOURCE_REQUIRED', 'ATLAS_SOURCE_MISMATCH', 'ASSET_ANCHOR_OUT_OF_BOUNDS', 'ASSET_CONNECTOR_DUPLICATE', 'ASSET_EXTENSION_INVALID', 'ASSET_PROPOSAL_BYTES_LIMIT', 'ASSET_PROPOSAL_INVALID', 'ASSET_PROPOSAL_LIMIT', 'ASSET_PROPOSAL_REJECTION_REASON_REQUIRED', 'ASSET_SLICE_BINDING_INVALID'].includes(error.code)) return 400;
   if (error.code === 'SOURCE_INTAKE_NOT_FOUND') return 404;
-  if (['ARTIFACT_STORE_DISABLED', 'SOURCE_INTAKE_STORE_DISABLED', 'AGENT_ATTEMPT_LEDGER_REQUIRED', 'JOB_STORE_DISABLED'].includes(error.code)) return 503;
+  if (['ARTIFACT_STORE_DISABLED', 'SOURCE_INTAKE_STORE_DISABLED', 'AGENT_ATTEMPT_LEDGER_REQUIRED', 'JOB_STORE_DISABLED', 'ASSET_STORE_DISABLED'].includes(error.code)) return 503;
   return 500;
 }
 
@@ -165,6 +165,120 @@ function jobRoute(pathname) {
   } : null;
 }
 
+function assetRoute(pathname) {
+  const lifecycle = /^\/api\/projects\/([^/]+)\/assets\/([^/]+)\/lifecycle$/.exec(pathname);
+  if (lifecycle) return {
+    projectId: decodeURIComponent(lifecycle[1]),
+    assetId: decodeURIComponent(lifecycle[2]),
+    action: 'lifecycle',
+  };
+  const item = /^\/api\/projects\/([^/]+)\/assets\/([^/]+)$/.exec(pathname);
+  if (item) return {
+    projectId: decodeURIComponent(item[1]),
+    assetId: decodeURIComponent(item[2]),
+    action: 'read',
+  };
+  const collection = /^\/api\/projects\/([^/]+)\/assets$/.exec(pathname);
+  return collection ? {
+    projectId: decodeURIComponent(collection[1]),
+    assetId: null,
+    action: 'read',
+  } : null;
+}
+
+function assetProposalRoute(pathname) {
+  const action = /^\/api\/projects\/([^/]+)\/asset-proposals\/([^/]+)\/(decision|apply)$/.exec(pathname);
+  if (action) return {
+    projectId: decodeURIComponent(action[1]),
+    proposalId: decodeURIComponent(action[2]),
+    action: action[3],
+  };
+  const collection = /^\/api\/projects\/([^/]+)\/asset-proposals$/.exec(pathname);
+  return collection ? {
+    projectId: decodeURIComponent(collection[1]),
+    proposalId: null,
+    action: 'submit',
+  } : null;
+}
+
+function assetQueryDto(url, route) {
+  const allowed = new Set([
+    'proposalId', 'text', 'kinds', 'lifecycles', 'tags', 'findingSeverities',
+    'includeProposals', 'limit',
+  ]);
+  for (const key of url.searchParams.keys()) {
+    if (!allowed.has(key)) {
+      throw new StudioError('VALIDATION_ERROR', `Asset query contains an unsupported field: ${key}.`, { field: key });
+    }
+  }
+  const singular = (key) => {
+    const values = url.searchParams.getAll(key);
+    if (values.length > 1) {
+      throw new StudioError('VALIDATION_ERROR', `Asset query field ${key} may appear only once.`, { field: key });
+    }
+    return values[0];
+  };
+  const request = {
+    schemaVersion: 1,
+    projectId: route.projectId,
+    ...(route.assetId ? { assetId: route.assetId } : {}),
+  };
+  for (const key of ['proposalId', 'text']) {
+    const value = singular(key);
+    if (value !== undefined) request[key] = value;
+  }
+  for (const key of ['kinds', 'lifecycles', 'tags', 'findingSeverities']) {
+    const values = url.searchParams.getAll(key);
+    if (values.length > 0) request[key] = values;
+  }
+  const includeProposals = singular('includeProposals');
+  if (includeProposals !== undefined) {
+    if (!['true', 'false'].includes(includeProposals)) {
+      throw new StudioError('VALIDATION_ERROR', 'includeProposals must be true or false.', { field: 'includeProposals' });
+    }
+    request.includeProposals = includeProposals === 'true';
+  }
+  const limit = singular('limit');
+  if (limit !== undefined) {
+    if (!/^[1-9][0-9]*$/.test(limit)) {
+      throw new StudioError('VALIDATION_ERROR', 'limit must be a positive integer.', { field: 'limit' });
+    }
+    request.limit = Number(limit);
+  }
+  return request;
+}
+
+function assetBindingPreview(projectId, binding, alt) {
+  const digest = typeof binding?.digest === 'string' && /^[a-f0-9]{64}$/.test(binding.digest)
+    ? binding.digest
+    : null;
+  const ready = digest !== null && ['image/png', 'image/webp'].includes(binding?.mediaType);
+  return {
+    schemaVersion: 1,
+    state: ready ? 'READY' : (binding?.mediaType ? 'UNSUPPORTED' : 'MISSING'),
+    resourceUri: ready
+      ? `/api/projects/${encodeURIComponent(projectId)}/artifacts/sha256/${digest}`
+      : null,
+    alt,
+  };
+}
+
+function assetQueryHttpProjection(view) {
+  const projected = structuredClone(view);
+  projected.assets = projected.assets.map((asset) => ({
+    ...asset,
+    preview: assetBindingPreview(view.projectId, asset.sliceBinding, `${asset.name} preview`),
+  }));
+  projected.proposals = projected.proposals.map((proposal) => ({
+    ...proposal,
+    items: proposal.items.map((item) => ({
+      ...item,
+      preview: assetBindingPreview(view.projectId, item.sliceBinding, `${item.name} proposal preview`),
+    })),
+  }));
+  return projected;
+}
+
 async function readJsonBody(request, { maxBytes = 4096 } = {}) {
   const contentType = request.headers['content-type'] ?? '';
   if (!contentType.toLowerCase().startsWith('application/json')) {
@@ -234,7 +348,8 @@ function redactInternalDetails(value) {
     'filename', 'grantId', 'path', 'socket', 'token',
   ]);
   return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !sensitiveKeys.has(key))
+    .filter(([key]) => !sensitiveKeys.has(key)
+      && !/(?:secret|password|credential|privatekey)/i.test(key))
     .map(([key, entry]) => [key, redactInternalDetails(entry)]));
 }
 
@@ -360,7 +475,7 @@ async function assertExecutableBindingPolicy(studioService, binding) {
   }
 }
 
-function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoint) {
+function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoint, durableAssetStoreReady) {
   const origin = loopbackOrigin(`http://${request.headers.host ?? ''}`);
   const remoteAddress = request.socket.remoteAddress ?? '';
   const loopbackRemote = remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
@@ -376,6 +491,7 @@ function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoin
           NUMBERDROID_STUDIO_PAIRING_ENDPOINT: pairingEndpoint,
           NUMBERDROID_STUDIO_AGENT_AUDIT_READY: '1',
           NUMBERDROID_STUDIO_JOB_STORE_READY: '1',
+          NUMBERDROID_STUDIO_ASSET_STORE_READY: durableAssetStoreReady === true ? '1' : '0',
         },
       },
     },
@@ -515,6 +631,7 @@ export function createStudioHttpServer({
         '/internal/mcp/job-cancel',
         '/internal/mcp/job-retry',
         '/internal/mcp/job-discard',
+        '/internal/mcp/asset-query',
       ].includes(url.pathname)) {
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
@@ -528,6 +645,7 @@ export function createStudioHttpServer({
           '/internal/mcp/job-cancel': { operation: 'cancelJob', commandType: 'job.cancel', atomicAudit: true },
           '/internal/mcp/job-retry': { operation: 'retryJob', commandType: 'job.retry', atomicAudit: true },
           '/internal/mcp/job-discard': { operation: 'discardJob', commandType: 'job.discard', atomicAudit: true },
+          '/internal/mcp/asset-query': { operation: 'queryAssets', commandType: 'asset.query', atomicAudit: false, auditAuthorized: false },
         }[url.pathname];
         const attempt = {
           attemptId,
@@ -559,6 +677,11 @@ export function createStudioHttpServer({
             attempt.targetKind = 'job';
             attempt.targetId = safeJobId;
           }
+          const safeAssetId = definition.commandType === 'asset.query' ? safeAttemptId(body?.assetId) : null;
+          if (safeAssetId) {
+            attempt.targetKind = 'asset';
+            attempt.targetId = safeAssetId;
+          }
           await assertExecutableBindingPolicy(studioService, binding);
           result = await studioService[definition.operation](body, context, {
             signal: requestAbort.signal,
@@ -585,6 +708,88 @@ export function createStudioHttpServer({
           });
         }
         sendJson(response, 200, result);
+        return;
+      }
+      const assetRequest = assetRoute(url.pathname);
+      if (request.method === 'GET' && assetRequest?.action === 'read') {
+        const projectView = await studioService.readProjectTrusted(assetRequest.projectId);
+        const result = await studioService.queryAssets(
+          assetQueryDto(url, assetRequest),
+          humanOwnerContext(projectView),
+          { signal: requestAbort.signal },
+        );
+        sendJson(response, 200, assetQueryHttpProjection(result));
+        return;
+      }
+      if (request.method === 'POST' && assetRequest?.action === 'lifecycle') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 128 * 1024 });
+        assertExactKeys(body, new Set([
+          'expectedRevision', 'idempotencyKey', 'expectedAssetVersion', 'expectedMetadataVersion',
+          'targetLifecycle', 'acceptedWarningFindingIds', 'confirm',
+        ]), 'Asset lifecycle request');
+        if (body.confirm !== true) {
+          throw new StudioError('FORBIDDEN', 'An asset lifecycle promotion requires explicit human confirmation.');
+        }
+        const projectView = await studioService.readProjectTrusted(assetRequest.projectId);
+        const command = humanCommandDto(assetRequest.projectId, body, 'asset.lifecycle.set', {
+          assetId: assetRequest.assetId,
+          expectedAssetVersion: body.expectedAssetVersion,
+          expectedMetadataVersion: body.expectedMetadataVersion,
+          targetLifecycle: body.targetLifecycle,
+          acceptedWarningFindingIds: body.acceptedWarningFindingIds,
+        });
+        sendJson(response, 200, await studioService.execute(
+          command,
+          humanOwnerContext(projectView),
+          { signal: requestAbort.signal },
+        ));
+        return;
+      }
+      const assetProposalRequest = assetProposalRoute(url.pathname);
+      if (request.method === 'POST' && assetProposalRequest) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
+        const projectView = await studioService.readProjectTrusted(assetProposalRequest.projectId);
+        let command;
+        if (assetProposalRequest.action === 'submit') {
+          assertExactKeys(body, new Set([
+            'expectedRevision', 'idempotencyKey', 'proposalId', 'items',
+          ]), 'Asset proposal submission');
+          command = humanCommandDto(assetProposalRequest.projectId, body, 'asset.proposal.submit', {
+            proposalId: body.proposalId,
+            expectedRevision: body.expectedRevision,
+            items: body.items,
+          });
+        } else if (assetProposalRequest.action === 'decision') {
+          assertExactKeys(body, new Set([
+            'expectedRevision', 'idempotencyKey', 'expectedProposalVersion', 'decisions', 'confirm',
+          ]), 'Asset proposal decision');
+          if (body.confirm !== true) {
+            throw new StudioError('FORBIDDEN', 'An asset proposal decision requires explicit human confirmation.');
+          }
+          command = humanCommandDto(assetProposalRequest.projectId, body, 'asset.proposal.decide', {
+            proposalId: assetProposalRequest.proposalId,
+            expectedProposalVersion: body.expectedProposalVersion,
+            decisions: body.decisions,
+          });
+        } else {
+          assertExactKeys(body, new Set([
+            'expectedRevision', 'idempotencyKey', 'expectedProposalVersion', 'confirm',
+          ]), 'Asset proposal apply');
+          if (body.confirm !== true) {
+            throw new StudioError('FORBIDDEN', 'Applying an asset proposal requires explicit human confirmation.');
+          }
+          command = humanCommandDto(assetProposalRequest.projectId, body, 'asset.proposal.apply', {
+            proposalId: assetProposalRequest.proposalId,
+            expectedProposalVersion: body.expectedProposalVersion,
+          });
+        }
+        sendJson(response, 200, await studioService.execute(
+          command,
+          humanOwnerContext(projectView),
+          { signal: requestAbort.signal },
+        ));
         return;
       }
       const atlasRequest = atlasRoute(url.pathname);
@@ -889,7 +1094,7 @@ export function createStudioHttpServer({
           hostBindings: await humanAgentAccess.listBindings(project.projectId),
           pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),
           mcpLauncherConfig: mcpLauncherProjection(
-            request, project.projectId, pairingBroker, pairingEndpoint,
+            request, project.projectId, pairingBroker, pairingEndpoint, studioService.durableAssetStoreReady,
           ),
           csrfToken: humanUiCsrfToken,
         });

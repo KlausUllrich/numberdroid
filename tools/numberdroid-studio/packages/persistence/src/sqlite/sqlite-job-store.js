@@ -104,6 +104,45 @@ function jobProjection(row) {
   };
 }
 
+function importedJobProjection(row) {
+  if (!row) return null;
+  const input = parseJson(row.input_json, {});
+  const outputs = parseJson(row.output_json, []);
+  return {
+    schemaVersion: 1,
+    projectId: row.project_id,
+    jobId: row.job_id,
+    kind: row.job_kind,
+    inputRevision: Number(row.input_revision),
+    atlasId: row.atlas_id,
+    sourceId: row.source_id,
+    creator: {
+      actor: { kind: 'human', id: 'bundle.import' },
+      taskId: null,
+      branchId: 'branch.bundle-import',
+      grantId: null,
+    },
+    outputArtifactBytes: outputs.reduce((sum, output) => sum + Number(output.byteSize ?? 0), 0),
+    inputFingerprint: row.input_fingerprint,
+    idempotencyKey: `bundle-import:${row.import_id}:${row.job_id}`,
+    input,
+    state: 'APPLIED',
+    attempt: 1,
+    progress: { current: outputs.length, total: outputs.length },
+    cancelRequested: false,
+    lease: null,
+    outputs,
+    result: parseJson(row.result_json, {}),
+    error: null,
+    createdAt: row.created_at,
+    startedAt: row.started_at,
+    finishedAt: row.finished_at,
+    updatedAt: row.finished_at,
+    appliedRevision: Number(row.applied_revision),
+    provenance: 'bundle_import',
+  };
+}
+
 function requireCreator(value) {
   invariant(value && typeof value === 'object' && !Array.isArray(value), 'VALIDATION_ERROR', 'creator is required.');
   invariant(value.actor && ['human', 'agent'].includes(value.actor.kind), 'VALIDATION_ERROR', 'creator.actor is invalid.');
@@ -370,7 +409,11 @@ export class SqliteJobStore {
   get(projectId, jobId) {
     requireId(projectId, 'projectId');
     requireId(jobId, 'jobId');
-    return jobProjection(this.#workspace.database.prepare('SELECT * FROM jobs WHERE project_id = ? AND job_id = ?').get(projectId, jobId));
+    const live = this.#workspace.database.prepare('SELECT * FROM jobs WHERE project_id = ? AND job_id = ?').get(projectId, jobId);
+    if (live) return jobProjection(live);
+    return importedJobProjection(this.#workspace.database.prepare(`
+      SELECT * FROM bundle_import_applied_jobs WHERE project_id = ? AND job_id = ?
+    `).get(projectId, jobId));
   }
 
   list(projectId, { state = null } = {}) {
@@ -389,10 +432,30 @@ export class SqliteJobStore {
   listEvents(projectId, jobId) {
     requireId(projectId, 'projectId');
     requireId(jobId, 'jobId');
-    return this.#workspace.database.prepare(`
+    const live = this.#workspace.database.prepare(`
       SELECT * FROM job_events
       WHERE project_id = ? AND job_id = ? ORDER BY event_sequence
     `).all(projectId, jobId).map(eventProjection);
+    if (live.length > 0) return live;
+    const imported = this.#workspace.database.prepare(`
+      SELECT events_json FROM bundle_import_applied_jobs
+      WHERE project_id = ? AND job_id = ?
+    `).get(projectId, jobId);
+    return parseJson(imported?.events_json ?? null, []).map((event, index) => ({
+      schemaVersion: 1,
+      projectId,
+      jobId,
+      sequence: event.sequence ?? index + 1,
+      attempt: 1,
+      type: event.type,
+      state: event.state,
+      safePoint: event.safePoint ?? null,
+      progress: event.progress ?? { current: 0, total: 0 },
+      operationIdempotencyKey: null,
+      details: event.details ?? {},
+      occurredAt: event.occurredAt,
+      provenance: 'bundle_import',
+    }));
   }
 
   claimNext({ workerId, leaseMs, now = new Date().toISOString() }) {

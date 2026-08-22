@@ -6,20 +6,22 @@ The product lives in this self-contained folder so it can be moved into a standa
 
 ## Status
 
-Checkpoint 1 is the accepted foundation, Checkpoint 2A was user-accepted on 2026-08-21, and **Checkpoint 2B was explicitly user-accepted on 2026-08-22 after the live walkthrough at head `309c24961f89389047db837471b2e434dd13e149`.** The earlier native-file-input and five-second cutter-scroll blockers remain part of the rejection history. Product repair `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d` preserves unchanged cutter DOM/focus/scroll, bounds one poll owner, restores compatible necessary renders, and defers external replacement during a captured drag; selector-only repair `04d876da750f348e24de9420be1ff59c349bc092` keeps the evidence independent of regenerated rectangle IDs. GitHub Actions run `32568108922` and artifact `9474639509` remain the pinned repaired browser evidence; final closure run `32572870510` and artifact `9475808319` are the post-acceptance evidence, and closure-head run `32573543172` passed at `c27fee7004ddc7d6a6f357e9dacab2d663e6ae82`. In the live acceptance pass, a 12+ second passive refresh preserved both cutter axes, focused `Top margin = 5`, and page position; definition save, 4/4 preview, 4/4 atomic apply, explicit recut mapping, close/reopen discard of unsaved edits, and a full service restart all behaved as required without duplication. The user noted one nonblocking UX issue: canonical slice IDs are unsuitable as primary human labels. Checkpoint 2C will show ordinal **Slice 1–64** labels first and keep the canonical ID secondary and copyable without changing stable identities. **Checkpoint 2C planning and implementation were explicitly user-authorized on 2026-08-22; 2C is not yet implemented or accepted.** Its sole authorized import/export operation is the offline, project-scoped portable Studio bundle round trip. PR #135 remains open, draft, and unmerged. Merge, release, providers, rooms, Numberdroid/runtime/repository export, materialization, and publication remain blocked. See the [2C authorization handoff](../../docs/history/handoffs/HANDOFF_2026-08-22_NUMBERDROID_STUDIO_CHECKPOINT_2C.md), [2B acceptance record](docs/CHECKPOINT_2B_STATUS.md), [2A acceptance record](docs/CHECKPOINT_2A_STATUS.md), and [roadmap](docs/ROADMAP.md).
+Checkpoint 1 is the accepted foundation, Checkpoint 2A was user-accepted on 2026-08-21, and **Checkpoint 2B was explicitly user-accepted on 2026-08-22 after the live walkthrough at head `309c24961f89389047db837471b2e434dd13e149`.** The earlier native-file-input and five-second cutter-scroll blockers remain part of the rejection history. Product repair `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d` preserves unchanged cutter DOM/focus/scroll, bounds one poll owner, restores compatible necessary renders, and defers external replacement during a captured drag; selector-only repair `04d876da750f348e24de9420be1ff59c349bc092` keeps the evidence independent of regenerated rectangle IDs. GitHub Actions run `32568108922` and artifact `9474639509` remain the pinned repaired browser evidence; final closure run `32572870510` and artifact `9475808319` are the post-acceptance evidence, and closure-head run `32573543172` passed at `c27fee7004ddc7d6a6f357e9dacab2d663e6ae82`. In the live acceptance pass, a 12+ second passive refresh preserved both cutter axes, focused `Top margin = 5`, and page position; definition save, 4/4 preview, 4/4 atomic apply, explicit recut mapping, close/reopen discard of unsaved edits, and a full service restart all behaved as required without duplication.
+
+**Checkpoint 2C is now implemented as a verification candidate and remains not user-accepted.** It adds strict versioned `surface`/`prop`/`item` assets bound to exact committed slices, typed metadata and deterministic findings, owner-gated lifecycle, durable bounded agent proposals with per-item owner decisions and accepted-subset apply, ordinal **Slice 1–64** labels with stable canonical IDs secondary/copyable, schema-v9 MCP discovery of exactly 17 tools and three resource templates, and a sanitized offline project-bundle round trip. The full local Studio suite passes 219/219. Published CI/browser evidence and the independent verifier disposition are recorded in the [2C candidate record](docs/CHECKPOINT_2C_STATUS.md). Its sole authorized import/export operation is the offline, project-scoped portable Studio bundle round trip. PR #135 remains open, draft, and unmerged. Merge, release, providers, rooms, Numberdroid/runtime/repository export, materialization, and publication remain blocked. See the [2C authorization handoff](../../docs/history/handoffs/HANDOFF_2026-08-22_NUMBERDROID_STUDIO_CHECKPOINT_2C.md), [2C candidate record](docs/CHECKPOINT_2C_STATUS.md), [2B acceptance record](docs/CHECKPOINT_2B_STATUS.md), [2A acceptance record](docs/CHECKPOINT_2A_STATUS.md), and [roadmap](docs/ROADMAP.md).
 
 Acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later commits `f116f25aed2f0a9d935de9061cf6492d3a56bef4` and `b9ce37e44fe3679b52b50dac6daf4e1a46024c1d` change only the `visualFixture`/test evidence harness; they do not change product behavior or reopen acceptance. Failed run `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and failed run `32572344465` (Studio job `97029542069`, isolating Chrome/CDP post-move pointer-capture bookkeeping) are invalid diagnostic evidence only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, and expires `2026-09-05T12:26:26Z`. Under Chrome `151.0.7922.137` at 1440×900 and 1060×900, it records zero runtime and visual errors and proves captured press, a same-pointer held move, deferred rendering, matching release/settlement/replacement, exact scroll/context retention, and telemetry cleanup. Run `32568108922` / artifact `9474639509` remain the product-repair evidence; run `32572870510` / artifact `9475808319` are the final post-acceptance closure evidence.
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoints 1, 2A, and 2B user-accepted; Checkpoint 2C planning and implementation authorized, not yet implemented or accepted |
+| Product contract | Checkpoints 1, 2A, and 2B user-accepted; Checkpoint 2C implemented as a candidate, not user-accepted |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
-| Human UI | Accepted 2A source workflow and accepted 2B atlas cutter; authorized 2C must add ordinal-first slice-backed asset authoring and proposal review |
-| Agent access | 15 tools and two resource templates when the durable attempt/job stores are live; owner decision remains human-only |
-| Persistence | SQLite schema v8 WAL ledger, durable atlas jobs/events, and SHA-256 CAS; JSON remains protected migration input/regression only |
+| Human UI | Accepted 2A source workflow and 2B atlas cutter; 2C candidate adds ordinal-first asset inventory, proposal diff/review, and lifecycle controls |
+| Agent access | Schema v8 advertises the accepted 15 tools/two templates; schema v9 advertises exactly 17 tools/three templates, with owner decision/apply/lifecycle absent |
+| Persistence | SQLite schema v9 WAL ledger, durable atlas jobs/proposals/import history, SHA-256 CAS, and sanitized project bundles; JSON remains protected migration input/regression only |
 | Numberdroid export | Adapter boundary specified; production publishing deferred |
 
-## Run the accepted 2A and 2B slices locally
+## Run the accepted 2A/2B slices and the 2C candidate locally
 
 Requirements: Node.js 22 or newer. Dependencies and the official MCP client/server versions are pinned by `package-lock.json`.
 
@@ -31,7 +33,7 @@ npm run evidence:verify
 npm run dev
 ```
 
-Open `http://127.0.0.1:4317`, choose **Create / load demo**, then open **Sources**. Import a PNG or WebP, inspect the original CAS preview and provenance, choose **Propose for review**, and explicitly approve or reject it. For an approved PNG, open the atlas cutter, propose or edit integer rectangles, choose inclusion and recut identity explicitly, build the previews, inspect the job, and commit the slices. A staged upload that did not commit remains visible with **Resume** and **Discard** controls after restart. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is authoritative, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
+Open `http://127.0.0.1:4317`, choose **Create / load demo**, then open **Sources**. Import a PNG or WebP, inspect the original CAS preview and provenance, choose **Propose for review**, and explicitly approve or reject it. For an approved PNG, open the atlas cutter, propose or edit integer rectangles, choose inclusion and recut identity explicitly, build the previews, inspect the job, and commit the slices. Open **Assets** to inspect ordinal-first exact-slice provenance, filter the V2 inventory, review proposal item diffs, record owner accept/reject dispositions, apply an accepted subset, and promote an eligible asset lifecycle explicitly. A staged upload that did not commit remains visible with **Resume** and **Discard** controls after restart. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is authoritative, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
 
 Checkpoint 2A source intake remains synchronous and bounded to 16 MiB and 4096×4096. It calls no provider and serves the verified original CAS bytes. Checkpoint 2B adds local, deterministic PNG cutting only; WebP remains valid for intake/original preview but cannot be cut by the 2B processor. Provider selection, egress, credentials, cost policy, and reproducibility expectations require a later explicit decision.
 
@@ -63,6 +65,11 @@ npm run admin -- integrity /path/to/1b-data
 npm run admin -- backup /path/to/1b-data /path/to/new-backup
 npm run admin -- verify-backup /path/to/new-backup
 
+# Export/verify/import a sanitized project bundle through new destinations
+npm run admin -- bundle-export /path/to/1b-data PROJECT_ID /path/to/new-bundle
+npm run admin -- bundle-verify /path/to/new-bundle
+npm run admin -- bundle-import /path/to/new-bundle /path/to/new-data
+
 # Restore only into a new destination
 npm run admin -- restore /path/to/new-backup /path/to/new-restored-data
 ```
@@ -71,7 +78,7 @@ Migration writes a protected JSON copy, source manifest, parity report, and `cut
 
 `admin integrity` checks SQLite integrity and foreign keys plus every distinct referenced CAS object. It verifies that referenced metadata is `LIVE`, the digest-addressed object exists, its SHA-256 digest matches, and its byte length agrees with SQLite. It prints an `artifacts.findings` array and exits with status `2` whenever SQLite or any referenced artifact fails. An empty findings array with exit status `0` is required before cutover, backup, or recovery acceptance.
 
-Schema v8 also verifies staged/claimed/abandoned source-intake references, permanent source-lineage references, the authorized/denied/failed agent-attempt ledger, job state and event invariants, exact input/applied revision ownership, and state-specific temporary/permanent CAS references. Backup first runs the complete semantic/CAS integrity precondition and then captures a snapshot-consistent database/CAS pair. Migration 0007 is pinned to `aa951c02158f76f6343819271b78816e211bfe3015cc9f4f979947a075ef25e9`; migration 0008 is pinned to `2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730`.
+Schema v9 also verifies staged/claimed/abandoned source-intake references, permanent source/atlas/asset lineage references, the authorized/denied/failed agent-attempt ledger, job state and event invariants, exact input/applied revision ownership, durable asset-proposal decisions, immutable imported APPLIED history, and state-specific temporary/permanent CAS references. Backup and bundle export first run the complete semantic/CAS integrity precondition. Backup captures a snapshot-consistent database/CAS pair; bundle export writes only a canonical project semantic document and its exact artifact closure, never live grants, HostBindings, attempts, work queues, idempotency, local paths, or credentials. Migrations 0007 and 0008 retain their accepted checksums; migration 0009 is pinned to `e387c3e56fb0bb03bd14743c6a7c7a6baad230c02dde8f158e485e25776e7175`.
 
 ## Accepted Checkpoint 1 baseline
 
@@ -150,6 +157,7 @@ Enemy/NPC design, enemy routes, NPC animation, combat encounter authoring, and f
 - [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)
 - [Accepted Checkpoint 2A source workflow](docs/CHECKPOINT_2A_STATUS.md)
 - [Checkpoint 2B acceptance record](docs/CHECKPOINT_2B_STATUS.md)
+- [Checkpoint 2C candidate record](docs/CHECKPOINT_2C_STATUS.md)
 
 These documents are normative for the Studio implementation. If code and documentation disagree, the discrepancy must be resolved explicitly; it must not become an accidental new contract.
 

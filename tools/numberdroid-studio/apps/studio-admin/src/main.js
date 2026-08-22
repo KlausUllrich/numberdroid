@@ -4,14 +4,17 @@ import { pathToFileURL } from 'node:url';
 import { StudioError } from '../../../packages/domain/src/index.js';
 import {
   ContentAddressedArtifactStore,
+  createSqliteProjectBundle,
   createJsonSourceManifest,
   createWorkspaceBackup,
+  importSqliteProjectBundle,
   migrateJsonToSqlite,
   restoreWorkspaceBackup,
   SqliteProjectStore,
   SqliteWorkspace,
   verifyWorkspaceIntegrity,
   verifyWorkspaceBackup,
+  verifySqliteProjectBundle,
 } from '../../../packages/persistence/src/index.js';
 
 const MIGRATION_INTENT_FILE = '.json-migration-intent.json';
@@ -26,6 +29,9 @@ Stop the Studio writer before running these commands.
   studio-admin backup <data-directory> <new-backup-directory>
   studio-admin verify-backup <backup-directory>
   studio-admin restore <backup-directory> <new-data-directory>
+  studio-admin bundle-export <data-directory> <project-id> <new-bundle-directory>
+  studio-admin bundle-verify <bundle-directory>
+  studio-admin bundle-import <bundle-directory> <new-data-directory>
 `;
 
 function output(value) {
@@ -191,6 +197,31 @@ export async function runAdmin([command, ...args], { databaseFactory, emit = out
       backupDirectory: resolve(args[0]),
       databaseDestination: resolve(destination, 'studio.sqlite'),
       artifactDestination: resolve(destination, 'artifacts'),
+    }));
+    return 0;
+  }
+  if (command === 'bundle-export' && args.length === 3) {
+    const destinationDirectory = resolve(args[2]);
+    await assertAbsent(destinationDirectory, 'Portable bundle destination');
+    emit(await withWorkspace(args[0], ({ projectStore, artifactStore }) => createSqliteProjectBundle({
+      destinationDirectory,
+      projectStore,
+      artifactStore,
+      projectId: args[1],
+    }), { databaseFactory }));
+    return 0;
+  }
+  if (command === 'bundle-verify' && args.length === 1) {
+    emit(await verifySqliteProjectBundle(resolve(args[0])));
+    return 0;
+  }
+  if (command === 'bundle-import' && args.length === 2) {
+    const destinationDirectory = resolve(args[1]);
+    await assertAbsent(destinationDirectory, 'Portable bundle import destination');
+    emit(await importSqliteProjectBundle({
+      bundleDirectory: resolve(args[0]),
+      destinationDirectory,
+      databaseFactory,
     }));
     return 0;
   }

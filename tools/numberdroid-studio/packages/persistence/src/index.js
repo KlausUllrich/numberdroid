@@ -2,6 +2,21 @@ export { InMemoryProjectStore } from './in-memory-project-store.js';
 export { JsonProjectStore } from './json-project-store.js';
 export { ContentAddressedArtifactStore } from './artifacts/content-addressed-artifact-store.js';
 export { createWorkspaceBackup, restoreWorkspaceBackup, verifyWorkspaceBackup } from './backup/workspace-backup.js';
+export {
+  PROJECT_BUNDLE_LIMITS,
+  canonicalBundleJson,
+  createPortableProjectBundle,
+  importPortableProjectBundle,
+  validatePortableProjectDocument,
+  verifyPortableProjectBundle,
+} from './bundle/project-bundle.js';
+export {
+  createSqliteProjectBundle,
+  importSqliteProjectBundle,
+  projectSqlitePortableDocument,
+  validateSqlitePortableProject,
+  verifySqliteProjectBundle,
+} from './bundle/sqlite-project-bundle.js';
 export { verifyWorkspaceIntegrity } from './integrity/workspace-integrity.js';
 export { createJsonSourceManifest, migrateJsonToSqlite } from './migration/json-to-sqlite-migrator.js';
 export { SqliteArtifactMetadataStore } from './sqlite/sqlite-artifact-metadata-store.js';

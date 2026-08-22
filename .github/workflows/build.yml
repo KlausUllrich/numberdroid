@@ -186,7 +186,7 @@ jobs:
         working-directory: tools/numberdroid-studio
         run: NUMBERDROID_EVIDENCE_REQUIRE_PRODUCTION_ADAPTER=1 npm run evidence:verify
 
-      - name: Capture Studio 1A, 1B, 2A, and 2B browser evidence
+      - name: Capture Studio 1A, 1B, 2A, 2B, and 2C browser evidence
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
@@ -208,11 +208,15 @@ jobs:
           CANDIDATE_PID=""
           CHECKPOINT_2A_PID=""
           CHECKPOINT_2B_PID=""
+          CHECKPOINT_2C_PENDING_PID=""
+          CHECKPOINT_2C_APPLIED_PID=""
           cleanup() {
             if [ -n "$BASELINE_PID" ]; then kill "$BASELINE_PID" 2>/dev/null || true; fi
             if [ -n "$CANDIDATE_PID" ]; then kill "$CANDIDATE_PID" 2>/dev/null || true; fi
             if [ -n "$CHECKPOINT_2A_PID" ]; then kill "$CHECKPOINT_2A_PID" 2>/dev/null || true; fi
             if [ -n "$CHECKPOINT_2B_PID" ]; then kill "$CHECKPOINT_2B_PID" 2>/dev/null || true; fi
+            if [ -n "$CHECKPOINT_2C_PENDING_PID" ]; then kill "$CHECKPOINT_2C_PENDING_PID" 2>/dev/null || true; fi
+            if [ -n "$CHECKPOINT_2C_APPLIED_PID" ]; then kill "$CHECKPOINT_2C_APPLIED_PID" 2>/dev/null || true; fi
           }
           trap cleanup EXIT
           mkdir -p "$EVIDENCE/baseline-1a" "$EVIDENCE/candidate-1b/dom"
@@ -346,6 +350,55 @@ jobs:
           wait "$CHECKPOINT_2B_PID" 2>/dev/null || true
           CHECKPOINT_2B_PID=""
 
+          CHECKPOINT_2C_PENDING_DATA="$RUNNER_TEMP/numberdroid-studio-checkpoint-2c-pending-data"
+          CHECKPOINT_2C_APPLIED_DATA="$RUNNER_TEMP/numberdroid-studio-checkpoint-2c-applied-data"
+          CHECKPOINT_2C_EVIDENCE="$GITHUB_WORKSPACE/artifacts/studio-checkpoint-2c"
+          mkdir -p "$CHECKPOINT_2C_EVIDENCE/pending/dom" "$CHECKPOINT_2C_EVIDENCE/applied/dom"
+          node tools/numberdroid-studio/scripts/prepare-checkpoint-2c-visual-evidence.js \
+            "$CHECKPOINT_2C_PENDING_DATA" pending > "$CHECKPOINT_2C_EVIDENCE/fixture-pending.json"
+          node tools/numberdroid-studio/scripts/prepare-checkpoint-2c-visual-evidence.js \
+            "$CHECKPOINT_2C_APPLIED_DATA" applied > "$CHECKPOINT_2C_EVIDENCE/fixture-applied.json"
+
+          NUMBERDROID_STUDIO_DATA="$CHECKPOINT_2C_PENDING_DATA" NUMBERDROID_STUDIO_PORT=4321 \
+            node tools/numberdroid-studio/apps/studio-server/src/server.js \
+            > "$CHECKPOINT_2C_EVIDENCE/pending-server.log" 2>&1 &
+          CHECKPOINT_2C_PENDING_PID=$!
+          wait_for_studio http://127.0.0.1:4321 "$CHECKPOINT_2C_EVIDENCE/pending-server.log"
+          for width in 1440 1060; do
+            capture "$width" "$CHECKPOINT_2C_EVIDENCE/pending/proposal-review-$width.png" \
+              'http://127.0.0.1:4321/?visualFixture=checkpoint-2c&visualPhase=pending&visualFocus=proposal#assets' checkpoint-2c \
+              "$CHECKPOINT_2C_EVIDENCE/pending/dom/proposal-review-$width.html"
+          done
+          kill "$CHECKPOINT_2C_PENDING_PID"
+          wait "$CHECKPOINT_2C_PENDING_PID" 2>/dev/null || true
+          CHECKPOINT_2C_PENDING_PID=""
+
+          NUMBERDROID_STUDIO_DATA="$CHECKPOINT_2C_APPLIED_DATA" NUMBERDROID_STUDIO_PORT=4322 \
+            node tools/numberdroid-studio/apps/studio-server/src/server.js \
+            > "$CHECKPOINT_2C_EVIDENCE/applied-server.log" 2>&1 &
+          CHECKPOINT_2C_APPLIED_PID=$!
+          wait_for_studio http://127.0.0.1:4322 "$CHECKPOINT_2C_EVIDENCE/applied-server.log"
+          for width in 1440 1060; do
+            capture "$width" "$CHECKPOINT_2C_EVIDENCE/applied/inventory-$width.png" \
+              'http://127.0.0.1:4322/?visualFixture=checkpoint-2c&visualPhase=applied&visualFocus=inventory#assets' checkpoint-2c \
+              "$CHECKPOINT_2C_EVIDENCE/applied/dom/inventory-$width.html"
+            capture "$width" "$CHECKPOINT_2C_EVIDENCE/applied/proposal-$width.png" \
+              'http://127.0.0.1:4322/?visualFixture=checkpoint-2c&visualPhase=applied&visualFocus=proposal#assets' checkpoint-2c \
+              "$CHECKPOINT_2C_EVIDENCE/applied/dom/proposal-$width.html"
+          done
+          kill "$CHECKPOINT_2C_APPLIED_PID"
+          wait "$CHECKPOINT_2C_APPLIED_PID" 2>/dev/null || true
+          CHECKPOINT_2C_APPLIED_PID=""
+
+          node tools/numberdroid-studio/scripts/verify-checkpoint-2c-bundle-roundtrip.js \
+            "$CHECKPOINT_2C_APPLIED_DATA" numberdroid-studio-checkpoint-2c \
+            "$RUNNER_TEMP/numberdroid-studio-checkpoint-2c-bundle-a" \
+            "$RUNNER_TEMP/numberdroid-studio-checkpoint-2c-imported" \
+            "$RUNNER_TEMP/numberdroid-studio-checkpoint-2c-bundle-b" \
+            "$CHECKPOINT_2C_EVIDENCE/bundle-roundtrip.json"
+          node tools/numberdroid-studio/scripts/finalize-checkpoint-2c-evidence.js \
+            "$CHECKPOINT_2C_EVIDENCE"
+
       - name: Upload Studio visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -370,5 +423,14 @@ jobs:
         with:
           name: numberdroid-studio-checkpoint-2b-visual
           path: artifacts/studio-checkpoint-2b/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Studio Checkpoint 2C visual and bundle evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: numberdroid-studio-checkpoint-2c-evidence
+          path: artifacts/studio-checkpoint-2c/
           if-no-files-found: error
           retention-days: 14

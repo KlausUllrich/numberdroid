@@ -5,6 +5,12 @@ import {
   proposeRegularGrid,
   validateAtlasRectangles,
 } from '../../domain/src/atlas-definition.js';
+import {
+  evaluateAssetLifecycle,
+  validateAssetMetadata,
+  validateAssetProposal,
+  validateExactSliceBinding,
+} from '../../domain/src/asset-definition.js';
 import { StudioError, invariant } from '../../domain/src/errors.js';
 import { headRevision } from './project-store.js';
 import {
@@ -153,7 +159,7 @@ function committedResult(revision) {
 }
 
 function proposalResult(revision, definition) {
-  return deepFreeze({
+  const value = {
     schemaVersion: 1,
     projectId: revision.event.projectId,
     revision: revision.parentRevision,
@@ -171,7 +177,25 @@ function proposalResult(revision, definition) {
       findings: [],
       requiredCapabilities: definition.requiredScope ? [definition.requiredScope] : [],
     },
-  });
+  };
+  if (revision.command.type === 'asset.proposal.submit') {
+    const proposal = revision.snapshot.assetLibrary?.proposals?.find((candidate) => candidate.proposalId === revision.result.proposalId);
+    value.proposal.assetProposal = proposal ? {
+      proposalId: proposal.proposalId,
+      proposalVersion: proposal.proposalVersion,
+      fingerprint: proposal.fingerprint,
+      items: proposal.items.map((item) => ({
+        ordinal: item.ordinal,
+        itemId: item.itemId,
+        assetId: item.assetId,
+        operation: item.operation,
+        diff: deepClone(item.diff),
+        findings: deepClone(item.findings),
+      })),
+    } : null;
+    value.proposal.findings = proposal?.items.flatMap((item) => deepClone(item.findings)) ?? [];
+  }
+  return deepFreeze(value);
 }
 
 function redactAgentOnlySourceLocations(snapshot) {
@@ -181,6 +205,12 @@ function redactAgentOnlySourceLocations(snapshot) {
       ? source
       : { ...source, artifactUri: null, artifactAvailability: 'LEGACY_EXTERNAL_LOCATION_REDACTED' }
   ));
+  for (const proposal of redacted.assetLibrary?.proposals ?? []) {
+    if (proposal.proposer) {
+      delete proposal.proposer.grantId;
+      delete proposal.proposer.branchId;
+    }
+  }
   return redacted;
 }
 
@@ -208,6 +238,18 @@ function previewOutputArtifactBytes(snapshot, atlasId) {
   }
   invariant(total > 0, 'ATLAS_RECT_INVALID', 'Atlas preview requires at least one included rectangle.');
   return total;
+}
+
+function commandBudgetCharge(command) {
+  if (command.type !== 'asset.proposal.submit') return 1;
+  invariant(
+    Array.isArray(command.payload?.items)
+      && command.payload.items.length >= 1
+      && command.payload.items.length <= 64,
+    'ASSET_PROPOSAL_LIMIT',
+    'Asset proposals require 1 to 64 items.',
+  );
+  return command.payload.items.length;
 }
 
 function assertAuthorized(command, snapshot, definition, now) {
@@ -250,8 +292,10 @@ function assertAuthorized(command, snapshot, definition, now) {
     'OBJECT_SCOPE_DENIED',
     'The grant does not cover this project object scope.',
   );
-  invariant(grant.usage.commands < grant.budget.maxCommands, 'BUDGET_EXCEEDED', 'The grant command budget is exhausted.', {
+  const commandCharge = commandBudgetCharge(command);
+  invariant(grant.usage.commands + commandCharge <= grant.budget.maxCommands, 'BUDGET_EXCEEDED', 'The command would exceed the grant command budget.', {
     consumed: grant.usage.commands,
+    requested: commandCharge,
     limit: grant.budget.maxCommands,
   });
   if (command.type === 'source.intake.commit') {
@@ -498,7 +542,127 @@ function assertJobOriginAuthority(job, executionContext, snapshot) {
   );
 }
 
-function applyCommand(command, snapshot, now, { atlasJob = null, priorAtlasJob = null } = {}) {
+function currentSlice(snapshot, sliceId) {
+  const matches = [];
+  for (const atlas of snapshot.atlases ?? []) {
+    for (const slice of atlas.sliceHeads ?? []) {
+      if (slice.sliceId === sliceId) matches.push({ atlas, slice });
+    }
+  }
+  invariant(matches.length > 0, 'ASSET_SLICE_NOT_FOUND', 'The requested committed slice head does not exist.', { sliceId });
+  invariant(matches.length === 1, 'ASSET_SLICE_AMBIGUOUS', 'A slice identity appears under multiple atlas heads.', { sliceId });
+  return matches[0];
+}
+
+function resolveExactSliceBinding(document, projectId, sliceId, expectedSliceVersion) {
+  const head = headRevision(document);
+  const { slice } = currentSlice(head.snapshot, sliceId);
+  invariant(slice.version === expectedSliceVersion, 'ENTITY_VERSION_CONFLICT', 'The committed slice changed after the asset proposal was prepared.', {
+    sliceId,
+    expectedVersion: expectedSliceVersion,
+    actualVersion: slice.version,
+  });
+  const committedRevision = document.revisions.find((revision) => {
+    try {
+      const candidate = currentSlice(revision.snapshot, sliceId).slice;
+      return candidate.version === slice.version && candidate.digest === slice.digest;
+    } catch (error) {
+      if (['ASSET_SLICE_NOT_FOUND', 'ASSET_SLICE_AMBIGUOUS'].includes(error?.code)) return false;
+      throw error;
+    }
+  })?.number;
+  invariant(committedRevision, 'ASSET_SLICE_HISTORY_MISSING', 'The exact slice version has no semantic revision lineage.', { sliceId, expectedSliceVersion });
+  const {
+    rectangleId: _rectangleId,
+    ...rectangle
+  } = slice.rectangle;
+  return validateExactSliceBinding({
+    projectId,
+    sliceId: slice.sliceId,
+    sliceVersion: slice.version,
+    atlasId: slice.atlasId,
+    sourceId: slice.sourceId,
+    sourceDigest: slice.sourceDigest,
+    definitionVersion: slice.definitionVersion,
+    definitionFingerprint: slice.definitionFingerprint,
+    rectangleId: slice.rectangleId,
+    rectangle,
+    processorId: slice.processorId,
+    digest: slice.digest,
+    artifactUri: slice.artifactUri,
+    mediaType: slice.mediaType,
+    byteSize: slice.byteSize,
+    width: slice.width,
+    height: slice.height,
+    priorDigest: slice.priorDigest,
+    committedRevision,
+  });
+}
+
+function prepareAssetProposal(command, document) {
+  invariant(command.payload.expectedRevision === command.baseRevision, 'REVISION_CONFLICT', 'The proposal expectedRevision must equal the command base revision.', {
+    expectedRevision: command.payload.expectedRevision,
+    baseRevision: command.baseRevision,
+  });
+  const normalized = validateAssetProposal({
+    projectId: command.projectId,
+    proposalId: command.payload.proposalId,
+    expectedRevision: command.payload.expectedRevision,
+    items: command.payload.items,
+  });
+  const items = normalized.items.map((item) => {
+    const sliceBinding = resolveExactSliceBinding(document, command.projectId, item.sliceId, item.expectedSliceVersion);
+    const validated = validateAssetMetadata({
+      assetId: item.assetId,
+      kind: item.kind,
+      metadata: item.metadata,
+      sliceBinding,
+    });
+    return {
+      ...item,
+      metadata: validated.metadata,
+      sliceBinding,
+      findings: validated.findings,
+      metadataFingerprint: validated.fingerprint,
+      decision: null,
+    };
+  });
+  const proposalFingerprint = fingerprint({
+    schemaVersion: 1,
+    projectId: normalized.projectId,
+    proposalId: normalized.proposalId,
+    expectedRevision: normalized.expectedRevision,
+    items: items.map(({ decision: _decision, ...item }) => item),
+  });
+  return { ...normalized, items, fingerprint: proposalFingerprint };
+}
+
+function assetLibrary(snapshot) {
+  snapshot.assetLibrary ??= { schemaVersion: 1, assets: [], proposals: [] };
+  return snapshot.assetLibrary;
+}
+
+function proposalHead(library, proposalId) {
+  const index = library.proposals.findIndex((proposal) => proposal.proposalId === proposalId);
+  invariant(index >= 0, 'ASSET_PROPOSAL_NOT_FOUND', 'The asset proposal does not exist.', { proposalId });
+  return { index, proposal: library.proposals[index] };
+}
+
+function assertCurrentProposalSlice(snapshot, item) {
+  const { slice } = currentSlice(snapshot, item.sliceBinding.sliceId);
+  invariant(
+    slice.version === item.sliceBinding.sliceVersion && slice.digest === item.sliceBinding.digest,
+    'ASSET_SLICE_STALE',
+    'A committed slice changed after proposal submission.',
+    {
+      sliceId: item.sliceBinding.sliceId,
+      expectedVersion: item.sliceBinding.sliceVersion,
+      actualVersion: slice.version,
+    },
+  );
+}
+
+function applyCommand(command, snapshot, now, { atlasJob = null, priorAtlasJob = null, preparedAssetProposal = null } = {}) {
   const payload = command.payload;
   const next = deepClone(snapshot);
   next.project.updatedAt = now;
@@ -508,7 +672,7 @@ function applyCommand(command, snapshot, now, { atlasJob = null, priorAtlasJob =
       ...next.grants[grantIndex],
       usage: {
         ...next.grants[grantIndex].usage,
-        commands: next.grants[grantIndex].usage.commands + 1,
+        commands: next.grants[grantIndex].usage.commands + commandBudgetCharge(command),
       },
     };
   }
@@ -1040,6 +1204,278 @@ function applyCommand(command, snapshot, now, { atlasJob = null, priorAtlasJob =
         changes: [{ entityType: 'asset', entityId: assetId, operation: 'created' }],
       };
     }
+    case 'asset.proposal.submit': {
+      invariant(preparedAssetProposal, 'ASSET_PROPOSAL_INVALID', 'A prepared exact-lineage proposal is required.');
+      const library = assetLibrary(next);
+      const proposalId = preparedAssetProposal.proposalId;
+      invariant(!library.proposals.some((proposal) => proposal.proposalId === proposalId), 'ENTITY_EXISTS', 'The proposal ID already exists.', { proposalId });
+      const items = preparedAssetProposal.items.map((item) => {
+        const existingAsset = library.assets.find((asset) => asset.assetId === item.assetId);
+        invariant(!next.assets.some((asset) => asset.id === item.assetId), 'ENTITY_EXISTS', 'A legacy asset already uses this identity.', { assetId: item.assetId });
+        if (item.operation === 'create') {
+          invariant(!existingAsset, 'ENTITY_EXISTS', 'The V2 asset already exists.', { assetId: item.assetId });
+        } else {
+          invariant(existingAsset, 'ENTITY_NOT_FOUND', 'The V2 asset to update does not exist.', { assetId: item.assetId });
+          invariant(
+            existingAsset.assetVersion === item.expectedAssetVersion
+              && existingAsset.metadataVersion === item.expectedMetadataVersion,
+            'ENTITY_VERSION_CONFLICT',
+            'The V2 asset changed after the update was prepared.',
+            {
+              assetId: item.assetId,
+              expectedAssetVersion: item.expectedAssetVersion,
+              actualAssetVersion: existingAsset.assetVersion,
+              expectedMetadataVersion: item.expectedMetadataVersion,
+              actualMetadataVersion: existingAsset.metadataVersion,
+            },
+          );
+        }
+        return {
+          ...item,
+          diff: {
+            operation: item.operation,
+            before: existingAsset ? {
+              assetVersion: existingAsset.assetVersion,
+              metadataVersion: existingAsset.metadataVersion,
+              name: existingAsset.name,
+              kind: existingAsset.kind,
+              metadata: deepClone(existingAsset.metadata),
+              sliceBinding: deepClone(existingAsset.sliceBinding),
+            } : null,
+            after: {
+              name: item.name,
+              kind: item.kind,
+              metadata: deepClone(item.metadata),
+              sliceBinding: deepClone(item.sliceBinding),
+            },
+          },
+        };
+      });
+      const proposal = {
+        proposalId,
+        proposalVersion: 1,
+        state: 'PENDING',
+        fingerprint: preparedAssetProposal.fingerprint,
+        items: deepClone(items),
+        proposer: {
+          actor: deepClone(command.actor),
+          taskId: command.taskId,
+          grantId: command.grantId,
+          branchId: command.branchId,
+        },
+        submittedAt: now,
+        submittedRevision: command.baseRevision + 1,
+        decidedAt: null,
+        decidedBy: null,
+        decisionRevision: null,
+        appliedAt: null,
+        appliedBy: null,
+        appliedRevision: null,
+      };
+      library.proposals.push(proposal);
+      return {
+        snapshot: next,
+        result: {
+          proposalId,
+          proposalVersion: 1,
+          state: 'PENDING',
+          fingerprint: proposal.fingerprint,
+          itemCount: proposal.items.length,
+        },
+        summary: `${proposal.items.length} V2 asset proposal item(s) submitted as ${proposalId}.`,
+        changes: [{ entityType: 'asset_proposal', entityId: proposalId, operation: 'submitted' }],
+      };
+    }
+    case 'asset.proposal.decide': {
+      const library = assetLibrary(next);
+      const proposalId = requireId(payload.proposalId, 'payload.proposalId');
+      const { index, proposal } = proposalHead(library, proposalId);
+      invariant(proposal.state === 'PENDING', 'ENTITY_STATE_CONFLICT', 'Only a pending asset proposal can be decided.', { proposalId, state: proposal.state });
+      const expectedProposalVersion = requireInteger(payload.expectedProposalVersion, 'payload.expectedProposalVersion', { min: 1 });
+      invariant(proposal.proposalVersion === expectedProposalVersion, 'ENTITY_VERSION_CONFLICT', 'The proposal changed after the decision was prepared.', {
+        proposalId, expectedVersion: expectedProposalVersion, actualVersion: proposal.proposalVersion,
+      });
+      invariant(Array.isArray(payload.decisions) && payload.decisions.length === proposal.items.length, 'ASSET_PROPOSAL_DECISION_INCOMPLETE', 'The owner decision must cover every proposal item exactly once.', { proposalId });
+      const decisions = new Map();
+      for (const [decisionIndex, candidate] of payload.decisions.entries()) {
+        const decision = requireRecord(candidate, `payload.decisions[${decisionIndex}]`);
+        assertExactFields(decision, new Set(['itemId', 'disposition', 'reason']), `payload.decisions[${decisionIndex}]`);
+        invariant(Object.hasOwn(decision, 'reason'), 'VALIDATION_ERROR', 'Every decision requires an explicit reason field, which may be null for acceptance.');
+        const itemId = requireId(decision.itemId, `payload.decisions[${decisionIndex}].itemId`);
+        invariant(!decisions.has(itemId), 'ASSET_PROPOSAL_DECISION_DUPLICATE', 'A proposal item may be decided only once.', { itemId });
+        const disposition = requireEnum(decision.disposition, `payload.decisions[${decisionIndex}].disposition`, ['ACCEPTED', 'REJECTED']);
+        const reason = decision.reason === null ? null : requireString(decision.reason, `payload.decisions[${decisionIndex}].reason`, { max: 2000 });
+        invariant(disposition !== 'REJECTED' || reason !== null, 'ASSET_PROPOSAL_REJECTION_REASON_REQUIRED', 'A rejected proposal item requires a nonblank reason.', { itemId });
+        invariant(disposition !== 'ACCEPTED' || reason === null, 'VALIDATION_ERROR', 'Accepted proposal items use a null reason.', { itemId });
+        decisions.set(itemId, { disposition, reason });
+      }
+      const items = proposal.items.map((item) => {
+        const decision = decisions.get(item.itemId);
+        invariant(decision, 'ASSET_PROPOSAL_DECISION_INCOMPLETE', 'The owner decision omitted a proposal item.', { itemId: item.itemId });
+        return {
+          ...item,
+          decision: {
+            ...decision,
+            decidedAt: now,
+            decidedBy: command.actor.id,
+            decisionRevision: command.baseRevision + 1,
+          },
+        };
+      });
+      const acceptedCount = items.filter((item) => item.decision.disposition === 'ACCEPTED').length;
+      const rejectedCount = items.length - acceptedCount;
+      library.proposals[index] = {
+        ...proposal,
+        proposalVersion: 2,
+        state: 'DECIDED',
+        items,
+        decidedAt: now,
+        decidedBy: command.actor.id,
+        decisionRevision: command.baseRevision + 1,
+      };
+      return {
+        snapshot: next,
+        result: { proposalId, proposalVersion: 2, state: 'DECIDED', acceptedCount, rejectedCount },
+        summary: `Proposal ${proposalId} decided: ${acceptedCount} accepted, ${rejectedCount} rejected.`,
+        changes: [{ entityType: 'asset_proposal', entityId: proposalId, operation: 'decided' }],
+      };
+    }
+    case 'asset.proposal.apply': {
+      const library = assetLibrary(next);
+      const proposalId = requireId(payload.proposalId, 'payload.proposalId');
+      const { index, proposal } = proposalHead(library, proposalId);
+      invariant(proposal.state === 'DECIDED', 'ENTITY_STATE_CONFLICT', 'Only a decided asset proposal can be applied.', { proposalId, state: proposal.state });
+      const expectedProposalVersion = requireInteger(payload.expectedProposalVersion, 'payload.expectedProposalVersion', { min: 2 });
+      invariant(proposal.proposalVersion === expectedProposalVersion, 'ENTITY_VERSION_CONFLICT', 'The proposal changed after apply was prepared.', {
+        proposalId, expectedVersion: expectedProposalVersion, actualVersion: proposal.proposalVersion,
+      });
+      const accepted = proposal.items.filter((item) => item.decision?.disposition === 'ACCEPTED');
+      const rejected = proposal.items.filter((item) => item.decision?.disposition === 'REJECTED');
+      const preparedAssets = [];
+      for (const item of accepted) {
+        assertCurrentProposalSlice(next, item);
+        const currentIndex = library.assets.findIndex((asset) => asset.assetId === item.assetId);
+        const current = currentIndex >= 0 ? library.assets[currentIndex] : null;
+        if (item.operation === 'create') {
+          invariant(!current, 'ENTITY_EXISTS', 'The proposed asset identity is no longer absent.', { assetId: item.assetId });
+        } else {
+          invariant(current, 'ENTITY_NOT_FOUND', 'The proposed asset update target no longer exists.', { assetId: item.assetId });
+          invariant(
+            current.assetVersion === item.expectedAssetVersion
+              && current.metadataVersion === item.expectedMetadataVersion,
+            'ENTITY_VERSION_CONFLICT',
+            'The asset changed after proposal submission.',
+            { assetId: item.assetId },
+          );
+        }
+        const assetVersion = (current?.assetVersion ?? 0) + 1;
+        const metadataVersion = current === null
+          ? 1
+          : current.metadataFingerprint === item.metadataFingerprint
+            ? current.metadataVersion
+            : current.metadataVersion + 1;
+        preparedAssets.push({
+          currentIndex,
+          asset: {
+            assetId: item.assetId,
+            assetVersion,
+            metadataVersion,
+            name: item.name,
+            kind: item.kind,
+            lifecycle: 'DRAFT',
+            metadata: deepClone(item.metadata),
+            metadataFingerprint: item.metadataFingerprint,
+            findings: deepClone(item.findings),
+            sliceBinding: deepClone(item.sliceBinding),
+            warningDispositions: [],
+            createdAt: current?.createdAt ?? now,
+            createdBy: current?.createdBy ?? command.actor.id,
+            updatedAt: now,
+            updatedBy: command.actor.id,
+            proposal: {
+              proposalId,
+              itemId: item.itemId,
+              decisionRevision: proposal.decisionRevision,
+              appliedRevision: command.baseRevision + 1,
+            },
+          },
+        });
+      }
+      for (const { currentIndex, asset } of preparedAssets) {
+        if (currentIndex >= 0) library.assets[currentIndex] = asset;
+        else library.assets.push(asset);
+      }
+      library.proposals[index] = {
+        ...proposal,
+        proposalVersion: 3,
+        state: 'APPLIED',
+        appliedAt: now,
+        appliedBy: command.actor.id,
+        appliedRevision: command.baseRevision + 1,
+      };
+      const appliedAssetIds = preparedAssets.map(({ asset }) => asset.assetId);
+      const rejectedItemIds = rejected.map((item) => item.itemId);
+      return {
+        snapshot: next,
+        result: { proposalId, proposalVersion: 3, state: 'APPLIED', appliedAssetIds, rejectedItemIds },
+        summary: `Proposal ${proposalId} applied ${appliedAssetIds.length} accepted asset(s); ${rejectedItemIds.length} rejected item(s) remain inspectable.`,
+        changes: [
+          ...preparedAssets.map(({ asset }) => ({ entityType: 'asset_v2', entityId: asset.assetId, operation: asset.assetVersion === 1 ? 'created' : 'versioned' })),
+          { entityType: 'asset_proposal', entityId: proposalId, operation: 'applied' },
+        ],
+      };
+    }
+    case 'asset.lifecycle.set': {
+      const library = assetLibrary(next);
+      const assetId = requireId(payload.assetId, 'payload.assetId');
+      const index = library.assets.findIndex((asset) => asset.assetId === assetId);
+      invariant(index >= 0, 'ENTITY_NOT_FOUND', 'The V2 asset does not exist.', { assetId });
+      const current = library.assets[index];
+      const expectedAssetVersion = requireInteger(payload.expectedAssetVersion, 'payload.expectedAssetVersion', { min: 1 });
+      const expectedMetadataVersion = requireInteger(payload.expectedMetadataVersion, 'payload.expectedMetadataVersion', { min: 1 });
+      invariant(current.assetVersion === expectedAssetVersion && current.metadataVersion === expectedMetadataVersion, 'ENTITY_VERSION_CONFLICT', 'The asset changed after lifecycle promotion was prepared.', {
+        assetId,
+        expectedAssetVersion,
+        actualAssetVersion: current.assetVersion,
+        expectedMetadataVersion,
+        actualMetadataVersion: current.metadataVersion,
+      });
+      invariant(Array.isArray(payload.acceptedWarningFindingIds), 'VALIDATION_ERROR', 'payload.acceptedWarningFindingIds must be an array.');
+      const warningIds = new Set(current.findings.filter((finding) => finding.severity === 'WARNING').map((finding) => finding.findingId));
+      for (const findingId of payload.acceptedWarningFindingIds) {
+        requireString(findingId, 'payload.acceptedWarningFindingIds[]', { max: 128 });
+        invariant(warningIds.has(findingId), 'ASSET_WARNING_NOT_FOUND', 'Only a current warning finding may be dispositioned.', { assetId, findingId });
+      }
+      if (payload.targetLifecycle === 'METADATA_COMPLETE') {
+        invariant(!current.findings.some((finding) => finding.severity === 'ERROR'), 'ASSET_LIFECYCLE_BLOCKED', 'Blocking findings prevent metadata completion.', {
+          assetId,
+          findingIds: current.findings.filter((finding) => finding.severity === 'ERROR').map((finding) => finding.findingId),
+        });
+      }
+      const lifecycle = evaluateAssetLifecycle({
+        current: current.lifecycle,
+        target: payload.targetLifecycle,
+        findings: current.findings,
+        acceptedWarningFindingIds: payload.acceptedWarningFindingIds,
+      });
+      const warningDispositions = [...new Set([...current.warningDispositions, ...payload.acceptedWarningFindingIds])].sort();
+      const asset = {
+        ...current,
+        assetVersion: current.assetVersion + 1,
+        lifecycle,
+        warningDispositions,
+        updatedAt: now,
+        updatedBy: command.actor.id,
+        lifecycleRevision: command.baseRevision + 1,
+      };
+      library.assets[index] = asset;
+      return {
+        snapshot: next,
+        result: { assetId, assetVersion: asset.assetVersion, metadataVersion: asset.metadataVersion, lifecycle },
+        summary: `V2 asset ${assetId} promoted to ${lifecycle}.`,
+        changes: [{ entityType: 'asset_v2', entityId: assetId, operation: 'lifecycle_promoted' }],
+      };
+    }
     default:
       throw new StudioError('UNKNOWN_COMMAND', `Unknown Studio command: ${command.type}.`);
   }
@@ -1140,6 +1576,10 @@ export class StudioService {
     return this.#jobStore?.isLive === true && this.#store.supportsAtomicAtlasJobs === true;
   }
 
+  get durableAssetStoreReady() {
+    return this.#store.supportsAtomicAssetLibrary === true;
+  }
+
   async execute(rawCommand, trustedExecutionContext, { signal } = {}) {
     signal?.throwIfAborted();
     const command = validateEnvelope(rawCommand, trustedExecutionContext);
@@ -1201,6 +1641,13 @@ export class StudioService {
         'Atlas preview and commit require the authoritative SQLite job store.',
       );
     }
+    if (definition.requiresDurableAssetStore) {
+      invariant(
+        this.durableAssetStoreReady,
+        'ASSET_STORE_DISABLED',
+        'V2 asset proposals, decisions, apply, and lifecycle require the authoritative SQLite v9 store.',
+      );
+    }
     const head = headRevision(existing);
     invariant(command.baseRevision === head.number, 'REVISION_CONFLICT', 'The project changed after the command was prepared.', {
       projectId: command.projectId,
@@ -1217,7 +1664,10 @@ export class StudioService {
     const priorAtlasJob = priorAtlas?.latestPreviewJobId
       ? this.#jobStore.get(command.projectId, priorAtlas.latestPreviewJobId)
       : null;
-    const applied = applyCommand(command, head.snapshot, now, { atlasJob, priorAtlasJob });
+    const preparedAssetProposal = command.type === 'asset.proposal.submit'
+      ? prepareAssetProposal(command, existing)
+      : null;
+    const applied = applyCommand(command, head.snapshot, now, { atlasJob, priorAtlasJob, preparedAssetProposal });
     const revision = createRevision({
       command,
       number: head.number + 1,
@@ -1485,6 +1935,84 @@ export class StudioService {
       });
     }
     return deepFreeze({ schemaVersion: 1, projectId, revision: head.number, snapshot: deepClone(head.snapshot) });
+  }
+
+  async queryAssets(rawRequest, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
+    invariant(this.durableAssetStoreReady, 'ASSET_STORE_DISABLED', 'V2 asset queries require the authoritative SQLite v9 store.');
+    const request = requireRecord(rawRequest, 'request');
+    assertExactFields(request, new Set([
+      'schemaVersion', 'projectId', 'assetId', 'proposalId', 'text', 'kinds',
+      'lifecycles', 'tags', 'findingSeverities', 'includeProposals', 'limit',
+    ]), 'Asset query');
+    for (const field of AUTHORITY_FIELDS) {
+      invariant(!Object.hasOwn(request, field), 'UNTRUSTED_AUTHORITY_FIELD', `Asset query must not contain authority field: ${field}.`, { field });
+    }
+    invariant(request.schemaVersion === 1, 'SCHEMA_VERSION_UNSUPPORTED', 'Unsupported asset query schema version.');
+    const projectId = requireId(request.projectId, 'projectId');
+    const executionContext = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId);
+    signal?.throwIfAborted();
+    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
+    const head = headRevision(document);
+    assertAuthorized(
+      { ...executionContext, projectId, type: 'project.read', payload: {} },
+      head.snapshot,
+      { ownerOnly: false, requiredScope: 'project.read' },
+      this.#clock(),
+    );
+    const normalizeFilter = (value, field, allowed = null) => {
+      if (value === undefined) return [];
+      invariant(Array.isArray(value) && value.length <= 32, 'VALIDATION_ERROR', `${field} must contain at most 32 unique strings.`, { field });
+      const normalized = value.map((entry, index) => requireString(entry, `${field}[${index}]`, { max: 128 }));
+      invariant(new Set(normalized).size === normalized.length, 'VALIDATION_ERROR', `${field} must be unique.`, { field });
+      if (allowed) normalized.forEach((entry) => requireEnum(entry, `${field}[]`, allowed));
+      return normalized;
+    };
+    const assetId = request.assetId === undefined ? null : requireId(request.assetId, 'assetId');
+    const proposalId = request.proposalId === undefined ? null : requireId(request.proposalId, 'proposalId');
+    const text = request.text === undefined ? null : requireString(request.text, 'text', { max: 160 }).toLocaleLowerCase('en-US');
+    const kinds = normalizeFilter(request.kinds, 'kinds', ASSET_KINDS);
+    const lifecycles = normalizeFilter(request.lifecycles, 'lifecycles', ['DRAFT', 'METADATA_COMPLETE', 'VALIDATED', 'FINAL']);
+    const tags = normalizeFilter(request.tags, 'tags');
+    const findingSeverities = normalizeFilter(request.findingSeverities, 'findingSeverities', ['ERROR', 'WARNING', 'INFO']);
+    const includeProposals = request.includeProposals === undefined ? proposalId !== null : request.includeProposals;
+    invariant(typeof includeProposals === 'boolean', 'VALIDATION_ERROR', 'includeProposals must be boolean.', { field: 'includeProposals' });
+    const limit = request.limit === undefined ? 100 : requireInteger(request.limit, 'limit', { min: 1, max: 100 });
+    const library = head.snapshot.assetLibrary ?? { assets: [], proposals: [] };
+    const assets = library.assets
+      .filter((asset) => assetId === null || asset.assetId === assetId)
+      .filter((asset) => proposalId === null || asset.proposal?.proposalId === proposalId)
+      .filter((asset) => kinds.length === 0 || kinds.includes(asset.kind))
+      .filter((asset) => lifecycles.length === 0 || lifecycles.includes(asset.lifecycle))
+      .filter((asset) => tags.every((tag) => asset.metadata.tags.includes(tag)))
+      .filter((asset) => findingSeverities.length === 0 || asset.findings.some((finding) => findingSeverities.includes(finding.severity)))
+      .filter((asset) => text === null || [asset.assetId, asset.name, ...asset.metadata.tags].some((value) => value.toLocaleLowerCase('en-US').includes(text)))
+      .sort((left, right) => left.name.localeCompare(right.name) || left.assetId.localeCompare(right.assetId))
+      .slice(0, limit)
+      .map(deepClone);
+    invariant(assetId === null || assets.length === 1, 'ASSET_NOT_FOUND', 'The V2 asset does not exist in this project.', {
+      projectId,
+      assetId,
+    });
+    const proposals = includeProposals
+      ? library.proposals
+        .filter((proposal) => proposalId === null || proposal.proposalId === proposalId)
+        .sort((left, right) => left.submittedRevision - right.submittedRevision || left.proposalId.localeCompare(right.proposalId))
+        .slice(0, limit)
+        .map(deepClone)
+      : [];
+    const visibleProposals = executionContext.actor.kind === 'agent'
+      ? redactAgentOnlySourceLocations({ sources: [], assetLibrary: { proposals } }).assetLibrary.proposals
+      : proposals;
+    return deepFreeze({
+      schemaVersion: 1,
+      projectId,
+      revision: head.number,
+      filters: { assetId, proposalId, text, kinds, lifecycles, tags, findingSeverities },
+      assets,
+      proposals: visibleProposals,
+    });
   }
 
   async listActivityTrusted(projectId, { afterRevision = 0 } = {}) {

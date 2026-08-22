@@ -10,4 +10,15 @@ export {
   proposeRegularGrid,
   validateAtlasRectangles,
 } from './atlas-definition.js';
+export {
+  ASSET_KINDS,
+  ASSET_LIFECYCLES,
+  ASSET_VALIDATOR_VERSION,
+  MAX_ASSET_PROPOSAL_ITEMS,
+  evaluateAssetLifecycle,
+  validateAssetMetadata,
+  validateAssetProposal,
+  validateExactSliceBinding,
+  validateSurfaceTilingDomain,
+} from './asset-definition.js';
 export { StudioError, asStudioError, invariant } from './errors.js';

@@ -40,6 +40,21 @@ const state = {
   cutterDomDraft: null,
   cutterDeferredRender: false,
   cutterPending: false,
+  assetMutationPending: false,
+  assetOperationKeys: new Map(),
+  assetUi: {
+    search: '',
+    kind: 'all',
+    lifecycle: 'all',
+    findingSeverity: 'all',
+    selectedProposalId: null,
+    selectedAssetId: null,
+    decisionDrafts: {},
+    decisionContext: null,
+    dirty: false,
+    conflict: null,
+    domState: null,
+  },
   workspace: location.hash.slice(1) || 'overview',
   refreshing: false,
 };
@@ -90,6 +105,18 @@ function clearSourceOperationKey(operation, target = 'pending', projectId = stat
   state.sourceOperationKeys.delete(`${operation}:${projectId}:${target}`);
 }
 
+function assetOperationKey(operation, target, projectId = state.project?.projectId ?? 'none') {
+  const key = `${operation}:${projectId}:${target}`;
+  if (!state.assetOperationKeys.has(key)) {
+    state.assetOperationKeys.set(key, `${operation}.${crypto.randomUUID()}`);
+  }
+  return state.assetOperationKeys.get(key);
+}
+
+function clearAssetOperationKey(operation, target, projectId = state.project?.projectId ?? 'none') {
+  state.assetOperationKeys.delete(`${operation}:${projectId}:${target}`);
+}
+
 const elements = Object.fromEntries(
   [
     'project-select', 'demo-button', 'refresh-button', 'workspace-nav', 'workspace-content',
@@ -104,7 +131,7 @@ const elements = Object.fromEntries(
 );
 
 function updateMutationControls() {
-  const pending = state.cutterPending || state.sourceMutationPending;
+  const pending = state.cutterPending || state.sourceMutationPending || state.assetMutationPending;
   elements['project-select'].disabled = pending;
   elements['refresh-button'].disabled = pending || state.refreshing;
   elements['demo-button'].disabled = pending;
@@ -112,6 +139,16 @@ function updateMutationControls() {
     || state.agentAccess.state === 'REQUESTING';
   elements['agent-access-state'].disabled = pending || !state.project || !state.agentAccess;
   elements['agent-access-panel'].inert = pending;
+}
+
+function setAssetMutationPending(pending) {
+  state.assetMutationPending = pending;
+  updateMutationControls();
+  for (const control of elements['workspace-content'].querySelectorAll(
+    '[data-asset-filter], [data-proposal-select], [data-proposal-decision], '
+      + '[data-proposal-apply], [data-asset-lifecycle], [data-proposal-disposition], '
+      + '[data-proposal-reason]',
+  )) control.disabled = pending;
 }
 
 function setCutterPending(pending) {
@@ -182,7 +219,7 @@ function setAgentAccessPanel(open) {
 function renderAgentAccess() {
   const policy = state.agentAccess;
   const disabled = !state.project || !policy;
-  const mutationPending = state.cutterPending || state.sourceMutationPending;
+  const mutationPending = state.cutterPending || state.sourceMutationPending || state.assetMutationPending;
   elements['agent-access-select'].disabled = mutationPending || disabled || policy?.state === 'REQUESTING';
   elements['agent-access-state'].disabled = mutationPending || disabled;
   elements['agent-access-panel'].inert = mutationPending;
@@ -328,6 +365,165 @@ function assetPreview(asset) {
   image.addEventListener('error', () => figure.replaceWith(previewFallback(asset, 'LOAD_FAILED')), { once: true });
   figure.append(image);
   return figure;
+}
+
+function currentAssetLibrary(snapshot = state.project?.snapshot) {
+  return snapshot?.assetLibrary ?? { assets: [], proposals: [] };
+}
+
+function currentProjectSlices(snapshot = state.project?.snapshot) {
+  const slices = [];
+  for (const atlas of snapshot?.atlases ?? []) {
+    for (const [index, slice] of (atlas.sliceHeads ?? []).entries()) {
+      slices.push({ atlas, slice, ordinal: index + 1 });
+    }
+  }
+  return slices;
+}
+
+function sliceDisplay(binding) {
+  const match = currentProjectSlices().find(({ slice }) => (
+    slice.sliceId === binding?.sliceId && slice.version === binding?.sliceVersion
+  ));
+  return {
+    ordinal: match?.ordinal ?? null,
+    label: match ? `Slice ${match.ordinal}` : 'Pinned historical slice',
+    atlasName: match?.atlas.name ?? binding?.atlasId ?? 'Unknown atlas',
+  };
+}
+
+function safeV2Preview(asset) {
+  const declared = asset?.preview;
+  const digest = asset?.sliceBinding?.digest;
+  const projectId = state.project?.projectId;
+  const safeProjectPrefix = projectId
+    ? `/api/projects/${encodeURIComponent(projectId)}/artifacts/sha256/`
+    : null;
+  if (declared?.state === 'READY' && typeof declared.resourceUri === 'string'
+      && safeProjectPrefix && declared.resourceUri.startsWith(safeProjectPrefix)
+      && /^[a-f0-9]{64}$/.test(declared.resourceUri.slice(safeProjectPrefix.length))) {
+    return assetPreview({ ...asset, preview: declared });
+  }
+  if (safeProjectPrefix && /^[a-f0-9]{64}$/.test(digest ?? '')
+      && asset?.sliceBinding?.mediaType === 'image/png') {
+    return assetPreview({
+      ...asset,
+      preview: {
+        state: 'READY',
+        resourceUri: `${safeProjectPrefix}${digest}`,
+        alt: `${asset.name} pinned slice preview`,
+      },
+    });
+  }
+  return previewFallback(asset, declared?.state ?? (
+    asset?.sliceBinding?.mediaType && asset.sliceBinding.mediaType !== 'image/png' ? 'UNSUPPORTED' : 'MISSING'
+  ));
+}
+
+function compactValues(values, empty = 'none') {
+  return Array.isArray(values) && values.length ? values.join(', ') : empty;
+}
+
+function placementSummary(metadata = {}) {
+  const placement = metadata.placement ?? {};
+  const confirmation = placement.confirmation ?? 'missing';
+  const modes = compactValues(placement.modes);
+  const wall = placement.wallSafe === null || placement.wallSafe === undefined
+    ? 'wall safety missing'
+    : placement.wallSafe ? 'wall-safe' : 'not wall-safe';
+  return `${confirmation} · ${modes} · ${wall}`;
+}
+
+function connectivitySummary(metadata = {}) {
+  const connectors = metadata.connectors ?? [];
+  if (!connectors.length) return `none · ${metadata.continuityProfile ?? 'no profile'}`;
+  return `${connectors.map(({ edge }) => edge).join(', ')} · ${metadata.continuityProfile ?? 'profile missing'}`;
+}
+
+function collisionSummary(metadata = {}) {
+  const collision = metadata.collision;
+  if (!collision) return 'missing';
+  if (collision.mode === 'parts') return `${collision.parts?.length ?? 0} bounded parts`;
+  return collision.mode;
+}
+
+function findingSummary(findings = []) {
+  const counts = { ERROR: 0, WARNING: 0, INFO: 0 };
+  for (const finding of findings) counts[finding.severity] = (counts[finding.severity] ?? 0) + 1;
+  return findings.length
+    ? `${counts.ERROR} errors · ${counts.WARNING} warnings · ${counts.INFO} info`
+    : 'Clear';
+}
+
+function copyableCanonical(label, value, focusKey) {
+  const wrapper = document.createElement('div'); wrapper.className = 'canonical-copy';
+  const copy = document.createElement('span');
+  const caption = document.createElement('small'); caption.textContent = label;
+  const code = document.createElement('code'); code.textContent = value ?? '—';
+  copy.append(caption, code); wrapper.append(copy);
+  if (value) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'secondary'; button.textContent = 'Copy';
+    button.dataset.copyCanonical = value; button.dataset.assetFocusKey = focusKey;
+    button.setAttribute('aria-label', `Copy ${label} ${value}`);
+    wrapper.append(button);
+  }
+  return wrapper;
+}
+
+function findingsList(findings = []) {
+  const list = document.createElement('ul'); list.className = 'asset-findings';
+  if (!findings.length) {
+    const item = document.createElement('li'); item.className = 'clear'; item.textContent = 'No current findings.';
+    list.append(item); return list;
+  }
+  for (const finding of findings) {
+    const item = document.createElement('li'); item.dataset.severity = finding.severity;
+    const heading = document.createElement('strong');
+    heading.textContent = `${finding.severity} · ${finding.ruleId}`;
+    const path = document.createElement('code'); path.textContent = finding.path;
+    const explanation = document.createElement('span'); explanation.textContent = finding.explanation;
+    const remediation = document.createElement('small'); remediation.textContent = finding.remediation;
+    item.append(heading, path, explanation, remediation); list.append(item);
+  }
+  return list;
+}
+
+function captureAssetDomState() {
+  if (state.workspace !== 'assets') return;
+  const active = document.activeElement?.closest?.('[data-asset-focus-key]');
+  const scroll = {};
+  for (const element of elements['workspace-content'].querySelectorAll('[data-asset-scroll]')) {
+    scroll[element.dataset.assetScroll] = { left: element.scrollLeft, top: element.scrollTop };
+  }
+  state.assetUi.domState = {
+    context: `${state.project?.projectId ?? 'none'}:${state.assetUi.selectedProposalId ?? 'none'}`,
+    activeKey: active?.dataset.assetFocusKey ?? null,
+    selectionStart: Number.isInteger(active?.selectionStart) ? active.selectionStart : null,
+    selectionEnd: Number.isInteger(active?.selectionEnd) ? active.selectionEnd : null,
+    scroll,
+    page: { x: window.scrollX, y: window.scrollY },
+  };
+}
+
+function restoreAssetDomState() {
+  const saved = state.assetUi.domState;
+  if (!saved || saved.context !== `${state.project?.projectId ?? 'none'}:${state.assetUi.selectedProposalId ?? 'none'}`) return;
+  for (const element of elements['workspace-content'].querySelectorAll('[data-asset-scroll]')) {
+    const position = saved.scroll[element.dataset.assetScroll];
+    if (!position) continue;
+    element.scrollLeft = Math.max(0, Math.min(position.left, element.scrollWidth - element.clientWidth));
+    element.scrollTop = Math.max(0, Math.min(position.top, element.scrollHeight - element.clientHeight));
+  }
+  const active = saved.activeKey
+    ? [...elements['workspace-content'].querySelectorAll('[data-asset-focus-key]')]
+      .find((candidate) => candidate.dataset.assetFocusKey === saved.activeKey)
+    : null;
+  active?.focus({ preventScroll: true });
+  if (active && saved.selectionStart !== null && typeof active.setSelectionRange === 'function') {
+    active.setSelectionRange(saved.selectionStart, saved.selectionEnd);
+  }
+  window.scrollTo(saved.page.x, saved.page.y);
 }
 
 function sourcePreview(source) {
@@ -1120,9 +1316,12 @@ function renderOverview(snapshot) {
   const visibleGrant = activeGrants.at(-1) || snapshot.grants.at(-1);
   const metrics = document.createElement('div');
   metrics.className = 'metric-grid';
+  const v2Assets = snapshot.assetLibrary?.assets?.length ?? 0;
+  const pendingProposals = snapshot.assetLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0;
   const values = [
-    ['Sources', snapshot.sources.length], ['Assets', snapshot.assets.length],
+    ['Sources', snapshot.sources.length], ['Assets', snapshot.assets.length + v2Assets],
     ['Rooms', snapshot.rooms.length], ['Levels', snapshot.levels.length],
+    ...(snapshot.assetLibrary ? [['Pending reviews', pendingProposals]] : []),
     ['Active grants', activeGrants.length],
   ];
   for (const [label, value] of values) {
@@ -1164,6 +1363,12 @@ function renderOverview(snapshot) {
     card('Room authoring', 'Next checkpoint', 'Hallway and single-room composition will consume the approved library.'),
     card('MCP transport', 'Official 2026-07-28', 'Local stdio uses private host pairing and the same semantic command core as this visual shell.'),
   );
+  if (snapshot.assetLibrary) grid.append(card(
+    'V2 asset library',
+    v2Assets ? 'Slice-bound' : 'Ready for proposals',
+    'Immutable asset versions preserve typed semantics, findings, and exact committed-slice lineage.',
+    [['V2 heads', v2Assets], ['Pending owner reviews', pendingProposals]],
+  ));
   fragment.append(grid);
   fragment.append(sectionHeading('User control lab', 'Run these fixed semantic actions in order; no generic mutation endpoint is exposed.'));
   const controls = document.createElement('section');
@@ -1192,6 +1397,364 @@ function renderOverview(snapshot) {
     : '1 · First use “Create / load demo” in the top bar. Results appear here.';
   controls.append(buttonRow, result);
   fragment.append(controls);
+  return fragment;
+}
+
+function renderV2AssetCard(asset) {
+  const display = sliceDisplay(asset.sliceBinding);
+  const article = document.createElement('article');
+  article.className = 'card asset-card asset-v2-card';
+  article.dataset.assetId = asset.assetId;
+  if (state.assetUi.selectedAssetId === asset.assetId) article.dataset.selected = 'true';
+  article.append(safeV2Preview(asset));
+  const headingRow = document.createElement('div'); headingRow.className = 'asset-card-heading';
+  const headingCopy = document.createElement('div');
+  const badge = document.createElement('span'); badge.className = 'tag'; badge.textContent = `${asset.kind} · V2`;
+  const heading = document.createElement('h3'); heading.textContent = asset.name;
+  const lifecycle = document.createElement('span'); lifecycle.className = 'status-pill'; lifecycle.textContent = asset.lifecycle;
+  headingCopy.append(badge, heading); headingRow.append(headingCopy, lifecycle); article.append(headingRow);
+
+  const tags = document.createElement('p'); tags.className = 'asset-tags';
+  tags.textContent = compactValues(asset.metadata?.tags, 'No tags'); article.append(tags);
+  const properties = document.createElement('dl'); properties.className = 'property-list asset-summary';
+  for (const [label, value] of [
+    ['Version', `asset v${asset.assetVersion} · metadata v${asset.metadataVersion}`],
+    ['Placement', placementSummary(asset.metadata)],
+    ['Connectivity', connectivitySummary(asset.metadata)],
+    ['Collision', collisionSummary(asset.metadata)],
+    ['Navigation', asset.metadata?.navigation?.effect ?? 'missing'],
+    ['Runtime', asset.metadata?.runtimeEligible === true ? 'eligible' : asset.metadata?.runtimeEligible === false ? 'not eligible' : 'missing'],
+    ['Findings', findingSummary(asset.findings)],
+  ]) {
+    const term = document.createElement('dt'); term.textContent = label;
+    const description = document.createElement('dd'); description.textContent = value;
+    properties.append(term, description);
+  }
+  article.append(properties);
+
+  const provenance = document.createElement('section'); provenance.className = 'asset-provenance';
+  const provenanceHeading = document.createElement('strong');
+  provenanceHeading.textContent = `${display.label} · ${display.atlasName}`;
+  provenance.append(
+    provenanceHeading,
+    copyableCanonical('Canonical slice ID', asset.sliceBinding?.sliceId, `copy-asset-slice-${asset.assetId}`),
+    copyableCanonical('Asset ID', asset.assetId, `copy-asset-id-${asset.assetId}`),
+  );
+  const lineage = document.createElement('p');
+  lineage.textContent = [
+    `slice v${asset.sliceBinding?.sliceVersion ?? '—'}`,
+    `source ${asset.sliceBinding?.sourceId ?? '—'}`,
+    `atlas ${asset.sliceBinding?.atlasId ?? '—'}`,
+    `rect ${asset.sliceBinding?.rectangleId ?? '—'}`,
+    asset.sliceBinding?.rectangle
+      ? `${asset.sliceBinding.rectangle.width}×${asset.sliceBinding.rectangle.height} at ${asset.sliceBinding.rectangle.x}, ${asset.sliceBinding.rectangle.y}`
+      : 'rectangle unavailable',
+    `committed r${asset.sliceBinding?.committedRevision ?? '—'}`,
+  ].join(' · ');
+  const digest = document.createElement('code'); digest.className = 'digest';
+  digest.textContent = `sha256:${asset.sliceBinding?.digest ?? 'missing'}`;
+  const proposal = document.createElement('small');
+  proposal.textContent = asset.proposal
+    ? `Proposal ${asset.proposal.proposalId} / ${asset.proposal.itemId} · decision r${asset.proposal.decisionRevision} · applied r${asset.proposal.appliedRevision}`
+    : 'No proposal lineage recorded.';
+  provenance.append(lineage, digest, proposal); article.append(provenance);
+
+  const findingDetails = document.createElement('details');
+  const findingSummaryElement = document.createElement('summary');
+  findingSummaryElement.textContent = `Validation · ${findingSummary(asset.findings)}`;
+  findingDetails.append(findingSummaryElement, findingsList(asset.findings)); article.append(findingDetails);
+
+  const actions = document.createElement('div'); actions.className = 'asset-card-actions';
+  const inspect = document.createElement('button'); inspect.type = 'button'; inspect.className = 'secondary';
+  inspect.textContent = state.assetUi.selectedAssetId === asset.assetId ? 'Selected' : 'Inspect';
+  inspect.dataset.selectAsset = asset.assetId; inspect.dataset.assetFocusKey = `select-asset-${asset.assetId}`;
+  actions.append(inspect);
+  const nextLifecycle = {
+    DRAFT: 'METADATA_COMPLETE', METADATA_COMPLETE: 'VALIDATED', VALIDATED: 'FINAL',
+  }[asset.lifecycle];
+  if (nextLifecycle) {
+    const warnings = (asset.findings ?? []).filter(({ severity }) => severity === 'WARNING');
+    if (nextLifecycle === 'FINAL' && warnings.length) {
+      const warningBox = document.createElement('fieldset'); warningBox.className = 'warning-dispositions';
+      const legend = document.createElement('legend'); legend.textContent = 'Explicit warning disposition'; warningBox.append(legend);
+      for (const finding of warnings) {
+        const label = document.createElement('label');
+        const input = document.createElement('input'); input.type = 'checkbox';
+        input.dataset.warningDisposition = finding.findingId; input.dataset.assetId = asset.assetId;
+        input.dataset.assetFocusKey = `warning-${asset.assetId}-${finding.findingId}`;
+        input.checked = asset.warningDispositions?.includes(finding.findingId) ?? false;
+        label.append(input, document.createTextNode(` Accept ${finding.ruleId}`)); warningBox.append(label);
+      }
+      article.append(warningBox);
+    }
+    const promote = document.createElement('button'); promote.type = 'button';
+    promote.textContent = nextLifecycle === 'FINAL' ? 'Finalize asset' : `Advance to ${nextLifecycle.replace('_', ' ')}`;
+    promote.dataset.assetLifecycle = asset.assetId; promote.dataset.targetLifecycle = nextLifecycle;
+    promote.dataset.assetVersion = String(asset.assetVersion);
+    promote.dataset.metadataVersion = String(asset.metadataVersion);
+    promote.dataset.assetFocusKey = `lifecycle-${asset.assetId}`;
+    promote.disabled = state.assetMutationPending;
+    actions.append(promote);
+  }
+  article.append(actions);
+  return article;
+}
+
+function proposalDiffRows(item) {
+  const current = currentAssetLibrary().assets.find(({ assetId }) => assetId === item.assetId) ?? null;
+  const proposedSpan = item.metadata?.spanTiles
+    ? `${item.metadata.spanTiles.width}×${item.metadata.spanTiles.height}` : 'missing';
+  const rows = [
+    ['Asset', current ? `${current.name} · v${item.expectedAssetVersion}` : 'Absent', `${item.name} · ${item.operation}`],
+    ['Kind', current?.kind ?? '—', item.kind],
+    ['Slice', current ? `${sliceDisplay(current.sliceBinding).label} · v${current.sliceBinding?.sliceVersion}` : '—', `${sliceDisplay(item.sliceBinding).label} · v${item.sliceBinding?.sliceVersion ?? item.expectedSliceVersion}`],
+    ['Tags', compactValues(current?.metadata?.tags), compactValues(item.metadata?.tags)],
+    ['Footprint', current?.metadata?.spanTiles ? `${current.metadata.spanTiles.width}×${current.metadata.spanTiles.height}` : '—', proposedSpan],
+    ['Placement', current ? placementSummary(current.metadata) : '—', placementSummary(item.metadata)],
+    ['Connectivity', current ? connectivitySummary(current.metadata) : '—', connectivitySummary(item.metadata)],
+    ['Collision', current ? collisionSummary(current.metadata) : '—', collisionSummary(item.metadata)],
+    ['Navigation', current?.metadata?.navigation?.effect ?? '—', item.metadata?.navigation?.effect ?? 'missing'],
+    ['Runtime', current?.metadata?.runtimeEligible === true ? 'eligible' : current?.metadata?.runtimeEligible === false ? 'not eligible' : '—', item.metadata?.runtimeEligible === true ? 'eligible' : item.metadata?.runtimeEligible === false ? 'not eligible' : 'missing'],
+  ];
+  const table = document.createElement('table'); table.className = 'proposal-diff';
+  const head = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const value of ['Field', 'Current', 'Proposed']) {
+    const cell = document.createElement('th'); cell.scope = 'col'; cell.textContent = value; headRow.append(cell);
+  }
+  head.append(headRow); table.append(head);
+  const body = document.createElement('tbody');
+  for (const row of rows) {
+    const rowElement = document.createElement('tr');
+    row.forEach((value, index) => {
+      const cell = document.createElement(index === 0 ? 'th' : 'td');
+      if (index === 0) cell.scope = 'row'; cell.textContent = value; rowElement.append(cell);
+    });
+    body.append(rowElement);
+  }
+  table.append(body); return table;
+}
+
+function decisionDraft(proposal, item) {
+  state.assetUi.decisionDrafts[proposal.proposalId] ??= {};
+  state.assetUi.decisionDrafts[proposal.proposalId][item.itemId] ??= {
+    disposition: item.decision?.disposition ?? 'ACCEPTED',
+    reason: item.decision?.reason ?? '',
+  };
+  return state.assetUi.decisionDrafts[proposal.proposalId][item.itemId];
+}
+
+function renderProposalItem(proposal, item, index) {
+  const display = sliceDisplay(item.sliceBinding);
+  const article = document.createElement('article'); article.className = 'proposal-item';
+  article.dataset.proposalItem = item.itemId;
+  article.dataset.proposalRejectionReason = item.decision?.reason ?? decisionDraft(proposal, item).reason;
+  const headingRow = document.createElement('div'); headingRow.className = 'proposal-item-heading';
+  const heading = document.createElement('h4'); heading.textContent = `${index + 1}. ${item.name}`;
+  const disposition = document.createElement('span'); disposition.className = 'status-pill';
+  disposition.textContent = item.decision?.disposition ?? 'PENDING'; headingRow.append(heading, disposition);
+  article.append(headingRow, safeV2Preview(item));
+  const identity = document.createElement('div'); identity.className = 'proposal-identity';
+  const primary = document.createElement('strong'); primary.textContent = `${display.label} · ${item.kind}`;
+  identity.append(
+    primary,
+    copyableCanonical('Canonical slice ID', item.sliceBinding?.sliceId ?? item.sliceId, `proposal-slice-${proposal.proposalId}-${item.itemId}`),
+    copyableCanonical('Proposed asset ID', item.assetId, `proposal-asset-${proposal.proposalId}-${item.itemId}`),
+  );
+  const provenance = document.createElement('small');
+  provenance.textContent = `${display.atlasName} · slice v${item.sliceBinding?.sliceVersion ?? item.expectedSliceVersion} · committed r${item.sliceBinding?.committedRevision ?? '—'} · sha256:${item.sliceBinding?.digest ?? 'unresolved'}`;
+  identity.append(provenance); article.append(identity, proposalDiffRows(item));
+
+  const findings = document.createElement('details'); findings.open = (item.findings ?? []).length > 0;
+  const findingsSummary = document.createElement('summary');
+  findingsSummary.textContent = `Deterministic findings · ${findingSummary(item.findings)}`;
+  findings.append(findingsSummary, findingsList(item.findings)); article.append(findings);
+
+  if (proposal.state === 'PENDING') {
+    const draft = decisionDraft(proposal, item);
+    const controls = document.createElement('div'); controls.className = 'proposal-decision-fields';
+    const select = document.createElement('select');
+    select.dataset.proposalDisposition = item.itemId;
+    select.dataset.proposalId = proposal.proposalId;
+    select.dataset.assetFocusKey = `proposal-disposition-${item.itemId}`;
+    select.setAttribute('aria-label', `Decision for ${item.name}`);
+    for (const [value, label] of [['ACCEPTED', 'Accept'], ['REJECTED', 'Reject']]) {
+      const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option);
+    }
+    select.value = draft.disposition;
+    const reason = document.createElement('textarea'); reason.rows = 2; reason.maxLength = 2000;
+    reason.placeholder = 'Rejection reason (required when rejected)';
+    reason.dataset.proposalReason = item.itemId; reason.dataset.proposalId = proposal.proposalId;
+    reason.dataset.assetFocusKey = `proposal-reason-${item.itemId}`;
+    reason.setAttribute('aria-label', `Rejection reason for ${item.name}`);
+    reason.value = draft.reason; reason.hidden = draft.disposition !== 'REJECTED';
+    select.disabled = state.assetMutationPending; reason.disabled = state.assetMutationPending;
+    controls.append(select, reason); article.append(controls);
+  } else if (item.decision) {
+    const decision = document.createElement('p'); decision.className = 'proposal-decision-record';
+    decision.textContent = item.decision.disposition === 'REJECTED'
+      ? `Rejected: ${item.decision.reason}`
+      : `Accepted · decision revision ${item.decision.decisionRevision}`;
+    article.append(decision);
+  }
+  return article;
+}
+
+function renderProposalReview(proposals) {
+  const section = document.createElement('section'); section.className = 'proposal-review';
+  section.append(sectionHeading('Proposal review', 'Inspect every ordered item and record one complete owner decision vector before applying the accepted subset.'));
+  if (!proposals.length) {
+    section.append(emptyState('No V2 proposals', 'A bounded agent proposal will remain durable and inspectable here.'));
+    return section;
+  }
+  const selectedExists = proposals.some(({ proposalId }) => proposalId === state.assetUi.selectedProposalId);
+  if (!selectedExists) state.assetUi.selectedProposalId = proposals.find(({ state: proposalState }) => proposalState === 'PENDING')?.proposalId ?? proposals.at(-1).proposalId;
+  const selectorLabel = document.createElement('label'); selectorLabel.className = 'proposal-selector';
+  const selectorCopy = document.createElement('span'); selectorCopy.textContent = 'Proposal';
+  const selector = document.createElement('select'); selector.dataset.proposalSelect = '';
+  selector.dataset.assetFocusKey = 'proposal-select';
+  for (const proposal of proposals) {
+    const option = document.createElement('option'); option.value = proposal.proposalId;
+    option.textContent = `${proposal.proposalId} · ${proposal.state} · ${proposal.items.length} items`;
+    selector.append(option);
+  }
+  selector.value = state.assetUi.selectedProposalId; selector.disabled = state.assetMutationPending;
+  selectorLabel.append(selectorCopy, selector); section.append(selectorLabel);
+  const proposal = proposals.find(({ proposalId }) => proposalId === state.assetUi.selectedProposalId);
+  if (!proposal) return section;
+  section.dataset.assetProposal = proposal.proposalId;
+  section.dataset.proposalState = proposal.state;
+  if (!state.assetUi.dirty && (
+    state.assetUi.decisionContext?.projectId !== state.project?.projectId
+      || state.assetUi.decisionContext?.proposalId !== proposal.proposalId
+      || state.assetUi.decisionContext?.proposalVersion !== proposal.proposalVersion
+  )) {
+    state.assetUi.decisionContext = {
+      projectId: state.project.projectId,
+      proposalId: proposal.proposalId,
+      proposalVersion: proposal.proposalVersion,
+    };
+  }
+
+  const header = document.createElement('div'); header.className = 'proposal-header';
+  const copy = document.createElement('div');
+  const heading = document.createElement('h3'); heading.textContent = proposal.proposalId;
+  const detail = document.createElement('p');
+  detail.textContent = `Version ${proposal.proposalVersion} · ${proposal.state} · submitted revision ${proposal.submittedRevision} · ${proposal.items.length}/64 items`;
+  copy.append(heading, detail); header.append(copy);
+  const statePill = document.createElement('span'); statePill.className = 'status-pill'; statePill.textContent = proposal.state;
+  header.append(statePill); section.append(header);
+  if (state.assetUi.conflict?.proposalId === proposal.proposalId) {
+    const conflict = document.createElement('div'); conflict.className = 'asset-conflict'; conflict.setAttribute('role', 'alert');
+    const message = document.createElement('strong'); message.textContent = 'External revision conflict';
+    const detailMessage = document.createElement('span'); detailMessage.textContent = state.assetUi.conflict.message;
+    const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'secondary';
+    reset.textContent = 'Reload authoritative proposal'; reset.dataset.resetProposalDraft = proposal.proposalId;
+    reset.dataset.assetFocusKey = 'reset-proposal-draft';
+    conflict.append(message, detailMessage, reset); section.append(conflict);
+  }
+  const items = document.createElement('div'); items.className = 'proposal-items'; items.dataset.assetScroll = 'proposal-items';
+  proposal.items.forEach((item, index) => items.append(renderProposalItem(proposal, item, index)));
+  section.append(items);
+
+  const actions = document.createElement('div'); actions.className = 'proposal-actions';
+  if (proposal.state === 'PENDING') {
+    const decide = document.createElement('button'); decide.type = 'button'; decide.dataset.proposalDecision = proposal.proposalId;
+    decide.dataset.proposalVersion = String(proposal.proposalVersion); decide.dataset.assetFocusKey = 'proposal-decision';
+    decide.textContent = 'Record complete decision';
+    decide.disabled = state.assetMutationPending || state.assetUi.conflict?.proposalId === proposal.proposalId;
+    actions.append(decide);
+    const draftStatus = document.createElement('small');
+    draftStatus.textContent = state.assetUi.dirty ? 'Unsaved decision draft · preserved during refresh' : 'Every item must be covered.';
+    actions.append(draftStatus);
+  } else if (proposal.state === 'DECIDED') {
+    const accepted = proposal.items.filter((item) => item.decision?.disposition === 'ACCEPTED').length;
+    const apply = document.createElement('button'); apply.type = 'button'; apply.dataset.proposalApply = proposal.proposalId;
+    apply.dataset.proposalVersion = String(proposal.proposalVersion); apply.dataset.assetFocusKey = 'proposal-apply';
+    apply.textContent = `Apply accepted subset (${accepted})`;
+    apply.disabled = state.assetMutationPending || state.assetUi.conflict?.proposalId === proposal.proposalId;
+    actions.append(apply);
+  } else {
+    const result = document.createElement('strong');
+    const accepted = proposal.items.filter((item) => item.decision?.disposition === 'ACCEPTED').length;
+    const rejected = proposal.items.length - accepted;
+    result.textContent = `Applied ${accepted} accepted item${accepted === 1 ? '' : 's'}; ${rejected} rejected item${rejected === 1 ? '' : 's'} remains inspectable.`;
+    actions.append(result);
+  }
+  section.append(actions); return section;
+}
+
+function renderSliceVocabulary() {
+  const section = document.createElement('details'); section.className = 'slice-vocabulary';
+  const summary = document.createElement('summary'); summary.textContent = 'Committed slice vocabulary'; section.append(summary);
+  const slices = currentProjectSlices();
+  if (!slices.length) {
+    section.append(emptyState('No committed slices', 'Approve a source, cut exact rectangles, and commit the preview before proposing V2 assets.'));
+    return section;
+  }
+  const grid = document.createElement('div'); grid.className = 'slice-vocabulary-grid'; grid.dataset.assetScroll = 'slice-vocabulary';
+  for (const { atlas, slice, ordinal } of slices) {
+    const entry = document.createElement('article'); entry.className = 'slice-vocabulary-card';
+    entry.append(safeV2Preview({
+      name: `${atlas.name} Slice ${ordinal}`, kind: 'surface', sliceBinding: slice, preview: slice.preview,
+    }));
+    const heading = document.createElement('h4'); heading.textContent = `Slice ${ordinal}`;
+    const atlasName = document.createElement('p'); atlasName.textContent = atlas.name;
+    entry.append(heading, atlasName, copyableCanonical('Canonical slice ID', slice.sliceId, `slice-vocabulary-${slice.sliceId}`));
+    grid.append(entry);
+  }
+  section.append(grid); return section;
+}
+
+function renderAssetLibrary(snapshot) {
+  const fragment = document.createDocumentFragment();
+  const library = currentAssetLibrary(snapshot);
+  const filters = document.createElement('section'); filters.className = 'asset-filters';
+  const search = document.createElement('input'); search.type = 'search'; search.value = state.assetUi.search;
+  search.placeholder = 'Search name, ID, or tag'; search.dataset.assetFilter = 'search';
+  search.dataset.assetFocusKey = 'asset-filter-search'; search.setAttribute('aria-label', 'Search V2 assets');
+  const filterSelect = (name, label, values, current) => {
+    const field = document.createElement('label');
+    const copy = document.createElement('span'); copy.textContent = label;
+    const select = document.createElement('select'); select.dataset.assetFilter = name;
+    select.dataset.assetFocusKey = `asset-filter-${name}`;
+    for (const [value, text] of values) {
+      const option = document.createElement('option'); option.value = value; option.textContent = text; select.append(option);
+    }
+    select.value = current; field.append(copy, select); return field;
+  };
+  filters.append(
+    search,
+    filterSelect('kind', 'Kind', [['all', 'All kinds'], ['surface', 'Surface'], ['prop', 'Prop'], ['item', 'Item']], state.assetUi.kind),
+    filterSelect('lifecycle', 'Lifecycle', [['all', 'All lifecycle states'], ...['DRAFT', 'METADATA_COMPLETE', 'VALIDATED', 'FINAL'].map((value) => [value, value.replace('_', ' ')])], state.assetUi.lifecycle),
+    filterSelect('findingSeverity', 'Findings', [['all', 'All findings'], ['clear', 'Clear'], ['ERROR', 'Errors'], ['WARNING', 'Warnings'], ['INFO', 'Info']], state.assetUi.findingSeverity),
+  );
+  fragment.append(sectionHeading('V2 asset inventory', 'Filter immutable slice-bound heads. Cards show typed semantics, findings, and exact provenance.'), filters);
+
+  const searchText = state.assetUi.search.trim().toLocaleLowerCase('en-US');
+  const filtered = library.assets.filter((asset) => (
+    (!searchText || [asset.name, asset.assetId, ...(asset.metadata?.tags ?? [])]
+      .some((value) => String(value).toLocaleLowerCase('en-US').includes(searchText)))
+    && (state.assetUi.kind === 'all' || asset.kind === state.assetUi.kind)
+    && (state.assetUi.lifecycle === 'all' || asset.lifecycle === state.assetUi.lifecycle)
+    && (state.assetUi.findingSeverity === 'all'
+      || (state.assetUi.findingSeverity === 'clear' && !(asset.findings ?? []).length)
+      || (asset.findings ?? []).some(({ severity }) => severity === state.assetUi.findingSeverity))
+  ));
+  const count = document.createElement('p'); count.className = 'filter-result';
+  count.setAttribute('aria-live', 'polite'); count.textContent = `${filtered.length} of ${library.assets.length} V2 assets`;
+  fragment.append(count);
+  if (filtered.length) {
+    const grid = document.createElement('div'); grid.className = 'card-grid asset-grid asset-inventory-grid';
+    grid.dataset.assetScroll = 'asset-inventory'; filtered.forEach((asset) => grid.append(renderV2AssetCard(asset)));
+    fragment.append(grid);
+  } else fragment.append(emptyState('No V2 assets match', library.assets.length ? 'Change the current search or filters.' : 'Apply an accepted slice-backed proposal to create the first V2 asset.'));
+  fragment.append(renderProposalReview(library.proposals), renderSliceVocabulary());
+
+  if (snapshot.assets.length) {
+    fragment.append(sectionHeading('Legacy asset inventory', 'Checkpoint 1 assets remain unchanged and are not claimed as V2-valid.'));
+    fragment.append(renderCollection(snapshot.assets, 'assets'));
+  }
   return fragment;
 }
 
@@ -1248,17 +1811,31 @@ function workspaceRenderFingerprint() {
     cutterJob: state.workspace === 'sources' ? state.cutterJob : null,
     cutterJobEvents: state.workspace === 'sources' ? state.cutterJobEvents : null,
     cutterPending: state.cutterPending,
+    assetMutationPending: state.assetMutationPending,
+    assetUi: state.workspace === 'assets' ? {
+      search: state.assetUi.search,
+      kind: state.assetUi.kind,
+      lifecycle: state.assetUi.lifecycle,
+      findingSeverity: state.assetUi.findingSeverity,
+      selectedProposalId: state.assetUi.selectedProposalId,
+      selectedAssetId: state.assetUi.selectedAssetId,
+      decisionDrafts: state.assetUi.decisionDrafts,
+      decisionContext: state.assetUi.decisionContext,
+      dirty: state.assetUi.dirty,
+      conflict: state.assetUi.conflict,
+    } : null,
     sourceMutationPending: state.sourceMutationPending,
     labResult: state.workspace === 'overview' ? state.labResult : null,
   });
 }
 
-function renderWorkspace({ preserveCutterDraft = false } = {}) {
+function renderWorkspace({ preserveCutterDraft = false, preserveAssetDraft = false } = {}) {
   if (cutterDrag) {
     state.cutterDeferredRender = true;
     return;
   }
   captureCutterScroll();
+  if (preserveAssetDraft) captureAssetDomState();
   if (preserveCutterDraft) captureCutterDomDraft();
   else state.cutterDomDraft = null;
   for (const link of elements['workspace-nav'].querySelectorAll('a')) {
@@ -1286,7 +1863,9 @@ function renderWorkspace({ preserveCutterDraft = false } = {}) {
   let content;
   if (state.workspace === 'overview') content = renderOverview(snapshot);
   else if (state.workspace === 'sources') content = renderSources(snapshot.sources);
-  else if (state.workspace === 'assets') content = renderCollection(snapshot.assets, 'assets');
+  else if (state.workspace === 'assets') content = snapshot.assetLibrary
+    ? renderAssetLibrary(snapshot)
+    : renderCollection(snapshot.assets, 'assets');
   else if (state.workspace === 'rooms') content = renderCollection(snapshot.rooms, 'rooms');
   else if (state.workspace === 'levels') content = renderCollection(snapshot.levels, 'levels');
   else content = renderActivityWorkspace();
@@ -1295,6 +1874,7 @@ function renderWorkspace({ preserveCutterDraft = false } = {}) {
   elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
   restoreCutterScroll();
   if (preserveCutterDraft) restoreCutterDomDraft();
+  if (preserveAssetDraft) restoreAssetDomState();
 }
 
 function renderActivity() {
@@ -1314,13 +1894,17 @@ function renderActivity() {
   elements['activity-list'].replaceChildren(...items);
 }
 
-function renderProject({ preserveWorkspace = false, preserveCutterDraft = false } = {}) {
+function renderProject({
+  preserveWorkspace = false,
+  preserveCutterDraft = false,
+  preserveAssetDraft = preserveCutterDraft && state.workspace === 'assets',
+} = {}) {
   const project = state.project?.snapshot.project;
   elements['project-name'].textContent = project?.name || 'No project selected';
   elements['project-description'].textContent = project?.description || 'Create the safe demo project to see the shared command core in action.';
   elements['project-status'].textContent = project?.status || 'empty';
   elements['revision-label'].textContent = state.project ? `Revision ${state.project.revision}` : 'Revision —';
-  if (!preserveWorkspace) renderWorkspace({ preserveCutterDraft });
+  if (!preserveWorkspace) renderWorkspace({ preserveCutterDraft, preserveAssetDraft });
   renderActivity(); renderAgentAccess();
 }
 
@@ -1370,6 +1954,45 @@ async function publishVisualEvidence() {
   root.dataset.visualEvidenceReady = 'true';
 }
 
+function resetAssetUiProjectContext() {
+  state.assetUi.selectedProposalId = null;
+  state.assetUi.selectedAssetId = null;
+  state.assetUi.decisionDrafts = {};
+  state.assetUi.decisionContext = null;
+  state.assetUi.dirty = false;
+  state.assetUi.conflict = null;
+  state.assetUi.domState = null;
+}
+
+function reconcileAssetUi(project, previousContext) {
+  const library = currentAssetLibrary(project.snapshot);
+  if (state.assetUi.selectedAssetId
+      && !library.assets.some(({ assetId }) => assetId === state.assetUi.selectedAssetId)) {
+    state.assetUi.selectedAssetId = library.assets[0]?.assetId ?? null;
+  }
+  const selected = library.proposals.find(({ proposalId }) => proposalId === state.assetUi.selectedProposalId) ?? null;
+  if (!previousContext || !state.assetUi.dirty) {
+    state.assetUi.conflict = null;
+    if (selected) {
+      state.assetUi.decisionContext = {
+        projectId: project.projectId,
+        proposalId: selected.proposalId,
+        proposalVersion: selected.proposalVersion,
+      };
+    }
+    return;
+  }
+  if (!selected || selected.proposalVersion !== previousContext.proposalVersion
+      || selected.state !== previousContext.state) {
+    state.assetUi.conflict = {
+      proposalId: previousContext.proposalId,
+      message: selected
+        ? `Proposal changed from ${previousContext.state} v${previousContext.proposalVersion} to ${selected.state} v${selected.proposalVersion}. Your local draft was retained but cannot be submitted.`
+        : 'The selected proposal is no longer present. Your local draft was retained but cannot be submitted.',
+    };
+  }
+}
+
 async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged = false } = {}) {
   const session = await api('/api/ui-session');
   state.agentAccessCsrf = session.csrfToken;
@@ -1382,6 +2005,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     cancelCutterJobPolling();
     resetCutterScroll();
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
+    resetAssetUiProjectContext();
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
     state.agentAccess = null; setAgentAccessPanel(false); renderProject(); return;
@@ -1404,10 +2028,22 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     && elements['workspace-content'].dataset.renderedProjectId === projectId
     && elements['workspace-content'].dataset.renderedWorkspace === state.workspace;
   const previousWorkspaceFingerprint = mayPreserveWorkspace ? workspaceRenderFingerprint() : null;
+  const previousAssetContext = state.workspace === 'assets' && state.project?.projectId === projectId
+    ? (() => {
+      captureAssetDomState();
+      const proposal = currentAssetLibrary().proposals.find(({ proposalId }) => proposalId === state.assetUi.selectedProposalId);
+      return proposal ? {
+        proposalId: proposal.proposalId,
+        proposalVersion: proposal.proposalVersion,
+        state: proposal.state,
+      } : null;
+    })()
+    : null;
   if (state.project?.projectId && state.project.projectId !== projectId) {
     state.showMcpLauncherConfig = false;
     cancelCutterJobPolling();
     resetCutterScroll();
+    resetAssetUiProjectContext();
   }
   if (state.cutter?.projectId && state.cutter.projectId !== projectId) {
     cancelCutterJobPolling();
@@ -1427,6 +2063,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     resetSourceIntakeForm();
   }
   state.project = project; state.activity = activity.events;
+  reconcileAssetUi(project, previousAssetContext);
   if (state.cutter) {
     const sourceExists = project.snapshot.sources.some((source) => source.id === state.cutter.sourceId);
     if (!sourceExists) {
@@ -1514,7 +2151,7 @@ async function requestAgentAccess(mode, {
 }
 
 async function refresh({ quiet = false, passive = false } = {}) {
-  if (state.refreshing || state.cutterPending || state.sourceMutationPending) return;
+  if (state.refreshing || state.cutterPending || state.sourceMutationPending || state.assetMutationPending) return;
   state.refreshing = true; elements['refresh-button'].disabled = true;
   try {
     await loadProjects(state.project?.projectId, { preserveWorkspaceIfUnchanged: passive });
@@ -1534,22 +2171,218 @@ async function refresh({ quiet = false, passive = false } = {}) {
   }
 }
 
+elements['workspace-content'].addEventListener('input', (event) => {
+  const filter = event.target.closest('[data-asset-filter="search"]');
+  if (filter) {
+    state.assetUi.search = filter.value;
+    renderWorkspace({ preserveAssetDraft: true });
+    return;
+  }
+  const reason = event.target.closest('[data-proposal-reason]');
+  if (!reason) return;
+  const proposal = currentAssetLibrary().proposals.find(({ proposalId }) => proposalId === reason.dataset.proposalId);
+  const item = proposal?.items.find(({ itemId }) => itemId === reason.dataset.proposalReason);
+  if (!proposal || !item || proposal.state !== 'PENDING') return;
+  decisionDraft(proposal, item).reason = reason.value;
+  state.assetUi.dirty = true;
+  reason.closest('[data-proposal-item]')?.setAttribute('data-proposal-rejection-reason', reason.value);
+});
+
+elements['workspace-content'].addEventListener('change', (event) => {
+  const filter = event.target.closest('[data-asset-filter]:not([data-asset-filter="search"])');
+  if (filter) {
+    state.assetUi[filter.dataset.assetFilter] = filter.value;
+    renderWorkspace({ preserveAssetDraft: true });
+    return;
+  }
+  const proposalSelect = event.target.closest('[data-proposal-select]');
+  if (proposalSelect) {
+    if (state.assetUi.dirty && !window.confirm('Discard the current unsaved decision draft and inspect another proposal?')) {
+      renderWorkspace({ preserveAssetDraft: true });
+      return;
+    }
+    state.assetUi.selectedProposalId = proposalSelect.value;
+    state.assetUi.dirty = false; state.assetUi.conflict = null;
+    const proposal = currentAssetLibrary().proposals.find(({ proposalId }) => proposalId === proposalSelect.value);
+    state.assetUi.decisionContext = proposal ? {
+      projectId: state.project.projectId,
+      proposalId: proposal.proposalId,
+      proposalVersion: proposal.proposalVersion,
+    } : null;
+    renderWorkspace({ preserveAssetDraft: true });
+    return;
+  }
+  const disposition = event.target.closest('[data-proposal-disposition]');
+  if (!disposition) return;
+  const proposal = currentAssetLibrary().proposals.find(({ proposalId }) => proposalId === disposition.dataset.proposalId);
+  const item = proposal?.items.find(({ itemId }) => itemId === disposition.dataset.proposalDisposition);
+  if (!proposal || !item || proposal.state !== 'PENDING') return;
+  const draft = decisionDraft(proposal, item); draft.disposition = disposition.value;
+  if (disposition.value === 'ACCEPTED') draft.reason = '';
+  state.assetUi.dirty = true;
+  renderWorkspace({ preserveAssetDraft: true });
+});
+
+elements['workspace-content'].addEventListener('click', async (event) => {
+  const copy = event.target.closest('[data-copy-canonical]');
+  if (copy) {
+    try {
+      await navigator.clipboard.writeText(copy.dataset.copyCanonical);
+      showToast('Canonical ID copied.');
+    } catch {
+      showToast('COPY_UNAVAILABLE: Select the visible canonical ID and copy it manually.');
+    }
+    return;
+  }
+  const selectAsset = event.target.closest('[data-select-asset]');
+  if (selectAsset) {
+    state.assetUi.selectedAssetId = selectAsset.dataset.selectAsset;
+    renderWorkspace({ preserveAssetDraft: true });
+    return;
+  }
+  const reset = event.target.closest('[data-reset-proposal-draft]');
+  if (reset) {
+    delete state.assetUi.decisionDrafts[reset.dataset.resetProposalDraft];
+    state.assetUi.dirty = false; state.assetUi.conflict = null;
+    const proposal = currentAssetLibrary().proposals.find(({ proposalId }) => proposalId === reset.dataset.resetProposalDraft);
+    state.assetUi.decisionContext = proposal ? {
+      projectId: state.project.projectId,
+      proposalId: proposal.proposalId,
+      proposalVersion: proposal.proposalVersion,
+    } : null;
+    renderWorkspace({ preserveAssetDraft: true });
+    return;
+  }
+
+  const decide = event.target.closest('[data-proposal-decision]');
+  const apply = event.target.closest('[data-proposal-apply]');
+  const lifecycle = event.target.closest('[data-asset-lifecycle]');
+  if ((!decide && !apply && !lifecycle) || !state.project || !state.agentAccessCsrf
+      || state.assetMutationPending || state.cutterPending || state.sourceMutationPending) return;
+  const operationProjectId = state.project.projectId;
+  const operationRevision = state.project.revision;
+  const operationCsrf = state.agentAccessCsrf;
+  let operation;
+  let target;
+  let path;
+  let successMessage;
+  if (decide) {
+    const proposal = currentAssetLibrary().proposals.find(({ proposalId }) => proposalId === decide.dataset.proposalDecision);
+    if (!proposal || proposal.state !== 'PENDING'
+        || proposal.proposalVersion !== Number(decide.dataset.proposalVersion)
+        || state.assetUi.conflict?.proposalId === proposal.proposalId) {
+      showToast('PROPOSAL_CONTEXT_CHANGED: Reload the authoritative proposal before deciding.'); return;
+    }
+    const decisions = [];
+    for (const item of proposal.items) {
+      const draft = decisionDraft(proposal, item);
+      const reason = draft.reason.trim();
+      if (draft.disposition === 'REJECTED' && !reason) {
+        showToast(`A rejection reason is required for ${item.name}.`);
+        elements['workspace-content'].querySelector(`[data-proposal-reason="${CSS.escape(item.itemId)}"]`)?.focus();
+        return;
+      }
+      decisions.push({ itemId: item.itemId, disposition: draft.disposition, reason: draft.disposition === 'REJECTED' ? reason : null });
+    }
+    if (!window.confirm(`Record this complete ${decisions.length}-item decision? Applying the accepted subset remains a separate step.`)) return;
+    target = proposal.proposalId;
+    path = `/api/projects/${encodeURIComponent(operationProjectId)}/asset-proposals/${encodeURIComponent(target)}/decision`;
+    operation = {
+      expectedRevision: operationRevision,
+      idempotencyKey: assetOperationKey('asset-proposal-decision', target, operationProjectId),
+      expectedProposalVersion: proposal.proposalVersion,
+      decisions,
+      confirm: true,
+    };
+    successMessage = 'Complete proposal decision recorded.';
+  } else if (apply) {
+    const proposal = currentAssetLibrary().proposals.find(({ proposalId }) => proposalId === apply.dataset.proposalApply);
+    if (!proposal || proposal.state !== 'DECIDED'
+        || proposal.proposalVersion !== Number(apply.dataset.proposalVersion)) {
+      showToast('PROPOSAL_CONTEXT_CHANGED: Reload the authoritative proposal before applying.'); return;
+    }
+    const accepted = proposal.items.filter((item) => item.decision?.disposition === 'ACCEPTED').length;
+    if (!window.confirm(`Apply exactly ${accepted} accepted item${accepted === 1 ? '' : 's'} as one atomic revision? Rejected items create no assets.`)) return;
+    target = proposal.proposalId;
+    path = `/api/projects/${encodeURIComponent(operationProjectId)}/asset-proposals/${encodeURIComponent(target)}/apply`;
+    operation = {
+      expectedRevision: operationRevision,
+      idempotencyKey: assetOperationKey('asset-proposal-apply', target, operationProjectId),
+      expectedProposalVersion: proposal.proposalVersion,
+      confirm: true,
+    };
+    successMessage = `Applied ${accepted} accepted asset${accepted === 1 ? '' : 's'} atomically.`;
+  } else {
+    const asset = currentAssetLibrary().assets.find(({ assetId }) => assetId === lifecycle.dataset.assetLifecycle);
+    if (!asset || asset.assetVersion !== Number(lifecycle.dataset.assetVersion)
+        || asset.metadataVersion !== Number(lifecycle.dataset.metadataVersion)) {
+      showToast('ASSET_CONTEXT_CHANGED: Reload the authoritative asset before promotion.'); return;
+    }
+    const targetLifecycle = lifecycle.dataset.targetLifecycle;
+    const acceptedWarningFindingIds = [...elements['workspace-content'].querySelectorAll(
+      `[data-warning-disposition][data-asset-id="${CSS.escape(asset.assetId)}"]:checked`,
+    )].map((input) => input.dataset.warningDisposition);
+    if (!window.confirm(`${targetLifecycle === 'FINAL' ? 'Finalize' : 'Promote'} ${asset.name} to ${targetLifecycle}? This creates a new immutable asset version.`)) return;
+    target = asset.assetId;
+    path = `/api/projects/${encodeURIComponent(operationProjectId)}/assets/${encodeURIComponent(target)}/lifecycle`;
+    operation = {
+      expectedRevision: operationRevision,
+      idempotencyKey: assetOperationKey('asset-lifecycle', `${target}:${targetLifecycle}`, operationProjectId),
+      expectedAssetVersion: asset.assetVersion,
+      expectedMetadataVersion: asset.metadataVersion,
+      targetLifecycle,
+      acceptedWarningFindingIds,
+      confirm: true,
+    };
+    successMessage = `${asset.name} promoted to ${targetLifecycle}.`;
+  }
+
+  const operationKind = decide ? 'asset-proposal-decision' : apply ? 'asset-proposal-apply' : 'asset-lifecycle';
+  const operationTarget = lifecycle ? `${target}:${lifecycle.dataset.targetLifecycle}` : target;
+  setAssetMutationPending(true); renderWorkspace({ preserveAssetDraft: true });
+  try {
+    const response = await api(path, {
+      method: 'POST', headers: { 'x-numberdroid-studio-csrf': operationCsrf },
+      body: JSON.stringify(operation),
+    });
+    if (response.projectId !== operationProjectId || response.revision !== operationRevision + 1
+        || state.project?.projectId !== operationProjectId) {
+      const error = new Error('The mutation response did not match the captured project and revision context.');
+      error.code = 'ASSET_CONTEXT_CHANGED'; throw error;
+    }
+    clearAssetOperationKey(operationKind, operationTarget, operationProjectId);
+    if (decide) {
+      delete state.assetUi.decisionDrafts[target]; state.assetUi.dirty = false;
+      state.assetUi.conflict = null;
+    }
+    await loadProject(operationProjectId, { preserveWorkspaceIfUnchanged: true });
+    showToast(successMessage);
+  } catch (error) {
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+    if (state.project?.projectId === operationProjectId) {
+      await loadProject(operationProjectId, { preserveWorkspaceIfUnchanged: true }).catch(() => {});
+    }
+  } finally {
+    setAssetMutationPending(false); renderWorkspace({ preserveAssetDraft: true });
+  }
+});
+
 elements['workspace-nav'].addEventListener('click', (event) => {
   const link = event.target.closest('[data-workspace]');
   if (!link) return;
-  if (state.sourceMutationPending) { event.preventDefault(); return; }
+  if (state.sourceMutationPending || state.assetMutationPending) { event.preventDefault(); return; }
   state.workspace = link.dataset.workspace; location.hash = state.workspace; renderWorkspace();
   void publishVisualEvidence();
 });
 elements['project-select'].addEventListener('change', () => {
-  if (state.cutterPending || state.sourceMutationPending) {
+  if (state.cutterPending || state.sourceMutationPending || state.assetMutationPending) {
     elements['project-select'].value = state.project?.projectId ?? '';
     return;
   }
   void loadProject(elements['project-select'].value);
 });
 elements['refresh-button'].addEventListener('click', () => {
-  if (!state.cutterPending && !state.sourceMutationPending) void refresh({ passive: true });
+  if (!state.cutterPending && !state.sourceMutationPending && !state.assetMutationPending) void refresh({ passive: true });
 });
 elements['agent-access-select'].addEventListener('change', () => {
   if (state.sourceMutationPending) return;
@@ -1582,6 +2415,7 @@ elements['agent-access-close'].addEventListener('click', () => {
   elements['agent-access-state'].focus();
 });
 document.addEventListener('keydown', (event) => {
+  if (cutterDrag) return;
   if (event.key !== 'Escape' || elements['agent-access-panel'].hidden) return;
   setAgentAccessPanel(false);
   elements['agent-access-state'].focus();
@@ -2305,7 +3139,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   showToast(`${state.labResult.code}: ${state.labResult.message}`);
 });
 elements['demo-button'].addEventListener('click', async () => {
-  if (state.cutterPending || state.sourceMutationPending) return;
+  if (state.cutterPending || state.sourceMutationPending || state.assetMutationPending) return;
   elements['demo-button'].disabled = true;
   try {
     const project = await api('/api/demo', {
@@ -2319,7 +3153,7 @@ elements['demo-button'].addEventListener('click', async () => {
   }
 });
 window.addEventListener('hashchange', () => {
-  if (state.sourceMutationPending) {
+  if (state.sourceMutationPending || state.assetMutationPending) {
     history.replaceState(null, '', `#${state.workspace}`);
     return;
   }

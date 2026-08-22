@@ -60,6 +60,115 @@ const atlasRectangle = {
   },
 };
 
+const tileSpan = {
+  type: ['object', 'null'],
+  additionalProperties: false,
+  required: ['width', 'height'],
+  properties: {
+    width: { type: 'integer', minimum: 1, maximum: 64 },
+    height: { type: 'integer', minimum: 1, maximum: 64 },
+  },
+};
+
+const collisionRect = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['x', 'y', 'width', 'height'],
+  properties: {
+    x: { type: 'number', minimum: 0, maximum: 64 },
+    y: { type: 'number', minimum: 0, maximum: 64 },
+    width: { type: 'number', exclusiveMinimum: 0, maximum: 64 },
+    height: { type: 'number', exclusiveMinimum: 0, maximum: 64 },
+  },
+};
+
+const assetMetadataV2 = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'role', 'tags', 'variantGroup', 'compatibilityGroups', 'spanTiles', 'anchor',
+    'attachment', 'rotationPolicy', 'placement', 'collision', 'navigation',
+    'runtimeEligible', 'connectors', 'continuityProfile', 'continuityTags',
+    'selectionPriority', 'visualWeight', 'extensions',
+  ],
+  properties: {
+    role: { type: ['string', 'null'], maxLength: 64 },
+    tags: { type: 'array', maxItems: 32, uniqueItems: true, items: { type: 'string', maxLength: 64 } },
+    variantGroup: { type: ['string', 'null'], maxLength: 128 },
+    compatibilityGroups: { type: 'array', maxItems: 16, uniqueItems: true, items: { type: 'string', maxLength: 128 } },
+    spanTiles: tileSpan,
+    anchor: {
+      type: ['object', 'null'], additionalProperties: false, required: ['x', 'y'],
+      properties: { x: { type: 'integer', minimum: 0, maximum: 63 }, y: { type: 'integer', minimum: 0, maximum: 63 } },
+    },
+    attachment: { type: ['string', 'null'], enum: ['ground', 'wall', 'ceiling', 'free', null] },
+    rotationPolicy: { type: ['string', 'null'], enum: ['fixed', 'cardinal', null] },
+    placement: {
+      type: 'object', additionalProperties: false,
+      required: ['modes', 'wallSafe', 'tags', 'confirmation'],
+      properties: {
+        modes: { type: 'array', maxItems: 8, uniqueItems: true, items: { type: 'string', enum: ['manual', 'automatic', 'perimeter', 'threshold', 'overlay'] } },
+        wallSafe: { type: ['boolean', 'null'] },
+        tags: { type: 'array', maxItems: 32, uniqueItems: true, items: { type: 'string', maxLength: 64 } },
+        confirmation: { type: 'string', enum: ['missing', 'proposed', 'confirmed'] },
+      },
+    },
+    collision: {
+      type: ['object', 'null'], additionalProperties: false,
+      required: ['mode', 'bounds', 'parts'],
+      properties: {
+        mode: { type: 'string', enum: ['none', 'bounds', 'parts'] },
+        bounds: { ...collisionRect, type: ['object', 'null'] },
+        parts: { type: 'array', maxItems: 16, items: collisionRect },
+      },
+    },
+    navigation: {
+      type: ['object', 'null'], additionalProperties: false, required: ['effect', 'cost'],
+      properties: {
+        effect: { type: 'string', enum: ['passable', 'blocked', 'cost'] },
+        cost: { type: ['number', 'null'], minimum: 1, maximum: 100 },
+      },
+    },
+    runtimeEligible: { type: ['boolean', 'null'] },
+    connectors: {
+      type: 'array', maxItems: 4,
+      items: {
+        type: 'object', additionalProperties: false, required: ['edge', 'offset'],
+        properties: {
+          edge: { type: 'string', enum: ['north', 'east', 'south', 'west'] },
+          offset: { type: 'number', minimum: 0, maximum: 1 },
+        },
+      },
+    },
+    continuityProfile: { type: ['string', 'null'], maxLength: 128 },
+    continuityTags: { type: 'array', maxItems: 32, uniqueItems: true, items: { type: 'string', maxLength: 64 } },
+    selectionPriority: { type: 'integer', minimum: -1000, maximum: 1000 },
+    visualWeight: { type: ['string', 'null'], enum: ['light', 'medium', 'heavy', null] },
+    extensions: { type: 'object', maxProperties: 32 },
+  },
+};
+
+const assetProposalItem = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'itemId', 'operation', 'assetId', 'expectedAssetVersion', 'expectedMetadataVersion',
+    'sliceId', 'expectedSliceVersion', 'name', 'kind', 'metadata',
+  ],
+  properties: {
+    itemId: id,
+    operation: { type: 'string', enum: ['create', 'update'] },
+    assetId: id,
+    expectedAssetVersion: { type: 'integer', minimum: 0 },
+    expectedMetadataVersion: { type: 'integer', minimum: 0 },
+    sliceId: id,
+    expectedSliceVersion: { type: 'integer', minimum: 1 },
+    name: { ...nonEmpty, maxLength: 160 },
+    kind: { type: 'string', enum: ['surface', 'prop', 'item'] },
+    metadata: assetMetadataV2,
+  },
+};
+
 const definitions = [
   {
     type: 'project.create',
@@ -330,6 +439,88 @@ const definitions = [
         },
         properties: { type: 'object' },
         status: { type: 'string', enum: ['draft', 'in_review'] },
+      },
+    },
+  },
+  {
+    type: 'asset.proposal.submit',
+    toolName: 'studio_asset_proposal_submit',
+    description: 'Submit a durable bounded V2 asset proposal backed by exact committed slice versions.',
+    requiredScope: 'asset.proposal.submit',
+    requiredObjectScope: 'project',
+    ownerOnly: false,
+    requiresDurableAgentLedger: true,
+    requiresDurableAssetStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['proposalId', 'expectedRevision', 'items'],
+      properties: {
+        proposalId: id,
+        expectedRevision: { type: 'integer', minimum: 1 },
+        items: { type: 'array', minItems: 1, maxItems: 64, items: assetProposalItem },
+      },
+    },
+  },
+  {
+    type: 'asset.proposal.decide',
+    toolName: 'studio_asset_proposal_decide',
+    description: 'Record one complete owner decision vector for a pending V2 asset proposal.',
+    requiredScope: 'asset.proposal.decide',
+    ownerOnly: true,
+    requiresDurableAssetStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['proposalId', 'expectedProposalVersion', 'decisions'],
+      properties: {
+        proposalId: id,
+        expectedProposalVersion: { type: 'integer', minimum: 1 },
+        decisions: {
+          type: 'array', minItems: 1, maxItems: 64,
+          items: {
+            type: 'object', additionalProperties: false,
+            required: ['itemId', 'disposition', 'reason'],
+            properties: {
+              itemId: id,
+              disposition: { type: 'string', enum: ['ACCEPTED', 'REJECTED'] },
+              reason: { type: ['string', 'null'], maxLength: 2000 },
+            },
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'asset.proposal.apply',
+    toolName: 'studio_asset_proposal_apply',
+    description: 'Atomically apply the accepted subset of one decided V2 asset proposal.',
+    requiredScope: 'asset.proposal.apply',
+    ownerOnly: true,
+    requiresDurableAssetStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['proposalId', 'expectedProposalVersion'],
+      properties: {
+        proposalId: id,
+        expectedProposalVersion: { type: 'integer', minimum: 2 },
+      },
+    },
+  },
+  {
+    type: 'asset.lifecycle.set',
+    toolName: 'studio_asset_lifecycle_set',
+    description: 'Promote one immutable V2 asset version through an owner-controlled lifecycle gate.',
+    requiredScope: 'asset.lifecycle.set',
+    ownerOnly: true,
+    requiresDurableAssetStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['assetId', 'expectedAssetVersion', 'expectedMetadataVersion', 'targetLifecycle', 'acceptedWarningFindingIds'],
+      properties: {
+        assetId: id,
+        expectedAssetVersion: { type: 'integer', minimum: 1 },
+        expectedMetadataVersion: { type: 'integer', minimum: 1 },
+        targetLifecycle: { type: 'string', enum: ['METADATA_COMPLETE', 'VALIDATED', 'FINAL'] },
+        acceptedWarningFindingIds: { type: 'array', maxItems: 1024, uniqueItems: true, items: { type: 'string', maxLength: 128 } },
       },
     },
   },

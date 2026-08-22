@@ -376,13 +376,286 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
     jobFindings.push({ projectId: null, jobId: null, code: 'JOB_QUERY_FAILED', message: 'Durable job integrity could not be inspected.', cause: error.message });
   }
   const jobs = { ok: jobFindings.length === 0, count: jobCount, findings: jobFindings };
+  const assetFindings = [];
+  let assetVersionCount = 0;
+  try {
+    const db = projectStore.workspace.database;
+    const bindings = db.prepare(`SELECT * FROM asset_slice_bindings ORDER BY project_id, slice_id, slice_version`).all();
+    const bindingById = new Map(bindings.map((row) => [`${row.project_id}:${row.slice_id}:${row.slice_version}`, row]));
+    const artifact = db.prepare('SELECT * FROM artifacts WHERE digest = ?');
+    const reference = db.prepare(`
+      SELECT 1 FROM artifact_references
+      WHERE project_id = ? AND owner_kind = ? AND owner_id = ? AND digest = ?
+    `);
+    for (const binding of bindings) {
+      const stored = artifact.get(binding.artifact_digest);
+      if (!stored || stored.state !== 'LIVE' || stored.uri !== binding.artifact_uri
+        || stored.media_type !== binding.media_type || Number(stored.byte_size) !== Number(binding.byte_size)
+        || Number(stored.width) !== Number(binding.width) || Number(stored.height) !== Number(binding.height)
+        || !reference.get(binding.project_id, 'atlas_slice', `${binding.slice_id}.v${binding.slice_version}`, binding.artifact_digest)) {
+        assetFindings.push({ projectId: binding.project_id, sliceId: binding.slice_id, sliceVersion: Number(binding.slice_version), code: 'ASSET_SLICE_ARTIFACT_MISMATCH', message: 'An exact slice binding lost its LIVE artifact metadata or reference.' });
+      }
+      if (!reference.get(binding.project_id, 'source', binding.source_id, binding.source_digest)
+        && !reference.get(binding.project_id, 'source_lineage', binding.source_id, binding.source_digest)) {
+        assetFindings.push({ projectId: binding.project_id, sliceId: binding.slice_id, code: 'ASSET_SLICE_SOURCE_REFERENCE_MISSING', message: 'An exact slice binding lost its source lineage reference.' });
+      }
+    }
+    const versions = db.prepare(`SELECT * FROM asset_versions ORDER BY project_id, asset_id, asset_version`).all();
+    assetVersionCount = versions.length;
+    const versionFindings = db.prepare(`
+      SELECT * FROM asset_version_findings
+      WHERE project_id = ? AND asset_id = ? AND asset_version = ? ORDER BY finding_order
+    `);
+    const revisionType = db.prepare('SELECT command_type FROM revisions WHERE project_id = ? AND revision_number = ?');
+    const lifecycleOrder = ['DRAFT', 'METADATA_COMPLETE', 'VALIDATED', 'FINAL'];
+    const latestByAsset = new Map();
+    for (const version of versions) {
+      const key = `${version.project_id}:${version.asset_id}`;
+      const prior = latestByAsset.get(key);
+      if (Number(version.asset_version) !== (prior ? Number(prior.asset_version) + 1 : 1)) {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_VERSION_SEQUENCE_INVALID', message: 'Asset versions are not consecutive.' });
+      }
+      latestByAsset.set(key, version);
+      const binding = bindingById.get(`${version.project_id}:${version.slice_id}:${version.slice_version}`);
+      if (!binding) {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_VERSION_BINDING_MISSING', message: 'An asset version has no exact slice binding.' });
+        continue;
+      }
+      let metadata;
+      let findings;
+      try {
+        metadata = JSON.parse(version.metadata_json);
+        const findingRows = versionFindings.all(version.project_id, version.asset_id, version.asset_version);
+        findings = findingRows.map((row) => JSON.parse(row.finding_json));
+        for (const [index, row] of findingRows.entries()) {
+          const findingValue = findings[index];
+          if (findingValue.findingId !== row.finding_id || findingValue.severity !== row.severity
+            || findingValue.ruleId !== row.rule_id || findingValue.targetKind !== row.target_kind
+            || findingValue.targetId !== row.target_id || findingValue.path !== row.path
+            || findingValue.explanation !== row.explanation || findingValue.remediation !== row.remediation
+            || findingValue.validatorVersion !== row.validator_version || Number(row.finding_order) !== index) {
+            assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_FINDING_COLUMNS_MISMATCH', message: 'Asset finding columns differ from their immutable JSON.' });
+          }
+        }
+      } catch {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_VERSION_JSON_INVALID', message: 'Asset version JSON is invalid.' });
+        continue;
+      }
+      if (fingerprint({ kind: version.kind, metadata }) !== version.metadata_fingerprint) {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_METADATA_FINGERPRINT_MISMATCH', message: 'Asset metadata differs from its fingerprint.' });
+      }
+      if (fingerprint(findings) !== version.findings_fingerprint) {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_FINDINGS_FINGERPRINT_MISMATCH', message: 'Asset findings differ from their fingerprint.' });
+      }
+      const expectedMetadataVersion = prior
+        ? Number(prior.metadata_version) + (prior.metadata_fingerprint === version.metadata_fingerprint ? 0 : 1)
+        : 1;
+      if (Number(version.metadata_version) !== expectedMetadataVersion) {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_METADATA_VERSION_INVALID', message: 'Metadata version changed without typed metadata, or typed metadata changed without a version increment.' });
+      }
+      const commandType = revisionType.get(version.project_id, version.created_revision)?.command_type;
+      if (commandType === 'asset.lifecycle.set') {
+        const lifecycleStep = prior ? lifecycleOrder.indexOf(version.lifecycle) - lifecycleOrder.indexOf(prior.lifecycle) : -1;
+        if (!prior || lifecycleStep !== 1 || version.name !== prior.name || version.kind !== prior.kind
+          || version.slice_id !== prior.slice_id || Number(version.slice_version) !== Number(prior.slice_version)
+          || version.metadata_fingerprint !== prior.metadata_fingerprint
+          || version.proposal_id !== prior.proposal_id || version.proposal_item_id !== prior.proposal_item_id) {
+          assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_LIFECYCLE_VERSION_INVALID', message: 'A lifecycle-only version changed immutable content/provenance or skipped lifecycle order.' });
+        }
+      }
+      let acceptedWarningIds = [];
+      try { acceptedWarningIds = JSON.parse(version.accepted_warning_ids_json); } catch {}
+      const findingIds = new Set(findings.map((entry) => entry.findingId));
+      if (!Array.isArray(acceptedWarningIds) || acceptedWarningIds.some((findingId) => !findingIds.has(findingId))) {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_WARNING_DISPOSITION_INVALID', message: 'An asset version accepts a warning that is absent from its findings.' });
+      }
+      if (version.lifecycle === 'FINAL' && (findings.some((entry) => entry.severity === 'ERROR')
+        || findings.some((entry) => entry.severity === 'WARNING' && !acceptedWarningIds.includes(entry.findingId)))) {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_FINAL_FINDINGS_INVALID', message: 'A FINAL asset retains an error or an undispositioned warning.' });
+      }
+      if (!reference.get(version.project_id, 'asset_version', `${version.asset_id}.v${version.asset_version}`, binding.artifact_digest)) {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_VERSION_REFERENCE_MISSING', message: 'An asset version has no exact artifact reference.' });
+      }
+    }
+    const heads = db.prepare('SELECT * FROM asset_heads ORDER BY project_id, asset_id').all();
+    const tagsForHead = db.prepare('SELECT tag, tag_order FROM asset_head_tags WHERE project_id = ? AND asset_id = ? ORDER BY tag_order');
+    for (const head of heads) {
+      const latest = latestByAsset.get(`${head.project_id}:${head.asset_id}`);
+      if (!latest || Number(head.asset_version) !== Number(latest.asset_version)
+        || Number(head.metadata_version) !== Number(latest.metadata_version)
+        || head.slice_id !== latest.slice_id || Number(head.slice_version) !== Number(latest.slice_version)
+        || head.name !== latest.name || head.kind !== latest.kind || head.lifecycle !== latest.lifecycle) {
+        assetFindings.push({ projectId: head.project_id, assetId: head.asset_id, code: 'ASSET_HEAD_MISMATCH', message: 'An asset head does not match its latest immutable version.' });
+      }
+      if (latest) {
+        let metadata = {};
+        try { metadata = JSON.parse(latest.metadata_json); } catch {}
+        const tags = tagsForHead.all(head.project_id, head.asset_id);
+        if (tags.some((tag, index) => Number(tag.tag_order) !== index)
+          || fingerprint(tags.map((tag) => tag.tag)) !== fingerprint(metadata.tags ?? [])) {
+          assetFindings.push({ projectId: head.project_id, assetId: head.asset_id, code: 'ASSET_HEAD_TAGS_MISMATCH', message: 'Asset head tags do not match ordered typed metadata tags.' });
+        }
+      }
+    }
+    const proposals = db.prepare('SELECT * FROM asset_proposals ORDER BY project_id, proposal_id').all();
+    const itemCount = db.prepare('SELECT count(*) AS count FROM asset_proposal_items WHERE project_id = ? AND proposal_id = ?');
+    const decisionCount = db.prepare('SELECT count(*) AS count FROM asset_proposal_decisions WHERE project_id = ? AND proposal_id = ?');
+    const application = db.prepare('SELECT * FROM asset_proposal_applications WHERE project_id = ? AND proposal_id = ?');
+    const proposalItems = db.prepare('SELECT * FROM asset_proposal_items WHERE project_id = ? AND proposal_id = ? ORDER BY item_order');
+    const proposalFindingRows = db.prepare(`
+      SELECT * FROM asset_proposal_item_findings
+      WHERE project_id = ? AND proposal_id = ? AND item_id = ? ORDER BY finding_order
+    `);
+    const proposalDecisions = db.prepare('SELECT * FROM asset_proposal_decisions WHERE project_id = ? AND proposal_id = ? ORDER BY item_id');
+    const projectHead = db.prepare('SELECT head_snapshot_json FROM projects WHERE project_id = ?');
+    for (const proposal of proposals) {
+      const items = Number(itemCount.get(proposal.project_id, proposal.proposal_id).count);
+      const decisions = Number(decisionCount.get(proposal.project_id, proposal.proposal_id).count);
+      const applied = application.get(proposal.project_id, proposal.proposal_id);
+      if (items !== Number(proposal.item_count)
+        || (proposal.status !== 'PENDING' && decisions !== items)
+        || (proposal.status === 'APPLIED' && (!applied || Number(applied.accepted_count) + Number(applied.rejected_count) !== items))) {
+        assetFindings.push({ projectId: proposal.project_id, proposalId: proposal.proposal_id, code: 'ASSET_PROPOSAL_PROJECTION_MISMATCH', message: 'Proposal items, decisions, application, and durable state disagree.' });
+      }
+      const itemRows = proposalItems.all(proposal.project_id, proposal.proposal_id);
+      const decisionByItem = new Map(proposalDecisions.all(proposal.project_id, proposal.proposal_id).map((row) => [row.item_id, row]));
+      for (const [itemOrder, item] of itemRows.entries()) {
+        let metadata;
+        let diff;
+        let findingValues;
+        try {
+          metadata = JSON.parse(item.desired_metadata_json);
+          diff = JSON.parse(item.diff_json);
+          const rows = proposalFindingRows.all(item.project_id, item.proposal_id, item.item_id);
+          findingValues = rows.map((row) => JSON.parse(row.finding_json));
+          for (const [findingOrder, row] of rows.entries()) {
+            const value = findingValues[findingOrder];
+            if (Number(row.finding_order) !== findingOrder || value.findingId !== row.finding_id
+              || value.severity !== row.severity || value.ruleId !== row.rule_id
+              || value.targetKind !== row.target_kind || value.targetId !== row.target_id
+              || value.path !== row.path || value.explanation !== row.explanation
+              || value.remediation !== row.remediation || value.validatorVersion !== row.validator_version) {
+              assetFindings.push({ projectId: item.project_id, proposalId: item.proposal_id, itemId: item.item_id, code: 'ASSET_PROPOSAL_FINDING_COLUMNS_MISMATCH', message: 'Proposal finding columns differ from immutable JSON.' });
+            }
+          }
+        } catch {
+          assetFindings.push({ projectId: item.project_id, proposalId: item.proposal_id, itemId: item.item_id, code: 'ASSET_PROPOSAL_ITEM_JSON_INVALID', message: 'Proposal item JSON is invalid.' });
+          continue;
+        }
+        if (Number(item.item_order) !== itemOrder || fingerprint({ kind: item.desired_kind, metadata }) !== item.desired_metadata_fingerprint
+          || fingerprint(findingValues) !== item.finding_fingerprint || diff.operation !== item.operation
+          || (item.operation === 'create' && (Number(item.expected_asset_version) !== 0 || Number(item.expected_metadata_version) !== 0))) {
+          assetFindings.push({ projectId: item.project_id, proposalId: item.proposal_id, itemId: item.item_id, code: 'ASSET_PROPOSAL_ITEM_MISMATCH', message: 'Proposal item ordering, typed metadata, findings, diff, or expected versions disagree.' });
+        }
+        const decision = decisionByItem.get(item.item_id);
+        if (proposal.status !== 'PENDING' && (!decision
+          || (decision.decision === 'ACCEPTED' && decision.rejection_reason !== null)
+          || (decision.decision === 'REJECTED' && !decision.rejection_reason?.trim())
+          || Number(decision.decision_revision) !== Number(proposal.decided_revision))) {
+          assetFindings.push({ projectId: item.project_id, proposalId: item.proposal_id, itemId: item.item_id, code: 'ASSET_PROPOSAL_DECISION_MISMATCH', message: 'Proposal decision vector or revision is inconsistent.' });
+        }
+      }
+      let snapshot;
+      try { snapshot = JSON.parse(projectHead.get(proposal.project_id).head_snapshot_json); } catch { snapshot = null; }
+      const semantic = snapshot?.assetLibrary?.proposals?.find((entry) => entry.proposalId === proposal.proposal_id);
+      if (!semantic || semantic.state !== proposal.status || semantic.fingerprint !== proposal.request_fingerprint
+        || semantic.items.length !== Number(proposal.item_count)
+        || Number(semantic.submittedRevision) !== Number(proposal.created_revision)
+        || Number(semantic.decisionRevision) !== Number(proposal.decided_revision)
+        || Number(semantic.appliedRevision) !== Number(proposal.applied_revision)) {
+        assetFindings.push({ projectId: proposal.project_id, proposalId: proposal.proposal_id, code: 'ASSET_PROPOSAL_SNAPSHOT_MISMATCH', message: 'Durable proposal header differs from the semantic project head.' });
+      } else {
+        for (const semanticItem of semantic.items) {
+          const item = itemRows.find((entry) => entry.item_id === semanticItem.itemId);
+          const decision = decisionByItem.get(semanticItem.itemId);
+          if (!item || fingerprint(JSON.parse(item.diff_json)) !== fingerprint(semanticItem.diff)
+            || fingerprint(JSON.parse(item.desired_metadata_json)) !== fingerprint(semanticItem.metadata)
+            || decision?.decision !== semanticItem.decision?.disposition
+            || (decision?.rejection_reason ?? null) !== (semanticItem.decision?.reason ?? null)) {
+            assetFindings.push({ projectId: proposal.project_id, proposalId: proposal.proposal_id, itemId: semanticItem.itemId, code: 'ASSET_PROPOSAL_SEMANTIC_MISMATCH', message: 'Durable proposal item/decision differs from the semantic project head.' });
+          }
+        }
+        if (proposal.status === 'APPLIED' && (Number(applied?.application_revision) !== Number(semantic.appliedRevision)
+          || applied?.applied_at !== semantic.appliedAt || applied?.applied_by !== semantic.appliedBy)) {
+          assetFindings.push({ projectId: proposal.project_id, proposalId: proposal.proposal_id, code: 'ASSET_PROPOSAL_APPLICATION_MISMATCH', message: 'Proposal application differs from semantic application state.' });
+        }
+      }
+    }
+    const projectRows = db.prepare('SELECT project_id, head_snapshot_json FROM projects ORDER BY project_id').all();
+    for (const project of projectRows) {
+      let snapshot;
+      try { snapshot = JSON.parse(project.head_snapshot_json); } catch { continue; }
+      const semanticAssets = snapshot.assetLibrary?.assets ?? [];
+      const projectHeads = heads.filter((head) => head.project_id === project.project_id);
+      if (semanticAssets.length !== projectHeads.length) {
+        assetFindings.push({ projectId: project.project_id, code: 'ASSET_LIBRARY_SNAPSHOT_COUNT_MISMATCH', message: 'Normalized asset heads differ from the semantic project head count.' });
+      }
+      for (const semantic of semanticAssets) {
+        const head = projectHeads.find((entry) => entry.asset_id === semantic.assetId);
+        const latest = latestByAsset.get(`${project.project_id}:${semantic.assetId}`);
+        if (!head || !latest || Number(latest.asset_version) !== semantic.assetVersion
+          || Number(latest.metadata_version) !== semantic.metadataVersion || latest.name !== semantic.name
+          || latest.kind !== semantic.kind || latest.lifecycle !== semantic.lifecycle
+          || fingerprint(JSON.parse(latest.metadata_json)) !== fingerprint(semantic.metadata)
+          || latest.slice_id !== semantic.sliceBinding.sliceId
+          || Number(latest.slice_version) !== semantic.sliceBinding.sliceVersion) {
+          assetFindings.push({ projectId: project.project_id, assetId: semantic.assetId, code: 'ASSET_LIBRARY_SNAPSHOT_MISMATCH', message: 'Normalized latest asset differs from the semantic project head.' });
+        }
+      }
+    }
+  } catch (error) {
+    assetFindings.push({ projectId: null, code: 'ASSET_LIBRARY_QUERY_FAILED', message: 'V9 asset integrity could not be inspected.', cause: error.message });
+  }
+  const assets = { ok: assetFindings.length === 0, versionCount: assetVersionCount, findings: assetFindings };
+
+  const bundleImportFindings = [];
+  let bundleImportJobCount = 0;
+  try {
+    const db = projectStore.workspace.database;
+    const importedJobs = db.prepare('SELECT * FROM bundle_import_applied_jobs ORDER BY project_id, job_id').all();
+    bundleImportJobCount = importedJobs.length;
+    const outputReference = db.prepare(`
+      SELECT 1 FROM artifact_references
+      WHERE project_id = ? AND owner_kind IN ('atlas_slice', 'bundle_import_job_output') AND digest = ? LIMIT 1
+    `);
+    for (const job of importedJobs) {
+      let input;
+      let outputs;
+      let events;
+      try {
+        input = JSON.parse(job.input_json);
+        outputs = JSON.parse(job.output_json);
+        JSON.parse(job.result_json);
+        events = JSON.parse(job.events_json);
+      } catch {
+        bundleImportFindings.push({ projectId: job.project_id, jobId: job.job_id, code: 'BUNDLE_IMPORT_JOB_JSON_INVALID', message: 'Imported applied-job history contains invalid JSON.' });
+        continue;
+      }
+      if (fingerprint(input) !== job.input_fingerprint || !Array.isArray(outputs) || !Array.isArray(events)) {
+        bundleImportFindings.push({ projectId: job.project_id, jobId: job.job_id, code: 'BUNDLE_IMPORT_JOB_SEMANTIC_MISMATCH', message: 'Imported applied-job history differs from its immutable input or output shape.' });
+      }
+      for (const output of outputs ?? []) {
+        if (!outputReference.get(job.project_id, output.digest)) {
+          bundleImportFindings.push({ projectId: job.project_id, jobId: job.job_id, digest: output.digest, code: 'BUNDLE_IMPORT_JOB_REFERENCE_MISSING', message: 'Imported applied-job output has no permanent semantic reference.' });
+        }
+      }
+      if (db.prepare('SELECT 1 FROM jobs WHERE project_id = ? AND job_id = ?').get(job.project_id, job.job_id)) {
+        bundleImportFindings.push({ projectId: job.project_id, jobId: job.job_id, code: 'BUNDLE_IMPORT_JOB_LIVE_COLLISION', message: 'Imported history was also installed as a live controllable job.' });
+      }
+    }
+  } catch (error) {
+    bundleImportFindings.push({ projectId: null, jobId: null, code: 'BUNDLE_IMPORT_QUERY_FAILED', message: 'Bundle-import integrity could not be inspected.', cause: error.message });
+  }
+  const bundleImports = { ok: bundleImportFindings.length === 0, appliedJobCount: bundleImportJobCount, findings: bundleImportFindings };
   return {
     schemaVersion: 1,
-    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok,
+    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && bundleImports.ok,
     database,
     artifacts,
     sourceIntakes,
     agentAttempts,
     jobs,
+    assets,
+    bundleImports,
   };
 }

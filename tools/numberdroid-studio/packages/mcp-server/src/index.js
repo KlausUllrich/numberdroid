@@ -18,6 +18,43 @@ function commandInputSchema(definition) {
   };
 }
 
+function assetQueryInputSchema() {
+  const id = {
+    type: 'string',
+    minLength: 1,
+    maxLength: 128,
+    pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$',
+  };
+  const boundedStrings = (values = null) => ({
+    type: 'array',
+    maxItems: 32,
+    uniqueItems: true,
+    items: {
+      type: 'string',
+      maxLength: 128,
+      ...(values ? { enum: values } : {}),
+    },
+  });
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['schemaVersion', 'projectId'],
+    properties: {
+      schemaVersion: { type: 'integer', enum: [1] },
+      projectId: id,
+      assetId: id,
+      proposalId: id,
+      text: { type: 'string', minLength: 1, maxLength: 160 },
+      kinds: boundedStrings(['surface', 'prop', 'item']),
+      lifecycles: boundedStrings(['DRAFT', 'METADATA_COMPLETE', 'VALIDATED', 'FINAL']),
+      tags: boundedStrings(),
+      findingSeverities: boundedStrings(['ERROR', 'WARNING', 'INFO']),
+      includeProposals: { type: 'boolean' },
+      limit: { type: 'integer', minimum: 1, maximum: 100 },
+    },
+  };
+}
+
 /**
  * Transport-neutral, MCP-shaped tool contract. The official MCP SDK transport
  * is a Checkpoint 1B adapter; it registers these secured definitions without
@@ -31,11 +68,15 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
     throw new StudioError('VALIDATION_ERROR', 'A trusted MCP host contextProvider is required.');
   }
 
+  const durableAssetSurfaceReady = studioService.agentAttemptAuditReady === true
+    && studioService.durableJobStoreReady === true
+    && studioService.durableAssetStoreReady === true;
   const agentDefinitions = studioService.commandCatalog.filter(
     (definition) => !definition.ownerOnly
       && definition.type !== 'project.create'
       && (!definition.requiresDurableAgentLedger || studioService.agentAttemptAuditReady === true)
-      && (!definition.requiresDurableJobStore || studioService.durableJobStoreReady === true),
+      && (!definition.requiresDurableJobStore || studioService.durableJobStoreReady === true)
+      && (!definition.requiresDurableAssetStore || durableAssetSurfaceReady),
   );
 
   async function authority(invocationContext, requestedProjectId) {
@@ -191,6 +232,18 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
     },
   ] : [];
 
+  const assetTools = durableAssetSurfaceReady ? [{
+    name: 'studio_asset_query',
+    title: 'Query V2 Studio assets',
+    description: 'Read bounded project-scoped V2 asset heads, findings, and proposal state without exposing host authority.',
+    inputSchema: assetQueryInputSchema(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    execute: async (input, invocationContext) => {
+      const context = await authority(invocationContext, input.projectId);
+      return studioService.queryAssets(input, context, { signal: invocationContext?.mcpReq?.signal });
+    },
+  }] : [];
+
   return [
     {
       name: 'studio_command_catalog_list',
@@ -228,6 +281,7 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
     },
     ...commandTools,
     ...atlasJobTools,
+    ...assetTools,
   ];
 }
 

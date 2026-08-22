@@ -21,7 +21,7 @@ import { nodeSqliteDatabaseFactory, pngHeader } from './persistence-test-helpers
 const execute = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-test('administration CLI documents non-overwriting migration, backup, verification, and restore commands', async () => {
+test('administration CLI documents non-overwriting migration, backup, bundle, verification, and restore commands', async () => {
   const { stdout, stderr } = await execute(process.execPath, ['apps/studio-admin/src/main.js', '--help'], { cwd: root });
   assert.equal(stderr, '');
   assert.match(stdout, /Stop the Studio writer/);
@@ -30,6 +30,9 @@ test('administration CLI documents non-overwriting migration, backup, verificati
   assert.match(stdout, /integrity/);
   assert.match(stdout, /verify-backup/);
   assert.match(stdout, /restore/);
+  assert.match(stdout, /bundle-export/);
+  assert.match(stdout, /bundle-verify/);
+  assert.match(stdout, /bundle-import/);
 });
 
 async function temporaryDirectory(context, prefix) {

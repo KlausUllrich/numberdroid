@@ -6,7 +6,7 @@ The MCP server is a first-class Studio client for agents. It exposes the same se
 
 Checkpoint 1B implemented and the user accepted MCP 2026-07-28 through the official maintained SDK. The protocol SDK and transport remain replaceable adapters; Studio command semantics do not depend on a specific MCP revision. Checkpoint 1A contained only a host-injected agent adapter/tool catalog and MUST NOT be described as a complete MCP server.
 
-The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. Accepted Checkpoint 2A adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. Accepted Checkpoint 2B adds atlas and durable-job operations only when both the attempt and job stores are live. These are additive surfaces, not a permission-model rewrite. Checkpoint 2C planning and implementation are authorized, but no 2C MCP addition is accepted or discoverable until its durable asset-store, authority, audit, recovery, and equivalence gates pass.
+The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. Accepted Checkpoint 2A adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. Accepted Checkpoint 2B adds atlas and durable-job operations only when both the attempt and job stores are live. The Checkpoint 2C candidate adds one proposal mutation, one read-only asset query, and one asset detail resource only when audit, jobs, and the durable schema-v9 asset store are all live. These are additive surfaces, not a permission-model rewrite; 2C remains subject to the separate user acceptance gate.
 
 Accepted transport: local stdio through the official SDK v2 `serveStdio(() => buildServer(), { legacy: "reject" })` entry, so the wire protocol is MCP `2026-07-28`. A child-process contract test negotiates `server/discover` and asserts that revision. The MCP protocol core is treated as stateless: protocol discovery/capability negotiation is not an identity or authorization session. A later team deployment may add authenticated Streamable HTTP without changing tool schemas or authoring behavior.
 
@@ -61,14 +61,15 @@ The selected label, DOM state, URL, browser storage, and UI request payload are 
 
 Resources are the preferred way to discover and inspect current state. All resources enforce project/object read scope and expose their projection revision.
 
-### Implemented resource templates in accepted Checkpoint 2B
+### Implemented resource templates
 
 ```text
 studio://projects/{projectId}
 studio://projects/{projectId}/jobs/{jobId}
+studio://projects/{projectId}/assets/{assetId}
 ```
 
-The first template returns the current authorized, redacted project-head projection. The job template returns the same project-scoped, authority-checked, redacted projection as `studio_job_read`, including structured progress/events and output preview resource links when they are live. The official server advertises exactly these two templates; it does not advertise resource listing or any other URI pattern yet.
+The first template returns the current authorized, redacted project-head projection. The job template returns the same project-scoped, authority-checked, redacted projection as `studio_job_read`, including structured progress/events and output preview resource links when they are live. The asset template returns the same bounded, project-scoped V2 asset projection as `studio_asset_query`, including immutable slice lineage, typed metadata, findings, and proposal provenance. Before the complete v9 feature gate, discovery remains exactly the accepted two project/job templates. With the gate live, it is exactly these three templates; the server does not advertise resource listing or any other URI pattern.
 
 ### Planned V1 resource surface
 
@@ -85,7 +86,6 @@ studio://projects/{projectId}/revisions/{revisionId}
 studio://projects/{projectId}/revisions/{revisionId}/diff?to={revisionId}
 studio://projects/{projectId}/sources/{sourceId}
 studio://projects/{projectId}/atlases/{atlasId}
-studio://projects/{projectId}/assets/{assetId}
 studio://projects/{projectId}/rooms/{roomId}
 studio://projects/{projectId}/levels/{levelId}
 studio://projects/{projectId}/tasks/{taskId}
@@ -196,7 +196,14 @@ Owner-only `source.review.decide` is used by the human UI and is never advertise
 - `studio_job_retry` — idempotently queue the next attempt for failed/cancelled work, with `expectedAttempt` and a three-attempt ceiling;
 - `studio_job_discard` — idempotently release temporary outputs from terminal unapplied work and mark it `DISCARDED`.
 
-Together with the accepted seven tools, the audit/job-ready official server advertises exactly 15 tools and the two resource templates above. `studio_job_cancel`, `studio_job_retry`, and `studio_job_discard` require the original agent task/object authority and commit their `AUTHORIZED` attempt record atomically with the job transition. Job read and resource read are project-scoped. No job schema accepts actor/task/branch/grant identity, bytes, base64, credentials, local paths, or arbitrary artifact URIs.
+Together with the accepted seven tools, the audit/job-ready official server advertises exactly 15 tools and the two project/job resource templates above. `studio_job_cancel`, `studio_job_retry`, and `studio_job_discard` require the original agent task/object authority and commit their `AUTHORIZED` attempt record atomically with the job transition. Job read and resource read are project-scoped. No job schema accepts actor/task/branch/grant identity, bytes, base64, credentials, local paths, or arbitrary artifact URIs.
+
+### Checkpoint 2C candidate surface when audit, jobs, and schema v9 are live
+
+- `studio_asset_proposal_submit` — submit one bounded ordered V2 asset proposal against exact committed slice versions; every item is charged against `maxCommands` and requires the narrow `asset.proposal.submit` scope;
+- `studio_asset_query` — read-only bounded filter/query of V2 asset heads, findings, and optionally durable proposal state.
+
+With the complete durable gate live, the official server advertises exactly 17 tools and three resource templates. `studio_asset_proposal_decide`, `studio_asset_proposal_apply`, `studio_asset_lifecycle_set`, bundle import/export, raw binary access, and any owner decision/finalization operation are deliberately absent. Query and detail projections contain current-project preview links only and redact proposer grant/branch authority. Until all three durable gates are true, the two 2C tools and asset resource remain absent and discovery stays exactly 15 tools/two templates.
 
 ### Planned foundation and task expansion — later V1
 
@@ -215,15 +222,9 @@ Grant mint/revoke endpoints exist for the authenticated human UI/service API. Th
 
 `studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 
-### Asset library tools — Checkpoint 2
+### Later asset-library expansion
 
-- `studio_asset_create_from_slices`
-- `studio_asset_update_metadata`
-- `studio_asset_rename_aliases`
-- `studio_asset_map_replacement_slice`
-- `studio_asset_finalize`
-
-Batch tools return per-item findings while committing atomically by default. A caller may request `atomic: false` only where the tool contract explicitly supports partial success and reports a revision per accepted subgroup.
+The 2C candidate deliberately exposes durable proposal submission rather than a general branch/batch wrapper. Direct rename, replacement-slice mapping, agent lifecycle/finalization, and partial-success batches remain later work. A future batch tool must return per-item findings and preserve one documented atomic boundary; it cannot use `atomic: false` unless the contract explicitly reports a revision for every accepted subgroup.
 
 ### Room and hallway tools — Checkpoint 3
 

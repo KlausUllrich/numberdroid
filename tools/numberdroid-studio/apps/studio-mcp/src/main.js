@@ -21,6 +21,7 @@ const gateway = new LocalStudioGateway({
   }),
   agentAttemptAuditReady: process.env.NUMBERDROID_STUDIO_AGENT_AUDIT_READY === '1',
   durableJobStoreReady: process.env.NUMBERDROID_STUDIO_JOB_STORE_READY === '1',
+  durableAssetStoreReady: process.env.NUMBERDROID_STUDIO_ASSET_STORE_READY === '1',
 });
 
 serveOfficialMcpStdio({
