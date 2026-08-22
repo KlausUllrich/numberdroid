@@ -6,7 +6,7 @@ The MCP server is a first-class Studio client for agents. It exposes the same se
 
 Checkpoint 1B implemented and the user accepted MCP 2026-07-28 through the official maintained SDK. The protocol SDK and transport remain replaceable adapters; Studio command semantics do not depend on a specific MCP revision. Checkpoint 1A contained only a host-injected agent adapter/tool catalog and MUST NOT be described as a complete MCP server.
 
-The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. Accepted Checkpoint 2A adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. The CI-verified Checkpoint 2B candidate adds atlas and durable-job operations only when both the attempt and job stores are live. These are additive surfaces, not a permission-model rewrite; 2B still awaits explicit user acceptance.
+The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. Accepted Checkpoint 2A adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. Accepted Checkpoint 2B adds atlas and durable-job operations only when both the attempt and job stores are live. These are additive surfaces, not a permission-model rewrite. Checkpoint 2C planning and implementation are authorized, but no 2C MCP addition is accepted or discoverable until its durable asset-store, authority, audit, recovery, and equivalence gates pass.
 
 Accepted transport: local stdio through the official SDK v2 `serveStdio(() => buildServer(), { legacy: "reject" })` entry, so the wire protocol is MCP `2026-07-28`. A child-process contract test negotiates `server/discover` and asserts that revision. The MCP protocol core is treated as stateless: protocol discovery/capability negotiation is not an identity or authorization session. A later team deployment may add authenticated Streamable HTTP without changing tool schemas or authoring behavior.
 
@@ -61,7 +61,7 @@ The selected label, DOM state, URL, browser storage, and UI request payload are 
 
 Resources are the preferred way to discover and inspect current state. All resources enforce project/object read scope and expose their projection revision.
 
-### Implemented resource templates in the Checkpoint 2B candidate
+### Implemented resource templates in accepted Checkpoint 2B
 
 ```text
 studio://projects/{projectId}
@@ -185,7 +185,7 @@ These tools are advertised only when the launcher and running SQLite service dec
 
 Owner-only `source.review.decide` is used by the human UI and is never advertised. With the audit store live but no durable job store, discovery is exactly seven tools and one project resource template. With the audit flag absent, the accepted five-tool surface remains and the two source mutations fail closed from discovery.
 
-### Checkpoint 2B candidate surface when durable audit and jobs are live
+### Accepted Checkpoint 2B surface when durable audit and jobs are live
 
 - `studio_atlas_propose_grid` — read-only calculation of a non-authoritative regular-grid proposal against an approved source revision;
 - `studio_atlas_define_rects` — commit exact authoritative rectangles, inclusion, pivots, and explicit recut mapping;
@@ -341,7 +341,7 @@ The target V1 activity timeline displays every MCP tool call that reaches applic
 - duration, job/correlation IDs, findings, and changed resource links;
 - review disposition (`PENDING`, `USER_APPROVED`, `USER_REJECTED`, or `AUTO_ACCEPTED_BY_POLICY`).
 
-The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2B adds visible read/cancel/retry/discard controls for its atlas-preview jobs, and the agent receives the equivalent scoped MCP operations. Agent changes remaining on isolated draft branches is a Checkpoint 4 target; the current candidate has no branch-head/review/merge workflow, so `Propose in draft` fails closed.
+The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2B adds visible read/cancel/retry/discard controls for its atlas-preview jobs, and the agent receives the equivalent scoped MCP operations. Agent changes remaining on isolated draft branches is a Checkpoint 4 target; the current implementation has no branch-head/review/merge workflow, so `Propose in draft` fails closed.
 
 ## 11. Security invariants
 
@@ -385,7 +385,7 @@ Accepted Checkpoint 1B protocol tests continue to prove:
 
 Accepted Checkpoint 2A extends those tests with exact seven-tool audit-ready discovery; distinct intake/review scopes; project object and artifact-byte budgets; staged-intake claim/recovery; canonical source and lineage references; bounded discriminated provenance; human-only decision; final-only redacted denied/failed Activity; audit-write fail-closed behavior; and byte-identical Family Hygiene preview/reopen evidence.
 
-The Checkpoint 2B candidate extends them with exact 15-tool/two-template discovery; non-authoritative grid proposal; source-resolution rectangle validation; deterministic pinned PNG outputs; semantic/job creation atomicity; complete one-time budget charge; job/resource read equivalence; cancel/retry/discard idempotency; three-attempt enforcement; immutable creator-task authority; revoked/expired/cross-task denial; authorized-control audit atomicity; worker lease recovery and stale-worker exclusion; sanitized failures; exact output metadata and reference ownership; atomic semantic apply; restart/recovery; state-specific integrity; snapshot-consistent backup; and quiesced shutdown.
+Accepted Checkpoint 2B extends them with exact 15-tool/two-template discovery; non-authoritative grid proposal; source-resolution rectangle validation; deterministic pinned PNG outputs; semantic/job creation atomicity; complete one-time budget charge; job/resource read equivalence; cancel/retry/discard idempotency; three-attempt enforcement; immutable creator-task authority; revoked/expired/cross-task denial; authorized-control audit atomicity; worker lease recovery and stale-worker exclusion; sanitized failures; exact output metadata and reference ownership; atomic semantic apply; restart/recovery; state-specific integrity; snapshot-consistent backup; and quiesced shutdown.
 
 The following target checks remain for the checkpoint that introduces the feature: general atomic batch rollback and batch budget accounting; source/atlas/asset detail resources beyond the current project/job templates; isolated task-branch review/merge; and publish authorization.
 
