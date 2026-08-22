@@ -226,8 +226,9 @@ test('schema v9 is fixed, strict, normalized, and leaves migrations 1-8 unchange
   const store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
   context.after(() => store.close());
   const migrations = await loadMigrationDefinitions();
-  assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
-  assert.equal(migrations.at(-1).checksum, 'e387c3e56fb0bb03bd14743c6a7c7a6baad230c02dde8f158e485e25776e7175');
+  assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.equal(migrations.find(({ version }) => version === 9).checksum, 'e387c3e56fb0bb03bd14743c6a7c7a6baad230c02dde8f158e485e25776e7175');
+  assert.equal(migrations.at(-1).checksum, '99d12a3a7ee7572dd9386bd183fb847631ceab0490b0190e3ba5f1b339cfd40e');
   assert.deepEqual(migrations.slice(6, 8).map(({ checksum }) => checksum), [
     'aa951c02158f76f6343819271b78816e211bfe3015cc9f4f979947a075ef25e9',
     '2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730',
@@ -254,7 +255,7 @@ test('schema v9 is fixed, strict, normalized, and leaves migrations 1-8 unchange
   assert.deepEqual(tables.map(({ name }) => name), expected);
   assert.ok(tables.every(({ strict }) => Number(strict) === 1));
   assert.equal(store.supportsDurableAssetStore, true);
-  assert.equal(store.integrityCheck().userVersion, 9);
+  assert.equal(store.integrityCheck().userVersion, 10);
 });
 
 test('a v8 workspace rolls migration 0009 back completely and resumes safely', async (context) => {
@@ -283,10 +284,10 @@ test('a v8 workspace rolls migration 0009 back completely and resumes safely', a
 
   const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
   context.after(() => resumed.close());
-  assert.equal(resumed.integrityCheck().userVersion, 9);
+  assert.equal(resumed.integrityCheck().userVersion, 10);
   assert.deepEqual(
     resumed.workspace.database.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map(({ version }) => Number(version)),
-    [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
   );
 });
 

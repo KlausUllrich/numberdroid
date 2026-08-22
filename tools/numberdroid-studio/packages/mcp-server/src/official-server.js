@@ -238,6 +238,39 @@ export function buildOfficialMcpServer({
     );
   }
 
+  const roomQuery = catalog.find(({ name }) => name === 'studio_room_query');
+  if (roomQuery) {
+    server.registerResource(
+      'studio-room',
+      new ResourceTemplate('studio://projects/{projectId}/rooms/{roomVariantId}', { list: undefined }),
+      {
+        title: 'Studio room or hallway',
+        description: 'Current authorized room/hallway head, immutable versions, findings, exact asset pins, and proposal lineage.',
+        mimeType: 'application/json',
+      },
+      async (uri, { projectId, roomVariantId }, invocationContext) => {
+        const operation = operationContext(invocationContext, requestAbortRegistry);
+        try {
+          const value = await roomQuery.execute({
+            schemaVersion: 1,
+            projectId,
+            roomVariantId,
+            includeVersions: true,
+            includeProposals: true,
+            limit: 1,
+          }, operation.context);
+          return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
+        } catch (error) {
+          if (operation.signal.aborted) throw error;
+          const value = officialErrorPayload(error);
+          return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
+        } finally {
+          operation.cleanup();
+        }
+      },
+    );
+  }
+
   if (serverContext?.era) {
     process.stderr.write(`[numberdroid-studio] MCP era: ${serverContext.era}\n`);
   }

@@ -169,6 +169,71 @@ const assetProposalItem = {
   },
 };
 
+const roomIntent = {
+  type: 'object', additionalProperties: false,
+  required: ['layer', 'ruleId', 'summary', 'disposition'],
+  properties: {
+    layer: { type: 'string', enum: ['game_design', 'level_design', 'room_design'] },
+    ruleId: id,
+    summary: { ...nonEmpty, maxLength: 256 },
+    disposition: { type: 'string', enum: ['governing', 'proposed'] },
+  },
+};
+
+const roomConnector = {
+  type: 'object', additionalProperties: false,
+  required: ['connectorId', 'side', 'offset', 'width', 'kind', 'clearanceInside', 'clearanceOutside', 'required', 'tags', 'compatibilityProfile'],
+  properties: {
+    connectorId: id,
+    side: { type: 'string', enum: ['north', 'east', 'south', 'west'] },
+    offset: { type: 'integer', minimum: 0, maximum: 63 },
+    width: { type: 'integer', minimum: 1, maximum: 64 },
+    kind: { type: 'string', enum: ['opening', 'standard-door', 'controlled-door'] },
+    clearanceInside: { type: 'integer', minimum: 0, maximum: 16 },
+    clearanceOutside: { type: 'integer', minimum: 0, maximum: 16 },
+    required: { type: 'boolean' },
+    tags: { type: 'array', maxItems: 32, uniqueItems: true, items: { type: 'string', maxLength: 64 } },
+    compatibilityProfile: { type: ['string', 'null'], maxLength: 128 },
+  },
+};
+
+const roomPlacement = {
+  type: 'object', additionalProperties: false,
+  required: ['placementId', 'assetId', 'assetVersion', 'metadataVersion', 'layer', 'anchor', 'rotation', 'variantTag', 'proposalId', 'proposalItemId'],
+  properties: {
+    placementId: id,
+    assetId: id,
+    assetVersion: { type: 'integer', minimum: 1 },
+    metadataVersion: { type: 'integer', minimum: 1 },
+    layer: { type: 'string', enum: ['STRUCTURAL_SURFACE', 'SET_DRESSING'] },
+    anchor: {
+      type: 'object', additionalProperties: false, required: ['x', 'y'],
+      properties: { x: { type: 'integer', minimum: 0, maximum: 63 }, y: { type: 'integer', minimum: 0, maximum: 63 } },
+    },
+    rotation: { type: 'integer', enum: [0, 90, 180, 270] },
+    variantTag: { type: ['string', 'null'], maxLength: 128 },
+    proposalId: { ...id, type: ['string', 'null'] },
+    proposalItemId: { ...id, type: ['string', 'null'] },
+  },
+};
+
+const roomPlacementProposalItem = {
+  type: 'object', additionalProperties: false,
+  required: ['itemId', 'operation', 'placement', 'placementId', 'expectedAssetId', 'anchor', 'rotation'],
+  properties: {
+    itemId: id,
+    operation: { type: 'string', enum: ['add', 'move', 'remove'] },
+    placement: { ...roomPlacement, type: ['object', 'null'] },
+    placementId: { ...id, type: ['string', 'null'] },
+    expectedAssetId: { ...id, type: ['string', 'null'] },
+    anchor: {
+      type: ['object', 'null'], additionalProperties: false, required: ['x', 'y'],
+      properties: { x: { type: 'integer', minimum: 0, maximum: 63 }, y: { type: 'integer', minimum: 0, maximum: 63 } },
+    },
+    rotation: { type: ['integer', 'null'], enum: [0, 90, 180, 270, null] },
+  },
+};
+
 const definitions = [
   {
     type: 'project.create',
@@ -522,6 +587,239 @@ const definitions = [
         targetLifecycle: { type: 'string', enum: ['METADATA_COMPLETE', 'VALIDATED', 'FINAL'] },
         acceptedWarningFindingIds: { type: 'array', maxItems: 1024, uniqueItems: true, items: { type: 'string', maxLength: 128 } },
       },
+    },
+  },
+  {
+    type: 'room.archetype.create',
+    toolName: 'studio_room_archetype_create',
+    description: 'Create one immutable human-owned room or hallway archetype version.',
+    requiredScope: 'room.archetype.create',
+    ownerOnly: true,
+    requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['roomArchetypeId', 'kind', 'displayName', 'tags', 'dimensionPolicy', 'structuralBands', 'orientation', 'connectorPolicy', 'allowedAssetKinds', 'allowedTags', 'requiredTags', 'rationality', 'governingRuleRefs'],
+      properties: {
+        roomArchetypeId: id,
+        kind: { type: 'string', enum: ['room', 'hallway'] },
+        displayName: { ...nonEmpty, maxLength: 160 },
+        tags: { type: 'array', maxItems: 32, uniqueItems: true, items: { type: 'string', maxLength: 64 } },
+        dimensionPolicy: {
+          type: 'object', additionalProperties: false, required: ['width', 'height'],
+          properties: Object.fromEntries(['width', 'height'].map((axis) => [axis, {
+            type: 'object', additionalProperties: false, required: ['min', 'preferred', 'max'],
+            properties: {
+              min: { type: 'integer', minimum: 3, maximum: 64 },
+              preferred: { type: 'integer', minimum: 3, maximum: 64 },
+              max: { type: 'integer', minimum: 3, maximum: 64 },
+            },
+          }])),
+        },
+        structuralBands: {
+          type: 'object', additionalProperties: false, required: ['left', 'right', 'top', 'bottom'],
+          properties: Object.fromEntries(['left', 'right', 'top', 'bottom'].map((side) => [side, { type: 'integer', minimum: 0, maximum: 63 }])),
+        },
+        orientation: { type: 'string', enum: ['horizontal', 'vertical', 'any'] },
+        connectorPolicy: {
+          type: 'object', additionalProperties: false, required: ['min', 'max', 'requiredSides'],
+          properties: {
+            min: { type: 'integer', minimum: 0, maximum: 32 },
+            max: { type: 'integer', minimum: 0, maximum: 32 },
+            requiredSides: { type: 'array', maxItems: 4, uniqueItems: true, items: { type: 'string', enum: ['north', 'east', 'south', 'west'] } },
+          },
+        },
+        allowedAssetKinds: { type: 'array', maxItems: 3, uniqueItems: true, items: { type: 'string', enum: ['surface', 'prop', 'item'] } },
+        allowedTags: { type: 'array', maxItems: 32, uniqueItems: true, items: { type: 'string', maxLength: 64 } },
+        requiredTags: { type: 'array', maxItems: 32, uniqueItems: true, items: { type: 'string', maxLength: 64 } },
+        rationality: { type: 'string', enum: ['domestic', 'neutral', 'ritual', 'system'] },
+        governingRuleRefs: {
+          type: 'array', maxItems: 32,
+          items: {
+            type: 'object', additionalProperties: false, required: ['ruleId', 'summary'],
+            properties: { ruleId: id, summary: { ...nonEmpty, maxLength: 256 } },
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'room.variant.create',
+    toolName: 'studio_room_variant_create',
+    description: 'Create one human-owned DRAFT room variant against an exact archetype version.',
+    requiredScope: 'room.variant.create',
+    ownerOnly: true,
+    requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['roomVariantId', 'roomArchetypeId', 'archetypeVersion', 'displayName', 'width', 'height', 'intentTrace', 'connectors', 'placements'],
+      properties: {
+        roomVariantId: id,
+        roomArchetypeId: id,
+        archetypeVersion: { type: 'integer', minimum: 1 },
+        displayName: { ...nonEmpty, maxLength: 160 },
+        width: { type: 'integer', minimum: 3, maximum: 64 },
+        height: { type: 'integer', minimum: 3, maximum: 64 },
+        intentTrace: { type: 'array', maxItems: 32, items: roomIntent },
+        connectors: { type: 'array', maxItems: 32, items: roomConnector },
+        placements: { type: 'array', maxItems: 256, items: roomPlacement },
+      },
+    },
+  },
+  {
+    type: 'room.variant.intent.set',
+    toolName: 'studio_room_variant_intent_set',
+    description: 'Create a new DRAFT room version with an explicit intent trace.',
+    requiredScope: 'room.variant.intent.set', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'intentTrace'],
+      properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 }, intentTrace: { type: 'array', maxItems: 32, items: roomIntent } },
+    },
+  },
+  {
+    type: 'room.variant.resize',
+    toolName: 'studio_room_variant_resize',
+    description: 'Create a resized DRAFT room version without silently clipping connectors or placements.',
+    requiredScope: 'room.variant.resize', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'width', 'height', 'removePlacementIds', 'removeConnectorIds'],
+      properties: {
+        roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 },
+        width: { type: 'integer', minimum: 3, maximum: 64 }, height: { type: 'integer', minimum: 3, maximum: 64 },
+        removePlacementIds: { type: 'array', maxItems: 256, uniqueItems: true, items: id },
+        removeConnectorIds: { type: 'array', maxItems: 32, uniqueItems: true, items: id },
+      },
+    },
+  },
+  {
+    type: 'room.variant.connectors.set',
+    toolName: 'studio_room_variant_connectors_set',
+    description: 'Create a new DRAFT room version with an exact connector set.',
+    requiredScope: 'room.variant.connectors.set', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'connectors'],
+      properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 }, connectors: { type: 'array', maxItems: 32, items: roomConnector } },
+    },
+  },
+  {
+    type: 'room.variant.placements.add',
+    toolName: 'studio_room_variant_placements_add',
+    description: 'Create a new DRAFT room version by adding exact V2 asset placements.',
+    requiredScope: 'room.variant.placements.add', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'placements'],
+      properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 }, placements: { type: 'array', minItems: 1, maxItems: 64, items: roomPlacement } },
+    },
+  },
+  {
+    type: 'room.variant.placements.move',
+    toolName: 'studio_room_variant_placements_move',
+    description: 'Create a new DRAFT room version by moving exact existing placements.',
+    requiredScope: 'room.variant.placements.move', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'moves'],
+      properties: {
+        roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 },
+        moves: { type: 'array', minItems: 1, maxItems: 64, items: {
+          type: 'object', additionalProperties: false, required: ['placementId', 'expectedAssetId', 'anchor', 'rotation'],
+          properties: { placementId: id, expectedAssetId: id, anchor: roomPlacement.properties.anchor, rotation: roomPlacement.properties.rotation },
+        } },
+      },
+    },
+  },
+  {
+    type: 'room.variant.placements.remove',
+    toolName: 'studio_room_variant_placements_remove',
+    description: 'Create a new DRAFT room version by removing explicitly identified placements.',
+    requiredScope: 'room.variant.placements.remove', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'placements'],
+      properties: {
+        roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 },
+        placements: { type: 'array', minItems: 1, maxItems: 64, items: {
+          type: 'object', additionalProperties: false, required: ['placementId', 'expectedAssetId'],
+          properties: { placementId: id, expectedAssetId: id },
+        } },
+      },
+    },
+  },
+  {
+    type: 'room.placement.proposal.submit',
+    toolName: 'studio_room_placement_proposal_submit',
+    description: 'Submit one bounded durable placement-only proposal against an exact DRAFT room version.',
+    requiredScope: 'room.proposal.submit', requiredObjectScope: 'project', ownerOnly: false,
+    requiresDurableAgentLedger: true, requiresDurableAssetStore: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['proposalId', 'roomVariantId', 'expectedRoomVariantVersion', 'items'],
+      properties: {
+        proposalId: id, roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 },
+        items: { type: 'array', minItems: 1, maxItems: 64, items: roomPlacementProposalItem },
+      },
+    },
+  },
+  {
+    type: 'room.placement.proposal.decide',
+    toolName: 'studio_room_placement_proposal_decide',
+    description: 'Record one complete owner decision vector for a pending room placement proposal.',
+    requiredScope: 'room.placement.proposal.decide', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['proposalId', 'expectedProposalVersion', 'decisions'],
+      properties: {
+        proposalId: id, expectedProposalVersion: { type: 'integer', minimum: 1 },
+        decisions: { type: 'array', minItems: 1, maxItems: 64, items: {
+          type: 'object', additionalProperties: false, required: ['itemId', 'disposition', 'reason'],
+          properties: { itemId: id, disposition: { type: 'string', enum: ['ACCEPTED', 'REJECTED'] }, reason: { type: ['string', 'null'], maxLength: 2000 } },
+        } },
+      },
+    },
+  },
+  {
+    type: 'room.placement.proposal.apply',
+    toolName: 'studio_room_placement_proposal_apply',
+    description: 'Atomically apply the accepted subset of one decided room placement proposal.',
+    requiredScope: 'room.placement.proposal.apply', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['proposalId', 'expectedProposalVersion'],
+      properties: { proposalId: id, expectedProposalVersion: { type: 'integer', minimum: 2 } },
+    },
+  },
+  {
+    type: 'room.variant.warning.disposition.set',
+    toolName: 'studio_room_variant_warning_disposition_set',
+    description: 'Create a new DRAFT or VALIDATED room version with explicit owner warning dispositions.',
+    requiredScope: 'room.variant.warning.disposition.set', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'acceptedWarningFindingIds'],
+      properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 }, acceptedWarningFindingIds: { type: 'array', maxItems: 128, uniqueItems: true, items: { type: 'string', maxLength: 128 } } },
+    },
+  },
+  {
+    type: 'room.variant.validate',
+    toolName: 'studio_room_variant_validate',
+    description: 'Promote one human-owned room version to VALIDATED after deterministic checks.',
+    requiredScope: 'room.variant.validate', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion'],
+      properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 } },
+    },
+  },
+  {
+    type: 'room.variant.finalize',
+    toolName: 'studio_room_variant_finalize',
+    description: 'Create one immutable FINAL room version after owner-controlled validation and warning disposition.',
+    requiredScope: 'room.variant.finalize', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion'],
+      properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 } },
+    },
+  },
+  {
+    type: 'room.variant.fork',
+    toolName: 'studio_room_variant_fork',
+    description: 'Fork one immutable FINAL room version into its next DRAFT lineage version.',
+    requiredScope: 'room.variant.fork', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion'],
+      properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 } },
     },
   },
 ];

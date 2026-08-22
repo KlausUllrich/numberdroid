@@ -29,7 +29,7 @@ const ACCEPTED_TOOL_NAMES = [
   'studio_source_review_propose',
 ];
 
-function gatewayFixture({ durableAssetStoreReady }) {
+function gatewayFixture({ durableAssetStoreReady, durableRoomStoreReady = false }) {
   const queries = [];
   return {
     queries,
@@ -37,6 +37,7 @@ function gatewayFixture({ durableAssetStoreReady }) {
     agentAttemptAuditReady: true,
     durableJobStoreReady: true,
     durableAssetStoreReady,
+    durableRoomStoreReady,
     async execute(command) { return { schemaVersion: 1, projectId: command.projectId, revision: 2 }; },
     async readProject({ projectId }) { return { schemaVersion: 1, projectId, revision: 1, snapshot: {} }; },
     async proposeAtlasGrid() { return {}; },
@@ -55,6 +56,21 @@ function gatewayFixture({ durableAssetStoreReady }) {
         revision: 9,
         filters: { assetId: request.assetId ?? null },
         assets: request.assetId === ASSET_ID ? [{ assetId: ASSET_ID, name: 'Family Hygiene 1' }] : [],
+        proposals: [],
+      };
+    },
+    async queryRooms(request) {
+      queries.push(structuredClone(request));
+      if (request.roomVariantId && request.roomVariantId !== 'room.family-table') {
+        throw new StudioError('ROOM_VARIANT_NOT_FOUND', 'The room variant does not exist.', { roomVariantId: request.roomVariantId });
+      }
+      return {
+        schemaVersion: 1,
+        projectId: request.projectId,
+        revision: 10,
+        filters: { roomVariantId: request.roomVariantId ?? null },
+        archetypes: [],
+        variants: request.roomVariantId === 'room.family-table' ? [{ roomVariantId: 'room.family-table', headVersion: 1 }] : [],
         proposals: [],
       };
     },
@@ -137,6 +153,52 @@ test('v9 MCP discovery is exactly 17 tools and three templates with owner contro
   });
 });
 
+test('v10 MCP discovery is exactly 19 tools and four templates with placement-only agent mutation', async (context) => {
+  const gateway = gatewayFixture({ durableAssetStoreReady: true, durableRoomStoreReady: true });
+  const client = await mcpClient(context, gateway);
+  const tools = (await client.listTools()).tools;
+  assert.deepEqual(tools.map(({ name }) => name).sort(), [
+    ...ACCEPTED_TOOL_NAMES,
+    'studio_asset_proposal_submit',
+    'studio_asset_query',
+    'studio_room_placement_proposal_submit',
+    'studio_room_query',
+  ].sort());
+  assert.ok(!tools.some(({ name }) => [
+    'studio_room_archetype_create',
+    'studio_room_variant_create',
+    'studio_room_variant_connectors_set',
+    'studio_room_variant_placements_add',
+    'studio_room_placement_proposal_decide',
+    'studio_room_placement_proposal_apply',
+    'studio_room_variant_validate',
+    'studio_room_variant_finalize',
+    'studio_room_variant_fork',
+  ].includes(name)));
+  const query = tools.find(({ name }) => name === 'studio_room_query');
+  assert.equal(query.annotations.readOnlyHint, true);
+  const submit = tools.find(({ name }) => name === 'studio_room_placement_proposal_submit');
+  assert.equal(submit.annotations.readOnlyHint, false);
+  assert.equal(submit.inputSchema.properties.payload.additionalProperties, false);
+  assert.deepEqual((await client.listResourceTemplates()).resourceTemplates.map(({ uriTemplate }) => uriTemplate).sort(), [
+    'studio://projects/{projectId}',
+    'studio://projects/{projectId}/assets/{assetId}',
+    'studio://projects/{projectId}/jobs/{jobId}',
+    'studio://projects/{projectId}/rooms/{roomVariantId}',
+  ]);
+  const resource = await client.readResource({ uri: `studio://projects/${PROJECT_ID}/rooms/room.family-table` });
+  const value = JSON.parse(resource.contents[0].text);
+  assert.equal(value.variants[0].roomVariantId, 'room.family-table');
+  assert.deepEqual(gateway.queries.at(-1), {
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    roomVariantId: 'room.family-table',
+    includeVersions: true,
+    includeProposals: true,
+    limit: 1,
+  });
+});
+
 async function listen(context, server) {
   await new Promise((resolveListen, reject) => {
     server.once('error', reject);
@@ -154,6 +216,7 @@ function httpStudioFixture() {
     queries,
     commandCatalog: listCommandDefinitions(),
     durableAssetStoreReady: true,
+    durableRoomStoreReady: true,
     async readProjectTrusted(projectId) {
       return {
         schemaVersion: 1,
@@ -185,6 +248,14 @@ function httpStudioFixture() {
             sliceBinding: { digest: DIGEST, mediaType: 'image/png' },
           }],
         }],
+      };
+    },
+    async queryRooms(request, context) {
+      queries.push({ request: structuredClone(request), actor: structuredClone(context.actor) });
+      return {
+        schemaVersion: 1, projectId: request.projectId, revision: 8, filters: {}, archetypes: [],
+        variants: [{ roomVariantId: 'room.family-table', headVersion: 1, current: { roomVariantId: 'room.family-table', placements: [] } }],
+        proposals: [],
       };
     },
     async execute(command, context) {
@@ -315,6 +386,60 @@ test('human asset mutations require same-origin CSRF, exact bodies, and explicit
   });
   assert.equal(extraField.status, 400);
   assert.equal((await extraField.json()).error.code, 'VALIDATION_ERROR');
+});
+
+test('human room routes are exact-key, CSRF-bound, and keep lifecycle/proposal decisions explicit', async (context) => {
+  const studio = httpStudioFixture();
+  const baseUrl = await listen(context, createStudioHttpServer({ studioService: studio }));
+  const headers = await csrfHeaders(baseUrl);
+  const query = await fetch(`${baseUrl}/api/projects/${PROJECT_ID}/rooms/room.family-table?includeVersions=true&includeProposals=true`);
+  assert.equal(query.status, 200);
+  assert.equal((await query.json()).variants[0].roomVariantId, 'room.family-table');
+  assert.deepEqual(studio.queries.at(-1).request, {
+    schemaVersion: 1, projectId: PROJECT_ID, roomVariantId: 'room.family-table',
+    includeVersions: true, includeProposals: true,
+  });
+
+  const archetypeBody = {
+    expectedRevision: 8, idempotencyKey: 'idem.room.archetype', roomArchetypeId: 'archetype.family',
+    kind: 'room', displayName: 'Family room', tags: [], dimensionPolicy: {}, structuralBands: {},
+    orientation: 'any', connectorPolicy: {}, allowedAssetKinds: [], allowedTags: [], requiredTags: [],
+    rationality: 'domestic', governingRuleRefs: [],
+  };
+  const cases = [
+    [`/api/projects/${PROJECT_ID}/room-archetypes`, archetypeBody, 'room.archetype.create'],
+    [`/api/projects/${PROJECT_ID}/rooms`, {
+      expectedRevision: 9, idempotencyKey: 'idem.room.create', roomVariantId: 'room.family-table',
+      roomArchetypeId: 'archetype.family', archetypeVersion: 1, displayName: 'Family Table Room',
+      width: 10, height: 8, intentTrace: [], connectors: [], placements: [],
+    }, 'room.variant.create'],
+    [`/api/projects/${PROJECT_ID}/rooms/room.family-table/connectors`, {
+      expectedRevision: 10, idempotencyKey: 'idem.room.connectors', expectedRoomVariantVersion: 1, connectors: [],
+    }, 'room.variant.connectors.set'],
+    [`/api/projects/${PROJECT_ID}/room-proposals/proposal.room/decision`, {
+      expectedRevision: 11, idempotencyKey: 'idem.room.decision', expectedProposalVersion: 1,
+      decisions: [{ itemId: 'item.table', disposition: 'REJECTED', reason: 'Blocks the door.' }], confirm: true,
+    }, 'room.placement.proposal.decide'],
+    [`/api/projects/${PROJECT_ID}/rooms/room.family-table/finalize`, {
+      expectedRevision: 12, idempotencyKey: 'idem.room.finalize', expectedRoomVariantVersion: 2, confirm: true,
+    }, 'room.variant.finalize'],
+  ];
+  for (const [path, body, type] of cases) {
+    const response = await fetch(`${baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+    assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+    assert.equal((await response.json()).value.type, type);
+  }
+  assert.deepEqual(studio.commands.slice(-cases.length).map(({ command }) => command.type), cases.map(([, , type]) => type));
+  const forged = await fetch(`${baseUrl}/api/projects/${PROJECT_ID}/rooms/room.family-table/validate`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ expectedRevision: 13, idempotencyKey: 'idem.room.forged', expectedRoomVariantVersion: 2, confirm: true, grantId: 'forged' }),
+  });
+  assert.equal(forged.status, 400);
+  const unconfirmed = await fetch(`${baseUrl}/api/projects/${PROJECT_ID}/rooms/room.family-table/finalize`, {
+    method: 'POST', headers,
+    body: JSON.stringify({ expectedRevision: 13, idempotencyKey: 'idem.room.unconfirmed', expectedRoomVariantVersion: 2, confirm: false }),
+  });
+  assert.equal(unconfirmed.status, 403);
 });
 
 test('private asset query bridge resolves HostBinding authority and rejects cross-project requests', async (context) => {

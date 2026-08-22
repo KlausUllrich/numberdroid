@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3 [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -182,7 +182,15 @@ try {
              && document.documentElement.dataset.visualRevision === ${JSON.stringify(checkpoint2cPhase === 'pending' ? '9' : '11')}
              && document.documentElement.dataset.visualActivityCount === ${JSON.stringify(checkpoint2cPhase === 'pending' ? '9' : '12')}
              && document.documentElement.dataset.visualConnectionState === 'Live'`
-        : `document.getElementById('connection-label')?.textContent === 'Live'
+        : mode === 'checkpoint-3'
+          ? `document.documentElement.dataset.visualEvidenceReady === 'true'
+             && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
+             && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-2c'
+             && document.documentElement.dataset.visualRevision === '26'
+             && document.documentElement.dataset.visualActivityCount === '27'
+             && document.documentElement.dataset.roomCanvasReady === 'true'
+             && document.documentElement.dataset.visualConnectionState === 'Live'`
+          : `document.getElementById('connection-label')?.textContent === 'Live'
          && document.getElementById('revision-label')?.textContent === 'Revision 5'
          && document.querySelector(${JSON.stringify(`[data-workspace="${expectedWorkspace}"]`)})?.classList.contains('active')`;
   const readyDeadline = Date.now() + 15_000;
@@ -824,6 +832,29 @@ try {
         inventoryRect: rect(document.querySelector('[data-asset-scroll="asset-inventory"]')),
         proposalRect: rect(assetProposal),
       };
+      const roomBoard = document.querySelector('[data-room-board]');
+      const roomProposal = document.querySelector('[data-room-proposal]');
+      const roomDesigner = {
+        header: rect(document.querySelector('.room-header')),
+        layout: rect(document.querySelector('.room-designer-layout')),
+        palette: rect(document.querySelector('.room-palette')),
+        paletteItemCount: document.querySelectorAll('.room-palette-item').length,
+        canvasScroller: rect(document.querySelector('.room-canvas-scroll')),
+        canvasOverflowX: document.querySelector('.room-canvas-scroll') ? getComputedStyle(document.querySelector('.room-canvas-scroll')).overflowX : null,
+        board: rect(roomBoard),
+        cellCount: roomBoard?.querySelectorAll('.room-cell').length ?? 0,
+        placementCount: roomBoard?.querySelectorAll('.room-placement').length ?? 0,
+        connectorCount: roomBoard?.querySelectorAll('.room-connector').length ?? 0,
+        coordinateLabelCount: roomBoard?.querySelectorAll('.room-cell > span').length ?? 0,
+        roomOptionCount: document.querySelectorAll('[data-room-variant-select] option').length,
+        findingCount: document.querySelectorAll('.room-findings .asset-findings > li:not(.clear)').length,
+        lifecycle: document.querySelector('.room-lifecycle .status-pill')?.textContent ?? null,
+        proposalId: roomProposal?.dataset.roomProposal ?? null,
+        proposalState: roomProposal?.dataset.proposalState ?? null,
+        proposalItemCount: roomProposal?.querySelectorAll('[data-room-proposal-item]').length ?? 0,
+        proposalItems: [...(roomProposal?.querySelectorAll('[data-room-proposal-item]') ?? [])].map((item) => ({ itemId: item.dataset.roomProposalItem, text: item.textContent })),
+        exactPins: [...document.querySelectorAll('.room-placement-list button')].map((button) => button.textContent),
+      };
       const sources = [...document.querySelectorAll('.source-card')].map((source) => {
         const preview = source.querySelector('.source-preview');
         const image = preview?.querySelector('img');
@@ -908,6 +939,7 @@ try {
         headerOutsideTopbar,
         cards,
         assetLibrary,
+        roomDesigner,
         sources,
         aspectRatioProbes,
         stagedIntakes,
@@ -1163,6 +1195,36 @@ try {
       assert(new Set(layout.assetLibrary.ordinalLabels.map((value) => /Slice ([1-4])/.exec(value)?.[1]).filter(Boolean)).size === 4
         && layout.assetLibrary.canonicalIds.length >= 14,
       'Checkpoint 2C evidence lost ordinal-first slice labels or copyable canonical IDs.');
+    }
+  }
+  if (mode === 'checkpoint-3') {
+    assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
+      'Checkpoint 3 screenshot was taken before error-free readiness.');
+    assert(layout.projectId === 'numberdroid-studio-checkpoint-2c'
+      && layout.revision === 26 && layout.activityCount === 27 && layout.connectionState === 'Live',
+    'Checkpoint 3 screenshot is not bound to the prepared revision-26 fixture.');
+    if (expectedWorkspace === 'rooms') {
+      assert(layout.roomDesigner.header && layout.roomDesigner.layout && layout.roomDesigner.board,
+        'Checkpoint 3 room designer did not render its header, layout, and canvas.');
+      assert(layout.roomDesigner.roomOptionCount === 2
+        && layout.roomDesigner.paletteItemCount === 4
+        && layout.roomDesigner.cellCount === 12
+        && layout.roomDesigner.coordinateLabelCount === 12
+        && layout.roomDesigner.placementCount === 13
+        && layout.roomDesigner.connectorCount === 2,
+      'Checkpoint 3 room canvas lost a room/hallway option, exact asset palette, coordinates, placements, or connectors.');
+      assert(layout.roomDesigner.canvasOverflowX === 'auto'
+        && layout.roomDesigner.findingCount === 25
+        && layout.roomDesigner.lifecycle === 'DRAFT',
+      'Checkpoint 3 room canvas or live validation surface differs from the exact fixture.');
+      assert(layout.roomDesigner.proposalId === 'proposal.room.gathering-table'
+        && layout.roomDesigner.proposalState === 'APPLIED'
+        && layout.roomDesigner.proposalItemCount === 3
+        && layout.roomDesigner.proposalItems.find(({ itemId }) => itemId === 'item.reject-overlap')?.text.includes('REJECTED · Overlaps the accepted gathering table'),
+      'Checkpoint 3 applied agent placement proposal is not inspectable.');
+      assert(layout.roomDesigner.exactPins.length === 13
+        && layout.roomDesigner.exactPins.every((value) => /@1:1/.test(value)),
+      'Checkpoint 3 structured placement list lost exact asset and metadata pins.');
     }
   }
   if (mode === 'checkpoint-2a') {

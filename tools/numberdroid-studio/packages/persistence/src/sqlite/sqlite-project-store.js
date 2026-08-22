@@ -1071,6 +1071,352 @@ function writeAssetLifecycleVersion(database, projectId, revision, fault) {
   fault('after_asset_lifecycle_write');
 }
 
+function writeRoomFinding(database, table, projectId, roomVariantId, variantVersion, finding, findingOrder) {
+  invariant(['room_variant_findings', 'room_placement_proposal_findings'].includes(table), 'VALIDATION_ERROR', 'Unsupported room finding table.');
+  if (table === 'room_variant_findings') {
+    database.prepare(`
+      INSERT INTO room_variant_findings(
+        project_id, room_variant_id, variant_version, finding_id, finding_order,
+        severity, rule_id, target_kind, target_id, path, explanation,
+        remediation, validator_version, finding_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      projectId, roomVariantId, variantVersion, finding.findingId, findingOrder,
+      finding.severity, finding.ruleId, finding.targetKind, finding.targetId,
+      finding.path, finding.explanation, finding.remediation,
+      finding.validatorVersion, JSON.stringify(finding),
+    );
+    return;
+  }
+  database.prepare(`
+    INSERT INTO room_placement_proposal_findings(
+      project_id, proposal_id, finding_id, finding_order, severity, rule_id,
+      target_kind, target_id, path, explanation, remediation,
+      validator_version, finding_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    projectId, roomVariantId, finding.findingId, findingOrder, finding.severity,
+    finding.ruleId, finding.targetKind, finding.targetId, finding.path,
+    finding.explanation, finding.remediation, finding.validatorVersion,
+    JSON.stringify(finding),
+  );
+}
+
+function semanticRoomVersion(snapshot, roomVariantId, variantVersion) {
+  const entry = snapshot.roomLibrary?.variants?.find((candidate) => candidate.roomVariantId === roomVariantId);
+  return entry?.versions?.find((candidate) => candidate.version === variantVersion) ?? null;
+}
+
+function writeRoomArchetypeCreation(database, projectId, revision, fault) {
+  if (revision.command.type !== 'room.archetype.create') return;
+  const archetype = revision.snapshot.roomLibrary?.archetypes?.find((candidate) => (
+    candidate.roomArchetypeId === revision.result.roomArchetypeId
+      && candidate.version === revision.result.archetypeVersion
+  ));
+  invariant(archetype && archetype.createdRevision === revision.number, 'INVALID_REVISION', 'The room archetype result does not match its semantic projection.');
+  const value = {
+    projectId: archetype.projectId,
+    roomArchetypeId: archetype.roomArchetypeId,
+    version: archetype.version,
+    kind: archetype.kind,
+    displayName: archetype.displayName,
+    tags: archetype.tags,
+    dimensionPolicy: archetype.dimensionPolicy,
+    structuralBands: archetype.structuralBands,
+    orientation: archetype.orientation,
+    connectorPolicy: archetype.connectorPolicy,
+    allowedAssetKinds: archetype.allowedAssetKinds,
+    allowedTags: archetype.allowedTags,
+    requiredTags: archetype.requiredTags,
+    rationality: archetype.rationality,
+    governingRuleRefs: archetype.governingRuleRefs,
+  };
+  invariant(archetype.fingerprint === fingerprint(value), 'ROOM_ARCHETYPE_FINGERPRINT_MISMATCH', 'The archetype fingerprint differs from normalized semantic content.');
+  database.prepare(`
+    INSERT INTO room_archetype_versions(
+      project_id, room_archetype_id, archetype_version, kind, display_name,
+      archetype_json, content_fingerprint, created_revision, created_at,
+      created_by, provenance
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'native_revision')
+  `).run(
+    projectId, archetype.roomArchetypeId, archetype.version, archetype.kind,
+    archetype.displayName, JSON.stringify(value), archetype.fingerprint,
+    revision.number, archetype.createdAt, archetype.createdBy,
+  );
+  fault('after_room_archetype_version_insert');
+  for (const [ruleOrder, rule] of archetype.governingRuleRefs.entries()) {
+    database.prepare(`
+      INSERT INTO room_archetype_governing_rules(
+        project_id, room_archetype_id, archetype_version, rule_id, rule_order, summary
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(projectId, archetype.roomArchetypeId, archetype.version, rule.ruleId, ruleOrder, rule.summary);
+    fault('after_room_archetype_rule_insert');
+  }
+  database.prepare(`
+    INSERT INTO room_archetype_heads(
+      project_id, room_archetype_id, archetype_version, kind, display_name, updated_revision
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `).run(projectId, archetype.roomArchetypeId, archetype.version, archetype.kind, archetype.displayName, revision.number);
+  fault('after_room_archetype_head_insert');
+}
+
+function writeRoomVariantVersion(database, projectId, revision, room, fault) {
+  const priorHead = database.prepare(`
+    SELECT variant_version FROM room_variant_heads
+    WHERE project_id = ? AND room_variant_id = ?
+  `).get(projectId, room.roomVariantId);
+  const expectedVersion = Number(priorHead?.variant_version ?? 0) + 1;
+  invariant(room.version === expectedVersion, 'ROOM_VERSION_CONFLICT', 'The next immutable room version is not consecutive.', {
+    roomVariantId: room.roomVariantId, expectedVersion, actualVersion: room.version,
+  });
+  invariant(room.createdRevision === revision.number, 'INVALID_REVISION', 'The room version revision lineage is inconsistent.');
+  const value = {
+    projectId: room.projectId,
+    roomVariantId: room.roomVariantId,
+    version: room.version,
+    roomArchetypeId: room.roomArchetypeId,
+    archetypeVersion: room.archetypeVersion,
+    displayName: room.displayName,
+    lifecycle: room.lifecycle,
+    width: room.width,
+    height: room.height,
+    origin: room.origin,
+    intentTrace: room.intentTrace,
+    connectors: room.connectors,
+    placements: room.placements,
+    acceptedWarningFindingIds: room.acceptedWarningFindingIds,
+    parentVariantVersion: room.parentVariantVersion,
+    parentFinalVersion: room.parentFinalVersion,
+  };
+  invariant(room.contentFingerprint === fingerprint({ variant: value, findings: room.findings }), 'ROOM_CONTENT_FINGERPRINT_MISMATCH', 'The room content fingerprint differs from normalized content and findings.');
+  if (priorHead) {
+    invariant(room.parentVariantVersion === Number(priorHead.variant_version), 'ROOM_LINEAGE_INVALID', 'A room version must name its immediate immutable parent.');
+  } else {
+    invariant(room.parentVariantVersion === null && room.version === 1, 'ROOM_LINEAGE_INVALID', 'The first room version cannot name a parent.');
+  }
+  database.prepare(`
+    INSERT INTO room_variant_versions(
+      project_id, room_variant_id, variant_version, room_archetype_id,
+      archetype_version, previous_variant_version, parent_final_version,
+      display_name, lifecycle, width, height, variant_json,
+      content_fingerprint, findings_fingerprint, created_revision, created_at,
+      created_by, proposal_id, provenance
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'native_revision')
+  `).run(
+    projectId, room.roomVariantId, room.version, room.roomArchetypeId,
+    room.archetypeVersion, room.parentVariantVersion, room.parentFinalVersion,
+    room.displayName, room.lifecycle, room.width, room.height, JSON.stringify(value),
+    room.contentFingerprint, fingerprint(room.findings), revision.number,
+    room.createdAt, room.createdBy, room.proposalId,
+  );
+  fault('after_room_variant_version_insert');
+  for (const [intentOrder, intent] of room.intentTrace.entries()) {
+    database.prepare(`
+      INSERT INTO room_variant_intent(
+        project_id, room_variant_id, variant_version, intent_order,
+        layer, rule_id, summary, disposition
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(projectId, room.roomVariantId, room.version, intentOrder, intent.layer, intent.ruleId, intent.summary, intent.disposition);
+    fault('after_room_variant_intent_insert');
+  }
+  for (const [connectorOrder, connector] of room.connectors.entries()) {
+    database.prepare(`
+      INSERT INTO room_variant_connectors(
+        project_id, room_variant_id, variant_version, connector_id,
+        connector_order, side, offset, aperture_width, clearance_inside,
+        clearance_outside, connector_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      projectId, room.roomVariantId, room.version, connector.connectorId,
+      connectorOrder, connector.side, connector.offset, connector.width,
+      connector.clearanceInside, connector.clearanceOutside, JSON.stringify(connector),
+    );
+    fault('after_room_variant_connector_insert');
+  }
+  for (const [placementOrder, placement] of room.placements.entries()) {
+    const asset = database.prepare(`
+      SELECT metadata_version FROM asset_versions
+      WHERE project_id = ? AND asset_id = ? AND asset_version = ?
+    `).get(projectId, placement.assetId, placement.assetVersion);
+    invariant(asset && Number(asset.metadata_version) === placement.metadataVersion, 'ROOM_ASSET_VERSION_NOT_FOUND', 'The normalized room placement lost its exact asset metadata version.', {
+      assetId: placement.assetId, assetVersion: placement.assetVersion, metadataVersion: placement.metadataVersion,
+    });
+    database.prepare(`
+      INSERT INTO room_variant_placements(
+        project_id, room_variant_id, variant_version, placement_id,
+        placement_order, asset_id, asset_version, metadata_version, layer,
+        anchor_x, anchor_y, rotation, placement_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      projectId, room.roomVariantId, room.version, placement.placementId,
+      placementOrder, placement.assetId, placement.assetVersion,
+      placement.metadataVersion, placement.layer, placement.anchor.x,
+      placement.anchor.y, placement.rotation, JSON.stringify(placement),
+    );
+    fault('after_room_variant_placement_insert');
+  }
+  for (const [findingOrder, finding] of room.findings.entries()) {
+    writeRoomFinding(database, 'room_variant_findings', projectId, room.roomVariantId, room.version, finding, findingOrder);
+    fault('after_room_variant_finding_insert');
+  }
+  const warnings = new Set(room.findings.filter((finding) => finding.severity === 'WARNING').map((finding) => finding.findingId));
+  for (const [dispositionOrder, findingId] of room.acceptedWarningFindingIds.entries()) {
+    invariant(warnings.has(findingId), 'ROOM_WARNING_NOT_FOUND', 'Only a current warning may be persisted as dispositioned.', { findingId });
+    database.prepare(`
+      INSERT INTO room_variant_warning_dispositions(
+        project_id, room_variant_id, variant_version, finding_id, disposition_order
+      ) VALUES (?, ?, ?, ?, ?)
+    `).run(projectId, room.roomVariantId, room.version, findingId, dispositionOrder);
+    fault('after_room_variant_warning_disposition_insert');
+  }
+  database.prepare(`
+    INSERT INTO room_variant_heads(
+      project_id, room_variant_id, variant_version, room_archetype_id,
+      archetype_version, display_name, lifecycle, width, height, updated_revision
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(project_id, room_variant_id) DO UPDATE SET
+      variant_version = excluded.variant_version,
+      room_archetype_id = excluded.room_archetype_id,
+      archetype_version = excluded.archetype_version,
+      display_name = excluded.display_name,
+      lifecycle = excluded.lifecycle,
+      width = excluded.width,
+      height = excluded.height,
+      updated_revision = excluded.updated_revision
+  `).run(
+    projectId, room.roomVariantId, room.version, room.roomArchetypeId,
+    room.archetypeVersion, room.displayName, room.lifecycle, room.width,
+    room.height, revision.number,
+  );
+  fault('after_room_variant_head_update');
+}
+
+function writeRoomProposalSubmission(database, projectId, revision, fault) {
+  if (revision.command.type !== 'room.placement.proposal.submit') return;
+  const proposal = revision.snapshot.roomLibrary?.proposals?.find((candidate) => candidate.proposalId === revision.result.proposalId);
+  invariant(proposal?.state === 'PENDING' && proposal.proposalVersion === 1 && proposal.submittedRevision === revision.number, 'INVALID_REVISION', 'The room proposal result does not match its semantic projection.');
+  if (revision.command.actor?.kind === 'agent') {
+    const before = priorSnapshot(database, projectId, revision);
+    const priorGrant = before.grants.find((grant) => grant.id === revision.command.grantId);
+    const nextGrant = revision.snapshot.grants.find((grant) => grant.id === revision.command.grantId);
+    invariant(priorGrant && nextGrant
+      && nextGrant.usage.commands === priorGrant.usage.commands + proposal.items.length
+      && nextGrant.usage.commands <= nextGrant.budget.maxCommands,
+    'INVALID_GRANT_PROJECTION', 'Room proposal commands must be charged exactly once per item.');
+  }
+  const proposer = proposal.proposer?.actor ?? revision.command.actor;
+  database.prepare(`
+    INSERT INTO room_placement_proposals(
+      project_id, proposal_id, schema_version, room_variant_id,
+      expected_room_variant_version, base_revision, created_revision, status,
+      item_count, request_fingerprint, finding_fingerprint,
+      proposer_actor_kind, proposer_actor_id, proposer_task_id,
+      proposer_branch_id, proposer_grant_id, created_at,
+      decided_revision, applied_revision
+    ) VALUES (?, ?, 1, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL)
+  `).run(
+    projectId, proposal.proposalId, proposal.roomVariantId,
+    proposal.expectedRoomVariantVersion, revision.parentRevision, revision.number,
+    proposal.items.length, proposal.fingerprint, fingerprint(proposal.findings),
+    proposer.kind, proposer.id, proposal.proposer?.taskId ?? null,
+    proposal.proposer?.branchId ?? (proposer.kind === 'human' ? 'branch.main' : null),
+    proposer.kind === 'agent' ? proposal.proposer?.grantId : null,
+    proposal.submittedAt,
+  );
+  fault('after_room_proposal_insert');
+  for (const item of proposal.items) {
+    database.prepare(`
+      INSERT INTO room_placement_proposal_items(
+        project_id, proposal_id, item_id, item_order, operation,
+        placement_id, expected_asset_id, desired_json, diff_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      projectId, proposal.proposalId, item.itemId, item.ordinal, item.operation,
+      item.operation === 'add' ? item.placement.placementId : item.placementId,
+      item.expectedAssetId, JSON.stringify(item), JSON.stringify(item.diff),
+    );
+    fault('after_room_proposal_item_insert');
+  }
+  for (const [findingOrder, finding] of proposal.findings.entries()) {
+    writeRoomFinding(database, 'room_placement_proposal_findings', projectId, proposal.proposalId, null, finding, findingOrder);
+    fault('after_room_proposal_finding_insert');
+  }
+}
+
+function writeRoomProposalDecision(database, projectId, revision, fault) {
+  if (revision.command.type !== 'room.placement.proposal.decide') return;
+  const proposal = revision.snapshot.roomLibrary?.proposals?.find((candidate) => candidate.proposalId === revision.result.proposalId);
+  invariant(proposal?.state === 'DECIDED' && proposal.proposalVersion === 2 && proposal.decisionRevision === revision.number, 'INVALID_REVISION', 'The room proposal decision does not match its semantic projection.');
+  const durable = database.prepare(`SELECT status, item_count FROM room_placement_proposals WHERE project_id = ? AND proposal_id = ?`).get(projectId, proposal.proposalId);
+  invariant(durable?.status === 'PENDING' && Number(durable.item_count) === proposal.items.length, 'ROOM_PROPOSAL_STATE_CONFLICT', 'Only one complete decision may resolve a pending room proposal.');
+  for (const item of proposal.items) {
+    invariant(item.decision?.decisionRevision === revision.number, 'INVALID_REVISION', 'Every room proposal item requires one decision.');
+    database.prepare(`
+      INSERT INTO room_placement_proposal_decisions(
+        project_id, proposal_id, item_id, decision, rejection_reason,
+        decision_revision, decided_at, decided_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      projectId, proposal.proposalId, item.itemId, item.decision.disposition,
+      item.decision.disposition === 'REJECTED' ? item.decision.reason : null,
+      revision.number, item.decision.decidedAt, item.decision.decidedBy,
+    );
+    fault('after_room_proposal_decision_insert');
+  }
+  const updated = database.prepare(`
+    UPDATE room_placement_proposals SET status = 'DECIDED', decided_revision = ?
+    WHERE project_id = ? AND proposal_id = ? AND status = 'PENDING'
+  `).run(revision.number, projectId, proposal.proposalId);
+  invariant(Number(updated.changes) === 1, 'ROOM_PROPOSAL_STATE_CONFLICT', 'The room proposal decision lost a concurrent race.');
+  fault('after_room_proposal_decision_status');
+}
+
+function writeRoomProposalApplication(database, projectId, revision, fault) {
+  if (revision.command.type !== 'room.placement.proposal.apply') return;
+  const proposal = revision.snapshot.roomLibrary?.proposals?.find((candidate) => candidate.proposalId === revision.result.proposalId);
+  invariant(proposal?.state === 'APPLIED' && proposal.proposalVersion === 3 && proposal.appliedRevision === revision.number, 'INVALID_REVISION', 'The room proposal application does not match its semantic projection.');
+  const room = semanticRoomVersion(revision.snapshot, proposal.roomVariantId, proposal.createdRoomVariantVersion);
+  invariant(room?.proposalId === proposal.proposalId, 'INVALID_REVISION', 'The applied proposal did not create its named room version.');
+  writeRoomVariantVersion(database, projectId, revision, room, fault);
+  const acceptedCount = proposal.items.filter((item) => item.decision?.disposition === 'ACCEPTED').length;
+  const rejectedCount = proposal.items.length - acceptedCount;
+  database.prepare(`
+    INSERT INTO room_placement_proposal_applications(
+      project_id, proposal_id, room_variant_id, application_revision,
+      created_room_variant_version, accepted_count, rejected_count,
+      applied_at, applied_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    projectId, proposal.proposalId, proposal.roomVariantId, revision.number,
+    proposal.createdRoomVariantVersion, acceptedCount, rejectedCount,
+    proposal.appliedAt, proposal.appliedBy,
+  );
+  fault('after_room_proposal_application_insert');
+  const updated = database.prepare(`
+    UPDATE room_placement_proposals SET status = 'APPLIED', applied_revision = ?
+    WHERE project_id = ? AND proposal_id = ? AND status = 'DECIDED'
+  `).run(revision.number, projectId, proposal.proposalId);
+  invariant(Number(updated.changes) === 1, 'ROOM_PROPOSAL_STATE_CONFLICT', 'The room proposal application lost a concurrent race.');
+  fault('after_room_proposal_application_status');
+}
+
+function writeRoomVariantRevision(database, projectId, revision, fault) {
+  const createsVersion = revision.result?.roomVariantId && revision.result?.roomVariantVersion
+    && revision.command.type !== 'room.placement.proposal.apply';
+  if (!createsVersion) return;
+  const room = semanticRoomVersion(revision.snapshot, revision.result.roomVariantId, revision.result.roomVariantVersion);
+  invariant(room, 'INVALID_REVISION', 'The room command result has no matching semantic room version.');
+  writeRoomVariantVersion(database, projectId, revision, room, fault);
+}
+
+function writeRoomDesignerRevision(database, projectId, revision, fault) {
+  writeRoomArchetypeCreation(database, projectId, revision, fault);
+  writeRoomProposalSubmission(database, projectId, revision, fault);
+  writeRoomProposalDecision(database, projectId, revision, fault);
+  writeRoomProposalApplication(database, projectId, revision, fault);
+  writeRoomVariantRevision(database, projectId, revision, fault);
+}
+
 function writeAssetLibraryRevision(database, projectId, revision, fault) {
   writeAssetProposalSubmission(database, projectId, revision, fault);
   writeAssetProposalDecision(database, projectId, revision, fault);
@@ -1118,6 +1464,53 @@ function rebuildAssetHeads(database, projectId) {
     for (const [tagOrder, tag] of (metadata.tags ?? []).entries()) {
       insertTag.run(projectId, version.asset_id, tag, tagOrder);
     }
+  }
+}
+
+function rebuildRoomHeads(database, projectId) {
+  database.prepare('DELETE FROM room_variant_heads WHERE project_id = ?').run(projectId);
+  database.prepare('DELETE FROM room_archetype_heads WHERE project_id = ?').run(projectId);
+  const archetypes = database.prepare(`
+    SELECT v.* FROM room_archetype_versions v
+    JOIN (
+      SELECT project_id, room_archetype_id, max(archetype_version) AS archetype_version
+      FROM room_archetype_versions WHERE project_id = ?
+      GROUP BY project_id, room_archetype_id
+    ) latest ON latest.project_id = v.project_id
+      AND latest.room_archetype_id = v.room_archetype_id
+      AND latest.archetype_version = v.archetype_version
+    ORDER BY v.room_archetype_id
+  `).all(projectId);
+  for (const row of archetypes) {
+    database.prepare(`
+      INSERT INTO room_archetype_heads(
+        project_id, room_archetype_id, archetype_version, kind,
+        display_name, updated_revision
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(projectId, row.room_archetype_id, row.archetype_version, row.kind, row.display_name, row.created_revision);
+  }
+  const variants = database.prepare(`
+    SELECT v.* FROM room_variant_versions v
+    JOIN (
+      SELECT project_id, room_variant_id, max(variant_version) AS variant_version
+      FROM room_variant_versions WHERE project_id = ?
+      GROUP BY project_id, room_variant_id
+    ) latest ON latest.project_id = v.project_id
+      AND latest.room_variant_id = v.room_variant_id
+      AND latest.variant_version = v.variant_version
+    ORDER BY v.room_variant_id
+  `).all(projectId);
+  for (const row of variants) {
+    database.prepare(`
+      INSERT INTO room_variant_heads(
+        project_id, room_variant_id, variant_version, room_archetype_id,
+        archetype_version, display_name, lifecycle, width, height, updated_revision
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      projectId, row.room_variant_id, row.variant_version, row.room_archetype_id,
+      row.archetype_version, row.display_name, row.lifecycle, row.width,
+      row.height, row.created_revision,
+    );
   }
 }
 
@@ -1288,6 +1681,7 @@ export class SqliteProjectStore extends ProjectStore {
   get supportsAtomicAtlasJobs() { return true; }
   get supportsAtomicAssetLibrary() { return true; }
   get supportsDurableAssetStore() { return true; }
+  get supportsAtomicRoomDesigner() { return true; }
 
   async createProject(document, { legacyGrants = false } = {}) {
     invariant(document.revisions.length === 1, 'INVALID_REVISION', 'A new SQLite project needs exactly one revision.');
@@ -1401,6 +1795,8 @@ export class SqliteProjectStore extends ProjectStore {
         this.#workspace.fault('after_atlas_preview_job_apply');
         writeAssetLibraryRevision(database, projectId, revision, (point) => this.#workspace.fault(point));
         this.#workspace.fault('after_asset_library_revision');
+        writeRoomDesignerRevision(database, projectId, revision, (point) => this.#workspace.fault(point));
+        this.#workspace.fault('after_room_designer_revision');
 
         const document = {
           formatVersion: 1,
@@ -1671,6 +2067,7 @@ export class SqliteProjectStore extends ProjectStore {
         now: revision.committedAt,
       });
       rebuildAssetHeads(database, projectId);
+      rebuildRoomHeads(database, projectId);
     });
     return { projectId, revision: revision.number, projectionHash: fingerprint(revision.snapshot) };
   }

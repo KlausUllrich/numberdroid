@@ -55,14 +55,14 @@ function sendJson(response, status, value) {
 }
 
 function errorStatus(error) {
-  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND', 'JOB_NOT_FOUND', 'ASSET_NOT_FOUND', 'ASSET_PROPOSAL_NOT_FOUND', 'ASSET_SLICE_NOT_FOUND'].includes(error.code)) return 404;
-  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'ENTITY_VERSION_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING', 'JOB_STATE_CONFLICT', 'JOB_ATTEMPT_CONFLICT', 'JOB_ATTEMPT_LIMIT', 'JOB_INPUT_MISMATCH', 'JOB_OUTPUT_MISMATCH', 'ASSET_LIFECYCLE_BLOCKED', 'ASSET_LIFECYCLE_TRANSITION_INVALID', 'ASSET_PROPOSAL_DECISION_DUPLICATE', 'ASSET_PROPOSAL_DECISION_INCOMPLETE', 'ASSET_PROPOSAL_DUPLICATE_ASSET', 'ASSET_PROPOSAL_DUPLICATE_ITEM', 'ASSET_PROPOSAL_VERSION_INVALID', 'ASSET_SLICE_STALE', 'ASSET_WARNING_NOT_FOUND', 'ASSET_WARNING_UNDISPOSITIONED'].includes(error.code)) return 409;
+  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND', 'JOB_NOT_FOUND', 'ASSET_NOT_FOUND', 'ASSET_PROPOSAL_NOT_FOUND', 'ASSET_SLICE_NOT_FOUND', 'ROOM_ARCHETYPE_NOT_FOUND', 'ROOM_VARIANT_NOT_FOUND', 'ROOM_PROPOSAL_NOT_FOUND', 'ROOM_PLACEMENT_NOT_FOUND', 'ROOM_CONNECTOR_NOT_FOUND'].includes(error.code)) return 404;
+  if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'ENTITY_VERSION_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING', 'JOB_STATE_CONFLICT', 'JOB_ATTEMPT_CONFLICT', 'JOB_ATTEMPT_LIMIT', 'JOB_INPUT_MISMATCH', 'JOB_OUTPUT_MISMATCH', 'ASSET_LIFECYCLE_BLOCKED', 'ASSET_LIFECYCLE_TRANSITION_INVALID', 'ASSET_PROPOSAL_DECISION_DUPLICATE', 'ASSET_PROPOSAL_DECISION_INCOMPLETE', 'ASSET_PROPOSAL_DUPLICATE_ASSET', 'ASSET_PROPOSAL_DUPLICATE_ITEM', 'ASSET_PROPOSAL_VERSION_INVALID', 'ASSET_SLICE_STALE', 'ASSET_WARNING_NOT_FOUND', 'ASSET_WARNING_UNDISPOSITIONED', 'ROOM_EDIT_REQUIRES_DRAFT', 'ROOM_LIFECYCLE_BLOCKED', 'ROOM_LIFECYCLE_TRANSITION_INVALID', 'ROOM_PROPOSAL_UNRESOLVED', 'ROOM_PROPOSAL_STATE_CONFLICT', 'ROOM_PROPOSAL_DECISION_INCOMPLETE', 'ROOM_PROPOSAL_DECISION_DUPLICATE', 'ROOM_WARNING_NOT_FOUND', 'ROOM_WARNING_UNDISPOSITIONED', 'ROOM_RESIZE_CLIPS_CONTENT', 'ROOM_VERSION_CONFLICT'].includes(error.code)) return 409;
   if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'JOB_AUTHORITY_MISMATCH', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
   if (error.code === 'ARTIFACT_TOO_LARGE') return 413;
   if (['ARTIFACT_DIGEST_MISMATCH', 'ARTIFACT_METADATA_CONFLICT'].includes(error.code)) return 409;
-  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_MALFORMED', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED', 'PROVENANCE_PARAMETER_FORBIDDEN', 'ATLAS_RECT_INVALID', 'ATLAS_RECT_LIMIT', 'ATLAS_RECT_DUPLICATE', 'ATLAS_RECT_DUPLICATE_ID', 'ATLAS_RECT_OVERLAP', 'ATLAS_RECT_OUT_OF_BOUNDS', 'ATLAS_REMAP_INVALID', 'ATLAS_REMAP_NOT_ONE_TO_ONE', 'ATLAS_PADDING_POLICY_UNSUPPORTED', 'ATLAS_GRID_INVALID', 'ATLAS_OUTPUT_LIMIT', 'ATLAS_OUTPUT_BYTES_LIMIT', 'ATLAS_PNG_UNSUPPORTED', 'ATLAS_SOURCE_REQUIRED', 'ATLAS_SOURCE_MISMATCH', 'ASSET_ANCHOR_OUT_OF_BOUNDS', 'ASSET_CONNECTOR_DUPLICATE', 'ASSET_EXTENSION_INVALID', 'ASSET_PROPOSAL_BYTES_LIMIT', 'ASSET_PROPOSAL_INVALID', 'ASSET_PROPOSAL_LIMIT', 'ASSET_PROPOSAL_REJECTION_REASON_REQUIRED', 'ASSET_SLICE_BINDING_INVALID'].includes(error.code)) return 400;
+  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_MALFORMED', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED', 'PROVENANCE_PARAMETER_FORBIDDEN', 'ATLAS_RECT_INVALID', 'ATLAS_RECT_LIMIT', 'ATLAS_RECT_DUPLICATE', 'ATLAS_RECT_DUPLICATE_ID', 'ATLAS_RECT_OVERLAP', 'ATLAS_RECT_OUT_OF_BOUNDS', 'ATLAS_REMAP_INVALID', 'ATLAS_REMAP_NOT_ONE_TO_ONE', 'ATLAS_PADDING_POLICY_UNSUPPORTED', 'ATLAS_GRID_INVALID', 'ATLAS_OUTPUT_LIMIT', 'ATLAS_OUTPUT_BYTES_LIMIT', 'ATLAS_PNG_UNSUPPORTED', 'ATLAS_SOURCE_REQUIRED', 'ATLAS_SOURCE_MISMATCH', 'ASSET_ANCHOR_OUT_OF_BOUNDS', 'ASSET_CONNECTOR_DUPLICATE', 'ASSET_EXTENSION_INVALID', 'ASSET_PROPOSAL_BYTES_LIMIT', 'ASSET_PROPOSAL_INVALID', 'ASSET_PROPOSAL_LIMIT', 'ASSET_PROPOSAL_REJECTION_REASON_REQUIRED', 'ASSET_SLICE_BINDING_INVALID', 'ROOM_PROPOSAL_INVALID', 'ROOM_PROPOSAL_LIMIT', 'ROOM_PROPOSAL_REJECTION_REASON_REQUIRED', 'ROOM_CONNECTOR_OUT_OF_BOUNDS', 'ROOM_CELL_LIMIT', 'ROOM_DIMENSION_POLICY_INVALID', 'ROOM_CONNECTOR_POLICY_INVALID', 'ROOM_TAG_POLICY_INVALID'].includes(error.code)) return 400;
   if (error.code === 'SOURCE_INTAKE_NOT_FOUND') return 404;
-  if (['ARTIFACT_STORE_DISABLED', 'SOURCE_INTAKE_STORE_DISABLED', 'AGENT_ATTEMPT_LEDGER_REQUIRED', 'JOB_STORE_DISABLED', 'ASSET_STORE_DISABLED'].includes(error.code)) return 503;
+  if (['ARTIFACT_STORE_DISABLED', 'SOURCE_INTAKE_STORE_DISABLED', 'AGENT_ATTEMPT_LEDGER_REQUIRED', 'JOB_STORE_DISABLED', 'ASSET_STORE_DISABLED', 'ROOM_STORE_DISABLED'].includes(error.code)) return 503;
   return 500;
 }
 
@@ -199,6 +199,65 @@ function assetProposalRoute(pathname) {
     proposalId: null,
     action: 'submit',
   } : null;
+}
+
+function roomRoute(pathname) {
+  const commandMatch = /^\/api\/projects\/([^/]+)\/rooms\/([^/]+)\/(intent|resize|connectors|placements-add|placements-move|placements-remove|warning-dispositions|validate|finalize|fork)$/.exec(pathname);
+  if (commandMatch) return {
+    projectId: decodeURIComponent(commandMatch[1]),
+    roomVariantId: decodeURIComponent(commandMatch[2]),
+    action: commandMatch[3],
+  };
+  const item = /^\/api\/projects\/([^/]+)\/rooms\/([^/]+)$/.exec(pathname);
+  if (item) return { projectId: decodeURIComponent(item[1]), roomVariantId: decodeURIComponent(item[2]), action: 'read' };
+  const collection = /^\/api\/projects\/([^/]+)\/rooms$/.exec(pathname);
+  return collection ? { projectId: decodeURIComponent(collection[1]), roomVariantId: null, action: 'collection' } : null;
+}
+
+function roomArchetypeRoute(pathname) {
+  const collection = /^\/api\/projects\/([^/]+)\/room-archetypes$/.exec(pathname);
+  return collection ? { projectId: decodeURIComponent(collection[1]) } : null;
+}
+
+function roomProposalRoute(pathname) {
+  const action = /^\/api\/projects\/([^/]+)\/room-proposals\/([^/]+)\/(decision|apply)$/.exec(pathname);
+  if (action) return { projectId: decodeURIComponent(action[1]), proposalId: decodeURIComponent(action[2]), action: action[3] };
+  const collection = /^\/api\/projects\/([^/]+)\/room-proposals$/.exec(pathname);
+  return collection ? { projectId: decodeURIComponent(collection[1]), proposalId: null, action: 'submit' } : null;
+}
+
+function roomQueryDto(url, route) {
+  const allowed = new Set(['roomArchetypeId', 'proposalId', 'kinds', 'lifecycles', 'includeVersions', 'includeProposals', 'limit']);
+  for (const key of url.searchParams.keys()) {
+    if (!allowed.has(key)) throw new StudioError('VALIDATION_ERROR', `Room query contains an unsupported field: ${key}.`, { field: key });
+  }
+  const singular = (key) => {
+    const values = url.searchParams.getAll(key);
+    if (values.length > 1) throw new StudioError('VALIDATION_ERROR', `Room query field ${key} may appear only once.`, { field: key });
+    return values[0];
+  };
+  const dto = { schemaVersion: 1, projectId: route.projectId, ...(route.roomVariantId ? { roomVariantId: route.roomVariantId } : {}) };
+  for (const key of ['roomArchetypeId', 'proposalId']) {
+    const value = singular(key);
+    if (value !== undefined) dto[key] = value;
+  }
+  for (const key of ['kinds', 'lifecycles']) {
+    const values = url.searchParams.getAll(key);
+    if (values.length > 0) dto[key] = values;
+  }
+  for (const key of ['includeVersions', 'includeProposals']) {
+    const value = singular(key);
+    if (value !== undefined) {
+      if (!['true', 'false'].includes(value)) throw new StudioError('VALIDATION_ERROR', `${key} must be true or false.`, { field: key });
+      dto[key] = value === 'true';
+    }
+  }
+  const limit = singular('limit');
+  if (limit !== undefined) {
+    if (!/^[1-9][0-9]*$/.test(limit)) throw new StudioError('VALIDATION_ERROR', 'limit must be a positive integer.', { field: 'limit' });
+    dto.limit = Number(limit);
+  }
+  return dto;
 }
 
 function assetQueryDto(url, route) {
@@ -475,7 +534,7 @@ async function assertExecutableBindingPolicy(studioService, binding) {
   }
 }
 
-function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoint, durableAssetStoreReady) {
+function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoint, durableAssetStoreReady, durableRoomStoreReady) {
   const origin = loopbackOrigin(`http://${request.headers.host ?? ''}`);
   const remoteAddress = request.socket.remoteAddress ?? '';
   const loopbackRemote = remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
@@ -492,6 +551,7 @@ function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoin
           NUMBERDROID_STUDIO_AGENT_AUDIT_READY: '1',
           NUMBERDROID_STUDIO_JOB_STORE_READY: '1',
           NUMBERDROID_STUDIO_ASSET_STORE_READY: durableAssetStoreReady === true ? '1' : '0',
+          NUMBERDROID_STUDIO_ROOM_STORE_READY: durableRoomStoreReady === true ? '1' : '0',
         },
       },
     },
@@ -632,6 +692,7 @@ export function createStudioHttpServer({
         '/internal/mcp/job-retry',
         '/internal/mcp/job-discard',
         '/internal/mcp/asset-query',
+        '/internal/mcp/room-query',
       ].includes(url.pathname)) {
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
@@ -646,6 +707,7 @@ export function createStudioHttpServer({
           '/internal/mcp/job-retry': { operation: 'retryJob', commandType: 'job.retry', atomicAudit: true },
           '/internal/mcp/job-discard': { operation: 'discardJob', commandType: 'job.discard', atomicAudit: true },
           '/internal/mcp/asset-query': { operation: 'queryAssets', commandType: 'asset.query', atomicAudit: false, auditAuthorized: false },
+          '/internal/mcp/room-query': { operation: 'queryRooms', commandType: 'room.query', atomicAudit: false, auditAuthorized: false },
         }[url.pathname];
         const attempt = {
           attemptId,
@@ -681,6 +743,11 @@ export function createStudioHttpServer({
           if (safeAssetId) {
             attempt.targetKind = 'asset';
             attempt.targetId = safeAssetId;
+          }
+          const safeRoomId = definition.commandType === 'room.query' ? safeAttemptId(body?.roomVariantId) : null;
+          if (safeRoomId) {
+            attempt.targetKind = 'room';
+            attempt.targetId = safeRoomId;
           }
           await assertExecutableBindingPolicy(studioService, binding);
           result = await studioService[definition.operation](body, context, {
@@ -790,6 +857,108 @@ export function createStudioHttpServer({
           humanOwnerContext(projectView),
           { signal: requestAbort.signal },
         ));
+        return;
+      }
+      const roomArchetypeRequest = roomArchetypeRoute(url.pathname);
+      if (request.method === 'POST' && roomArchetypeRequest) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 256 * 1024 });
+        assertExactKeys(body, new Set([
+          'expectedRevision', 'idempotencyKey', 'roomArchetypeId', 'kind', 'displayName',
+          'tags', 'dimensionPolicy', 'structuralBands', 'orientation', 'connectorPolicy',
+          'allowedAssetKinds', 'allowedTags', 'requiredTags', 'rationality', 'governingRuleRefs',
+        ]), 'Room archetype creation');
+        const { expectedRevision: _expectedRevision, idempotencyKey: _idempotencyKey, ...payload } = body;
+        const projectView = await studioService.readProjectTrusted(roomArchetypeRequest.projectId);
+        sendJson(response, 200, await studioService.execute(
+          humanCommandDto(roomArchetypeRequest.projectId, body, 'room.archetype.create', payload),
+          humanOwnerContext(projectView),
+          { signal: requestAbort.signal },
+        ));
+        return;
+      }
+      const roomRequest = roomRoute(url.pathname);
+      if (request.method === 'GET' && roomRequest && ['read', 'collection'].includes(roomRequest.action)) {
+        const projectView = await studioService.readProjectTrusted(roomRequest.projectId);
+        sendJson(response, 200, await studioService.queryRooms(
+          roomQueryDto(url, roomRequest),
+          humanOwnerContext(projectView),
+          { signal: requestAbort.signal },
+        ));
+        return;
+      }
+      if (request.method === 'POST' && roomRequest?.action === 'collection') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
+        assertExactKeys(body, new Set([
+          'expectedRevision', 'idempotencyKey', 'roomVariantId', 'roomArchetypeId',
+          'archetypeVersion', 'displayName', 'width', 'height', 'intentTrace',
+          'connectors', 'placements',
+        ]), 'Room variant creation');
+        const { expectedRevision: _expectedRevision, idempotencyKey: _idempotencyKey, ...payload } = body;
+        const projectView = await studioService.readProjectTrusted(roomRequest.projectId);
+        sendJson(response, 200, await studioService.execute(
+          humanCommandDto(roomRequest.projectId, body, 'room.variant.create', payload),
+          humanOwnerContext(projectView),
+          { signal: requestAbort.signal },
+        ));
+        return;
+      }
+      if (request.method === 'POST' && roomRequest && !['read', 'collection'].includes(roomRequest.action)) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
+        const actionContract = {
+          intent: { type: 'room.variant.intent.set', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'intentTrace'] },
+          resize: { type: 'room.variant.resize', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'width', 'height', 'removePlacementIds', 'removeConnectorIds'] },
+          connectors: { type: 'room.variant.connectors.set', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'connectors'] },
+          'placements-add': { type: 'room.variant.placements.add', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'placements'] },
+          'placements-move': { type: 'room.variant.placements.move', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'moves'] },
+          'placements-remove': { type: 'room.variant.placements.remove', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'placements'] },
+          'warning-dispositions': { type: 'room.variant.warning.disposition.set', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'acceptedWarningFindingIds'] },
+          validate: { type: 'room.variant.validate', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'confirm'], confirm: true },
+          finalize: { type: 'room.variant.finalize', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'confirm'], confirm: true },
+          fork: { type: 'room.variant.fork', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'confirm'], confirm: true },
+        }[roomRequest.action];
+        assertExactKeys(body, new Set(actionContract.keys), `Room ${roomRequest.action} request`);
+        if (actionContract.confirm && body.confirm !== true) throw new StudioError('FORBIDDEN', `Room ${roomRequest.action} requires explicit human confirmation.`);
+        const payload = { roomVariantId: roomRequest.roomVariantId, expectedRoomVariantVersion: body.expectedRoomVariantVersion };
+        for (const key of actionContract.keys) {
+          if (!['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'confirm'].includes(key)) payload[key] = body[key];
+        }
+        const projectView = await studioService.readProjectTrusted(roomRequest.projectId);
+        sendJson(response, 200, await studioService.execute(
+          humanCommandDto(roomRequest.projectId, body, actionContract.type, payload),
+          humanOwnerContext(projectView),
+          { signal: requestAbort.signal },
+        ));
+        return;
+      }
+      const roomProposalRequest = roomProposalRoute(url.pathname);
+      if (request.method === 'POST' && roomProposalRequest) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
+        const projectView = await studioService.readProjectTrusted(roomProposalRequest.projectId);
+        let commandValue;
+        if (roomProposalRequest.action === 'submit') {
+          assertExactKeys(body, new Set(['expectedRevision', 'idempotencyKey', 'proposalId', 'roomVariantId', 'expectedRoomVariantVersion', 'items']), 'Room proposal submission');
+          commandValue = humanCommandDto(roomProposalRequest.projectId, body, 'room.placement.proposal.submit', {
+            proposalId: body.proposalId, roomVariantId: body.roomVariantId,
+            expectedRoomVariantVersion: body.expectedRoomVariantVersion, items: body.items,
+          });
+        } else if (roomProposalRequest.action === 'decision') {
+          assertExactKeys(body, new Set(['expectedRevision', 'idempotencyKey', 'expectedProposalVersion', 'decisions', 'confirm']), 'Room proposal decision');
+          if (body.confirm !== true) throw new StudioError('FORBIDDEN', 'A room proposal decision requires explicit human confirmation.');
+          commandValue = humanCommandDto(roomProposalRequest.projectId, body, 'room.placement.proposal.decide', {
+            proposalId: roomProposalRequest.proposalId, expectedProposalVersion: body.expectedProposalVersion, decisions: body.decisions,
+          });
+        } else {
+          assertExactKeys(body, new Set(['expectedRevision', 'idempotencyKey', 'expectedProposalVersion', 'confirm']), 'Room proposal apply');
+          if (body.confirm !== true) throw new StudioError('FORBIDDEN', 'Applying a room proposal requires explicit human confirmation.');
+          commandValue = humanCommandDto(roomProposalRequest.projectId, body, 'room.placement.proposal.apply', {
+            proposalId: roomProposalRequest.proposalId, expectedProposalVersion: body.expectedProposalVersion,
+          });
+        }
+        sendJson(response, 200, await studioService.execute(commandValue, humanOwnerContext(projectView), { signal: requestAbort.signal }));
         return;
       }
       const atlasRequest = atlasRoute(url.pathname);
@@ -1094,7 +1263,8 @@ export function createStudioHttpServer({
           hostBindings: await humanAgentAccess.listBindings(project.projectId),
           pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),
           mcpLauncherConfig: mcpLauncherProjection(
-            request, project.projectId, pairingBroker, pairingEndpoint, studioService.durableAssetStoreReady,
+            request, project.projectId, pairingBroker, pairingEndpoint,
+            studioService.durableAssetStoreReady, studioService.durableRoomStoreReady,
           ),
           csrfToken: humanUiCsrfToken,
         });

@@ -55,7 +55,7 @@ function createJob(jobs, overrides = {}) {
 
 test('schema v7 creates an idempotent durable job and monotonic initial event', async (context) => {
   const { projectStore, jobs } = await fixture(context);
-  assert.equal(projectStore.integrityCheck().userVersion, 9);
+  assert.equal(projectStore.integrityCheck().userVersion, 10);
   const created = createJob(jobs);
   assert.equal(created.replayed, false);
   assert.equal(created.state, 'QUEUED');
@@ -96,7 +96,7 @@ test('migration 0007 rolls back at its version boundary and resumes cleanly', as
   `).get().count, 0);
   interrupted.close();
   const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  assert.equal(resumed.integrityCheck().userVersion, 9);
+  assert.equal(resumed.integrityCheck().userVersion, 10);
   resumed.close();
 });
 
@@ -126,7 +126,7 @@ test('migration 0008 rolls back before/after its boundary, preserves failures, a
     `).run(`attempt.${boundary}`, PROJECT_ID, `mcp.${boundary}`, 'atlas.agent', 'task.atlas', 'branch.task.atlas', PROJECT_ID, '2026-08-21T12:00:01.000Z');
     interrupted.close();
     const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-    assert.equal(resumed.integrityCheck().userVersion, 9);
+    assert.equal(resumed.integrityCheck().userVersion, 10);
     assert.equal(resumed.workspace.database.prepare('SELECT status FROM agent_attempts').get().status, 'DENIED');
     assert.ok(resumed.workspace.database.prepare(`
       SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'agent_attempts_project_occurred'

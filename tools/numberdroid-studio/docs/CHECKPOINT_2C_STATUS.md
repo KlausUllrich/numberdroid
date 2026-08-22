@@ -1,7 +1,7 @@
 # Numberdroid Studio — Checkpoint 2C Candidate Record
 
 - **Date:** 2026-08-22
-- **Status:** implemented and locally verified as a user-acceptance candidate; not user-accepted
+- **Status:** implemented and verified as a candidate; explicit user verification deferred into the combined Checkpoint 2C + Checkpoint 3 gate
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135` — remains open, draft, unmerged, and unreleased
 - **Accepted prerequisites:** Checkpoint 2A and Checkpoint 2B
@@ -9,6 +9,7 @@
 - **Published CI/evidence:** run `32580111158` — root job `97048089489` and Studio job `97048089540` passed
 - **Dedicated evidence artifact:** `9477603132` (`numberdroid-studio-checkpoint-2c-evidence`), 2,060,358 bytes, `sha256:4dccfa1fbcdae7ae19c5bcafc3fed122c2225ce11e9857ee85a4db2bc715b204`
 - **Independent verifier:** GO after reproducing and clearing all four initial NO-GO findings
+- **Continuation decision:** on 2026-08-22 the user stated that they could not verify 2C now, explicitly authorized the next step, and required acceptance to be combined with the next checkpoint; this is not 2C acceptance
 
 This record describes the Checkpoint 2C candidate. It does not record user acceptance and grants no merge, release, provider, room, Numberdroid/runtime/repository export, materialization, publication, or downstream-checkpoint authority. The only import/export operation authorized in this checkpoint is an offline, project-scoped portable Studio bundle round trip.
 
@@ -112,4 +113,4 @@ No bitmap evidence is committed to the repository. CI publishes screenshots, DOM
 
 ## Gate disposition
 
-The publication, two-job CI, evidence download/inspection, and fresh adversarial GO preconditions are satisfied for candidate commit `0382ad1827db56c07be3a32b59dc43dff78500ba`. The checkpoint is ready for the short user walkthrough above, but remains unaccepted until the user's explicit visual/workflow decision. PR #135 stays draft, open, and unmerged.
+The publication, two-job CI, evidence download/inspection, and fresh adversarial GO preconditions are satisfied for candidate commit `0382ad1827db56c07be3a32b59dc43dff78500ba`. The user explicitly deferred this walkthrough and authorized Checkpoint 3, with one combined 2C + 3 acceptance decision at the next candidate gate. This deferral is not acceptance. PR #135 stays draft, open, and unmerged.

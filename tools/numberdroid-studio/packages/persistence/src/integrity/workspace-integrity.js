@@ -608,6 +608,178 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
   }
   const assets = { ok: assetFindings.length === 0, versionCount: assetVersionCount, findings: assetFindings };
 
+  const roomFindings = [];
+  let roomVersionCount = 0;
+  try {
+    const db = projectStore.workspace.database;
+    const projectHeads = db.prepare('SELECT project_id, head_snapshot_json FROM projects ORDER BY project_id').all();
+    const snapshotByProject = new Map(projectHeads.map((row) => {
+      try { return [row.project_id, JSON.parse(row.head_snapshot_json)]; } catch { return [row.project_id, null]; }
+    }));
+    const archetypes = db.prepare('SELECT * FROM room_archetype_versions ORDER BY project_id, room_archetype_id, archetype_version').all();
+    const rulesForArchetype = db.prepare(`
+      SELECT rule_id, rule_order, summary FROM room_archetype_governing_rules
+      WHERE project_id = ? AND room_archetype_id = ? AND archetype_version = ?
+      ORDER BY rule_order
+    `);
+    const latestArchetype = new Map();
+    for (const row of archetypes) {
+      let value;
+      try { value = JSON.parse(row.archetype_json); } catch {
+        roomFindings.push({ projectId: row.project_id, roomArchetypeId: row.room_archetype_id, code: 'ROOM_ARCHETYPE_JSON_INVALID', message: 'Room archetype JSON is invalid.' });
+        continue;
+      }
+      if (fingerprint(value) !== row.content_fingerprint || value.roomArchetypeId !== row.room_archetype_id
+        || value.version !== Number(row.archetype_version) || value.kind !== row.kind || value.displayName !== row.display_name) {
+        roomFindings.push({ projectId: row.project_id, roomArchetypeId: row.room_archetype_id, code: 'ROOM_ARCHETYPE_CONTENT_MISMATCH', message: 'Normalized archetype columns or fingerprint differ from immutable JSON.' });
+      }
+      const rules = rulesForArchetype.all(row.project_id, row.room_archetype_id, row.archetype_version);
+      if (rules.some((rule, index) => Number(rule.rule_order) !== index)
+        || fingerprint(rules.map((rule) => ({ ruleId: rule.rule_id, summary: rule.summary }))) !== fingerprint(value.governingRuleRefs ?? [])) {
+        roomFindings.push({ projectId: row.project_id, roomArchetypeId: row.room_archetype_id, code: 'ROOM_ARCHETYPE_RULES_MISMATCH', message: 'Normalized governing rules differ from immutable archetype content.' });
+      }
+      latestArchetype.set(`${row.project_id}:${row.room_archetype_id}`, row);
+    }
+    const archetypeHeads = db.prepare('SELECT * FROM room_archetype_heads ORDER BY project_id, room_archetype_id').all();
+    for (const head of archetypeHeads) {
+      const latest = latestArchetype.get(`${head.project_id}:${head.room_archetype_id}`);
+      if (!latest || Number(head.archetype_version) !== Number(latest.archetype_version)
+        || head.kind !== latest.kind || head.display_name !== latest.display_name) {
+        roomFindings.push({ projectId: head.project_id, roomArchetypeId: head.room_archetype_id, code: 'ROOM_ARCHETYPE_HEAD_MISMATCH', message: 'Room archetype head differs from its latest immutable version.' });
+      }
+    }
+
+    const versions = db.prepare('SELECT * FROM room_variant_versions ORDER BY project_id, room_variant_id, variant_version').all();
+    roomVersionCount = versions.length;
+    const intentForVersion = db.prepare(`SELECT * FROM room_variant_intent WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY intent_order`);
+    const connectorsForVersion = db.prepare(`SELECT * FROM room_variant_connectors WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY connector_order`);
+    const placementsForVersion = db.prepare(`SELECT * FROM room_variant_placements WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY placement_order`);
+    const findingsForVersion = db.prepare(`SELECT * FROM room_variant_findings WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY finding_order`);
+    const dispositionsForVersion = db.prepare(`SELECT * FROM room_variant_warning_dispositions WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY disposition_order`);
+    const exactAsset = db.prepare(`SELECT metadata_version FROM asset_versions WHERE project_id = ? AND asset_id = ? AND asset_version = ?`);
+    const latestRoom = new Map();
+    for (const row of versions) {
+      const key = `${row.project_id}:${row.room_variant_id}`;
+      const prior = latestRoom.get(key);
+      if (Number(row.variant_version) !== (prior ? Number(prior.variant_version) + 1 : 1)
+        || Number(row.previous_variant_version ?? 0) !== (prior ? Number(prior.variant_version) : 0)) {
+        roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, code: 'ROOM_VERSION_SEQUENCE_INVALID', message: 'Room versions or immediate-parent lineage are not consecutive.' });
+      }
+      latestRoom.set(key, row);
+      let value;
+      let findings;
+      let intent;
+      let connectors;
+      let placements;
+      try {
+        value = JSON.parse(row.variant_json);
+        const findingRows = findingsForVersion.all(row.project_id, row.room_variant_id, row.variant_version);
+        findings = findingRows.map((findingRow) => JSON.parse(findingRow.finding_json));
+        intent = intentForVersion.all(row.project_id, row.room_variant_id, row.variant_version).map((intentRow) => ({
+          layer: intentRow.layer, ruleId: intentRow.rule_id, summary: intentRow.summary, disposition: intentRow.disposition,
+        }));
+        connectors = connectorsForVersion.all(row.project_id, row.room_variant_id, row.variant_version).map((connectorRow) => JSON.parse(connectorRow.connector_json));
+        placements = placementsForVersion.all(row.project_id, row.room_variant_id, row.variant_version).map((placementRow) => JSON.parse(placementRow.placement_json));
+        for (const [index, findingRow] of findingRows.entries()) {
+          const findingValue = findings[index];
+          if (Number(findingRow.finding_order) !== index || findingValue.findingId !== findingRow.finding_id
+            || findingValue.severity !== findingRow.severity || findingValue.ruleId !== findingRow.rule_id
+            || findingValue.targetKind !== findingRow.target_kind || findingValue.targetId !== findingRow.target_id
+            || findingValue.path !== findingRow.path || findingValue.explanation !== findingRow.explanation
+            || findingValue.remediation !== findingRow.remediation || findingValue.validatorVersion !== findingRow.validator_version) {
+            roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, code: 'ROOM_FINDING_COLUMNS_MISMATCH', message: 'Room finding columns differ from immutable JSON.' });
+          }
+        }
+      } catch {
+        roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, code: 'ROOM_VERSION_JSON_INVALID', message: 'Room version or normalized child JSON is invalid.' });
+        continue;
+      }
+      if (fingerprint({ variant: value, findings }) !== row.content_fingerprint
+        || fingerprint(findings) !== row.findings_fingerprint
+        || value.version !== Number(row.variant_version) || value.lifecycle !== row.lifecycle
+        || value.width !== Number(row.width) || value.height !== Number(row.height)
+        || fingerprint(value.intentTrace) !== fingerprint(intent)
+        || fingerprint(value.connectors) !== fingerprint(connectors)
+        || fingerprint(value.placements) !== fingerprint(placements)) {
+        roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, code: 'ROOM_VERSION_CONTENT_MISMATCH', message: 'Normalized room content, child records, or fingerprints disagree.' });
+      }
+      for (const placement of placements) {
+        const asset = exactAsset.get(row.project_id, placement.assetId, placement.assetVersion);
+        if (!asset || Number(asset.metadata_version) !== placement.metadataVersion) {
+          roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, placementId: placement.placementId, code: 'ROOM_ASSET_PIN_MISSING', message: 'A room placement lost its exact asset and metadata version.' });
+        }
+      }
+      const dispositions = dispositionsForVersion.all(row.project_id, row.room_variant_id, row.variant_version);
+      const warningIds = new Set(findings.filter((findingValue) => findingValue.severity === 'WARNING').map((findingValue) => findingValue.findingId));
+      if (dispositions.some((entry, index) => Number(entry.disposition_order) !== index || !warningIds.has(entry.finding_id))
+        || fingerprint(dispositions.map((entry) => entry.finding_id)) !== fingerprint(value.acceptedWarningFindingIds ?? [])) {
+        roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, code: 'ROOM_WARNING_DISPOSITION_MISMATCH', message: 'Room warning dispositions differ from current warning findings or semantic content.' });
+      }
+      if (row.lifecycle === 'FINAL' && (findings.some((findingValue) => findingValue.severity === 'ERROR')
+        || findings.some((findingValue) => findingValue.severity === 'WARNING' && !value.acceptedWarningFindingIds.includes(findingValue.findingId)))) {
+        roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, code: 'ROOM_FINAL_FINDINGS_INVALID', message: 'A FINAL room retains a blocking or undispositioned finding.' });
+      }
+      const semanticEntry = snapshotByProject.get(row.project_id)?.roomLibrary?.variants?.find((entry) => entry.roomVariantId === row.room_variant_id);
+      const semantic = semanticEntry?.versions?.find((version) => version.version === Number(row.variant_version));
+      if (!semantic || semantic.contentFingerprint !== row.content_fingerprint
+        || fingerprint(semantic.findings) !== fingerprint(findings) || fingerprint({
+          projectId: semantic.projectId, roomVariantId: semantic.roomVariantId, version: semantic.version,
+          roomArchetypeId: semantic.roomArchetypeId, archetypeVersion: semantic.archetypeVersion,
+          displayName: semantic.displayName, lifecycle: semantic.lifecycle, width: semantic.width,
+          height: semantic.height, origin: semantic.origin, intentTrace: semantic.intentTrace,
+          connectors: semantic.connectors, placements: semantic.placements,
+          acceptedWarningFindingIds: semantic.acceptedWarningFindingIds,
+          parentVariantVersion: semantic.parentVariantVersion, parentFinalVersion: semantic.parentFinalVersion,
+        }) !== fingerprint(value)) {
+        roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, code: 'ROOM_VERSION_SNAPSHOT_MISMATCH', message: 'Normalized room version differs from the semantic project head history.' });
+      }
+    }
+    const roomHeads = db.prepare('SELECT * FROM room_variant_heads ORDER BY project_id, room_variant_id').all();
+    for (const head of roomHeads) {
+      const latest = latestRoom.get(`${head.project_id}:${head.room_variant_id}`);
+      if (!latest || Number(head.variant_version) !== Number(latest.variant_version)
+        || head.lifecycle !== latest.lifecycle || head.display_name !== latest.display_name
+        || Number(head.width) !== Number(latest.width) || Number(head.height) !== Number(latest.height)) {
+        roomFindings.push({ projectId: head.project_id, roomVariantId: head.room_variant_id, code: 'ROOM_HEAD_MISMATCH', message: 'Room head differs from its latest immutable version.' });
+      }
+    }
+    for (const [projectId, snapshot] of snapshotByProject) {
+      if (!snapshot) continue;
+      const semanticArchetypes = snapshot.roomLibrary?.archetypes ?? [];
+      const semanticVariants = snapshot.roomLibrary?.variants ?? [];
+      if (semanticArchetypes.length !== archetypeHeads.filter((head) => head.project_id === projectId).length
+        || semanticVariants.length !== roomHeads.filter((head) => head.project_id === projectId).length) {
+        roomFindings.push({ projectId, code: 'ROOM_LIBRARY_SNAPSHOT_COUNT_MISMATCH', message: 'Normalized room/archetype heads differ from semantic head counts.' });
+      }
+    }
+    const proposals = db.prepare('SELECT * FROM room_placement_proposals ORDER BY project_id, proposal_id').all();
+    for (const proposal of proposals) {
+      const items = db.prepare('SELECT * FROM room_placement_proposal_items WHERE project_id = ? AND proposal_id = ? ORDER BY item_order').all(proposal.project_id, proposal.proposal_id);
+      const decisions = db.prepare('SELECT * FROM room_placement_proposal_decisions WHERE project_id = ? AND proposal_id = ? ORDER BY item_id').all(proposal.project_id, proposal.proposal_id);
+      const application = db.prepare('SELECT * FROM room_placement_proposal_applications WHERE project_id = ? AND proposal_id = ?').get(proposal.project_id, proposal.proposal_id);
+      const findingRows = db.prepare('SELECT * FROM room_placement_proposal_findings WHERE project_id = ? AND proposal_id = ? ORDER BY finding_order').all(proposal.project_id, proposal.proposal_id);
+      let findingValues = [];
+      try { findingValues = findingRows.map((row) => JSON.parse(row.finding_json)); } catch {}
+      if (items.length !== Number(proposal.item_count)
+        || fingerprint(findingValues) !== proposal.finding_fingerprint
+        || (proposal.status !== 'PENDING' && decisions.length !== items.length)
+        || (proposal.status === 'APPLIED' && (!application || Number(application.accepted_count) + Number(application.rejected_count) !== items.length))) {
+        roomFindings.push({ projectId: proposal.project_id, proposalId: proposal.proposal_id, code: 'ROOM_PROPOSAL_PROJECTION_MISMATCH', message: 'Room proposal items, findings, decisions, application, and state disagree.' });
+      }
+      const semantic = snapshotByProject.get(proposal.project_id)?.roomLibrary?.proposals?.find((entry) => entry.proposalId === proposal.proposal_id);
+      if (!semantic || semantic.state !== proposal.status || semantic.fingerprint !== proposal.request_fingerprint
+        || semantic.items.length !== Number(proposal.item_count)
+        || Number(semantic.submittedRevision) !== Number(proposal.created_revision)
+        || Number(semantic.decisionRevision) !== Number(proposal.decided_revision)
+        || Number(semantic.appliedRevision) !== Number(proposal.applied_revision)) {
+        roomFindings.push({ projectId: proposal.project_id, proposalId: proposal.proposal_id, code: 'ROOM_PROPOSAL_SNAPSHOT_MISMATCH', message: 'Durable room proposal differs from the semantic project head.' });
+      }
+    }
+  } catch (error) {
+    roomFindings.push({ projectId: null, code: 'ROOM_DESIGNER_QUERY_FAILED', message: 'V10 room integrity could not be inspected.', cause: error.message });
+  }
+  const rooms = { ok: roomFindings.length === 0, versionCount: roomVersionCount, findings: roomFindings };
+
   const bundleImportFindings = [];
   let bundleImportJobCount = 0;
   try {
@@ -649,13 +821,14 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
   const bundleImports = { ok: bundleImportFindings.length === 0, appliedJobCount: bundleImportJobCount, findings: bundleImportFindings };
   return {
     schemaVersion: 1,
-    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && bundleImports.ok,
+    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && bundleImports.ok,
     database,
     artifacts,
     sourceIntakes,
     agentAttempts,
     jobs,
     assets,
+    rooms,
     bundleImports,
   };
 }

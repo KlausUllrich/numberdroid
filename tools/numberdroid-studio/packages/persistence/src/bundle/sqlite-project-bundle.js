@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { invariant } from '../../../domain/src/errors.js';
+import { validateRoomArchetype, validateRoomVariant } from '../../../domain/src/room-definition.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { ContentAddressedArtifactStore } from '../artifacts/content-addressed-artifact-store.js';
 import { verifyWorkspaceIntegrity } from '../integrity/workspace-integrity.js';
@@ -300,6 +301,71 @@ function restoredProposalSnapshot(proposal) {
   };
 }
 
+function portableRoomArchetype(archetype) {
+  const { provenance: _provenance, ...portable } = structuredClone(archetype);
+  return portable;
+}
+
+function restoredRoomArchetype(archetype) {
+  return { ...structuredClone(archetype), provenance: 'bundle_import' };
+}
+
+function portableRoomVersion(version) {
+  const { provenance: _provenance, ...portable } = structuredClone(version);
+  return portable;
+}
+
+function restoredRoomVersion(version) {
+  return { ...structuredClone(version), provenance: 'bundle_import' };
+}
+
+function portableRoomProposal(proposal) {
+  return {
+    ...structuredClone(proposal),
+    proposer: {
+      actor: structuredClone(proposal.proposer.actor),
+      taskId: proposal.proposer.taskId ?? null,
+    },
+  };
+}
+
+function restoredRoomProposal(proposal) {
+  return {
+    ...structuredClone(proposal),
+    proposer: {
+      ...structuredClone(proposal.proposer),
+      branchId: 'branch.bundle-import',
+      grantId: null,
+    },
+  };
+}
+
+function portableRoomLibrary(snapshot) {
+  const roomLibrary = snapshot.roomLibrary ?? { archetypes: [], variants: [], proposals: [] };
+  return {
+    archetypes: sorted(roomLibrary.archetypes.map(portableRoomArchetype), (value) => `${value.roomArchetypeId}:${String(value.version).padStart(12, '0')}`),
+    variants: sorted(roomLibrary.variants.map((entry) => ({
+      roomVariantId: entry.roomVariantId,
+      headVersion: entry.headVersion,
+      versions: [...entry.versions].sort((left, right) => left.version - right.version).map(portableRoomVersion),
+    })), (value) => value.roomVariantId),
+    proposals: sorted(roomLibrary.proposals.map(portableRoomProposal), (value) => value.proposalId),
+  };
+}
+
+function restoredRoomLibrary(roomLibrary) {
+  return {
+    schemaVersion: 1,
+    archetypes: roomLibrary.archetypes.map(restoredRoomArchetype),
+    variants: roomLibrary.variants.map((entry) => ({
+      roomVariantId: entry.roomVariantId,
+      headVersion: entry.headVersion,
+      versions: entry.versions.map(restoredRoomVersion),
+    })),
+    proposals: roomLibrary.proposals.map(restoredRoomProposal),
+  };
+}
+
 function rowBinding(row) {
   return {
     sliceId: row.slice_id,
@@ -519,6 +585,14 @@ const PROGRESS_KEYS = ['current', 'total'];
 const ACTIVITY_KEYS = ['eventId', 'revision', 'occurredAt', 'actorKind', 'actorId', 'taskId', 'type', 'summary', 'changes'];
 const CHANGE_KEYS = ['entityType', 'entityId', 'operation'];
 const METADATA_KEYS = ['role', 'tags', 'variantGroup', 'compatibilityGroups', 'spanTiles', 'anchor', 'attachment', 'rotationPolicy', 'placement', 'collision', 'navigation', 'runtimeEligible', 'connectors', 'continuityProfile', 'continuityTags', 'selectionPriority', 'visualWeight', 'extensions', 'pixelSize', 'pivot'];
+const ROOM_ARCHETYPE_KEYS = ['projectId', 'roomArchetypeId', 'version', 'kind', 'displayName', 'tags', 'dimensionPolicy', 'structuralBands', 'orientation', 'connectorPolicy', 'allowedAssetKinds', 'allowedTags', 'requiredTags', 'rationality', 'governingRuleRefs', 'fingerprint', 'createdAt', 'createdBy', 'createdRevision'];
+const ROOM_VARIANT_ENTRY_KEYS = ['roomVariantId', 'headVersion', 'versions'];
+const ROOM_VERSION_KEYS = ['projectId', 'roomVariantId', 'version', 'roomArchetypeId', 'archetypeVersion', 'displayName', 'lifecycle', 'width', 'height', 'origin', 'intentTrace', 'connectors', 'placements', 'acceptedWarningFindingIds', 'parentVariantVersion', 'parentFinalVersion', 'findings', 'contentFingerprint', 'createdAt', 'createdBy', 'createdRevision', 'proposalId'];
+const ROOM_INTENT_KEYS = ['layer', 'ruleId', 'summary', 'disposition'];
+const ROOM_CONNECTOR_KEYS = ['connectorId', 'side', 'offset', 'width', 'kind', 'clearanceInside', 'clearanceOutside', 'required', 'tags', 'compatibilityProfile'];
+const ROOM_PLACEMENT_KEYS = ['placementId', 'assetId', 'assetVersion', 'metadataVersion', 'layer', 'anchor', 'rotation', 'variantTag', 'proposalId', 'proposalItemId'];
+const ROOM_PROPOSAL_KEYS = ['proposalId', 'proposalVersion', 'roomVariantId', 'expectedRoomVariantVersion', 'state', 'fingerprint', 'findings', 'items', 'proposer', 'submittedAt', 'submittedRevision', 'decidedAt', 'decidedBy', 'decisionRevision', 'appliedAt', 'appliedBy', 'appliedRevision', 'createdRoomVariantVersion'];
+const ROOM_PROPOSAL_ITEM_KEYS = ['itemId', 'operation', 'placement', 'placementId', 'expectedAssetId', 'anchor', 'rotation', 'ordinal', 'diff', 'decision'];
 
 function validateRectangleSchema(rectangle, label, { binding = false } = {}) {
   exactKeys(rectangle, binding ? BINDING_RECTANGLE_KEYS : RECTANGLE_KEYS, label);
@@ -566,6 +640,49 @@ function validateProposalItemSchema(item, label) {
   exactKeys(item.diff.after, DIFF_AFTER_KEYS, `${label}.diff.after`);
   validateMetadataSchema(item.diff.after.metadata, `${label}.diff.after.metadata`);
   validateExactBindingSchema(item.diff.after.sliceBinding, `${label}.diff.after.sliceBinding`);
+}
+
+function validateRoomPlacementSchema(placement, label) {
+  exactKeys(placement, ROOM_PLACEMENT_KEYS, label);
+  exactKeys(placement.anchor, ['x', 'y'], `${label}.anchor`);
+}
+
+function validateRoomLibrarySchemas(roomLibrary) {
+  exactKeys(roomLibrary, ['archetypes', 'variants', 'proposals'], 'roomLibrary');
+  roomLibrary.archetypes.forEach((archetype, index) => {
+    const label = `roomLibrary.archetypes[${index}]`; exactKeys(archetype, ROOM_ARCHETYPE_KEYS, label);
+    exactKeys(archetype.dimensionPolicy, ['width', 'height'], `${label}.dimensionPolicy`);
+    exactKeys(archetype.dimensionPolicy.width, ['min', 'preferred', 'max'], `${label}.dimensionPolicy.width`);
+    exactKeys(archetype.dimensionPolicy.height, ['min', 'preferred', 'max'], `${label}.dimensionPolicy.height`);
+    exactKeys(archetype.structuralBands, ['left', 'right', 'top', 'bottom'], `${label}.structuralBands`);
+    exactKeys(archetype.connectorPolicy, ['min', 'max', 'requiredSides'], `${label}.connectorPolicy`);
+    archetype.governingRuleRefs.forEach((rule, ruleIndex) => exactKeys(rule, ['ruleId', 'summary'], `${label}.governingRuleRefs[${ruleIndex}]`));
+  });
+  roomLibrary.variants.forEach((entry, entryIndex) => {
+    const entryLabel = `roomLibrary.variants[${entryIndex}]`; exactKeys(entry, ROOM_VARIANT_ENTRY_KEYS, entryLabel);
+    entry.versions.forEach((version, versionIndex) => {
+      const label = `${entryLabel}.versions[${versionIndex}]`; exactKeys(version, ROOM_VERSION_KEYS, label);
+      exactKeys(version.origin, ['x', 'y'], `${label}.origin`);
+      version.intentTrace.forEach((intent, intentIndex) => exactKeys(intent, ROOM_INTENT_KEYS, `${label}.intentTrace[${intentIndex}]`));
+      version.connectors.forEach((connector, connectorIndex) => exactKeys(connector, ROOM_CONNECTOR_KEYS, `${label}.connectors[${connectorIndex}]`));
+      version.placements.forEach((placement, placementIndex) => validateRoomPlacementSchema(placement, `${label}.placements[${placementIndex}]`));
+      version.findings.forEach((finding, findingIndex) => validateFindingSchema(finding, `${label}.findings[${findingIndex}]`));
+    });
+  });
+  roomLibrary.proposals.forEach((proposal, proposalIndex) => {
+    const label = `roomLibrary.proposals[${proposalIndex}]`; exactKeys(proposal, ROOM_PROPOSAL_KEYS, label);
+    exactKeys(proposal.proposer, PROPOSER_KEYS, `${label}.proposer`); exactKeys(proposal.proposer.actor, ACTOR_KEYS, `${label}.proposer.actor`);
+    proposal.findings.forEach((finding, findingIndex) => validateFindingSchema(finding, `${label}.findings[${findingIndex}]`));
+    proposal.items.forEach((item, itemIndex) => {
+      const itemLabel = `${label}.items[${itemIndex}]`; exactKeys(item, ROOM_PROPOSAL_ITEM_KEYS, itemLabel);
+      if (item.placement !== null) validateRoomPlacementSchema(item.placement, `${itemLabel}.placement`);
+      if (item.anchor !== null) exactKeys(item.anchor, ['x', 'y'], `${itemLabel}.anchor`);
+      exactKeys(item.diff, ['itemId', 'operation', 'before', 'after'], `${itemLabel}.diff`);
+      if (item.diff.before !== null) validateRoomPlacementSchema(item.diff.before, `${itemLabel}.diff.before`);
+      if (item.diff.after !== null) validateRoomPlacementSchema(item.diff.after, `${itemLabel}.diff.after`);
+      if (item.decision !== null) exactKeys(item.decision, DECISION_KEYS, `${itemLabel}.decision`);
+    });
+  });
 }
 
 function validateNestedSchemas(project) {
@@ -638,6 +755,7 @@ function validateNestedSchemas(project) {
     exactKeys(activity, ACTIVITY_KEYS, `activity[${index}]`);
     activity.changes.forEach((change, changeIndex) => exactKeys(change, CHANGE_KEYS, `activity[${index}].changes[${changeIndex}]`));
   });
+  if (project.schemaVersion === 2) validateRoomLibrarySchemas(project.roomLibrary);
 }
 
 export function validateSqlitePortableProject(project) {
@@ -650,6 +768,11 @@ export function validateSqlitePortableProject(project) {
   requireUnique(project.assetLibrary.heads, (head) => head.assetId, 'asset heads');
   requireUnique(project.proposals, (proposal) => proposal.proposalId, 'proposals');
   requireUnique(project.appliedJobHistory, (job) => job.jobId, 'applied job history');
+  if (project.schemaVersion === 2) {
+    requireUnique(project.roomLibrary.archetypes, (archetype) => `${archetype.roomArchetypeId}:${String(archetype.version).padStart(12, '0')}`, 'room archetypes');
+    requireUnique(project.roomLibrary.variants, (entry) => entry.roomVariantId, 'room variants');
+    requireUnique(project.roomLibrary.proposals, (proposal) => proposal.proposalId, 'room proposals');
+  }
   const digests = new Set(project.artifactDigests);
   const sources = new Map(project.sources.map((source) => [source.sourceId, source]));
   const bindings = new Map(project.assetLibrary.sliceBindings.map((binding) => [`${binding.sliceId}:${binding.sliceVersion}`, binding]));
@@ -689,6 +812,54 @@ export function validateSqlitePortableProject(project) {
     invariant(job.state === 'APPLIED' && fingerprint(job.input) === job.inputFingerprint, 'BUNDLE_SEMANTIC_INVALID', 'Applied job input fingerprint is invalid.', { jobId: job.jobId });
     invariant(job.outputs.every((output) => digests.has(output.digest)), 'BUNDLE_CAS_CLOSURE_MISMATCH', 'Applied job output is outside the bundle closure.', { jobId: job.jobId });
   }
+  if (project.schemaVersion === 2) {
+    const archetypes = new Map();
+    for (const portable of project.roomLibrary.archetypes) {
+      invariant(portable.projectId === project.projectHead.projectId, 'BUNDLE_SEMANTIC_INVALID', 'A room archetype belongs to another project.', { roomArchetypeId: portable.roomArchetypeId });
+      const { fingerprint: expectedFingerprint, createdAt: _createdAt, createdBy: _createdBy, createdRevision: _createdRevision, ...value } = portable;
+      const validated = validateRoomArchetype(value);
+      invariant(validated.fingerprint === expectedFingerprint, 'BUNDLE_SEMANTIC_INVALID', 'A room archetype fingerprint is invalid.', { roomArchetypeId: portable.roomArchetypeId });
+      archetypes.set(`${portable.roomArchetypeId}:${portable.version}`, validated);
+    }
+    const assetVersions = new Map(project.assetLibrary.versions.map((version) => [`${version.assetId}@${version.assetVersion}:${version.metadataVersion}`, {
+      assetId: version.assetId, assetVersion: version.assetVersion, metadataVersion: version.metadataVersion,
+      name: version.name, kind: version.kind, lifecycle: version.lifecycle, metadata: version.metadata,
+    }]));
+    for (const entry of project.roomLibrary.variants) {
+      invariant(entry.versions.length >= 1 && entry.headVersion === entry.versions.at(-1).version, 'BUNDLE_SEMANTIC_INVALID', 'A room head must name its latest immutable version.', { roomVariantId: entry.roomVariantId });
+      for (const [index, portable] of entry.versions.entries()) {
+        invariant(portable.projectId === project.projectHead.projectId && portable.roomVariantId === entry.roomVariantId
+          && portable.version === index + 1 && portable.parentVariantVersion === (index === 0 ? null : index),
+        'BUNDLE_SEMANTIC_INVALID', 'Room versions must be consecutive with immediate-parent lineage.', { roomVariantId: entry.roomVariantId, version: portable.version });
+        const archetype = archetypes.get(`${portable.roomArchetypeId}:${portable.archetypeVersion}`);
+        invariant(archetype, 'BUNDLE_SEMANTIC_INVALID', 'A room version lost its exact archetype.', { roomVariantId: entry.roomVariantId, version: portable.version });
+        const {
+          findings, contentFingerprint, createdAt: _createdAt, createdBy: _createdBy,
+          createdRevision: _createdRevision, proposalId: _proposalId, ...variant
+        } = portable;
+        const validated = validateRoomVariant({ variant, archetype, assets: assetVersions });
+        invariant(validated.fingerprint === contentFingerprint && fingerprint(validated.findings) === fingerprint(findings),
+          'BUNDLE_SEMANTIC_INVALID', 'A room version fingerprint or deterministic findings are invalid.', { roomVariantId: entry.roomVariantId, version: portable.version });
+      }
+    }
+    for (const proposal of project.roomLibrary.proposals) {
+      invariant(proposal.state === 'APPLIED' && proposal.proposalVersion === 3 && proposal.items.every((item) => item.decision !== null),
+        'BUNDLE_NOT_QUIESCENT', 'Only fully decided and applied room proposals may enter a portable bundle.', { proposalId: proposal.proposalId });
+      const proposalFingerprint = fingerprint({
+        schemaVersion: 1,
+        projectId: project.projectHead.projectId,
+        proposalId: proposal.proposalId,
+        roomVariantId: proposal.roomVariantId,
+        expectedRoomVariantVersion: proposal.expectedRoomVariantVersion,
+        items: proposal.items.map(({ decision: _decision, ...item }) => item),
+        findings: proposal.findings,
+      });
+      invariant(proposal.fingerprint === proposalFingerprint, 'BUNDLE_SEMANTIC_INVALID', 'A room proposal fingerprint is invalid.', { proposalId: proposal.proposalId });
+      const entry = project.roomLibrary.variants.find(({ roomVariantId }) => roomVariantId === proposal.roomVariantId);
+      invariant(entry?.versions.some(({ version, proposalId }) => version === proposal.createdRoomVariantVersion && proposalId === proposal.proposalId),
+        'BUNDLE_SEMANTIC_INVALID', 'An applied room proposal lost its created immutable room version.', { proposalId: proposal.proposalId });
+    }
+  }
   return structuredClone(project);
 }
 
@@ -709,6 +880,9 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
     const proposalRows = database.prepare('SELECT * FROM asset_proposals WHERE project_id = ? ORDER BY proposal_id').all(projectId);
     const unsettled = proposalRows.filter((proposal) => proposal.status !== 'APPLIED');
     invariant(unsettled.length === 0, 'BUNDLE_NOT_QUIESCENT', 'Portable export requires every asset proposal to be applied.', { proposalIds: unsettled.map((proposal) => proposal.proposal_id) });
+    const roomProposalRows = database.prepare('SELECT * FROM room_placement_proposals WHERE project_id = ? ORDER BY proposal_id').all(projectId);
+    const unsettledRoomProposals = roomProposalRows.filter((proposal) => proposal.status !== 'APPLIED');
+    invariant(unsettledRoomProposals.length === 0, 'BUNDLE_NOT_QUIESCENT', 'Portable export requires every room proposal to be applied.', { proposalIds: unsettledRoomProposals.map((proposal) => proposal.proposal_id) });
 
     const bindingRows = database.prepare(`SELECT * FROM asset_slice_bindings WHERE project_id = ? ORDER BY slice_id, slice_version`).all(projectId);
     const bindings = bindingRows.map(rowBinding);
@@ -801,8 +975,10 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
         height: Number(artifact.height),
       };
     });
+    const roomLibrary = portableRoomLibrary(snapshot);
+    const hasRoomSemantics = roomLibrary.archetypes.length > 0 || roomLibrary.variants.length > 0 || roomLibrary.proposals.length > 0;
     const project = cleanUndefined({
-      schemaVersion: 1,
+      schemaVersion: hasRoomSemantics ? 2 : 1,
       bundleKind: 'numberdroid-studio-project',
       projectHead: {
         projectId,
@@ -825,6 +1001,7 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
       proposals,
       appliedJobHistory: jobHistory,
       activity: revisions.map(portableActivity),
+      ...(hasRoomSemantics ? { roomLibrary } : {}),
     });
     validateSqlitePortableProject(project);
     return { project, artifacts };
@@ -894,6 +1071,7 @@ function importedSnapshot(project, revision = project.projectHead.revision) {
       assets: project.assetLibrary.heads.map((head) => restoredAsset(head.semantic)),
       proposals: project.proposals.map(restoredProposalSnapshot),
     },
+    ...(project.schemaVersion === 2 ? { roomLibrary: restoredRoomLibrary(project.roomLibrary) } : {}),
   };
 }
 
@@ -960,6 +1138,168 @@ function insertFinding(database, table, identity, record) {
     finding.validatorVersion,
     JSON.stringify(finding),
   );
+}
+
+function insertPortableRoomFinding(database, table, projectId, identity, finding, findingOrder) {
+  if (table === 'room_variant_findings') {
+    database.prepare(`
+      INSERT INTO room_variant_findings(
+        project_id, room_variant_id, variant_version, finding_id, finding_order,
+        severity, rule_id, target_kind, target_id, path, explanation,
+        remediation, validator_version, finding_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(projectId, identity.roomVariantId, identity.variantVersion, finding.findingId, findingOrder,
+      finding.severity, finding.ruleId, finding.targetKind, finding.targetId, finding.path,
+      finding.explanation, finding.remediation, finding.validatorVersion, JSON.stringify(finding));
+    return;
+  }
+  database.prepare(`
+    INSERT INTO room_placement_proposal_findings(
+      project_id, proposal_id, finding_id, finding_order, severity, rule_id,
+      target_kind, target_id, path, explanation, remediation, validator_version, finding_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(projectId, identity.proposalId, finding.findingId, findingOrder, finding.severity,
+    finding.ruleId, finding.targetKind, finding.targetId, finding.path, finding.explanation,
+    finding.remediation, finding.validatorVersion, JSON.stringify(finding));
+}
+
+function materializePortableRoomLibrary(database, project, safeRevision) {
+  if (project.schemaVersion !== 2) return;
+  const projectId = project.projectHead.projectId;
+  for (const archetype of project.roomLibrary.archetypes) {
+    const {
+      fingerprint: _fingerprint, createdAt: _createdAt, createdBy: _createdBy,
+      createdRevision: _createdRevision, ...value
+    } = archetype;
+    database.prepare(`
+      INSERT INTO room_archetype_versions(
+        project_id, room_archetype_id, archetype_version, kind, display_name,
+        archetype_json, content_fingerprint, created_revision, created_at, created_by, provenance
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bundle_import')
+    `).run(projectId, archetype.roomArchetypeId, archetype.version, archetype.kind,
+      archetype.displayName, JSON.stringify(value), archetype.fingerprint,
+      safeRevision(archetype.createdRevision), archetype.createdAt, archetype.createdBy);
+    for (const [ruleOrder, rule] of archetype.governingRuleRefs.entries()) database.prepare(`
+      INSERT INTO room_archetype_governing_rules(
+        project_id, room_archetype_id, archetype_version, rule_id, rule_order, summary
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(projectId, archetype.roomArchetypeId, archetype.version, rule.ruleId, ruleOrder, rule.summary);
+  }
+  for (const archetype of project.roomLibrary.archetypes) database.prepare(`
+    INSERT INTO room_archetype_heads(
+      project_id, room_archetype_id, archetype_version, kind, display_name, updated_revision
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `).run(projectId, archetype.roomArchetypeId, archetype.version, archetype.kind,
+    archetype.displayName, safeRevision(archetype.createdRevision));
+
+  for (const proposal of project.roomLibrary.proposals) {
+    database.prepare(`
+      INSERT INTO room_placement_proposals(
+        project_id, proposal_id, schema_version, room_variant_id,
+        expected_room_variant_version, base_revision, created_revision, status,
+        item_count, request_fingerprint, finding_fingerprint,
+        proposer_actor_kind, proposer_actor_id, proposer_task_id,
+        proposer_branch_id, proposer_grant_id, created_at, decided_revision, applied_revision
+      ) VALUES (?, ?, 1, ?, ?, ?, ?, 'APPLIED', ?, ?, ?, 'bundle_import', ?, ?, 'branch.bundle-import', NULL, ?, ?, ?)
+    `).run(projectId, proposal.proposalId, proposal.roomVariantId, proposal.expectedRoomVariantVersion,
+      safeRevision(Math.max(1, proposal.submittedRevision - 1)), safeRevision(proposal.submittedRevision),
+      proposal.items.length, proposal.fingerprint, fingerprint(proposal.findings),
+      proposal.proposer.actor.id, proposal.proposer.taskId, proposal.submittedAt,
+      safeRevision(proposal.decisionRevision), safeRevision(proposal.appliedRevision));
+    for (const item of proposal.items) {
+      database.prepare(`
+        INSERT INTO room_placement_proposal_items(
+          project_id, proposal_id, item_id, item_order, operation,
+          placement_id, expected_asset_id, desired_json, diff_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(projectId, proposal.proposalId, item.itemId, item.ordinal, item.operation,
+        item.operation === 'add' ? item.placement.placementId : item.placementId,
+        item.expectedAssetId, JSON.stringify({ ...item, decision: null }), JSON.stringify(item.diff));
+      database.prepare(`
+        INSERT INTO room_placement_proposal_decisions(
+          project_id, proposal_id, item_id, decision, rejection_reason,
+          decision_revision, decided_at, decided_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(projectId, proposal.proposalId, item.itemId, item.decision.disposition,
+        item.decision.disposition === 'REJECTED' ? item.decision.reason : null,
+        safeRevision(item.decision.decisionRevision), item.decision.decidedAt, item.decision.decidedBy);
+    }
+    proposal.findings.forEach((finding, findingOrder) => insertPortableRoomFinding(
+      database, 'room_placement_proposal_findings', projectId, { proposalId: proposal.proposalId }, finding, findingOrder,
+    ));
+  }
+
+  for (const entry of project.roomLibrary.variants) {
+    for (const room of entry.versions) {
+      const {
+        findings, contentFingerprint, createdAt: _createdAt, createdBy: _createdBy,
+        createdRevision: _createdRevision, proposalId: _proposalId, ...value
+      } = room;
+      database.prepare(`
+        INSERT INTO room_variant_versions(
+          project_id, room_variant_id, variant_version, room_archetype_id,
+          archetype_version, previous_variant_version, parent_final_version,
+          display_name, lifecycle, width, height, variant_json,
+          content_fingerprint, findings_fingerprint, created_revision, created_at,
+          created_by, proposal_id, provenance
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bundle_import')
+      `).run(projectId, room.roomVariantId, room.version, room.roomArchetypeId,
+        room.archetypeVersion, room.parentVariantVersion, room.parentFinalVersion,
+        room.displayName, room.lifecycle, room.width, room.height, JSON.stringify(value),
+        room.contentFingerprint, fingerprint(room.findings), safeRevision(room.createdRevision),
+        room.createdAt, room.createdBy, room.proposalId);
+      for (const [intentOrder, intent] of room.intentTrace.entries()) database.prepare(`
+        INSERT INTO room_variant_intent(
+          project_id, room_variant_id, variant_version, intent_order, layer, rule_id, summary, disposition
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(projectId, room.roomVariantId, room.version, intentOrder, intent.layer, intent.ruleId, intent.summary, intent.disposition);
+      for (const [connectorOrder, connector] of room.connectors.entries()) database.prepare(`
+        INSERT INTO room_variant_connectors(
+          project_id, room_variant_id, variant_version, connector_id, connector_order,
+          side, offset, aperture_width, clearance_inside, clearance_outside, connector_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(projectId, room.roomVariantId, room.version, connector.connectorId, connectorOrder,
+        connector.side, connector.offset, connector.width, connector.clearanceInside,
+        connector.clearanceOutside, JSON.stringify(connector));
+      for (const [placementOrder, placement] of room.placements.entries()) database.prepare(`
+        INSERT INTO room_variant_placements(
+          project_id, room_variant_id, variant_version, placement_id, placement_order,
+          asset_id, asset_version, metadata_version, layer, anchor_x, anchor_y, rotation, placement_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(projectId, room.roomVariantId, room.version, placement.placementId, placementOrder,
+        placement.assetId, placement.assetVersion, placement.metadataVersion, placement.layer,
+        placement.anchor.x, placement.anchor.y, placement.rotation, JSON.stringify(placement));
+      room.findings.forEach((finding, findingOrder) => insertPortableRoomFinding(
+        database, 'room_variant_findings', projectId,
+        { roomVariantId: room.roomVariantId, variantVersion: room.version }, finding, findingOrder,
+      ));
+      room.acceptedWarningFindingIds.forEach((findingId, dispositionOrder) => database.prepare(`
+        INSERT INTO room_variant_warning_dispositions(
+          project_id, room_variant_id, variant_version, finding_id, disposition_order
+        ) VALUES (?, ?, ?, ?, ?)
+      `).run(projectId, room.roomVariantId, room.version, findingId, dispositionOrder));
+    }
+    const head = entry.versions.at(-1);
+    database.prepare(`
+      INSERT INTO room_variant_heads(
+        project_id, room_variant_id, variant_version, room_archetype_id,
+        archetype_version, display_name, lifecycle, width, height, updated_revision
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(projectId, head.roomVariantId, head.version, head.roomArchetypeId,
+      head.archetypeVersion, head.displayName, head.lifecycle, head.width, head.height,
+      safeRevision(head.createdRevision));
+  }
+  for (const proposal of project.roomLibrary.proposals) {
+    const accepted = proposal.items.filter((item) => item.decision.disposition === 'ACCEPTED').length;
+    database.prepare(`
+      INSERT INTO room_placement_proposal_applications(
+        project_id, proposal_id, room_variant_id, application_revision,
+        created_room_variant_version, accepted_count, rejected_count, applied_at, applied_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(projectId, proposal.proposalId, proposal.roomVariantId,
+      safeRevision(proposal.appliedRevision), proposal.createdRoomVariantVersion,
+      accepted, proposal.items.length - accepted, proposal.appliedAt, proposal.appliedBy);
+  }
 }
 
 async function materializeSqliteBundle({
@@ -1178,6 +1518,8 @@ async function materializeSqliteBundle({
           INSERT INTO asset_head_tags(project_id, asset_id, tag, tag_order) VALUES (?, ?, ?, ?)
         `).run(project.projectHead.projectId, head.assetId, tag, tagOrder);
       }
+
+      materializePortableRoomLibrary(database, project, safeRevision);
 
       database.prepare(`
         INSERT INTO bundle_imports(

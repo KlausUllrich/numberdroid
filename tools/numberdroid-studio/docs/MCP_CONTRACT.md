@@ -226,18 +226,14 @@ Grant mint/revoke endpoints exist for the authenticated human UI/service API. Th
 
 The 2C candidate deliberately exposes durable proposal submission rather than a general branch/batch wrapper. Direct rename, replacement-slice mapping, agent lifecycle/finalization, and partial-success batches remain later work. A future batch tool must return per-item findings and preserve one documented atomic boundary; it cannot use `atomic: false` unless the contract explicitly reports a revision for every accepted subgroup.
 
-### Room and hallway tools — Checkpoint 3
+### Room and hallway tools — Checkpoint 3 candidate
 
-- `studio_room_create`
-- `studio_room_update_intent`
-- `studio_room_resize`
-- `studio_room_place_assets`
-- `studio_room_move_placements`
-- `studio_room_remove_placements`
-- `studio_room_update_connectors`
-- `studio_room_finalize`
+Schema v10 advertises exactly two additive room tools, for a total of 19 tools and four resource templates:
 
-Placement tools reference semantic `assetId`, transforms, layer, cells/anchor, and optional variant. They never reference a loose filename as the identity.
+- `studio_room_placement_proposal_submit` — the only agent room mutation; submits 1–64 complete add/move/remove placement items against one exact DRAFT room version and charges one command per item;
+- `studio_room_query` — bounded project/room/lifecycle/archetype query with optional immutable versions and redacted proposal state.
+
+The room detail resource is `studio://projects/{projectId}/rooms/{roomVariantId}`. Direct create, resize, intent, connector, placement, warning-disposition, validation, finalization, fork, proposal-decision, and proposal-apply controls remain authenticated human UI/service commands and are deliberately absent from MCP. Placement records reference exact semantic `assetId`/`assetVersion`/`metadataVersion`, layer, cell anchor, and cardinal rotation; they never reference a loose filename or current asset head as authority. General branch heads and merge remain Checkpoint 4.
 
 ### Level and export tools — later V1
 

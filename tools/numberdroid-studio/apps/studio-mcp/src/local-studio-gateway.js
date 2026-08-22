@@ -20,6 +20,7 @@ export class LocalStudioGateway {
   #agentAttemptAuditReady;
   #durableJobStoreReady;
   #durableAssetStoreReady;
+  #durableRoomStoreReady;
 
   constructor({
     baseUrl,
@@ -28,6 +29,7 @@ export class LocalStudioGateway {
     agentAttemptAuditReady = false,
     durableJobStoreReady = false,
     durableAssetStoreReady = false,
+    durableRoomStoreReady = false,
   }) {
     this.#baseUrl = new URL(baseUrl);
     if (!bindingToken && typeof bindingTokenProvider !== 'function') {
@@ -39,6 +41,7 @@ export class LocalStudioGateway {
     this.#agentAttemptAuditReady = agentAttemptAuditReady === true;
     this.#durableJobStoreReady = durableJobStoreReady === true;
     this.#durableAssetStoreReady = durableAssetStoreReady === true;
+    this.#durableRoomStoreReady = durableRoomStoreReady === true;
   }
 
   get commandCatalog() {
@@ -55,6 +58,10 @@ export class LocalStudioGateway {
 
   get durableAssetStoreReady() {
     return this.#durableAssetStoreReady;
+  }
+
+  get durableRoomStoreReady() {
+    return this.#durableRoomStoreReady;
   }
 
   async #request(path, value, { signal } = {}) {
@@ -125,6 +132,10 @@ export class LocalStudioGateway {
 
   async queryAssets(request, _opaqueHostContext, options = {}) {
     return this.#request('/internal/mcp/asset-query', request, options);
+  }
+
+  async queryRooms(request, _opaqueHostContext, options = {}) {
+    return this.#request('/internal/mcp/room-query', request, options);
   }
 
   async cancelJob(request, _opaqueHostContext, options = {}) {

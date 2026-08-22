@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { readFile } from 'node:fs/promises';
+
+const appUrl = new URL('../apps/studio-server/public/app.js', import.meta.url);
+const stylesUrl = new URL('../apps/studio-server/public/styles.css', import.meta.url);
+
+test('Checkpoint 3 exposes a coordinate-visible layered room and hallway designer', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const renderer = app.slice(app.indexOf('function currentRoomLibrary'), app.indexOf('function renderCollection'));
+  assert.match(renderer, /New room archetype/);
+  assert.match(renderer, /New room \/ hallway/);
+  assert.match(renderer, /Origin 0,0/);
+  assert.match(renderer, /\['fit', 'Fit'\], \['1', '100%'\], \['2', '200%'\]/);
+  assert.match(renderer, /STRUCTURAL_SURFACE/);
+  assert.match(renderer, /SET_DRESSING/);
+  assert.match(renderer, /clearanceInside/);
+  assert.match(renderer, /Cell \$\{x\}, \$\{y\}/);
+  assert.match(renderer, /Structured placements/);
+  assert.match(renderer, /A\$\{selected\.assetVersion\}\/M\$\{selected\.metadataVersion\}/);
+  assert.match(renderer, /safeV2Preview\(asset\)/);
+  assert.match(renderer, /Preview missing|safeV2Preview/);
+});
+
+test('Checkpoint 3 room controls use human-only routes with exact versions and explicit gates', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  assert.match(app, /\/room-archetypes/);
+  assert.match(app, /\/placements-add/);
+  assert.match(app, /\/placements-move/);
+  assert.match(app, /\/placements-remove/);
+  assert.match(app, /expectedRoomVariantVersion: variant\.version/);
+  assert.match(app, /assetVersion: asset\.assetVersion, metadataVersion: asset\.metadataVersion/);
+  assert.match(app, /Resize requires explicit removal/);
+  assert.match(app, /Validate this DRAFT as a new immutable version/);
+  assert.match(app, /Finalize this VALIDATED room/);
+  assert.match(app, /Fork this FINAL room into a new editable DRAFT version/);
+  assert.match(app, /Record a complete \$\{decisions\.length\}-item owner decision/);
+  assert.match(app, /Atomically apply exactly \$\{accepted\} accepted placement change/);
+  assert.match(app, /confirm: true/);
+  assert.match(app, /roomOperationKey\(operation, target, projectId\)/);
+});
+
+test('Checkpoint 3 retains room selection, zoom, layers, dirty decisions, focus, and scroll across refresh', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const capture = app.slice(app.indexOf('function captureRoomDomState'), app.indexOf('function restoreRoomDomState'));
+  const restore = app.slice(app.indexOf('function restoreRoomDomState'), app.indexOf('function sourcePreview'));
+  assert.match(capture, /selectedRoomVariantId/);
+  assert.match(capture, /selectedProposalId/);
+  assert.match(capture, /scrollLeft/);
+  assert.match(capture, /scrollTop/);
+  assert.match(capture, /window\.scrollX/);
+  assert.match(restore, /focus\(\{ preventScroll: true \}\)/);
+  assert.match(restore, /setSelectionRange/);
+  assert.match(restore, /window\.scrollTo/);
+  assert.match(app, /selectedPaletteAssetId/);
+  assert.match(app, /zoom: 'fit'/);
+  assert.match(app, /layers: \{ STRUCTURAL_SURFACE: true, SET_DRESSING: true, CONNECTORS: true \}/);
+  assert.match(app, /state\.roomUi\.dirty/);
+  assert.match(app, /Your local draft was retained/);
+});
+
+test('Checkpoint 3 canvas and review surfaces remain bounded at 1440 and protected 1060 widths', async () => {
+  const styles = await readFile(stylesUrl, 'utf8');
+  assert.match(styles, /\.room-designer-layout \{[^}]*grid-template-columns: minmax\(170px, \.55fr\) minmax\(360px, 1\.5fr\) minmax\(225px, \.75fr\)/);
+  assert.match(styles, /\.room-canvas-scroll \{[^}]*overflow: auto/);
+  assert.match(styles, /\.room-palette-list \{[^}]*overflow: auto/);
+  assert.match(styles, /\.room-placement-list \{[^}]*overflow: auto/);
+  assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-designer-layout \{ grid-template-columns: minmax\(150px, \.55fr\) minmax\(300px, 1\.45fr\)/);
+  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-header, \.room-designer-layout \{ grid-template-columns: 1fr/);
+});

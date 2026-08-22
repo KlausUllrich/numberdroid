@@ -11,6 +11,13 @@ import {
   validateAssetProposal,
   validateExactSliceBinding,
 } from '../../domain/src/asset-definition.js';
+import {
+  evaluateRoomLifecycle,
+  forkFinalRoomVariant,
+  validateRoomArchetype,
+  validateRoomPlacementProposal,
+  validateRoomVariant,
+} from '../../domain/src/room-definition.js';
 import { StudioError, invariant } from '../../domain/src/errors.js';
 import { headRevision } from './project-store.js';
 import {
@@ -195,6 +202,23 @@ function proposalResult(revision, definition) {
     } : null;
     value.proposal.findings = proposal?.items.flatMap((item) => deepClone(item.findings)) ?? [];
   }
+  if (revision.command.type === 'room.placement.proposal.submit') {
+    const proposal = revision.snapshot.roomLibrary?.proposals?.find((candidate) => candidate.proposalId === revision.result.proposalId);
+    value.proposal.roomPlacementProposal = proposal ? {
+      proposalId: proposal.proposalId,
+      proposalVersion: proposal.proposalVersion,
+      roomVariantId: proposal.roomVariantId,
+      expectedRoomVariantVersion: proposal.expectedRoomVariantVersion,
+      fingerprint: proposal.fingerprint,
+      items: proposal.items.map((item) => ({
+        ordinal: item.ordinal,
+        itemId: item.itemId,
+        operation: item.operation,
+        diff: deepClone(item.diff),
+      })),
+    } : null;
+    value.proposal.findings = proposal?.findings ? deepClone(proposal.findings) : [];
+  }
   return deepFreeze(value);
 }
 
@@ -206,6 +230,12 @@ function redactAgentOnlySourceLocations(snapshot) {
       : { ...source, artifactUri: null, artifactAvailability: 'LEGACY_EXTERNAL_LOCATION_REDACTED' }
   ));
   for (const proposal of redacted.assetLibrary?.proposals ?? []) {
+    if (proposal.proposer) {
+      delete proposal.proposer.grantId;
+      delete proposal.proposer.branchId;
+    }
+  }
+  for (const proposal of redacted.roomLibrary?.proposals ?? []) {
     if (proposal.proposer) {
       delete proposal.proposer.grantId;
       delete proposal.proposer.branchId;
@@ -241,13 +271,13 @@ function previewOutputArtifactBytes(snapshot, atlasId) {
 }
 
 function commandBudgetCharge(command) {
-  if (command.type !== 'asset.proposal.submit') return 1;
+  if (!['asset.proposal.submit', 'room.placement.proposal.submit'].includes(command.type)) return 1;
   invariant(
     Array.isArray(command.payload?.items)
       && command.payload.items.length >= 1
       && command.payload.items.length <= 64,
-    'ASSET_PROPOSAL_LIMIT',
-    'Asset proposals require 1 to 64 items.',
+    command.type === 'asset.proposal.submit' ? 'ASSET_PROPOSAL_LIMIT' : 'ROOM_PROPOSAL_LIMIT',
+    'Proposals require 1 to 64 items.',
   );
   return command.payload.items.length;
 }
@@ -662,7 +692,243 @@ function assertCurrentProposalSlice(snapshot, item) {
   );
 }
 
-function applyCommand(command, snapshot, now, { atlasJob = null, priorAtlasJob = null, preparedAssetProposal = null } = {}) {
+function roomLibrary(snapshot) {
+  snapshot.roomLibrary ??= { schemaVersion: 1, archetypes: [], variants: [], proposals: [] };
+  return snapshot.roomLibrary;
+}
+
+function roomArchetypeValue(archetype) {
+  return {
+    projectId: archetype.projectId,
+    roomArchetypeId: archetype.roomArchetypeId,
+    version: archetype.version,
+    kind: archetype.kind,
+    displayName: archetype.displayName,
+    tags: deepClone(archetype.tags),
+    dimensionPolicy: deepClone(archetype.dimensionPolicy),
+    structuralBands: deepClone(archetype.structuralBands),
+    orientation: archetype.orientation,
+    connectorPolicy: deepClone(archetype.connectorPolicy),
+    allowedAssetKinds: deepClone(archetype.allowedAssetKinds),
+    allowedTags: deepClone(archetype.allowedTags),
+    requiredTags: deepClone(archetype.requiredTags),
+    rationality: archetype.rationality,
+    governingRuleRefs: deepClone(archetype.governingRuleRefs),
+  };
+}
+
+function roomVariantValue(variant) {
+  return {
+    projectId: variant.projectId,
+    roomVariantId: variant.roomVariantId,
+    version: variant.version,
+    roomArchetypeId: variant.roomArchetypeId,
+    archetypeVersion: variant.archetypeVersion,
+    displayName: variant.displayName,
+    lifecycle: variant.lifecycle,
+    width: variant.width,
+    height: variant.height,
+    origin: deepClone(variant.origin),
+    intentTrace: deepClone(variant.intentTrace),
+    connectors: deepClone(variant.connectors),
+    placements: deepClone(variant.placements),
+    acceptedWarningFindingIds: deepClone(variant.acceptedWarningFindingIds),
+    parentVariantVersion: variant.parentVariantVersion,
+    parentFinalVersion: variant.parentFinalVersion,
+  };
+}
+
+function roomArchetypeHead(library, roomArchetypeId, version = null) {
+  const archetype = library.archetypes.find((candidate) => (
+    candidate.roomArchetypeId === roomArchetypeId && (version === null || candidate.version === version)
+  ));
+  invariant(archetype, 'ROOM_ARCHETYPE_NOT_FOUND', 'The room archetype version does not exist.', { roomArchetypeId, version });
+  return archetype;
+}
+
+function roomVariantHead(library, roomVariantId) {
+  const entry = library.variants.find((candidate) => candidate.roomVariantId === roomVariantId);
+  invariant(entry, 'ROOM_VARIANT_NOT_FOUND', 'The room variant does not exist.', { roomVariantId });
+  const variant = entry.versions.find((candidate) => candidate.version === entry.headVersion);
+  invariant(variant, 'ROOM_VARIANT_HEAD_MISSING', 'The room variant head has no matching immutable version.', { roomVariantId, headVersion: entry.headVersion });
+  return { entry, variant };
+}
+
+function roomProposalHead(library, proposalId) {
+  const index = library.proposals.findIndex((proposal) => proposal.proposalId === proposalId);
+  invariant(index >= 0, 'ROOM_PROPOSAL_NOT_FOUND', 'The room placement proposal does not exist.', { proposalId });
+  return { index, proposal: library.proposals[index] };
+}
+
+function assertRoomVersion(current, expectedRoomVariantVersion) {
+  const expected = requireInteger(expectedRoomVariantVersion, 'payload.expectedRoomVariantVersion', { min: 1 });
+  invariant(current.version === expected, 'ENTITY_VERSION_CONFLICT', 'The room variant changed after the command was prepared.', {
+    roomVariantId: current.roomVariantId,
+    expectedVersion: expected,
+    actualVersion: current.version,
+  });
+}
+
+function assertRoomDraft(current) {
+  invariant(current.lifecycle === 'DRAFT', 'ROOM_EDIT_REQUIRES_DRAFT', 'Room content edits require a DRAFT head. Fork a FINAL room before editing.', {
+    roomVariantId: current.roomVariantId,
+    lifecycle: current.lifecycle,
+  });
+}
+
+function activeRoomProposalIds(library, roomVariantId, roomVariantVersion) {
+  return library.proposals
+    .filter((proposal) => proposal.roomVariantId === roomVariantId
+      && proposal.expectedRoomVariantVersion === roomVariantVersion
+      && ['PENDING', 'DECIDED'].includes(proposal.state))
+    .map((proposal) => proposal.proposalId)
+    .sort();
+}
+
+function assertNoActiveRoomProposal(library, current) {
+  const proposalIds = activeRoomProposalIds(library, current.roomVariantId, current.version);
+  invariant(proposalIds.length === 0, 'ROOM_PROPOSAL_UNRESOLVED', 'Resolve and apply or reject the active room proposal before changing this room version.', {
+    roomVariantId: current.roomVariantId,
+    proposalIds,
+  });
+}
+
+function exactRoomAssetVersions(document, placements) {
+  const assets = new Map();
+  for (const placement of placements) {
+    const key = `${placement.assetId}:${placement.assetVersion}:${placement.metadataVersion}`;
+    const coordinate = `${placement.assetId}@${placement.assetVersion}:${placement.metadataVersion}`;
+    if (assets.has(coordinate)) continue;
+    let resolved = null;
+    for (const revision of [...document.revisions].reverse()) {
+      const candidate = revision.snapshot.assetLibrary?.assets?.find((asset) => (
+        asset.assetId === placement.assetId
+          && asset.assetVersion === placement.assetVersion
+          && asset.metadataVersion === placement.metadataVersion
+      ));
+      if (candidate) { resolved = candidate; break; }
+    }
+    invariant(resolved, 'ROOM_ASSET_VERSION_NOT_FOUND', 'A placement must pin an existing exact V2 asset and metadata version.', {
+      assetId: placement.assetId,
+      assetVersion: placement.assetVersion,
+      metadataVersion: placement.metadataVersion,
+      coordinate: key,
+    });
+    assets.set(coordinate, resolved);
+  }
+  return assets;
+}
+
+function validatedRoomVersion({ candidate, archetype, document, findingsUnresolvedProposalIds = [], now, actorId, createdRevision, proposalId = null }) {
+  const validated = validateRoomVariant({
+    variant: candidate,
+    archetype: roomArchetypeValue(archetype),
+    assets: exactRoomAssetVersions(document, candidate.placements),
+    unresolvedProposalIds: findingsUnresolvedProposalIds,
+  });
+  return {
+    ...validated.variant,
+    findings: deepClone(validated.findings),
+    contentFingerprint: validated.fingerprint,
+    createdAt: now,
+    createdBy: actorId,
+    createdRevision,
+    proposalId,
+    provenance: 'native_revision',
+  };
+}
+
+function appendRoomVersion(entry, version) {
+  invariant(version.version === entry.headVersion + 1, 'ROOM_VERSION_CONFLICT', 'Room versions must be consecutive.');
+  entry.versions.push(version);
+  entry.headVersion = version.version;
+  return version;
+}
+
+function applyRoomPlacementItems(placements, items, { proposalId = null } = {}) {
+  const next = deepClone(placements);
+  const diffs = [];
+  for (const item of items) {
+    if (item.operation === 'add') {
+      invariant(!next.some((placement) => placement.placementId === item.placement.placementId), 'ENTITY_EXISTS', 'The placement ID already exists.', { placementId: item.placement.placementId });
+      const after = {
+        ...deepClone(item.placement),
+        proposalId: proposalId ?? item.placement.proposalId,
+        proposalItemId: proposalId ? item.itemId : item.placement.proposalItemId,
+      };
+      next.push(after);
+      diffs.push({ itemId: item.itemId, operation: 'add', before: null, after: deepClone(after) });
+      continue;
+    }
+    const index = next.findIndex((placement) => placement.placementId === item.placementId);
+    invariant(index >= 0, 'ROOM_PLACEMENT_NOT_FOUND', 'The targeted room placement does not exist.', { placementId: item.placementId });
+    const before = deepClone(next[index]);
+    invariant(before.assetId === item.expectedAssetId, 'ENTITY_VERSION_CONFLICT', 'The targeted placement now references another asset.', {
+      placementId: item.placementId, expectedAssetId: item.expectedAssetId, actualAssetId: before.assetId,
+    });
+    if (item.operation === 'remove') {
+      next.splice(index, 1);
+      diffs.push({ itemId: item.itemId, operation: 'remove', before, after: null });
+      continue;
+    }
+    const after = {
+      ...before,
+      anchor: deepClone(item.anchor),
+      rotation: item.rotation,
+      proposalId: proposalId ?? before.proposalId,
+      proposalItemId: proposalId ? item.itemId : before.proposalItemId,
+    };
+    next[index] = after;
+    diffs.push({ itemId: item.itemId, operation: 'move', before, after: deepClone(after) });
+  }
+  return { placements: next, diffs };
+}
+
+function prepareRoomPlacementProposal(command, document) {
+  const normalized = validateRoomPlacementProposal({
+    projectId: command.projectId,
+    proposalId: command.payload.proposalId,
+    roomVariantId: command.payload.roomVariantId,
+    expectedRoomVariantVersion: command.payload.expectedRoomVariantVersion,
+    items: command.payload.items,
+  });
+  const library = document.revisions.at(-1).snapshot.roomLibrary ?? { archetypes: [], variants: [], proposals: [] };
+  const { variant } = roomVariantHead(library, normalized.roomVariantId);
+  assertRoomVersion(variant, normalized.expectedRoomVariantVersion);
+  assertRoomDraft(variant);
+  invariant(activeRoomProposalIds(library, variant.roomVariantId, variant.version).length === 0, 'ROOM_PROPOSAL_UNRESOLVED', 'Only one active placement proposal may target a room version.', { roomVariantId: variant.roomVariantId });
+  for (const item of normalized.items) {
+    if (item.operation === 'add') {
+      invariant(item.placement.proposalId === null && item.placement.proposalItemId === null, 'UNTRUSTED_AUTHORITY_FIELD', 'Proposal provenance is assigned by Studio, not supplied by the caller.');
+    }
+  }
+  const { placements, diffs } = applyRoomPlacementItems(variant.placements, normalized.items);
+  const archetype = roomArchetypeHead(library, variant.roomArchetypeId, variant.archetypeVersion);
+  const validated = validateRoomVariant({
+    variant: { ...roomVariantValue(variant), placements },
+    archetype: roomArchetypeValue(archetype),
+    assets: exactRoomAssetVersions(document, placements),
+  });
+  const items = normalized.items.map((item, index) => ({ ...deepClone(item), ordinal: index, diff: diffs[index], decision: null }));
+  const proposalFingerprint = fingerprint({
+    schemaVersion: 1,
+    projectId: normalized.projectId,
+    proposalId: normalized.proposalId,
+    roomVariantId: normalized.roomVariantId,
+    expectedRoomVariantVersion: normalized.expectedRoomVariantVersion,
+    items: items.map(({ decision: _decision, ...item }) => item),
+    findings: validated.findings,
+  });
+  return { ...normalized, items, findings: deepClone(validated.findings), fingerprint: proposalFingerprint };
+}
+
+function applyCommand(command, snapshot, now, {
+  atlasJob = null,
+  priorAtlasJob = null,
+  preparedAssetProposal = null,
+  preparedRoomProposal = null,
+  projectDocument = null,
+} = {}) {
   const payload = command.payload;
   const next = deepClone(snapshot);
   next.project.updatedAt = now;
@@ -1476,6 +1742,355 @@ function applyCommand(command, snapshot, now, { atlasJob = null, priorAtlasJob =
         changes: [{ entityType: 'asset_v2', entityId: assetId, operation: 'lifecycle_promoted' }],
       };
     }
+    case 'room.archetype.create': {
+      assertExactFields(payload, new Set([
+        'roomArchetypeId', 'kind', 'displayName', 'tags', 'dimensionPolicy',
+        'structuralBands', 'orientation', 'connectorPolicy', 'allowedAssetKinds',
+        'allowedTags', 'requiredTags', 'rationality', 'governingRuleRefs',
+      ]), 'payload');
+      const library = roomLibrary(next);
+      invariant(library.archetypes.length < 128, 'ROOM_ARCHETYPE_LIMIT', 'A project may contain at most 128 room archetypes.');
+      const roomArchetypeId = requireId(payload.roomArchetypeId, 'payload.roomArchetypeId');
+      invariant(!library.archetypes.some((candidate) => candidate.roomArchetypeId === roomArchetypeId), 'ENTITY_EXISTS', 'The room archetype ID already exists.', { roomArchetypeId });
+      const validated = validateRoomArchetype({ projectId: command.projectId, version: 1, ...deepClone(payload) });
+      const archetype = {
+        ...validated,
+        createdAt: now,
+        createdBy: command.actor.id,
+        createdRevision: command.baseRevision + 1,
+        provenance: 'native_revision',
+      };
+      library.archetypes.push(archetype);
+      return {
+        snapshot: next,
+        result: { roomArchetypeId, archetypeVersion: 1, kind: archetype.kind, fingerprint: archetype.fingerprint },
+        summary: `${archetype.kind} archetype ${roomArchetypeId} created.`,
+        changes: [{ entityType: 'room_archetype', entityId: roomArchetypeId, operation: 'created' }],
+      };
+    }
+    case 'room.variant.create': {
+      assertExactFields(payload, new Set([
+        'roomVariantId', 'roomArchetypeId', 'archetypeVersion', 'displayName',
+        'width', 'height', 'intentTrace', 'connectors', 'placements',
+      ]), 'payload');
+      invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
+      const library = roomLibrary(next);
+      invariant(library.variants.length < 512, 'ROOM_VARIANT_LIMIT', 'A project may contain at most 512 room variants.');
+      const roomVariantId = requireId(payload.roomVariantId, 'payload.roomVariantId');
+      invariant(!library.variants.some((candidate) => candidate.roomVariantId === roomVariantId), 'ENTITY_EXISTS', 'The room variant ID already exists.', { roomVariantId });
+      const archetype = roomArchetypeHead(library, requireId(payload.roomArchetypeId, 'payload.roomArchetypeId'), requireInteger(payload.archetypeVersion, 'payload.archetypeVersion', { min: 1 }));
+      for (const placement of payload.placements ?? []) {
+        invariant(placement?.proposalId === null && placement?.proposalItemId === null, 'UNTRUSTED_AUTHORITY_FIELD', 'Direct room placement provenance is assigned by Studio and must be null.');
+      }
+      const candidate = {
+        projectId: command.projectId,
+        roomVariantId,
+        version: 1,
+        roomArchetypeId: archetype.roomArchetypeId,
+        archetypeVersion: archetype.version,
+        displayName: payload.displayName,
+        lifecycle: 'DRAFT',
+        width: payload.width,
+        height: payload.height,
+        origin: { x: 0, y: 0 },
+        intentTrace: deepClone(payload.intentTrace),
+        connectors: deepClone(payload.connectors),
+        placements: deepClone(payload.placements),
+        acceptedWarningFindingIds: [],
+        parentVariantVersion: null,
+        parentFinalVersion: null,
+      };
+      const version = validatedRoomVersion({
+        candidate, archetype, document: projectDocument, now, actorId: command.actor.id,
+        createdRevision: command.baseRevision + 1,
+      });
+      library.variants.push({ roomVariantId, headVersion: 1, versions: [version] });
+      return {
+        snapshot: next,
+        result: { roomVariantId, roomVariantVersion: 1, lifecycle: 'DRAFT', findingCount: version.findings.length, contentFingerprint: version.contentFingerprint },
+        summary: `DRAFT room variant ${roomVariantId} created.`,
+        changes: [{ entityType: 'room_variant', entityId: roomVariantId, operation: 'created' }],
+      };
+    }
+    case 'room.variant.intent.set':
+    case 'room.variant.resize':
+    case 'room.variant.connectors.set':
+    case 'room.variant.placements.add':
+    case 'room.variant.placements.move':
+    case 'room.variant.placements.remove': {
+      invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
+      const fieldsByType = {
+        'room.variant.intent.set': ['roomVariantId', 'expectedRoomVariantVersion', 'intentTrace'],
+        'room.variant.resize': ['roomVariantId', 'expectedRoomVariantVersion', 'width', 'height', 'removePlacementIds', 'removeConnectorIds'],
+        'room.variant.connectors.set': ['roomVariantId', 'expectedRoomVariantVersion', 'connectors'],
+        'room.variant.placements.add': ['roomVariantId', 'expectedRoomVariantVersion', 'placements'],
+        'room.variant.placements.move': ['roomVariantId', 'expectedRoomVariantVersion', 'moves'],
+        'room.variant.placements.remove': ['roomVariantId', 'expectedRoomVariantVersion', 'placements'],
+      };
+      assertExactFields(payload, new Set(fieldsByType[command.type]), 'payload');
+      const library = roomLibrary(next);
+      const { entry, variant: current } = roomVariantHead(library, requireId(payload.roomVariantId, 'payload.roomVariantId'));
+      assertRoomVersion(current, payload.expectedRoomVariantVersion);
+      assertRoomDraft(current);
+      assertNoActiveRoomProposal(library, current);
+      const candidate = {
+        ...roomVariantValue(current),
+        version: current.version + 1,
+        parentVariantVersion: current.version,
+        acceptedWarningFindingIds: [],
+      };
+      if (command.type === 'room.variant.intent.set') {
+        candidate.intentTrace = deepClone(payload.intentTrace);
+      } else if (command.type === 'room.variant.connectors.set') {
+        candidate.connectors = deepClone(payload.connectors);
+      } else if (command.type === 'room.variant.resize') {
+        invariant(Array.isArray(payload.removePlacementIds) && Array.isArray(payload.removeConnectorIds), 'VALIDATION_ERROR', 'Resize requires explicit removal lists.');
+        const removePlacementIds = new Set(payload.removePlacementIds.map((value) => requireId(value, 'payload.removePlacementIds[]')));
+        const removeConnectorIds = new Set(payload.removeConnectorIds.map((value) => requireId(value, 'payload.removeConnectorIds[]')));
+        invariant(removePlacementIds.size === payload.removePlacementIds.length && removeConnectorIds.size === payload.removeConnectorIds.length, 'VALIDATION_ERROR', 'Resize removal IDs must be unique.');
+        for (const id of removePlacementIds) invariant(current.placements.some((placement) => placement.placementId === id), 'ROOM_PLACEMENT_NOT_FOUND', 'A resize removal placement does not exist.', { placementId: id });
+        for (const id of removeConnectorIds) invariant(current.connectors.some((connectorValue) => connectorValue.connectorId === id), 'ROOM_CONNECTOR_NOT_FOUND', 'A resize removal connector does not exist.', { connectorId: id });
+        candidate.width = payload.width;
+        candidate.height = payload.height;
+        candidate.placements = current.placements.filter((placement) => !removePlacementIds.has(placement.placementId));
+        candidate.connectors = current.connectors.filter((connectorValue) => !removeConnectorIds.has(connectorValue.connectorId));
+      } else if (command.type === 'room.variant.placements.add') {
+        invariant(Array.isArray(payload.placements) && payload.placements.length >= 1 && payload.placements.length <= 64, 'ROOM_PLACEMENT_LIMIT', 'Add requires 1 to 64 placements.');
+        for (const placement of payload.placements) {
+          invariant(placement?.proposalId === null && placement?.proposalItemId === null, 'UNTRUSTED_AUTHORITY_FIELD', 'Direct room placement provenance must be null.');
+        }
+        candidate.placements = [...current.placements, ...deepClone(payload.placements)];
+      } else if (command.type === 'room.variant.placements.move') {
+        invariant(Array.isArray(payload.moves) && payload.moves.length >= 1 && payload.moves.length <= 64, 'ROOM_PLACEMENT_LIMIT', 'Move requires 1 to 64 placements.');
+        const seen = new Set();
+        candidate.placements = deepClone(current.placements);
+        for (const [moveIndex, rawMove] of payload.moves.entries()) {
+          const move = requireRecord(rawMove, `payload.moves[${moveIndex}]`);
+          assertExactFields(move, new Set(['placementId', 'expectedAssetId', 'anchor', 'rotation']), `payload.moves[${moveIndex}]`);
+          const placementId = requireId(move.placementId, `payload.moves[${moveIndex}].placementId`);
+          invariant(!seen.has(placementId), 'ROOM_PLACEMENT_DUPLICATE', 'A move command may target each placement only once.', { placementId });
+          seen.add(placementId);
+          const placementIndex = candidate.placements.findIndex((placement) => placement.placementId === placementId);
+          invariant(placementIndex >= 0, 'ROOM_PLACEMENT_NOT_FOUND', 'The moved placement does not exist.', { placementId });
+          invariant(candidate.placements[placementIndex].assetId === requireId(move.expectedAssetId, `payload.moves[${moveIndex}].expectedAssetId`), 'ENTITY_VERSION_CONFLICT', 'The moved placement now references another asset.', { placementId });
+          const anchor = requireRecord(move.anchor, `payload.moves[${moveIndex}].anchor`);
+          assertExactFields(anchor, new Set(['x', 'y']), `payload.moves[${moveIndex}].anchor`);
+          candidate.placements[placementIndex] = {
+            ...candidate.placements[placementIndex],
+            anchor: {
+              x: requireInteger(anchor.x, `payload.moves[${moveIndex}].anchor.x`, { min: 0, max: 63 }),
+              y: requireInteger(anchor.y, `payload.moves[${moveIndex}].anchor.y`, { min: 0, max: 63 }),
+            },
+            rotation: requireEnum(move.rotation, `payload.moves[${moveIndex}].rotation`, [0, 90, 180, 270]),
+          };
+        }
+      } else {
+        invariant(Array.isArray(payload.placements) && payload.placements.length >= 1 && payload.placements.length <= 64, 'ROOM_PLACEMENT_LIMIT', 'Remove requires 1 to 64 placements.');
+        const removeIds = new Set();
+        for (const [removeIndex, rawRemoval] of payload.placements.entries()) {
+          const removal = requireRecord(rawRemoval, `payload.placements[${removeIndex}]`);
+          assertExactFields(removal, new Set(['placementId', 'expectedAssetId']), `payload.placements[${removeIndex}]`);
+          const placementId = requireId(removal.placementId, `payload.placements[${removeIndex}].placementId`);
+          invariant(!removeIds.has(placementId), 'ROOM_PLACEMENT_DUPLICATE', 'A remove command may target each placement only once.', { placementId });
+          const currentPlacement = current.placements.find((placement) => placement.placementId === placementId);
+          invariant(currentPlacement, 'ROOM_PLACEMENT_NOT_FOUND', 'The removed placement does not exist.', { placementId });
+          invariant(currentPlacement.assetId === requireId(removal.expectedAssetId, `payload.placements[${removeIndex}].expectedAssetId`), 'ENTITY_VERSION_CONFLICT', 'The removed placement now references another asset.', { placementId });
+          removeIds.add(placementId);
+        }
+        candidate.placements = current.placements.filter((placement) => !removeIds.has(placement.placementId));
+      }
+      const archetype = roomArchetypeHead(library, current.roomArchetypeId, current.archetypeVersion);
+      const version = validatedRoomVersion({
+        candidate, archetype, document: projectDocument, now, actorId: command.actor.id,
+        createdRevision: command.baseRevision + 1,
+      });
+      if (command.type === 'room.variant.resize') {
+        const clipped = version.findings.filter((finding) => finding.ruleId === 'studio.room.placement.out_of_bounds');
+        invariant(clipped.length === 0, 'ROOM_RESIZE_CLIPS_CONTENT', 'Resize would clip placements not listed for explicit removal.', { findingIds: clipped.map((finding) => finding.findingId) });
+      }
+      appendRoomVersion(entry, version);
+      return {
+        snapshot: next,
+        result: { roomVariantId: current.roomVariantId, roomVariantVersion: version.version, lifecycle: version.lifecycle, findingCount: version.findings.length, contentFingerprint: version.contentFingerprint },
+        summary: `Room variant ${current.roomVariantId} version ${version.version} created by ${command.type}.`,
+        changes: [{ entityType: 'room_variant', entityId: current.roomVariantId, operation: 'versioned' }],
+      };
+    }
+    case 'room.placement.proposal.submit': {
+      invariant(preparedRoomProposal, 'ROOM_PROPOSAL_INVALID', 'A prepared room placement proposal is required.');
+      const library = roomLibrary(next);
+      invariant(!library.proposals.some((proposal) => proposal.proposalId === preparedRoomProposal.proposalId), 'ENTITY_EXISTS', 'The room proposal ID already exists.', { proposalId: preparedRoomProposal.proposalId });
+      const proposal = {
+        proposalId: preparedRoomProposal.proposalId,
+        proposalVersion: 1,
+        roomVariantId: preparedRoomProposal.roomVariantId,
+        expectedRoomVariantVersion: preparedRoomProposal.expectedRoomVariantVersion,
+        state: 'PENDING',
+        fingerprint: preparedRoomProposal.fingerprint,
+        findings: deepClone(preparedRoomProposal.findings),
+        items: deepClone(preparedRoomProposal.items),
+        proposer: { actor: deepClone(command.actor), taskId: command.taskId, grantId: command.grantId, branchId: command.branchId },
+        submittedAt: now,
+        submittedRevision: command.baseRevision + 1,
+        decidedAt: null,
+        decidedBy: null,
+        decisionRevision: null,
+        appliedAt: null,
+        appliedBy: null,
+        appliedRevision: null,
+        createdRoomVariantVersion: null,
+      };
+      library.proposals.push(proposal);
+      return {
+        snapshot: next,
+        result: { proposalId: proposal.proposalId, proposalVersion: 1, state: 'PENDING', roomVariantId: proposal.roomVariantId, itemCount: proposal.items.length, fingerprint: proposal.fingerprint },
+        summary: `${proposal.items.length} room placement proposal item(s) submitted as ${proposal.proposalId}.`,
+        changes: [{ entityType: 'room_placement_proposal', entityId: proposal.proposalId, operation: 'submitted' }],
+      };
+    }
+    case 'room.placement.proposal.decide': {
+      assertExactFields(payload, new Set(['proposalId', 'expectedProposalVersion', 'decisions']), 'payload');
+      const library = roomLibrary(next);
+      const proposalId = requireId(payload.proposalId, 'payload.proposalId');
+      const { index, proposal } = roomProposalHead(library, proposalId);
+      invariant(proposal.state === 'PENDING', 'ENTITY_STATE_CONFLICT', 'Only a pending room proposal can be decided.', { proposalId, state: proposal.state });
+      const expectedProposalVersion = requireInteger(payload.expectedProposalVersion, 'payload.expectedProposalVersion', { min: 1 });
+      invariant(proposal.proposalVersion === expectedProposalVersion, 'ENTITY_VERSION_CONFLICT', 'The room proposal changed after decision preparation.', { proposalId, expectedProposalVersion, actualVersion: proposal.proposalVersion });
+      invariant(Array.isArray(payload.decisions) && payload.decisions.length === proposal.items.length, 'ROOM_PROPOSAL_DECISION_INCOMPLETE', 'The owner decision must cover every room proposal item exactly once.', { proposalId });
+      const decisions = new Map();
+      for (const [decisionIndex, candidate] of payload.decisions.entries()) {
+        const decision = requireRecord(candidate, `payload.decisions[${decisionIndex}]`);
+        assertExactFields(decision, new Set(['itemId', 'disposition', 'reason']), `payload.decisions[${decisionIndex}]`);
+        invariant(Object.hasOwn(decision, 'reason'), 'VALIDATION_ERROR', 'Every decision requires an explicit reason field.');
+        const itemId = requireId(decision.itemId, `payload.decisions[${decisionIndex}].itemId`);
+        invariant(!decisions.has(itemId), 'ROOM_PROPOSAL_DECISION_DUPLICATE', 'A room proposal item may be decided only once.', { itemId });
+        const disposition = requireEnum(decision.disposition, `payload.decisions[${decisionIndex}].disposition`, ['ACCEPTED', 'REJECTED']);
+        const reason = decision.reason === null ? null : requireString(decision.reason, `payload.decisions[${decisionIndex}].reason`, { max: 2000 });
+        invariant(disposition !== 'REJECTED' || reason !== null, 'ROOM_PROPOSAL_REJECTION_REASON_REQUIRED', 'Rejected room proposal items require a reason.', { itemId });
+        invariant(disposition !== 'ACCEPTED' || reason === null, 'VALIDATION_ERROR', 'Accepted room proposal items use a null reason.', { itemId });
+        decisions.set(itemId, { disposition, reason });
+      }
+      const items = proposal.items.map((item) => {
+        const decision = decisions.get(item.itemId);
+        invariant(decision, 'ROOM_PROPOSAL_DECISION_INCOMPLETE', 'The owner decision omitted a room proposal item.', { itemId: item.itemId });
+        return { ...item, decision: { ...decision, decidedAt: now, decidedBy: command.actor.id, decisionRevision: command.baseRevision + 1 } };
+      });
+      const acceptedCount = items.filter((item) => item.decision.disposition === 'ACCEPTED').length;
+      library.proposals[index] = {
+        ...proposal, proposalVersion: 2, state: 'DECIDED', items,
+        decidedAt: now, decidedBy: command.actor.id, decisionRevision: command.baseRevision + 1,
+      };
+      return {
+        snapshot: next,
+        result: { proposalId, proposalVersion: 2, state: 'DECIDED', acceptedCount, rejectedCount: items.length - acceptedCount },
+        summary: `Room proposal ${proposalId} decided: ${acceptedCount} accepted, ${items.length - acceptedCount} rejected.`,
+        changes: [{ entityType: 'room_placement_proposal', entityId: proposalId, operation: 'decided' }],
+      };
+    }
+    case 'room.placement.proposal.apply': {
+      assertExactFields(payload, new Set(['proposalId', 'expectedProposalVersion']), 'payload');
+      invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
+      const library = roomLibrary(next);
+      const proposalId = requireId(payload.proposalId, 'payload.proposalId');
+      const { index, proposal } = roomProposalHead(library, proposalId);
+      invariant(proposal.state === 'DECIDED', 'ENTITY_STATE_CONFLICT', 'Only a decided room proposal can be applied.', { proposalId, state: proposal.state });
+      const expectedProposalVersion = requireInteger(payload.expectedProposalVersion, 'payload.expectedProposalVersion', { min: 2 });
+      invariant(proposal.proposalVersion === expectedProposalVersion, 'ENTITY_VERSION_CONFLICT', 'The room proposal changed after apply preparation.', { proposalId, expectedProposalVersion, actualVersion: proposal.proposalVersion });
+      const { entry, variant: current } = roomVariantHead(library, proposal.roomVariantId);
+      assertRoomVersion(current, proposal.expectedRoomVariantVersion);
+      assertRoomDraft(current);
+      const accepted = proposal.items.filter((item) => item.decision?.disposition === 'ACCEPTED');
+      const rejected = proposal.items.filter((item) => item.decision?.disposition === 'REJECTED');
+      invariant(accepted.length + rejected.length === proposal.items.length, 'ROOM_PROPOSAL_DECISION_INCOMPLETE', 'Every proposal item must have a terminal owner decision.');
+      const applied = applyRoomPlacementItems(current.placements, accepted, { proposalId });
+      const candidate = {
+        ...roomVariantValue(current),
+        version: current.version + 1,
+        placements: applied.placements,
+        acceptedWarningFindingIds: [],
+        parentVariantVersion: current.version,
+      };
+      const archetype = roomArchetypeHead(library, current.roomArchetypeId, current.archetypeVersion);
+      const version = validatedRoomVersion({
+        candidate, archetype, document: projectDocument, now, actorId: command.actor.id,
+        createdRevision: command.baseRevision + 1, proposalId,
+      });
+      appendRoomVersion(entry, version);
+      library.proposals[index] = {
+        ...proposal,
+        proposalVersion: 3,
+        state: 'APPLIED',
+        appliedAt: now,
+        appliedBy: command.actor.id,
+        appliedRevision: command.baseRevision + 1,
+        createdRoomVariantVersion: version.version,
+      };
+      return {
+        snapshot: next,
+        result: { proposalId, proposalVersion: 3, state: 'APPLIED', roomVariantId: current.roomVariantId, roomVariantVersion: version.version, appliedItemIds: accepted.map((item) => item.itemId), rejectedItemIds: rejected.map((item) => item.itemId) },
+        summary: `Room proposal ${proposalId} applied ${accepted.length} accepted item(s); ${rejected.length} rejected item(s) remain inspectable.`,
+        changes: [
+          { entityType: 'room_variant', entityId: current.roomVariantId, operation: 'versioned' },
+          { entityType: 'room_placement_proposal', entityId: proposalId, operation: 'applied' },
+        ],
+      };
+    }
+    case 'room.variant.warning.disposition.set':
+    case 'room.variant.validate':
+    case 'room.variant.finalize':
+    case 'room.variant.fork': {
+      invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
+      const allowed = command.type === 'room.variant.warning.disposition.set'
+        ? ['roomVariantId', 'expectedRoomVariantVersion', 'acceptedWarningFindingIds']
+        : ['roomVariantId', 'expectedRoomVariantVersion'];
+      assertExactFields(payload, new Set(allowed), 'payload');
+      const library = roomLibrary(next);
+      const { entry, variant: current } = roomVariantHead(library, requireId(payload.roomVariantId, 'payload.roomVariantId'));
+      assertRoomVersion(current, payload.expectedRoomVariantVersion);
+      assertNoActiveRoomProposal(library, current);
+      const archetype = roomArchetypeHead(library, current.roomArchetypeId, current.archetypeVersion);
+      let candidate;
+      if (command.type === 'room.variant.fork') {
+        candidate = forkFinalRoomVariant({ finalVariant: roomVariantValue(current), nextVersion: current.version + 1 });
+      } else {
+        candidate = {
+          ...roomVariantValue(current),
+          version: current.version + 1,
+          parentVariantVersion: current.version,
+        };
+        if (command.type === 'room.variant.warning.disposition.set') {
+          invariant(['DRAFT', 'VALIDATED'].includes(current.lifecycle), 'ROOM_LIFECYCLE_TRANSITION_INVALID', 'Warnings may be dispositioned only on DRAFT or VALIDATED rooms.');
+          invariant(Array.isArray(payload.acceptedWarningFindingIds), 'VALIDATION_ERROR', 'acceptedWarningFindingIds must be an array.');
+          const currentWarnings = new Set(current.findings.filter((finding) => finding.severity === 'WARNING').map((finding) => finding.findingId));
+          const accepted = payload.acceptedWarningFindingIds.map((idValue) => requireString(idValue, 'payload.acceptedWarningFindingIds[]', { max: 128 }));
+          invariant(new Set(accepted).size === accepted.length && accepted.every((findingId) => currentWarnings.has(findingId)), 'ROOM_WARNING_NOT_FOUND', 'Only unique current warning findings may be dispositioned.');
+          candidate.acceptedWarningFindingIds = [...accepted].sort();
+        } else if (command.type === 'room.variant.validate') {
+          invariant(current.lifecycle === 'DRAFT', 'ROOM_LIFECYCLE_TRANSITION_INVALID', 'Only a DRAFT room can be validated.');
+          candidate.lifecycle = 'VALIDATED';
+        } else {
+          invariant(current.lifecycle === 'VALIDATED', 'ROOM_LIFECYCLE_TRANSITION_INVALID', 'Only a VALIDATED room can be finalized.');
+          candidate.lifecycle = 'FINAL';
+        }
+      }
+      const version = validatedRoomVersion({
+        candidate, archetype, document: projectDocument, now, actorId: command.actor.id,
+        createdRevision: command.baseRevision + 1,
+      });
+      if (command.type === 'room.variant.validate') {
+        evaluateRoomLifecycle({ current: 'DRAFT', target: 'VALIDATED', findings: version.findings, acceptedWarningFindingIds: version.acceptedWarningFindingIds });
+      } else if (command.type === 'room.variant.finalize') {
+        evaluateRoomLifecycle({ current: 'VALIDATED', target: 'FINAL', findings: version.findings, acceptedWarningFindingIds: version.acceptedWarningFindingIds });
+      }
+      appendRoomVersion(entry, version);
+      const operation = command.type.split('.').at(-1);
+      return {
+        snapshot: next,
+        result: { roomVariantId: current.roomVariantId, roomVariantVersion: version.version, lifecycle: version.lifecycle, contentFingerprint: version.contentFingerprint },
+        summary: `Room variant ${current.roomVariantId} ${operation} created immutable version ${version.version}.`,
+        changes: [{ entityType: 'room_variant', entityId: current.roomVariantId, operation }],
+      };
+    }
     default:
       throw new StudioError('UNKNOWN_COMMAND', `Unknown Studio command: ${command.type}.`);
   }
@@ -1580,6 +2195,10 @@ export class StudioService {
     return this.#store.supportsAtomicAssetLibrary === true;
   }
 
+  get durableRoomStoreReady() {
+    return this.#store.supportsAtomicRoomDesigner === true;
+  }
+
   async execute(rawCommand, trustedExecutionContext, { signal } = {}) {
     signal?.throwIfAborted();
     const command = validateEnvelope(rawCommand, trustedExecutionContext);
@@ -1648,6 +2267,13 @@ export class StudioService {
         'V2 asset proposals, decisions, apply, and lifecycle require the authoritative SQLite v9 store.',
       );
     }
+    if (definition.requiresDurableRoomStore) {
+      invariant(
+        this.durableRoomStoreReady,
+        'ROOM_STORE_DISABLED',
+        'Room and hallway authoring requires the authoritative SQLite v10 store.',
+      );
+    }
     const head = headRevision(existing);
     invariant(command.baseRevision === head.number, 'REVISION_CONFLICT', 'The project changed after the command was prepared.', {
       projectId: command.projectId,
@@ -1667,7 +2293,16 @@ export class StudioService {
     const preparedAssetProposal = command.type === 'asset.proposal.submit'
       ? prepareAssetProposal(command, existing)
       : null;
-    const applied = applyCommand(command, head.snapshot, now, { atlasJob, priorAtlasJob, preparedAssetProposal });
+    const preparedRoomProposal = command.type === 'room.placement.proposal.submit'
+      ? prepareRoomPlacementProposal(command, existing)
+      : null;
+    const applied = applyCommand(command, head.snapshot, now, {
+      atlasJob,
+      priorAtlasJob,
+      preparedAssetProposal,
+      preparedRoomProposal,
+      projectDocument: existing,
+    });
     const revision = createRevision({
       command,
       number: head.number + 1,
@@ -2011,6 +2646,92 @@ export class StudioService {
       revision: head.number,
       filters: { assetId, proposalId, text, kinds, lifecycles, tags, findingSeverities },
       assets,
+      proposals: visibleProposals,
+    });
+  }
+
+  async queryRooms(rawRequest, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
+    invariant(this.durableRoomStoreReady, 'ROOM_STORE_DISABLED', 'Room queries require the authoritative SQLite v10 store.');
+    const request = requireRecord(rawRequest, 'request');
+    assertExactFields(request, new Set([
+      'schemaVersion', 'projectId', 'roomVariantId', 'roomArchetypeId', 'proposalId',
+      'kinds', 'lifecycles', 'includeVersions', 'includeProposals', 'limit',
+    ]), 'Room query');
+    for (const field of AUTHORITY_FIELDS) {
+      invariant(!Object.hasOwn(request, field), 'UNTRUSTED_AUTHORITY_FIELD', `Room query must not contain authority field: ${field}.`, { field });
+    }
+    invariant(request.schemaVersion === 1, 'SCHEMA_VERSION_UNSUPPORTED', 'Unsupported room query schema version.');
+    const projectId = requireId(request.projectId, 'projectId');
+    const executionContext = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId);
+    signal?.throwIfAborted();
+    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
+    const head = headRevision(document);
+    assertAuthorized(
+      { ...executionContext, projectId, type: 'project.read', payload: {} },
+      head.snapshot,
+      { ownerOnly: false, requiredScope: 'project.read' },
+      this.#clock(),
+    );
+    const roomVariantId = request.roomVariantId === undefined ? null : requireId(request.roomVariantId, 'roomVariantId');
+    const roomArchetypeId = request.roomArchetypeId === undefined ? null : requireId(request.roomArchetypeId, 'roomArchetypeId');
+    const proposalId = request.proposalId === undefined ? null : requireId(request.proposalId, 'proposalId');
+    const normalizeEnums = (value, field, allowed) => {
+      if (value === undefined) return [];
+      invariant(Array.isArray(value) && value.length <= allowed.length, 'VALIDATION_ERROR', `${field} is outside its bound.`, { field });
+      const normalized = value.map((entry) => requireEnum(entry, `${field}[]`, allowed));
+      invariant(new Set(normalized).size === normalized.length, 'VALIDATION_ERROR', `${field} values must be unique.`, { field });
+      return normalized;
+    };
+    const kinds = normalizeEnums(request.kinds, 'kinds', ['room', 'hallway']);
+    const lifecycles = normalizeEnums(request.lifecycles, 'lifecycles', ['DRAFT', 'VALIDATED', 'FINAL']);
+    const includeVersions = request.includeVersions === undefined ? roomVariantId !== null : request.includeVersions;
+    const includeProposals = request.includeProposals === undefined ? proposalId !== null : request.includeProposals;
+    invariant(typeof includeVersions === 'boolean' && typeof includeProposals === 'boolean', 'VALIDATION_ERROR', 'Room include flags must be boolean.');
+    const limit = request.limit === undefined ? 100 : requireInteger(request.limit, 'limit', { min: 1, max: 100 });
+    const library = head.snapshot.roomLibrary ?? { archetypes: [], variants: [], proposals: [] };
+    const archetypeById = new Map(library.archetypes.map((archetype) => [archetype.roomArchetypeId, archetype]));
+    const variants = library.variants
+      .map((entry) => {
+        const current = entry.versions.find((version) => version.version === entry.headVersion);
+        return { entry, current, archetype: archetypeById.get(current?.roomArchetypeId) };
+      })
+      .filter(({ current }) => current)
+      .filter(({ current }) => roomVariantId === null || current.roomVariantId === roomVariantId)
+      .filter(({ current }) => roomArchetypeId === null || current.roomArchetypeId === roomArchetypeId)
+      .filter(({ archetype }) => kinds.length === 0 || kinds.includes(archetype?.kind))
+      .filter(({ current }) => lifecycles.length === 0 || lifecycles.includes(current.lifecycle))
+      .sort((left, right) => left.current.displayName.localeCompare(right.current.displayName) || left.current.roomVariantId.localeCompare(right.current.roomVariantId))
+      .slice(0, limit)
+      .map(({ entry, current, archetype }) => ({
+        roomVariantId: entry.roomVariantId,
+        headVersion: entry.headVersion,
+        archetype: deepClone(archetype),
+        current: deepClone(current),
+        versions: includeVersions ? deepClone(entry.versions) : undefined,
+      }));
+    invariant(roomVariantId === null || variants.length === 1, 'ROOM_VARIANT_NOT_FOUND', 'The room variant does not exist in this project.', { projectId, roomVariantId });
+    const proposals = includeProposals
+      ? library.proposals
+        .filter((proposal) => proposalId === null || proposal.proposalId === proposalId)
+        .filter((proposal) => roomVariantId === null || proposal.roomVariantId === roomVariantId)
+        .sort((left, right) => left.submittedRevision - right.submittedRevision || left.proposalId.localeCompare(right.proposalId))
+        .slice(0, limit)
+        .map(deepClone)
+      : [];
+    const visibleProposals = executionContext.actor.kind === 'agent'
+      ? redactAgentOnlySourceLocations({ sources: [], roomLibrary: { proposals } }).roomLibrary.proposals
+      : proposals;
+    return deepFreeze({
+      schemaVersion: 1,
+      projectId,
+      revision: head.number,
+      filters: { roomVariantId, roomArchetypeId, proposalId, kinds, lifecycles },
+      archetypes: roomVariantId === null
+        ? library.archetypes.filter((archetype) => roomArchetypeId === null || archetype.roomArchetypeId === roomArchetypeId).map(deepClone)
+        : [],
+      variants,
       proposals: visibleProposals,
     });
   }

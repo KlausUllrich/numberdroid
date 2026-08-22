@@ -21,4 +21,25 @@ export {
   validateExactSliceBinding,
   validateSurfaceTilingDomain,
 } from './asset-definition.js';
+export {
+  MAX_ROOM_ARCHETYPES,
+  MAX_ROOM_AXIS_CELLS,
+  MAX_ROOM_CELLS,
+  MAX_ROOM_CONNECTORS,
+  MAX_ROOM_INTENT_REFS,
+  MAX_ROOM_PLACEMENTS,
+  MAX_ROOM_PROPOSAL_ITEMS,
+  MAX_ROOM_VARIANTS,
+  ROOM_KINDS,
+  ROOM_LAYERS,
+  ROOM_LIFECYCLES,
+  ROOM_ROTATIONS,
+  ROOM_VALIDATOR_VERSION,
+  evaluateRoomLifecycle,
+  forkFinalRoomVariant,
+  roomArchetypeDefaults,
+  validateRoomArchetype,
+  validateRoomPlacementProposal,
+  validateRoomVariant,
+} from './room-definition.js';
 export { StudioError, asStudioError, invariant } from './errors.js';

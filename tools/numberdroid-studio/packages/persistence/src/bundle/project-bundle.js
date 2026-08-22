@@ -43,11 +43,14 @@ export const PROJECT_BUNDLE_LIMITS = Object.freeze({
   maxProposals: 4096,
   maxProposalItems: 64,
   maxAppliedJobs: 4096,
+  maxRoomArchetypes: 128,
+  maxRoomVariants: 512,
+  maxRoomProposals: 4096,
   maxActivityEvents: 10000,
   maxFilesystemEntries: 20000,
 });
 
-const PROJECT_KEYS = Object.freeze([
+const PROJECT_KEYS_V1 = Object.freeze([
   'schemaVersion',
   'bundleKind',
   'projectHead',
@@ -60,6 +63,7 @@ const PROJECT_KEYS = Object.freeze([
   'appliedJobHistory',
   'activity',
 ]);
+const PROJECT_KEYS_V2 = Object.freeze([...PROJECT_KEYS_V1, 'roomLibrary']);
 const PROJECT_HEAD_KEYS = Object.freeze([
   'projectId',
   'formatVersion',
@@ -288,8 +292,8 @@ function validateAppliedJobHistory(jobs) {
 }
 
 export function validatePortableProjectDocument(project, { limits = PROJECT_BUNDLE_LIMITS, semanticValidator = null } = {}) {
-  exactKeys(project, PROJECT_KEYS, 'project.json');
-  invariant(project.schemaVersion === 1 && project.bundleKind === BUNDLE_KIND, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Unsupported portable project schema.');
+  invariant([1, 2].includes(project?.schemaVersion) && project.bundleKind === BUNDLE_KIND, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Unsupported portable project schema.');
+  exactKeys(project, project.schemaVersion === 2 ? PROJECT_KEYS_V2 : PROJECT_KEYS_V1, 'project.json');
   exactKeys(project.projectHead, PROJECT_HEAD_KEYS, 'projectHead');
   exactKeys(project.assetLibrary, ASSET_LIBRARY_KEYS, 'assetLibrary');
   const head = project.projectHead;
@@ -321,6 +325,12 @@ export function validatePortableProjectDocument(project, { limits = PROJECT_BUND
   assertObjectArray(project.proposals, 'proposals', limits.maxProposals);
   assertObjectArray(project.appliedJobHistory, 'appliedJobHistory', limits.maxAppliedJobs);
   assertObjectArray(project.activity, 'activity', limits.maxActivityEvents);
+  if (project.schemaVersion === 2) {
+    exactKeys(project.roomLibrary, ['archetypes', 'variants', 'proposals'], 'roomLibrary');
+    assertObjectArray(project.roomLibrary.archetypes, 'roomLibrary.archetypes', limits.maxRoomArchetypes);
+    assertObjectArray(project.roomLibrary.variants, 'roomLibrary.variants', limits.maxRoomVariants);
+    assertObjectArray(project.roomLibrary.proposals, 'roomLibrary.proposals', limits.maxRoomProposals);
+  }
   validateProposalQuiescence(project.proposals, limits);
   validateAppliedJobHistory(project.appliedJobHistory);
   canonicalBundleJson(project, limits);

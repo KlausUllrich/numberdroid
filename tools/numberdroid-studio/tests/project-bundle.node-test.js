@@ -129,7 +129,7 @@ test('portable project document rejects authority, machine locations, nontermina
   );
   assert.throws(
     () => validatePortableProjectDocument({ ...base, schemaVersion: 2 }),
-    (error) => error.code === 'BUNDLE_SCHEMA_UNSUPPORTED',
+    (error) => error.code === 'BUNDLE_SCHEMA_INVALID',
   );
   assert.throws(
     () => validatePortableProjectDocument({ ...base, sources: [{ sourceId: 'source.one', grantId: 'grant.secret' }] }),

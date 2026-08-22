@@ -55,6 +55,25 @@ function assetQueryInputSchema() {
   };
 }
 
+function roomQueryInputSchema() {
+  const id = { type: 'string', minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' };
+  return {
+    type: 'object', additionalProperties: false, required: ['schemaVersion', 'projectId'],
+    properties: {
+      schemaVersion: { type: 'integer', enum: [1] },
+      projectId: id,
+      roomVariantId: id,
+      roomArchetypeId: id,
+      proposalId: id,
+      kinds: { type: 'array', maxItems: 2, uniqueItems: true, items: { type: 'string', enum: ['room', 'hallway'] } },
+      lifecycles: { type: 'array', maxItems: 3, uniqueItems: true, items: { type: 'string', enum: ['DRAFT', 'VALIDATED', 'FINAL'] } },
+      includeVersions: { type: 'boolean' },
+      includeProposals: { type: 'boolean' },
+      limit: { type: 'integer', minimum: 1, maximum: 100 },
+    },
+  };
+}
+
 /**
  * Transport-neutral, MCP-shaped tool contract. The official MCP SDK transport
  * is a Checkpoint 1B adapter; it registers these secured definitions without
@@ -71,12 +90,15 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
   const durableAssetSurfaceReady = studioService.agentAttemptAuditReady === true
     && studioService.durableJobStoreReady === true
     && studioService.durableAssetStoreReady === true;
+  const durableRoomSurfaceReady = durableAssetSurfaceReady
+    && studioService.durableRoomStoreReady === true;
   const agentDefinitions = studioService.commandCatalog.filter(
     (definition) => !definition.ownerOnly
       && definition.type !== 'project.create'
       && (!definition.requiresDurableAgentLedger || studioService.agentAttemptAuditReady === true)
       && (!definition.requiresDurableJobStore || studioService.durableJobStoreReady === true)
-      && (!definition.requiresDurableAssetStore || durableAssetSurfaceReady),
+      && (!definition.requiresDurableAssetStore || durableAssetSurfaceReady)
+      && (!definition.requiresDurableRoomStore || durableRoomSurfaceReady),
   );
 
   async function authority(invocationContext, requestedProjectId) {
@@ -244,6 +266,18 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
     },
   }] : [];
 
+  const roomTools = durableRoomSurfaceReady ? [{
+    name: 'studio_room_query',
+    title: 'Query Studio rooms and hallways',
+    description: 'Read bounded project-scoped room/hallway heads, immutable versions, findings, exact asset pins, and proposal state.',
+    inputSchema: roomQueryInputSchema(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    execute: async (input, invocationContext) => {
+      const context = await authority(invocationContext, input.projectId);
+      return studioService.queryRooms(input, context, { signal: invocationContext?.mcpReq?.signal });
+    },
+  }] : [];
+
   return [
     {
       name: 'studio_command_catalog_list',
@@ -282,6 +316,7 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
     ...commandTools,
     ...atlasJobTools,
     ...assetTools,
+    ...roomTools,
   ];
 }
 
