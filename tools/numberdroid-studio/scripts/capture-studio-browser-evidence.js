@@ -1212,16 +1212,115 @@ try {
     assert(zoom200.result?.value?.width === '2508px'
       && zoom200.result.value.scrollWidth > zoom200.result.value.clientWidth,
     '200% zoom did not preserve the 2508-CSS-pixel canvas with local horizontal scrolling.');
+    const scrollRefresh = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const beforeScroller = document.querySelector('.cutter-scroll');
+        beforeScroller.scrollLeft = Math.min(321, beforeScroller.scrollWidth - beforeScroller.clientWidth);
+        beforeScroller.scrollTop = Math.min(417, beforeScroller.scrollHeight - beforeScroller.clientHeight);
+        const beforeField = document.querySelector('[data-cutter-grid-form] [name="top"]');
+        beforeField.value = '5';
+        beforeField.focus();
+        const before = { left: beforeScroller.scrollLeft, top: beforeScroller.scrollTop,
+          context: beforeScroller.dataset.cutterScrollContext,
+          windowLeft: window.scrollX, windowTop: window.scrollY,
+          fieldValue: beforeField.value, fieldValid: beforeField.checkValidity() };
+        const refreshButton = document.getElementById('refresh-button');
+        const observations = [];
+        for (let index = 0; index < 2; index += 1) {
+          refreshButton.click();
+          const deadline = Date.now() + 5000;
+          while (refreshButton.disabled && Date.now() < deadline) {
+            await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+          }
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const currentScroller = document.querySelector('.cutter-scroll');
+          const currentField = document.querySelector('[data-cutter-grid-form] [name="top"]');
+          observations.push({ sameScroller: currentScroller === beforeScroller,
+            sameField: currentField === beforeField, focused: document.activeElement === beforeField,
+            fieldValue: currentField?.value, fieldValid: currentField?.checkValidity(),
+            left: currentScroller?.scrollLeft, top: currentScroller?.scrollTop,
+            context: currentScroller?.dataset.cutterScrollContext,
+            windowLeft: window.scrollX, windowTop: window.scrollY,
+            refreshSettled: !refreshButton.disabled });
+        }
+        return { before, observations,
+          zoom: document.querySelector('[data-cutter-zoom]')?.value };
+      })()`, awaitPromise: true, returnByValue: true,
+    }, sessionId);
+    assert(scrollRefresh.result?.value?.before.left > 0 && scrollRefresh.result.value.before.top > 0
+      && scrollRefresh.result.value.before.fieldValid === true
+      && scrollRefresh.result.value.zoom === '2' && scrollRefresh.result.value.observations.length === 2
+      && scrollRefresh.result.value.observations.every((observation) => observation.sameScroller === true
+        && observation.sameField === true && observation.focused === true
+        && observation.fieldValue === scrollRefresh.result.value.before.fieldValue
+        && observation.fieldValid === true && observation.refreshSettled === true
+        && observation.context === scrollRefresh.result.value.before.context
+        && observation.left === scrollRefresh.result.value.before.left
+        && observation.top === scrollRefresh.result.value.before.top
+        && observation.windowLeft === scrollRefresh.result.value.before.windowLeft
+        && observation.windowTop === scrollRefresh.result.value.before.windowTop),
+    'Two passive refreshes replaced the cutter DOM or lost its focused draft, local scroll axes, or window position.');
+    const committedGridDraft = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const beforeScroller = document.querySelector('.cutter-scroll');
+        const beforeField = document.querySelector('[data-cutter-grid-form] [name="top"]');
+        const before = { left: beforeScroller.scrollLeft, top: beforeScroller.scrollTop,
+          windowLeft: window.scrollX, windowTop: window.scrollY, value: beforeField.value };
+        beforeField.closest('form').requestSubmit();
+        const deadline = Date.now() + 5000;
+        while ((document.querySelector('[data-cutter-grid-form] button[type="submit"]')?.disabled
+            || beforeField.isConnected) && Date.now() < deadline) {
+          await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+        }
+        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        const afterScroller = document.querySelector('.cutter-scroll');
+        const afterField = document.querySelector('[data-cutter-grid-form] [name="top"]');
+        return { before, oldFieldDisconnected: !beforeField.isConnected,
+          value: afterField?.value, rectangleCount: document.querySelectorAll('[data-cutter-overlay] g').length,
+          firstRectangle: {
+            y: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="y"]')?.value,
+            height: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="height"]')?.value,
+            overlayY: document.querySelector('[data-cutter-move="0"]')?.getAttribute('y'),
+            overlayHeight: document.querySelector('[data-cutter-move="0"]')?.getAttribute('height'),
+          },
+          sameZoom: document.querySelector('[data-cutter-zoom]')?.value === '2',
+          scrollerReplaced: beforeScroller !== afterScroller,
+          left: afterScroller?.scrollLeft, top: afterScroller?.scrollTop,
+          windowLeft: window.scrollX, windowTop: window.scrollY,
+          settled: !document.querySelector('[data-cutter-grid-form] button[type="submit"]')?.disabled };
+      })()`, awaitPromise: true, returnByValue: true,
+    }, sessionId);
+    assert(committedGridDraft.result?.value?.oldFieldDisconnected === true
+      && committedGridDraft.result.value.before.value === '5'
+      && committedGridDraft.result.value.value === committedGridDraft.result.value.before.value
+      && committedGridDraft.result.value.rectangleCount === 4
+      && committedGridDraft.result.value.firstRectangle.y === '5'
+      && committedGridDraft.result.value.firstRectangle.height === '621'
+      && committedGridDraft.result.value.firstRectangle.overlayY
+        === committedGridDraft.result.value.firstRectangle.y
+      && committedGridDraft.result.value.firstRectangle.overlayHeight
+        === committedGridDraft.result.value.firstRectangle.height
+      && committedGridDraft.result.value.sameZoom === true
+      && committedGridDraft.result.value.scrollerReplaced === true
+      && committedGridDraft.result.value.left === committedGridDraft.result.value.before.left
+      && committedGridDraft.result.value.top === committedGridDraft.result.value.before.top
+      && committedGridDraft.result.value.windowLeft === committedGridDraft.result.value.before.windowLeft
+      && committedGridDraft.result.value.windowTop === committedGridDraft.result.value.before.windowTop
+      && committedGridDraft.result.value.settled === true,
+    'Submitting the retained grid draft did not preserve same-zoom scroll/window context through the required rerender.');
     const restoredFit = await devtools.send('Runtime.evaluate', {
       expression: `(() => {
         const select = document.querySelector('[data-cutter-zoom]');
         select.value = 'fit'; select.dispatchEvent(new Event('change', { bubbles: true }));
         return { zoom: document.querySelector('[data-cutter-zoom]')?.value,
-          width: document.querySelector('.cutter-canvas')?.style.width };
+          width: document.querySelector('.cutter-canvas')?.style.width,
+          scrollLeft: document.querySelector('.cutter-scroll')?.scrollLeft,
+          scrollTop: document.querySelector('.cutter-scroll')?.scrollTop };
       })()`, returnByValue: true,
     }, sessionId);
-    assert(restoredFit.result?.value?.zoom === 'fit' && restoredFit.result.value.width === '',
-      'Fit zoom did not restore the responsive cutter canvas.');
+    assert(restoredFit.result?.value?.zoom === 'fit' && restoredFit.result.value.width === ''
+      && restoredFit.result.value.scrollLeft === 0 && restoredFit.result.value.scrollTop === 0,
+      'Fit zoom did not restore the responsive cutter canvas with a deliberate local-scroll reset.');
     const excluded = await devtools.send('Runtime.evaluate', {
       expression: `(() => {
         document.querySelector('[data-rectangle-index="0"][data-rectangle-field="included"]')?.click();
@@ -1273,13 +1372,16 @@ try {
     const keyboardResult = await devtools.send('Runtime.evaluate', {
       expression: `(() => {
         const target = document.querySelector('[data-cutter-move="0"]');
-        return { focused: document.activeElement === target, x: target?.getAttribute('x') };
+        return { focused: document.activeElement === target, x: target?.getAttribute('x'),
+          inspectorX: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="x"]')?.value };
       })()`,
       returnByValue: true,
     }, sessionId);
     assert(keyboardResult.result?.value?.focused === true
       && Number(keyboardResult.result.value.x) === Number(keyboardFocus.result.value.x) + 1,
     'Arrow-key rectangle movement did not update one source pixel while retaining overlay focus.');
+    assert(keyboardResult.result.value.inspectorX === keyboardResult.result.value.x,
+      'Arrow-key rectangle movement left the numeric inspector behind the authoritative SVG geometry.');
     const resizeFocus = await devtools.send('Runtime.evaluate', {
       expression: `(() => {
         const target = document.querySelector('[data-cutter-resize="0"]');
@@ -1301,12 +1403,181 @@ try {
       expression: `(() => {
         const target = document.querySelector('[data-cutter-resize="0"]');
         return { focused: document.activeElement === target,
-          height: target?.closest('g')?.querySelector('[data-cutter-move]')?.getAttribute('height') };
+          height: target?.closest('g')?.querySelector('[data-cutter-move]')?.getAttribute('height'),
+          inspectorHeight: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="height"]')?.value };
       })()`, returnByValue: true,
     }, sessionId);
     assert(resizeFocus.result?.value?.focused === true && resizeResult.result?.value?.focused === true
       && Number(resizeResult.result.value.height) === Number(resizeFocus.result.value.height) + 1,
     'Arrow-key rectangle resize did not update one source pixel while retaining handle focus.');
+    assert(resizeResult.result.value.inspectorHeight === resizeResult.result.value.height,
+      'Arrow-key rectangle resize left the numeric inspector behind the authoritative SVG geometry.');
+    const dragSetup = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const zoom = document.querySelector('[data-cutter-zoom]');
+        zoom.value = '2'; zoom.dispatchEvent(new Event('change', { bubbles: true }));
+        const scroller = document.querySelector('.cutter-scroll');
+        scroller.scrollIntoView({ block: 'center', inline: 'nearest' });
+        scroller.scrollLeft = Math.min(43, scroller.scrollWidth - scroller.clientWidth);
+        scroller.scrollTop = Math.min(57, scroller.scrollHeight - scroller.clientHeight);
+        const target = document.querySelector('[data-cutter-move="0"]');
+        window.__cutterDragProbeTarget = target;
+        const targetRect = target.getBoundingClientRect();
+        const scrollerRect = scroller.getBoundingClientRect();
+        const visible = {
+          left: Math.max(targetRect.left, scrollerRect.left),
+          right: Math.min(targetRect.right, scrollerRect.right),
+          top: Math.max(targetRect.top, scrollerRect.top),
+          bottom: Math.min(targetRect.bottom, scrollerRect.bottom),
+        };
+        return {
+          point: { x: (visible.left + visible.right) / 2, y: (visible.top + visible.bottom) / 2 },
+          context: scroller.dataset.cutterScrollContext,
+          left: scroller.scrollLeft,
+          top: scroller.scrollTop,
+          windowLeft: window.scrollX,
+          windowTop: window.scrollY,
+          x: target.getAttribute('x'),
+          y: target.getAttribute('y'),
+          visibleWidth: visible.right - visible.left,
+          visibleHeight: visible.bottom - visible.top,
+        };
+      })()`, returnByValue: true,
+    }, sessionId);
+    assert(dragSetup.result?.value?.left > 0 && dragSetup.result.value.top > 0
+      && dragSetup.result.value.visibleWidth > 30 && dragSetup.result.value.visibleHeight > 30,
+    'The drag-continuity probe could not establish a visible target with nonzero nested scroll.');
+    const dragPoint = dragSetup.result.value.point;
+    await devtools.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: dragPoint.x, y: dragPoint.y, button: 'left', buttons: 1, clickCount: 1,
+    }, sessionId);
+    await devtools.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved', x: dragPoint.x + 18, y: dragPoint.y + 14, button: 'none', buttons: 1,
+    }, sessionId);
+    const duringDrag = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const hook = window.__numberdroidStudioVisualTest;
+        const forced = hook?.forceChangedCutterProjectionRender();
+        const target = window.__cutterDragProbeTarget;
+        const scroller = document.querySelector('.cutter-scroll');
+        return {
+          forced,
+          interaction: hook?.cutterInteractionState(),
+          targetConnected: target?.isConnected,
+          sameTarget: document.querySelector('[data-cutter-move="0"]') === target,
+          x: target?.getAttribute('x'),
+          y: target?.getAttribute('y'),
+          left: scroller?.scrollLeft,
+          top: scroller?.scrollTop,
+          windowLeft: window.scrollX,
+          windowTop: window.scrollY,
+        };
+      })()`, returnByValue: true,
+    }, sessionId);
+    assert(duringDrag.result?.value?.forced?.dragActive === true
+      && duringDrag.result.value.forced.deferred === true
+      && duringDrag.result.value.interaction?.dirty === true
+      && duringDrag.result.value.targetConnected === true
+      && duringDrag.result.value.sameTarget === true
+      && (duringDrag.result.value.x !== dragSetup.result.value.x
+        || duringDrag.result.value.y !== dragSetup.result.value.y)
+      && duringDrag.result.value.left === dragSetup.result.value.left
+      && duringDrag.result.value.top === dragSetup.result.value.top
+      && duringDrag.result.value.windowLeft === dragSetup.result.value.windowLeft
+      && duringDrag.result.value.windowTop === dragSetup.result.value.windowTop,
+    'A changed external cutter projection was not deferred safely during the captured drag.');
+    await devtools.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: dragPoint.x + 18, y: dragPoint.y + 14,
+      button: 'left', buttons: 0, clickCount: 1,
+    }, sessionId);
+    await devtools.send('Runtime.evaluate', {
+      expression: `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`,
+      awaitPromise: true, returnByValue: true,
+    }, sessionId);
+    const afterDrag = await devtools.send('Runtime.evaluate', {
+      expression: `(() => {
+        const hook = window.__numberdroidStudioVisualTest;
+        const target = document.querySelector('[data-cutter-move="0"]');
+        const scroller = document.querySelector('.cutter-scroll');
+        return {
+          interaction: hook?.cutterInteractionState(),
+          oldTargetConnected: window.__cutterDragProbeTarget?.isConnected,
+          targetReplaced: target !== window.__cutterDragProbeTarget,
+          x: target?.getAttribute('x'),
+          y: target?.getAttribute('y'),
+          inspectorX: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="x"]')?.value,
+          inspectorY: document.querySelector('[data-rectangle-index="0"][data-rectangle-field="y"]')?.value,
+          left: scroller?.scrollLeft,
+          top: scroller?.scrollTop,
+          context: scroller?.dataset.cutterScrollContext,
+          windowLeft: window.scrollX,
+          windowTop: window.scrollY,
+        };
+      })()`, returnByValue: true,
+    }, sessionId);
+    assert(afterDrag.result?.value?.interaction?.dragActive === false
+      && afterDrag.result.value.interaction.deferred === false
+      && afterDrag.result.value.interaction.dirty === true
+      && afterDrag.result.value.interaction.marker === duringDrag.result.value.forced.marker
+      && afterDrag.result.value.oldTargetConnected === false
+      && afterDrag.result.value.targetReplaced === true
+      && afterDrag.result.value.inspectorX === afterDrag.result.value.x
+      && afterDrag.result.value.inspectorY === afterDrag.result.value.y
+      && afterDrag.result.value.left === dragSetup.result.value.left
+      && afterDrag.result.value.top === dragSetup.result.value.top
+      && afterDrag.result.value.context === dragSetup.result.value.context
+      && afterDrag.result.value.windowLeft === dragSetup.result.value.windowLeft
+      && afterDrag.result.value.windowTop === dragSetup.result.value.windowTop,
+    'The deferred external render did not settle the drag into synchronized inspector/SVG state and exact scroll context.');
+    const closeReopenReset = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const zoom = document.querySelector('[data-cutter-zoom]');
+        zoom.value = '2'; zoom.dispatchEvent(new Event('change', { bubbles: true }));
+        const beforeScroller = document.querySelector('.cutter-scroll');
+        beforeScroller.scrollLeft = Math.min(287, beforeScroller.scrollWidth - beforeScroller.clientWidth);
+        beforeScroller.scrollTop = Math.min(359, beforeScroller.scrollHeight - beforeScroller.clientHeight);
+        const before = {
+          context: beforeScroller.dataset.cutterScrollContext,
+          left: beforeScroller.scrollLeft,
+          top: beforeScroller.scrollTop,
+          windowLeft: window.scrollX,
+          windowTop: window.scrollY,
+        };
+        document.querySelector('[data-close-cutter]')?.click();
+        document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click();
+        const deadline = Date.now() + 5000;
+        while ((!document.querySelector('.cutter-scroll')
+            || !document.querySelector('.cutter-job-status')?.textContent.includes('APPLIED'))
+            && Date.now() < deadline) {
+          await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+        }
+        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        const afterScroller = document.querySelector('.cutter-scroll');
+        return {
+          before,
+          after: {
+            context: afterScroller?.dataset.cutterScrollContext,
+            left: afterScroller?.scrollLeft,
+            top: afterScroller?.scrollTop,
+            zoom: document.querySelector('[data-cutter-zoom]')?.value,
+            windowLeft: window.scrollX,
+            windowTop: window.scrollY,
+            terminal: document.querySelector('.cutter-job-status')?.textContent.includes('APPLIED'),
+          },
+        };
+      })()`, awaitPromise: true, returnByValue: true,
+    }, sessionId);
+    assert(closeReopenReset.result?.value?.before.left > 0
+      && closeReopenReset.result.value.before.top > 0
+      && closeReopenReset.result.value.after.context
+      && closeReopenReset.result.value.after.context !== closeReopenReset.result.value.before.context
+      && closeReopenReset.result.value.after.left === 0
+      && closeReopenReset.result.value.after.top === 0
+      && closeReopenReset.result.value.after.zoom === 'fit'
+      && closeReopenReset.result.value.after.windowLeft === closeReopenReset.result.value.before.windowLeft
+      && closeReopenReset.result.value.after.windowTop === closeReopenReset.result.value.before.windowTop
+      && closeReopenReset.result.value.after.terminal === true,
+    'Closing and reopening the cutter did not create a fresh instance with reset local scroll and unchanged window position.');
     const postInteractionErrors = await devtools.send('Runtime.evaluate', {
       expression: `Number(document.documentElement.dataset.visualErrorCount ?? 0)`, returnByValue: true,
     }, sessionId);
@@ -1315,10 +1586,14 @@ try {
     assertNoProtocolErrors('After Checkpoint 2B interactions');
     checkpoint2bInteractionEvidence = {
       zoomCssWidths: [zoom100.result.value.width, zoom200.result.value.width, restoredFit.result.value.width],
+      scrollPreservation: scrollRefresh.result.value,
+      committedGridDraft: committedGridDraft.result.value,
       includeExclude: excluded.result.value,
       explicitReplacement: remapped.result.value,
       keyboardMove: { before: Number(keyboardFocus.result.value.x), after: Number(keyboardResult.result.value.x) },
       keyboardResize: { before: Number(resizeFocus.result.value.height), after: Number(resizeResult.result.value.height) },
+      dragContinuity: { before: dragSetup.result.value, during: duringDrag.result.value, after: afterDrag.result.value },
+      closeReopenReset: closeReopenReset.result.value,
       postInteractionRuntimeNetworkErrors: 0,
     };
   }

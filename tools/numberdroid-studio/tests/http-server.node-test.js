@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { runInNewContext } from 'node:vm';
 
 // Kept outside Vitest's discovery pattern; this package uses Node's test runner.
 import { StudioService } from '../packages/application/src/index.js';
@@ -58,9 +59,82 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /data-discard-cutter-job/);
   assert.match(clientScript, /Commit or discard the current preview job/);
   assert.match(clientScript, /aria-live', 'polite/);
-  assert.match(clientScript, /response\.job\.atlasId !== requestedAtlasId/);
+  assert.match(clientScript, /response\.projectId !== binding\.projectId \|\| response\.job\?\.atlasId !== binding\.atlasId/);
+  assert.match(clientScript, /response\.job\?\.sourceId !== binding\.sourceId/);
   assert.match(clientScript, /currentAtlas\?\.latestPreviewJobId !== jobId/);
   assert.match(clientScript, /cutterButton\.disabled = state\.cutterPending/);
+  assert.match(clientScript, /cutterScrollContext\(\)[\s\S]*state\.cutter\.projectId[\s\S]*state\.cutter\.sourceId[\s\S]*state\.cutter\.atlasId[\s\S]*state\.cutter\.instanceId[\s\S]*state\.cutter\.zoom/);
+  const cutterScrollHelpers = clientScript.slice(
+    clientScript.indexOf('function cutterScrollContext'), clientScript.indexOf('function openCutter'),
+  );
+  assert.match(cutterScrollHelpers, /left: scroller\.scrollLeft/);
+  assert.match(cutterScrollHelpers, /top: scroller\.scrollTop/);
+  assert.match(cutterScrollHelpers, /scroller\.scrollLeft = Math\.max\(0, Math\.min/);
+  assert.match(cutterScrollHelpers, /scroller\.scrollTop = Math\.max\(0, Math\.min/);
+  assert.doesNotMatch(cutterScrollHelpers, /window\.scrollTo/);
+  assert.match(cutterScrollHelpers, /context !== cutterScrollContext\(\)/);
+  assert.match(cutterScrollHelpers, /cutterScrollResetPending/);
+  assert.match(cutterScrollHelpers, /captureCutterDomDraft/);
+  assert.match(cutterScrollHelpers, /restoreCutterDomDraft/);
+  assert.match(cutterScrollHelpers, /cutter\.dataset\.cutterModelFingerprint !== cutterModelFingerprint\(\)/);
+  assert.match(cutterScrollHelpers, /active\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(clientScript, /section\.dataset\.cutterModelFingerprint = cutterModelFingerprint\(\)/);
+  assert.match(clientScript, /if \(cutterDrag\) \{[\s\S]*state\.cutterDeferredRender = true;[\s\S]*return;/);
+  assert.match(clientScript, /geometryChanged && !cutterDrag\.changed[\s\S]*markCutterDefinitionDirty\(\)/);
+  assert.match(clientScript, /!cutterDrag\.svg\.isConnected \|\| !cutterDrag\.target\.isConnected/);
+  assert.match(clientScript, /addEventListener\('pointercancel', settleCutterDrag\)/);
+  assert.match(clientScript, /addEventListener\('lostpointercapture', settleCutterDrag\)/);
+  assert.match(clientScript, /if \(visualFixture\) \{[\s\S]*forceChangedCutterProjectionRender/);
+  assert.match(clientScript, /scroller\.dataset\.cutterScrollContext = cutterScrollContext\(\)/);
+  const workspaceRenderStart = clientScript.indexOf('function renderWorkspace');
+  const workspaceRender = clientScript.slice(
+    workspaceRenderStart, clientScript.indexOf('function renderActivity()', workspaceRenderStart),
+  );
+  const captureScroll = workspaceRender.indexOf('captureCutterScroll();');
+  const captureDraft = workspaceRender.indexOf('captureCutterDomDraft();');
+  const replaceWorkspace = workspaceRender.indexOf("elements['workspace-content'].replaceChildren(content);");
+  const restoreScroll = workspaceRender.indexOf('restoreCutterScroll();');
+  const restoreDraft = workspaceRender.indexOf('restoreCutterDomDraft();');
+  assert.ok(captureScroll >= 0 && captureDraft > captureScroll && replaceWorkspace > captureDraft
+    && restoreScroll > replaceWorkspace && restoreDraft > restoreScroll,
+  'Cutter scroll/draft must be captured before atomic DOM replacement and restored only after the compatible cutter is attached.');
+  assert.doesNotMatch(workspaceRender, /replaceChildren\(\);[\s\S]*append\(content\)/);
+  assert.match(workspaceRender, /if \(preserveCutterDraft\) captureCutterDomDraft\(\);[\s\S]*else state\.cutterDomDraft = null/);
+  assert.match(workspaceRender, /if \(preserveCutterDraft\) restoreCutterDomDraft\(\)/);
+  assert.match(clientScript, /function openCutter\(source\)[\s\S]*resetCutterScroll\(\);[\s\S]*state\.cutter = \{/);
+  assert.match(clientScript, /projectId: state\.project\.projectId[\s\S]*instanceId: crypto\.randomUUID\(\)/);
+  assert.match(clientScript, /data-close-cutter[\s\S]*resetCutterScroll\(\);[\s\S]*state\.cutter = null/);
+  assert.match(clientScript, /state\.project\.projectId !== projectId\)[\s\S]*resetCutterScroll\(\)/);
+  assert.match(clientScript, /state\.cutter\.projectId !== projectId[\s\S]*state\.cutter = null/);
+  assert.match(clientScript, /if \(!sourceExists\) \{[\s\S]*resetCutterScroll\(\);[\s\S]*state\.cutter = null/);
+  assert.match(clientScript, /atlas\.id === state\.cutter\.atlasId && atlas\.sourceId === state\.cutter\.sourceId/);
+  assert.match(clientScript, /let cutterJobPollController = \{[\s\S]*timer: null,[\s\S]*inFlight: null,[\s\S]*abortController: null/);
+  assert.match(clientScript, /cutterJobPollController\.abortController\?\.abort\(\)/);
+  assert.match(clientScript, /if \(!cutterJobPollController\.inFlight\)/);
+  assert.match(clientScript, /\{ signal: abortController\.signal \}/);
+  assert.match(clientScript, /error\.name !== 'AbortError' && retryableCurrentJob/);
+  assert.match(clientScript, /else cancelCutterJobPolling\(\)/);
+  assert.match(clientScript, /const priorRenderFingerprint = JSON\.stringify\([\s\S]*const nextRenderFingerprint = JSON\.stringify\([\s\S]*priorRenderFingerprint !== nextRenderFingerprint\)[\s\S]*renderWorkspace\(\{ preserveCutterDraft: true \}\)/);
+  const cutterPollHelpersStart = clientScript.indexOf('function cancelCutterJobPolling');
+  const cutterPollHelpers = clientScript.slice(
+    cutterPollHelpersStart, clientScript.indexOf('function invalidateCutterOperations', cutterPollHelpersStart),
+  );
+  assert.match(cutterPollHelpers, /if \(cutterJobPollController\.timer !== null\) clearTimeout\(cutterJobPollController\.timer\)/);
+  assert.match(cutterPollHelpers, /cutterJobPollController\.context !== binding\.context[\s\S]*!cutterBindingIsCurrent\(binding\)/);
+  assert.match(cutterPollHelpers, /response\.projectId !== binding\.projectId[\s\S]*response\.job\?\.atlasId !== binding\.atlasId[\s\S]*response\.job\?\.sourceId !== binding\.sourceId[\s\S]*response\.job\?\.jobId !== jobId[\s\S]*cancelCutterJobPolling\(\)/);
+  assert.match(cutterPollHelpers, /currentAtlas\?\.sourceId !== binding\.sourceId[\s\S]*currentAtlas\?\.latestPreviewJobId !== jobId/);
+  assert.match(cutterPollHelpers, /!state\.cutterJob \|\| \(state\.cutterJob\.jobId === jobId[\s\S]*scheduleCutterJobPoll\(binding, 1000\)/);
+  assert.match(cutterPollHelpers, /\['QUEUED', 'RUNNING'\]\.includes\(response\.job\.state\)[\s\S]*scheduleCutterJobPoll\(binding, 300\)[\s\S]*else cancelCutterJobPolling\(\)/);
+  assert.match(clientScript, /preserveWorkspaceIfUnchanged: passive/);
+  assert.match(clientScript, /renderProject\(\{ preserveWorkspace, preserveCutterDraft: preserveWorkspaceIfUnchanged \}\)/);
+  assert.match(clientScript, /setInterval\(\(\) => refresh\(\{ quiet: true, passive: true \}\), 5000\)/);
+  assert.match(clientScript, /previousWorkspaceFingerprint === workspaceRenderFingerprint\(\)/);
+  const loadProjectStart = clientScript.indexOf('async function loadProject');
+  const loadProjectBody = clientScript.slice(
+    loadProjectStart, clientScript.indexOf('async function requestAgentAccess', loadProjectStart),
+  );
+  assert.match(loadProjectBody, /state\.cutter\?\.projectId && state\.cutter\.projectId !== projectId[\s\S]*cancelCutterJobPolling\(\)[\s\S]*state\.cutter = null/);
+  assert.match(loadProjectBody, /candidate\.id === state\.cutter\.atlasId && candidate\.sourceId === state\.cutter\.sourceId/);
   assert.match(clientScript, /let sourceIntakeFormCache = null/);
   assert.match(clientScript, /selectedSourceFile\?\.files\?\.length > 0/);
   assert.match(clientScript, /sourceFileChooserActive/);
@@ -171,8 +245,39 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(browserEvidenceScript, /networkAborts\.length <= 1 && pairedLogs\.length <= 1/);
   assert.match(browserEvidenceScript, /expectedSyntheticRuntimeNetworkErrorSummaries/);
   assert.match(browserEvidenceScript, /unexpected\.map\(protocolErrorSummary\)\.join/);
+  assert.match(browserEvidenceScript, /beforeScroller\.scrollLeft = Math\.min\(321/);
+  assert.match(browserEvidenceScript, /beforeScroller\.scrollTop = Math\.min\(417/);
+  assert.match(browserEvidenceScript, /beforeField\.value = '5'/);
+  assert.match(browserEvidenceScript, /refreshButton\.click\(\)/);
+  assert.match(browserEvidenceScript, /observations\.length === 2/);
+  assert.match(browserEvidenceScript, /observation\.sameScroller === true/);
+  assert.match(browserEvidenceScript, /observation\.sameField === true && observation\.focused === true/);
+  assert.match(browserEvidenceScript, /observation\.left === scrollRefresh\.result\.value\.before\.left/);
+  assert.match(browserEvidenceScript, /observation\.top === scrollRefresh\.result\.value\.before\.top/);
+  assert.match(browserEvidenceScript, /observation\.windowLeft === scrollRefresh\.result\.value\.before\.windowLeft/);
+  assert.match(browserEvidenceScript, /beforeField\.closest\('form'\)\.requestSubmit\(\)/);
+  assert.match(browserEvidenceScript, /firstRectangle\.y === '5'/);
+  assert.match(browserEvidenceScript, /firstRectangle\.height === '621'/);
+  assert.match(browserEvidenceScript, /committedGridDraft\.result\.value\.scrollerReplaced === true/);
+  assert.match(browserEvidenceScript, /scrollPreservation: scrollRefresh\.result\.value/);
+  assert.match(browserEvidenceScript, /committedGridDraft: committedGridDraft\.result\.value/);
+  assert.match(browserEvidenceScript, /forceChangedCutterProjectionRender/);
+  assert.match(browserEvidenceScript, /forced\?\.dragActive === true/);
+  assert.match(browserEvidenceScript, /forced\.deferred === true/);
+  assert.match(browserEvidenceScript, /oldTargetConnected === false/);
+  assert.match(browserEvidenceScript, /afterDrag\.result\.value\.inspectorX === afterDrag\.result\.value\.x/);
+  assert.match(browserEvidenceScript, /afterDrag\.result\.value\.inspectorY === afterDrag\.result\.value\.y/);
+  assert.match(browserEvidenceScript, /dragContinuity:/);
+  assert.match(browserEvidenceScript, /scrollLeft === 0 && restoredFit\.result\.value\.scrollTop === 0/);
+  assert.match(browserEvidenceScript, /closeReopenReset/);
+  assert.match(browserEvidenceScript, /after\.context !== closeReopenReset\.result\.value\.before\.context/);
+  assert.match(browserEvidenceScript, /after\.left === 0/);
+  assert.match(browserEvidenceScript, /after\.top === 0/);
   assert.match(clientScript, /response\?\.projectId !== operationProjectId/);
   assert.match(clientScript, /response\.job\?\.jobId !== operationJobId/);
+  assert.match(clientScript, /response\.job\?\.sourceId !== operationCutter\.sourceId/);
+  assert.match(clientScript, /mutationAtlas\?\.sourceId !== operationCutter\.sourceId/);
+  assert.match(clientScript, /mutationAtlas\?\.latestPreviewJobId !== operationJobId/);
   assert.match(clientScript, /state\.cutterJob = response\.job/);
   assert.match(clientScript, /state\.cutterJobEvents = response\.events \?\? \[\]/);
   assert.match(clientScript, /state\.cutterJobEvents\.at\(-1\)\?\.state !== state\.cutterJob\?\.state/);
@@ -369,6 +474,183 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
 
   const forbiddenMethod = await fetch(`${base}/api/commands`, { method: 'DELETE' });
   assert.equal(forbiddenMethod.status, 405);
+});
+
+test('cutter job polling has one owner and rejects transient, stale, aborted, terminal, and misbound races', async () => {
+  const clientScript = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
+  const pollSourceStart = clientScript.indexOf('function currentCutterAtlas');
+  const pollSourceEnd = clientScript.indexOf('function invalidateCutterOperations', pollSourceStart);
+  assert.ok(pollSourceStart >= 0 && pollSourceEnd > pollSourceStart, 'Cutter poll source was not found.');
+
+  const timers = new Map();
+  let nextTimerId = 1;
+  const fakeSetTimeout = (callback, delay) => {
+    const timerId = nextTimerId++;
+    timers.set(timerId, { callback, delay });
+    return timerId;
+  };
+  const fakeClearTimeout = (timerId) => timers.delete(timerId);
+  const runTimer = async (delay) => {
+    const entry = [...timers.entries()].find(([, timer]) => timer.delay === delay);
+    assert.ok(entry, `Expected one ${delay}ms cutter poll timer.`);
+    timers.delete(entry[0]);
+    entry[1].callback();
+    await new Promise((resolve) => setImmediate(resolve));
+  };
+  const deferred = () => {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise;
+      reject = rejectPromise;
+    });
+    return { promise, resolve, reject };
+  };
+  const response = (stateName, { sourceId = 'source.one' } = {}) => ({
+    projectId: 'project.one',
+    job: {
+      jobId: 'job.one', atlasId: 'atlas.one', sourceId, state: stateName,
+      attempt: 1, cancelRequested: false, progress: { current: stateName === 'APPLIED' ? 4 : 0, total: 4 },
+    },
+    events: [],
+  });
+  const coalesced = deferred();
+  const aborted = deferred();
+  const stale = deferred();
+  const superseded = deferred();
+  const requestSignals = [];
+  let requestCount = 0;
+  const api = async (_path, options) => {
+    requestCount += 1;
+    requestSignals.push(options.signal);
+    if (requestCount === 1) throw new TypeError('synthetic transient read failure');
+    if (requestCount === 2) return response('QUEUED');
+    if (requestCount === 3) return coalesced.promise;
+    if (requestCount === 4) {
+      options.signal.addEventListener('abort', () => {
+        aborted.reject(new DOMException('The operation was aborted.', 'AbortError'));
+      }, { once: true });
+      return aborted.promise;
+    }
+    if (requestCount === 5) return stale.promise;
+    if (requestCount === 6) return response('APPLIED');
+    if (requestCount === 7) return response('QUEUED', { sourceId: 'source.wrong' });
+    if (requestCount === 8) return superseded.promise;
+    throw new Error(`Unexpected cutter poll request ${requestCount}.`);
+  };
+  const state = {
+    project: {
+      projectId: 'project.one',
+      snapshot: { atlases: [{ id: 'atlas.one', sourceId: 'source.one', latestPreviewJobId: 'job.one' }] },
+    },
+    cutter: {
+      projectId: 'project.one', sourceId: 'source.one', atlasId: 'atlas.one', instanceId: 'instance.one',
+      zoom: '2', operations: { preview: null, commit: null, cancel: null, retry: null, discard: null },
+    },
+    cutterJob: null,
+    cutterJobEvents: [],
+  };
+  const toasts = [];
+  let renderCount = 0;
+  const sandbox = {
+    state,
+    elements: { 'workspace-content': { querySelector: () => null } },
+    api,
+    showToast: (message) => toasts.push(message),
+    renderWorkspace: () => { renderCount += 1; },
+    setTimeout: fakeSetTimeout,
+    clearTimeout: fakeClearTimeout,
+    AbortController,
+    DOMException,
+    JSON,
+    structuredClone,
+  };
+  runInNewContext(`
+    let cutterJobPollController = {
+      generation: 0, context: null, timer: null, inFlight: null, abortController: null,
+    };
+    ${clientScript.slice(pollSourceStart, pollSourceEnd)}
+    globalThis.pollHarness = {
+      loadCutterJob,
+      cancelCutterJobPolling,
+      snapshot: () => ({
+        generation: cutterJobPollController.generation,
+        context: cutterJobPollController.context,
+        hasTimer: cutterJobPollController.timer !== null,
+        hasInFlight: cutterJobPollController.inFlight !== null,
+      }),
+    };
+  `, sandbox);
+  const { pollHarness } = sandbox;
+
+  assert.equal(await pollHarness.loadCutterJob('job.one'), false);
+  assert.equal(requestCount, 1);
+  assert.deepEqual([...timers.values()].map(({ delay }) => delay), [1000]);
+  assert.equal(toasts.length, 1);
+  await runTimer(1000);
+  assert.equal(requestCount, 2);
+  assert.equal(state.cutterJob.state, 'QUEUED');
+  assert.deepEqual([...timers.values()].map(({ delay }) => delay), [300]);
+
+  const firstCoalescedRead = pollHarness.loadCutterJob('job.one');
+  const secondCoalescedRead = pollHarness.loadCutterJob('job.one');
+  assert.equal(requestCount, 3, 'Two callers must share the one in-flight poll request.');
+  assert.equal(timers.size, 0, 'Starting the coalesced request must consume the sole pending timer.');
+  const renderCountBeforeUnchangedPoll = renderCount;
+  coalesced.resolve(response('QUEUED'));
+  assert.equal(await firstCoalescedRead, true);
+  assert.equal(await secondCoalescedRead, true);
+  assert.equal(renderCount, renderCountBeforeUnchangedPoll, 'An unchanged job projection must not rebuild the cutter.');
+  assert.deepEqual([...timers.values()].map(({ delay }) => delay), [300]);
+
+  const toastCountBeforeAbort = toasts.length;
+  await runTimer(300);
+  assert.equal(requestCount, 4);
+  pollHarness.cancelCutterJobPolling();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(requestSignals[3].aborted, true);
+  assert.equal(toasts.length, toastCountBeforeAbort, 'AbortError must not surface as a user error.');
+  const afterAbort = pollHarness.snapshot();
+  assert.equal(afterAbort.context, null);
+  assert.equal(afterAbort.hasTimer, false);
+  assert.equal(afterAbort.hasInFlight, false);
+
+  state.cutter.instanceId = 'instance.stale';
+  state.cutterJob = null;
+  const staleRead = pollHarness.loadCutterJob('job.one');
+  assert.equal(requestCount, 5);
+  pollHarness.cancelCutterJobPolling();
+  assert.equal(requestSignals[4].aborted, true);
+  state.cutter.instanceId = 'instance.current';
+  const currentRead = pollHarness.loadCutterJob('job.one');
+  assert.equal(requestCount, 6);
+  assert.equal(await currentRead, true);
+  assert.equal(state.cutterJob.state, 'APPLIED');
+  const terminalRenderCount = renderCount;
+  stale.resolve(response('RUNNING'));
+  assert.equal(await staleRead, false);
+  assert.equal(state.cutterJob.state, 'APPLIED', 'A delayed response from the closed cutter must not replace current state.');
+  assert.equal(renderCount, terminalRenderCount, 'A delayed stale response must not render the reopened cutter.');
+  assert.equal(timers.size, 0, 'A terminal response must stop polling.');
+  assert.equal(pollHarness.snapshot().context, null);
+
+  state.cutter.instanceId = 'instance.misbound';
+  state.cutterJob = null;
+  assert.equal(await pollHarness.loadCutterJob('job.one'), false);
+  assert.equal(requestCount, 7);
+  assert.equal(state.cutterJob, null, 'A source-misbound job response must not enter cutter state.');
+  assert.equal(pollHarness.snapshot().context, null, 'An identity mismatch must cancel the current poll owner.');
+  assert.equal(timers.size, 0);
+
+  state.cutter.instanceId = 'instance.superseded';
+  const supersededRead = pollHarness.loadCutterJob('job.one');
+  assert.equal(requestCount, 8);
+  state.project.snapshot.atlases[0].latestPreviewJobId = 'job.newer';
+  superseded.resolve(response('QUEUED'));
+  assert.equal(await supersededRead, false);
+  assert.equal(state.cutterJob, null, 'A superseded atlas job must not enter cutter state.');
+  assert.equal(pollHarness.snapshot().context, null, 'A latest-job mismatch must cancel the current poll owner.');
+  assert.equal(timers.size, 0);
 });
 
 test('human Agent access presets rotate immutable grants with confirmation and idempotent retry', async (context) => {

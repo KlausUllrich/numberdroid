@@ -35,6 +35,10 @@ const state = {
   cutter: null,
   cutterJob: null,
   cutterJobEvents: [],
+  cutterScroll: null,
+  cutterScrollResetPending: false,
+  cutterDomDraft: null,
+  cutterDeferredRender: false,
   cutterPending: false,
   workspace: location.hash.slice(1) || 'overview',
   refreshing: false,
@@ -42,6 +46,14 @@ const state = {
 
 let sourceIntakeFormCache = null;
 let sourceIntakeFormContext = null;
+let cutterJobPollController = {
+  generation: 0,
+  context: null,
+  timer: null,
+  inFlight: null,
+  abortController: null,
+};
+let cutterDrag = null;
 
 function resetSourceIntakeForm() {
   const file = sourceIntakeFormCache?.querySelector('[data-source-file]');
@@ -518,15 +530,201 @@ function cutterNumber(name, value, { min = 0, max = Number.MAX_SAFE_INTEGER } = 
 }
 
 function currentCutterAtlas() {
-  return (state.project?.snapshot.atlases ?? []).find((atlas) => atlas.id === state.cutter?.atlasId) ?? null;
+  if (!state.project || !state.cutter || state.project.projectId !== state.cutter.projectId) return null;
+  return (state.project?.snapshot.atlases ?? []).find((atlas) => (
+    atlas.id === state.cutter.atlasId && atlas.sourceId === state.cutter.sourceId
+  )) ?? null;
+}
+
+function cutterScrollContext() {
+  if (!state.project || !state.cutter || state.project.projectId !== state.cutter.projectId) return null;
+  return JSON.stringify([
+    state.cutter.projectId,
+    state.cutter.sourceId,
+    state.cutter.atlasId,
+    state.cutter.instanceId,
+    state.cutter.zoom,
+  ]);
+}
+
+function cutterBinding(jobId = null) {
+  const cutter = state.cutter;
+  if (!state.project || !cutter || state.project.projectId !== cutter.projectId) return null;
+  return {
+    projectId: cutter.projectId,
+    sourceId: cutter.sourceId,
+    atlasId: cutter.atlasId,
+    instanceId: cutter.instanceId,
+    jobId,
+    context: JSON.stringify([
+      cutter.projectId, cutter.sourceId, cutter.atlasId, cutter.instanceId, jobId,
+    ]),
+  };
+}
+
+function cutterBindingIsCurrent(binding) {
+  return Boolean(binding
+    && state.project?.projectId === binding.projectId
+    && state.cutter?.projectId === binding.projectId
+    && state.cutter?.sourceId === binding.sourceId
+    && state.cutter?.atlasId === binding.atlasId
+    && state.cutter?.instanceId === binding.instanceId);
+}
+
+function cancelCutterJobPolling() {
+  cutterJobPollController.abortController?.abort();
+  if (cutterJobPollController.timer !== null) clearTimeout(cutterJobPollController.timer);
+  cutterJobPollController = {
+    generation: cutterJobPollController.generation + 1,
+    context: null,
+    timer: null,
+    inFlight: null,
+    abortController: null,
+  };
+}
+
+function scheduleCutterJobPoll(binding, delay) {
+  if (!cutterBindingIsCurrent(binding)
+      || cutterJobPollController.context !== binding.context) return;
+  if (cutterJobPollController.timer !== null) clearTimeout(cutterJobPollController.timer);
+  const generation = cutterJobPollController.generation;
+  cutterJobPollController.timer = setTimeout(() => {
+    if (cutterJobPollController.generation !== generation
+        || cutterJobPollController.context !== binding.context
+        || !cutterBindingIsCurrent(binding)) return;
+    cutterJobPollController.timer = null;
+    void loadCutterJob(binding.jobId);
+  }, delay);
+}
+
+function clearCutterDrag() {
+  const drag = cutterDrag;
+  cutterDrag = null;
+  state.cutterDeferredRender = false;
+  if (drag?.target?.hasPointerCapture?.(drag.pointerId)) {
+    try { drag.target.releasePointerCapture(drag.pointerId); } catch {}
+  }
+}
+
+function settleCutterDrag() {
+  if (!cutterDrag) return;
+  const shouldRender = cutterDrag.changed || state.cutterDeferredRender;
+  clearCutterDrag();
+  if (shouldRender) renderWorkspace();
+}
+
+function resetCutterScroll() {
+  clearCutterDrag();
+  state.cutterScroll = null;
+  state.cutterScrollResetPending = true;
+  state.cutterDomDraft = null;
+}
+
+function captureCutterScroll() {
+  if (state.cutterScrollResetPending) return;
+  const scroller = elements['workspace-content'].querySelector('[data-cutter-scroll-context]');
+  const context = scroller?.dataset.cutterScrollContext;
+  if (!context || context !== cutterScrollContext()) return;
+  state.cutterScroll = {
+    context,
+    left: scroller.scrollLeft,
+    top: scroller.scrollTop,
+  };
+}
+
+function cutterControlKey(control) {
+  if (control.matches('[data-cutter-grid-form] [name]')) return `grid:${control.name}`;
+  if (control.hasAttribute('data-rectangle-index') && control.hasAttribute('data-rectangle-field')) {
+    return `rectangle:${control.dataset.rectangleIndex}:${control.dataset.rectangleField}`;
+  }
+  if (control.hasAttribute('data-cutter-zoom')) return 'zoom';
+  if (control.hasAttribute('data-cutter-grid-toggle')) return 'grid-toggle';
+  if (control.hasAttribute('data-cutter-move')) return `move:${control.dataset.cutterMove}`;
+  if (control.hasAttribute('data-cutter-resize')) return `resize:${control.dataset.cutterResize}`;
+  return null;
+}
+
+function cutterModelFingerprint() {
+  if (!state.cutter) return null;
+  return JSON.stringify({
+    grid: state.cutter.grid,
+    rectangles: state.cutter.rectangles,
+  });
+}
+
+function captureCutterDomDraft() {
+  if (state.cutterScrollResetPending) return;
+  const cutter = elements['workspace-content'].querySelector('[data-atlas-cutter]');
+  const context = cutterScrollContext();
+  if (!cutter || !context || cutter.dataset.cutterModelFingerprint !== cutterModelFingerprint()) {
+    state.cutterDomDraft = null;
+    return;
+  }
+  const controls = [...cutter.querySelectorAll('input, select, textarea')]
+    .map((control) => ({
+      key: cutterControlKey(control),
+      value: control.value,
+      checked: control instanceof HTMLInputElement ? control.checked : null,
+    }))
+    .filter(({ key }) => key !== null);
+  const activeKey = cutter.contains(document.activeElement)
+    ? cutterControlKey(document.activeElement)
+    : null;
+  state.cutterDomDraft = { context, controls, activeKey };
+}
+
+function restoreCutterScroll() {
+  const scroller = elements['workspace-content'].querySelector('[data-cutter-scroll-context]');
+  const context = scroller?.dataset.cutterScrollContext;
+  if (!context) return;
+  if (state.cutterScrollResetPending) {
+    state.cutterScroll = { context, left: 0, top: 0 };
+    state.cutterScrollResetPending = false;
+    return;
+  }
+  if (state.cutterScroll?.context !== context) {
+    state.cutterScroll = { context, left: 0, top: 0 };
+    return;
+  }
+  scroller.scrollLeft = Math.max(0, Math.min(
+    state.cutterScroll.left, scroller.scrollWidth - scroller.clientWidth,
+  ));
+  scroller.scrollTop = Math.max(0, Math.min(
+    state.cutterScroll.top, scroller.scrollHeight - scroller.clientHeight,
+  ));
+}
+
+function restoreCutterDomDraft() {
+  const draft = state.cutterDomDraft;
+  const cutter = elements['workspace-content'].querySelector('[data-atlas-cutter]');
+  if (!draft || !cutter || draft.context !== cutterScrollContext()) {
+    state.cutterDomDraft = null;
+    return;
+  }
+  const controls = [...cutter.querySelectorAll('input, select, textarea, [data-cutter-move], [data-cutter-resize]')];
+  const byKey = new Map(controls.map((control) => [cutterControlKey(control), control]));
+  for (const saved of draft.controls) {
+    const control = byKey.get(saved.key);
+    if (!control || control.disabled) continue;
+    if (control instanceof HTMLInputElement && ['checkbox', 'radio'].includes(control.type)) {
+      control.checked = saved.checked;
+    } else control.value = saved.value;
+  }
+  const active = byKey.get(draft.activeKey);
+  active?.focus({ preventScroll: true });
+  state.cutterDomDraft = null;
 }
 
 function openCutter(source) {
   const existing = (state.project?.snapshot.atlases ?? []).find((atlas) => atlas.sourceId === source.id) ?? null;
   const familyDefaults = source.width === 1254 && source.height === 1254;
+  cancelCutterJobPolling();
+  resetCutterScroll();
   state.cutter = {
+    projectId: state.project.projectId,
     sourceId: source.id,
     atlasId: existing?.id ?? `atlas.${source.id}`.slice(0, 128),
+    instanceId: crypto.randomUUID(),
     name: existing?.name ?? `${source.name} cuts`,
     zoom: 'fit',
     showGrid: true,
@@ -548,32 +746,91 @@ function openCutter(source) {
 }
 
 async function loadCutterJob(jobId, { throwOnError = false } = {}) {
-  if (!state.project || !state.cutter || !jobId) return false;
-  const requestedProjectId = state.project.projectId;
-  const requestedAtlasId = state.cutter.atlasId;
+  const binding = cutterBinding(jobId);
+  if (!binding || !jobId) return false;
+  if (cutterJobPollController.context !== binding.context) {
+    cancelCutterJobPolling();
+    cutterJobPollController.context = binding.context;
+  }
+  if (cutterJobPollController.timer !== null) {
+    clearTimeout(cutterJobPollController.timer);
+    cutterJobPollController.timer = null;
+  }
+  if (!cutterJobPollController.inFlight) {
+    const generation = cutterJobPollController.generation;
+    const abortController = new AbortController();
+    cutterJobPollController.abortController = abortController;
+    cutterJobPollController.inFlight = (async () => {
+      try {
+        const response = await api(
+          `/api/projects/${encodeURIComponent(binding.projectId)}/jobs/${encodeURIComponent(jobId)}`,
+          { signal: abortController.signal },
+        );
+        if (cutterJobPollController.generation !== generation
+            || cutterJobPollController.context !== binding.context
+            || !cutterBindingIsCurrent(binding)) return false;
+        if (response.projectId !== binding.projectId || response.job?.atlasId !== binding.atlasId
+            || response.job?.sourceId !== binding.sourceId || response.job?.jobId !== jobId) {
+          cancelCutterJobPolling();
+          return false;
+        }
+        const currentAtlas = currentCutterAtlas();
+        if (currentAtlas?.sourceId !== binding.sourceId || currentAtlas?.latestPreviewJobId !== jobId) {
+          cancelCutterJobPolling();
+          return false;
+        }
+        const priorRenderFingerprint = JSON.stringify({
+          job: state.cutterJob,
+          events: state.cutterJobEvents,
+          operations: state.cutter.operations,
+        });
+        state.cutterJob = response.job;
+        state.cutterJobEvents = response.events ?? [];
+        const operations = state.cutter.operations;
+        if (operations.preview?.jobId === jobId) operations.preview = null;
+        if (operations.commit?.jobId === jobId && response.job.state === 'APPLIED') operations.commit = null;
+        if (operations.cancel && (response.job.cancelRequested || response.job.state === 'CANCELLED')) operations.cancel = null;
+        if (operations.retry && response.job.attempt > operations.retry.expectedAttempt) operations.retry = null;
+        if (operations.discard && response.job.state === 'DISCARDED') operations.discard = null;
+        const nextRenderFingerprint = JSON.stringify({
+          job: state.cutterJob,
+          events: state.cutterJobEvents,
+          operations: state.cutter.operations,
+        });
+        if (priorRenderFingerprint !== nextRenderFingerprint) {
+          renderWorkspace({ preserveCutterDraft: true });
+        }
+        if (['QUEUED', 'RUNNING'].includes(response.job.state)) scheduleCutterJobPoll(binding, 300);
+        else cancelCutterJobPolling();
+        return true;
+      } catch (error) {
+        if (cutterJobPollController.generation === generation
+            && cutterJobPollController.context === binding.context
+            && cutterBindingIsCurrent(binding)) {
+          if (error.name !== 'AbortError') showToast(`${error.code || 'ERROR'}: ${error.message}`);
+          const currentAtlas = currentCutterAtlas();
+          const retryableCurrentJob = currentAtlas?.latestPreviewJobId === jobId
+            && (!state.cutterJob || (state.cutterJob.jobId === jobId
+              && ['QUEUED', 'RUNNING'].includes(state.cutterJob.state)));
+          if (error.name !== 'AbortError' && retryableCurrentJob) {
+            scheduleCutterJobPoll(binding, 1000);
+          }
+        }
+        throw error;
+      }
+    })();
+    cutterJobPollController.inFlight.finally(() => {
+      if (cutterJobPollController.generation === generation
+          && cutterJobPollController.context === binding.context) {
+        cutterJobPollController.inFlight = null;
+        cutterJobPollController.abortController = null;
+      }
+    }).catch(() => {});
+  }
   try {
-    const response = await api(`/api/projects/${encodeURIComponent(requestedProjectId)}/jobs/${encodeURIComponent(jobId)}`);
-    if (state.project?.projectId !== requestedProjectId || state.cutter?.atlasId !== requestedAtlasId) return false;
-    if (response.job.atlasId !== requestedAtlasId) return false;
-    const currentAtlas = currentCutterAtlas();
-    if (currentAtlas?.latestPreviewJobId !== jobId) return false;
-    state.cutterJob = response.job;
-    state.cutterJobEvents = response.events ?? [];
-    const operations = state.cutter.operations;
-    if (operations.preview?.jobId === jobId) operations.preview = null;
-    if (operations.commit?.jobId === jobId && response.job.state === 'APPLIED') operations.commit = null;
-    if (operations.cancel && (response.job.cancelRequested || response.job.state === 'CANCELLED')) operations.cancel = null;
-    if (operations.retry && response.job.attempt > operations.retry.expectedAttempt) operations.retry = null;
-    if (operations.discard && response.job.state === 'DISCARDED') operations.discard = null;
-    renderWorkspace();
-    if (['QUEUED', 'RUNNING'].includes(response.job.state)) setTimeout(() => loadCutterJob(jobId), 300);
-    return true;
+    return await cutterJobPollController.inFlight;
   } catch (error) {
-    showToast(`${error.code || 'ERROR'}: ${error.message}`);
     if (throwOnError) throw error;
-    if (state.cutterJob?.jobId === jobId && ['QUEUED', 'RUNNING'].includes(state.cutterJob.state)) {
-      setTimeout(() => loadCutterJob(jobId), 1000);
-    }
     return false;
   }
 }
@@ -608,6 +865,7 @@ function renderCutter(source) {
   const cutter = state.cutter;
   const atlas = currentCutterAtlas();
   const section = document.createElement('section'); section.className = 'atlas-cutter'; section.dataset.atlasCutter = '';
+  section.dataset.cutterModelFingerprint = cutterModelFingerprint();
   section.inert = state.sourceMutationPending;
   const heading = document.createElement('div'); heading.className = 'cutter-heading';
   const copy = document.createElement('div');
@@ -649,6 +907,7 @@ function renderCutter(source) {
   toolbar.append(sourceMeta); section.append(toolbar);
 
   const scroller = document.createElement('div'); scroller.className = 'cutter-scroll';
+  scroller.dataset.cutterScrollContext = cutterScrollContext();
   const canvas = document.createElement('div'); canvas.className = `cutter-canvas ${cutter.showGrid ? 'show-grid' : ''}`;
   canvas.dataset.zoom = cutter.zoom;
   if (cutter.zoom !== 'fit') canvas.style.width = `${source.width * Number(cutter.zoom)}px`;
@@ -975,7 +1234,33 @@ function renderActivityWorkspace() {
   return grid;
 }
 
-function renderWorkspace() {
+function workspaceRenderFingerprint() {
+  return JSON.stringify({
+    projectId: state.project?.projectId ?? null,
+    revision: state.project?.revision ?? null,
+    workspace: state.workspace,
+    snapshot: state.project?.snapshot ?? null,
+    activity: state.workspace === 'activity' ? state.activity : null,
+    sourceIntakes: state.workspace === 'sources' ? state.sourceIntakes : null,
+    sourceDraft: state.workspace === 'sources' ? state.sourceDraft : null,
+    resumingIntakeId: state.workspace === 'sources' ? state.resumingIntakeId : null,
+    cutter: state.workspace === 'sources' ? state.cutter : null,
+    cutterJob: state.workspace === 'sources' ? state.cutterJob : null,
+    cutterJobEvents: state.workspace === 'sources' ? state.cutterJobEvents : null,
+    cutterPending: state.cutterPending,
+    sourceMutationPending: state.sourceMutationPending,
+    labResult: state.workspace === 'overview' ? state.labResult : null,
+  });
+}
+
+function renderWorkspace({ preserveCutterDraft = false } = {}) {
+  if (cutterDrag) {
+    state.cutterDeferredRender = true;
+    return;
+  }
+  captureCutterScroll();
+  if (preserveCutterDraft) captureCutterDomDraft();
+  else state.cutterDomDraft = null;
   for (const link of elements['workspace-nav'].querySelectorAll('a')) {
     link.classList.toggle('active', link.dataset.workspace === state.workspace);
   }
@@ -989,9 +1274,12 @@ function renderWorkspace() {
       && (state.sourceFileChooserActive || selectedSourceFile?.files?.length > 0)) {
     return;
   }
-  elements['workspace-content'].replaceChildren();
   if (!state.project) {
-    elements['workspace-content'].append(emptyState('No local Studio project', 'Choose “Create / load demo” to exercise the real command API.'));
+    elements['workspace-content'].replaceChildren(
+      emptyState('No local Studio project', 'Choose “Create / load demo” to exercise the real command API.'),
+    );
+    elements['workspace-content'].dataset.renderedProjectId = '';
+    elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
     return;
   }
   const snapshot = state.project.snapshot;
@@ -1002,7 +1290,11 @@ function renderWorkspace() {
   else if (state.workspace === 'rooms') content = renderCollection(snapshot.rooms, 'rooms');
   else if (state.workspace === 'levels') content = renderCollection(snapshot.levels, 'levels');
   else content = renderActivityWorkspace();
-  elements['workspace-content'].append(content);
+  elements['workspace-content'].replaceChildren(content);
+  elements['workspace-content'].dataset.renderedProjectId = state.project.projectId;
+  elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
+  restoreCutterScroll();
+  if (preserveCutterDraft) restoreCutterDomDraft();
 }
 
 function renderActivity() {
@@ -1022,13 +1314,14 @@ function renderActivity() {
   elements['activity-list'].replaceChildren(...items);
 }
 
-function renderProject() {
+function renderProject({ preserveWorkspace = false, preserveCutterDraft = false } = {}) {
   const project = state.project?.snapshot.project;
   elements['project-name'].textContent = project?.name || 'No project selected';
   elements['project-description'].textContent = project?.description || 'Create the safe demo project to see the shared command core in action.';
   elements['project-status'].textContent = project?.status || 'empty';
   elements['revision-label'].textContent = state.project ? `Revision ${state.project.revision}` : 'Revision —';
-  renderWorkspace(); renderActivity(); renderAgentAccess();
+  if (!preserveWorkspace) renderWorkspace({ preserveCutterDraft });
+  renderActivity(); renderAgentAccess();
 }
 
 async function publishVisualEvidence() {
@@ -1077,7 +1370,7 @@ async function publishVisualEvidence() {
   root.dataset.visualEvidenceReady = 'true';
 }
 
-async function loadProjects(preferredProjectId) {
+async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged = false } = {}) {
   const session = await api('/api/ui-session');
   state.agentAccessCsrf = session.csrfToken;
   const response = await api('/api/projects');
@@ -1086,6 +1379,9 @@ async function loadProjects(preferredProjectId) {
   elements['project-select'].replaceChildren();
   if (!state.projects.length) {
     resetSourceIntakeForm();
+    cancelCutterJobPolling();
+    resetCutterScroll();
+    state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
     state.agentAccess = null; setAgentAccessPanel(false); renderProject(); return;
@@ -1096,14 +1392,28 @@ async function loadProjects(preferredProjectId) {
     elements['project-select'].append(option);
   }
   elements['project-select'].value = state.projects.some((item) => item.projectId === prior) ? prior : state.projects[0].projectId;
-  await loadProject(elements['project-select'].value);
+  await loadProject(elements['project-select'].value, { preserveWorkspaceIfUnchanged });
 }
 
 let projectLoadGeneration = 0;
-async function loadProject(projectId) {
+async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } = {}) {
   if (!projectId) return;
   const generation = ++projectLoadGeneration;
-  if (state.project?.projectId && state.project.projectId !== projectId) state.showMcpLauncherConfig = false;
+  const mayPreserveWorkspace = preserveWorkspaceIfUnchanged
+    && state.project?.projectId === projectId
+    && elements['workspace-content'].dataset.renderedProjectId === projectId
+    && elements['workspace-content'].dataset.renderedWorkspace === state.workspace;
+  const previousWorkspaceFingerprint = mayPreserveWorkspace ? workspaceRenderFingerprint() : null;
+  if (state.project?.projectId && state.project.projectId !== projectId) {
+    state.showMcpLauncherConfig = false;
+    cancelCutterJobPolling();
+    resetCutterScroll();
+  }
+  if (state.cutter?.projectId && state.cutter.projectId !== projectId) {
+    cancelCutterJobPolling();
+    resetCutterScroll();
+    state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
+  }
   const [project, activity, agentAccess, sourceIntakes] = await Promise.all([
     api(`/api/projects/${encodeURIComponent(projectId)}`),
     api(`/api/projects/${encodeURIComponent(projectId)}/activity`),
@@ -1119,17 +1429,25 @@ async function loadProject(projectId) {
   state.project = project; state.activity = activity.events;
   if (state.cutter) {
     const sourceExists = project.snapshot.sources.some((source) => source.id === state.cutter.sourceId);
-    if (!sourceExists) state.cutter = null;
+    if (!sourceExists) {
+      cancelCutterJobPolling();
+      resetCutterScroll();
+      state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
+    }
     else {
-      const atlas = (project.snapshot.atlases ?? []).find((candidate) => candidate.id === state.cutter.atlasId);
+      const atlas = (project.snapshot.atlases ?? []).find((candidate) => (
+        candidate.id === state.cutter.atlasId && candidate.sourceId === state.cutter.sourceId
+      ));
       if (atlas && !state.cutter.dirty && atlas.definitionVersion !== state.cutter.syncedVersion) {
         state.cutter.rectangles = structuredClone(atlas.rectangles);
         state.cutter.name = atlas.name;
         state.cutter.syncedVersion = atlas.definitionVersion;
       }
       if (!atlas?.latestPreviewJobId) {
+        cancelCutterJobPolling();
         state.cutterJob = null; state.cutterJobEvents = [];
       } else if (state.cutterJob?.jobId !== atlas.latestPreviewJobId) {
+        cancelCutterJobPolling();
         state.cutterJob = null; state.cutterJobEvents = [];
         void loadCutterJob(atlas.latestPreviewJobId);
       } else if (['QUEUED', 'RUNNING'].includes(state.cutterJob?.state)
@@ -1147,7 +1465,9 @@ async function loadProject(projectId) {
   if (state.resumingIntakeId && !state.sourceIntakes.some((intake) => intake.intakeId === state.resumingIntakeId && intake.state === 'STAGED')) {
     state.resumingIntakeId = null;
   }
-  renderProject();
+  const preserveWorkspace = mayPreserveWorkspace
+    && previousWorkspaceFingerprint === workspaceRenderFingerprint();
+  renderProject({ preserveWorkspace, preserveCutterDraft: preserveWorkspaceIfUnchanged });
   return true;
 }
 
@@ -1193,11 +1513,11 @@ async function requestAgentAccess(mode, {
   }
 }
 
-async function refresh({ quiet = false } = {}) {
+async function refresh({ quiet = false, passive = false } = {}) {
   if (state.refreshing || state.cutterPending || state.sourceMutationPending) return;
   state.refreshing = true; elements['refresh-button'].disabled = true;
   try {
-    await loadProjects(state.project?.projectId);
+    await loadProjects(state.project?.projectId, { preserveWorkspaceIfUnchanged: passive });
     elements['connection-dot'].classList.add('online'); elements['connection-label'].textContent = 'Live';
     if (!quiet) showToast('Project status refreshed.');
   } catch (error) {
@@ -1229,7 +1549,7 @@ elements['project-select'].addEventListener('change', () => {
   void loadProject(elements['project-select'].value);
 });
 elements['refresh-button'].addEventListener('click', () => {
-  if (!state.cutterPending && !state.sourceMutationPending) void refresh();
+  if (!state.cutterPending && !state.sourceMutationPending) void refresh({ passive: true });
 });
 elements['agent-access-select'].addEventListener('change', () => {
   if (state.sourceMutationPending) return;
@@ -1431,6 +1751,8 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   }
   if (event.target.closest('[data-close-cutter]')) {
     if (state.cutterPending || state.sourceMutationPending) return;
+    cancelCutterJobPolling();
+    resetCutterScroll();
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = []; renderWorkspace(); return;
   }
   if (!state.cutter || !state.project || !state.agentAccessCsrf || state.sourceMutationPending) return;
@@ -1463,8 +1785,13 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const operationStillCurrent = () => state.project?.projectId === operationProjectId
     && state.cutter === operationCutter && state.cutter?.atlasId === operationAtlasId;
   const acceptJobMutationResponse = (response) => {
+    const mutationAtlas = currentCutterAtlas();
     if (response?.projectId !== operationProjectId || response.job?.jobId !== operationJobId
-        || response.job?.atlasId !== operationAtlasId) {
+        || response.job?.atlasId !== operationAtlasId
+        || response.job?.sourceId !== operationCutter.sourceId
+        || mutationAtlas?.sourceId !== operationCutter.sourceId
+        || mutationAtlas?.latestPreviewJobId !== operationJobId) {
+      cancelCutterJobPolling();
       const error = new Error('The job mutation response does not match the active cutter context.');
       error.code = 'CUTTER_CONTEXT_CHANGED';
       throw error;
@@ -1579,11 +1906,13 @@ elements['workspace-content'].addEventListener('click', async (event) => {
 });
 
 function cutterSvgPoint(svg, event) {
+  if (!svg?.isConnected) return null;
+  const screenMatrix = svg.getScreenCTM();
+  if (!screenMatrix) return null;
   const point = svg.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
-  return point.matrixTransform(svg.getScreenCTM().inverse());
+  return point.matrixTransform(screenMatrix.inverse());
 }
 
-let cutterDrag = null;
 elements['workspace-content'].addEventListener('pointerdown', (event) => {
   if (state.cutterPending || state.sourceMutationPending) return;
   const resize = event.target.closest('[data-cutter-resize]');
@@ -1592,15 +1921,31 @@ elements['workspace-content'].addEventListener('pointerdown', (event) => {
   if (!target || !state.cutter) return;
   const index = Number(target.dataset.cutterResize ?? target.dataset.cutterMove);
   const svg = target.closest('svg'); const point = cutterSvgPoint(svg, event);
-  cutterDrag = { index, mode: resize ? 'resize' : 'move', svg, start: point, original: { ...state.cutter.rectangles[index] }, target };
+  if (!point) return;
+  cutterDrag = {
+    index, mode: resize ? 'resize' : 'move', svg, start: point,
+    original: { ...state.cutter.rectangles[index] }, target, pointerId: event.pointerId, changed: false,
+  };
   target.setPointerCapture?.(event.pointerId); event.preventDefault();
 });
 elements['workspace-content'].addEventListener('pointermove', (event) => {
   if (!cutterDrag || !state.cutter || state.cutterPending || state.sourceMutationPending) return;
   const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
+  if (!source || !cutterDrag.svg.isConnected || !cutterDrag.target.isConnected) {
+    settleCutterDrag();
+    return;
+  }
   const point = cutterSvgPoint(cutterDrag.svg, event);
+  if (!point) {
+    settleCutterDrag();
+    return;
+  }
   const dx = Math.round(point.x - cutterDrag.start.x); const dy = Math.round(point.y - cutterDrag.start.y);
   const rectangle = state.cutter.rectangles[cutterDrag.index];
+  if (!rectangle) {
+    settleCutterDrag();
+    return;
+  }
   if (cutterDrag.mode === 'move') {
     rectangle.x = Math.max(0, Math.min(source.width - rectangle.width, cutterDrag.original.x + dx));
     rectangle.y = Math.max(0, Math.min(source.height - rectangle.height, cutterDrag.original.y + dy));
@@ -1608,16 +1953,25 @@ elements['workspace-content'].addEventListener('pointermove', (event) => {
     rectangle.width = Math.max(1, Math.min(source.width - rectangle.x, cutterDrag.original.width + dx));
     rectangle.height = Math.max(1, Math.min(source.height - rectangle.y, cutterDrag.original.height + dy));
   }
-  const group = cutterDrag.target.closest('g'); const [shape, label, handle] = group.children;
+  const geometryChanged = ['x', 'y', 'width', 'height']
+    .some((field) => rectangle[field] !== cutterDrag.original[field]);
+  if (geometryChanged && !cutterDrag.changed) {
+    cutterDrag.changed = true;
+    markCutterDefinitionDirty();
+  }
+  const group = cutterDrag.target.closest('g');
+  if (!group || group.children.length < 3) {
+    settleCutterDrag();
+    return;
+  }
+  const [shape, label, handle] = group.children;
   shape.setAttribute('x', rectangle.x); shape.setAttribute('y', rectangle.y); shape.setAttribute('width', rectangle.width); shape.setAttribute('height', rectangle.height);
   label.setAttribute('x', rectangle.x + 10); label.setAttribute('y', rectangle.y + 24);
   handle.setAttribute('x', rectangle.x + rectangle.width - 12); handle.setAttribute('y', rectangle.y + rectangle.height - 12);
 });
-elements['workspace-content'].addEventListener('pointerup', () => {
-  if (!cutterDrag) return;
-  if (state.cutterPending || state.sourceMutationPending) { cutterDrag = null; return; }
-  cutterDrag = null; markCutterDefinitionDirty(); renderWorkspace();
-});
+elements['workspace-content'].addEventListener('pointerup', settleCutterDrag);
+elements['workspace-content'].addEventListener('pointercancel', settleCutterDrag);
+elements['workspace-content'].addEventListener('lostpointercapture', settleCutterDrag);
 elements['workspace-content'].addEventListener('keydown', (event) => {
   const resize = event.target.closest('[data-cutter-resize]');
   const move = event.target.closest('[data-cutter-move]');
@@ -1640,6 +1994,33 @@ elements['workspace-content'].addEventListener('keydown', (event) => {
   const focusSelector = resize ? `[data-cutter-resize="${index}"]` : `[data-cutter-move="${index}"]`;
   requestAnimationFrame(() => document.querySelector(focusSelector)?.focus());
 });
+
+if (visualFixture) {
+  window.__numberdroidStudioVisualTest = Object.freeze({
+    forceChangedCutterProjectionRender() {
+      if (!state.cutter || !state.cutterJob) return null;
+      state.cutterJob = {
+        ...state.cutterJob,
+        visualFixtureProjectionMarker: (state.cutterJob.visualFixtureProjectionMarker ?? 0) + 1,
+      };
+      const marker = state.cutterJob.visualFixtureProjectionMarker;
+      renderWorkspace({ preserveCutterDraft: true });
+      return {
+        marker,
+        dragActive: Boolean(cutterDrag),
+        deferred: state.cutterDeferredRender,
+      };
+    },
+    cutterInteractionState() {
+      return {
+        dragActive: Boolean(cutterDrag),
+        deferred: state.cutterDeferredRender,
+        dirty: state.cutter?.dirty ?? null,
+        marker: state.cutterJob?.visualFixtureProjectionMarker ?? null,
+      };
+    },
+  });
+}
 
 elements['workspace-content'].addEventListener('submit', async (event) => {
   const form = event.target.closest('[data-source-intake-form]');
@@ -1916,4 +2297,4 @@ window.addEventListener('hashchange', () => {
 await refresh({ quiet: true });
 if (visualFixture === 'agent-access') setAgentAccessPanel(true);
 await publishVisualEvidence();
-if (!visualFixture) setInterval(() => refresh({ quiet: true }), 5000);
+if (!visualFixture) setInterval(() => refresh({ quiet: true, passive: true }), 5000);
