@@ -1776,11 +1776,12 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
   } catch (error) {
     const errorText = `${error.code || 'ERROR'}: ${error.message}`;
     status.textContent = errorText;
-    if (durableIntakeReady && intake && state.resumingIntakeId === intake.intakeId) {
-      resetSourceIntakeForm();
-      renderWorkspace();
-    }
-    if (state.project?.projectId === operationProjectId) await loadProject(operationProjectId).catch(() => {});
+    const needsStagedRecovery = durableIntakeReady && intake && state.resumingIntakeId === intake.intakeId;
+    if (needsStagedRecovery) resetSourceIntakeForm();
+    const projectReloaded = state.project?.projectId === operationProjectId
+      ? await loadProject(operationProjectId).catch(() => false)
+      : false;
+    if (needsStagedRecovery && !projectReloaded) renderWorkspace();
     const stillStaged = durableIntakeReady && intake
       && state.resumingIntakeId === intake.intakeId
       && state.sourceIntakes.some((candidate) => candidate.intakeId === intake.intakeId && candidate.state === 'STAGED');
