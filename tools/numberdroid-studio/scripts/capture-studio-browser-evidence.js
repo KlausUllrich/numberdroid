@@ -19,6 +19,7 @@ const agentAccessEvidence = new URL(pageUrl).searchParams.get('visualFixture') =
 const checkpoint2aFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint2bFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint2cFocus = new URL(pageUrl).searchParams.get('visualFocus');
+const checkpoint3Focus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint2cPhase = new URL(pageUrl).searchParams.get('visualPhase') ?? 'applied';
 const profileDirectory = await mkdtemp(`${tmpdir()}/numberdroid-studio-chrome-`);
 
@@ -370,6 +371,15 @@ try {
         returnByValue: true,
       }, sessionId);
     }
+  }
+  if (mode === 'checkpoint-3' && expectedWorkspace === 'rooms') {
+    const focusSelector = checkpoint3Focus === 'proposal'
+      ? '[data-room-proposal]'
+      : '.room-designer-layout';
+    await devtools.send('Runtime.evaluate', {
+      expression: `document.querySelector(${JSON.stringify(focusSelector)})?.scrollIntoView({ block: 'center' })`,
+      returnByValue: true,
+    }, sessionId);
   }
   if (mode === 'checkpoint-2a' && expectedWorkspace === 'sources') {
     const patternValidity = await devtools.send('Runtime.evaluate', {
@@ -1210,19 +1220,21 @@ try {
         && layout.roomDesigner.paletteItemCount === 4
         && layout.roomDesigner.cellCount === 12
         && layout.roomDesigner.coordinateLabelCount === 12
-        && layout.roomDesigner.placementCount === 13
+        && layout.roomDesigner.placementCount === 14
         && layout.roomDesigner.connectorCount === 2,
       'Checkpoint 3 room canvas lost a room/hallway option, exact asset palette, coordinates, placements, or connectors.');
       assert(layout.roomDesigner.canvasOverflowX === 'auto'
-        && layout.roomDesigner.findingCount === 25
+        && layout.roomDesigner.findingCount === 26
         && layout.roomDesigner.lifecycle === 'DRAFT',
       'Checkpoint 3 room canvas or live validation surface differs from the exact fixture.');
       assert(layout.roomDesigner.proposalId === 'proposal.room.gathering-table'
         && layout.roomDesigner.proposalState === 'APPLIED'
         && layout.roomDesigner.proposalItemCount === 3
+        && layout.roomDesigner.proposalItems.find(({ itemId }) => itemId === 'item.add-side-table')?.text.includes('Add prop.family-side-table')
+        && layout.roomDesigner.proposalItems.find(({ itemId }) => itemId === 'item.reject-overlap')?.text.includes('studio.room.collision.overlap')
         && layout.roomDesigner.proposalItems.find(({ itemId }) => itemId === 'item.reject-overlap')?.text.includes('REJECTED · Overlaps the accepted gathering table'),
       'Checkpoint 3 applied agent placement proposal is not inspectable.');
-      assert(layout.roomDesigner.exactPins.length === 13
+      assert(layout.roomDesigner.exactPins.length === 14
         && layout.roomDesigner.exactPins.every((value) => /@1:1/.test(value)),
       'Checkpoint 3 structured placement list lost exact asset and metadata pins.');
     }

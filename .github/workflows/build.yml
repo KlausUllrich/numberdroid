@@ -186,7 +186,7 @@ jobs:
         working-directory: tools/numberdroid-studio
         run: NUMBERDROID_EVIDENCE_REQUIRE_PRODUCTION_ADAPTER=1 npm run evidence:verify
 
-      - name: Capture Studio 1A, 1B, 2A, 2B, and 2C browser evidence
+      - name: Capture Studio 1A, 1B, 2A, 2B, 2C, and 3 browser evidence
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
@@ -414,6 +414,9 @@ jobs:
             capture "$width" "$CHECKPOINT_3_EVIDENCE/room-designer-$width.png" \
               'http://127.0.0.1:4323/?visualFixture=checkpoint-3#rooms' checkpoint-3 \
               "$CHECKPOINT_3_EVIDENCE/dom/room-designer-$width.html"
+            capture "$width" "$CHECKPOINT_3_EVIDENCE/room-proposal-$width.png" \
+              'http://127.0.0.1:4323/?visualFixture=checkpoint-3&visualFocus=proposal#rooms' checkpoint-3 \
+              "$CHECKPOINT_3_EVIDENCE/dom/room-proposal-$width.html"
           done
           kill "$CHECKPOINT_3_PID"
           wait "$CHECKPOINT_3_PID" 2>/dev/null || true

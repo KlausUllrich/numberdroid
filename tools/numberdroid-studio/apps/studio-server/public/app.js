@@ -2102,6 +2102,17 @@ function roomProposalDraft(proposal, item) {
   return state.roomUi.decisionDrafts[proposal.proposalId][item.itemId];
 }
 
+function roomProposalDiffSummary(item) {
+  const before = item.diff?.before ?? null;
+  const after = item.diff?.after ?? null;
+  const pin = (placement) => `${placement.assetId}@${placement.assetVersion}:${placement.metadataVersion}`;
+  const coordinate = (placement) => `(${placement.anchor.x},${placement.anchor.y}) · ${placement.rotation}°`;
+  if (item.operation === 'add' && after) return `Add ${after.placementId} · ${pin(after)} → ${coordinate(after)} · ${after.layer}`;
+  if (item.operation === 'remove' && before) return `Remove ${before.placementId} · ${pin(before)} from ${coordinate(before)} · ${before.layer}`;
+  if (item.operation === 'move' && before && after) return `Move ${before.placementId} · ${pin(before)} · ${coordinate(before)} → ${coordinate(after)} · ${after.layer}`;
+  return `Invalid ${item.operation} diff`;
+}
+
 function renderRoomProposalReview(variant, proposals) {
   const relevant = proposals.filter(({ roomVariantId }) => roomVariantId === variant.roomVariantId);
   const section = document.createElement('section'); section.className = 'proposal-review room-proposal-review';
@@ -2121,15 +2132,19 @@ function renderRoomProposalReview(variant, proposals) {
   const copy = document.createElement('div'); const heading = document.createElement('h3'); heading.textContent = proposal.proposalId;
   const detail = document.createElement('p'); detail.textContent = `Targets room v${proposal.expectedRoomVariantVersion} · ${proposal.items.length} item(s) · ${findingSummary(proposal.findings)}`;
   copy.append(heading, detail); header.append(copy, roomStatusPill(proposal.state)); section.append(header);
+  const proposalFindings = document.createElement('details'); proposalFindings.className = 'room-proposal-findings';
+  const proposalFindingsSummary = document.createElement('summary'); proposalFindingsSummary.textContent = `Complete proposed-state findings (${proposal.findings.length})`;
+  proposalFindings.append(proposalFindingsSummary, findingsList(proposal.findings)); section.append(proposalFindings);
   const items = document.createElement('div'); items.className = 'proposal-items'; items.dataset.roomScroll = 'proposals';
   for (const proposalItem of proposal.items) {
     const article = document.createElement('article'); article.className = 'proposal-item room-proposal-item';
     article.dataset.roomProposalItem = proposalItem.itemId;
     const itemHeading = document.createElement('div'); itemHeading.className = 'proposal-item-heading';
     const title = document.createElement('h4'); title.textContent = `${proposalItem.itemId} · ${proposalItem.operation}`; itemHeading.append(title); article.append(itemHeading);
-    const placement = proposalItem.placement; const diff = document.createElement('p'); diff.className = 'room-proposal-diff';
-    diff.textContent = placement ? `${placement.assetId}@${placement.assetVersion}:${placement.metadataVersion} → (${placement.anchor.x},${placement.anchor.y}) · ${placement.rotation}° · ${placement.layer}` : `Remove ${proposalItem.placementId}`;
-    article.append(diff, findingsList(proposalItem.findings ?? []));
+    const diff = document.createElement('p'); diff.className = 'room-proposal-diff'; diff.textContent = roomProposalDiffSummary(proposalItem);
+    const targetIds = new Set([proposalItem.diff?.before?.placementId, proposalItem.diff?.after?.placementId].filter(Boolean));
+    const relatedFindings = proposal.findings.filter(({ targetId }) => targetIds.has(targetId));
+    article.append(diff, findingsList(relatedFindings));
     if (proposal.state === 'PENDING') {
       const draft = roomProposalDraft(proposal, proposalItem); const fields = document.createElement('div'); fields.className = 'proposal-decision-fields';
       const disposition = document.createElement('select'); disposition.dataset.roomProposalDisposition = proposalItem.itemId; disposition.dataset.proposalId = proposal.proposalId; disposition.dataset.roomControl = 'proposal-disposition';

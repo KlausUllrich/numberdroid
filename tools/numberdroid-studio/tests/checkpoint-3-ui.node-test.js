@@ -36,6 +36,9 @@ test('Checkpoint 3 room controls use human-only routes with exact versions and e
   assert.match(app, /Fork this FINAL room into a new editable DRAFT version/);
   assert.match(app, /Record a complete \$\{decisions\.length\}-item owner decision/);
   assert.match(app, /Atomically apply exactly \$\{accepted\} accepted placement change/);
+  assert.match(app, /function roomProposalDiffSummary/);
+  assert.match(app, /Complete proposed-state findings/);
+  assert.match(app, /proposal\.findings\.filter/);
   assert.match(app, /confirm: true/);
   assert.match(app, /roomOperationKey\(operation, target, projectId\)/);
 });

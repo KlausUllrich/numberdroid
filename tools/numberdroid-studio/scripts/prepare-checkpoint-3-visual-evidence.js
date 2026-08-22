@@ -185,7 +185,11 @@ try {
         placement: { placementId: 'prop.family-table', assetId: propAsset.assetId, assetVersion: propAsset.assetVersion, metadataVersion: propAsset.metadataVersion, layer: 'SET_DRESSING', anchor: { x: 2, y: 1 }, rotation: 0, variantTag: null, proposalId: null, proposalItemId: null },
         placementId: null, expectedAssetId: null, anchor: null, rotation: null,
       },
-      { itemId: 'item.keep-entry', operation: 'move', placement: null, placementId: 'floor.room.0.0', expectedAssetId: surfaceAsset.assetId, anchor: { x: 0, y: 0 }, rotation: 0 },
+      {
+        itemId: 'item.add-side-table', operation: 'add',
+        placement: { placementId: 'prop.family-side-table', assetId: propAsset.assetId, assetVersion: propAsset.assetVersion, metadataVersion: propAsset.metadataVersion, layer: 'SET_DRESSING', anchor: { x: 1, y: 1 }, rotation: 0, variantTag: null, proposalId: null, proposalItemId: null },
+        placementId: null, expectedAssetId: null, anchor: null, rotation: null,
+      },
       {
         itemId: 'item.reject-overlap', operation: 'add',
         placement: { placementId: 'prop.family-table-overlap', assetId: propAsset.assetId, assetVersion: propAsset.assetVersion, metadataVersion: propAsset.metadataVersion, layer: 'SET_DRESSING', anchor: { x: 2, y: 1 }, rotation: 0, variantTag: null, proposalId: null, proposalItemId: null },
@@ -205,7 +209,7 @@ try {
     proposalId, expectedProposalVersion: 1,
     decisions: [
       { itemId: 'item.add-table', disposition: 'ACCEPTED', reason: null },
-      { itemId: 'item.keep-entry', disposition: 'ACCEPTED', reason: null },
+      { itemId: 'item.add-side-table', disposition: 'ACCEPTED', reason: null },
       { itemId: 'item.reject-overlap', disposition: 'REJECTED', reason: rejectionReason },
     ],
   }), ownerContext);

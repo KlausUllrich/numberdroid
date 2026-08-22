@@ -149,6 +149,13 @@ test('room archetype and DRAFT variant preserve intent, exact pins, and determin
 
 test('bounded agent proposal charges per item, redacts host authority, and blocks concurrent edits', async () => {
   const { studio } = await fixture();
+  await assert.rejects(studio.execute(roomCommand({
+    type: 'room.placement.proposal.submit', expectedVersion: 4, suffix: 'room.surface-proposal',
+    payload: {
+      proposalId: 'proposal.surface-forbidden', roomVariantId: 'room.family-table', expectedRoomVariantVersion: 1,
+      items: [{ itemId: 'item.surface', operation: 'move', placement: null, placementId: 'floor.0.0', expectedAssetId: 'asset.floor', anchor: { x: 0, y: 0 }, rotation: 0 }],
+    },
+  }), AGENT_CONTEXT), (error) => error.code === 'ROOM_PROPOSAL_LAYER_FORBIDDEN');
   const submitted = await studio.execute(proposal(), AGENT_CONTEXT);
   assert.equal(submitted.value.state, 'PENDING');
   assert.equal((await studio.readProjectTrusted(PROJECT_ID)).snapshot.grants[0].usage.commands, 1);

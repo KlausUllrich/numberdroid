@@ -306,14 +306,13 @@ The accepted one-poll ownership rules continue. Passive refresh may not replace 
 The deterministic candidate fixture contains:
 
 1. the exact Checkpoint 2C Family Hygiene source, four slices, four-item proposal, one rejection, and three applied V2 surfaces;
-2. one 10×8 Family Hygiene room archetype/variant using pinned exact surface versions;
-3. one 12×3 hallway archetype/variant proving different defaults and end connectors;
-4. at least two real existing Numberdroid prop visuals reconstructed by their existing repository recipes into temporary Studio CAS for the fixture only, with explicit generic metadata and no repository binary write;
-5. one bounded agent set-dressing proposal submitted through the real official MCP/HostBinding path;
-6. one rejected invalid/undesired placement with a human reason and an atomically applied accepted subset;
-7. visible invalid-placement explanations for connector clearance, bounds/overlap, and an incompatible placement;
-8. a finalized room version plus a forked DRAFT edit proving the final version is byte/semantically unchanged;
-9. restart and portable-bundle round-trip proof with exact room/asset/CAS closure and zero live authority.
+2. one deliberately compact 4×3 Family Hygiene room archetype/variant and one 6×3 horizontal hallway archetype/variant using pinned exact surface versions, while the provisional 10×8/12×3 creation defaults remain independently tested;
+3. one exact-slice prop authored through the Checkpoint 2C asset workflow without provider, image-generation, repository materialization, or binary write;
+4. one three-item bounded agent set-dressing proposal submitted through the real official MCP/HostBinding path, with two safe accepted prop placements and one overlapping rejected prop;
+5. the rejected overlap findings and human reason remain visible beside the complete item diff, while connector-clearance, bounds, and compatibility failures remain covered by deterministic domain/application tests;
+6. the accepted subset applies atomically and remains inspectable with the rejected item after restart;
+7. a finalized room version plus a forked DRAFT edit proving the final version is byte/semantically unchanged;
+8. restart and portable-bundle round-trip proof with exact room/asset/CAS closure and zero live authority.
 
 The combined user walkthrough reviews the deferred 2C asset proposal/library/bundle decisions and the Checkpoint 3 room/hallway canvas, placement validation, agent proposal, finalization, and fork behavior in one gate.
 

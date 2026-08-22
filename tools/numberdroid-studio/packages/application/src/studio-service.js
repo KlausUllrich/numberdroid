@@ -901,6 +901,14 @@ function prepareRoomPlacementProposal(command, document) {
     if (item.operation === 'add') {
       invariant(item.placement.proposalId === null && item.placement.proposalItemId === null, 'UNTRUSTED_AUTHORITY_FIELD', 'Proposal provenance is assigned by Studio, not supplied by the caller.');
     }
+    const targetedPlacement = item.operation === 'add'
+      ? item.placement
+      : variant.placements.find((placement) => placement.placementId === item.placementId);
+    invariant(targetedPlacement?.layer === 'SET_DRESSING', 'ROOM_PROPOSAL_LAYER_FORBIDDEN', 'Room placement proposals are limited to set-dressing placements.', {
+      itemId: item.itemId,
+      placementId: targetedPlacement?.placementId ?? item.placementId,
+      layer: targetedPlacement?.layer ?? null,
+    });
   }
   const { placements, diffs } = applyRoomPlacementItems(variant.placements, normalized.items);
   const archetype = roomArchetypeHead(library, variant.roomArchetypeId, variant.archetypeVersion);
