@@ -2,16 +2,17 @@
 
 - **Date:** 2026-08-22
 - **Repository:** `KlausUllrich/numberdroid`
-- **Status:** Checkpoint 2B implemented and CI/browser-verified candidate; user acceptance pending
+- **Status:** second user-reported Checkpoint 2B gate blocker repaired; replacement CI/browser-verified candidate; user acceptance pending
 - **Baseline `main` head at creation:** `1e1f0ce09a7c996f24cf6b216e400d57cb6dc666` from the current Checkpoint 2 line; receiver MUST re-verify current `main`
 - **Feature commit:** `ae250378943258770330d53c6ec685a94e17dd0e`
-- **CI-verified code/harness head:** `073ee13d96f429a256b7dc39dac40f1b2a20787b` — parent of the evidence-only documentation commit; receiver MUST re-read the remote head before any update
-- **CI / Pages state:** Build run `32536489638` passed root job `96938286296` and Studio job `96938286431`; Pages was intentionally skipped because Studio is a local authoring service
+- **Product-repair head:** `2e68a81cb00c52da552bd12b5356d18f13772ee8`; earlier repair commits include `2d8e5bfe379add0423f80919d5ae9e70c61a5fdd` and `d8b6efdd626c7d931f169914c5c65cba240156c5`
+- **Current repair commits:** product `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d`; selector-only harness follow-up `04d876da750f348e24de9420be1ff59c349bc092`; receiver MUST re-read the remote head before any update
+- **CI / Pages state:** Build run `32568108922` passed Studio job `97019592824` and root job `97019592908`; Pages was intentionally skipped because Studio is a local authoring service
 - **Development branch:** `agent/numberdroid-studio-foundation`
-- **Draft PR:** `#135` — `https://github.com/KlausUllrich/numberdroid/pull/135`; keep draft and unmerged
+- **Draft PR:** `#135` — `https://github.com/KlausUllrich/numberdroid/pull/135`; keep open, draft, and unmerged
 - **Primary receiving role:** Coordinator / QA Integrator
 - **Secondary / trigger roles:** Authoring-tool Engineer, Security, Technical Artist, repository integration
-- **Next milestone / task:** present and complete the one major Checkpoint 2B user gate
+- **Next milestone / task:** repeat and complete the one major Checkpoint 2B user gate
 
 This handoff is a dated task snapshot. Current code and current binding contracts outrank it. It authorizes no merge, release, binary publication, provider integration, Checkpoint 2C, room work, export, materialization, or publish action.
 
@@ -59,7 +60,7 @@ The primary QA/Integrator route then inspects the actual implementation and test
 - schema v8 and an exact 15-tool/two-resource-template MCP candidate surface;
 - CI preparation/capture code for dedicated 2B cutter, inspector, and committed views.
 
-These features have frozen local, published CI, and inspected browser evidence. They still have no user acceptance.
+These features have frozen local, published CI, and inspected browser evidence. The first live gate's detached native-file-input blocker was repaired. The next live gate reached the cutter and exposed another five-second refresh defect: after grid proposal, the large image's local scrollbar jumped to the top. Unconditional passive replacement plus focused-draft, poll-ownership/stale-context, and captured-drag races were repaired in `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d`; selector-only `04d876da750f348e24de9420be1ff59c349bc092` removed the harness's stale generated-ID assumption. The prior `a3d9` candidate is superseded, and the current replacement still has no user acceptance.
 
 ### Planned / not implemented
 
@@ -75,7 +76,7 @@ These features have frozen local, published CI, and inspected browser evidence. 
 | Decision | Owner | Required before |
 | --- | --- | --- |
 | Does the cutter layout, coordinate editing, preview, explicit remap, and job control feel acceptable? | User | accepting 2B |
-| Final frozen test/CI/browser evidence | Resolved: coordinator / independent verifier | complete; candidate may enter the user gate |
+| Final repaired test/CI/browser evidence | Resolved: coordinator / independent verifier | complete; candidate may repeat the user gate |
 | Final adversarial disposition | Resolved: GO after harness repair | complete; no open blocker |
 | Whether to start 2C | User, after explicit 2B acceptance | any asset-library semantics work |
 
@@ -189,27 +190,29 @@ Run every Studio Node test and pay special attention to:
 
 ## 7. Verification state at handoff creation
 
-- Complete frozen Studio Node suite: **108/108 passed**.
+- Complete frozen Studio Node suite: **109/109 passed**.
 - Focused UI/MCP/job set: **44/44 passed**.
 - Final adversarial sets: **23/23 and 36/36 passed**, with a GO recommendation.
 - Official MCP suite: **5/5 passed**.
 - Protected Checkpoint 1 evidence: **VERIFIED**.
 - The final integrity-tamper gap is closed and included in the passing state-specific job/reference coverage.
-- Feature commit: `ae250378943258770330d53c6ec685a94e17dd0e`; one-file evidence-harness repair at CI-verified code/harness head `073ee13d96f429a256b7dc39dac40f1b2a20787b`, parent of the evidence-only documentation commit.
-- GitHub Actions Build run [`32536489638`](https://github.com/KlausUllrich/numberdroid/actions/runs/32536489638), run #2023: root job `96938286296` and Studio job `96938286431` succeeded.
+- Current repairs: product `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d`; selector-only harness follow-up `04d876da750f348e24de9420be1ff59c349bc092`.
+- GitHub Actions run [`32568108922`](https://github.com/KlausUllrich/numberdroid/actions/runs/32568108922): Studio job `97019592824` and root job `97019592908` succeeded.
 - Chrome `151.0.7922.137`, DevTools protocol `1.3`.
-- Valid evidence artifact ID `9465621951`: 2,836,421 bytes, digest `sha256:a175bb3566a2e58f084d1e8f38bb29d7ea57b319dd73ced234210e19242fa077`, created `2026-08-21T23:22:49Z`, expires `2026-09-04T23:22:48Z`. Its ZIP digest was independently recomputed and matches.
-- Artifact contents: `fixture.json`, `server.log`, two DOM snapshots, six PNGs, and six observation files — 16 files total.
+- Valid 2A artifact ID `9473018855`: 2,157,707 bytes, digest `sha256:55937b09b896b0a0417cc818f9d9eb64b415b0d5256606c364a75b4fa983ef89`, created `2026-08-22T08:17:49Z`, expires `2026-09-05T08:17:48Z`. Its downloaded ZIP digest was independently recomputed and matches.
+- The 2A artifact has 20 files: fixture/server records, two approved-source DOM snapshots, eight PNGs, and eight observations. All six Sources observations record correct fully-contained before-layout/final focus, exact source-ID pattern validity, retained file selection, staged recovery/operation isolation where applicable, and zero unexpected/synthetic/runtime/visual errors.
+- Valid 2B artifact ID `9474639509`: 2,838,857 bytes, digest `sha256:86366bc207fe081effeb8825b7cc4586026654fbe1c83ce026e1e12e6fc7ebd8`, expires `2026-09-05T10:40:37Z`.
+- The 2B artifact contains `fixture.json`, `server.log`, two DOM snapshots, six PNGs, and six observation files — 16 files total.
 - All six cutter/inspector/committed screenshots at 1440×900 and 1060×900 were inspected: the full source is contained; exact rectangles and responsive layout are visible; crop and overflow are absent.
 - Every observation records project `numberdroid-studio-checkpoint-2b`, revision 7, Activity 7, ready, `APPLIED` 4/4 attempt 1, four overlays, four committed previews, zero runtime/network errors, no horizontal overflow, and zero Header overlaps.
-- Both viewports prove zoom 1254/2508/fit, exclude/remap clearing, explicit v1 remap, keyboard `x` 3→4 and height 622→623, and zero post-interaction errors.
+- Both viewports prove unchanged passive refresh retains the same DOM/focus, uncommitted `top=5`, local X321/Y417, and window position; necessary render yields y5/h621 and retains scroll; the VM race harness proves one poll owner and rejects stale identities; drag replacement is deferred with dirty and inspector/SVG agreement plus exact local/window scroll; close/reopen creates a new Fit instance at 0,0; runtime/network errors are zero.
 - Fixture source and all four output digests/dimensions match the local pins.
-- Run `32536098819` and artifact `9465493940` are invalid and MUST NOT be cited; they exposed the repaired selector false positive. The repair received adversarial GO.
+- The formerly current `a3d9` run `32561781843` is superseded by the user-reported scrollbar defect. Failed run `32567878956` and 2B artifact `9474582144` are diagnostic only: all new product assertions passed, but the harness retained a stale generated-rectangle-ID selector. Earlier invalid/diagnostic runs remain non-evidence. Only run `32568108922` and artifact `9474639509` identify the current 2B candidate.
 
 ## 8. Exact next actions
 
-1. Give the user exact launch steps and walk through one major 2B verification scenario.
-2. Ask only about cutter layout/accuracy, preview usability, explicit remap clarity, job visibility/control, committed results, and restart persistence.
+1. Give the user exact update/relaunch steps and repeat only the failed scrollbar/focus gate; do not make the user repeat already-passed import, source-review, preview, or exact-grid gates.
+2. If the repair passes, resume at the next unverified cutter action and ask only about preview usability, explicit remap clarity, job visibility/control, committed results, and restart persistence.
 3. If the user finds a defect, return it to the plan/implement/adversary/verify loop without starting 2C.
 4. If and only if the user explicitly accepts, update the candidate/status/handoff with the decision and then ask separately for authority to plan 2C. Do not merge or publish production assets by implication.
 

@@ -1,13 +1,14 @@
 # Numberdroid Studio — Checkpoint 2B Candidate Record
 
 - **Date:** 2026-08-22
-- **Status:** implemented and CI/browser-verified candidate; explicit user acceptance pending
+- **Status:** second user-reported gate blocker repaired; replacement CI/browser-verified candidate; explicit user acceptance pending
 - **Branch:** `agent/numberdroid-studio-foundation`
-- **Draft PR:** `#135` — remains draft and unmerged
+- **Draft PR:** `#135` — remains open, draft, and unmerged
 - **Accepted prerequisite:** Checkpoint 2A, recorded in `CHECKPOINT_2A_STATUS.md`
 - **Feature commit:** `ae250378943258770330d53c6ec685a94e17dd0e`
-- **CI-verified code/harness head:** `073ee13d96f429a256b7dc39dac40f1b2a20787b` — parent of the evidence-only documentation commit
-- **Next gate:** one major user verification
+- **Product-repair chain:** `2d8e5bfe379add0423f80919d5ae9e70c61a5fdd`, `d8b6efdd626c7d931f169914c5c65cba240156c5`, through `2e68a81cb00c52da552bd12b5356d18f13772ee8`
+- **Current repair commits:** product `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d`; selector-only harness follow-up `04d876da750f348e24de9420be1ff59c349bc092`
+- **Next gate:** repeat the one major user verification
 
 This record describes the frozen Checkpoint 2B contract that the candidate is intended to prove. It is not an acceptance record. It grants no merge, release, publication, provider, Checkpoint 2C, room, export, or materialization authority.
 
@@ -24,6 +25,16 @@ The candidate turns one approved PNG source into deterministic, inspectable slic
 7. a final semantic command atomically promotes verified results to stable slice heads and marks the job `APPLIED`.
 
 Asset kinds/metadata, bulk naming, project bundles, rooms, Level Compiler integration, export, and publication are not part of this gate.
+
+## User-gate blocker and repair
+
+The user did not accept the first 2B gate attempt. Selecting the approved PNG opened the native chooser, but the periodic five-second workspace refresh rerendered the intake form and detached that native file input. The visible field returned to **No file chosen**, so the import step was blocked.
+
+The repaired product preserves the active file-input node and selection across trusted refreshes; clears it deliberately before staged Resume; pins project ID, revision, CSRF, idempotency, and staged-intake context for the whole asynchronous operation; disables conflicting project/source/cutter controls without hiding the live status; rejects stale or cross-project results; and renders a post-stage failure as the exact staged Resume/Discard context rather than silently ignoring a newly displayed file. Chrome `151.0.7922.137` then exposed that `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}` is invalid under the HTML `pattern` attribute's UnicodeSets (`v`) semantics. The repaired pattern escapes the literal hyphen, and browser evidence proves one valid source ID passes and a slash-bearing ID fails.
+
+Earlier product repairs are the commit chain through `2e68a81cb00c52da552bd12b5356d18f13772ee8`. Former harness-only repairs are `f132f4d2e15ae9819e2cc42de9a75b49ca110cb5` and `a3d9a18e5deb0d9049e7ba6f879ad22eea1dfb29`; the latter re-focused the intake/recovery/approved target and repeated strict protocol-error checks, but its candidate was later superseded by the scrollbar defect below.
+
+The user then reached the cutter and reported a second gate blocker: after **Propose regular grid**, the large image's local scrollbar jumped to the top on each five-second refresh. The root cause was unconditional passive workspace replacement plus adjacent focused-draft loss, duplicate/stale poll ownership, incomplete project/source/atlas/instance binding, and pointer-drag detachment races. Product repair `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d` preserves unchanged DOM/focus/scroll, restores compatible necessary renders, makes polling single-owner and fail-closed on stale identities, and defers external replacement through pointer settlement. Selector-only commit `04d876da750f348e24de9420be1ff59c349bc092` removed the evidence harness's stale generated-rectangle-ID assumption. The `a3d9` candidate is therefore superseded and rejected for the reported scrollbar defect.
 
 ## Pinned Family Hygiene fixture
 
@@ -118,25 +129,27 @@ The job tool and resource return the same redacted, authority-checked projection
 
 Frozen local verification after implementation, repair, independent review, and final adversarial review:
 
-- complete Studio Node suite: **108/108 passed**;
+- complete Studio Node suite: **109/109 passed**;
 - focused UI/MCP/job set: **44/44 passed**;
 - final adversarial sets: **23/23 and 36/36 passed**, with a GO recommendation;
 - official MCP suite: **5/5 passed**;
 - protected Checkpoint 1 evidence: **VERIFIED**;
 - final integrity-tamper coverage includes the repaired state-specific job/reference case;
-- feature commit `ae250378943258770330d53c6ec685a94e17dd0e` plus the one-file evidence-harness repair at CI-verified code/harness head `073ee13d96f429a256b7dc39dac40f1b2a20787b`, parent of the evidence-only documentation commit;
-- GitHub Actions Build run [`32536489638`](https://github.com/KlausUllrich/numberdroid/actions/runs/32536489638), run #2023: root build job `96938286296` and Studio job `96938286431` both succeeded;
+- current repairs `dd2a4ff2ebdb856af32d5339b996fed9dd69ad2d` and selector-only `04d876da750f348e24de9420be1ff59c349bc092`;
+- GitHub Actions run [`32568108922`](https://github.com/KlausUllrich/numberdroid/actions/runs/32568108922): Studio job `97019592824` and root job `97019592908` succeeded;
 - evidence runtime: Chrome `151.0.7922.137`, DevTools protocol `1.3`;
-- valid 2B artifact: `numberdroid-studio-checkpoint-2b-visual`, ID `9465621951`, 2,836,421 bytes, digest `sha256:a175bb3566a2e58f084d1e8f38bb29d7ea57b319dd73ced234210e19242fa077`, created `2026-08-21T23:22:49Z`, expires `2026-09-04T23:22:48Z`;
-- artifact ZIP digest was independently recomputed and matches the Actions identity;
-- artifact contents: `fixture.json`, `server.log`, two DOM snapshots, six PNG screenshots, and six observation JSON files — 16 files total;
+- valid 2A artifact: `numberdroid-studio-checkpoint-2a-visual`, ID `9473018855`, 2,157,707 bytes, digest `sha256:55937b09b896b0a0417cc818f9d9eb64b415b0d5256606c364a75b4fa983ef89`, created `2026-08-22T08:17:49Z`, expires `2026-09-05T08:17:48Z`;
+- valid 2B artifact: `numberdroid-studio-checkpoint-2b-visual`, ID `9474639509`, 2,838,857 bytes, digest `sha256:86366bc207fe081effeb8825b7cc4586026654fbe1c83ce026e1e12e6fc7ebd8`, expires `2026-09-05T10:40:37Z`;
+- the downloaded 2A ZIP digest was independently recomputed and matches the Actions identity;
+- the 2A artifact contains 20 files: fixture/server records, two approved-source DOM snapshots, eight screenshots, and eight observation JSON files. All six Sources observations record the correct intake/recovery/approved focus target fully inside the 900px viewport both before layout and immediately before capture, exact source-ID validity behavior, preserved file selection, staged recovery/operation isolation where applicable, and zero unexpected/synthetic/runtime/visual errors;
+- the 2B artifact contains `fixture.json`, `server.log`, two DOM snapshots, six PNG screenshots, and six observation JSON files — 16 files total;
 - all six screenshots were personally inspected: cutter canvas, rectangle inspector, and committed slices at 1440×900 and 1060×900 show the complete source, exact rectangles, responsive layout, and no crop or overflow;
 - every observation records project `numberdroid-studio-checkpoint-2b`, revision 7, Activity 7, `ready: true`, `APPLIED` 4/4 on attempt 1, four overlays, four committed previews, zero runtime/network errors, no horizontal overflow, and zero Header overlaps;
-- both viewport interactions prove zoom 1254/2508/fit, exclusion clearing remap state, explicit v1 remap, keyboard `x` 3→4 and height 622→623, with zero post-interaction errors;
+- both viewport interactions prove unchanged passive refresh keeps the same cutter/scroller/field DOM, focused uncommitted `top=5`, local X321/Y417, and window position; the necessary proposal render yields exact y5/h621 geometry while retaining scroll; the VM race harness proves one poll owner and rejects stale project/source/atlas/job/instance identities; active-drag evidence proves deferred replacement, early dirty state, inspector/SVG agreement, and exact local/window scroll; close/reopen creates a new Fit instance at local 0,0; runtime/network errors remain zero;
 - the fixture source digest and all four output digests/dimensions match the pinned local record;
 - explicit user major-gate decision: **pending; do not infer from automated results**.
 
-The first run `32536098819` and artifact `9465493940` are invalid evidence and MUST NOT be cited. They exposed a selector false positive in the evidence harness. The one-file repair was adversarially GO-reviewed, and only the successful identities above represent the candidate.
+The formerly current `a3d9` run `32561781843` is superseded by the user's scrollbar report and MUST NOT be cited as the current 2B candidate. Failed run `32567878956` and 2B artifact `9474582144` are diagnostic only: the new scroll/grid/poll/drag product probes passed, but the harness still selected the pre-reproposal rectangle ID. Earlier invalid and diagnostic runs remain historical non-evidence. Only run `32568108922` and 2B artifact `9474639509` represent the current repaired 2B candidate; they still do not constitute user acceptance.
 
 ## Known limits and blocked work
 
@@ -149,4 +162,4 @@ The first run `32536098819` and artifact `9465493940` are invalid evidence and M
 
 ## Major-gate protocol
 
-The coordinating agent has frozen and published the diff, observed green CI, independently verified the artifact digest, and inspected every dedicated browser screenshot/observation. The candidate is ready for the user gate covering cutter layout, coordinate accuracy, preview usefulness, explicit remap clarity, job visibility/control, committed slice results, and restart persistence. Only explicit user acceptance may convert this candidate record into an acceptance record and unblock planning for 2C.
+The coordinating agent has frozen and published the repair diff, observed green CI, independently verified the artifact digest, and inspected every dedicated browser screenshot/observation. The next user action is a narrow repeat of the failed scrollbar/focus gate; already-passed import, source-review, preview, and exact-grid gates need not be repeated. If that repair passes, the walkthrough resumes at the next unverified cutter action and continues through preview usefulness, explicit remap clarity, job visibility/control, committed slice results, and restart persistence. Only explicit user acceptance may convert this candidate record into an acceptance record and unblock planning for 2C.
