@@ -112,6 +112,37 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(browserEvidenceScript, /input\.validity\.patternMismatch/);
   assert.match(browserEvidenceScript, /sourceIdPatternValidity\?\.pattern === '\[A-Za-z0-9\]\[A-Za-z0-9\._:\\\\-\]\{0,127\}'/);
   assert.match(browserEvidenceScript, /restoredValue === sourceIdPatternValidity\.priorValue/);
+  assert.match(browserEvidenceScript, /let checkpoint2aSourceFocusBeforeLayout = null/);
+  assert.match(browserEvidenceScript, /let checkpoint2aSourceFocusFinal = null/);
+  assert.match(browserEvidenceScript, /focus === 'staged-intake'[\s\S]*focus === 'approved-source'[\s\S]*data-source-intake-form/);
+  assert.match(
+    browserEvidenceScript,
+    /focus === 'approved-source'[\s\S]*document\.querySelector\('\[data-source-id="source\.family-hygiene-approved"\] \.source-preview-frame'\)/,
+  );
+  assert.match(browserEvidenceScript, /target\.scrollIntoView\(\{ block: 'center', inline: 'nearest' \}\)/);
+  assert.match(browserEvidenceScript, /visible: rect\.x >= 0 && rect\.y >= 0[\s\S]*rect\.right <= innerWidth && rect\.bottom <= innerHeight/);
+  assert.doesNotMatch(
+    browserEvidenceScript,
+    /document\.querySelector\('\[data-source-id="source\.family-hygiene-approved"\] \.source-preview\.ready'\)\?\.scrollIntoView/,
+  );
+  const syntheticProbeSettled = browserEvidenceScript.indexOf('sourceImportSyntheticEventRange = {');
+  const beforeLayoutFocus = browserEvidenceScript.indexOf(
+    "checkpoint2aSourceFocusBeforeLayout = await focusCheckpoint2aSourceTarget('before-layout')", syntheticProbeSettled,
+  );
+  const layoutCapture = browserEvidenceScript.indexOf('const evaluated = await devtools.send', beforeLayoutFocus);
+  const keyboardSecurityEnd = browserEvidenceScript.indexOf("Target.closeTarget", layoutCapture);
+  const finalFocus = browserEvidenceScript.indexOf(
+    "checkpoint2aSourceFocusFinal = await focusCheckpoint2aSourceTarget('before-screenshot')", keyboardSecurityEnd,
+  );
+  const finalProtocolBound = browserEvidenceScript.indexOf('assertSyntheticProtocolErrorsBounded();', finalFocus);
+  const finalProtocolCheck = browserEvidenceScript.indexOf("assertNoProtocolErrors('Before screenshot capture')", finalProtocolBound);
+  const screenshotCapture = browserEvidenceScript.indexOf("devtools.send('Page.captureScreenshot'", finalProtocolCheck);
+  assert.ok(syntheticProbeSettled > 0 && beforeLayoutFocus > syntheticProbeSettled
+    && layoutCapture > beforeLayoutFocus && keyboardSecurityEnd > layoutCapture
+    && finalFocus > keyboardSecurityEnd && finalProtocolBound > finalFocus
+    && finalProtocolCheck > finalProtocolBound && screenshotCapture > finalProtocolCheck,
+  'Checkpoint 2A source focus and strict protocol checks must run after keyboard security checks immediately before capture.');
+  assert.match(browserEvidenceScript, /checkpoint2aSourceFocusFinal,\n/);
   assert.match(browserEvidenceScript, /selectedProjectWhilePending/);
   assert.match(browserEvidenceScript, /expectedRevision === sourceImportOperationIsolation\.operationRevision/);
   assert.match(browserEvidenceScript, /mismatch\.commitCount === 0/);

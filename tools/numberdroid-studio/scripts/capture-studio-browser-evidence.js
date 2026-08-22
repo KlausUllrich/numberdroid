@@ -195,6 +195,42 @@ try {
   let sourceImportOperationIsolation = null;
   let sourceImportSyntheticEventRange = null;
   let sourceIdPatternValidity = null;
+  let checkpoint2aSourceFocusBeforeLayout = null;
+  let checkpoint2aSourceFocusFinal = null;
+  const focusCheckpoint2aSourceTarget = async (phase) => {
+    if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
+    const focus = checkpoint2aFocus ?? 'intake-form';
+    const evaluatedFocus = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const focus = ${JSON.stringify(checkpoint2aFocus ?? 'intake-form')};
+        const target = focus === 'staged-intake'
+          ? document.querySelector('.staged-source-intakes [data-resume-source-intake]')?.closest('li')
+          : focus === 'approved-source'
+            ? document.querySelector('[data-source-id="source.family-hygiene-approved"] .source-preview-frame')
+            : document.querySelector('[data-source-intake-form]');
+        if (!target) return { phase: ${JSON.stringify(phase)}, focus, exists: false, visible: false };
+        target.scrollIntoView({ block: 'center', inline: 'nearest' });
+        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        const rect = target.getBoundingClientRect();
+        return {
+          phase: ${JSON.stringify(phase)},
+          focus,
+          exists: true,
+          rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height,
+            right: rect.right, bottom: rect.bottom },
+          viewport: { width: innerWidth, height: innerHeight },
+          scrollY,
+          visible: rect.x >= 0 && rect.y >= 0 && rect.right <= innerWidth && rect.bottom <= innerHeight,
+        };
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    }, sessionId);
+    const observation = evaluatedFocus.result?.value ?? null;
+    assert(observation?.exists === true && observation.visible === true,
+      `Checkpoint 2A ${focus} focus was not fully contained ${phase}: ${JSON.stringify(observation)}`);
+    return observation;
+  };
   if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources') {
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click()`,
@@ -229,18 +265,6 @@ try {
         : '.cutter-scroll';
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector(${JSON.stringify(focusSelector)})?.scrollIntoView({ block: 'center' })`,
-      returnByValue: true,
-    }, sessionId);
-  }
-  if (mode === 'checkpoint-2a' && checkpoint2aFocus === 'approved-source') {
-    await devtools.send('Runtime.evaluate', {
-      expression: `document.querySelector('[data-source-id="source.family-hygiene-approved"] .source-preview.ready')?.scrollIntoView({ block: 'center' })`,
-      returnByValue: true,
-    }, sessionId);
-  }
-  if (mode === 'checkpoint-2a' && checkpoint2aFocus === 'staged-intake') {
-    await devtools.send('Runtime.evaluate', {
-      expression: `document.querySelector('.staged-source-intakes')?.scrollIntoView({ block: 'center' })`,
       returnByValue: true,
     }, sessionId);
   }
@@ -610,6 +634,7 @@ try {
       };
     }
   }
+  checkpoint2aSourceFocusBeforeLayout = await focusCheckpoint2aSourceTarget('before-layout');
   await devtools.send('Runtime.evaluate', {
     expression: `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`,
     awaitPromise: true,
@@ -1072,16 +1097,19 @@ try {
         && layout.sourceForm.hasLiveStatus && layout.sourceForm.submitDisabled === false,
       'The source intake form is missing its labelled fields, live status, or enabled submit control.');
       if (checkpoint2aFocus === null) {
-        assert(layout.sourceForm.rect?.bottom > 0 && layout.sourceForm.rect?.y < height,
-          'The source intake form is not visible in the intake screenshot.');
+        assert(layout.sourceForm.rect?.x >= 0 && layout.sourceForm.rect?.right <= width
+          && layout.sourceForm.rect?.y >= 0 && layout.sourceForm.rect?.bottom <= height,
+        'The source intake form is not fully visible in the intake screenshot.');
       }
       if (checkpoint2aFocus === 'staged-intake') {
-        assert(layout.stagedIntakes[0].rect?.bottom > 0 && layout.stagedIntakes[0].rect?.y < height,
-          'The Resume/Discard recovery row is not visible in the recovery screenshot.');
+        assert(layout.stagedIntakes[0].rect?.x >= 0 && layout.stagedIntakes[0].rect?.right <= width
+          && layout.stagedIntakes[0].rect?.y >= 0 && layout.stagedIntakes[0].rect?.bottom <= height,
+        'The Resume/Discard recovery row is not fully visible in the recovery screenshot.');
       }
       if (checkpoint2aFocus === 'approved-source') {
-        assert(approved.preview?.y >= 0 && approved.preview?.bottom <= height,
-          'The full approved-source preview rect is not contained in the 900px viewport.');
+        assert(approved.preview?.x >= 0 && approved.preview?.right <= width
+          && approved.preview?.y >= 0 && approved.preview?.bottom <= height,
+        'The full approved-source preview rect is not contained in the viewport.');
       }
     }
     if (expectedWorkspace === 'activity') {
@@ -1148,6 +1176,9 @@ try {
     }
   }
 
+  checkpoint2aSourceFocusFinal = await focusCheckpoint2aSourceTarget('before-screenshot');
+  assertSyntheticProtocolErrorsBounded();
+  assertNoProtocolErrors('Before screenshot capture');
   const screenshot = await devtools.send('Page.captureScreenshot', {
     format: 'png', fromSurface: true, captureBeyondViewport: false,
   }, sessionId);
@@ -1311,6 +1342,8 @@ try {
     sourceFileResumeTransition,
     sourceImportOperationIsolation,
     sourceIdPatternValidity,
+    checkpoint2aSourceFocusBeforeLayout,
+    checkpoint2aSourceFocusFinal,
     layout,
     interactions: checkpoint2bInteractionEvidence,
   };
