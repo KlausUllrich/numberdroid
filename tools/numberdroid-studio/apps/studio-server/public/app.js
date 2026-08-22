@@ -31,6 +31,7 @@ const state = {
   sourceDraft: null,
   resumingIntakeId: null,
   sourceOperationKeys: new Map(),
+  sourceFileChooserActive: false,
   cutter: null,
   cutterJob: null,
   cutterJobEvents: [],
@@ -39,16 +40,42 @@ const state = {
   refreshing: false,
 };
 
-function sourceOperationKey(operation, target = 'pending') {
-  const key = `${operation}:${state.project?.projectId ?? 'none'}:${target}`;
+let sourceIntakeFormCache = null;
+let sourceIntakeFormContext = null;
+
+function resetSourceIntakeForm() {
+  const file = sourceIntakeFormCache?.querySelector('[data-source-file]');
+  if (file) file.value = '';
+  sourceIntakeFormCache = null;
+  sourceIntakeFormContext = null;
+  state.sourceFileChooserActive = false;
+}
+
+function setSourceIntakeFormPending(form, pending) {
+  if (!form) return;
+  for (const control of form.querySelectorAll('input, select, textarea, button')) {
+    if (pending) {
+      if (!control.hasAttribute('data-source-pending-was-disabled')) {
+        control.dataset.sourcePendingWasDisabled = String(control.disabled);
+      }
+      control.disabled = true;
+    } else if (control.hasAttribute('data-source-pending-was-disabled')) {
+      control.disabled = control.dataset.sourcePendingWasDisabled === 'true';
+      delete control.dataset.sourcePendingWasDisabled;
+    }
+  }
+}
+
+function sourceOperationKey(operation, target = 'pending', projectId = state.project?.projectId ?? 'none') {
+  const key = `${operation}:${projectId}:${target}`;
   if (!state.sourceOperationKeys.has(key)) {
     state.sourceOperationKeys.set(key, `${operation}.${crypto.randomUUID()}`);
   }
   return state.sourceOperationKeys.get(key);
 }
 
-function clearSourceOperationKey(operation, target = 'pending') {
-  state.sourceOperationKeys.delete(`${operation}:${state.project?.projectId ?? 'none'}:${target}`);
+function clearSourceOperationKey(operation, target = 'pending', projectId = state.project?.projectId ?? 'none') {
+  state.sourceOperationKeys.delete(`${operation}:${projectId}:${target}`);
 }
 
 const elements = Object.fromEntries(
@@ -64,11 +91,37 @@ const elements = Object.fromEntries(
   ].map((id) => [id, document.getElementById(id)]),
 );
 
-function setCutterPending(pending) {
-  state.cutterPending = pending;
+function updateMutationControls() {
+  const pending = state.cutterPending || state.sourceMutationPending;
   elements['project-select'].disabled = pending;
   elements['refresh-button'].disabled = pending || state.refreshing;
   elements['demo-button'].disabled = pending;
+  elements['agent-access-select'].disabled = pending || !state.project || !state.agentAccess
+    || state.agentAccess.state === 'REQUESTING';
+  elements['agent-access-state'].disabled = pending || !state.project || !state.agentAccess;
+  elements['agent-access-panel'].inert = pending;
+}
+
+function setCutterPending(pending) {
+  state.cutterPending = pending;
+  updateMutationControls();
+}
+
+function setSourceMutationPending(pending) {
+  state.sourceMutationPending = pending;
+  updateMutationControls();
+  const forms = new Set(elements['workspace-content'].querySelectorAll('[data-source-intake-form]'));
+  if (sourceIntakeFormCache) forms.add(sourceIntakeFormCache);
+  for (const form of forms) setSourceIntakeFormPending(form, pending);
+  for (const cutter of elements['workspace-content'].querySelectorAll('[data-atlas-cutter]')) {
+    cutter.inert = pending || state.cutterPending;
+  }
+  for (const control of elements['workspace-content'].querySelectorAll(
+    '[data-resume-source-intake], [data-discard-source-intake], [data-source-review-propose], '
+      + '[data-source-review-decision], [data-open-cutter], [data-close-cutter], [data-add-rectangle], '
+      + '[data-save-atlas], [data-preview-atlas], [data-commit-atlas], [data-cancel-cutter-job], '
+      + '[data-retry-cutter-job], [data-discard-cutter-job], [data-demo-action]',
+  )) control.disabled = pending;
 }
 
 async function api(path, options = {}) {
@@ -117,8 +170,10 @@ function setAgentAccessPanel(open) {
 function renderAgentAccess() {
   const policy = state.agentAccess;
   const disabled = !state.project || !policy;
-  elements['agent-access-select'].disabled = disabled || policy?.state === 'REQUESTING';
-  elements['agent-access-state'].disabled = disabled;
+  const mutationPending = state.cutterPending || state.sourceMutationPending;
+  elements['agent-access-select'].disabled = mutationPending || disabled || policy?.state === 'REQUESTING';
+  elements['agent-access-state'].disabled = mutationPending || disabled;
+  elements['agent-access-panel'].inert = mutationPending;
   elements['agent-access-select'].value = policy?.mode ?? 'off';
   const policyLabel = accessStateLabels[policy?.state] ?? 'OFF';
   const activeHostCount = state.hostBindings.filter((binding) => binding.status === 'ACTIVE').length;
@@ -371,6 +426,14 @@ function sourceIntakePanel() {
   const stagedIntake = state.sourceIntakes.find((intake) => (
     intake.state === 'STAGED' && intake.intakeId === state.resumingIntakeId
   ));
+  const context = `${state.project?.projectId ?? 'none'}:${stagedIntake?.intakeId ?? 'new'}`;
+  if (sourceIntakeFormCache && sourceIntakeFormContext === context) {
+    const submit = sourceIntakeFormCache.querySelector('button[type="submit"]');
+    submit.textContent = state.sourceMutationPending ? 'Importing…' : 'Import source';
+    if (!submit.hasAttribute('data-source-pending-was-disabled')) submit.disabled = !state.agentAccessCsrf;
+    setSourceIntakeFormPending(sourceIntakeFormCache, state.sourceMutationPending);
+    return sourceIntakeFormCache;
+  }
   const draft = state.sourceDraft ?? {};
   const form = document.createElement('form');
   form.className = 'source-intake-form';
@@ -383,6 +446,7 @@ function sourceIntakePanel() {
 
   const file = document.createElement('input');
   file.type = 'file'; file.name = 'file'; file.accept = 'image/png,image/webp'; file.required = !stagedIntake;
+  file.dataset.sourceFile = '';
   file.disabled = Boolean(stagedIntake);
   const sourceId = document.createElement('input');
   sourceId.name = 'sourceId'; sourceId.required = true; sourceId.maxLength = 128; sourceId.placeholder = 'source.family-hygiene-floor';
@@ -414,11 +478,14 @@ function sourceIntakePanel() {
   );
   const submit = document.createElement('button');
   submit.type = 'submit'; submit.textContent = state.sourceMutationPending ? 'Importing…' : 'Import source';
-  submit.disabled = state.sourceMutationPending || !state.agentAccessCsrf;
+  submit.disabled = !state.agentAccessCsrf;
   const status = document.createElement('p');
   status.dataset.sourceStatus = ''; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   status.textContent = stagedIntake ? `Ready to commit staged intake ${stagedIntake.intakeId}.` : '';
   form.append(heading, fields, status, submit);
+  sourceIntakeFormCache = form;
+  sourceIntakeFormContext = context;
+  setSourceIntakeFormPending(form, state.sourceMutationPending);
   return form;
 }
 
@@ -434,8 +501,10 @@ function stagedSourceIntakes() {
     copy.textContent = `${intake.intakeId} · ${intake.origin} · ${intake.intake.artifact.width}×${intake.intake.artifact.height}`;
     const resume = document.createElement('button');
     resume.type = 'button'; resume.className = 'secondary'; resume.textContent = 'Resume'; resume.dataset.resumeSourceIntake = intake.intakeId;
+    resume.disabled = state.sourceMutationPending;
     const discard = document.createElement('button');
     discard.type = 'button'; discard.className = 'secondary'; discard.textContent = 'Discard'; discard.dataset.discardSourceIntake = intake.intakeId;
+    discard.disabled = state.sourceMutationPending;
     item.append(copy, resume, discard); list.append(item);
   }
   section.append(list);
@@ -539,6 +608,7 @@ function renderCutter(source) {
   const cutter = state.cutter;
   const atlas = currentCutterAtlas();
   const section = document.createElement('section'); section.className = 'atlas-cutter'; section.dataset.atlasCutter = '';
+  section.inert = state.sourceMutationPending;
   const heading = document.createElement('div'); heading.className = 'cutter-heading';
   const copy = document.createElement('div');
   const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Checkpoint 2B · source-resolution crop';
@@ -761,17 +831,20 @@ function renderSources(items) {
         const button = document.createElement('button');
         button.type = 'button'; button.textContent = label; button.dataset.sourceReviewDecision = disposition;
         button.dataset.sourceId = item.id; if (disposition === 'REJECTED') button.className = 'secondary';
+        button.disabled = state.sourceMutationPending;
         actions.append(button);
       }
     } else if (['IMPORTED', 'GENERATED'].includes(lifecycle) && review === 'PENDING') {
       const propose = document.createElement('button');
       propose.type = 'button'; propose.textContent = 'Propose for review';
       propose.className = 'secondary'; propose.dataset.sourceReviewPropose = ''; propose.dataset.sourceId = item.id;
+      propose.disabled = state.sourceMutationPending;
       actions.append(propose);
     }
     if (lifecycle === 'APPROVED_SOURCE' && review === 'USER_APPROVED' && item.mediaType === 'image/png') {
       const cutterButton = document.createElement('button'); cutterButton.type = 'button'; cutterButton.textContent = 'Open cutter';
-      cutterButton.dataset.openCutter = item.id; cutterButton.className = 'secondary'; cutterButton.disabled = state.cutterPending; actions.append(cutterButton);
+      cutterButton.dataset.openCutter = item.id; cutterButton.className = 'secondary';
+      cutterButton.disabled = state.cutterPending || state.sourceMutationPending; actions.append(cutterButton);
     }
     sourceCard.append(actions); grid.append(sourceCard);
   }
@@ -850,6 +923,7 @@ function renderOverview(snapshot) {
     button.className = 'secondary';
     button.dataset.demoAction = action;
     button.textContent = label;
+    button.disabled = state.sourceMutationPending;
     buttonRow.append(button);
   }
   const result = document.createElement('pre');
@@ -910,6 +984,11 @@ function renderWorkspace() {
     rooms: 'Room & hallway designer', levels: 'Level composer', activity: 'Immutable activity ledger',
   }[state.workspace] || 'Project overview';
   elements['workspace-eyebrow'].textContent = title;
+  const selectedSourceFile = sourceIntakeFormCache?.querySelector('[data-source-file]');
+  if (state.workspace === 'sources' && sourceIntakeFormCache?.isConnected
+      && (state.sourceFileChooserActive || selectedSourceFile?.files?.length > 0)) {
+    return;
+  }
   elements['workspace-content'].replaceChildren();
   if (!state.project) {
     elements['workspace-content'].append(emptyState('No local Studio project', 'Choose “Create / load demo” to exercise the real command API.'));
@@ -1006,6 +1085,7 @@ async function loadProjects(preferredProjectId) {
   const prior = preferredProjectId || elements['project-select'].value;
   elements['project-select'].replaceChildren();
   if (!state.projects.length) {
+    resetSourceIntakeForm();
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
     state.agentAccess = null; setAgentAccessPanel(false); renderProject(); return;
@@ -1031,6 +1111,11 @@ async function loadProject(projectId) {
     api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`),
   ]);
   if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  if (state.project?.projectId !== projectId) {
+    state.sourceDraft = null;
+    state.resumingIntakeId = null;
+    resetSourceIntakeForm();
+  }
   state.project = project; state.activity = activity.events;
   if (state.cutter) {
     const sourceExists = project.snapshot.sources.some((source) => source.id === state.cutter.sourceId);
@@ -1109,7 +1194,7 @@ async function requestAgentAccess(mode, {
 }
 
 async function refresh({ quiet = false } = {}) {
-  if (state.refreshing || state.cutterPending) return;
+  if (state.refreshing || state.cutterPending || state.sourceMutationPending) return;
   state.refreshing = true; elements['refresh-button'].disabled = true;
   try {
     await loadProjects(state.project?.projectId);
@@ -1125,25 +1210,29 @@ async function refresh({ quiet = false } = {}) {
     renderAgentAccess();
     if (!quiet) showToast(`${error.code || 'ERROR'}: ${error.message}`);
   } finally {
-    state.refreshing = false; elements['refresh-button'].disabled = state.cutterPending;
+    state.refreshing = false; updateMutationControls();
   }
 }
 
 elements['workspace-nav'].addEventListener('click', (event) => {
   const link = event.target.closest('[data-workspace]');
   if (!link) return;
+  if (state.sourceMutationPending) { event.preventDefault(); return; }
   state.workspace = link.dataset.workspace; location.hash = state.workspace; renderWorkspace();
   void publishVisualEvidence();
 });
 elements['project-select'].addEventListener('change', () => {
-  if (state.cutterPending) {
+  if (state.cutterPending || state.sourceMutationPending) {
     elements['project-select'].value = state.project?.projectId ?? '';
     return;
   }
   void loadProject(elements['project-select'].value);
 });
-elements['refresh-button'].addEventListener('click', () => { if (!state.cutterPending) void refresh(); });
+elements['refresh-button'].addEventListener('click', () => {
+  if (!state.cutterPending && !state.sourceMutationPending) void refresh();
+});
 elements['agent-access-select'].addEventListener('change', () => {
+  if (state.sourceMutationPending) return;
   const mode = elements['agent-access-select'].value;
   if (mode === 'custom' || mode === 'propose_draft') {
     requestAgentAccess(mode);
@@ -1182,15 +1271,18 @@ document.addEventListener('click', (event) => {
   setAgentAccessPanel(false);
 });
 elements['agent-access-retry'].addEventListener('click', () => {
-  if (state.pendingAgentAccess) requestAgentAccess(state.pendingAgentAccess.mode, state.pendingAgentAccess);
+  if (!state.sourceMutationPending && state.pendingAgentAccess) {
+    requestAgentAccess(state.pendingAgentAccess.mode, state.pendingAgentAccess);
+  }
 });
 elements['agent-launcher-show'].addEventListener('click', () => {
+  if (state.sourceMutationPending) return;
   state.showMcpLauncherConfig = !state.showMcpLauncherConfig;
   renderAgentAccess(); setAgentAccessPanel(true);
 });
 elements['agent-pending-list'].addEventListener('click', async (event) => {
   const button = event.target.closest('[data-approve-pending-host]');
-  if (!button || !state.project || !state.agentAccessCsrf) return;
+  if (!button || !state.project || !state.agentAccessCsrf || state.sourceMutationPending) return;
   if (!window.confirm(`Authorize the waiting MCP host with verification code ${button.dataset.verificationCode}?`)) return;
   button.disabled = true;
   try {
@@ -1213,7 +1305,7 @@ elements['agent-pending-list'].addEventListener('click', async (event) => {
 });
 elements['agent-binding-list'].addEventListener('click', async (event) => {
   const button = event.target.closest('[data-revoke-binding]');
-  if (!button || !state.project || !state.agentAccessCsrf) return;
+  if (!button || !state.project || !state.agentAccessCsrf || state.sourceMutationPending) return;
   if (!window.confirm('Revoke this MCP connection? Its credential will stop working immediately.')) return;
   button.disabled = true;
   try {
@@ -1241,7 +1333,7 @@ elements['agent-launcher-copy'].addEventListener('click', async () => {
 });
 elements['workspace-content'].addEventListener('submit', async (event) => {
   const form = event.target.closest('[data-cutter-grid-form]');
-  if (!form || !state.project || !state.cutter || !state.agentAccessCsrf) return;
+  if (!form || !state.project || !state.cutter || !state.agentAccessCsrf || state.sourceMutationPending) return;
   event.preventDefault();
   if (state.cutterPending) return;
   const fields = new FormData(form);
@@ -1281,7 +1373,17 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
 });
 
 elements['workspace-content'].addEventListener('change', (event) => {
-  if (!state.cutter) return;
+  const sourceFile = event.target.closest('[data-source-file]');
+  if (sourceFile) {
+    state.sourceFileChooserActive = false;
+    const status = sourceFile.closest('[data-source-intake-form]')?.querySelector('[data-source-status]');
+    const selected = sourceFile.files?.[0];
+    if (status) status.textContent = selected
+      ? `Selected ${selected.name} (${selected.size.toLocaleString()} bytes). Ready to import.`
+      : '';
+    return;
+  }
+  if (!state.cutter || state.sourceMutationPending) return;
   const zoom = event.target.closest('[data-cutter-zoom]');
   if (zoom) { state.cutter.zoom = zoom.value; renderWorkspace(); return; }
   const grid = event.target.closest('[data-cutter-grid-toggle]');
@@ -1306,19 +1408,32 @@ elements['workspace-content'].addEventListener('change', (event) => {
   markCutterDefinitionDirty(); renderWorkspace();
 });
 
+elements['workspace-content'].addEventListener('click', (event) => {
+  if (event.target.closest('[data-source-file]')) state.sourceFileChooserActive = true;
+});
+
+elements['workspace-content'].addEventListener('cancel', (event) => {
+  if (event.target.closest('[data-source-file]')) state.sourceFileChooserActive = false;
+});
+
+window.addEventListener('focus', () => {
+  if (!state.sourceFileChooserActive) return;
+  setTimeout(() => { state.sourceFileChooserActive = false; }, 1000);
+});
+
 elements['workspace-content'].addEventListener('click', async (event) => {
   const open = event.target.closest('[data-open-cutter]');
   if (open) {
-    if (state.cutterPending) return;
+    if (state.cutterPending || state.sourceMutationPending) return;
     const source = state.project?.snapshot.sources.find((candidate) => candidate.id === open.dataset.openCutter);
     if (source) openCutter(source);
     return;
   }
   if (event.target.closest('[data-close-cutter]')) {
-    if (state.cutterPending) return;
+    if (state.cutterPending || state.sourceMutationPending) return;
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = []; renderWorkspace(); return;
   }
-  if (!state.cutter || !state.project || !state.agentAccessCsrf) return;
+  if (!state.cutter || !state.project || !state.agentAccessCsrf || state.sourceMutationPending) return;
   if (state.cutterPending) return;
   if (event.target.closest('[data-add-rectangle]')) {
     const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
@@ -1470,7 +1585,7 @@ function cutterSvgPoint(svg, event) {
 
 let cutterDrag = null;
 elements['workspace-content'].addEventListener('pointerdown', (event) => {
-  if (state.cutterPending) return;
+  if (state.cutterPending || state.sourceMutationPending) return;
   const resize = event.target.closest('[data-cutter-resize]');
   const move = event.target.closest('[data-cutter-move]');
   const target = resize || move;
@@ -1481,7 +1596,7 @@ elements['workspace-content'].addEventListener('pointerdown', (event) => {
   target.setPointerCapture?.(event.pointerId); event.preventDefault();
 });
 elements['workspace-content'].addEventListener('pointermove', (event) => {
-  if (!cutterDrag || !state.cutter || state.cutterPending) return;
+  if (!cutterDrag || !state.cutter || state.cutterPending || state.sourceMutationPending) return;
   const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
   const point = cutterSvgPoint(cutterDrag.svg, event);
   const dx = Math.round(point.x - cutterDrag.start.x); const dy = Math.round(point.y - cutterDrag.start.y);
@@ -1500,13 +1615,14 @@ elements['workspace-content'].addEventListener('pointermove', (event) => {
 });
 elements['workspace-content'].addEventListener('pointerup', () => {
   if (!cutterDrag) return;
-  if (state.cutterPending) { cutterDrag = null; return; }
+  if (state.cutterPending || state.sourceMutationPending) { cutterDrag = null; return; }
   cutterDrag = null; markCutterDefinitionDirty(); renderWorkspace();
 });
 elements['workspace-content'].addEventListener('keydown', (event) => {
   const resize = event.target.closest('[data-cutter-resize]');
   const move = event.target.closest('[data-cutter-move]');
-  if ((!resize && !move) || !state.cutter || state.cutterPending || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  if ((!resize && !move) || !state.cutter || state.cutterPending || state.sourceMutationPending
+      || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
   const index = Number((resize || move).dataset.cutterResize ?? (resize || move).dataset.cutterMove);
   const rectangle = state.cutter.rectangles[index];
   const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
@@ -1527,8 +1643,17 @@ elements['workspace-content'].addEventListener('keydown', (event) => {
 
 elements['workspace-content'].addEventListener('submit', async (event) => {
   const form = event.target.closest('[data-source-intake-form]');
-  if (!form || !state.project || !state.agentAccessCsrf) return;
+  if (!form) return;
   event.preventDefault();
+  if (!state.project || !state.agentAccessCsrf || state.sourceMutationPending || state.cutterPending
+    || elements['project-select'].value !== state.project.projectId) {
+    showToast('Source import is unavailable while the project context is changing.');
+    return;
+  }
+  const operationProjectId = state.project.projectId;
+  const operationRevision = state.project.revision;
+  const operationCsrf = state.agentAccessCsrf;
+  const operationForm = form;
   const fields = new FormData(form);
   const file = fields.get('file');
   const stagedIntake = state.sourceIntakes.find((intake) => (
@@ -1543,35 +1668,77 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
   };
   const status = form.querySelector('[data-source-status]');
   const submit = form.querySelector('button[type="submit"]');
-  state.sourceMutationPending = true; form.setAttribute('aria-busy', 'true'); submit.disabled = true;
+  const uploadIdempotencyKey = stagedIntake
+    ? null
+    : sourceOperationKey('source-intake-upload', 'pending', operationProjectId);
+  const commitIdempotencyTarget = stagedIntake?.intakeId ?? 'pending';
+  const commitIdempotencyKey = sourceOperationKey(
+    'source-intake-commit', commitIdempotencyTarget, operationProjectId,
+  );
+  const operationIsCurrent = () => (
+    state.sourceMutationPending
+    && state.project?.projectId === operationProjectId
+    && state.project.revision === operationRevision
+    && state.agentAccessCsrf === operationCsrf
+    && sourceIntakeFormCache === operationForm
+  );
+  const assertOperationCurrent = () => {
+    if (operationIsCurrent()) return;
+    const error = new Error('The source import context changed before the operation completed. No further mutation was sent.');
+    error.code = 'SOURCE_INTAKE_CONTEXT_CHANGED';
+    throw error;
+  };
+  setSourceMutationPending(true); form.setAttribute('aria-busy', 'true'); submit.disabled = true;
   status.textContent = stagedIntake ? 'Committing staged source…' : 'Verifying and staging source…';
+  let intake = stagedIntake ? { intakeId: stagedIntake.intakeId, artifact: stagedIntake.intake.artifact } : null;
+  let durableIntakeReady = Boolean(stagedIntake);
   try {
-    let intake = stagedIntake ? { intakeId: stagedIntake.intakeId, artifact: stagedIntake.intake.artifact } : null;
     if (!intake) {
       const expectedDigest = await sha256Hex(file);
-      intake = await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/source-intakes`, {
+      assertOperationCurrent();
+      intake = await api(`/api/projects/${encodeURIComponent(operationProjectId)}/source-intakes`, {
         method: 'POST',
         headers: {
           'content-type': file.type,
-          'x-numberdroid-studio-csrf': state.agentAccessCsrf,
-          'x-numberdroid-idempotency-key': sourceOperationKey('source-intake-upload'),
+          'x-numberdroid-studio-csrf': operationCsrf,
+          'x-numberdroid-idempotency-key': uploadIdempotencyKey,
           'x-numberdroid-source-origin': sourceOrigin,
           'x-numberdroid-expected-sha256': expectedDigest,
         },
         body: file,
       });
-      clearSourceOperationKey('source-intake-upload');
+      assertOperationCurrent();
+      if (intake?.schemaVersion !== 1 || intake.projectId !== operationProjectId
+        || typeof intake.intakeId !== 'string' || !intake.intakeId
+        || !intake.artifact || typeof intake.artifact.uri !== 'string') {
+        const error = new Error('The source intake response did not match the captured project context.');
+        error.code = 'SOURCE_INTAKE_CONTEXT_CHANGED';
+        throw error;
+      }
+      clearSourceOperationKey('source-intake-upload', 'pending', operationProjectId);
+      if (!state.sourceIntakes.some((candidate) => candidate.intakeId === intake.intakeId)) {
+        state.sourceIntakes.push({
+          schemaVersion: 1,
+          projectId: operationProjectId,
+          intakeId: intake.intakeId,
+          state: 'STAGED',
+          origin: sourceOrigin,
+          intake: { artifact: intake.artifact },
+        });
+      }
       state.resumingIntakeId = intake.intakeId;
+      durableIntakeReady = true;
       status.textContent = 'Source staged; committing semantic revision…';
     }
+    assertOperationCurrent();
     const nullable = (value) => String(value || '').trim() || null;
     const generated = sourceOrigin === 'imported_generation';
-    await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/sources`, {
+    const committed = await api(`/api/projects/${encodeURIComponent(operationProjectId)}/sources`, {
       method: 'POST',
-      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      headers: { 'x-numberdroid-studio-csrf': operationCsrf },
       body: JSON.stringify({
-        expectedRevision: state.project.revision,
-        idempotencyKey: sourceOperationKey('source-intake-commit', intake.intakeId),
+        expectedRevision: operationRevision,
+        idempotencyKey: commitIdempotencyKey,
         intakeId: intake.intakeId,
         sourceId: String(fields.get('sourceId')),
         name: String(fields.get('name')),
@@ -1595,16 +1762,35 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
         },
       }),
     });
-    clearSourceOperationKey('source-intake-commit', intake.intakeId);
-    state.sourceDraft = null; state.resumingIntakeId = null;
-    await loadProject(state.project.projectId);
+    assertOperationCurrent();
+    if (committed?.schemaVersion !== 1 || committed.projectId !== operationProjectId
+      || committed.revision !== operationRevision + 1) {
+      const error = new Error('The source commit response did not match the captured project and revision context.');
+      error.code = 'SOURCE_INTAKE_CONTEXT_CHANGED';
+      throw error;
+    }
+    clearSourceOperationKey('source-intake-commit', commitIdempotencyTarget, operationProjectId);
+    state.sourceDraft = null; state.resumingIntakeId = null; resetSourceIntakeForm();
+    await loadProject(operationProjectId);
     showToast('Source imported through an atomic intake claim.');
   } catch (error) {
-    status.textContent = `${error.code || 'ERROR'}: ${error.message}`;
-    showToast(`${error.code || 'ERROR'}: ${error.message}`);
-    await loadProject(state.project.projectId).catch(() => {});
+    const errorText = `${error.code || 'ERROR'}: ${error.message}`;
+    status.textContent = errorText;
+    if (durableIntakeReady && intake && state.resumingIntakeId === intake.intakeId) {
+      resetSourceIntakeForm();
+      renderWorkspace();
+    }
+    if (state.project?.projectId === operationProjectId) await loadProject(operationProjectId).catch(() => {});
+    const stillStaged = durableIntakeReady && intake
+      && state.resumingIntakeId === intake.intakeId
+      && state.sourceIntakes.some((candidate) => candidate.intakeId === intake.intakeId && candidate.state === 'STAGED');
+    const activeStatus = elements['workspace-content'].querySelector('[data-source-status]');
+    if (activeStatus) activeStatus.textContent = stillStaged
+      ? `${errorText} Intake ${intake.intakeId} remains staged; retry commits this exact artifact or discard it.`
+      : errorText;
+    showToast(errorText);
   } finally {
-    state.sourceMutationPending = false;
+    setSourceMutationPending(false);
     if (form.isConnected) {
       form.removeAttribute('aria-busy'); submit.disabled = !state.agentAccessCsrf;
     }
@@ -1613,9 +1799,14 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
 elements['workspace-content'].addEventListener('click', async (event) => {
   const resume = event.target.closest('[data-resume-source-intake]');
   const discard = event.target.closest('[data-discard-source-intake]');
-  if (!resume && !discard) return;
+  if ((!resume && !discard) || state.sourceMutationPending) return;
   const intakeId = (resume || discard).dataset.resumeSourceIntake ?? (resume || discard).dataset.discardSourceIntake;
   if (resume) {
+    const selectedFile = sourceIntakeFormCache?.querySelector('[data-source-file]')?.files?.[0] ?? null;
+    if (selectedFile && !window.confirm(
+      `Resume staged intake ${intakeId}? The selected file ${selectedFile.name} and the current import form will be cleared.`,
+    )) return;
+    resetSourceIntakeForm();
     state.resumingIntakeId = intakeId;
     state.sourceDraft = null;
     renderWorkspace();
@@ -1644,7 +1835,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const propose = event.target.closest('[data-source-review-propose]');
   const decide = event.target.closest('[data-source-review-decision]');
   const button = propose || decide;
-  if (!button || !state.project || !state.agentAccessCsrf) return;
+  if (!button || !state.project || !state.agentAccessCsrf || state.sourceMutationPending) return;
   const action = propose ? 'propose' : 'decide';
   const disposition = decide?.dataset.sourceReviewDecision;
   let note = null;
@@ -1680,7 +1871,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
 });
 elements['workspace-content'].addEventListener('click', async (event) => {
   const button = event.target.closest('[data-demo-action]');
-  if (!button) return;
+  if (!button || state.sourceMutationPending) return;
   button.disabled = true;
   try {
     const response = await api(`/api/demo/action?action=${encodeURIComponent(button.dataset.demoAction)}`, {
@@ -1699,7 +1890,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   showToast(`${state.labResult.code}: ${state.labResult.message}`);
 });
 elements['demo-button'].addEventListener('click', async () => {
-  if (state.cutterPending) return;
+  if (state.cutterPending || state.sourceMutationPending) return;
   elements['demo-button'].disabled = true;
   try {
     const project = await api('/api/demo', {
@@ -1709,10 +1900,14 @@ elements['demo-button'].addEventListener('click', async () => {
   } catch (error) {
     showToast(`${error.code || 'ERROR'}: ${error.message}`);
   } finally {
-    elements['demo-button'].disabled = state.cutterPending;
+    updateMutationControls();
   }
 });
 window.addEventListener('hashchange', () => {
+  if (state.sourceMutationPending) {
+    history.replaceState(null, '', `#${state.workspace}`);
+    return;
+  }
   state.workspace = location.hash.slice(1) || 'overview'; renderWorkspace();
   void publishVisualEvidence();
 });

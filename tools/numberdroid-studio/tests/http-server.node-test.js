@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 // Kept outside Vitest's discovery pattern; this package uses Node's test runner.
 import { StudioService } from '../packages/application/src/index.js';
@@ -60,6 +61,42 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /response\.job\.atlasId !== requestedAtlasId/);
   assert.match(clientScript, /currentAtlas\?\.latestPreviewJobId !== jobId/);
   assert.match(clientScript, /cutterButton\.disabled = state\.cutterPending/);
+  assert.match(clientScript, /let sourceIntakeFormCache = null/);
+  assert.match(clientScript, /selectedSourceFile\?\.files\?\.length > 0/);
+  assert.match(clientScript, /sourceFileChooserActive/);
+  assert.match(clientScript, /Selected .* Ready to import/);
+  assert.match(clientScript, /resetSourceIntakeForm\(\)/);
+  assert.match(clientScript, /Resume staged intake .* selected file .* current import form will be cleared/s);
+  assert.match(clientScript, /if \(file\) file\.value = ''/);
+  assert.match(clientScript, /elements\['project-select'\]\.value !== state\.project\.projectId/);
+  assert.match(clientScript, /const operationProjectId = state\.project\.projectId/);
+  assert.match(clientScript, /const operationRevision = state\.project\.revision/);
+  assert.match(clientScript, /const operationCsrf = state\.agentAccessCsrf/);
+  assert.match(clientScript, /sourceOperationKey\('source-intake-upload', 'pending', operationProjectId\)/);
+  assert.match(clientScript, /const commitIdempotencyTarget = stagedIntake\?\.intakeId \?\? 'pending'/);
+  assert.match(clientScript, /'source-intake-commit', commitIdempotencyTarget, operationProjectId/);
+  assert.match(clientScript, /state\.project\?\.projectId === operationProjectId[\s\S]*state\.project\.revision === operationRevision[\s\S]*state\.agentAccessCsrf === operationCsrf/);
+  assert.match(clientScript, /intake\?\.schemaVersion !== 1 \|\| intake\.projectId !== operationProjectId/);
+  assert.match(clientScript, /expectedRevision: operationRevision/);
+  assert.match(clientScript, /committed\?\.schemaVersion !== 1 \|\| committed\.projectId !== operationProjectId[\s\S]*committed\.revision !== operationRevision \+ 1/);
+  assert.match(clientScript, /let durableIntakeReady = Boolean\(stagedIntake\)/);
+  assert.match(clientScript, /resetSourceIntakeForm\(\);[\s\S]*renderWorkspace\(\);[\s\S]*remains staged; retry commits this exact artifact or discard it/);
+  const sourcePendingHelper = clientScript.slice(
+    clientScript.indexOf('function setSourceIntakeFormPending'), clientScript.indexOf('function sourceOperationKey'),
+  );
+  assert.match(sourcePendingHelper, /querySelectorAll\('input, select, textarea, button'\)/);
+  assert.match(sourcePendingHelper, /control\.disabled = true/);
+  assert.doesNotMatch(sourcePendingHelper, /form\.inert/);
+  const browserEvidenceScript = await readFile(
+    new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8',
+  );
+  assert.match(browserEvidenceScript, /allFormControlsDisabled/);
+  assert.match(browserEvidenceScript, /selectedProjectWhilePending/);
+  assert.match(browserEvidenceScript, /expectedRevision === sourceImportOperationIsolation\.operationRevision/);
+  assert.match(browserEvidenceScript, /mismatch\.commitCount === 0/);
+  assert.match(browserEvidenceScript, /commitFailureRecovery\.oldFileCount === 0/);
+  assert.match(browserEvidenceScript, /commitFailureRecovery\.currentFileDisabled === true/);
+  assert.match(browserEvidenceScript, /liveStatusOutsideInert === true/);
   assert.match(clientScript, /response\?\.projectId !== operationProjectId/);
   assert.match(clientScript, /response\.job\?\.jobId !== operationJobId/);
   assert.match(clientScript, /state\.cutterJob = response\.job/);

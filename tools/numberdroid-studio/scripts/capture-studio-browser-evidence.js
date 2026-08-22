@@ -189,6 +189,9 @@ try {
     await delay(100);
   }
   assert(ready, `${mode} ${expectedWorkspace} did not reach screenshot readiness.`);
+  let sourceFileRefreshRetention = null;
+  let sourceFileResumeTransition = null;
+  let sourceImportOperationIsolation = null;
   if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources') {
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click()`,
@@ -264,6 +267,306 @@ try {
       awaitPromise: true,
       returnByValue: true,
     }, sessionId);
+    const retention = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const original = document.querySelector('[data-source-intake-form] [data-source-file]');
+        const transfer = new DataTransfer();
+        transfer.items.add(new File([new Uint8Array([137, 80, 78, 71])],
+          'family-hygiene-floor-approved.png', { type: 'image/png' }));
+        original.files = transfer.files;
+        original.dispatchEvent(new Event('change', { bubbles: true }));
+        document.getElementById('refresh-button').click();
+        const deadline = Date.now() + 5000;
+        while (document.getElementById('refresh-button').disabled && Date.now() < deadline) {
+          await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+        }
+        const current = document.querySelector('[data-source-intake-form] [data-source-file]');
+        const result = {
+          sameNode: current === original,
+          connected: original.isConnected,
+          fileCount: current?.files?.length ?? 0,
+          fileName: current?.files?.[0]?.name ?? null,
+          status: current?.closest('[data-source-intake-form]')?.querySelector('[data-source-status]')?.textContent ?? null,
+        };
+        current.value = '';
+        current.dispatchEvent(new Event('change', { bubbles: true }));
+        return result;
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    }, sessionId);
+    sourceFileRefreshRetention = retention.result?.value ?? null;
+    assert(sourceFileRefreshRetention?.sameNode === true
+      && sourceFileRefreshRetention.connected === true
+      && sourceFileRefreshRetention.fileCount === 1
+      && sourceFileRefreshRetention.fileName === 'family-hygiene-floor-approved.png'
+      && sourceFileRefreshRetention.status?.includes('Ready to import'),
+    'A same-project refresh replaced or cleared the selected source file input.');
+    if (checkpoint2aFocus === 'staged-intake') {
+      const isolation = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const operationProjectId = document.documentElement.dataset.visualProjectId;
+          const operationRevision = Number(document.documentElement.dataset.visualRevision);
+          const encodedProjectId = encodeURIComponent(operationProjectId);
+          const originalFetch = window.fetch.bind(window);
+          const requests = [];
+          let phase = 'delayed';
+          let releaseUpload;
+          const uploadGate = new Promise((resolveUpload) => { releaseUpload = resolveUpload; });
+          const response = (body, status = 200) => new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          });
+          window.fetch = async (input, init = {}) => {
+            const url = typeof input === 'string' ? input : input.url;
+            const method = String(init.method ?? 'GET').toUpperCase();
+            if (method === 'POST' && url === \`/api/projects/\${encodedProjectId}/source-intakes\`) {
+              const headers = new Headers(init.headers);
+              requests.push({
+                phase,
+                kind: 'stage',
+                url,
+                csrfPresent: Boolean(headers.get('x-numberdroid-studio-csrf')),
+                idempotencyPresent: Boolean(headers.get('x-numberdroid-idempotency-key')),
+                csrf: headers.get('x-numberdroid-studio-csrf'),
+              });
+              if (phase === 'delayed') await uploadGate;
+              return response({
+                schemaVersion: 1,
+                projectId: phase === 'mismatch' ? 'project.cross-context-probe' : operationProjectId,
+                intakeId: \`intake.\${phase}.context-probe\`,
+                state: 'STAGED',
+                origin: 'human_upload',
+                artifact: {
+                  uri: \`cas://sha256/\${'a'.repeat(64)}\`, mediaType: 'image/png',
+                  byteSize: 8, width: 1, height: 1,
+                },
+              }, 201);
+            }
+            if (method === 'POST' && url === \`/api/projects/\${encodedProjectId}/sources\`) {
+              const headers = new Headers(init.headers);
+              requests.push({
+                phase,
+                kind: 'commit',
+                url,
+                csrfPresent: Boolean(headers.get('x-numberdroid-studio-csrf')),
+                idempotencyPresent: Boolean(JSON.parse(init.body).idempotencyKey),
+                csrf: headers.get('x-numberdroid-studio-csrf'),
+                body: JSON.parse(init.body),
+              });
+              if (phase === 'commit-failure') {
+                return response({ error: { code: 'REVISION_CONFLICT', message: 'Injected commit failure.' } }, 409);
+              }
+              return response({ schemaVersion: 1, projectId: operationProjectId, revision: operationRevision + 1 });
+            }
+            if (method === 'GET' && phase === 'commit-failure'
+              && url === \`/api/projects/\${encodedProjectId}/source-intakes\`) {
+              return response({
+                schemaVersion: 1,
+                projectId: operationProjectId,
+                intakes: [{
+                  schemaVersion: 1,
+                  projectId: operationProjectId,
+                  intakeId: 'intake.commit-failure.context-probe',
+                  state: 'STAGED',
+                  origin: 'human_upload',
+                  intake: {
+                    artifact: {
+                      uri: \`cas://sha256/\${'a'.repeat(64)}\`, mediaType: 'image/png',
+                      byteSize: 8, width: 1, height: 1,
+                    },
+                  },
+                }],
+              });
+            }
+            return originalFetch(input, init);
+          };
+
+          const configureForm = (name) => {
+            const form = document.querySelector('[data-source-intake-form]');
+            form.querySelector('[name="sourceId"]').value = \`source.\${name}.context-probe\`;
+            form.querySelector('[name="name"]').value = \`\${name} context probe\`;
+            const file = form.querySelector('[data-source-file]');
+            const transfer = new DataTransfer();
+            transfer.items.add(new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])],
+              \`\${name}-context-probe.png\`, { type: 'image/png' }));
+            file.files = transfer.files;
+            file.dispatchEvent(new Event('change', { bubbles: true }));
+            return form;
+          };
+          const waitFor = async (predicate, message) => {
+            const deadline = Date.now() + 5000;
+            while (!predicate() && Date.now() < deadline) {
+              await new Promise((resolveWait) => setTimeout(resolveWait, 20));
+            }
+            if (!predicate()) throw new Error(message);
+          };
+
+          const delayedForm = configureForm('delayed');
+          delayedForm.requestSubmit();
+          await waitFor(() => document.getElementById('project-select').disabled,
+            'Source import did not enter its operation lock.');
+          const liveStatus = delayedForm.querySelector('[role="status"][aria-live="polite"]');
+          const pending = {
+            allFormControlsDisabled: [...delayedForm.elements].every((control) => control.disabled),
+            liveStatusOutsideInert: !liveStatus.closest('[inert]'),
+            projectSelectDisabled: document.getElementById('project-select').disabled,
+            refreshDisabled: document.getElementById('refresh-button').disabled,
+            demoDisabled: document.getElementById('demo-button').disabled,
+            sourceActionsDisabled: [...document.querySelectorAll(
+              '[data-resume-source-intake], [data-discard-source-intake], [data-source-review-propose], '
+                + '[data-source-review-decision], [data-open-cutter]',
+            )].every((control) => control.disabled),
+          };
+          const projectSelect = document.getElementById('project-select');
+          const crossProjectOption = document.createElement('option');
+          crossProjectOption.value = 'project.cross-context-probe';
+          crossProjectOption.textContent = 'Cross-context probe';
+          projectSelect.append(crossProjectOption);
+          projectSelect.value = crossProjectOption.value;
+          projectSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          document.getElementById('refresh-button').click();
+          document.getElementById('demo-button').click();
+          const selectedProjectWhilePending = projectSelect.value;
+          releaseUpload();
+          await waitFor(() => !projectSelect.disabled, 'Source import did not release its operation lock.');
+          crossProjectOption.remove();
+          const delayedRequests = requests.filter((request) => request.phase === 'delayed');
+          const delayedStage = delayedRequests.find((request) => request.kind === 'stage');
+          const delayedCommit = delayedRequests.find((request) => request.kind === 'commit');
+
+          phase = 'mismatch';
+          const mismatchForm = configureForm('mismatch');
+          mismatchForm.requestSubmit();
+          await waitFor(() => projectSelect.disabled, 'Cross-project response probe did not start.');
+          await waitFor(() => !projectSelect.disabled, 'Cross-project response probe did not settle.');
+          const mismatchRequests = requests.filter((request) => request.phase === 'mismatch');
+          const mismatchStatus = mismatchForm.querySelector('[data-source-status]');
+          const mismatchResult = {
+            stageCount: mismatchRequests.filter((request) => request.kind === 'stage').length,
+            commitCount: mismatchRequests.filter((request) => request.kind === 'commit').length,
+            rejected: mismatchStatus?.textContent?.startsWith('SOURCE_INTAKE_CONTEXT_CHANGED:') ?? false,
+            liveStatusOutsideInert: !mismatchStatus.closest('[inert]'),
+          };
+
+          phase = 'commit-failure';
+          const failedCommitForm = configureForm('commit-failure');
+          const failedCommitFile = failedCommitForm.querySelector('[data-source-file]');
+          failedCommitForm.requestSubmit();
+          await waitFor(() => projectSelect.disabled, 'Commit-failure recovery probe did not start.');
+          await waitFor(() => !projectSelect.disabled, 'Commit-failure recovery probe did not settle.');
+          const recoveryForm = document.querySelector('[data-source-intake-form]');
+          const recoveryFile = recoveryForm.querySelector('[data-source-file]');
+          const recoveryStatus = recoveryForm.querySelector('[data-source-status]');
+          const failedCommitRequests = requests.filter((request) => request.phase === 'commit-failure');
+          const commitFailureRecovery = {
+            stageCount: failedCommitRequests.filter((request) => request.kind === 'stage').length,
+            commitCount: failedCommitRequests.filter((request) => request.kind === 'commit').length,
+            replaced: recoveryForm !== failedCommitForm,
+            oldConnected: failedCommitForm.isConnected,
+            oldFileCount: failedCommitFile.files.length,
+            heading: recoveryForm.querySelector('h2')?.textContent ?? null,
+            currentFileCount: recoveryFile.files.length,
+            currentFileDisabled: recoveryFile.disabled,
+            status: recoveryStatus?.textContent ?? null,
+            liveStatusOutsideInert: !recoveryStatus.closest('[inert]'),
+          };
+          window.fetch = originalFetch;
+          document.getElementById('refresh-button').click();
+          await waitFor(() => !document.getElementById('refresh-button').disabled
+            && document.querySelector('[data-source-intake-form] h2')?.textContent === 'Import source',
+          'Synthetic failed-commit recovery context did not clear after a trusted refresh.');
+          document.getElementById('toast').classList.remove('visible');
+          return {
+            operationProjectId,
+            operationRevision,
+            pending,
+            selectedProjectWhilePending,
+            delayedStageCount: delayedRequests.filter((request) => request.kind === 'stage').length,
+            delayedCommitCount: delayedRequests.filter((request) => request.kind === 'commit').length,
+            pathsPinned: delayedRequests.every((request) => request.url.includes(\`/projects/\${encodedProjectId}/\`)),
+            csrfPinned: delayedStage?.csrfPresent === true && delayedStage.csrf === delayedCommit?.csrf,
+            idempotencyPinned: delayedStage?.idempotencyPresent === true && delayedCommit?.idempotencyPresent === true,
+            expectedRevision: delayedCommit?.body?.expectedRevision ?? null,
+            revisionLabelAfter: document.getElementById('revision-label')?.textContent ?? null,
+            mismatch: mismatchResult,
+            commitFailureRecovery,
+          };
+        })()`,
+        awaitPromise: true,
+        returnByValue: true,
+      }, sessionId);
+      sourceImportOperationIsolation = isolation.result?.value ?? null;
+      assert(sourceImportOperationIsolation?.pending?.allFormControlsDisabled === true
+        && sourceImportOperationIsolation.pending.liveStatusOutsideInert === true
+        && sourceImportOperationIsolation.pending.projectSelectDisabled === true
+        && sourceImportOperationIsolation.pending.refreshDisabled === true
+        && sourceImportOperationIsolation.pending.demoDisabled === true
+        && sourceImportOperationIsolation.pending.sourceActionsDisabled === true,
+      'Source import did not lock every context-changing or mutable form control while preserving its live status.');
+      assert(sourceImportOperationIsolation.selectedProjectWhilePending === sourceImportOperationIsolation.operationProjectId
+        && sourceImportOperationIsolation.delayedStageCount === 1
+        && sourceImportOperationIsolation.delayedCommitCount === 1
+        && sourceImportOperationIsolation.pathsPinned === true
+        && sourceImportOperationIsolation.csrfPinned === true
+        && sourceImportOperationIsolation.idempotencyPinned === true
+        && sourceImportOperationIsolation.expectedRevision === sourceImportOperationIsolation.operationRevision
+        && sourceImportOperationIsolation.revisionLabelAfter === `Revision ${sourceImportOperationIsolation.operationRevision}`,
+      'Delayed source import escaped its captured project, revision, CSRF, or idempotency context.');
+      assert(sourceImportOperationIsolation.mismatch?.stageCount === 1
+        && sourceImportOperationIsolation.mismatch.commitCount === 0
+        && sourceImportOperationIsolation.mismatch.rejected === true
+        && sourceImportOperationIsolation.mismatch.liveStatusOutsideInert === true,
+      'A cross-project intake response was not rejected before semantic commit.');
+      assert(sourceImportOperationIsolation.commitFailureRecovery?.stageCount === 1
+        && sourceImportOperationIsolation.commitFailureRecovery.commitCount === 1
+        && sourceImportOperationIsolation.commitFailureRecovery.replaced === true
+        && sourceImportOperationIsolation.commitFailureRecovery.oldConnected === false
+        && sourceImportOperationIsolation.commitFailureRecovery.oldFileCount === 0
+        && sourceImportOperationIsolation.commitFailureRecovery.heading === 'Resume staged source'
+        && sourceImportOperationIsolation.commitFailureRecovery.currentFileCount === 0
+        && sourceImportOperationIsolation.commitFailureRecovery.currentFileDisabled === true
+        && sourceImportOperationIsolation.commitFailureRecovery.status?.includes('remains staged; retry commits this exact artifact')
+        && sourceImportOperationIsolation.commitFailureRecovery.liveStatusOutsideInert === true,
+      'A post-stage commit failure left the old selectable file form visible or hid durable recovery status.');
+      const transition = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const original = document.querySelector('[data-source-intake-form] [data-source-file]');
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([new Uint8Array([137, 80, 78, 71])],
+            'new-source-that-must-be-cleared.png', { type: 'image/png' }));
+          original.files = transfer.files;
+          original.dispatchEvent(new Event('change', { bubbles: true }));
+          const originalConfirm = window.confirm;
+          let confirmCalls = 0;
+          window.confirm = () => { confirmCalls += 1; return true; };
+          document.querySelector('[data-resume-source-intake]')?.click();
+          window.confirm = originalConfirm;
+          const current = document.querySelector('[data-source-intake-form] [data-source-file]');
+          return {
+            replaced: current !== original,
+            confirmCalls,
+            oldConnected: original.isConnected,
+            oldFileCount: original.files.length,
+            currentFileCount: current?.files?.length ?? -1,
+            currentDisabled: current?.disabled ?? false,
+            heading: current?.closest('[data-source-intake-form]')?.querySelector('h2')?.textContent ?? null,
+            status: current?.closest('[data-source-intake-form]')?.querySelector('[data-source-status]')?.textContent ?? null,
+          };
+        })()`,
+        returnByValue: true,
+      }, sessionId);
+      sourceFileResumeTransition = transition.result?.value ?? null;
+      assert(sourceFileResumeTransition?.replaced === true
+        && sourceFileResumeTransition.confirmCalls === 1
+        && sourceFileResumeTransition.oldConnected === false
+        && sourceFileResumeTransition.oldFileCount === 0
+        && sourceFileResumeTransition.currentFileCount === 0
+        && sourceFileResumeTransition.currentDisabled === true
+        && sourceFileResumeTransition.heading === 'Resume staged source'
+        && sourceFileResumeTransition.status?.startsWith('Ready to commit staged intake '),
+      'Resume staged intake did not clear the selected new-source file and replace it with the staged form.');
+    }
   }
   await devtools.send('Runtime.evaluate', {
     expression: `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`,
@@ -886,6 +1189,9 @@ try {
     protocolVersion: browserVersion.protocolVersion,
     screenshotAfterReadinessInSameSession: true,
     runtimeNetworkErrors: 0,
+    sourceFileRefreshRetention,
+    sourceFileResumeTransition,
+    sourceImportOperationIsolation,
     layout,
     interactions: checkpoint2bInteractionEvidence,
   };
