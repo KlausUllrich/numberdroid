@@ -27,4 +27,9 @@ export { SqliteJobStore } from './sqlite/sqlite-job-store.js';
 export { SqliteProjectStore } from './sqlite/sqlite-project-store.js';
 export { SqliteSourceIntakeStore } from './sqlite/sqlite-source-intake-store.js';
 export { SqliteWorkspace } from './sqlite/sqlite-workspace.js';
-export { SQLITE_MIGRATIONS, loadMigrationDefinitions, runSqliteMigrations } from './sqlite/migration-runner.js';
+export {
+  SQLITE_MIGRATIONS,
+  loadMigrationDefinitions,
+  migrationChecksum,
+  runSqliteMigrations,
+} from './sqlite/migration-runner.js';

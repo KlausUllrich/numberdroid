@@ -4,7 +4,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StudioService } from '../packages/application/src/index.js';
-import { SqliteProjectStore, SqliteWorkspace, loadMigrationDefinitions } from '../packages/persistence/src/index.js';
+import {
+  SqliteProjectStore,
+  SqliteWorkspace,
+  loadMigrationDefinitions,
+  migrationChecksum,
+} from '../packages/persistence/src/index.js';
 import { OWNER_CONTEXT, PROJECT_ID, command, createHarness, createProject, issueGrant } from './test-helpers.js';
 import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
@@ -27,6 +32,14 @@ async function createActiveProject(store) {
   }), OWNER_CONTEXT);
   return studio;
 }
+
+test('migration checksums ignore CRLF transport changes but detect SQL changes', () => {
+  const lfSql = 'CREATE TABLE example (\n  id TEXT PRIMARY KEY\n) STRICT;\n';
+  const crlfSql = lfSql.replaceAll('\n', '\r\n');
+
+  assert.equal(migrationChecksum(crlfSql), migrationChecksum(lfSql));
+  assert.notEqual(migrationChecksum(lfSql.replace('PRIMARY KEY', 'NOT NULL')), migrationChecksum(lfSql));
+});
 
 test('SQLite adapter configures durability, restarts, and preserves the immutable ledger', async (context) => {
   const { filename } = await tempWorkspace(context);

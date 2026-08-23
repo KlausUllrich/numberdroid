@@ -22,14 +22,17 @@ export const SQLITE_MIGRATIONS = Object.freeze([
   { version: 11, name: 'agent_task_branches', file: '0011_agent_task_branches.sql', checksum: 'f6ed508f3098e6cdeb3dca2af0a9be7baca12c18fcd9d518f75f4f353242639d' },
 ]);
 
-function sha256(text) {
-  return createHash('sha256').update(text).digest('hex');
+export function migrationChecksum(sql) {
+  // Git may materialize text files with CRLF on Windows. Line endings are not a
+  // semantic migration change, so hash the repository's canonical LF form.
+  const canonicalSql = sql.replaceAll('\r\n', '\n');
+  return createHash('sha256').update(canonicalSql).digest('hex');
 }
 
 export async function loadMigrationDefinitions() {
   return Promise.all(SQLITE_MIGRATIONS.map(async (migration) => {
     const sql = await readFile(resolve(migrationDirectory, migration.file), 'utf8');
-    const actualChecksum = sha256(sql);
+    const actualChecksum = migrationChecksum(sql);
     invariant(
       actualChecksum === migration.checksum,
       'MIGRATION_CHECKSUM_MISMATCH',

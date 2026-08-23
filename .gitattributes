@@ -1,0 +1,2 @@
+# Fixed-checksum migration sources must have stable checkout bytes.
+tools/numberdroid-studio/packages/persistence/src/sqlite/migrations/*.sql text eol=lf
