@@ -91,4 +91,6 @@ test('Checkpoint 4 UI exposes task composition, truthful policy labels, timeline
   assert.match(styles, /\.task-list > h2 \{ min-width: 0; max-width: 100%; overflow-wrap: anywhere; \}/);
   assert.match(styles, /@media \(max-width: 1200px\)/);
   assert.match(styles, /\.task-form fieldset \{ grid-template-columns: repeat\(2/);
+  assert.match(styles, /\.task-list-item \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  assert.match(styles, /\.task-list-item \.status-pill \{ grid-column: 1; justify-self: start; \}/);
 });
