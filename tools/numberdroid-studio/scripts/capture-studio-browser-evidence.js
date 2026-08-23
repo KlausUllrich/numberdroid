@@ -912,8 +912,11 @@ try {
         layout: rect(document.querySelector('.task-layout')),
         list: rect(document.querySelector('.task-list')),
         listHeading: rect(document.querySelector('.task-list > h2')),
+        listHeadingClientWidth: document.querySelector('.task-list > h2')?.clientWidth ?? null,
+        listHeadingScrollWidth: document.querySelector('.task-list > h2')?.scrollWidth ?? null,
         badges: [...document.querySelectorAll('.task-list-item [data-task-state]')].map((badge) => ({
           rect: rect(badge),
+          item: rect(badge.closest('.task-list-item')),
           whiteSpace: getComputedStyle(badge).whiteSpace,
         })),
         taskCount: document.querySelectorAll('[data-task-control="select"]').length,
@@ -1321,12 +1324,21 @@ try {
       assert(layout.taskWorkspace.selectedText?.includes('source.write')
         && layout.taskWorkspace.selectedText.includes('commands'),
       'Checkpoint 4 selected task lost its visible capability or budget projection.');
-      assert(layout.taskWorkspace.list && layout.taskWorkspace.listHeading
+      const taskListContained = layout.taskWorkspace.list && layout.taskWorkspace.listHeading
         && layout.taskWorkspace.listHeading.right <= layout.taskWorkspace.list.right
+        && layout.taskWorkspace.listHeadingScrollWidth <= layout.taskWorkspace.listHeadingClientWidth
         && layout.taskWorkspace.badges.length === 2
-        && layout.taskWorkspace.badges.every(({ rect: badge, whiteSpace }) => badge
-          && badge.height <= 26 && whiteSpace === 'nowrap'),
-      'Checkpoint 4 task list heading or state pills overflow at the captured width.');
+        && layout.taskWorkspace.badges.every(({ rect: badge, item, whiteSpace }) => badge && item
+          && badge.height <= 26 && whiteSpace === 'nowrap'
+          && badge.left >= item.left && badge.right <= item.right);
+      assert(taskListContained,
+        `Checkpoint 4 task list heading or state pills overflow at the captured width: ${JSON.stringify({
+          list: layout.taskWorkspace.list,
+          heading: layout.taskWorkspace.listHeading,
+          headingClientWidth: layout.taskWorkspace.listHeadingClientWidth,
+          headingScrollWidth: layout.taskWorkspace.listHeadingScrollWidth,
+          badges: layout.taskWorkspace.badges,
+        })}`);
       if (checkpoint4Focus === 'conflict') {
         assert(checkpoint4TaskFocus?.selectedState === 'IN_REVIEW'
           && checkpoint4TaskFocus.conflictCount === 1
