@@ -91,8 +91,8 @@ test('Checkpoint 4 UI exposes task composition, truthful policy labels, timeline
   assert.match(client, /disabledByTaskPending/);
   assert.doesNotMatch(client, /control\.disabled = state\.taskMutationPending/);
   assert.match(styles, /\.task-layout \{ display: grid/);
-  assert.match(styles, /\.task-list-item \.status-pill \{ grid-column: 1; align-self: start; justify-self: start; \}/);
-  assert.match(styles, /\.task-detail \.status-pill \{ flex: 0 0 auto; \}/);
+  assert.match(styles, /\.task-list-item \.status-pill \{[^}]*max-width: 100%;[^}]*white-space: normal; \}/);
+  assert.match(styles, /\.task-detail \.status-pill \{ flex: 0 0 auto; white-space: nowrap; \}/);
   assert.match(styles, /\.task-list \{ display: grid; grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(styles, /\.task-list > h2 \{ min-width: 0; max-width: 100%; overflow-wrap: anywhere; \}/);
   assert.match(styles, /@media \(max-width: 1200px\)/);
