@@ -1503,7 +1503,7 @@ export async function startStudioHttpServer({
     jobStore,
   });
   const hostBindingStore = storeMode === 'sqlite'
-    ? new SqliteHostBindingStore({ workspace: store.workspace })
+    ? new SqliteHostBindingStore({ workspace: store.workspace, clock })
     : null;
   const pairingBroker = storeMode === 'sqlite' ? new McpPairingBroker() : null;
   const requestedPairingEndpoint = pairingBroker ? defaultMcpPairingEndpoint(dataDirectory) : null;

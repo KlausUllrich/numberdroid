@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SqliteHostBindingStore, SqliteProjectStore } from '../packages/persistence/src/index.js';
-import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
+import { createStudioHttpServer, startStudioHttpServer } from '../apps/studio-server/src/server.js';
 import { createHumanAgentAccessController } from '../apps/studio-server/src/human-agent-access.js';
 import {
   defaultMcpPairingEndpoint, McpPairingBroker, startMcpPairingSocket,
@@ -71,6 +71,33 @@ function post(base, path, token, body) {
     body: JSON.stringify(body),
   });
 }
+
+test('started Studio shares its injected clock with HostBinding expiry checks', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'numberdroid-host-binding-clock-'));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
+  const now = '2026-08-22T11:00:00.000Z';
+  const running = await startStudioHttpServer({
+    dataDirectory: directory,
+    port: 0,
+    clock: () => now,
+  });
+  afterTestCleanup(context, () => new Promise((resolve) => running.server.close(resolve)));
+  await createProject(running.studioService);
+  await issueGrant(running.studioService);
+
+  const { binding } = running.hostBindingStore.issue({
+    projectId: PROJECT_ID,
+    grantId: 'grant.atlas',
+    agentId: AGENT.id,
+    taskId: 'task.atlas',
+    branchId: 'branch.task.atlas',
+    issuedBy: OWNER.id,
+    expiresAt: '2026-08-22T11:00:01.000Z',
+  });
+
+  assert.equal(binding.issuedAt, now);
+  assert.equal(binding.status, 'ACTIVE');
+});
 
 test('HostBindings persist only a digest and resolve exact grant authority', async (context) => {
   const { store, bindingStore } = await fixture(context);
