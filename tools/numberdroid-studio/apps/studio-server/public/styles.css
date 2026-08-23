@@ -23,7 +23,8 @@ input, textarea { background: #0d1916; cursor: text; }
 textarea { resize: vertical; }
 button:hover, button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { border-color: var(--mint); outline: 2px solid #6ee7ba44; outline-offset: 2px; }
 button.secondary { background: #182a25; }
-button:disabled { opacity: .55; cursor: wait; }
+button:disabled { opacity: .55; cursor: not-allowed; }
+button[data-disabled-by-task-pending="true"] { cursor: wait; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
 .app-shell { display: grid; grid-template: 76px 1fr / 220px minmax(560px, 1fr) 340px; min-height: 100vh; }
@@ -351,6 +352,7 @@ h2, h3 { margin: 0; }
 
 .surface-card { padding: 18px; border: 1px solid var(--line); border-radius: 11px; background: linear-gradient(145deg, #14221e, #0f1a17); }
 .task-composer { margin-bottom: 16px; }
+.task-help { max-width: 760px; margin: -6px 0 16px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .task-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .task-form > label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 700; }
 .task-form input, .task-form textarea { width: 100%; min-width: 0; color: #e8f5ef; font-size: 12px; font-weight: 400; }
@@ -362,14 +364,18 @@ h2, h3 { margin: 0; }
 .task-layout { display: grid; grid-template-columns: minmax(190px, .65fr) minmax(320px, 1.35fr); gap: 14px; }
 .task-list { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 8px; }
 .task-list > h2 { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-.task-list-item { display: grid; grid-template-columns: 1fr auto; gap: 5px 8px; width: 100%; text-align: left; }
+.task-list-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px 8px; width: 100%; text-align: left; }
 .task-list-item small { grid-column: 1 / -1; overflow-wrap: anywhere; color: var(--muted); font: 9px ui-monospace, monospace; }
 .task-list-item[data-selected="true"] { border-color: var(--mint); background: #193128; }
 .task-list-item .status-pill, .task-detail .status-pill { padding: 4px 7px; font-size: 8px; white-space: nowrap; }
-.task-list-item .status-pill { align-self: start; justify-self: end; }
+.task-list-item .status-pill { grid-column: 1; align-self: start; justify-self: start; }
 .task-detail .status-pill { flex: 0 0 auto; }
 .task-detail .panel-heading { align-items: start; }
 .task-detail .panel-heading p { max-width: 640px; margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.task-detail .panel-heading .eyebrow { margin: 0 0 5px; font-size: 9px; }
+.task-technical-details { margin: 10px 0; padding: 9px 11px; border: 1px solid #29483f; border-radius: 7px; background: #0d1916; }
+.task-technical-details summary, .task-review-items summary { color: #b7d1c8; cursor: pointer; font-size: 10px; }
+.task-technical-details > p { margin: 8px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .task-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; }
 .task-timeline, .task-review-items { display: grid; gap: 7px; margin: 10px 0 0; padding: 0; list-style: none; }
 .task-timeline li, .task-review-items li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px; border: 1px solid #29483f; border-radius: 7px; background: #0d1916; }
@@ -378,10 +384,14 @@ h2, h3 { margin: 0; }
 .task-review { margin-top: 14px; }
 .task-review > p { color: var(--muted); font-size: 11px; }
 .task-review-items li > div { display: grid; gap: 4px; min-width: 0; }
+.task-review-items details { min-width: 0; }
 .task-review-items code { overflow-wrap: anywhere; color: var(--cyan); font-size: 10px; }
 .task-review-items select { min-width: 175px; background: #111f1b; }
 .task-review > button { margin: 12px 8px 0 0; }
+.task-action-note { margin: 10px 0 0; color: var(--muted); font-size: 10px; }
 .task-conflicts { padding: 10px 10px 10px 28px; border: 1px solid #805548; border-radius: 7px; background: #2b1815; color: #ffb294; font-size: 11px; }
+.task-conflicts li { display: grid; gap: 5px; }
+.task-conflicts small { color: #dca497; font: 9px ui-monospace, monospace; overflow-wrap: anywhere; }
 
 .activity-panel { min-width: 0; padding: 23px 18px; border-left: 1px solid var(--line); background: #0d1815; }
 .panel-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }

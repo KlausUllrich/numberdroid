@@ -63,6 +63,20 @@ Published artifact `9490652252` contains the exact revision-5 fixture, server lo
 7. Merge accepted changes, confirm the task grant is revoked and the main revision batch is atomic, then invoke the compensating revert and inspect both original and revert history.
 8. Confirm a live task prevents portable bundle export and a terminal task does not cross the sanitized bundle boundary.
 
+## Live acceptance finding and repair — 2026-08-24
+
+The Windows walkthrough exposed one real fail-closed UI defect and a broader language problem:
+
+- the conflict task correctly contained one `SEMANTIC_MERGE_CONFLICT`, but the shared pending-control refresh reset the review button's semantic `disabled` state, so clicking **Merge accepted changes** still opened its confirmation;
+- the application service would still have rejected the request, but the human UI must prevent an impossible action before confirmation;
+- `IN_REVIEW`, task branches, grants, semantic comparison, atomic replay, and similar primary labels did not explain who should act next or what would happen.
+
+The repair preserves a control's existing semantic disabled state when no task request is pending, marks only controls temporarily disabled by an in-flight task request, and independently checks merge readiness in the click handler before any confirmation. Real-browser Checkpoint 4 evidence now requires the conflicting task's completion control to remain disabled and verifies that a programmatic click opens zero confirmation dialogs.
+
+The same repair begins the designer-facing language correction: the task state is shown as **Waiting for your review**, the project owner is named as the reviewer, the task list no longer presents its internal work branches as separate user objects, and completion explains that accepted changes enter the project, the task ends, and its assigned agent can no longer change it. Branch IDs, capability IDs, comparison revisions, and conflict codes remain available as secondary technical details.
+
+This repair is a new candidate, not retroactive acceptance. The combined user gate remains open until the repaired conflict behavior is rebuilt and manually checked.
+
 ## Gate disposition
 
 Checkpoint 4 is an implemented candidate, not an accepted checkpoint. The next decision is the deferred combined Checkpoint 2C + 3 + 4 user walkthrough, including the explicit branch-local-job boundary above. PR #135 stays draft, open, unmerged, and unreleased.

@@ -167,6 +167,19 @@ User verification scenario: grant an agent the committed-atlas-to-DRAFT-room wor
 
 Exit decision: approve the default delegation model and decide which actions, if any, can be auto-accepted.
 
+### Cross-workspace UX follow-up identified during the combined gate
+
+The 2026-08-24 walkthrough confirmed the technical foundations while showing that the product still presents too much implementation structure at once. The next UX-focused checkpoint must apply `UI-011` and `UI-012` across the product rather than treating the Checkpoint 4 wording repair as a complete redesign:
+
+- make the task list the normal entry view, with **Create task** as its primary action and creation as a separate step or dialog;
+- make task selection, selected-task detail, progress, review, completion, and undo visibly one workflow rather than several unrelated cards;
+- show only controls relevant to the current state and explain who acts next;
+- replace primary technical language with professional designer-facing outcomes, while retaining exact IDs, provenance, revisions, rule codes, and authority details under optional technical disclosure;
+- add a human-usable preview build for props before asking a designer to place or approve them;
+- present room construction as a guided flow and explicitly design irregular-room support, distinguishing cells outside the room (`VOID`) from cells that remain part of the room but cannot be crossed (`BLOCKED`).
+
+Normal healthy invariants should not read like warnings or proof obligations. The UI should surface a warning when provenance, integrity, validation, or authority is incomplete; otherwise it should state the useful result in terms a professional designer can act on.
+
 ## Checkpoint 5 — Deterministic Numberdroid export candidate
 
 **Outcome:** a finalized Studio room/hallway becomes a verified, reviewable Numberdroid candidate without conflating authoring and publishing.

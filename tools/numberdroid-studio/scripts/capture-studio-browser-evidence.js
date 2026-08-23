@@ -399,6 +399,14 @@ try {
         await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
         const detail = document.querySelector('.task-detail');
         const review = document.querySelector('.task-review');
+        const merge = document.querySelector('[data-task-control="merge"]');
+        let mergeConfirmCalls = 0;
+        if (focus === 'conflict' && merge) {
+          const originalConfirm = window.confirm;
+          window.confirm = () => { mergeConfirmCalls += 1; return false; };
+          merge.click();
+          window.confirm = originalConfirm;
+        }
         (focus === 'merged' ? detail : review)?.scrollIntoView({ block: 'center', inline: 'nearest' });
         await new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
         return {
@@ -409,7 +417,9 @@ try {
           conflictCount: document.querySelectorAll('.task-conflicts li').length,
           reviewItemCount: document.querySelectorAll('.task-review-items li').length,
           timelineCount: document.querySelectorAll('.task-timeline li').length,
-          hasMerge: Boolean(document.querySelector('[data-task-control="merge"]')),
+          hasMerge: Boolean(merge),
+          mergeDisabled: merge?.disabled ?? null,
+          mergeConfirmCalls,
           hasRevert: Boolean(document.querySelector('[data-task-control="revert"]')),
           detailVisible: Boolean(detail && detail.getBoundingClientRect().bottom > 0 && detail.getBoundingClientRect().top < innerHeight),
           reviewVisible: Boolean(review && review.getBoundingClientRect().bottom > 0 && review.getBoundingClientRect().top < innerHeight),
@@ -1344,11 +1354,15 @@ try {
           && checkpoint4TaskFocus.conflictCount === 1
           && checkpoint4TaskFocus.reviewItemCount === 1
           && checkpoint4TaskFocus.timelineCount === 3
+          && checkpoint4TaskFocus.mergeDisabled === true
+          && checkpoint4TaskFocus.mergeConfirmCalls === 0
           && checkpoint4TaskFocus.reviewVisible === true
           && layout.taskWorkspace.conflictText?.includes('SEMANTIC_MERGE_CONFLICT: source:source.checkpoint-4.shared')
+          && layout.taskWorkspace.reviewText?.includes('Waiting for your review')
+          && layout.taskWorkspace.reviewText?.includes('Resolve the conflict with newer project work')
           && layout.taskWorkspace.controlNames.includes('decide')
           && layout.taskWorkspace.controlNames.includes('merge'),
-        'Checkpoint 4 concurrent branch conflict, semantic review item, or controls are not visibly inspectable.');
+        'Checkpoint 4 conflict review lost its explanation or fail-closed merge control.');
       }
       if (checkpoint4Focus === 'merged') {
         assert(checkpoint4TaskFocus?.selectedState === 'MERGED'

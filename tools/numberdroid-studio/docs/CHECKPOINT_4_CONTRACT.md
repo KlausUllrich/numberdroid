@@ -16,6 +16,7 @@ Checkpoint 4 lets a human owner delegate a bounded authoring task to an agent, f
 - Revert as a new compensating semantic operation. History is never deleted or rewritten.
 - MCP and human UI access to task submission, branch reads, progress, controls, comparison, review, merge, and revert.
 - Agent access to the already implemented V1 authoring path only while a matching task branch and active grant exist. Human-only lifecycle and release gates remain human-only.
+- Designer-facing task states and confirmations that name who acts next and what the action changes. Internal branch, grant, command, and revision coordinates remain available as secondary technical details rather than defining the primary workflow language.
 
 ## Excluded
 
@@ -43,6 +44,10 @@ Checkpoint 4 lets a human owner delegate a bounded authoring task to an agent, f
 4. Merge replays accepted branch commands in order against the current main head in a disposable simulation before any authoritative write.
 5. The accepted replay batch is committed atomically. The merge record identifies both the main parent and branch parent lineage.
 6. Revert creates new compensating revisions and a durable revert record; it never deletes task, review, merge, event, or project history.
+
+## Human workflow language
+
+The implementation may retain exact technical state names internally, but the normal UI must translate them into the designer's workflow. In particular, `IN_REVIEW` means **Waiting for your review** and identifies the project owner as the reviewer. A successful merge completes the task and revokes its assigned grant, so the confirmation must explain that the accepted changes enter the project and the assigned agent can no longer change that task. Technical comparison coordinates and conflict codes remain inspectable under **Technical details**.
 
 ## Checkpoint scenario
 

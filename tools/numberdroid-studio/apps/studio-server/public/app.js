@@ -175,7 +175,13 @@ function updateMutationControls() {
   elements['agent-access-state'].disabled = pending || !state.project || !state.agentAccess;
   elements['agent-access-panel'].inert = pending;
   for (const control of elements['workspace-content'].querySelectorAll('[data-task-control], [data-task-form] input, [data-task-form] textarea, [data-task-form] button')) {
-    control.disabled = state.taskMutationPending;
+    if (state.taskMutationPending) {
+      if (!control.disabled) control.dataset.disabledByTaskPending = 'true';
+      control.disabled = true;
+    } else if (control.dataset.disabledByTaskPending === 'true') {
+      control.disabled = false;
+      delete control.dataset.disabledByTaskPending;
+    }
   }
 }
 
@@ -733,7 +739,7 @@ function sourceIntakePanel() {
   const heading = document.createElement('div');
   const title = document.createElement('h2'); title.textContent = stagedIntake ? 'Resume staged source' : 'Import source';
   const help = document.createElement('p');
-  help.textContent = 'PNG or WebP is ingested into project-scoped CAS first, then committed through one semantic intake command. No provider is called.';
+  help.textContent = 'The original PNG or WebP is stored safely in this project before it is added as a source. Importing it does not contact an image provider or approve the image.';
   heading.append(title, help);
 
   const file = document.createElement('input');
@@ -1149,10 +1155,10 @@ function renderCutter(source) {
   section.inert = state.sourceMutationPending;
   const heading = document.createElement('div'); heading.className = 'cutter-heading';
   const copy = document.createElement('div');
-  const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Checkpoint 2B · source-resolution crop';
+  const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Cut image into reusable slices';
   const title = document.createElement('h2'); title.textContent = cutter.name;
   const help = document.createElement('p');
-  help.textContent = 'Define exact half-open integer rectangles on the approved original. Preview produces deterministic PNG crops; it does not resize, clean seams, infer gameplay meaning, or create Asset Library entries.';
+  help.textContent = 'Mark the exact rectangular areas you want to use. Preview creates matching PNG slices without resizing them, changing their edges, deciding their gameplay purpose, or adding them to the Asset Library.';
   copy.append(eyebrow, title, help);
   const close = document.createElement('button'); close.type = 'button'; close.className = 'secondary'; close.textContent = 'Close cutter'; close.dataset.closeCutter = '';
   close.disabled = state.cutterPending;
@@ -1322,7 +1328,7 @@ function renderCutter(source) {
       detail.textContent = `${entry.progress.current}/${entry.progress.total}${entry.safePoint ? ` · ${entry.safePoint}` : ''} · ${entry.occurredAt}`;
       item.append(label, detail); history.append(item);
     }
-    section.append(sectionHeading('Durable job events', 'Redacted transition history for cancellation, retry, completion, apply, and discard.'), history);
+    section.append(sectionHeading('Processing history', 'Shows when this preview started, finished, was retried, cancelled, saved, or discarded.'), history);
   }
 
   const previewOutputs = ['SUCCEEDED', 'APPLIED'].includes(state.cutterJob?.state)
@@ -1331,12 +1337,12 @@ function renderCutter(source) {
   if (previewOutputs.length) {
     const previews = document.createElement('div'); previews.className = 'slice-preview-grid';
     previewOutputs.forEach((output, index) => previews.append(cutterPreviewCard(output, index, state.project.projectId)));
-    section.append(sectionHeading('Job previews', 'Temporary outputs remain job-owned until the explicit commit below.'), previews);
+    section.append(sectionHeading('Preview slices', 'These slices are temporary until you save them below.'), previews);
   }
   if (atlas?.sliceHeads.length) {
     const committedGrid = document.createElement('div'); committedGrid.className = 'slice-preview-grid committed';
     atlas.sliceHeads.forEach((slice, index) => committedGrid.append(cutterPreviewCard({ ...slice, rectangleId: `${slice.rectangleId} · ${slice.sliceId} v${slice.version}` }, index, state.project.projectId)));
-    section.append(sectionHeading('Committed slice heads', 'Stable slice identities. These are still crops, not semantic surfaces, props, or items.'), committedGrid);
+    section.append(sectionHeading('Saved image slices', 'Each slice keeps a stable identity. It is still only an image crop until you define how it can be used as an asset.'), committedGrid);
   }
   return section;
 }
@@ -1349,7 +1355,7 @@ function renderSources(items) {
   const staged = stagedSourceIntakes();
   if (staged) fragment.append(staged);
   if (!items.length) {
-    fragment.append(emptyState('No sources registered', 'Import a PNG or WebP with explicit origin and provenance.'));
+    fragment.append(emptyState('No sources registered', 'Import a PNG or WebP together with the available information about where it came from and how it was created.'));
     return fragment;
   }
   const grid = document.createElement('div'); grid.className = 'card-grid source-grid';
@@ -1417,18 +1423,18 @@ function renderOverview(snapshot) {
     const strong = document.createElement('strong'); strong.textContent = value;
     metric.append(small, strong); metrics.append(metric);
   }
-  fragment.append(metrics, sectionHeading('Production board', 'The first end-to-end slice shares one transactional core with agent adapters.'));
+  fragment.append(metrics, sectionHeading('Production board', 'See what is ready, what needs attention, and which people or agents changed the project.'));
   const grid = document.createElement('div');
   grid.className = 'card-grid';
   grid.append(
-    card('Source provenance', 'Ready', 'Prompts, seeds, models, and artifact URIs are first-class data.'),
-    card('Atlas & asset semantics', 'Foundation', 'Source crops become stable semantic asset IDs without pixel-inferred gameplay.'),
+    card('How sources were created', 'Ready', 'Prompts, seeds, models, and source files are kept so an image can be understood, recreated, or revised later.'),
+    card('Image slices and reusable assets', 'Foundation', 'A saved image crop becomes an asset only after its purpose and placement rules have been defined.'),
     card(
-      'Agent task authority',
+      'Agent permissions',
       activeGrants.length ? 'Granted' : 'Human only',
       activeGrants.length
-        ? `${activeGrants.length} task-scoped grant(s) are visible and revocable.`
-        : 'No agent currently has mutation authority.',
+        ? `${activeGrants.length} agent task permission set(s) are active and can be withdrawn.`
+        : 'No agent currently has permission to change this project.',
       visibleGrant ? [
         ['Agent', visibleGrant.agentId],
         ['Task', visibleGrant.taskId],
@@ -1446,13 +1452,13 @@ function renderOverview(snapshot) {
     card('Atlas preview jobs', 'Checkpoint 2B', 'Approved PNG slicing runs as a durable job with progress, cancellation, bounded retry, explicit commit, and explicit discard.', [
       ['Implemented', 'atlas preview only'], ['Not included', 'generation, validation, export'],
     ]),
-    card('Room authoring', snapshot.roomLibrary ? 'Checkpoint 3' : 'Ready', 'Single rooms and hallways preserve intent, edge connectors, exact asset pins, findings, and immutable lifecycle versions.'),
+    card('Room authoring', snapshot.roomLibrary ? 'Checkpoint 3' : 'Ready', 'Build rooms and hallways from exact asset versions, define entrances and exits, and keep every saved version available.'),
     card('MCP transport', 'Official 2026-07-28', 'Local stdio uses private host pairing and the same semantic command core as this visual shell.'),
   );
   if (snapshot.assetLibrary) grid.append(card(
     'V2 asset library',
     v2Assets ? 'Slice-bound' : 'Ready for proposals',
-    'Immutable asset versions preserve typed semantics, findings, and exact committed-slice lineage.',
+    'Each asset version keeps its usage rules, validation results, and the exact saved image slice it uses.',
     [['V2 heads', v2Assets], ['Pending owner reviews', pendingProposals]],
   ));
   fragment.append(grid);
@@ -1815,7 +1821,7 @@ function renderAssetLibrary(snapshot) {
     filterSelect('lifecycle', 'Lifecycle', [['all', 'All lifecycle states'], ...['DRAFT', 'METADATA_COMPLETE', 'VALIDATED', 'FINAL'].map((value) => [value, value.replace('_', ' ')])], state.assetUi.lifecycle),
     filterSelect('findingSeverity', 'Findings', [['all', 'All findings'], ['clear', 'Clear'], ['ERROR', 'Errors'], ['WARNING', 'Warnings'], ['INFO', 'Info']], state.assetUi.findingSeverity),
   );
-  fragment.append(sectionHeading('V2 asset inventory', 'Filter immutable slice-bound heads. Cards show typed semantics, findings, and exact provenance.'), filters);
+  fragment.append(sectionHeading('Asset library', 'Filter reusable assets. Each card shows what the asset is for, whether it is ready, and which exact image slice it uses.'), filters);
 
   const searchText = state.assetUi.search.trim().toLocaleLowerCase('en-US');
   const filtered = library.assets.filter((asset) => (
@@ -2224,9 +2230,69 @@ function renderRooms(snapshot) {
   return fragment;
 }
 
+const TASK_STATE_LABELS = Object.freeze({
+  ACTIVE: 'Agent can work',
+  PAUSED: 'Paused',
+  IN_REVIEW: 'Waiting for your review',
+  CHANGES_REQUESTED: 'Changes requested',
+  MERGED: 'Completed',
+  CANCELLED: 'Cancelled',
+  REJECTED: 'Rejected',
+  EXPIRED: 'Expired',
+});
+
+const TASK_ACTION_LABELS = Object.freeze({
+  pause: 'Pause agent work',
+  resume: 'Let agent continue',
+  cancel: 'Cancel task',
+  'submit-review': 'Start review',
+});
+
+const TASK_EVENT_LABELS = Object.freeze({
+  TASK_CREATED: 'Task created',
+  BRANCH_COMMAND_ACCEPTED: 'Agent change saved',
+  TASK_PAUSE: 'Agent work paused',
+  TASK_RESUME: 'Agent work resumed',
+  REVIEW_SUBMITTED: 'Result submitted for review',
+  REVIEW_DECIDED: 'Review decisions saved',
+  TASK_MERGE: 'Accepted changes added to project',
+  TASK_REVERT: 'Task changes undone',
+});
+
+const TASK_CAPABILITY_LABELS = Object.freeze({
+  'project.read': 'Read the project',
+  'source.write': 'Add or update sources',
+  'room.archetype.create': 'Create a room template',
+  'room.variant.create': 'Create an editable room',
+  'room.variant.intent.set': 'Edit room intent',
+  'room.variant.resize': 'Resize a room',
+  'room.variant.connectors.set': 'Edit entrances and exits',
+  'room.variant.placements.add': 'Add room contents',
+  'room.variant.placements.move': 'Move room contents',
+  'room.variant.placements.remove': 'Remove room contents',
+  'room.variant.validate': 'Check a room, but never finalize it',
+});
+
+function taskStateLabel(stateValue) {
+  return TASK_STATE_LABELS[stateValue] ?? stateValue.replaceAll('_', ' ').toLowerCase();
+}
+
+function taskMergeBlockedReason(review) {
+  if (!review || review.state !== 'OPEN') return 'This task is not ready to be completed.';
+  if (review.conflicts?.length) return 'Resolve the conflict with newer project work before completing this task.';
+  if (review.items.some((item) => ['PENDING', 'CHANGES_REQUESTED'].includes(item.disposition))) {
+    return 'Review every proposed change before completing this task.';
+  }
+  if (!review.items.some((item) => ['USER_ACCEPTED', 'AUTO_ACCEPTED_BY_POLICY'].includes(item.disposition))) {
+    return 'Accept at least one proposed change before completing this task.';
+  }
+  return null;
+}
+
 function taskStateBadge(task) {
   const badge = document.createElement('span'); badge.className = 'status-pill';
-  badge.dataset.taskState = task.state; badge.textContent = task.state.replaceAll('_', ' ').toLowerCase();
+  badge.dataset.taskState = task.state; badge.textContent = taskStateLabel(task.state);
+  badge.setAttribute('aria-label', `Task status: ${badge.textContent}`);
   return badge;
 }
 
@@ -2234,58 +2300,78 @@ function renderTaskComposer() {
   const section = document.createElement('section'); section.className = 'task-composer surface-card';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
   const title = document.createElement('div');
-  const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Human-only authority';
-  const name = document.createElement('h2'); name.textContent = 'Compose an isolated task';
+  const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'You stay in control';
+  const name = document.createElement('h2'); name.textContent = 'Create a task for an agent';
   title.append(eyebrow, name); heading.append(title); section.append(heading);
+  const help = document.createElement('p'); help.className = 'task-help';
+  help.textContent = 'Choose what the agent may change and for how long. Its work stays separate from the project until you review and accept it.';
+  section.append(help);
   const form = document.createElement('form'); form.dataset.taskForm = 'create'; form.className = 'task-form';
   form.innerHTML = `
     <label>Title<input name="title" required maxlength="160" value="Build a DRAFT room"></label>
     <label>Agent ID<input name="agentId" required maxlength="128" value="studio.agent"></label>
-    <label class="task-objective">Objective<textarea name="objective" required maxlength="4000">Create or refine a bounded DRAFT room from already accepted project sources and assets. Do not finalize, export, or publish.</textarea></label>
-    <fieldset><legend>Capabilities</legend>
+    <label class="task-objective">What should the agent do?<textarea name="objective" required maxlength="4000">Create or refine an editable room from already accepted project sources and assets. Do not finalize, export, or publish.</textarea></label>
+    <fieldset><legend>What may the agent do?</legend>
       <label><input type="checkbox" name="capability" value="project.read" checked disabled> Read project</label>
-      <label><input type="checkbox" name="capability" value="room.archetype.create" checked> Create archetype</label>
-      <label><input type="checkbox" name="capability" value="room.variant.create" checked> Create DRAFT</label>
-      <label><input type="checkbox" name="capability" value="room.variant.intent.set" checked> Edit intent</label>
+      <label><input type="checkbox" name="capability" value="room.archetype.create" checked> Create room template</label>
+      <label><input type="checkbox" name="capability" value="room.variant.create" checked> Create editable room</label>
+      <label><input type="checkbox" name="capability" value="room.variant.intent.set" checked> Edit room intent</label>
       <label><input type="checkbox" name="capability" value="room.variant.resize" checked> Resize</label>
-      <label><input type="checkbox" name="capability" value="room.variant.connectors.set" checked> Edit connectors</label>
-      <label><input type="checkbox" name="capability" value="room.variant.placements.add" checked> Add placements</label>
-      <label><input type="checkbox" name="capability" value="room.variant.placements.move" checked> Move placements</label>
-      <label><input type="checkbox" name="capability" value="room.variant.placements.remove" checked> Remove placements</label>
-      <label><input type="checkbox" name="capability" value="room.variant.validate"> Validate (never finalize)</label>
+      <label><input type="checkbox" name="capability" value="room.variant.connectors.set" checked> Edit entrances and exits</label>
+      <label><input type="checkbox" name="capability" value="room.variant.placements.add" checked> Add room contents</label>
+      <label><input type="checkbox" name="capability" value="room.variant.placements.move" checked> Move room contents</label>
+      <label><input type="checkbox" name="capability" value="room.variant.placements.remove" checked> Remove room contents</label>
+      <label><input type="checkbox" name="capability" value="room.variant.validate"> Check room (never finalize)</label>
     </fieldset>
-    <label>Command budget<input name="maxCommands" type="number" min="1" max="10000" value="40" required></label>
-    <label>Expiry (hours)<input name="expiryHours" type="number" min="1" max="168" value="4" required></label>
-    <label class="task-auto"><input name="autoAccept" type="checkbox"> Auto-accept low-risk intent edits (max 2)</label>
-    <button type="submit">Create task branch</button>`;
+    <label>Maximum changes<input name="maxCommands" type="number" min="1" max="10000" value="40" required></label>
+    <label>Agent access duration (hours)<input name="expiryHours" type="number" min="1" max="168" value="4" required></label>
+    <label class="task-auto"><input name="autoAccept" type="checkbox"> Automatically accept up to 2 low-risk intent edits</label>
+    <button type="submit">Create task</button>`;
   section.append(form); return section;
 }
 
-function renderTaskReview(task) {
-  const review = task.review;
+function renderTaskReview(entry) {
+  const review = entry.review;
   const section = document.createElement('section'); section.className = 'task-review surface-card';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
-  const title = document.createElement('h3'); title.textContent = review ? `Review ${review.reviewId}` : 'Branch review';
+  const title = document.createElement('h3'); title.textContent = 'Review task result';
   heading.append(title); section.append(heading);
   if (!review) {
-    const copy = document.createElement('p'); copy.textContent = 'Submit the branch when its task result is ready for semantic comparison.';
+    const copy = document.createElement('p'); copy.textContent = 'The task is still open. When the work is ready, either the agent or you can send the result to the project owner for review.';
     section.append(copy); return section;
   }
-  const summary = document.createElement('p');
-  summary.textContent = `Base r${review.baseRevision} · branch r${review.branchHeadRevision} · compared main r${review.comparedMainRevision}`;
-  section.append(summary);
+  const ownerId = state.project?.snapshot.project.ownerId ?? 'project owner';
+  const guidance = document.createElement('p'); guidance.className = 'task-review-guidance';
+  guidance.textContent = entry.task.state === 'MERGED'
+    ? 'Completed. The accepted changes are now part of the project, and the assigned agent can no longer change this task.'
+    : `Waiting for your review. Only the project owner (${ownerId}) can accept or reject these changes.`;
+  section.append(guidance);
+  const comparison = document.createElement('details'); comparison.className = 'task-technical-details';
+  const comparisonSummary = document.createElement('summary'); comparisonSummary.textContent = 'Technical comparison details';
+  const comparisonCopy = document.createElement('p');
+  comparisonCopy.textContent = `Started from project revision ${review.baseRevision} · agent result revision ${review.branchHeadRevision} · compared with project revision ${review.comparedMainRevision}`;
+  comparison.append(comparisonSummary, comparisonCopy); section.append(comparison);
   const conflicts = document.createElement('ul'); conflicts.className = 'task-conflicts';
   for (const conflict of review.conflicts ?? []) {
-    const item = document.createElement('li'); item.textContent = `${conflict.code}: ${conflict.entityType}:${conflict.entityId}`; conflicts.append(item);
+    const item = document.createElement('li');
+    const message = document.createElement('strong');
+    message.textContent = `The ${conflict.entityType} “${conflict.entityId}” was changed both in this task and in the project after the task started.`;
+    const technical = document.createElement('small'); technical.textContent = `Technical details: ${conflict.code}: ${conflict.entityType}:${conflict.entityId}`;
+    item.append(message, technical); conflicts.append(item);
   }
-  if (conflicts.children.length) section.append(conflicts);
+  if (conflicts.children.length) {
+    const conflictHeading = document.createElement('h4'); conflictHeading.textContent = 'Conflict to resolve before completion';
+    section.append(conflictHeading, conflicts);
+  }
   const list = document.createElement('ol'); list.className = 'task-review-items';
   for (const item of review.items) {
     const row = document.createElement('li'); row.dataset.changeId = item.changeId;
     const copy = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = item.summary;
+    const technical = document.createElement('details');
+    const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
     const code = document.createElement('code'); code.textContent = item.commandType;
-    copy.append(strong, code);
+    technical.append(technicalSummary, code); copy.append(strong, technical);
     const select = document.createElement('select'); select.dataset.taskReviewDisposition = item.changeId;
     for (const [value, label] of [
       ['PENDING', 'Pending'], ['USER_ACCEPTED', 'Accept'], ['USER_REJECTED', 'Reject'], ['CHANGES_REQUESTED', 'Request changes'],
@@ -2303,14 +2389,18 @@ function renderTaskReview(task) {
   }
   section.append(list);
   if (review.state === 'OPEN') {
-    const decide = document.createElement('button'); decide.type = 'button'; decide.dataset.taskControl = 'decide'; decide.textContent = 'Record review decisions';
+    const decide = document.createElement('button'); decide.type = 'button'; decide.dataset.taskControl = 'decide'; decide.textContent = 'Save review decisions';
     section.append(decide);
-    const terminal = review.items.every((item) => ['USER_ACCEPTED', 'USER_REJECTED', 'AUTO_ACCEPTED_BY_POLICY'].includes(item.disposition));
-    const accepted = review.items.some((item) => ['USER_ACCEPTED', 'AUTO_ACCEPTED_BY_POLICY'].includes(item.disposition));
-    const merge = document.createElement('button'); merge.type = 'button'; merge.className = 'secondary'; merge.dataset.taskControl = 'merge'; merge.textContent = 'Merge accepted changes';
-    merge.disabled = !terminal || !accepted || Boolean(review.conflicts?.length); section.append(merge);
+    const blockedReason = taskMergeBlockedReason(review);
+    const merge = document.createElement('button'); merge.type = 'button'; merge.className = 'secondary'; merge.dataset.taskControl = 'merge'; merge.textContent = 'Add accepted changes and complete task';
+    merge.disabled = Boolean(blockedReason); merge.title = blockedReason ?? 'Add the accepted changes to the project and complete this task.'; section.append(merge);
+    if (blockedReason) {
+      const note = document.createElement('p'); note.className = 'task-action-note'; note.textContent = blockedReason; section.append(note);
+    }
   } else if (review.mergeId) {
-    const revert = document.createElement('button'); revert.type = 'button'; revert.className = 'secondary'; revert.dataset.taskControl = 'revert'; revert.textContent = 'Revert merge'; section.append(revert);
+    const note = document.createElement('p'); note.className = 'task-action-note';
+    note.textContent = 'You can undo the project changes from this task without deleting its task or review history.';
+    const revert = document.createElement('button'); revert.type = 'button'; revert.className = 'secondary'; revert.dataset.taskControl = 'revert'; revert.textContent = 'Undo task changes'; section.append(note, revert);
   }
   return section;
 }
@@ -2325,37 +2415,47 @@ function renderTasks() {
   state.taskUi.selectedTaskId = selected.task.taskId;
   const grid = document.createElement('div'); grid.className = 'task-layout';
   const list = document.createElement('section'); list.className = 'task-list surface-card';
-  const listHeading = document.createElement('h2'); listHeading.textContent = 'Task branches'; list.append(listHeading);
+  const listHeading = document.createElement('h2'); listHeading.textContent = 'Tasks'; list.append(listHeading);
   for (const entry of state.tasks) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'task-list-item secondary';
     button.dataset.taskControl = 'select'; button.dataset.taskId = entry.task.taskId;
     if (entry.task.taskId === selected.task.taskId) button.dataset.selected = 'true';
     const strong = document.createElement('strong'); strong.textContent = entry.task.title;
-    const small = document.createElement('small'); small.textContent = `${entry.task.branchId} · r${entry.task.headRevision}`;
+    const small = document.createElement('small'); small.textContent = `Assigned to ${entry.task.agentId}`;
     button.append(strong, taskStateBadge(entry.task), small); list.append(button);
   }
   const detail = document.createElement('section'); detail.className = 'task-detail surface-card';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
-  const headCopy = document.createElement('div'); const taskTitle = document.createElement('h2'); taskTitle.textContent = selected.task.title;
-  const objective = document.createElement('p'); objective.textContent = selected.task.objective; headCopy.append(taskTitle, objective); heading.append(headCopy, taskStateBadge(selected.task)); detail.append(heading);
+  const headCopy = document.createElement('div'); const selectedEyebrow = document.createElement('p'); selectedEyebrow.className = 'eyebrow'; selectedEyebrow.textContent = 'Selected task';
+  const taskTitle = document.createElement('h2'); taskTitle.textContent = selected.task.title;
+  const objective = document.createElement('p'); objective.textContent = selected.task.objective; headCopy.append(selectedEyebrow, taskTitle, objective); heading.append(headCopy, taskStateBadge(selected.task)); detail.append(heading);
   const facts = document.createElement('dl'); facts.className = 'policy-details';
   for (const [label, value] of [
-    ['Agent', selected.task.agentId], ['Branch', selected.task.branchId], ['Base / head', `r${selected.task.baseRevision} / r${selected.task.headRevision}`],
-    ['Capabilities', selected.task.capabilities.join(', ')], ['Expires', new Date(selected.task.expiresAt).toLocaleString()],
-    ['Budget', `${selected.task.usage?.commands ?? 0}/${selected.task.budget.maxCommands} commands`],
+    ['Assigned agent', selected.task.agentId],
+    ['Agent may', selected.task.capabilities.map((capability) => TASK_CAPABILITY_LABELS[capability] ?? capability).join(', ')],
+    ['Agent access ends', new Date(selected.task.expiresAt).toLocaleString()],
+    ['Usage', `${selected.task.usage?.commands ?? 0} of ${selected.task.budget.maxCommands} allowed changes used`],
   ]) { const term = document.createElement('dt'); term.textContent = label; const desc = document.createElement('dd'); desc.textContent = value; facts.append(term, desc); }
   detail.append(facts);
+  const technical = document.createElement('details'); technical.className = 'task-technical-details';
+  const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
+  const technicalFacts = document.createElement('dl'); technicalFacts.className = 'policy-details';
+  for (const [label, value] of [
+    ['Isolated work ID', selected.task.branchId], ['Starting / current revision', `r${selected.task.baseRevision} / r${selected.task.headRevision}`],
+    ['Capability IDs', selected.task.capabilities.join(', ')], ['Command budget', `${selected.task.usage?.commands ?? 0}/${selected.task.budget.maxCommands} commands`],
+  ]) { const term = document.createElement('dt'); term.textContent = label; const desc = document.createElement('dd'); desc.textContent = value; technicalFacts.append(term, desc); }
+  technical.append(technicalSummary, technicalFacts); detail.append(technical);
   const controls = document.createElement('div'); controls.className = 'task-controls';
   const actions = selected.task.state === 'ACTIVE' ? ['pause', 'cancel', 'submit-review']
     : selected.task.state === 'PAUSED' ? ['resume', 'cancel']
       : selected.task.state === 'CHANGES_REQUESTED' ? ['resume', 'cancel'] : [];
   for (const action of actions) {
-    const button = document.createElement('button'); button.type = 'button'; button.dataset.taskControl = action; button.textContent = action.replace('-', ' '); if (action === 'cancel') button.className = 'secondary'; controls.append(button);
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.taskControl = action; button.textContent = TASK_ACTION_LABELS[action] ?? action.replace('-', ' '); if (action === 'cancel') button.className = 'secondary'; controls.append(button);
   }
   detail.append(controls);
-  const timelineHeading = document.createElement('h3'); timelineHeading.textContent = 'Live timeline';
+  const timelineHeading = document.createElement('h3'); timelineHeading.textContent = 'Progress';
   const timeline = document.createElement('ol'); timeline.className = 'task-timeline';
-  for (const event of selected.timeline) { const item = document.createElement('li'); const strong = document.createElement('strong'); strong.textContent = event.type.replaceAll('_', ' '); const small = document.createElement('small'); small.textContent = `${new Date(event.occurredAt).toLocaleTimeString()} · r${event.branchRevision}`; item.append(strong, small); timeline.append(item); }
+  for (const event of selected.timeline) { const item = document.createElement('li'); const strong = document.createElement('strong'); strong.textContent = TASK_EVENT_LABELS[event.type] ?? event.type.replaceAll('_', ' ').toLowerCase(); const small = document.createElement('small'); small.textContent = `${new Date(event.occurredAt).toLocaleTimeString()} · work version ${event.branchRevision}`; item.append(strong, small); timeline.append(item); }
   detail.append(timelineHeading, timeline); grid.append(list, detail); fragment.append(grid, renderTaskReview(selected)); return fragment;
 }
 
@@ -2462,8 +2562,8 @@ function renderWorkspace({ preserveCutterDraft = false, preserveAssetDraft = fal
     link.classList.toggle('active', link.dataset.workspace === state.workspace);
   }
   const title = {
-    overview: 'Project overview', sources: 'Source & generation provenance', assets: 'Visual asset library',
-    rooms: 'Room & hallway designer', tasks: 'Delegated task branches', levels: 'Level composer', activity: 'Immutable activity ledger',
+    overview: 'Project overview', sources: 'Sources & creation details', assets: 'Visual asset library',
+    rooms: 'Room & hallway designer', tasks: 'Agent tasks', levels: 'Level composer', activity: 'Activity history',
   }[state.workspace] || 'Project overview';
   elements['workspace-eyebrow'].textContent = title;
   const selectedSourceFile = sourceIntakeFormCache?.querySelector('[data-source-file]');
@@ -3275,7 +3375,7 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
         ? { enabled: true, allowedCommandTypes: ['room.variant.intent.set'], maxChanges: 2 }
         : { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
     },
-  }, 'Isolated task branch created with bounded authority.');
+  }, 'Task created. The agent can only work within the limits you selected.');
   if (result?.task?.taskId) state.taskUi.selectedTaskId = result.task.taskId;
 });
 
@@ -3291,11 +3391,11 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const projectId = state.project.projectId; const taskId = entry.task.taskId;
   const taskBase = `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`;
   if (['pause', 'resume', 'cancel'].includes(action)) {
-    if (action === 'cancel' && !window.confirm('Cancel this task and revoke its grant? Branch history remains inspectable.')) return;
+    if (action === 'cancel' && !window.confirm('Cancel this task? The assigned agent will no longer be able to change it, but its previous work and history will remain available.')) return;
     await executeTaskRequest(`${taskBase}/${action}`, { reason: action === 'pause' ? 'Paused from the human task workspace.' : `${action} from the human task workspace.` }, `Task ${action} recorded.`); return;
   }
   if (action === 'submit-review') {
-    await executeTaskRequest(`${taskBase}/submit-review`, { reviewId: `review.${taskId}.${crypto.randomUUID().slice(0, 8)}` }, 'Branch submitted for semantic review.'); return;
+    await executeTaskRequest(`${taskBase}/submit-review`, { reviewId: `review.${taskId}.${crypto.randomUUID().slice(0, 8)}` }, 'The task result is waiting for review.'); return;
   }
   if (action === 'decide') {
     const decisions = [...elements['workspace-content'].querySelectorAll('[data-task-review-disposition]')]
@@ -3304,16 +3404,18 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     const undecided = [...elements['workspace-content'].querySelectorAll('[data-task-review-disposition]')]
       .some((select) => select.value === 'PENDING');
     if (undecided) { showToast('Every non-policy change needs an accept, reject, or request-changes decision.'); return; }
-    if (!decisions.length || !window.confirm(`Record ${decisions.length} human review decision(s)?`)) return;
-    await executeTaskRequest(`${taskBase}/reviews/${encodeURIComponent(entry.review.reviewId)}/decide`, { decisions, confirm: true }, 'Human review decisions recorded.'); return;
+    if (!decisions.length || !window.confirm(`Save your decision for ${decisions.length} proposed change(s)?`)) return;
+    await executeTaskRequest(`${taskBase}/reviews/${encodeURIComponent(entry.review.reviewId)}/decide`, { decisions, confirm: true }, 'Your review decisions were saved.'); return;
   }
   if (action === 'merge') {
-    if (!window.confirm('Atomically replay and merge the accepted branch changes? The task grant will be revoked.')) return;
-    await executeTaskRequest(`${taskBase}/reviews/${encodeURIComponent(entry.review.reviewId)}/merge`, { mergeId: `merge.${taskId}`, confirm: true }, 'Accepted changes merged atomically.'); return;
+    const blockedReason = taskMergeBlockedReason(entry.review);
+    if (blockedReason) { showToast(blockedReason); return; }
+    if (!window.confirm('Add the accepted changes to the project and complete this task? The assigned agent will no longer be able to make changes for this task.')) return;
+    await executeTaskRequest(`${taskBase}/reviews/${encodeURIComponent(entry.review.reviewId)}/merge`, { mergeId: `merge.${taskId}`, confirm: true }, 'Accepted changes added to the project. The task is complete and the agent can no longer change it.'); return;
   }
   if (action === 'revert') {
-    if (!window.confirm('Create a new compensating revision for this merge? Existing history will remain unchanged.')) return;
-    await executeTaskRequest(`/api/projects/${encodeURIComponent(projectId)}/task-merges/${encodeURIComponent(entry.review.mergeId)}/revert`, { revertId: `revert.${entry.review.mergeId}`, confirm: true }, 'Merge reverted through a compensating revision.');
+    if (!window.confirm('Undo the project changes from this completed task? The original task and review will remain in the history.')) return;
+    await executeTaskRequest(`/api/projects/${encodeURIComponent(projectId)}/task-merges/${encodeURIComponent(entry.review.mergeId)}/revert`, { revertId: `revert.${entry.review.mergeId}`, confirm: true }, 'The task changes were undone. The original task and review remain in the history.');
   }
 });
 
