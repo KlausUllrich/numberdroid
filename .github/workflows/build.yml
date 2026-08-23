@@ -505,3 +505,38 @@ jobs:
           path: artifacts/studio-checkpoint-4/
           if-no-files-found: error
           retention-days: 14
+
+  studio-windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.17.0
+          cache: npm
+          cache-dependency-path: tools/numberdroid-studio/package-lock.json
+
+      - name: Install Studio dependencies
+        working-directory: tools/numberdroid-studio
+        run: npm ci --no-audit --no-fund
+
+      - name: Test Studio on Windows
+        working-directory: tools/numberdroid-studio
+        run: npm test
+
+      - name: Check Studio build on Windows
+        working-directory: tools/numberdroid-studio
+        run: npm run build
+
+      - name: Verify protected Checkpoint 1A evidence on Windows
+        working-directory: tools/numberdroid-studio
+        env:
+          NUMBERDROID_EVIDENCE_REQUIRE_PRODUCTION_ADAPTER: '1'
+        run: npm run evidence:verify

@@ -23,13 +23,13 @@ import { AtlasPreviewWorker } from '../apps/studio-server/src/atlas-preview-work
 import {
   AGENT_CONTEXT, OWNER_CONTEXT, PROJECT_ID, command, createProject, issueGrant,
 } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory, pngHeader } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory, pngHeader } from './persistence-test-helpers.js';
 
 const approvedSourcePath = resolve('../../art-source/approved/area-01-transfer-ship/floor-treatment/source/family-hygiene-floor-2x2__source-approved__2026-08-21.png');
 
 async function fixture(context, { stopBefore = null, faultControl = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'numberdroid-sqlite-bundle-'));
-  context.after(() => rm(root, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(root, { recursive: true, force: true }));
   const databasePath = join(root, 'live', 'studio.sqlite');
   const store = await SqliteProjectStore.open({
     filename: databasePath,
@@ -192,7 +192,7 @@ async function fixture(context, { stopBefore = null, faultControl = null } = {})
 
 test('SQLite v9 portable bundle round-trips canonical semantics and CAS without authority', async (context) => {
   const value = await fixture(context);
-  context.after(() => value.store.close());
+  afterTestCleanup(context, () => value.store.close());
   const bundle = join(value.root, 'bundle');
   await createSqliteProjectBundle({
     destinationDirectory: bundle,
@@ -215,7 +215,7 @@ test('SQLite v9 portable bundle round-trips canonical semantics and CAS without 
   const importedStore = await SqliteProjectStore.open({
     filename: join(destination, 'studio.sqlite'), databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => importedStore.close());
+  afterTestCleanup(context, () => importedStore.close());
   const importedCas = new ContentAddressedArtifactStore({ rootDirectory: join(destination, 'artifacts') });
   const database = importedStore.workspace.database;
   for (const table of ['jobs', 'job_events', 'grants', 'host_bindings', 'agent_attempts', 'idempotency_records', 'source_intakes', 'human_agent_access_operations']) {
@@ -287,7 +287,7 @@ test('SQLite v9 portable bundle round-trips canonical semantics and CAS without 
 
 test('SQLite bundle import conflicts and materializer faults leave destinations absent', async (context) => {
   const value = await fixture(context);
-  context.after(() => value.store.close());
+  afterTestCleanup(context, () => value.store.close());
   const bundle = join(value.root, 'bundle');
   await createSqliteProjectBundle({ destinationDirectory: bundle, projectStore: value.store, artifactStore: value.artifactStore, projectId: PROJECT_ID });
   const destination = join(value.root, 'import-fault');
@@ -304,7 +304,7 @@ test('SQLite bundle import conflicts and materializer faults leave destinations 
 
 test('SQLite portable verifier rejects re-signed unknown fields at every typed semantic envelope', async (context) => {
   const value = await fixture(context);
-  context.after(() => value.store.close());
+  afterTestCleanup(context, () => value.store.close());
   const bundle = join(value.root, 'strict-bundle');
   await createSqliteProjectBundle({ destinationDirectory: bundle, projectStore: value.store, artifactStore: value.artifactStore, projectId: PROJECT_ID });
   const base = JSON.parse(await readFile(join(bundle, 'project.json')));
@@ -383,7 +383,7 @@ test('SQLite portable verifier rejects re-signed unknown fields at every typed s
 
 test('SQLite projector excludes staged nonsemantic CAS and rejects unapplied terminal work', async (context) => {
   const value = await fixture(context);
-  context.after(() => value.store.close());
+  afterTestCleanup(context, () => value.store.close());
   const metadata = await value.artifactStore.ingest(pngHeader({ width: 3, height: 3, tail: 'staged-nonsemantic' }), { mediaType: 'image/png' });
   const stagedDigest = metadata.digest;
   const intakes = new SqliteSourceIntakeStore({ workspace: value.store.workspace });

@@ -13,16 +13,16 @@ import {
   verifyWorkspaceBackup,
 } from '../packages/persistence/src/index.js';
 import { PROJECT_ID, createHarness, createProject } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory, pngHeader } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory, pngHeader } from './persistence-test-helpers.js';
 
 test('workspace backup and restore preserve a checkpointed SQLite ledger plus referenced CAS objects', async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'numberdroid-workspace-backup-'));
-  context.after(() => rm(root, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(root, { recursive: true, force: true }));
   const liveStore = await SqliteProjectStore.open({
     filename: join(root, 'live', 'studio.sqlite'),
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => liveStore.close());
+  afterTestCleanup(context, () => liveStore.close());
   const { studio } = createHarness(liveStore);
   await createProject(studio);
 
@@ -64,7 +64,7 @@ test('workspace backup and restore preserve a checkpointed SQLite ledger plus re
     filename: restoredDatabase,
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => restoredStore.close());
+  afterTestCleanup(context, () => restoredStore.close());
   const restoredProject = await new StudioService({ store: restoredStore }).readProjectTrusted(PROJECT_ID);
   assert.equal(restoredProject.revision, 1);
   assert.equal(restoredStore.integrityCheck().ok, true);

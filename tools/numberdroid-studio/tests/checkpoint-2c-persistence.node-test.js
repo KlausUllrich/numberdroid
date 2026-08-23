@@ -18,7 +18,7 @@ import { AtlasPreviewWorker } from '../apps/studio-server/src/atlas-preview-work
 import {
   AGENT_CONTEXT, OWNER_CONTEXT, PROJECT_ID, command, createHarness, createProject, issueGrant,
 } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 const SOURCE_DIGEST = 'a'.repeat(64);
 const SLICE_DIGEST = 'b'.repeat(64);
@@ -31,7 +31,7 @@ const approvedSourcePath = resolve(studioRoot, '../../art-source/approved/area-0
 
 async function tempDatabase(context, prefix = 'numberdroid-2c-persistence-') {
   const directory = await mkdtemp(join(tmpdir(), prefix));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   return join(directory, 'studio.sqlite');
 }
 
@@ -224,7 +224,7 @@ function insertProposalAssetFixture(database) {
 test('schema v9 is fixed, strict, normalized, and leaves migrations 1-8 unchanged', async (context) => {
   const filename = await tempDatabase(context);
   const store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const migrations = await loadMigrationDefinitions();
   assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   assert.equal(migrations.find(({ version }) => version === 9).checksum, 'e387c3e56fb0bb03bd14743c6a7c7a6baad230c02dde8f158e485e25776e7175');
@@ -284,7 +284,7 @@ test('a v8 workspace rolls migration 0009 back completely and resumes safely', a
   interrupted.close();
 
   const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => resumed.close());
+  afterTestCleanup(context, () => resumed.close());
   assert.equal(resumed.integrityCheck().userVersion, 11);
   assert.deepEqual(
     resumed.workspace.database.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map(({ version }) => Number(version)),
@@ -295,7 +295,7 @@ test('a v8 workspace rolls migration 0009 back completely and resumes safely', a
 test('v9 enforces project-scoped lineage, immutable records, and proposal decision constraints', async (context) => {
   const filename = await tempDatabase(context, 'numberdroid-2c-constraints-');
   const store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const { studio } = createHarness(store);
   await createProject(studio);
   const database = store.workspace.database;
@@ -344,7 +344,7 @@ test('v9 enforces project-scoped lineage, immutable records, and proposal decisi
 test('asset query helpers return ordered heads, exact lineage, findings, and durable review state', async (context) => {
   const filename = await tempDatabase(context, 'numberdroid-2c-query-');
   const store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const { studio } = createHarness(store);
   await createProject(studio);
   insertArtifacts(store.workspace.database);
@@ -392,7 +392,7 @@ test('real SQLite proposal, decision, apply, lifecycle, restart, and references 
       if (point === armedFault) throw new Error(`simulated ${point}`);
     },
   });
-  context.after(() => store?.close());
+  afterTestCleanup(context, () => store?.close());
   const cas = new ContentAddressedArtifactStore({ rootDirectory: join(directory, 'artifacts') });
   const jobs = new SqliteJobStore({ workspace: store.workspace });
   let tick = 0;
@@ -569,7 +569,7 @@ test('real SQLite proposal, decision, apply, lifecycle, restart, and references 
 test('bundle-import applied job history is immutable and cannot become a live controllable job', async (context) => {
   const filename = await tempDatabase(context, 'numberdroid-2c-bundle-history-');
   const store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const { studio } = createHarness(store);
   await createProject(studio);
   const database = store.workspace.database;

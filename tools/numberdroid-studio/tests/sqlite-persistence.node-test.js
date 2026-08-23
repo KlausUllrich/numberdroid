@@ -6,11 +6,11 @@ import { join } from 'node:path';
 import { StudioService } from '../packages/application/src/index.js';
 import { SqliteProjectStore, SqliteWorkspace, loadMigrationDefinitions } from '../packages/persistence/src/index.js';
 import { OWNER_CONTEXT, PROJECT_ID, command, createHarness, createProject, issueGrant } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 async function tempWorkspace(context, prefix = 'numberdroid-sqlite-') {
   const directory = await mkdtemp(join(tmpdir(), prefix));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   return { directory, filename: join(directory, 'studio.sqlite') };
 }
 
@@ -41,7 +41,7 @@ test('SQLite adapter configures durability, restarts, and preserves the immutabl
   store.close();
 
   store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const restarted = new StudioService({ store });
   const project = await restarted.readProjectTrusted(PROJECT_ID);
   assert.equal(project.revision, 2);
@@ -55,7 +55,7 @@ test('SQLite adapter configures durability, restarts, and preserves the immutabl
 test('one authoritative writer is enforced while a read-only connection can inspect WAL state', async (context) => {
   const { filename } = await tempWorkspace(context, 'numberdroid-sqlite-lock-');
   const writer = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => writer.close());
+  afterTestCleanup(context, () => writer.close());
   await createActiveProject(writer);
 
   await assert.rejects(
@@ -68,7 +68,7 @@ test('one authoritative writer is enforced while a read-only connection can insp
     mode: 'reader',
   });
   const reader = new SqliteProjectStore({ workspace: readerWorkspace });
-  context.after(() => reader.close());
+  afterTestCleanup(context, () => reader.close());
   assert.equal((await reader.loadProject(PROJECT_ID)).revisions.length, 2);
   await assert.rejects(
     reader.appendRevision(PROJECT_ID, 2, {}),
@@ -86,7 +86,7 @@ test('faults roll back revision, activity, projection, idempotency, grant, and h
       if (armed && point === 'after_activity_insert') throw new Error('simulated storage fault');
     },
   });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const { studio } = createHarness(store);
   await createProject(studio);
   const beforeProjection = store.workspace.database.prepare("SELECT * FROM projections WHERE projection_type = 'project_head'").get();
@@ -115,7 +115,7 @@ test('faults roll back revision, activity, projection, idempotency, grant, and h
 test('SQLite compare-and-swap allows one of two commands prepared from the same head', async (context) => {
   const { filename } = await tempWorkspace(context, 'numberdroid-sqlite-cas-');
   const store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const { studio } = createHarness(store);
   await createProject(studio);
 
@@ -177,7 +177,7 @@ test('grant projection persists branch, object scope, budgets, usage, and status
   store.close();
 
   store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const grant = (await store.loadProject(PROJECT_ID)).revisions.at(-1).snapshot.grants[0];
   assert.equal(grant.branchId, 'branch.task.atlas');
   assert.equal(grant.status, 'ACTIVE');
@@ -204,7 +204,7 @@ test('schema migration faults roll back the individual version and safely resume
   interrupted.close();
 
   const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => resumed.close());
+  afterTestCleanup(context, () => resumed.close());
   assert.equal(resumed.integrityCheck().userVersion, 11);
   assert.deepEqual(
     resumed.workspace.database.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),

@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
+import { afterTestCleanup } from './persistence-test-helpers.js';
 
 async function headers(base) {
   const session = await fetch(`${base}/api/ui-session`).then((response) => response.json());
@@ -17,9 +18,9 @@ async function headers(base) {
 
 test('Checkpoint 4 HTTP composer and controls are same-origin, CSRF-bound, exact, and durable', async (context) => {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-cp4-http-'));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   const running = await startStudioHttpServer({ dataDirectory: directory, host: '127.0.0.1', port: 0 });
-  context.after(() => new Promise((resolve) => running.server.close(resolve)));
+  afterTestCleanup(context, () => new Promise((resolve) => running.server.close(resolve)));
   const base = `http://127.0.0.1:${running.address.port}`;
   const mutationHeaders = await headers(base);
   const demo = await fetch(`${base}/api/demo`, { method: 'POST', headers: mutationHeaders }).then((response) => response.json());

@@ -10,7 +10,7 @@ import {
   TaskBranchProjectStore,
 } from '../packages/persistence/src/index.js';
 import { AGENT, OWNER, OWNER_CONTEXT, PROJECT_ID, command, createProject } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 function sourceCommand(expectedVersion, suffix = 'branch', sourceId = 'source.cp4.shared') {
   return command({
@@ -32,12 +32,12 @@ function sourceCommand(expectedVersion, suffix = 'branch', sourceId = 'source.cp
 
 async function fixture(context) {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-cp4-app-'));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   const store = await SqliteProjectStore.open({
     filename: join(directory, 'studio.sqlite'),
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   let tick = 0;
   const clock = () => new Date(Date.UTC(2026, 7, 23, 10, 0, tick++)).toISOString();
   const studio = new StudioService({ store, clock, agentAttemptAuditReady: true });

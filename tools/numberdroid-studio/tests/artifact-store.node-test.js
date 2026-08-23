@@ -9,11 +9,13 @@ import {
   SqliteProjectStore,
 } from '../packages/persistence/src/index.js';
 import { createHarness, createProject, PROJECT_ID } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory, pngHeader, webpExtendedHeader } from './persistence-test-helpers.js';
+import {
+  afterTestCleanup, nodeSqliteDatabaseFactory, pngHeader, webpExtendedHeader,
+} from './persistence-test-helpers.js';
 
 async function tempDirectory(context, prefix) {
   const directory = await mkdtemp(join(tmpdir(), prefix));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   return directory;
 }
 
@@ -121,7 +123,7 @@ test('artifact metadata and its live reference commit atomically or both roll ba
     filename: join(directory, 'studio.sqlite'),
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => projectStore.close());
+  afterTestCleanup(context, () => projectStore.close());
   const { studio } = createHarness(projectStore);
   await createProject(studio);
   const cas = new ContentAddressedArtifactStore({ rootDirectory: join(directory, 'cas') });

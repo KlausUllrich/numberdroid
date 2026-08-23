@@ -11,11 +11,11 @@ import {
   migrateJsonToSqlite,
 } from '../packages/persistence/src/index.js';
 import { OWNER, OWNER_CONTEXT } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 async function tempDirectory(context, prefix) {
   const directory = await mkdtemp(join(tmpdir(), prefix));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   return directory;
 }
 
@@ -102,7 +102,7 @@ test('JSON-to-SQLite migration copies and verifies history while forcing legacy 
     filename: join(destination, 'studio.sqlite'),
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
 
   const report = await migrateJsonToSqlite({
     sourceDirectory: source,
@@ -177,7 +177,7 @@ test('copy-and-verify migration resumes after a project-boundary fault without d
     filename: join(destination, 'studio.sqlite'),
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
 
   await assert.rejects(migrateJsonToSqlite({
     sourceDirectory: source,

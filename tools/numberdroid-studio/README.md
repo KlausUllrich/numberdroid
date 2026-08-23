@@ -24,6 +24,7 @@ Acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later com
 ## Run the accepted 2A/2B slices and the 2C/3/4 candidates locally
 
 Requirements: Node.js 22 or newer. Dependencies and the official MCP client/server versions are pinned by `package-lock.json`.
+The Studio regression suite runs in CI on Ubuntu and on Windows with Node.js 22.17.0. Test resources are released in reverse acquisition order so Windows can close SQLite WAL files before temporary workspaces are removed.
 
 ```bash
 cd tools/numberdroid-studio

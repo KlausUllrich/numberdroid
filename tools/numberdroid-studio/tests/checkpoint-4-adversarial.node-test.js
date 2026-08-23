@@ -9,7 +9,7 @@ import {
   SqliteProjectStore, TaskBranchProjectStore, verifyWorkspaceIntegrity,
 } from '../packages/persistence/src/index.js';
 import { AGENT, OWNER, OWNER_CONTEXT, PROJECT_ID, command, createProject } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 function branchSource(expectedVersion, suffix) {
   return command({
@@ -27,12 +27,12 @@ function branchSource(expectedVersion, suffix) {
 
 async function harness(context, { fault = () => null } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-cp4-adversarial-'));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   const store = await SqliteProjectStore.open({
     filename: join(directory, 'studio.sqlite'), databaseFactory: nodeSqliteDatabaseFactory,
     faultInjector: (point) => fault(point),
   });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const artifactStore = new ContentAddressedArtifactStore({ rootDirectory: join(directory, 'artifacts') });
   await artifactStore.initialize();
   let tick = 0;

@@ -1,6 +1,31 @@
 import { DatabaseSync } from 'node:sqlite';
 import { deflateSync } from 'node:zlib';
 
+const cleanupStacks = new WeakMap();
+
+export function afterTestCleanup(context, cleanup) {
+  if (typeof cleanup !== 'function') throw new TypeError('Test cleanup must be a function.');
+  let stack = cleanupStacks.get(context);
+  if (!stack) {
+    stack = [];
+    cleanupStacks.set(context, stack);
+    context.after(async () => {
+      const errors = [];
+      while (stack.length > 0) {
+        try {
+          await stack.pop()();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      cleanupStacks.delete(context);
+      if (errors.length === 1) throw errors[0];
+      if (errors.length > 1) throw new AggregateError(errors, 'Multiple test cleanups failed.');
+    });
+  }
+  stack.push(cleanup);
+}
+
 const CRC_TABLE = Array.from({ length: 256 }, (_, value) => {
   let crc = value;
   for (let bit = 0; bit < 8; bit += 1) crc = (crc & 1) ? (0xedb88320 ^ (crc >>> 1)) : (crc >>> 1);

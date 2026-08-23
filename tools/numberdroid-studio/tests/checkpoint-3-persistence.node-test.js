@@ -14,11 +14,11 @@ import {
   verifyWorkspaceIntegrity,
 } from '../packages/persistence/src/index.js';
 import { OWNER_CONTEXT, PROJECT_ID, command, createHarness, createProject } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 async function tempDatabase(context, prefix = 'numberdroid-3-persistence-') {
   const directory = await mkdtemp(join(tmpdir(), prefix));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   return join(directory, 'studio.sqlite');
 }
 
@@ -74,7 +74,7 @@ function variantCommand(expectedVersion = 2) {
 test('schema v11 keeps the fixed v10 room schema and migration v9 pinned', async (context) => {
   const filename = await tempDatabase(context);
   const store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const migrations = await loadMigrationDefinitions();
   assert.equal(migrations.at(-1).version, 11);
   assert.equal(migrations.at(-1).checksum, 'f6ed508f3098e6cdeb3dca2af0a9be7baca12c18fcd9d518f75f4f353242639d');
@@ -109,7 +109,7 @@ test('a v9 workspace rolls migration 0010 back completely and resumes safely', a
   assert.equal(interrupted.prepare("SELECT count(*) AS count FROM sqlite_schema WHERE type = 'table' AND name = 'room_variant_versions'").get().count, 0);
   interrupted.close();
   const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => resumed.close());
+  afterTestCleanup(context, () => resumed.close());
   assert.equal(resumed.integrityCheck().userVersion, 11);
   assert.equal(resumed.workspace.database.prepare("SELECT count(*) AS count FROM sqlite_schema WHERE type = 'table' AND name = 'room_variant_versions'").get().count, 1);
 });
@@ -117,7 +117,7 @@ test('a v9 workspace rolls migration 0010 back completely and resumes safely', a
 test('room semantic writes, normalized records, exact asset FKs, immutability, restart, and rebuild hold', async (context) => {
   const filename = await tempDatabase(context, 'numberdroid-3-normalized-');
   let store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store?.close());
+  afterTestCleanup(context, () => store?.close());
   let studio = new StudioService({ store, clock: () => '2026-08-22T12:00:00.000Z' });
   await createProject(studio);
   await studio.execute(archetypeCommand(), OWNER_CONTEXT);
@@ -160,7 +160,7 @@ test('every room append stage shares the semantic revision transaction', async (
     filename, databaseFactory: nodeSqliteDatabaseFactory,
     faultInjector(point) { if (point === armedFault) throw new Error(`simulated ${point}`); },
   });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const { studio } = createHarness(store);
   await createProject(studio);
   await studio.execute(archetypeCommand(), OWNER_CONTEXT);
@@ -179,9 +179,9 @@ test('every room append stage shares the semantic revision transaction', async (
 
 test('portable schema v2 round-trips normalized room semantics without changing roomless v1 bundles', async (context) => {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-3-bundle-'));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   const store = await SqliteProjectStore.open({ filename: join(directory, 'source.sqlite'), databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const studio = new StudioService({ store, clock: () => '2026-08-22T12:00:00.000Z' });
   await createProject(studio); await studio.execute(archetypeCommand(), OWNER_CONTEXT); await studio.execute(variantCommand(), OWNER_CONTEXT);
   const artifactStore = new ContentAddressedArtifactStore({ rootDirectory: join(directory, 'source-artifacts') }); await artifactStore.initialize();
@@ -190,7 +190,7 @@ test('portable schema v2 round-trips normalized room semantics without changing 
   await createSqliteProjectBundle({ destinationDirectory: join(directory, 'bundle'), projectStore: store, artifactStore, projectId: PROJECT_ID });
   await importSqliteProjectBundle({ bundleDirectory: join(directory, 'bundle'), destinationDirectory: join(directory, 'imported'), databaseFactory: nodeSqliteDatabaseFactory });
   const imported = await SqliteProjectStore.open({ filename: join(directory, 'imported', 'studio.sqlite'), databaseFactory: nodeSqliteDatabaseFactory });
-  context.after(() => imported.close());
+  afterTestCleanup(context, () => imported.close());
   assert.deepEqual(projectSqlitePortableDocument({ projectStore: imported, projectId: PROJECT_ID }).project, sourcePortable);
   assert.equal(imported.workspace.database.prepare('SELECT count(*) AS count FROM room_variant_versions').get().count, 1);
   assert.equal(imported.workspace.database.prepare('SELECT count(*) AS count FROM room_variant_findings').get().count, 1);

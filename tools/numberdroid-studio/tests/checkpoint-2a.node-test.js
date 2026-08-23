@@ -23,7 +23,7 @@ import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
 import {
   AGENT, AGENT_CONTEXT, OWNER, OWNER_CONTEXT, PROJECT_ID, command, createHarness, createProject, issueGrant,
 } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory, pngHeader } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory, pngHeader } from './persistence-test-helpers.js';
 
 const studioRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FAMILY_HYGIENE_SOURCE = resolve(
@@ -80,7 +80,7 @@ async function fixture(context, {
     databaseFactory: nodeSqliteDatabaseFactory,
     faultInjector,
   });
-  context.after(async () => {
+  afterTestCleanup(context, async () => {
     store.close();
     await rm(directory, { recursive: true, force: true });
   });
@@ -418,7 +418,7 @@ test('accepted agent commands stay in semantic Activity and audit-write failure 
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolveListen);
   });
-  context.after(() => new Promise((resolveClose) => server.close(resolveClose)));
+  afterTestCleanup(context, () => new Promise((resolveClose) => server.close(resolveClose)));
   const base = `http://127.0.0.1:${server.address().port}`;
   const execute = (commandDto) => fetch(`${base}/internal/mcp/execute`, {
     method: 'POST',
@@ -475,7 +475,7 @@ test('loopback human intake/review is CSRF-bound and denied MCP attempts enter t
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
   });
-  context.after(() => new Promise((resolve) => server.close(resolve)));
+  afterTestCleanup(context, () => new Promise((resolve) => server.close(resolve)));
   const base = `http://127.0.0.1:${server.address().port}`;
   const session = await fetch(`${base}/api/ui-session`).then((response) => response.json());
   const bytes = pngHeader({ width: 30, height: 20, tail: 'http-intake' });
@@ -708,7 +708,7 @@ test('approved Family Hygiene source survives intake, original preview, review, 
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolveListen);
   });
-  context.after(async () => {
+  afterTestCleanup(context, async () => {
     if (server) await new Promise((resolveClose) => server.close(resolveClose));
     store?.close();
     await rm(directory, { recursive: true, force: true });
@@ -790,7 +790,7 @@ test('approved Family Hygiene source survives intake, original preview, review, 
 test('migration 0006 resumes after a version-boundary fault and backup/restore preserves intake and audit state', async (context) => {
   const migrationDirectory = await mkdtemp(join(tmpdir(), 'numberdroid-checkpoint-2a-migration-'));
   const migrationFilename = join(migrationDirectory, 'studio.sqlite');
-  context.after(() => rm(migrationDirectory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(migrationDirectory, { recursive: true, force: true }));
   await assert.rejects(SqliteProjectStore.open({
     filename: migrationFilename,
     databaseFactory: nodeSqliteDatabaseFactory,
@@ -865,7 +865,7 @@ test('migration 0006 resumes after a version-boundary fault and backup/restore p
     filename: restoredDatabase,
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => restored.close());
+  afterTestCleanup(context, () => restored.close());
   assert.equal(restored.workspace.database.prepare(`
     SELECT state FROM source_intakes WHERE intake_id = 'intake.family-hygiene'
   `).get().state, 'CLAIMED');

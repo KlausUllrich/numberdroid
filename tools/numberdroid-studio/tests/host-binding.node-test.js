@@ -14,16 +14,16 @@ import {
   AGENT, OWNER, OWNER_CONTEXT, PROJECT_ID, command,
   createHarness, createProject, issueGrant,
 } from './test-helpers.js';
-import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
+import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 
 async function fixture(context) {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-host-binding-'));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   const store = await SqliteProjectStore.open({
     filename: join(directory, 'studio.sqlite'),
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const { studio } = createHarness(store);
   await createProject(studio);
   await issueGrant(studio, { scopes: ['project.read', 'source.write', 'asset.write', 'project.status.write'] });
@@ -40,7 +40,7 @@ async function listen(context, studioService, hostBindingStore) {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
   });
-  context.after(() => new Promise((resolve) => server.close(resolve)));
+  afterTestCleanup(context, () => new Promise((resolve) => server.close(resolve)));
   return `http://127.0.0.1:${server.address().port}`;
 }
 
@@ -48,7 +48,7 @@ async function listenWithPairing(context, directory, studioService, hostBindingS
   const pairingBroker = new McpPairingBroker();
   const pairingEndpoint = defaultMcpPairingEndpoint(directory);
   const pairing = await startMcpPairingSocket({ broker: pairingBroker, endpoint: pairingEndpoint });
-  context.after(() => pairing.close());
+  afterTestCleanup(context, () => pairing.close());
   const server = createStudioHttpServer({
     studioService, hostBindingStore, pairingBroker, pairingEndpoint: pairing.endpoint,
   });
@@ -56,7 +56,7 @@ async function listenWithPairing(context, directory, studioService, hostBindingS
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
   });
-  context.after(() => new Promise((resolve) => server.close(resolve)));
+  afterTestCleanup(context, () => new Promise((resolve) => server.close(resolve)));
   return {
     base: `http://127.0.0.1:${server.address().port}`,
     pairingBroker,
@@ -408,11 +408,11 @@ test('Off revokes every active grant instead of falling back to an older grant',
 
 test('scope additions require confirmation even when the coarse policy label is unchanged', async (context) => {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-capability-diff-'));
-  context.after(() => rm(directory, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   const store = await SqliteProjectStore.open({
     filename: join(directory, 'studio.sqlite'), databaseFactory: nodeSqliteDatabaseFactory,
   });
-  context.after(() => store.close());
+  afterTestCleanup(context, () => store.close());
   const { studio } = createHarness(store);
   await createProject(studio);
   await issueGrant(studio, { scopes: ['project.read', 'project.status.write'] });
