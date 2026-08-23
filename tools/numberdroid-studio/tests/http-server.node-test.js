@@ -225,7 +225,7 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
     && finalFocus > keyboardSecurityEnd && finalProtocolBound > finalFocus
     && finalProtocolCheck > finalProtocolBound && screenshotCapture > finalProtocolCheck,
   'Checkpoint 2A source focus and strict protocol checks must run after keyboard security checks immediately before capture.');
-  assert.match(browserEvidenceScript, /checkpoint2aSourceFocusFinal,\n/);
+  assert.match(browserEvidenceScript, /checkpoint2aSourceFocusFinal,\r?\n/);
   assert.match(browserEvidenceScript, /selectedProjectWhilePending/);
   assert.match(browserEvidenceScript, /expectedRevision === sourceImportOperationIsolation\.operationRevision/);
   assert.match(browserEvidenceScript, /mismatch\.commitCount === 0/);
