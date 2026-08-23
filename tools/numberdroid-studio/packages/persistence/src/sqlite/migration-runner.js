@@ -19,6 +19,7 @@ export const SQLITE_MIGRATIONS = Object.freeze([
   { version: 8, name: 'authorized_agent_attempts', file: '0008_authorized_agent_attempts.sql', checksum: '2323dafbef16e418b752ba1602c6d62c1260f00935212358980e6c3e90936730' },
   { version: 9, name: 'asset_library', file: '0009_asset_library.sql', checksum: 'e387c3e56fb0bb03bd14743c6a7c7a6baad230c02dde8f158e485e25776e7175' },
   { version: 10, name: 'room_designer', file: '0010_room_designer.sql', checksum: '99d12a3a7ee7572dd9386bd183fb847631ceab0490b0190e3ba5f1b339cfd40e' },
+  { version: 11, name: 'agent_task_branches', file: '0011_agent_task_branches.sql', checksum: 'f6ed508f3098e6cdeb3dca2af0a9be7baca12c18fcd9d518f75f4f353242639d' },
 ]);
 
 function sha256(text) {

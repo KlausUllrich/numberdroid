@@ -271,6 +271,32 @@ export function buildOfficialMcpServer({
     );
   }
 
+  const taskRead = catalog.find(({ name }) => name === 'studio_task_read');
+  if (taskRead) {
+    server.registerResource(
+      'studio-task',
+      new ResourceTemplate('studio://projects/{projectId}/task', { list: undefined }),
+      {
+        title: 'Bound Studio task',
+        description: 'Current bound task state, branch head, budget, review, and durable progress timeline.',
+        mimeType: 'application/json',
+      },
+      async (uri, { projectId }, invocationContext) => {
+        const operation = operationContext(invocationContext, requestAbortRegistry);
+        try {
+          const value = await taskRead.execute({ schemaVersion: 1, projectId }, operation.context);
+          return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
+        } catch (error) {
+          if (operation.signal.aborted) throw error;
+          const value = officialErrorPayload(error);
+          return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
+        } finally {
+          operation.cleanup();
+        }
+      },
+    );
+  }
+
   if (serverContext?.era) {
     process.stderr.write(`[numberdroid-studio] MCP era: ${serverContext.era}\n`);
   }

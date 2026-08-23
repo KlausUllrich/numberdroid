@@ -2104,7 +2104,11 @@ function applyCommand(command, snapshot, now, {
   }
 }
 
-function createRevision({ command, number, now, commandHash, snapshot, result, summary, changes }) {
+function createRevision({ command, number, now, commandHash, snapshot, result, summary, changes, taskBranch = false }) {
+  const isTaskBranch = taskBranch === true;
+  const revisionId = isTaskBranch
+    ? `${command.branchId}:revision:${number}`
+    : `revision:${number}`;
   const event = {
     id: `activity:${command.commandId}`,
     projectId: command.projectId,
@@ -2112,6 +2116,7 @@ function createRevision({ command, number, now, commandHash, snapshot, result, s
     occurredAt: now,
     actor: deepClone(command.actor),
     taskId: command.taskId,
+    ...(isTaskBranch ? { branchId: command.branchId } : {}),
     commandId: command.commandId,
     commandType: command.type,
     status: 'committed',
@@ -2119,7 +2124,7 @@ function createRevision({ command, number, now, commandHash, snapshot, result, s
     changes: deepClone(changes),
   };
   return deepFreeze({
-    id: `revision:${number}`,
+    id: revisionId,
     number,
     parentRevision: number - 1,
     committedAt: now,
@@ -2131,6 +2136,7 @@ function createRevision({ command, number, now, commandHash, snapshot, result, s
       actor: deepClone(command.actor),
       taskId: command.taskId,
       grantId: command.grantId,
+      ...(isTaskBranch ? { branchId: command.branchId, payload: deepClone(command.payload) } : {}),
       fingerprint: commandHash,
     },
     snapshot: deepClone(snapshot),
@@ -2254,6 +2260,14 @@ export class StudioService {
     }
 
     invariant(existing, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId: command.projectId });
+    if (command.actor.kind === 'agent' && definition.requiresTaskBranch) {
+      invariant(
+        this.#store.isTaskBranchStore === true,
+        'TASK_BRANCH_REQUIRED',
+        'This agent authoring command is allowed only through an isolated Checkpoint 4 task branch.',
+        { commandType: command.type, branchId: command.branchId },
+      );
+    }
     if (command.type === 'source.intake.commit') {
       invariant(
         this.#store.supportsAtomicSourceIntakeClaims === true,
@@ -2316,6 +2330,7 @@ export class StudioService {
       number: head.number + 1,
       now,
       commandHash,
+      taskBranch: this.#store.isTaskBranchStore === true,
       ...applied,
     });
     if (command.dryRun) {

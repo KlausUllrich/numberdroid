@@ -72,6 +72,11 @@ const state = {
     conflict: null,
     domState: null,
   },
+  taskMutationPending: false,
+  tasks: [],
+  taskUi: {
+    selectedTaskId: null,
+  },
   workspace: location.hash.slice(1) || 'overview',
   refreshing: false,
 };
@@ -160,7 +165,8 @@ const elements = Object.fromEntries(
 );
 
 function updateMutationControls() {
-  const pending = state.cutterPending || state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending;
+  const pending = state.cutterPending || state.sourceMutationPending || state.assetMutationPending
+    || state.roomMutationPending || state.taskMutationPending;
   elements['project-select'].disabled = pending;
   elements['refresh-button'].disabled = pending || state.refreshing;
   elements['demo-button'].disabled = pending;
@@ -168,6 +174,9 @@ function updateMutationControls() {
     || state.agentAccess.state === 'REQUESTING';
   elements['agent-access-state'].disabled = pending || !state.project || !state.agentAccess;
   elements['agent-access-panel'].inert = pending;
+  for (const control of elements['workspace-content'].querySelectorAll('[data-task-control], [data-task-form] input, [data-task-form] textarea, [data-task-form] button')) {
+    control.disabled = state.taskMutationPending;
+  }
 }
 
 function setAssetMutationPending(pending) {
@@ -261,7 +270,8 @@ function setAgentAccessPanel(open) {
 function renderAgentAccess() {
   const policy = state.agentAccess;
   const disabled = !state.project || !policy;
-  const mutationPending = state.cutterPending || state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending;
+  const mutationPending = state.cutterPending || state.sourceMutationPending || state.assetMutationPending
+    || state.roomMutationPending || state.taskMutationPending;
   elements['agent-access-select'].disabled = mutationPending || disabled || policy?.state === 'REQUESTING';
   elements['agent-access-state'].disabled = mutationPending || disabled;
   elements['agent-access-panel'].inert = mutationPending;
@@ -276,13 +286,13 @@ function renderAgentAccess() {
   elements['agent-access-state'].dataset.state = policy?.state ?? 'OFF';
   elements['agent-access-retry'].hidden = !state.pendingAgentAccess;
   const hasActivePolicy = Boolean(policy?.state?.startsWith('ACTIVE'));
-  const canAuthorizeHost = hasActivePolicy && policy?.mode !== 'propose_draft';
+  const canAuthorizeHost = hasActivePolicy;
   elements['agent-launcher-show'].disabled = state.hostBindingSupport !== 'AVAILABLE' || !state.mcpLauncherConfig;
   const bindingSupport = state.hostBindingSupport === 'AVAILABLE'
     ? (canAuthorizeHost
       ? 'Start the local host, then authorize its waiting verification code here.'
       : policy?.mode === 'propose_draft'
-        ? 'Draft host authorization waits for real branch heads in a later checkpoint.'
+        ? 'Draft host authorization uses the active isolated Checkpoint 4 task branch.'
         : 'Choose an active Agent access mode before authorizing a waiting host.')
     : 'MCP connections require the SQLite Studio store.';
   if (elements['agent-binding-support'].textContent !== bindingSupport) {
@@ -2214,6 +2224,141 @@ function renderRooms(snapshot) {
   return fragment;
 }
 
+function taskStateBadge(task) {
+  const badge = document.createElement('span'); badge.className = 'status-pill';
+  badge.dataset.taskState = task.state; badge.textContent = task.state.replaceAll('_', ' ').toLowerCase();
+  return badge;
+}
+
+function renderTaskComposer() {
+  const section = document.createElement('section'); section.className = 'task-composer surface-card';
+  const heading = document.createElement('div'); heading.className = 'panel-heading';
+  const title = document.createElement('div');
+  const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Human-only authority';
+  const name = document.createElement('h2'); name.textContent = 'Compose an isolated task';
+  title.append(eyebrow, name); heading.append(title); section.append(heading);
+  const form = document.createElement('form'); form.dataset.taskForm = 'create'; form.className = 'task-form';
+  form.innerHTML = `
+    <label>Title<input name="title" required maxlength="160" value="Build a DRAFT room"></label>
+    <label>Agent ID<input name="agentId" required maxlength="128" value="studio.agent"></label>
+    <label class="task-objective">Objective<textarea name="objective" required maxlength="4000">Create or refine a bounded DRAFT room from already accepted project sources and assets. Do not finalize, export, or publish.</textarea></label>
+    <fieldset><legend>Capabilities</legend>
+      <label><input type="checkbox" name="capability" value="project.read" checked disabled> Read project</label>
+      <label><input type="checkbox" name="capability" value="room.archetype.create" checked> Create archetype</label>
+      <label><input type="checkbox" name="capability" value="room.variant.create" checked> Create DRAFT</label>
+      <label><input type="checkbox" name="capability" value="room.variant.intent.set" checked> Edit intent</label>
+      <label><input type="checkbox" name="capability" value="room.variant.resize" checked> Resize</label>
+      <label><input type="checkbox" name="capability" value="room.variant.connectors.set" checked> Edit connectors</label>
+      <label><input type="checkbox" name="capability" value="room.variant.placements.add" checked> Add placements</label>
+      <label><input type="checkbox" name="capability" value="room.variant.placements.move" checked> Move placements</label>
+      <label><input type="checkbox" name="capability" value="room.variant.placements.remove" checked> Remove placements</label>
+      <label><input type="checkbox" name="capability" value="room.variant.validate"> Validate (never finalize)</label>
+    </fieldset>
+    <label>Command budget<input name="maxCommands" type="number" min="1" max="10000" value="40" required></label>
+    <label>Expiry (hours)<input name="expiryHours" type="number" min="1" max="168" value="4" required></label>
+    <label class="task-auto"><input name="autoAccept" type="checkbox"> Auto-accept low-risk intent edits (max 2)</label>
+    <button type="submit">Create task branch</button>`;
+  section.append(form); return section;
+}
+
+function renderTaskReview(task) {
+  const review = task.review;
+  const section = document.createElement('section'); section.className = 'task-review surface-card';
+  const heading = document.createElement('div'); heading.className = 'panel-heading';
+  const title = document.createElement('h3'); title.textContent = review ? `Review ${review.reviewId}` : 'Branch review';
+  heading.append(title); section.append(heading);
+  if (!review) {
+    const copy = document.createElement('p'); copy.textContent = 'Submit the branch when its task result is ready for semantic comparison.';
+    section.append(copy); return section;
+  }
+  const summary = document.createElement('p');
+  summary.textContent = `Base r${review.baseRevision} · branch r${review.branchHeadRevision} · compared main r${review.comparedMainRevision}`;
+  section.append(summary);
+  const conflicts = document.createElement('ul'); conflicts.className = 'task-conflicts';
+  for (const conflict of review.conflicts ?? []) {
+    const item = document.createElement('li'); item.textContent = `${conflict.code}: ${conflict.entityType}:${conflict.entityId}`; conflicts.append(item);
+  }
+  if (conflicts.children.length) section.append(conflicts);
+  const list = document.createElement('ol'); list.className = 'task-review-items';
+  for (const item of review.items) {
+    const row = document.createElement('li'); row.dataset.changeId = item.changeId;
+    const copy = document.createElement('div');
+    const strong = document.createElement('strong'); strong.textContent = item.summary;
+    const code = document.createElement('code'); code.textContent = item.commandType;
+    copy.append(strong, code);
+    const select = document.createElement('select'); select.dataset.taskReviewDisposition = item.changeId;
+    for (const [value, label] of [
+      ['PENDING', 'Pending'], ['USER_ACCEPTED', 'Accept'], ['USER_REJECTED', 'Reject'], ['CHANGES_REQUESTED', 'Request changes'],
+    ]) {
+      const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option);
+    }
+    if (item.disposition === 'AUTO_ACCEPTED_BY_POLICY') {
+      select.replaceChildren();
+      const option = document.createElement('option'); option.value = item.disposition; option.textContent = 'Auto-accepted by policy'; select.append(option); select.disabled = true;
+    } else {
+      select.value = item.disposition;
+      select.disabled = review.state !== 'OPEN';
+    }
+    row.append(copy, select); list.append(row);
+  }
+  section.append(list);
+  if (review.state === 'OPEN') {
+    const decide = document.createElement('button'); decide.type = 'button'; decide.dataset.taskControl = 'decide'; decide.textContent = 'Record review decisions';
+    section.append(decide);
+    const terminal = review.items.every((item) => ['USER_ACCEPTED', 'USER_REJECTED', 'AUTO_ACCEPTED_BY_POLICY'].includes(item.disposition));
+    const accepted = review.items.some((item) => ['USER_ACCEPTED', 'AUTO_ACCEPTED_BY_POLICY'].includes(item.disposition));
+    const merge = document.createElement('button'); merge.type = 'button'; merge.className = 'secondary'; merge.dataset.taskControl = 'merge'; merge.textContent = 'Merge accepted changes';
+    merge.disabled = !terminal || !accepted || Boolean(review.conflicts?.length); section.append(merge);
+  } else if (review.mergeId) {
+    const revert = document.createElement('button'); revert.type = 'button'; revert.className = 'secondary'; revert.dataset.taskControl = 'revert'; revert.textContent = 'Revert merge'; section.append(revert);
+  }
+  return section;
+}
+
+function renderTasks() {
+  const fragment = document.createDocumentFragment(); fragment.append(renderTaskComposer());
+  if (!state.tasks.length) {
+    fragment.append(emptyState('No delegated tasks', 'Create a bounded task branch. Finalize, export, and publish remain unavailable.'));
+    return fragment;
+  }
+  const selected = state.tasks.find(({ task }) => task.taskId === state.taskUi.selectedTaskId) ?? state.tasks[0];
+  state.taskUi.selectedTaskId = selected.task.taskId;
+  const grid = document.createElement('div'); grid.className = 'task-layout';
+  const list = document.createElement('section'); list.className = 'task-list surface-card';
+  const listHeading = document.createElement('h2'); listHeading.textContent = 'Task branches'; list.append(listHeading);
+  for (const entry of state.tasks) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'task-list-item secondary';
+    button.dataset.taskControl = 'select'; button.dataset.taskId = entry.task.taskId;
+    if (entry.task.taskId === selected.task.taskId) button.dataset.selected = 'true';
+    const strong = document.createElement('strong'); strong.textContent = entry.task.title;
+    const small = document.createElement('small'); small.textContent = `${entry.task.branchId} · r${entry.task.headRevision}`;
+    button.append(strong, taskStateBadge(entry.task), small); list.append(button);
+  }
+  const detail = document.createElement('section'); detail.className = 'task-detail surface-card';
+  const heading = document.createElement('div'); heading.className = 'panel-heading';
+  const headCopy = document.createElement('div'); const taskTitle = document.createElement('h2'); taskTitle.textContent = selected.task.title;
+  const objective = document.createElement('p'); objective.textContent = selected.task.objective; headCopy.append(taskTitle, objective); heading.append(headCopy, taskStateBadge(selected.task)); detail.append(heading);
+  const facts = document.createElement('dl'); facts.className = 'policy-details';
+  for (const [label, value] of [
+    ['Agent', selected.task.agentId], ['Branch', selected.task.branchId], ['Base / head', `r${selected.task.baseRevision} / r${selected.task.headRevision}`],
+    ['Capabilities', selected.task.capabilities.join(', ')], ['Expires', new Date(selected.task.expiresAt).toLocaleString()],
+    ['Budget', `${selected.task.usage?.commands ?? 0}/${selected.task.budget.maxCommands} commands`],
+  ]) { const term = document.createElement('dt'); term.textContent = label; const desc = document.createElement('dd'); desc.textContent = value; facts.append(term, desc); }
+  detail.append(facts);
+  const controls = document.createElement('div'); controls.className = 'task-controls';
+  const actions = selected.task.state === 'ACTIVE' ? ['pause', 'cancel', 'submit-review']
+    : selected.task.state === 'PAUSED' ? ['resume', 'cancel']
+      : selected.task.state === 'CHANGES_REQUESTED' ? ['resume', 'cancel'] : [];
+  for (const action of actions) {
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.taskControl = action; button.textContent = action.replace('-', ' '); if (action === 'cancel') button.className = 'secondary'; controls.append(button);
+  }
+  detail.append(controls);
+  const timelineHeading = document.createElement('h3'); timelineHeading.textContent = 'Live timeline';
+  const timeline = document.createElement('ol'); timeline.className = 'task-timeline';
+  for (const event of selected.timeline) { const item = document.createElement('li'); const strong = document.createElement('strong'); strong.textContent = event.type.replaceAll('_', ' '); const small = document.createElement('small'); small.textContent = `${new Date(event.occurredAt).toLocaleTimeString()} · r${event.branchRevision}`; item.append(strong, small); timeline.append(item); }
+  detail.append(timelineHeading, timeline); grid.append(list, detail); fragment.append(grid, renderTaskReview(selected)); return fragment;
+}
+
 function renderCollection(items, workspace) {
   if (items.length === 0) {
     const messages = {
@@ -2269,6 +2414,9 @@ function workspaceRenderFingerprint() {
     cutterPending: state.cutterPending,
     assetMutationPending: state.assetMutationPending,
     roomMutationPending: state.roomMutationPending,
+    taskMutationPending: state.taskMutationPending,
+    tasks: state.workspace === 'tasks' ? state.tasks : null,
+    taskUi: state.workspace === 'tasks' ? state.taskUi : null,
     assetUi: state.workspace === 'assets' ? {
       search: state.assetUi.search,
       kind: state.assetUi.kind,
@@ -2315,7 +2463,7 @@ function renderWorkspace({ preserveCutterDraft = false, preserveAssetDraft = fal
   }
   const title = {
     overview: 'Project overview', sources: 'Source & generation provenance', assets: 'Visual asset library',
-    rooms: 'Room & hallway designer', levels: 'Level composer', activity: 'Immutable activity ledger',
+    rooms: 'Room & hallway designer', tasks: 'Delegated task branches', levels: 'Level composer', activity: 'Immutable activity ledger',
   }[state.workspace] || 'Project overview';
   elements['workspace-eyebrow'].textContent = title;
   const selectedSourceFile = sourceIntakeFormCache?.querySelector('[data-source-file]');
@@ -2339,6 +2487,7 @@ function renderWorkspace({ preserveCutterDraft = false, preserveAssetDraft = fal
     ? renderAssetLibrary(snapshot)
     : renderCollection(snapshot.assets, 'assets');
   else if (state.workspace === 'rooms') content = renderRooms(snapshot);
+  else if (state.workspace === 'tasks') content = renderTasks();
   else if (state.workspace === 'levels') content = renderCollection(snapshot.levels, 'levels');
   else content = renderActivityWorkspace();
   elements['workspace-content'].replaceChildren(content);
@@ -2517,6 +2666,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
     resetAssetUiProjectContext();
     resetRoomUiProjectContext();
+    state.tasks = []; state.taskUi.selectedTaskId = null;
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
     state.agentAccess = null; setAgentAccessPanel(false); renderProject(); return;
@@ -2556,18 +2706,23 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     resetCutterScroll();
     resetAssetUiProjectContext();
     resetRoomUiProjectContext();
+    state.tasks = []; state.taskUi.selectedTaskId = null;
   }
   if (state.cutter?.projectId && state.cutter.projectId !== projectId) {
     cancelCutterJobPolling();
     resetCutterScroll();
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
   }
-  const [project, activity, agentAccess, sourceIntakes] = await Promise.all([
+  const [project, activity, agentAccess, sourceIntakes, taskList] = await Promise.all([
     api(`/api/projects/${encodeURIComponent(projectId)}`),
     api(`/api/projects/${encodeURIComponent(projectId)}/activity`),
     api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`),
     api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`),
+    api(`/api/projects/${encodeURIComponent(projectId)}/tasks`).catch(() => ({ tasks: [] })),
   ]);
+  const taskDetails = await Promise.all((taskList.tasks ?? []).map((task) => (
+    api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
+  )));
   if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   if (state.project?.projectId !== projectId) {
     state.sourceDraft = null;
@@ -2612,6 +2767,10 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
   state.pendingHosts = agentAccess.pendingHosts;
   state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
   state.sourceIntakes = sourceIntakes.intakes;
+  state.tasks = taskDetails;
+  if (!state.tasks.some(({ task }) => task.taskId === state.taskUi.selectedTaskId)) {
+    state.taskUi.selectedTaskId = state.tasks[0]?.task.taskId ?? null;
+  }
   if (state.resumingIntakeId && !state.sourceIntakes.some((intake) => intake.intakeId === state.resumingIntakeId && intake.state === 'STAGED')) {
     state.resumingIntakeId = null;
   }
@@ -2664,7 +2823,8 @@ async function requestAgentAccess(mode, {
 }
 
 async function refresh({ quiet = false, passive = false } = {}) {
-  if (state.refreshing || state.cutterPending || state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending) return;
+  if (state.refreshing || state.cutterPending || state.sourceMutationPending || state.assetMutationPending
+      || state.roomMutationPending || state.taskMutationPending) return;
   state.refreshing = true; elements['refresh-button'].disabled = true;
   try {
     await loadProjects(state.project?.projectId, { preserveWorkspaceIfUnchanged: passive });
@@ -3068,6 +3228,92 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     const accepted = proposal.items.filter((item) => item.decision?.disposition === 'ACCEPTED').length;
     if (!window.confirm(`Atomically apply exactly ${accepted} accepted placement change(s)?`)) return;
     await executeRoomMutation({ operation: 'room-proposal-apply', target: proposal.proposalId, path: `/api/projects/${encodeURIComponent(projectId)}/room-proposals/${encodeURIComponent(proposal.proposalId)}/apply`, body: { expectedProposalVersion: proposal.proposalVersion, confirm: true }, successMessage: `Applied ${accepted} accepted room placement change(s) atomically.` });
+  }
+});
+
+async function executeTaskRequest(path, body, successMessage) {
+  if (!state.project || !state.agentAccessCsrf || state.taskMutationPending) return null;
+  const projectId = state.project.projectId;
+  state.taskMutationPending = true; updateMutationControls();
+  try {
+    const result = await api(path, {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: JSON.stringify(body),
+    });
+    await loadProject(projectId, { preserveWorkspaceIfUnchanged: true });
+    showToast(successMessage); return result;
+  } catch (error) {
+    showToast(`${error.code || 'ERROR'}: ${error.message}`); return null;
+  } finally {
+    state.taskMutationPending = false; updateMutationControls(); renderWorkspace();
+  }
+}
+
+elements['workspace-content'].addEventListener('submit', async (event) => {
+  const form = event.target.closest('[data-task-form="create"]');
+  if (!form || state.workspace !== 'tasks') return;
+  event.preventDefault();
+  const data = new FormData(form); const projectId = state.project?.projectId; if (!projectId) return;
+  const capabilities = ['project.read', ...form.querySelectorAll('input[name="capability"]:checked:not(:disabled)')].map((entry) => (
+    typeof entry === 'string' ? entry : entry.value
+  ));
+  const autoAccept = data.get('autoAccept') === 'on';
+  const token = crypto.randomUUID();
+  const result = await executeTaskRequest(`/api/projects/${encodeURIComponent(projectId)}/tasks`, {
+    task: {
+      taskId: `task.ui.${token}`,
+      branchId: `branch.task.ui.${token}`,
+      agentId: String(data.get('agentId')),
+      title: String(data.get('title')),
+      objective: String(data.get('objective')),
+      capabilities,
+      objectScopes: [{ kind: 'project', id: projectId }],
+      budget: { maxCommands: Number(data.get('maxCommands')), maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
+      expiresAt: new Date(Date.now() + (Number(data.get('expiryHours')) * 60 * 60 * 1000)).toISOString(),
+      autoAcceptPolicy: autoAccept
+        ? { enabled: true, allowedCommandTypes: ['room.variant.intent.set'], maxChanges: 2 }
+        : { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
+    },
+  }, 'Isolated task branch created with bounded authority.');
+  if (result?.task?.taskId) state.taskUi.selectedTaskId = result.task.taskId;
+});
+
+elements['workspace-content'].addEventListener('click', async (event) => {
+  const control = event.target.closest('[data-task-control]');
+  if (!control || state.workspace !== 'tasks' || !state.project) return;
+  const action = control.dataset.taskControl;
+  if (action === 'select') {
+    state.taskUi.selectedTaskId = control.dataset.taskId; renderWorkspace(); return;
+  }
+  const entry = state.tasks.find(({ task }) => task.taskId === state.taskUi.selectedTaskId);
+  if (!entry) return;
+  const projectId = state.project.projectId; const taskId = entry.task.taskId;
+  const taskBase = `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`;
+  if (['pause', 'resume', 'cancel'].includes(action)) {
+    if (action === 'cancel' && !window.confirm('Cancel this task and revoke its grant? Branch history remains inspectable.')) return;
+    await executeTaskRequest(`${taskBase}/${action}`, { reason: action === 'pause' ? 'Paused from the human task workspace.' : `${action} from the human task workspace.` }, `Task ${action} recorded.`); return;
+  }
+  if (action === 'submit-review') {
+    await executeTaskRequest(`${taskBase}/submit-review`, { reviewId: `review.${taskId}.${crypto.randomUUID().slice(0, 8)}` }, 'Branch submitted for semantic review.'); return;
+  }
+  if (action === 'decide') {
+    const decisions = [...elements['workspace-content'].querySelectorAll('[data-task-review-disposition]')]
+      .filter((select) => select.value !== 'AUTO_ACCEPTED_BY_POLICY' && select.value !== 'PENDING')
+      .map((select) => ({ changeId: select.dataset.taskReviewDisposition, disposition: select.value, reason: null }));
+    const undecided = [...elements['workspace-content'].querySelectorAll('[data-task-review-disposition]')]
+      .some((select) => select.value === 'PENDING');
+    if (undecided) { showToast('Every non-policy change needs an accept, reject, or request-changes decision.'); return; }
+    if (!decisions.length || !window.confirm(`Record ${decisions.length} human review decision(s)?`)) return;
+    await executeTaskRequest(`${taskBase}/reviews/${encodeURIComponent(entry.review.reviewId)}/decide`, { decisions, confirm: true }, 'Human review decisions recorded.'); return;
+  }
+  if (action === 'merge') {
+    if (!window.confirm('Atomically replay and merge the accepted branch changes? The task grant will be revoked.')) return;
+    await executeTaskRequest(`${taskBase}/reviews/${encodeURIComponent(entry.review.reviewId)}/merge`, { mergeId: `merge.${taskId}`, confirm: true }, 'Accepted changes merged atomically.'); return;
+  }
+  if (action === 'revert') {
+    if (!window.confirm('Create a new compensating revision for this merge? Existing history will remain unchanged.')) return;
+    await executeTaskRequest(`/api/projects/${encodeURIComponent(projectId)}/task-merges/${encodeURIComponent(entry.review.mergeId)}/revert`, { revertId: `revert.${entry.review.mergeId}`, confirm: true }, 'Merge reverted through a compensating revision.');
   }
 });
 

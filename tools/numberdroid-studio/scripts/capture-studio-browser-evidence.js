@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3 [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4 [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -20,6 +20,7 @@ const checkpoint2aFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint2bFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint2cFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint3Focus = new URL(pageUrl).searchParams.get('visualFocus');
+const checkpoint4Focus = new URL(pageUrl).searchParams.get('visualFocus') ?? 'conflict';
 const checkpoint2cPhase = new URL(pageUrl).searchParams.get('visualPhase') ?? 'applied';
 const profileDirectory = await mkdtemp(`${tmpdir()}/numberdroid-studio-chrome-`);
 
@@ -191,6 +192,13 @@ try {
              && document.documentElement.dataset.visualActivityCount === '27'
              && document.documentElement.dataset.roomCanvasReady === 'true'
              && document.documentElement.dataset.visualConnectionState === 'Live'`
+          : mode === 'checkpoint-4'
+            ? `document.documentElement.dataset.visualEvidenceReady === 'true'
+               && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
+               && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-4'
+               && document.documentElement.dataset.visualRevision === '5'
+               && document.documentElement.dataset.visualActivityCount === '5'
+               && document.documentElement.dataset.visualConnectionState === 'Live'`
           : `document.getElementById('connection-label')?.textContent === 'Live'
          && document.getElementById('revision-label')?.textContent === 'Revision 5'
          && document.querySelector(${JSON.stringify(`[data-workspace="${expectedWorkspace}"]`)})?.classList.contains('active')`;
@@ -216,6 +224,7 @@ try {
   let checkpoint2aSourceFocusBeforeLayout = null;
   let checkpoint2aSourceFocusFinal = null;
   let checkpoint2cInteractionEvidence = null;
+  let checkpoint4TaskFocus = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
     const focus = checkpoint2aFocus ?? 'intake-form';
@@ -378,6 +387,40 @@ try {
       expression: `document.querySelector(${JSON.stringify(focusSelector)})?.scrollIntoView({ block: 'center' })`,
       returnByValue: true,
     }, sessionId);
+  }
+  if (mode === 'checkpoint-4' && expectedWorkspace === 'tasks') {
+    const focused = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const focus = ${JSON.stringify(checkpoint4Focus)};
+        const state = focus === 'merged' ? 'MERGED' : 'IN_REVIEW';
+        const target = [...document.querySelectorAll('[data-task-control="select"]')]
+          .find((button) => button.querySelector('[data-task-state]')?.dataset.taskState === state);
+        target?.click();
+        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        const detail = document.querySelector('.task-detail');
+        const review = document.querySelector('.task-review');
+        (focus === 'merged' ? detail : review)?.scrollIntoView({ block: 'center', inline: 'nearest' });
+        await new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
+        return {
+          focus,
+          found: Boolean(target),
+          selectedState: document.querySelector('[data-task-control="select"][data-selected="true"] [data-task-state]')?.dataset.taskState ?? null,
+          taskCount: document.querySelectorAll('[data-task-control="select"]').length,
+          conflictCount: document.querySelectorAll('.task-conflicts li').length,
+          reviewItemCount: document.querySelectorAll('.task-review-items li').length,
+          timelineCount: document.querySelectorAll('.task-timeline li').length,
+          hasMerge: Boolean(document.querySelector('[data-task-control="merge"]')),
+          hasRevert: Boolean(document.querySelector('[data-task-control="revert"]')),
+          detailVisible: Boolean(detail && detail.getBoundingClientRect().bottom > 0 && detail.getBoundingClientRect().top < innerHeight),
+          reviewVisible: Boolean(review && review.getBoundingClientRect().bottom > 0 && review.getBoundingClientRect().top < innerHeight),
+        };
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    }, sessionId);
+    checkpoint4TaskFocus = focused.result?.value ?? null;
+    assert(checkpoint4TaskFocus?.found === true && checkpoint4TaskFocus.taskCount === 2,
+      `Checkpoint 4 could not focus the requested task evidence: ${JSON.stringify(checkpoint4TaskFocus)}`);
   }
   if (mode === 'checkpoint-2a' && expectedWorkspace === 'sources') {
     const patternValidity = await devtools.send('Runtime.evaluate', {
@@ -863,6 +906,25 @@ try {
         proposalItems: [...(roomProposal?.querySelectorAll('[data-room-proposal-item]') ?? [])].map((item) => ({ itemId: item.dataset.roomProposalItem, text: item.textContent })),
         exactPins: [...document.querySelectorAll('.room-placement-list button')].map((button) => button.textContent),
       };
+      const selectedTask = document.querySelector('[data-task-control="select"][data-selected="true"]');
+      const taskWorkspace = {
+        composer: rect(document.querySelector('.task-composer')),
+        layout: rect(document.querySelector('.task-layout')),
+        taskCount: document.querySelectorAll('[data-task-control="select"]').length,
+        states: [...document.querySelectorAll('[data-task-control="select"] [data-task-state]')]
+          .map((badge) => badge.dataset.taskState),
+        selectedState: selectedTask?.querySelector('[data-task-state]')?.dataset.taskState ?? null,
+        selectedText: document.querySelector('.task-detail')?.textContent ?? null,
+        timelineCount: document.querySelectorAll('.task-timeline li').length,
+        conflictCount: document.querySelectorAll('.task-conflicts li').length,
+        conflictText: document.querySelector('.task-conflicts')?.textContent ?? null,
+        reviewItemCount: document.querySelectorAll('.task-review-items li').length,
+        reviewText: document.querySelector('.task-review')?.textContent ?? null,
+        reviewDispositions: [...document.querySelectorAll('[data-task-review-disposition]')]
+          .map((control) => control.value),
+        controlNames: [...document.querySelectorAll('.task-detail [data-task-control], .task-review [data-task-control]')]
+          .map((control) => control.dataset.taskControl),
+      };
       const sources = [...document.querySelectorAll('.source-card')].map((source) => {
         const preview = source.querySelector('.source-preview');
         const image = preview?.querySelector('img');
@@ -948,6 +1010,7 @@ try {
         cards,
         assetLibrary,
         roomDesigner,
+        taskWorkspace,
         sources,
         aspectRatioProbes,
         stagedIntakes,
@@ -1235,6 +1298,43 @@ try {
       assert(layout.roomDesigner.exactPins.length === 14
         && layout.roomDesigner.exactPins.every((value) => /@1:1/.test(value)),
       'Checkpoint 3 structured placement list lost exact asset and metadata pins.');
+    }
+  }
+  if (mode === 'checkpoint-4') {
+    assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
+      'Checkpoint 4 screenshot was taken before error-free readiness.');
+    assert(layout.projectId === 'numberdroid-studio-checkpoint-4'
+      && layout.revision === 5 && layout.activityCount === 5 && layout.connectionState === 'Live',
+    'Checkpoint 4 screenshot is not bound to the prepared revision-5 fixture.');
+    if (expectedWorkspace === 'tasks') {
+      assert(layout.taskWorkspace.composer && layout.taskWorkspace.layout
+        && layout.taskWorkspace.taskCount === 2
+        && layout.taskWorkspace.states.includes('MERGED')
+        && layout.taskWorkspace.states.includes('IN_REVIEW'),
+      'Checkpoint 4 task workspace lost its composer, two branches, or workflow states.');
+      assert(layout.taskWorkspace.selectedText?.includes('source.write')
+        && layout.taskWorkspace.selectedText.includes('commands'),
+      'Checkpoint 4 selected task lost its visible capability or budget projection.');
+      if (checkpoint4Focus === 'conflict') {
+        assert(checkpoint4TaskFocus?.selectedState === 'IN_REVIEW'
+          && checkpoint4TaskFocus.conflictCount === 1
+          && checkpoint4TaskFocus.reviewItemCount === 1
+          && checkpoint4TaskFocus.timelineCount === 3
+          && checkpoint4TaskFocus.reviewVisible === true
+          && layout.taskWorkspace.conflictText?.includes('SEMANTIC_MERGE_CONFLICT: source:source.checkpoint-4.shared')
+          && layout.taskWorkspace.controlNames.includes('decide')
+          && layout.taskWorkspace.controlNames.includes('merge'),
+        'Checkpoint 4 concurrent branch conflict, semantic review item, or controls are not visibly inspectable.');
+      }
+      if (checkpoint4Focus === 'merged') {
+        assert(checkpoint4TaskFocus?.selectedState === 'MERGED'
+          && checkpoint4TaskFocus.timelineCount === 7
+          && checkpoint4TaskFocus.hasRevert === true
+          && checkpoint4TaskFocus.detailVisible === true
+          && layout.taskWorkspace.reviewDispositions.includes('USER_ACCEPTED')
+          && layout.taskWorkspace.controlNames.includes('revert'),
+        'Checkpoint 4 merged lineage, human disposition, timeline, or compensating-revert control is not visibly inspectable.');
+      }
     }
   }
   if (mode === 'checkpoint-2a') {
@@ -2055,6 +2155,7 @@ try {
     checkpoint2aSourceFocusFinal,
     checkpoint2cPhase: mode === 'checkpoint-2c' ? checkpoint2cPhase : null,
     checkpoint2cInteractionEvidence,
+    checkpoint4TaskFocus,
     layout,
     interactions: checkpoint2bInteractionEvidence,
   };

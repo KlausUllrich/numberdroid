@@ -201,6 +201,7 @@ export function createHumanAgentAccessController({
   studioService,
   hostBindingStore = null,
   pairingBroker = null,
+  agentTaskService = null,
   clock = () => new Date().toISOString(),
 } = {}) {
   if (!studioService) throw new TypeError('studioService is required.');
@@ -293,8 +294,19 @@ export function createHumanAgentAccessController({
 
   async function change(projectId, rawBody) {
     const request = validateRequest(rawBody);
-    if (request.mode === 'custom' || request.mode === 'propose_draft') {
+    if (request.mode === 'custom') {
       const projectView = await studioService.readProjectTrusted(projectId);
+      return {
+        changed: false,
+        effectivePolicy: policyWithPresetSummaries(projectView, clock(), request.mode),
+      };
+    }
+    if (request.mode === 'propose_draft') {
+      const projectView = await studioService.readProjectTrusted(projectId);
+      const actual = effectiveAgentAccessProjection(projectView, { now: clock() });
+      if (actual.mode === 'propose_draft' && actual.state === 'ACTIVE_DRAFT') {
+        return { changed: false, effectivePolicy: policyWithPresetSummaries(projectView, clock()) };
+      }
       return {
         changed: false,
         effectivePolicy: policyWithPresetSummaries(projectView, clock(), request.mode),
@@ -380,8 +392,9 @@ export function createHumanAgentAccessController({
       if (!grant) {
         throw new StudioError('GRANT_NOT_ACTIVE', 'Choose an active Agent access mode before creating an MCP connection.');
       }
-      if (effectiveAgentAccessProjection(projectView, { now }).mode === 'propose_draft') {
-        throw new StudioError('DRAFT_BRANCH_NOT_AVAILABLE_1B', 'Draft MCP hosts require isolated branch heads, which are not available in Checkpoint 1B.');
+      if (effectiveAgentAccessProjection(projectView, { now }).mode === 'propose_draft'
+        && !agentTaskService?.hasTask(projectId, grant.taskId, grant.branchId)) {
+        throw new StudioError('DRAFT_BRANCH_NOT_AVAILABLE_1B', 'Draft MCP hosts require a live isolated Checkpoint 4 task branch.');
       }
       let issued = null;
       try {

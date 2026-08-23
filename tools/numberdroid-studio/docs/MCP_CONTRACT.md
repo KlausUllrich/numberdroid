@@ -233,7 +233,27 @@ Schema v10 advertises exactly two additive room tools, for a total of 19 tools a
 - `studio_room_placement_proposal_submit` — the only agent room mutation; submits 1–64 complete add/move/remove placement items against one exact DRAFT room version and charges one command per item;
 - `studio_room_query` — bounded project/room/lifecycle/archetype query with optional immutable versions and redacted proposal state.
 
-The room detail resource is `studio://projects/{projectId}/rooms/{roomVariantId}`. Direct create, resize, intent, connector, placement, warning-disposition, validation, finalization, fork, proposal-decision, and proposal-apply controls remain authenticated human UI/service commands and are deliberately absent from MCP. Placement records reference exact semantic `assetId`/`assetVersion`/`metadataVersion`, layer, cell anchor, and cardinal rotation; they never reference a loose filename or current asset head as authority. General branch heads and merge remain Checkpoint 4.
+The room detail resource is `studio://projects/{projectId}/rooms/{roomVariantId}`. Without an actual task binding, direct create, resize, intent, connector, placement, warning-disposition, validation, finalization, fork, proposal-decision, and proposal-apply controls remain authenticated human UI/service commands and are deliberately absent from MCP. Placement records reference exact semantic `assetId`/`assetVersion`/`metadataVersion`, layer, cell anchor, and cardinal rotation; they never reference a loose filename or current asset head as authority.
+
+### Delegated task branch tools — Checkpoint 4 candidate
+
+The default schema-v10 discovery surface remains exactly 19 tools and four resource templates. Only when the private gateway has resolved a live HostBinding to a real matching Checkpoint 4 task branch does discovery advertise exactly 30 tools and five resource templates. The additive task-bound tools are:
+
+- `studio_room_archetype_create`
+- `studio_room_variant_create`
+- `studio_room_variant_intent_set`
+- `studio_room_variant_resize`
+- `studio_room_variant_connectors_set`
+- `studio_room_variant_placements_add`
+- `studio_room_variant_placements_move`
+- `studio_room_variant_placements_remove`
+- `studio_room_variant_validate`
+- `studio_task_read`
+- `studio_task_submit_for_review`
+
+The fifth resource is `studio://projects/{projectId}/task`. The task identity comes from the trusted HostBinding, never from a caller-selectable URI segment. It projects the bound task, redacted authority/budget, timeline, and current review without the grant ID. Every direct room mutation is executed by `AgentTaskService` against the isolated compare-and-swap branch store; calling `StudioService` on `branch.main` with task coordinates fails `TASK_BRANCH_REQUIRED`.
+
+Warning disposition, asset/room finalization, grant issue/revoke, review decision, task control, merge, compensating revert, portable bundle operations, Numberdroid export, materialization, and publish remain absent from agent discovery. The branch rejects `source.intake.commit`, `atlas.preview.slices`, and `atlas.commit.slices` because those commands consume shared CAS/job state whose accepted v8 foreign keys are main-revision-bound. An agent task may consume already committed atlas/slice results; Checkpoint 2B jobs retain their separate scoped read/cancel/retry/discard surface.
 
 ### Level and export tools — later V1
 
@@ -336,9 +356,9 @@ The target V1 activity timeline displays every MCP tool call that reaches applic
 - dry-run/applied/denied/failed/cancelled status;
 - base/result revisions and idempotent replay marker;
 - duration, job/correlation IDs, findings, and changed resource links;
-- review disposition (`PENDING`, `USER_APPROVED`, `USER_REJECTED`, or `AUTO_ACCEPTED_BY_POLICY`).
+- review disposition (`PENDING`, `USER_ACCEPTED`, `USER_REJECTED`, `CHANGES_REQUESTED`, or `AUTO_ACCEPTED_BY_POLICY`).
 
-The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2B adds visible read/cancel/retry/discard controls for its atlas-preview jobs, and the agent receives the equivalent scoped MCP operations. Agent changes remaining on isolated draft branches is a Checkpoint 4 target; the current implementation has no branch-head/review/merge workflow, so `Propose in draft` fails closed.
+The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2B adds visible read/cancel/retry/discard controls for its atlas-preview jobs, and the agent receives the equivalent scoped MCP operations. The Checkpoint 4 candidate activates `Propose in draft` only when a real matching task branch exists; without that task it retains the protected `DRAFT_BRANCH_NOT_AVAILABLE_1B` fail-closed result. Review decision, merge, and revert are human service/UI actions rather than MCP tools.
 
 ## 11. Security invariants
 

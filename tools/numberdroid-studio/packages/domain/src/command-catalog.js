@@ -236,6 +236,17 @@ const roomPlacementProposalItem = {
 
 const definitions = [
   {
+    type: 'task.merge.revert',
+    toolName: 'studio_task_merge_revert',
+    description: 'Create a new owner-controlled compensating revision for one Checkpoint 4 task merge.',
+    requiredScope: 'task.merge.revert',
+    ownerOnly: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false, required: ['mergeId'],
+      properties: { mergeId: id },
+    },
+  },
+  {
     type: 'project.create',
     toolName: 'studio_project_create',
     description: 'Create a Studio project and its immutable first revision.',
@@ -592,9 +603,10 @@ const definitions = [
   {
     type: 'room.archetype.create',
     toolName: 'studio_room_archetype_create',
-    description: 'Create one immutable human-owned room or hallway archetype version.',
+    description: 'Create one immutable room or hallway archetype version; agents require an isolated task branch.',
     requiredScope: 'room.archetype.create',
-    ownerOnly: true,
+    ownerOnly: false,
+    requiresTaskBranch: true,
     requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false,
@@ -645,9 +657,10 @@ const definitions = [
   {
     type: 'room.variant.create',
     toolName: 'studio_room_variant_create',
-    description: 'Create one human-owned DRAFT room variant against an exact archetype version.',
+    description: 'Create one DRAFT room variant against an exact archetype version; agents require an isolated task branch.',
     requiredScope: 'room.variant.create',
-    ownerOnly: true,
+    ownerOnly: false,
+    requiresTaskBranch: true,
     requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false,
@@ -669,7 +682,7 @@ const definitions = [
     type: 'room.variant.intent.set',
     toolName: 'studio_room_variant_intent_set',
     description: 'Create a new DRAFT room version with an explicit intent trace.',
-    requiredScope: 'room.variant.intent.set', ownerOnly: true, requiresDurableRoomStore: true,
+    requiredScope: 'room.variant.intent.set', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'intentTrace'],
       properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 }, intentTrace: { type: 'array', maxItems: 32, items: roomIntent } },
@@ -679,7 +692,7 @@ const definitions = [
     type: 'room.variant.resize',
     toolName: 'studio_room_variant_resize',
     description: 'Create a resized DRAFT room version without silently clipping connectors or placements.',
-    requiredScope: 'room.variant.resize', ownerOnly: true, requiresDurableRoomStore: true,
+    requiredScope: 'room.variant.resize', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'width', 'height', 'removePlacementIds', 'removeConnectorIds'],
       properties: {
@@ -694,7 +707,7 @@ const definitions = [
     type: 'room.variant.connectors.set',
     toolName: 'studio_room_variant_connectors_set',
     description: 'Create a new DRAFT room version with an exact connector set.',
-    requiredScope: 'room.variant.connectors.set', ownerOnly: true, requiresDurableRoomStore: true,
+    requiredScope: 'room.variant.connectors.set', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'connectors'],
       properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 }, connectors: { type: 'array', maxItems: 32, items: roomConnector } },
@@ -704,7 +717,7 @@ const definitions = [
     type: 'room.variant.placements.add',
     toolName: 'studio_room_variant_placements_add',
     description: 'Create a new DRAFT room version by adding exact V2 asset placements.',
-    requiredScope: 'room.variant.placements.add', ownerOnly: true, requiresDurableRoomStore: true,
+    requiredScope: 'room.variant.placements.add', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'placements'],
       properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 }, placements: { type: 'array', minItems: 1, maxItems: 64, items: roomPlacement } },
@@ -714,7 +727,7 @@ const definitions = [
     type: 'room.variant.placements.move',
     toolName: 'studio_room_variant_placements_move',
     description: 'Create a new DRAFT room version by moving exact existing placements.',
-    requiredScope: 'room.variant.placements.move', ownerOnly: true, requiresDurableRoomStore: true,
+    requiredScope: 'room.variant.placements.move', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'moves'],
       properties: {
@@ -730,7 +743,7 @@ const definitions = [
     type: 'room.variant.placements.remove',
     toolName: 'studio_room_variant_placements_remove',
     description: 'Create a new DRAFT room version by removing explicitly identified placements.',
-    requiredScope: 'room.variant.placements.remove', ownerOnly: true, requiresDurableRoomStore: true,
+    requiredScope: 'room.variant.placements.remove', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'placements'],
       properties: {
@@ -795,8 +808,8 @@ const definitions = [
   {
     type: 'room.variant.validate',
     toolName: 'studio_room_variant_validate',
-    description: 'Promote one human-owned room version to VALIDATED after deterministic checks.',
-    requiredScope: 'room.variant.validate', ownerOnly: true, requiresDurableRoomStore: true,
+    description: 'Promote one room version to VALIDATED after deterministic checks; agents require an isolated task branch.',
+    requiredScope: 'room.variant.validate', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion'],
       properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 } },

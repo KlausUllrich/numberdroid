@@ -149,6 +149,8 @@ Exit decision: approve canvas behavior, placement vocabulary, validation explana
 
 ## Checkpoint 4 — Agent-first workflow and review control
 
+**Candidate status (2026-08-23):** implemented on the draft branch with schema v11 isolated task branches, semantic review/conflicts, atomic merge, compensating revert, UI/HTTP/MCP coverage, and adversarial tests. User acceptance remains combined with Checkpoints 2C and 3. The current candidate consumes already committed atlas results; the v8 main-revision-bound bitmap job ledger is deliberately not presented as branch-local work.
+
 **Outcome:** an agent can safely execute a complete source-to-final-room task while the user follows and controls it.
 
 Deliverables:
@@ -161,7 +163,7 @@ Deliverables:
 - MCP coverage for every V1 authoring step completed so far;
 - adversarial permission and multi-agent race suite.
 
-User verification scenario: grant an agent the complete atlas-to-room workflow but not finalization/publish, follow it live, interrupt a long job, resume or retry, compare its branch, accept selected changes, and revert the merge.
+User verification scenario: grant an agent the committed-atlas-to-DRAFT-room workflow but not finalization/publish, follow the task timeline, pause/resume the branch, compare concurrent results, accept selected changes, and revert the merge. Separately verify the accepted Checkpoint 2B cooperative long-job controls; decide whether a later branch-local job ledger is required before accepting the broader source-to-room wording.
 
 Exit decision: approve the default delegation model and decide which actions, if any, can be auto-accepted.
 

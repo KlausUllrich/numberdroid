@@ -23,6 +23,7 @@ const gateway = new LocalStudioGateway({
   durableJobStoreReady: process.env.NUMBERDROID_STUDIO_JOB_STORE_READY === '1',
   durableAssetStoreReady: process.env.NUMBERDROID_STUDIO_ASSET_STORE_READY === '1',
   durableRoomStoreReady: process.env.NUMBERDROID_STUDIO_ROOM_STORE_READY === '1',
+  taskBranchReady: process.env.NUMBERDROID_STUDIO_TASK_BRANCH_READY === '1',
 });
 
 serveOfficialMcpStdio({

@@ -71,13 +71,14 @@ function variantCommand(expectedVersion = 2) {
   });
 }
 
-test('schema v10 is fixed, strict, normalized, and leaves migration v9 pinned', async (context) => {
+test('schema v11 keeps the fixed v10 room schema and migration v9 pinned', async (context) => {
   const filename = await tempDatabase(context);
   const store = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
   context.after(() => store.close());
   const migrations = await loadMigrationDefinitions();
-  assert.equal(migrations.at(-1).version, 10);
-  assert.equal(migrations.at(-1).checksum, '99d12a3a7ee7572dd9386bd183fb847631ceab0490b0190e3ba5f1b339cfd40e');
+  assert.equal(migrations.at(-1).version, 11);
+  assert.equal(migrations.at(-1).checksum, 'f6ed508f3098e6cdeb3dca2af0a9be7baca12c18fcd9d518f75f4f353242639d');
+  assert.equal(migrations.find(({ version }) => version === 10).checksum, '99d12a3a7ee7572dd9386bd183fb847631ceab0490b0190e3ba5f1b339cfd40e');
   assert.equal(migrations.find(({ version }) => version === 9).checksum, 'e387c3e56fb0bb03bd14743c6a7c7a6baad230c02dde8f158e485e25776e7175');
   const tables = store.workspace.database.prepare(`
     SELECT name, strict FROM pragma_table_list
@@ -93,7 +94,7 @@ test('schema v10 is fixed, strict, normalized, and leaves migration v9 pinned', 
   ]);
   assert.ok(tables.every(({ strict }) => Number(strict) === 1));
   assert.equal(store.supportsAtomicRoomDesigner, true);
-  assert.equal(store.integrityCheck().userVersion, 10);
+  assert.equal(store.integrityCheck().userVersion, 11);
 });
 
 test('a v9 workspace rolls migration 0010 back completely and resumes safely', async (context) => {
@@ -109,7 +110,7 @@ test('a v9 workspace rolls migration 0010 back completely and resumes safely', a
   interrupted.close();
   const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
   context.after(() => resumed.close());
-  assert.equal(resumed.integrityCheck().userVersion, 10);
+  assert.equal(resumed.integrityCheck().userVersion, 11);
   assert.equal(resumed.workspace.database.prepare("SELECT count(*) AS count FROM sqlite_schema WHERE type = 'table' AND name = 'room_variant_versions'").get().count, 1);
 });
 

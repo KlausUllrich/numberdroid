@@ -877,6 +877,14 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
     const liveJobs = database.prepare('SELECT * FROM jobs WHERE project_id = ? ORDER BY created_at, job_id').all(projectId);
     const active = liveJobs.filter((job) => ['QUEUED', 'RUNNING', 'SUCCEEDED'].includes(job.state));
     invariant(active.length === 0, 'BUNDLE_NOT_QUIESCENT', 'Portable export requires no queued, running, or unapplied succeeded jobs.', { jobIds: active.map((job) => job.job_id) });
+    const activeTasks = database.prepare(`
+      SELECT task_id FROM agent_tasks
+      WHERE project_id = ? AND state IN ('ACTIVE', 'PAUSED', 'IN_REVIEW', 'CHANGES_REQUESTED')
+      ORDER BY task_id
+    `).all(projectId);
+    invariant(activeTasks.length === 0, 'BUNDLE_NOT_QUIESCENT', 'Portable export requires every task branch to be terminal.', {
+      taskIds: activeTasks.map((task) => task.task_id),
+    });
     const proposalRows = database.prepare('SELECT * FROM asset_proposals WHERE project_id = ? ORDER BY proposal_id').all(projectId);
     const unsettled = proposalRows.filter((proposal) => proposal.status !== 'APPLIED');
     invariant(unsettled.length === 0, 'BUNDLE_NOT_QUIESCENT', 'Portable export requires every asset proposal to be applied.', { proposalIds: unsettled.map((proposal) => proposal.proposal_id) });

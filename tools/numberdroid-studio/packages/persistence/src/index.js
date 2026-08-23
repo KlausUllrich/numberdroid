@@ -21,6 +21,7 @@ export { verifyWorkspaceIntegrity } from './integrity/workspace-integrity.js';
 export { createJsonSourceManifest, migrateJsonToSqlite } from './migration/json-to-sqlite-migrator.js';
 export { SqliteArtifactMetadataStore } from './sqlite/sqlite-artifact-metadata-store.js';
 export { SqliteAgentAttemptStore } from './sqlite/sqlite-agent-attempt-store.js';
+export { SqliteAgentTaskStore, TaskBranchProjectStore } from './sqlite/sqlite-agent-task-store.js';
 export { SqliteHostBindingStore } from './sqlite/sqlite-host-binding-store.js';
 export { SqliteJobStore } from './sqlite/sqlite-job-store.js';
 export { SqliteProjectStore } from './sqlite/sqlite-project-store.js';

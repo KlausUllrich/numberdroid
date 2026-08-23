@@ -780,6 +780,147 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
   }
   const rooms = { ok: roomFindings.length === 0, versionCount: roomVersionCount, findings: roomFindings };
 
+  const taskFindings = [];
+  let taskCount = 0;
+  try {
+    const db = projectStore.workspace.database;
+    const taskRows = db.prepare('SELECT * FROM agent_tasks ORDER BY project_id, task_id').all();
+    taskCount = taskRows.length;
+    const branchRows = db.prepare(`
+      SELECT * FROM task_branch_revisions
+      WHERE project_id = ? AND task_id = ? ORDER BY branch_revision
+    `);
+    const timelineRows = db.prepare(`
+      SELECT * FROM task_timeline_events
+      WHERE project_id = ? AND task_id = ? ORDER BY sequence
+    `);
+    const reviewRows = db.prepare(`
+      SELECT * FROM task_reviews
+      WHERE project_id = ? AND task_id = ? ORDER BY review_id, review_version
+    `);
+    const mergeRow = db.prepare('SELECT * FROM task_merges WHERE project_id = ? AND task_id = ?');
+    const revertRow = db.prepare('SELECT * FROM task_reverts WHERE project_id = ? AND merge_id = ?');
+    for (const row of taskRows) {
+      let task;
+      let baseDocument;
+      let headDocument;
+      try {
+        task = JSON.parse(row.task_json);
+        baseDocument = JSON.parse(row.base_document_json);
+        headDocument = JSON.parse(row.head_document_json);
+      } catch {
+        taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_JSON_INVALID', message: 'Task or branch document JSON is invalid.' });
+        continue;
+      }
+      if (task.projectId !== row.project_id || task.taskId !== row.task_id
+        || task.branchId !== row.branch_id || task.agentId !== row.agent_id
+        || (task.grantId ?? null) !== row.grant_id || task.state !== row.state
+        || Number(task.baseRevision) !== Number(row.base_revision)
+        || Number(task.headRevision) !== Number(row.head_revision)
+        || task.expiresAt !== row.expires_at || task.updatedAt !== row.updated_at) {
+        taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_COLUMNS_MISMATCH', message: 'Task columns differ from their durable semantic JSON.' });
+      }
+      const baseHead = baseDocument?.revisions?.at(-1);
+      const branchHead = headDocument?.revisions?.at(-1);
+      if (baseDocument?.projectId !== row.project_id || headDocument?.projectId !== row.project_id
+        || Number(baseHead?.number) !== Number(row.base_revision)
+        || Number(branchHead?.number) !== Number(row.head_revision)) {
+        taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_BRANCH_HEAD_MISMATCH', message: 'Task base/head documents do not match their durable revision pointers.' });
+      }
+      const revisions = branchRows.all(row.project_id, row.task_id);
+      const expectedHead = revisions.length > 0
+        ? Number(row.base_revision) + revisions.length
+        : Number(row.base_revision);
+      if (expectedHead !== Number(row.head_revision)) {
+        taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_BRANCH_SEQUENCE_INVALID', message: 'Task branch revisions are missing or non-consecutive.' });
+      }
+      for (const [index, revisionRow] of revisions.entries()) {
+        let revision;
+        try { revision = JSON.parse(revisionRow.revision_json); } catch {
+          taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_BRANCH_REVISION_JSON_INVALID', message: 'A task branch revision contains invalid JSON.' });
+          continue;
+        }
+        const expectedRevision = Number(row.base_revision) + index + 1;
+        const documentRevision = headDocument?.revisions?.find((candidate) => candidate.number === expectedRevision);
+        if (Number(revisionRow.branch_revision) !== expectedRevision
+          || revision.id !== revisionRow.revision_id || revision.number !== expectedRevision
+          || revision.parentRevision !== expectedRevision - 1
+          || revision.command?.commandId !== revisionRow.command_id
+          || revision.command?.idempotencyKey !== revisionRow.idempotency_key
+          || revision.command?.type !== revisionRow.command_type
+          || revision.command?.branchId !== row.branch_id
+          || revision.command?.taskId !== row.task_id
+          || revision.committedAt !== revisionRow.committed_at
+          || fingerprint(documentRevision) !== fingerprint(revision)) {
+          taskFindings.push({ projectId: row.project_id, taskId: row.task_id, branchRevision: expectedRevision, code: 'TASK_BRANCH_REVISION_MISMATCH', message: 'A normalized task branch revision differs from its immutable branch document.' });
+        }
+      }
+      const events = timelineRows.all(row.project_id, row.task_id);
+      let latestEvent = null;
+      for (const [index, eventRow] of events.entries()) {
+        let event;
+        try { event = JSON.parse(eventRow.event_json); } catch {
+          taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_TIMELINE_JSON_INVALID', message: 'A task timeline event contains invalid JSON.' });
+          continue;
+        }
+        latestEvent = event;
+        if (Number(eventRow.sequence) !== index + 1 || event.sequence !== index + 1
+          || event.projectId !== row.project_id || event.taskId !== row.task_id
+          || event.eventId !== eventRow.event_id || event.occurredAt !== eventRow.occurred_at
+          || event.type !== eventRow.event_type) {
+          taskFindings.push({ projectId: row.project_id, taskId: row.task_id, sequence: index + 1, code: 'TASK_TIMELINE_MISMATCH', message: 'Task timeline columns, order, and immutable event JSON disagree.' });
+        }
+      }
+      if (events.length === 0 || latestEvent?.state !== row.state) {
+        taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_TIMELINE_STATE_MISMATCH', message: 'The latest task timeline state does not match the durable task state.' });
+      }
+      const reviews = reviewRows.all(row.project_id, row.task_id);
+      const nextVersionByReview = new Map();
+      for (const reviewRowValue of reviews) {
+        let review;
+        try { review = JSON.parse(reviewRowValue.review_json); } catch {
+          taskFindings.push({ projectId: row.project_id, taskId: row.task_id, reviewId: reviewRowValue.review_id, code: 'TASK_REVIEW_JSON_INVALID', message: 'A task review contains invalid JSON.' });
+          continue;
+        }
+        const expectedVersion = nextVersionByReview.get(reviewRowValue.review_id) ?? 1;
+        nextVersionByReview.set(reviewRowValue.review_id, expectedVersion + 1);
+        if (Number(reviewRowValue.review_version) !== expectedVersion
+          || review.reviewId !== reviewRowValue.review_id || review.reviewVersion !== expectedVersion
+          || review.projectId !== row.project_id || review.taskId !== row.task_id
+          || review.branchId !== row.branch_id || review.state !== reviewRowValue.state) {
+          taskFindings.push({ projectId: row.project_id, taskId: row.task_id, reviewId: reviewRowValue.review_id, reviewVersion: expectedVersion, code: 'TASK_REVIEW_MISMATCH', message: 'Task review versions or normalized columns disagree.' });
+        }
+      }
+      const merge = mergeRow.get(row.project_id, row.task_id);
+      if (row.state === 'MERGED' && !merge) {
+        taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_MERGE_MISSING', message: 'A merged task has no immutable merge record.' });
+      }
+      if (merge) {
+        let mergeValue;
+        try { mergeValue = JSON.parse(merge.merge_json); } catch {}
+        if (!mergeValue || mergeValue.mergeId !== merge.merge_id || mergeValue.taskId !== row.task_id
+          || mergeValue.projectId !== row.project_id || Number(mergeValue.firstRevision) !== Number(merge.first_revision)
+          || Number(mergeValue.lastRevision) !== Number(merge.last_revision)) {
+          taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_MERGE_MISMATCH', message: 'Task merge columns differ from immutable merge JSON.' });
+        }
+        const revert = revertRow.get(row.project_id, merge.merge_id);
+        if (revert) {
+          let revertValue;
+          try { revertValue = JSON.parse(revert.revert_json); } catch {}
+          if (!revertValue || revertValue.revertId !== revert.revert_id || revertValue.mergeId !== merge.merge_id
+            || revertValue.projectId !== row.project_id || revertValue.taskId !== row.task_id
+            || Number(revertValue.firstRevision) !== Number(revert.first_revision)
+            || Number(revertValue.lastRevision) !== Number(revert.last_revision)) {
+            taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_REVERT_MISMATCH', message: 'Task revert columns differ from immutable revert JSON.' });
+          }
+        }
+      }
+    }
+  } catch (error) {
+    taskFindings.push({ projectId: null, taskId: null, code: 'TASK_QUERY_FAILED', message: 'Checkpoint 4 task integrity could not be inspected.', cause: error.message });
+  }
+  const tasks = { ok: taskFindings.length === 0, count: taskCount, findings: taskFindings };
+
   const bundleImportFindings = [];
   let bundleImportJobCount = 0;
   try {
@@ -821,7 +962,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
   const bundleImports = { ok: bundleImportFindings.length === 0, appliedJobCount: bundleImportJobCount, findings: bundleImportFindings };
   return {
     schemaVersion: 1,
-    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && bundleImports.ok,
+    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && tasks.ok && bundleImports.ok,
     database,
     artifacts,
     sourceIntakes,
@@ -829,6 +970,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
     jobs,
     assets,
     rooms,
+    tasks,
     bundleImports,
   };
 }

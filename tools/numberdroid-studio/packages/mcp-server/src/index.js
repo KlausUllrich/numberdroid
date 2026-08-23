@@ -79,7 +79,7 @@ function roomQueryInputSchema() {
  * is a Checkpoint 1B adapter; it registers these secured definitions without
  * duplicating application behavior.
  */
-export function createAgentToolCatalog(studioService, { contextProvider } = {}) {
+export function createAgentToolCatalog(studioService, { contextProvider, agentTaskService = null } = {}) {
   if (!studioService) {
     throw new StudioError('VALIDATION_ERROR', 'A StudioService is required.');
   }
@@ -95,6 +95,7 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
   const agentDefinitions = studioService.commandCatalog.filter(
     (definition) => !definition.ownerOnly
       && definition.type !== 'project.create'
+      && (!definition.requiresTaskBranch || agentTaskService || studioService.taskBranchReady === true)
       && (!definition.requiresDurableAgentLedger || studioService.agentAttemptAuditReady === true)
       && (!definition.requiresDurableJobStore || studioService.durableJobStoreReady === true)
       && (!definition.requiresDurableAssetStore || durableAssetSurfaceReady)
@@ -131,7 +132,8 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
     },
     execute: async (input, invocationContext) => {
       const context = await authority(invocationContext, input.projectId);
-      return studioService.execute({
+      const targetService = definition.requiresTaskBranch && agentTaskService ? agentTaskService : studioService;
+      return targetService.execute({
         schemaVersion: input.schemaVersion,
         commandId: input.commandId,
         idempotencyKey: input.idempotencyKey,
@@ -278,6 +280,39 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
     },
   }] : [];
 
+  const taskTools = studioService.taskBranchReady === true ? [
+    {
+      name: 'studio_task_read',
+      title: 'Read bound Studio task',
+      description: 'Read the current bound task state, review, budget, and durable progress timeline without exposing grant identity.',
+      inputSchema: {
+        type: 'object', additionalProperties: false, required: ['schemaVersion', 'projectId'],
+        properties: { schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' } },
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.readTask(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_task_submit_for_review',
+      title: 'Submit bound task for review',
+      description: 'Close the active branch for further mutation and submit its immutable result for semantic human review.',
+      inputSchema: {
+        type: 'object', additionalProperties: false, required: ['schemaVersion', 'projectId', 'reviewId'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' }, reviewId: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.submitTaskForReview(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+  ] : [];
+
   return [
     {
       name: 'studio_command_catalog_list',
@@ -317,6 +352,7 @@ export function createAgentToolCatalog(studioService, { contextProvider } = {}) 
     ...atlasJobTools,
     ...assetTools,
     ...roomTools,
+    ...taskTools,
   ];
 }
 

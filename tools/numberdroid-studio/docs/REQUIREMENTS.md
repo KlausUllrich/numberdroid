@@ -306,6 +306,23 @@ Post-acceptance failed run `32571622269` (both Studio attempts failed; artifact 
 9. Official MCP v10 discovery is exactly 19 tools and four resource templates: the accepted v9 surface plus room proposal submit, room query, and room detail resource. Human room editing/finalization, bundle operations, export, materialization, and publish remain absent.
 10. The combined user fixture preserves the exact 2C Family Hygiene proposal/assets, adds one exact-slice prop, builds one room and one hallway, reviews one three-item agent placement proposal including an overlapping rejected prop, preserves linked invalid-placement explanations, finalizes room version 5, forks DRAFT version 6, and proves restart/bundle parity.
 
+### Checkpoint 4 — delegated task branches and review control
+
+**Status: implemented candidate; not user-accepted.** The user authorized continuation while unable to perform acceptance, so the next decision is one combined Checkpoint 2C + 3 + 4 walkthrough. The exact authority and bounded branch-local-job interpretation are recorded in `CHECKPOINT_4_CONTRACT.md` and `CHECKPOINT_4_STATUS.md`.
+
+1. Only the project owner may compose or control an `AgentTask`. The task pins its project, agent, isolated branch, immutable main base revision, exact capabilities/object scopes, command/job/artifact/cost ceilings, expiry of at most seven days, and optional disabled-by-default low-risk auto-accept allowlist.
+2. Schema v11 persists the task, base/head documents, immutable branch revisions, monotonic task timeline, immutable versioned reviews, atomic merge lineage, and compensating revert lineage in STRICT tables with fixed migration checksum.
+3. A bound agent command must match trusted project/task/branch/grant/actor context, active task state, expiry, capability, object scope, and remaining grant/task budget. Paused, terminal, expired, revoked, forged, or cross-branch work fails before branch mutation.
+4. Task branches never mutate `branch.main` directly. Branch append is compare-and-swap; command IDs and idempotency keys are unique per task branch; same-head races permit exactly one winner.
+5. Review compares semantic `(entityType, entityId)` change keys against main changes after the task base. Every change has a visible disposition; `AUTO_ACCEPTED_BY_POLICY` is immutable policy truth and MUST NOT become `USER_ACCEPTED` or `USER_APPROVED`.
+6. Request-changes supersedes the review, moves the task to `CHANGES_REQUESTED`, and requires explicit owner resume before the agent may revise and resubmit. Reject/cancel revokes the grant and preserves history.
+7. Merge rechecks fresh conflicts and terminal decisions, simulates accepted branch commands against current main, and commits the replay revisions, grant revoke, review/task disposition, and merge record in one transaction. Any simulation/persistence fault leaves main and workflow disposition unchanged.
+8. Revert creates a new compensating semantic revision and immutable revert record; it never deletes or rewrites the original main/branch/review/merge history.
+9. The human task workspace exposes composition, scope/budget/expiry, branch base/head, timeline, pause/resume/cancel, semantic conflicts, per-change decision, merge, and revert. `Propose in draft` activates only for a real matching branch.
+10. Non-task official discovery stays exactly 19 tools/four resource templates. A live matching task binding exposes exactly 30 tools/five templates, adding branch-safe direct room authoring plus task read/submit. Human lifecycle, authority, review decision, merge/revert, export, materialization, and publish remain absent.
+11. Portable export refuses every nonterminal task and transfers no task/grant/HostBinding/review/timeline/merge/revert state. Full workspace integrity validates the v11 branch/review lineage before backup/export.
+12. The v8 atlas job ledger remains authoritative-main-revision-bound. Task branches reject shared-effect intake/atlas preview/atlas commit operations and consume already committed atlas/slice inputs. The combined user gate decides whether a later branch-local job ledger is required for the roadmap's broader source-to-room wording.
+
 ## 10. Open decisions and recommended defaults
 
 These are deliberately open until validated by implementation or user testing. The recommendation is binding only as an interim default.
@@ -318,9 +335,9 @@ These are deliberately open until validated by implementation or user testing. T
 | MCP transport | Local stdio first; Streamable HTTP later | Simplest secure local agent use; HTTP is needed for remote/team deployment. |
 | Canvas rendering | DOM/SVG overlays over raster previews initially | Inspectable and accessible; move hot paths to Canvas/WebGL after profiling. |
 | Asset IDs | Random or monotonic opaque IDs plus editable human slug | Identity must not change when names/paths change. |
-| Branch policy | Add real isolated task branch heads before enabling `Propose in draft` | Avoids falsely committing a proposal to the shared head. |
+| Branch policy | Checkpoint 4 isolated task branches; activate `Propose in draft` only for an exact matching live task | Avoids falsely committing a proposal to the shared head and fails closed without real branch state. |
 | Auto acceptance | Allowed only for explicit low-risk policy scopes | Must never be reported as user approval. |
-| Header Agent access behavior | Accepted service-backed `Off`/read/`Scoped run` selector; draft/custom visible but fail-closed | `Scoped run` means `Execute scoped task`; the anchored detail popover is accepted. Revisit only for a concrete defect or the later Custom editor. |
+| Header Agent access behavior | Accepted service-backed `Off`/read/`Scoped run`; candidate `Propose in draft` only for a real task branch; Custom remains unavailable | `Scoped run` means `Execute scoped task`; Checkpoint 4 must not manufacture branch authority from a UI posture. |
 | Publish authority | Separate, short-lived human grant | Publishing is higher risk than authoring. |
 | First Checkpoint 2 fixture | Import the approved Family Hygiene image and make individual tiles | Accepted at the 2A gate; replace only with another explicitly approved, hash-pinned source. |
 | Provider integration | No provider in 2A | Accepted at the 2A gate; choose provider, egress, credential store, cost budget, and reproduction policy before any network work. |

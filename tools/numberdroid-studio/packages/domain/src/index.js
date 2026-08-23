@@ -42,4 +42,16 @@ export {
   validateRoomPlacementProposal,
   validateRoomVariant,
 } from './room-definition.js';
+export {
+  AGENT_TASK_STATES,
+  REVIEW_DISPOSITIONS,
+  applyReviewDecisions,
+  assertReviewMergeable,
+  assertTaskCanExecute,
+  createReviewItems,
+  findSemanticConflicts,
+  semanticChangeKey,
+  transitionAgentTask,
+  validateAgentTaskSpec,
+} from './agent-task.js';
 export { StudioError, asStudioError, invariant } from './errors.js';

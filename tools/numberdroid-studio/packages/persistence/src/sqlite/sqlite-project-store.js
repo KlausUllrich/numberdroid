@@ -1424,10 +1424,15 @@ function writeAssetLibraryRevision(database, projectId, revision, fault) {
   writeAssetLifecycleVersion(database, projectId, revision, fault);
 }
 
-function rebuildAssetHeads(database, projectId) {
+function rebuildAssetHeads(database, projectId, snapshot = null) {
   database.prepare('DELETE FROM asset_head_tags WHERE project_id = ?').run(projectId);
   database.prepare('DELETE FROM asset_heads WHERE project_id = ?').run(projectId);
-  const versions = database.prepare(`
+  const versions = snapshot
+    ? (snapshot.assetLibrary?.assets ?? []).map((asset) => database.prepare(`
+      SELECT * FROM asset_versions
+      WHERE project_id = ? AND asset_id = ? AND asset_version = ?
+    `).get(projectId, asset.assetId, asset.assetVersion)).filter(Boolean)
+    : database.prepare(`
     SELECT v.* FROM asset_versions v
     JOIN (
       SELECT project_id, asset_id, max(asset_version) AS asset_version
@@ -1467,10 +1472,18 @@ function rebuildAssetHeads(database, projectId) {
   }
 }
 
-function rebuildRoomHeads(database, projectId) {
+function rebuildRoomHeads(database, projectId, snapshot = null) {
   database.prepare('DELETE FROM room_variant_heads WHERE project_id = ?').run(projectId);
   database.prepare('DELETE FROM room_archetype_heads WHERE project_id = ?').run(projectId);
-  const archetypes = database.prepare(`
+  const archetypes = snapshot
+    ? (snapshot.roomLibrary?.archetypes ?? []).map((entry) => {
+      const archetype = entry.versions.at(-1);
+      return database.prepare(`
+        SELECT * FROM room_archetype_versions
+        WHERE project_id = ? AND room_archetype_id = ? AND archetype_version = ?
+      `).get(projectId, archetype.roomArchetypeId, archetype.version);
+    }).filter(Boolean)
+    : database.prepare(`
     SELECT v.* FROM room_archetype_versions v
     JOIN (
       SELECT project_id, room_archetype_id, max(archetype_version) AS archetype_version
@@ -1489,7 +1502,15 @@ function rebuildRoomHeads(database, projectId) {
       ) VALUES (?, ?, ?, ?, ?, ?)
     `).run(projectId, row.room_archetype_id, row.archetype_version, row.kind, row.display_name, row.created_revision);
   }
-  const variants = database.prepare(`
+  const variants = snapshot
+    ? (snapshot.roomLibrary?.variants ?? []).map((entry) => {
+      const variant = entry.versions.at(-1);
+      return database.prepare(`
+        SELECT * FROM room_variant_versions
+        WHERE project_id = ? AND room_variant_id = ? AND variant_version = ?
+      `).get(projectId, variant.roomVariantId, variant.version);
+    }).filter(Boolean)
+    : database.prepare(`
     SELECT v.* FROM room_variant_versions v
     JOIN (
       SELECT project_id, room_variant_id, max(variant_version) AS variant_version
@@ -1814,6 +1835,79 @@ export class SqliteProjectStore extends ProjectStore {
         invariant(Number(updated.changes) === 1, 'REVISION_CONFLICT', 'Project head compare-and-swap failed.', {
           projectId,
           expectedRevision,
+        });
+        this.#workspace.fault('before_transaction_commit');
+      });
+      return this.loadProject(projectId);
+    } catch (error) {
+      throw mapSqliteError(error, { projectId, expectedRevision });
+    }
+  }
+
+  async appendRevisionBatch(projectId, expectedRevision, revisions, {
+    legacyGrants = false,
+    afterAppend = null,
+  } = {}) {
+    invariant(Array.isArray(revisions) && revisions.length > 0, 'VALIDATION_ERROR', 'A non-empty revision batch is required.');
+    try {
+      this.#workspace.transaction((database) => {
+        const project = database.prepare('SELECT head_revision, created_at, format_version FROM projects WHERE project_id = ?').get(projectId);
+        if (!project) throw new StudioError('PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
+        const actualRevision = Number(project.head_revision);
+        invariant(actualRevision === expectedRevision, 'REVISION_CONFLICT', 'The project changed after the merge simulation.', {
+          projectId, expectedRevision, actualRevision,
+        });
+        let parentRevision = expectedRevision;
+        for (const revision of revisions) {
+          invariant(
+            revision.number === parentRevision + 1 && revision.parentRevision === parentRevision,
+            'INVALID_REVISION',
+            'Every revision in an atomic batch must follow the prior revision.',
+            { parentRevision, revision: revision.number },
+          );
+          writeRevision(database, projectId, revision);
+          this.#workspace.fault('after_revision_insert');
+          createAtlasPreviewJob(database, projectId, revision);
+          this.#workspace.fault('after_atlas_preview_job_create');
+          writeActivity(database, projectId, revision);
+          writeProjection(database, projectId, revision);
+          writeIdempotency(database, projectId, revision);
+          writeGrants(database, projectId, revision.snapshot, { legacy: legacyGrants, now: revision.committedAt });
+          writeCanonicalSourceArtifactReference(database, projectId, revision);
+          claimSourceIntake(database, projectId, revision);
+          applyAtlasPreviewJob(database, projectId, revision);
+          writeAssetLibraryRevision(database, projectId, revision, (point) => this.#workspace.fault(point));
+          writeRoomDesignerRevision(database, projectId, revision, (point) => this.#workspace.fault(point));
+          if (revision.command.type === 'task.merge.revert') {
+            rebuildAssetHeads(database, projectId, revision.snapshot);
+            rebuildRoomHeads(database, projectId, revision.snapshot);
+          }
+          parentRevision = revision.number;
+        }
+
+        const last = revisions.at(-1);
+        const historical = database.prepare(`
+          SELECT revision_json FROM revisions WHERE project_id = ? ORDER BY revision_number
+        `).all(projectId).map((row) => parseJson(row.revision_json, 'revisions.revision_json'));
+        const summary = projectSummary({
+          formatVersion: Number(project.format_version),
+          projectId,
+          createdAt: project.created_at,
+          revisions: historical,
+        });
+        const updated = database.prepare(`
+          UPDATE projects
+          SET head_revision = ?, head_snapshot_json = ?, summary_json = ?
+          WHERE project_id = ? AND head_revision = ?
+        `).run(last.number, JSON.stringify(last.snapshot), JSON.stringify(summary), projectId, expectedRevision);
+        invariant(Number(updated.changes) === 1, 'REVISION_CONFLICT', 'Project head batch compare-and-swap failed.');
+        this.#workspace.fault('after_task_merge_revision_batch');
+        afterAppend?.(database, {
+          projectId,
+          expectedRevision,
+          firstRevision: revisions[0].number,
+          lastRevision: last.number,
+          revisions,
         });
         this.#workspace.fault('before_transaction_commit');
       });

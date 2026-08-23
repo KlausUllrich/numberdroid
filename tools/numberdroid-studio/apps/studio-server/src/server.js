@@ -3,17 +3,19 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { StudioService } from '../../../packages/application/src/index.js';
+import { AgentTaskService, StudioService } from '../../../packages/application/src/index.js';
 import { StudioError, asStudioError } from '../../../packages/domain/src/index.js';
 import {
   ContentAddressedArtifactStore,
   JsonProjectStore,
   SqliteAgentAttemptStore,
+  SqliteAgentTaskStore,
   SqliteArtifactMetadataStore,
   SqliteHostBindingStore,
   SqliteJobStore,
   SqliteProjectStore,
   SqliteSourceIntakeStore,
+  TaskBranchProjectStore,
 } from '../../../packages/persistence/src/index.js';
 import { ensureDemoProject, runDemoAction } from './demo-project.js';
 import { createHumanAgentAccessController } from './human-agent-access.js';
@@ -111,6 +113,27 @@ async function serveStatic(pathname, response) {
 function projectRoute(pathname) {
   const match = /^\/api\/projects\/([^/]+)(?:\/(activity|agent-access))?$/.exec(pathname);
   return match ? { projectId: decodeURIComponent(match[1]), resource: match[2] ?? 'snapshot' } : null;
+}
+
+function taskRoute(pathname) {
+  const collection = /^\/api\/projects\/([^/]+)\/tasks$/.exec(pathname);
+  if (collection) return { projectId: decodeURIComponent(collection[1]), taskId: null, action: 'collection' };
+  const review = /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/reviews\/([^/]+)\/(decide|merge)$/.exec(pathname);
+  if (review) return {
+    projectId: decodeURIComponent(review[1]), taskId: decodeURIComponent(review[2]),
+    reviewId: decodeURIComponent(review[3]), action: review[4],
+  };
+  const action = /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/(pause|resume|cancel|reject|submit-review)$/.exec(pathname);
+  if (action) return {
+    projectId: decodeURIComponent(action[1]), taskId: decodeURIComponent(action[2]), action: action[3],
+  };
+  const item = /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)$/.exec(pathname);
+  return item ? { projectId: decodeURIComponent(item[1]), taskId: decodeURIComponent(item[2]), action: 'read' } : null;
+}
+
+function taskMergeRoute(pathname) {
+  const match = /^\/api\/projects\/([^/]+)\/task-merges\/([^/]+)\/revert$/.exec(pathname);
+  return match ? { projectId: decodeURIComponent(match[1]), mergeId: decodeURIComponent(match[2]) } : null;
 }
 
 function artifactRoute(pathname) {
@@ -525,7 +548,8 @@ function humanCommandDto(projectId, body, type, payload) {
   };
 }
 
-async function assertExecutableBindingPolicy(studioService, binding) {
+async function assertExecutableBindingPolicy(studioService, binding, agentTaskService = null) {
+  if (agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId)) return;
   const projectView = await studioService.readProjectTrusted(binding.projectId);
   const grant = projectView.snapshot.grants.find((candidate) => candidate.id === binding.grantId);
   const scopes = new Set(grant?.scopes ?? []);
@@ -534,7 +558,10 @@ async function assertExecutableBindingPolicy(studioService, binding) {
   }
 }
 
-function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoint, durableAssetStoreReady, durableRoomStoreReady) {
+function mcpLauncherProjection(
+  request, projectId, pairingBroker, pairingEndpoint,
+  durableAssetStoreReady, durableRoomStoreReady, taskBranchReady = false,
+) {
   const origin = loopbackOrigin(`http://${request.headers.host ?? ''}`);
   const remoteAddress = request.socket.remoteAddress ?? '';
   const loopbackRemote = remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
@@ -552,6 +579,7 @@ function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoin
           NUMBERDROID_STUDIO_JOB_STORE_READY: '1',
           NUMBERDROID_STUDIO_ASSET_STORE_READY: durableAssetStoreReady === true ? '1' : '0',
           NUMBERDROID_STUDIO_ROOM_STORE_READY: durableRoomStoreReady === true ? '1' : '0',
+          NUMBERDROID_STUDIO_TASK_BRANCH_READY: taskBranchReady === true ? '1' : '0',
         },
       },
     },
@@ -560,6 +588,7 @@ function mcpLauncherProjection(request, projectId, pairingBroker, pairingEndpoin
 
 export function createStudioHttpServer({
   studioService,
+  agentTaskService = null,
   hostBindingStore = null,
   pairingBroker = null,
   pairingEndpoint = null,
@@ -572,7 +601,9 @@ export function createStudioHttpServer({
 }) {
   if (!studioService) throw new TypeError('studioService is required.');
   const humanUiCsrfToken = randomBytes(32).toString('base64url');
-  const humanAgentAccess = createHumanAgentAccessController({ studioService, hostBindingStore, pairingBroker });
+  const humanAgentAccess = createHumanAgentAccessController({
+    studioService, hostBindingStore, pairingBroker, agentTaskService,
+  });
 
   return createServer(async (request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1');
@@ -630,9 +661,10 @@ export function createStudioHttpServer({
           if (definition?.requiresDurableAgentLedger && agentAttemptStore?.isLive !== true) {
             throw new StudioError('AGENT_ATTEMPT_LEDGER_REQUIRED', 'This agent mutation is disabled until a durable attempt ledger is available.');
           }
-          await assertExecutableBindingPolicy(studioService, binding);
+          await assertExecutableBindingPolicy(studioService, binding, agentTaskService);
           validateMcpSourceArtifact(body.command, artifactMetadataStore);
-          result = await studioService.execute(
+          const taskBound = agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId) === true;
+          result = await (taskBound ? agentTaskService : studioService).execute(
             body.command,
             executionContext,
             { signal: requestAbort.signal },
@@ -678,11 +710,34 @@ export function createStudioHttpServer({
             contextProjectId: binding.projectId,
           });
         }
-        sendJson(response, 200, await studioService.readProject(
+        const taskBound = agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId) === true;
+        sendJson(response, 200, await (taskBound ? agentTaskService : studioService).readProject(
           { projectId: body.projectId },
           bindingExecutionContext(binding),
           { signal: requestAbort.signal },
         ));
+        return;
+      }
+      if (request.method === 'POST' && ['/internal/mcp/task-read', '/internal/mcp/task-submit-review'].includes(url.pathname)) {
+        assertLoopbackServiceRequest(request);
+        if (!hostBindingStore || !agentTaskService) {
+          throw new StudioError('AGENT_TASK_STORE_DISABLED', 'Bound task MCP operations require the SQLite task store.');
+        }
+        const binding = hostBindingStore.resolve(bearerToken(request));
+        const context = bindingExecutionContext(binding);
+        if (!agentTaskService.hasTask(binding.projectId, binding.taskId, binding.branchId)) {
+          throw new StudioError('TASK_NOT_FOUND', 'The HostBinding is not attached to a live task branch.');
+        }
+        const body = await readJsonBody(request, { maxBytes: 8192 });
+        const submit = url.pathname === '/internal/mcp/task-submit-review';
+        assertExactKeys(body, new Set(['schemaVersion', 'projectId', ...(submit ? ['reviewId'] : [])]), 'Bound task MCP request');
+        if (body.schemaVersion !== 1 || body.projectId !== binding.projectId) {
+          throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside this HostBinding.');
+        }
+        const result = submit
+          ? await agentTaskService.submitOwnReview(body.projectId, body.reviewId, context)
+          : agentTaskService.readTaskForAgent(body.projectId, context);
+        sendJson(response, 200, result);
         return;
       }
       if (request.method === 'POST' && [
@@ -749,8 +804,12 @@ export function createStudioHttpServer({
             attempt.targetKind = 'room';
             attempt.targetId = safeRoomId;
           }
-          await assertExecutableBindingPolicy(studioService, binding);
-          result = await studioService[definition.operation](body, context, {
+          await assertExecutableBindingPolicy(studioService, binding, agentTaskService);
+          const taskBound = agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId) === true;
+          const targetService = taskBound && ['proposeAtlasGrid', 'queryAssets', 'queryRooms'].includes(definition.operation)
+            ? agentTaskService
+            : studioService;
+          result = await targetService[definition.operation](body, context, {
             signal: requestAbort.signal,
             ...(definition.atomicAudit ? { authorizedAttempt: attempt } : {}),
           });
@@ -777,6 +836,102 @@ export function createStudioHttpServer({
         sendJson(response, 200, result);
         return;
       }
+      const taskRequest = taskRoute(url.pathname);
+      if (taskRequest && !agentTaskService) {
+        throw new StudioError('AGENT_TASK_STORE_DISABLED', 'Checkpoint 4 task branches require the SQLite Studio store.');
+      }
+      if (request.method === 'GET' && taskRequest?.action === 'collection') {
+        await studioService.readProjectTrusted(taskRequest.projectId);
+        sendJson(response, 200, agentTaskService.listTasks(taskRequest.projectId));
+        return;
+      }
+      if (request.method === 'GET' && taskRequest?.action === 'read') {
+        await studioService.readProjectTrusted(taskRequest.projectId);
+        sendJson(response, 200, agentTaskService.readTask(taskRequest.projectId, taskRequest.taskId));
+        return;
+      }
+      if (request.method === 'POST' && taskRequest?.action === 'collection') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 256 * 1024 });
+        assertExactKeys(body, new Set(['task']), 'Agent task creation');
+        const projectView = await studioService.readProjectTrusted(taskRequest.projectId);
+        sendJson(response, 201, await agentTaskService.createTask({
+          projectId: taskRequest.projectId,
+          task: body.task,
+        }, humanOwnerContext(projectView)));
+        return;
+      }
+      if (request.method === 'POST' && taskRequest && ['pause', 'resume', 'cancel', 'reject'].includes(taskRequest.action)) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 8192 });
+        assertExactKeys(body, new Set(['reason']), `Agent task ${taskRequest.action}`);
+        const projectView = await studioService.readProjectTrusted(taskRequest.projectId);
+        sendJson(response, 200, await agentTaskService.control(
+          taskRequest.projectId,
+          taskRequest.taskId,
+          taskRequest.action,
+          { actorId: projectView.snapshot.project.ownerId, reason: body.reason ?? null },
+        ));
+        return;
+      }
+      if (request.method === 'POST' && taskRequest?.action === 'submit-review') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 8192 });
+        assertExactKeys(body, new Set(['reviewId']), 'Agent task review submission');
+        const projectView = await studioService.readProjectTrusted(taskRequest.projectId);
+        sendJson(response, 200, await agentTaskService.submitReview(taskRequest.projectId, taskRequest.taskId, {
+          reviewId: body.reviewId,
+          actorId: projectView.snapshot.project.ownerId,
+        }));
+        return;
+      }
+      if (request.method === 'POST' && taskRequest?.action === 'decide') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 256 * 1024 });
+        assertExactKeys(body, new Set(['decisions', 'confirm']), 'Agent task review decision');
+        if (body.confirm !== true) throw new StudioError('FORBIDDEN', 'Task review decisions require explicit human confirmation.');
+        const projectView = await studioService.readProjectTrusted(taskRequest.projectId);
+        sendJson(response, 200, await agentTaskService.decideReview(
+          taskRequest.projectId,
+          taskRequest.taskId,
+          taskRequest.reviewId,
+          body.decisions,
+          { actorId: projectView.snapshot.project.ownerId },
+        ));
+        return;
+      }
+      if (request.method === 'POST' && taskRequest?.action === 'merge') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 8192 });
+        assertExactKeys(body, new Set(['mergeId', 'confirm']), 'Agent task merge');
+        if (body.confirm !== true) throw new StudioError('FORBIDDEN', 'Task merge requires explicit human confirmation.');
+        const projectView = await studioService.readProjectTrusted(taskRequest.projectId);
+        sendJson(response, 200, await agentTaskService.mergeReview(
+          taskRequest.projectId,
+          taskRequest.taskId,
+          taskRequest.reviewId,
+          { mergeId: body.mergeId, actorId: projectView.snapshot.project.ownerId },
+        ));
+        return;
+      }
+      const taskMergeRequest = taskMergeRoute(url.pathname);
+      if (taskMergeRequest && !agentTaskService) {
+        throw new StudioError('AGENT_TASK_STORE_DISABLED', 'Checkpoint 4 task merges require the SQLite Studio store.');
+      }
+      if (request.method === 'POST' && taskMergeRequest) {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 8192 });
+        assertExactKeys(body, new Set(['revertId', 'confirm']), 'Agent task merge revert');
+        if (body.confirm !== true) throw new StudioError('FORBIDDEN', 'Task merge revert requires explicit human confirmation.');
+        const projectView = await studioService.readProjectTrusted(taskMergeRequest.projectId);
+        sendJson(response, 200, await agentTaskService.revertMerge(
+          taskMergeRequest.projectId,
+          taskMergeRequest.mergeId,
+          { revertId: body.revertId, actorId: projectView.snapshot.project.ownerId },
+        ));
+        return;
+      }
+
       const assetRequest = assetRoute(url.pathname);
       if (request.method === 'GET' && assetRequest?.action === 'read') {
         const projectView = await studioService.readProjectTrusted(assetRequest.projectId);
@@ -1265,6 +1420,9 @@ export function createStudioHttpServer({
           mcpLauncherConfig: mcpLauncherProjection(
             request, project.projectId, pairingBroker, pairingEndpoint,
             studioService.durableAssetStoreReady, studioService.durableRoomStoreReady,
+            agentTaskService?.listTasks(project.projectId).tasks.some(({ state }) => (
+              ['ACTIVE', 'PAUSED', 'IN_REVIEW', 'CHANGES_REQUESTED'].includes(state)
+            )) === true,
           ),
           csrfToken: humanUiCsrfToken,
         });
@@ -1367,11 +1525,28 @@ export async function startStudioHttpServer({
   const agentAttemptStore = storeMode === 'sqlite'
     ? new SqliteAgentAttemptStore({ workspace: store.workspace })
     : null;
+  const agentTaskStore = storeMode === 'sqlite'
+    ? new SqliteAgentTaskStore({ workspace: store.workspace })
+    : null;
+  const agentTaskService = storeMode === 'sqlite'
+    ? new AgentTaskService({
+      studioService,
+      projectStore: store,
+      taskStore: agentTaskStore,
+      createBranchStore: ({ projectId, taskId }) => new TaskBranchProjectStore({
+        taskStore: agentTaskStore,
+        projectId,
+        taskId,
+      }),
+      clock,
+    })
+    : null;
   const atlasPreviewWorker = storeMode === 'sqlite'
     ? new AtlasPreviewWorker({ jobStore, artifactStore, artifactMetadataStore, clock })
     : null;
   const server = createStudioHttpServer({
     studioService,
+    agentTaskService,
     hostBindingStore,
     pairingBroker,
     pairingEndpoint,
@@ -1413,6 +1588,8 @@ export async function startStudioHttpServer({
     artifactMetadataStore,
     sourceIntakeStore,
     agentAttemptStore,
+    agentTaskStore,
+    agentTaskService,
     jobStore,
     atlasPreviewWorker,
     address: server.address(),

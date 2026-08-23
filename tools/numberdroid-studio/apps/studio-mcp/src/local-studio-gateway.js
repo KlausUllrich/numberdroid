@@ -21,6 +21,7 @@ export class LocalStudioGateway {
   #durableJobStoreReady;
   #durableAssetStoreReady;
   #durableRoomStoreReady;
+  #taskBranchReady;
 
   constructor({
     baseUrl,
@@ -30,6 +31,7 @@ export class LocalStudioGateway {
     durableJobStoreReady = false,
     durableAssetStoreReady = false,
     durableRoomStoreReady = false,
+    taskBranchReady = false,
   }) {
     this.#baseUrl = new URL(baseUrl);
     if (!bindingToken && typeof bindingTokenProvider !== 'function') {
@@ -42,6 +44,7 @@ export class LocalStudioGateway {
     this.#durableJobStoreReady = durableJobStoreReady === true;
     this.#durableAssetStoreReady = durableAssetStoreReady === true;
     this.#durableRoomStoreReady = durableRoomStoreReady === true;
+    this.#taskBranchReady = taskBranchReady === true;
   }
 
   get commandCatalog() {
@@ -63,6 +66,8 @@ export class LocalStudioGateway {
   get durableRoomStoreReady() {
     return this.#durableRoomStoreReady;
   }
+
+  get taskBranchReady() { return this.#taskBranchReady; }
 
   async #request(path, value, { signal } = {}) {
     const bindingToken = await this.#bindingTokenPromise;
@@ -136,6 +141,14 @@ export class LocalStudioGateway {
 
   async queryRooms(request, _opaqueHostContext, options = {}) {
     return this.#request('/internal/mcp/room-query', request, options);
+  }
+
+  async readTask(request, _opaqueHostContext, options = {}) {
+    return this.#request('/internal/mcp/task-read', request, options);
+  }
+
+  async submitTaskForReview(request, _opaqueHostContext, options = {}) {
+    return this.#request('/internal/mcp/task-submit-review', request, options);
   }
 
   async cancelJob(request, _opaqueHostContext, options = {}) {

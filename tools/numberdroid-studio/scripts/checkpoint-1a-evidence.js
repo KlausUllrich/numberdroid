@@ -56,6 +56,7 @@ function normalizeParityReport(report, workspaceIntegrity, casManifest) {
     jobs: _jobs,
     assets: _assets,
     rooms: _rooms,
+    tasks: _tasks,
     bundleImports: _bundleImports,
     ...checkpointWorkspaceIntegrity
   } = workspaceIntegrity;

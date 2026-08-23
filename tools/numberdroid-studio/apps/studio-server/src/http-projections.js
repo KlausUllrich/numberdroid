@@ -120,13 +120,20 @@ export function effectiveAgentAccessProjection(projectView, { requestedMode, now
     };
   }
   if (requestedMode === 'propose_draft') {
+    if (policy.mode === 'propose_draft' && policy.state === 'ACTIVE_DRAFT') {
+      return {
+        ...structuredClone(policy),
+        requestedMode,
+        draftWorkspaceRequired: false,
+      };
+    }
     return {
       ...structuredClone(policy),
       requestedMode,
       draftWorkspaceRequired: true,
       warnings: [
         ...policy.warnings,
-        warning('DRAFT_BRANCH_NOT_AVAILABLE_1B', 'Propose in draft needs isolated branch heads. It is reserved for a later checkpoint and grants nothing in 1B.', 'info'),
+        warning('DRAFT_BRANCH_NOT_AVAILABLE_1B', 'Create or select an active Checkpoint 4 task branch before enabling draft proposals.', 'info'),
       ],
     };
   }
