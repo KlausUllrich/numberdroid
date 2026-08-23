@@ -85,6 +85,8 @@ test('Checkpoint 4 UI exposes task composition, truthful policy labels, timeline
   assert.match(client, /Revert merge/);
   assert.match(client, /Do not finalize, export, or publish/);
   assert.match(styles, /\.task-layout \{ display: grid/);
+  assert.match(styles, /\.task-list-item \.status-pill \{ align-self: start; justify-self: end; \}/);
+  assert.match(styles, /\.task-detail \.status-pill \{ flex: 0 0 auto; \}/);
   assert.match(styles, /@media \(max-width: 1200px\)/);
   assert.match(styles, /\.task-form fieldset \{ grid-template-columns: repeat\(2/);
 });
