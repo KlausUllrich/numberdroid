@@ -1538,7 +1538,9 @@ try {
           [5, 'PROGRESS'], [6, 'PROGRESS'], [7, 'SUCCEEDED'], [8, 'APPLIED'],
         ]) && !/"operationIdempotencyKey"|"grantId"|"lease"|"workerId"|"token"|\/workspace|file:/i.test(JSON.stringify(cutter.jobEvents)),
       'The visible durable job history is incomplete, out of order, or exposes internal authority/worker fields.');
-      assert(cutter.helpText.includes('does not resize') && cutter.helpText.includes('does not')
+      assert(cutter.helpText.includes('without resizing them')
+        && cutter.helpText.includes('changing their edges')
+        && cutter.helpText.includes('deciding their gameplay purpose')
         && cutter.helpText.includes('Asset Library'),
       'The cutter lost its explicit Checkpoint 2B scope boundary.');
       if (checkpoint2bFocus === 'committed-slices') {
