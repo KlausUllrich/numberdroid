@@ -1,11 +1,12 @@
 # Numberdroid Studio — Checkpoint 4 Candidate Record
 
 - **Date:** 2026-08-23
-- **Status:** implemented and locally verified as a candidate; explicit user acceptance remains combined with the deferred Checkpoint 2C and 3 decisions
+- **Status:** implemented and locally/remotely verified as a candidate; explicit user acceptance remains combined with the deferred Checkpoint 2C and 3 decisions
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135` — remains open, draft, unmerged, and unreleased
 - **Accepted prerequisites:** Checkpoints 1, 2A, and 2B; Checkpoints 2C and 3 remain verified but unaccepted candidates
-- **Remote candidate/CI:** recorded in PR #135 after publication; no merge, release, runtime export, materialization, or publish is authorized
+- **Remote product candidate:** `7b5a82c6ed2a267076882d9f80417efe53eca993`
+- **Remote candidate/CI:** run `32629426116` passed — root job `97169764514`, Studio job `97169764462`; no merge, release, runtime export, materialization, or publish is authorized
 
 This record describes the Checkpoint 4 implementation candidate. It is automated evidence, not user acceptance. The candidate adds isolated delegated work and review control without widening finalization, export, publication, or Numberdroid runtime authority.
 
@@ -37,7 +38,9 @@ Consequently, the combined walkthrough uses a committed atlas result as its bran
 - one later review containing exactly one `SEMANTIC_MERGE_CONFLICT` on `source:source.checkpoint-4.shared`;
 - one `MERGED` task and one `IN_REVIEW` task, with their immutable timelines and review records intact.
 
-The browser capture harness now has a `checkpoint-4` mode that verifies both the conflict-focused and merged/revert-focused task views at wide and protected responsive widths. This cloud workspace has no local Chrome binary, and the available Cloud Browser blocks loopback URLs, so fresh C4 screenshot bytes were not captured here. The deterministic server fixture, readiness assertions, zero-error checks, and responsive capture path are checked in for the next CI/browser-capable run; this limitation is not represented as green browser evidence.
+The browser capture harness has a `checkpoint-4` mode that verifies both the conflict-focused and merged/revert-focused task views at 1440×900 and the protected 1060×900 width. The local cloud workspace had no Chrome binary and its Cloud Browser blocked loopback URLs, so the first fresh screenshot bytes came from the exact-head GitHub runner. Independent download inspection then found and drove two responsive fixes: compact task-state pills and a constrained one-column task-card layout below 1200px. The final capture asserts heading scroll containment and each pill's height, no-wrap state, and parent-card bounds.
+
+Published artifact `9490652252` contains the exact revision-5 fixture, server log, four DOM/observation records, and four screenshots. The 930,348-byte archive independently matched `sha256:84e39e154f89c974f44d133ed63eb9b16fb5375b74322e77b1e7ab13d40d4e33`. All four observations report zero visual errors, zero horizontal overflow, zero header collisions, two task states, and contained 19px task-state pills; the conflict views expose exactly one semantic conflict and the merged views expose the accepted lineage/revert control.
 
 ## Verification ledger
 
@@ -46,7 +49,8 @@ The browser capture harness now has a `checkpoint-4` mode that verifies both the
 - non-task Checkpoint 3 MCP discovery remains exactly 19 tools/four templates; task-bound discovery is exactly 30 tools/five templates;
 - migration 0011 checksum is pinned; migrations 0001–0010 remain unchanged;
 - syntax/check script includes every new C4 domain/application/persistence/evidence entrypoint;
-- fresh browser screenshot/DOM observations and remote CI remain publication follow-ups, not implied successes.
+- exact product-candidate CI `32629426116` passed both jobs; the dedicated C4 artifact and its digest were independently downloaded and inspected;
+- earlier functionally green visual candidates were superseded after artifact review found wrapped pills and then a task-list heading/card overflow at 1060px. The geometric capture assertion intentionally failed until the protected-width card layout was contained; these diagnostic runs are not acceptance evidence.
 
 ## Combined 2C + 3 + 4 walkthrough
 
