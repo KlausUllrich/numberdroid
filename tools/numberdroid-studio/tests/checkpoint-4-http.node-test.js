@@ -89,4 +89,5 @@ test('Checkpoint 4 UI exposes task composition, truthful policy labels, timeline
   assert.match(styles, /\.task-detail \.status-pill \{ flex: 0 0 auto; \}/);
   assert.match(styles, /@media \(max-width: 1200px\)/);
   assert.match(styles, /\.task-form fieldset \{ grid-template-columns: repeat\(2/);
+  assert.match(styles, /\.task-list > h2 \{ font-size: 20px; white-space: nowrap; \}/);
 });

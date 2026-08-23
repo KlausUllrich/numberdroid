@@ -910,6 +910,12 @@ try {
       const taskWorkspace = {
         composer: rect(document.querySelector('.task-composer')),
         layout: rect(document.querySelector('.task-layout')),
+        list: rect(document.querySelector('.task-list')),
+        listHeading: rect(document.querySelector('.task-list > h2')),
+        badges: [...document.querySelectorAll('.task-list-item [data-task-state]')].map((badge) => ({
+          rect: rect(badge),
+          whiteSpace: getComputedStyle(badge).whiteSpace,
+        })),
         taskCount: document.querySelectorAll('[data-task-control="select"]').length,
         states: [...document.querySelectorAll('[data-task-control="select"] [data-task-state]')]
           .map((badge) => badge.dataset.taskState),
@@ -1315,6 +1321,12 @@ try {
       assert(layout.taskWorkspace.selectedText?.includes('source.write')
         && layout.taskWorkspace.selectedText.includes('commands'),
       'Checkpoint 4 selected task lost its visible capability or budget projection.');
+      assert(layout.taskWorkspace.list && layout.taskWorkspace.listHeading
+        && layout.taskWorkspace.listHeading.right <= layout.taskWorkspace.list.right
+        && layout.taskWorkspace.badges.length === 2
+        && layout.taskWorkspace.badges.every(({ rect: badge, whiteSpace }) => badge
+          && badge.height <= 26 && whiteSpace === 'nowrap'),
+      'Checkpoint 4 task list heading or state pills overflow at the captured width.');
       if (checkpoint4Focus === 'conflict') {
         assert(checkpoint4TaskFocus?.selectedState === 'IN_REVIEW'
           && checkpoint4TaskFocus.conflictCount === 1
