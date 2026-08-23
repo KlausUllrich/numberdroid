@@ -1330,7 +1330,7 @@ try {
         && layout.taskWorkspace.badges.length === 2
         && layout.taskWorkspace.badges.every(({ rect: badge, item, whiteSpace }) => badge && item
           && badge.height <= 26 && whiteSpace === 'nowrap'
-          && badge.left >= item.left && badge.right <= item.right);
+          && badge.x >= item.x && badge.right <= item.right);
       assert(taskListContained,
         `Checkpoint 4 task list heading or state pills overflow at the captured width: ${JSON.stringify({
           list: layout.taskWorkspace.list,
