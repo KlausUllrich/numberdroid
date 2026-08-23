@@ -507,7 +507,7 @@ jobs:
           retention-days: 14
 
   studio-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 10
 
     steps:
