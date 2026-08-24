@@ -757,6 +757,16 @@ function restoreRoomDomState() {
   window.scrollTo(saved.page.x, saved.page.y);
 }
 
+function settleRoomEditorControlFocus(focusKey) {
+  const focusSelectedControl = () => {
+    const active = [...elements['workspace-content'].querySelectorAll('[data-room-focus-key]')]
+      .find((candidate) => candidate.dataset.roomFocusKey === focusKey && candidate.dataset.selected === 'true');
+    active?.focus({ preventScroll: true });
+  };
+  focusSelectedControl();
+  requestAnimationFrame(() => requestAnimationFrame(focusSelectedControl));
+}
+
 function sourcePreview(source) {
   const preview = source.preview;
   if (preview?.state !== 'READY' || !preview.resourceUri) {
@@ -3777,10 +3787,14 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   if (['palette-search', 'layer', 'room-select', 'proposal-select', 'proposal-disposition', 'proposal-reason'].includes(action)) return;
   const { variant } = currentRoomVariant();
   if (action === 'editor-tool') {
-    state.roomUi.activeTool = control.dataset.editorTool; state.roomUi.dockPanel = 'tool'; state.roomUi.selectedPaletteAssetId = null;
-    renderWorkspace({ preserveRoomDraft: true, preserveRoomCanvas: true }); return;
+    const tool = control.dataset.editorTool;
+    state.roomUi.activeTool = tool; state.roomUi.dockPanel = 'tool'; state.roomUi.selectedPaletteAssetId = null;
+    renderWorkspace({ preserveRoomDraft: true, preserveRoomCanvas: true }); settleRoomEditorControlFocus(`room-tool-${tool}`); return;
   }
-  if (action === 'editor-panel') { state.roomUi.dockPanel = control.dataset.editorPanel; renderWorkspace({ preserveRoomDraft: true, preserveRoomCanvas: true }); return; }
+  if (action === 'editor-panel') {
+    const panel = control.dataset.editorPanel;
+    state.roomUi.dockPanel = panel; renderWorkspace({ preserveRoomDraft: true, preserveRoomCanvas: true }); settleRoomEditorControlFocus(`room-panel-${panel}`); return;
+  }
   if (action === 'zoom') { state.roomUi.zoom = control.dataset.roomZoom; renderWorkspace({ preserveRoomDraft: true }); return; }
   if (action === 'palette-asset') {
     const asset = currentAssetLibrary().assets.find(({ assetId }) => assetId === control.dataset.paletteAssetId);
