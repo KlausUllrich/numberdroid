@@ -54,14 +54,20 @@ const state = {
     dirty: false,
     conflict: null,
     domState: null,
+    previewRotations: {},
   },
   roomMutationPending: false,
   roomOperationKeys: new Map(),
   roomUi: {
+    step: 'purpose',
+    shapeTool: 'ROOM',
+    shapeDraft: null,
+    shapeConflict: null,
     selectedRoomVariantId: null,
     selectedPlacementId: null,
     selectedConnectorId: null,
     selectedPaletteAssetId: null,
+    previewAssetId: null,
     selectedProposalId: null,
     paletteSearch: '',
     zoom: 'fit',
@@ -75,6 +81,7 @@ const state = {
   taskMutationPending: false,
   tasks: [],
   taskUi: {
+    view: 'list',
     selectedTaskId: null,
   },
   workspace: location.hash.slice(1) || 'overview',
@@ -410,17 +417,30 @@ function previewFallback(asset, requestedState) {
   return wrapper;
 }
 
-function assetPreview(asset) {
+function assetPreview(asset, { onLoadReady = null, onLoadFailure = null } = {}) {
   const preview = asset.preview;
   if (preview?.state !== 'READY' || !preview.resourceUri) return previewFallback(asset, preview?.state);
   const figure = document.createElement('figure');
   figure.className = 'asset-preview ready';
-  figure.dataset.previewState = 'READY';
+  figure.dataset.previewState = 'LOADING';
   const image = document.createElement('img');
-  image.src = preview.resourceUri;
   image.alt = preview.alt || `${asset.name} preview`;
   image.loading = visualFixture ? 'eager' : 'lazy'; image.decoding = 'async';
-  image.addEventListener('error', () => figure.replaceWith(previewFallback(asset, 'LOAD_FAILED')), { once: true });
+  let settled = false;
+  image.addEventListener('load', () => {
+    if (settled) return; settled = true; figure.dataset.previewState = 'READY'; onLoadReady?.();
+  }, { once: true });
+  image.addEventListener('error', () => {
+    if (settled) return; settled = true;
+    figure.replaceWith(previewFallback(asset, 'LOAD_FAILED'));
+    onLoadFailure?.();
+  }, { once: true });
+  image.src = preview.resourceUri;
+  queueMicrotask(() => {
+    if (settled || !image.complete) return;
+    if (image.naturalWidth > 0) { settled = true; figure.dataset.previewState = 'READY'; onLoadReady?.(); }
+    else { settled = true; figure.replaceWith(previewFallback(asset, 'LOAD_FAILED')); onLoadFailure?.(); }
+  });
   figure.append(image);
   return figure;
 }
@@ -450,7 +470,7 @@ function sliceDisplay(binding) {
   };
 }
 
-function safeV2Preview(asset) {
+function safeV2Preview(asset, options = {}) {
   const declared = asset?.preview;
   const digest = asset?.sliceBinding?.digest;
   const projectId = state.project?.projectId;
@@ -460,7 +480,7 @@ function safeV2Preview(asset) {
   if (declared?.state === 'READY' && typeof declared.resourceUri === 'string'
       && safeProjectPrefix && declared.resourceUri.startsWith(safeProjectPrefix)
       && /^[a-f0-9]{64}$/.test(declared.resourceUri.slice(safeProjectPrefix.length))) {
-    return assetPreview({ ...asset, preview: declared });
+    return assetPreview({ ...asset, preview: declared }, options);
   }
   if (safeProjectPrefix && /^[a-f0-9]{64}$/.test(digest ?? '')
       && asset?.sliceBinding?.mediaType === 'image/png') {
@@ -471,11 +491,129 @@ function safeV2Preview(asset) {
         resourceUri: `${safeProjectPrefix}${digest}`,
         alt: `${asset.name} pinned slice preview`,
       },
-    });
+    }, options);
   }
   return previewFallback(asset, declared?.state ?? (
     asset?.sliceBinding?.mediaType && asset.sliceBinding.mediaType !== 'image/png' ? 'UNSUPPORTED' : 'MISSING'
   ));
+}
+
+function markUsefulPreviewUnavailable(wrapper) {
+  wrapper.dataset.previewReady = 'false';
+  wrapper.dataset.previewStatus = 'UNAVAILABLE';
+  if (!wrapper.querySelector('.asset-preview-warning')) {
+    const warning = document.createElement('p'); warning.className = 'asset-preview-warning';
+    warning.textContent = 'The exact image preview could not be loaded. Reload the project before accepting or placing this asset; inspection and rejection remain available.';
+    wrapper.append(warning);
+  }
+  const proposal = wrapper.closest('[data-proposal-item]');
+  const disposition = proposal?.querySelector('[data-proposal-disposition]');
+  const acceptOption = disposition?.querySelector('option[value="ACCEPTED"]');
+  if (acceptOption) acceptOption.disabled = true;
+  if (disposition?.value === 'ACCEPTED') {
+    disposition.value = 'REJECTED';
+    disposition.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  const use = wrapper.closest('.room-placement-preview')?.querySelector('[data-room-control="use-preview-asset"]');
+  if (use) {
+    use.disabled = true;
+    use.title = 'Reload the exact image preview before placing this asset.';
+  }
+}
+
+function markUsefulPreviewReady(wrapper) {
+  wrapper.dataset.previewReady = 'true';
+  wrapper.dataset.previewStatus = 'READY';
+  wrapper.querySelector('.asset-preview-warning')?.remove();
+  const acceptOption = wrapper.closest('[data-proposal-item]')?.querySelector('[data-proposal-disposition] option[value="ACCEPTED"]');
+  if (acceptOption) acceptOption.disabled = false;
+  const use = wrapper.closest('.room-placement-preview')?.querySelector('[data-room-control="use-preview-asset"]');
+  if (use?.dataset.previewPlacementAllowed === 'true') {
+    use.disabled = false;
+    use.title = 'Arm this exact asset for placement on the canvas.';
+  }
+}
+
+function rotatedPreviewGeometry(span, rotation) {
+  const quarterTurns = ((rotation % 360) + 360) % 360 / 90;
+  const dimensions = quarterTurns % 2 === 0
+    ? { width: span.width, height: span.height }
+    : { width: span.height, height: span.width };
+  const rect = ({ x, y, width, height }) => {
+    if (quarterTurns === 1) return { x: span.height - y - height, y: x, width: height, height: width };
+    if (quarterTurns === 2) return { x: span.width - x - width, y: span.height - y - height, width, height };
+    if (quarterTurns === 3) return { x: y, y: span.width - x - width, width: height, height: width };
+    return { x, y, width, height };
+  };
+  const point = ({ x, y }) => {
+    if (quarterTurns === 1) return { x: span.height - 1 - y, y: x };
+    if (quarterTurns === 2) return { x: span.width - 1 - x, y: span.height - 1 - y };
+    if (quarterTurns === 3) return { x: y, y: span.width - 1 - x };
+    return { x, y };
+  };
+  return { ...dimensions, rect, point };
+}
+
+function usefulAssetPreview(asset, { previewKey = asset.assetId ?? asset.itemId ?? asset.name, compact = false } = {}) {
+  const metadata = asset.metadata ?? {};
+  const span = metadata.spanTiles ?? { width: 1, height: 1 };
+  const rotationPolicy = metadata.rotationPolicy ?? 'fixed';
+  const allowedRotations = rotationPolicy === 'cardinal' ? [0, 90, 180, 270] : [0];
+  const selectedRotation = allowedRotations.includes(state.assetUi.previewRotations[previewKey])
+    ? state.assetUi.previewRotations[previewKey] : 0;
+  const geometry = rotatedPreviewGeometry(span, selectedRotation);
+  const wrapper = document.createElement('section'); wrapper.className = `useful-asset-preview${compact ? ' compact' : ''}`;
+  wrapper.dataset.previewKey = previewKey;
+  const stage = document.createElement('div'); stage.className = 'prop-preview-stage';
+  stage.style.setProperty('--preview-columns', String(geometry.width)); stage.style.setProperty('--preview-rows', String(geometry.height));
+  stage.style.aspectRatio = `${geometry.width} / ${geometry.height}`;
+  const preview = safeV2Preview(asset, {
+    onLoadReady: () => markUsefulPreviewReady(wrapper),
+    onLoadFailure: () => markUsefulPreviewUnavailable(wrapper),
+  });
+  const canLoad = preview.classList.contains('ready');
+  wrapper.dataset.previewReady = 'false';
+  wrapper.dataset.previewStatus = canLoad ? 'LOADING' : 'UNAVAILABLE';
+  preview.style.setProperty('--preview-rotation', `${selectedRotation}deg`); stage.append(preview);
+  const grid = document.createElement('span'); grid.className = 'prop-preview-grid'; grid.setAttribute('aria-hidden', 'true'); stage.append(grid);
+  const collision = metadata.collision;
+  const rects = collision?.mode === 'bounds' && collision.bounds ? [collision.bounds]
+    : collision?.mode === 'parts' ? collision.parts ?? [] : [];
+  for (const authoredRect of rects) {
+    const rect = geometry.rect(authoredRect);
+    const overlay = document.createElement('span'); overlay.className = 'prop-collision-overlay';
+    overlay.style.left = `${(rect.x / geometry.width) * 100}%`; overlay.style.top = `${(rect.y / geometry.height) * 100}%`;
+    overlay.style.width = `${(rect.width / geometry.width) * 100}%`; overlay.style.height = `${(rect.height / geometry.height) * 100}%`; stage.append(overlay);
+  }
+  const anchor = geometry.point(metadata.anchor ?? { x: 0, y: 0 });
+  const topLeft = document.createElement('span'); topLeft.className = 'prop-top-left-marker'; topLeft.textContent = '□';
+  topLeft.setAttribute('aria-label', 'Placement top-left at 0, 0'); stage.append(topLeft);
+  const marker = document.createElement('span'); marker.className = 'prop-anchor-marker'; marker.textContent = '+';
+  marker.style.left = `${((anchor.x + 0.5) / geometry.width) * 100}%`; marker.style.top = `${((anchor.y + 0.5) / geometry.height) * 100}%`;
+  marker.setAttribute('aria-label', `Anchor at ${anchor.x}, ${anchor.y} after ${selectedRotation} degree rotation`); stage.append(marker); wrapper.append(stage);
+  const facts = document.createElement('ul'); facts.className = 'prop-preview-facts';
+  const values = [
+    `Occupies ${geometry.width} × ${geometry.height} cells at ${selectedRotation}°`,
+    rotationPolicy === 'cardinal' ? 'Can be rotated in four directions' : 'Uses one fixed direction',
+    metadata.navigation?.effect === 'blocked' || collision?.mode && collision.mode !== 'none' ? 'Blocks movement' : 'Can be crossed',
+    metadata.attachment === 'wall' ? 'Designed for wall placement' : metadata.placement?.wallSafe === false ? 'Keep away from room boundaries' : 'Suitable for ground placement',
+    `Top-left is □ at 0,0; authored anchor is + at ${anchor.x},${anchor.y}`,
+  ];
+  for (const value of values) { const item = document.createElement('li'); item.textContent = value; facts.append(item); }
+  wrapper.append(facts);
+  if (allowedRotations.length > 1 && !compact) {
+    const controls = document.createElement('div'); controls.className = 'prop-preview-rotations'; controls.setAttribute('aria-label', 'Preview rotation');
+    for (const rotation of allowedRotations) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary'; button.dataset.assetPreviewRotation = String(rotation); button.dataset.previewKey = previewKey;
+      button.dataset.selected = String(rotation === selectedRotation); button.textContent = `${rotation}°`; controls.append(button);
+    }
+    wrapper.append(controls);
+  }
+  if (!canLoad) {
+    const warning = document.createElement('p'); warning.className = 'asset-preview-warning';
+    warning.textContent = 'The exact image preview is unavailable. Reload the project before accepting or placing this asset; inspection and rejection remain available.'; wrapper.append(warning);
+  }
+  return wrapper;
 }
 
 function compactValues(values, empty = 'none') {
@@ -1498,7 +1636,7 @@ function renderV2AssetCard(asset) {
   article.className = 'card asset-card asset-v2-card';
   article.dataset.assetId = asset.assetId;
   if (state.assetUi.selectedAssetId === asset.assetId) article.dataset.selected = 'true';
-  article.append(safeV2Preview(asset));
+  article.append(usefulAssetPreview(asset));
   const headingRow = document.createElement('div'); headingRow.className = 'asset-card-heading';
   const headingCopy = document.createElement('div');
   const badge = document.createElement('span'); badge.className = 'tag'; badge.textContent = `${asset.kind} · V2`;
@@ -1549,7 +1687,10 @@ function renderV2AssetCard(asset) {
   proposal.textContent = asset.proposal
     ? `Proposal ${asset.proposal.proposalId} / ${asset.proposal.itemId} · decision r${asset.proposal.decisionRevision} · applied r${asset.proposal.appliedRevision}`
     : 'No proposal lineage recorded.';
-  provenance.append(lineage, digest, proposal); article.append(provenance);
+  provenance.append(lineage, digest, proposal);
+  const provenanceDetails = document.createElement('details'); provenanceDetails.className = 'asset-technical-details';
+  const provenanceSummary = document.createElement('summary'); provenanceSummary.textContent = 'Technical details';
+  provenanceDetails.append(provenanceSummary, provenance); article.append(provenanceDetails);
 
   const findingDetails = document.createElement('details');
   const findingSummaryElement = document.createElement('summary');
@@ -1645,7 +1786,8 @@ function renderProposalItem(proposal, item, index) {
   const heading = document.createElement('h4'); heading.textContent = `${index + 1}. ${item.name}`;
   const disposition = document.createElement('span'); disposition.className = 'status-pill';
   disposition.textContent = item.decision?.disposition ?? 'PENDING'; headingRow.append(heading, disposition);
-  article.append(headingRow, safeV2Preview(item));
+  const preview = usefulAssetPreview(item, { previewKey: `${proposal.proposalId}:${item.itemId}` });
+  article.append(headingRow, preview);
   const identity = document.createElement('div'); identity.className = 'proposal-identity';
   const primary = document.createElement('strong'); primary.textContent = `${display.label} · ${item.kind}`;
   identity.append(
@@ -1655,7 +1797,10 @@ function renderProposalItem(proposal, item, index) {
   );
   const provenance = document.createElement('small');
   provenance.textContent = `${display.atlasName} · slice v${item.sliceBinding?.sliceVersion ?? item.expectedSliceVersion} · committed r${item.sliceBinding?.committedRevision ?? '—'} · sha256:${item.sliceBinding?.digest ?? 'unresolved'}`;
-  identity.append(provenance); article.append(identity, proposalDiffRows(item));
+  identity.append(provenance);
+  const identityDetails = document.createElement('details'); identityDetails.className = 'asset-technical-details';
+  const identitySummary = document.createElement('summary'); identitySummary.textContent = 'Technical details'; identityDetails.append(identitySummary, identity);
+  article.append(identityDetails, proposalDiffRows(item));
 
   const findings = document.createElement('details'); findings.open = (item.findings ?? []).length > 0;
   const findingsSummary = document.createElement('summary');
@@ -1664,6 +1809,7 @@ function renderProposalItem(proposal, item, index) {
 
   if (proposal.state === 'PENDING') {
     const draft = decisionDraft(proposal, item);
+    if (preview.dataset.previewStatus === 'UNAVAILABLE' && draft.disposition === 'ACCEPTED') draft.disposition = 'REJECTED';
     const controls = document.createElement('div'); controls.className = 'proposal-decision-fields';
     const select = document.createElement('select');
     select.dataset.proposalDisposition = item.itemId;
@@ -1673,6 +1819,7 @@ function renderProposalItem(proposal, item, index) {
     for (const [value, label] of [['ACCEPTED', 'Accept'], ['REJECTED', 'Reject']]) {
       const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option);
     }
+    if (preview.dataset.previewReady !== 'true') select.querySelector('option[value="ACCEPTED"]').disabled = true;
     select.value = draft.disposition;
     const reason = document.createElement('textarea'); reason.rows = 2; reason.maxLength = 2000;
     reason.placeholder = 'Rejection reason (required when rejected)';
@@ -1865,6 +2012,53 @@ function currentRoomVariant(snapshot = state.project?.snapshot) {
   return { entry, variant: roomHead(entry) };
 }
 
+const ROOM_WORKFLOW_STEPS = Object.freeze([
+  ['purpose', '1 · Purpose'], ['shape', '2 · Shape'], ['entrances', '3 · Entrances'],
+  ['surfaces', '4 · Surfaces'], ['props', '5 · Props'], ['check', '6 · Check'],
+]);
+
+function roomShapeDraft(variant) {
+  if (!variant) return null;
+  if (!state.roomUi.shapeDraft || (state.roomUi.shapeDraft.roomVariantId !== variant.roomVariantId && !state.roomUi.shapeDraft.dirty)) {
+    state.roomUi.shapeDraft = {
+      roomVariantId: variant.roomVariantId,
+      baseVersion: variant.version,
+      voidCells: structuredClone(variant.voidCells ?? []),
+      blockedCells: structuredClone(variant.blockedCells ?? []),
+      dirty: false,
+    };
+    state.roomUi.shapeConflict = null;
+  }
+  return state.roomUi.shapeDraft;
+}
+
+function roomCellKind(variant, x, y) {
+  const draft = roomShapeDraft(variant); const key = `${x},${y}`;
+  if (draft?.voidCells.some((cell) => `${cell.x},${cell.y}` === key)) return 'VOID';
+  if (draft?.blockedCells.some((cell) => `${cell.x},${cell.y}` === key)) return 'BLOCKED';
+  return 'ROOM';
+}
+
+function renderRoomWorkflow(variant) {
+  const navigation = document.createElement('nav'); navigation.className = 'room-workflow'; navigation.setAttribute('aria-label', 'Room construction steps');
+  for (const [value, label] of ROOM_WORKFLOW_STEPS) {
+    const button = roomControl(label, 'workflow-step', { roomStep: value });
+    button.dataset.selected = String(state.roomUi.step === value); navigation.append(button);
+  }
+  const current = document.createElement('p'); current.className = 'room-workflow-guidance';
+  const copy = {
+    purpose: 'You act next: choose the room purpose or create a reusable room type.',
+    shape: 'You act next: define which cells belong to the room and which in-room cells are blocked.',
+    entrances: 'You act next: add entrances on the outside edge and keep their approach clear.',
+    surfaces: 'You act next: cover every usable room cell, including blocked cells, while leaving outside cells and structural edge bands empty.',
+    props: 'You act next: inspect a useful prop preview before choosing “Use in room”, or review agent placement suggestions.',
+    check: 'You act next: resolve current blockers, validate the editable version, and finish it when ready.',
+  }[state.roomUi.step];
+  current.textContent = copy; navigation.append(current);
+  if (variant) navigation.dataset.roomVariantId = variant.roomVariantId;
+  return navigation;
+}
+
 function exactRoomAsset(placement, snapshot = state.project?.snapshot) {
   return currentAssetLibrary(snapshot).assets.find((asset) => (
     asset.assetId === placement.assetId
@@ -1888,7 +2082,8 @@ function roomControl(label, value, dataset = {}) {
 }
 
 function roomStatusPill(value) {
-  const pill = document.createElement('span'); pill.className = 'status-pill'; pill.textContent = value;
+  const pill = document.createElement('span'); pill.className = 'status-pill'; pill.dataset.roomLifecycle = value;
+  pill.textContent = { DRAFT: 'Editable', VALIDATED: 'Ready to finish', FINAL: 'Final' }[value] ?? value;
   return pill;
 }
 
@@ -1929,7 +2124,7 @@ function renderRoomCreation(library) {
   return wrapper;
 }
 
-function renderRoomPalette(variant, snapshot) {
+function renderRoomPalette(variant, snapshot, { kinds = null } = {}) {
   const panel = document.createElement('section'); panel.className = 'room-panel room-palette';
   const heading = document.createElement('div'); heading.className = 'room-panel-heading';
   const title = document.createElement('h3'); title.textContent = 'Asset palette';
@@ -1937,8 +2132,11 @@ function renderRoomPalette(variant, snapshot) {
   const search = document.createElement('input'); search.type = 'search'; search.placeholder = 'Filter assets'; search.value = state.roomUi.paletteSearch;
   search.dataset.roomPaletteSearch = 'true'; search.dataset.roomControl = 'palette-search'; search.dataset.roomFocusKey = 'room-palette-search'; search.setAttribute('aria-label', 'Filter room asset palette');
   const needle = state.roomUi.paletteSearch.trim().toLocaleLowerCase('en-US');
-  const assets = currentAssetLibrary(snapshot).assets.filter((asset) => !needle || [asset.name, asset.assetId, ...(asset.metadata?.tags ?? [])]
-    .some((value) => String(value).toLocaleLowerCase('en-US').includes(needle)));
+  const assets = currentAssetLibrary(snapshot).assets.filter((asset) => (
+    (!kinds || kinds.includes(asset.kind))
+    && (!needle || [asset.name, asset.assetId, ...(asset.metadata?.tags ?? [])]
+      .some((value) => String(value).toLocaleLowerCase('en-US').includes(needle)))
+  ));
   count.textContent = `${assets.length} exact-version assets`;
   heading.append(title, count); panel.append(heading, search);
   const list = document.createElement('div'); list.className = 'room-palette-list'; list.dataset.roomScroll = 'palette';
@@ -1955,6 +2153,24 @@ function renderRoomPalette(variant, snapshot) {
   }
   if (!assets.length) list.append(emptyState('No placeable assets', 'Finalize V2 asset metadata or change the palette filter.'));
   panel.append(list); return panel;
+}
+
+function renderRoomPlacementPreview(variant, snapshot) {
+  const asset = currentAssetLibrary(snapshot).assets.find(({ assetId }) => assetId === state.roomUi.previewAssetId);
+  const section = document.createElement('section'); section.className = 'room-placement-preview room-panel';
+  if (!asset) {
+    section.append(sectionHeading('Inspect before placement', 'Select a prop or item from the palette. Its image, footprint, anchor, rotation, and movement effect will appear here before placement is armed.'));
+    return section;
+  }
+  section.append(sectionHeading(asset.name, 'Confirm that the visual and authored placement rules match your intent before using this asset in the room.'));
+  const preview = usefulAssetPreview(asset, { previewKey: `room:${asset.assetId}` }); section.append(preview);
+  const actions = document.createElement('div'); actions.className = 'room-preview-actions';
+  const use = roomControl('Use in room', 'use-preview-asset', { paletteAssetId: asset.assetId });
+  use.dataset.previewPlacementAllowed = String(variant.lifecycle === 'DRAFT');
+  use.disabled = variant.lifecycle !== 'DRAFT' || preview.dataset.previewReady !== 'true';
+  use.title = preview.dataset.previewReady === 'true' ? 'Arm this exact asset for placement on the canvas.' : 'Reload the exact image preview before placing this asset.';
+  const close = roomControl('Choose another asset', 'close-preview-asset'); actions.append(use, close); section.append(actions);
+  return section;
 }
 
 function connectorGeometry(connector, variant) {
@@ -1986,6 +2202,7 @@ function renderRoomCanvas(variant, snapshot) {
   toolbar.append(origin, zoom, layers); panel.append(toolbar);
   const scroll = document.createElement('div'); scroll.className = 'room-canvas-scroll'; scroll.dataset.roomScroll = 'canvas';
   const board = document.createElement('div'); board.className = 'room-board'; board.dataset.roomBoard = 'true';
+  if (state.roomUi.step === 'shape') board.dataset.shapeEditing = 'true';
   const cellSize = state.roomUi.zoom === '2' ? 58 : state.roomUi.zoom === '1' ? 38 : 28;
   board.style.setProperty('--room-width', String(variant.width)); board.style.setProperty('--room-height', String(variant.height));
   board.style.setProperty('--room-cell', `${cellSize}px`);
@@ -1994,7 +2211,11 @@ function renderRoomCanvas(variant, snapshot) {
     for (let x = 0; x < variant.width; x += 1) {
       const cell = document.createElement('button'); cell.type = 'button'; cell.className = 'room-cell';
       cell.dataset.roomControl = 'cell'; cell.dataset.x = String(x); cell.dataset.y = String(y);
-      cell.setAttribute('aria-label', `Cell ${x}, ${y}`); const coordinate = document.createElement('span'); coordinate.textContent = `${x},${y}`; cell.append(coordinate); grid.append(cell);
+      const kind = roomCellKind(variant, x, y); cell.dataset.cellKind = kind;
+      const label = kind === 'VOID' ? 'Outside room' : kind === 'BLOCKED' ? 'Blocked room cell' : 'Room floor';
+      cell.setAttribute('aria-label', `Cell ${x}, ${y}: ${label}`); const coordinate = document.createElement('span'); coordinate.textContent = `${x},${y}`;
+      const stateLabel = document.createElement('small'); stateLabel.textContent = kind === 'VOID' ? 'OUT' : kind === 'BLOCKED' ? 'BLOCKED' : 'ROOM';
+      cell.append(coordinate, stateLabel); grid.append(cell);
     }
   }
   board.append(grid);
@@ -2087,7 +2308,34 @@ function renderRoomInspector(variant, snapshot) {
   placementDetails.append(placementSummaryElement, list); panel.append(placementDetails, renderRoomFindings(variant)); return panel;
 }
 
-function renderRoomEditForms(variant) {
+function roomCellsText(cells) {
+  return cells.map(({ x, y }) => `${x},${y}`).join('\n');
+}
+
+function renderRoomShapeControls(variant) {
+  const draft = roomShapeDraft(variant); const section = document.createElement('section'); section.className = 'room-shape-controls room-panel';
+  section.append(sectionHeading('Room shape', 'ROOM belongs to the room. OUTSIDE is excluded from coverage and placement. BLOCKED belongs to the room and needs a surface inside the usable area after structural edge bands, but cannot be crossed or hold props.'));
+  const tools = document.createElement('div'); tools.className = 'room-shape-tools';
+  for (const [value, label] of [['ROOM', 'Room floor'], ['VOID', 'Outside room'], ['BLOCKED', 'Blocked in room']]) {
+    const button = roomControl(label, 'shape-tool', { shapeTool: value }); button.dataset.selected = String(state.roomUi.shapeTool === value); tools.append(button);
+  }
+  const summary = document.createElement('p'); summary.className = 'room-shape-summary';
+  summary.textContent = `${variant.width * variant.height - draft.voidCells.length} room cells · ${draft.voidCells.length} outside · ${draft.blockedCells.length} blocked`;
+  const conflict = document.createElement('p'); conflict.className = 'asset-conflict'; conflict.hidden = !state.roomUi.shapeConflict; conflict.textContent = state.roomUi.shapeConflict ?? '';
+  const actions = document.createElement('div'); actions.className = 'room-preview-actions';
+  const save = roomControl('Save complete shape', 'shape-save'); save.disabled = !draft.dirty || Boolean(state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT';
+  const reset = roomControl('Reload saved shape', 'shape-reset'); actions.append(save, reset);
+  const coordinates = document.createElement('details'); coordinates.className = 'room-shape-coordinate-editor';
+  const coordinateSummary = document.createElement('summary'); coordinateSummary.textContent = 'Structured coordinate editor';
+  const form = document.createElement('form'); form.dataset.roomForm = 'shape-coordinates'; form.className = 'room-form';
+  const voidInput = document.createElement('textarea'); voidInput.name = 'voidCells'; voidInput.rows = 5; voidInput.value = roomCellsText(draft.voidCells); voidInput.placeholder = 'One x,y coordinate per line';
+  const blockedInput = document.createElement('textarea'); blockedInput.name = 'blockedCells'; blockedInput.rows = 5; blockedInput.value = roomCellsText(draft.blockedCells); blockedInput.placeholder = 'One x,y coordinate per line';
+  const apply = document.createElement('button'); apply.type = 'submit'; apply.textContent = 'Apply coordinates to draft';
+  form.append(roomField('Outside-room coordinates', voidInput), roomField('Blocked in-room coordinates', blockedInput), apply); coordinates.append(coordinateSummary, form);
+  section.append(tools, summary, conflict, actions, coordinates); return section;
+}
+
+function renderRoomEditForms(variant, mode = 'all') {
   const section = document.createElement('section'); section.className = 'room-authoring';
   const resize = document.createElement('form'); resize.dataset.roomForm = 'resize'; resize.className = 'room-form compact';
   const rw = document.createElement('input'); rw.type = 'number'; rw.name = 'width'; rw.min = '3'; rw.max = '64'; rw.value = String(variant.width);
@@ -2109,7 +2357,17 @@ function renderRoomEditForms(variant) {
   }
   const saveIntent = document.createElement('button'); saveIntent.type = 'submit'; saveIntent.textContent = 'Save intent trace'; intent.append(saveIntent);
   for (const control of [...resize.elements, ...connector.elements, ...intent.elements]) control.disabled = variant.lifecycle !== 'DRAFT';
-  section.append(sectionHeading('Authoring controls', 'Resize explicitly, author edge apertures and clearance, and retain the three-layer intent trace.'), resize, connector, intent); return section;
+  const copy = {
+    shape: ['Room size', 'Resize the bounded working area only after the saved shape and placed content fit inside it.'],
+    entrances: ['Entrances', 'Add an opening on the outside edge and keep its complete inside approach on ordinary room cells.'],
+    purpose: ['Room intent', 'Record the design purpose in plain language; exact rule references remain available as technical history.'],
+  }[mode] ?? ['Authoring controls', 'Resize explicitly, author edge apertures and clearance, and retain the three-layer intent trace.'];
+  section.append(sectionHeading(...copy));
+  if (mode === 'shape') section.append(resize);
+  else if (mode === 'entrances') section.append(connector);
+  else if (mode === 'purpose') section.append(intent);
+  else section.append(resize, connector, intent);
+  return section;
 }
 
 function roomProposalDraft(proposal, item) {
@@ -2206,8 +2464,8 @@ function renderRoomLifecycle(variant) {
 
 function renderRooms(snapshot) {
   const fragment = document.createDocumentFragment(); const library = currentRoomLibrary(snapshot);
-  fragment.append(renderRoomCreation(library));
   if (!library.variants.length) {
+    fragment.append(renderRoomWorkflow(null), renderRoomCreation(library));
     fragment.append(emptyState('No room variants', library.archetypes.length ? 'Create a DRAFT room or hallway from an authored archetype.' : 'Create an archetype first, then create a DRAFT room or hallway.'));
     return fragment;
   }
@@ -2222,41 +2480,68 @@ function renderRooms(snapshot) {
   }
   selector.value = variant.roomVariantId; selectorLabel.append(selectorCaption, selector);
   const identity = document.createElement('div'); const heading = document.createElement('h2'); heading.textContent = variant.displayName;
-  const detail = document.createElement('p'); detail.textContent = `${archetype?.displayName ?? variant.roomArchetypeId} · exact archetype v${variant.archetypeVersion} · room v${variant.version} · ${findingSummary(variant.findings)}`;
-  identity.append(heading, detail); header.append(selectorLabel, identity, roomStatusPill(variant.lifecycle)); fragment.append(header);
-  const layout = document.createElement('div'); layout.className = 'room-designer-layout';
-  layout.append(renderRoomPalette(variant, snapshot), renderRoomCanvas(variant, snapshot), renderRoomInspector(variant, snapshot)); fragment.append(layout);
-  fragment.append(renderRoomEditForms(variant), renderRoomLifecycle(variant), renderRoomProposalReview(variant, library.proposals));
+  const detail = document.createElement('p'); detail.textContent = `${archetype?.displayName ?? 'Reusable room type'} · ${findingSummary(variant.findings)}`;
+  const technical = document.createElement('details'); technical.className = 'room-header-technical';
+  const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
+  const technicalCopy = document.createElement('code'); technicalCopy.textContent = `${variant.roomVariantId} · archetype ${variant.roomArchetypeId}@${variant.archetypeVersion} · room version ${variant.version} · ${variant.lifecycle}`;
+  technical.append(technicalSummary, technicalCopy); identity.append(heading, detail, technical);
+  header.append(selectorLabel, identity, roomStatusPill(variant.lifecycle)); fragment.append(header, renderRoomWorkflow(variant));
+  if (state.roomUi.step === 'purpose') {
+    fragment.append(renderRoomCreation(library), renderRoomEditForms(variant, 'purpose'));
+  } else if (state.roomUi.step === 'shape') {
+    fragment.append(renderRoomShapeControls(variant), renderRoomCanvas(variant, snapshot), renderRoomEditForms(variant, 'shape'));
+  } else if (state.roomUi.step === 'entrances') {
+    const layout = document.createElement('div'); layout.className = 'room-focused-layout';
+    layout.append(renderRoomCanvas(variant, snapshot), renderRoomInspector(variant, snapshot));
+    fragment.append(layout, renderRoomEditForms(variant, 'entrances'));
+  } else if (state.roomUi.step === 'surfaces') {
+    const layout = document.createElement('div'); layout.className = 'room-designer-layout';
+    layout.append(renderRoomPalette(variant, snapshot, { kinds: ['surface'] }), renderRoomCanvas(variant, snapshot), renderRoomInspector(variant, snapshot)); fragment.append(layout);
+  } else if (state.roomUi.step === 'props') {
+    const layout = document.createElement('div'); layout.className = 'room-designer-layout';
+    layout.append(renderRoomPalette(variant, snapshot, { kinds: ['prop', 'item'] }), renderRoomCanvas(variant, snapshot), renderRoomInspector(variant, snapshot));
+    fragment.append(renderRoomPlacementPreview(variant, snapshot), layout, renderRoomProposalReview(variant, library.proposals));
+  } else {
+    fragment.append(renderRoomCanvas(variant, snapshot), renderRoomLifecycle(variant), renderRoomFindings(variant));
+  }
   return fragment;
 }
 
 const TASK_STATE_LABELS = Object.freeze({
-  ACTIVE: 'Agent can work',
-  PAUSED: 'Paused',
+  ACTIVE: 'Agent working',
+  PAUSED: 'Waiting for you to continue',
   IN_REVIEW: 'Waiting for your review',
-  CHANGES_REQUESTED: 'Changes requested',
-  MERGED: 'Completed',
-  CANCELLED: 'Cancelled',
-  REJECTED: 'Rejected',
-  EXPIRED: 'Expired',
+  CHANGES_REQUESTED: 'Waiting for you to restart the task',
+  MERGED: 'Task completed',
+  CANCELLED: 'Task ended',
+  REJECTED: 'Task ended without changes',
+  EXPIRED: 'Agent access expired',
+  REVERTED: 'Changes undone',
 });
 
 const TASK_ACTION_LABELS = Object.freeze({
   pause: 'Pause agent work',
   resume: 'Let agent continue',
   cancel: 'Cancel task',
-  'submit-review': 'Start review',
+  reject: 'End task without adding changes',
+  'submit-review': 'Review current result',
 });
 
 const TASK_EVENT_LABELS = Object.freeze({
   TASK_CREATED: 'Task created',
   BRANCH_COMMAND_ACCEPTED: 'Agent change saved',
+  BRANCH_COMMAND_COMMITTED: 'Agent change saved',
   TASK_PAUSE: 'Agent work paused',
   TASK_RESUME: 'Agent work resumed',
+  TASK_CANCEL: 'Task ended by its owner',
+  TASK_REJECT: 'Task ended without adding changes',
   REVIEW_SUBMITTED: 'Result submitted for review',
   REVIEW_DECIDED: 'Review decisions saved',
+  REVIEW_CHANGES_REQUESTED: 'Changes requested',
   TASK_MERGE: 'Accepted changes added to project',
+  TASK_MERGED: 'Accepted changes added to project',
   TASK_REVERT: 'Task changes undone',
+  MERGE_REVERTED: 'Task changes undone',
 });
 
 const TASK_CAPABILITY_LABELS = Object.freeze({
@@ -2277,9 +2562,46 @@ function taskStateLabel(stateValue) {
   return TASK_STATE_LABELS[stateValue] ?? stateValue.replaceAll('_', ' ').toLowerCase();
 }
 
+function taskWasReverted(entry) {
+  return entry.timeline?.some(({ type }) => type === 'MERGE_REVERTED') ?? false;
+}
+
+function taskHasSavedChanges(entry) {
+  return entry.timeline?.some(({ type }) => ['BRANCH_COMMAND_COMMITTED', 'BRANCH_COMMAND_ACCEPTED'].includes(type)) ?? false;
+}
+
+function taskEffectiveState(entry) {
+  if (taskWasReverted(entry)) return 'REVERTED';
+  return entry.task.effectiveState ?? entry.task.state;
+}
+
+function taskEventActorLabel(entry, event) {
+  if (event.actor?.displayName) return event.actor.displayName;
+  const actorId = event.actor?.id ?? event.actorId;
+  if (actorId === state.project?.snapshot.project.ownerId) return 'You';
+  if (actorId === entry.task.agentId) return 'Assigned agent';
+  return actorId ? 'Authorized collaborator' : 'Studio service';
+}
+
+function taskWorkflowPresentation(entry) {
+  const stateValue = taskEffectiveState(entry);
+  const presentations = {
+    ACTIVE: { actor: 'Assigned agent', next: taskHasSavedChanges(entry) ? 'The agent can continue, or you can review the current result.' : 'The agent can work within the limits you chose.', consequence: 'Changes stay separate from the project until you review and accept them.' },
+    PAUSED: { actor: 'You', next: 'Choose whether the agent should continue or the task should end.', consequence: 'The assigned agent cannot make changes while this task is paused.' },
+    CHANGES_REQUESTED: { actor: 'You', next: 'Let the agent continue when you are ready for the requested changes.', consequence: 'The assigned agent remains blocked until you restart the task.' },
+    IN_REVIEW: { actor: 'You', next: 'Review every proposed change, then complete or end the task.', consequence: 'Nothing enters the project until you make and confirm the decision.' },
+    MERGED: { actor: 'You, if needed', next: 'The work is complete. You may undo the added changes while keeping the history.', consequence: 'Accepted changes are in the project and the assigned agent can no longer change this task.' },
+    REVERTED: { actor: 'No one', next: 'This task is complete and its project changes have been undone.', consequence: 'The task and review history remain available; no second undo is possible.' },
+    CANCELLED: { actor: 'No one', next: 'Create a new task if more work is needed.', consequence: 'The assigned agent cannot make further changes for this task.' },
+    REJECTED: { actor: 'No one', next: 'Create a new task from the current project if more work is needed.', consequence: 'No task changes were added and the assigned agent can no longer change this task.' },
+    EXPIRED: { actor: 'You', next: 'End this task and create a new bounded task if work should continue.', consequence: 'The expired agent access cannot be resumed or used.' },
+  };
+  return { state: stateValue, ...(presentations[stateValue] ?? { actor: 'You', next: 'Inspect the task history.', consequence: 'No automatic action is taken.' }) };
+}
+
 function taskMergeBlockedReason(review) {
   if (!review || review.state !== 'OPEN') return 'This task is not ready to be completed.';
-  if (review.conflicts?.length) return 'Resolve the conflict with newer project work before completing this task.';
+  if (review.conflicts?.length) return 'This result overlaps newer project work and cannot be added safely. End this task without adding changes, then create a new task from the current project.';
   if (review.items.some((item) => ['PENDING', 'CHANGES_REQUESTED'].includes(item.disposition))) {
     return 'Review every proposed change before completing this task.';
   }
@@ -2289,26 +2611,28 @@ function taskMergeBlockedReason(review) {
   return null;
 }
 
-function taskStateBadge(task) {
+function taskStateBadge(entry) {
+  const presentation = taskWorkflowPresentation(entry);
   const badge = document.createElement('span'); badge.className = 'status-pill';
-  badge.dataset.taskState = task.state; badge.textContent = taskStateLabel(task.state);
+  badge.dataset.taskState = presentation.state; badge.textContent = taskStateLabel(presentation.state);
   badge.setAttribute('aria-label', `Task status: ${badge.textContent}`);
   return badge;
 }
 
 function renderTaskComposer() {
-  const section = document.createElement('section'); section.className = 'task-composer surface-card';
+  const section = document.createElement('section'); section.className = 'task-composer surface-card'; section.dataset.taskView = 'create';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
   const title = document.createElement('div');
   const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'You stay in control';
   const name = document.createElement('h2'); name.textContent = 'Create a task for an agent';
-  title.append(eyebrow, name); heading.append(title); section.append(heading);
+  const back = document.createElement('button'); back.type = 'button'; back.className = 'secondary'; back.dataset.taskControl = 'back-to-list'; back.textContent = 'Back to tasks';
+  title.append(eyebrow, name); heading.append(title, back); section.append(heading);
   const help = document.createElement('p'); help.className = 'task-help';
   help.textContent = 'Choose what the agent may change and for how long. Its work stays separate from the project until you review and accept it.';
   section.append(help);
   const form = document.createElement('form'); form.dataset.taskForm = 'create'; form.className = 'task-form';
   form.innerHTML = `
-    <label>Title<input name="title" required maxlength="160" value="Build a DRAFT room"></label>
+    <label>Title<input name="title" required maxlength="160" value="Build an editable room"></label>
     <label>Agent ID<input name="agentId" required maxlength="128" value="studio.agent"></label>
     <label class="task-objective">What should the agent do?<textarea name="objective" required maxlength="4000">Create or refine an editable room from already accepted project sources and assets. Do not finalize, export, or publish.</textarea></label>
     <fieldset><legend>What may the agent do?</legend>
@@ -2332,7 +2656,9 @@ function renderTaskComposer() {
 
 function renderTaskReview(entry) {
   const review = entry.review;
-  const section = document.createElement('section'); section.className = 'task-review surface-card';
+  const effectiveState = taskEffectiveState(entry);
+  const reviewEditable = review?.state === 'OPEN' && effectiveState === 'IN_REVIEW';
+  const section = document.createElement('section'); section.className = 'task-review task-detail-section';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
   const title = document.createElement('h3'); title.textContent = 'Review task result';
   heading.append(title); section.append(heading);
@@ -2342,9 +2668,17 @@ function renderTaskReview(entry) {
   }
   const ownerId = state.project?.snapshot.project.ownerId ?? 'project owner';
   const guidance = document.createElement('p'); guidance.className = 'task-review-guidance';
-  guidance.textContent = entry.task.state === 'MERGED'
+  guidance.textContent = taskWasReverted(entry)
+    ? 'Changes undone. The completed task and its review remain in the history.'
+    : effectiveState === 'MERGED'
     ? 'Completed. The accepted changes are now part of the project, and the assigned agent can no longer change this task.'
-    : `Waiting for your review. Only the project owner (${ownerId}) can accept or reject these changes.`;
+    : effectiveState === 'CHANGES_REQUESTED'
+      ? 'You asked for changes. The assigned agent remains blocked until you choose “Let agent continue”.'
+      : ['REJECTED', 'CANCELLED'].includes(effectiveState)
+        ? 'This task ended without adding more changes. Its review remains available as read-only history.'
+        : effectiveState === 'EXPIRED'
+          ? 'This task expired. Its review remains available as read-only history, and its agent access cannot resume.'
+      : `Waiting for your review. Only the project owner (${ownerId}) can accept or reject these changes.`;
   section.append(guidance);
   const comparison = document.createElement('details'); comparison.className = 'task-technical-details';
   const comparisonSummary = document.createElement('summary'); comparisonSummary.textContent = 'Technical comparison details';
@@ -2355,8 +2689,11 @@ function renderTaskReview(entry) {
   for (const conflict of review.conflicts ?? []) {
     const item = document.createElement('li');
     const message = document.createElement('strong');
-    message.textContent = `The ${conflict.entityType} “${conflict.entityId}” was changed both in this task and in the project after the task started.`;
-    const technical = document.createElement('small'); technical.textContent = `Technical details: ${conflict.code}: ${conflict.entityType}:${conflict.entityId}`;
+    message.textContent = 'The same project item was changed both in this task and in the project after the task started.';
+    const technical = document.createElement('details'); technical.className = 'task-technical-details';
+    const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
+    const technicalCode = document.createElement('code'); technicalCode.textContent = `${conflict.code}: ${conflict.entityType}:${conflict.entityId}`;
+    technical.append(technicalSummary, technicalCode);
     item.append(message, technical); conflicts.append(item);
   }
   if (conflicts.children.length) {
@@ -2380,15 +2717,15 @@ function renderTaskReview(entry) {
     }
     if (item.disposition === 'AUTO_ACCEPTED_BY_POLICY') {
       select.replaceChildren();
-      const option = document.createElement('option'); option.value = item.disposition; option.textContent = 'Auto-accepted by policy'; select.append(option); select.disabled = true;
+      const option = document.createElement('option'); option.value = item.disposition; option.textContent = 'Accepted automatically under your task settings'; select.append(option); select.disabled = true;
     } else {
       select.value = item.disposition;
-      select.disabled = review.state !== 'OPEN';
+      select.disabled = !reviewEditable;
     }
     row.append(copy, select); list.append(row);
   }
   section.append(list);
-  if (review.state === 'OPEN') {
+  if (reviewEditable) {
     const decide = document.createElement('button'); decide.type = 'button'; decide.dataset.taskControl = 'decide'; decide.textContent = 'Save review decisions';
     section.append(decide);
     const blockedReason = taskMergeBlockedReason(review);
@@ -2397,7 +2734,8 @@ function renderTaskReview(entry) {
     if (blockedReason) {
       const note = document.createElement('p'); note.className = 'task-action-note'; note.textContent = blockedReason; section.append(note);
     }
-  } else if (review.mergeId) {
+    const reject = document.createElement('button'); reject.type = 'button'; reject.className = 'secondary'; reject.dataset.taskControl = 'reject'; reject.textContent = TASK_ACTION_LABELS.reject; section.append(reject);
+  } else if (effectiveState === 'MERGED' && review.mergeId && !taskWasReverted(entry)) {
     const note = document.createElement('p'); note.className = 'task-action-note';
     note.textContent = 'You can undo the project changes from this task without deleting its task or review history.';
     const revert = document.createElement('button'); revert.type = 'button'; revert.className = 'secondary'; revert.dataset.taskControl = 'revert'; revert.textContent = 'Undo task changes'; section.append(note, revert);
@@ -2405,30 +2743,43 @@ function renderTaskReview(entry) {
   return section;
 }
 
-function renderTasks() {
-  const fragment = document.createDocumentFragment(); fragment.append(renderTaskComposer());
+function renderTaskList() {
+  const list = document.createElement('section'); list.className = 'task-list surface-card'; list.dataset.taskView = 'list';
+  const header = document.createElement('div'); header.className = 'task-list-header';
+  const copy = document.createElement('div'); const listHeading = document.createElement('h2'); listHeading.textContent = 'Tasks';
+  const help = document.createElement('p'); help.textContent = 'Choose a task to see who acts next, or create a new bounded task.'; copy.append(listHeading, help);
+  const create = document.createElement('button'); create.type = 'button'; create.dataset.taskControl = 'open-create'; create.textContent = 'Create task';
+  header.append(copy, create); list.append(header);
   if (!state.tasks.length) {
-    fragment.append(emptyState('No delegated tasks', 'Create a bounded task branch. Finalize, export, and publish remain unavailable.'));
-    return fragment;
+    list.append(emptyState('No delegated tasks', 'Create a bounded task. Finalize, export, and publish remain unavailable.'));
+    return list;
   }
-  const selected = state.tasks.find(({ task }) => task.taskId === state.taskUi.selectedTaskId) ?? state.tasks[0];
-  state.taskUi.selectedTaskId = selected.task.taskId;
-  const grid = document.createElement('div'); grid.className = 'task-layout';
-  const list = document.createElement('section'); list.className = 'task-list surface-card';
-  const listHeading = document.createElement('h2'); listHeading.textContent = 'Tasks'; list.append(listHeading);
+  const items = document.createElement('div'); items.className = 'task-list-items';
   for (const entry of state.tasks) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'task-list-item secondary';
     button.dataset.taskControl = 'select'; button.dataset.taskId = entry.task.taskId;
-    if (entry.task.taskId === selected.task.taskId) button.dataset.selected = 'true';
     const strong = document.createElement('strong'); strong.textContent = entry.task.title;
-    const small = document.createElement('small'); small.textContent = `Assigned to ${entry.task.agentId}`;
-    button.append(strong, taskStateBadge(entry.task), small); list.append(button);
+    const presentation = taskWorkflowPresentation(entry);
+    const small = document.createElement('small'); small.textContent = `${presentation.actor} acts next · ${presentation.next}`;
+    button.append(strong, taskStateBadge(entry), small); items.append(button);
   }
-  const detail = document.createElement('section'); detail.className = 'task-detail surface-card';
+  list.append(items); return list;
+}
+
+function renderTaskDetail(selected) {
+  const detail = document.createElement('section'); detail.className = 'task-detail surface-card'; detail.dataset.taskView = 'detail';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
   const headCopy = document.createElement('div'); const selectedEyebrow = document.createElement('p'); selectedEyebrow.className = 'eyebrow'; selectedEyebrow.textContent = 'Selected task';
   const taskTitle = document.createElement('h2'); taskTitle.textContent = selected.task.title;
-  const objective = document.createElement('p'); objective.textContent = selected.task.objective; headCopy.append(selectedEyebrow, taskTitle, objective); heading.append(headCopy, taskStateBadge(selected.task)); detail.append(heading);
+  const objective = document.createElement('p'); objective.textContent = selected.task.objective; headCopy.append(selectedEyebrow, taskTitle, objective);
+  const headingActions = document.createElement('div'); headingActions.className = 'task-detail-header-actions';
+  const back = document.createElement('button'); back.type = 'button'; back.className = 'secondary'; back.dataset.taskControl = 'back-to-list'; back.textContent = 'Back to tasks';
+  headingActions.append(taskStateBadge(selected), back); heading.append(headCopy, headingActions); detail.append(heading);
+  const presentation = taskWorkflowPresentation(selected);
+  const workflow = document.createElement('section'); workflow.className = 'task-workflow-state';
+  const workflowHeading = document.createElement('h3'); workflowHeading.textContent = 'Current step';
+  const actor = document.createElement('p'); actor.className = 'task-next-step'; actor.textContent = `Who acts next: ${presentation.actor}. ${presentation.next}`;
+  const consequence = document.createElement('p'); consequence.textContent = `What happens next: ${presentation.consequence}`; workflow.append(workflowHeading, actor, consequence); detail.append(workflow);
   const facts = document.createElement('dl'); facts.className = 'policy-details';
   for (const [label, value] of [
     ['Assigned agent', selected.task.agentId],
@@ -2446,17 +2797,35 @@ function renderTasks() {
   ]) { const term = document.createElement('dt'); term.textContent = label; const desc = document.createElement('dd'); desc.textContent = value; technicalFacts.append(term, desc); }
   technical.append(technicalSummary, technicalFacts); detail.append(technical);
   const controls = document.createElement('div'); controls.className = 'task-controls';
-  const actions = selected.task.state === 'ACTIVE' ? ['pause', 'cancel', 'submit-review']
-    : selected.task.state === 'PAUSED' ? ['resume', 'cancel']
-      : selected.task.state === 'CHANGES_REQUESTED' ? ['resume', 'cancel'] : [];
+  const actions = presentation.state === 'ACTIVE' ? ['pause', ...(taskHasSavedChanges(selected) ? ['submit-review'] : []), 'cancel']
+    : presentation.state === 'PAUSED' ? ['resume', 'cancel']
+      : presentation.state === 'CHANGES_REQUESTED' ? ['resume', 'cancel']
+        : presentation.state === 'EXPIRED' ? ['cancel'] : [];
   for (const action of actions) {
     const button = document.createElement('button'); button.type = 'button'; button.dataset.taskControl = action; button.textContent = TASK_ACTION_LABELS[action] ?? action.replace('-', ' '); if (action === 'cancel') button.className = 'secondary'; controls.append(button);
   }
   detail.append(controls);
   const timelineHeading = document.createElement('h3'); timelineHeading.textContent = 'Progress';
   const timeline = document.createElement('ol'); timeline.className = 'task-timeline';
-  for (const event of selected.timeline) { const item = document.createElement('li'); const strong = document.createElement('strong'); strong.textContent = TASK_EVENT_LABELS[event.type] ?? event.type.replaceAll('_', ' ').toLowerCase(); const small = document.createElement('small'); small.textContent = `${new Date(event.occurredAt).toLocaleTimeString()} · work version ${event.branchRevision}`; item.append(strong, small); timeline.append(item); }
-  detail.append(timelineHeading, timeline); grid.append(list, detail); fragment.append(grid, renderTaskReview(selected)); return fragment;
+  for (const event of selected.timeline) {
+    const item = document.createElement('li'); const copy = document.createElement('div');
+    const strong = document.createElement('strong'); strong.textContent = TASK_EVENT_LABELS[event.type] ?? 'Task activity updated';
+    const small = document.createElement('small'); small.textContent = `${new Date(event.occurredAt).toLocaleTimeString()} · ${taskEventActorLabel(selected, event)}`;
+    const technicalEvent = document.createElement('details'); const summary = document.createElement('summary'); summary.textContent = 'Technical details';
+    const code = document.createElement('code'); code.textContent = `${event.type} · work version ${event.branchRevision ?? '—'}`; technicalEvent.append(summary, code);
+    copy.append(strong, small); item.append(copy, technicalEvent); timeline.append(item);
+  }
+  detail.append(timelineHeading, timeline, renderTaskReview(selected)); return detail;
+}
+
+function renderTasks() {
+  if (state.taskUi.view === 'create') return renderTaskComposer();
+  if (state.taskUi.view === 'detail') {
+    const selected = state.tasks.find(({ task }) => task.taskId === state.taskUi.selectedTaskId);
+    if (selected) return renderTaskDetail(selected);
+    state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null;
+  }
+  return renderTaskList();
 }
 
 function renderCollection(items, workspace) {
@@ -2530,10 +2899,15 @@ function workspaceRenderFingerprint() {
       conflict: state.assetUi.conflict,
     } : null,
     roomUi: state.workspace === 'rooms' ? {
+      step: state.roomUi.step,
+      shapeTool: state.roomUi.shapeTool,
+      shapeDraft: state.roomUi.shapeDraft,
+      shapeConflict: state.roomUi.shapeConflict,
       selectedRoomVariantId: state.roomUi.selectedRoomVariantId,
       selectedPlacementId: state.roomUi.selectedPlacementId,
       selectedConnectorId: state.roomUi.selectedConnectorId,
       selectedPaletteAssetId: state.roomUi.selectedPaletteAssetId,
+      previewAssetId: state.roomUi.previewAssetId,
       selectedProposalId: state.roomUi.selectedProposalId,
       paletteSearch: state.roomUi.paletteSearch,
       zoom: state.roomUi.zoom,
@@ -2691,10 +3065,15 @@ function resetAssetUiProjectContext() {
 }
 
 function resetRoomUiProjectContext() {
+  state.roomUi.step = 'purpose';
+  state.roomUi.shapeTool = 'ROOM';
+  state.roomUi.shapeDraft = null;
+  state.roomUi.shapeConflict = null;
   state.roomUi.selectedRoomVariantId = null;
   state.roomUi.selectedPlacementId = null;
   state.roomUi.selectedConnectorId = null;
   state.roomUi.selectedPaletteAssetId = null;
+  state.roomUi.previewAssetId = null;
   state.roomUi.selectedProposalId = null;
   state.roomUi.paletteSearch = '';
   state.roomUi.zoom = 'fit';
@@ -2714,9 +3093,17 @@ function reconcileRoomUi(project) {
     state.roomUi.selectedConnectorId = null;
   }
   const { variant } = currentRoomVariant(project.snapshot);
+  if (state.roomUi.shapeDraft && (!variant
+      || state.roomUi.shapeDraft.roomVariantId !== variant.roomVariantId
+      || state.roomUi.shapeDraft.baseVersion !== variant.version)) {
+    state.roomUi.shapeConflict = state.roomUi.shapeDraft.dirty
+      ? 'The room changed while your shape draft was open. Your draft was retained but cannot be saved; reload it from the current room.' : null;
+    if (!state.roomUi.shapeDraft.dirty) state.roomUi.shapeDraft = null;
+  }
   if (state.roomUi.selectedPlacementId && !variant?.placements.some(({ placementId }) => placementId === state.roomUi.selectedPlacementId)) state.roomUi.selectedPlacementId = null;
   if (state.roomUi.selectedConnectorId && !variant?.connectors.some(({ connectorId }) => connectorId === state.roomUi.selectedConnectorId)) state.roomUi.selectedConnectorId = null;
   if (state.roomUi.selectedPaletteAssetId && !currentAssetLibrary(project.snapshot).assets.some(({ assetId }) => assetId === state.roomUi.selectedPaletteAssetId)) state.roomUi.selectedPaletteAssetId = null;
+  if (state.roomUi.previewAssetId && !currentAssetLibrary(project.snapshot).assets.some(({ assetId }) => assetId === state.roomUi.previewAssetId)) state.roomUi.previewAssetId = null;
   const proposal = library.proposals.find(({ proposalId }) => proposalId === state.roomUi.selectedProposalId);
   if (state.roomUi.dirty && state.roomUi.decisionContext && (!proposal || proposal.proposalVersion !== state.roomUi.decisionContext.proposalVersion || proposal.state !== 'PENDING')) {
     state.roomUi.conflict = { proposalId: state.roomUi.decisionContext.proposalId, message: 'The authoritative room proposal changed. Your local draft was retained but cannot be submitted.' };
@@ -2766,7 +3153,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
     resetAssetUiProjectContext();
     resetRoomUiProjectContext();
-    state.tasks = []; state.taskUi.selectedTaskId = null;
+    state.tasks = []; state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null;
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
     state.agentAccess = null; setAgentAccessPanel(false); renderProject(); return;
@@ -2806,7 +3193,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     resetCutterScroll();
     resetAssetUiProjectContext();
     resetRoomUiProjectContext();
-    state.tasks = []; state.taskUi.selectedTaskId = null;
+    state.tasks = []; state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null;
   }
   if (state.cutter?.projectId && state.cutter.projectId !== projectId) {
     cancelCutterJobPolling();
@@ -2869,7 +3256,8 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
   state.sourceIntakes = sourceIntakes.intakes;
   state.tasks = taskDetails;
   if (!state.tasks.some(({ task }) => task.taskId === state.taskUi.selectedTaskId)) {
-    state.taskUi.selectedTaskId = state.tasks[0]?.task.taskId ?? null;
+    state.taskUi.selectedTaskId = null;
+    state.taskUi.view = 'list';
   }
   if (state.resumingIntakeId && !state.sourceIntakes.some((intake) => intake.intakeId === state.resumingIntakeId && intake.state === 'STAGED')) {
     state.resumingIntakeId = null;
@@ -2997,6 +3385,12 @@ elements['workspace-content'].addEventListener('change', (event) => {
 });
 
 elements['workspace-content'].addEventListener('click', async (event) => {
+  const previewRotation = event.target.closest('[data-asset-preview-rotation]');
+  if (previewRotation) {
+    state.assetUi.previewRotations[previewRotation.dataset.previewKey] = Number(previewRotation.dataset.assetPreviewRotation);
+    renderWorkspace({ preserveAssetDraft: true });
+    return;
+  }
   const copy = event.target.closest('[data-copy-canonical]');
   if (copy) {
     try {
@@ -3145,7 +3539,7 @@ function stableUiId(prefix, name = '') {
   return `${prefix}:${slug}:${crypto.randomUUID().slice(0, 8)}`;
 }
 
-async function executeRoomMutation({ operation, target, path, body, successMessage }) {
+async function executeRoomMutation({ operation, target, path, body, successMessage, onBeforeReload = null }) {
   if (!state.project || !state.agentAccessCsrf || state.roomMutationPending) return false;
   const projectId = state.project.projectId; const revision = state.project.revision; const csrf = state.agentAccessCsrf;
   setRoomMutationPending(true);
@@ -3159,6 +3553,7 @@ async function executeRoomMutation({ operation, target, path, body, successMessa
       error.code = 'ROOM_CONTEXT_CHANGED'; throw error;
     }
     clearRoomOperationKey(operation, target, projectId);
+    onBeforeReload?.();
     await loadProject(projectId, { preserveWorkspaceIfUnchanged: true }); showToast(successMessage); return true;
   } catch (error) {
     showToast(`${error.code || 'ERROR'}: ${error.message}`);
@@ -3188,9 +3583,10 @@ elements['workspace-content'].addEventListener('input', (event) => {
 elements['workspace-content'].addEventListener('change', (event) => {
   const roomSelect = event.target.closest('[data-room-variant-select]');
   if (roomSelect) {
-    if (state.roomUi.dirty && !window.confirm('Discard the unsaved room proposal decision draft and switch rooms?')) { renderWorkspace(); return; }
+    if ((state.roomUi.dirty || state.roomUi.shapeDraft?.dirty) && !window.confirm('Discard the unsaved room draft and switch rooms?')) { renderWorkspace(); return; }
     state.roomUi.selectedRoomVariantId = roomSelect.value; state.roomUi.selectedPlacementId = null; state.roomUi.selectedConnectorId = null;
-    state.roomUi.selectedProposalId = null; state.roomUi.dirty = false; state.roomUi.conflict = null; renderWorkspace(); return;
+    state.roomUi.selectedPaletteAssetId = null; state.roomUi.previewAssetId = null; state.roomUi.selectedProposalId = null; state.roomUi.dirty = false; state.roomUi.conflict = null;
+    state.roomUi.shapeDraft = null; state.roomUi.shapeConflict = null; renderWorkspace(); return;
   }
   const layer = event.target.closest('[data-room-layer]');
   if (layer) { state.roomUi.layers[layer.dataset.roomLayer] = layer.checked; renderWorkspace(); return; }
@@ -3243,6 +3639,25 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
   }
   if (!variant) return;
   const basePath = `/api/projects/${encodeURIComponent(projectId)}/rooms/${encodeURIComponent(variant.roomVariantId)}`;
+  if (form.dataset.roomForm === 'shape-coordinates') {
+    const parseCells = (value, label) => {
+      const seen = new Set(); const cells = [];
+      for (const [index, line] of String(value).split(/\r?\n/).entries()) {
+        if (!line.trim()) continue;
+        const match = /^\s*(\d+)\s*,\s*(\d+)\s*$/.exec(line);
+        if (!match) throw new Error(`${label} line ${index + 1} must be x,y.`);
+        const cell = { x: Number(match[1]), y: Number(match[2]) }; const key = `${cell.x},${cell.y}`;
+        if (cell.x >= variant.width || cell.y >= variant.height) throw new Error(`${label} cell ${key} is outside ${variant.width}×${variant.height}.`);
+        if (seen.has(key)) throw new Error(`${label} repeats ${key}.`); seen.add(key); cells.push(cell);
+      }
+      return cells.sort((left, right) => left.y - right.y || left.x - right.x);
+    };
+    try {
+      const draft = roomShapeDraft(variant); draft.voidCells = parseCells(data.get('voidCells'), 'Outside-room coordinates');
+      draft.blockedCells = parseCells(data.get('blockedCells'), 'Blocked coordinates'); draft.dirty = true; state.roomUi.shapeConflict = null; renderWorkspace();
+    } catch (error) { showToast(`SHAPE_COORDINATES_INVALID: ${error.message}`); }
+    return;
+  }
   if (form.dataset.roomForm === 'resize') {
     const width = Number(data.get('width')); const height = Number(data.get('height'));
     const clippedPlacements = variant.placements.filter((placement) => { const span = roomAssetSpan(exactRoomAsset(placement), placement.rotation); return placement.anchor.x + span.width > width || placement.anchor.y + span.height > height; });
@@ -3265,8 +3680,21 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const action = control.dataset.roomControl;
   if (['palette-search', 'layer', 'room-select', 'proposal-select', 'proposal-disposition', 'proposal-reason'].includes(action)) return;
   const { variant } = currentRoomVariant();
+  if (action === 'workflow-step') { state.roomUi.step = control.dataset.roomStep; state.roomUi.selectedPaletteAssetId = null; renderWorkspace(); return; }
   if (action === 'zoom') { state.roomUi.zoom = control.dataset.roomZoom; renderWorkspace(); return; }
-  if (action === 'palette-asset') { state.roomUi.selectedPaletteAssetId = control.dataset.paletteAssetId; state.roomUi.selectedPlacementId = null; state.roomUi.selectedConnectorId = null; renderWorkspace(); return; }
+  if (action === 'palette-asset') {
+    const asset = currentAssetLibrary().assets.find(({ assetId }) => assetId === control.dataset.paletteAssetId);
+    if (asset && ['prop', 'item'].includes(asset.kind)) {
+      state.roomUi.previewAssetId = asset.assetId; state.roomUi.selectedPaletteAssetId = null;
+    } else state.roomUi.selectedPaletteAssetId = control.dataset.paletteAssetId;
+    state.roomUi.selectedPlacementId = null; state.roomUi.selectedConnectorId = null; renderWorkspace(); return;
+  }
+  if (action === 'use-preview-asset') { state.roomUi.selectedPaletteAssetId = control.dataset.paletteAssetId; state.roomUi.previewAssetId = control.dataset.paletteAssetId; renderWorkspace(); return; }
+  if (action === 'close-preview-asset') { state.roomUi.previewAssetId = null; state.roomUi.selectedPaletteAssetId = null; renderWorkspace(); return; }
+  if (action === 'shape-tool') { state.roomUi.shapeTool = control.dataset.shapeTool; renderWorkspace(); return; }
+  if (action === 'shape-reset' && variant) {
+    state.roomUi.shapeDraft = null; state.roomUi.shapeConflict = null; roomShapeDraft(variant); renderWorkspace(); return;
+  }
   if (action === 'placement-select') { state.roomUi.selectedPlacementId = control.dataset.placementId; state.roomUi.selectedPaletteAssetId = null; state.roomUi.selectedConnectorId = null; renderWorkspace(); return; }
   if (action === 'connector-select') { state.roomUi.selectedConnectorId = control.dataset.connectorId; state.roomUi.selectedPlacementId = null; state.roomUi.selectedPaletteAssetId = null; renderWorkspace(); return; }
   if (action === 'finding') {
@@ -3276,8 +3704,30 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   }
   if (!variant || !state.project || state.roomMutationPending) return;
   const projectId = state.project.projectId; const basePath = `/api/projects/${encodeURIComponent(projectId)}/rooms/${encodeURIComponent(variant.roomVariantId)}`;
+  if (action === 'shape-save') {
+    const draft = roomShapeDraft(variant); if (!draft?.dirty || state.roomUi.shapeConflict) return;
+    if (!window.confirm(`Save the complete shape with ${draft.voidCells.length} outside and ${draft.blockedCells.length} blocked cells as a new room version?`)) return;
+    await executeRoomMutation({
+      operation: 'room-shape-set', target: `${variant.roomVariantId}:${variant.version}`, path: `${basePath}/shape`,
+      body: { expectedRoomVariantVersion: variant.version, voidCells: draft.voidCells, blockedCells: draft.blockedCells },
+      successMessage: 'Room shape saved as a new immutable version.', onBeforeReload: () => { draft.dirty = false; },
+    });
+    return;
+  }
   if (action === 'cell') {
     const anchor = { x: Number(control.dataset.x), y: Number(control.dataset.y) };
+    if (state.roomUi.step === 'shape') {
+      const draft = roomShapeDraft(variant); if (variant.lifecycle !== 'DRAFT' || state.roomUi.shapeConflict) return;
+      const key = `${anchor.x},${anchor.y}`;
+      draft.voidCells = draft.voidCells.filter((cell) => `${cell.x},${cell.y}` !== key);
+      draft.blockedCells = draft.blockedCells.filter((cell) => `${cell.x},${cell.y}` !== key);
+      if (state.roomUi.shapeTool === 'VOID') draft.voidCells.push(anchor);
+      if (state.roomUi.shapeTool === 'BLOCKED') draft.blockedCells.push(anchor);
+      draft.voidCells.sort((left, right) => left.y - right.y || left.x - right.x);
+      draft.blockedCells.sort((left, right) => left.y - right.y || left.x - right.x);
+      draft.dirty = true; renderWorkspace(); return;
+    }
+    if (control.dataset.cellKind !== 'ROOM') { showToast('Choose an ordinary room cell for placement. Outside and blocked cells cannot hold this content.'); return; }
     if (state.roomUi.selectedPlacementId) {
       const placement = variant.placements.find(({ placementId }) => placementId === state.roomUi.selectedPlacementId); if (!placement) return;
       await executeRoomMutation({ operation: 'room-placement-move', target: `${placement.placementId}:${variant.version}`, path: `${basePath}/placements-move`, body: { expectedRoomVariantVersion: variant.version, moves: [{ placementId: placement.placementId, expectedAssetId: placement.assetId, anchor, rotation: placement.rotation }] }, successMessage: `Placement moved to ${anchor.x},${anchor.y}.` }); return;
@@ -3376,22 +3826,29 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
         : { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
     },
   }, 'Task created. The agent can only work within the limits you selected.');
-  if (result?.task?.taskId) state.taskUi.selectedTaskId = result.task.taskId;
+  if (result?.task?.taskId) {
+    state.taskUi.selectedTaskId = result.task.taskId;
+    state.taskUi.view = 'detail';
+    renderWorkspace();
+  }
 });
 
 elements['workspace-content'].addEventListener('click', async (event) => {
   const control = event.target.closest('[data-task-control]');
   if (!control || state.workspace !== 'tasks' || !state.project) return;
   const action = control.dataset.taskControl;
+  if (action === 'open-create') { state.taskUi.view = 'create'; state.taskUi.selectedTaskId = null; renderWorkspace(); return; }
+  if (action === 'back-to-list') { state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null; renderWorkspace(); return; }
   if (action === 'select') {
-    state.taskUi.selectedTaskId = control.dataset.taskId; renderWorkspace(); return;
+    state.taskUi.selectedTaskId = control.dataset.taskId; state.taskUi.view = 'detail'; renderWorkspace(); return;
   }
   const entry = state.tasks.find(({ task }) => task.taskId === state.taskUi.selectedTaskId);
   if (!entry) return;
   const projectId = state.project.projectId; const taskId = entry.task.taskId;
   const taskBase = `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`;
-  if (['pause', 'resume', 'cancel'].includes(action)) {
+  if (['pause', 'resume', 'cancel', 'reject'].includes(action)) {
     if (action === 'cancel' && !window.confirm('Cancel this task? The assigned agent will no longer be able to change it, but its previous work and history will remain available.')) return;
+    if (action === 'reject' && !window.confirm('End this task without adding its changes? The assigned agent will no longer be able to change it. The task history remains available.')) return;
     await executeTaskRequest(`${taskBase}/${action}`, { reason: action === 'pause' ? 'Paused from the human task workspace.' : `${action} from the human task workspace.` }, `Task ${action} recorded.`); return;
   }
   if (action === 'submit-review') {
@@ -3936,6 +4393,66 @@ if (visualFixture) {
         dirty: state.cutter?.dirty ?? null,
         marker: state.cutterJob?.visualFixtureProjectionMarker ?? null,
         pointerTrace: cutterPointerTrace.slice(),
+      };
+    },
+    async exerciseRoomShapeRefresh() {
+      if (state.workspace !== 'rooms' || state.roomUi.step !== 'shape') return null;
+      document.querySelector('[data-room-control="shape-tool"][data-shape-tool="VOID"]')?.click();
+      const draftCell = document.querySelector('.room-cell[data-x="1"][data-y="0"]');
+      draftCell?.focus(); draftCell?.click();
+      await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+      const before = document.querySelector('.room-cell[data-x="1"][data-y="0"]');
+      const beforeVoidCount = state.roomUi.shapeDraft?.voidCells.length ?? null;
+      await loadProject(state.project.projectId, { preserveWorkspaceIfUnchanged: true });
+      const after = document.querySelector('.room-cell[data-x="1"][data-y="0"]');
+      return {
+        beforeVoidCount,
+        afterVoidCount: state.roomUi.shapeDraft?.voidCells.length ?? null,
+        dirty: state.roomUi.shapeDraft?.dirty ?? false,
+        focused: document.activeElement === after,
+        sameNode: before === after,
+      };
+    },
+    async exerciseRoomShapeConflict() {
+      if (state.workspace !== 'rooms' || state.roomUi.step !== 'shape') return null;
+      document.querySelector('[data-room-control="shape-tool"][data-shape-tool="VOID"]')?.click();
+      document.querySelector('.room-cell[data-x="1"][data-y="0"]')?.click();
+      await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+      const currentVariant = currentRoomVariant().variant;
+      const blockedCells = currentVariant.blockedCells?.some(({ x, y }) => x === 2 && y === 2)
+        ? [{ x: 1, y: 2 }] : [{ x: 2, y: 2 }];
+      const response = await fetch(`/api/projects/${encodeURIComponent(state.project.projectId)}/rooms/${encodeURIComponent(currentVariant.roomVariantId)}/shape`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+        body: JSON.stringify({
+          expectedRevision: state.project.revision,
+          idempotencyKey: `visual.4-5.concurrent-shape.${state.project.revision}`,
+          expectedRoomVariantVersion: currentVariant.version,
+          voidCells: currentVariant.voidCells,
+          blockedCells,
+        }),
+      });
+      if (!response.ok) throw new Error(`Concurrent shape mutation failed: ${response.status}`);
+      await loadProject(state.project.projectId, { preserveWorkspaceIfUnchanged: true });
+      await publishVisualEvidence();
+      return {
+        dirty: state.roomUi.shapeDraft?.dirty ?? false,
+        conflict: state.roomUi.shapeConflict,
+        revision: state.project.revision,
+      };
+    },
+    roomShapeState() {
+      return {
+        dirty: state.roomUi.shapeDraft?.dirty ?? false,
+        conflict: state.roomUi.shapeConflict,
+      };
+    },
+    async refreshVisualEvidence() {
+      await publishVisualEvidence();
+      const preview = document.querySelector('.room-placement-preview .useful-asset-preview');
+      const image = preview?.querySelector('.asset-preview.ready img');
+      return {
+        ready: preview?.dataset.previewReady ?? null,
+        loaded: Boolean(image?.complete && image.naturalWidth > 0),
       };
     },
   });

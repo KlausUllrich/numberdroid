@@ -416,12 +416,16 @@ test('human room routes are exact-key, CSRF-bound, and keep lifecycle/proposal d
     [`/api/projects/${PROJECT_ID}/rooms/room.family-table/connectors`, {
       expectedRevision: 10, idempotencyKey: 'idem.room.connectors', expectedRoomVariantVersion: 1, connectors: [],
     }, 'room.variant.connectors.set'],
+    [`/api/projects/${PROJECT_ID}/rooms/room.family-table/shape`, {
+      expectedRevision: 11, idempotencyKey: 'idem.room.shape', expectedRoomVariantVersion: 2,
+      voidCells: [{ x: 9, y: 7 }], blockedCells: [{ x: 4, y: 4 }],
+    }, 'room.variant.shape.set'],
     [`/api/projects/${PROJECT_ID}/room-proposals/proposal.room/decision`, {
-      expectedRevision: 11, idempotencyKey: 'idem.room.decision', expectedProposalVersion: 1,
+      expectedRevision: 12, idempotencyKey: 'idem.room.decision', expectedProposalVersion: 1,
       decisions: [{ itemId: 'item.table', disposition: 'REJECTED', reason: 'Blocks the door.' }], confirm: true,
     }, 'room.placement.proposal.decide'],
     [`/api/projects/${PROJECT_ID}/rooms/room.family-table/finalize`, {
-      expectedRevision: 12, idempotencyKey: 'idem.room.finalize', expectedRoomVariantVersion: 2, confirm: true,
+      expectedRevision: 13, idempotencyKey: 'idem.room.finalize', expectedRoomVariantVersion: 3, confirm: true,
     }, 'room.variant.finalize'],
   ];
   for (const [path, body, type] of cases) {

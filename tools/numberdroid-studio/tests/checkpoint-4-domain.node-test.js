@@ -59,6 +59,12 @@ test('Checkpoint 4 task contract rejects release/finalization authority and unbo
     (error) => error.code === 'DELEGATION_CAPABILITY_FORBIDDEN',
   );
   assert.throws(
+    () => validateAgentTaskSpec(taskSpec({ capabilities: ['project.read', 'room.variant.shape.set'] }), {
+      now: NOW, projectId: 'project.demo', baseRevision: 8,
+    }),
+    (error) => error.code === 'DELEGATION_CAPABILITY_FORBIDDEN',
+  );
+  assert.throws(
     () => validateAgentTaskSpec(taskSpec({ expiresAt: '2026-09-23T10:00:00.000Z' }), {
       now: NOW, projectId: 'project.demo', baseRevision: 8,
     }),

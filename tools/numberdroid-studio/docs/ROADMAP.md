@@ -169,7 +169,7 @@ Exit decision: **accepted by the user on 2026-08-24.** The bounded delegation mo
 
 ## Checkpoint 4.5 — Designer workflow and preview usability
 
-**Status: next planned checkpoint; contract and visual workflow must be reviewed with the user before implementation.**
+**Status: frozen-contract implementation candidate as of 2026-08-24; automated/local verification is green, fresh CI browser evidence and explicit user acceptance remain pending. Checkpoint 5 is blocked.**
 
 **Outcome:** a professional designer can understand the current step, create or review the relevant object, and see a useful preview without needing to understand Studio's internal branch, grant, revision, provenance, or validation vocabulary.
 
@@ -187,6 +187,8 @@ Normal healthy invariants should not read like warnings or proof obligations. Th
 User verification scenario: begin from the normal task list, create a task through a separate focused step, understand who acts next at every state, review a prop through a useful visual preview, and construct both a rectangular and an irregular room without opening technical details.
 
 Exit decision: approve the designer-facing task flow, prop preview, guided room construction, and the exact `VOID`/`BLOCKED` authoring semantics. Checkpoint 5 export remains blocked until this checkpoint is accepted.
+
+Candidate implementation: `CHECKPOINT_4_5_CONTRACT.md` freezes the bounded semantics and `CHECKPOINT_4_5_STATUS.md` records the candidate. The implementation adds list/create/detail task views, trusted expiry projection, useful exact-slice previews, six guided room steps, owner-only complete shape replacement, schema-v12 normalized shape cells, schema-v2 rectangular parity, and schema-v3 masked-room round trips. It adds no generation, bitmap-job, export, materialization, publication, or wider agent authority.
 
 ## Checkpoint 5 — Deterministic Numberdroid export candidate
 

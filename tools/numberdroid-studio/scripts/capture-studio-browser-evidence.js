@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4 [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5 [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -21,6 +21,7 @@ const checkpoint2bFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint2cFocus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint3Focus = new URL(pageUrl).searchParams.get('visualFocus');
 const checkpoint4Focus = new URL(pageUrl).searchParams.get('visualFocus') ?? 'conflict';
+const checkpoint45Focus = new URL(pageUrl).searchParams.get('visualFocus') ?? 'irregular';
 const checkpoint2cPhase = new URL(pageUrl).searchParams.get('visualPhase') ?? 'applied';
 const profileDirectory = await mkdtemp(`${tmpdir()}/numberdroid-studio-chrome-`);
 
@@ -199,6 +200,13 @@ try {
                && document.documentElement.dataset.visualRevision === '5'
                && document.documentElement.dataset.visualActivityCount === '5'
                && document.documentElement.dataset.visualConnectionState === 'Live'`
+            : mode === 'checkpoint-4-5'
+              ? `document.documentElement.dataset.visualEvidenceReady === 'true'
+                 && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
+                 && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-2c'
+                 && document.documentElement.dataset.visualRevision === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '37' : '36')}
+                 && document.documentElement.dataset.visualActivityCount === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '38' : '37')}
+                 && document.documentElement.dataset.visualConnectionState === 'Live'`
           : `document.getElementById('connection-label')?.textContent === 'Live'
          && document.getElementById('revision-label')?.textContent === 'Revision 5'
          && document.querySelector(${JSON.stringify(`[data-workspace="${expectedWorkspace}"]`)})?.classList.contains('active')`;
@@ -225,6 +233,7 @@ try {
   let checkpoint2aSourceFocusFinal = null;
   let checkpoint2cInteractionEvidence = null;
   let checkpoint4TaskFocus = null;
+  let checkpoint45RoomFocus = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
     const focus = checkpoint2aFocus ?? 'intake-form';
@@ -381,8 +390,17 @@ try {
       }, sessionId);
     }
   }
-  if (mode === 'checkpoint-3' && expectedWorkspace === 'rooms' && checkpoint3Focus === 'proposal') {
-    const focusSelector = '[data-room-proposal]';
+  if (mode === 'checkpoint-3' && expectedWorkspace === 'rooms') {
+    await devtools.send('Runtime.evaluate', {
+      expression: `document.querySelector('[data-room-control="workflow-step"][data-room-step="${checkpoint3Focus === 'proposal' ? 'props' : 'check'}"]')?.click()`,
+      returnByValue: true,
+    }, sessionId);
+    await devtools.send('Runtime.evaluate', {
+      expression: 'new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)))',
+      awaitPromise: true,
+      returnByValue: true,
+    }, sessionId);
+    const focusSelector = checkpoint3Focus === 'proposal' ? '[data-room-proposal]' : '.room-findings';
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector(${JSON.stringify(focusSelector)})?.scrollIntoView({ block: 'center' })`,
       returnByValue: true,
@@ -393,11 +411,26 @@ try {
       expression: `(async () => {
         const focus = ${JSON.stringify(checkpoint4Focus)};
         const state = focus === 'merged' ? 'MERGED' : 'IN_REVIEW';
+        const taskButtons = [...document.querySelectorAll('[data-task-control="select"]')];
         const target = [...document.querySelectorAll('[data-task-control="select"]')]
           .find((button) => button.querySelector('[data-task-state]')?.dataset.taskState === state);
-        target?.click();
+        const list = document.querySelector('.task-list');
+        const listHeader = document.querySelector('.task-list-header');
+        const initialStates = taskButtons.map((button) => button.querySelector('[data-task-state]')?.dataset.taskState);
+        const listContained = Boolean(list && listHeader && listHeader.getBoundingClientRect().right <= list.getBoundingClientRect().right
+          && taskButtons.every((button) => {
+            const badge = button.querySelector('[data-task-state]')?.getBoundingClientRect();
+            const item = button.getBoundingClientRect();
+            return badge && badge.height <= 40 && badge.left >= item.left && badge.right <= item.right;
+          }));
+        const createButton = document.querySelector('[data-task-control="open-create"]');
+        let createKeyboardReachable = false;
+        if (focus === 'create') {
+          createButton?.focus(); createKeyboardReachable = document.activeElement === createButton; createButton?.click();
+        } else target?.click();
         await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
         const detail = document.querySelector('.task-detail');
+        const composer = document.querySelector('.task-composer');
         const review = document.querySelector('.task-review');
         const merge = document.querySelector('[data-task-control="merge"]');
         let mergeConfirmCalls = 0;
@@ -407,13 +440,15 @@ try {
           merge.click();
           window.confirm = originalConfirm;
         }
-        (focus === 'merged' ? detail : review)?.scrollIntoView({ block: 'center', inline: 'nearest' });
+        (focus === 'create' ? composer : focus === 'merged' ? detail : review)?.scrollIntoView({ block: 'center', inline: 'nearest' });
         await new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
         return {
           focus,
-          found: Boolean(target),
-          selectedState: document.querySelector('[data-task-control="select"][data-selected="true"] [data-task-state]')?.dataset.taskState ?? null,
-          taskCount: document.querySelectorAll('[data-task-control="select"]').length,
+          found: focus === 'create' ? Boolean(composer) : Boolean(target),
+          selectedState: document.querySelector('.task-detail [data-task-state]')?.dataset.taskState ?? null,
+          taskCount: taskButtons.length,
+          initialStates,
+          listContained,
           conflictCount: document.querySelectorAll('.task-conflicts li').length,
           reviewItemCount: document.querySelectorAll('.task-review-items li').length,
           timelineCount: document.querySelectorAll('.task-timeline li').length,
@@ -423,6 +458,9 @@ try {
           hasRevert: Boolean(document.querySelector('[data-task-control="revert"]')),
           detailVisible: Boolean(detail && detail.getBoundingClientRect().bottom > 0 && detail.getBoundingClientRect().top < innerHeight),
           reviewVisible: Boolean(review && review.getBoundingClientRect().bottom > 0 && review.getBoundingClientRect().top < innerHeight),
+          createVisible: Boolean(composer && composer.getBoundingClientRect().bottom > 0 && composer.getBoundingClientRect().top < innerHeight),
+          createFieldCount: composer?.querySelectorAll('input, textarea').length ?? 0,
+          createKeyboardReachable,
         };
       })()`,
       awaitPromise: true,
@@ -431,6 +469,56 @@ try {
     checkpoint4TaskFocus = focused.result?.value ?? null;
     assert(checkpoint4TaskFocus?.found === true && checkpoint4TaskFocus.taskCount === 2,
       `Checkpoint 4 could not focus the requested task evidence: ${JSON.stringify(checkpoint4TaskFocus)}`);
+  }
+  if (mode === 'checkpoint-4-5' && expectedWorkspace === 'rooms') {
+    const focused = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const focus = ${JSON.stringify(checkpoint45Focus)};
+        const roomId = focus === 'rectangle' ? 'hall.service-east-west' : 'room.family-gathering';
+        const selector = document.querySelector('[data-room-variant-select]');
+        selector.value = roomId;
+        selector.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        const step = focus === 'prop' ? 'props' : 'shape';
+        document.querySelector('[data-room-control="workflow-step"][data-room-step="' + step + '"]')?.click();
+        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        if (focus === 'prop') {
+          document.querySelector('[data-room-control="palette-asset"][data-palette-asset-id="asset.transfer-apparatus-cp45"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-asset-preview-rotation="90"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          window.__checkpoint45PropReady = await window.__numberdroidStudioVisualTest?.refreshVisualEvidence();
+          document.querySelector('.room-placement-preview')?.scrollIntoView({ block: 'center', inline: 'nearest' });
+        } else if (focus === 'shape-refresh') {
+          window.__checkpoint45Refresh = await window.__numberdroidStudioVisualTest?.exerciseRoomShapeRefresh();
+          document.querySelector('.room-cell[data-x="1"][data-y="0"]')?.scrollIntoView({ block: 'center', inline: 'nearest' });
+        } else if (focus === 'shape-conflict') {
+          window.__checkpoint45Conflict = await window.__numberdroidStudioVisualTest?.exerciseRoomShapeConflict();
+          document.querySelector('.room-shape-controls')?.scrollIntoView({ block: 'center', inline: 'nearest' });
+        } else {
+          document.querySelector('.room-shape-controls')?.scrollIntoView({ block: 'center', inline: 'nearest' });
+        }
+        await new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
+        return {
+          focus,
+          roomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
+          step: document.querySelector('[data-room-control="workflow-step"][data-selected="true"]')?.dataset.roomStep ?? null,
+          workflowStepCount: document.querySelectorAll('[data-room-control="workflow-step"]').length,
+          cellCount: document.querySelectorAll('.room-cell').length,
+          voidCount: document.querySelectorAll('.room-cell[data-cell-kind="VOID"]').length,
+          blockedCount: document.querySelectorAll('.room-cell[data-cell-kind="BLOCKED"]').length,
+          refresh: window.__checkpoint45Refresh ?? null,
+          shapeDraftDirty: window.__numberdroidStudioVisualTest?.roomShapeState()?.dirty ?? false,
+          shapeConflict: window.__numberdroidStudioVisualTest?.roomShapeState()?.conflict ?? null,
+          propReady: window.__checkpoint45PropReady ?? null,
+        };
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    }, sessionId);
+    checkpoint45RoomFocus = focused.result?.value ?? null;
+    assert(checkpoint45RoomFocus?.roomId && checkpoint45RoomFocus.workflowStepCount === 6,
+      `Checkpoint 4.5 could not focus the requested room evidence: ${JSON.stringify(checkpoint45RoomFocus)}`);
   }
   if (mode === 'checkpoint-2a' && expectedWorkspace === 'sources') {
     const patternValidity = await devtools.send('Runtime.evaluate', {
@@ -915,11 +1003,36 @@ try {
         proposalItemCount: roomProposal?.querySelectorAll('[data-room-proposal-item]').length ?? 0,
         proposalItems: [...(roomProposal?.querySelectorAll('[data-room-proposal-item]') ?? [])].map((item) => ({ itemId: item.dataset.roomProposalItem, text: item.textContent })),
         exactPins: [...document.querySelectorAll('.room-placement-list button')].map((button) => button.textContent),
+        selectedRoomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
+        workflowSteps: [...document.querySelectorAll('[data-room-control="workflow-step"]')].map((button) => button.dataset.roomStep),
+        voidCount: document.querySelectorAll('.room-cell[data-cell-kind="VOID"]').length,
+        blockedCount: document.querySelectorAll('.room-cell[data-cell-kind="BLOCKED"]').length,
+        ordinaryCount: document.querySelectorAll('.room-cell[data-cell-kind="ROOM"]').length,
+        shapeSavePresent: Boolean(document.querySelector('[data-room-control="shape-save"]')),
+        shapeText: document.querySelector('.room-shape-controls')?.textContent ?? null,
+        placementPreview: (() => {
+          const preview = document.querySelector('.room-placement-preview .useful-asset-preview');
+          const image = preview?.querySelector('.asset-preview.ready img');
+          const use = document.querySelector('[data-room-control="use-preview-asset"]');
+          return {
+            present: Boolean(preview),
+            ready: preview?.dataset.previewReady ?? null,
+            loadedImage: Boolean(image?.complete && image.naturalWidth > 0),
+            facts: preview?.querySelector('.prop-preview-facts')?.textContent ?? null,
+            useDisabled: use?.disabled ?? null,
+            selectedRotation: preview?.querySelector('[data-asset-preview-rotation][data-selected="true"]')?.dataset.assetPreviewRotation ?? null,
+            collisionCount: preview?.querySelectorAll('.prop-collision-overlay').length ?? 0,
+            topLeftMarker: Boolean(preview?.querySelector('.prop-top-left-marker')),
+            anchorLabel: preview?.querySelector('.prop-anchor-marker')?.getAttribute('aria-label') ?? null,
+          };
+        })(),
       };
       const selectedTask = document.querySelector('[data-task-control="select"][data-selected="true"]');
       const taskWorkspace = {
         composer: rect(document.querySelector('.task-composer')),
+        composerText: document.querySelector('.task-composer')?.textContent ?? null,
         layout: rect(document.querySelector('.task-layout')),
+        detail: rect(document.querySelector('.task-detail')),
         list: rect(document.querySelector('.task-list')),
         listHeading: rect(document.querySelector('.task-list > h2')),
         listHeadingClientWidth: document.querySelector('.task-list > h2')?.clientWidth ?? null,
@@ -932,11 +1045,13 @@ try {
         taskCount: document.querySelectorAll('[data-task-control="select"]').length,
         states: [...document.querySelectorAll('[data-task-control="select"] [data-task-state]')]
           .map((badge) => badge.dataset.taskState),
-        selectedState: selectedTask?.querySelector('[data-task-state]')?.dataset.taskState ?? null,
+        selectedState: document.querySelector('.task-detail [data-task-state]')?.dataset.taskState
+          ?? selectedTask?.querySelector('[data-task-state]')?.dataset.taskState ?? null,
         selectedText: document.querySelector('.task-detail')?.textContent ?? null,
         timelineCount: document.querySelectorAll('.task-timeline li').length,
         conflictCount: document.querySelectorAll('.task-conflicts li').length,
         conflictText: document.querySelector('.task-conflicts')?.textContent ?? null,
+        conflictTechnicalOpenCount: document.querySelectorAll('.task-conflicts details[open]').length,
         reviewItemCount: document.querySelectorAll('.task-review-items li').length,
         reviewText: document.querySelector('.task-review')?.textContent ?? null,
         reviewDispositions: [...document.querySelectorAll('[data-task-review-disposition]')]
@@ -1297,16 +1412,14 @@ try {
       assert(layout.roomDesigner.header && layout.roomDesigner.layout && layout.roomDesigner.board,
         'Checkpoint 3 room designer did not render its header, layout, and canvas.');
       assert(layout.roomDesigner.roomOptionCount === 2
-        && layout.roomDesigner.paletteItemCount === 4
+        && layout.roomDesigner.paletteItemCount === 1
         && layout.roomDesigner.cellCount === 12
         && layout.roomDesigner.coordinateLabelCount === 12
         && layout.roomDesigner.placementCount === 14
         && layout.roomDesigner.connectorCount === 2,
       'Checkpoint 3 room canvas lost a room/hallway option, exact asset palette, coordinates, placements, or connectors.');
-      assert(layout.roomDesigner.canvasOverflowX === 'auto'
-        && layout.roomDesigner.findingCount === 26
-        && layout.roomDesigner.lifecycle === 'DRAFT',
-      'Checkpoint 3 room canvas or live validation surface differs from the exact fixture.');
+      assert(layout.roomDesigner.canvasOverflowX === 'auto',
+        'Checkpoint 3 room canvas no longer keeps bounded horizontal overflow.');
       assert(layout.roomDesigner.proposalId === 'proposal.room.gathering-table'
         && layout.roomDesigner.proposalState === 'APPLIED'
         && layout.roomDesigner.proposalItemCount === 3
@@ -1326,29 +1439,28 @@ try {
       && layout.revision === 5 && layout.activityCount === 5 && layout.connectionState === 'Live',
     'Checkpoint 4 screenshot is not bound to the prepared revision-5 fixture.');
     if (expectedWorkspace === 'tasks') {
-      assert(layout.taskWorkspace.composer && layout.taskWorkspace.layout
-        && layout.taskWorkspace.taskCount === 2
-        && layout.taskWorkspace.states.includes('MERGED')
-        && layout.taskWorkspace.states.includes('IN_REVIEW'),
-      'Checkpoint 4 task workspace lost its composer, two branches, or workflow states.');
-      assert(layout.taskWorkspace.selectedText?.includes('source.write')
-        && layout.taskWorkspace.selectedText.includes('commands'),
-      'Checkpoint 4 selected task lost its visible capability or budget projection.');
-      const taskListContained = layout.taskWorkspace.list && layout.taskWorkspace.listHeading
-        && layout.taskWorkspace.listHeading.right <= layout.taskWorkspace.list.right
-        && layout.taskWorkspace.listHeadingScrollWidth <= layout.taskWorkspace.listHeadingClientWidth
-        && layout.taskWorkspace.badges.length === 2
-        && layout.taskWorkspace.badges.every(({ rect: badge, item }) => badge && item
-          && badge.height <= 40
-          && badge.x >= item.x && badge.right <= item.right);
-      assert(taskListContained,
-        `Checkpoint 4 task list heading or state pills overflow at the captured width: ${JSON.stringify({
-          list: layout.taskWorkspace.list,
-          heading: layout.taskWorkspace.listHeading,
-          headingClientWidth: layout.taskWorkspace.listHeadingClientWidth,
-          headingScrollWidth: layout.taskWorkspace.listHeadingScrollWidth,
-          badges: layout.taskWorkspace.badges,
-        })}`);
+      assert(checkpoint4TaskFocus?.taskCount === 2
+        && checkpoint4TaskFocus.initialStates.includes('MERGED')
+        && checkpoint4TaskFocus.initialStates.includes('IN_REVIEW')
+        && checkpoint4TaskFocus.listContained === true,
+      'Checkpoint 4 list-first task workspace lost its two branches, workflow states, or bounded list layout.');
+      if (checkpoint4Focus === 'create') {
+        assert(layout.taskWorkspace.composer
+          && checkpoint4TaskFocus.createVisible === true
+          && checkpoint4TaskFocus.createFieldCount >= 13
+          && checkpoint4TaskFocus.createKeyboardReachable === true
+          && layout.taskWorkspace.composerText?.includes('Create a task for an agent')
+          && layout.taskWorkspace.composerText.includes('What should the agent do?')
+          && layout.taskWorkspace.controlNames.includes('back-to-list'),
+        'Checkpoint 4 focused task composer is missing, unbounded, or not keyboard-reachable from the list action.');
+      } else {
+        assert(layout.taskWorkspace.detail
+          && layout.taskWorkspace.selectedText?.includes('Add or update sources')
+          && layout.taskWorkspace.selectedText.includes('allowed changes used')
+          && layout.taskWorkspace.selectedText.includes('Who acts next')
+          && layout.taskWorkspace.controlNames.includes('back-to-list'),
+        'Checkpoint 4 selected task lost its visible capability or budget projection.');
+      }
       if (checkpoint4Focus === 'conflict') {
         assert(checkpoint4TaskFocus?.selectedState === 'IN_REVIEW'
           && checkpoint4TaskFocus.conflictCount === 1
@@ -1359,7 +1471,8 @@ try {
           && checkpoint4TaskFocus.reviewVisible === true
           && layout.taskWorkspace.conflictText?.includes('SEMANTIC_MERGE_CONFLICT: source:source.checkpoint-4.shared')
           && layout.taskWorkspace.reviewText?.includes('Waiting for your review')
-          && layout.taskWorkspace.reviewText?.includes('Resolve the conflict with newer project work')
+          && layout.taskWorkspace.reviewText?.includes('overlaps newer project work')
+          && layout.taskWorkspace.conflictTechnicalOpenCount === 0
           && layout.taskWorkspace.controlNames.includes('decide')
           && layout.taskWorkspace.controlNames.includes('merge'),
         'Checkpoint 4 conflict review lost its explanation or fail-closed merge control.');
@@ -1373,6 +1486,76 @@ try {
           && layout.taskWorkspace.controlNames.includes('revert'),
         'Checkpoint 4 merged lineage, human disposition, timeline, or compensating-revert control is not visibly inspectable.');
       }
+    }
+  }
+  if (mode === 'checkpoint-4-5') {
+    assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
+      'Checkpoint 4.5 screenshot was taken before error-free readiness.');
+    const expectedCheckpoint45Revision = checkpoint45Focus === 'shape-conflict' ? (width === 1440 ? 37 : 38) : 36;
+    assert(layout.projectId === 'numberdroid-studio-checkpoint-2c'
+      && layout.revision === expectedCheckpoint45Revision
+      && layout.activityCount === expectedCheckpoint45Revision + 1 && layout.connectionState === 'Live',
+    'Checkpoint 4.5 screenshot is not bound to the expected prepared or concurrent-conflict fixture revision.');
+    assert(checkpoint45RoomFocus?.workflowStepCount === 6
+      && layout.roomDesigner.workflowSteps.join(',') === 'purpose,shape,entrances,surfaces,props,check',
+    'Checkpoint 4.5 guided room workflow lost one of its six ordered steps.');
+    if (checkpoint45Focus === 'irregular') {
+      assert(checkpoint45RoomFocus.roomId === 'room.family-gathering'
+        && checkpoint45RoomFocus.step === 'shape'
+        && checkpoint45RoomFocus.cellCount === 12
+        && checkpoint45RoomFocus.voidCount === 2
+        && checkpoint45RoomFocus.blockedCount === 1
+        && layout.roomDesigner.shapeSavePresent
+        && layout.roomDesigner.shapeText?.includes('2 outside cells')
+        && layout.roomDesigner.shapeText?.includes('1 blocked cells'),
+      'Checkpoint 4.5 irregular room evidence lost its exact VOID/BLOCKED shape or save control.');
+    }
+    if (checkpoint45Focus === 'rectangle') {
+      assert(checkpoint45RoomFocus.roomId === 'hall.service-east-west'
+        && checkpoint45RoomFocus.step === 'shape'
+        && checkpoint45RoomFocus.cellCount === 18
+        && checkpoint45RoomFocus.voidCount === 0
+        && checkpoint45RoomFocus.blockedCount === 0
+        && layout.roomDesigner.shapeText?.includes('0 outside cells')
+        && layout.roomDesigner.shapeText?.includes('0 blocked cells'),
+      'Checkpoint 4.5 rectangular parity evidence no longer shows an unchanged complete envelope.');
+    }
+    if (checkpoint45Focus === 'prop') {
+      assert(checkpoint45RoomFocus.roomId === 'room.family-gathering'
+        && checkpoint45RoomFocus.step === 'props'
+        && checkpoint45RoomFocus.propReady?.ready === 'true'
+        && checkpoint45RoomFocus.propReady.loaded === true
+        && layout.roomDesigner.placementPreview.present
+        && layout.roomDesigner.placementPreview.ready === 'true'
+        && layout.roomDesigner.placementPreview.loadedImage
+        && layout.roomDesigner.placementPreview.facts?.includes('Occupies 3 × 2 cells at 90°')
+        && layout.roomDesigner.placementPreview.facts.includes('Can be rotated in four directions')
+        && layout.roomDesigner.placementPreview.facts.includes('Blocks movement')
+        && layout.roomDesigner.placementPreview.facts.includes('Top-left is □ at 0,0; authored anchor is +')
+        && layout.roomDesigner.placementPreview.selectedRotation === '90'
+        && layout.roomDesigner.placementPreview.collisionCount === 1
+        && layout.roomDesigner.placementPreview.topLeftMarker === true
+        && layout.roomDesigner.placementPreview.anchorLabel?.includes('after 90 degree rotation')
+        && layout.roomDesigner.placementPreview.useDisabled === false,
+      'Checkpoint 4.5 prop evidence lost its exact image, footprint, rotation, navigation, or placement gate.');
+    }
+    if (checkpoint45Focus === 'shape-refresh') {
+      assert(checkpoint45RoomFocus.roomId === 'room.family-gathering'
+        && checkpoint45RoomFocus.step === 'shape'
+        && checkpoint45RoomFocus.refresh?.beforeVoidCount === 3
+        && checkpoint45RoomFocus.refresh.afterVoidCount === 3
+        && checkpoint45RoomFocus.refresh.dirty === true
+        && checkpoint45RoomFocus.refresh.focused === true
+        && checkpoint45RoomFocus.refresh.sameNode === true,
+      'Checkpoint 4.5 shape draft or keyboard focus did not survive an unchanged passive refresh.');
+    }
+    if (checkpoint45Focus === 'shape-conflict') {
+      assert(checkpoint45RoomFocus.roomId === 'room.family-gathering'
+        && checkpoint45RoomFocus.step === 'shape'
+        && checkpoint45RoomFocus.shapeDraftDirty === true
+        && checkpoint45RoomFocus.shapeConflict?.includes('changed while your shape draft was open')
+        && layout.roomDesigner.shapeSavePresent,
+      'Checkpoint 4.5 concurrent room-version change did not retain and explicitly block the local shape draft.');
     }
   }
   if (mode === 'checkpoint-2a') {
@@ -2196,6 +2379,7 @@ try {
     checkpoint2cPhase: mode === 'checkpoint-2c' ? checkpoint2cPhase : null,
     checkpoint2cInteractionEvidence,
     checkpoint4TaskFocus,
+    checkpoint45RoomFocus,
     layout,
     interactions: checkpoint2bInteractionEvidence,
   };

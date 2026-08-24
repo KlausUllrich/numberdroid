@@ -212,6 +212,7 @@ jobs:
           CHECKPOINT_2C_APPLIED_PID=""
           CHECKPOINT_3_PID=""
           CHECKPOINT_4_PID=""
+          CHECKPOINT_4_5_PID=""
           cleanup() {
             if [ -n "$BASELINE_PID" ]; then kill "$BASELINE_PID" 2>/dev/null || true; fi
             if [ -n "$CANDIDATE_PID" ]; then kill "$CANDIDATE_PID" 2>/dev/null || true; fi
@@ -221,6 +222,7 @@ jobs:
             if [ -n "$CHECKPOINT_2C_APPLIED_PID" ]; then kill "$CHECKPOINT_2C_APPLIED_PID" 2>/dev/null || true; fi
             if [ -n "$CHECKPOINT_3_PID" ]; then kill "$CHECKPOINT_3_PID" 2>/dev/null || true; fi
             if [ -n "$CHECKPOINT_4_PID" ]; then kill "$CHECKPOINT_4_PID" 2>/dev/null || true; fi
+            if [ -n "$CHECKPOINT_4_5_PID" ]; then kill "$CHECKPOINT_4_5_PID" 2>/dev/null || true; fi
           }
           trap cleanup EXIT
           mkdir -p "$EVIDENCE/baseline-1a" "$EVIDENCE/candidate-1b/dom"
@@ -430,6 +432,37 @@ jobs:
             "$RUNNER_TEMP/numberdroid-studio-checkpoint-3-bundle-b" \
             "$CHECKPOINT_3_EVIDENCE/bundle-roundtrip.json"
 
+          CHECKPOINT_4_5_EVIDENCE="$GITHUB_WORKSPACE/artifacts/studio-checkpoint-4-5"
+          mkdir -p "$CHECKPOINT_4_5_EVIDENCE/dom"
+          node tools/numberdroid-studio/scripts/prepare-checkpoint-4-5-visual-evidence.js \
+            "$CHECKPOINT_2C_APPLIED_DATA" > "$CHECKPOINT_4_5_EVIDENCE/fixture.json"
+          NUMBERDROID_STUDIO_DATA="$CHECKPOINT_2C_APPLIED_DATA" NUMBERDROID_STUDIO_PORT=4325 \
+            node tools/numberdroid-studio/apps/studio-server/src/server.js \
+            > "$CHECKPOINT_4_5_EVIDENCE/server.log" 2>&1 &
+          CHECKPOINT_4_5_PID=$!
+          wait_for_studio http://127.0.0.1:4325 "$CHECKPOINT_4_5_EVIDENCE/server.log"
+          for width in 1440 1060; do
+            for focus in irregular rectangle prop shape-refresh; do
+              capture "$width" "$CHECKPOINT_4_5_EVIDENCE/$focus-$width.png" \
+                "http://127.0.0.1:4325/?visualFixture=checkpoint-4-5&visualFocus=$focus#rooms" checkpoint-4-5 \
+                "$CHECKPOINT_4_5_EVIDENCE/dom/$focus-$width.html"
+            done
+          done
+          for width in 1440 1060; do
+            capture "$width" "$CHECKPOINT_4_5_EVIDENCE/shape-conflict-$width.png" \
+              "http://127.0.0.1:4325/?visualFixture=checkpoint-4-5&visualFocus=shape-conflict#rooms" checkpoint-4-5 \
+              "$CHECKPOINT_4_5_EVIDENCE/dom/shape-conflict-$width.html"
+          done
+          kill "$CHECKPOINT_4_5_PID"
+          wait "$CHECKPOINT_4_5_PID" 2>/dev/null || true
+          CHECKPOINT_4_5_PID=""
+          node tools/numberdroid-studio/scripts/verify-checkpoint-2c-bundle-roundtrip.js \
+            "$CHECKPOINT_2C_APPLIED_DATA" numberdroid-studio-checkpoint-2c \
+            "$RUNNER_TEMP/numberdroid-studio-checkpoint-4-5-bundle-a" \
+            "$RUNNER_TEMP/numberdroid-studio-checkpoint-4-5-imported" \
+            "$RUNNER_TEMP/numberdroid-studio-checkpoint-4-5-bundle-b" \
+            "$CHECKPOINT_4_5_EVIDENCE/bundle-roundtrip.json"
+
           CHECKPOINT_4_DATA="$RUNNER_TEMP/numberdroid-studio-checkpoint-4-data"
           CHECKPOINT_4_EVIDENCE="$GITHUB_WORKSPACE/artifacts/studio-checkpoint-4"
           mkdir -p "$CHECKPOINT_4_EVIDENCE/dom"
@@ -447,6 +480,9 @@ jobs:
             capture "$width" "$CHECKPOINT_4_EVIDENCE/task-merged-$width.png" \
               'http://127.0.0.1:4324/?visualFixture=checkpoint-4&visualFocus=merged#tasks' checkpoint-4 \
               "$CHECKPOINT_4_EVIDENCE/dom/task-merged-$width.html"
+            capture "$width" "$CHECKPOINT_4_EVIDENCE/task-create-$width.png" \
+              'http://127.0.0.1:4324/?visualFixture=checkpoint-4&visualFocus=create#tasks' checkpoint-4 \
+              "$CHECKPOINT_4_EVIDENCE/dom/task-create-$width.html"
           done
           kill "$CHECKPOINT_4_PID"
           wait "$CHECKPOINT_4_PID" 2>/dev/null || true
@@ -503,6 +539,15 @@ jobs:
         with:
           name: numberdroid-studio-checkpoint-4-evidence
           path: artifacts/studio-checkpoint-4/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Studio Checkpoint 4.5 combined-gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: numberdroid-studio-checkpoint-4-5-evidence
+          path: artifacts/studio-checkpoint-4-5/
           if-no-files-found: error
           retention-days: 14
 

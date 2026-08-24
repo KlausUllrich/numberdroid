@@ -225,7 +225,7 @@ function assetProposalRoute(pathname) {
 }
 
 function roomRoute(pathname) {
-  const commandMatch = /^\/api\/projects\/([^/]+)\/rooms\/([^/]+)\/(intent|resize|connectors|placements-add|placements-move|placements-remove|warning-dispositions|validate|finalize|fork)$/.exec(pathname);
+  const commandMatch = /^\/api\/projects\/([^/]+)\/rooms\/([^/]+)\/(intent|shape|resize|connectors|placements-add|placements-move|placements-remove|warning-dispositions|validate|finalize|fork)$/.exec(pathname);
   if (commandMatch) return {
     projectId: decodeURIComponent(commandMatch[1]),
     roomVariantId: decodeURIComponent(commandMatch[2]),
@@ -1064,6 +1064,7 @@ export function createStudioHttpServer({
         const body = await readJsonBody(request, { maxBytes: 1024 * 1024 });
         const actionContract = {
           intent: { type: 'room.variant.intent.set', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'intentTrace'] },
+          shape: { type: 'room.variant.shape.set', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'voidCells', 'blockedCells'] },
           resize: { type: 'room.variant.resize', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'width', 'height', 'removePlacementIds', 'removeConnectorIds'] },
           connectors: { type: 'room.variant.connectors.set', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'connectors'] },
           'placements-add': { type: 'room.variant.placements.add', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'placements'] },

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { invariant } from './errors.js';
 import { requireEnum, requireId, requireInteger, requireRecord, requireString } from './validation.js';
 
-export const ROOM_VALIDATOR_VERSION = 'numberdroid-studio.room-validator.v1';
+export const ROOM_VALIDATOR_VERSION = 'numberdroid-studio.room-validator.v2';
 export const ROOM_KINDS = Object.freeze(['room', 'hallway']);
 export const ROOM_LIFECYCLES = Object.freeze(['DRAFT', 'VALIDATED', 'FINAL']);
 export const ROOM_LAYERS = Object.freeze(['STRUCTURAL_SURFACE', 'SET_DRESSING']);
@@ -230,6 +230,46 @@ function normalizePlacement(value, index, label = `placements[${index}]`) {
   };
 }
 
+function normalizeRoomCells(value, label, width, height) {
+  invariant(Array.isArray(value) && value.length <= MAX_ROOM_CELLS, 'ROOM_SHAPE_CELL_LIMIT', `${label} must contain at most ${MAX_ROOM_CELLS} cells.`, {
+    field: label,
+    maxCells: MAX_ROOM_CELLS,
+  });
+  const seen = new Set();
+  const cells = value.map((candidate, index) => {
+    const record = exactFields(candidate, ['x', 'y'], `${label}[${index}]`);
+    const cell = {
+      x: requireInteger(record.x, `${label}[${index}].x`, { min: 0, max: width - 1 }),
+      y: requireInteger(record.y, `${label}[${index}].y`, { min: 0, max: height - 1 }),
+    };
+    const key = `${cell.x},${cell.y}`;
+    invariant(!seen.has(key), 'ROOM_SHAPE_CELL_DUPLICATE', `${label} must not contain duplicate coordinates.`, { field: label, cell });
+    seen.add(key);
+    return cell;
+  });
+  return cells.sort((left, right) => left.y - right.y || left.x - right.x);
+}
+
+function cellKeys(cells) {
+  return new Set(cells.map(({ x, y }) => `${x},${y}`));
+}
+
+function cellsInRect(rect) {
+  const cells = [];
+  for (let y = Math.floor(rect.y); y < Math.ceil(rect.y + rect.height); y += 1) {
+    for (let x = Math.floor(rect.x); x < Math.ceil(rect.x + rect.width); x += 1) cells.push({ x, y, key: `${x},${y}` });
+  }
+  return cells;
+}
+
+function envelopeTouchesRoomBoundary(envelope, width, height, voidCellKeys) {
+  if (envelope.x === 0 || envelope.y === 0 || envelope.x + envelope.width === width || envelope.y + envelope.height === height) return true;
+  for (const { x, y } of cellsInRect(envelope)) {
+    if ([`${x + 1},${y}`, `${x - 1},${y}`, `${x},${y + 1}`, `${x},${y - 1}`].some((key) => voidCellKeys.has(key))) return true;
+  }
+  return false;
+}
+
 function roomFinding({ severity = 'ERROR', ruleId, targetKind = 'roomVariant', targetId, path, explanation, remediation }) {
   return Object.freeze({
     findingId: stableHash({ validatorVersion: ROOM_VALIDATOR_VERSION, ruleId, targetKind, targetId, path }),
@@ -288,7 +328,8 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
   const record = exactFields(variant, [
     'projectId', 'roomVariantId', 'version', 'roomArchetypeId', 'archetypeVersion',
     'displayName', 'lifecycle', 'width', 'height', 'origin', 'intentTrace', 'connectors',
-    'placements', 'acceptedWarningFindingIds', 'parentVariantVersion', 'parentFinalVersion',
+    'placements', 'voidCells', 'blockedCells', 'acceptedWarningFindingIds',
+    'parentVariantVersion', 'parentFinalVersion',
   ], 'roomVariant');
   const width = requireInteger(record.width, 'roomVariant.width', { min: 3, max: MAX_ROOM_AXIS_CELLS });
   const height = requireInteger(record.height, 'roomVariant.height', { min: 3, max: MAX_ROOM_AXIS_CELLS });
@@ -310,6 +351,34 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
   const connectors = record.connectors.map((connector, index) => normalizeConnector(connector, index, width, height));
   invariant(Array.isArray(record.placements) && record.placements.length <= MAX_ROOM_PLACEMENTS, 'ROOM_PLACEMENT_LIMIT', `A room variant may contain at most ${MAX_ROOM_PLACEMENTS} placements.`);
   const placements = record.placements.map(normalizePlacement);
+  const voidCells = normalizeRoomCells(record.voidCells ?? [], 'roomVariant.voidCells', width, height);
+  const blockedCells = normalizeRoomCells(record.blockedCells ?? [], 'roomVariant.blockedCells', width, height);
+  const voidCellKeys = cellKeys(voidCells);
+  const explicitBlockedCellKeys = cellKeys(blockedCells);
+  for (const cell of blockedCells) {
+    invariant(!voidCellKeys.has(`${cell.x},${cell.y}`), 'ROOM_SHAPE_CELL_CONFLICT', 'VOID and BLOCKED cells must be disjoint.', { cell });
+  }
+  const roomCellKeys = new Set();
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+    const key = `${x},${y}`;
+    if (!voidCellKeys.has(key)) roomCellKeys.add(key);
+  }
+  invariant(roomCellKeys.size > 0, 'ROOM_SHAPE_EMPTY', 'A room shape must contain at least one non-VOID cell.');
+  const connectedRoomCells = new Set([roomCellKeys.values().next().value]);
+  const pendingRoomCells = [...connectedRoomCells];
+  while (pendingRoomCells.length) {
+    const [x, y] = pendingRoomCells.shift().split(',').map(Number);
+    for (const key of [`${x + 1},${y}`, `${x - 1},${y}`, `${x},${y + 1}`, `${x},${y - 1}`]) {
+      if (roomCellKeys.has(key) && !connectedRoomCells.has(key)) {
+        connectedRoomCells.add(key);
+        pendingRoomCells.push(key);
+      }
+    }
+  }
+  invariant(connectedRoomCells.size === roomCellKeys.size, 'ROOM_SHAPE_DISCONNECTED', 'Non-VOID room cells must form one four-neighbour component.', {
+    roomCells: roomCellKeys.size,
+    connectedCells: connectedRoomCells.size,
+  });
   const normalized = {
     projectId: requireId(record.projectId, 'roomVariant.projectId'),
     roomVariantId: requireId(record.roomVariantId, 'roomVariant.roomVariantId'),
@@ -324,6 +393,8 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     intentTrace,
     connectors,
     placements,
+    voidCells,
+    blockedCells,
     acceptedWarningFindingIds: boundedStrings(record.acceptedWarningFindingIds ?? [], 'roomVariant.acceptedWarningFindingIds', { maxItems: 128, maxLength: 64 }),
     parentVariantVersion: record.parentVariantVersion === null || record.parentVariantVersion === undefined ? null : requireInteger(record.parentVariantVersion, 'roomVariant.parentVariantVersion', { min: 1 }),
     parentFinalVersion: record.parentFinalVersion === null || record.parentFinalVersion === undefined ? null : requireInteger(record.parentFinalVersion, 'roomVariant.parentFinalVersion', { min: 1 }),
@@ -335,6 +406,9 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
   for (const [index, connector] of connectors.entries()) {
     if (seenConnectorIds.has(connector.connectorId)) add('studio.room.connector.duplicate', `/connectors/${index}/connectorId`, 'Connector IDs must be unique within a room variant.', 'Choose a stable unique connector ID.', 'ERROR', connector.connectorId, 'roomConnector');
     seenConnectorIds.add(connector.connectorId);
+    const aperture = connectorInsideRect({ ...connector, clearanceInside: Math.max(1, connector.clearanceInside) }, width, height);
+    const unavailable = cellsInRect(aperture).filter(({ key }) => voidCellKeys.has(key) || explicitBlockedCellKeys.has(key));
+    if (unavailable.length) add('studio.room.connector.shape_blocked', `/connectors/${index}`, 'The connector aperture or inside approach crosses an outside or blocked cell.', 'Move the connector or restore ordinary room cells for its complete approach.', 'ERROR', connector.connectorId, 'roomConnector');
     for (const [priorIndex, prior] of connectors.slice(0, index).entries()) {
       if (prior.side === connector.side && prior.offset < connector.offset + connector.width && prior.offset + prior.width > connector.offset) {
         add('studio.room.connector.overlap', `/connectors/${index}`, 'Two connector apertures overlap on the same room edge.', `Move ${connector.connectorId} or ${prior.connectorId}.`, 'ERROR', connector.connectorId, 'roomConnector');
@@ -404,7 +478,12 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     const envelope = { x: placement.anchor.x, y: placement.anchor.y, width: footprint.width, height: footprint.height };
     const inRoom = envelope.x >= 0 && envelope.y >= 0 && envelope.x + envelope.width <= width && envelope.y + envelope.height <= height;
     if (!inRoom) add('studio.room.placement.out_of_bounds', `${path}/anchor`, 'The rotated footprint exceeds room bounds.', 'Move the placement wholly inside the room.', 'ERROR', placement.placementId, 'roomPlacement');
-    const touchesWall = envelope.x === 0 || envelope.y === 0 || envelope.x + envelope.width === width || envelope.y + envelope.height === height;
+    const envelopeCells = inRoom ? cellsInRect(envelope) : [];
+    const crossesVoid = envelopeCells.some(({ key }) => voidCellKeys.has(key));
+    const crossesBlocked = envelopeCells.some(({ key }) => explicitBlockedCellKeys.has(key));
+    if (crossesVoid) add('studio.room.placement.void_overlap', `${path}/anchor`, 'The placement footprint crosses cells outside the room.', 'Move the complete footprint onto room cells.', 'ERROR', placement.placementId, 'roomPlacement');
+    if (placement.layer === 'SET_DRESSING' && crossesBlocked) add('studio.room.placement.blocked_overlap', `${path}/anchor`, 'Set dressing cannot occupy an in-room blocked cell.', 'Move the prop or item onto an ordinary room cell.', 'ERROR', placement.placementId, 'roomPlacement');
+    const touchesWall = envelopeTouchesRoomBoundary(envelope, width, height, voidCellKeys);
     if (asset.metadata.attachment === 'wall' && !touchesWall) add('studio.room.placement.wall_attachment_required', path, 'This asset requires wall attachment.', 'Place its footprint against a room boundary.', 'ERROR', placement.placementId, 'roomPlacement');
     if (touchesWall && asset.metadata.placement?.wallSafe === false) add('studio.room.placement.wall_unsafe', path, 'This asset is explicitly not safe at a room boundary.', 'Move it away from the wall or author corrected metadata.', 'ERROR', placement.placementId, 'roomPlacement');
     if (asset.lifecycle !== 'FINAL') add('studio.room.placement.asset_not_final', `${path}/assetId`, 'The pinned asset version is not FINAL.', 'Review and explicitly disposition this warning or finalize the asset.', 'WARNING', placement.placementId, 'roomPlacement');
@@ -427,14 +506,15 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     if (asset.kind === 'surface' && inRoom && usable.width > 0 && usable.height > 0) {
       const insideUsable = envelope.x >= usable.x && envelope.y >= usable.y
         && envelope.x + envelope.width <= usable.x + usable.width
-        && envelope.y + envelope.height <= usable.y + usable.height;
+        && envelope.y + envelope.height <= usable.y + usable.height
+        && !crossesVoid;
       if (!insideUsable) add('studio.room.surface.macro_out_of_domain', path, 'A structural surface macro is clipped, partial, or inside an excluded band.', 'Place complete macros wholly inside the usable domain.', 'ERROR', placement.placementId, 'roomPlacement');
       if ((envelope.x - usable.x) % footprint.width !== 0 || (envelope.y - usable.y) % footprint.height !== 0) add('studio.room.surface.macro_misaligned', path, 'A structural surface macro is not aligned to the usable-domain origin.', 'Align from room origin plus structural bands.', 'ERROR', placement.placementId, 'roomPlacement');
       if (insideUsable) {
         for (let y = envelope.y; y < envelope.y + envelope.height; y += 1) {
           for (let x = envelope.x; x < envelope.x + envelope.width; x += 1) {
             const key = `${x},${y}`;
-            surfaceCoverage.set(key, (surfaceCoverage.get(key) ?? 0) + 1);
+            if (!voidCellKeys.has(key)) surfaceCoverage.set(key, (surfaceCoverage.get(key) ?? 0) + 1);
           }
         }
       }
@@ -457,6 +537,7 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     let overlap = 0;
     for (let y = usable.y; y < usable.y + usable.height; y += 1) {
       for (let x = usable.x; x < usable.x + usable.width; x += 1) {
+        if (voidCellKeys.has(`${x},${y}`)) continue;
         const count = surfaceCoverage.get(`${x},${y}`) ?? 0;
         if (count === 0) missing += 1;
         if (count > 1) overlap += 1;
@@ -466,12 +547,12 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     if (overlap > 0) add('studio.room.surface.coverage_overlap', '/placements', 'Structural surface macros overlap.', `Remove overlap from ${overlap} usable cells.`);
   }
 
-  const blockedCells = new Set();
+  const navigationBlockedCells = new Set(explicitBlockedCellKeys);
   for (const entry of resolved) {
     for (const rect of entry.collisionRects) {
       for (let y = Math.floor(rect.y); y < Math.ceil(rect.y + rect.height); y += 1) {
         for (let x = Math.floor(rect.x); x < Math.ceil(rect.x + rect.width); x += 1) {
-          if (x >= 0 && y >= 0 && x < width && y < height) blockedCells.add(`${x},${y}`);
+          if (x >= 0 && y >= 0 && x < width && y < height) navigationBlockedCells.add(`${x},${y}`);
         }
       }
     }
@@ -480,7 +561,7 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     const rect = connectorInsideRect({ ...connector, clearanceInside: Math.max(1, connector.clearanceInside) }, width, height);
     const cells = [];
     for (let y = rect.y; y < rect.y + rect.height; y += 1) for (let x = rect.x; x < rect.x + rect.width; x += 1) cells.push(`${x},${y}`);
-    return cells.filter((cell) => !blockedCells.has(cell));
+    return cells.filter((cell) => !navigationBlockedCells.has(cell) && !voidCellKeys.has(cell));
   });
   if (connectors.length > 0 && connectorCells.length === 0) add('studio.room.navigation.connector_unreachable', '/connectors', 'No connector has a passable inside access cell.', 'Clear at least one inside approach cell for every required connector.');
   if (connectorCells.length > 0) {
@@ -490,7 +571,7 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
       const [x, y] = queue.shift().split(',').map(Number);
       for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
         const key = `${nx},${ny}`;
-        if (nx < 0 || ny < 0 || nx >= width || ny >= height || blockedCells.has(key) || visited.has(key)) continue;
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height || voidCellKeys.has(key) || navigationBlockedCells.has(key) || visited.has(key)) continue;
         visited.add(key);
         queue.push(key);
       }

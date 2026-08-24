@@ -732,6 +732,8 @@ function roomVariantValue(variant) {
     intentTrace: deepClone(variant.intentTrace),
     connectors: deepClone(variant.connectors),
     placements: deepClone(variant.placements),
+    voidCells: deepClone(variant.voidCells ?? []),
+    blockedCells: deepClone(variant.blockedCells ?? []),
     acceptedWarningFindingIds: deepClone(variant.acceptedWarningFindingIds),
     parentVariantVersion: variant.parentVariantVersion,
     parentFinalVersion: variant.parentFinalVersion,
@@ -1804,6 +1806,8 @@ function applyCommand(command, snapshot, now, {
         intentTrace: deepClone(payload.intentTrace),
         connectors: deepClone(payload.connectors),
         placements: deepClone(payload.placements),
+        voidCells: [],
+        blockedCells: [],
         acceptedWarningFindingIds: [],
         parentVariantVersion: null,
         parentFinalVersion: null,
@@ -1821,6 +1825,7 @@ function applyCommand(command, snapshot, now, {
       };
     }
     case 'room.variant.intent.set':
+    case 'room.variant.shape.set':
     case 'room.variant.resize':
     case 'room.variant.connectors.set':
     case 'room.variant.placements.add':
@@ -1829,6 +1834,7 @@ function applyCommand(command, snapshot, now, {
       invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
       const fieldsByType = {
         'room.variant.intent.set': ['roomVariantId', 'expectedRoomVariantVersion', 'intentTrace'],
+        'room.variant.shape.set': ['roomVariantId', 'expectedRoomVariantVersion', 'voidCells', 'blockedCells'],
         'room.variant.resize': ['roomVariantId', 'expectedRoomVariantVersion', 'width', 'height', 'removePlacementIds', 'removeConnectorIds'],
         'room.variant.connectors.set': ['roomVariantId', 'expectedRoomVariantVersion', 'connectors'],
         'room.variant.placements.add': ['roomVariantId', 'expectedRoomVariantVersion', 'placements'],
@@ -1849,6 +1855,9 @@ function applyCommand(command, snapshot, now, {
       };
       if (command.type === 'room.variant.intent.set') {
         candidate.intentTrace = deepClone(payload.intentTrace);
+      } else if (command.type === 'room.variant.shape.set') {
+        candidate.voidCells = deepClone(payload.voidCells);
+        candidate.blockedCells = deepClone(payload.blockedCells);
       } else if (command.type === 'room.variant.connectors.set') {
         candidate.connectors = deepClone(payload.connectors);
       } else if (command.type === 'room.variant.resize') {

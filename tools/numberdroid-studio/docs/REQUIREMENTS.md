@@ -329,7 +329,7 @@ Post-acceptance failed run `32571622269` (both Studio attempts failed; artifact 
 
 The user completed the combined walkthrough and accepted the bounded Checkpoint 2C, 3, and 4 implementations. The final conflict-control repair was rebuilt on Linux and passed after the same head had passed Windows/Node 22.17.0 and real-Chrome CI. Acceptance does not imply PR merge, release, provider access, Numberdroid export, materialization, publication, or broader agent authority.
 
-The walkthrough also established the next requirements rather than silently treating them as completed: professional plain language and progressive disclosure across workspaces, a separate focused task-creation step, a human-usable prop preview build, guided room construction, and explicit irregular-room `VOID` versus `BLOCKED` semantics. These form Checkpoint 4.5 and require a reviewed contract before implementation.
+The walkthrough also established the next requirements rather than silently treating them as completed: professional plain language and progressive disclosure across workspaces, a separate focused task-creation step, a human-usable prop preview build, guided room construction, and explicit irregular-room `VOID` versus `BLOCKED` semantics. `CHECKPOINT_4_5_CONTRACT.md` now freezes that contract; the implementation remains a candidate until explicit user acceptance.
 
 ### Checkpoint 4.5 — designer workflow and preview usability
 
@@ -337,11 +337,13 @@ The walkthrough also established the next requirements rather than silently trea
 2. Task selection, progress, review, completion, and undo MUST read as one state-driven workflow. The primary UI MUST identify who acts next and omit or explain unavailable actions.
 3. `UI-011` and `UI-012` apply across source, asset, room, and task workspaces. Technical identifiers and implementation terms MUST remain optional diagnostic detail.
 4. Healthy provenance, integrity, validation, and authority state SHOULD be quiet confirmation. The UI MUST raise an actionable warning when required information is missing, inconsistent, unsafe, or awaiting a decision.
-5. A prop MUST have a human-usable visual preview before placement or approval. The exact minimum preview content MUST be frozen in the Checkpoint 4.5 contract before implementation.
+5. A prop MUST have a human-usable visual preview before placement or approval. The frozen minimum is the exact uncropped project-scoped image, tile footprint/grid, authored anchor, permitted rotations, collision/navigation effect, and attachment/boundary suitability. Missing exact imagery remains inspectable/rejectable but MUST disable acceptance and placement.
 6. Room construction MUST provide a guided flow that makes human and agent contributions understandable without reading internal commands or revisions.
-7. Irregular-room authoring MUST distinguish `VOID` cells outside the room from `BLOCKED` cells that remain part of the room but cannot be crossed. Persistence and validation changes MUST wait for a reviewed semantic contract.
+7. Irregular-room authoring MUST distinguish `VOID` cells outside the room from `BLOCKED` cells that remain part of the room but cannot be crossed. The reviewed contract uses disjoint, bounded, row-major sparse masks; non-`VOID` cells form one four-neighbour component; `VOID` is excluded from the accepted Checkpoint 3 usable surface domain, navigation, placement, and connector approaches; `BLOCKED` requires surface coverage when it lies inside that usable domain but excludes traversal and set dressing. Structural bands remain excluded before coverage is evaluated.
 8. Checkpoint 4.5 MUST preserve the accepted Checkpoint 2C asset lineage, Checkpoint 3 immutable room/fork behavior, and Checkpoint 4 authority/review boundaries.
 9. Real-browser evidence MUST cover the task list/create/review flow, prop preview, rectangular and irregular room construction, keyboard access, and protected 1440×900 and 1060×900 layouts before user acceptance.
+
+**Candidate status:** implemented locally with migration 0012, portable schema v3 only for masked rooms, and no agent-tool expansion. Automated tests and deterministic fixture/bundle round trips are green; fresh runner browser evidence and the live user gate remain acceptance prerequisites.
 
 ## 10. Open decisions and recommended defaults
 
@@ -365,4 +367,4 @@ These are deliberately open until validated by implementation or user testing. T
 | Animation model | Reserved identity in V1, authoring in V2 | Avoids migration of asset and placement references. |
 | Checkpoint 3 room canvas | DOM/SVG grid, Fit/100%/200%, provisional 10×8 room and 12×3 horizontal hallway creation defaults | Preserves inspectability/accessibility and aligns with accepted cutter zoom language; dimensions remain explicitly editable within the frozen bound. |
 
-Open product questions for later user checkpoints include: first canonical asset taxonomy, whether source generation providers are built in or imported by manifest, production bundle format, and the exact Level Compiler invocation boundary. The Checkpoint 3 room dimensions/zoom defaults are now provisional implementation inputs for the combined user gate rather than unanswered blockers.
+Open product questions for later user checkpoints include: first canonical asset taxonomy, whether source generation providers are built in or imported by manifest, production bundle format, and the exact Level Compiler invocation boundary. The accepted Checkpoint 3 room dimensions/zoom defaults remain provisional product inputs; Checkpoint 4.5 adds guided irregular-shape authoring without converting those defaults into a final level-format decision.

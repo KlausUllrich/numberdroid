@@ -40,13 +40,23 @@ function ownerCommand(projectView, { commandId, type, payload }) {
   };
 }
 
-function taskProjection(task, timeline, review) {
+function taskProjection(task, timeline, review, now) {
   return {
     schemaVersion: 1,
-    task: structuredClone(task),
+    task: {
+      ...structuredClone(task),
+      effectiveState: taskEffectiveState(task, requireIsoDate(now, 'clock')),
+    },
     timeline: structuredClone(timeline),
     review: review ? structuredClone(review) : null,
   };
+}
+
+function taskEffectiveState(task, now) {
+  if (['ACTIVE', 'PAUSED', 'CHANGES_REQUESTED'].includes(task.state)
+      && task.expiresAt
+      && Date.parse(task.expiresAt) <= Date.parse(now)) return 'EXPIRED';
+  return task.state;
 }
 
 class MergeSimulationStore {
@@ -159,7 +169,7 @@ export class AgentTaskService {
     const unknownScope = task.capabilities.find((scope) => !KNOWN_GRANT_SCOPES.includes(scope));
     invariant(!unknownScope, 'UNKNOWN_GRANT_SCOPE', 'The task contains an unknown capability scope.', { scope: unknownScope });
     const existing = this.#taskStore.getTask(projectId, task.taskId);
-    if (existing) return taskProjection(existing, this.#taskStore.listTimeline(projectId, task.taskId), this.#taskStore.getReview(projectId, task.taskId));
+    if (existing) return taskProjection(existing, this.#taskStore.listTimeline(projectId, task.taskId), this.#taskStore.getReview(projectId, task.taskId), now);
 
     const grantId = `grant.task.${task.taskId}`;
     let grantIssued = false;
@@ -188,7 +198,7 @@ export class AgentTaskService {
         issuedBy: trustedOwnerContext.actor.id,
         now,
       });
-      return taskProjection(created, this.#taskStore.listTimeline(projectId, task.taskId), null);
+      return taskProjection(created, this.#taskStore.listTimeline(projectId, task.taskId), null, now);
     } catch (error) {
       if (grantIssued && !this.#taskStore.getTask(projectId, task.taskId)) {
         try {
@@ -209,7 +219,7 @@ export class AgentTaskService {
   readTask(projectId, taskId) {
     const task = this.#taskStore.getTask(projectId, taskId);
     invariant(task, 'TASK_NOT_FOUND', 'The agent task does not exist.', { projectId, taskId });
-    return taskProjection(task, this.#taskStore.listTimeline(projectId, taskId), this.#taskStore.getReview(projectId, taskId));
+    return taskProjection(task, this.#taskStore.listTimeline(projectId, taskId), this.#taskStore.getReview(projectId, taskId), this.#clock());
   }
 
   hasTask(projectId, taskId, branchId = null) {
@@ -231,6 +241,7 @@ export class AgentTaskService {
       redactedTask,
       this.#taskStore.listTimeline(projectId, task.taskId),
       this.#taskStore.getReview(projectId, task.taskId),
+      this.#clock(),
     );
   }
 
@@ -250,7 +261,15 @@ export class AgentTaskService {
   }
 
   listTasks(projectId) {
-    return { schemaVersion: 1, projectId, tasks: this.#taskStore.listTasks(projectId) };
+    const now = requireIsoDate(this.#clock(), 'clock');
+    return {
+      schemaVersion: 1,
+      projectId,
+      tasks: this.#taskStore.listTasks(projectId).map((task) => ({
+        ...task,
+        effectiveState: taskEffectiveState(task, now),
+      })),
+    };
   }
 
   async readBranch(projectId, taskId, trustedContext) {

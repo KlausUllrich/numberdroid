@@ -39,7 +39,8 @@ async function fixture(context) {
   });
   afterTestCleanup(context, () => store.close());
   let tick = 0;
-  const clock = () => new Date(Date.UTC(2026, 7, 23, 10, 0, tick++)).toISOString();
+  let fixedNow = null;
+  const clock = () => fixedNow ?? new Date(Date.UTC(2026, 7, 23, 10, 0, tick++)).toISOString();
   const studio = new StudioService({ store, clock, agentAttemptAuditReady: true });
   await createProject(studio);
   const taskStore = new SqliteAgentTaskStore({ workspace: store.workspace });
@@ -71,8 +72,18 @@ async function fixture(context) {
     branchId: created.task.branchId,
     grantId: created.task.grantId,
   };
-  return { store, studio, taskStore, tasks, created, agentContext };
+  return { store, studio, taskStore, tasks, created, agentContext, setNow(value) { fixedNow = value; } };
 }
+
+test('CP4.5 task lists project expiry truth without mutating the durable workflow state', async (context) => {
+  const { tasks, taskStore, created, setNow } = await fixture(context);
+  assert.equal(tasks.listTasks(PROJECT_ID).tasks[0].effectiveState, 'ACTIVE');
+  assert.equal(tasks.readTask(PROJECT_ID, created.task.taskId).task.effectiveState, 'ACTIVE');
+  setNow('2026-08-23T12:00:00.001Z');
+  assert.equal(tasks.listTasks(PROJECT_ID).tasks[0].effectiveState, 'EXPIRED');
+  assert.equal(tasks.readTask(PROJECT_ID, created.task.taskId).task.effectiveState, 'EXPIRED');
+  assert.equal(taskStore.getTask(PROJECT_ID, created.task.taskId).state, 'ACTIVE');
+});
 
 test('task creation mints bounded authority and branch commands never mutate main', async (context) => {
   const { studio, taskStore, tasks, created, agentContext } = await fixture(context);

@@ -147,6 +147,31 @@ test('room archetype and DRAFT variant preserve intent, exact pins, and determin
   assert.match(result.variants[0].current.contentFingerprint, /^[a-f0-9]{64}$/);
 });
 
+test('CP4.5 owner shape replacement creates an immutable room version and remains unavailable to agents', async () => {
+  const { studio } = await fixture();
+  const shaped = await studio.execute(roomCommand({
+    type: 'room.variant.shape.set', expectedVersion: 4, suffix: 'room.shape',
+    payload: {
+      roomVariantId: 'room.family-table', expectedRoomVariantVersion: 1,
+      voidCells: [{ x: 3, y: 2 }], blockedCells: [{ x: 2, y: 1 }],
+    },
+  }), OWNER_CONTEXT);
+  assert.equal(shaped.value.roomVariantVersion, 2);
+  const room = (await studio.queryRooms({
+    schemaVersion: 1, projectId: PROJECT_ID, roomVariantId: 'room.family-table', includeVersions: true,
+  }, OWNER_CONTEXT)).variants[0];
+  assert.deepEqual(room.current.voidCells, [{ x: 3, y: 2 }]);
+  assert.deepEqual(room.current.blockedCells, [{ x: 2, y: 1 }]);
+  assert.deepEqual(room.versions[0].voidCells, []);
+  await assert.rejects(studio.execute(roomCommand({
+    type: 'room.variant.shape.set', expectedVersion: 5, suffix: 'room.shape.agent',
+    payload: {
+      roomVariantId: 'room.family-table', expectedRoomVariantVersion: 2,
+      voidCells: [], blockedCells: [],
+    },
+  }), AGENT_CONTEXT), (error) => error.code === 'FORBIDDEN');
+});
+
 test('bounded agent proposal charges per item, redacts host authority, and blocks concurrent edits', async () => {
   const { studio } = await fixture();
   await assert.rejects(studio.execute(roomCommand({

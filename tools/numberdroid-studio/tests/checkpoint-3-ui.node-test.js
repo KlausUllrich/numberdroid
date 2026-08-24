@@ -71,3 +71,29 @@ test('Checkpoint 3 canvas and review surfaces remain bounded at 1440 and protect
   assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-designer-layout \{ grid-template-columns: minmax\(150px, \.55fr\) minmax\(300px, 1\.45fr\)/);
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-header, \.room-designer-layout \{ grid-template-columns: 1fr/);
 });
+
+test('CP4.5 presents a guided room flow, truthful cell kinds, and owner-only complete shape saves', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const styles = await readFile(stylesUrl, 'utf8');
+  assert.match(app, /Purpose.*Shape.*Entrances.*Surfaces.*Props.*Check/s);
+  assert.match(app, /cell\.dataset\.cellKind = kind/);
+  assert.match(app, /kind === 'VOID' \? 'OUT' : kind === 'BLOCKED' \? 'BLOCKED' : 'ROOM'/);
+  assert.match(app, /expectedRoomVariantVersion: variant\.version, voidCells: draft\.voidCells, blockedCells: draft\.blockedCells/);
+  assert.match(app, /\/shape/);
+  assert.match(app, /Save complete shape/);
+  assert.match(styles, /\.room-cell\[data-cell-kind="VOID"\][^{]*\{[^}]*repeating-linear-gradient/);
+  assert.match(styles, /\.room-cell\[data-cell-kind="BLOCKED"\][^{]*\{[^}]*linear-gradient/);
+});
+
+test('CP4.5 useful prop preview exposes footprint, anchor, rotation, collision, and readiness before placement', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const preview = app.slice(app.indexOf('function usefulAssetPreview'), app.indexOf('function renderAssetLibrary'));
+  assert.match(preview, /spanTiles/);
+  assert.match(preview, /anchor/);
+  assert.match(preview, /metadata\.collision/);
+  assert.match(preview, /metadata\.navigation/);
+  assert.match(preview, /assetPreviewRotation/);
+  assert.match(preview, /preview is unavailable/);
+  assert.match(app, /use\.disabled = variant\.lifecycle !== 'DRAFT' \|\| preview\.dataset\.previewReady !== 'true'/);
+  assert.match(app, /draft\.disposition === 'ACCEPTED'\) draft\.disposition = 'REJECTED'/);
+});

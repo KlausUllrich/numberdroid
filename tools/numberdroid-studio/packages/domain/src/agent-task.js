@@ -12,7 +12,7 @@ export const REVIEW_DISPOSITIONS = Object.freeze([
 const TERMINAL_TASK_STATES = new Set(['MERGED', 'REJECTED', 'CANCELLED']);
 const FORBIDDEN_DELEGATED_CAPABILITIES = new Set([
   'grant.issue', 'grant.revoke', 'asset.lifecycle.set', 'room.variant.warning.disposition.set',
-  'room.variant.finalize', 'project.export', 'project.materialize', 'project.publish',
+  'room.variant.shape.set', 'room.variant.finalize', 'project.export', 'project.materialize', 'project.publish',
 ]);
 const FORBIDDEN_AUTO_ACCEPT_COMMANDS = new Set([
   ...FORBIDDEN_DELEGATED_CAPABILITIES, 'project.create', 'source.review.decide',
