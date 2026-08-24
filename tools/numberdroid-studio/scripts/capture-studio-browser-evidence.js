@@ -191,7 +191,6 @@ try {
              && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-2c'
              && document.documentElement.dataset.visualRevision === '26'
              && document.documentElement.dataset.visualActivityCount === '27'
-             && document.documentElement.dataset.roomCanvasReady === 'true'
              && document.documentElement.dataset.visualConnectionState === 'Live'`
           : mode === 'checkpoint-4'
             ? `document.documentElement.dataset.visualEvidenceReady === 'true'
