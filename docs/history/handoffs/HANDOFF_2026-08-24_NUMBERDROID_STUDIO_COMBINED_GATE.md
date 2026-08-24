@@ -3,15 +3,16 @@
 ## Canonical state
 
 - Repository: `KlausUllrich/numberdroid`
-- Working branch at handoff creation: `agent/numberdroid-studio-foundation`
-- Draft PR: `#135`
+- Canonical starting branch: `main`
+- Merged PR: `#135`
+- Merge commit: `bcc284684ea4d2e30158d3a20ebda57da77df93d`
 - Accepted repaired product head: `311581b42cf6bf6d4050132ec498dc61036e26e6`
 - Acceptance CI: run `32673522709`
 - Acceptance date: 2026-08-24
 - Checkpoints 1, 2A, 2B, 2C, 3, and 4 are explicitly user-accepted.
-- PR #135 is still draft, open, unmerged, and unreleased. Do not merge it or begin from an old `main` without explicit user direction.
+- PR #135 was explicitly authorized and merged on 2026-08-24. Start new work from current `main` at or after the merge commit above; do not continue the former feature branch as the canonical line.
 
-The documentation commit containing this handoff closes the acceptance record only. It does not authorize merge, release, provider work, Numberdroid/runtime export, materialization, publication, or a new persistence migration.
+The acceptance documentation closed the user gate, and the later explicit user decision authorized only the merge of PR #135. It did not authorize release, provider work, Numberdroid/runtime export, materialization, publication, or a new persistence migration.
 
 ## What the user accepted
 
@@ -128,7 +129,6 @@ Use professional language, not childish simplification. For example:
 Do not:
 
 - reopen accepted Checkpoints 1–4 without a reproducible regression;
-- merge PR #135 without explicit user approval;
 - start Checkpoint 5 export, repository materialization, or publication;
 - add provider/network generation;
 - widen agent finalization, lifecycle, review-decision, merge/revert, export, or publish authority;
@@ -139,7 +139,7 @@ Do not:
 
 ## Recommended first response from the next agent
 
-1. Confirm the exact accepted head, PR state, and latest CI.
+1. Confirm current `main` contains merge commit `bcc284684ea4d2e30158d3a20ebda57da77df93d` and inspect the latest CI before creating a fresh Checkpoint 4.5 branch.
 2. Summarize the accepted boundaries and the Checkpoint 4.5 feedback.
 3. Present a small contract/wireflow proposal for task list → task creation → progress → review → completion, plus explicit questions for prop preview and `VOID`/`BLOCKED`.
 4. Wait for user approval of that contract before implementing Checkpoint 4.5.

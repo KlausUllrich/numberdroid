@@ -4,12 +4,12 @@
 - **Acceptance date:** 2026-08-24
 - **Status:** explicitly user-accepted on 2026-08-24 through the combined Checkpoint 2C + 3 + 4 walkthrough after the conflict-control repair passed on Windows and Linux
 - **Branch:** `agent/numberdroid-studio-foundation`
-- **Draft PR:** `#135` — remains open, draft, unmerged, and unreleased
+- **Merged PR:** `#135` — merged to `main` on 2026-08-24 as `bcc284684ea4d2e30158d3a20ebda57da77df93d`
 - **Accepted prerequisites:** Checkpoints 1, 2A, 2B, 2C, and 3
 - **Original product candidate:** `7b5a82c6ed2a267076882d9f80417efe53eca993`
 - **Accepted repaired head:** `311581b42cf6bf6d4050132ec498dc61036e26e6`
 - **Original candidate/CI:** run `32629426116` passed — root job `97169764514`, Studio job `97169764462`
-- **Acceptance repair/CI:** run `32673522709` passed root, Studio, and Windows jobs; Studio and Windows each passed 266/266 tests; no merge, release, runtime export, materialization, or publish is authorized
+- **Acceptance repair/CI:** run `32673522709` passed root, Studio, and Windows jobs; Studio and Windows each passed 266/266 tests; the run itself did not authorize merge, release, runtime export, materialization, or publish
 
 This record includes explicit user acceptance of the bounded Checkpoint 4 implementation after the live conflict-control repair. Acceptance approves isolated delegated work and owner review control without widening finalization, export, publication, or Numberdroid runtime authority.
 
@@ -83,4 +83,4 @@ The user rebuilt the repaired head on Linux, repeated the conflict review, and r
 
 ## Gate disposition
 
-Checkpoint 4 is explicitly user-accepted as of 2026-08-24. The accepted repair explains **Waiting for your review**, prevents a conflicted completion before confirmation, and states that completing a task ends the assigned agent's ability to change it. PR #135 stays draft, open, unmerged, and unreleased until documentation closure, final CI, and a separate explicit merge decision.
+Checkpoint 4 is explicitly user-accepted as of 2026-08-24. The accepted repair explains **Waiting for your review**, prevents a conflicted completion before confirmation, and states that completing a task ends the assigned agent's ability to change it. After documentation-head run `32711949905` passed, the user separately authorized PR #135 to merge; merge commit `bcc284684ea4d2e30158d3a20ebda57da77df93d` is now the canonical `main` baseline.

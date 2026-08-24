@@ -3,7 +3,7 @@
 - **Date:** 2026-08-22
 - **Status:** explicitly user-accepted on 2026-08-24 through the combined Checkpoint 2C + 3 + 4 walkthrough
 - **Branch:** `agent/numberdroid-studio-foundation`
-- **Draft PR:** `#135` — remains open, draft, unmerged, and unreleased
+- **Merged PR:** `#135` — merged to `main` on 2026-08-24 as `bcc284684ea4d2e30158d3a20ebda57da77df93d`
 - **Accepted prerequisites:** Checkpoint 2A and Checkpoint 2B
 - **Published candidate commit:** `0382ad1827db56c07be3a32b59dc43dff78500ba`
 - **Published CI/evidence:** run `32580111158` — root job `97048089489` and Studio job `97048089540` passed
@@ -121,4 +121,4 @@ Final acceptance-head run `32673522709` passed the complete 266-test Studio suit
 
 ## Gate disposition
 
-Checkpoint 2C is explicitly user-accepted as of 2026-08-24. PR #135 remains draft, open, unmerged, and unreleased pending the separately authorized documentation closure, final CI, and explicit merge decision.
+Checkpoint 2C is explicitly user-accepted as of 2026-08-24. After the documentation closure and green CI, the user separately authorized PR #135 to merge; merge commit `bcc284684ea4d2e30158d3a20ebda57da77df93d` is now the canonical `main` baseline.
