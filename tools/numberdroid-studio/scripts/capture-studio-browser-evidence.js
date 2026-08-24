@@ -391,7 +391,7 @@ try {
   }
   if (mode === 'checkpoint-3' && expectedWorkspace === 'rooms') {
     await devtools.send('Runtime.evaluate', {
-      expression: `document.querySelector('[data-room-control="workflow-step"][data-room-step="${checkpoint3Focus === 'proposal' ? 'props' : 'check'}"]')?.click()`,
+      expression: `document.querySelector('[data-room-control="workflow-step"][data-room-step="props"]')?.click()`,
       returnByValue: true,
     }, sessionId);
     await devtools.send('Runtime.evaluate', {
