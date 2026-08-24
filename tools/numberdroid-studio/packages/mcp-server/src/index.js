@@ -1,0 +1,368 @@
+import { MAX_ATLAS_JOB_ATTEMPTS, StudioError } from '../../domain/src/index.js';
+
+function commandInputSchema(definition) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['schemaVersion', 'commandId', 'idempotencyKey', 'projectId', 'baseRevision', 'expectedVersion', 'payload'],
+    properties: {
+      schemaVersion: { type: 'integer', enum: [1] },
+      commandId: { type: 'string' },
+      idempotencyKey: { type: 'string' },
+      projectId: { type: 'string' },
+      baseRevision: { type: 'integer', minimum: 0 },
+      expectedVersion: { type: 'integer', minimum: 0 },
+      dryRun: { type: 'boolean', default: false },
+      payload: definition.payloadSchema,
+    },
+  };
+}
+
+function assetQueryInputSchema() {
+  const id = {
+    type: 'string',
+    minLength: 1,
+    maxLength: 128,
+    pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$',
+  };
+  const boundedStrings = (values = null) => ({
+    type: 'array',
+    maxItems: 32,
+    uniqueItems: true,
+    items: {
+      type: 'string',
+      maxLength: 128,
+      ...(values ? { enum: values } : {}),
+    },
+  });
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['schemaVersion', 'projectId'],
+    properties: {
+      schemaVersion: { type: 'integer', enum: [1] },
+      projectId: id,
+      assetId: id,
+      proposalId: id,
+      text: { type: 'string', minLength: 1, maxLength: 160 },
+      kinds: boundedStrings(['surface', 'prop', 'item']),
+      lifecycles: boundedStrings(['DRAFT', 'METADATA_COMPLETE', 'VALIDATED', 'FINAL']),
+      tags: boundedStrings(),
+      findingSeverities: boundedStrings(['ERROR', 'WARNING', 'INFO']),
+      includeProposals: { type: 'boolean' },
+      limit: { type: 'integer', minimum: 1, maximum: 100 },
+    },
+  };
+}
+
+function roomQueryInputSchema() {
+  const id = { type: 'string', minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$' };
+  return {
+    type: 'object', additionalProperties: false, required: ['schemaVersion', 'projectId'],
+    properties: {
+      schemaVersion: { type: 'integer', enum: [1] },
+      projectId: id,
+      roomVariantId: id,
+      roomArchetypeId: id,
+      proposalId: id,
+      kinds: { type: 'array', maxItems: 2, uniqueItems: true, items: { type: 'string', enum: ['room', 'hallway'] } },
+      lifecycles: { type: 'array', maxItems: 3, uniqueItems: true, items: { type: 'string', enum: ['DRAFT', 'VALIDATED', 'FINAL'] } },
+      includeVersions: { type: 'boolean' },
+      includeProposals: { type: 'boolean' },
+      limit: { type: 'integer', minimum: 1, maximum: 100 },
+    },
+  };
+}
+
+/**
+ * Transport-neutral, MCP-shaped tool contract. The official MCP SDK transport
+ * is a Checkpoint 1B adapter; it registers these secured definitions without
+ * duplicating application behavior.
+ */
+export function createAgentToolCatalog(studioService, { contextProvider, agentTaskService = null } = {}) {
+  if (!studioService) {
+    throw new StudioError('VALIDATION_ERROR', 'A StudioService is required.');
+  }
+  if (typeof contextProvider !== 'function') {
+    throw new StudioError('VALIDATION_ERROR', 'A trusted MCP host contextProvider is required.');
+  }
+
+  const durableAssetSurfaceReady = studioService.agentAttemptAuditReady === true
+    && studioService.durableJobStoreReady === true
+    && studioService.durableAssetStoreReady === true;
+  const durableRoomSurfaceReady = durableAssetSurfaceReady
+    && studioService.durableRoomStoreReady === true;
+  const agentDefinitions = studioService.commandCatalog.filter(
+    (definition) => !definition.ownerOnly
+      && definition.type !== 'project.create'
+      && (!definition.requiresTaskBranch || agentTaskService || studioService.taskBranchReady === true)
+      && (!definition.requiresDurableAgentLedger || studioService.agentAttemptAuditReady === true)
+      && (!definition.requiresDurableJobStore || studioService.durableJobStoreReady === true)
+      && (!definition.requiresDurableAssetStore || durableAssetSurfaceReady)
+      && (!definition.requiresDurableRoomStore || durableRoomSurfaceReady),
+  );
+
+  async function authority(invocationContext, requestedProjectId) {
+    const context = await contextProvider(invocationContext);
+    if (!context?.projectId) {
+      throw new StudioError(
+        'UNTRUSTED_AGENT_CONTEXT',
+        'The MCP host did not provide a trusted project binding.',
+      );
+    }
+    if (context.projectId !== requestedProjectId) {
+      throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside the MCP host context.', {
+        contextProjectId: context.projectId,
+        requestedProjectId,
+      });
+    }
+    return context;
+  }
+
+  const commandTools = agentDefinitions.map((definition) => ({
+    name: definition.toolName,
+    title: definition.type,
+    description: definition.description,
+    inputSchema: commandInputSchema(definition),
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    execute: async (input, invocationContext) => {
+      const context = await authority(invocationContext, input.projectId);
+      const targetService = definition.requiresTaskBranch && agentTaskService ? agentTaskService : studioService;
+      return targetService.execute({
+        schemaVersion: input.schemaVersion,
+        commandId: input.commandId,
+        idempotencyKey: input.idempotencyKey,
+        type: definition.type,
+        projectId: input.projectId,
+        baseRevision: input.baseRevision,
+        expectedVersion: input.expectedVersion,
+        dryRun: input.dryRun ?? false,
+        payload: input.payload,
+      }, context, { signal: invocationContext?.mcpReq?.signal });
+    },
+  }));
+
+  const atlasJobTools = studioService.durableJobStoreReady === true
+    && studioService.agentAttemptAuditReady === true ? [
+    {
+      name: 'studio_atlas_propose_grid',
+      title: 'Propose an atlas grid',
+      description: 'Calculate a non-authoritative regular-grid proposal for an approved PNG source without pixel inference or mutation.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'expectedRevision', 'sourceId', 'rows', 'columns', 'margins', 'gapX', 'gapY'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] },
+          projectId: { type: 'string' },
+          expectedRevision: { type: 'integer', minimum: 1 },
+          sourceId: { type: 'string' },
+          rows: { type: 'integer', minimum: 1, maximum: 64 },
+          columns: { type: 'integer', minimum: 1, maximum: 64 },
+          margins: {
+            type: 'object', additionalProperties: false,
+            required: ['top', 'right', 'bottom', 'left'],
+            properties: Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [side, { type: 'integer', minimum: 0 }])),
+          },
+          gapX: { type: 'integer', minimum: 0 },
+          gapY: { type: 'integer', minimum: 0 },
+          rectangleIdPrefix: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.proposeAtlasGrid(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_job_read',
+      title: 'Read a Studio job',
+      description: 'Read the current durable state and result metadata for a project-scoped Studio job.',
+      inputSchema: {
+        type: 'object', additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'jobId'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] },
+          projectId: { type: 'string' },
+          jobId: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.readJob(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_job_cancel',
+      title: 'Cancel a Studio job',
+      description: 'Request durable cooperative cancellation of a queued or running atlas preview job.',
+      inputSchema: {
+        type: 'object', additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'jobId', 'operationIdempotencyKey'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' },
+          jobId: { type: 'string' }, operationIdempotencyKey: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.cancelJob(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_job_retry',
+      title: 'Retry a Studio job',
+      description: 'Queue a new audited attempt for a failed or cancelled atlas preview job.',
+      inputSchema: {
+        type: 'object', additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'jobId', 'expectedAttempt', 'operationIdempotencyKey'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' },
+          jobId: { type: 'string' }, expectedAttempt: { type: 'integer', minimum: 1, maximum: MAX_ATLAS_JOB_ATTEMPTS },
+          operationIdempotencyKey: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.retryJob(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_job_discard',
+      title: 'Discard a Studio job',
+      description: 'Release temporary outputs from a terminal unapplied job; applied jobs cannot be discarded.',
+      inputSchema: {
+        type: 'object', additionalProperties: false,
+        required: ['schemaVersion', 'projectId', 'jobId', 'operationIdempotencyKey'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' },
+          jobId: { type: 'string' }, operationIdempotencyKey: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.discardJob(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+  ] : [];
+
+  const assetTools = durableAssetSurfaceReady ? [{
+    name: 'studio_asset_query',
+    title: 'Query V2 Studio assets',
+    description: 'Read bounded project-scoped V2 asset heads, findings, and proposal state without exposing host authority.',
+    inputSchema: assetQueryInputSchema(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    execute: async (input, invocationContext) => {
+      const context = await authority(invocationContext, input.projectId);
+      return studioService.queryAssets(input, context, { signal: invocationContext?.mcpReq?.signal });
+    },
+  }] : [];
+
+  const roomTools = durableRoomSurfaceReady ? [{
+    name: 'studio_room_query',
+    title: 'Query Studio rooms and hallways',
+    description: 'Read bounded project-scoped room/hallway heads, immutable versions, findings, exact asset pins, and proposal state.',
+    inputSchema: roomQueryInputSchema(),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    execute: async (input, invocationContext) => {
+      const context = await authority(invocationContext, input.projectId);
+      return studioService.queryRooms(input, context, { signal: invocationContext?.mcpReq?.signal });
+    },
+  }] : [];
+
+  const taskTools = studioService.taskBranchReady === true ? [
+    {
+      name: 'studio_task_read',
+      title: 'Read bound Studio task',
+      description: 'Read the current bound task state, review, budget, and durable progress timeline without exposing grant identity.',
+      inputSchema: {
+        type: 'object', additionalProperties: false, required: ['schemaVersion', 'projectId'],
+        properties: { schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' } },
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.readTask(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+    {
+      name: 'studio_task_submit_for_review',
+      title: 'Submit bound task for review',
+      description: 'Close the active branch for further mutation and submit its immutable result for semantic human review.',
+      inputSchema: {
+        type: 'object', additionalProperties: false, required: ['schemaVersion', 'projectId', 'reviewId'],
+        properties: {
+          schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' }, reviewId: { type: 'string' },
+        },
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.submitTaskForReview(input, context, { signal: invocationContext?.mcpReq?.signal });
+      },
+    },
+  ] : [];
+
+  return [
+    {
+      name: 'studio_command_catalog_list',
+      title: 'List Studio semantic commands',
+      description: 'Return the exact command catalog exposed to visual and agent adapters.',
+      inputSchema: { type: 'object', additionalProperties: false },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async () => ({ schemaVersion: 1, commands: agentDefinitions }),
+    },
+    {
+      name: 'studio_project_read',
+      title: 'Read Studio project head',
+      description: 'Read the current project snapshot when the actor has project.read.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['schemaVersion', 'projectId'],
+        properties: { schemaVersion: { type: 'integer', enum: [1] }, projectId: { type: 'string' } },
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        if (input.schemaVersion !== 1) {
+          throw new StudioError('SCHEMA_VERSION_UNSUPPORTED', 'Unsupported Studio read schema version.', {
+            schemaVersion: input.schemaVersion,
+            supported: [1],
+          });
+        }
+        const context = await authority(invocationContext, input.projectId);
+        return studioService.readProject(
+          { projectId: input.projectId },
+          context,
+          { signal: invocationContext?.mcpReq?.signal },
+        );
+      },
+    },
+    ...commandTools,
+    ...atlasJobTools,
+    ...assetTools,
+    ...roomTools,
+    ...taskTools,
+  ];
+}
+
+export function findAgentTool(tools, name) {
+  const tool = tools.find((candidate) => candidate.name === name);
+  if (!tool) {
+    throw new StudioError('TOOL_NOT_FOUND', `Unknown Studio agent tool: ${name}.`, { name });
+  }
+  return tool;
+}
+
+export { buildOfficialMcpServer, serveOfficialMcpStdio } from './official-server.js';
+export { jsonSchemaToZod } from './schema-adapter.js';

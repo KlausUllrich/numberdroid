@@ -109,6 +109,10 @@ A smaller issue with the player's own in-game model/presentation is known as of 
 
 PICO physical grounding is now independently **LIVE_ACCEPTED**. That acceptance does not imply the separate player-model issue is resolved. Do not regenerate the accepted PICO source or alter accepted grounding unless the concrete issue is identified and routed to the appropriate Character/Engineering contract.
 
+## Authoring tools
+
+- `../tools/numberdroid-studio/README.md` — **Numberdroid Studio:** standalone-ready local visual authoring product for source atlases, semantic assets, rooms/hallways, agent-observable workflows and deterministic export candidates. Studio requirements and architecture remain encapsulated with the tool.
+
 ## History
 
 `history/` preserves previous handoffs, experiments, dated discoveries and superseded documentation. It is useful evidence but **not current authority**.

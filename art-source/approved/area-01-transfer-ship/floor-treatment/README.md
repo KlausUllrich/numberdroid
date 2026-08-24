@@ -12,6 +12,21 @@ This family stores immutable approved high-resolution floor-treatment source ima
 - role: accepted Family floor source board
 - deterministic runtime materializer: `scripts/materialize-family-floor.mjs`
 
+### Family Hygiene floor 2×2 source
+
+- file: `source/family-hygiene-floor-2x2__source-approved__2026-08-21.png`
+- status: **SOURCE_APPROVED / RUNTIME INTEGRATION OPEN**
+- dimensions: **1254 × 1254 px**
+- bytes: **2,720,519**
+- SHA-256: `67b87430b0c78b6bb9b3af5b3a8bc75c9156a38d75b433a1cbbef8fd7979c71e`
+- logical source grid: **2 × 2 / 4 source cells**
+- Studio role: immutable realistic Checkpoint 2A intake/review fixture
+
+The original bytes are approved source authority only. No runtime materializer or
+gameplay-scale integration has been accepted yet, so this entry must not be read as
+`LIVE_ACCEPTED` room treatment. Studio evidence imports these exact bytes and records
+the digest, dimensions and byte size; it does not infer provider, prompt, model or seed.
+
 ### Transfer floor 6×6 atlas
 
 - file: `source/transfer-floor-atlas-6x6__source-approved__2026-08-19.png`

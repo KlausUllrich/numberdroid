@@ -1,0 +1,270 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
+import { copyFile, link, lstat, mkdir, open, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { StudioError, invariant } from '../../../domain/src/errors.js';
+import { inspectImageHeader, verifyImageFile } from './image-metadata.js';
+
+const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+
+async function syncDirectory(path) {
+  let handle;
+  try {
+    handle = await open(path, 'r');
+    await handle.sync();
+  } catch (error) {
+    if (!['EINVAL', 'ENOTSUP', 'EISDIR', 'EPERM'].includes(error.code)) throw error;
+  } finally {
+    await handle?.close();
+  }
+}
+
+function iterableFor(input) {
+  if (Buffer.isBuffer(input) || input instanceof Uint8Array) return [Buffer.from(input)];
+  invariant(input && input[Symbol.asyncIterator], 'VALIDATION_ERROR', 'Artifact input must be bytes or an async iterable.');
+  return input;
+}
+
+export class ContentAddressedArtifactStore {
+  #root;
+  #staging;
+  #live;
+  #quarantine;
+  #limits;
+
+  constructor({
+    rootDirectory,
+    limits = {
+      'image/png': { maxBytes: 128 * 1024 * 1024, maxWidth: 16384, maxHeight: 16384 },
+      'image/webp': { maxBytes: 128 * 1024 * 1024, maxWidth: 16384, maxHeight: 16384 },
+    },
+  }) {
+    invariant(typeof rootDirectory === 'string' && rootDirectory.length > 0, 'VALIDATION_ERROR', 'CAS rootDirectory is required.');
+    this.#root = resolve(rootDirectory);
+    this.#staging = join(this.#root, 'staging');
+    this.#live = join(this.#root, 'sha256');
+    this.#quarantine = join(this.#root, 'quarantine');
+    this.#limits = structuredClone(limits);
+  }
+
+  get rootDirectory() { return this.#root; }
+
+  async initialize() {
+    await Promise.all([
+      mkdir(this.#staging, { recursive: true, mode: 0o700 }),
+      mkdir(this.#live, { recursive: true, mode: 0o700 }),
+      mkdir(this.#quarantine, { recursive: true, mode: 0o700 }),
+    ]);
+  }
+
+  #assertDigest(digest) {
+    invariant(DIGEST_PATTERN.test(digest), 'ARTIFACT_INVALID_DIGEST', 'Artifact digest must be lowercase SHA-256 hex.', { digest });
+  }
+
+  #path(digest) {
+    this.#assertDigest(digest);
+    return join(this.#live, digest.slice(0, 2), digest.slice(2, 4), digest);
+  }
+
+  async ingest(input, { mediaType, expectedDigest = null, limits = null } = {}) {
+    await this.initialize();
+    const configuredLimit = this.#limits[mediaType];
+    invariant(configuredLimit, 'ARTIFACT_UNSUPPORTED_MEDIA', `Unsupported artifact media type: ${mediaType}.`, { mediaType });
+    const limit = limits === null ? configuredLimit : {
+      maxBytes: Math.min(configuredLimit.maxBytes, limits.maxBytes),
+      maxWidth: Math.min(configuredLimit.maxWidth, limits.maxWidth),
+      maxHeight: Math.min(configuredLimit.maxHeight, limits.maxHeight),
+    };
+    invariant(
+      Number.isInteger(limit.maxBytes) && limit.maxBytes > 0
+        && Number.isInteger(limit.maxWidth) && limit.maxWidth > 0
+        && Number.isInteger(limit.maxHeight) && limit.maxHeight > 0,
+      'VALIDATION_ERROR',
+      'Artifact intake limits must be positive integers.',
+    );
+    if (expectedDigest !== null) this.#assertDigest(expectedDigest);
+
+    const stagingPath = join(this.#staging, `${randomUUID()}.part`);
+    const handle = await open(stagingPath, 'wx', 0o600);
+    const hash = createHash('sha256');
+    const headerParts = [];
+    let headerBytes = 0;
+    let byteSize = 0;
+    let position = 0;
+    try {
+      for await (const rawChunk of iterableFor(input)) {
+        const chunk = Buffer.from(rawChunk);
+        byteSize += chunk.length;
+        invariant(byteSize <= limit.maxBytes, 'ARTIFACT_TOO_LARGE', 'Artifact exceeds its media byte limit.', {
+          mediaType,
+          maxBytes: limit.maxBytes,
+        });
+        hash.update(chunk);
+        if (headerBytes < 64) {
+          const part = chunk.subarray(0, Math.min(chunk.length, 64 - headerBytes));
+          headerParts.push(part);
+          headerBytes += part.length;
+        }
+        let offset = 0;
+        while (offset < chunk.length) {
+          const { bytesWritten } = await handle.write(chunk, offset, chunk.length - offset, position);
+          invariant(bytesWritten > 0, 'ARTIFACT_WRITE_FAILED', 'Artifact staging write made no progress.');
+          offset += bytesWritten;
+          position += bytesWritten;
+        }
+      }
+      const dimensions = inspectImageHeader(Buffer.concat(headerParts), mediaType);
+      invariant(
+        dimensions.width <= limit.maxWidth && dimensions.height <= limit.maxHeight,
+        'ARTIFACT_DIMENSIONS_EXCEEDED',
+        'Artifact exceeds its image dimension limit.',
+        { ...dimensions, maxWidth: limit.maxWidth, maxHeight: limit.maxHeight },
+      );
+      await handle.sync();
+      await handle.close();
+      await verifyImageFile(stagingPath, mediaType);
+
+      const digest = hash.digest('hex');
+      invariant(!expectedDigest || expectedDigest === digest, 'ARTIFACT_DIGEST_MISMATCH', 'Artifact digest differs from expectedDigest.', {
+        expectedDigest,
+        actualDigest: digest,
+      });
+      const destination = this.#path(digest);
+      await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+      let deduplicated = false;
+      try {
+        // link(2) is an atomic, no-clobber publication because staging and live
+        // are deliberately on the same filesystem. rename(2) would replace an
+        // object when two equal ingests race after both observing ENOENT.
+        await link(stagingPath, destination);
+        await syncDirectory(dirname(destination));
+        await unlink(stagingPath);
+        await syncDirectory(this.#staging);
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+        const existing = await lstat(destination);
+        invariant(existing.isFile() && !existing.isSymbolicLink(), 'ARTIFACT_CORRUPT', 'Existing CAS object is not a regular file.', { digest });
+        const verification = await this.verify(digest);
+        invariant(verification.byteSize === byteSize, 'ARTIFACT_CORRUPT', 'Existing CAS object size differs.', { digest });
+        await unlink(stagingPath);
+        deduplicated = true;
+      }
+      return {
+        schemaVersion: 1,
+        digest,
+        uri: `studio://artifacts/sha256/${digest}`,
+        mediaType,
+        byteSize,
+        ...dimensions,
+        deduplicated,
+      };
+    } catch (error) {
+      try { await handle.close(); } catch {}
+      await unlink(stagingPath).catch(() => {});
+      throw error;
+    }
+  }
+
+  async verify(digest) {
+    const path = this.#path(digest);
+    const info = await lstat(path).catch((error) => {
+      if (error.code === 'ENOENT') throw new StudioError('ARTIFACT_MISSING', 'CAS object is missing.', { digest });
+      throw error;
+    });
+    invariant(info.isFile() && !info.isSymbolicLink(), 'ARTIFACT_CORRUPT', 'CAS object is not a regular file.', { digest });
+    const hash = createHash('sha256');
+    let byteSize = 0;
+    for await (const chunk of createReadStream(path)) {
+      hash.update(chunk);
+      byteSize += chunk.length;
+    }
+    const actualDigest = hash.digest('hex');
+    invariant(actualDigest === digest, 'ARTIFACT_CORRUPT', 'CAS object no longer matches its digest.', {
+      digest,
+      actualDigest,
+    });
+    return { digest, byteSize, path };
+  }
+
+  async createReadStream(digest) {
+    const verified = await this.verify(digest);
+    return createReadStream(verified.path);
+  }
+
+  async listLiveDigests() {
+    await this.initialize();
+    const digests = [];
+    for (const first of await readdir(this.#live, { withFileTypes: true })) {
+      if (!first.isDirectory() || !/^[a-f0-9]{2}$/.test(first.name)) continue;
+      for (const second of await readdir(join(this.#live, first.name), { withFileTypes: true })) {
+        if (!second.isDirectory() || !/^[a-f0-9]{2}$/.test(second.name)) continue;
+        for (const entry of await readdir(join(this.#live, first.name, second.name), { withFileTypes: true })) {
+          if (entry.isFile() && DIGEST_PATTERN.test(entry.name)) digests.push(entry.name);
+        }
+      }
+    }
+    return digests.sort();
+  }
+
+  async markUnreferenced({ referencedDigests, now = new Date(), retentionMs }) {
+    invariant(referencedDigests instanceof Set, 'VALIDATION_ERROR', 'referencedDigests must be a Set.');
+    invariant(Number.isFinite(retentionMs) && retentionMs >= 0, 'VALIDATION_ERROR', 'retentionMs must be non-negative.');
+    const marked = [];
+    for (const digest of await this.listLiveDigests()) {
+      if (referencedDigests.has(digest)) continue;
+      const source = this.#path(digest);
+      const info = await stat(source);
+      if (now.getTime() - info.mtimeMs < retentionMs) continue;
+      const target = join(this.#quarantine, `${digest}.${now.getTime()}`);
+      await rename(source, target);
+      marked.push({ digest, path: target, markedAt: now.toISOString() });
+    }
+    await syncDirectory(this.#quarantine);
+    return marked;
+  }
+
+  async sweepQuarantine({ now = new Date(), retentionMs }) {
+    await this.initialize();
+    const removed = [];
+    for (const entry of await readdir(this.#quarantine, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const [digest, timestamp] = entry.name.split('.');
+      if (!DIGEST_PATTERN.test(digest) || !/^\d+$/.test(timestamp)) continue;
+      if (now.getTime() - Number(timestamp) < retentionMs) continue;
+      await unlink(join(this.#quarantine, entry.name));
+      removed.push(digest);
+    }
+    return removed.sort();
+  }
+
+  async createManifest(digests = null) {
+    const selected = digests ?? await this.listLiveDigests();
+    const entries = [];
+    for (const digest of [...selected].sort()) {
+      const verified = await this.verify(digest);
+      entries.push({ digest, byteSize: verified.byteSize });
+    }
+    return { schemaVersion: 1, algorithm: 'sha256', entries };
+  }
+
+  async backupTo(destinationRoot, digests = null) {
+    const destination = new ContentAddressedArtifactStore({ rootDirectory: destinationRoot, limits: this.#limits });
+    await destination.initialize();
+    const selected = digests ?? await this.listLiveDigests();
+    for (const digest of selected) {
+      await this.verify(digest);
+      const target = destination.#path(digest);
+      await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+      try {
+        await copyFile(this.#path(digest), target, constants.COPYFILE_EXCL);
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+      }
+      await destination.verify(digest);
+    }
+    const manifest = await destination.createManifest(new Set(selected));
+    await writeFile(join(resolve(destinationRoot), 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+    return manifest;
+  }
+}

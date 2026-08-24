@@ -1,0 +1,39 @@
+{
+  "name": "@numberdroid/studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first, agent-first visual authoring foundation for Numberdroid rooms and levels.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm run check",
+    "check": "node --check packages/domain/src/atlas-definition.js && node --check packages/domain/src/asset-definition.js && node --check packages/domain/src/room-definition.js && node --check packages/domain/src/agent-task.js && node --check packages/application/src/studio-service.js && node --check packages/application/src/agent-task-service.js && node --check packages/preview/src/index.js && node --check packages/persistence/src/sqlite/sqlite-source-intake-store.js && node --check packages/persistence/src/sqlite/sqlite-agent-attempt-store.js && node --check packages/persistence/src/sqlite/sqlite-agent-task-store.js && node --check packages/persistence/src/sqlite/sqlite-job-store.js && node --check packages/persistence/src/sqlite/sqlite-project-store.js && node --check packages/persistence/src/bundle/project-bundle.js && node --check packages/persistence/src/bundle/sqlite-project-bundle.js && node --check packages/persistence/src/integrity/workspace-integrity.js && node --check packages/mcp-server/src/index.js && node --check packages/mcp-server/src/official-server.js && node --check apps/studio-server/src/server.js && node --check apps/studio-server/src/atlas-preview-worker.js && node --check apps/studio-server/src/mcp-pairing-broker.js && node --check apps/studio-server/public/app.js && node --check apps/studio-mcp/src/main.js && node --check apps/studio-admin/src/main.js && node --check scripts/prepare-checkpoint-2c-visual-evidence.js && node --check scripts/prepare-checkpoint-3-visual-evidence.js && node --check scripts/prepare-checkpoint-4-visual-evidence.js && node --check scripts/capture-studio-browser-evidence.js && node --check scripts/verify-checkpoint-2c-bundle-roundtrip.js && node --check scripts/finalize-checkpoint-2c-evidence.js",
+    "dev": "node apps/studio-server/src/server.js",
+    "demo:seed": "node apps/studio-server/src/seed-demo.js",
+    "evidence:verify": "node scripts/checkpoint-1a-evidence.js",
+    "evidence:visual-prepare": "node scripts/prepare-visual-evidence.js",
+    "mcp": "node apps/studio-mcp/src/main.js",
+    "admin": "node apps/studio-admin/src/main.js",
+    "test": "node --test tests/*.node-test.js",
+    "test:watch": "node --test --watch tests/*.node-test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "better-sqlite3": "13.0.3",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0"
+  },
+  "exports": {
+    ".": "./packages/application/src/index.js",
+    "./domain": "./packages/domain/src/index.js",
+    "./application": "./packages/application/src/index.js",
+    "./persistence": "./packages/persistence/src/index.js",
+    "./preview": "./packages/preview/src/index.js",
+    "./mcp-server": "./packages/mcp-server/src/index.js",
+    "./http-server": "./apps/studio-server/src/server.js"
+  }
+}

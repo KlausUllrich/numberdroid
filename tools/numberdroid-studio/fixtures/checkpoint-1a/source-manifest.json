@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "sourceLedgerFormat": "numberdroid-studio-json-ledger",
+  "sourceFormatVersion": 1,
+  "sourceDirectory": "fixtures/checkpoint-1a/rev6-json",
+  "files": [
+    {
+      "name": "bnVtYmVyZHJvaWQtc3R1ZGlvLWRlbW8.json",
+      "byteSize": 22158,
+      "sha256": "78af919cb0cb44c7d31d9270b81f0dd58ede71a1dffcd0e5495627c5c7bb50b8"
+    }
+  ],
+  "projects": [
+    {
+      "filename": "bnVtYmVyZHJvaWQtc3R1ZGlvLWRlbW8.json",
+      "projectId": "numberdroid-studio-demo",
+      "aggregateIds": {
+        "project": [
+          "numberdroid-studio-demo"
+        ],
+        "grant": [
+          "grant.demo-atlas"
+        ],
+        "source": [
+          "source.family-hygiene-atlas"
+        ],
+        "asset": [
+          "tile.hygiene.floor.clean-a"
+        ],
+        "room": [],
+        "level": []
+      },
+      "headRevision": 6,
+      "revisionCount": 6,
+      "revisionOrder": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "eventOrder": [
+        "activity:demo.create",
+        "activity:demo.grant-atlas-agent",
+        "activity:demo.register-atlas",
+        "activity:demo.define-floor-tile",
+        "activity:demo.request-review",
+        "activity:demo.control.revoke-grant"
+      ],
+      "activityCount": 6,
+      "grantAudit": [
+        {
+          "grantId": "grant.demo-atlas",
+          "revokedAt": "2026-08-21T13:44:00.000Z",
+          "revokeReason": "Checkpoint 1A user-control demonstration.",
+          "status": "REVOKED"
+        }
+      ],
+      "artifactReferences": [
+        {
+          "sourceId": "source.family-hygiene-atlas",
+          "artifactUri": "studio://numberdroid-studio-demo/artifacts/family-hygiene-atlas.png",
+          "mediaType": "image/png"
+        }
+      ],
+      "validationSummary": {
+        "status": "NOT_AVAILABLE_IN_C1A",
+        "findingCount": 0
+      },
+      "sourceProjectionHash": "d8cfcaac19bff5b2e5b56cce98e3b6f5030ee3c51312f141510c1faad710b61c",
+      "expectedEffectiveProjectionHash": "8a73afdb11be00aa5abfab941ae72ba5e5e88e3955db4ea4359152fcc4ec63e8"
+    }
+  ],
+  "manifestHash": "7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673"
+}

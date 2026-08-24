@@ -1,0 +1,35 @@
+export { InMemoryProjectStore } from './in-memory-project-store.js';
+export { JsonProjectStore } from './json-project-store.js';
+export { ContentAddressedArtifactStore } from './artifacts/content-addressed-artifact-store.js';
+export { createWorkspaceBackup, restoreWorkspaceBackup, verifyWorkspaceBackup } from './backup/workspace-backup.js';
+export {
+  PROJECT_BUNDLE_LIMITS,
+  canonicalBundleJson,
+  createPortableProjectBundle,
+  importPortableProjectBundle,
+  validatePortableProjectDocument,
+  verifyPortableProjectBundle,
+} from './bundle/project-bundle.js';
+export {
+  createSqliteProjectBundle,
+  importSqliteProjectBundle,
+  projectSqlitePortableDocument,
+  validateSqlitePortableProject,
+  verifySqliteProjectBundle,
+} from './bundle/sqlite-project-bundle.js';
+export { verifyWorkspaceIntegrity } from './integrity/workspace-integrity.js';
+export { createJsonSourceManifest, migrateJsonToSqlite } from './migration/json-to-sqlite-migrator.js';
+export { SqliteArtifactMetadataStore } from './sqlite/sqlite-artifact-metadata-store.js';
+export { SqliteAgentAttemptStore } from './sqlite/sqlite-agent-attempt-store.js';
+export { SqliteAgentTaskStore, TaskBranchProjectStore } from './sqlite/sqlite-agent-task-store.js';
+export { SqliteHostBindingStore } from './sqlite/sqlite-host-binding-store.js';
+export { SqliteJobStore } from './sqlite/sqlite-job-store.js';
+export { SqliteProjectStore } from './sqlite/sqlite-project-store.js';
+export { SqliteSourceIntakeStore } from './sqlite/sqlite-source-intake-store.js';
+export { SqliteWorkspace } from './sqlite/sqlite-workspace.js';
+export {
+  SQLITE_MIGRATIONS,
+  loadMigrationDefinitions,
+  migrationChecksum,
+  runSqliteMigrations,
+} from './sqlite/migration-runner.js';

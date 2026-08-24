@@ -1,0 +1,5 @@
+# Fixed-checksum migration sources must have stable checkout bytes.
+tools/numberdroid-studio/packages/persistence/src/sqlite/migrations/*.sql text eol=lf
+
+# Checkpoint 1A evidence protects exact fixture bytes across operating systems.
+tools/numberdroid-studio/fixtures/checkpoint-1a/** text eol=lf

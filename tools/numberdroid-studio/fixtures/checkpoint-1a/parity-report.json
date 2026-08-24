@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "migrationId": "checkpoint-1a-to-1b",
+  "sourceManifestHash": "7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673",
+  "destinationSchemaVersion": 5,
+  "status": "VERIFIED",
+  "integrity": {
+    "ok": true,
+    "integrity": [
+      "ok"
+    ],
+    "foreignKeys": [],
+    "userVersion": 5
+  },
+  "workspaceIntegrity": {
+    "schemaVersion": 1,
+    "ok": true,
+    "database": {
+      "ok": true,
+      "integrity": [
+        "ok"
+      ],
+      "foreignKeys": [],
+      "userVersion": 5
+    },
+    "artifacts": {
+      "ok": true,
+      "referencedCount": 0,
+      "verifiedCount": 0,
+      "findings": []
+    }
+  },
+  "casManifest": {
+    "schemaVersion": 1,
+    "algorithm": "sha256",
+    "entries": []
+  },
+  "cutoverPerformed": false,
+  "projects": [
+    {
+      "projectId": "numberdroid-studio-demo",
+      "aggregateIds": {
+        "project": [
+          "numberdroid-studio-demo"
+        ],
+        "grant": [
+          "grant.demo-atlas"
+        ],
+        "source": [
+          "source.family-hygiene-atlas"
+        ],
+        "asset": [
+          "tile.hygiene.floor.clean-a"
+        ],
+        "room": [],
+        "level": []
+      },
+      "imported": true,
+      "headRevision": 6,
+      "revisionCount": 6,
+      "activityCount": 6,
+      "eventOrder": [
+        "activity:demo.create",
+        "activity:demo.grant-atlas-agent",
+        "activity:demo.register-atlas",
+        "activity:demo.define-floor-tile",
+        "activity:demo.request-review",
+        "activity:demo.control.revoke-grant"
+      ],
+      "grantAudit": [
+        {
+          "grantId": "grant.demo-atlas",
+          "revokedAt": "2026-08-21T13:44:00.000Z",
+          "revokeReason": "Checkpoint 1A user-control demonstration.",
+          "status": "REVOKED"
+        }
+      ],
+      "historicalDocumentHash": "fdad2bba8088b43a13044dc6a3161ca46b49168300833f78c3de78c09c636798",
+      "sourceProjectionHash": "d8cfcaac19bff5b2e5b56cce98e3b6f5030ee3c51312f141510c1faad710b61c",
+      "expectedEffectiveProjectionHash": "8a73afdb11be00aa5abfab941ae72ba5e5e88e3955db4ea4359152fcc4ec63e8",
+      "effectiveProjectionHash": "8a73afdb11be00aa5abfab941ae72ba5e5e88e3955db4ea4359152fcc4ec63e8",
+      "legacyGrantCount": 1,
+      "artifactReferences": [
+        {
+          "sourceId": "source.family-hygiene-atlas",
+          "artifactUri": "studio://numberdroid-studio-demo/artifacts/family-hygiene-atlas.png",
+          "mediaType": "image/png"
+        }
+      ],
+      "unresolvedArtifacts": [
+        {
+          "sourceId": "source.family-hygiene-atlas",
+          "artifactUri": "studio://numberdroid-studio-demo/artifacts/family-hygiene-atlas.png",
+          "finding": "MISSING_ARTIFACT"
+        }
+      ],
+      "validationSummary": {
+        "status": "NOT_AVAILABLE_IN_C1A",
+        "findingCount": 0
+      }
+    }
+  ]
+}

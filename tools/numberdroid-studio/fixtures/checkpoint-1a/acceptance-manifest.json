@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "checkpoint": "1A",
+  "baselineCommit": "2a7ca9cdde0179c8605163ea1f96ba1e6bce1e7d",
+  "visualFixtureSha256": "ca03b283bd2e17c703ea5424b0aefa22adef8052294260e5f152e8ed9a3d0b19",
+  "sourceManifestHash": "7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673",
+  "expected": {
+    "projectId": "numberdroid-studio-demo",
+    "visualHeadRevision": 5,
+    "visualActivityCount": 5,
+    "migrationHeadRevision": 6,
+    "migrationActivityCount": 6,
+    "sourceCount": 1,
+    "assetCount": 1,
+    "projectStatus": "in_review"
+  },
+  "visualEvidence": {
+    "status": "USER_ACCEPTED",
+    "acceptedAt": "2026-08-21",
+    "acceptedImplementationCommit": "41fad464cd2f904666f7dfecc8437f2286c3254c",
+    "workflowRunId": 32493595981,
+    "artifactId": 9450775977,
+    "artifactName": "numberdroid-studio-checkpoint-1b-visual",
+    "artifactDigest": "sha256:7fde350eb04be8c3bcc48098ac597d72ad8cf08dee1d652c1e0609755e0e997e",
+    "artifactRetentionThrough": "2026-09-04",
+    "permanentScreenshotBytesCommitted": false,
+    "baselineViewports": [
+      { "width": 1440, "height": 900 },
+      { "width": 1060, "height": 900 }
+    ]
+  }
+}

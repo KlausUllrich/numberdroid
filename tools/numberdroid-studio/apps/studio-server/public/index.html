@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Numberdroid Studio</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#overview" aria-label="Numberdroid Studio overview">
+          <span class="brand-mark" aria-hidden="true">N</span>
+          <span><strong>Numberdroid Studio</strong><small>Local authoring foundation</small></span>
+        </a>
+        <div class="project-controls">
+          <div class="agent-access-control">
+            <label for="agent-access-select">Agent access</label>
+            <div class="agent-access-input">
+              <select id="agent-access-select" aria-describedby="agent-access-state" disabled>
+                <option value="off">Off</option>
+                <option value="read_only">Read only</option>
+                <option value="propose_draft">Propose in draft</option>
+                <option value="execute_scoped">Scoped run</option>
+                <option value="custom">Custom… (later)</option>
+              </select>
+              <button id="agent-access-state" class="access-state" type="button" aria-expanded="false" aria-controls="agent-access-panel" disabled>OFF</button>
+            </div>
+            <section id="agent-access-panel" class="agent-access-panel" aria-label="Effective agent policy" hidden>
+              <div class="policy-heading"><strong>Effective policy</strong><button id="agent-access-close" type="button" aria-label="Close effective policy">×</button></div>
+              <dl id="agent-access-details" class="policy-details"></dl>
+              <ul id="agent-access-warnings" class="policy-warnings"></ul>
+              <div class="mcp-connections">
+                <div class="connection-heading">
+                  <strong>MCP connections</strong>
+                  <button id="agent-launcher-show" class="secondary" type="button">Show host setup</button>
+                </div>
+                <p id="agent-binding-support" class="connection-help" aria-live="polite"></p>
+                <p class="connection-section-label">Waiting for approval</p>
+                <p id="agent-pending-empty" class="binding-empty">No waiting hosts.</p>
+                <ul id="agent-pending-list" class="binding-list pending-host-list" aria-label="MCP hosts waiting for approval" aria-live="polite"></ul>
+                <p class="connection-section-label">Host connections</p>
+                <p id="agent-binding-empty" class="binding-empty">No host connections yet.</p>
+                <ul id="agent-binding-list" class="binding-list" aria-label="Active and historical MCP host connections"></ul>
+                <section id="agent-launcher-panel" class="binding-once" aria-label="Secret-free MCP host configuration" hidden>
+                  <strong>Start the local MCP host</strong>
+                  <p>This setup contains no credential. Return here to authorize the waiting host by its verification code.</p>
+                  <pre id="agent-launcher-config"></pre>
+                  <button id="agent-launcher-copy" class="secondary" type="button">Copy host setup</button>
+                </section>
+              </div>
+              <button id="agent-access-retry" class="secondary policy-retry" type="button" hidden>Retry last access change</button>
+              <p>DOM state grants nothing. Only a confirmed local-service operation may rotate policy, and every host call revalidates its immutable grant.</p>
+            </section>
+          </div>
+          <label class="sr-only" for="project-select">Project</label>
+          <select id="project-select" aria-label="Active project"></select>
+          <button id="demo-button" class="secondary" type="button">Create / load demo</button>
+          <button id="refresh-button" type="button">Refresh live status</button>
+        </div>
+      </header>
+
+      <aside class="workspace-nav" aria-label="Studio workspaces">
+        <p class="nav-label">Workspaces</p>
+        <nav id="workspace-nav">
+          <a class="active" href="#overview" data-workspace="overview"><span>01</span>Overview</a>
+          <a href="#sources" data-workspace="sources"><span>02</span>Sources</a>
+          <a href="#assets" data-workspace="assets"><span>03</span>Asset library</a>
+          <a href="#rooms" data-workspace="rooms"><span>04</span>Rooms</a>
+          <a href="#tasks" data-workspace="tasks"><span>05</span>Agent tasks</a>
+          <a href="#levels" data-workspace="levels"><span>06</span>Levels</a>
+          <a href="#activity" data-workspace="activity"><span>07</span>Activity</a>
+        </nav>
+        <div class="connection-state">
+          <span id="connection-dot" class="status-dot"></span>
+          <span><strong id="connection-label">Connecting</strong><small>Loopback project store</small></span>
+        </div>
+      </aside>
+
+      <main id="workspace" tabindex="-1">
+        <section class="hero">
+          <div>
+            <p class="eyebrow" id="workspace-eyebrow">Project overview</p>
+            <h1 id="project-name">No project selected</h1>
+            <p id="project-description">Create the safe demo project to see the shared command core in action.</p>
+          </div>
+          <div class="review-state">
+            <span id="project-status" class="status-pill">empty</span>
+            <small id="revision-label">Revision —</small>
+          </div>
+        </section>
+
+        <section id="workspace-content" class="workspace-content" aria-live="polite"></section>
+      </main>
+
+      <aside class="activity-panel">
+        <div class="panel-heading">
+          <div><p class="eyebrow">Agent observable</p><h2>Activity feed</h2></div>
+          <span id="activity-count" class="count">0</span>
+        </div>
+        <ol id="activity-list" class="activity-list"></ol>
+      </aside>
+    </div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -89,7 +89,7 @@ Family Living floor v1       LIVE_ACCEPTED
 Main Hall floor v1           LIVE_ACCEPTED
 Transfer Room floor v1       LIVE_ACCEPTED incl. Hero anchoring
 Family Child floor           OPEN / not yet differentiated
-Family Hygiene floor         OPEN / not yet differentiated
+Family Hygiene floor source  SOURCE_APPROVED / runtime integration OPEN
 PRIMUS floor                 OPEN
 Wall AO                      OPEN
 Usage/wear FloorFX           OPEN
@@ -105,7 +105,7 @@ Yellow Core                  LIVE_ACCEPTED static — 96×96 transfer-fx
 Flow Regulator source        APPROVED + ARCHIVED
 Flow Regulator runtime       128×128 CANDIDATE / final scale-shadow-collision-bus acceptance OPEN
 
-CURRENT → finish Child / Hygiene / PRIMUS floor identities + wall AO + authored wear
+CURRENT → finish Child / PRIMUS identities, integrate Hygiene approved source + wall AO + authored wear
 ACTIVE  → finish Flow shadow/collision/use-space/bus
 NEXT    → PRIMUS hero/system art
 NEXT    → useful domestic replacements
@@ -150,7 +150,7 @@ Current room status:
 
 - **Family Living** — LIVE_ACCEPTED v1; warmer/lived-in civilian baseline;
 - **Child** — OPEN; related but softer/personal identity still required;
-- **Hygiene** — OPEN; cleaner functional/non-slip identity still required;
+- **Hygiene** — SOURCE_APPROVED on 2026-08-21; runtime materialization, integration and gameplay-scale acceptance remain OPEN;
 - **Main Hall** — LIVE_ACCEPTED v1; robust calm circulation floor with one semantic longitudinal spine;
 - **Transfer** — LIVE_ACCEPTED v1; premium Hero-oriented floor anchoring accepted;
 - **PRIMUS** — OPEN; cooler precise systematic work-floor logic still required.
@@ -266,7 +266,7 @@ Detailed authority: `../planning/TS01_GOLD_SLICE_EXECUTION_PLAN.md`.
 
 Short version:
 
-1. **finish remaining room floor identities** — Child, Hygiene, PRIMUS; Family Living/Main Hall/Transfer are done;
+1. **finish remaining room floor work** — author Child/PRIMUS identities and integrate the approved Hygiene source; Family Living/Main Hall/Transfer are done;
 2. **add wall AO + authored usage/wear FloorFX**;
 3. **complete Flow integration** — scale decision, shadow, collision/use-space, deterministic floor bus;
 4. **PRIMUS hero/system wall object**;
