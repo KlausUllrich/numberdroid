@@ -1,7 +1,7 @@
-# Numberdroid Studio — Checkpoint 2C Candidate Record
+# Numberdroid Studio — Checkpoint 2C Acceptance Record
 
 - **Date:** 2026-08-22
-- **Status:** implemented and verified as a candidate; explicit user verification deferred into the combined Checkpoint 2C + Checkpoint 3 gate
+- **Status:** explicitly user-accepted on 2026-08-24 through the combined Checkpoint 2C + 3 + 4 walkthrough
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135` — remains open, draft, unmerged, and unreleased
 - **Accepted prerequisites:** Checkpoint 2A and Checkpoint 2B
@@ -9,9 +9,9 @@
 - **Published CI/evidence:** run `32580111158` — root job `97048089489` and Studio job `97048089540` passed
 - **Dedicated evidence artifact:** `9477603132` (`numberdroid-studio-checkpoint-2c-evidence`), 2,060,358 bytes, `sha256:4dccfa1fbcdae7ae19c5bcafc3fed122c2225ce11e9857ee85a4db2bc715b204`
 - **Independent verifier:** GO after reproducing and clearing all four initial NO-GO findings
-- **Continuation decision:** on 2026-08-22 the user stated that they could not verify 2C now, explicitly authorized the next step, and required acceptance to be combined with the next checkpoint; this is not 2C acceptance
+- **Continuation decision:** on 2026-08-22 the user deferred the standalone 2C walkthrough and authorized continuation; the combined walkthrough was completed and accepted on 2026-08-24
 
-This record describes the Checkpoint 2C candidate. It does not record user acceptance and grants no merge, release, provider, room, Numberdroid/runtime/repository export, materialization, publication, or downstream-checkpoint authority. The only import/export operation authorized in this checkpoint is an offline, project-scoped portable Studio bundle round trip.
+This record includes explicit user acceptance of the bounded Checkpoint 2C asset-library workflow. Acceptance does not grant merge, release, provider, room, Numberdroid/runtime/repository export, materialization, publication, or downstream-checkpoint authority. The only import/export operation accepted here is the offline, project-scoped portable Studio bundle round trip.
 
 ## Implemented outcome
 
@@ -111,6 +111,14 @@ No bitmap evidence is committed to the repository. CI publishes screenshots, DOM
 4. Filter the inventory by kind/lifecycle/readiness and inspect an asset detail view.
 5. Review the portable-bundle verification record and confirm it contains semantic project data plus exact CAS only—not live authority, machine state, or pending work.
 
+## Combined-gate acceptance — 2026-08-24
+
+The user completed the combined walkthrough and accepted Checkpoint 2C. The accepted result includes the exact-slice Family Hygiene asset workflow, the Calm Grid and Sterile Grid families, ordinal human-facing slice labels, typed asset semantics/findings, the retained rejected proposal item and reason, and the sanitized portable-bundle boundary.
+
+One usability requirement is deliberately carried forward rather than misreported as complete: props need a human-usable preview build before a designer is asked to place or approve them. That follow-up belongs to Checkpoint 4.5 and does not reopen the accepted Checkpoint 2C persistence, integrity, authority, or proposal semantics.
+
+Final acceptance-head run `32673522709` passed the complete 266-test Studio suite and published Checkpoint 2C artifact `9502074531` (2,063,224 bytes, `sha256:1fbc1ffe4c519060976e0aa889c60fc860eb02620338d563a407f9251086ebd9`).
+
 ## Gate disposition
 
-The publication, two-job CI, evidence download/inspection, and fresh adversarial GO preconditions are satisfied for candidate commit `0382ad1827db56c07be3a32b59dc43dff78500ba`. The user explicitly deferred this walkthrough and authorized Checkpoint 3, with one combined 2C + 3 acceptance decision at the next candidate gate. This deferral is not acceptance. PR #135 stays draft, open, and unmerged.
+Checkpoint 2C is explicitly user-accepted as of 2026-08-24. PR #135 remains draft, open, unmerged, and unreleased pending the separately authorized documentation closure, final CI, and explicit merge decision.

@@ -1,14 +1,17 @@
-# Numberdroid Studio — Checkpoint 4 Candidate Record
+# Numberdroid Studio — Checkpoint 4 Acceptance Record
 
 - **Date:** 2026-08-23
-- **Status:** implemented and locally/remotely verified as a candidate; explicit user acceptance remains combined with the deferred Checkpoint 2C and 3 decisions
+- **Acceptance date:** 2026-08-24
+- **Status:** explicitly user-accepted on 2026-08-24 through the combined Checkpoint 2C + 3 + 4 walkthrough after the conflict-control repair passed on Windows and Linux
 - **Branch:** `agent/numberdroid-studio-foundation`
 - **Draft PR:** `#135` — remains open, draft, unmerged, and unreleased
-- **Accepted prerequisites:** Checkpoints 1, 2A, and 2B; Checkpoints 2C and 3 remain verified but unaccepted candidates
-- **Remote product candidate:** `7b5a82c6ed2a267076882d9f80417efe53eca993`
-- **Remote candidate/CI:** run `32629426116` passed — root job `97169764514`, Studio job `97169764462`; no merge, release, runtime export, materialization, or publish is authorized
+- **Accepted prerequisites:** Checkpoints 1, 2A, 2B, 2C, and 3
+- **Original product candidate:** `7b5a82c6ed2a267076882d9f80417efe53eca993`
+- **Accepted repaired head:** `311581b42cf6bf6d4050132ec498dc61036e26e6`
+- **Original candidate/CI:** run `32629426116` passed — root job `97169764514`, Studio job `97169764462`
+- **Acceptance repair/CI:** run `32673522709` passed root, Studio, and Windows jobs; Studio and Windows each passed 266/266 tests; no merge, release, runtime export, materialization, or publish is authorized
 
-This record describes the Checkpoint 4 implementation candidate. It is automated evidence, not user acceptance. The candidate adds isolated delegated work and review control without widening finalization, export, publication, or Numberdroid runtime authority.
+This record includes explicit user acceptance of the bounded Checkpoint 4 implementation after the live conflict-control repair. Acceptance approves isolated delegated work and owner review control without widening finalization, export, publication, or Numberdroid runtime authority.
 
 ## Implemented outcome
 
@@ -38,7 +41,7 @@ Consequently, the combined walkthrough uses a committed atlas result as its bran
 - one later review containing exactly one `SEMANTIC_MERGE_CONFLICT` on `source:source.checkpoint-4.shared`;
 - one `MERGED` task and one `IN_REVIEW` task, with their immutable timelines and review records intact.
 
-The browser capture harness has a `checkpoint-4` mode that verifies both the conflict-focused and merged/revert-focused task views at 1440×900 and the protected 1060×900 width. The local cloud workspace had no Chrome binary and its Cloud Browser blocked loopback URLs, so the first fresh screenshot bytes came from the exact-head GitHub runner. Independent download inspection then found and drove two responsive fixes: compact task-state pills and a constrained one-column task-card layout below 1200px. The final capture asserts heading scroll containment and each pill's height, no-wrap state, and parent-card bounds.
+The browser capture harness has a `checkpoint-4` mode that verifies both the conflict-focused and merged/revert-focused task views at 1440×900 and the protected 1060×900 width. The local cloud workspace had no Chrome binary and its Cloud Browser blocked loopback URLs, so the first fresh screenshot bytes came from the exact-head GitHub runner. Independent download inspection then found and drove two responsive fixes: compact task-state pills and a constrained one-column task-card layout below 1200px. The accepted repair capture asserts heading containment and each task-state label's parent-card bounds; descriptive labels may wrap cleanly at the protected 1060px width.
 
 Published artifact `9490652252` contains the exact revision-5 fixture, server log, four DOM/observation records, and four screenshots. The 930,348-byte archive independently matched `sha256:84e39e154f89c974f44d133ed63eb9b16fb5375b74322e77b1e7ab13d40d4e33`. All four observations report zero visual errors, zero horizontal overflow, zero header collisions, two task states, and contained 19px task-state pills; the conflict views expose exactly one semantic conflict and the merged views expose the accepted lineage/revert control.
 
@@ -51,6 +54,7 @@ Published artifact `9490652252` contains the exact revision-5 fixture, server lo
 - syntax/check script includes every new C4 domain/application/persistence/evidence entrypoint;
 - exact product-candidate CI `32629426116` passed both jobs; the dedicated C4 artifact and its digest were independently downloaded and inspected;
 - earlier functionally green visual candidates were superseded after artifact review found wrapped pills and then a task-list heading/card overflow at 1060px. The geometric capture assertion intentionally failed until the protected-width card layout was contained; these diagnostic runs are not acceptance evidence.
+- accepted repair head `311581b42cf6bf6d4050132ec498dc61036e26e6`: run `32673522709` passed root, Studio, and Windows; both Studio and Windows/Node `22.17.0` passed **266/266** tests; Chrome captured the conflict and completed-task views at 1440×900 and 1060×900; artifact `9502075249` is 910,417 bytes with `sha256:c6749e0581ea42f74d6beda0f660159218129ceebb8fe17c63478df19b3118a5`.
 
 ## Combined 2C + 3 + 4 walkthrough
 
@@ -75,8 +79,8 @@ The repair preserves a control's existing semantic disabled state when no task r
 
 The same repair begins the designer-facing language correction: the task state is shown as **Waiting for your review**, the project owner is named as the reviewer, the task list no longer presents its internal work branches as separate user objects, and completion explains that accepted changes enter the project, the task ends, and its assigned agent can no longer change it. Branch IDs, capability IDs, comparison revisions, and conflict codes remain available as secondary technical details.
 
-This repair is a new candidate, not retroactive acceptance. The combined user gate remains open until the repaired conflict behavior is rebuilt and manually checked.
+The user rebuilt the repaired head on Linux, repeated the conflict review, and reported **pass** on 2026-08-24. Together with the preceding combined walkthrough, this closes the Checkpoint 2C + 3 + 4 user gate. The accepted current boundary consumes committed atlas results; branch-local bitmap jobs remain deferred and require separate authorization.
 
 ## Gate disposition
 
-Checkpoint 4 is an implemented candidate, not an accepted checkpoint. The next decision is the deferred combined Checkpoint 2C + 3 + 4 user walkthrough, including the explicit branch-local-job boundary above. PR #135 stays draft, open, unmerged, and unreleased.
+Checkpoint 4 is explicitly user-accepted as of 2026-08-24. The accepted repair explains **Waiting for your review**, prevents a conflicted completion before confirmation, and states that completing a task ends the assigned agent's ability to change it. PR #135 stays draft, open, unmerged, and unreleased until documentation closure, final CI, and a separate explicit merge decision.

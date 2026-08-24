@@ -86,7 +86,7 @@ Exit decision: **approved by the user on 2026-08-21.** Checkpoint 1 is complete 
 
 ## Checkpoint 2 — Source, atlas, and asset-library vertical slice
 
-**Status: 2A user-accepted on 2026-08-21; 2B user-accepted on 2026-08-22 after the live walkthrough at head `309c24961f89389047db837471b2e434dd13e149`; 2C is implemented and verified as a candidate but remains not user-accepted.** On 2026-08-22 the user explicitly deferred the 2C walkthrough, authorized Checkpoint 3, and requested one combined 2C + 3 acceptance gate. The offline, project-scoped portable Studio bundle round trip is the only import/export authority included in 2C. Draft PR #135 remains open, draft, and unmerged. Checkpoint implementation does not imply acceptance, merge, release, publication, provider, Numberdroid/runtime/repository export, or materialization authority.
+**Status: Checkpoints 2A, 2B, and 2C are user-accepted.** Checkpoint 2C was accepted on 2026-08-24 through the combined Checkpoint 2C + 3 + 4 walkthrough. The offline, project-scoped portable Studio bundle round trip remains the only accepted import/export authority. Draft PR #135 remains open, draft, and unmerged until a separate merge decision.
 
 **Outcome:** an approved atlas becomes reproducible, visually searchable assets without repository editing.
 
@@ -106,7 +106,7 @@ Internal implementation gates:
 
 1. **2A — Source intake and review (accepted):** bounded local upload into CAS, discriminated provenance and project-live lineage, original-byte preview, durable Resume/Discard recovery, explicit owner review lifecycle, schema v6 integrity/recovery, two scoped MCP mutations, and final-only denied/failed bound-agent Activity. Original preview requires no image-processing job, so 2A deliberately creates none. The user accepted this workflow and its provider-free constraint.
 2. **2B — Visual atlas cutter (accepted):** the approved Family Hygiene PNG is cut through a source-resolution SVG overlay with fit/100%/200% zoom, deterministic regular-grid proposal, manual/variable integer rectangles, include/exclude preview, deterministic derived PNGs, and explicit stable remapping when a recut replaces a slice. Preview work runs as a durable bounded job with read/cancel/retry/discard controls; semantic apply is a separate atomic revision.
-3. **2C — Asset-library semantics (candidate):** stable `surface`, `prop`, and `item` versions pin exact committed slices; typed metadata and deterministic findings drive owner-gated lifecycle; durable bounded agent proposals expose per-item diffs and owner rejection before atomic accepted-subset apply; visual inventory/query uses ordinal-first slice labels and exact provenance; schema-v9 MCP discovery is exactly 17 tools/three templates; and a sanitized project bundle round-trips canonical semantics and exact CAS into a new empty workspace.
+3. **2C — Asset-library semantics (accepted):** stable `surface`, `prop`, and `item` versions pin exact committed slices; typed metadata and deterministic findings drive owner-gated lifecycle; durable bounded agent proposals expose per-item diffs and owner rejection before atomic accepted-subset apply; visual inventory/query uses ordinal-first slice labels and exact provenance; schema-v9 MCP discovery is exactly 17 tools/three templates; and a sanitized project bundle round-trips canonical semantics and exact CAS into a new empty workspace.
 
 The accepted workflow uses the approved Family Hygiene floor 2×2 source, pinned by its repository path, SHA-256, byte length, and dimensions. The user selected importing that image and making individual tiles as the first 2B fixture. `AGT-008` is closed for denied/failed mutation attempts that reach the private execution bridge after valid HostBinding resolution; unauthenticated pre-binding traffic has no trusted project/actor attribution and remains in operational security logs.
 
@@ -120,15 +120,15 @@ The first 2B user gate was rejected at file selection and repaired through the C
 
 2B exit decision: **accepted by the user on 2026-08-22.** Frozen CI verification passes 109/109 Node tests. GitHub Actions run `32568108922` passed Studio job `97019592824` and root job `97019592908` under Chrome `151.0.7922.137`; artifact `9474639509` remains the pinned product-repair evidence. The live walkthrough additionally proved a 12+ second passive refresh retained both axes, the focused `Top margin = 5` draft, and page position; save succeeded; preview reached `SUCCEEDED` 4/4 on attempt 1 with four distinct quadrants; commit reached `APPLIED` 4/4 on attempt 1 with four stable v1 slice heads; recut mapping worked; unsaved `X = 4`/remap vanished on close/reopen while saved `X = 3` and v1 heads remained; and a full service restart preserved the approved source, exact rectangles, applied job, v1 previews, Fit/no-jump state, and no duplication. The acceptance record is commit `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Post-acceptance commits `f116f25aed2f0a9d935de9061cf6492d3a56bef4` and `b9ce37e44fe3679b52b50dac6daf4e1a46024c1d` are `visualFixture`/test-only evidence-harness repairs with no product behavior change; acceptance was not reopened.
 
-Runs `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and `32572344465` (Studio job `97029542069`, isolated Chrome/CDP post-move capture bookkeeping) are invalid diagnostics only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, expires `2026-09-05T12:26:26Z`, and was captured under Chrome `151.0.7922.137` at both 1440×900 and 1060×900. The observations record zero runtime and visual errors and telemetry for captured press, same-pointer held move, deferred render, matching release/settlement/replacement, exact scroll/context, and cleanup. Thus `32572870510` / `9475808319` are the final post-acceptance closure evidence, while `32568108922` / `9474639509` remain the product-repair evidence. Closure-head run `32573543172` passed at `c27fee7004ddc7d6a6f357e9dacab2d663e6ae82`. The 2C candidate now implements ordinal **Slice 1–64** primary labels with stable canonical IDs secondary/copyable. PR #135 remains open, draft, and unmerged; merge, release, providers, rooms, Numberdroid/runtime/repository export, materialization, and publication remain blocked.
+Runs `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and `32572344465` (Studio job `97029542069`, isolated Chrome/CDP post-move capture bookkeeping) are invalid diagnostics only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, expires `2026-09-05T12:26:26Z`, and was captured under Chrome `151.0.7922.137` at both 1440×900 and 1060×900. The observations record zero runtime and visual errors and telemetry for captured press, same-pointer held move, deferred render, matching release/settlement/replacement, exact scroll/context, and cleanup. Thus `32572870510` / `9475808319` are the final post-acceptance closure evidence, while `32568108922` / `9474639509` remain the product-repair evidence. Closure-head run `32573543172` passed at `c27fee7004ddc7d6a6f357e9dacab2d663e6ae82`. The accepted Checkpoint 2C implementation provides ordinal **Slice 1–64** primary labels with stable canonical IDs secondary/copyable. PR #135 remains open, draft, and unmerged; merge, release, providers, Numberdroid/runtime/repository export, materialization, and publication remain blocked.
 
-Checkpoint 2C user verification is deferred into the combined 2C + 3 gate: inspect the exact Family Hygiene four-item MCP proposal, its authored placement/connectivity/collision semantics and deterministic findings; confirm the fourth rejection reason; inspect the three READY DRAFT assets and provenance; and review the verified portable-bundle round trip before continuing through the room/hallway checks.
+Checkpoint 2C user verification was completed during the combined 2C + 3 + 4 walkthrough on 2026-08-24. The exact Family Hygiene proposal/assets, rejection reason, typed findings, human-facing slice labels, and portable-bundle boundary were accepted. A human-usable prop preview build remains explicit Checkpoint 4.5 scope.
 
-Exit decision: Checkpoint 2B cutting accuracy, job workflow, recut mapping, and persistence were accepted on 2026-08-22. Checkpoint 2C remains a candidate; its acceptance decision is deferred and combined with Checkpoint 3. No acceptance, merge, release, or downstream export follows from internal verification or the authorization to continue.
+Exit decision: **Checkpoint 2C was accepted by the user on 2026-08-24.** Checkpoint 2 is complete. Acceptance does not authorize providers, Numberdroid/runtime/repository export, materialization, publication, PR merge, or release.
 
 ## Checkpoint 3 — Room and hallway designer
 
-**Status: implemented and published candidate with green domain/application/persistence/HTTP/MCP/UI, portable-bundle, CI, and Chrome evidence verification; not user-accepted.** The remaining candidate-gate work is the combined user walkthrough. The frozen bounded implementation contract is `CHECKPOINT_3_CONTRACT.md`, and published candidate pins are in `CHECKPOINT_3_STATUS.md`. The final user gate combines the deferred Checkpoint 2C decision with Checkpoint 3. This authority does not include providers, general branch/merge workflow, level composition, Numberdroid export/materialization/publication, PR merge, or release.
+**Status: explicitly user-accepted on 2026-08-24 through the combined Checkpoint 2C + 3 + 4 walkthrough.** The accepted boundary is the current rectangular room/hallway workflow with exact pins, deterministic findings, owner lifecycle, FINAL/fork semantics, and sanitized bundle behavior. Guided authoring and irregular-room `VOID`/`BLOCKED` semantics are deferred to Checkpoint 4.5.
 
 **Outcome:** the user can author and finalize a single room or hallway using the visible asset vocabulary.
 
@@ -145,13 +145,13 @@ Deliverables:
 
 User verification scenario: build one hallway and one single room, use an agent to propose set dressing, inspect invalid-placement explanations, finalize a variant, and create a new revision without changing the final artifact.
 
-Exit decision: approve canvas behavior, placement vocabulary, validation explanations, and room-finalization semantics.
+Exit decision: **accepted by the user on 2026-08-24.** The current canvas behavior, placement vocabulary, validation explanations, and room-finalization/fork semantics are accepted. Guided authoring and irregular-room geometry remain Checkpoint 4.5 scope.
 
 ## Checkpoint 4 — Agent-first workflow and review control
 
-**Candidate status (2026-08-23):** implemented on the draft branch with schema v11 isolated task branches, semantic review/conflicts, atomic merge, compensating revert, UI/HTTP/MCP coverage, and adversarial tests. User acceptance remains combined with Checkpoints 2C and 3. The current candidate consumes already committed atlas results; the v8 main-revision-bound bitmap job ledger is deliberately not presented as branch-local work.
+**Status: explicitly user-accepted on 2026-08-24 after the repaired conflict control passed on Windows and Linux.** The accepted boundary includes schema v11 isolated task branches, semantic review/conflicts, atomic merge, compensating revert, and the committed-atlas-to-DRAFT-room workflow. Branch-local bitmap jobs remain deferred and require separate authorization.
 
-**Outcome:** an agent can safely execute a complete source-to-final-room task while the user follows and controls it.
+**Outcome:** an agent can safely execute the accepted committed-atlas-to-DRAFT-room task while the user follows and controls it.
 
 Deliverables:
 
@@ -165,11 +165,15 @@ Deliverables:
 
 User verification scenario: grant an agent the committed-atlas-to-DRAFT-room workflow but not finalization/publish, follow the task timeline, pause/resume the branch, compare concurrent results, accept selected changes, and revert the merge. Separately verify the accepted Checkpoint 2B cooperative long-job controls; decide whether a later branch-local job ledger is required before accepting the broader source-to-room wording.
 
-Exit decision: approve the default delegation model and decide which actions, if any, can be auto-accepted.
+Exit decision: **accepted by the user on 2026-08-24.** The bounded delegation model is accepted. Auto-accept remains disabled by default and limited to explicitly configured low-risk policy scopes; branch-local bitmap jobs, agent finalization, export, and publication remain outside the accepted boundary.
 
-### Cross-workspace UX follow-up identified during the combined gate
+## Checkpoint 4.5 — Designer workflow and preview usability
 
-The 2026-08-24 walkthrough confirmed the technical foundations while showing that the product still presents too much implementation structure at once. The next UX-focused checkpoint must apply `UI-011` and `UI-012` across the product rather than treating the Checkpoint 4 wording repair as a complete redesign:
+**Status: next planned checkpoint; contract and visual workflow must be reviewed with the user before implementation.**
+
+**Outcome:** a professional designer can understand the current step, create or review the relevant object, and see a useful preview without needing to understand Studio's internal branch, grant, revision, provenance, or validation vocabulary.
+
+The 2026-08-24 walkthrough accepted the technical foundations while showing that the product still presents too much implementation structure at once. Checkpoint 4.5 must apply `UI-011` and `UI-012` across the product rather than treating the Checkpoint 4 wording repair as a complete redesign:
 
 - make the task list the normal entry view, with **Create task** as its primary action and creation as a separate step or dialog;
 - make task selection, selected-task detail, progress, review, completion, and undo visibly one workflow rather than several unrelated cards;
@@ -179,6 +183,10 @@ The 2026-08-24 walkthrough confirmed the technical foundations while showing tha
 - present room construction as a guided flow and explicitly design irregular-room support, distinguishing cells outside the room (`VOID`) from cells that remain part of the room but cannot be crossed (`BLOCKED`).
 
 Normal healthy invariants should not read like warnings or proof obligations. The UI should surface a warning when provenance, integrity, validation, or authority is incomplete; otherwise it should state the useful result in terms a professional designer can act on.
+
+User verification scenario: begin from the normal task list, create a task through a separate focused step, understand who acts next at every state, review a prop through a useful visual preview, and construct both a rectangular and an irregular room without opening technical details.
+
+Exit decision: approve the designer-facing task flow, prop preview, guided room construction, and the exact `VOID`/`BLOCKED` authoring semantics. Checkpoint 5 export remains blocked until this checkpoint is accepted.
 
 ## Checkpoint 5 — Deterministic Numberdroid export candidate
 
