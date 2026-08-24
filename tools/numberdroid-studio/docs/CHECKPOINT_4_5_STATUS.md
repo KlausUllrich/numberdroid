@@ -1,8 +1,9 @@
 # Numberdroid Studio — Checkpoint 4.5 Candidate Record
 
 - **Date:** 2026-08-24
-- **Status:** implemented and locally verified repair candidate; fresh CI/browser verification pending; not user-accepted, not merged, and not authorized for Checkpoint 5
+- **Status:** implemented and CI/browser-verified repair candidate; awaiting explicit user acceptance; not merged and not authorized for Checkpoint 5
 - **Branch:** `agent/numberdroid-studio-checkpoint-4-5`
+- **Product/evidence head:** `4dc112d5aa88aa3d6629c5d1949dfa38d7963642`
 - **Accepted baseline:** Checkpoints 1–4 on merge `bcc284684ea4d2e30158d3a20ebda57da77df93d`
 - **Frozen contract:** `CHECKPOINT_4_5_CONTRACT.md`
 
@@ -20,14 +21,17 @@ This record does not claim acceptance from tests, CI, reviewer agreement, or sil
 
 ## Verification ledger
 
-- full local Studio suite: **279/279 passed** after the persistent-editor repair;
+- full local Studio suite: **279/279 passed** after the persistent-editor and race-safe focus repairs;
 - complete syntax check passed through the package's explicit `node --check` list;
 - focused CP4.5 domain/application/persistence/HTTP/UI tests cover mask invariants, owner-only authority, exact route bodies, migration rollback/resume, append rollback, restart/integrity, schema-v2 rectangle parity, schema-v3 import/export, task expiry projection, list/create/detail flow, useful previews, and protected-width layout;
 - the deterministic CP4.5 fixture reached project revision 36 with two `VOID` cells, one `BLOCKED` cell, an unchanged rectangular hallway, and one exact-version 2×3 prop sourced from the repository's already approved Transfer Apparatus image without provider or generation work;
 - a local schema-v3 bundle export/import/export round trip was canonical and byte-identical with integrity green and no transferred live authority;
-- CI is configured to capture fresh irregular-room, rectangular-room, rotated real-prop preview, shape-draft refresh, keyboard-focus, concurrent-shape-conflict, and focused task-create/review evidence at 1440×900 and 1060×900;
+- GitHub Actions run [`32745196682`](https://github.com/KlausUllrich/numberdroid/actions/runs/32745196682) passed at the exact product/evidence head: root build/tests, Linux Studio tests/build/browser capture, and Windows Studio tests/build/evidence verification are green; Pages was intentionally skipped;
+- Chrome evidence at 1440×900 and 1060×900 exercises fresh irregular-room and rectangular-room views, a rotated real-prop preview, shape-draft refresh, concurrent-shape conflict, physical pointer painting through visible hit-transparent overlays, exact mutually exclusive floor/outside/blocked partitions, one persistent canvas across tools/docks/layers, positive keyboard-focus restoration, and a deliberate canvas-focus handoff that must not be stolen by a delayed render repair;
+- valid artifact [`9526941679`](https://github.com/KlausUllrich/numberdroid/actions/runs/32745196682/artifacts/9526941679), `numberdroid-studio-checkpoint-4-5-evidence`, is 2,747,286 bytes, has digest `sha256:f1a7d1cc960a0702e4f0b56703b359dcb54d675ef65c5d82f3a716d565d88f32`, and expires 2026-09-07T15:34:44Z;
+- three independent bounded reviews returned GO for the persistent editor's task/UI, room/asset/evidence, and contract/authority/persistence slices; the focused follow-up review first rejected a focus-stealing race, then returned GO only after the generation and active-element guards plus negative browser proof were added;
 - the earlier six-step evidence is superseded by the user's live-gate rejection and is not acceptance evidence for the repaired editor;
-- fresh CI and browser evidence for the persistent-canvas repair must be recorded here before the candidate returns to the user gate.
+- failed diagnostic run `32743852383` is not acceptance evidence; it exposed the repaired Prop-tool focus instability that the final green run proves closed.
 
 ## Preserved boundary
 
