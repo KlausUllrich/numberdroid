@@ -4402,6 +4402,7 @@ if (visualFixture) {
       draftCell?.focus(); draftCell?.click();
       await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
       const before = document.querySelector('.room-cell[data-x="1"][data-y="0"]');
+      before?.focus();
       const beforeVoidCount = state.roomUi.shapeDraft?.voidCells.length ?? null;
       await loadProject(state.project.projectId, { preserveWorkspaceIfUnchanged: true });
       const after = document.querySelector('.room-cell[data-x="1"][data-y="0"]');
