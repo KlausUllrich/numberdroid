@@ -99,6 +99,7 @@ let cutterJobPollController = {
   abortController: null,
 };
 let cutterDrag = null;
+let roomEditorFocusGeneration = 0;
 
 function resetSourceIntakeForm() {
   const file = sourceIntakeFormCache?.querySelector('[data-source-file]');
@@ -758,13 +759,20 @@ function restoreRoomDomState() {
 }
 
 function settleRoomEditorControlFocus(focusKey) {
-  const focusSelectedControl = () => {
+  const generation = ++roomEditorFocusGeneration;
+  const focusSelectedControl = ({ repair = false } = {}) => {
+    if (generation !== roomEditorFocusGeneration) return;
+    const focused = document.activeElement;
+    const focusedKey = focused?.closest?.('[data-room-focus-key]')?.dataset.roomFocusKey ?? null;
+    const focusIsNeutral = !focused || !focused.isConnected || focused === document.body
+      || focused === document.documentElement || focused === elements['workspace-content'];
+    if (repair && !focusIsNeutral && focusedKey !== focusKey) return;
     const active = [...elements['workspace-content'].querySelectorAll('[data-room-focus-key]')]
       .find((candidate) => candidate.dataset.roomFocusKey === focusKey && candidate.dataset.selected === 'true');
     active?.focus({ preventScroll: true });
   };
   focusSelectedControl();
-  requestAnimationFrame(() => requestAnimationFrame(focusSelectedControl));
+  requestAnimationFrame(() => requestAnimationFrame(() => focusSelectedControl({ repair: true })));
 }
 
 function sourcePreview(source) {

@@ -76,8 +76,10 @@ test('CP4.5 room editor keeps paint drafts exclusive, visible, recoverable, and 
   assert.match(app, /preserveRoomCanvas = false/);
   assert.match(app, /replacementCanvas\.replaceWith\(retainedRoomCanvas\)/);
   assert.match(app, /function settleRoomEditorControlFocus/);
+  assert.match(app, /generation !== roomEditorFocusGeneration/);
+  assert.match(app, /repair && !focusIsNeutral && focusedKey !== focusKey/);
   assert.match(app, /candidate\.dataset\.selected === 'true'/);
-  assert.match(app, /requestAnimationFrame\(\(\) => requestAnimationFrame\(focusSelectedControl\)\)/);
+  assert.match(app, /focusSelectedControl\(\{ repair: true \}\)/);
   assert.match(app, /renderRoomDockNavigation\(\), renderRoomLayers\(\)/);
   assert.match(app, /variant\.lifecycle !== 'DRAFT'\) \{ showToast\(`\$\{variant\.lifecycle\} room versions are read-only/);
 });

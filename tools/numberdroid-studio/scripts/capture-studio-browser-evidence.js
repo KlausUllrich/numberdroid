@@ -653,6 +653,14 @@ try {
             const button = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="' + tool + '"]'); button.focus(); button.click();
             await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame))); observe('tool', tool);
           }
+          const prop = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]'); prop.focus(); prop.click();
+          const handoffCell = document.querySelector('.room-cell[data-x="0"][data-y="0"]'); handoffCell.focus();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const focusHandoffState = { sameBoard: document.querySelector('[data-room-board]') === board,
+            activeTool: document.querySelector('[data-room-control="editor-tool"][data-selected="true"]')?.dataset.editorTool ?? null,
+            focused: document.activeElement?.dataset.roomFocusKey ?? null };
+          const paint = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_ROOM"]'); paint.focus(); paint.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const layer = document.querySelector('[data-room-layer="SET_DRESSING"]'); layer.focus(); layer.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const layerState = { boardCount: document.querySelectorAll('[data-room-board]').length, visible: document.querySelector('[data-room-board]')?.getBoundingClientRect().width > 0,
@@ -660,7 +668,7 @@ try {
             scrollTop: document.querySelector('.room-canvas-scroll')?.scrollTop ?? null, checked: document.querySelector('[data-room-layer="SET_DRESSING"]')?.checked ?? null };
           document.querySelector('[data-room-layer="SET_DRESSING"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-          return { expectedScroll, states, layerState, finalBoardCount: document.querySelectorAll('[data-room-board]').length };
+          return { expectedScroll, states, focusHandoffState, layerState, finalBoardCount: document.querySelectorAll('[data-room-board]').length };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
       checkpoint45EditorContinuity = continuity.result?.value ?? null;
@@ -670,6 +678,9 @@ try {
             && focused === `room-${kind === 'panel' ? 'panel' : 'tool'}-${value}`
             && scrollLeft === checkpoint45EditorContinuity.expectedScroll.left && scrollTop === checkpoint45EditorContinuity.expectedScroll.top
         ))
+        && checkpoint45EditorContinuity.focusHandoffState?.sameBoard === true
+        && checkpoint45EditorContinuity.focusHandoffState.activeTool === 'PROP'
+        && checkpoint45EditorContinuity.focusHandoffState.focused === 'room-cell-0-0'
         && checkpoint45EditorContinuity.layerState?.boardCount === 1 && checkpoint45EditorContinuity.layerState.visible === true
         && checkpoint45EditorContinuity.layerState.focused === 'room-layer-SET_DRESSING'
         && checkpoint45EditorContinuity.layerState.scrollLeft === checkpoint45EditorContinuity.expectedScroll.left
