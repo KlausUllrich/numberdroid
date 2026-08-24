@@ -1055,7 +1055,7 @@ try {
         reviewText: document.querySelector('.task-review')?.textContent ?? null,
         reviewDispositions: [...document.querySelectorAll('[data-task-review-disposition]')]
           .map((control) => control.value),
-        controlNames: [...document.querySelectorAll('.task-detail [data-task-control], .task-review [data-task-control]')]
+        controlNames: [...document.querySelectorAll('.task-composer [data-task-control], .task-detail [data-task-control], .task-review [data-task-control]')]
           .map((control) => control.dataset.taskControl),
       };
       const sources = [...document.querySelectorAll('.source-card')].map((source) => {
