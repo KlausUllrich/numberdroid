@@ -1,7 +1,7 @@
 # Numberdroid Studio — Checkpoint 4.5 Candidate Record
 
 - **Date:** 2026-08-24
-- **Status:** implemented and locally verified candidate; not user-accepted, not merged, and not authorized for Checkpoint 5
+- **Status:** implemented and CI-verified candidate; not user-accepted, not merged, and not authorized for Checkpoint 5
 - **Branch:** `agent/numberdroid-studio-checkpoint-4-5`
 - **Accepted baseline:** Checkpoints 1–4 on merge `bcc284684ea4d2e30158d3a20ebda57da77df93d`
 - **Frozen contract:** `CHECKPOINT_4_5_CONTRACT.md`
@@ -25,7 +25,9 @@ This record does not claim acceptance from tests, CI, reviewer agreement, or sil
 - focused CP4.5 domain/application/persistence/HTTP/UI tests cover mask invariants, owner-only authority, exact route bodies, migration rollback/resume, append rollback, restart/integrity, schema-v2 rectangle parity, schema-v3 import/export, task expiry projection, list/create/detail flow, useful previews, and protected-width layout;
 - the deterministic CP4.5 fixture reached project revision 36 with two `VOID` cells, one `BLOCKED` cell, an unchanged rectangular hallway, and one exact-version 2×3 prop sourced from the repository's already approved Transfer Apparatus image without provider or generation work;
 - a local schema-v3 bundle export/import/export round trip was canonical and byte-identical with integrity green and no transferred live authority;
-- CI now captures fresh irregular-room, rectangular-room, rotated real-prop preview, shape-draft refresh, keyboard-focus, concurrent-shape-conflict, and focused task-create/review evidence at 1440×900 and 1060×900. Fresh runner results remain pending until this branch is published.
+- CI captures fresh irregular-room, rectangular-room, rotated real-prop preview, shape-draft refresh, keyboard-focus, concurrent-shape-conflict, and focused task-create/review evidence at 1440×900 and 1060×900;
+- published GitHub Actions run `32723226568` passed the root, Linux Studio, and Windows Studio jobs. The Linux Studio job passed the complete 278-test suite, build, all protected browser assertions, and every evidence upload;
+- Checkpoint 4.5 evidence artifact `9518665004` is 2,648,290 bytes with `sha256:a486b260a17e5233d3c9bb622a33cce0073bd058c7f5ea710a2b70986f8b4ae9` and expires on 2026-09-07. This automated evidence does not replace the required user walkthrough or acceptance.
 
 ## Preserved boundary
 
