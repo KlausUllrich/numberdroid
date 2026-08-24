@@ -1506,7 +1506,7 @@ try {
         && checkpoint45RoomFocus.blockedCount === 1
         && layout.roomDesigner.shapeSavePresent
         && layout.roomDesigner.shapeText?.includes('2 outside cells')
-        && layout.roomDesigner.shapeText?.includes('1 blocked cells'),
+        && layout.roomDesigner.shapeText?.includes('1 blocked cell'),
       'Checkpoint 4.5 irregular room evidence lost its exact VOID/BLOCKED shape or save control.');
     }
     if (checkpoint45Focus === 'rectangle') {

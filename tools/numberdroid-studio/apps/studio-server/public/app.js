@@ -2320,7 +2320,7 @@ function renderRoomShapeControls(variant) {
     const button = roomControl(label, 'shape-tool', { shapeTool: value }); button.dataset.selected = String(state.roomUi.shapeTool === value); tools.append(button);
   }
   const summary = document.createElement('p'); summary.className = 'room-shape-summary';
-  summary.textContent = `${variant.width * variant.height - draft.voidCells.length} room cells · ${draft.voidCells.length} outside · ${draft.blockedCells.length} blocked`;
+  summary.textContent = `${variant.width * variant.height - draft.voidCells.length} room cells · ${draft.voidCells.length} outside cell${draft.voidCells.length === 1 ? '' : 's'} · ${draft.blockedCells.length} blocked cell${draft.blockedCells.length === 1 ? '' : 's'}`;
   const conflict = document.createElement('p'); conflict.className = 'asset-conflict'; conflict.hidden = !state.roomUi.shapeConflict; conflict.textContent = state.roomUi.shapeConflict ?? '';
   const actions = document.createElement('div'); actions.className = 'room-preview-actions';
   const save = roomControl('Save complete shape', 'shape-save'); save.disabled = !draft.dirty || Boolean(state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT';
