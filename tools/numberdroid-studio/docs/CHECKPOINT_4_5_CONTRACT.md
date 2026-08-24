@@ -1,6 +1,6 @@
 # Checkpoint 4.5 Contract — Designer Workflow and Preview Usability
 
-Status: implementation contract frozen on 2026-08-24 after three independent reviews; user acceptance remains separate.
+Status: implementation contract amended on 2026-08-24 after live user feedback and three independent repair reviews; user acceptance remains separate.
 
 This checkpoint is bounded to the designer workflow requested by the combined gate handoff. Checkpoints 1–4 remain accepted. Checkpoint 5 export, materialization, publication, provider-backed generation, branch-local image jobs, and any expansion of agent authority remain out of scope.
 
@@ -27,18 +27,20 @@ The preview is a deterministic browser projection. It creates no bitmap, persist
 7. The same useful preview appears before owner proposal acceptance and before human room placement.
 8. Slice, digest, asset/metadata versions, lineage, raw findings, and rule identifiers remain in closed technical detail when healthy. Missing, unsupported, or failed imagery remains inspectable and rejectable, but the current-session accept/place control is disabled with an actionable explanation.
 
-## 3. Guided room construction
+## 3. Persistent room editor
 
-The room workspace is a guided flow whose steps expose only relevant controls:
+The live gate rejected the original six canvas-replacing steps. The room workspace follows the established image-editor model instead:
 
-1. `Purpose` — reusable room type and room identity.
-2. `Shape` — dimensions and the room shape mask.
-3. `Entrances` — existing outer-envelope connector model.
-4. `Surfaces` — structural coverage.
-5. `Props` — set dressing and bounded agent placement proposals.
-6. `Check` — validation, warning decisions, finalization, and fork.
+1. one room header keeps room identity, lifecycle, and saved version visible;
+2. one persistent central canvas remains visible while the active tool or dock panel changes;
+3. a left toolbox exposes mutually exclusive `Select`, `Room floor`, `Outside room`, `Blocked in room`, `Entrance`, `Surface`, and `Prop` tools with icon, label, tooltip, keyboard reachability, and pressed state;
+4. a contextual options bar names the active tool and keeps saved/dirty/conflict/read-only state plus explicit shape save/reload actions adjacent to the canvas;
+5. the right dock contains tool options, purpose/settings, selection/layers/assets, and check/findings/lifecycle controls without replacing the canvas;
+6. `Entrance`, `Surface`, and `Prop` remain distinct domain objects and commands but are editor tools for the same room version and canvas; `Purpose` and `Check` are dock panels, not canvas tools.
 
-The accepted room commands and agent contributions are grouped into those human steps. The flow does not grant a new agent capability.
+Every cell projects exactly one visible editor class: ordinary room floor, outside room, or blocked in room. The summary is a partition of the envelope rather than an inclusive “room cells” count. Pointer painting removes the coordinate from both sparse masks before applying the chosen class; the structured coordinate alternative rejects cross-list overlap before changing the draft. Visible placement/connector overlays cannot intercept paint input. A dirty shape draft blocks all other room mutations until it is saved or discarded, because the existing APIs do not offer an atomic mixed shape/placement/resize commit.
+
+This projection changes no accepted room command, CAS, immutable-version, proposal, lifecycle, or agent-authority semantic.
 
 ## 4. Irregular-room semantics
 
@@ -102,7 +104,9 @@ Candidate verification must demonstrate:
 - A representative real prop preview visibly distinguishes image, tile footprint, anchor, rotation, collision, and navigation at 1440x900 and 1060x900.
 - The user can construct a rectangular room with empty masks and an irregular room containing both VOID and BLOCKED cells.
 - VOID and BLOCKED are visually and textually distinct, keyboard reachable, and not distinguished by colour alone.
-- Shape drafts and focused workflow state survive passive refresh; a concurrent version change produces an explicit conflict.
+- Shape drafts, the active tool, canvas scroll, and keyboard focus survive passive refresh; a concurrent version change produces an explicit non-empty conflict.
+- Real pointer input above visible placements paints `room floor → outside → blocked → room floor` immediately, keeps the masks disjoint, and partitions the envelope exactly.
+- Tool and Purpose/Check dock changes keep one canvas visible at 1440x900 and 1060x900; only the canvas scroller may overflow horizontally.
 - CP1–4 domain, application, persistence, HTTP, MCP, adversarial, evidence, Windows, and root build gates remain green.
 
 Passing automation produces a CP4.5 candidate only. It does not record user acceptance.

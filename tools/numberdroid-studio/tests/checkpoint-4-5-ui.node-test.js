@@ -56,7 +56,25 @@ test('CP4.5 focused layouts remain bounded at the protected widths', async () =>
   const styles = await readFile(stylesUrl, 'utf8');
   assert.match(styles, /\.task-list-header \{ display: flex/);
   assert.match(styles, /\.task-workflow-state \{[^}]*background:/);
-  assert.match(styles, /\.room-focused-layout \{[^}]*grid-template-columns:/);
-  assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-focused-layout \{ grid-template-columns:/);
-  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-focused-layout \{ grid-template-columns: 1fr/);
+  assert.match(styles, /\.room-editor-shell \{[^}]*grid-template-columns:/);
+  assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-editor-dock \{ grid-column: 2/);
+  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-toolbox \{[^}]*grid-template-columns: repeat\(4/);
+});
+
+test('CP4.5 room editor keeps paint drafts exclusive, visible, recoverable, and mutation-safe', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  assert.match(app, /activeTool: 'SELECT'/);
+  assert.match(app, /button\.setAttribute\('aria-pressed', String\(state\.roomUi\.activeTool === value\)\)/);
+  assert.match(app, /draft\.voidCells = draft\.voidCells\.filter[\s\S]*draft\.blockedCells = draft\.blockedCells\.filter/);
+  assert.match(app, /targetKind === 'VOID'.*draft\.voidCells\.push\(anchor\)/s);
+  assert.match(app, /targetKind === 'BLOCKED'.*draft\.blockedCells\.push\(anchor\)/s);
+  assert.match(app, /if \(state\.roomUi\.shapeConflict\).*role', 'alert'/s);
+  assert.match(app, /Discard the unsaved shape changes and reload the saved room version/);
+  assert.match(app, /applyRoomShapeDraftLock/);
+  assert.match(app, /form\[data-room-form\]:not\(\[data-room-form="shape-coordinates"\]\)/);
+  assert.match(app, /operation !== 'room-shape-set' && state\.roomUi\.shapeDraft\?\.dirty/);
+  assert.match(app, /preserveRoomCanvas = false/);
+  assert.match(app, /replacementCanvas\.replaceWith\(retainedRoomCanvas\)/);
+  assert.match(app, /renderRoomDockNavigation\(\), renderRoomLayers\(\)/);
+  assert.match(app, /variant\.lifecycle !== 'DRAFT'\) \{ showToast\(`\$\{variant\.lifecycle\} room versions are read-only/);
 });

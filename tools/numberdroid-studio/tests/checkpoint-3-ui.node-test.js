@@ -64,25 +64,35 @@ test('Checkpoint 3 retains room selection, zoom, layers, dirty decisions, focus,
 
 test('Checkpoint 3 canvas and review surfaces remain bounded at 1440 and protected 1060 widths', async () => {
   const styles = await readFile(stylesUrl, 'utf8');
-  assert.match(styles, /\.room-designer-layout \{[^}]*grid-template-columns: minmax\(170px, \.55fr\) minmax\(360px, 1\.5fr\) minmax\(225px, \.75fr\)/);
+  assert.match(styles, /\.room-editor-shell \{[^}]*grid-template-columns: 92px minmax\(360px, 1fr\) minmax\(255px, \.72fr\)/);
   assert.match(styles, /\.room-canvas-scroll \{[^}]*overflow: auto/);
   assert.match(styles, /\.room-palette-list \{[^}]*overflow: auto/);
   assert.match(styles, /\.room-placement-list \{[^}]*overflow: auto/);
-  assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-designer-layout \{ grid-template-columns: minmax\(150px, \.55fr\) minmax\(300px, 1\.45fr\)/);
-  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-header, \.room-designer-layout \{ grid-template-columns: 1fr/);
+  assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: 82px minmax\(300px, 1fr\)/);
+  assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: 1fr/);
 });
 
-test('CP4.5 presents a guided room flow, truthful cell kinds, and owner-only complete shape saves', async () => {
+test('CP4.5 presents one persistent canvas, editor tools, truthful cell kinds, and complete shape saves', async () => {
   const app = await readFile(appUrl, 'utf8');
   const styles = await readFile(stylesUrl, 'utf8');
-  assert.match(app, /Purpose.*Shape.*Entrances.*Surfaces.*Props.*Check/s);
+  assert.match(app, /const ROOM_EDITOR_TOOLS/);
+  assert.match(app, /PAINT_ROOM.*PAINT_VOID.*PAINT_BLOCKED.*ENTRANCE.*SURFACE.*PROP/s);
+  assert.match(app, /function renderRoomEditorDock/);
+  assert.match(app, /shell\.append\(renderRoomToolbox\(variant\), renderRoomCanvas\(variant, snapshot\), renderRoomEditorDock/);
+  assert.doesNotMatch(app, /ROOM_WORKFLOW_STEPS|renderRoomWorkflow|workflow-step/);
   assert.match(app, /cell\.dataset\.cellKind = kind/);
-  assert.match(app, /kind === 'VOID' \? 'OUT' : kind === 'BLOCKED' \? 'BLOCKED' : 'ROOM'/);
+  assert.match(app, /kind === 'VOID' \? 'OUTSIDE' : kind === 'BLOCKED' \? 'BLOCKED' : 'FLOOR'/);
+  assert.match(app, /Every cell has exactly one visible class/);
+  assert.match(app, /total - draft\.voidCells\.length - draft\.blockedCells\.length/);
+  assert.match(app, /cannot be both outside and blocked/);
   assert.match(app, /expectedRoomVariantVersion: variant\.version, voidCells: draft\.voidCells, blockedCells: draft\.blockedCells/);
   assert.match(app, /\/shape/);
-  assert.match(app, /Save complete shape/);
+  assert.match(app, /Save shape/);
+  assert.match(app, /Save or discard shape changes before changing other room data/);
   assert.match(styles, /\.room-cell\[data-cell-kind="VOID"\][^{]*\{[^}]*repeating-linear-gradient/);
   assert.match(styles, /\.room-cell\[data-cell-kind="BLOCKED"\][^{]*\{[^}]*linear-gradient/);
+  assert.match(styles, /\.room-board\[data-shape-editing="true"\] \.room-placement,[\s\S]*pointer-events: none/);
+  assert.match(styles, /\.asset-conflict\[hidden\] \{ display: none; \}/);
 });
 
 test('CP4.5 useful prop preview exposes footprint, anchor, rotation, collision, and readiness before placement', async () => {
