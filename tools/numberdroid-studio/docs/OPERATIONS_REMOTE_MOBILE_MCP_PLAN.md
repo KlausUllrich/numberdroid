@@ -21,11 +21,11 @@ its own security, evidence, and user-acceptance boundary.
 
 - Checkpoints 1–4 are accepted and merged on `main`.
 - Checkpoint 4.5 is green as a candidate and still awaits Klaus's live designer
-  walkthrough. Its editor and UI behavior are not silently accepted by this
-  plan.
-- A dependent Checkpoint 5 candidate-only foundation may be developed and
-  tested without accepting CP4.5. It has no materialize, commit, publish,
-  deployment, or release authority.
+  walkthrough. Its source is authorized for integration into `main`, but its
+  editor and UI behavior are not silently accepted by this plan.
+- The Checkpoint 5 candidate-only foundation may share that integrated source
+  tree without accepting CP4.5. Its own output has no materialize, commit,
+  publish, deployment, or release authority.
 - `studio.sqlite` plus the SHA-256 artifact CAS are one consistency unit. The
   service remains the one authoritative writer.
 - The administration CLI already provides integrity checking, verified full
@@ -86,8 +86,9 @@ Deliverables:
   configuration, remote/local deployment separation, authentication/session
   boundary, proxy trust, MCP transport scope, and mobile information hierarchy;
 - an exact implementation-base and migration-order decision: a backup ledger in
-  the Studio database may allocate no migration before the branch containing
-  CP4.5 migration `0012` is its documented base (the next slot would be `0013`),
+  the Studio database may allocate no migration before the integrated source
+  containing CP4.5 migration `0012` is its documented base (the next slot would
+  be `0013`),
   while an independent operational control store must be explicitly outside the
   backed-up workspace and must not become a second semantic project writer;
 - an explicit self-snapshot rule. The recommended design keeps active backup
@@ -114,10 +115,10 @@ O0 must freeze all of these decisions, not merely list them as future work:
    or a Studio-database extension. Define startup ownership, single-writer
    behavior, reconstruction, backup inclusion/exclusion, and the exact way a
    restored operation becomes permanently inert.
-2. **Implementation base and migration.** Name the exact branch/commit. A
-   Studio-database extension stacked on CP4.5 must use the sequence after its
-   pinned migration `0012`; a parallel external ledger must not write semantic
-   Studio project state.
+2. **Implementation base and migration.** Name the exact `main` commit. A
+   Studio-database extension must use the sequence after the integrated pinned
+   migration `0012`; a parallel external ledger must not write semantic Studio
+   project state.
 3. **Workspace authority.** Introduce an authenticated, human-only local
    workspace-operator capability for create/verify/recovery-test/restore.
    Project ownership, task authority, agent grants, and MCP discovery cannot

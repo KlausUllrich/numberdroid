@@ -1,11 +1,12 @@
 # Checkpoint 5 — deterministic Numberdroid export candidate
 
-Status: **implementation candidate, stacked on the unaccepted Checkpoint 4.5 candidate**
+Status: **candidate-only foundation authorized for source integration; not user-accepted**
 
-This checkpoint may be developed and verified while Checkpoint 4.5 awaits the
-designer walkthrough. It does not accept Checkpoint 4.5, merge either branch,
-or authorize any filesystem materialization, Git commit, pull-request merge,
-deployment, or production publication.
+This checkpoint may be developed and source-integrated while Checkpoint 4.5
+awaits the designer walkthrough. For the solo-developer workflow, the user
+authorized keeping the latest CP4.5 plus CP5 source on `main`. That source merge
+does not accept either checkpoint and does not authorize the candidate to
+materialize files, create a Git commit, deploy, or publish production output.
 
 ## 1. Bounded outcome
 

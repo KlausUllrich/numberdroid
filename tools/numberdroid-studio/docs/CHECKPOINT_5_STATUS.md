@@ -1,10 +1,12 @@
 # Checkpoint 5 candidate-only foundation status
 
-Status: **dependent implementation candidate; not user-accepted**
+Status: **candidate-only foundation authorized for source integration; not user-accepted**
 
-Branch posture: stacked on the green but still unaccepted Checkpoint 4.5
-candidate. This record does not accept or merge either checkpoint and grants no
-materialization, Git, GitHub, deployment, release, or publication authority.
+Integration posture: preserved on `agent/numberdroid-studio-checkpoint-5` and
+authorized by the user on 2026-08-25 for integration into `main` after exact-head
+CI. Keeping the latest source together does not accept CP4.5 or CP5 and grants
+the candidate no materialization, Git/GitHub-output, deployment, release, or
+publication authority.
 
 ## Implemented first slice
 
@@ -72,7 +74,7 @@ the repository CI root job before this record can claim a green combined gate.
 
 ## Remaining Checkpoint 5 work
 
-1. Obtain green root and Studio CI for the dependent branch and record the run.
+1. Obtain green root and Studio CI for the exact integration head and record the run.
 2. Add an immutable persisted export aggregate and candidate-attempt/review
    projection without changing room history.
 3. Add the designer candidate preview, findings/remediation navigation, exact

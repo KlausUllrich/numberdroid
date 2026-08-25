@@ -1,8 +1,8 @@
 # Numberdroid Studio — Checkpoint 4.5 Candidate Record
 
 - **Date:** 2026-08-24
-- **Status:** implemented and CI/browser-verified repair candidate; awaiting explicit user acceptance; not merged. The user separately authorized dependent, fail-closed Checkpoint 5 candidate implementation on 2026-08-25 without accepting Checkpoint 4.5.
-- **Branch:** `agent/numberdroid-studio-checkpoint-4-5`
+- **Status:** implemented and CI/browser-verified repair candidate; awaiting explicit user acceptance. On 2026-08-25 the user authorized source integration into `main` for the solo-developer workflow without accepting Checkpoint 4.5.
+- **Evidence branch:** `agent/numberdroid-studio-checkpoint-4-5`; combined integration safety branch: `agent/numberdroid-studio-checkpoint-5`
 - **Product/evidence head:** `4dc112d5aa88aa3d6629c5d1949dfa38d7963642`
 - **Accepted baseline:** Checkpoints 1–4 on merge `bcc284684ea4d2e30158d3a20ebda57da77df93d`
 - **Frozen contract:** `CHECKPOINT_4_5_CONTRACT.md`
@@ -35,7 +35,7 @@ This record does not claim acceptance from tests, CI, reviewer agreement, or sil
 
 ## Preserved boundary
 
-Checkpoint 4.5 adds no provider, generation, source-intake, atlas job, agent finalization, export, materialization, repository write, or publication capability. It does not reopen the accepted Checkpoint 1–4 behavior unless a regression test or live walkthrough demonstrates an actual regression. Checkpoint 5 production use and acceptance remain blocked, while separately authorized dependent candidate-only implementation may proceed without changing this gate.
+Checkpoint 4.5 adds no provider, generation, source-intake, atlas job, agent finalization, export, materialization, runtime-repository write, or publication capability. Source integration into `main` preserves the latest solo-developer code but does not accept the UI. Checkpoint 5 production use and acceptance remain blocked, while its fail-closed candidate-only foundation may coexist in the integrated source tree without changing this gate.
 
 ## Required user gate
 
@@ -46,4 +46,4 @@ Checkpoint 4.5 adds no provider, generation, source-intake, atlas job, agent fin
 5. Confirm dirty/save/reload/conflict state is explicit above the canvas, resize and other mutations are blocked while shape is dirty, and Purpose/Check remain dock panels rather than page tabs.
 6. Inspect a prop from the **Prop** tool; confirm the exact image, footprint, anchor, rotation, collision/navigation, and placement readiness are useful before acting.
 
-Only explicit user acceptance closes this gate. Merge, Checkpoint 5 production use/acceptance, release, and publication require separate decisions. The already authorized dependent, fail-closed Checkpoint 5 candidate implementation remains non-accepting and grants none of those later authorities.
+Only explicit user acceptance closes this gate. Source integration into `main` has been authorized separately and is not acceptance. Checkpoint 5 production use/acceptance, release, materialization, and publication require later decisions; the fail-closed CP5 foundation grants none of those authorities.

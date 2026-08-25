@@ -406,9 +406,9 @@ split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
   worker claims work and MUST discard source-host destination/lease authority.
 - **BAK-012.** A Studio-database backup ledger MUST use the migration sequence of
   its exact implementation base. It MUST NOT claim migration `0012`, which is
-  already owned by the unaccepted CP4.5 room-shape candidate; an independent
-  control store must remain outside the semantic workspace and must not become
-  a second project writer.
+  already owned by the integrated but still unaccepted CP4.5 room-shape source;
+  an independent control store must remain outside the semantic workspace and
+  must not become a second project writer.
 - **BAK-013.** Workspace backup management MUST require a dedicated
   authenticated human workspace-operator capability. Project ownership, task
   scope, agent grants, ordinary authoring capabilities, and MCP discovery MUST

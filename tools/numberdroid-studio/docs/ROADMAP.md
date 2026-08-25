@@ -169,7 +169,7 @@ Exit decision: **accepted by the user on 2026-08-24.** The bounded delegation mo
 
 ## Checkpoint 4.5 — Designer workflow and preview usability
 
-**Status: frozen-contract implementation candidate as of 2026-08-24; local automation plus fresh Linux/Windows CI and Chrome evidence are green, while explicit user acceptance remains pending. The user explicitly authorized dependent Checkpoint 5 candidate implementation on 2026-08-25 without accepting Checkpoint 4.5.**
+**Status: frozen-contract implementation candidate as of 2026-08-24; local automation plus fresh Linux/Windows CI and Chrome evidence are green, while explicit user acceptance remains pending. On 2026-08-25 the user authorized integrated CP4.5 plus CP5 source on `main` for the solo-developer workflow without accepting either checkpoint.**
 
 **Outcome:** a professional designer can understand the current step, create or review the relevant object, and see a useful preview without needing to understand Studio's internal branch, grant, revision, provenance, or validation vocabulary.
 
@@ -207,7 +207,7 @@ User verification scenario: export the approved room twice, compare manifests/ha
 
 Exit decision: approve adapter fidelity and choose the production publishing workflow.
 
-Candidate implementation, stacked on the still-unaccepted Checkpoint 4.5 branch:
+Candidate implementation, preserved on the combined integration branch and authorized for source integration without accepting CP4.5:
 `CHECKPOINT_5_CONTRACT.md` freezes a candidate-only first slice.
 `packages/numberdroid-adapter` now creates a content-addressed immutable snapshot,
 maps exact room/asset/source pins to virtual Level Spec/provenance files and CAS
@@ -226,8 +226,9 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 **Status: added to the current masterplan on 2026-08-25; each implementation
 gate and user acceptance remains separate.**
 
-This track neither accepts Checkpoint 4.5 nor turns the Checkpoint 5 candidate
-into repository state. It adds four product outcomes:
+This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
+export candidate into Numberdroid runtime/repository output. Its planning and
+implementation sources may live on `main`. It adds four product outcomes:
 
 - simple verified backup/recovery in the human UI;
 - an always-on, authenticated private Studio service reachable from Klaus's phone;

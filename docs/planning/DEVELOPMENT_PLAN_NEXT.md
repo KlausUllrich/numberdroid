@@ -59,7 +59,7 @@ Do not reintroduce prototype bridges or another game-runtime architecture migrat
 Numberdroid Studio has a separate cross-cutting product track alongside the
 current Gold Slice work. It does not change the Gold Slice's current art/content
 priority and does not accept the still-open Studio Checkpoint 4.5 or promote the
-dependent Checkpoint 5 candidate.
+integrated Checkpoint 5 foundation beyond candidate-only status.
 
 The four required outcomes are:
 
