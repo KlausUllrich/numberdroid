@@ -42,6 +42,7 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
   const evidence = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
   assert.match(evidence, /Refresh-safe task draft/);
   assert.match(evidence, /const runPassiveRefresh = async \(\) =>/);
+  assert.match(evidence, /checkpoint4Focus === 'create' \? 30_000 : 10_000/);
   assert.match(evidence, /refreshButton\.click\(\)/);
   assert.match(evidence, /await runPassiveRefresh\(\)/);
   assert.match(evidence, /Concurrent task list update/);

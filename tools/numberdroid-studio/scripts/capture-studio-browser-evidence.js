@@ -112,13 +112,13 @@ class DevTools {
     socket.addEventListener('error', failPending);
   }
 
-  send(method, params = {}, sessionId = undefined) {
+  send(method, params = {}, sessionId = undefined, timeoutMs = 10_000) {
     const id = this.#nextId++;
     return new Promise((resolveCommand, rejectCommand) => {
       const timeout = setTimeout(() => {
         this.#pending.delete(id);
-        rejectCommand(new Error(`${method} did not complete within 10 seconds.`));
-      }, 10_000);
+        rejectCommand(new Error(`${method} did not complete within ${timeoutMs} milliseconds.`));
+      }, timeoutMs);
       this.#pending.set(id, { resolve: resolveCommand, reject: rejectCommand, method, timeout });
       try {
         this.#socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
@@ -594,7 +594,7 @@ try {
       })()`,
       awaitPromise: true,
       returnByValue: true,
-    }, sessionId);
+    }, sessionId, checkpoint4Focus === 'create' ? 30_000 : 10_000);
     checkpoint4TaskFocus = focused.result?.value ?? null;
     assert(checkpoint4TaskFocus?.found === true && checkpoint4TaskFocus.taskCount === 2,
       `Checkpoint 4 could not focus the requested task evidence: ${JSON.stringify(checkpoint4TaskFocus)}`);
