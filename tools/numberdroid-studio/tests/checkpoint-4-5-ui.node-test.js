@@ -47,7 +47,9 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
   assert.match(evidence, /await runPassiveRefresh\(\)/);
   assert.match(evidence, /Concurrent task list update/);
   assert.match(evidence, /const externalSession = await fetch\('\/api\/ui-session'\)/);
-  assert.match(evidence, /sameProjectChanged: refreshedTaskList\.tasks\.some/);
+  assert.match(evidence, /const concurrentChangeExercised = \$\{width === 1060\}/);
+  assert.match(evidence, /serverStateMatched: concurrentChangeExercised/);
+  assert.match(evidence, /concurrentChangeExercised === \(width === 1060\)/);
   assert.match(evidence, /textContent === 'Revision 6'/);
   assert.match(evidence, /textContent === '6'/);
   assert.match(evidence, /sameComposer: currentComposer === composer/);

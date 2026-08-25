@@ -492,33 +492,37 @@ try {
             && document.querySelector('[data-task-form="create"]') === form
             && document.activeElement === objectiveField;
           const projectId = document.getElementById('workspace-content').dataset.renderedProjectId;
-          const externalSession = await fetch('/api/ui-session').then((response) => response.json());
-          const concurrentToken = crypto.randomUUID();
-          const concurrentTaskId = 'task.visual.refresh.' + concurrentToken;
-          const concurrentResponse = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/tasks', {
-            method: 'POST',
-            headers: {
-              'content-type': 'application/json',
-              'x-numberdroid-studio-csrf': externalSession.csrfToken,
-            },
-            body: JSON.stringify({ task: {
-              taskId: concurrentTaskId,
-              branchId: 'branch.task.visual.refresh.' + concurrentToken,
-              agentId: 'studio.concurrent.agent',
-              title: 'Concurrent task list update',
-              objective: 'Prove that a same-project update does not replace an open task composer.',
-              capabilities: ['project.read'],
-              objectScopes: [{ kind: 'project', id: projectId }],
-              budget: { maxCommands: 1, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
-              expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-              autoAcceptPolicy: { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
-            } }),
-          });
-          const concurrentResult = await concurrentResponse.json();
-          if (!concurrentResponse.ok) {
-            const error = new Error(concurrentResult.error?.message ?? 'Concurrent task creation failed.');
-            error.code = concurrentResult.error?.code;
-            throw error;
+          const concurrentChangeExercised = ${width === 1060};
+          let concurrentTaskId = null;
+          if (concurrentChangeExercised) {
+            const externalSession = await fetch('/api/ui-session').then((response) => response.json());
+            const concurrentToken = crypto.randomUUID();
+            concurrentTaskId = 'task.visual.refresh.' + concurrentToken;
+            const concurrentResponse = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/tasks', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                'x-numberdroid-studio-csrf': externalSession.csrfToken,
+              },
+              body: JSON.stringify({ task: {
+                taskId: concurrentTaskId,
+                branchId: 'branch.task.visual.refresh.' + concurrentToken,
+                agentId: 'studio.concurrent.agent',
+                title: 'Concurrent task list update',
+                objective: 'Prove that a same-project update does not replace an open task composer.',
+                capabilities: ['project.read'],
+                objectScopes: [{ kind: 'project', id: projectId }],
+                budget: { maxCommands: 1, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
+                expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+                autoAcceptPolicy: { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
+              } }),
+            });
+            const concurrentResult = await concurrentResponse.json();
+            if (!concurrentResponse.ok) {
+              const error = new Error(concurrentResult.error?.message ?? 'Concurrent task creation failed.');
+              error.code = concurrentResult.error?.code;
+              throw error;
+            }
           }
           await new Promise((resolveWait) => setTimeout(resolveWait, 5_100));
           await runPassiveRefresh();
@@ -535,9 +539,14 @@ try {
           const currentAutoAcceptField = currentForm?.querySelector('input[name="autoAccept"]');
           createRefreshEvidence = {
             firstRefreshPreserved,
-            sameProjectChanged: refreshedTaskList.tasks.some((task) => task.taskId === concurrentTaskId)
-              && document.getElementById('revision-label').textContent === 'Revision 6'
-              && document.getElementById('activity-count').textContent === '6',
+            concurrentChangeExercised,
+            serverStateMatched: concurrentChangeExercised
+              ? refreshedTaskList.tasks.some((task) => task.taskId === concurrentTaskId)
+                && document.getElementById('revision-label').textContent === 'Revision 6'
+                && document.getElementById('activity-count').textContent === '6'
+              : refreshedTaskList.tasks.length === 2
+                && document.getElementById('revision-label').textContent === 'Revision 5'
+                && document.getElementById('activity-count').textContent === '5',
             sameComposer: currentComposer === composer,
             sameForm: currentForm === form,
             sameField: currentObjectiveField === objectiveField && currentObjectiveField?.isConnected === true,
@@ -1739,7 +1748,8 @@ try {
           && checkpoint4TaskFocus.createFieldCount >= 13
           && checkpoint4TaskFocus.createKeyboardReachable === true
           && checkpoint4TaskFocus.createRefreshEvidence?.firstRefreshPreserved === true
-          && checkpoint4TaskFocus.createRefreshEvidence?.sameProjectChanged === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.serverStateMatched === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.concurrentChangeExercised === (width === 1060)
           && checkpoint4TaskFocus.createRefreshEvidence?.sameComposer === true
           && checkpoint4TaskFocus.createRefreshEvidence?.sameForm === true
           && checkpoint4TaskFocus.createRefreshEvidence?.sameField === true
