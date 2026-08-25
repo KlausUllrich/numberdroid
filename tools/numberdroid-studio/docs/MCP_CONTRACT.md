@@ -6,7 +6,7 @@ The MCP server is a first-class Studio client for agents. It exposes the same se
 
 Checkpoint 1B implemented and the user accepted MCP 2026-07-28 through the official maintained SDK. The protocol SDK and transport remain replaceable adapters; Studio command semantics do not depend on a specific MCP revision. Checkpoint 1A contained only a host-injected agent adapter/tool catalog and MUST NOT be described as a complete MCP server.
 
-The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. Accepted Checkpoint 2A adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. Accepted Checkpoint 2B adds atlas and durable-job operations only when both the attempt and job stores are live. The Checkpoint 2C candidate adds one proposal mutation, one read-only asset query, and one asset detail resource only when audit, jobs, and the durable schema-v9 asset store are all live. These are additive surfaces, not a permission-model rewrite; 2C remains subject to the separate user acceptance gate.
+The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. Accepted Checkpoint 2A adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. Accepted Checkpoint 2B adds atlas and durable-job operations only when both the attempt and job stores are live. Accepted Checkpoint 2C adds one proposal mutation, one read-only asset query, and one asset detail resource only when audit, jobs, and the durable schema-v9 asset store are all live. Accepted Checkpoints 3 and 4 add the bounded room and task-branch surfaces below. These are additive surfaces, not a permission-model rewrite.
 
 Accepted transport: local stdio through the official SDK v2 `serveStdio(() => buildServer(), { legacy: "reject" })` entry, so the wire protocol is MCP `2026-07-28`. A child-process contract test negotiates `server/discover` and asserts that revision. The MCP protocol core is treated as stateless: protocol discovery/capability negotiation is not an identity or authorization session. A later team deployment may add authenticated Streamable HTTP without changing tool schemas or authoring behavior.
 
@@ -198,7 +198,7 @@ Owner-only `source.review.decide` is used by the human UI and is never advertise
 
 Together with the accepted seven tools, the audit/job-ready official server advertises exactly 15 tools and the two project/job resource templates above. `studio_job_cancel`, `studio_job_retry`, and `studio_job_discard` require the original agent task/object authority and commit their `AUTHORIZED` attempt record atomically with the job transition. Job read and resource read are project-scoped. No job schema accepts actor/task/branch/grant identity, bytes, base64, credentials, local paths, or arbitrary artifact URIs.
 
-### Checkpoint 2C candidate surface when audit, jobs, and schema v9 are live
+### Accepted Checkpoint 2C surface when audit, jobs, and schema v9 are live
 
 - `studio_asset_proposal_submit` — submit one bounded ordered V2 asset proposal against exact committed slice versions; every item is charged against `maxCommands` and requires the narrow `asset.proposal.submit` scope;
 - `studio_asset_query` — read-only bounded filter/query of V2 asset heads, findings, and optionally durable proposal state.
@@ -224,9 +224,9 @@ Grant mint/revoke endpoints exist for the authenticated human UI/service API. Th
 
 ### Later asset-library expansion
 
-The 2C candidate deliberately exposes durable proposal submission rather than a general branch/batch wrapper. Direct rename, replacement-slice mapping, agent lifecycle/finalization, and partial-success batches remain later work. A future batch tool must return per-item findings and preserve one documented atomic boundary; it cannot use `atomic: false` unless the contract explicitly reports a revision for every accepted subgroup.
+The accepted 2C boundary deliberately exposes durable proposal submission rather than a general branch/batch wrapper. Direct rename, replacement-slice mapping, agent lifecycle/finalization, and partial-success batches remain later work. A future batch tool must return per-item findings and preserve one documented atomic boundary; it cannot use `atomic: false` unless the contract explicitly reports a revision for every accepted subgroup.
 
-### Room and hallway tools — Checkpoint 3 candidate
+### Room and hallway tools — accepted Checkpoint 3
 
 Schema v10 advertises exactly two additive room tools, for a total of 19 tools and four resource templates:
 
@@ -235,7 +235,7 @@ Schema v10 advertises exactly two additive room tools, for a total of 19 tools a
 
 The room detail resource is `studio://projects/{projectId}/rooms/{roomVariantId}`. Without an actual task binding, direct create, resize, intent, connector, placement, warning-disposition, validation, finalization, fork, proposal-decision, and proposal-apply controls remain authenticated human UI/service commands and are deliberately absent from MCP. Placement records reference exact semantic `assetId`/`assetVersion`/`metadataVersion`, layer, cell anchor, and cardinal rotation; they never reference a loose filename or current asset head as authority.
 
-### Delegated task branch tools — Checkpoint 4 candidate
+### Delegated task branch tools — accepted Checkpoint 4
 
 The default schema-v10 discovery surface remains exactly 19 tools and four resource templates. Only when the private gateway has resolved a live HostBinding to a real matching Checkpoint 4 task branch does discovery advertise exactly 30 tools and five resource templates. The additive task-bound tools are:
 
@@ -358,7 +358,7 @@ The target V1 activity timeline displays every MCP tool call that reaches applic
 - duration, job/correlation IDs, findings, and changed resource links;
 - review disposition (`PENDING`, `USER_ACCEPTED`, `USER_REJECTED`, `CHANGES_REQUESTED`, or `AUTO_ACCEPTED_BY_POLICY`).
 
-The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2B adds visible read/cancel/retry/discard controls for its atlas-preview jobs, and the agent receives the equivalent scoped MCP operations. The Checkpoint 4 candidate activates `Propose in draft` only when a real matching task branch exists; without that task it retains the protected `DRAFT_BRANCH_NOT_AVAILABLE_1B` fail-closed result. Review decision, merge, and revert are human service/UI actions rather than MCP tools.
+The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2B adds visible read/cancel/retry/discard controls for its atlas-preview jobs, and the agent receives the equivalent scoped MCP operations. Accepted Checkpoint 4 activates `Propose in draft` only when a real matching task branch exists; without that task it retains the protected `DRAFT_BRANCH_NOT_AVAILABLE_1B` fail-closed result. Review decision, merge, and revert are human service/UI actions rather than MCP tools. Checkpoint 4.5 keeps room-shape replacement owner-only and absent from both discovery surfaces.
 
 ## 11. Security invariants
 

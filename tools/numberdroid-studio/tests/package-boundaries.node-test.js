@@ -14,6 +14,7 @@ const allowedDependencies = {
   persistence: new Set(['persistence', 'application', 'domain']),
   preview: new Set(['preview', 'domain']),
   'mcp-server': new Set(['mcp-server', 'application', 'domain']),
+  'numberdroid-adapter': new Set(['numberdroid-adapter']),
 };
 
 async function javascriptFiles(directory) {
@@ -25,7 +26,7 @@ async function javascriptFiles(directory) {
   return nested.flat();
 }
 
-test('standalone package imports obey inward dependency direction and contain no Numberdroid coupling', async () => {
+test('standalone package imports obey inward dependency direction and isolate Numberdroid coupling in its pure adapter', async () => {
   const files = await javascriptFiles(packagesRoot);
   assert.ok(files.length > 0);
   for (const file of files) {
@@ -33,7 +34,12 @@ test('standalone package imports obey inward dependency direction and contain no
     const source = await readFile(file, 'utf8');
     const imports = [...source.matchAll(/(?:from\s+|import\s*)['"]([^'"]+)['"]/g)].map((match) => match[1]);
     for (const specifier of imports) {
-      assert.doesNotMatch(specifier, /numberdroid/i, `${relative(studioRoot, file)} imports Numberdroid internals`);
+      if (sourcePackage === 'numberdroid-adapter') {
+        assert.doesNotMatch(specifier, /^(?:node:)?(?:fs|fs\/promises|child_process|net|http|https|tls|dgram|cluster|worker_threads)$/, `${relative(studioRoot, file)} gives the pure candidate adapter operational I/O authority`);
+        assert.doesNotMatch(specifier, /(?:octokit|github|simple-git|isomorphic-git)/i, `${relative(studioRoot, file)} gives the pure candidate adapter Git or GitHub authority`);
+      } else {
+        assert.doesNotMatch(specifier, /numberdroid/i, `${relative(studioRoot, file)} imports Numberdroid internals`);
+      }
       if (!specifier.startsWith('.')) continue;
       const resolvedImport = resolve(dirname(file), specifier);
       if (!resolvedImport.startsWith(packagesRoot + sep)) continue;

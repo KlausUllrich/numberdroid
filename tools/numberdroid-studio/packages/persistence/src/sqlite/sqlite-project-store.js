@@ -1184,6 +1184,8 @@ function writeRoomVariantVersion(database, projectId, revision, room, fault) {
     intentTrace: room.intentTrace,
     connectors: room.connectors,
     placements: room.placements,
+    voidCells: room.voidCells ?? [],
+    blockedCells: room.blockedCells ?? [],
     acceptedWarningFindingIds: room.acceptedWarningFindingIds,
     parentVariantVersion: room.parentVariantVersion,
     parentFinalVersion: room.parentFinalVersion,
@@ -1210,6 +1212,19 @@ function writeRoomVariantVersion(database, projectId, revision, room, fault) {
     room.createdAt, room.createdBy, room.proposalId,
   );
   fault('after_room_variant_version_insert');
+  const shapeCells = [
+    ...(room.voidCells ?? []).map((cell) => ({ ...cell, kind: 'VOID' })),
+    ...(room.blockedCells ?? []).map((cell) => ({ ...cell, kind: 'BLOCKED' })),
+  ].sort((left, right) => left.kind.localeCompare(right.kind) || left.y - right.y || left.x - right.x);
+  for (const [cellOrder, cell] of shapeCells.entries()) {
+    database.prepare(`
+      INSERT INTO room_variant_shape_cells(
+        project_id, room_variant_id, variant_version, cell_order,
+        cell_kind, x, y
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(projectId, room.roomVariantId, room.version, cellOrder, cell.kind, cell.x, cell.y);
+    fault('after_room_variant_shape_cell_insert');
+  }
   for (const [intentOrder, intent] of room.intentTrace.entries()) {
     database.prepare(`
       INSERT INTO room_variant_intent(

@@ -654,6 +654,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
     const intentForVersion = db.prepare(`SELECT * FROM room_variant_intent WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY intent_order`);
     const connectorsForVersion = db.prepare(`SELECT * FROM room_variant_connectors WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY connector_order`);
     const placementsForVersion = db.prepare(`SELECT * FROM room_variant_placements WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY placement_order`);
+    const shapeForVersion = db.prepare(`SELECT * FROM room_variant_shape_cells WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY cell_order`);
     const findingsForVersion = db.prepare(`SELECT * FROM room_variant_findings WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY finding_order`);
     const dispositionsForVersion = db.prepare(`SELECT * FROM room_variant_warning_dispositions WHERE project_id = ? AND room_variant_id = ? AND variant_version = ? ORDER BY disposition_order`);
     const exactAsset = db.prepare(`SELECT metadata_version FROM asset_versions WHERE project_id = ? AND asset_id = ? AND asset_version = ?`);
@@ -671,6 +672,8 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
       let intent;
       let connectors;
       let placements;
+      let voidCells;
+      let blockedCells;
       try {
         value = JSON.parse(row.variant_json);
         const findingRows = findingsForVersion.all(row.project_id, row.room_variant_id, row.variant_version);
@@ -680,6 +683,12 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
         }));
         connectors = connectorsForVersion.all(row.project_id, row.room_variant_id, row.variant_version).map((connectorRow) => JSON.parse(connectorRow.connector_json));
         placements = placementsForVersion.all(row.project_id, row.room_variant_id, row.variant_version).map((placementRow) => JSON.parse(placementRow.placement_json));
+        const shapeRows = shapeForVersion.all(row.project_id, row.room_variant_id, row.variant_version);
+        if (shapeRows.some((shapeRow, index) => Number(shapeRow.cell_order) !== index)) {
+          roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, code: 'ROOM_SHAPE_ORDER_MISMATCH', message: 'Normalized room shape cell order is not canonical.' });
+        }
+        voidCells = shapeRows.filter(({ cell_kind: kind }) => kind === 'VOID').map(({ x, y }) => ({ x: Number(x), y: Number(y) }));
+        blockedCells = shapeRows.filter(({ cell_kind: kind }) => kind === 'BLOCKED').map(({ x, y }) => ({ x: Number(x), y: Number(y) }));
         for (const [index, findingRow] of findingRows.entries()) {
           const findingValue = findings[index];
           if (Number(findingRow.finding_order) !== index || findingValue.findingId !== findingRow.finding_id
@@ -700,7 +709,9 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
         || value.width !== Number(row.width) || value.height !== Number(row.height)
         || fingerprint(value.intentTrace) !== fingerprint(intent)
         || fingerprint(value.connectors) !== fingerprint(connectors)
-        || fingerprint(value.placements) !== fingerprint(placements)) {
+        || fingerprint(value.placements) !== fingerprint(placements)
+        || fingerprint(value.voidCells ?? []) !== fingerprint(voidCells)
+        || fingerprint(value.blockedCells ?? []) !== fingerprint(blockedCells)) {
         roomFindings.push({ projectId: row.project_id, roomVariantId: row.room_variant_id, code: 'ROOM_VERSION_CONTENT_MISMATCH', message: 'Normalized room content, child records, or fingerprints disagree.' });
       }
       for (const placement of placements) {
@@ -728,6 +739,8 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
           displayName: semantic.displayName, lifecycle: semantic.lifecycle, width: semantic.width,
           height: semantic.height, origin: semantic.origin, intentTrace: semantic.intentTrace,
           connectors: semantic.connectors, placements: semantic.placements,
+          ...(semantic.voidCells?.length ? { voidCells: semantic.voidCells } : Object.hasOwn(value, 'voidCells') ? { voidCells: semantic.voidCells ?? [] } : {}),
+          ...(semantic.blockedCells?.length ? { blockedCells: semantic.blockedCells } : Object.hasOwn(value, 'blockedCells') ? { blockedCells: semantic.blockedCells ?? [] } : {}),
           acceptedWarningFindingIds: semantic.acceptedWarningFindingIds,
           parentVariantVersion: semantic.parentVariantVersion, parentFinalVersion: semantic.parentFinalVersion,
         }) !== fingerprint(value)) {

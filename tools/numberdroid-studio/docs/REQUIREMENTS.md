@@ -329,7 +329,7 @@ Post-acceptance failed run `32571622269` (both Studio attempts failed; artifact 
 
 The user completed the combined walkthrough and accepted the bounded Checkpoint 2C, 3, and 4 implementations. The final conflict-control repair was rebuilt on Linux and passed after the same head had passed Windows/Node 22.17.0 and real-Chrome CI. Acceptance does not imply PR merge, release, provider access, Numberdroid export, materialization, publication, or broader agent authority.
 
-The walkthrough also established the next requirements rather than silently treating them as completed: professional plain language and progressive disclosure across workspaces, a separate focused task-creation step, a human-usable prop preview build, guided room construction, and explicit irregular-room `VOID` versus `BLOCKED` semantics. These form Checkpoint 4.5 and require a reviewed contract before implementation.
+The walkthrough also established the next requirements rather than silently treating them as completed: professional plain language and progressive disclosure across workspaces, a separate focused task-creation step, a human-usable prop preview build, guided room construction, and explicit irregular-room `VOID` versus `BLOCKED` semantics. `CHECKPOINT_4_5_CONTRACT.md` now freezes that contract; the implementation remains a candidate until explicit user acceptance.
 
 ### Checkpoint 4.5 — designer workflow and preview usability
 
@@ -337,11 +337,184 @@ The walkthrough also established the next requirements rather than silently trea
 2. Task selection, progress, review, completion, and undo MUST read as one state-driven workflow. The primary UI MUST identify who acts next and omit or explain unavailable actions.
 3. `UI-011` and `UI-012` apply across source, asset, room, and task workspaces. Technical identifiers and implementation terms MUST remain optional diagnostic detail.
 4. Healthy provenance, integrity, validation, and authority state SHOULD be quiet confirmation. The UI MUST raise an actionable warning when required information is missing, inconsistent, unsafe, or awaiting a decision.
-5. A prop MUST have a human-usable visual preview before placement or approval. The exact minimum preview content MUST be frozen in the Checkpoint 4.5 contract before implementation.
+5. A prop MUST have a human-usable visual preview before placement or approval. The frozen minimum is the exact uncropped project-scoped image, tile footprint/grid, authored anchor, permitted rotations, collision/navigation effect, and attachment/boundary suitability. Missing exact imagery remains inspectable/rejectable but MUST disable acceptance and placement.
 6. Room construction MUST provide a guided flow that makes human and agent contributions understandable without reading internal commands or revisions.
-7. Irregular-room authoring MUST distinguish `VOID` cells outside the room from `BLOCKED` cells that remain part of the room but cannot be crossed. Persistence and validation changes MUST wait for a reviewed semantic contract.
+7. Irregular-room authoring MUST distinguish `VOID` cells outside the room from `BLOCKED` cells that remain part of the room but cannot be crossed. The reviewed contract uses disjoint, bounded, row-major sparse masks; non-`VOID` cells form one four-neighbour component; `VOID` is excluded from the accepted Checkpoint 3 usable surface domain, navigation, placement, and connector approaches; `BLOCKED` requires surface coverage when it lies inside that usable domain but excludes traversal and set dressing. Structural bands remain excluded before coverage is evaluated.
 8. Checkpoint 4.5 MUST preserve the accepted Checkpoint 2C asset lineage, Checkpoint 3 immutable room/fork behavior, and Checkpoint 4 authority/review boundaries.
 9. Real-browser evidence MUST cover the task list/create/review flow, prop preview, rectangular and irregular room construction, keyboard access, and protected 1440×900 and 1060×900 layouts before user acceptance.
+
+**Candidate status:** implemented with migration 0012, portable schema v3 only for masked rooms, and no agent-tool expansion. Local tests, deterministic fixture/bundle round trips, fresh Linux/Windows CI, and Chrome evidence are green; the live user gate remains the acceptance prerequisite.
+
+### Checkpoint 5 — deterministic candidate-only foundation
+
+**Status: dependent implementation candidate; it does not accept Checkpoint 4.5 or authorize later export stages.**
+
+1. Candidate creation MUST freeze one exact `FINAL` room/archetype version and the exact FINAL, runtime-eligible asset/metadata/slice/source closure it references. Every referenced CAS object MUST have one matching trusted verification of its digest, byte size, media type, and decoded dimensions, with no unrelated verification records in the closure.
+2. Adapter bindings MUST pin exact Studio asset coordinates and explicit Numberdroid semantic IDs plus separate normalized runtime `public/` and approved `art-source/approved/` targets. Display names, pixels, current heads, and caller paths MUST NOT become authority.
+3. The deterministic snapshot, virtual text files, CAS copy descriptors, findings, and manifest MUST exclude clocks, random attempt IDs, machine paths, binary/Base64 data, credentials, branches, and destination controls.
+4. Candidate validation MUST invoke both the canonical placement-override validator and Level Spec compiler with the canonical Prop and Prop Art registries. The fixed bridge MUST accept only the exact non-serializable in-process snapshot object returned by the trusted factory; parsed, cloned, caller-created, or self-rehashed JSON MUST NOT become provenance authority. Compiler errors MUST become stable sanitized findings with remediation.
+5. Any non-empty `VOID`/`BLOCKED` mask MUST remain visible in the review document and block candidate approval until the canonical Level Spec can preserve that distinction. It MUST NOT be flattened or encoded as a fake Prop.
+6. Studio entrances MUST remain preserved review data for a standalone room. The adapter MUST NOT invent external Level Spec spaces merely to satisfy a connection shape.
+7. Ambiguous hallway orientation, unsupported Studio item mapping, implicit runtime resizing, footprint/rotation/art-registry mismatch, unsafe/colliding paths, stale pins, or missing approved source closure MUST fail closed. Structural surface imagery MUST also block until a canonical compiled floor-material/tileset binding references it; Prop output MUST block until accepted art, shadow dependencies, and exact-fit/placement contracts are closed over and fingerprint-pinned.
+8. The manifest MUST show candidate verification separately from materialize, commit, and publish. The first slice fixes all three later stages at `NOT_AUTHORIZED` and exposes no operational API for them.
+9. Identical snapshot input, adapter/compiler authority versions, bindings, and profile MUST produce byte-identical virtual files, findings, manifest, and hashes.
+10. Candidate persistence, human review/approval UI, and the production materialize/commit/publish workflow remain later Checkpoint 5 work and require their own authority and recovery design.
+
+### Operations, remote access, mobile, and MCP onboarding
+
+**Status: binding masterplan requirements; implementation and acceptance remain
+split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
+
+#### Backup and recovery
+
+- **BAK-001.** The human UI MUST provide one understandable full-workspace
+  backup flow covering the authoritative SQLite database, exact referenced CAS
+  closure, manifest, and recovery metadata. A portable project bundle MUST NOT
+  be described as a complete backup.
+- **BAK-002.** Backup MUST coordinate with the one authoritative writer and
+  produce a consistent pre- or post-mutation snapshot, never mixed semantic and
+  artifact state. The initiating browser disconnecting MUST NOT cancel or
+  corrupt the durable operation.
+- **BAK-003.** Integrity MUST pass before backup, and the completed backup MUST
+  be verified automatically. User-facing success means durable completion and
+  verification, not merely queue acceptance.
+- **BAK-004.** Backup, verification, and recovery-test state MUST be durable,
+  restart-safe, attributable, and expose understandable phases plus sanitized
+  findings.
+- **BAK-005.** Restore MUST create and verify a new working copy. It MUST NOT
+  overwrite, merge into, or automatically replace the active workspace.
+- **BAK-006.** Browser/API callers MUST select only configured backup
+  destinations by opaque reference; they MUST NOT provide arbitrary server
+  filesystem paths.
+- **BAK-007.** Existing backups and restore destinations MUST NOT be
+  overwritten. Deletion, automatic retention cleanup, and active-workspace
+  cutover require separate recoverable owner-only contracts.
+- **BAK-008.** Corruption, concurrent mutation, duplicate request, worker/process
+  failure, and destination-conflict tests MUST prove that active work, source
+  backup, and earlier backups remain unchanged.
+- **BAK-009.** Backup and restore MUST use a unique staging destination and MUST
+  expose output as usable only after complete verification. Failed or incomplete
+  output MUST remain explicitly unusable and MUST NOT be silently reused by a
+  later operation.
+- **BAK-010.** Automated recovery-test cleanup MUST be bound to the exact
+  generated test-copy identity and MUST NOT target the active workspace, source
+  backup, another restored copy, or a caller-selected path.
+- **BAK-011.** Durable backup-operation state MUST NOT become resumable work in
+  a restored workspace. Prefer a service control ledger outside the backed-up
+  workspace; if operation state is stored inside `studio.sqlite`, startup MUST
+  atomically make every restored nonterminal backup operation inert before any
+  worker claims work and MUST discard source-host destination/lease authority.
+- **BAK-012.** A Studio-database backup ledger MUST use the migration sequence of
+  its exact implementation base. It MUST NOT claim migration `0012`, which is
+  already owned by the integrated but still unaccepted CP4.5 room-shape source;
+  an independent control store must remain outside the semantic workspace and
+  must not become a second project writer.
+- **BAK-013.** Workspace backup management MUST require a dedicated
+  authenticated human workspace-operator capability. Project ownership, task
+  scope, agent grants, ordinary authoring capabilities, and MCP discovery MUST
+  NOT imply create, verify, recovery-test, restore, cleanup, or cutover authority.
+- **BAK-014.** Configured destination roots and every derived stage/final path
+  MUST reject traversal, absolute/drive/UNC caller input, symlinks, Windows
+  reparse points/junctions, case-fold collisions, containment escape, nested
+  live/backup roots, and directory-swap TOCTOU. Manifest database/artifact names
+  MUST be fixed schema values rather than trusted paths.
+- **BAK-015.** A backup or restored copy MUST become visible as usable only after
+  complete database/CAS/manifest verification, durable file and directory
+  closure, and atomic same-filesystem publication to a previously nonexistent
+  final destination.
+- **BAK-016.** Create, verify, recovery test, and restore MUST each have a fixed
+  durable state machine with explicit phases, terminal states, lease ownership,
+  retry/resume policy, idempotency, and stale-worker exclusion. Unknown client
+  outcomes MUST be resolved by replaying the same logical operation identity.
+- **BAK-017.** A recovery test MUST open the restored workspace read-only and
+  MUST start no listener or worker. A durable restored copy MUST remain
+  quarantined until a separate owner-only activation/cutover contract is
+  executed.
+- **BAK-018.** Copied sessions, HostBindings, grants, nonterminal backup
+  operations, source-host destinations, and worker leases MUST NOT become live
+  authority or resumable work in a recovery-test or restored copy. Later
+  activation requires explicit reauthentication and security-state handling.
+- **BAK-019.** The O1 backend gate MUST leave accepted local HTTP behavior and
+  exact MCP discovery unchanged; no backup, restore, path, cleanup, or cutover
+  operation may be advertised to agents.
+
+#### Always-on private service
+
+- **REM-001.** Local development MUST retain the accepted loopback-only service
+  and local stdio MCP. Remote access MUST be a distinct authenticated deployment
+  adapter and MUST NOT be enabled by widening the local listener.
+- **REM-002.** Remote service mode MUST require authenticated HTTPS, explicit
+  proxy trust, persistent workspace/backup storage, secret configuration, and
+  supervised single-writer startup. Missing requirements MUST fail startup.
+- **REM-003.** Unauthenticated clients and direct-port bypasses MUST receive no
+  project, artifact, preview, backup, job, pairing, or MCP data.
+- **REM-004.** Human sessions MUST support secure cookies, CSRF/origin checks,
+  idle and absolute expiry, rotation, rate limiting, logout, and owner-visible
+  revocation without storing credentials in URLs or browser storage.
+- **REM-005.** Host/process restart and graceful shutdown MUST preserve durable
+  operations and MUST NOT create a second writer.
+- **REM-006.** Remote MCP is not implied by remote human access. Authenticated
+  Streamable HTTP MCP requires a separately reviewed short-lived, scoped,
+  revocable transport contract while preserving the same semantic application
+  commands and authorization checks as local stdio.
+
+#### Smartphone and touch usability
+
+- **MOB-001.** At 360, 390, and approximately 412 CSS-pixel widths, Studio MUST
+  use a task-oriented project/list/detail/action hierarchy rather than compressed
+  desktop columns, with no page-level horizontal scrolling or clipped primary
+  action.
+- **MOB-002.** Primary touch targets MUST be at least 44×44 CSS pixels. Required
+  information/actions MUST NOT depend on hover, color alone, or a gesture-only
+  state change.
+- **MOB-003.** Sign-in/out, project status, task/review, agent authorization,
+  source/asset/prop inspection, room/hallway work, findings/activity, and
+  backup/verify/restore-as-copy MUST be usable from a phone.
+- **MOB-004.** Canvas tool/mode MUST remain visible by icon and text. Pan, zoom,
+  select, and paint gestures MUST NOT trigger accidental page navigation,
+  browser zoom, or hidden destructive behavior.
+- **MOB-005.** Virtual keyboards, dialogs, long diagnostics, previews, loading,
+  offline/reconnect, denied, failed, and stale states MUST remain reachable and
+  recoverable.
+- **MOB-006.** Polling/reconnect/back navigation MUST preserve compatible focus,
+  list/detail selection, scroll, canvas position/zoom, open disclosure, and
+  valid unsaved drafts. Keyboard and protected desktop behavior MUST not regress.
+- **MOB-007.** Automated browser evidence MUST cover the protected desktop widths
+  and phone viewports, but explicit Klaus acceptance on a real phone remains the
+  product gate.
+- **MOB-008.** Touch/mobile room-editor implementation MUST preserve the CP4.5
+  persistent-canvas contract and MUST NOT count as CP4.5 acceptance. It may ship
+  only after CP4.5 acceptance or as an explicitly dependent non-accepting
+  candidate whose phone gate remains separate.
+
+#### MCP onboarding and bounded roles
+
+- **ONB-001.** An authorized agent with no repository knowledge MUST be able to
+  discover Studio version/features, accessible project state, effective
+  task/scope/budget/expiry, safe mutation rules, and who acts next.
+- **ONB-002.** Studio MUST provide versioned getting-started guidance plus
+  practical **Artist** and **Level Designer** playbooks. A role name is workflow
+  guidance and MUST NOT widen the immutable human-created grant.
+- **ONB-003.** Each playbook MUST state mission, allowed reads/mutations,
+  human-only decisions, discovery sequence, normal workflow, preview/validation
+  expectations, `dryRun`/version/idempotency use, recovery behavior, completion
+  checklist, and handoff to **Waiting for your review**.
+- **ONB-004.** The Artist guide MUST end with recognizable preview, exact
+  lineage, semantic purpose, validation result, and review summary; it MUST NOT
+  imply source/asset approval, finalization, path selection, or publication.
+- **ONB-005.** The Level Designer guide MUST produce an inspectable validated
+  DRAFT room/hallway on its isolated task branch with exact-version dependencies
+  and a review summary; it MUST NOT imply approval, merge, owner-history revert,
+  finalization, materialization, or publication.
+- **ONB-006.** Clean-agent tests MUST prove one bounded Artist and Level Designer
+  scenario plus denial of approval, merge, publication, cross-task access, and
+  post-revocation use. Documentation/examples MUST contain no real secret,
+  token, private path, or user-specific credential.
+- **ONB-007.** The first onboarding slice MUST use MCP server instructions and
+  additive versioned guidance in existing authorized project/task resources,
+  preserving exact accepted discovery at 19 tools/four templates and 30
+  tools/five templates. A new tool or resource template requires its own feature
+  gate, versioned schema, and newly pinned exact discovery counts.
 
 ## 10. Open decisions and recommended defaults
 
@@ -365,4 +538,4 @@ These are deliberately open until validated by implementation or user testing. T
 | Animation model | Reserved identity in V1, authoring in V2 | Avoids migration of asset and placement references. |
 | Checkpoint 3 room canvas | DOM/SVG grid, Fit/100%/200%, provisional 10×8 room and 12×3 horizontal hallway creation defaults | Preserves inspectability/accessibility and aligns with accepted cutter zoom language; dimensions remain explicitly editable within the frozen bound. |
 
-Open product questions for later user checkpoints include: first canonical asset taxonomy, whether source generation providers are built in or imported by manifest, production bundle format, and the exact Level Compiler invocation boundary. The Checkpoint 3 room dimensions/zoom defaults are now provisional implementation inputs for the combined user gate rather than unanswered blockers.
+Open product questions for later user checkpoints include: first canonical asset taxonomy, whether source generation providers are built in or imported by manifest, production bundle format, and the exact Level Compiler invocation boundary. The accepted Checkpoint 3 room dimensions/zoom defaults remain provisional product inputs; Checkpoint 4.5 adds guided irregular-shape authoring without converting those defaults into a final level-format decision.

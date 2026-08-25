@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — 2026-08-20 after PRIMUS floor v2 live acceptance**
+Status: **current forward plan — updated 2026-08-25 with the parallel Studio operations/mobile track**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -51,6 +51,45 @@ Established systems include:
 - semantic Level Compiler Workbench with constraint-aware editing.
 
 Do not reintroduce prototype bridges or another game-runtime architecture migration. See `docs/agents/GAMEPLAY_AND_ENGINEERING_RULES.md`.
+
+---
+
+## Parallel product track — Studio operations, remote access, mobile, and agent onboarding
+
+Numberdroid Studio has a separate cross-cutting product track alongside the
+current Gold Slice work. It does not change the Gold Slice's current art/content
+priority and does not accept the still-open Studio Checkpoint 4.5 or promote the
+integrated Checkpoint 5 foundation beyond candidate-only status.
+
+The four required outcomes are:
+
+1. simple, trustworthy full-workspace backup and restore-as-copy in the human UI;
+2. an always-on, authenticated private Studio service reachable from Klaus's phone;
+3. practical MCP onboarding for bounded **Artist** and **Level Designer** roles; and
+4. a responsive, touch-usable smartphone UI.
+
+Required order:
+
+```text
+contract + threat model
+→ durable verified backup core and human backup UI
+→ separately authenticated private remote service
+→ complete phone/touch workflows and real-device acceptance
+→ runtime MCP onboarding and final role playbooks
+```
+
+The safest autonomous block while Klaus cannot perform a visual gate is first
+the O0 architecture decision and adversarial test design. Only after independent
+review closes its operation-ledger, migration, human-authority, safe-path,
+atomic-publication, state-machine, restored-copy quarantine, and activation
+decisions may the non-visual backup application/job seam begin. That later seam
+must reuse the accepted SQLite/CAS integrity, backup, verification, and
+restore-to-new-destination primitives; it may not add overwrite, deletion,
+active-workspace cutover, remote listener, or agent backup authority.
+
+The detailed binding track plan and gate boundaries live in:
+
+`tools/numberdroid-studio/docs/OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`
 
 ---
 

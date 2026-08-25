@@ -180,6 +180,14 @@ const roomIntent = {
   },
 };
 
+const roomCell = {
+  type: 'object', additionalProperties: false, required: ['x', 'y'],
+  properties: {
+    x: { type: 'integer', minimum: 0, maximum: 63 },
+    y: { type: 'integer', minimum: 0, maximum: 63 },
+  },
+};
+
 const roomConnector = {
   type: 'object', additionalProperties: false,
   required: ['connectorId', 'side', 'offset', 'width', 'kind', 'clearanceInside', 'clearanceOutside', 'required', 'tags', 'compatibilityProfile'],
@@ -686,6 +694,22 @@ const definitions = [
     payloadSchema: {
       type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion', 'intentTrace'],
       properties: { roomVariantId: id, expectedRoomVariantVersion: { type: 'integer', minimum: 1 }, intentTrace: { type: 'array', maxItems: 32, items: roomIntent } },
+    },
+  },
+  {
+    type: 'room.variant.shape.set',
+    toolName: 'studio_room_variant_shape_set',
+    description: 'Replace the complete VOID and BLOCKED masks of one editable room version.',
+    requiredScope: 'room.variant.shape.set', ownerOnly: true, requiresDurableRoomStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['roomVariantId', 'expectedRoomVariantVersion', 'voidCells', 'blockedCells'],
+      properties: {
+        roomVariantId: id,
+        expectedRoomVariantVersion: { type: 'integer', minimum: 1 },
+        voidCells: { type: 'array', maxItems: 4096, items: roomCell },
+        blockedCells: { type: 'array', maxItems: 4096, items: roomCell },
+      },
     },
   },
   {

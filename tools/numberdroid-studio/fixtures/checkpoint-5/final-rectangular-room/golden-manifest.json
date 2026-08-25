@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "fixture": "checkpoint-5.final-rectangular-room",
+  "compilerAuthority": "numberdroid-level-compiler.test-double.v1",
+  "snapshotId": "d39ce37f66ab2b94620b0ba149d1e414ecdcb797b7a48d133434709c5e196f99",
+  "manifestHash": "1aadaedb311eb368819e8ce14a3625f2cdc8af352cbe69aea789d247a464a08e",
+  "status": "BLOCKED",
+  "files": [
+    {
+      "logicalPath": "art-source/approved/area-01-transfer-ship/family/floor.png",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "role": "source-art"
+    },
+    {
+      "logicalPath": "art-source/approved/area-01-transfer-ship/family/table.png",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "role": "source-art"
+    },
+    {
+      "logicalPath": "art-source/approved/studio-exports/studio.family-table/d39ce37f66ab2b94620b0ba149d1e414ecdcb797b7a48d133434709c5e196f99/provenance.json",
+      "sha256": "49c19bb79af45ac3bdb974f69d9587f724efbdecf4a3703756529cd1eac74254",
+      "role": "candidate-text"
+    },
+    {
+      "logicalPath": "art-source/approved/studio-exports/studio.family-table/d39ce37f66ab2b94620b0ba149d1e414ecdcb797b7a48d133434709c5e196f99/studio-room.json",
+      "sha256": "cc38f2a6c37e7c64ee100c0888b091986e58c39053137f614940c540c37d2da9",
+      "role": "candidate-text"
+    },
+    {
+      "logicalPath": "public/assets/deck/family-floor.png",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "role": "runtime"
+    },
+    {
+      "logicalPath": "public/assets/deck/family-table-props.png",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "role": "runtime"
+    },
+    {
+      "logicalPath": "src/levelgen/specs/studio-candidates/studio.family-table.json",
+      "sha256": "45277b21c588e3e3be129d7925203a8d175263f57721a166dfedf8382b5e84a7",
+      "role": "candidate-text"
+    }
+  ],
+  "findings": [
+    {
+      "severity": "ERROR",
+      "ruleId": "numberdroid.adapter.floor_runtime_mapping_unsupported"
+    },
+    {
+      "severity": "INFO",
+      "ruleId": "numberdroid.adapter.connectors_retained_for_level_graph"
+    }
+  ],
+  "stages": {
+    "candidate": "BLOCKED",
+    "materialize": "NOT_AUTHORIZED",
+    "commit": "NOT_AUTHORIZED",
+    "publish": "NOT_AUTHORIZED"
+  }
+}

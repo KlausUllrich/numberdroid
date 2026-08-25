@@ -292,8 +292,8 @@ function validateAppliedJobHistory(jobs) {
 }
 
 export function validatePortableProjectDocument(project, { limits = PROJECT_BUNDLE_LIMITS, semanticValidator = null } = {}) {
-  invariant([1, 2].includes(project?.schemaVersion) && project.bundleKind === BUNDLE_KIND, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Unsupported portable project schema.');
-  exactKeys(project, project.schemaVersion === 2 ? PROJECT_KEYS_V2 : PROJECT_KEYS_V1, 'project.json');
+  invariant([1, 2, 3].includes(project?.schemaVersion) && project.bundleKind === BUNDLE_KIND, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Unsupported portable project schema.');
+  exactKeys(project, project.schemaVersion >= 2 ? PROJECT_KEYS_V2 : PROJECT_KEYS_V1, 'project.json');
   exactKeys(project.projectHead, PROJECT_HEAD_KEYS, 'projectHead');
   exactKeys(project.assetLibrary, ASSET_LIBRARY_KEYS, 'assetLibrary');
   const head = project.projectHead;
@@ -325,7 +325,7 @@ export function validatePortableProjectDocument(project, { limits = PROJECT_BUND
   assertObjectArray(project.proposals, 'proposals', limits.maxProposals);
   assertObjectArray(project.appliedJobHistory, 'appliedJobHistory', limits.maxAppliedJobs);
   assertObjectArray(project.activity, 'activity', limits.maxActivityEvents);
-  if (project.schemaVersion === 2) {
+  if (project.schemaVersion >= 2) {
     exactKeys(project.roomLibrary, ['archetypes', 'variants', 'proposals'], 'roomLibrary');
     assertObjectArray(project.roomLibrary.archetypes, 'roomLibrary.archetypes', limits.maxRoomArchetypes);
     assertObjectArray(project.roomLibrary.variants, 'roomLibrary.variants', limits.maxRoomVariants);

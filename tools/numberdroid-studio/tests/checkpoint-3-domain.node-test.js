@@ -183,6 +183,55 @@ test('a fully covered room validates deterministically without embedding finding
   assert.ok(first.findings.every((finding) => finding.validatorVersion === ROOM_VALIDATOR_VERSION));
 });
 
+test('CP4.5 preserves rectangular defaults and normalizes sparse VOID/BLOCKED room shape cells', () => {
+  const assets = {
+    'asset.floor': asset('asset.floor', { overrides: { runtimeEligible: true } }),
+    'asset.table': asset('asset.table', {
+      kind: 'prop',
+      collision: { mode: 'bounds', bounds: { x: 0, y: 0, width: 1, height: 1 }, parts: [] },
+    }),
+  };
+  const rectangle = validateRoomVariant({ variant: variant(), archetype: archetype(), assets });
+  assert.deepEqual(rectangle.variant.voidCells, []);
+  assert.deepEqual(rectangle.variant.blockedCells, []);
+
+  const shaped = validateRoomVariant({
+    variant: variant({
+      voidCells: [{ x: 9, y: 7 }, { x: 0, y: 0 }],
+      blockedCells: [{ x: 2, y: 2 }],
+      placements: [
+        ...surfacePlacements(10, 8),
+        placement({ placementId: 'prop.table.blocked', assetId: 'asset.table', x: 2, y: 2, layer: 'SET_DRESSING' }),
+      ],
+    }),
+    archetype: archetype(),
+    assets,
+  });
+  assert.deepEqual(shaped.variant.voidCells, [{ x: 0, y: 0 }, { x: 9, y: 7 }]);
+  assert.deepEqual(shaped.variant.blockedCells, [{ x: 2, y: 2 }]);
+  const rules = new Set(shaped.findings.map(({ ruleId }) => ruleId));
+  assert.equal(rules.has('studio.room.placement.void_overlap'), true);
+  assert.equal(rules.has('studio.room.placement.blocked_overlap'), true);
+  assert.equal(rules.has('studio.room.surface.coverage_incomplete'), false);
+});
+
+test('CP4.5 shape invariants fail closed for conflicts, bounds, disconnection, and blocked entrances', () => {
+  const assets = { 'asset.floor': asset('asset.floor', { overrides: { runtimeEligible: true } }) };
+  assert.throws(() => validateRoomVariant({
+    variant: variant({ voidCells: [{ x: 1, y: 1 }], blockedCells: [{ x: 1, y: 1 }] }), archetype: archetype(), assets,
+  }), (error) => error.code === 'ROOM_SHAPE_CELL_CONFLICT');
+  assert.throws(() => validateRoomVariant({
+    variant: variant({ voidCells: [{ x: 10, y: 0 }] }), archetype: archetype(), assets,
+  }), (error) => error.code === 'VALIDATION_ERROR');
+  assert.throws(() => validateRoomVariant({
+    variant: variant({ voidCells: Array.from({ length: 10 }, (_, x) => ({ x, y: 3 })) }), archetype: archetype(), assets,
+  }), (error) => error.code === 'ROOM_SHAPE_DISCONNECTED');
+  const entrance = validateRoomVariant({
+    variant: variant({ blockedCells: [{ x: 0, y: 3 }] }), archetype: archetype(), assets,
+  });
+  assert.equal(entrance.findings.some(({ ruleId }) => ruleId === 'studio.room.connector.shape_blocked'), true);
+});
+
 test('intent gaps and proposed intent are deterministic review findings', () => {
   const result = validateRoomVariant({
     variant: variant({ intentTrace: [{ layer: 'game_design', ruleId: 'gd.function-first', summary: 'Function before form.', disposition: 'proposed' }] }),

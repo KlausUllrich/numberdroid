@@ -310,9 +310,43 @@ function restoredRoomArchetype(archetype) {
   return { ...structuredClone(archetype), provenance: 'bundle_import' };
 }
 
-function portableRoomVersion(version) {
+function portableRoomVersion(version, schemaVersion) {
   const { provenance: _provenance, ...portable } = structuredClone(version);
+  const lackedShapeFields = !Object.hasOwn(portable, 'voidCells') || !Object.hasOwn(portable, 'blockedCells');
+  if (schemaVersion === 2) {
+    delete portable.voidCells;
+    delete portable.blockedCells;
+  } else {
+    portable.voidCells ??= [];
+    portable.blockedCells ??= [];
+  }
+  if (schemaVersion === 2 || lackedShapeFields) {
+    const {
+      findings, contentFingerprint: _contentFingerprint, createdAt: _createdAt,
+      createdBy: _createdBy, createdRevision: _createdRevision,
+      proposalId: _proposalId, ...variant
+    } = portable;
+    portable.contentFingerprint = fingerprint({ variant, findings });
+  }
   return portable;
+}
+
+function compatibleRoomFindings(findings, validatedFindings) {
+  const validatorVersions = new Set(findings.map(({ validatorVersion }) => validatorVersion));
+  if (validatorVersions.size === 1 && validatorVersions.has('numberdroid-studio.room-validator.v1')) {
+    return validatedFindings.map((finding) => ({
+      ...finding,
+      findingId: fingerprint({
+        validatorVersion: 'numberdroid-studio.room-validator.v1',
+        ruleId: finding.ruleId,
+        targetKind: finding.targetKind,
+        targetId: finding.targetId,
+        path: finding.path,
+      }),
+      validatorVersion: 'numberdroid-studio.room-validator.v1',
+    }));
+  }
+  return validatedFindings;
 }
 
 function restoredRoomVersion(version) {
@@ -340,14 +374,14 @@ function restoredRoomProposal(proposal) {
   };
 }
 
-function portableRoomLibrary(snapshot) {
+function portableRoomLibrary(snapshot, schemaVersion) {
   const roomLibrary = snapshot.roomLibrary ?? { archetypes: [], variants: [], proposals: [] };
   return {
     archetypes: sorted(roomLibrary.archetypes.map(portableRoomArchetype), (value) => `${value.roomArchetypeId}:${String(value.version).padStart(12, '0')}`),
     variants: sorted(roomLibrary.variants.map((entry) => ({
       roomVariantId: entry.roomVariantId,
       headVersion: entry.headVersion,
-      versions: [...entry.versions].sort((left, right) => left.version - right.version).map(portableRoomVersion),
+      versions: [...entry.versions].sort((left, right) => left.version - right.version).map((version) => portableRoomVersion(version, schemaVersion)),
     })), (value) => value.roomVariantId),
     proposals: sorted(roomLibrary.proposals.map(portableRoomProposal), (value) => value.proposalId),
   };
@@ -588,6 +622,7 @@ const METADATA_KEYS = ['role', 'tags', 'variantGroup', 'compatibilityGroups', 's
 const ROOM_ARCHETYPE_KEYS = ['projectId', 'roomArchetypeId', 'version', 'kind', 'displayName', 'tags', 'dimensionPolicy', 'structuralBands', 'orientation', 'connectorPolicy', 'allowedAssetKinds', 'allowedTags', 'requiredTags', 'rationality', 'governingRuleRefs', 'fingerprint', 'createdAt', 'createdBy', 'createdRevision'];
 const ROOM_VARIANT_ENTRY_KEYS = ['roomVariantId', 'headVersion', 'versions'];
 const ROOM_VERSION_KEYS = ['projectId', 'roomVariantId', 'version', 'roomArchetypeId', 'archetypeVersion', 'displayName', 'lifecycle', 'width', 'height', 'origin', 'intentTrace', 'connectors', 'placements', 'acceptedWarningFindingIds', 'parentVariantVersion', 'parentFinalVersion', 'findings', 'contentFingerprint', 'createdAt', 'createdBy', 'createdRevision', 'proposalId'];
+const ROOM_VERSION_KEYS_V3 = [...ROOM_VERSION_KEYS, 'voidCells', 'blockedCells'];
 const ROOM_INTENT_KEYS = ['layer', 'ruleId', 'summary', 'disposition'];
 const ROOM_CONNECTOR_KEYS = ['connectorId', 'side', 'offset', 'width', 'kind', 'clearanceInside', 'clearanceOutside', 'required', 'tags', 'compatibilityProfile'];
 const ROOM_PLACEMENT_KEYS = ['placementId', 'assetId', 'assetVersion', 'metadataVersion', 'layer', 'anchor', 'rotation', 'variantTag', 'proposalId', 'proposalItemId'];
@@ -647,7 +682,7 @@ function validateRoomPlacementSchema(placement, label) {
   exactKeys(placement.anchor, ['x', 'y'], `${label}.anchor`);
 }
 
-function validateRoomLibrarySchemas(roomLibrary) {
+function validateRoomLibrarySchemas(roomLibrary, schemaVersion) {
   exactKeys(roomLibrary, ['archetypes', 'variants', 'proposals'], 'roomLibrary');
   roomLibrary.archetypes.forEach((archetype, index) => {
     const label = `roomLibrary.archetypes[${index}]`; exactKeys(archetype, ROOM_ARCHETYPE_KEYS, label);
@@ -661,11 +696,15 @@ function validateRoomLibrarySchemas(roomLibrary) {
   roomLibrary.variants.forEach((entry, entryIndex) => {
     const entryLabel = `roomLibrary.variants[${entryIndex}]`; exactKeys(entry, ROOM_VARIANT_ENTRY_KEYS, entryLabel);
     entry.versions.forEach((version, versionIndex) => {
-      const label = `${entryLabel}.versions[${versionIndex}]`; exactKeys(version, ROOM_VERSION_KEYS, label);
+      const label = `${entryLabel}.versions[${versionIndex}]`; exactKeys(version, schemaVersion === 3 ? ROOM_VERSION_KEYS_V3 : ROOM_VERSION_KEYS, label);
       exactKeys(version.origin, ['x', 'y'], `${label}.origin`);
       version.intentTrace.forEach((intent, intentIndex) => exactKeys(intent, ROOM_INTENT_KEYS, `${label}.intentTrace[${intentIndex}]`));
       version.connectors.forEach((connector, connectorIndex) => exactKeys(connector, ROOM_CONNECTOR_KEYS, `${label}.connectors[${connectorIndex}]`));
       version.placements.forEach((placement, placementIndex) => validateRoomPlacementSchema(placement, `${label}.placements[${placementIndex}]`));
+      if (schemaVersion === 3) {
+        version.voidCells.forEach((cell, cellIndex) => exactKeys(cell, ['x', 'y'], `${label}.voidCells[${cellIndex}]`));
+        version.blockedCells.forEach((cell, cellIndex) => exactKeys(cell, ['x', 'y'], `${label}.blockedCells[${cellIndex}]`));
+      }
       version.findings.forEach((finding, findingIndex) => validateFindingSchema(finding, `${label}.findings[${findingIndex}]`));
     });
   });
@@ -755,7 +794,7 @@ function validateNestedSchemas(project) {
     exactKeys(activity, ACTIVITY_KEYS, `activity[${index}]`);
     activity.changes.forEach((change, changeIndex) => exactKeys(change, CHANGE_KEYS, `activity[${index}].changes[${changeIndex}]`));
   });
-  if (project.schemaVersion === 2) validateRoomLibrarySchemas(project.roomLibrary);
+  if (project.schemaVersion >= 2) validateRoomLibrarySchemas(project.roomLibrary, project.schemaVersion);
 }
 
 export function validateSqlitePortableProject(project) {
@@ -768,10 +807,15 @@ export function validateSqlitePortableProject(project) {
   requireUnique(project.assetLibrary.heads, (head) => head.assetId, 'asset heads');
   requireUnique(project.proposals, (proposal) => proposal.proposalId, 'proposals');
   requireUnique(project.appliedJobHistory, (job) => job.jobId, 'applied job history');
-  if (project.schemaVersion === 2) {
+  if (project.schemaVersion >= 2) {
     requireUnique(project.roomLibrary.archetypes, (archetype) => `${archetype.roomArchetypeId}:${String(archetype.version).padStart(12, '0')}`, 'room archetypes');
     requireUnique(project.roomLibrary.variants, (entry) => entry.roomVariantId, 'room variants');
     requireUnique(project.roomLibrary.proposals, (proposal) => proposal.proposalId, 'room proposals');
+    if (project.schemaVersion === 3) {
+      invariant(project.roomLibrary.variants.some((entry) => entry.versions.some((version) => (
+        version.voidCells.length > 0 || version.blockedCells.length > 0
+      ))), 'BUNDLE_SCHEMA_NONCANONICAL', 'Portable schema v3 requires at least one non-empty room shape mask. Rectangular projects use schema v2.');
+    }
   }
   const digests = new Set(project.artifactDigests);
   const sources = new Map(project.sources.map((source) => [source.sourceId, source]));
@@ -812,7 +856,7 @@ export function validateSqlitePortableProject(project) {
     invariant(job.state === 'APPLIED' && fingerprint(job.input) === job.inputFingerprint, 'BUNDLE_SEMANTIC_INVALID', 'Applied job input fingerprint is invalid.', { jobId: job.jobId });
     invariant(job.outputs.every((output) => digests.has(output.digest)), 'BUNDLE_CAS_CLOSURE_MISMATCH', 'Applied job output is outside the bundle closure.', { jobId: job.jobId });
   }
-  if (project.schemaVersion === 2) {
+  if (project.schemaVersion >= 2) {
     const archetypes = new Map();
     for (const portable of project.roomLibrary.archetypes) {
       invariant(portable.projectId === project.projectHead.projectId, 'BUNDLE_SEMANTIC_INVALID', 'A room archetype belongs to another project.', { roomArchetypeId: portable.roomArchetypeId });
@@ -837,9 +881,20 @@ export function validateSqlitePortableProject(project) {
           findings, contentFingerprint, createdAt: _createdAt, createdBy: _createdBy,
           createdRevision: _createdRevision, proposalId: _proposalId, ...variant
         } = portable;
-        const validated = validateRoomVariant({ variant, archetype, assets: assetVersions });
-        invariant(validated.fingerprint === contentFingerprint && fingerprint(validated.findings) === fingerprint(findings),
-          'BUNDLE_SEMANTIC_INVALID', 'A room version fingerprint or deterministic findings are invalid.', { roomVariantId: entry.roomVariantId, version: portable.version });
+        const validated = validateRoomVariant({
+          variant: project.schemaVersion === 2 ? { ...variant, voidCells: [], blockedCells: [] } : variant,
+          archetype,
+          assets: assetVersions,
+        });
+        const expectedFindings = compatibleRoomFindings(findings, validated.findings);
+        const expectedVariant = structuredClone(validated.variant);
+        if (project.schemaVersion === 2) {
+          delete expectedVariant.voidCells;
+          delete expectedVariant.blockedCells;
+        }
+        invariant(fingerprint({ variant: expectedVariant, findings: expectedFindings }) === contentFingerprint
+          && fingerprint(expectedFindings) === fingerprint(findings),
+        'BUNDLE_SEMANTIC_INVALID', 'A room version fingerprint or deterministic findings are invalid.', { roomVariantId: entry.roomVariantId, version: portable.version });
       }
     }
     for (const proposal of project.roomLibrary.proposals) {
@@ -983,10 +1038,14 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
         height: Number(artifact.height),
       };
     });
-    const roomLibrary = portableRoomLibrary(snapshot);
+    const hasIrregularRoomShape = (snapshot.roomLibrary?.variants ?? []).some((entry) => entry.versions.some((version) => (
+      (version.voidCells?.length ?? 0) > 0 || (version.blockedCells?.length ?? 0) > 0
+    )));
+    const roomSchemaVersion = hasIrregularRoomShape ? 3 : 2;
+    const roomLibrary = portableRoomLibrary(snapshot, roomSchemaVersion);
     const hasRoomSemantics = roomLibrary.archetypes.length > 0 || roomLibrary.variants.length > 0 || roomLibrary.proposals.length > 0;
     const project = cleanUndefined({
-      schemaVersion: hasRoomSemantics ? 2 : 1,
+      schemaVersion: hasRoomSemantics ? roomSchemaVersion : 1,
       bundleKind: 'numberdroid-studio-project',
       projectHead: {
         projectId,
@@ -1079,7 +1138,7 @@ function importedSnapshot(project, revision = project.projectHead.revision) {
       assets: project.assetLibrary.heads.map((head) => restoredAsset(head.semantic)),
       proposals: project.proposals.map(restoredProposalSnapshot),
     },
-    ...(project.schemaVersion === 2 ? { roomLibrary: restoredRoomLibrary(project.roomLibrary) } : {}),
+    ...(project.schemaVersion >= 2 ? { roomLibrary: restoredRoomLibrary(project.roomLibrary) } : {}),
   };
 }
 
@@ -1172,7 +1231,7 @@ function insertPortableRoomFinding(database, table, projectId, identity, finding
 }
 
 function materializePortableRoomLibrary(database, project, safeRevision) {
-  if (project.schemaVersion !== 2) return;
+  if (project.schemaVersion < 2) return;
   const projectId = project.projectHead.projectId;
   for (const archetype of project.roomLibrary.archetypes) {
     const {
@@ -1256,6 +1315,15 @@ function materializePortableRoomLibrary(database, project, safeRevision) {
         room.displayName, room.lifecycle, room.width, room.height, JSON.stringify(value),
         room.contentFingerprint, fingerprint(room.findings), safeRevision(room.createdRevision),
         room.createdAt, room.createdBy, room.proposalId);
+      const shapeCells = [
+        ...(room.voidCells ?? []).map((cell) => ({ ...cell, kind: 'VOID' })),
+        ...(room.blockedCells ?? []).map((cell) => ({ ...cell, kind: 'BLOCKED' })),
+      ].sort((left, right) => left.kind.localeCompare(right.kind) || left.y - right.y || left.x - right.x);
+      for (const [cellOrder, cell] of shapeCells.entries()) database.prepare(`
+        INSERT INTO room_variant_shape_cells(
+          project_id, room_variant_id, variant_version, cell_order, cell_kind, x, y
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(projectId, room.roomVariantId, room.version, cellOrder, cell.kind, cell.x, cell.y);
       for (const [intentOrder, intent] of room.intentTrace.entries()) database.prepare(`
         INSERT INTO room_variant_intent(
           project_id, room_variant_id, variant_version, intent_order, layer, rule_id, summary, disposition
