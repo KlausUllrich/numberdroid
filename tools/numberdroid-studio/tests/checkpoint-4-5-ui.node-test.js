@@ -43,6 +43,7 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
   assert.match(evidence, /Refresh-safe task draft/);
   assert.match(evidence, /await refresh\(\{ quiet: true, passive: true \}\)/);
   assert.match(evidence, /Concurrent task list update/);
+  assert.match(evidence, /const externalSession = await api\('\/api\/ui-session'\)/);
   assert.match(evidence, /sameProjectChanged: state\.tasks\.some/);
   assert.match(evidence, /sameComposer: currentComposer === composer/);
   assert.match(evidence, /sameForm: currentForm === form/);
@@ -51,6 +52,7 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
   assert.match(evidence, /selectionStart === 9/);
   assert.match(evidence, /selectionEnd === 17/);
   assert.match(evidence, /scrollUnchanged === true/);
+  assert.match(evidence, /checkpoint4Focus === 'create' \? 6 : 5/);
 });
 
 test('CP4.5 task timeline uses real durable events and never offers a second undo', async () => {

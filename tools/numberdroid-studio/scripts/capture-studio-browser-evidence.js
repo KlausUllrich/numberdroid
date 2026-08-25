@@ -457,6 +457,7 @@ try {
         const merge = document.querySelector('[data-task-control="merge"]');
         let createRefreshEvidence = null;
         if (focus === 'create' && composer) {
+          try {
           const form = composer.querySelector('[data-task-form="create"]');
           const titleField = form.querySelector('input[name="title"]');
           const agentField = form.querySelector('input[name="agentId"]');
@@ -481,11 +482,12 @@ try {
           const firstRefreshPreserved = document.querySelector('.task-composer') === composer
             && document.querySelector('[data-task-form="create"]') === form
             && document.activeElement === objectiveField;
+          const externalSession = await api('/api/ui-session');
           const concurrentToken = crypto.randomUUID();
           const concurrentTaskId = 'task.visual.refresh.' + concurrentToken;
           await api('/api/projects/' + encodeURIComponent(state.project.projectId) + '/tasks', {
             method: 'POST',
-            headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+            headers: { 'x-numberdroid-studio-csrf': externalSession.csrfToken },
             body: JSON.stringify({ task: {
               taskId: concurrentTaskId,
               branchId: 'branch.task.visual.refresh.' + concurrentToken,
@@ -528,6 +530,13 @@ try {
             selectionEnd: currentObjectiveField?.selectionEnd ?? null,
             scrollUnchanged: window.scrollX === beforeScroll.x && window.scrollY === beforeScroll.y,
           };
+          } catch (error) {
+            createRefreshEvidence = {
+              runtimeErrorCode: error?.code ?? null,
+              runtimeErrorMessage: error?.message ?? String(error),
+              runtimeErrorStack: error?.stack ?? null,
+            };
+          }
         }
         let mergeConfirmCalls = 0;
         if (focus === 'conflict' && merge) {
@@ -1690,8 +1699,12 @@ try {
   if (mode === 'checkpoint-4') {
     assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
       'Checkpoint 4 screenshot was taken before error-free readiness.');
+    const expectedCheckpoint4Revision = checkpoint4Focus === 'create' ? 6 : 5;
+    const expectedCheckpoint4ActivityCount = checkpoint4Focus === 'create' ? 6 : 5;
     assert(layout.projectId === 'numberdroid-studio-checkpoint-4'
-      && layout.revision === 5 && layout.activityCount === 5 && layout.connectionState === 'Live',
+      && layout.revision === expectedCheckpoint4Revision
+      && layout.activityCount === expectedCheckpoint4ActivityCount
+      && layout.connectionState === 'Live',
     'Checkpoint 4 screenshot is not bound to the prepared revision-5 fixture.');
     if (expectedWorkspace === 'tasks') {
       assert(checkpoint4TaskFocus?.taskCount === 2
