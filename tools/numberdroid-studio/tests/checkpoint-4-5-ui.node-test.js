@@ -52,7 +52,6 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
   assert.match(evidence, /selectionStart === 9/);
   assert.match(evidence, /selectionEnd === 17/);
   assert.match(evidence, /scrollUnchanged === true/);
-  assert.match(evidence, /checkpoint4Focus === 'create' \? 6 : 5/);
 });
 
 test('CP4.5 task timeline uses real durable events and never offers a second undo', async () => {

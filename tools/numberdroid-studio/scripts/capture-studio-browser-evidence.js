@@ -1699,12 +1699,8 @@ try {
   if (mode === 'checkpoint-4') {
     assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
       'Checkpoint 4 screenshot was taken before error-free readiness.');
-    const expectedCheckpoint4Revision = checkpoint4Focus === 'create' ? 6 : 5;
-    const expectedCheckpoint4ActivityCount = checkpoint4Focus === 'create' ? 6 : 5;
     assert(layout.projectId === 'numberdroid-studio-checkpoint-4'
-      && layout.revision === expectedCheckpoint4Revision
-      && layout.activityCount === expectedCheckpoint4ActivityCount
-      && layout.connectionState === 'Live',
+      && layout.revision === 5 && layout.activityCount === 5 && layout.connectionState === 'Live',
     'Checkpoint 4 screenshot is not bound to the prepared revision-5 fixture.');
     if (expectedWorkspace === 'tasks') {
       assert(checkpoint4TaskFocus?.taskCount === 2
