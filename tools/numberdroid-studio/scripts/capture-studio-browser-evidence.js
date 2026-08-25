@@ -1709,6 +1709,8 @@ try {
         && checkpoint4TaskFocus.listContained === true,
       'Checkpoint 4 list-first task workspace lost its two branches, workflow states, or bounded list layout.');
       if (checkpoint4Focus === 'create') {
+        assert(!checkpoint4TaskFocus.createRefreshEvidence?.runtimeErrorMessage,
+          `Checkpoint 4 concurrent create-refresh setup failed: ${JSON.stringify(checkpoint4TaskFocus.createRefreshEvidence)}`);
         assert(layout.taskWorkspace.composer
           && checkpoint4TaskFocus.createVisible === true
           && checkpoint4TaskFocus.createFieldCount >= 13
@@ -1732,7 +1734,7 @@ try {
           && layout.taskWorkspace.composerText?.includes('Create a task for an agent')
           && layout.taskWorkspace.composerText.includes('What should the agent do?')
           && layout.taskWorkspace.controlNames.includes('back-to-list'),
-        'Checkpoint 4 focused task composer is missing, unbounded, or not keyboard-reachable from the list action.');
+        `Checkpoint 4 focused task composer is missing, unbounded, or not keyboard-reachable from the list action: ${JSON.stringify(checkpoint4TaskFocus)}`);
       } else {
         assert(layout.taskWorkspace.detail
           && layout.taskWorkspace.selectedText?.includes('Add or update sources')
