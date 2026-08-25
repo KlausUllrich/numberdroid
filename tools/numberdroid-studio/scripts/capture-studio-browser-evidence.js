@@ -477,17 +477,30 @@ try {
           window.scrollBy(0, 120);
           objectiveField.focus(); objectiveField.setSelectionRange(9, 17);
           const beforeScroll = { x: window.scrollX, y: window.scrollY };
+          const runPassiveRefresh = async () => {
+            const refreshButton = document.getElementById('refresh-button');
+            refreshButton.click();
+            const deadline = Date.now() + 10_000;
+            while (refreshButton.disabled && Date.now() < deadline) {
+              await new Promise((resolvePoll) => setTimeout(resolvePoll, 50));
+            }
+            if (refreshButton.disabled) throw new Error('The visible passive refresh did not settle.');
+          };
           await new Promise((resolveWait) => setTimeout(resolveWait, 5_100));
-          await refresh({ quiet: true, passive: true });
+          await runPassiveRefresh();
           const firstRefreshPreserved = document.querySelector('.task-composer') === composer
             && document.querySelector('[data-task-form="create"]') === form
             && document.activeElement === objectiveField;
-          const externalSession = await api('/api/ui-session');
+          const projectId = document.getElementById('workspace-content').dataset.renderedProjectId;
+          const externalSession = await fetch('/api/ui-session').then((response) => response.json());
           const concurrentToken = crypto.randomUUID();
           const concurrentTaskId = 'task.visual.refresh.' + concurrentToken;
-          await api('/api/projects/' + encodeURIComponent(state.project.projectId) + '/tasks', {
+          const concurrentResponse = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/tasks', {
             method: 'POST',
-            headers: { 'x-numberdroid-studio-csrf': externalSession.csrfToken },
+            headers: {
+              'content-type': 'application/json',
+              'x-numberdroid-studio-csrf': externalSession.csrfToken,
+            },
             body: JSON.stringify({ task: {
               taskId: concurrentTaskId,
               branchId: 'branch.task.visual.refresh.' + concurrentToken,
@@ -495,14 +508,22 @@ try {
               title: 'Concurrent task list update',
               objective: 'Prove that a same-project update does not replace an open task composer.',
               capabilities: ['project.read'],
-              objectScopes: [{ kind: 'project', id: state.project.projectId }],
+              objectScopes: [{ kind: 'project', id: projectId }],
               budget: { maxCommands: 1, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
               expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
               autoAcceptPolicy: { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
             } }),
           });
+          const concurrentResult = await concurrentResponse.json();
+          if (!concurrentResponse.ok) {
+            const error = new Error(concurrentResult.error?.message ?? 'Concurrent task creation failed.');
+            error.code = concurrentResult.error?.code;
+            throw error;
+          }
           await new Promise((resolveWait) => setTimeout(resolveWait, 5_100));
-          await refresh({ quiet: true, passive: true });
+          await runPassiveRefresh();
+          const refreshedTaskList = await fetch('/api/projects/' + encodeURIComponent(projectId) + '/tasks')
+            .then((response) => response.json());
           const currentComposer = document.querySelector('.task-composer');
           const currentForm = currentComposer?.querySelector('[data-task-form="create"]');
           const currentTitleField = currentForm?.querySelector('input[name="title"]');
@@ -514,7 +535,9 @@ try {
           const currentAutoAcceptField = currentForm?.querySelector('input[name="autoAccept"]');
           createRefreshEvidence = {
             firstRefreshPreserved,
-            sameProjectChanged: state.tasks.some(({ task }) => task.taskId === concurrentTaskId),
+            sameProjectChanged: refreshedTaskList.tasks.some((task) => task.taskId === concurrentTaskId)
+              && document.getElementById('revision-label').textContent === 'Revision 6'
+              && document.getElementById('activity-count').textContent === '6',
             sameComposer: currentComposer === composer,
             sameForm: currentForm === form,
             sameField: currentObjectiveField === objectiveField && currentObjectiveField?.isConnected === true,

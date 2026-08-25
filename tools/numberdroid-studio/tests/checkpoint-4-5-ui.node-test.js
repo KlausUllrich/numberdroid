@@ -41,10 +41,14 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
   assert.doesNotMatch(app, /state\.tasks = taskDetails;\s*if \(!state\.tasks\.some/);
   const evidence = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
   assert.match(evidence, /Refresh-safe task draft/);
-  assert.match(evidence, /await refresh\(\{ quiet: true, passive: true \}\)/);
+  assert.match(evidence, /const runPassiveRefresh = async \(\) =>/);
+  assert.match(evidence, /refreshButton\.click\(\)/);
+  assert.match(evidence, /await runPassiveRefresh\(\)/);
   assert.match(evidence, /Concurrent task list update/);
-  assert.match(evidence, /const externalSession = await api\('\/api\/ui-session'\)/);
-  assert.match(evidence, /sameProjectChanged: state\.tasks\.some/);
+  assert.match(evidence, /const externalSession = await fetch\('\/api\/ui-session'\)/);
+  assert.match(evidence, /sameProjectChanged: refreshedTaskList\.tasks\.some/);
+  assert.match(evidence, /textContent === 'Revision 6'/);
+  assert.match(evidence, /textContent === '6'/);
   assert.match(evidence, /sameComposer: currentComposer === composer/);
   assert.match(evidence, /sameForm: currentForm === form/);
   assert.match(evidence, /sameField: currentObjectiveField === objectiveField/);
