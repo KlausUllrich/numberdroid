@@ -1,9 +1,10 @@
 # Numberdroid Studio — Checkpoint 4.5 Candidate Record
 
 - **Date:** 2026-08-24
-- **Status:** implemented and CI/browser-verified repair candidate; awaiting explicit user acceptance. On 2026-08-25 the user authorized source integration into `main` for the solo-developer workflow without accepting Checkpoint 4.5.
+- **Status:** implemented, CI/browser-verified, and source-integrated into `main` through PR #137 on 2026-08-25; awaiting explicit user acceptance.
 - **Evidence branch:** `agent/numberdroid-studio-checkpoint-4-5`; combined integration safety branch: `agent/numberdroid-studio-checkpoint-5`
 - **Product/evidence head:** `4dc112d5aa88aa3d6629c5d1949dfa38d7963642`
+- **Combined integration head / merge:** `b116a285b285aed87b2a56c5ca3406ad1859f8b0` / `2ead87bdd1f386eb0c3d35265914ac8de161f454`
 - **Accepted baseline:** Checkpoints 1–4 on merge `bcc284684ea4d2e30158d3a20ebda57da77df93d`
 - **Frozen contract:** `CHECKPOINT_4_5_CONTRACT.md`
 
@@ -32,6 +33,7 @@ This record does not claim acceptance from tests, CI, reviewer agreement, or sil
 - three independent bounded reviews returned GO for the persistent editor's task/UI, room/asset/evidence, and contract/authority/persistence slices; the focused follow-up review first rejected a focus-stealing race, then returned GO only after the generation and active-element guards plus negative browser proof were added;
 - the earlier six-step evidence is superseded by the user's live-gate rejection and is not acceptance evidence for the repaired editor;
 - failed diagnostic run `32743852383` is not acceptance evidence; it exposed the repaired Prop-tool focus instability that the final green run proves closed.
+- combined integration run [`32895022403`](https://github.com/KlausUllrich/numberdroid/actions/runs/32895022403) passed root, Linux Studio, Windows Studio, build, and Chrome evidence at exact head `b116a285b285aed87b2a56c5ca3406ad1859f8b0`; CP4.5 artifact `9581033523` is 2,747,307 bytes with digest `sha256:4530975bc089db36e6c7383ea23eb711c7a32a59a072338eab57a165811b1084`.
 
 ## Preserved boundary
 

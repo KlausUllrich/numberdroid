@@ -2,11 +2,11 @@
 
 Status: **candidate-only foundation authorized for source integration; not user-accepted**
 
-Integration posture: preserved on `agent/numberdroid-studio-checkpoint-5` and
-authorized by the user on 2026-08-25 for integration into `main` after exact-head
-CI. Keeping the latest source together does not accept CP4.5 or CP5 and grants
-the candidate no materialization, Git/GitHub-output, deployment, release, or
-publication authority.
+Integration posture: preserved on `agent/numberdroid-studio-checkpoint-5` at
+`b116a285b285aed87b2a56c5ca3406ad1859f8b0` and merged through PR #137 as
+`2ead87bdd1f386eb0c3d35265914ac8de161f454` after exact-head CI. Keeping the
+latest source together does not accept CP4.5 or CP5 and grants the candidate no
+materialization, Git/GitHub-output, deployment, release, or publication authority.
 
 ## Implemented first slice
 
@@ -65,22 +65,23 @@ Local verification on 2026-08-25:
   `1aadaedb311eb368819e8ce14a3625f2cdc8af352cbe69aea789d247a464a08e`.
 
 The golden intentionally uses a deterministic compiler test authority and is
-`BLOCKED` by the honest missing runtime floor-material binding. The
-separate root Vitest integration loads the real compiler, fingerprints its
-authority files, compiles exact room and Prop locks through the full Workbench,
-and checks repeatability. Root dependencies are not installed in the local
-Studio-only workspace, so the first pushed candidate must obtain that proof from
-the repository CI root job before this record can claim a green combined gate.
+`BLOCKED` by the honest missing runtime floor-material binding. The separate
+root Vitest integration loads the real compiler, fingerprints its authority
+files, compiles exact room and Prop locks through the full Workbench, and checks
+repeatability. Integration run
+[`32895022403`](https://github.com/KlausUllrich/numberdroid/actions/runs/32895022403)
+passed the root test/build, Linux Studio test/build/Chrome evidence, and Windows
+Studio test/build/evidence jobs at exact head
+`b116a285b285aed87b2a56c5ca3406ad1859f8b0`.
 
 ## Remaining Checkpoint 5 work
 
-1. Obtain green root and Studio CI for the exact integration head and record the run.
-2. Add an immutable persisted export aggregate and candidate-attempt/review
+1. Add an immutable persisted export aggregate and candidate-attempt/review
    projection without changing room history.
-3. Add the designer candidate preview, findings/remediation navigation, exact
+2. Add the designer candidate preview, findings/remediation navigation, exact
    manifest comparison, and owner approval of one manifest hash.
-4. Decide and implement the reviewed canonical Level Spec extension for
+3. Decide and implement the reviewed canonical Level Spec extension for
    `VOID`/`BLOCKED`, connector-to-level-graph mapping, and any required
    deterministic runtime materializers.
-5. Only after separate user authorization, design recoverable materialize and
+4. Only after separate user authorization, design recoverable materialize and
    commit stages. Production publication remains a further separate decision.

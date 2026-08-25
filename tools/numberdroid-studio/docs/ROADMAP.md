@@ -169,7 +169,7 @@ Exit decision: **accepted by the user on 2026-08-24.** The bounded delegation mo
 
 ## Checkpoint 4.5 — Designer workflow and preview usability
 
-**Status: frozen-contract implementation candidate as of 2026-08-24; local automation plus fresh Linux/Windows CI and Chrome evidence are green, while explicit user acceptance remains pending. On 2026-08-25 the user authorized integrated CP4.5 plus CP5 source on `main` for the solo-developer workflow without accepting either checkpoint.**
+**Status: frozen-contract implementation candidate source-integrated into `main` through PR #137 on 2026-08-25; Linux/Windows CI and Chrome evidence are green, while explicit user acceptance remains pending. The source merge does not accept CP4.5 or CP5.**
 
 **Outcome:** a professional designer can understand the current step, create or review the relevant object, and see a useful preview without needing to understand Studio's internal branch, grant, revision, provenance, or validation vocabulary.
 
