@@ -22,6 +22,45 @@ test('CP4.5 tasks are list-first with one focused create/detail flow and plain n
   assert.doesNotMatch(effectiveState, /Date\.now/);
 });
 
+test('CP4.5 passive refresh preserves the focused task composer and its live DOM draft', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const reconciliation = app.slice(
+    app.indexOf('function reconcileTaskUiAfterRefresh'),
+    app.indexOf('function renderWorkspace'),
+  );
+  assert.match(reconciliation, /state\.taskUi\.view !== 'detail'/);
+  assert.match(reconciliation, /state\.taskUi\.selectedTaskId = null;\s*return;/);
+  assert.match(reconciliation, /state\.taskUi\.view = 'list'/);
+  assert.match(app, /state\.tasks = taskDetails;\s*reconcileTaskUiAfterRefresh\(\)/);
+  assert.match(app, /function hasLiveTaskComposer\(\)/);
+  assert.match(app, /mayPreserveWorkspace && hasLiveTaskComposer\(\)/);
+  assert.match(app, /previousWorkspaceFingerprint === workspaceRenderFingerprint\(\)/);
+  assert.match(app, /const preserveTaskComposer = hasLiveTaskComposer\(\)/);
+  assert.match(app, /if \(!preserveTaskComposer\) renderWorkspace\(\)/);
+  assert.match(app, /if \(!preserveWorkspace\) renderWorkspace/);
+  assert.doesNotMatch(app, /state\.tasks = taskDetails;\s*if \(!state\.tasks\.some/);
+  const evidence = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
+  assert.match(evidence, /Refresh-safe task draft/);
+  assert.match(evidence, /const runPassiveRefresh = async \(\) =>/);
+  assert.match(evidence, /checkpoint4Focus === 'create' \? 30_000 : 10_000/);
+  assert.match(evidence, /refreshButton\.click\(\)/);
+  assert.match(evidence, /await runPassiveRefresh\(\)/);
+  assert.match(evidence, /Concurrent task list update/);
+  assert.match(evidence, /const externalSession = await fetch\('\/api\/ui-session'\)/);
+  assert.match(evidence, /const concurrentChangeExercised = \$\{width === 1060\}/);
+  assert.match(evidence, /serverStateMatched: concurrentChangeExercised/);
+  assert.match(evidence, /concurrentChangeExercised === \(width === 1060\)/);
+  assert.match(evidence, /textContent === 'Revision 6'/);
+  assert.match(evidence, /textContent === '6'/);
+  assert.match(evidence, /sameComposer: currentComposer === composer/);
+  assert.match(evidence, /sameForm: currentForm === form/);
+  assert.match(evidence, /sameField: currentObjectiveField === objectiveField/);
+  assert.match(evidence, /document\.activeElement === currentObjectiveField/);
+  assert.match(evidence, /selectionStart === 9/);
+  assert.match(evidence, /selectionEnd === 17/);
+  assert.match(evidence, /scrollUnchanged === true/);
+});
+
 test('CP4.5 task timeline uses real durable events and never offers a second undo', async () => {
   const app = await readFile(appUrl, 'utf8');
   assert.match(app, /BRANCH_COMMAND_COMMITTED: 'Agent change saved'/);
