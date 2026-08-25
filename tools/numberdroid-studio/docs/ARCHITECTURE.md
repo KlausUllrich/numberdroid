@@ -52,12 +52,13 @@ packages/application     shared command/query and authorization core
 packages/persistence     SQLite/CAS plus protected JSON migration adapter
 packages/preview         deterministic audited PNG crop processor
 packages/mcp-server      semantic catalog and official MCP adapter
+packages/numberdroid-adapter  pure deterministic CP5 snapshot/candidate mapping
 fixtures + scripts       deterministic evidence and verification
 ```
 
-SQLite/content-addressed persistence and the official MCP transport are the accepted operational path. Checkpoints 2C, 3, and 4 are accepted: they add slice-bound V2 assets/schema v9, immutable room authoring/schema v10, and isolated task review/schema v11 without changing the inward dependency boundary. The Checkpoint 4.5 candidate adds list-first task and guided-room projections plus schema-v12 normalized sparse room-shape cells. Rectangular portable rooms remain schema v2; a project uses schema v3 only when a room version contains `VOID` or `BLOCKED` cells. Shape replacement is owner-only and absent from MCP discovery, so the accepted 19-tool/four-template and task-bound 30-tool/five-template surfaces remain unchanged. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service/worker process is an accepted transitional packaging choice, not the final standalone packaging model.
+SQLite/content-addressed persistence and the official MCP transport are the accepted operational path. Checkpoints 2C, 3, and 4 are accepted: they add slice-bound V2 assets/schema v9, immutable room authoring/schema v10, and isolated task review/schema v11 without changing the inward dependency boundary. The Checkpoint 4.5 candidate adds list-first task and guided-room projections plus schema-v12 normalized sparse room-shape cells. Rectangular portable rooms remain schema v2; a project uses schema v3 only when a room version contains `VOID` or `BLOCKED` cells. Shape replacement is owner-only and absent from MCP discovery, so the accepted 19-tool/four-template and task-bound 30-tool/five-template surfaces remain unchanged. The dependent Checkpoint 5 foundation implements the pure `numberdroid-adapter` and a fixed repository-side canonical compiler bridge, but not candidate persistence/approval or any later-stage authority. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service/worker process is an accepted transitional packaging choice, not the final standalone packaging model.
 
-The sections below describe the target topology as checkpoints introduce it. A named target package is not implemented merely because it appears in this document. In particular, `apps/studio-ui`, `apps/studio-service`, and `packages/numberdroid-adapter` do not yet exist as working packages; their current responsibilities remain in the combined server or are deferred.
+The sections below describe the target topology as checkpoints introduce it. A named target package is not implemented merely because it appears in this document. In particular, `apps/studio-ui` and `apps/studio-service` do not yet exist as standalone working packages; their current responsibilities remain in the combined server. `packages/numberdroid-adapter` now exists as a pure candidate builder, while persistence, UI review/approval, materialization, and publication remain deferred.
 
 ### `apps/studio-ui`
 
@@ -94,6 +95,14 @@ Protocol transport plus semantic tool/resource mapping. The stdio bridge does no
 ### `packages/numberdroid-adapter`
 
 The only package allowed to know Numberdroid repository layout, Level Spec, compiler invocation, runtime asset locations, naming conventions, source-art paths, and exact-fit/tileset export forms. It converts an immutable Studio export snapshot into a deterministic candidate and imports compiler findings into the Studio finding model.
+
+The first Checkpoint 5 slice keeps this package free of filesystem, process,
+network, Git, and GitHub authority. It emits virtual JSON files and CAS-referenced
+copy descriptors only. The repository-side bridge has fixed canonical imports
+and accepts only the exact in-process snapshot object branded by the trusted
+factory. Serialization deliberately removes that trust; a rehashed JSON object
+cannot become provenance authority. Callers cannot select a module, repository
+path, branch, destination, or publication action.
 
 ### `fixtures`
 
@@ -386,7 +395,7 @@ Extraction should require changing workspace/package publishing configuration, C
 
 ## 14. Architecture acceptance tests
 
-At each checkpoint, reviewers MUST demonstrate the checks that correspond to implemented capabilities. Accepted Checkpoints 1–4 cover package isolation, UI/MCP equivalence, SQLite/CAS recovery, source/atlas jobs, exact V2 asset review, immutable room lifecycle, isolated tasks, semantic conflicts, and atomic merge/revert. The Checkpoint 4.5 candidate additionally proves list/create/detail task truth, useful exact-slice preview gating, guided room steps, deterministic `VOID`/`BLOCKED` validation, owner-only HTTP authority, schema-v12 fault recovery/integrity, schema-v2 rectangle compatibility, schema-v3 masked-room canonical round trips, and protected-width real-browser evidence. User acceptance remains separate. Numberdroid export remains a later-checkpoint target.
+At each checkpoint, reviewers MUST demonstrate the checks that correspond to implemented capabilities. Accepted Checkpoints 1–4 cover package isolation, UI/MCP equivalence, SQLite/CAS recovery, source/atlas jobs, exact V2 asset review, immutable room lifecycle, isolated tasks, semantic conflicts, and atomic merge/revert. The Checkpoint 4.5 candidate additionally proves list/create/detail task truth, useful exact-slice preview gating, one persistent room canvas across toolbox/options/dock state, deterministic `VOID`/`BLOCKED` validation, owner-only HTTP authority, schema-v12 fault recovery/integrity, schema-v2 rectangle compatibility, schema-v3 masked-room canonical round trips, and protected-width real-browser evidence. User acceptance remains separate. Numberdroid export remains a later-checkpoint target.
 
 - a forbidden import test prevents core packages from referencing UI/MCP/SQLite/Numberdroid;
 - the accepted 1A visual/demo baseline remains reproducible, and approved additive UI changes do not alter its command outcomes;

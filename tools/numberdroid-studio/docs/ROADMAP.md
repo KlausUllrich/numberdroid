@@ -169,7 +169,7 @@ Exit decision: **accepted by the user on 2026-08-24.** The bounded delegation mo
 
 ## Checkpoint 4.5 — Designer workflow and preview usability
 
-**Status: frozen-contract implementation candidate as of 2026-08-24; automated/local verification is green, fresh CI browser evidence and explicit user acceptance remain pending. Checkpoint 5 is blocked.**
+**Status: frozen-contract implementation candidate as of 2026-08-24; local automation plus fresh Linux/Windows CI and Chrome evidence are green, while explicit user acceptance remains pending. The user explicitly authorized dependent Checkpoint 5 candidate implementation on 2026-08-25 without accepting Checkpoint 4.5.**
 
 **Outcome:** a professional designer can understand the current step, create or review the relevant object, and see a useful preview without needing to understand Studio's internal branch, grant, revision, provenance, or validation vocabulary.
 
@@ -186,9 +186,9 @@ Normal healthy invariants should not read like warnings or proof obligations. Th
 
 User verification scenario: begin from the normal task list, create a task through a separate focused step, understand who acts next at every state, review a prop through a useful visual preview, and construct both a rectangular and an irregular room without opening technical details.
 
-Exit decision: approve the designer-facing task flow, prop preview, guided room construction, and the exact `VOID`/`BLOCKED` authoring semantics. Checkpoint 5 export remains blocked until this checkpoint is accepted.
+Exit decision: approve the designer-facing task flow, prop preview, guided room construction, and the exact `VOID`/`BLOCKED` authoring semantics. Checkpoint 5 production use and acceptance remain blocked until this checkpoint is accepted; dependent fail-closed implementation work is permitted and does not revise this gate.
 
-Candidate implementation: `CHECKPOINT_4_5_CONTRACT.md` freezes the bounded semantics and `CHECKPOINT_4_5_STATUS.md` records the candidate. The implementation adds list/create/detail task views, trusted expiry projection, useful exact-slice previews, six guided room steps, owner-only complete shape replacement, schema-v12 normalized shape cells, schema-v2 rectangular parity, and schema-v3 masked-room round trips. It adds no generation, bitmap-job, export, materialization, publication, or wider agent authority.
+Candidate implementation: `CHECKPOINT_4_5_CONTRACT.md` freezes the bounded semantics and `CHECKPOINT_4_5_STATUS.md` records the candidate. The implementation adds list/create/detail task views, trusted expiry projection, useful exact-slice previews, one persistent canvas with toolbox/options/dock workflow, owner-only complete shape replacement, schema-v12 normalized shape cells, schema-v2 rectangular parity, and schema-v3 masked-room round trips. It adds no generation, bitmap-job, export, materialization, publication, or wider agent authority.
 
 ## Checkpoint 5 — Deterministic Numberdroid export candidate
 
@@ -206,6 +206,69 @@ Deliverables:
 User verification scenario: export the approved room twice, compare manifests/hashes, inspect generated runtime and provenance paths, trigger and fix a compiler failure, then explicitly approve only the candidate. Repository publication remains a separate optional step.
 
 Exit decision: approve adapter fidelity and choose the production publishing workflow.
+
+Candidate implementation, stacked on the still-unaccepted Checkpoint 4.5 branch:
+`CHECKPOINT_5_CONTRACT.md` freezes a candidate-only first slice.
+`packages/numberdroid-adapter` now creates a content-addressed immutable snapshot,
+maps exact room/asset/source pins to virtual Level Spec/provenance files and CAS
+copy descriptors, imports stable adapter/compiler findings, and emits a manifest
+whose later stages remain `NOT_AUTHORIZED`. A fixed in-process repository bridge
+accepts only the exact non-serializable snapshot object created by the trusted
+factory, loads the canonical compiler, override validator, Prop Registry, and
+Prop Art Registry, and fingerprints their authority files. This foundation deliberately
+does not yet add candidate persistence/approval UI, materialization, commit, or
+publication. Irregular masks, ambiguous hallways, unsupported items, implicit
+resizing, missing runtime surface binding, incomplete exact-fit dependencies,
+and registry/path mismatches fail closed rather than being flattened or inferred.
+
+## Parallel masterplan track — Operations, Remote Access & Mobile
+
+**Status: added to the current masterplan on 2026-08-25; each implementation
+gate and user acceptance remains separate.**
+
+This track neither accepts Checkpoint 4.5 nor turns the Checkpoint 5 candidate
+into repository state. It adds four product outcomes:
+
+- simple verified backup/recovery in the human UI;
+- an always-on, authenticated private Studio service reachable from Klaus's phone;
+- a responsive, touch-usable smartphone experience; and
+- bounded MCP onboarding/playbooks for **Artist** and **Level Designer** agents.
+
+The gates are:
+
+1. **O0 — Contract and threat model.** Freeze backup job ownership,
+   destination configuration, local/remote separation, authentication/proxy
+   trust, MCP transport scope, mobile hierarchy, and adversarial tests.
+2. **O1 — Backup and recovery.** Reuse the accepted SQLite/CAS integrity,
+   backup, verify, and restore-to-new-destination primitives behind a durable
+   human-owned job; then add **Create backup now**, **Verify again**, recovery
+   testing, and **Restore as a new working copy**. No overwrite, deletion,
+   automatic cleanup, active cutover, arbitrary path, or agent authority.
+3. **O2 — Always-on private service.** Add a separately authenticated HTTPS
+   deployment with persistent mounts, supervised restart, explicit proxy trust,
+   and private-network access. Never widen the accepted loopback listener.
+4. **O3 — Mobile/touch completion.** Deliver phone-first list/detail/action
+   hierarchy, 44px touch targets, no hover-only controls or page-level
+   horizontal scrolling, reconnect/state retention, canvas touch safety, and a
+   real Android/Chrome user gate. Room-editor touch work depends on the CP4.5
+   candidate and cannot replace its separate desktop/designer acceptance; it
+   either starts after CP4.5 acceptance or remains explicitly stacked and
+   non-accepting.
+5. **O4 — MCP onboarding.** Add a bounded getting-started/capabilities surface,
+   local connection guide, Artist and Level Designer playbooks, failure/recovery
+   guidance, and clean-agent scenarios that stop at **Waiting for your review**.
+   The first slice must use server instructions and existing project/task
+   resources without changing the accepted 19/4 and 30/5 discovery counts. Any
+   new resource template requires a separately versioned feature gate with new
+   exact counts. Remote Streamable HTTP MCP remains optional and separately
+   security-reviewed.
+
+While the user cannot test, implementation may confidently proceed only through
+O0 and the non-visual fail-closed O1 application/job seam plus automated
+recovery/adversarial tests. Final UI composition, remote exposure/authentication,
+phone acceptance, and remote MCP remain later gates.
+
+Detailed contract: `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.
 
 ## V1 completion — Level composition baseline
 
@@ -236,7 +299,8 @@ V2 does not add NPC/enemy animation.
 Possible later tracks, each requiring its own accepted architecture slice:
 
 - standalone packaging and automatic updates;
-- remote/team service with authenticated Streamable HTTP MCP and collaborative review;
+- multi-user/team collaboration beyond the private owner service in O2;
+- authenticated Streamable HTTP MCP only if its separate O4 transport contract is accepted;
 - additional game adapters and export profiles;
 - procedural room-template and level-graph assistance;
 - plugin/provider SDK for image generation and analysis;
