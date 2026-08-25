@@ -455,6 +455,80 @@ try {
         const composer = document.querySelector('.task-composer');
         const review = document.querySelector('.task-review');
         const merge = document.querySelector('[data-task-control="merge"]');
+        let createRefreshEvidence = null;
+        if (focus === 'create' && composer) {
+          const form = composer.querySelector('[data-task-form="create"]');
+          const titleField = form.querySelector('input[name="title"]');
+          const agentField = form.querySelector('input[name="agentId"]');
+          const objectiveField = form.querySelector('textarea[name="objective"]');
+          const maxCommandsField = form.querySelector('input[name="maxCommands"]');
+          const expiryField = form.querySelector('input[name="expiryHours"]');
+          const capabilityField = form.querySelector('input[value="room.variant.validate"]');
+          const autoAcceptField = form.querySelector('input[name="autoAccept"]');
+          titleField.value = 'Refresh-safe task draft';
+          agentField.value = 'studio.refresh-safe.agent';
+          objectiveField.value = 'Keep this complete task draft intact across passive refreshes.';
+          maxCommandsField.value = '27';
+          expiryField.value = '7';
+          capabilityField.checked = true;
+          autoAcceptField.checked = true;
+          composer.scrollIntoView({ block: 'center', inline: 'nearest' });
+          window.scrollBy(0, 120);
+          objectiveField.focus(); objectiveField.setSelectionRange(9, 17);
+          const beforeScroll = { x: window.scrollX, y: window.scrollY };
+          await new Promise((resolveWait) => setTimeout(resolveWait, 5_100));
+          await refresh({ quiet: true, passive: true });
+          const firstRefreshPreserved = document.querySelector('.task-composer') === composer
+            && document.querySelector('[data-task-form="create"]') === form
+            && document.activeElement === objectiveField;
+          const concurrentToken = crypto.randomUUID();
+          const concurrentTaskId = 'task.visual.refresh.' + concurrentToken;
+          await api('/api/projects/' + encodeURIComponent(state.project.projectId) + '/tasks', {
+            method: 'POST',
+            headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+            body: JSON.stringify({ task: {
+              taskId: concurrentTaskId,
+              branchId: 'branch.task.visual.refresh.' + concurrentToken,
+              agentId: 'studio.concurrent.agent',
+              title: 'Concurrent task list update',
+              objective: 'Prove that a same-project update does not replace an open task composer.',
+              capabilities: ['project.read'],
+              objectScopes: [{ kind: 'project', id: state.project.projectId }],
+              budget: { maxCommands: 1, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
+              expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+              autoAcceptPolicy: { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
+            } }),
+          });
+          await new Promise((resolveWait) => setTimeout(resolveWait, 5_100));
+          await refresh({ quiet: true, passive: true });
+          const currentComposer = document.querySelector('.task-composer');
+          const currentForm = currentComposer?.querySelector('[data-task-form="create"]');
+          const currentTitleField = currentForm?.querySelector('input[name="title"]');
+          const currentAgentField = currentForm?.querySelector('input[name="agentId"]');
+          const currentObjectiveField = currentForm?.querySelector('textarea[name="objective"]');
+          const currentMaxCommandsField = currentForm?.querySelector('input[name="maxCommands"]');
+          const currentExpiryField = currentForm?.querySelector('input[name="expiryHours"]');
+          const currentCapabilityField = currentForm?.querySelector('input[value="room.variant.validate"]');
+          const currentAutoAcceptField = currentForm?.querySelector('input[name="autoAccept"]');
+          createRefreshEvidence = {
+            firstRefreshPreserved,
+            sameProjectChanged: state.tasks.some(({ task }) => task.taskId === concurrentTaskId),
+            sameComposer: currentComposer === composer,
+            sameForm: currentForm === form,
+            sameField: currentObjectiveField === objectiveField && currentObjectiveField?.isConnected === true,
+            title: currentTitleField?.value ?? null,
+            agentId: currentAgentField?.value ?? null,
+            objective: currentObjectiveField?.value ?? null,
+            maxCommands: currentMaxCommandsField?.value ?? null,
+            expiryHours: currentExpiryField?.value ?? null,
+            capabilityChecked: currentCapabilityField?.checked ?? null,
+            autoAcceptChecked: currentAutoAcceptField?.checked ?? null,
+            focused: document.activeElement === currentObjectiveField,
+            selectionStart: currentObjectiveField?.selectionStart ?? null,
+            selectionEnd: currentObjectiveField?.selectionEnd ?? null,
+            scrollUnchanged: window.scrollX === beforeScroll.x && window.scrollY === beforeScroll.y,
+          };
+        }
         let mergeConfirmCalls = 0;
         if (focus === 'conflict' && merge) {
           const originalConfirm = window.confirm;
@@ -483,6 +557,7 @@ try {
           createVisible: Boolean(composer && composer.getBoundingClientRect().bottom > 0 && composer.getBoundingClientRect().top < innerHeight),
           createFieldCount: composer?.querySelectorAll('input, textarea').length ?? 0,
           createKeyboardReachable,
+          createRefreshEvidence,
         };
       })()`,
       awaitPromise: true,
@@ -1629,6 +1704,22 @@ try {
           && checkpoint4TaskFocus.createVisible === true
           && checkpoint4TaskFocus.createFieldCount >= 13
           && checkpoint4TaskFocus.createKeyboardReachable === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.firstRefreshPreserved === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.sameProjectChanged === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.sameComposer === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.sameForm === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.sameField === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.title === 'Refresh-safe task draft'
+          && checkpoint4TaskFocus.createRefreshEvidence?.agentId === 'studio.refresh-safe.agent'
+          && checkpoint4TaskFocus.createRefreshEvidence?.objective === 'Keep this complete task draft intact across passive refreshes.'
+          && checkpoint4TaskFocus.createRefreshEvidence?.maxCommands === '27'
+          && checkpoint4TaskFocus.createRefreshEvidence?.expiryHours === '7'
+          && checkpoint4TaskFocus.createRefreshEvidence?.capabilityChecked === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.autoAcceptChecked === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.focused === true
+          && checkpoint4TaskFocus.createRefreshEvidence?.selectionStart === 9
+          && checkpoint4TaskFocus.createRefreshEvidence?.selectionEnd === 17
+          && checkpoint4TaskFocus.createRefreshEvidence?.scrollUnchanged === true
           && layout.taskWorkspace.composerText?.includes('Create a task for an agent')
           && layout.taskWorkspace.composerText.includes('What should the agent do?')
           && layout.taskWorkspace.controlNames.includes('back-to-list'),

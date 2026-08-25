@@ -2682,7 +2682,7 @@ function taskWorkflowPresentation(entry) {
     REVERTED: { actor: 'No one', next: 'This task is complete and its project changes have been undone.', consequence: 'The task and review history remain available; no second undo is possible.' },
     CANCELLED: { actor: 'No one', next: 'Create a new task if more work is needed.', consequence: 'The assigned agent cannot make further changes for this task.' },
     REJECTED: { actor: 'No one', next: 'Create a new task from the current project if more work is needed.', consequence: 'No task changes were added and the assigned agent can no longer change this task.' },
-    EXPIRED: { actor: 'You', next: 'End this task and create a new bounded task if work should continue.', consequence: 'The expired agent access cannot be resumed or used.' },
+    EXPIRED: { actor: 'You', next: 'End this task and create a new task if work should continue.', consequence: 'The expired agent access cannot be resumed or used.' },
   };
   return { state: stateValue, ...(presentations[stateValue] ?? { actor: 'You', next: 'Inspect the task history.', consequence: 'No automatic action is taken.' }) };
 }
@@ -2835,11 +2835,11 @@ function renderTaskList() {
   const list = document.createElement('section'); list.className = 'task-list surface-card'; list.dataset.taskView = 'list';
   const header = document.createElement('div'); header.className = 'task-list-header';
   const copy = document.createElement('div'); const listHeading = document.createElement('h2'); listHeading.textContent = 'Tasks';
-  const help = document.createElement('p'); help.textContent = 'Choose a task to see who acts next, or create a new bounded task.'; copy.append(listHeading, help);
+  const help = document.createElement('p'); help.textContent = 'Choose a task to see who acts next, or create a new task.'; copy.append(listHeading, help);
   const create = document.createElement('button'); create.type = 'button'; create.dataset.taskControl = 'open-create'; create.textContent = 'Create task';
   header.append(copy, create); list.append(header);
   if (!state.tasks.length) {
-    list.append(emptyState('No delegated tasks', 'Create a bounded task. Finalize, export, and publish remain unavailable.'));
+    list.append(emptyState('No delegated tasks', 'Create a task. Finalize, export, and publish remain unavailable.'));
     return list;
   }
   const items = document.createElement('div'); items.className = 'task-list-items';
@@ -2914,6 +2914,24 @@ function renderTasks() {
     state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null;
   }
   return renderTaskList();
+}
+
+function reconcileTaskUiAfterRefresh() {
+  if (state.taskUi.view !== 'detail') {
+    state.taskUi.selectedTaskId = null;
+    return;
+  }
+  if (!state.tasks.some(({ task }) => task.taskId === state.taskUi.selectedTaskId)) {
+    state.taskUi.selectedTaskId = null;
+    state.taskUi.view = 'list';
+  }
+}
+
+function hasLiveTaskComposer() {
+  return state.workspace === 'tasks'
+    && state.taskUi.view === 'create'
+    && elements['workspace-content'].dataset.renderedProjectId === state.project?.projectId
+    && Boolean(elements['workspace-content'].querySelector('[data-task-view="create"]'));
 }
 
 function renderCollection(items, workspace) {
@@ -3360,15 +3378,12 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
   state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
   state.sourceIntakes = sourceIntakes.intakes;
   state.tasks = taskDetails;
-  if (!state.tasks.some(({ task }) => task.taskId === state.taskUi.selectedTaskId)) {
-    state.taskUi.selectedTaskId = null;
-    state.taskUi.view = 'list';
-  }
+  reconcileTaskUiAfterRefresh();
   if (state.resumingIntakeId && !state.sourceIntakes.some((intake) => intake.intakeId === state.resumingIntakeId && intake.state === 'STAGED')) {
     state.resumingIntakeId = null;
   }
-  const preserveWorkspace = mayPreserveWorkspace
-    && previousWorkspaceFingerprint === workspaceRenderFingerprint();
+  const preserveWorkspace = (mayPreserveWorkspace && hasLiveTaskComposer())
+    || (mayPreserveWorkspace && previousWorkspaceFingerprint === workspaceRenderFingerprint());
   renderProject({ preserveWorkspace, preserveCutterDraft: preserveWorkspaceIfUnchanged });
   return true;
 }
@@ -3925,7 +3940,9 @@ async function executeTaskRequest(path, body, successMessage) {
   } catch (error) {
     showToast(`${error.code || 'ERROR'}: ${error.message}`); return null;
   } finally {
-    state.taskMutationPending = false; updateMutationControls(); renderWorkspace();
+    const preserveTaskComposer = hasLiveTaskComposer();
+    state.taskMutationPending = false; updateMutationControls();
+    if (!preserveTaskComposer) renderWorkspace();
   }
 }
 
@@ -4008,19 +4025,19 @@ elements['workspace-content'].addEventListener('click', async (event) => {
 elements['workspace-nav'].addEventListener('click', (event) => {
   const link = event.target.closest('[data-workspace]');
   if (!link) return;
-  if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending) { event.preventDefault(); return; }
+  if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending || state.taskMutationPending) { event.preventDefault(); return; }
   state.workspace = link.dataset.workspace; location.hash = state.workspace; renderWorkspace();
   void publishVisualEvidence();
 });
 elements['project-select'].addEventListener('change', () => {
-  if (state.cutterPending || state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending) {
+  if (state.cutterPending || state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending || state.taskMutationPending) {
     elements['project-select'].value = state.project?.projectId ?? '';
     return;
   }
   void loadProject(elements['project-select'].value);
 });
 elements['refresh-button'].addEventListener('click', () => {
-  if (!state.cutterPending && !state.sourceMutationPending && !state.assetMutationPending && !state.roomMutationPending) void refresh({ passive: true });
+  if (!state.cutterPending && !state.sourceMutationPending && !state.assetMutationPending && !state.roomMutationPending && !state.taskMutationPending) void refresh({ passive: true });
 });
 elements['agent-access-select'].addEventListener('change', () => {
   if (state.sourceMutationPending) return;
