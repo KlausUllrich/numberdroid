@@ -24,8 +24,24 @@ function opaqueId(value, field) {
   return value;
 }
 
+function removeInheritedSerializationHooks(value) {
+  if (Array.isArray(value)) {
+    const array = value.map(removeInheritedSerializationHooks);
+    Object.setPrototypeOf(array, null);
+    return array;
+  }
+  if (value && typeof value === 'object') {
+    const record = Object.create(null);
+    for (const key of Object.keys(value)) record[key] = removeInheritedSerializationHooks(value[key]);
+    return record;
+  }
+  return value;
+}
+
 function stableFingerprint(value) {
-  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(removeInheritedSerializationHooks(value)))
+    .digest('hex');
 }
 
 function rectanglesOverlap(left, right) {

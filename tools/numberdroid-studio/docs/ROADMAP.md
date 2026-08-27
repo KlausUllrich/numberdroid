@@ -356,7 +356,7 @@ require a separately versioned contract.
 - complete semantic MCP coverage for the ordinary Artist workflow on a task branch;
 - reusable recipe/module boundaries proven by Numberdroid fixtures.
 
-Implementation note (2026-08-27, **A1.0 implemented but not user-accepted**):
+Implementation note (2026-08-27, **A1.0 implemented and explicitly user-accepted**):
 the pure schema-v1 `ProcessingRecipe` contract now covers only one immutable PNG
 input and one typed, bounded `studio.image.exact-png-crop` operation backed by
 the accepted `numberdroid-studio.exact-png-crop.v1` processor. Its compatibility
@@ -367,7 +367,7 @@ UI surface, semantic asset adoption, review, materialization, repository write,
 or publication authority. Exact evidence and remaining scope are recorded in
 [`A1_0_STATUS.md`](A1_0_STATUS.md).
 
-Implementation note (2026-08-27, **A1.1 implemented but not user-accepted**):
+Implementation note (2026-08-27, **A1.1 implemented and explicitly user-accepted**):
 the pure schema-v1 `ProcessingResult` contract now records an immutable result
 descriptor for A1.0's one exact-PNG crop operation. It closes the recomputed recipe
 fingerprint, processor, complete input descriptor, ordered derived output IDs,
@@ -381,6 +381,20 @@ adoption, replacement/review, capability check, MCP/HTTP/UI surface, new pixel
 operation, materialization, repository write, or publication authority. Exact
 evidence and remaining scope are recorded in
 [`A1_1_STATUS.md`](A1_1_STATUS.md).
+
+Implementation note (2026-08-27, **A1.2 implemented candidate; not
+user-accepted**): the pure schema-v1 `AssetInputSelection` contract records one
+caller-explicit `surface`, `prop`, or `item` choice and one exact ProcessingResult
+output as the fixed `primary-visual` input role. It pins the complete result
+fingerprint plus recipe, operation, input, and selected-output lineage and
+validates that closure against the full ProcessingResult. The result fingerprint
+binds findings, including `ERROR`, but selection grants no adoption, approval,
+or lifecycle authority.
+A1.2 adds no project/asset mutation, CAS proof, persistence, job/command,
+capability advertisement, CandidateManifest/adapter mapping, MCP/HTTP/UI surface,
+new pixel operation, materialization, repository write, or publication authority.
+It therefore does not satisfy `IMG-006` end to end. Exact evidence and remaining
+scope are recorded in [`A1_2_STATUS.md`](A1_2_STATUS.md).
 
 ### A2 — Agent parity and concurrent production
 
