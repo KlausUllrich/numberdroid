@@ -16,6 +16,7 @@ import {
   createExactPngCropProcessingRecipe,
   processingRecipeSha256,
   processingResultSha256,
+  validateAtlasRectangles,
   validateProcessingResult,
   validateProcessingResultForRecipe,
 } from '../packages/domain/src/index.js';
@@ -135,6 +136,34 @@ function rejectsRecipeBindingWithCode(mutator, code = 'PROCESSING_RESULT_RECIPE_
   );
 }
 
+function withPollutedSerializationHooks(callback) {
+  const prototypes = [Object.prototype, Array.prototype];
+  const priorDescriptors = prototypes.map((prototype) => (
+    Object.getOwnPropertyDescriptor(prototype, 'toJSON')
+  ));
+  let calls = 0;
+  try {
+    for (const prototype of prototypes) {
+      Object.defineProperty(prototype, 'toJSON', {
+        configurable: true,
+        value() {
+          calls += 1;
+          return 'polluted';
+        },
+      });
+    }
+    return callback(() => calls);
+  } finally {
+    for (let index = prototypes.length - 1; index >= 0; index -= 1) {
+      if (priorDescriptors[index]) {
+        Object.defineProperty(prototypes[index], 'toJSON', priorDescriptors[index]);
+      } else {
+        delete prototypes[index].toJSON;
+      }
+    }
+  }
+}
+
 test('processing result v1 is deterministic, canonical, deeply immutable, and finding-order stable', () => {
   const reverseFields = (value) => Object.fromEntries(Object.entries(value).reverse());
   const reordered = reverseFields(resultFixture());
@@ -158,6 +187,21 @@ test('processing result v1 is deterministic, canonical, deeply immutable, and fi
   assert.ok(Object.isFrozen(normalized.findings[0]));
   assert.equal(canonicalProcessingResultJson(normalized).includes('"bytes"'), false);
   assert.equal(canonicalProcessingResultJson(normalized).includes('expectedDigest'), false);
+});
+
+test('atlas rectangle fingerprint ignores inherited serialization hooks', () => {
+  const rectangles = familyHygieneRectangles();
+  withPollutedSerializationHooks((serializationCalls) => {
+    const validated = validateAtlasRectangles(rectangles, {
+      sourceWidth: 1254,
+      sourceHeight: 1254,
+    });
+    assert.equal(
+      validated.fingerprint,
+      '41a48e0c7b695186bd59ea8dbcbe023bf22acee48b2a065d40b1b70b6da4a884',
+    );
+    assert.equal(serializationCalls(), 0);
+  });
 });
 
 test('processing result schema fails closed on unknown, sparse, unsupported, and incoherent evidence', () => {
@@ -287,6 +331,28 @@ test('processing result findings are bounded, referential, path-safe, unique, an
   }
   assert.ok(failure instanceof StudioError);
   assert.equal(`${failure.message}\n${JSON.stringify(failure.details)}`.includes('secret-token'), false);
+});
+
+test('finding identities remain distinct and duplicate-safe under inherited serialization hooks', () => {
+  const distinct = resultFixture();
+  const duplicate = resultFixture();
+  duplicate.findings.push(structuredClone(duplicate.findings[0]));
+
+  withPollutedSerializationHooks((serializationCalls) => {
+    const normalized = validateProcessingResult(distinct);
+    assert.deepEqual(
+      normalized.findings.map(({ ruleId }) => ruleId),
+      ['studio.processing.review_required', 'studio.processing.information'],
+    );
+    assert.equal(serializationCalls(), 0);
+    assert.throws(
+      () => validateProcessingResult(duplicate),
+      (error) => (
+        error instanceof StudioError && error.code === 'PROCESSING_RESULT_DUPLICATE'
+      ),
+    );
+    assert.equal(serializationCalls(), 0);
+  });
 });
 
 test('processing result cannot carry job, script, adoption, review, or repository authority', () => {

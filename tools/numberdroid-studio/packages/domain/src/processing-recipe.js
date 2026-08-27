@@ -238,9 +238,15 @@ function deepFreeze(value) {
 }
 
 function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize);
+  if (Array.isArray(value)) {
+    const array = value.map(canonicalize);
+    Object.setPrototypeOf(array, null);
+    return array;
+  }
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
+    const record = Object.create(null);
+    for (const key of Object.keys(value).sort()) record[key] = canonicalize(value[key]);
+    return record;
   }
   return value;
 }

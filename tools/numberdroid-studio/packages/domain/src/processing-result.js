@@ -333,9 +333,15 @@ function deepFreeze(value) {
 }
 
 function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize);
+  if (Array.isArray(value)) {
+    const array = value.map(canonicalize);
+    Object.setPrototypeOf(array, null);
+    return array;
+  }
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
+    const record = Object.create(null);
+    for (const key of Object.keys(value).sort()) record[key] = canonicalize(value[key]);
+    return record;
   }
   return value;
 }
@@ -392,7 +398,9 @@ export function validateProcessingResult(value) {
   ));
   const findingIdentities = new Set();
   for (const finding of findings) {
-    const identity = JSON.stringify([finding.ruleId, finding.objectRef, finding.explanation]);
+    const identityFields = [finding.ruleId, finding.objectRef, finding.explanation];
+    Object.setPrototypeOf(identityFields, null);
+    const identity = JSON.stringify(identityFields);
     invariant(
       !findingIdentities.has(identity),
       'PROCESSING_RESULT_DUPLICATE',

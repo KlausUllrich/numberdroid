@@ -1,10 +1,14 @@
 # A1.0 ProcessingRecipe contract status
 
-Status: **implemented candidate; not user-accepted**
+Status: **explicitly user-accepted on 2026-08-27**
 
 This is a non-visual, contract-only A1 slice. It creates no new image bytes and
 does not change the accepted Checkpoint 2B cutter output. Source integration or
-test success does not accept A1.0 or any later Artist workflow.
+test success alone did not create acceptance. The user explicitly accepted this
+exact bounded contract at implementation head
+`1d10ee86c089ec85bd4a32bb7140e3f79da05afa`; it was then merged through PR
+#144 as `2c1f85e3f9d1a324a3de2b0f99bee41545a9b4fc`. Acceptance does not broaden
+the authority boundary below or accept the complete A1 Artist workflow.
 
 ## Implemented scope
 
@@ -34,6 +38,12 @@ The pinned Family Hygiene recipe fingerprint is:
 
 `ca939dfd972a0aef6f70016fca20e6d45108e05795c4c705489a3b7decd63c46`
 
+After acceptance, A1.2 added compatibility-only serialization hardening to the
+recipe and atlas-rectangle fingerprint paths: inherited `toJSON` hooks are
+ignored. The accepted contract, canonical bytes, pinned fingerprints, crop
+kernel, and authority boundary are unchanged; this hardening does not widen
+A1.0 acceptance.
+
 ## Preserved compatibility evidence
 
 The accepted source remains the 2,720,519-byte, 1254×1254 PNG with SHA-256
@@ -46,7 +56,7 @@ in row-major order, with the unchanged accepted digests:
 3. `9d4c867156c590d372c9c7ef955596c919d717821b65ea992db0e7606cde2526`
 4. `a63dceb520a894a3e91e547d93e15d154873f04bb32e0ac8f8354ca7d2150318`
 
-## Explicitly not implemented or authorized
+## Explicitly outside A1.0 acceptance
 
 - no persisted recipe aggregate, derived-artifact/result record, output digest
   binding in the recipe definition, structured processing findings, adoption,
@@ -59,7 +69,7 @@ in row-major order, with the unchanged accepted digests:
   materialization, repository write, commit, publication, or visual-acceptance
   authority.
 
-A1.0 therefore proves only the versioned recipe contract and compatibility seam
+A1.0 acceptance therefore covers only the versioned recipe contract and compatibility seam
 for the already accepted crop kernel. It does not complete `IMG-001`–`IMG-008`
 or the A1 Artist path.
 

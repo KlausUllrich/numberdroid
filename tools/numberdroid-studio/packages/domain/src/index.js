@@ -33,6 +33,17 @@ export {
   validateProcessingResultForRecipe,
 } from './processing-result.js';
 export {
+  ASSET_INPUT_SELECTION_ASSET_KINDS,
+  ASSET_INPUT_SELECTION_KIND,
+  ASSET_INPUT_SELECTION_SCHEMA_VERSION,
+  PRIMARY_VISUAL_ASSET_INPUT_ROLE,
+  assetInputSelectionSha256,
+  canonicalAssetInputSelectionJson,
+  createPrimaryVisualAssetInputSelection,
+  validateAssetInputSelection,
+  validateAssetInputSelectionForProcessingResult,
+} from './asset-input-selection.js';
+export {
   ASSET_KINDS,
   ASSET_LIFECYCLES,
   ASSET_VALIDATOR_VERSION,

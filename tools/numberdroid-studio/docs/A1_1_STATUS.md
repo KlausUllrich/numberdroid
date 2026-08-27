@@ -1,11 +1,15 @@
 # A1.1 ProcessingResult contract status
 
-Status: **implemented candidate; not user-accepted**
+Status: **explicitly user-accepted on 2026-08-27**
 
 This is a non-visual, contract-only A1 slice for the already accepted exact-PNG
 crop processor. It introduces no new pixel operation and changes none of the
-accepted Checkpoint 2B output bytes. Source integration or test success does not
-accept A1.1 or any later Artist workflow.
+accepted Checkpoint 2B output bytes. Source integration or test success alone
+did not create acceptance. The user explicitly accepted this exact bounded
+contract at implementation head
+`4f555baf4bad41dc3599bde4aceff22e94fee261`; it was then merged through PR
+#145 as `a5323636941acdb98342e5d737e358919b8e5fe7`. Acceptance does not broaden
+the authority boundary below or accept A1.2 or the complete A1 Artist workflow.
 
 ## Implemented scope
 
@@ -83,7 +87,13 @@ The accepted Checkpoint 2B job, slice, SQLite, CAS-reference, and apply schemas
 remain untouched. Existing rows are not retroactively relabeled as A1.1
 ProcessingResults.
 
-## Explicitly not implemented or authorized
+After acceptance, A1.2 added compatibility-only serialization hardening to
+A1.1 canonical result fingerprints and finding-identity checks: inherited
+`toJSON` hooks are ignored. The accepted contract, canonical bytes, normalized
+finding order and duplicate semantics, pinned fingerprint, and authority
+boundary are unchanged; this hardening does not widen A1.1 acceptance.
+
+## Explicitly outside A1.1 acceptance
 
 - no persisted recipe/result aggregate, CAS write or existence check, durable
   execution/job integration, command/query, SQLite migration, HTTP, MCP, or UI;
@@ -96,7 +106,7 @@ ProcessingResults.
 - no project capability validation and no automatic CandidateManifest or
   Numberdroid adapter integration.
 
-A1.1 therefore closes only the pure result/evidence seam for A1.0's one accepted
+A1.1 acceptance therefore covers only the pure result/evidence seam for A1.0's one accepted
 operation. It does not satisfy `IMG-001`–`IMG-008` end to end or complete the A1
 Artist path.
 
