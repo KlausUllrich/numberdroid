@@ -317,6 +317,13 @@ gaps. It adds no application query, MCP tool/resource, SQLite migration, UI,
 materialization, commit, or publication surface. The remaining A0 interface
 ports and any read-only capability projection remain planned.
 
+A0.2 adds the injected read-only application query for that manifest and wires
+the fixed Numberdroid profile only at the Studio server composition root. Owner
+and task-scoped agent reads use the existing `project.read` authorization and
+receive the same manifest/fingerprint. This remains **implemented but not
+user-accepted** and still adds no HTTP/MCP resource, tool, UI, persistence, or
+repository-output authority.
+
 ### A1 — Artist path: image to validated asset
 
 - versioned non-destructive `ProcessingRecipe` and deterministic derived artifacts;

@@ -19,7 +19,15 @@ import {
   validateRoomVariant,
 } from '../../domain/src/room-definition.js';
 import { StudioError, invariant } from '../../domain/src/errors.js';
+import {
+  projectCapabilityManifestSha256,
+  validateProjectCapabilityManifest,
+} from '../../domain/src/project-capability-manifest.js';
 import { headRevision } from './project-store.js';
+import {
+  projectCapabilitySelection,
+  validateProjectCapabilityProvider,
+} from './project-capability-provider.js';
 import {
   optionalString,
   requireActor,
@@ -2193,13 +2201,21 @@ export class StudioService {
   #clock;
   #agentAttemptAuditReady;
   #jobStore;
+  #capabilityProvider;
 
-  constructor({ store, clock = () => new Date().toISOString(), agentAttemptAuditReady = false, jobStore = null }) {
+  constructor({
+    store,
+    clock = () => new Date().toISOString(),
+    agentAttemptAuditReady = false,
+    jobStore = null,
+    capabilityProvider = null,
+  }) {
     invariant(store, 'VALIDATION_ERROR', 'A ProjectStore is required.');
     this.#store = store;
     this.#clock = clock;
     this.#agentAttemptAuditReady = agentAttemptAuditReady === true;
     this.#jobStore = jobStore;
+    this.#capabilityProvider = validateProjectCapabilityProvider(capabilityProvider);
   }
 
   get commandCatalog() {
@@ -2602,6 +2618,52 @@ export class StudioService {
       });
     }
     return deepFreeze({ schemaVersion: 1, projectId, revision: head.number, snapshot: deepClone(head.snapshot) });
+  }
+
+  async queryProjectCapabilities(rawRequest, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
+    const request = requireRecord(rawRequest, 'request');
+    for (const field of AUTHORITY_FIELDS) {
+      invariant(!Object.hasOwn(request, field), 'UNTRUSTED_AUTHORITY_FIELD', `Project capability query must not contain authority field: ${field}.`, { field });
+    }
+    assertExactFields(request, new Set(['schemaVersion', 'projectId']), 'Project capability query');
+    invariant(request.schemaVersion === 1, 'SCHEMA_VERSION_UNSUPPORTED', 'Unsupported project capability query schema version.');
+    const projectId = requireId(request.projectId, 'projectId');
+    const executionContext = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId);
+    signal?.throwIfAborted();
+    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
+    const head = headRevision(document);
+    assertAuthorized(
+      { ...executionContext, projectId, type: 'project.read', payload: {} },
+      head.snapshot,
+      { ownerOnly: false, requiredScope: 'project.read' },
+      this.#clock(),
+    );
+    invariant(
+      this.#capabilityProvider,
+      'PROJECT_CAPABILITY_PROVIDER_DISABLED',
+      'No project capability provider is configured.',
+      { projectId },
+    );
+    const manifestValue = await this.#capabilityProvider.getProjectCapabilityManifest(
+      projectCapabilitySelection({ projectId, revision: head.number }),
+    );
+    signal?.throwIfAborted();
+    invariant(
+      manifestValue,
+      'PROJECT_CAPABILITY_PROFILE_NOT_FOUND',
+      'The project has no configured capability profile.',
+      { projectId },
+    );
+    const manifest = validateProjectCapabilityManifest(manifestValue);
+    return deepFreeze({
+      schemaVersion: 1,
+      projectId,
+      revision: head.number,
+      manifestFingerprint: projectCapabilityManifestSha256(manifest),
+      manifest: deepClone(manifest),
+    });
   }
 
   async queryAssets(rawRequest, trustedExecutionContext, { signal } = {}) {
