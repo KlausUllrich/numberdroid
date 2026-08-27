@@ -3,7 +3,15 @@ import test from 'node:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AgentTaskService, StudioService } from '../packages/application/src/index.js';
+import {
+  AgentTaskService,
+  FixedProjectCapabilityProvider,
+  StudioService,
+} from '../packages/application/src/index.js';
+import {
+  NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT,
+  NUMBERDROID_PROJECT_CAPABILITY_MANIFEST,
+} from '../packages/numberdroid-adapter/src/index.js';
 import {
   SqliteAgentTaskStore,
   SqliteProjectStore,
@@ -30,7 +38,7 @@ function sourceCommand(expectedVersion, suffix = 'branch', sourceId = 'source.cp
   });
 }
 
-async function fixture(context) {
+async function fixture(context, { capabilityProvider = null } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-cp4-app-'));
   afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   const store = await SqliteProjectStore.open({
@@ -41,7 +49,12 @@ async function fixture(context) {
   let tick = 0;
   let fixedNow = null;
   const clock = () => fixedNow ?? new Date(Date.UTC(2026, 7, 23, 10, 0, tick++)).toISOString();
-  const studio = new StudioService({ store, clock, agentAttemptAuditReady: true });
+  const studio = new StudioService({
+    store,
+    clock,
+    agentAttemptAuditReady: true,
+    capabilityProvider,
+  });
   await createProject(studio);
   const taskStore = new SqliteAgentTaskStore({ workspace: store.workspace });
   const tasks = new AgentTaskService({
@@ -50,6 +63,7 @@ async function fixture(context) {
     taskStore,
     createBranchStore: ({ projectId, taskId }) => new TaskBranchProjectStore({ taskStore, projectId, taskId }),
     clock,
+    capabilityProvider,
   });
   const created = await tasks.createTask({
     projectId: PROJECT_ID,
@@ -74,6 +88,20 @@ async function fixture(context) {
   };
   return { store, studio, taskStore, tasks, created, agentContext, setNow(value) { fixedNow = value; } };
 }
+
+test('task-scoped agents read the same capability profile against their current branch revision', async (context) => {
+  const capabilityProvider = new FixedProjectCapabilityProvider({
+    manifest: NUMBERDROID_PROJECT_CAPABILITY_MANIFEST,
+  });
+  const { tasks, created, agentContext } = await fixture(context, { capabilityProvider });
+  const request = { schemaVersion: 1, projectId: PROJECT_ID };
+  const initial = await tasks.queryProjectCapabilities(request, agentContext);
+  assert.equal(initial.revision, created.task.baseRevision);
+  assert.equal(initial.manifestFingerprint, NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT);
+  assert.deepEqual(initial.manifest, NUMBERDROID_PROJECT_CAPABILITY_MANIFEST);
+  await tasks.execute(sourceCommand(created.task.baseRevision, 'capability-revision'), agentContext);
+  assert.equal((await tasks.queryProjectCapabilities(request, agentContext)).revision, created.task.baseRevision + 1);
+});
 
 test('CP4.5 task lists project expiry truth without mutating the durable workflow state', async (context) => {
   const { tasks, taskStore, created, setNow } = await fixture(context);

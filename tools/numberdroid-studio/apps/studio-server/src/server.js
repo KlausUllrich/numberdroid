@@ -3,8 +3,13 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { AgentTaskService, StudioService } from '../../../packages/application/src/index.js';
+import {
+  AgentTaskService,
+  FixedProjectCapabilityProvider,
+  StudioService,
+} from '../../../packages/application/src/index.js';
 import { StudioError, asStudioError } from '../../../packages/domain/src/index.js';
+import { NUMBERDROID_PROJECT_CAPABILITY_MANIFEST } from '../../../packages/numberdroid-adapter/src/index.js';
 import {
   ContentAddressedArtifactStore,
   JsonProjectStore,
@@ -1497,11 +1502,15 @@ export async function startStudioHttpServer({
   const jobStore = storeMode === 'sqlite'
     ? new SqliteJobStore({ workspace: store.workspace })
     : null;
+  const capabilityProvider = new FixedProjectCapabilityProvider({
+    manifest: NUMBERDROID_PROJECT_CAPABILITY_MANIFEST,
+  });
   const studioService = new StudioService({
     store,
     clock,
     agentAttemptAuditReady: storeMode === 'sqlite',
     jobStore,
+    capabilityProvider,
   });
   const hostBindingStore = storeMode === 'sqlite'
     ? new SqliteHostBindingStore({ workspace: store.workspace, clock })
@@ -1540,6 +1549,7 @@ export async function startStudioHttpServer({
         taskId,
       }),
       clock,
+      capabilityProvider,
     })
     : null;
   const atlasPreviewWorker = storeMode === 'sqlite'

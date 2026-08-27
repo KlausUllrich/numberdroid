@@ -8,6 +8,7 @@ import { getCommandDefinition, KNOWN_GRANT_SCOPES } from '../../domain/src/comma
 import { StudioError, invariant } from '../../domain/src/errors.js';
 import { requireId, requireIsoDate, requireRecord } from '../../domain/src/validation.js';
 import { StudioService } from './studio-service.js';
+import { validateProjectCapabilityProvider } from './project-capability-provider.js';
 import { fingerprint } from './value-utils.js';
 
 const BRANCH_EXTERNAL_SIDE_EFFECT_COMMANDS = new Set([
@@ -140,8 +141,16 @@ export class AgentTaskService {
   #taskStore;
   #createBranchStore;
   #clock;
+  #capabilityProvider;
 
-  constructor({ studioService, projectStore, taskStore, createBranchStore, clock = () => new Date().toISOString() }) {
+  constructor({
+    studioService,
+    projectStore,
+    taskStore,
+    createBranchStore,
+    clock = () => new Date().toISOString(),
+    capabilityProvider = null,
+  }) {
     invariant(studioService, 'VALIDATION_ERROR', 'StudioService is required.');
     invariant(projectStore, 'VALIDATION_ERROR', 'The authoritative ProjectStore is required.');
     invariant(taskStore?.isLive === true, 'AGENT_TASK_STORE_DISABLED', 'Checkpoint 4 tasks require the writable SQLite task store.');
@@ -151,6 +160,7 @@ export class AgentTaskService {
     this.#taskStore = taskStore;
     this.#createBranchStore = createBranchStore;
     this.#clock = clock;
+    this.#capabilityProvider = validateProjectCapabilityProvider(capabilityProvider);
   }
 
   async createTask(raw, trustedOwnerContext) {
@@ -305,7 +315,14 @@ export class AgentTaskService {
       clock: this.#clock,
       agentAttemptAuditReady: true,
       jobStore: null,
+      capabilityProvider: this.#capabilityProvider,
     });
+  }
+
+  async queryProjectCapabilities(request, trustedContext, options = {}) {
+    const task = this.#taskStore.getTask(request.projectId, trustedContext.taskId);
+    await this.readBranch(request.projectId, task?.taskId, trustedContext);
+    return this.#branchService(request.projectId, task.taskId).queryProjectCapabilities(request, trustedContext, options);
   }
 
   async queryAssets(request, trustedContext, options = {}) {
