@@ -23,6 +23,16 @@ export {
   validateProcessingRecipe,
 } from './processing-recipe.js';
 export {
+  MAX_PROCESSING_RESULT_FINDINGS,
+  PROCESSING_RESULT_KIND,
+  PROCESSING_RESULT_SCHEMA_VERSION,
+  PROCESSING_RESULT_SEVERITIES,
+  canonicalProcessingResultJson,
+  processingResultSha256,
+  validateProcessingResult,
+  validateProcessingResultForRecipe,
+} from './processing-result.js';
+export {
   ASSET_KINDS,
   ASSET_LIFECYCLES,
   ASSET_VALIDATOR_VERSION,

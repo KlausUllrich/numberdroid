@@ -15,6 +15,11 @@ import {
   processingRecipeSha256,
   validateProcessingRecipe,
 } from '../../domain/src/processing-recipe.js';
+import {
+  PROCESSING_RESULT_KIND,
+  PROCESSING_RESULT_SCHEMA_VERSION,
+  validateProcessingResultForRecipe,
+} from '../../domain/src/processing-result.js';
 
 export {
   ATLAS_PROCESSOR_ID,
@@ -226,6 +231,8 @@ export function encodeCanonicalRgbaPng({ width, height, rgba }) {
 }
 
 export function cropSupportedPng(bytes, rectangles, { expectedSource } = {}) {
+  invariant(Buffer.isBuffer(bytes) || bytes instanceof Uint8Array, 'ATLAS_PNG_INVALID', 'PNG input must be a byte buffer.');
+  const immutableInput = Buffer.from(bytes);
   invariant(expectedSource && typeof expectedSource === 'object' && !Array.isArray(expectedSource), 'ATLAS_SOURCE_REQUIRED', 'An immutable expected source descriptor is required.');
   invariant(expectedSource.mediaType === 'image/png', 'ATLAS_PNG_UNSUPPORTED', 'Checkpoint 2B cuts only approved PNG sources.');
   invariant(typeof expectedSource.digest === 'string' && /^[a-f0-9]{64}$/.test(expectedSource.digest), 'ATLAS_SOURCE_REQUIRED', 'Expected source digest must be lowercase SHA-256 hex.');
@@ -236,14 +243,14 @@ export function cropSupportedPng(bytes, rectangles, { expectedSource } = {}) {
       min: 33,
       max: MAX_ATLAS_INPUT_BYTES,
     });
-    invariant(bytes.length === expectedSource.byteSize, 'ATLAS_SOURCE_MISMATCH', 'Resolved source byte size does not match the approved source descriptor.', {
+    invariant(immutableInput.length === expectedSource.byteSize, 'ATLAS_SOURCE_MISMATCH', 'Resolved source byte size does not match the approved source descriptor.', {
       expectedByteSize: expectedSource.byteSize,
-      actualByteSize: bytes.length,
+      actualByteSize: immutableInput.length,
     });
   }
-  const sourceDigest = createHash('sha256').update(bytes).digest('hex');
+  const sourceDigest = createHash('sha256').update(immutableInput).digest('hex');
   invariant(sourceDigest === expectedSource.digest, 'ATLAS_SOURCE_MISMATCH', 'Resolved source bytes do not match the approved source digest.', { expectedDigest: expectedSource.digest, actualDigest: sourceDigest });
-  const source = decodeSupportedPng(bytes);
+  const source = decodeSupportedPng(immutableInput);
   invariant(source.width === expectedSource.width && source.height === expectedSource.height, 'ATLAS_SOURCE_MISMATCH', 'Resolved source dimensions do not match the approved source descriptor.', { expectedWidth: expectedSource.width, expectedHeight: expectedSource.height, actualWidth: source.width, actualHeight: source.height });
   const validated = validateAtlasRectangles(rectangles, { sourceWidth: source.width, sourceHeight: source.height });
   const outputs = [];
@@ -324,4 +331,209 @@ export function projectExactPngCropProcessingRecipe(value) {
       expectedSliceVersion: null,
     })),
   });
+}
+
+function exactKernelFields(value, allowed, label) {
+  invariant(
+    value !== null && typeof value === 'object' && !Array.isArray(value),
+    'PROCESSING_RESULT_KERNEL_MISMATCH',
+    `${label} must be an object produced by the accepted crop kernel.`,
+    { field: label },
+  );
+  for (const field of Reflect.ownKeys(value)) {
+    invariant(
+      typeof field === 'string' && allowed.includes(field),
+      'PROCESSING_RESULT_KERNEL_MISMATCH',
+      `${label} contains data outside the accepted crop-kernel result.`,
+      { field: label },
+    );
+  }
+  return value;
+}
+
+function exactKernelArray(value, length, label) {
+  invariant(
+    Array.isArray(value) && value.length === length,
+    'PROCESSING_RESULT_KERNEL_MISMATCH',
+    `${label} count does not match the processing recipe.`,
+    { field: label },
+  );
+  for (let index = 0; index < value.length; index += 1) {
+    invariant(
+      Object.hasOwn(value, index),
+      'PROCESSING_RESULT_KERNEL_MISMATCH',
+      `${label} must not contain sparse entries.`,
+      { field: label },
+    );
+  }
+  const arrayKeys = new Set(['length', ...value.map((_, index) => String(index))]);
+  for (const field of Reflect.ownKeys(value)) {
+    invariant(
+      typeof field === 'string' && arrayKeys.has(field),
+      'PROCESSING_RESULT_KERNEL_MISMATCH',
+      `${label} contains data outside the accepted crop-kernel result.`,
+      { field: label },
+    );
+  }
+  return value;
+}
+
+function assertKernelEqual(actual, expected, label) {
+  invariant(
+    actual === expected,
+    'PROCESSING_RESULT_KERNEL_MISMATCH',
+    `${label} does not match the accepted crop-kernel invocation.`,
+    { field: label },
+  );
+}
+
+export function createExactPngCropProcessingResult(value) {
+  const definition = exactKernelFields(value, [
+    'recipe', 'sourceBytes',
+  ], 'definition');
+  const recipe = validateProcessingRecipe(definition.recipe);
+  const projection = projectExactPngCropProcessingRecipe(recipe);
+  invariant(
+    Buffer.isBuffer(definition.sourceBytes) || definition.sourceBytes instanceof Uint8Array,
+    'PROCESSING_RESULT_KERNEL_MISMATCH',
+    'definition.sourceBytes must contain the immutable recipe input bytes.',
+    { field: 'definition.sourceBytes' },
+  );
+  const processorResult = exactKernelFields(cropSupportedPng(
+    definition.sourceBytes,
+    projection.rectangles,
+    { expectedSource: projection.source },
+  ), [
+    'schemaVersion', 'processorId', 'source', 'rectangleFingerprint',
+    'derivationFingerprint', 'outputs',
+  ], 'processorResult');
+  assertKernelEqual(processorResult.schemaVersion, 1, 'processorResult.schemaVersion');
+  assertKernelEqual(processorResult.processorId, projection.processorId, 'processorResult.processorId');
+
+  const source = exactKernelFields(processorResult.source, [
+    'digest', 'mediaType', 'width', 'height',
+  ], 'processorResult.source');
+  assertKernelEqual(source.digest, projection.source.digest, 'processorResult.source.digest');
+  assertKernelEqual(source.mediaType, projection.source.mediaType, 'processorResult.source.mediaType');
+  assertKernelEqual(source.width, projection.source.width, 'processorResult.source.width');
+  assertKernelEqual(source.height, projection.source.height, 'processorResult.source.height');
+
+  const validatedRectangles = validateAtlasRectangles(projection.rectangles, {
+    sourceWidth: projection.source.width,
+    sourceHeight: projection.source.height,
+  });
+  assertKernelEqual(
+    processorResult.rectangleFingerprint,
+    validatedRectangles.fingerprint,
+    'processorResult.rectangleFingerprint',
+  );
+  const expectedDerivationFingerprint = createHash('sha256').update(JSON.stringify({
+    schemaVersion: 1,
+    processorId: projection.processorId,
+    sourceDigest: projection.source.digest,
+    sourceWidth: projection.source.width,
+    sourceHeight: projection.source.height,
+    rectangleFingerprint: validatedRectangles.fingerprint,
+  })).digest('hex');
+  assertKernelEqual(
+    processorResult.derivationFingerprint,
+    expectedDerivationFingerprint,
+    'processorResult.derivationFingerprint',
+  );
+
+  const kernelOutputs = exactKernelArray(
+    processorResult.outputs,
+    projection.rectangles.length,
+    'processorResult.outputs',
+  );
+  const outputs = kernelOutputs.map((candidate, index) => {
+    const label = `processorResult.outputs[${index}]`;
+    const output = exactKernelFields(candidate, [
+      'schemaVersion', 'processorId', 'rectangleId', 'rectangle', 'mediaType',
+      'width', 'height', 'byteSize', 'digest', 'expectedDigest', 'bytes',
+    ], label);
+    const rectangle = projection.rectangles[index];
+    assertKernelEqual(output.schemaVersion, 1, `${label}.schemaVersion`);
+    assertKernelEqual(output.processorId, projection.processorId, `${label}.processorId`);
+    assertKernelEqual(output.rectangleId, rectangle.rectangleId, `${label}.rectangleId`);
+    const outputRectangle = exactKernelFields(output.rectangle, [
+      'rectangleId', 'x', 'y', 'width', 'height', 'included', 'pivot',
+      'transparentPaddingPolicy', 'replacesSliceId', 'expectedSliceVersion',
+    ], `${label}.rectangle`);
+    for (const field of [
+      'rectangleId', 'x', 'y', 'width', 'height', 'included', 'pivot',
+      'transparentPaddingPolicy', 'replacesSliceId', 'expectedSliceVersion',
+    ]) {
+      assertKernelEqual(outputRectangle[field], rectangle[field], `${label}.rectangle.${field}`);
+    }
+    assertKernelEqual(output.mediaType, 'image/png', `${label}.mediaType`);
+    assertKernelEqual(output.width, rectangle.width, `${label}.width`);
+    assertKernelEqual(output.height, rectangle.height, `${label}.height`);
+    invariant(
+      Buffer.isBuffer(output.bytes) || output.bytes instanceof Uint8Array,
+      'PROCESSING_RESULT_KERNEL_MISMATCH',
+      `${label}.bytes must contain the actual crop-kernel output bytes.`,
+      { field: `${label}.bytes` },
+    );
+    const byteSize = canonicalRgbaPngByteSize(rectangle.width, rectangle.height);
+    assertKernelEqual(output.bytes.byteLength, byteSize, `${label}.bytes`);
+    const bytes = Buffer.from(output.bytes);
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    assertKernelEqual(bytes.length, byteSize, `${label}.bytes`);
+    assertKernelEqual(output.byteSize, byteSize, `${label}.byteSize`);
+    assertKernelEqual(output.digest, digest, `${label}.digest`);
+    assertKernelEqual(output.expectedDigest, digest, `${label}.expectedDigest`);
+    let decoded;
+    try {
+      decoded = decodeSupportedPng(bytes, {
+        maxWidth: rectangle.width,
+        maxHeight: rectangle.height,
+        maxInputBytes: MAX_ATLAS_OUTPUT_BYTES,
+      });
+    } catch {
+      invariant(
+        false,
+        'PROCESSING_RESULT_KERNEL_MISMATCH',
+        `${label}.bytes are not a supported canonical PNG artifact.`,
+        { field: `${label}.bytes` },
+      );
+    }
+    assertKernelEqual(decoded.width, rectangle.width, `${label}.bytes.width`);
+    assertKernelEqual(decoded.height, rectangle.height, `${label}.bytes.height`);
+    invariant(
+      encodeCanonicalRgbaPng(decoded).equals(bytes),
+      'PROCESSING_RESULT_KERNEL_MISMATCH',
+      `${label}.bytes do not use the accepted canonical PNG encoding.`,
+      { field: `${label}.bytes` },
+    );
+    return {
+      outputId: rectangle.rectangleId,
+      artifactUri: `studio://artifacts/sha256/${digest}`,
+      sha256: digest,
+      mediaType: 'image/png',
+      byteSize,
+      width: rectangle.width,
+      height: rectangle.height,
+    };
+  });
+
+  const operation = recipe.operations[0];
+  const input = recipe.inputs[0];
+  return validateProcessingResultForRecipe({
+    schemaVersion: PROCESSING_RESULT_SCHEMA_VERSION,
+    kind: PROCESSING_RESULT_KIND,
+    recipe: {
+      id: recipe.recipeId,
+      version: recipe.recipeVersion,
+      fingerprint: processingRecipeSha256(recipe),
+    },
+    operations: [{
+      operationId: operation.operationId,
+      kind: operation.kind,
+      processorId: operation.processorId,
+      inputs: [{ ...input }],
+      outputs,
+    }],
+    findings: [],
+  }, recipe);
 }
