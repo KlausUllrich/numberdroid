@@ -1,4 +1,8 @@
 import { createHash } from 'node:crypto';
+import {
+  candidateManifestSha256,
+  validateCandidateManifest,
+} from '../../domain/src/candidate-manifest.js';
 import { createNumberdroidProjectCapabilityProfile } from './project-capabilities.js';
 
 export const NUMBERDROID_ADAPTER_VERSION = 'numberdroid-studio.adapter.v1';
@@ -14,6 +18,7 @@ const SIZE_CLASSES = new Set(['tiny', 'small', 'medium', 'large', 'hero']);
 const ORIENTATIONS = new Set(['horizontal', 'vertical', 'any']);
 const SEVERITY_ORDER = Object.freeze({ ERROR: 0, WARNING: 1, INFO: 2 });
 const TRUSTED_EXPORT_SNAPSHOTS = new WeakSet();
+const TRUSTED_CANDIDATES = new WeakSet();
 
 export class NumberdroidAdapterError extends Error {
   constructor(code, message, details = {}) {
@@ -833,7 +838,7 @@ export function buildNumberdroidCandidate(snapshot, canonicalCompiler = null) {
   };
   const manifestJson = canonicalCandidateJson(manifest);
   const manifestHash = candidateSha256(manifestJson);
-  return deepFreeze({
+  const candidate = deepFreeze({
     schemaVersion: 1,
     kind: 'numberdroid.studio.export-candidate',
     snapshotId: snapshot.snapshotId,
@@ -846,5 +851,126 @@ export function buildNumberdroidCandidate(snapshot, canonicalCompiler = null) {
     manifest,
     manifestJson,
     manifestHash,
+  });
+  TRUSTED_CANDIDATES.add(candidate);
+  return candidate;
+}
+
+function projectCompilerStatus(status) {
+  if (status === 'SUCCEEDED' || status === 'FAILED' || status === 'NOT_RUN') return status;
+  if (status === 'SKIPPED_UNSUPPORTED_SHAPE') return 'SKIPPED';
+  fail('NUMBERDROID_ADAPTER_COMPILER_STATUS_UNKNOWN', 'The candidate compiler status cannot be projected safely.', { status });
+}
+
+export function createNumberdroidProjectCandidateManifest({ snapshot, candidate } = {}) {
+  assert(
+    TRUSTED_EXPORT_SNAPSHOTS.has(snapshot),
+    'NUMBERDROID_ADAPTER_SNAPSHOT_UNTRUSTED',
+    'Candidate manifest projection requires the exact trusted export snapshot.',
+  );
+  assert(
+    TRUSTED_CANDIDATES.has(candidate),
+    'NUMBERDROID_ADAPTER_CANDIDATE_UNTRUSTED',
+    'Candidate manifest projection requires the exact in-process candidate returned by buildNumberdroidCandidate.',
+  );
+  assert(
+    candidate.snapshotId === snapshot.snapshotId
+      && candidate.manifest.snapshotId === snapshot.snapshotId
+      && candidate.manifestHash === candidateSha256(candidate.manifestJson),
+    'NUMBERDROID_ADAPTER_CANDIDATE_TAMPERED',
+    'Candidate and snapshot identities do not form one verified closure.',
+  );
+  for (const stage of ['materialize', 'commit', 'publish']) {
+    assert(
+      candidate.manifest.stages[stage] === 'NOT_AUTHORIZED',
+      'NUMBERDROID_ADAPTER_AUTHORITY_UNSAFE',
+      `Candidate projection refuses ${stage} authority.`,
+      { stage, value: candidate.manifest.stages[stage] },
+    );
+  }
+
+  const semanticRevisions = [
+    {
+      kind: 'room-variant',
+      id: snapshot.room.roomVariantId,
+      revision: snapshot.room.version,
+      fingerprint: snapshot.room.contentFingerprint,
+    },
+    {
+      kind: 'room-archetype',
+      id: snapshot.archetype.roomArchetypeId,
+      revision: snapshot.archetype.version,
+      fingerprint: null,
+    },
+    ...snapshot.assets.flatMap((entry) => ([
+      {
+        kind: 'asset',
+        id: entry.asset.assetId,
+        revision: entry.asset.assetVersion,
+        fingerprint: entry.asset.sliceBinding.digest,
+      },
+      {
+        kind: 'asset-metadata',
+        id: entry.asset.assetId,
+        revision: entry.asset.metadataVersion,
+        fingerprint: entry.asset.metadataFingerprint,
+      },
+    ])),
+  ];
+  const manifest = validateCandidateManifest({
+    schemaVersion: 1,
+    kind: 'studio.candidate-manifest',
+    status: candidate.status,
+    project: {
+      projectId: snapshot.project.projectId,
+      revision: snapshot.project.revision,
+    },
+    snapshot: { snapshotId: snapshot.snapshotId },
+    capabilityProfile: {
+      profileId: NUMBERDROID_PROJECT_CAPABILITY_MANIFEST.profileId,
+      profileVersion: NUMBERDROID_PROJECT_CAPABILITY_MANIFEST.profileVersion,
+      fingerprint: NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT,
+    },
+    adapter: {
+      id: NUMBERDROID_PROJECT_CAPABILITY_MANIFEST.adapter.id,
+      version: snapshot.adapterVersion,
+      candidateHash: candidate.manifestHash,
+    },
+    compiler: {
+      id: 'numberdroid.level-compiler',
+      version: candidate.manifest.compiler.version,
+      status: projectCompilerStatus(candidate.manifest.compiler.status),
+      evidenceHash: candidate.manifest.compiler.planHash,
+    },
+    semanticRevisions,
+    requirements: [],
+    recipes: [],
+    artifacts: candidate.artifacts.map((artifact) => ({
+      artifactUri: artifact.sourceArtifactUri,
+      sha256: artifact.sha256,
+      mediaType: artifact.mediaType,
+      byteSize: artifact.byteSize,
+      role: artifact.role,
+      provenanceRef: artifact.provenanceRef,
+    })),
+    outputs: candidate.manifest.files.map((output) => ({
+      kind: 'file',
+      logicalPath: output.logicalPath,
+      mediaType: output.mediaType,
+      byteSize: output.byteSize,
+      sha256: output.sha256,
+      role: output.role,
+    })),
+    findings: candidate.findings,
+    stages: {
+      candidate: candidate.status,
+      materialize: 'NOT_AUTHORIZED',
+      commit: 'NOT_AUTHORIZED',
+      publish: 'NOT_AUTHORIZED',
+    },
+  });
+  return Object.freeze({
+    manifest,
+    fingerprint: candidateManifestSha256(manifest),
   });
 }

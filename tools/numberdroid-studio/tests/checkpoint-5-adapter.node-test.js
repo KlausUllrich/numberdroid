@@ -5,8 +5,13 @@ import {
   NumberdroidAdapterError,
   buildNumberdroidCandidate,
   createNumberdroidExportSnapshot,
+  createNumberdroidProjectCandidateManifest,
   sanitizeNumberdroidDiagnostic,
 } from '../packages/numberdroid-adapter/src/index.js';
+import {
+  candidateManifestSha256,
+  validateCandidateManifest,
+} from '../packages/domain/src/index.js';
 
 function buildWithCompiler(snapshot, overrides = {}) {
   return buildNumberdroidCandidate(snapshot, {
@@ -354,6 +359,50 @@ test('immutable snapshot and compiler-validated candidate match the deterministi
     findings: first.findings.map(({ severity, ruleId }) => ({ severity, ruleId })),
     stages: first.manifest.stages,
   }, golden);
+});
+
+test('trusted CP5 output projects to the universal immutable candidate manifest without changing its golden bytes', () => {
+  const snapshot = createNumberdroidExportSnapshot(fixture());
+  const candidate = buildWithCompiler(snapshot);
+  const projected = createNumberdroidProjectCandidateManifest({ snapshot, candidate });
+  const replay = createNumberdroidProjectCandidateManifest({ snapshot, candidate });
+
+  assert.deepEqual(projected, replay);
+  assert.deepEqual(validateCandidateManifest(projected.manifest), projected.manifest);
+  assert.equal(projected.fingerprint, candidateManifestSha256(projected.manifest));
+  assert.equal(projected.fingerprint, '4c065dd883eac529129a594c30fe786cb5d9233701791df9e4500d845fa0212b');
+  assert.equal(projected.manifest.project.projectId, snapshot.project.projectId);
+  assert.equal(projected.manifest.project.revision, snapshot.project.revision);
+  assert.equal(projected.manifest.snapshot.snapshotId, snapshot.snapshotId);
+  assert.equal(projected.manifest.adapter.candidateHash, candidate.manifestHash);
+  assert.equal(projected.manifest.capabilityProfile.profileId, 'numberdroid.studio');
+  assert.equal(projected.manifest.semanticRevisions.some((entry) => (
+    entry.kind === 'room-variant'
+      && entry.id === snapshot.room.roomVariantId
+      && entry.revision === snapshot.room.version
+  )), true);
+  assert.deepEqual(projected.manifest.requirements, []);
+  assert.deepEqual(projected.manifest.recipes, []);
+  assert.equal(projected.manifest.artifacts.length, candidate.artifacts.length);
+  assert.equal(projected.manifest.outputs.length, candidate.manifest.files.length);
+  assert.deepEqual(projected.manifest.stages, {
+    candidate: 'BLOCKED',
+    materialize: 'NOT_AUTHORIZED',
+    commit: 'NOT_AUTHORIZED',
+    publish: 'NOT_AUTHORIZED',
+  });
+  assert.equal(candidate.manifestHash, '1aadaedb311eb368819e8ce14a3625f2cdc8af352cbe69aea789d247a464a08e');
+  assert.ok(Object.isFrozen(projected));
+  assert.ok(Object.isFrozen(projected.manifest));
+
+  assert.throws(
+    () => createNumberdroidProjectCandidateManifest({ snapshot: structuredClone(snapshot), candidate }),
+    (error) => error.code === 'NUMBERDROID_ADAPTER_SNAPSHOT_UNTRUSTED',
+  );
+  assert.throws(
+    () => createNumberdroidProjectCandidateManifest({ snapshot, candidate: structuredClone(candidate) }),
+    (error) => error.code === 'NUMBERDROID_ADAPTER_CANDIDATE_UNTRUSTED',
+  );
 });
 
 test('snapshot fails closed on non-FINAL versions, missing pins, forbidden authority fields, and unsafe paths', () => {
