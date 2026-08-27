@@ -334,6 +334,18 @@ Numberdroid-specific CP5 manifest bytes and golden hash are unchanged. This is
 **implemented but not user-accepted** and adds no candidate persistence/query,
 MCP/HTTP/UI surface, `EngineBridge`, destination, or repository write.
 
+A0.4 adds the schema-v1 application `EngineBridge` safe common denominator as a
+strict `VALIDATE_ONLY`, `CANDIDATE_TO_ENGINE` port. It accepts only a verified
+universal `CandidateManifest` with its recomputed fingerprint and returns a
+frozen validation receipt pinned to the exact candidate, bridge identity,
+bridge version, and evidence hash. Unknown versions/fields and any destination,
+approval, materialize, commit, publish, or round-trip member fail closed. This
+is **implemented but not user-accepted** and adds no concrete bridge or service
+composition, candidate review/approval, persistence, MCP/HTTP/UI surface, engine
+import, repository write, or release authority. The exact materialization side
+of `EngineBridge` remains an explicit later product/authority decision and will
+require a separately versioned contract.
+
 ### A1 — Artist path: image to validated asset
 
 - versioned non-destructive `ProcessingRecipe` and deterministic derived artifacts;
