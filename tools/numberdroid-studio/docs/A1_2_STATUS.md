@@ -1,14 +1,17 @@
 # A1.2 AssetInputSelection contract status
 
-Status: **implemented candidate; not user-accepted**
+Status: **explicitly user-accepted on 2026-08-27**
 
 A1.2 is a non-visual, pure contract-only slice based on exact `main` head
 `a5323636941acdb98342e5d737e358919b8e5fe7`. It records inert selection intent
 for one exact ProcessingResult output as the fixed `primary-visual` input of an
 explicitly caller-selected `surface`, `prop`, or `item`. It does not create,
-adopt, update, approve, or finalize an Asset. Acceptance of A1.0 and A1.1 does
-not accept A1.2; tests, CI, review, source integration, or a PR merge would not
-constitute user acceptance.
+adopt, update, approve, or finalize an Asset. Tests, CI, review, and source
+integration alone did not create acceptance. The user explicitly accepted this
+exact bounded contract at implementation head
+`238af00065b5346a79c837632022d15d99b1cd59`; it was then merged through PR
+#146 as `9763170061e8c7dc918141f6869cbce3ddf944b6`. Acceptance does not broaden
+the authority boundary below or accept the complete A1 Artist workflow.
 
 ## Implemented scope
 
@@ -93,3 +96,7 @@ Local verification on 2026-08-27:
 - `npm run evidence:verify`: `VERIFIED`, with the protected Checkpoint 1A
   source manifest hash unchanged at
   `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
+
+Post-merge closure on `main`: GitHub Actions run `33108074689` passed the root
+build, Linux Studio tests and browser evidence, Windows Studio tests, and Pages
+deployment for merge commit `9763170061e8c7dc918141f6869cbce3ddf944b6`.

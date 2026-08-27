@@ -11,21 +11,20 @@ Checkpoint 1 is the accepted foundation, Checkpoint 2A was user-accepted on 2026
 **Checkpoints 1–4 are user-accepted, and PR #135 was separately merged on 2026-08-24. The latest CP4.5 plus CP5 candidate source was integrated into `main` through PR #137 on 2026-08-25; Checkpoint 4.5 still awaits its live user gate and CP5 remains candidate-only, so the source merge accepts neither checkpoint.** The 4.5 candidate makes delegated tasks list-first with focused creation and one truthful detail flow, adds a useful exact-slice prop preview before approval/placement, replaces the rejected six-page room flow with a persistent canvas/toolbox/dock editor, and adds explicit sparse `VOID`/`BLOCKED` room semantics. Schema v12 persists immutable shape cells; rectangular room bundles stay schema v2 and only masked rooms require schema v3. The first 5 slice freezes exact FINAL closures, builds deterministic virtual Numberdroid files/CAS copy descriptors, and runs the canonical compiler through a fixed bridge. Candidate materialization, candidate-created Git commits, release, publication, and all related agent authority remain blocked; ordinary human-authorized source integration is a separate repository-maintenance action. See the [Checkpoint 4.5 candidate record](docs/CHECKPOINT_4_5_STATUS.md), [Checkpoint 5 contract](docs/CHECKPOINT_5_CONTRACT.md), [Checkpoint 5 candidate status](docs/CHECKPOINT_5_STATUS.md), and [roadmap](docs/ROADMAP.md).
 
 The agent-first A0.1–A0.4 contracts are integrated but not user-accepted.
-A1.0 and A1.1 were explicitly user-accepted on 2026-08-27 and merged in that
-order through PRs #144 and #145. Their bounded contract covers the accepted
-exact-PNG crop operation only: a pure recipe plus a pure result record with
-recipe/processor/input/output evidence and structured findings. A1.2 is an
-implemented candidate, not user-accepted: it adds only immutable selection intent
-for one exact result output as a `surface`, `prop`, or `item` primary visual. No
-slice adds a persisted processing workflow, semantic adoption command, or new
-pixel operation. See the [A1.0 status](docs/A1_0_STATUS.md), [A1.1 status](docs/A1_1_STATUS.md),
-and [A1.2 status](docs/A1_2_STATUS.md).
+A1.0, A1.1, and A1.2 were explicitly user-accepted on 2026-08-27 and merged in
+that order through PRs #144–#146. Their bounded contracts cover the accepted
+exact-PNG crop operation only: a pure recipe, a pure result record with
+recipe/processor/input/output evidence and structured findings, and immutable
+selection intent for one exact result output as a `surface`, `prop`, or `item`
+primary visual. No slice adds a persisted processing workflow, semantic
+adoption command, or new pixel operation. See the [A1.0 status](docs/A1_0_STATUS.md),
+[A1.1 status](docs/A1_1_STATUS.md), and [A1.2 status](docs/A1_2_STATUS.md).
 
 Acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later commits `f116f25aed2f0a9d935de9061cf6492d3a56bef4` and `b9ce37e44fe3679b52b50dac6daf4e1a46024c1d` change only the `visualFixture`/test evidence harness; they do not change product behavior or reopen acceptance. Failed run `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and failed run `32572344465` (Studio job `97029542069`, isolating Chrome/CDP post-move pointer-capture bookkeeping) are invalid diagnostic evidence only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, and expires `2026-09-05T12:26:26Z`. Under Chrome `151.0.7922.137` at 1440×900 and 1060×900, it records zero runtime and visual errors and proves captured press, a same-pointer held move, deferred rendering, matching release/settlement/replacement, exact scroll/context retention, and telemetry cleanup. Run `32568108922` / artifact `9474639509` remain the product-repair evidence; run `32572870510` / artifact `9475808319` are the final post-acceptance closure evidence.
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoints 1–4 and bounded A1.0–A1.1 contracts user-accepted; Checkpoint 4.5, Checkpoint 5, A0.1–A0.4, and A1.2 remain implemented candidates without user acceptance |
+| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Accepted source/asset/room/task foundations plus candidate list-first tasks, useful prop previews, and persistent-canvas rectangle/irregular-room authoring |
 | Agent access | Accepted schema-v12 compatibility keeps 19 tools/four templates without a task and 30 tools/five templates for a matching task branch. The target requires MCP parity for all ordinary authoring through a separately versioned, feature-gated surface; authority, owner review, merge, materialization, and publication remain human-only. |
@@ -184,7 +183,7 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [Checkpoint 5 candidate status](docs/CHECKPOINT_5_STATUS.md)
 - [Accepted A1.0 ProcessingRecipe contract](docs/A1_0_STATUS.md)
 - [Accepted A1.1 ProcessingResult contract](docs/A1_1_STATUS.md)
-- [A1.2 AssetInputSelection candidate status](docs/A1_2_STATUS.md)
+- [Accepted A1.2 AssetInputSelection contract](docs/A1_2_STATUS.md)
 - [Checkpoint 3 frozen implementation contract](docs/CHECKPOINT_3_CONTRACT.md)
 
 These documents are normative for the Studio implementation. If code and documentation disagree, the discrepancy must be resolved explicitly; it must not become an accidental new contract.
