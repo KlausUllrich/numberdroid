@@ -35,6 +35,32 @@ export {
 } from '../../domain/src/atlas-definition.js';
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(Uint8Array.prototype);
+const TYPED_ARRAY_BUFFER_GETTER = Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTOTYPE, 'buffer').get;
+const TYPED_ARRAY_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTOTYPE, 'byteLength').get;
+const TYPED_ARRAY_BYTE_OFFSET_GETTER = Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTOTYPE, 'byteOffset').get;
+
+function inspectByteView(bytes) {
+  invariant(Buffer.isBuffer(bytes) || bytes instanceof Uint8Array, 'ATLAS_PNG_INVALID', 'PNG input must be a byte buffer.');
+  try {
+    return {
+      buffer: TYPED_ARRAY_BUFFER_GETTER.call(bytes),
+      byteLength: TYPED_ARRAY_BYTE_LENGTH_GETTER.call(bytes),
+      byteOffset: TYPED_ARRAY_BYTE_OFFSET_GETTER.call(bytes),
+    };
+  } catch {
+    invariant(false, 'ATLAS_PNG_INVALID', 'PNG input must be a valid byte buffer.');
+  }
+}
+
+function snapshotByteView(view) {
+  try {
+    return Buffer.from(new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
+  } catch {
+    invariant(false, 'ATLAS_PNG_INVALID', 'PNG input changed before it could be inspected safely.');
+  }
+}
+
 function safeInteger(value, field, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
   invariant(Number.isSafeInteger(value) && value >= min && value <= max, 'ATLAS_RECT_INVALID', `${field} must be a safe integer from ${min} to ${max}.`, { field });
   return value;
@@ -137,10 +163,10 @@ export function decodeSupportedPng(bytes, {
   maxHeight = MAX_ATLAS_SOURCE_DIMENSION,
   maxInputBytes = MAX_ATLAS_INPUT_BYTES,
 } = {}) {
-  invariant(Buffer.isBuffer(bytes) || bytes instanceof Uint8Array, 'ATLAS_PNG_INVALID', 'PNG input must be a byte buffer.');
+  const view = inspectByteView(bytes);
   safeInteger(maxInputBytes, 'maxInputBytes', { min: 33 });
-  const input = Buffer.from(bytes);
-  invariant(input.length <= maxInputBytes, 'ATLAS_PNG_UNSUPPORTED', 'PNG input exceeds the audited cutter byte limit.', { maxInputBytes });
+  invariant(view.byteLength <= maxInputBytes, 'ATLAS_PNG_UNSUPPORTED', 'PNG input exceeds the audited cutter byte limit.', { maxInputBytes });
+  const input = snapshotByteView(view);
   invariant(input.length >= 33 && input.subarray(0, 8).equals(PNG_SIGNATURE), 'ATLAS_PNG_INVALID', 'Atlas source is not a PNG file.');
   let offset = 8;
   let ihdr = null;
@@ -231,23 +257,26 @@ export function encodeCanonicalRgbaPng({ width, height, rgba }) {
 }
 
 export function cropSupportedPng(bytes, rectangles, { expectedSource } = {}) {
-  invariant(Buffer.isBuffer(bytes) || bytes instanceof Uint8Array, 'ATLAS_PNG_INVALID', 'PNG input must be a byte buffer.');
-  const immutableInput = Buffer.from(bytes);
+  const view = inspectByteView(bytes);
   invariant(expectedSource && typeof expectedSource === 'object' && !Array.isArray(expectedSource), 'ATLAS_SOURCE_REQUIRED', 'An immutable expected source descriptor is required.');
   invariant(expectedSource.mediaType === 'image/png', 'ATLAS_PNG_UNSUPPORTED', 'Checkpoint 2B cuts only approved PNG sources.');
   invariant(typeof expectedSource.digest === 'string' && /^[a-f0-9]{64}$/.test(expectedSource.digest), 'ATLAS_SOURCE_REQUIRED', 'Expected source digest must be lowercase SHA-256 hex.');
   safeInteger(expectedSource.width, 'expectedSource.width', { min: 1 });
   safeInteger(expectedSource.height, 'expectedSource.height', { min: 1 });
+  invariant(view.byteLength <= MAX_ATLAS_INPUT_BYTES, 'ATLAS_PNG_UNSUPPORTED', 'PNG input exceeds the audited cutter byte limit.', {
+    maxInputBytes: MAX_ATLAS_INPUT_BYTES,
+  });
   if (expectedSource.byteSize !== undefined) {
     safeInteger(expectedSource.byteSize, 'expectedSource.byteSize', {
       min: 33,
       max: MAX_ATLAS_INPUT_BYTES,
     });
-    invariant(immutableInput.length === expectedSource.byteSize, 'ATLAS_SOURCE_MISMATCH', 'Resolved source byte size does not match the approved source descriptor.', {
+    invariant(view.byteLength === expectedSource.byteSize, 'ATLAS_SOURCE_MISMATCH', 'Resolved source byte size does not match the approved source descriptor.', {
       expectedByteSize: expectedSource.byteSize,
-      actualByteSize: immutableInput.length,
+      actualByteSize: view.byteLength,
     });
   }
+  const immutableInput = snapshotByteView(view);
   const sourceDigest = createHash('sha256').update(immutableInput).digest('hex');
   invariant(sourceDigest === expectedSource.digest, 'ATLAS_SOURCE_MISMATCH', 'Resolved source bytes do not match the approved source digest.', { expectedDigest: expectedSource.digest, actualDigest: sourceDigest });
   const source = decodeSupportedPng(immutableInput);

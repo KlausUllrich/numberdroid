@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   ATLAS_PROCESSOR_ID,
   EXACT_PNG_CROP_OPERATION_KIND,
+  MAX_ATLAS_INPUT_BYTES,
   MAX_PROCESSING_RESULT_FINDINGS,
   PROCESSING_RESULT_KIND,
   PROCESSING_RESULT_SCHEMA_VERSION,
@@ -21,6 +22,7 @@ import {
 import {
   createExactPngCropProcessingResult,
   cropSupportedPng,
+  decodeSupportedPng,
   projectExactPngCropProcessingRecipe,
   proposeRegularGrid,
 } from '../packages/preview/src/index.js';
@@ -424,6 +426,19 @@ test('trusted result builder rejects missing, changed, and non-recipe source byt
   assert.throws(
     () => createExactPngCropProcessingResult({ recipe: wrongRecipe, sourceBytes: source }),
     (error) => error instanceof StudioError && error.code === 'ATLAS_SOURCE_MISMATCH',
+  );
+  const oversized = new Uint8Array(MAX_ATLAS_INPUT_BYTES + 1);
+  Object.defineProperty(oversized, 'byteLength', { value: recipe.inputs[0].byteSize });
+  assert.throws(
+    () => createExactPngCropProcessingResult({
+      recipe,
+      sourceBytes: oversized,
+    }),
+    (error) => error instanceof StudioError && error.code === 'ATLAS_PNG_UNSUPPORTED',
+  );
+  assert.throws(
+    () => decodeSupportedPng(oversized),
+    (error) => error instanceof StudioError && error.code === 'ATLAS_PNG_UNSUPPORTED',
   );
   assert.equal(createHash('sha256').update(source).digest('hex'), sourceSha256);
 });
