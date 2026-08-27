@@ -54,4 +54,13 @@ export {
   transitionAgentTask,
   validateAgentTaskSpec,
 } from './agent-task.js';
+export {
+  PROJECT_CAPABILITY_MANIFEST_KIND,
+  PROJECT_CAPABILITY_MANIFEST_SCHEMA_VERSION,
+  PROJECT_CAPABILITY_OPERATION_KINDS,
+  PROJECT_CAPABILITY_VOCABULARY_FIELDS,
+  canonicalProjectCapabilityManifestJson,
+  projectCapabilityManifestSha256,
+  validateProjectCapabilityManifest,
+} from './project-capability-manifest.js';
 export { StudioError, asStudioError, invariant } from './errors.js';

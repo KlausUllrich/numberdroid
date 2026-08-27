@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
+import { createNumberdroidProjectCapabilityProfile } from './project-capabilities.js';
 
 export const NUMBERDROID_ADAPTER_VERSION = 'numberdroid-studio.adapter.v1';
 export const NUMBERDROID_CANDIDATE_VALIDATOR_VERSION = 'numberdroid-studio.candidate-validator.v1';
+const numberdroidProjectCapabilityProfile = createNumberdroidProjectCapabilityProfile(NUMBERDROID_ADAPTER_VERSION);
+export const NUMBERDROID_PROJECT_CAPABILITY_MANIFEST = numberdroidProjectCapabilityProfile.manifest;
+export const NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT = numberdroidProjectCapabilityProfile.fingerprint;
 
 const HASH = /^[a-f0-9]{64}$/;
 const CAS_URI = /^studio:\/\/artifacts\/sha256\/([a-f0-9]{64})$/;

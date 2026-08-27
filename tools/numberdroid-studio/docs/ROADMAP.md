@@ -307,6 +307,16 @@ or user acceptance.
 This is the safest next non-visual block. It adds contracts and tests, not broad
 UI, database migration, Godot/Unreal output, materialization, or publication.
 
+Implementation note (2026-08-27, **implemented but not user-accepted**): A0.1
+adds the pure schema-v1 `ProjectCapabilityManifest` validator, canonical JSON,
+and pinned SHA-256 fingerprint in `packages/domain`, plus the first
+adapter-owned Numberdroid profile. The profile separates the current LevelSpec
+target vocabulary from the five operations actually exercised by the CP5
+snapshot/candidate bridge and explicitly marks the known export and authority
+gaps. It adds no application query, MCP tool/resource, SQLite migration, UI,
+materialization, commit, or publication surface. The remaining A0 interface
+ports and any read-only capability projection remain planned.
+
 ### A1 — Artist path: image to validated asset
 
 - versioned non-destructive `ProcessingRecipe` and deterministic derived artifacts;

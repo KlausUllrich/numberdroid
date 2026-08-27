@@ -14,7 +14,7 @@ const allowedDependencies = {
   persistence: new Set(['persistence', 'application', 'domain']),
   preview: new Set(['preview', 'domain']),
   'mcp-server': new Set(['mcp-server', 'application', 'domain']),
-  'numberdroid-adapter': new Set(['numberdroid-adapter']),
+  'numberdroid-adapter': new Set(['numberdroid-adapter', 'domain']),
 };
 
 async function javascriptFiles(directory) {
