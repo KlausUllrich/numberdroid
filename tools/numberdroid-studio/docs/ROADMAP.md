@@ -356,6 +356,17 @@ require a separately versioned contract.
 - complete semantic MCP coverage for the ordinary Artist workflow on a task branch;
 - reusable recipe/module boundaries proven by Numberdroid fixtures.
 
+Implementation note (2026-08-27, **A1.0 implemented but not user-accepted**):
+the pure schema-v1 `ProcessingRecipe` contract now covers only one immutable PNG
+input and one typed, bounded `studio.image.exact-png-crop` operation backed by
+the accepted `numberdroid-studio.exact-png-crop.v1` processor. Its compatibility
+projection reproduces the four pinned Family Hygiene outputs byte-for-byte and
+strips atlas pivot/remap semantics from pixel intent. It adds no persisted
+recipe/result, new image operation, job, SQLite schema, command/query, MCP/HTTP/
+UI surface, semantic asset adoption, review, materialization, repository write,
+or publication authority. Exact evidence and remaining scope are recorded in
+[`A1_0_STATUS.md`](A1_0_STATUS.md).
+
 ### A2 — Agent parity and concurrent production
 
 - every ordinary source/processing/asset/level authoring command available through

@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { invariant } from './errors.js';
 
 export const ATLAS_PROCESSOR_ID = 'numberdroid-studio.exact-png-crop.v1';
+export const MAX_ATLAS_INPUT_BYTES = 16 * 1024 * 1024;
+export const MAX_ATLAS_SOURCE_DIMENSION = 4096;
 export const MAX_ATLAS_RECTANGLES = 64;
 export const MAX_ATLAS_OUTPUT_PIXELS = 64 * 1024 * 1024;
 export const MAX_ATLAS_OUTPUT_BYTES = 16 * 1024 * 1024;
