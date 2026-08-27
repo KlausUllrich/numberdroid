@@ -382,10 +382,10 @@ operation, materialization, repository write, or publication authority. Exact
 evidence and remaining scope are recorded in
 [`A1_1_STATUS.md`](A1_1_STATUS.md).
 
-Implementation note (2026-08-27, **A1.2 implemented candidate; not
-user-accepted**): the pure schema-v1 `AssetInputSelection` contract records one
-caller-explicit `surface`, `prop`, or `item` choice and one exact ProcessingResult
-output as the fixed `primary-visual` input role. It pins the complete result
+Implementation note (2026-08-27, **A1.2 explicitly user-accepted**): the pure
+schema-v1 `AssetInputSelection` contract records one caller-explicit `surface`,
+`prop`, or `item` choice and one exact ProcessingResult output as the fixed
+`primary-visual` input role. It pins the complete result
 fingerprint plus recipe, operation, input, and selected-output lineage and
 validates that closure against the full ProcessingResult. The result fingerprint
 binds findings, including `ERROR`, but selection grants no adoption, approval,

@@ -85,10 +85,10 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **IMG-007.** Recutting, reprocessing, or replacing an output MUST create a new version or an explicit one-to-one replacement mapping; existing asset versions MUST NOT retarget silently.
 - **IMG-008.** Project capability manifests MAY restrict formats, dimensions, color/alpha rules, frame layouts, or codecs. Unsupported processing MUST fail visibly before candidate creation.
 
-**Implementation status (2026-08-27): the bounded A1.0 and A1.1 contracts are
-explicitly user-accepted; A1.2 is an implemented candidate and is not
-user-accepted.** A1.0 supplies the fail-closed `ProcessingRecipe` schema and
-projection for the accepted exact-PNG crop processor. A1.1 adds a pure
+**Implementation status (2026-08-27): the bounded A1.0, A1.1, and A1.2
+contracts are explicitly user-accepted.** A1.0 supplies the fail-closed
+`ProcessingRecipe` schema and projection for the accepted exact-PNG crop
+processor. A1.1 adds a pure
 fail-closed `ProcessingResult` schema for that same operation, pinning the
 recipe fingerprint, processor identity, content-addressed input/output
 descriptors and digests, plus a bounded structured finding envelope. Its
