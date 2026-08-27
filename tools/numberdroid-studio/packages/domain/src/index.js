@@ -63,4 +63,13 @@ export {
   projectCapabilityManifestSha256,
   validateProjectCapabilityManifest,
 } from './project-capability-manifest.js';
+export {
+  CANDIDATE_COMPILER_STATUSES,
+  CANDIDATE_MANIFEST_KIND,
+  CANDIDATE_MANIFEST_SCHEMA_VERSION,
+  CANDIDATE_STATUSES,
+  candidateManifestSha256,
+  canonicalCandidateManifestJson,
+  validateCandidateManifest,
+} from './candidate-manifest.js';
 export { StudioError, asStudioError, invariant } from './errors.js';

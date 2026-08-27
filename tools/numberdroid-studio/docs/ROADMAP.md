@@ -324,6 +324,16 @@ receive the same manifest/fingerprint. This remains **implemented but not
 user-accepted** and still adds no HTTP/MCP resource, tool, UI, persistence, or
 repository-output authority.
 
+A0.3 adds the pure schema-v1 universal `CandidateManifest` contract and an
+adapter-owned projection from the already trusted CP5 Numberdroid snapshot and
+candidate. It pins the project/snapshot/capability profile, adapter/compiler
+evidence, semantic revisions, requirement and recipe closure, CAS artifacts,
+logical file outputs, findings, and deterministic fingerprint. Materialize,
+commit, and publish remain fixed at `NOT_AUTHORIZED`; the existing
+Numberdroid-specific CP5 manifest bytes and golden hash are unchanged. This is
+**implemented but not user-accepted** and adds no candidate persistence/query,
+MCP/HTTP/UI surface, `EngineBridge`, destination, or repository write.
+
 ### A1 — Artist path: image to validated asset
 
 - versioned non-destructive `ProcessingRecipe` and deterministic derived artifacts;
