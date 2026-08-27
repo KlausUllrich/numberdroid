@@ -2,11 +2,22 @@
 
 ## 1. Purpose
 
-The MCP server is a first-class Studio client for agents. It exposes the same semantic application commands and versioned read projections as the visual UI. It is not a filesystem proxy, database console, image-payload tunnel, or UI automation layer.
+The MCP server is the first-class authoring client for agents. It exposes the same semantic application commands and versioned read projections as the visual UI. It is not a filesystem proxy, database console, image-payload tunnel, or UI automation layer. [VISION.md](VISION.md) defines the agent-first product direction.
+
+Every ordinary authoring capability advertised by a project MUST eventually be
+performable through semantic MCP commands on an authorized task branch. Human-only
+operations are authority issue/revoke, owner review decision, merge, recovered-copy
+activation, engine/repository materialization, and publication. The UI may offer a
+visual representation and correction workflow, but an agent never needs to click it.
 
 Checkpoint 1B implemented and the user accepted MCP 2026-07-28 through the official maintained SDK. The protocol SDK and transport remain replaceable adapters; Studio command semantics do not depend on a specific MCP revision. Checkpoint 1A contained only a host-injected agent adapter/tool catalog and MUST NOT be described as a complete MCP server.
 
-The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. Accepted Checkpoint 2A adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. Accepted Checkpoint 2B adds atlas and durable-job operations only when both the attempt and job stores are live. Accepted Checkpoint 2C adds one proposal mutation, one read-only asset query, and one asset detail resource only when audit, jobs, and the durable schema-v9 asset store are all live. Accepted Checkpoints 3 and 4 add the bounded room and task-branch surfaces below. These are additive surfaces, not a permission-model rewrite.
+The Checkpoint 1A visual/interaction shell was accepted by the user on 2026-08-21 and remains the protected baseline. The accepted official transport preserves its command outcomes, successful-command activity visibility, and host-injected authority semantics. Accepted Checkpoint 2A adds two source mutations only when a durable SQLite attempt ledger is live and adds final redacted denied/failed Activity for calls that reach the private mutation bridge after valid HostBinding resolution. Accepted Checkpoint 2B adds atlas and durable-job operations only when both the attempt and job stores are live. Accepted Checkpoint 2C adds one proposal mutation, one read-only asset query, and one asset detail resource only when audit, jobs, and the durable schema-v9 asset store are all live. Accepted Checkpoints 3 and 4 add the scoped room and task-branch surfaces below. These are additive compatibility surfaces, not a permission-model rewrite or a claim of complete authoring parity.
+
+The accepted default 19-tool/four-template and matching-task 30-tool/five-template
+surfaces MUST remain exact. Complete agent-first authoring ships as an explicit,
+versioned **Authoring v2** feature/schema gate with newly pinned discovery counts.
+It MUST NOT rename or silently add tools to an accepted discovery mode.
 
 Accepted transport: local stdio through the official SDK v2 `serveStdio(() => buildServer(), { legacy: "reject" })` entry, so the wire protocol is MCP `2026-07-28`. A child-process contract test negotiates `server/discover` and asserts that revision. The MCP protocol core is treated as stateless: protocol discovery/capability negotiation is not an identity or authorization session. A later team deployment may add authenticated Streamable HTTP without changing tool schemas or authoring behavior.
 
@@ -71,7 +82,7 @@ studio://projects/{projectId}/assets/{assetId}
 
 The first template returns the current authorized, redacted project-head projection. The job template returns the same project-scoped, authority-checked, redacted projection as `studio_job_read`, including structured progress/events and output preview resource links when they are live. The asset template returns the same bounded, project-scoped V2 asset projection as `studio_asset_query`, including immutable slice lineage, typed metadata, findings, and proposal provenance. Before the complete v9 feature gate, discovery remains exactly the accepted two project/job templates. With the gate live, it is exactly these three templates; the server does not advertise resource listing or any other URI pattern.
 
-### Planned V1 resource surface
+### Planned Authoring v2 resource surface
 
 The patterns below are the intended versioned surface as their owning checkpoints are implemented. They MUST NOT be described as discoverable or usable until runtime registration and contract tests exist.
 
@@ -80,17 +91,23 @@ Target URI patterns:
 ```text
 studio://projects
 studio://projects/{projectId}/production-board
+studio://projects/{projectId}/capabilities
 studio://projects/{projectId}/activity?after={cursor}
 studio://projects/{projectId}/branches/{branchId}
 studio://projects/{projectId}/revisions/{revisionId}
 studio://projects/{projectId}/revisions/{revisionId}/diff?to={revisionId}
 studio://projects/{projectId}/sources/{sourceId}
+studio://projects/{projectId}/processing-recipes/{recipeId}
 studio://projects/{projectId}/atlases/{atlasId}
+studio://projects/{projectId}/assets/{assetId}
 studio://projects/{projectId}/rooms/{roomId}
 studio://projects/{projectId}/levels/{levelId}
+studio://projects/{projectId}/level-requirements/{requirementSetId}
+studio://projects/{projectId}/levels/{levelId}/actors
+studio://projects/{projectId}/levels/{levelId}/logic
 studio://projects/{projectId}/tasks/{taskId}
 studio://projects/{projectId}/validation?revision={revisionId}
-studio://projects/{projectId}/exports/{snapshotId}
+studio://projects/{projectId}/candidates/{candidateId}
 studio://artifacts/sha256/{digest}
 ```
 
@@ -99,6 +116,12 @@ When implemented, list resources return summaries and pagination cursors. Detail
 Asset summaries include a small authorized `previewResource` when available and a structured `previewState` otherwise (`PROCESSING`, `MISSING`, `UNSUPPORTED`, or `LOAD_FAILED`) so clients can render the same deterministic kind-aware fallback. A preview failure never removes the semantic asset resource.
 
 Resources that describe mutable heads MUST include `revisionId`, aggregate `version`, and `etag`/content hash so an agent can construct safe mutations.
+
+The project-capabilities projection is the MCP view of the versioned
+`ProjectCapabilityManifest`. It tells a clean agent which modules, coordinate
+model, asset kinds, actor/logic vocabulary, validators/compiler operations,
+limits, output formats, and adapter extensions are actually available. Tool
+descriptions are never the authority; execution revalidates the same manifest.
 
 ## 4. Tool design rules
 
@@ -111,6 +134,9 @@ Resources that describe mutable heads MUST include `revisionId`, aggregate `vers
 7. Destructive-looking operations are modeled as new revisions, archive states, or explicit garbage-collection jobs—not history deletion.
 8. Tools that may exceed a short request return a durable `jobId` immediately.
 9. A tool schema change requires a versioned DTO or additive backward-compatible extension and contract tests.
+10. A project advertises only tools supported by its versioned capability manifest; unsupported operations fail closed at discovery and execution.
+11. Every ordinary UI authoring action maps to the same semantic command as its MCP operation. Canvas coordinates, DOM selectors, editor clicks, and raw engine files are never MCP intent.
+12. Efficient batch/replace-draft tools declare one atomic boundary, per-item findings, expected versions, idempotency, and complete budget accounting.
 
 ## 5. Common mutation envelope and result
 
@@ -205,7 +231,7 @@ Together with the accepted seven tools, the audit/job-ready official server adve
 
 With the complete durable gate live, the official server advertises exactly 17 tools and three resource templates. `studio_asset_proposal_decide`, `studio_asset_proposal_apply`, `studio_asset_lifecycle_set`, bundle import/export, raw binary access, and any owner decision/finalization operation are deliberately absent. Query and detail projections contain current-project preview links only and redact proposer grant/branch authority. Until all three durable gates are true, the two 2C tools and asset resource remain absent and discovery stays exactly 15 tools/two templates.
 
-### Planned foundation and task expansion — later V1
+### Planned foundation and task expansion — Authoring v2
 
 - `studio_project_update_settings` — update generic project settings through versioned fields.
 - `studio_task_submit` — mark an agent branch ready for review with summary and evidence links.
@@ -215,14 +241,18 @@ With the complete durable gate live, the official server advertises exactly 17 t
 
 Grant mint/revoke endpoints exist for the authenticated human UI/service API. They MUST NOT be advertised as agent-callable MCP mutation tools. MCP resources expose the effective, redacted grant so the agent can plan within its authority.
 
-### Later source/provider tools
+### Authoring v2 source and processing families
 
 - `studio_source_generate`
 - `studio_source_register_generation`
+- `studio_processing_recipe_define`
+- `studio_processing_recipe_preview`
+- `studio_processing_recipe_apply`
+- `studio_processing_result_adopt`
 
 `studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 
-### Later asset-library expansion
+### Authoring v2 asset-library expansion
 
 The accepted 2C boundary deliberately exposes durable proposal submission rather than a general branch/batch wrapper. Direct rename, replacement-slice mapping, agent lifecycle/finalization, and partial-success batches remain later work. A future batch tool must return per-item findings and preserve one documented atomic boundary; it cannot use `atomic: false` unless the contract explicitly reports a revision for every accepted subgroup.
 
@@ -255,20 +285,33 @@ The fifth resource is `studio://projects/{projectId}/task`. The task identity co
 
 Warning disposition, asset/room finalization, grant issue/revoke, review decision, task control, merge, compensating revert, portable bundle operations, Numberdroid export, materialization, and publish remain absent from agent discovery. The branch rejects `source.intake.commit`, `atlas.preview.slices`, and `atlas.commit.slices` because those commands consume shared CAS/job state whose accepted v8 foreign keys are main-revision-bound. An agent task may consume already committed atlas/slice results; Checkpoint 2B jobs retain their separate scoped read/cancel/retry/discard surface.
 
-### Level and export tools — later V1
+### Requirements, level, actor, and logic tools — Authoring v2
 
-- `studio_level_create`
-- `studio_level_place_rooms`
-- `studio_level_connect_rooms`
-- `studio_level_finalize`
-- `studio_export_plan`
-- `studio_export_build_candidate`
-- `studio_export_materialize`
-- `studio_publish_execute`
+The final names and grouping are frozen only with their DTO schemas. The required
+semantic families are:
 
-These operations require increasingly narrow capabilities. `build_candidate` never implies `materialize`; `materialize` never implies `publish`.
+- project capability read and version negotiation;
+- level requirement create/update/validate and coverage query;
+- level graph create and semantic space/connection/path/zone edits;
+- exact-version asset placement and set-dressing batches;
+- actor instance, archetype reference, route, pickup/drop, and spawn edits;
+- typed variable definition and trigger/condition/action graph edits;
+- static validation, bounded explanatory simulation, and canonical adapter/compiler validation;
+- immutable candidate plan/build/read and submit-for-review.
 
-### Animation tools — V2
+Representative names may include `studio_level_requirements_define`,
+`studio_level_graph_update`, `studio_level_actors_update`,
+`studio_level_routes_update`, `studio_level_logic_update`,
+`studio_level_validate`, `studio_level_simulate`, and
+`studio_candidate_build`. A coherent atomic replace-draft or batch operation is
+preferred over hundreds of single-node calls when it preserves typed references,
+per-item findings, revision conflicts, and budget accounting.
+
+`studio_candidate_build` never implies owner acceptance, merge, materialization,
+commit, or publication. `studio_engine_materialize`, repository commit, and publish
+operations remain human-only and are not advertised to agents.
+
+### Animation tools — Authoring v2 optional module
 
 - `studio_animation_create_clip`
 - `studio_animation_update_frames`
@@ -358,7 +401,7 @@ The target V1 activity timeline displays every MCP tool call that reaches applic
 - duration, job/correlation IDs, findings, and changed resource links;
 - review disposition (`PENDING`, `USER_ACCEPTED`, `USER_REJECTED`, `CHANGES_REQUESTED`, or `AUTO_ACCEPTED_BY_POLICY`).
 
-The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2B adds visible read/cancel/retry/discard controls for its atlas-preview jobs, and the agent receives the equivalent scoped MCP operations. Accepted Checkpoint 4 activates `Propose in draft` only when a real matching task branch exists; without that task it retains the protected `DRAFT_BRANCH_NOT_AVAILABLE_1B` fail-closed result. Review decision, merge, and revert are human service/UI actions rather than MCP tools. Checkpoint 4.5 keeps room-shape replacement owner-only and absent from both discovery surfaces.
+The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2B adds visible read/cancel/retry/discard controls for its atlas-preview jobs, and the agent receives the equivalent scoped MCP operations. Accepted Checkpoint 4 activates `Propose in draft` only when a real matching task branch exists; without that task it retains the protected `DRAFT_BRANCH_NOT_AVAILABLE_1B` fail-closed result. Review decision, merge, and owner-history revert are human service/UI actions rather than MCP tools. Checkpoint 4.5 keeps room-shape replacement owner-only and absent from both accepted discovery surfaces. Authoring v2 must add ordinary shape/level/actor/logic drafting on isolated task branches without adding owner review, merge, activation, materialization, or publication authority.
 
 ## 11. Security invariants
 
@@ -404,6 +447,17 @@ Accepted Checkpoint 2A extends those tests with exact seven-tool audit-ready dis
 
 Accepted Checkpoint 2B extends them with exact 15-tool/two-template discovery; non-authoritative grid proposal; source-resolution rectangle validation; deterministic pinned PNG outputs; semantic/job creation atomicity; complete one-time budget charge; job/resource read equivalence; cancel/retry/discard idempotency; three-attempt enforcement; immutable creator-task authority; revoked/expired/cross-task denial; authorized-control audit atomicity; worker lease recovery and stale-worker exclusion; sanitized failures; exact output metadata and reference ownership; atomic semantic apply; restart/recovery; state-specific integrity; snapshot-consistent backup; and quiesced shutdown.
 
-The following target checks remain for the checkpoint that introduces the feature: general atomic batch rollback and batch budget accounting; source/atlas/asset detail resources beyond the current project/job templates; isolated task-branch review/merge; and publish authorization.
+The following target checks remain for the checkpoint that introduces the feature: general atomic batch rollback and batch budget accounting; source/atlas/asset detail resources beyond the current project/job templates; capability-driven Authoring v2 discovery; and the complete image-to-asset and requirements-to-candidate task flows.
 
-Later checkpoints extend this same suite for every advertised authoring tool. A tool is not considered delivered merely because it appears in documentation; it must be discoverable, schema-tested, authorized, observable, and exercised end to end.
+Authoring v2 must additionally prove:
+
+1. a clean agent can discover the exact Numberdroid capability manifest and required inputs without repository or UI knowledge;
+2. unsupported module/tool/type/extension use fails closed at discovery and execution;
+3. multiple Artist/Level Designer tasks can share immutable artifacts while isolated branch mutations, dependencies, stale versions, and semantic conflicts remain explicit;
+4. a headless agent can author processing recipes/assets and level layout/actors/routes/pickups/variables/logic, run validation/compiler checks, build an immutable candidate, and submit it for review;
+5. requirement coverage and candidate traceability identify exact requirements, revisions, recipes, artifacts, adapter/compiler versions, findings, and hashes;
+6. no agent can decide owner review, merge, activate a restored copy, choose an arbitrary destination, materialize, commit, or publish;
+7. the Numberdroid reference scenario (routed actor, defeat, key drop, collection, state change, visible text) round-trips through resources and commands; and
+8. after the Numberdroid vertical proof, one thin Godot 2D/Tower Defense fixture uses the same core command/candidate contracts with a different capability profile.
+
+Later checkpoints extend this same suite for every advertised authoring tool. A tool is not considered delivered merely because it appears in documentation; it must be capability-discoverable, schema-tested, authorized, observable, and exercised end to end.

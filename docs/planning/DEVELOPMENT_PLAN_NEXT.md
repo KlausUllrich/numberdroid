@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-25 with the parallel Studio operations/mobile track**
+Status: **current forward plan — updated 2026-08-27 with the agent-first Studio product direction**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -54,6 +54,68 @@ Do not reintroduce prototype bridges or another game-runtime architecture migrat
 
 ---
 
+## Parallel product track — Numberdroid Studio agent-first authoring
+
+Numberdroid Studio is the production/authoring layer before the game runtime and
+repository publish boundary. Its binding direction is:
+
+`tools/numberdroid-studio/docs/VISION.md`
+
+The first complete target is Numberdroid, not a speculative universal game
+editor. Studio must solve two paths end to end:
+
+```text
+generated/uploaded image → reproducible non-destructive processing → semantic asset
+level requirements → layout + actors + routes + pickups + variables + logic
+                   → validated immutable Numberdroid candidate
+```
+
+Studio is agent-first: every ordinary authoring action must be a semantic
+application command available through an appropriately authorized MCP task
+surface. The human UI uses the same commands and focuses on visual understanding,
+correction, review, conflicts, and release decisions. Agents never automate UI
+clicks. Human-exclusive authority remains grant issue/revoke, owner review,
+merge, recovered-copy activation, repository/engine materialization, and publish.
+
+Growth uses three layers:
+
+1. universal core — projects, immutable artifacts/CAS, processing recipes, assets,
+   jobs, revisions/findings, isolated tasks/reviews, candidate manifests, backup;
+2. optional reusable authoring modules — image/atlas/sprite, grid/level,
+   actors/routes, typed variables/trigger-action logic, animation/dialogue; and
+3. project/engine adapters — Numberdroid first, then only concrete thin proofs.
+
+Four versioned interfaces keep those layers honest:
+`ProjectCapabilityManifest`, semantic Authoring Commands/Queries, immutable
+`CandidateManifest`, and `EngineBridge`. The current Checkpoint 5 adapter/compiler
+candidate is the first proof of the adapter direction, not the complete product.
+
+The safest next non-visual Studio block is the A0 interface foundation: freeze and
+test the capability/candidate/bridge contracts and describe current Numberdroid
+compiler/LevelSpec abilities as a fail-closed capability profile. It must not add
+a database migration, broad UI, change the accepted MCP 19/4 or task-bound 30/5
+discovery surfaces, implement Godot/Unreal output, materialize, or publish.
+
+After the complete Numberdroid vertical proof, one thin Godot 2D/Tower Defense
+fixture should test portability using paths, waves/spawners, actors, tower slots,
+typed variables and victory logic. Godot/Unreal editors remain authoritative for
+runtime/rendering/playtest; initial integration is one-way. Unreal `.uasset` files
+must never be written directly.
+
+Detailed polished UI mockups are not an A0 dependency. Use low-fidelity
+workflow/state maps first; create detailed responsive mockups only after semantic
+commands, capability discovery, information architecture, and failure/conflict
+states stabilize.
+
+Detailed Studio roadmap and contracts:
+
+- `tools/numberdroid-studio/docs/ROADMAP.md`
+- `tools/numberdroid-studio/docs/REQUIREMENTS.md`
+- `tools/numberdroid-studio/docs/ARCHITECTURE.md`
+- `tools/numberdroid-studio/docs/MCP_CONTRACT.md`
+
+---
+
 ## Parallel product track — Studio operations, remote access, mobile, and agent onboarding
 
 Numberdroid Studio has a separate cross-cutting product track alongside the
@@ -65,7 +127,7 @@ The four required outcomes are:
 
 1. simple, trustworthy full-workspace backup and restore-as-copy in the human UI;
 2. an always-on, authenticated private Studio service reachable from Klaus's phone;
-3. practical MCP onboarding for bounded **Artist** and **Level Designer** roles; and
+3. practical MCP onboarding for scoped **Artist** and **Level Designer** roles; and
 4. a responsive, touch-usable smartphone UI.
 
 Required order:

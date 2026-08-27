@@ -2,6 +2,19 @@
 
 This roadmap is outcome-based. A checkpoint is complete only after automated verification, adversarial review, root-agent verification, and explicit user acceptance of the visual/workflow result. Work after a rejected checkpoint returns to planning rather than silently redefining acceptance.
 
+The binding forward direction is [VISION.md](VISION.md): Studio is an agent-first,
+Numberdroid-first authoring and production system. Accepted Checkpoints 1–4 are
+foundations and compatibility baselines, not the final feature ceiling. Checkpoint
+4.5 and Checkpoint 5 remain candidates until their separate user gates, even when
+their source is integrated into `main`.
+
+The product completes two connected paths before broad engine generalization:
+
+```text
+generated/uploaded image → reproducible processing → semantic asset
+level requirements → layout + actors + routes + logic → validated candidate
+```
+
 ## Working loop for every checkpoint
 
 1. **Plan:** product/architecture agent refines the vertical slice, migration impact, tests, and user-visible evidence.
@@ -190,9 +203,12 @@ Exit decision: approve the designer-facing task flow, prop preview, guided room 
 
 Candidate implementation: `CHECKPOINT_4_5_CONTRACT.md` freezes the bounded semantics and `CHECKPOINT_4_5_STATUS.md` records the candidate. The implementation adds list/create/detail task views, trusted expiry projection, useful exact-slice previews, one persistent canvas with toolbox/options/dock workflow, owner-only complete shape replacement, schema-v12 normalized shape cells, schema-v2 rectangular parity, and schema-v3 masked-room round trips. It adds no generation, bitmap-job, export, materialization, publication, or wider agent authority.
 
-## Checkpoint 5 — Deterministic Numberdroid export candidate
+## Checkpoint 5 — First deterministic Numberdroid adapter candidate
 
-**Outcome:** a finalized Studio room/hallway becomes a verified, reviewable Numberdroid candidate without conflating authoring and publishing.
+**Outcome:** the accepted room/hallway slice proves the first immutable
+Numberdroid adapter/compiler boundary without conflating authoring and publishing.
+It is a foundation for the complete requirements-to-level path, not the final
+Numberdroid product scope.
 
 Deliverables:
 
@@ -255,7 +271,7 @@ The gates are:
    candidate and cannot replace its separate desktop/designer acceptance; it
    either starts after CP4.5 acceptance or remains explicitly stacked and
    non-accepting.
-5. **O4 — MCP onboarding.** Add a bounded getting-started/capabilities surface,
+5. **O4 — MCP onboarding.** Add a scoped getting-started/capabilities surface,
    local connection guide, Artist and Level Designer playbooks, failure/recovery
    guidance, and clean-agent scenarios that stop at **Waiting for your review**.
    The first slice must use server instructions and existing project/task
@@ -271,43 +287,109 @@ phone acceptance, and remote MCP remain later gates.
 
 Detailed contract: `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.
 
-## V1 completion — Level composition baseline
+## Forward program — complete the agent-first vertical path
 
-After the vertical slices are accepted, V1 adds the smallest useful level graph over finalized rooms and hallways:
+The next program is deliberately interface-first and Numberdroid-first. Lettered
+gates do not retroactively change accepted checkpoint discovery counts, schemas,
+or user acceptance.
 
-- place/reuse finalized variants;
-- connect compatible room connectors;
-- trace level intent and included revision closure;
-- validate connectivity and compile a level candidate;
-- browse every referenced asset and room from the level view.
+### A0 — Product interfaces and capability profile
 
-Enemy/NPC placement and route drawing are still excluded and attach later through a separate designer.
+- freeze the universal-core / optional-module / adapter dependency rule;
+- add a versioned fail-closed `ProjectCapabilityManifest` contract;
+- freeze semantic Authoring Command/Query, immutable `CandidateManifest`, and
+  `EngineBridge` ports;
+- describe the current Numberdroid compiler and LevelSpec abilities as the first
+  capability profile without moving Numberdroid concepts into core;
+- preserve the accepted 19/4 and task-bound 30/5 MCP surfaces until a separate
+  authoring-v2 feature gate pins new exact counts.
 
-## V2 — Animated tiles and props
+This is the safest next non-visual block. It adds contracts and tests, not broad
+UI, database migration, Godot/Unreal output, materialization, or publication.
 
-V2 activates the reserved `AnimationClip` identity:
+### A1 — Artist path: image to validated asset
 
-- frame import/cutting and ordered clips;
-- duration, loop mode, anchors, events, and playback preview;
-- static/animated state variants without changing asset IDs;
-- room preview and export adapter support;
-- performance and deterministic timing validation.
+- versioned non-destructive `ProcessingRecipe` and deterministic derived artifacts;
+- crop/extract, trim/padding, canvas/size normalization, deterministic resize,
+  safely specified alpha/background cleanup, and atlas/sprite-sheet operations;
+- visual before/after, lineage, recipe, exact pixels, findings, and replacement
+  review;
+- complete semantic MCP coverage for the ordinary Artist workflow on a task branch;
+- reusable recipe/module boundaries proven by Numberdroid fixtures.
 
-V2 does not add NPC/enemy animation.
+### A2 — Agent parity and concurrent production
 
-## Future growth
+- every ordinary source/processing/asset/level authoring command available through
+  versioned MCP, never UI automation;
+- capability-driven discovery, typed batches, dry-run, idempotency, dependencies,
+  and clean-agent guidance;
+- concurrent Artist and Level Designer tasks sharing immutable artifacts while one
+  authoritative writer preserves isolated semantic branches and explicit conflicts;
+- owner-only authority, review, merge, recovery activation, materialization, and
+  publication.
+
+### A3 — Requirements-driven level graph, actors, and logic
+
+- versioned typed `LevelRequirementSet` with ambiguities, assumptions, constraints,
+  acceptance criteria, and traceability;
+- layout, rooms/corridors/zones/paths, placements, actor instances, routes, pickups,
+  and runtime behavior references;
+- typed level variables, triggers, conditions, ordered actions, dialogue/text, and
+  capability-advertised waves/spawners;
+- deterministic validation, requirement coverage, bounded explanatory simulation,
+  and explicit unsupported-capability findings;
+- animation clips may cover actors as well as tiles/props; runtime behavior and
+  animation-state execution remain game responsibilities.
+
+### A4 — Complete Numberdroid vertical candidate
+
+- preserve Numberdroid's existing rooms, connections, props, actors, staged actors,
+  routes, pickups, zones, triggers, events, and flags without loss;
+- extend only the missing typed semantics needed for the reference scenario:
+  a routed actor is defeated, drops a key, and key collection changes state and
+  displays text;
+- create, validate, compile, preview, diff, and submit an immutable complete level
+  candidate entirely through a scoped agent task;
+- require human review/merge and keep repository materialization/publication separate.
+
+### A5 — Thin portability proof
+
+Only after A4, build one deliberately small Godot 2D/Tower Defense fixture. Use
+paths, spawners/waves, actors, tower slots, typed game variables, reached-goal/
+defeated events, and a victory condition to test the core/module/adapter split.
+The engine editor remains authoritative for runtime/rendering/playtest. Unreal
+support waits for a concrete project and supported editor-plugin/import boundary;
+Studio never writes `.uasset` files directly.
+
+### A6 — Human UI and mobile refinement
+
+- first create low-fidelity workflow/state maps for Artist, Level Designer, review,
+  conflict, and candidate flows;
+- stabilize capability-driven information architecture and error/empty/loading/
+  conflict states;
+- then create detailed responsive/touch mockups and implement them behind separate
+  visual checkpoints;
+- reuse central canvas, tools, asset palette, layers, inspector, lineage, and live
+  preview patterns from suitable Adobe/game-engine/reference tools without copying
+  their complexity.
+
+Detailed UI mockups are therefore useful, but they are not an A0 dependency.
+Polished mockups become valuable immediately before A1/A3/A6 visual implementation,
+after semantic commands and workflow states stop moving.
+
+## Later growth after the first portability proof
 
 Possible later tracks, each requiring its own accepted architecture slice:
 
 - standalone packaging and automatic updates;
-- multi-user/team collaboration beyond the private owner service in O2;
+- team collaboration beyond multiple task-scoped agents on the private owner service;
 - authenticated Streamable HTTP MCP only if its separate O4 transport contract is accepted;
-- additional game adapters and export profiles;
-- procedural room-template and level-graph assistance;
+- additional concrete game adapters and export profiles;
+- procedural assistance operating on the same typed requirements and command core;
 - plugin/provider SDK for image generation and analysis;
-- separate encounter/NPC/route designers consuming finalized level layouts;
 - asset dependency impact analysis across multiple projects;
-- review environments, signed export manifests, and release promotion.
+- engine round-trip synchronization only when ownership/conflict semantics are proven;
+- review environments, signed candidate manifests, and release promotion.
 
 ## Decision log expected at checkpoints
 

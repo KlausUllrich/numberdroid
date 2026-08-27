@@ -10,7 +10,7 @@ granting agents wider authority:
 
 1. a simple, trustworthy backup and recovery workflow in the human UI;
 2. an always-on Studio service that Klaus can reach from his phone;
-3. a practical MCP guide for bounded **Artist** and **Level Designer** work; and
+3. a practical MCP guide for scoped **Artist** and **Level Designer** work; and
 4. a responsive, touch-usable Studio UI for smartphones.
 
 The track is deliberately named rather than assigned a Checkpoint number. Its
@@ -292,7 +292,7 @@ his phone.
 ## 8. Gate O4 — practical MCP onboarding and role playbooks
 
 Runtime discovery explains tools; it does not by itself explain a production
-workflow or quality bar. Studio therefore needs a bounded getting-started
+workflow or quality bar. Studio therefore needs a scoped getting-started
 resource plus concise versioned playbooks.
 
 The first O4 slice must preserve the accepted exact discovery surfaces: 19
@@ -312,12 +312,17 @@ or select arbitrary storage paths.
 
 ### Level Designer
 
-The Level Designer may inspect intent, archetypes, finalized vocabulary,
-connectors and placement contracts; edit a DRAFT room/hallway on its isolated
-task branch; place exact-version assets; validate coverage, bounds, collision,
-reachability, connectors and intent; inspect the preview/diff; and submit for
-human review. The role cannot approve, merge, revert owner history, finalize,
-materialize, or publish without a separate explicit capability.
+The first accepted Level Designer guide may demonstrate the existing DRAFT
+room/hallway surface. The complete agent-first guide follows the selected
+project's capability manifest: it may inspect typed level requirements,
+archetypes and finalized asset vocabulary; author layout/rooms/connections,
+exact-version placements, actors, routes, pickups, variables, triggers,
+conditions/actions, dialogue/text, and supported waves/spawners on its isolated
+task branch; validate requirement coverage, bounds, collision, reachability,
+logic and adapter/compiler constraints; inspect the preview/diff; build an
+immutable candidate; and submit it for human review. The role cannot decide
+owner review, merge, revert owner history, activate a recovered copy,
+materialize, or publish.
 
 The guide and runtime getting-started surface must cover:
 
@@ -330,9 +335,12 @@ The guide and runtime getting-started surface must cover:
 - one minimal and one realistic end-to-end example;
 - no real secret, token, private path, or user-specific credential.
 
-A clean agent with no repository context must complete one bounded Artist and
-one bounded Level Designer scenario and prove denial of approval, merge,
-publication, cross-task access, and post-revocation use.
+A clean agent with no repository context must complete one scoped Artist and
+one scoped Level Designer scenario and prove denial of approval, merge,
+publication, cross-task access, and post-revocation use. The accepted 19/4 and
+30/5 surfaces remain compatibility gates; complete Artist/Level Designer parity
+requires a separately versioned Authoring v2 discovery surface with newly pinned
+counts.
 
 ## 9. Recommended execution order
 

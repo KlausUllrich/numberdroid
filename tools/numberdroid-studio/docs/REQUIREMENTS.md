@@ -1,6 +1,8 @@
 # Numberdroid Studio — Product Requirements
 
-Status: binding V1 product contract, with explicitly marked V2 reservations.
+Status: binding product contract aligned with [VISION.md](VISION.md). Accepted
+checkpoint sections remain compatibility requirements for their shipped slices;
+historical V1/V2 labels do not limit the forward product vision.
 
 The words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative. Requirement identifiers are stable and should be referenced by tests, issues, and design decisions.
 
@@ -8,7 +10,7 @@ The words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative. Require
 
 The current asset-to-level workflow is difficult to inspect and unreliable to repeat. Generation context is lost, atlas cutting and naming are fragile, metadata lives far from the visual source, and GitHub is too slow to serve as an interactive authoring database. People cannot easily see the available design vocabulary, while agents do not have a safe semantic interface for completing the workflow.
 
-Numberdroid Studio MUST make the complete path from generated or uploaded image to validated room and export candidate visual, reproducible, and agent-operable.
+Numberdroid Studio MUST make the complete path from generated or uploaded image to validated semantic asset, and from versioned level requirements to a validated Numberdroid candidate, visual, reproducible, and agent-operable.
 
 ## 2. Goals
 
@@ -16,20 +18,22 @@ Numberdroid Studio MUST make the complete path from generated or uploaded image 
 - **G-002 — Reproducibility.** Generated sources retain prompt, seed, model/provider, references, parameters, and lineage so approved images can be iterated later.
 - **G-003 — Reliable extraction.** An approved atlas can be divided into explicit rectangles, reviewed visually, and turned into stable reusable assets.
 - **G-004 — Semantic authoring.** Assets carry explicit role, connectivity, placement, footprint, collision, and export metadata.
-- **G-005 — Room-first design.** Users and agents can create halls and individual rooms, dress them with visible reusable assets, validate them, and mark revisions final.
+- **G-005 — Requirements-driven levels.** Users and agents can turn explicit level requirements into layouts, rooms, actors, routes, pickups, variables, triggers/actions, and validated candidates.
 - **G-006 — Agent parity.** With an appropriate human-created grant, an agent can perform every authoring step available to a person through a semantic MCP interface.
 - **G-007 — Human control.** Every agent action is visible, attributed, interruptible when long-running, reviewable, and reversible.
 - **G-008 — Local speed.** Interactive work uses a local database and artifact store; source control is used only for explicit export/publish operations.
-- **G-009 — Growth.** The product can expand to level graphs, animations, additional game adapters, multi-user review, and a standalone deployment without replacing its core identities.
+- **G-009 — Reusable boundaries.** Numberdroid proves the complete workflow first; stable core, authoring-module, capability, candidate, and adapter interfaces can later serve concrete other projects without replacing core identities.
 
 ## 3. Non-goals and boundaries
 
-- **NG-001.** V1 MUST NOT design enemies, NPCs, enemy/NPC animations, encounters, or patrol routes.
+- **NG-001.** Studio MUST NOT implement a game's runtime renderer, physics, navigation, combat, economy, or general AI. It MAY author level-local actor instances, runtime behavior references, routes, pickups, variables, triggers, conditions/actions, dialogue/text, waves, and spawners when the project capability manifest supports them.
 - **NG-002.** The Studio MUST NOT infer authoritative topology, collision, walkability, or connector semantics from pixels. It MAY offer suggestions that remain visibly unconfirmed.
 - **NG-003.** The MCP server MUST NOT automate UI clicks. It MUST invoke the same application commands as the UI.
 - **NG-004.** Git commits, branches, issues, and pull requests MUST NOT be the interactive persistence layer.
 - **NG-005.** V1 is not a replacement for the Numberdroid Level Compiler. It authors semantic inputs and validates through adapter contracts; the compiler remains authoritative for Numberdroid output.
 - **NG-006.** Production publishing MUST NOT occur implicitly when an asset, room, or level is finalized in Studio.
+- **NG-007.** Studio MUST NOT attempt to replace a general-purpose game-engine editor. Initial engine bridges are one-way candidate import/materialization and validation boundaries; round-trip editing is a separate future decision.
+- **NG-008.** A proposed universal abstraction MUST NOT block the complete Numberdroid workflow. Reuse is earned by a working vertical slice and a later thin portability proof.
 
 ## 4. Users and actors
 
@@ -38,6 +42,7 @@ Numberdroid Studio MUST make the complete path from generated or uploaded image 
 - **Agent operator:** grants bounded authority, observes agent work, pauses or cancels jobs, and accepts or rejects results.
 - **Agent:** discovers project state through resources and performs allowed semantic commands through MCP.
 - **Exporter:** deterministic system actor that builds an immutable export candidate through an adapter.
+- **Project adapter:** declares supported authoring capabilities and translates a generic candidate into the project's canonical compiler/import boundary.
 
 The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLICY` is a machine policy outcome and MUST NOT be represented as `USER_APPROVED`.
 
@@ -68,6 +73,17 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **SRC-006.** A configured generation provider MUST be invokable as a durable job with an explicit prompt, seed policy, parameters, output limits, cost/budget policy, and network-egress disclosure. Its result MUST create a complete `GenerationRecord` before it can be reviewed.
 - **SRC-007.** A staged source intake MUST remain project-scoped and recoverable until it is atomically claimed by a source revision or explicitly abandoned; an incomplete request MUST NOT create a partial source or silently release the staged reference.
 - **SRC-008.** Human upload and imported-generation provenance MUST be discriminated. Human uploads MUST NOT invent provider metadata; imported-generation records MUST name their provider/model and MUST NOT retain credentials, local paths, or arbitrary external URIs in generation parameters.
+
+### 5.2A Non-destructive image processing
+
+- **IMG-001.** Every derived image MUST reference an immutable source artifact and a versioned `ProcessingRecipe`; processing MUST NOT overwrite source or previously accepted output bytes.
+- **IMG-002.** The initial reproducible operation set MUST cover the concrete Numberdroid image-to-asset needs: crop/extract, trim or preserve transparent padding, canvas/size normalization, deterministic resize, alpha/background cleanup where safely specified, and atlas/sprite-sheet composition or slicing.
+- **IMG-003.** Each operation MUST have typed bounded parameters, deterministic implementation/version identity where applicable, input/output digests, preview, and structured findings. Arbitrary scripts or opaque editor histories MUST NOT become ordinary recipes.
+- **IMG-004.** Automated image analysis MAY propose crop, background, bounds, frames, or pivots, but the accepted recipe and exact output pixels remain explicit and reviewable.
+- **IMG-005.** Applying a recipe MUST run as a durable job when it exceeds the synchronous intake bounds. Retry MUST retain identical immutable inputs and MUST NOT silently select a newer source or recipe.
+- **IMG-006.** A derived artifact becomes an asset input only through an explicit semantic command that pins its exact digest, recipe, lineage, and intended asset role.
+- **IMG-007.** Recutting, reprocessing, or replacing an output MUST create a new version or an explicit one-to-one replacement mapping; existing asset versions MUST NOT retarget silently.
+- **IMG-008.** Project capability manifests MAY restrict formats, dimensions, color/alpha rules, frame layouts, or codecs. Unsupported processing MUST fail visibly before candidate creation.
 
 ### 5.3 Atlas Cutter
 
@@ -117,9 +133,26 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 ### 5.6 Level Composition
 
 - **LVL-001.** A level graph MUST be able to reference finalized room variants and hallway segments, their connectors, and semantic relationships.
-- **LVL-002.** V1 MAY expose only the minimum composition necessary to export one room/hallway slice. The domain model MUST nevertheless reserve stable level-graph identities.
-- **LVL-003.** Future enemy placement and route drawing MUST attach to a finalized layout through a separate designer and MUST NOT be embedded in room authoring commands.
-- **LVL-004.** A level candidate MUST remain traceable to the exact room, asset, and source revisions it contains.
+- **LVL-002.** Natural-language level intent MUST be translated into a versioned typed `LevelRequirementSet` before it becomes authoritative. Ambiguities, assumptions, priorities, hard constraints, and acceptance criteria MUST remain inspectable.
+- **LVL-003.** A level graph MUST support stable identities for spaces, connections, paths/zones, placements, actor instances, routes, pickups, and logic bindings without making Numberdroid-specific names core types.
+- **LVL-004.** Actor and route authoring MUST attach to the level graph and reference project-advertised actor archetypes or runtime behavior profiles. It MUST NOT embed a replacement runtime AI implementation.
+- **LVL-005.** A level candidate MUST remain traceable to the exact requirement, room, asset, actor archetype, source, processing-recipe, and logic revisions it contains.
+- **LVL-006.** Every generated or agent-authored level element SHOULD cite one or more requirement IDs or be marked explicitly as an assumption/proposal. Coverage MUST identify unmet, conflicting, and untraced requirements.
+- **LVL-007.** The compiler/validator MUST be deterministic for an immutable snapshot and MUST explain failures using stable findings that identify the requirement and semantic object involved.
+- **LVL-008.** The Numberdroid adapter MUST represent the existing LevelSpec capabilities for rooms/corridors, connections, props, actors, staged actors, routes, pickups, zones, triggers, events, and flags without loss before a broader format is claimed.
+- **LVL-009.** The first complete Numberdroid proof MUST express an actor that follows a route, is defeated through an existing runtime behavior, drops a key, and causes text to appear after the key is collected.
+- **LVL-010.** A later thin Godot 2D/Tower Defense proof MAY add paths, spawners, waves, tower slots, project variables, `defeated`/`reached_goal` events, and victory conditions only through capability-advertised modules and adapter extensions.
+
+### 5.6A Level-local actors and logic
+
+- **LOG-001.** Studio MUST support typed level-local variables with stable IDs, declared types, initial values, bounded domains where relevant, and explicit adapter mappings. Untyped arbitrary value bags MUST NOT become core logic state.
+- **LOG-002.** Logic MUST be represented as a versioned semantic graph or equivalent typed declarations containing triggers, optional conditions, and ordered actions. It MUST NOT be stored as UI coordinates or opaque executable code.
+- **LOG-003.** The reusable vocabulary MUST be capability-driven and able to include actor/pickup/zone interaction, state change, timer, proximity, actor defeated, item dropped/collected, set variable/flag, grant key/item, spawn/despawn/move actor, show dialogue/text, and adapter-namespaced actions.
+- **LOG-004.** References between actors, routes, items, variables, triggers, and actions MUST be integrity checked. Deletion, replacement, or merge MUST report dependent references rather than leaving dangling IDs.
+- **LOG-005.** Unknown trigger, condition, action, variable type, or adapter extension MUST fail closed. Namespaced extensions MUST remain schema-validated, bounded, and free of credentials, machine paths, arbitrary URIs, or executable payloads.
+- **LOG-006.** Static validation MUST detect impossible references, invalid type comparisons, unreachable or cyclic action chains where prohibited, conflicting writes where determinable, and capability violations. A deterministic bounded simulation SHOULD explain common event sequences without pretending to replace runtime playtesting.
+- **LOG-007.** Actor archetypes and reusable runtime systems belong to the project adapter/runtime. Studio-authored actor instances MAY select an archetype, route, placement, local parameters, and logic bindings within the advertised schema.
+- **LOG-008.** Animation clips and dialogue/text references MAY be attached to actors/actions without requiring animation or narrative authoring in projects that do not advertise those modules.
 
 ### 5.7 Validation, finalization, and export
 
@@ -162,14 +195,21 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **AGT-016.** Job creation MUST consume its semantic command, job count, and complete estimated output-byte budget once in the same transaction as the input revision. Retry MUST be bounded and MUST NOT silently create a second semantic command or charge the same logical output twice.
 - **AGT-017.** Agent-visible job projections MUST expose redacted structured state, events, result metadata, and same-origin resource links without raw binary data, credentials, grant IDs, machine paths, stack traces, or unsanitized worker errors.
 - **AGT-018.** Asset proposal submission uses a distinct `asset.proposal.submit` scope and charges every contained operation against the grant command budget. Owner decision, accepted-subset apply, lifecycle promotion/finalization, and portable bundle operations MUST NOT be exposed through MCP.
+- **AGT-019.** Every ordinary authoring command available in the human UI MUST have an equivalent versioned MCP operation when the selected project capability manifest advertises that feature. A UI-only authoring gesture is an incomplete capability.
+- **AGT-020.** The accepted 19-tool/four-template and task-bound 30-tool/five-template discovery surfaces remain compatibility contracts. Broader authoring parity MUST ship behind a separate explicit feature/schema gate with newly pinned exact discovery counts; it MUST NOT silently change an accepted surface.
+- **AGT-021.** A clean agent MUST be able to discover project capabilities, required inputs, current task dependencies, validation rules, and available semantic operations without repository knowledge or visual UI inspection.
+- **AGT-022.** Multiple agents MUST be able to work concurrently through isolated task branches under one authoritative writer. Shared immutable artifacts MAY be referenced across tasks; mutable semantic work MUST retain task/base/version coordinates and produce explicit dependency or merge conflicts.
+- **AGT-023.** Agent commands SHOULD support typed batch operations and replace-draft semantics for efficient level and asset construction, while preserving one documented atomic boundary, per-item findings, idempotency, and budget accounting.
+- **AGT-024.** Agent role names such as **Artist** or **Level Designer** are onboarding/workflow profiles, not authority. The immutable human-created grant remains the only capability source.
+- **AGT-025.** Ordinary agent authoring MUST be able to end in an immutable candidate and **Waiting for your review** state. Owner review decision, merge, recovered-workspace activation, repository materialization, and publication MUST remain unavailable to agents.
 
-### 5.10 Animations (V2 reservation)
+### 5.10 Animations
 
 - **ANM-001.** V1 MUST reserve `animationClip` as a stable domain identity attachable to an asset without changing that asset's semantic ID.
 - **ANM-002.** V2 clips MUST support ordered frames, per-frame or default duration, loop mode, anchor consistency, event markers, and preview.
 - **ANM-003.** A room placement references an asset and optional clip/state, never a raw frame filename.
 - **ANM-004.** Static assets MUST remain valid without an animation clip.
-- **ANM-005.** NPC and enemy animation remains outside this product even after tile/prop animation ships.
+- **ANM-005.** Actor animation clips MAY be authored when the project advertises the animation module. Full NPC/enemy behavior, combat, and runtime animation-state execution remain project/runtime responsibilities.
 
 ## 6. Data and persistence requirements
 
@@ -190,6 +230,13 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **ARC-004.** UI and MCP MUST use the same application command/query interfaces and policy evaluator.
 - **ARC-005.** Cross-boundary data MUST use versioned DTOs and documented schemas.
 - **ARC-006.** Extracting the folder MUST require replacing workspace wiring and adapter configuration, not rewriting domain code.
+- **ARC-007.** Product code MUST separate a universal core, optional reusable authoring modules, and project/engine adapters. Core packages MUST NOT import an adapter; unused modules MUST NOT be required by a project.
+- **ARC-008.** Every project adapter MUST expose a versioned, fail-closed `ProjectCapabilityManifest` describing supported asset kinds, coordinate model, modules, actor/logic vocabulary, validators/compiler operations, limits, output formats, and extension schemas.
+- **ARC-009.** Candidate creation MUST produce an immutable versioned `CandidateManifest` that pins all semantic revisions, artifacts, recipes, requirements, adapter/compiler versions, logical outputs, findings, and hashes without writing to the target project.
+- **ARC-010.** An `EngineBridge` MUST keep candidate build/validation separate from repository or engine materialization. Initial bridges are one-way; Godot or Unreal round-trip editing requires a later explicit contract.
+- **ARC-011.** The Numberdroid adapter is the first complete implementation and MUST invoke the canonical Numberdroid compiler/validators. General core contracts MUST use capability- or module-level terms rather than encode Numberdroid encounter names.
+- **ARC-012.** A future Godot bridge MAY use supported imports, documented resources, and an editor plugin. A future Unreal bridge MUST use supported editor/import APIs and MUST NOT write `.uasset` files directly.
+- **ARC-013.** No second complete game or engine integration is required before Numberdroid works end to end. The first portability evidence SHOULD be one thin Godot 2D/Tower Defense fixture that tests the interfaces rather than broad feature coverage.
 
 ### 7.1 Accepted baseline and migration protection
 
@@ -487,7 +534,7 @@ split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
   only after CP4.5 acceptance or as an explicitly dependent non-accepting
   candidate whose phone gate remains separate.
 
-#### MCP onboarding and bounded roles
+#### MCP onboarding and scoped roles
 
 - **ONB-001.** An authorized agent with no repository knowledge MUST be able to
   discover Studio version/features, accessible project state, effective
@@ -503,10 +550,12 @@ split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
   lineage, semantic purpose, validation result, and review summary; it MUST NOT
   imply source/asset approval, finalization, path selection, or publication.
 - **ONB-005.** The Level Designer guide MUST produce an inspectable validated
-  DRAFT room/hallway on its isolated task branch with exact-version dependencies
-  and a review summary; it MUST NOT imply approval, merge, owner-history revert,
-  finalization, materialization, or publication.
-- **ONB-006.** Clean-agent tests MUST prove one bounded Artist and Level Designer
+  DRAFT level candidate on its isolated task branch. For the current capability
+  profile that includes layout/rooms, exact-version dependencies, actors, routes,
+  pickups, variables, trigger/action logic, requirement coverage, and a review
+  summary. It MUST NOT imply approval, merge, owner-history revert,
+  materialization, or publication.
+- **ONB-006.** Clean-agent tests MUST prove one scoped Artist and Level Designer
   scenario plus denial of approval, merge, publication, cross-task access, and
   post-revocation use. Documentation/examples MUST contain no real secret,
   token, private path, or user-specific credential.
@@ -515,6 +564,10 @@ split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
   preserving exact accepted discovery at 19 tools/four templates and 30
   tools/five templates. A new tool or resource template requires its own feature
   gate, versioned schema, and newly pinned exact discovery counts.
+- **ONB-008.** The accepted first onboarding slice MAY demonstrate only the
+  currently advertised room/task commands. Complete agent-first onboarding is
+  not achieved until the versioned authoring surface covers the full
+  capability-advertised Artist and Level Designer workflows.
 
 ## 10. Open decisions and recommended defaults
 
@@ -537,5 +590,10 @@ These are deliberately open until validated by implementation or user testing. T
 | Staged-intake retention | Explicit durable Resume/Discard | Add expiry only with a visible retention policy and recovery evidence. |
 | Animation model | Reserved identity in V1, authoring in V2 | Avoids migration of asset and placement references. |
 | Checkpoint 3 room canvas | DOM/SVG grid, Fit/100%/200%, provisional 10×8 room and 12×3 horizontal hallway creation defaults | Preserves inspectability/accessibility and aligns with accepted cutter zoom language; dimensions remain explicitly editable within the frozen bound. |
+| First complete project profile | Numberdroid | It already supplies concrete image, compiler, actor, route, pickup, trigger, event, and runtime constraints. Generalize only proven interfaces. |
+| First portability proof | Thin Godot 2D/Tower Defense fixture after Numberdroid completion | Tests core/module/adapter separation without building another full product. |
+| Engine synchronization | One-way immutable candidate import first | Avoids ownership conflicts with Godot/Unreal editors; revisit only with a concrete round-trip workflow. |
+| Detailed UI mockups | Low-fidelity workflow/state maps now; detailed responsive mockups after command/capability contracts stabilize | Prevents polished screens from freezing accidental architecture while still testing information hierarchy before implementation. |
+| Actor/logic boundary | Studio authors level-local declarations and runtime behavior references | Runtime remains authoritative for movement, combat, economy, rendering, and general AI. |
 
-Open product questions for later user checkpoints include: first canonical asset taxonomy, whether source generation providers are built in or imported by manifest, production bundle format, and the exact Level Compiler invocation boundary. The accepted Checkpoint 3 room dimensions/zoom defaults remain provisional product inputs; Checkpoint 4.5 adds guided irregular-shape authoring without converting those defaults into a final level-format decision.
+Open product questions for later user checkpoints include: first canonical asset taxonomy, whether source generation providers are built in or imported by manifest, the minimum typed cross-project logic vocabulary, production bundle format, and the exact EngineBridge materialization boundary. The accepted Checkpoint 3 room dimensions/zoom defaults remain provisional product inputs; Checkpoint 4.5 adds guided irregular-shape authoring without converting those defaults into a final level-format decision.

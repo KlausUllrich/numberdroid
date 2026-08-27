@@ -2,13 +2,14 @@
 
 ## 1. Architectural intent
 
-Numberdroid Studio is a local authoring product with multiple clients, not a collection of editor scripts. A single application core owns semantic commands, policy evaluation, validation, revisions, and jobs. The visual app, MCP server, CLI, and future remote API are adapters to that core.
+Numberdroid Studio is a local, agent-first authoring product with multiple clients, not a collection of editor scripts. A single application core owns semantic commands, policy evaluation, validation, revisions, and jobs. The visual app, MCP server, CLI, and future remote API are adapters to that core. [VISION.md](VISION.md) is the binding product direction.
 
 The architecture protects three future moves:
 
 1. extraction from the Numberdroid repository into a standalone application;
 2. replacement or addition of presentation and transport layers without changing domain behavior;
-3. extension from static assets to animation and from one designer to collaborative review without changing stable identities.
+3. extension from image-derived assets to complete requirements-driven levels and from one project adapter to proven additional adapters without changing stable identities;
+4. concurrent work by multiple task-scoped agents under one authoritative writer.
 
 ## 2. Context and dependency boundary
 
@@ -39,6 +40,36 @@ numberdroid-adapter -> versioned Studio ports + Numberdroid contracts
 
 The domain and application packages MUST NOT import any UI framework, MCP SDK, database driver, image library, Git provider, or Numberdroid module.
 
+### 2.1 Three product layers
+
+1. **Universal core:** project, artifact/CAS, processing recipe, asset, job,
+   revision, finding, task branch, review, candidate manifest, backup/recovery.
+2. **Optional reusable authoring modules:** bounded 2D processing, atlas/sprite
+   sheets, room/grid/level graph, actors/routes, typed variables and trigger/action
+   logic, animation, and dialogue/text. A project loads only advertised modules.
+3. **Project/engine adapters:** Numberdroid first; later a concrete Godot, Unreal,
+   or other project bridge. An adapter declares capabilities, maps candidate data,
+   and invokes the target's canonical validation/compiler/import boundary.
+
+These are dependency boundaries, not permission to create empty package facades.
+A layer/package is introduced only with a real contract, implementation, fixture,
+and boundary test.
+
+### 2.2 Four stable interfaces
+
+| Interface | Responsibility |
+| --- | --- |
+| `ProjectCapabilityManifest` | Versioned fail-closed declaration of coordinate model, asset kinds, enabled modules, actor/logic vocabulary, limits, validators/compiler operations, output formats, and adapter extension schemas. |
+| Authoring Commands/Queries | Transport- and UI-independent semantic operations for every ordinary authoring step, with typed DTOs, validation, revisions, idempotency, dry-run, and conflicts. |
+| `CandidateManifest` | Immutable exact closure of requirements, semantic revisions, artifacts/recipes, adapter/compiler versions, logical outputs, findings, provenance, and hashes. It grants no materialization authority. |
+| `EngineBridge` | Narrow one-way candidate validation/import/materialization port. It never merges authoring state with engine-editor state implicitly. |
+
+Initial Godot integration may use supported imports, documented resources, and an
+editor plugin for image resources, TileSet/TileMapLayer data, and scenes. Initial
+Unreal integration requires a supported editor/import plugin and MUST NOT write
+`.uasset` files directly. Godot/Unreal remain authoritative for runtime rendering,
+scripting, debugging, and playtesting. Full round-trip synchronization is deferred.
+
 ## 3. Package topology
 
 Checkpoint 1 is accepted. Its actual transitional topology is:
@@ -56,7 +87,7 @@ packages/numberdroid-adapter  pure deterministic CP5 snapshot/candidate mapping
 fixtures + scripts       deterministic evidence and verification
 ```
 
-SQLite/content-addressed persistence and the official MCP transport are the accepted operational path. Checkpoints 2C, 3, and 4 are accepted: they add slice-bound V2 assets/schema v9, immutable room authoring/schema v10, and isolated task review/schema v11 without changing the inward dependency boundary. The integrated but still unaccepted Checkpoint 4.5 source adds list-first task and guided-room projections plus schema-v12 normalized sparse room-shape cells. Rectangular portable rooms remain schema v2; a project uses schema v3 only when a room version contains `VOID` or `BLOCKED` cells. Shape replacement is owner-only and absent from MCP discovery, so the accepted 19-tool/four-template and task-bound 30-tool/five-template surfaces remain unchanged. The integrated candidate-only Checkpoint 5 foundation implements the pure `numberdroid-adapter` and a fixed repository-side canonical compiler bridge, but not candidate persistence/approval or any later-stage authority. Source integration into `main` does not itself accept either checkpoint or authorize candidate output. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service/worker process is an accepted transitional packaging choice, not the final standalone packaging model.
+SQLite/content-addressed persistence and the official MCP transport are the accepted operational path. Checkpoints 2C, 3, and 4 are accepted: they add slice-bound V2 assets/schema v9, immutable room authoring/schema v10, and isolated task review/schema v11 without changing the inward dependency boundary. The integrated but still unaccepted Checkpoint 4.5 source adds list-first task and guided-room projections plus schema-v12 normalized sparse room-shape cells. Rectangular portable rooms remain schema v2; a project uses schema v3 only when a room version contains `VOID` or `BLOCKED` cells. Shape replacement is owner-only and absent from the accepted discovery surfaces, so the accepted 19-tool/four-template and task-bound 30-tool/five-template contracts remain unchanged. That is a historical compatibility fact, not the forward agent-first target: a separately versioned authoring surface must later expose ordinary shape authoring on isolated task branches without granting owner review/merge/release authority. The integrated candidate-only Checkpoint 5 foundation implements the pure `numberdroid-adapter` and a fixed repository-side canonical compiler bridge, but not candidate persistence/approval or any later-stage authority. Source integration into `main` does not itself accept either checkpoint or authorize candidate output. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service/worker process is an accepted transitional packaging choice, not the final standalone packaging model.
 
 The sections below describe the target topology as checkpoints introduce it. A named target package is not implemented merely because it appears in this document. In particular, `apps/studio-ui` and `apps/studio-service` do not yet exist as standalone working packages; their current responsibilities remain in the combined server. `packages/numberdroid-adapter` now exists as a pure candidate builder, while persistence, UI review/approval, materialization, and publication remain deferred.
 
@@ -82,7 +113,7 @@ SQLite repositories, migrations, transaction implementation, event/revision stor
 
 ### `packages/preview`
 
-Checkpoint 2B implements the deterministic exact-PNG crop kernel in this package. It validates and decodes bounded non-interlaced 8-bit RGB/RGBA PNG input, verifies chunk order and CRC, rejects unsupported transparency chunks, crops exact source pixels, and emits a processor-owned canonical RGBA PNG whose digest and byte size are deterministic. It consumes artifacts and semantic models through ports; it does not decide semantics from pixels. Thumbnailing and compositing remain later work.
+Checkpoint 2B implements the deterministic exact-PNG crop kernel in this package. It validates and decodes bounded non-interlaced 8-bit RGB/RGBA PNG input, verifies chunk order and CRC, rejects unsupported transparency chunks, crops exact source pixels, and emits a processor-owned canonical RGBA PNG whose digest and byte size are deterministic. It consumes artifacts and semantic models through ports; it does not decide semantics from pixels. The forward image module adds versioned `ProcessingRecipe` operations such as trim/padding, canvas/size normalization, deterministic resize, safely specified alpha/background cleanup, and atlas/sprite composition only as concrete Numberdroid needs justify them. No recipe overwrites its source or prior output.
 
 The preview projection also owns deterministic Asset Library card states: resolved image, processing, missing artifact, unsupported media, and load failure. Each state has a stable kind-aware fallback descriptor so the UI never has to infer meaning from a failed image element or expose a filesystem path.
 
@@ -92,9 +123,23 @@ Apps and transport infrastructure host configured generation-provider adapters b
 
 Protocol transport plus semantic tool/resource mapping. The stdio bridge does not open SQLite or the CAS directly. It registers a short-lived pending host over a raw loopback pairing socket that browsers cannot speak, starts MCP discovery without authority, and receives a server-minted opaque `HostBinding` only after matching human approval in the Header panel. It then calls the running one-writer Studio service over the private loopback bridge. Only a digest of the credential is stored. On every call the service resolves the immutable binding, reloads its current grant, and injects actor/task/branch/grant execution context before application dispatch. Protocol connection state, client envelope metadata, and tool arguments are not authorization. This package contains no authoring rules.
 
+### Target authoring modules and adapter contracts
+
+Future physical packages may separate image, atlas/sprite, level graph,
+actor/route, logic, animation, or dialogue concerns only when a checkpoint needs
+them. Their schemas depend inward on domain/application ports and never import a
+game adapter. Adapter-contract code owns `ProjectCapabilityManifest`, generic
+candidate DTOs, and the `EngineBridge` port; it contains no Numberdroid path,
+registry, encounter, or compiler import.
+
+An authoring module contributes semantic commands, queries, validators, resource
+projections, and capability schema as one tested unit. UI panels and MCP mappings
+are adapters to those commands, not the module's authority. Unknown or disabled
+module data fails closed.
+
 ### `packages/numberdroid-adapter`
 
-The only package allowed to know Numberdroid repository layout, Level Spec, compiler invocation, runtime asset locations, naming conventions, source-art paths, and exact-fit/tileset export forms. It converts an immutable Studio export snapshot into a deterministic candidate and imports compiler findings into the Studio finding model.
+The only package allowed to know Numberdroid repository layout, Level Spec, compiler invocation, runtime asset locations, naming conventions, source-art paths, encounter vocabulary, and exact-fit/tileset export forms. It supplies the first `ProjectCapabilityManifest`, converts an immutable Studio export snapshot into a deterministic candidate, and imports compiler findings into the Studio finding model.
 
 The first Checkpoint 5 slice keeps this package free of filesystem, process,
 network, Git, and GitHub authority. It emits virtual JSON files and CAS-referenced
@@ -121,18 +166,26 @@ Checkpoint 1B completed that infrastructure substitution behind the existing app
 | `Project` | Root scope for content, configuration, branches, and adapter binding. Stable ID is independent of folder name. |
 | `Artifact` | Immutable binary or text blob in CAS with digest, media type, size, dimensions where applicable, and lineage. URI is digest-based. |
 | `GenerationRecord` | Prompt/seed/provider/model/options/reference provenance. References input/output artifacts; approval is separate. |
+| `ProcessingRecipe` | Versioned typed, bounded, reproducible transformation graph from immutable input artifacts to immutable derived artifacts. Processor identity and parameters are pinned. |
 | `AtlasDefinition` | Source artifact plus explicit integer extraction rectangles and slice settings. Rectangles are authoritative; a grid is only a proposal convenience. |
 | `Asset` | Stable semantic identity for a `surface`, `prop`, or `item`, with versions of imagery and metadata. Export names are aliases, not identity. |
-| `AnimationClip` | Reserved V1 identity; V2 ordered frames, timing, looping, anchors, and events attached to an asset. |
+| `AnimationClip` | Ordered frames, timing, looping, anchors, and events attached to an asset or project-supported actor visual without changing the parent identity. |
 | `RoomArchetype` | Reusable room/hallway intent, dimensions or ranges, connector requirements, allowed vocabulary, and governing rules. |
 | `RoomVariant` | Concrete layers and placements that reference assets by ID and record a validation/finalization lifecycle. |
-| `LevelGraph` | Stable room/hallway nodes, connectors, relationships, and layout references. Enemy route data is intentionally absent. |
+| `LevelRequirementSet` | Versioned typed intent, constraints, priorities, ambiguities/assumptions, acceptance criteria, and traceability IDs used to build and validate a level. |
+| `LevelGraph` | Stable spaces, connections, zones/paths, placements, actors, routes, pickups, and logic bindings. Core uses capability-level concepts rather than game-specific encounter types. |
+| `ActorArchetypeRef` / `ActorInstance` | Adapter-owned runtime behavior/archetype reference plus a level-local instance, placement, parameters, route, visual, and logic bindings. |
+| `Route` / `Pickup` | Stable level-local path and item/drop/collection declarations with typed references and adapter validation. |
+| `VariableDefinition` | Typed level-local state with stable identity, initial value, bounds/domain, and explicit adapter mapping. |
+| `LogicGraph` | Versioned triggers, conditions, ordered actions, and dialogue/text references; semantic declarations rather than executable code or UI coordinates. |
+| `ProjectCapabilityManifest` | Versioned adapter declaration that determines which modules, vocabularies, limits, validations, and output operations are valid for a project. |
 | `ValidationFinding` | Stable rule result with severity, target/location, message, disposition, validator version, and evidence. |
 | `Revision` | Immutable DAG node containing parents, command/event range, actor, timestamp, summary, and projection/content hashes. |
 | `AgentTask` | Human-defined objective and bounded branch context; links grants, jobs, activities, budget use, and result disposition. |
 | `Grant` | Human-minted authority scoped by actor/task/project/branch/capabilities/objects/budget/expiry. Immutable; revocation is a new event. |
 | `Job` | Durable long operation with input snapshot, state, progress, events, cancellation, attempts, and result artifacts. |
-| `ExportSnapshot` | Immutable closure of exact project revisions, referenced artifacts, adapter/version/options, findings, and manifest hash. |
+| `ExportSnapshot` | Immutable input closure of exact project revisions, requirements, referenced artifacts/recipes, adapter/version/options, and findings. |
+| `CandidateManifest` | Immutable content-addressed output closure containing logical files/data, input traceability, compiler/adapter versions, validation evidence, and hashes; it has no implicit materialization or publication authority. |
 
 Stable IDs MUST not encode a mutable display name, file path, atlas coordinate, room position, or revision. Human-readable slugs and adapter export keys are versioned aliases with uniqueness rules.
 
@@ -231,6 +284,27 @@ Application command flow:
 An exception before commit changes nothing. A repeated idempotency key with the identical payload returns the original result; reuse with a different payload is an error.
 
 Queries are side-effect-free and read versioned projections. Strongly consistent reads can request a revision; UI list views may use current projections but MUST display their revision.
+
+### Agent-first command completeness
+
+Every ordinary authoring mutation begins as a semantic application command.
+Human UI controls and MCP tools map to that command; neither may implement a
+second authoring path. Capability discovery determines whether the command is
+valid for the selected project. A later authoring-v2 MCP gate may add commands
+and resources, but it must pin new schemas and exact discovery counts rather than
+mutate the accepted 19/4 and task-bound 30/5 contracts silently.
+
+The UI is primarily the visual control, review, and correction adapter. Agents
+read resources and invoke semantic commands; they do not click UI controls. The
+human-exclusive boundary is authorization, owner review decision, task merge,
+recovered-workspace activation, repository/engine materialization, and
+publication. Ordinary drafting, processing, placement, actor/route/logic editing,
+validation, candidate build, and review submission are agent-operable under the
+corresponding narrow task capabilities.
+
+Multiple agents share immutable CAS artifacts but write mutable semantics only
+through isolated task branches. Dependencies are explicit; branch/apply/merge
+uses compare-and-swap and semantic conflict keys under the single writer.
 
 ## 7. Persistence
 
@@ -345,21 +419,26 @@ Validation layers:
 
 Pixel/image analysis produces suggestions and quality findings, not authoritative semantic state. Full compiler validation is run on every accepted edit when the existing Numberdroid authoring contract requires it; performance optimization may cache inputs but MUST not weaken the result.
 
-## 11. Planned deterministic export boundary
+## 11. Candidate and engine-bridge boundary
 
-The Numberdroid adapter and its golden fixtures are not implemented until Checkpoint 5. Its target flow begins when the application freezes an `ExportSnapshot`; the adapter then:
+The integrated Checkpoint 5 candidate implements the first pure Numberdroid
+snapshot/adapter/compiler slice. It does not yet persist or approve a candidate
+and it does not materialize, commit, or publish. The target flow begins when the
+application freezes an `ExportSnapshot`; the adapter then:
 
 1. verifies required finalized assets/rooms and artifact integrity;
 2. maps stable Studio identities to deterministic Numberdroid semantic IDs and paths;
-3. materializes a candidate in a temporary or dedicated export directory;
+3. creates virtual logical outputs and CAS copy descriptors for an immutable
+   `CandidateManifest` without selecting or writing a repository destination;
 4. invokes adapter and Level Compiler validation;
 5. writes a manifest containing every logical path, digest, provenance reference, adapter version, and validation result;
-6. exposes the candidate for visual/user verification;
-7. only after a separate authorized command, materializes or publishes it to the repository.
+6. exposes the candidate for visual/user verification and task review;
+7. only after separate human-authorized commands, passes the verified manifest to
+   an `EngineBridge` for materialization, commit, or publication.
 
 The adapter must preserve Numberdroid rules: runtime files under the runtime public tree, authoring/provenance under the source-art tree, semantic metadata rather than pixel-inferred topology, exact-fit macro dimensions, stable IDs/subseeds, and canonical compiler validation.
 
-GitHub integration receives files from a verified export manifest. It is downstream of authoring and cannot mutate Studio state except to record publication evidence.
+GitHub integration receives files from a verified candidate manifest. It is downstream of authoring and cannot mutate Studio state except to record publication evidence. A future Godot or Unreal bridge follows the same one-way separation; engine-native round-trip ownership is not assumed.
 
 ## 12. Security and trust boundaries
 
@@ -395,7 +474,7 @@ Extraction should require changing workspace/package publishing configuration, C
 
 ## 14. Architecture acceptance tests
 
-At each checkpoint, reviewers MUST demonstrate the checks that correspond to implemented capabilities. Accepted Checkpoints 1–4 cover package isolation, UI/MCP equivalence, SQLite/CAS recovery, source/atlas jobs, exact V2 asset review, immutable room lifecycle, isolated tasks, semantic conflicts, and atomic merge/revert. The Checkpoint 4.5 candidate additionally proves list/create/detail task truth, useful exact-slice preview gating, one persistent room canvas across toolbox/options/dock state, deterministic `VOID`/`BLOCKED` validation, owner-only HTTP authority, schema-v12 fault recovery/integrity, schema-v2 rectangle compatibility, schema-v3 masked-room canonical round trips, and protected-width real-browser evidence. User acceptance remains separate. Numberdroid export remains a later-checkpoint target.
+At each checkpoint, reviewers MUST demonstrate the checks that correspond to implemented capabilities. Accepted Checkpoints 1–4 cover package isolation, UI/MCP equivalence, SQLite/CAS recovery, source/atlas jobs, exact V2 asset review, immutable room lifecycle, isolated tasks, semantic conflicts, and atomic merge/revert. The Checkpoint 4.5 candidate additionally proves list/create/detail task truth, useful exact-slice preview gating, one persistent room canvas across toolbox/options/dock state, deterministic `VOID`/`BLOCKED` validation, owner-only HTTP authority, schema-v12 fault recovery/integrity, schema-v2 rectangle compatibility, schema-v3 masked-room canonical round trips, and protected-width real-browser evidence. User acceptance remains separate. The Checkpoint 5 adapter/compiler slice is candidate-only and does not complete the agent-first Numberdroid path.
 
 - a forbidden import test prevents core packages from referencing UI/MCP/SQLite/Numberdroid;
 - the accepted 1A visual/demo baseline remains reproducible, and approved additive UI changes do not alter its command outcomes;
@@ -423,4 +502,7 @@ At each checkpoint, reviewers MUST demonstrate the checks that correspond to imp
 - concurrent branch appends use CAS, overlapping main/branch semantic keys produce explicit conflicts, and a fault cannot split main revisions from task/review/merge disposition;
 - official non-task discovery remains exactly 19 tools/four templates while a real matching task binding exposes exactly 30 tools/five templates without owner lifecycle/authority/release operations;
 - once Checkpoint 5 implements the adapter, exports match golden manifests for stable fixtures;
+- the forward interface gate proves that universal core and reusable authoring modules import no Numberdroid/Godot/Unreal code, an unsupported capability fails closed, and the Numberdroid capability fixture describes the canonical compiler boundary;
+- a complete headless clean-agent Numberdroid fixture can eventually execute image-to-asset and requirements-to-candidate authoring through MCP, ending at **Waiting for your review** without owner review, merge, materialization, or publication authority;
+- after that Numberdroid proof, one thin Godot 2D/Tower Defense fixture verifies that core identities, commands, recipes, logic graph, and candidate manifest do not depend on Numberdroid-specific schemas;
 - `AUTO_ACCEPTED_BY_POLICY` never appears as `USER_APPROVED`.

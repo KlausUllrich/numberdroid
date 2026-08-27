@@ -1,8 +1,8 @@
 # Numberdroid Studio
 
-Numberdroid Studio is the local-first visual authoring environment for Numberdroid tiles, props, items, rooms, hallways, and level composition. It is designed for equal use by people and agents: the visual application and the MCP server execute the same semantic commands through one application core.
+Numberdroid Studio is the local-first, agent-first authoring and production system for turning visual sources and level requirements into inspectable, validated game-content candidates. Numberdroid is the first complete target; reusable core and authoring modules may later feed other project or engine adapters. The visual application and MCP server execute the same semantic commands through one application core.
 
-The product lives in this self-contained folder so it can be moved into a standalone repository without moving Numberdroid runtime code with it. Numberdroid-specific imports and exports belong only in `packages/numberdroid-adapter`.
+The product lives in this self-contained folder so it can be moved into a standalone repository without moving Numberdroid runtime code with it. Numberdroid-specific imports and exports belong only in `packages/numberdroid-adapter`. The binding product direction is [Product Vision](docs/VISION.md); historical checkpoint contracts remain compatibility and regression records, not the final scope ceiling.
 
 ## Status
 
@@ -17,7 +17,7 @@ Acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later com
 | Product contract | Checkpoints 1–4 user-accepted; Checkpoint 4.5 implemented candidate awaiting its own user gate |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Accepted source/asset/room/task foundations plus candidate list-first tasks, useful prop previews, and persistent-canvas rectangle/irregular-room authoring |
-| Agent access | Schema v12 keeps 19 tools/four templates without a task and 30 tools/five templates for a matching task branch; shape/lifecycle/authority/release remain human-only |
+| Agent access | Accepted schema-v12 compatibility keeps 19 tools/four templates without a task and 30 tools/five templates for a matching task branch. The target requires MCP parity for all ordinary authoring through a separately versioned, feature-gated surface; authority, owner review, merge, materialization, and publication remain human-only. |
 | Persistence | SQLite schema v12 WAL ledger with normalized immutable shape cells; sanitized bundles use schema v1/v2 and v3 only for masked rooms |
 | Numberdroid export | Dependent CP5 candidate-only snapshot/adapter/compiler foundation; no persistence/approval UI, materialization, commit, or publishing authority yet |
 
@@ -34,7 +34,7 @@ npm run evidence:verify
 npm run dev
 ```
 
-Open `http://127.0.0.1:4317`, choose **Create / load demo**, then use **Sources** for intake/cutting and **Assets** for exact-slice V2 review. In **Rooms**, create an archetype and DRAFT room or hallway, edit intent/connectors, select an exact-version asset, and place it on the coordinate grid. In **Agent tasks**, compose a bounded isolated branch, inspect its scope/budget/timeline, pause/resume/cancel it, and perform semantic review/merge/revert. Validation, warning disposition, finalization, proposal decision/apply, merge, and revert remain explicit owner controls. `Propose in draft` activates only for an actual matching task branch. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is authoritative, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
+Open `http://127.0.0.1:4317`, choose **Create / load demo**, then use **Sources** for intake/cutting and **Assets** for exact-slice V2 review. In **Rooms**, create an archetype and DRAFT room or hallway, edit intent/connectors, select an exact-version asset, and place it on the coordinate grid. In **Agent tasks**, compose a scoped isolated branch, inspect its scope/budget/timeline, pause/resume/cancel it, and perform semantic review/merge/revert. Validation, warning disposition, finalization, proposal decision/apply, merge, and revert remain explicit owner controls in the currently accepted surface. `Propose in draft` activates only for an actual matching task branch. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is authoritative, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
 
 Checkpoint 2A source intake remains synchronous and bounded to 16 MiB and 4096×4096. It calls no provider and serves the verified original CAS bytes. Checkpoint 2B adds local, deterministic PNG cutting only; WebP remains valid for intake/original preview but cannot be cut by the 2B processor. Provider selection, egress, credentials, cost policy, and reproducibility expectations require a later explicit decision.
 
@@ -92,13 +92,15 @@ Checkpoint 1B adds two approved visual requirements without authorizing a broade
 
 ## Product principles
 
-1. **Visual and inspectable.** A user can see available material, every agent action, validation findings, and the exact revision being changed.
-2. **Semantic, not pixel-inferred.** Connectivity, collision, placement, role, and traversal semantics are explicit metadata. Image analysis may suggest values but cannot silently decide them.
-3. **One command core.** UI, MCP, CLI, and future automation call identical commands and receive identical validation.
-4. **Local first.** Work-in-progress lives in a local database and content store. GitHub is an explicit, deterministic publish boundary, not an editing transport.
-5. **Reversible by default.** Mutations are attributed, revisioned, idempotent where required, and recoverable through a revision DAG.
-6. **Least authority for agents.** A human creates bounded grants. Reading, editing, finalizing, and publishing are distinct capabilities.
-7. **Exportable product.** No package except the Numberdroid adapter may depend on Numberdroid repository internals.
+1. **Agent-first.** Every ordinary authoring action is a semantic command available to an appropriately authorized agent; agents do not automate UI gestures.
+2. **Visual and inspectable.** A user can see available material, every agent action, validation findings, requirement coverage, and the exact revision being changed.
+3. **Semantic, not pixel-inferred.** Connectivity, collision, placement, role, and traversal semantics are explicit metadata. Image analysis may suggest values but cannot silently decide them.
+4. **One command core.** UI, MCP, CLI, and future automation call identical commands and receive identical validation.
+5. **Numberdroid first, interfaces reusable.** The complete Numberdroid path proves abstractions before another adapter is built.
+6. **Local first.** Work-in-progress lives in a local database and content store. GitHub is an explicit, deterministic publish boundary, not an editing transport.
+7. **Reversible by default.** Mutations are attributed, revisioned, idempotent where required, and recoverable through task branches and immutable history.
+8. **Least authority for agents.** A human creates scoped grants. Authoring, review, merge, materialization, and publishing are distinct capabilities.
+9. **Exportable product.** No core or reusable authoring module may depend on Numberdroid repository internals.
 
 ## Accepted Checkpoint 1 implementation layout
 
@@ -135,7 +137,9 @@ tools/numberdroid-studio/
 │   ├── persistence/             # SQLite and content-addressed storage
 │   ├── preview/                 # deterministic visual projections
 │   ├── mcp-server/              # MCP tools/resources over application APIs
-│   └── numberdroid-adapter/      # the only Numberdroid-aware package
+│   ├── authoring-modules/       # optional image/atlas/level/actor/logic modules
+│   ├── adapter-contracts/       # capability, candidate, and engine-bridge ports
+│   └── numberdroid-adapter/     # the only Numberdroid-aware package
 ├── fixtures/                    # shared deterministic test projects
 └── docs/                        # product and architecture contract
 ```
@@ -144,12 +148,13 @@ This is a target topology, not a statement that every listed folder exists today
 
 ## Scope
 
-V1 covers source provenance, atlas definition and cutting, visual asset cataloguing, surface/prop/item metadata, one-room and hallway authoring, set dressing, validation, revision history, agent operation, and a deterministic Numberdroid export candidate.
+The first complete product slice covers source provenance, reproducible non-destructive image processing, atlas/sprite extraction, visual asset cataloguing, semantic asset metadata, requirements-driven Numberdroid level authoring, layout, actors, routes, pickups, typed level variables, triggers/actions, validation, revision history, parallel agent tasks, and an immutable Numberdroid candidate.
 
-Enemy/NPC design, enemy routes, NPC animation, combat encounter authoring, and final production publishing are not part of V1. Tile and prop animations are reserved in the V1 identity model and become authorable in V2.
+Studio may configure level-local actors and logic by reference to runtime systems. It does not implement the game's renderer, physics, combat, navigation, economy, or general AI. Repository materialization and production publishing remain separate human-authorized operations. A thin Godot 2D/Tower Defense proof follows only after the Numberdroid vertical path works; Unreal support requires a concrete later project and supported editor integration.
 
 ## Documentation
 
+- [Product vision](docs/VISION.md)
 - [Requirements](docs/REQUIREMENTS.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [MCP contract](docs/MCP_CONTRACT.md)
