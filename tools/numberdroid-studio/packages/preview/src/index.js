@@ -2,19 +2,27 @@ import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import {
   ATLAS_PROCESSOR_ID,
+  MAX_ATLAS_INPUT_BYTES,
   MAX_ATLAS_OUTPUT_BYTES,
   MAX_ATLAS_OUTPUT_PIXELS,
+  MAX_ATLAS_SOURCE_DIMENSION,
   canonicalRgbaPngByteSize,
   proposeRegularGrid,
   validateAtlasRectangles,
 } from '../../domain/src/atlas-definition.js';
 import { invariant } from '../../domain/src/errors.js';
+import {
+  processingRecipeSha256,
+  validateProcessingRecipe,
+} from '../../domain/src/processing-recipe.js';
 
 export {
   ATLAS_PROCESSOR_ID,
+  MAX_ATLAS_INPUT_BYTES,
   MAX_ATLAS_OUTPUT_BYTES,
   MAX_ATLAS_OUTPUT_PIXELS,
   MAX_ATLAS_RECTANGLES,
+  MAX_ATLAS_SOURCE_DIMENSION,
   TRANSPARENT_PADDING_POLICY,
   canonicalRgbaPngByteSize,
   proposeRegularGrid,
@@ -22,7 +30,6 @@ export {
 } from '../../domain/src/atlas-definition.js';
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const DEFAULT_MAX_INPUT_BYTES = 16 * 1024 * 1024;
 function safeInteger(value, field, { min = 0, max = Number.MAX_SAFE_INTEGER } = {}) {
   invariant(Number.isSafeInteger(value) && value >= min && value <= max, 'ATLAS_RECT_INVALID', `${field} must be a safe integer from ${min} to ${max}.`, { field });
   return value;
@@ -121,9 +128,9 @@ function unfilterScanlines(raw, width, height, bytesPerPixel) {
 }
 
 export function decodeSupportedPng(bytes, {
-  maxWidth = 4096,
-  maxHeight = 4096,
-  maxInputBytes = DEFAULT_MAX_INPUT_BYTES,
+  maxWidth = MAX_ATLAS_SOURCE_DIMENSION,
+  maxHeight = MAX_ATLAS_SOURCE_DIMENSION,
+  maxInputBytes = MAX_ATLAS_INPUT_BYTES,
 } = {}) {
   invariant(Buffer.isBuffer(bytes) || bytes instanceof Uint8Array, 'ATLAS_PNG_INVALID', 'PNG input must be a byte buffer.');
   safeInteger(maxInputBytes, 'maxInputBytes', { min: 33 });
@@ -224,6 +231,16 @@ export function cropSupportedPng(bytes, rectangles, { expectedSource } = {}) {
   invariant(typeof expectedSource.digest === 'string' && /^[a-f0-9]{64}$/.test(expectedSource.digest), 'ATLAS_SOURCE_REQUIRED', 'Expected source digest must be lowercase SHA-256 hex.');
   safeInteger(expectedSource.width, 'expectedSource.width', { min: 1 });
   safeInteger(expectedSource.height, 'expectedSource.height', { min: 1 });
+  if (expectedSource.byteSize !== undefined) {
+    safeInteger(expectedSource.byteSize, 'expectedSource.byteSize', {
+      min: 33,
+      max: MAX_ATLAS_INPUT_BYTES,
+    });
+    invariant(bytes.length === expectedSource.byteSize, 'ATLAS_SOURCE_MISMATCH', 'Resolved source byte size does not match the approved source descriptor.', {
+      expectedByteSize: expectedSource.byteSize,
+      actualByteSize: bytes.length,
+    });
+  }
   const sourceDigest = createHash('sha256').update(bytes).digest('hex');
   invariant(sourceDigest === expectedSource.digest, 'ATLAS_SOURCE_MISMATCH', 'Resolved source bytes do not match the approved source digest.', { expectedDigest: expectedSource.digest, actualDigest: sourceDigest });
   const source = decodeSupportedPng(bytes);
@@ -266,5 +283,45 @@ export function cropSupportedPng(bytes, rectangles, { expectedSource } = {}) {
       rectangleFingerprint: validated.fingerprint,
     })).digest('hex'),
     outputs,
+  });
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  for (const child of Object.values(value)) deepFreeze(child);
+  return Object.freeze(value);
+}
+
+export function projectExactPngCropProcessingRecipe(value) {
+  const recipe = validateProcessingRecipe(value);
+  const input = recipe.inputs[0];
+  const operation = recipe.operations[0];
+  return deepFreeze({
+    schemaVersion: 1,
+    recipeId: recipe.recipeId,
+    recipeVersion: recipe.recipeVersion,
+    recipeFingerprint: processingRecipeSha256(recipe),
+    processorId: operation.processorId,
+    source: {
+      inputId: input.inputId,
+      artifactUri: input.artifactUri,
+      digest: input.sha256,
+      mediaType: input.mediaType,
+      byteSize: input.byteSize,
+      width: input.width,
+      height: input.height,
+    },
+    rectangles: operation.parameters.rectangles.map((rectangle) => ({
+      rectangleId: rectangle.outputId,
+      x: rectangle.x,
+      y: rectangle.y,
+      width: rectangle.width,
+      height: rectangle.height,
+      included: true,
+      pivot: null,
+      transparentPaddingPolicy: rectangle.transparentPaddingPolicy,
+      replacesSliceId: null,
+      expectedSliceVersion: null,
+    })),
   });
 }

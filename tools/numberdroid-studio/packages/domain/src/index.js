@@ -1,15 +1,27 @@
 export { COMMAND_DEFINITIONS, KNOWN_GRANT_SCOPES, getCommandDefinition, listCommandDefinitions } from './command-catalog.js';
 export {
   ATLAS_PROCESSOR_ID,
+  MAX_ATLAS_INPUT_BYTES,
   MAX_ATLAS_OUTPUT_BYTES,
   MAX_ATLAS_JOB_ATTEMPTS,
   MAX_ATLAS_OUTPUT_PIXELS,
   MAX_ATLAS_RECTANGLES,
+  MAX_ATLAS_SOURCE_DIMENSION,
   TRANSPARENT_PADDING_POLICY,
   canonicalRgbaPngByteSize,
   proposeRegularGrid,
   validateAtlasRectangles,
 } from './atlas-definition.js';
+export {
+  EXACT_PNG_CROP_OPERATION_KIND,
+  PROCESSING_RECIPE_KIND,
+  PROCESSING_RECIPE_OPERATION_KINDS,
+  PROCESSING_RECIPE_SCHEMA_VERSION,
+  canonicalProcessingRecipeJson,
+  createExactPngCropProcessingRecipe,
+  processingRecipeSha256,
+  validateProcessingRecipe,
+} from './processing-recipe.js';
 export {
   ASSET_KINDS,
   ASSET_LIFECYCLES,
