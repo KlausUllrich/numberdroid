@@ -367,6 +367,21 @@ UI surface, semantic asset adoption, review, materialization, repository write,
 or publication authority. Exact evidence and remaining scope are recorded in
 [`A1_0_STATUS.md`](A1_0_STATUS.md).
 
+Implementation note (2026-08-27, **A1.1 implemented but not user-accepted**):
+the pure schema-v1 `ProcessingResult` contract now records an immutable result
+descriptor for A1.0's one exact-PNG crop operation. It closes the recomputed recipe
+fingerprint, processor, complete input descriptor, ordered derived output IDs,
+content addresses, dimensions, canonical byte lengths and digests, plus bounded
+structured findings. Its trusted compatibility builder snapshots the pinned
+source bytes and executes the unchanged accepted crop kernel; the four Family
+Hygiene outputs remain byte-identical. A result URI does not prove CAS presence
+or `LIVE` state, and its fingerprint is a descriptor identity rather than an
+attestation. A1.1 adds no persistence, job/command integration, semantic asset
+adoption, replacement/review, capability check, MCP/HTTP/UI surface, new pixel
+operation, materialization, repository write, or publication authority. Exact
+evidence and remaining scope are recorded in
+[`A1_1_STATUS.md`](A1_1_STATUS.md).
+
 ### A2 — Agent parity and concurrent production
 
 - every ordinary source/processing/asset/level authoring command available through

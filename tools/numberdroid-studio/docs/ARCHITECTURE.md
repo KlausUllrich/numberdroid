@@ -42,7 +42,7 @@ The domain and application packages MUST NOT import any UI framework, MCP SDK, d
 
 ### 2.1 Three product layers
 
-1. **Universal core:** project, artifact/CAS, processing recipe, asset, job,
+1. **Universal core:** project, artifact/CAS, processing recipe/result, asset, job,
    revision, finding, task branch, review, candidate manifest, backup/recovery.
 2. **Optional reusable authoring modules:** bounded 2D processing, atlas/sprite
    sheets, room/grid/level graph, actors/routes, typed variables and trigger/action
@@ -113,7 +113,7 @@ SQLite repositories, migrations, transaction implementation, event/revision stor
 
 ### `packages/preview`
 
-Checkpoint 2B implements the deterministic exact-PNG crop kernel in this package. It validates and decodes bounded non-interlaced 8-bit RGB/RGBA PNG input, verifies chunk order and CRC, rejects unsupported transparency chunks, crops exact source pixels, and emits a processor-owned canonical RGBA PNG whose digest and byte size are deterministic. It consumes artifacts and semantic models through ports; it does not decide semantics from pixels. The A1.0 implementation candidate adds only a projection from the pure schema-v1 `ProcessingRecipe` contract to this unchanged kernel. That schema accepts one immutable PNG input and one exact-crop operation, and deliberately excludes atlas pivot/replacement semantics and all execution or owner authority. Derived-result records, findings, persistence, jobs, adoption, review, and additional operations remain planned. The forward image module may add trim/padding, canvas/size normalization, deterministic resize, safely specified alpha/background cleanup, and atlas/sprite composition only as concrete Numberdroid needs justify them. No recipe overwrites its source or prior output.
+Checkpoint 2B implements the deterministic exact-PNG crop kernel in this package. It validates and decodes bounded non-interlaced 8-bit RGB/RGBA PNG input, verifies chunk order and CRC, rejects unsupported transparency chunks, crops exact source pixels, and emits a processor-owned canonical RGBA PNG whose digest and byte size are deterministic. It consumes artifacts and semantic models through ports; it does not decide semantics from pixels. The A1.0 implementation candidate adds a projection from the pure schema-v1 `ProcessingRecipe` contract to this unchanged kernel. That schema accepts one immutable PNG input and one exact-crop operation, and deliberately excludes atlas pivot/replacement semantics and all execution or owner authority. A1.1 adds the pure schema-v1 `ProcessingResult` contract and a source-bytes exact-crop builder. It pins and cross-validates the recipe fingerprint, operation and processor identity, immutable input/output artifact descriptors, output order, dimensions, byte lengths and digests, and normalized structured findings. Content-addressed result URIs are descriptors, not proof that an object is present and `LIVE` in the CAS. Persisted result aggregates, durable execution/jobs, adoption, review/authority, and additional operations remain planned. The forward image module may add trim/padding, canvas/size normalization, deterministic resize, safely specified alpha/background cleanup, and atlas/sprite composition only as concrete Numberdroid needs justify them. No recipe overwrites its source or prior output.
 
 The preview projection also owns deterministic Asset Library card states: resolved image, processing, missing artifact, unsupported media, and load failure. Each state has a stable kind-aware fallback descriptor so the UI never has to infer meaning from a failed image element or expose a filesystem path.
 
@@ -167,6 +167,7 @@ Checkpoint 1B completed that infrastructure substitution behind the existing app
 | `Artifact` | Immutable binary or text blob in CAS with digest, media type, size, dimensions where applicable, and lineage. URI is digest-based. |
 | `GenerationRecord` | Prompt/seed/provider/model/options/reference provenance. References input/output artifacts; approval is separate. |
 | `ProcessingRecipe` | Versioned typed, bounded, reproducible transformation graph from immutable input artifacts to immutable derived artifacts. Processor identity and parameters are pinned. |
+| `ProcessingResult` | Immutable result descriptor for one recipe application, pinning the exact recipe fingerprint, processor, operation-level input/output artifact descriptors, and structured findings. Its hash is a descriptor identity and grants no storage, lifecycle, adoption, review, or publication authority. |
 | `AtlasDefinition` | Source artifact plus explicit integer extraction rectangles and slice settings. Rectangles are authoritative; a grid is only a proposal convenience. |
 | `Asset` | Stable semantic identity for a `surface`, `prop`, or `item`, with versions of imagery and metadata. Export names are aliases, not identity. |
 | `AnimationClip` | Ordered frames, timing, looping, anchors, and events attached to an asset or project-supported actor visual without changing the parent identity. |
@@ -490,6 +491,7 @@ At each checkpoint, reviewers MUST demonstrate the checks that correspond to imp
 - a source-intake fault cannot claim the intake, charge artifact bytes, or create revision/source/lineage references independently;
 - denied/failed bound-agent mutations append one redacted final Activity record, while an audit-write fault fails the attempted call closed;
 - the exact Family Hygiene rectangles produce four canonical 1,548,341-byte outputs with the pinned digests in `CHECKPOINT_2B_STATUS.md`, and a restart preserves the same slice heads and `APPLIED` job;
+- A1.0/A1.1 contract tests cross-validate the recipe/result closure, recompute the four Family Hygiene outputs from the pinned source bytes, and fail closed on pin, order, digest, metadata, path, sparse-field, or authority drift;
 - an atlas preview fault cannot independently commit its semantic revision, job, budget, initial event, output metadata/reference, progress, applied slice revision, or authorized job-control audit;
 - retry never exceeds three attempts or switches input revision; revoked/expired/cross-task authority cannot claim, publish, cancel, retry, discard, or apply the job;
 - cancellation, failure, discard, recovery, and apply retain exactly the references permitted for their state, and graceful shutdown awaits the active worker before SQLite closes;

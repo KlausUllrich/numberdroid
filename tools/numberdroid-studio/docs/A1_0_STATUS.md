@@ -11,9 +11,10 @@ test success does not accept A1.0 or any later Artist workflow.
 - `packages/domain/src/processing-recipe.js` defines a fail-closed schema-v1
   `studio.processing-recipe` value with canonical JSON and SHA-256
   fingerprinting.
-- Schema v1 deliberately permits one immutable CAS-backed PNG input and one
-  ordered `studio.image.exact-png-crop` operation only. The processor identity is
-  fixed to the accepted `numberdroid-studio.exact-png-crop.v1` implementation.
+- Schema v1 deliberately permits one immutable content-addressed PNG input
+  descriptor and one ordered `studio.image.exact-png-crop` operation only. The
+  processor identity is fixed to the accepted
+  `numberdroid-studio.exact-png-crop.v1` implementation.
 - Input bytes and dimensions use the existing cutter bounds: 16 MiB input,
   4096 px per source dimension, 64 rectangles, 67,108,864 aggregate output
   pixels, and 16 MiB per canonical output.

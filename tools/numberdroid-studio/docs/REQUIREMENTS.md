@@ -85,12 +85,16 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **IMG-007.** Recutting, reprocessing, or replacing an output MUST create a new version or an explicit one-to-one replacement mapping; existing asset versions MUST NOT retarget silently.
 - **IMG-008.** Project capability manifests MAY restrict formats, dimensions, color/alpha rules, frame layouts, or codecs. Unsupported processing MUST fail visibly before candidate creation.
 
-**Implementation status (2026-08-27): A1.0 is implemented but not
-user-accepted.** It covers only the fail-closed `ProcessingRecipe` schema and
-compatibility projection for the already accepted exact-PNG crop processor.
-Output result/digest records, findings, persistence, jobs, adoption/review, and
-the remaining `IMG-002` operations are still planned; this slice does not by
-itself satisfy `IMG-001`–`IMG-008` end to end.
+**Implementation status (2026-08-27): A1.0 and A1.1 are implemented but not
+user-accepted.** A1.0 supplies the fail-closed `ProcessingRecipe` schema and
+projection for the accepted exact-PNG crop processor. A1.1 adds a pure
+fail-closed `ProcessingResult` schema for that same operation, pinning the
+recipe fingerprint, processor identity, content-addressed input/output
+descriptors and digests, plus a bounded structured finding envelope. Its
+source-bytes builder recomputes the crop outputs. It does not prove CAS
+availability or add persistence, durable jobs,
+semantic adoption, review, project capability validation, or the remaining
+`IMG-002` operations; `IMG-001`–`IMG-008` are still not satisfied end to end.
 
 ### 5.3 Atlas Cutter
 

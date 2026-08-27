@@ -114,6 +114,9 @@ test('processing recipe rejects unknown schema, operation, processor, media, fie
   rejectsWithCode((recipe) => { recipe.operations[0].outputMediaType = 'image/webp'; }, 'PROCESSING_RECIPE_MEDIA_UNSUPPORTED');
   rejectsWithCode((recipe) => { recipe.operations[0].inputId = 'input.missing'; }, 'PROCESSING_RECIPE_REFERENCE_UNKNOWN');
   rejectsWithCode((recipe) => {
+    Object.defineProperty(recipe.operations[0], 'approval', { value: 'USER_APPROVED' });
+  }, 'PROCESSING_RECIPE_FIELD_FORBIDDEN');
+  rejectsWithCode((recipe) => {
     recipe.operations[0].parameters.rectangles[0].transparentPaddingPolicy = 'trim-alpha';
   }, 'PROCESSING_RECIPE_PARAMETER_UNSUPPORTED');
 });
@@ -121,6 +124,14 @@ test('processing recipe rejects unknown schema, operation, processor, media, fie
 test('processing recipe keeps source, graph, and exact-crop work inside audited bounds', () => {
   rejectsWithCode((recipe) => { recipe.inputs.push(structuredClone(recipe.inputs[0])); }, 'PROCESSING_RECIPE_LIMIT');
   rejectsWithCode((recipe) => { recipe.operations.push(structuredClone(recipe.operations[0])); }, 'PROCESSING_RECIPE_LIMIT');
+  rejectsWithCode((recipe) => { recipe.inputs = Array(1); }, 'PROCESSING_RECIPE_INVALID');
+  rejectsWithCode((recipe) => { recipe.operations = Array(1); }, 'PROCESSING_RECIPE_INVALID');
+  rejectsWithCode((recipe) => {
+    recipe.operations[0].parameters.rectangles = Array(1);
+  }, 'PROCESSING_RECIPE_INVALID');
+  rejectsWithCode((recipe) => {
+    recipe.operations[0].parameters.rectangles.approval = 'USER_APPROVED';
+  }, 'PROCESSING_RECIPE_FIELD_FORBIDDEN');
   rejectsWithCode((recipe) => { recipe.inputs[0].artifactUri = `studio://artifacts/sha256/${'0'.repeat(64)}`; }, 'PROCESSING_RECIPE_INVALID');
   rejectsWithCode((recipe) => { recipe.inputs[0].byteSize = MAX_ATLAS_INPUT_BYTES + 1; }, 'PROCESSING_RECIPE_INVALID');
   rejectsWithCode((recipe) => { recipe.inputs[0].width = MAX_ATLAS_SOURCE_DIMENSION + 1; }, 'PROCESSING_RECIPE_INVALID');
@@ -155,7 +166,7 @@ test('processing recipe keeps source, graph, and exact-crop work inside audited 
   }, 'PROCESSING_RECIPE_LIMIT');
 });
 
-test('processing recipe is transformation evidence and cannot carry execution or owner authority', () => {
+test('processing recipe is transformation intent and cannot carry execution or owner authority', () => {
   rejectsWithCode((recipe) => { recipe.approval = 'USER_APPROVED'; }, 'PROCESSING_RECIPE_FIELD_FORBIDDEN');
   rejectsWithCode((recipe) => { recipe.destinationPath = '/tmp/output.png'; }, 'PROCESSING_RECIPE_FIELD_FORBIDDEN');
   rejectsWithCode((recipe) => { recipe.materialize = true; }, 'PROCESSING_RECIPE_FIELD_FORBIDDEN');

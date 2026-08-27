@@ -27,12 +27,12 @@ function exactFields(value, allowed, label) {
     `${label} must be an object.`,
     { field: label },
   );
-  for (const field of Object.keys(value)) {
+  for (const field of Reflect.ownKeys(value)) {
     invariant(
-      allowed.includes(field),
+      typeof field === 'string' && allowed.includes(field),
       'PROCESSING_RECIPE_FIELD_FORBIDDEN',
-      `${label}.${field} is not permitted.`,
-      { field: `${label}.${field}` },
+      `${label} contains a field that is not permitted.`,
+      { field: label },
     );
   }
   return value;
@@ -65,6 +65,23 @@ function requireArray(value, label, { min, max }) {
     `${label} must contain between ${min} and ${max} entries.`,
     { field: label, min, max },
   );
+  for (let index = 0; index < value.length; index += 1) {
+    invariant(
+      Object.hasOwn(value, index),
+      'PROCESSING_RECIPE_INVALID',
+      `${label} must not contain sparse entries.`,
+      { field: label },
+    );
+  }
+  const arrayKeys = new Set(['length', ...value.map((_, index) => String(index))]);
+  for (const field of Reflect.ownKeys(value)) {
+    invariant(
+      typeof field === 'string' && arrayKeys.has(field),
+      'PROCESSING_RECIPE_FIELD_FORBIDDEN',
+      `${label} contains an array field that is not permitted.`,
+      { field: label },
+    );
+  }
   return value;
 }
 
