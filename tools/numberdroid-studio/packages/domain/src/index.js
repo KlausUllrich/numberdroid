@@ -44,6 +44,27 @@ export {
   validateAssetInputSelectionForProcessingResult,
 } from './asset-input-selection.js';
 export {
+  PROCESSING_ADOPTION_PREFLIGHT_ARTIFACT_ROLES,
+  PROCESSING_ADOPTION_PREFLIGHT_OPERATION_ID,
+  PROCESSING_ADOPTION_PREFLIGHT_OPERATION_VERSION,
+  PROCESSING_ADOPTION_PREFLIGHT_RECEIPT_KIND,
+  PROCESSING_ADOPTION_PREFLIGHT_REQUEST_KIND,
+  PROCESSING_ADOPTION_PREFLIGHT_SCHEMA_VERSION,
+  canonicalProcessingAdoptionPreflightReceiptJson,
+  canonicalProcessingAdoptionPreflightRequestJson,
+  createProcessingAdoptionPreflightReceipt,
+  evaluateProcessingAdoptionArtifact,
+  evaluateProcessingAdoptionAssetState,
+  evaluateProcessingAdoptionCapability,
+  processingAdoptionPreflightReceiptSha256,
+  processingAdoptionPreflightRequestSha256,
+  uncheckedProcessingAdoptionArtifacts,
+  uncheckedProcessingAdoptionAssetState,
+  uncheckedProcessingAdoptionCapability,
+  validateProcessingAdoptionPreflightReceipt,
+  validateProcessingAdoptionPreflightRequest,
+} from './processing-adoption-preflight.js';
+export {
   ASSET_KINDS,
   ASSET_LIFECYCLES,
   ASSET_VALIDATOR_VERSION,

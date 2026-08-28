@@ -258,9 +258,12 @@ Grant mint/revoke endpoints exist for the authenticated human UI/service API. Th
 - `studio_processing_recipe_apply`
 - `studio_processing_result_adopt`
 
-A1.0, A1.1, and A1.2 are accepted pure Domain/Preview contracts only. They
-register none of these tools and do not change the accepted 19/4 or matching-task
-30/5 discovery surfaces.
+A1.0, A1.1, and A1.2 are accepted pure Domain/Preview contracts. A1.3 is a
+candidate-only read-only Domain/Application preflight contract with no
+production port adapter. None registers these tools or changes the accepted
+19/4 or matching-task 30/5 discovery surfaces. A1.3's passing receipt is not an
+adoption command, grant, owner decision, or substitute for mutation-time
+authorization and revalidation.
 
 `studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 

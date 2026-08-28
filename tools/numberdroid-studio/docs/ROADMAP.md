@@ -476,22 +476,20 @@ scope are recorded in [`A1_2_STATUS.md`](A1_2_STATUS.md).
 
 #### A1.3 — project-bound adoption preflight
 
-**Status: next planned bounded Artist-path block; not implemented.** A1.3 should
-add a read-only, nonauthorizing preflight contract rather than an Asset mutation.
-It is L2 while it remains a portable Domain/Application seam: use three to five
-triggered reviewers, focused A1/Capability/Asset/CAS/package tests, and the
-Linux Studio core. Browser, Windows, root, and unrelated historical evidence
-run only if the actual diff adds their trigger; scope growth escalates the tier.
-It closes one validated `ProcessingRecipe` → `ProcessingResult` →
-`AssetInputSelection` chain and returns an immutable receipt that:
+**Status: IMPLEMENTED CANDIDATE — NOT USER ACCEPTED (2026-08-28).** A1.3 adds
+the planned read-only, nonauthorizing Domain/Application preflight contract,
+not an Asset mutation. It closes one validated `ProcessingRecipe` →
+`ProcessingResult` → `AssetInputSelection` chain and returns an immutable
+receipt that:
 
 - models an explicit `create` or `update` target with stable Asset identity and
   exact expected Asset and metadata versions, matching the accepted CP2C
   vocabulary without reusing its slice binding;
-- pins the exact capability-manifest schema/version and fingerprint without
-  mutating the current pinned Numberdroid profile in place;
-- requires a project-scoped CAS revalidation port to prove input and selected
-  output digest, bytes, media type, dimensions, and current `LIVE` state;
+- pins the exact capability-manifest schema/version/fingerprint and dedicated
+  validate operation without mutating the current pinned Numberdroid profile;
+- requires a project-scoped CAS revalidation port to prove registered `LIVE`
+  metadata and independently observed physical input/selected-output digest,
+  bytes, media type, and dimensions;
 - requires a project-scoped read-only Asset-state port that proves a `create`
   target is unused or an `update` target matches the exact expected current
   Asset and metadata heads;
@@ -500,12 +498,17 @@ It closes one validated `ProcessingRecipe` → `ProcessingResult` →
 - distinguishes a valid preflight from authorization, semantic adoption,
   review, lifecycle, finalization, materialization, or publication.
 
-A1.3 must not reinterpret the accepted CP2C `ExactSliceBinding` or
-`AssetProposal`: A1 lineage lacks committed atlas/slice/pivot/remap authority.
-It adds no SQLite migration, command registration, durable job, MCP/HTTP/UI
-surface, CandidateManifest/adapter mapping, new pixel operation, or repository
-write. A later A1.4 may design atomic idempotent adoption and additive
-persistence as its own separately reviewed risk block.
+The current Numberdroid profile v1 does not advertise the dedicated operation,
+so it deterministically blocks before Asset/CAS reads; success is proven only
+with a synthetic generic profile-v2 fixture. A1.3 does not reinterpret CP2C
+`ExactSliceBinding` or `AssetProposal`: A1 lineage lacks committed
+atlas/slice/pivot/remap authority. It adds no production port adapter, SQLite
+migration, command registration, durable job, MCP/HTTP/UI surface,
+CandidateManifest/adapter mapping, new pixel operation, or repository write.
+Exact scope, fixture fingerprints, tests, and exclusions are recorded in
+[`A1_3_STATUS.md`](A1_3_STATUS.md). A1.4 is the next planned bounded block and
+must design any atomic/idempotent mutation separately, revalidating rather than
+trusting the preflight receipt.
 
 #### Remaining A1 completion sequence after A1.3
 

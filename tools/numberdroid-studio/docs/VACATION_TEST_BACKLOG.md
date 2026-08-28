@@ -30,6 +30,7 @@ Keep these states distinct:
 | VT-001 | CP4.5 designer workflow candidate | NEEDS KLAUS LIVE | VT-000 | Desktop list/create/detail, preview, persistent editor, `VOID`/`BLOCKED` |
 | VT-002 | A0.1–A0.4 interface candidates | NEEDS KLAUS REVIEW | VT-000 | Accept/revise bounded capability, candidate, query, and validate-only bridge contracts |
 | VT-003 | CP5 candidate-only adapter/compiler foundation | BLOCKED | VT-001 and later explicit CP5 gate | Candidate fidelity only; no materialization or publication |
+| VT-004 | A1.3 project-bound adoption preflight | NEEDS KLAUS REVIEW | VT-000 and accepted A1.0–A1.2 | Accept/revise the read-only capability/Asset/CAS closure; no live workflow |
 
 Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate.
@@ -176,6 +177,56 @@ own ID only after implementation exists. Planned work is not a candidate.
 - **Boundary:** review deterministic snapshot/manifest/virtual outputs and
   compiler findings only. Materialization, repository commit, publication, and
   runtime acceptance remain separate and unavailable.
+
+## VT-004 — A1.3 project-bound adoption preflight
+
+- **Implementation:** focused A1.3 candidate based on tested `main`
+  `dcf85b36f7b68d9b88d314cdccb49287dc70bdc8`; PR, implementation head, merge
+  SHA if any, and Actions run are appended after those facts exist. Exact
+  contract and fixture hashes are in `A1_3_STATUS.md`.
+- **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-000 and the accepted
+  A1.0–A1.2 contracts. Source integration and CI do not close this decision.
+- **Safe fixture/reset:** no Studio workspace, database, CAS directory, server,
+  browser, or Numberdroid checkout is used. The fixture is pure immutable data
+  inside `tests/processing-adoption-preflight.node-test.js`; therefore it cannot
+  alter user data and needs no reset.
+- **Optional automated reproduction:** with Node 22.17.0 and lockfile
+  dependencies installed, run from `tools/numberdroid-studio/`:
+
+  ```bash
+  node --test tests/processing-adoption-preflight.node-test.js
+  ```
+
+- **Review steps and expected result:**
+  1. Confirm the request closes the full accepted Recipe → Result → Selection
+     values plus exact project/revision and explicit `create` `0/0` or positive
+     exact `update` Asset/metadata coordinates.
+  2. Confirm capability success requires the dedicated validate operation and
+     exact module/format versions; broad `studio.asset` presence is
+     insufficient.
+  3. Confirm current Numberdroid profile v1 remains unchanged and returns
+     `PREFLIGHT_BLOCKED` before Asset or CAS reads.
+  4. Confirm each recipe-input and selected-output check independently matches
+     registered project reference, `LIVE` metadata, and physical descriptor.
+  5. Confirm `ERROR` blocks, `WARNING` remains `UNRESOLVED`, malformed protocol
+     data produces no receipt, and dependency failures disclose no local path.
+  6. Confirm even `PREFLIGHT_PASSED` says `READ_ONLY`, `NOT_GRANTED`, no Asset
+     mutation, and mandatory revalidation at any later mutation boundary.
+- **Platform/evidence:** non-visual contract review; no browser, viewport,
+  Windows, device, or gameplay gate. Local Node 22.17.0 evidence is 10/10 focused
+  A1.3, 76/76 focused compatibility, and 346/346 full Studio tests. Synthetic
+  request/receipt hashes are
+  `edbcc5deddec9a49eba30a8a42f315722c833c96504ec74e14944599379fd840`
+  and `fe6e897d4eec5a770fc6b79a25dd812d31f183de69a518f932c4926ca83b66fb`.
+- **Known limits:** port contracts and fakes only; no production Asset/CAS
+  adapter, Numberdroid profile v2, persistence, mutation, command, job, MCP,
+  HTTP, UI, review/lifecycle, race guarantee, or `IMG-006` completion.
+- **Open Klaus decision:** accept or revise the A1.3 request/evidence/receipt
+  boundary and the deliberate current-profile fail-closed policy. Automation
+  cannot answer this product-contract decision.
+- **Recovery:** because A1.3 writes no workspace or schema state, source rollback
+  is a normal revert of its focused source commit/PR. No data restoration,
+  migration rollback, CAS cleanup, or fixture deletion is required.
 
 ## Required record for every new candidate
 
