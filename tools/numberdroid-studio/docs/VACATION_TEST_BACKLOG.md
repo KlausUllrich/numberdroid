@@ -182,9 +182,10 @@ own ID only after implementation exists. Planned work is not a candidate.
 
 - **Implementation:** focused A1.3 candidate in PR #150 at implementation head
   `9ad3b68ac64a1a073fbdcec63b62d2205aa01d98`, based on tested `main`
-  `dcf85b36f7b68d9b88d314cdccb49287dc70bdc8`; merge SHA if any and Actions run
-  are appended only after those facts exist. Exact contract and fixture hashes
-  are in `A1_3_STATUS.md`.
+  `dcf85b36f7b68d9b88d314cdccb49287dc70bdc8`. Final PR head
+  `13c1e5275c3ffe3e9939485a8cf93ee3d0d7b6aa` was source-integrated into `main`
+  as merge commit `e0099629d9b932660ac85395e952db34b35d3e2b`. Exact contract
+  and fixture hashes are in `A1_3_STATUS.md`.
 - **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-000 and the accepted
   A1.0–A1.2 contracts. Source integration and CI do not close this decision.
 - **Safe fixture/reset:** no Studio workspace, database, CAS directory, server,
@@ -219,6 +220,11 @@ own ID only after implementation exists. Planned work is not a candidate.
   request/receipt hashes are
   `edbcc5deddec9a49eba30a8a42f315722c833c96504ec74e14944599379fd840`
   and `fe6e897d4eec5a770fc6b79a25dd812d31f183de69a518f932c4926ca83b66fb`.
+  PR Actions run [33150271295](https://github.com/KlausUllrich/numberdroid/actions/runs/33150271295)
+  and post-merge `main` run
+  [33150374430](https://github.com/KlausUllrich/numberdroid/actions/runs/33150374430)
+  passed the change classifier, Linux Studio, and CI gate; root, visual,
+  Windows, and Pages jobs were correctly skipped.
 - **Known limits:** port contracts and fakes only; no production Asset/CAS
   adapter, Numberdroid profile v2, persistence, mutation, command, job, MCP,
   HTTP, UI, review/lifecycle, race guarantee, or `IMG-006` completion.
