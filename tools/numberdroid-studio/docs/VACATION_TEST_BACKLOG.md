@@ -31,6 +31,7 @@ Keep these states distinct:
 | VT-002 | A0.1–A0.4 interface candidates | NEEDS KLAUS REVIEW | VT-000 | Accept/revise bounded capability, candidate, query, and validate-only bridge contracts |
 | VT-003 | CP5 candidate-only adapter/compiler foundation | BLOCKED | VT-001 and later explicit CP5 gate | Candidate fidelity only; no materialization or publication |
 | VT-004 | A1.3 project-bound adoption preflight | NEEDS KLAUS REVIEW | VT-000 and accepted A1.0–A1.2 | Accept/revise the read-only capability/Asset/CAS closure; no live workflow |
+| VT-005 | A1.4 processing-result adoption plan | NEEDS KLAUS REVIEW | VT-004 | Accept/revise the private agent-task command/policy and commitless create/update semantics |
 
 Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate.
@@ -234,6 +235,86 @@ own ID only after implementation exists. Planned work is not a candidate.
 - **Recovery:** because A1.3 writes no workspace or schema state, source rollback
   is a normal revert of its focused source commit/PR. No data restoration,
   migration rollback, CAS cleanup, or fixture deletion is required.
+
+## VT-005 — A1.4 processing-result adoption planning
+
+- **Implementation:** focused A1.4 candidate based on verified `main`
+  `1482a4ae1df450900e37209d0fc09c1ddfc831c3`. Exact command, semantic,
+  lineage, receipt, and plan fixture hashes are in `A1_4_STATUS.md`. PR, source
+  integration, and Actions facts will be appended at candidate closure; none
+  can close the user decision.
+- **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-004 because the plan
+  deliberately repeats A1.3 rather than treating its receipt as authority.
+- **Safe fixture/reset:** no Studio workspace, database, CAS directory, server,
+  browser, or Numberdroid checkout is used. The successful authority evidence
+  exists only in `tests/processing-adoption-command.node-test.js`; the new
+  command/scope is unregistered, so the fixture cannot grant live authority or
+  alter user data and needs no reset.
+- **Optional automated reproduction:** with Node 22.17.0 and lockfile
+  dependencies installed, run from `tools/numberdroid-studio/`:
+
+  ```bash
+  node --test tests/processing-adoption-command.node-test.js
+  ```
+
+- **Review steps and expected result:**
+  1. Confirm the command carries the complete A1.3 request but no receipt,
+     actor, task, grant, branch, review, lifecycle, or destination authority.
+  2. Confirm only an agent with exact ACTIVE Task, active Grant, non-main branch
+     and branch revision, private scope, project/Asset object scopes, expiry,
+     budget, and no auto-accept reaches the preflight read.
+  3. Confirm every prepare repeats a fresh A1.3 preflight for the same project,
+     branch, revision, and request; stale or cross-bound evidence fails closed.
+  4. Confirm create plans one explicit DRAFT name, output pixel size, null pivot,
+     validator-normalized explicit-empty DRAFT metadata, its fingerprint and
+     eight deterministic missing-metadata `ERROR` findings, empty Asset warning
+     dispositions, and versions `1/1` without writing them. Those findings are
+     valid evidence for an incomplete DRAFT and block later `VALIDATED`
+     promotion, not planning or DRAFT creation.
+  5. Confirm update plans imagery lineage only, resets the new immutable version
+     to DRAFT, preserves the current name and authored metadata, and requires
+     derived visual metadata/findings to be recomputed atomically. The metadata
+     version remains `M` only for an equal revalidated fingerprint and otherwise
+     becomes `M+1`, including dimension or pivot drift.
+  6. Confirm a `ProcessingResult` `ERROR` blocks preflight and therefore leaves
+     no plan, while a `ProcessingResult` `WARNING` remains fingerprint-bound and
+     `UNRESOLVED`. Confirm that this is separate from the Asset findings and
+     empty Asset warning-disposition list, and that neither result grants
+     warning disposition or owner authority.
+  7. Confirm all results say `NONE`, `NOT_GRANTED`, `NOT_PERFORMED`,
+     `NOT_ATTEMPTED`, and mandatory revalidation in a later atomic unit of work.
+  8. Confirm A1.4 only freezes the all-or-none/idempotency policy: same key plus
+     same task-bound semantics returns the original result, different semantics
+     conflict, reusing a command ID with another key fails, and unknown outcomes
+     retry the same key; no ledger or replay is read, written, or claimed by the
+     candidate.
+  9. Confirm the type/scope remain absent from the accepted command/grant
+     catalogs and there is no SQLite, StudioService, MCP, HTTP, or UI wiring.
+- **Platform/evidence:** non-visual contract review; no browser, viewport,
+  Windows, device, or gameplay acceptance gate. Local Node 22.17.0 evidence is
+  13/13 A1.4, 136/136 broad focused compatibility, 359/359 full Studio, and
+  129/129 JavaScript syntax files. Production-adapter evidence remains
+  `VERIFIED` at
+  protected source-manifest hash
+  `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`;
+  links, classifier self-test, link-checker self-test, and diff check pass. The
+  exact classifier selects Studio, browser evidence, and Windows while leaving
+  root, Pages, and full false. Independent review, PR, and post-merge facts are
+  recorded only after those gates complete. Conservative browser/Windows CI
+  does not imply new UI or visual acceptance.
+- **Known limits:** read ports and test fakes only; no command/scope
+  registration, production Task/Grant/preflight adapter, Numberdroid profile
+  v2, persistence, mutation, transaction, reference/Activity/idempotency/budget
+  write, race guarantee, job, MCP, HTTP, UI, owner review/merge/lifecycle,
+  materialization, publication, or end-to-end `IMG-006` completion.
+- **Open Klaus decision:** accept or revise the private command shape, strict
+  agent-task authority policy, fresh-preflight rule, validator-normalized
+  explicit-empty DRAFT create semantics, conditional `M`/`M+1` imagery-only
+  update semantics, and A1.5 atomic revalidation/write checklist. Automation
+  cannot answer this product-contract decision.
+- **Recovery:** A1.4 writes no workspace or schema state. Source rollback is a
+  normal revert of its focused source commit/PR; no migration rollback, data
+  restore, CAS cleanup, task repair, or fixture deletion is required.
 
 ## Required record for every new candidate
 

@@ -86,8 +86,8 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **IMG-008.** Project capability manifests MAY restrict formats, dimensions, color/alpha rules, frame layouts, or codecs. Unsupported processing MUST fail visibly before candidate creation.
 
 **Implementation status (2026-08-28): the bounded A1.0, A1.1, and A1.2
-contracts are explicitly user-accepted; A1.3 is an implemented candidate and
-is not user-accepted.** A1.0 supplies the fail-closed
+contracts are explicitly user-accepted; A1.3 and A1.4 are implemented
+candidates and are not user-accepted.** A1.0 supplies the fail-closed
 `ProcessingRecipe` schema and projection for the accepted exact-PNG crop
 processor. A1.1 adds a pure
 fail-closed `ProcessingResult` schema for that same operation, pinning the
@@ -103,8 +103,16 @@ and independently revalidates registered `LIVE` plus physical CAS descriptors
 for the recipe input and selected output. The current Numberdroid profile v1
 does not advertise that operation and therefore fails closed before Asset/CAS
 reads. A1.3 adds no production port wiring, persistence, durable job, mutation,
-review, MCP/HTTP/UI surface, or authority; `IMG-001`–`IMG-008` remain
-unsatisfied end to end.
+review, MCP/HTTP/UI surface, or authority. A1.4 freezes the private
+`asset.processing-result.adopt` command shape and an agent-task-only planning
+policy: exact active Task/Grant/non-main branch/scope/object/budget coordinates
+are checked before a fresh branch-bound A1.3 preflight, then create or
+imagery-only update intent is returned as a deterministic plan. The type is not
+registered in the accepted command catalog or grant vocabulary, and every
+result remains `NONE`, `NOT_GRANTED`, `NOT_PERFORMED`, `NOT_ATTEMPTED`, with all
+checks and writes required again inside a later atomic unit of work. A1.4 adds
+no production port wiring, persistence, mutation, review, MCP/HTTP/UI surface,
+or authority; `IMG-001`–`IMG-008` remain unsatisfied end to end.
 
 ### 5.3 Atlas Cutter
 
