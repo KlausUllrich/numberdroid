@@ -94,7 +94,6 @@ async function transportFixture(context, {
   exhaustBudget = false,
 } = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-authoring-v2-transport-'));
-  context.after(() => rm(directory, { recursive: true, force: true }));
   const seedStore = await SqliteProjectStore.open({
     filename: join(directory, 'studio.sqlite'),
     databaseFactory: nodeSqliteDatabaseFactory,
@@ -172,6 +171,7 @@ async function transportFixture(context, {
     await new Promise((resolveClose, rejectClose) => {
       running.server.close((error) => (error ? rejectClose(error) : resolveClose()));
     });
+    await rm(directory, { recursive: true, force: true });
   });
   const issued = running.hostBindingStore.issue({
     projectId: PROJECT_ID,
