@@ -194,7 +194,15 @@ frozen immediately before recording this identity line had binary diff SHA-256
 The implementation source commit is
 `cfa731c751b07b207c7497024f8be1ad3e09f023`. Exact changed-path
 classification set docs, Studio, Studio visual, and Studio Windows true; docs
-only, root, root visual, Pages, and full remained false. Implementation
-PR/merge and pre-/post-merge Actions evidence are recorded after integration.
-Those facts remain pending here and do not constitute Klaus's contract
-acceptance when added.
+only, root, root visual, Pages, and full remained false.
+
+PR #154 at candidate head
+`71a61209ce105c91c385d33f6ea7953c3b5ae02f` was source-integrated into
+`main` as squash commit `9c182a2211acdb2888fe360c55f592bc1c2e54ea`
+after PR Actions run 33162846969 passed. Post-merge `main` Actions run
+33163256273 also passed. Both runs selected and passed the change classifier,
+Linux Studio including browser evidence, Windows Studio, and CI gate; root,
+Pages, and full jobs were correctly skipped. That conservative browser/Windows
+selection is regression coverage for a private module path, not evidence of a
+new UI or visual acceptance. Source integration and CI do not change the
+candidate-only acceptance state.

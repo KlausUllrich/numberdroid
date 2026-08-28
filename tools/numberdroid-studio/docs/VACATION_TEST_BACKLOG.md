@@ -2,8 +2,8 @@
 
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
-Baseline recorded: 2026-08-28 at A1.4-closure `main`
-`06ac195a26011e2e8c6e9b41b20521005da89094`. Receivers MUST replace this with
+Baseline recorded: 2026-08-28 at A1.5-implementation `main`
+`9c182a2211acdb2888fe360c55f592bc1c2e54ea`. Receivers MUST replace this with
 newer verified `main` truth as work lands.
 
 ## Purpose
@@ -329,9 +329,10 @@ own ID only after implementation exists. Planned work is not a candidate.
   `06ac195a26011e2e8c6e9b41b20521005da89094`. It adds the strict private
   Aggregate/CommitResult, atomic-store port, one additive schema-v13 migration,
   branch-local SQLite/CAS store, deep integrity, retention/backup compatibility,
-  and portable-bundle guards described in `A1_5_STATUS.md`. Source integration
-  and Actions evidence are recorded there after the exact candidate is frozen;
-  neither closes the user decision.
+  and portable-bundle guards described in `A1_5_STATUS.md`. PR #154 integrated
+  it as squash commit `9c182a2211acdb2888fe360c55f592bc1c2e54ea` after
+  PR Actions run 33162846969 passed; post-merge run 33163256273 also passed.
+  Neither source integration nor Actions closes the user decision.
 - **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-005 because the store
   enforces the exact private command, create/update, idempotency, and
   revalidation policy A1.4 froze. VT-004/VT-005 acceptance may revise this
@@ -396,8 +397,10 @@ own ID only after implementation exists. Planned work is not a candidate.
   viewport, device, gameplay, or live-workspace acceptance gate. Exact local
   test counts, syntax/evidence/link/classifier checks, independent review
   verdicts, PR Actions, and post-merge Actions are recorded in
-  `A1_5_STATUS.md` after integration. Conservative Windows/browser CI selection
-  is regression coverage and does not imply a changed UI or visual acceptance.
+  `A1_5_STATUS.md`. Both integration runs passed their classifier-selected
+  Linux, Windows, browser-evidence, and CI-gate jobs. Conservative
+  Windows/browser selection is regression coverage and does not imply a changed
+  UI or visual acceptance.
 - **Known limits:** private unwired port only; no registered command/scope,
   Numberdroid profile v2, production task/capability dispatch, job, MCP/HTTP/UI,
   Main/CP2C Asset mutation, review/merge/lifecycle, new pixel operation,
