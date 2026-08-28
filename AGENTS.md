@@ -115,6 +115,38 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
   authority, safety, compatibility, recovery, acceptance, review, or green-CI
   requirements.
 
+## Efficient block execution without quality loss — hard rules
+
+- After the mandatory reading route, lock one coherent block's promise,
+  exclusions, risk tier, finish condition, and selected gates before broad
+  investigation. Target this scope lock within **two minutes**; if uncertainty
+  prevents it, state the exact ambiguity instead of expanding silently.
+- Complete and report one coherent block before implementing the next dependent
+  block. Autonomous continuation is allowed only after the prior block's result,
+  remaining boundary, and next scope have been made user-visible.
+- Start with the smallest test or diagnostic that can falsify the current
+  hypothesis. Run broader suites only when selected by the risk tier, an actual
+  path/platform trigger, or a concrete finding. Do not repeat an unchanged
+  green suite or broad review merely for reassurance.
+- Use only trigger-relevant reviewers, run independent reads/checks in parallel,
+  and perform one actual-diff review after code freeze. After a finding, repeat
+  only the affected checks/reviews unless the fix changes another risk axis.
+- If **ten minutes of active local work** have not produced a merge-ready result,
+  issue a checkpoint with completed evidence, remaining work, and the next
+  bounded action, then rescope or continue deliberately. External CI time is
+  governed separately by the bounded polling rules above.
+- On failure, inspect the first decisive error and repair the responsible layer
+  before rerunning. Do not restart every successful lane. Filesystem/SQLite/
+  server fixtures require an explicit cross-platform cleanup check: drain and
+  close workers, network handles, and database writers before removing their
+  temporary directory.
+- Prefer one source PR per coherent block. Create a separate evidence-only PR
+  only when immutable post-merge/CI identities must be preserved in a binding
+  current document; otherwise keep those facts in the existing PR/CI record.
+- Efficiency may remove duplicated work, idle polling, and unnecessary process
+  breadth. It must not remove a tier-triggered test, independent review,
+  compatibility/recovery proof, human gate, or exact remote-tree/merge check.
+
 ## Art-specific hard rules
 
 Before producing/editing gameplay art, follow the Artist route in `ROLE_ENTRYPOINTS.md` and the binding `docs/art/production/ARTIST_AGENT_WORKFLOW.md`.
