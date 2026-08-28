@@ -315,7 +315,7 @@ function exactSelection(value) {
   });
 }
 
-function normalizeAdmissionEvidence(value, selection) {
+function normalizeAdmissionEvidenceBase(value, selection, { allowReplayOnly }) {
   const evidence = exactPlainRecord(
     snapshotPlainData(value, 'authoringV2AdmissionEvidence'),
     [
@@ -351,27 +351,50 @@ function normalizeAdmissionEvidence(value, selection) {
   const taskUsedCommands = requireInteger(evidence.taskUsedCommands, 'authoringV2AdmissionEvidence.taskUsedCommands', { min: 0, max: taskMaxCommands });
   const grantMaxCommands = requireInteger(evidence.grantMaxCommands, 'authoringV2AdmissionEvidence.grantMaxCommands', { min: 1 });
   const grantUsedCommands = requireInteger(evidence.grantUsedCommands, 'authoringV2AdmissionEvidence.grantUsedCommands', { min: 0, max: grantMaxCommands });
-  invariant(
-    taskUsedCommands < taskMaxCommands && grantUsedCommands < grantMaxCommands,
-    'BUDGET_EXCEEDED',
-    'The Authoring-v2 command budget is exhausted.',
-  );
+  let budgetState;
+  if (allowReplayOnly) {
+    invariant(
+      taskMaxCommands === grantMaxCommands && taskUsedCommands === grantUsedCommands,
+      'AUTHORING_V2_PORT_RESPONSE_INVALID',
+      'Authoring-v2 Task and Grant budget coordinates disagree.',
+      { port: ADMISSION_PORT },
+    );
+    budgetState = taskUsedCommands === taskMaxCommands ? 'REPLAY_ONLY' : 'AVAILABLE';
+  } else {
+    invariant(
+      taskUsedCommands < taskMaxCommands && grantUsedCommands < grantMaxCommands,
+      'BUDGET_EXCEEDED',
+      'The Authoring-v2 command budget is exhausted.',
+    );
+    budgetState = 'AVAILABLE';
+  }
   return deepFreeze({
-    schemaVersion: AUTHORING_V2_ADMISSION_READER_SCHEMA_VERSION,
-    kind: AUTHORING_V2_ADMISSION_EVIDENCE_KIND,
-    featureId: AUTHORING_V2_FEATURE_ID,
-    projectId: selection.projectId,
-    actorId: selection.actorId,
-    taskId: selection.taskId,
-    grantId: selection.grantId,
-    branchId: selection.branchId,
-    branchRevision,
-    targetAssetId: selection.targetAssetId,
-    taskMaxCommands,
-    taskUsedCommands,
-    grantMaxCommands,
-    grantUsedCommands,
+    budgetState,
+    evidence: {
+      schemaVersion: AUTHORING_V2_ADMISSION_READER_SCHEMA_VERSION,
+      kind: AUTHORING_V2_ADMISSION_EVIDENCE_KIND,
+      featureId: AUTHORING_V2_FEATURE_ID,
+      projectId: selection.projectId,
+      actorId: selection.actorId,
+      taskId: selection.taskId,
+      grantId: selection.grantId,
+      branchId: selection.branchId,
+      branchRevision,
+      targetAssetId: selection.targetAssetId,
+      taskMaxCommands,
+      taskUsedCommands,
+      grantMaxCommands,
+      grantUsedCommands,
+    },
   });
+}
+
+function normalizeAdmissionEvidence(value, selection) {
+  return normalizeAdmissionEvidenceBase(value, selection, { allowReplayOnly: false }).evidence;
+}
+
+function normalizeSurfaceNegotiationEvidence(value, selection) {
+  return normalizeAdmissionEvidenceBase(value, selection, { allowReplayOnly: true });
 }
 
 function normalizeCapabilityManifest(value, expectedManifest) {
@@ -402,9 +425,10 @@ function normalizeCapabilityManifest(value, expectedManifest) {
 }
 
 /**
- * Private, nonauthorizing A1.6b2a readiness seam. It closes current durable
- * admission before and after the asynchronous capability read. Its evidence
- * never leaves the private execution session and cannot authorize a commit.
+ * Private, nonauthorizing readiness seam. Command admission remains strict;
+ * surface negotiation may report coherent exhausted authority as replay-only.
+ * Both paths close current durable state around the capability read, and their
+ * evidence never authorizes a commit.
  */
 export class AuthoringV2AdmissionService {
   #admissionReader;
@@ -435,6 +459,12 @@ export class AuthoringV2AdmissionService {
     const signal = exactOptions(options);
     const selection = exactSelection(selectionValue);
     return this.#admit(selection, signal);
+  }
+
+  negotiateSurface(selectionValue, options = {}) {
+    const signal = exactOptions(options);
+    const selection = exactSelection(selectionValue);
+    return this.#negotiateSurface(selection, signal);
   }
 
   async #admit(selection, signal) {
@@ -470,6 +500,43 @@ export class AuthoringV2AdmissionService {
       evidence: after,
       capabilityManifest: manifest,
       capabilityFingerprint: projectCapabilityManifestSha256(manifest),
+    });
+  }
+
+  async #negotiateSurface(selection, signal) {
+    const { value: beforeValue } = await invokePort(
+      ADMISSION_PORT,
+      () => this.#admissionReader.readAuthoringV2Admission(selection, Object.freeze({ signal })),
+      signal,
+    );
+    const before = normalizeSurfaceNegotiationEvidence(beforeValue, selection);
+    const { value: capabilityValue } = await invokePort(
+      CAPABILITY_PORT,
+      () => this.#capabilityReader.readProjectCapabilityManifest(deepFreeze({
+        schemaVersion: 1,
+        projectId: selection.projectId,
+        revision: before.evidence.branchRevision,
+      }), Object.freeze({ signal })),
+      signal,
+    );
+    const manifest = normalizeCapabilityManifest(capabilityValue, this.#expectedManifest);
+    const { value: afterValue } = await invokePort(
+      ADMISSION_PORT,
+      () => this.#admissionReader.readAuthoringV2Admission(selection, Object.freeze({ signal })),
+      signal,
+    );
+    const after = normalizeSurfaceNegotiationEvidence(afterValue, selection);
+    invariant(
+      fingerprint(before) === fingerprint(after),
+      'AUTHORING_V2_ADMISSION_DRIFT',
+      'Authoring-v2 authority changed while surface readiness was checked.',
+    );
+    abort(signal);
+    return deepFreeze({
+      evidence: after.evidence,
+      capabilityManifest: manifest,
+      capabilityFingerprint: projectCapabilityManifestSha256(manifest),
+      budgetState: after.budgetState,
     });
   }
 }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,8 +8,11 @@ import {
   AUTHORING_V2_ADMISSION_EVIDENCE_KIND,
   AUTHORING_V2_ADMISSION_READER_KIND,
   AUTHORING_V2_ADMISSION_READER_SCHEMA_VERSION,
+  AUTHORING_V2_CAPABILITIES_KIND,
   AUTHORING_V2_CAPABILITY_READER_KIND,
   AUTHORING_V2_CAPABILITY_READER_SCHEMA_VERSION,
+  AUTHORING_V2_SURFACE_NEGOTIATION_KIND,
+  AUTHORING_V2_SURFACE_NEGOTIATION_REQUEST_KIND,
   AgentTaskService,
   AuthoringV2AdmissionService,
   AuthoringV2ExecutionSession,
@@ -23,10 +27,14 @@ import {
   ProcessingResultAdoptionPlanningService,
   StudioService,
   validateAuthoringV2AdmissionReader,
+  validateAuthoringV2Capabilities,
+  validateAuthoringV2SurfaceNegotiation,
+  validateAuthoringV2SurfaceNegotiationRequest,
   validateProcessingResultAdoptionAtomicStore,
   validateProcessingResultAdoptionHostBoundAtomicStore,
 } from '../packages/application/src/index.js';
 import {
+  AUTHORING_V2_COMMAND_FEATURES,
   AUTHORING_V2_FEATURE_ID,
   AUTHORING_V2_PROCESSING_RESULT_ADOPTION_TOOL,
   AUTHORING_V2_SCHEMA_VERSION,
@@ -110,7 +118,12 @@ function fakeSelection() {
   };
 }
 
-function fakeAdmissionEvidence() {
+function fakeAdmissionEvidence({
+  taskMaxCommands = 1,
+  taskUsedCommands = 0,
+  grantMaxCommands = 1,
+  grantUsedCommands = 0,
+} = {}) {
   return {
     schemaVersion: AUTHORING_V2_ADMISSION_READER_SCHEMA_VERSION,
     kind: AUTHORING_V2_ADMISSION_EVIDENCE_KIND,
@@ -122,10 +135,10 @@ function fakeAdmissionEvidence() {
     branchId: BRANCH_ID,
     branchRevision: 2,
     targetAssetId: null,
-    taskMaxCommands: 1,
-    taskUsedCommands: 0,
-    grantMaxCommands: 1,
-    grantUsedCommands: 0,
+    taskMaxCommands,
+    taskUsedCommands,
+    grantMaxCommands,
+    grantUsedCommands,
   };
 }
 
@@ -166,21 +179,39 @@ function fakeAdmissionService({
   });
 }
 
-function fakeHostBoundPort(kind = PROCESSING_RESULT_ADOPTION_HOST_BOUND_ATOMIC_STORE_KIND) {
+function fakeHostBoundPort(
+  kind = PROCESSING_RESULT_ADOPTION_HOST_BOUND_ATOMIC_STORE_KIND,
+  implementation = () => { throw new Error('unused'); },
+) {
   return {
     schemaVersion: PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION,
     kind,
-    commitProcessingResultAdoption() { throw new Error('unused'); },
+    commitProcessingResultAdoption: implementation,
   };
 }
 
-function fakeSession() {
+function fakeSession({
+  admissionService = fakeAdmissionService(),
+  hostBoundAtomicStore = fakeHostBoundPort(),
+  correlationId,
+} = {}) {
   return new AuthoringV2ExecutionSession({
-    admissionService: fakeAdmissionService(),
+    admissionService,
     planningService: fakePlanningService(),
-    hostBoundAtomicStore: fakeHostBoundPort(),
+    hostBoundAtomicStore,
     trustedBinding: fakeBinding(),
+    ...(correlationId === undefined ? {} : { correlationId }),
   });
+}
+
+function surfaceNegotiationRequest(expectedProfileFingerprint = NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT) {
+  return {
+    schemaVersion: AUTHORING_V2_SCHEMA_VERSION,
+    kind: AUTHORING_V2_SURFACE_NEGOTIATION_REQUEST_KIND,
+    featureId: AUTHORING_V2_FEATURE_ID,
+    projectId: PROJECT_ID,
+    expectedProfileFingerprint,
+  };
 }
 
 test('private admission/session construction is exact and host-bound ports cannot be confused with generic A1.5 ports', () => {
@@ -258,6 +289,110 @@ test('admission awaits only native Promises and never assimilates hostile thenab
   assert.equal(trapCalls, 0);
 });
 
+test('surface negotiation alone admits coherent exhausted budgets while command admission stays strict', async () => {
+  const exhausted = fakeAdmissionEvidence({ taskUsedCommands: 1, grantUsedCommands: 1 });
+  const service = fakeAdmissionService({
+    admissionImplementation: () => Promise.resolve(exhausted),
+  });
+  await assert.rejects(
+    service.admit(fakeSelection()),
+    (error) => error.code === 'BUDGET_EXCEEDED',
+  );
+  const negotiated = await service.negotiateSurface(fakeSelection());
+  assert.equal(negotiated.budgetState, 'REPLAY_ONLY');
+  assert.equal(negotiated.evidence.taskUsedCommands, negotiated.evidence.taskMaxCommands);
+  assert.equal(negotiated.evidence.grantUsedCommands, negotiated.evidence.grantMaxCommands);
+
+  const incoherent = fakeAdmissionEvidence({ taskUsedCommands: 1, grantUsedCommands: 0 });
+  await assert.rejects(
+    fakeAdmissionService({
+      admissionImplementation: () => Promise.resolve(incoherent),
+    }).negotiateSurface(fakeSelection()),
+    (error) => error.code === 'AUTHORING_V2_PORT_RESPONSE_INVALID',
+  );
+});
+
+test('one-shot surface negotiation is exact, profile-pinned, redacted, and strictly validated', async () => {
+  const request = surfaceNegotiationRequest();
+  assert.deepEqual(validateAuthoringV2SurfaceNegotiationRequest(request), request);
+  const session = fakeSession();
+  const first = session.negotiateSurface(request);
+  assert.throws(
+    () => session.readCapabilities({
+      schemaVersion: AUTHORING_V2_SCHEMA_VERSION,
+      featureId: AUTHORING_V2_FEATURE_ID,
+      projectId: PROJECT_ID,
+    }),
+    (error) => error.code === 'AUTHORING_V2_SESSION_CONSUMED',
+  );
+  const negotiation = await first;
+  assert.deepEqual(Object.keys(negotiation), [
+    'schemaVersion', 'kind', 'status', 'featureId', 'projectId', 'branchRevision',
+    'budgetState', 'profile', 'commandFeatures',
+  ]);
+  assert.equal(negotiation.kind, AUTHORING_V2_SURFACE_NEGOTIATION_KIND);
+  assert.equal(negotiation.status, 'READY');
+  assert.equal(negotiation.budgetState, 'AVAILABLE');
+  assert.deepEqual(Object.keys(negotiation.profile), ['profileId', 'profileVersion', 'fingerprint']);
+  assert.equal(Object.hasOwn(negotiation.profile, 'manifest'), false);
+  assert.deepEqual(negotiation.commandFeatures, AUTHORING_V2_COMMAND_FEATURES);
+  assert.deepEqual(validateAuthoringV2SurfaceNegotiation(negotiation, {
+    projectId: PROJECT_ID,
+    expectedProfileFingerprint: NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT,
+  }), negotiation);
+
+  const exhaustedSession = fakeSession({
+    admissionService: fakeAdmissionService({
+      admissionImplementation: () => Promise.resolve(fakeAdmissionEvidence({
+        taskUsedCommands: 1,
+        grantUsedCommands: 1,
+      })),
+    }),
+  });
+  assert.equal(
+    (await exhaustedSession.negotiateSurface(request)).budgetState,
+    'REPLAY_ONLY',
+  );
+
+  await assert.rejects(
+    fakeSession().negotiateSurface(surfaceNegotiationRequest('0'.repeat(64))),
+    (error) => error.code === 'AUTHORING_V2_CAPABILITY_MISMATCH',
+  );
+  assert.throws(
+    () => fakeSession().negotiateSurface({ ...request, callerAuthority: true }),
+    (error) => error.code === 'AUTHORING_V2_REQUEST_INVALID',
+  );
+  assert.throws(
+    () => validateAuthoringV2SurfaceNegotiationRequest({ ...request, projectId: '' }),
+    (error) => error.code === 'AUTHORING_V2_REQUEST_INVALID',
+  );
+
+  const withManifest = structuredClone(negotiation);
+  withManifest.profile.manifest = NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST;
+  assert.throws(
+    () => validateAuthoringV2SurfaceNegotiation(withManifest),
+    (error) => error.code === 'AUTHORING_V2_RESPONSE_INVALID',
+  );
+  const modifiedRegistry = structuredClone(negotiation);
+  modifiedRegistry.commandFeatures[0].ownerOnly = true;
+  assert.throws(
+    () => validateAuthoringV2SurfaceNegotiation(modifiedRegistry),
+    (error) => error.code === 'AUTHORING_V2_RESPONSE_INVALID',
+  );
+  const malformedNegotiations = [
+    { ...structuredClone(negotiation), projectId: '' },
+    { ...structuredClone(negotiation), branchRevision: 0 },
+    { ...structuredClone(negotiation), profile: { ...negotiation.profile, profileId: '' } },
+    { ...structuredClone(negotiation), profile: { ...negotiation.profile, profileVersion: 0 } },
+  ];
+  for (const malformed of malformedNegotiations) {
+    assert.throws(
+      () => validateAuthoringV2SurfaceNegotiation(malformed),
+      (error) => error.code === 'AUTHORING_V2_RESPONSE_INVALID',
+    );
+  }
+});
+
 test('one-shot consumption is synchronous and only an unmodified native AbortSignal is accepted', async () => {
   const request = {
     schemaVersion: AUTHORING_V2_SCHEMA_VERSION,
@@ -271,6 +406,25 @@ test('one-shot consumption is synchronous and only an unmodified native AbortSig
     (error) => error.code === 'AUTHORING_V2_SESSION_CONSUMED',
   );
   assert.equal((await first).profile.fingerprint, NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT);
+
+  const capabilities = await fakeSession().readCapabilities(request);
+  assert.equal(capabilities.kind, AUTHORING_V2_CAPABILITIES_KIND);
+  assert.deepEqual(validateAuthoringV2Capabilities(capabilities, {
+    projectId: PROJECT_ID,
+    expectedProfileFingerprint: NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT,
+  }), capabilities);
+  const malformedCapabilities = [
+    { ...structuredClone(capabilities), projectId: '' },
+    { ...structuredClone(capabilities), branchRevision: 0 },
+    { ...structuredClone(capabilities), profile: { ...capabilities.profile, profileId: '' } },
+    { ...structuredClone(capabilities), profile: { ...capabilities.profile, profileVersion: 0 } },
+  ];
+  for (const malformed of malformedCapabilities) {
+    assert.throws(
+      () => validateAuthoringV2Capabilities(malformed),
+      (error) => error.code === 'AUTHORING_V2_RESPONSE_INVALID',
+    );
+  }
 
   const controller = new AbortController();
   Object.defineProperty(controller.signal, 'smuggled', { value: true });
@@ -399,6 +553,58 @@ function adoptionCommand({
     },
   };
 }
+
+test('optional trusted server correlation is carried into the host-bound command context', async () => {
+  const inputBytes = encodeCanonicalRgbaPng({
+    width: 2,
+    height: 1,
+    rgba: Buffer.from([20, 40, 60, 255, 80, 100, 120, 255]),
+  });
+  const outputBytes = encodeCanonicalRgbaPng({
+    width: 1,
+    height: 1,
+    rgba: Buffer.from([20, 40, 60, 255]),
+  });
+  const inputDigest = createHash('sha256').update(inputBytes).digest('hex');
+  const outputDigest = createHash('sha256').update(outputBytes).digest('hex');
+  const inputArtifact = {
+    uri: `studio://artifacts/sha256/${inputDigest}`,
+    digest: inputDigest,
+    mediaType: 'image/png',
+    byteSize: inputBytes.length,
+    width: 2,
+    height: 1,
+  };
+  const outputArtifact = {
+    uri: `studio://artifacts/sha256/${outputDigest}`,
+    digest: outputDigest,
+    mediaType: 'image/png',
+    byteSize: outputBytes.length,
+    width: 1,
+    height: 1,
+  };
+  let trustedContext = null;
+  const hostBoundAtomicStore = fakeHostBoundPort(
+    PROCESSING_RESULT_ADOPTION_HOST_BOUND_ATOMIC_STORE_KIND,
+    (_command, contextValue) => {
+      trustedContext = contextValue;
+      throw new Error('Stop after observing the trusted context.');
+    },
+  );
+  const command = adoptionCommand({ inputArtifact, outputArtifact, baseRevision: 2 });
+  await assert.rejects(
+    fakeSession({
+      hostBoundAtomicStore,
+      correlationId: 'correlation.authoring-v2.transport',
+    }).executeProcessingResultAdoption(executionRequest(command, false)),
+    (error) => error.code === 'PROCESSING_RESULT_ADOPTION_COMMIT_PORT_FAILED',
+  );
+  assert.equal(trustedContext.correlationId, 'correlation.authoring-v2.transport');
+  assert.throws(
+    () => fakeSession({ correlationId: '' }),
+    (error) => error.code === 'VALIDATION_ERROR',
+  );
+});
 
 class CountingCapabilityProvider extends FixedProjectCapabilityProvider {
   calls = 0;

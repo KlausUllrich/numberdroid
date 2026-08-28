@@ -1,6 +1,14 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/server';
 import { serveStdio, StdioServerTransport } from '@modelcontextprotocol/server/stdio';
-import { createAgentToolCatalog, findAgentTool } from './index.js';
+import {
+  createAgentToolCatalog,
+  findAgentTool,
+} from './index.js';
+import {
+  AUTHORING_V2_CAPABILITIES_URI_TEMPLATE,
+  authorizeAgentProject,
+  createAuthoringV2McpSurface,
+} from './authoring-v2.js';
 import { jsonSchemaToZod } from './schema-adapter.js';
 
 function redactTerminalDetails(value) {
@@ -109,10 +117,32 @@ export class CancellationAwareStdioTransport {
 }
 
 export function buildOfficialMcpServer({
-  studioGateway, contextProvider, serverContext, requestAbortRegistry = new Map(),
+  studioGateway,
+  contextProvider,
+  serverContext,
+  requestAbortRegistry = new Map(),
+  authoringV2 = null,
 } = {}) {
   if (!studioGateway) throw new TypeError('studioGateway is required.');
-  const catalog = createAgentToolCatalog(studioGateway, { contextProvider });
+  const catalog = createAgentToolCatalog(studioGateway, { contextProvider, authoringV2 });
+  const authoringV2Surface = authoringV2 === null || authoringV2 === undefined
+    ? null
+    : createAuthoringV2McpSurface(studioGateway, authoringV2, {
+      authorizeProject: (invocationContext, requestedProjectId) => authorizeAgentProject(
+        contextProvider,
+        invocationContext,
+        requestedProjectId,
+      ),
+    });
+  if (authoringV2Surface) {
+    for (const requiredTool of [
+      'studio_project_read',
+      'studio_job_read',
+      'studio_asset_query',
+      'studio_room_query',
+      'studio_task_read',
+    ]) findAgentTool(catalog, requiredTool);
+  }
   const server = new McpServer(
     { name: 'numberdroid-studio', version: '0.2.0' },
     {
@@ -285,6 +315,31 @@ export function buildOfficialMcpServer({
         const operation = operationContext(invocationContext, requestAbortRegistry);
         try {
           const value = await taskRead.execute({ schemaVersion: 1, projectId }, operation.context);
+          return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
+        } catch (error) {
+          if (operation.signal.aborted) throw error;
+          const value = officialErrorPayload(error);
+          return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
+        } finally {
+          operation.cleanup();
+        }
+      },
+    );
+  }
+
+  if (authoringV2Surface) {
+    server.registerResource(
+      'studio-authoring-v2-capabilities',
+      new ResourceTemplate(AUTHORING_V2_CAPABILITIES_URI_TEMPLATE, { list: undefined }),
+      {
+        title: 'Studio Authoring v2 capabilities',
+        description: 'Current project-bound Authoring-v2 profile, command feature, and branch revision. Discovery is not authority; every operation is admitted again.',
+        mimeType: 'application/json',
+      },
+      async (uri, { projectId }, invocationContext) => {
+        const operation = operationContext(invocationContext, requestAbortRegistry);
+        try {
+          const value = await authoringV2Surface.readCapabilities(operation.context, projectId);
           return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
         } catch (error) {
           if (operation.signal.aborted) throw error;

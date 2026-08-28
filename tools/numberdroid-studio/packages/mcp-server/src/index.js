@@ -1,4 +1,5 @@
 import { MAX_ATLAS_JOB_ATTEMPTS, StudioError } from '../../domain/src/index.js';
+import { authorizeAgentProject, createAuthoringV2McpSurface } from './authoring-v2.js';
 
 function commandInputSchema(definition) {
   return {
@@ -79,7 +80,11 @@ function roomQueryInputSchema() {
  * is a Checkpoint 1B adapter; it registers these secured definitions without
  * duplicating application behavior.
  */
-export function createAgentToolCatalog(studioService, { contextProvider, agentTaskService = null } = {}) {
+export function createAgentToolCatalog(studioService, {
+  contextProvider,
+  agentTaskService = null,
+  authoringV2 = null,
+} = {}) {
   if (!studioService) {
     throw new StudioError('VALIDATION_ERROR', 'A StudioService is required.');
   }
@@ -87,37 +92,34 @@ export function createAgentToolCatalog(studioService, { contextProvider, agentTa
     throw new StudioError('VALIDATION_ERROR', 'A trusted MCP host contextProvider is required.');
   }
 
-  const durableAssetSurfaceReady = studioService.agentAttemptAuditReady === true
-    && studioService.durableJobStoreReady === true
-    && studioService.durableAssetStoreReady === true;
+  async function authority(invocationContext, requestedProjectId) {
+    return authorizeAgentProject(contextProvider, invocationContext, requestedProjectId);
+  }
+
+  const authoringV2Requested = authoringV2 !== null && authoringV2 !== undefined;
+  const authoringV2Surface = authoringV2Requested
+    ? createAuthoringV2McpSurface(studioService, authoringV2, { authorizeProject: authority })
+    : null;
+  const authoringV2Ready = authoringV2Surface !== null;
+  const agentAttemptAuditReady = studioService.agentAttemptAuditReady === true || authoringV2Ready;
+  const durableJobStoreReady = studioService.durableJobStoreReady === true || authoringV2Ready;
+  const durableAssetStoreReady = studioService.durableAssetStoreReady === true || authoringV2Ready;
+  const durableRoomStoreReady = studioService.durableRoomStoreReady === true || authoringV2Ready;
+  const taskBranchReady = studioService.taskBranchReady === true || authoringV2Ready;
+  const durableAssetSurfaceReady = agentAttemptAuditReady
+    && durableJobStoreReady
+    && durableAssetStoreReady;
   const durableRoomSurfaceReady = durableAssetSurfaceReady
-    && studioService.durableRoomStoreReady === true;
+    && durableRoomStoreReady;
   const agentDefinitions = studioService.commandCatalog.filter(
     (definition) => !definition.ownerOnly
       && definition.type !== 'project.create'
-      && (!definition.requiresTaskBranch || agentTaskService || studioService.taskBranchReady === true)
-      && (!definition.requiresDurableAgentLedger || studioService.agentAttemptAuditReady === true)
-      && (!definition.requiresDurableJobStore || studioService.durableJobStoreReady === true)
+      && (!definition.requiresTaskBranch || agentTaskService || taskBranchReady)
+      && (!definition.requiresDurableAgentLedger || agentAttemptAuditReady)
+      && (!definition.requiresDurableJobStore || durableJobStoreReady)
       && (!definition.requiresDurableAssetStore || durableAssetSurfaceReady)
       && (!definition.requiresDurableRoomStore || durableRoomSurfaceReady),
   );
-
-  async function authority(invocationContext, requestedProjectId) {
-    const context = await contextProvider(invocationContext);
-    if (!context?.projectId) {
-      throw new StudioError(
-        'UNTRUSTED_AGENT_CONTEXT',
-        'The MCP host did not provide a trusted project binding.',
-      );
-    }
-    if (context.projectId !== requestedProjectId) {
-      throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside the MCP host context.', {
-        contextProjectId: context.projectId,
-        requestedProjectId,
-      });
-    }
-    return context;
-  }
 
   const commandTools = agentDefinitions.map((definition) => ({
     name: definition.toolName,
@@ -147,8 +149,7 @@ export function createAgentToolCatalog(studioService, { contextProvider, agentTa
     },
   }));
 
-  const atlasJobTools = studioService.durableJobStoreReady === true
-    && studioService.agentAttemptAuditReady === true ? [
+  const atlasJobTools = durableJobStoreReady && agentAttemptAuditReady ? [
     {
       name: 'studio_atlas_propose_grid',
       title: 'Propose an atlas grid',
@@ -280,7 +281,7 @@ export function createAgentToolCatalog(studioService, { contextProvider, agentTa
     },
   }] : [];
 
-  const taskTools = studioService.taskBranchReady === true ? [
+  const taskTools = taskBranchReady ? [
     {
       name: 'studio_task_read',
       title: 'Read bound Studio task',
@@ -313,7 +314,7 @@ export function createAgentToolCatalog(studioService, { contextProvider, agentTa
     },
   ] : [];
 
-  return [
+  const legacyTools = [
     {
       name: 'studio_command_catalog_list',
       title: 'List Studio semantic commands',
@@ -354,6 +355,15 @@ export function createAgentToolCatalog(studioService, { contextProvider, agentTa
     ...roomTools,
     ...taskTools,
   ];
+  if (!authoringV2Surface) return legacyTools;
+  if (legacyTools.length !== 30) {
+    throw new StudioError(
+      'AUTHORING_V2_SURFACE_BASELINE_MISMATCH',
+      'Authoring v2 requires the exact 30-tool matching-task baseline.',
+      { expectedToolCount: 30, actualToolCount: legacyTools.length },
+    );
+  }
+  return [...legacyTools, authoringV2Surface.tool];
 }
 
 export function findAgentTool(tools, name) {
@@ -366,3 +376,8 @@ export function findAgentTool(tools, name) {
 
 export { buildOfficialMcpServer, serveOfficialMcpStdio } from './official-server.js';
 export { jsonSchemaToZod } from './schema-adapter.js';
+export {
+  AUTHORING_V2_CAPABILITIES_URI_TEMPLATE,
+  authoringV2ProcessingResultAdoptionInputSchema,
+  createAuthoringV2McpSurface,
+} from './authoring-v2.js';

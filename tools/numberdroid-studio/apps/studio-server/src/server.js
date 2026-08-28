@@ -111,7 +111,7 @@ function createPrivateAuthoringV2Runtime({
     return Promise.prototype.finally.call(pending, finishOperation);
   }
 
-  function openSession(token) {
+  function openSession(token, { correlationId = null } = {}) {
     assertOpen();
     const binding = hostBindingStore.resolve(token);
     const admissionReader = new SqliteAuthoringV2AdmissionReader({
@@ -133,8 +133,10 @@ function createPrivateAuthoringV2Runtime({
       planningService,
       hostBoundAtomicStore: adoptionStore.asHostBoundAtomicStore(binding),
       trustedBinding: binding,
+      correlationId,
     });
     return Object.freeze({
+      negotiateSurface: (request, options) => track(() => session.negotiateSurface(request, options)),
       readCapabilities: (request, options) => track(() => session.readCapabilities(request, options)),
       executeProcessingResultAdoption: (request, options) => track(
         () => session.executeProcessingResultAdoption(request, options),
@@ -167,7 +169,14 @@ function sendJson(response, status, value) {
   response.end(body);
 }
 
-function errorStatus(error) {
+function errorStatus(error, pathname = '') {
+  if (pathname.startsWith('/internal/mcp/authoring-v2/')) {
+    if (['AUTHORING_V2_REQUEST_INVALID', 'PROCESSING_RESULT_ADOPTION_COMMAND_INVALID', 'PROCESSING_RESULT_ADOPTION_COMMAND_SCHEMA_UNSUPPORTED', 'PROCESSING_RESULT_ADOPTION_COMMAND_SCOPE_MISMATCH'].includes(error.code)) return 400;
+    if (['AUTHORING_V2_SESSION_CONSUMED', 'AUTHORING_V2_CAPABILITY_MISMATCH', 'AUTHORING_V2_ADMISSION_DRIFT', 'PROCESSING_RESULT_ADOPTION_REVALIDATION_BLOCKED', 'PROCESSING_RESULT_ADOPTION_CURRENT_ASSET_CONFLICT'].includes(error.code)) return 409;
+    if (['AUTHORING_V2_TRANSPORT_UNAVAILABLE', 'AUTHORING_V2_RUNTIME_CLOSED'].includes(error.code)) return 503;
+    if (error.code === 'TASK_NOT_FOUND') return 404;
+    if (['AUTO_ACCEPT_FORBIDDEN', 'TASK_ACTOR_MISMATCH', 'TASK_BRANCH_MISMATCH', 'TASK_BRANCH_REQUIRED', 'TASK_CAPABILITY_MISSING', 'TASK_EXPIRED', 'TASK_GRANT_MISMATCH', 'TASK_NOT_EXECUTABLE', 'TASK_PAUSED'].includes(error.code)) return 403;
+  }
   if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND', 'JOB_NOT_FOUND', 'ASSET_NOT_FOUND', 'ASSET_PROPOSAL_NOT_FOUND', 'ASSET_SLICE_NOT_FOUND', 'ROOM_ARCHETYPE_NOT_FOUND', 'ROOM_VARIANT_NOT_FOUND', 'ROOM_PROPOSAL_NOT_FOUND', 'ROOM_PLACEMENT_NOT_FOUND', 'ROOM_CONNECTOR_NOT_FOUND'].includes(error.code)) return 404;
   if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'ENTITY_VERSION_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING', 'JOB_STATE_CONFLICT', 'JOB_ATTEMPT_CONFLICT', 'JOB_ATTEMPT_LIMIT', 'JOB_INPUT_MISMATCH', 'JOB_OUTPUT_MISMATCH', 'ASSET_LIFECYCLE_BLOCKED', 'ASSET_LIFECYCLE_TRANSITION_INVALID', 'ASSET_PROPOSAL_DECISION_DUPLICATE', 'ASSET_PROPOSAL_DECISION_INCOMPLETE', 'ASSET_PROPOSAL_DUPLICATE_ASSET', 'ASSET_PROPOSAL_DUPLICATE_ITEM', 'ASSET_PROPOSAL_VERSION_INVALID', 'ASSET_SLICE_STALE', 'ASSET_WARNING_NOT_FOUND', 'ASSET_WARNING_UNDISPOSITIONED', 'ROOM_EDIT_REQUIRES_DRAFT', 'ROOM_LIFECYCLE_BLOCKED', 'ROOM_LIFECYCLE_TRANSITION_INVALID', 'ROOM_PROPOSAL_UNRESOLVED', 'ROOM_PROPOSAL_STATE_CONFLICT', 'ROOM_PROPOSAL_DECISION_INCOMPLETE', 'ROOM_PROPOSAL_DECISION_DUPLICATE', 'ROOM_WARNING_NOT_FOUND', 'ROOM_WARNING_UNDISPOSITIONED', 'ROOM_RESIZE_CLIPS_CONTENT', 'ROOM_VERSION_CONFLICT'].includes(error.code)) return 409;
   if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'JOB_AUTHORITY_MISMATCH', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
@@ -594,6 +603,62 @@ const ATTEMPT_DENIAL_CODES = new Set([
   'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'ARTIFACT_URI_REQUIRED',
 ]);
 
+const AUTHORING_V2_ATTEMPT_DENIAL_CODES = new Set([
+  ...ATTEMPT_DENIAL_CODES,
+  'AUTHORING_V2_ADMISSION_DRIFT',
+  'AUTO_ACCEPT_FORBIDDEN', 'TASK_ACTOR_MISMATCH', 'TASK_BRANCH_MISMATCH',
+  'TASK_BRANCH_REQUIRED', 'TASK_CAPABILITY_MISSING', 'TASK_EXPIRED',
+  'TASK_GRANT_MISMATCH', 'TASK_NOT_EXECUTABLE', 'TASK_NOT_FOUND', 'TASK_PAUSED',
+]);
+
+const AUTHORING_V2_MCP_ROUTES = new Map([
+  ['/internal/mcp/authoring-v2/handshake', Object.freeze({
+    operation: 'negotiateSurface',
+    commandType: 'authoring-v2.surface.negotiate',
+    maxBytes: 1024,
+  })],
+  ['/internal/mcp/authoring-v2/capabilities', Object.freeze({
+    operation: 'readCapabilities',
+    commandType: 'authoring-v2.capabilities.read',
+    maxBytes: 1024,
+  })],
+  ['/internal/mcp/authoring-v2/processing-result-adopt', Object.freeze({
+    operation: 'executeProcessingResultAdoption',
+    commandType: 'asset.processing-result.adopt',
+    maxBytes: 1024 * 1024,
+  })],
+]);
+
+function assertAuthoringV2TransportReady({
+  runtime,
+  studioService,
+  hostBindingStore,
+  agentAttemptStore,
+  jobStore,
+  agentTaskService,
+}) {
+  const ready = runtime !== null
+    && runtime !== undefined
+    && typeof runtime.openSession === 'function'
+    && hostBindingStore !== null
+    && typeof hostBindingStore.resolve === 'function'
+    && typeof hostBindingStore.resolveAttemptSubject === 'function'
+    && agentAttemptStore?.isLive === true
+    && studioService.agentAttemptAuditReady === true
+    && jobStore?.isLive === true
+    && studioService.durableJobStoreReady === true
+    && studioService.durableAssetStoreReady === true
+    && studioService.durableRoomStoreReady === true
+    && agentTaskService !== null
+    && typeof agentTaskService.hasTask === 'function';
+  if (!ready) {
+    throw new StudioError(
+      'AUTHORING_V2_TRANSPORT_UNAVAILABLE',
+      'Authoring v2 requires the complete local durable Studio stack.',
+    );
+  }
+}
+
 function safeAttemptId(value) {
   return typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value) ? value : null;
 }
@@ -718,7 +783,7 @@ export function createStudioHttpServer({
     studioService, hostBindingStore, pairingBroker, agentTaskService,
   });
 
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://127.0.0.1');
     const requestAbort = new AbortController();
     const abortIfUnfinished = () => {
@@ -745,6 +810,65 @@ export function createStudioHttpServer({
       }
       if (request.method === 'GET' && url.pathname === '/api/projects') {
         sendJson(response, 200, { schemaVersion: 1, projects: await studioService.listProjectsTrusted() });
+        return;
+      }
+      const authoringV2Route = request.method === 'POST'
+        ? AUTHORING_V2_MCP_ROUTES.get(url.pathname)
+        : null;
+      if (authoringV2Route) {
+        assertLoopbackServiceRequest(request);
+        const runtime = privateAuthoringV2RuntimeByServer.get(server);
+        assertAuthoringV2TransportReady({
+          runtime,
+          studioService,
+          hostBindingStore,
+          agentAttemptStore,
+          jobStore,
+          agentTaskService,
+        });
+        const token = bearerToken(request);
+        let attemptSubject = null;
+        let attemptContext = null;
+        let projectView = null;
+        let commandId = null;
+        let result;
+        try {
+          attemptSubject = hostBindingStore.resolveAttemptSubject(token);
+          attemptContext = bindingExecutionContext(attemptSubject);
+          projectView = await studioService.readProjectTrusted(attemptSubject.projectId);
+          const body = await readJsonBody(request, { maxBytes: authoringV2Route.maxBytes });
+          if (authoringV2Route.operation === 'executeProcessingResultAdoption') {
+            commandId = safeAttemptId(body?.command?.commandId);
+          }
+          const session = runtime.openSession(token, {
+            correlationId: attemptContext.correlationId,
+          });
+          result = await session[authoringV2Route.operation](body, {
+            signal: requestAbort.signal,
+          });
+        } catch (rawError) {
+          const error = asStudioError(rawError);
+          if (attemptSubject !== null && attemptContext !== null && projectView !== null) {
+            agentAttemptStore.recordFailure({
+              attemptId: `attempt.${randomUUID()}`,
+              projectId: attemptSubject.projectId,
+              correlationId: attemptContext.correlationId,
+              actorId: attemptSubject.actor.id,
+              taskId: safeAttemptId(attemptSubject.taskId),
+              branchId: attemptSubject.branchId,
+              commandId,
+              commandType: authoringV2Route.commandType,
+              targetKind: 'project',
+              targetId: attemptSubject.projectId,
+              observedRevision: projectView.revision,
+              status: AUTHORING_V2_ATTEMPT_DENIAL_CODES.has(error.code) ? 'DENIED' : 'FAILED',
+              errorCode: error.code,
+              details: redactInternalDetails(error.details),
+            });
+          }
+          throw error;
+        }
+        sendJson(response, 200, result);
         return;
       }
       if (request.method === 'POST' && url.pathname === '/internal/mcp/execute') {
@@ -1596,12 +1720,13 @@ export function createStudioHttpServer({
       const projected = url.pathname.startsWith('/internal/mcp/')
         ? internalMcpErrorProjection(error)
         : { code: error.code, message: error.message, details: error.details };
-      sendJson(response, errorStatus(error), {
+      sendJson(response, errorStatus(error, url.pathname), {
         schemaVersion: 1,
         error: projected,
       });
     }
   });
+  return server;
 }
 
 export async function startStudioHttpServer({
@@ -1610,8 +1735,15 @@ export async function startStudioHttpServer({
   port = Number(process.env.NUMBERDROID_STUDIO_PORT ?? 4317),
   storeMode = process.env.NUMBERDROID_STUDIO_STORE ?? 'sqlite',
   clock = () => new Date().toISOString(),
+  authoringV2CapabilityProvider = null,
 } = {}) {
   if (!['sqlite', 'json'].includes(storeMode)) throw new TypeError('storeMode must be sqlite or json.');
+  // Trusted programmatic composition only. The private admission service still
+  // pins every positive response to the exact Numberdroid Authoring-v2 manifest.
+  if (authoringV2CapabilityProvider !== null
+    && typeof authoringV2CapabilityProvider?.getProjectCapabilityManifest !== 'function') {
+    throw new TypeError('authoringV2CapabilityProvider must expose getProjectCapabilityManifest().');
+  }
   if (!['127.0.0.1', 'localhost', '::1'].includes(host)) {
     throw new StudioError(
       'LOOPBACK_HOST_REQUIRED',
@@ -1649,17 +1781,17 @@ export async function startStudioHttpServer({
     ? new ContentAddressedArtifactStore({ rootDirectory: resolve(dataDirectory, 'artifacts') })
     : null;
   await artifactStore?.initialize();
-  const authoringV2CapabilityProvider = storeMode === 'sqlite'
-    ? new FixedProjectCapabilityProvider({
+  const privateAuthoringV2CapabilityProvider = storeMode === 'sqlite'
+    ? (authoringV2CapabilityProvider ?? new FixedProjectCapabilityProvider({
       manifest: NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST,
-    })
+    }))
     : null;
   const privateAuthoringV2Runtime = storeMode === 'sqlite'
     ? createPrivateAuthoringV2Runtime({
       workspace: store.workspace,
       artifactStore,
       hostBindingStore,
-      capabilityProvider: authoringV2CapabilityProvider,
+      capabilityProvider: privateAuthoringV2CapabilityProvider,
       clock,
     })
     : null;

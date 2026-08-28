@@ -23,8 +23,8 @@ primary visual. No slice adds a persisted processing workflow, semantic
 adoption command, or new pixel operation. See the [A1.0 status](docs/A1_0_STATUS.md),
 [A1.1 status](docs/A1_1_STATUS.md), and [A1.2 status](docs/A1_2_STATUS.md).
 
-A1.3, A1.4, A1.5, A1.6a, A1.6b1, and A1.6b2a are now **implemented candidates and are
-not user-accepted**.
+A1.3, A1.4, A1.5, A1.6a, A1.6b1, A1.6b2a, and A1.6b2b are now
+**implemented candidates and are not user-accepted**.
 A1.3's read-only project-bound receipt closes Recipe → Result → Selection, an
 exact dedicated capability operation, registered-plus-physical CAS
 revalidation, findings policy, and exact Asset create/update plus
@@ -56,24 +56,41 @@ ledger-first lost-response replay at exhausted budget. The SQLite production
 server keeps this runtime in a module-private `WeakMap`; it adds no route,
 launcher selector, MCP tool/resource, UI, or returned runtime field. None of
 the six adds a new pixel operation, Main/CP2C mutation, or owner/release authority.
+A1.6b2b adds the separately selected local transport over that runtime. Only
+the exact process setting `NUMBERDROID_STUDIO_MCP_PROFILE=authoring-v2` requests
+it; an absent setting preserves legacy startup unchanged and every other set
+value fails closed. A positive private loopback/Bearer server negotiation is
+required before the stdio server is built. It returns `AVAILABLE` or
+`REPLAY_ONLY` and pins a static surface of exactly 31 tools and six resource
+templates: the existing task-bound 30/five surface plus only
+`studio_processing_result_adopt` and
+`studio://projects/{projectId}/capabilities`. Capability reads and dry-runs
+repeat fresh full admission and remain budget-strict. Commit instead enters a
+fresh HostBinding-bound A1.5 store directly so a same-key lost-response replay
+remains recoverable after the one-command budget was charged. Discovery stays
+static for that running process, while revocation or other authority drift is
+freshly denied on the next operation. There is no fallback to 30/five and no
+launcher auto-opt-in, public HTTP/UI selection, scope-catalog exposure, or
+owner/release operation.
 See the
 [A1.3 candidate status](docs/A1_3_STATUS.md) and
 [A1.4 candidate status](docs/A1_4_STATUS.md), plus the
 [A1.5 persistence candidate status](docs/A1_5_STATUS.md) and
 [A1.6a prerequisite candidate status](docs/A1_6A_STATUS.md), plus the
 [A1.6b1 admission candidate status](docs/A1_6B1_STATUS.md), plus the
-[A1.6b2a private-session candidate status](docs/A1_6B2A_STATUS.md). A1.6b2b
-separately versioned 31/six Authoring-v2 exposure is the next planned bounded Artist block. The
-operations O0/O1 lane is independent and retains its own gates.
+[A1.6b2a private-session candidate status](docs/A1_6B2A_STATUS.md), and the
+[A1.6b2b transport candidate status](docs/A1_6B2B_STATUS.md). A1.7 visual
+review/correction is the next A1 block; A1 remains incomplete. The operations
+O0/O1 lane is independent and retains its own gates.
 
 Checkpoint 2B acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later commits `f116f25aed2f0a9d935de9061cf6492d3a56bef4` and `b9ce37e44fe3679b52b50dac6daf4e1a46024c1d` change only the `visualFixture`/test evidence harness; they do not change product behavior or reopen acceptance. Failed run `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and failed run `32572344465` (Studio job `97029542069`, isolating Chrome/CDP post-move pointer-capture bookkeeping) are invalid diagnostic evidence only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, and expires `2026-09-05T12:26:26Z`. Under Chrome `151.0.7922.137` at 1440×900 and 1060×900, it records zero runtime and visual errors and proves captured press, a same-pointer held move, deferred rendering, matching release/settlement/replacement, exact scroll/context retention, and telemetry cleanup. Run `32568108922` / artifact `9474639509` remain the product-repair evidence; run `32572870510` / artifact `9475808319` are the final post-acceptance closure evidence.
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.6b2a, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
+| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.6b2b, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Accepted source/asset/room/task foundations plus candidate list-first tasks, useful prop previews, and persistent-canvas rectangle/irregular-room authoring |
-| Agent access | Public discovery remains 19 tools/four templates without a task and 30 tools/five templates for a matching task branch; private A1.5/A1.6a/A1.6b1/A1.6b2a seams add no callable surface. A1.6b2b must positively handshake the separately versioned feature before exposing 31/six; authority, owner review, merge, materialization, and publication remain human-only. |
+| Agent access | Absent profile selection preserves 19 tools/four templates without a task and 30 tools/five templates for a matching legacy task. Exact `authoring-v2` selection plus a positive private server negotiation exposes static 31/six only for the matching v2 task; every other set selector, failed negotiation, later authority check, and fallback attempt fails closed. Owner review, merge, materialization, and publication remain human-only. |
 | Persistence | SQLite schema v13 WAL ledger with normalized immutable shape cells plus private branch-local processing-adoption lineage/retention; sanitized portable bundles remain v1/v2 and v3 only for masked rooms |
 | Numberdroid export | Dependent CP5 candidate-only snapshot/adapter/compiler foundation; no persistence/approval UI, materialization, commit, or publishing authority yet |
 
@@ -107,6 +124,24 @@ The server enforces one authoritative SQLite writer. `NUMBERDROID_STUDIO_STORE=j
 5. The panel now lists the redacted authorized binding. **Revoke** stops it immediately. Changing posture revokes existing bindings; create and authorize a new host request for the new immutable grant. `Off` revokes all active bindings and they never reactivate later.
 
 MCP stdout is protocol-only. Pairing state and protocol diagnostics go to stderr. The Header distinguishes an active policy from an authorized host: a `SCOPED` policy alone does not mean that an agent is connected.
+
+Legacy MCP startup requires no profile setting and remains the default. The
+A1.6b2b candidate is deliberately manual and non-UI: set exactly
+`NUMBERDROID_STUDIO_MCP_PROFILE=authoring-v2` only for a host already bound to a
+trusted v2 task/grant. Startup then requires a positive private server
+negotiation; unavailable, malformed, mismatched, revoked, or unsupported state
+terminates that host without falling back to legacy discovery. A successful
+host exposes its fixed 31/six catalog for its lifetime, but every capability
+read, dry-run, and commit resolves current authority again. Cancellation
+propagates from MCP through the gateway to the server session; an atomic commit
+is not interrupted, and an uncertain result is recovered with the same
+idempotency key. Graceful shutdown drains active v2 operations before closing
+the writer. Successful capability/dry-run reads create no authorization row,
+successful commits use their atomic semantic Activity, and attributable
+denials/failures add one redacted final attempt; pre-binding failures remain
+unattributed. Restart reconstructs the surface through a new positive
+negotiation and may return `REPLAY_ONLY` so an exhausted-budget replay remains
+possible without authorizing new work.
 
 ## Administration, migration, and recovery
 

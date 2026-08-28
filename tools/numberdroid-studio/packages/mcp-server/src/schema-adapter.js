@@ -1,5 +1,15 @@
 import * as z from 'zod/v4';
 
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => (
+      `${JSON.stringify(key)}:${canonicalJson(value[key])}`
+    )).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 function singleType(schema) {
   const types = Array.isArray(schema.type) ? schema.type : [schema.type];
   const nullable = types.includes('null');
@@ -34,14 +44,23 @@ export function jsonSchemaToZod(schema) {
   } else if (type === 'integer') {
     result = z.number().int();
     if (schema.minimum !== undefined) result = result.min(schema.minimum);
+    if (schema.maximum !== undefined) result = result.max(schema.maximum);
   } else if (type === 'number') {
     result = z.number();
     if (schema.minimum !== undefined) result = result.min(schema.minimum);
+    if (schema.maximum !== undefined) result = result.max(schema.maximum);
   } else if (type === 'boolean') {
     result = z.boolean();
   } else if (type === 'array') {
     result = z.array(jsonSchemaToZod(schema.items));
     if (schema.minItems !== undefined) result = result.min(schema.minItems);
+    if (schema.maxItems !== undefined) result = result.max(schema.maxItems);
+    if (schema.uniqueItems === true) {
+      result = result.refine(
+        (items) => new Set(items.map(canonicalJson)).size === items.length,
+        { message: 'Array items must be unique.' },
+      );
+    }
   } else if (type === 'object') {
     const required = new Set(schema.required ?? []);
     const shape = Object.fromEntries(Object.entries(schema.properties ?? {}).map(([name, propertySchema]) => {
