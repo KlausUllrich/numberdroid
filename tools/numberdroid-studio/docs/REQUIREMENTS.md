@@ -86,8 +86,9 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **IMG-008.** Project capability manifests MAY restrict formats, dimensions, color/alpha rules, frame layouts, or codecs. Unsupported processing MUST fail visibly before candidate creation.
 
 **Implementation status (2026-08-28): the bounded A1.0, A1.1, and A1.2
-contracts are explicitly user-accepted; A1.3, A1.4, A1.5, A1.6a, A1.6b1, and A1.6b2a
-are implemented candidates and are not user-accepted.** A1.0 supplies the fail-closed
+contracts are explicitly user-accepted; A1.3, A1.4, A1.5, A1.6a, A1.6b1,
+A1.6b2a, and A1.6b2b are implemented candidates and are not user-accepted.**
+A1.0 supplies the fail-closed
 `ProcessingRecipe` schema and projection for the accepted exact-PNG crop
 processor. A1.1 adds a pure
 fail-closed `ProcessingResult` schema for that same operation, pinning the
@@ -138,8 +139,27 @@ session. Capability/dry-run repeats full current admission around asynchronous
 work; commit deliberately enters the host-bound ledger-first store directly so
 lost-response replay survives an exhausted one-command budget. The production
 runtime is module-private and adds no HTTP/MCP/UI/launcher or returned server
-surface. Therefore `IMG-001`–`IMG-008` remain unsatisfied end to end
-despite the private persistence and planning evidence.
+surface. A1.6b2b makes only this adoption path callable behind exact
+`NUMBERDROID_STUDIO_MCP_PROFILE=authoring-v2` selection and a positive private
+loopback/Bearer server negotiation. Absence preserves legacy 19/four or 30/five
+startup; every other set value, failed negotiation, and fallback attempt fails
+closed. Positive `AVAILABLE` or `REPLAY_ONLY` negotiation freezes exactly
+31 tools/six templates: matching-task 30/five plus only
+`studio_processing_result_adopt` and the project capabilities template.
+Capabilities and dry-run repeat fresh full, budget-strict admission. Commit
+uses a fresh HostBinding-bound ledger-first session so a same-key lost-response
+replay survives exact budget exhaustion, while new work, later revocation, or
+authority drift is freshly denied. Cancellation, active-operation drain,
+redacted audit cardinality, and restart recovery remain within the one-writer
+boundary. It adds no public HTTP/UI, launcher auto-opt-in, scope-catalog
+exposure, profile-v1 provider change, owner decision/apply/finalize, review,
+merge/revert, lifecycle, materialization, publication, or release authority.
+This is an implemented, non-accepted candidate path for `IMG-006`, not
+acceptance or completion of `IMG-001`–`IMG-008` or A1. See
+[`A1_6B2B_STATUS.md`](A1_6B2B_STATUS.md).
+Legacy command definitions/scopes remain 33/30, the profile-v1 fingerprint
+remains `826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049`,
+schema remains v13, and portable bundles remain v1-v3.
 
 ### 5.3 Atlas Cutter
 
@@ -258,6 +278,27 @@ despite the private persistence and planning evidence.
 - **AGT-023.** Agent commands SHOULD support typed batch operations and replace-draft semantics for efficient level and asset construction, while preserving one documented atomic boundary, per-item findings, idempotency, and budget accounting.
 - **AGT-024.** Agent role names such as **Artist** or **Level Designer** are onboarding/workflow profiles, not authority. The immutable human-created grant remains the only capability source.
 - **AGT-025.** Ordinary agent authoring MUST be able to end in an immutable candidate and **Waiting for your review** state. Owner review decision, merge, recovered-workspace activation, repository materialization, and publication MUST remain unavailable to agents.
+- **AGT-026.** Authoring-v2 MCP MUST be requested only by an exact versioned
+  selector. An absent selector MUST preserve accepted legacy startup; an
+  unknown set value or unsuccessful private server negotiation MUST fail
+  startup closed without legacy fallback. A selector or client claim MUST NOT
+  create task, grant, branch, profile, store, or operation authority.
+- **AGT-027.** A positively negotiated Authoring-v2 server MUST freeze one
+  exact discovery surface for its process. Revocation, expiry, budget, task,
+  profile, or store drift MUST be re-evaluated on every later operation and
+  MUST deny that operation rather than mutate discovery or downgrade the host.
+- **AGT-028.** Capability reads and dry-run MUST perform fresh full admission
+  and enforce current budget. A commit path MAY bypass that pre-admission only
+  to enter a freshly strict HostBinding-bound ledger-first atomic store, so an
+  unknown same-key outcome remains recoverable after the original charge;
+  replay MUST NOT authorize new semantics or create a second effect or charge.
+- **AGT-029.** Authoring-v2 cancellation MUST propagate across MCP, gateway,
+  private HTTP, and application session. It MUST NOT interrupt an active atomic
+  commit. Shutdown MUST drain active operations before closing the writer, and
+  restart MUST require fresh negotiation. Successful discovery/capability/
+  dry-run MUST NOT invent authorization Activity; attributable denials and
+  failures MUST create exactly one redacted final attempt, while pre-binding
+  traffic remains unattributed.
 
 ### 5.10 Animations
 
@@ -624,6 +665,10 @@ split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
   currently advertised room/task commands. Complete agent-first onboarding is
   not achieved until the versioned authoring surface covers the full
   capability-advertised Artist and Level Designer workflows.
+- **ONB-009.** The A1.6b2b 31/six surface is a separately selected candidate,
+  not an onboarding auto-upgrade. Guidance MUST NOT set its selector, provision
+  its scope, or imply owner authority automatically; only an already matching
+  v2 HostBinding/task/grant may negotiate it.
 
 ## 10. Open decisions and recommended defaults
 

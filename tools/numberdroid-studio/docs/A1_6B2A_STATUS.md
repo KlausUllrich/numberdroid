@@ -155,20 +155,14 @@ actual 22-path classification. Conservative PR Root/browser/Windows coverage
 is regression evidence, not a new UI, visual-acceptance, or product-contract
 claim. Source integration and CI leave this candidate **NOT USER ACCEPTED**.
 
-## Explicitly deferred to A1.6b2b
+## Subsequent block pointer
 
-A1.6b2b is the separate transport/exposure block. It must require an explicit
-v2 request plus a positive private server handshake, build a static MCP server
-with exactly **31 tools/six resource templates**, and create a fresh
-HostBinding-resolved one-shot session for every invocation. Capabilities and
-dry-run repeat full admission; commit keeps the A1.6b2a exception and enters
-the freshly host-bound store without a budget-blocking full pre-admission so
-lost-response replay remains recoverable. The transport maps required
-`dryRun`, adds bounded cancellation and redacted audit, and fails closed rather
-than silently falling back to 30/5. The capabilities resource is discovery,
-never authority. No owner review,
-merge, lifecycle, materialization, publication, or release operation may be
-added.
+A1.6b2b now implements the separately selected private transport/exposure
+candidate described in `A1_6B2B_STATUS.md`. It preserves this block's repeated
+full admission for capabilities/dry-run and ledger-first commit exception,
+while adding the positive-handshake-gated static 31/6 MCP surface. A1.6b2b is
+also **NOT USER ACCEPTED**; A1.7 is the next bounded development block after
+its integration gates close.
 
 ## Recovery
 

@@ -19,6 +19,17 @@ surfaces MUST remain exact. Complete agent-first authoring ships as an explicit,
 versioned **Authoring v2** feature/schema gate with newly pinned discovery counts.
 It MUST NOT rename or silently add tools to an accepted discovery mode.
 
+A1.6b2b is the first such gate and remains an **IMPLEMENTED CANDIDATE — NOT
+USER ACCEPTED**. Only exact
+`NUMBERDROID_STUDIO_MCP_PROFILE=authoring-v2` selection requests it; absence
+preserves legacy startup unchanged and every other set value fails startup
+closed. A positive private loopback/Bearer negotiation with the one-writer
+server is required before stdio discovery is constructed. Its exact static
+surface is 31 tools/six resource templates: matching-task 30/five plus only
+`studio_processing_result_adopt` and
+`studio://projects/{projectId}/capabilities`. It never falls back to legacy
+discovery. See [`A1_6B2B_STATUS.md`](A1_6B2B_STATUS.md).
+
 Accepted transport: local stdio through the official SDK v2 `serveStdio(() => buildServer(), { legacy: "reject" })` entry, so the wire protocol is MCP `2026-07-28`. A child-process contract test negotiates `server/discover` and asserts that revision. The MCP protocol core is treated as stateless: protocol discovery/capability negotiation is not an identity or authorization session. A later team deployment may add authenticated Streamable HTTP without changing tool schemas or authoring behavior.
 
 ## 2. Host execution context
@@ -90,16 +101,34 @@ v10 room gate. A real matching task binding advertises exactly five by adding
 the task template. The server does not advertise resource listing or any URI
 pattern beyond the exact applicable gate.
 
-### Planned Authoring v2 resource surface
+### Authoring v2 resource surface
 
-The patterns below are the intended versioned surface as their owning checkpoints are implemented. They MUST NOT be described as discoverable or usable until runtime registration and contract tests exist.
+The A1.6b2b candidate registers exactly one additive template:
 
-Target URI patterns:
+```text
+studio://projects/{projectId}/capabilities
+```
+
+It exists only in a positively negotiated Authoring-v2 process and projects the
+exact bound project's validated Numberdroid profile-v2 manifest, including its
+schema/profile versions, fingerprint, modules, operation, limits, formats, and
+the one processing-adoption command feature. The project coordinate is fixed by
+the negotiated host binding. Every read creates a fresh one-shot session and
+repeats full, current, budget-strict admission; `REPLAY_ONLY` startup therefore
+keeps the static template discoverable but a capability read fails with the
+current budget denial. Discovery and a successful read grant no mutation
+authority. A revocation after startup leaves discovery static and makes the
+next read fail closed.
+
+The remaining patterns below are intended as their owning checkpoints are
+implemented. They MUST NOT be described as discoverable or usable until runtime
+registration and contract tests exist.
+
+Remaining target URI patterns:
 
 ```text
 studio://projects
 studio://projects/{projectId}/production-board
-studio://projects/{projectId}/capabilities
 studio://projects/{projectId}/activity?after={cursor}
 studio://projects/{projectId}/branches/{branchId}
 studio://projects/{projectId}/revisions/{revisionId}
@@ -270,17 +299,11 @@ or tool. None changes the accepted 19/4 or matching-task 30/5 discovery
 surfaces. A1.3's receipt and A1.4's plan are not executable authority; only the
 private A1.5 store can commit after fresh authorization/revalidation, and that
 commit is neither an owner decision nor review/merge/lifecycle authority.
-A1.6a now supplies only private prerequisites: one separately typed command
-feature over 33 legacy definitions, the exact 31-scope vocabulary, additive
-Numberdroid profile v2, trusted task/grant catalog injection, and real read-only
-SQLite/CAS A1.4 planning ports. At the A1.6a boundary no server,
-launcher, HostBinding, HTTP, UI, or MCP composition selected them, so accepted
-19/4 and matching-task 30/5 discovery remain exact. A1.6b2b must expose the
-callable adoption surface only after a server-validated v2 task/grant/branch/
-profile/store handshake, with exactly 31 tools/six resource templates for that
-matching v2 task. `dryRun: true` maps to A1.4 planning and `dryRun: false` maps
-to the A1.5 atomic commit. Client or environment claims can request but never
-create authority. Candidate-only A1.6b1 is the private admission prerequisite:
+A1.6a supplies the private prerequisites: one separately typed command feature
+over 33 legacy definitions, the exact 31-scope vocabulary, additive Numberdroid
+profile v2, trusted task/grant catalog injection, and real read-only SQLite/CAS
+A1.4 planning ports. Candidate-only A1.6b1 is the private admission
+prerequisite:
 strict HostBinding resolution now closes the current Grant, and an unwired
 host-bound A1.5 port checks Binding/Grant before replay and again inside the
 mutation transaction. Existing audited generic and specialized bridges use a
@@ -292,9 +315,47 @@ real A1.4 dry-run, and separately typed host-bound A1.5 commit behind a private
 one-shot server session. Full admission surrounds capability/dry-run reads;
 commit enters the host-bound ledger-first store directly so lost-response
 replay survives exhausted budget. The runtime remains module-private and adds
-no route, tool, resource, launcher, gateway, UI, or discovery change. A1.6b2b
-remains the transport/exposure block that must positively handshake and expose
-exactly 31/six.
+no route, tool, resource, launcher, gateway, UI, or discovery change.
+
+Candidate-only A1.6b2b adds only the callable adoption surface described here.
+It requires exact `authoring-v2` process selection and a positive private
+server negotiation for a matching v2 HostBinding/Task/Grant/non-main branch,
+profile fingerprint, and complete store/runtime. Negotiation reports
+`AVAILABLE` when `usedCommands < maxCommands` and `REPLAY_ONLY` when they are
+equal. Incoherent or over-budget evidence is rejected; neither state creates
+authority. Absence preserves legacy startup, every other set selector and every
+failed negotiation terminates startup, and no path falls back to 30/five.
+
+The negotiated server freezes the complete matching-task legacy catalog and
+adds exactly one tool and one resource template. The tool's top-level schema is
+v2 and requires `commandId`, `idempotencyKey`, `projectId`, `baseRevision`,
+`expectedVersion`, Boolean `dryRun`, and the complete bounded adoption payload.
+The mapper fixes feature `studio.authoring-v2`, tool
+`studio_processing_result_adopt`, command type
+`asset.processing-result.adopt`, and the unchanged inner A1.4 schema-v1 command;
+the caller cannot supply authority or replace these discriminators.
+`dryRun: true` performs fresh full, budget-strict admission and maps to real
+A1.4 planning. `dryRun: false` creates a fresh strict HostBinding-bound session
+but maps directly to the A1.5 ledger-first atomic store. This exception is
+required so same-key/same-semantics or alias-command replay can recover a lost
+response at `maxCommands: 1`; a new semantic command remains blocked and no
+replay creates a second effect, retention pair, Activity, or charge.
+
+The catalog remains static until that MCP process exits. Later revocation,
+expiry, task/profile/store drift, and budget changes do not rewrite discovery;
+the next resource/tool call resolves current authority and fails closed. A
+restart creates a new process and positive negotiation, including
+`REPLAY_ONLY` when only recovery is possible. This candidate adds no scope
+catalog resource, launcher auto-opt-in, public HTTP, browser/UI control,
+profile-v1 provider replacement, owner decision/apply/finalize, review, merge,
+revert, lifecycle, materialization, publication, or release operation.
+
+The expected Numberdroid v2 fingerprint is
+`5488df72b2e45c738735d90046cd3c4a7a560a99922936cfeb5a3e84c63fc106`.
+The legacy v1 fingerprint remains
+`826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049`,
+legacy command definitions/scopes remain 33/30, schema remains v13, and
+portable bundles remain v1-v3.
 
 `studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 
@@ -437,6 +498,14 @@ Accepted semantic commands append to the revision Activity timeline with actor/t
 
 There are deliberately no non-atomic request `STARTED`/`COMMITTED` rows: successful commands already have atomic semantic Activity, and an audit-write failure on a denied/failed attempt makes that call fail closed. Invalid/missing bearer tokens, pairing failures, and other pre-binding traffic stay in redacted operational security logs because no trusted project/actor exists to attribute. That boundary is the exact 2A closure of `AGT-008`, not a claim of complete request/job telemetry.
 
+A1.6b2b preserves that ledger model. Successful surface negotiation,
+capability-resource reads, and adoption dry-runs create no `AUTHORIZED` attempt
+row. A successful adoption commit or replay is represented by its atomic A1.5
+semantic Activity and never by a duplicate bridge-attempt row. An attributable
+v2 denial or failure creates exactly one redacted final `DENIED` or `FAILED`
+row with the shared correlation; malformed, missing-Bearer, and other
+pre-binding traffic creates none.
+
 The target V1 activity timeline displays every MCP tool call that reaches application policy, with:
 
 - authenticated actor and task;
@@ -451,6 +520,12 @@ The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2
 
 ## 11. Security invariants
 
+- A1.6b2b uses only
+  `/internal/mcp/authoring-v2/handshake`,
+  `/internal/mcp/authoring-v2/capabilities`, and
+  `/internal/mcp/authoring-v2/processing-result-adopt`. These endpoints are
+  loopback/Bearer-private, bounded, redirect-refusing gateway operations and
+  are not a public HTTP API.
 - Agent-visible tools cannot mint/widen grants, change their actor ID, escape their project/branch, or select an arbitrary storage/export path.
 - Resource reads are authorized independently from tool calls.
 - Host credentials, grant IDs, and transport credentials are not returned in logs or broad resources; agents receive only a redacted effective-policy view sufficient to plan allowed work.
@@ -463,6 +538,13 @@ The accepted user can revoke the grant/HostBinding from the Header. Checkpoint 2
 - Publish requires a separate short-lived grant and explicit snapshot/manifest identity.
 
 Client cancellation is propagated through the official MCP request context, the local HTTP bridge, and the application service. Reads and synchronous mutations check cancellation before persistence and immediately before their atomic write. Once an atomic store call has begun it is not interrupted: the client may no longer know whether that one commit completed, so it MUST retry the same logical command with the same idempotency key. The replay then returns the original committed revision or proves that no commit occurred; cancellation never licenses a second mutation. Atlas jobs additionally persist a cancel request and stop cooperatively before claim, before each crop/output publication, or at the next documented worker safe point; they do not interrupt an atomic output or semantic-apply transaction.
+
+For A1.6b2b this chain is MCP SDK request signal → gateway fetch → private HTTP
+abort signal → one-shot session. Graceful server shutdown stops accepting new
+v2 work, aborts/drains transport ownership as defined by the operation, waits
+for active atomic work to settle, and only then closes SQLite. A restart never
+inherits a protocol session; it reconstructs runtime state from SQLite and
+requires another positive negotiation.
 
 ## 12. MCP acceptance and adversarial tests
 
@@ -493,7 +575,21 @@ Accepted Checkpoint 2A extends those tests with exact seven-tool audit-ready dis
 
 Accepted Checkpoint 2B extends them with exact 15-tool/two-template discovery; non-authoritative grid proposal; source-resolution rectangle validation; deterministic pinned PNG outputs; semantic/job creation atomicity; complete one-time budget charge; job/resource read equivalence; cancel/retry/discard idempotency; three-attempt enforcement; immutable creator-task authority; revoked/expired/cross-task denial; authorized-control audit atomicity; worker lease recovery and stale-worker exclusion; sanitized failures; exact output metadata and reference ownership; atomic semantic apply; restart/recovery; state-specific integrity; snapshot-consistent backup; and quiesced shutdown.
 
-The following target checks remain for the checkpoint that introduces the feature: general atomic batch rollback and batch budget accounting; source/atlas and other Authoring-v2 detail resources beyond the accepted project/job/asset/room and conditional task surfaces; capability-driven Authoring v2 discovery; and the complete image-to-asset and requirements-to-candidate task flows.
+The following target checks remain for the checkpoint that introduces each
+feature: general atomic batch rollback and batch budget accounting; source/atlas
+and other Authoring-v2 detail resources beyond the accepted resources and the
+A1.6b2b capabilities candidate; broader capability-driven Authoring-v2
+discovery; and the complete image-to-asset and requirements-to-candidate task
+flows.
+
+A1.6b2b candidate tests additionally pin exact selector behavior; positive
+`AVAILABLE`/`REPLAY_ONLY` negotiation; 31/six discovery with only the one-tool/
+one-template delta; the full capabilities schema; required `dryRun`; effect-free
+fresh dry-run; one atomic commit/charge/retention pair; restart and alias replay
+at exhausted budget; new-work denial; post-start revocation with static
+discovery and fresh denial; no fallback; cancellation propagation;
+active-operation shutdown drain; redacted audit cardinality; and unchanged
+33/30, profile v1, 19/four, 30/five, schema v13, and bundle v1-v3 contracts.
 
 Authoring v2 must additionally prove:
 

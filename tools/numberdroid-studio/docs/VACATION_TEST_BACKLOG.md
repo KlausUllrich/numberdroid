@@ -36,6 +36,7 @@ Keep these states distinct:
 | VT-007 | A1.6a Authoring-v2 prerequisites | NEEDS KLAUS REVIEW | VT-006 | Accept/revise the private v2 overlay/profile and real effect-free planning composition |
 | VT-008 | A1.6b1 host-bound adoption admission | NEEDS KLAUS REVIEW | VT-007 | Accept/revise the current Binding/Grant replay and mutation-UoW admission boundary |
 | VT-009 | A1.6b2a private Authoring-v2 session | NEEDS KLAUS REVIEW | VT-008 | Accept/revise the one-shot/full-admission versus ledger-first commit boundary |
+| VT-010 | A1.6b2b Authoring-v2 MCP transport | NEEDS KLAUS REVIEW | VT-009 | Accept/revise explicit handshake-gated 31/6 discovery, fresh authority, and restart replay |
 
 Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate.
@@ -679,6 +680,103 @@ own ID only after implementation exists. Planned work is not a candidate.
 - **Recovery:** A1.6b2a adds no migration or durable state. Revert the focused
   candidate; no database downgrade, backup restore, CAS cleanup, task repair,
   audit repair, or fixture deletion is required.
+
+## VT-010 — A1.6b2b Authoring-v2 MCP transport
+
+- **Implementation:** non-visual A1.6b2b transport candidate at a locally
+  verified source checkpoint, still at the **PENDING** integration stage,
+  `f34b1f4aa7af0c0e427191ed623b8154caeaafe3`. It adds the
+  explicit launcher selector, private positive server handshake, three narrow
+  loopback/Bearer routes, gateway mapping, and the single Authoring-v2 MCP
+  tool/resource delta described in `A1_6B2B_STATUS.md`. Source PR, CI, merge,
+  and post-merge Actions are **PENDING**. Five independent final actual-diff
+  reviews are **GO** with no open findings; automation does not close the user
+  decision.
+- **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-009 because the
+  transport exposes exactly the A1.6b2a one-shot/full-admission versus
+  ledger-first commit boundary. VT-004–VT-009 acceptance may still revise the
+  underlying contract. A1.7 is the next implementation block, not part of this
+  gate.
+- **Safe fixture/reset:** reproduction uses only unique directories allocated
+  with `mkdtemp` by the Authoring-v2 transport/official-MCP tests. The fixture
+  provisions synthetic schema-v13 SQLite/CAS data, a private task/Grant/
+  HostBinding, and test PNG artifacts, then closes MCP, HTTP, runtime, and
+  SQLite handles before deleting only that exact directory. Never aim these
+  tests or an exploratory launcher at `.numberdroid-studio`, a personal Studio
+  workspace, a backup, or a Numberdroid checkout. No manual reset or migration
+  rollback is required.
+- **Optional automated reproduction:** with Node 24.19.0 and lockfile
+  dependencies installed, run this exact focused 208-test regression command
+  from `tools/numberdroid-studio/`:
+
+  ```bash
+  node --test \
+    tests/host-binding.node-test.js \
+    tests/gateway-security.node-test.js \
+    tests/specialized-mcp-audit.node-test.js \
+    tests/processing-adoption-*.node-test.js \
+    tests/authoring-v2-*.node-test.js \
+    tests/official-mcp.node-test.js \
+    tests/checkpoint-4-mcp.node-test.js \
+    tests/checkpoint-2c-http-mcp.node-test.js \
+    tests/package-boundaries.node-test.js
+  ```
+
+- **Review steps and expected result:**
+  1. Confirm an absent `NUMBERDROID_STUDIO_MCP_PROFILE` preserves exact legacy
+     19/4 or matching-task 30/5 discovery, while only the exact value
+     `authoring-v2` requests the candidate; every other set value exits without
+     protocol output or fallback.
+  2. Confirm a private current-authority handshake is required before MCP
+     construction and returns `READY` with either `AVAILABLE` or
+     `REPLAY_ONLY`; project/profile mismatch, incomplete durable readiness, and
+     revoked/expired authority fail closed.
+  3. Confirm the static selected surface is exactly 31 tools/six templates and
+     its entire 30/5 delta is `studio_processing_result_adopt` plus
+     `studio://projects/{projectId}/capabilities`.
+  4. Confirm the capabilities resource remains nonauthorizing full admission,
+     required `dryRun: true` repeats full admission and has no persistent
+     effect, and callers cannot smuggle actor/task/grant/profile coordinates.
+  5. Confirm commit stays ledger-first: after one `maxCommands: 1` adoption and
+     a full MCP/Studio/SQLite restart, `READY`/`REPLAY_ONLY` permits the same-key
+     semantic replay or command-ID alias with no second effect/charge, while a
+     new semantic command remains budget-denied.
+  6. Confirm post-start revocation leaves discovery static at 31/6 but denies
+     every fresh capability/tool operation; a new child fails its handshake
+     rather than serving 30/5. Attributable failures create one redacted audit
+     row, while successful discovery/dry-run creates no generic authorization
+     row.
+  7. Confirm cancellation propagates across MCP/gateway/HTTP/session, JSON
+     bodies are bounded to 1 KiB/1 KiB/1 MiB, and shutdown drains an in-flight
+     operation before closing SQLite.
+  8. Confirm schema remains v13, bundles remain v1-v3, and there is no UI,
+     owner review/decision, apply/finalize, merge/revert, lifecycle promotion,
+     Main/CP2C mutation, materialization, publication, or release operation.
+- **Platform/evidence:** non-visual MCP/HTTP/Authority/Persistence contract
+  review; no browser, viewport, device, gameplay, or live-workspace acceptance
+  gate. Frozen local evidence is 208/208 focused, 513/513 full Studio, and
+  149/149 JavaScript syntax files. `npm run check:selftest` is green.
+  Production-adapter evidence is `VERIFIED` at protected hash
+  `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
+  Five independent final actual-diff reviews are **GO** with no open findings.
+  PR/CI/merge/post-merge facts remain **PENDING** and must not be inferred from
+  the local evidence.
+- **Known limits:** explicit private opt-in for one adoption tool and one
+  capabilities template only; no launcher auto-opt-in, public Authoring-v2
+  HTTP API, UI, owner decision/review, proposal apply/finalize, merge/revert,
+  lifecycle, materialization, repository publication, release, or end-to-end
+  `IMG-006` user acceptance. This candidate is **NOT USER ACCEPTED**.
+- **Open Klaus decision:** accept or revise the exact selector and positive
+  handshake, static 31/6 surface, fresh-authority behavior after revocation,
+  nonauthorizing full-admission capabilities/dry-run boundary, and the
+  ledger-first `REPLAY_ONLY` restart-recovery exception. Automation cannot
+  answer this product-contract decision.
+- **Recovery:** A1.6b2b adds no migration or durable state format. Revert the
+  locally verified checkpoint
+  `f34b1f4aa7af0c0e427191ed623b8154caeaafe3`; existing
+  schema-v13 databases, portable bundles, HostBindings, Grants, task ledgers,
+  adoption rows, retained CAS objects, and audit rows require no downgrade,
+  cleanup, or repair.
 
 ## Required record for every new candidate
 

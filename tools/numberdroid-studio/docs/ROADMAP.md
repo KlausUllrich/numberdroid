@@ -651,16 +651,48 @@ review, merge, lifecycle, materialization, publication, or release authority.
 Exact behavior, tests, and recovery are recorded in
 [`A1_6B2A_STATUS.md`](A1_6B2A_STATUS.md).
 
-#### Remaining A1 completion sequence after A1.6b2a
+#### A1.6b2b — explicit Authoring-v2 transport exposure
 
-A1.6a still does not complete `IMG-006` or the Artist path. Re-plan each step
-from current truth, but keep the remaining risks in separate candidate blocks:
+**Status: IMPLEMENTED CANDIDATE — NOT USER ACCEPTED (2026-08-28).** A1.6b2b
+adds the callable local transport without changing accepted legacy behavior.
+Only exact `NUMBERDROID_STUDIO_MCP_PROFILE=authoring-v2` selection requests the
+candidate; absence preserves legacy startup and every other set value fails
+closed. Before stdio construction, a private loopback/Bearer server negotiation
+must positively close the matching HostBinding, active Task/Grant, non-main
+branch, Numberdroid-v2 fingerprint, and store/runtime. It reports `AVAILABLE`
+with remaining command budget or `REPLAY_ONLY` at exact exhaustion; neither
+state is command authority.
 
-1. **A1.6b2b — Authoring-v2 exposure:** positively handshake a matching v2
-   HostBinding/task/grant/branch/profile/store and expose exactly 31 MCP tools
-   and six resource templates; dry-run maps to A1.4 and commit maps to A1.5,
-   with no owner review/apply/finalize authority.
-2. **A1.7 — visual review/correction candidate:** create low-fidelity workflow
+The process then freezes exactly 31 tools/six resource templates: the complete
+matching-task 30/five surface plus only `studio_processing_result_adopt` and
+`studio://projects/{projectId}/capabilities`. Capabilities and `dryRun: true`
+create fresh one-shot sessions and repeat full budget-strict admission.
+`dryRun: false` creates a fresh strict HostBinding-bound session but enters the
+A1.5 ledger-first atomic store directly, preserving same-key lost-response
+replay after `maxCommands: 1` while new semantics remain denied. Running
+discovery stays static after revocation; subsequent calls resolve current
+authority and fail closed. There is no legacy fallback.
+
+MCP cancellation propagates through gateway/private HTTP to the application
+session without interrupting an active atomic commit; unknown outcomes use the
+same idempotency key. Shutdown drains active v2 operations before closing the
+writer, and restart requires fresh positive negotiation while allowing
+`REPLAY_ONLY` recovery. Successful negotiation/capability/dry-run produces no
+authorization row; successful commit/replay uses atomic semantic Activity;
+each attributable denial/failure produces one redacted final attempt and
+pre-binding traffic produces none. The block adds no public HTTP/UI, launcher
+auto-opt-in, scope-catalog exposure, provider-v1 change, owner review/apply/
+finalize, merge/revert, lifecycle, materialization, publication, or release.
+Legacy 33/30, profile v1, 19/four, 30/five, schema v13, and bundle v1-v3
+contracts remain unchanged. Exact scope and recovery are recorded in
+[`A1_6B2B_STATUS.md`](A1_6B2B_STATUS.md).
+
+#### Remaining A1 completion sequence after A1.6b2b
+
+A1.6b2b supplies an implemented, non-accepted candidate path for `IMG-006`,
+but it does not complete the Artist path. The next dependent block is:
+
+1. **A1.7 — visual review/correction candidate:** create low-fidelity workflow
    states first, then one bounded UI candidate with browser evidence and a
    deferred Klaus live gate.
 
@@ -669,7 +701,8 @@ A1 is complete only when an authorized task can execute the ordinary
 image-to-semantic-asset path end to end and stop at **Waiting for your review**
 without acquiring owner review, merge, finalization, materialization, or
 publication authority. A2 planning may proceed independently, but it cannot
-claim complete Artist parity while these A1 boundaries remain planned.
+claim complete Artist parity while A1.7 and the remaining required processing
+coverage are incomplete and unaccepted.
 
 ### A2 — Agent parity and concurrent production
 

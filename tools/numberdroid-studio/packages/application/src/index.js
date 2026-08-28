@@ -62,5 +62,10 @@ export {
 } from './authoring-v2-admission.js';
 export {
   AUTHORING_V2_CAPABILITIES_KIND,
+  AUTHORING_V2_SURFACE_NEGOTIATION_KIND,
+  AUTHORING_V2_SURFACE_NEGOTIATION_REQUEST_KIND,
   AuthoringV2ExecutionSession,
+  validateAuthoringV2Capabilities,
+  validateAuthoringV2SurfaceNegotiation,
+  validateAuthoringV2SurfaceNegotiationRequest,
 } from './authoring-v2-execution-session.js';

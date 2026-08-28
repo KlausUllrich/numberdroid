@@ -6,10 +6,11 @@ import {
   AUTHORING_V2_SCHEMA_VERSION,
   PROCESSING_RESULT_ADOPTION_COMMAND_TYPE,
   projectCapabilityManifestSha256,
+  validateAuthoringV2CapabilityManifest,
   validateProcessingResultAdoptionCommand,
 } from '../../domain/src/index.js';
 import { StudioError, invariant } from '../../domain/src/errors.js';
-import { requireActor, requireId } from '../../domain/src/validation.js';
+import { requireActor, requireId, requireInteger } from '../../domain/src/validation.js';
 import {
   AuthoringV2AdmissionService,
 } from './authoring-v2-admission.js';
@@ -21,9 +22,13 @@ import {
   ProcessingResultAdoptionPlanningService,
   validateProcessingResultAdoptionTrustedContext,
 } from './processing-result-adoption.js';
-import { deepFreeze } from './value-utils.js';
+import { deepFreeze, fingerprint } from './value-utils.js';
 
 export const AUTHORING_V2_CAPABILITIES_KIND = 'studio.authoring-v2-capabilities';
+export const AUTHORING_V2_SURFACE_NEGOTIATION_REQUEST_KIND = 'studio.authoring-v2-surface-negotiation-request';
+export const AUTHORING_V2_SURFACE_NEGOTIATION_KIND = 'studio.authoring-v2-surface-negotiation';
+
+const SHA256 = /^[a-f0-9]{64}$/;
 
 function exactPlainRecord(value, allowed, label, code = 'AUTHORING_V2_REQUEST_INVALID', { required = allowed } = {}) {
   invariant(
@@ -68,6 +73,280 @@ function exactPlainRecord(value, allowed, label, code = 'AUTHORING_V2_REQUEST_IN
   return snapshot;
 }
 
+function snapshotPlainData(value, label, state = { ancestors: new WeakSet(), nodes: 0 }, depth = 0) {
+  state.nodes += 1;
+  invariant(
+    state.nodes <= 4096 && depth <= 32,
+    'AUTHORING_V2_RESPONSE_INVALID',
+    `${label} exceeds the bounded plain-data graph accepted by Authoring v2.`,
+  );
+  if (value === null || ['string', 'number', 'boolean', 'undefined'].includes(typeof value)) return value;
+  invariant(
+    typeof value === 'object' && !utilTypes.isProxy(value),
+    'AUTHORING_V2_RESPONSE_INVALID',
+    `${label} must be plain inspectable data.`,
+  );
+  invariant(
+    !state.ancestors.has(value),
+    'AUTHORING_V2_RESPONSE_INVALID',
+    `${label} must not contain cycles.`,
+  );
+  state.ancestors.add(value);
+  let prototype;
+  let keys;
+  try {
+    prototype = Object.getPrototypeOf(value);
+    keys = Reflect.ownKeys(value);
+  } catch {
+    invariant(false, 'AUTHORING_V2_RESPONSE_INVALID', `${label} must be inspectable.`);
+  }
+  if (Array.isArray(value)) {
+    invariant(prototype === Array.prototype, 'AUTHORING_V2_RESPONSE_INVALID', `${label} must be a plain array.`);
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
+    const length = lengthDescriptor?.value;
+    invariant(
+      Number.isSafeInteger(length) && length >= 0 && length <= 512,
+      'AUTHORING_V2_RESPONSE_INVALID',
+      `${label} must be bounded.`,
+    );
+    const allowed = new Set(['length', ...Array.from({ length }, (_, index) => String(index))]);
+    invariant(
+      keys.every((key) => typeof key === 'string' && allowed.has(key)),
+      'AUTHORING_V2_RESPONSE_INVALID',
+      `${label} contains forbidden array fields.`,
+    );
+    const result = new Array(length);
+    for (let index = 0; index < length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      invariant(
+        descriptor && Object.hasOwn(descriptor, 'value') && descriptor.enumerable === true,
+        'AUTHORING_V2_RESPONSE_INVALID',
+        `${label} must not contain sparse or accessor entries.`,
+      );
+      result[index] = snapshotPlainData(descriptor.value, `${label}[${index}]`, state, depth + 1);
+    }
+    state.ancestors.delete(value);
+    return result;
+  }
+  invariant(
+    prototype === Object.prototype || prototype === null,
+    'AUTHORING_V2_RESPONSE_INVALID',
+    `${label} must be a plain object.`,
+  );
+  const result = Object.create(null);
+  for (const key of keys) {
+    invariant(typeof key === 'string', 'AUTHORING_V2_RESPONSE_INVALID', `${label} must not contain symbols.`);
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    invariant(
+      descriptor && Object.hasOwn(descriptor, 'value') && descriptor.enumerable === true,
+      'AUTHORING_V2_RESPONSE_INVALID',
+      `${label}.${key} must be an enumerable own data field.`,
+    );
+    result[key] = snapshotPlainData(descriptor.value, `${label}.${key}`, state, depth + 1);
+  }
+  state.ancestors.delete(value);
+  return result;
+}
+
+function exactProfileSummary(value, label, { includeManifest }) {
+  const fields = includeManifest
+    ? ['profileId', 'profileVersion', 'fingerprint', 'manifest']
+    : ['profileId', 'profileVersion', 'fingerprint'];
+  const profile = exactPlainRecord(value, fields, label, 'AUTHORING_V2_RESPONSE_INVALID');
+  const profileId = requireId(profile.profileId, `${label}.profileId`);
+  const profileVersion = requireInteger(profile.profileVersion, `${label}.profileVersion`, { min: 1 });
+  invariant(
+    profileVersion === 2 && typeof profile.fingerprint === 'string' && SHA256.test(profile.fingerprint),
+    'AUTHORING_V2_RESPONSE_INVALID',
+    `${label} is not the supported Authoring-v2 profile.`,
+  );
+  if (!includeManifest) {
+    return deepFreeze({ profileId, profileVersion, fingerprint: profile.fingerprint });
+  }
+  let manifest;
+  try {
+    manifest = validateAuthoringV2CapabilityManifest(
+      snapshotPlainData(profile.manifest, `${label}.manifest`),
+    );
+  } catch {
+    throw new StudioError('AUTHORING_V2_RESPONSE_INVALID', `${label}.manifest is invalid.`);
+  }
+  invariant(
+    manifest.profileId === profileId
+      && manifest.profileVersion === profileVersion
+      && projectCapabilityManifestSha256(manifest) === profile.fingerprint,
+    'AUTHORING_V2_RESPONSE_INVALID',
+    `${label} does not close its capability manifest.`,
+  );
+  return deepFreeze({ profileId, profileVersion, fingerprint: profile.fingerprint, manifest });
+}
+
+function exactCommandFeatures(value, label) {
+  const snapshot = snapshotPlainData(value, label);
+  invariant(
+    fingerprint(snapshot) === fingerprint(AUTHORING_V2_COMMAND_FEATURES),
+    'AUTHORING_V2_RESPONSE_INVALID',
+    `${label} is not the exact supported Authoring-v2 command registry.`,
+  );
+  return AUTHORING_V2_COMMAND_FEATURES;
+}
+
+function exactResponseExpectations(value) {
+  const expectations = exactPlainRecord(
+    value,
+    ['projectId', 'expectedProfileFingerprint'],
+    'authoringV2ResponseExpectations',
+    'AUTHORING_V2_RESPONSE_INVALID',
+    { required: [] },
+  );
+  const projectId = expectations.projectId === undefined
+    ? null
+    : requireId(expectations.projectId, 'authoringV2ResponseExpectations.projectId');
+  invariant(
+    expectations.expectedProfileFingerprint === undefined
+      || (typeof expectations.expectedProfileFingerprint === 'string'
+        && SHA256.test(expectations.expectedProfileFingerprint)),
+    'AUTHORING_V2_RESPONSE_INVALID',
+    'The expected Authoring-v2 profile fingerprint is invalid.',
+  );
+  return Object.freeze({
+    projectId,
+    expectedProfileFingerprint: expectations.expectedProfileFingerprint ?? null,
+  });
+}
+
+function validateAuthoringV2SurfaceNegotiationRequestValue(value) {
+  const request = exactPlainRecord(
+    value,
+    ['schemaVersion', 'kind', 'featureId', 'projectId', 'expectedProfileFingerprint'],
+    'authoringV2SurfaceNegotiationRequest',
+  );
+  invariant(
+    request.schemaVersion === AUTHORING_V2_SCHEMA_VERSION
+      && request.kind === AUTHORING_V2_SURFACE_NEGOTIATION_REQUEST_KIND
+      && request.featureId === AUTHORING_V2_FEATURE_ID
+      && typeof request.expectedProfileFingerprint === 'string'
+      && SHA256.test(request.expectedProfileFingerprint),
+    'AUTHORING_V2_REQUEST_INVALID',
+    'The surface-negotiation request is not pinned to the supported Authoring-v2 profile.',
+  );
+  return deepFreeze({
+    schemaVersion: AUTHORING_V2_SCHEMA_VERSION,
+    kind: AUTHORING_V2_SURFACE_NEGOTIATION_REQUEST_KIND,
+    featureId: AUTHORING_V2_FEATURE_ID,
+    projectId: requireId(request.projectId, 'authoringV2SurfaceNegotiationRequest.projectId'),
+    expectedProfileFingerprint: request.expectedProfileFingerprint,
+  });
+}
+
+function validateAuthoringV2SurfaceNegotiationValue(value, expectationsValue) {
+  const expectations = exactResponseExpectations(expectationsValue);
+  const response = exactPlainRecord(
+    snapshotPlainData(value, 'authoringV2SurfaceNegotiation'),
+    [
+      'schemaVersion', 'kind', 'status', 'featureId', 'projectId', 'branchRevision',
+      'budgetState', 'profile', 'commandFeatures',
+    ],
+    'authoringV2SurfaceNegotiation',
+    'AUTHORING_V2_RESPONSE_INVALID',
+  );
+  const projectId = requireId(response.projectId, 'authoringV2SurfaceNegotiation.projectId');
+  const profile = exactProfileSummary(response.profile, 'authoringV2SurfaceNegotiation.profile', { includeManifest: false });
+  invariant(
+    response.schemaVersion === AUTHORING_V2_SCHEMA_VERSION
+      && response.kind === AUTHORING_V2_SURFACE_NEGOTIATION_KIND
+      && response.status === 'READY'
+      && response.featureId === AUTHORING_V2_FEATURE_ID
+      && (response.budgetState === 'AVAILABLE' || response.budgetState === 'REPLAY_ONLY')
+      && (expectations.projectId === null || expectations.projectId === projectId)
+      && (expectations.expectedProfileFingerprint === null
+        || expectations.expectedProfileFingerprint === profile.fingerprint),
+    'AUTHORING_V2_RESPONSE_INVALID',
+    'The surface-negotiation response does not match the requested Authoring-v2 surface.',
+  );
+  return deepFreeze({
+    schemaVersion: AUTHORING_V2_SCHEMA_VERSION,
+    kind: AUTHORING_V2_SURFACE_NEGOTIATION_KIND,
+    status: 'READY',
+    featureId: AUTHORING_V2_FEATURE_ID,
+    projectId,
+    branchRevision: requireInteger(
+      response.branchRevision,
+      'authoringV2SurfaceNegotiation.branchRevision',
+      { min: 1 },
+    ),
+    budgetState: response.budgetState,
+    profile,
+    commandFeatures: exactCommandFeatures(
+      response.commandFeatures,
+      'authoringV2SurfaceNegotiation.commandFeatures',
+    ),
+  });
+}
+
+function validateAuthoringV2CapabilitiesValue(value, expectationsValue) {
+  const expectations = exactResponseExpectations(expectationsValue);
+  const response = exactPlainRecord(
+    snapshotPlainData(value, 'authoringV2Capabilities'),
+    ['schemaVersion', 'kind', 'featureId', 'projectId', 'branchRevision', 'profile', 'commandFeatures'],
+    'authoringV2Capabilities',
+    'AUTHORING_V2_RESPONSE_INVALID',
+  );
+  const projectId = requireId(response.projectId, 'authoringV2Capabilities.projectId');
+  const profile = exactProfileSummary(response.profile, 'authoringV2Capabilities.profile', { includeManifest: true });
+  invariant(
+    response.schemaVersion === AUTHORING_V2_SCHEMA_VERSION
+      && response.kind === AUTHORING_V2_CAPABILITIES_KIND
+      && response.featureId === AUTHORING_V2_FEATURE_ID
+      && (expectations.projectId === null || expectations.projectId === projectId)
+      && (expectations.expectedProfileFingerprint === null
+        || expectations.expectedProfileFingerprint === profile.fingerprint),
+    'AUTHORING_V2_RESPONSE_INVALID',
+    'The capabilities response does not match the requested Authoring-v2 surface.',
+  );
+  return deepFreeze({
+    schemaVersion: AUTHORING_V2_SCHEMA_VERSION,
+    kind: AUTHORING_V2_CAPABILITIES_KIND,
+    featureId: AUTHORING_V2_FEATURE_ID,
+    projectId,
+    branchRevision: requireInteger(response.branchRevision, 'authoringV2Capabilities.branchRevision', { min: 1 }),
+    profile,
+    commandFeatures: exactCommandFeatures(response.commandFeatures, 'authoringV2Capabilities.commandFeatures'),
+  });
+}
+
+function normalizedValidation(operation, code, message) {
+  try {
+    return operation();
+  } catch {
+    throw new StudioError(code, message);
+  }
+}
+
+export function validateAuthoringV2SurfaceNegotiationRequest(value) {
+  return normalizedValidation(
+    () => validateAuthoringV2SurfaceNegotiationRequestValue(value),
+    'AUTHORING_V2_REQUEST_INVALID',
+    'The Authoring-v2 surface-negotiation request is invalid.',
+  );
+}
+
+export function validateAuthoringV2SurfaceNegotiation(value, expectationsValue = {}) {
+  return normalizedValidation(
+    () => validateAuthoringV2SurfaceNegotiationValue(value, expectationsValue),
+    'AUTHORING_V2_RESPONSE_INVALID',
+    'The Authoring-v2 surface-negotiation response is invalid.',
+  );
+}
+
+export function validateAuthoringV2Capabilities(value, expectationsValue = {}) {
+  return normalizedValidation(
+    () => validateAuthoringV2CapabilitiesValue(value, expectationsValue),
+    'AUTHORING_V2_RESPONSE_INVALID',
+    'The Authoring-v2 capabilities response is invalid.',
+  );
+}
+
 function validateAbortSignal(value) {
   if (value === undefined) return undefined;
   invariant(
@@ -102,7 +381,7 @@ function exactOptions(value) {
   return validateAbortSignal(options.signal);
 }
 
-function exactTrustedBinding(value) {
+function exactTrustedBinding(value, correlationIdValue) {
   const binding = exactPlainRecord(value, [
     'schemaVersion', 'bindingId', 'projectId', 'grantId', 'actor', 'taskId',
     'branchId', 'issuedBy', 'issuedAt', 'expiresAt', 'revokedAt', 'revokeReason', 'status',
@@ -133,7 +412,9 @@ function exactTrustedBinding(value) {
     taskId,
     grantId,
     branchId,
-    correlationId: null,
+    correlationId: correlationIdValue === null || correlationIdValue === undefined
+      ? null
+      : requireId(correlationIdValue, 'authoringV2ExecutionSessionOptions.correlationId'),
   });
   return deepFreeze({
     projectId,
@@ -163,6 +444,16 @@ function exactCapabilitiesRequest(value, projectId) {
     featureId: AUTHORING_V2_FEATURE_ID,
     projectId,
   });
+}
+
+function exactSurfaceNegotiationRequest(value, projectId) {
+  const request = validateAuthoringV2SurfaceNegotiationRequest(value);
+  invariant(
+    request.projectId === projectId,
+    'AUTHORING_V2_REQUEST_INVALID',
+    'The surface-negotiation request does not belong to this admitted project.',
+  );
+  return request;
 }
 
 function exactExecutionRequest(value, projectId) {
@@ -209,9 +500,10 @@ function admissionSelection(binding, { expectedRevision, targetAssetId }) {
 }
 
 /**
- * One private A1.6b2a operation. The session consumes itself synchronously,
+ * One private host-bound operation. The session consumes itself synchronously,
  * derives all authority from its trusted HostBinding, and accepts no caller
  * context, plan, receipt, profile, store, review, lifecycle, or merge input.
+ * Its optional correlation ID is trusted server context, never request input.
  */
 export class AuthoringV2ExecutionSession {
   #admissionService;
@@ -227,9 +519,10 @@ export class AuthoringV2ExecutionSession {
   constructor(options = {}) {
     const config = exactPlainRecord(
       options,
-      ['admissionService', 'planningService', 'hostBoundAtomicStore', 'trustedBinding'],
+      ['admissionService', 'planningService', 'hostBoundAtomicStore', 'trustedBinding', 'correlationId'],
       'authoringV2ExecutionSessionOptions',
       'AUTHORING_V2_SESSION_INVALID',
+      { required: ['admissionService', 'planningService', 'hostBoundAtomicStore', 'trustedBinding'] },
     );
     invariant(
       config.admissionService instanceof AuthoringV2AdmissionService
@@ -242,7 +535,7 @@ export class AuthoringV2ExecutionSession {
     this.#commitService = new ProcessingResultAdoptionHostBoundCommitService({
       atomicStore: validateProcessingResultAdoptionHostBoundAtomicStore(config.hostBoundAtomicStore),
     });
-    this.#binding = exactTrustedBinding(config.trustedBinding);
+    this.#binding = exactTrustedBinding(config.trustedBinding, config.correlationId);
   }
 
   #consume() {
@@ -259,12 +552,49 @@ export class AuthoringV2ExecutionSession {
     return this.#readCapabilities(request, signal);
   }
 
+  negotiateSurface(requestValue, options = {}) {
+    this.#consume();
+    const signal = exactOptions(options);
+    const request = exactSurfaceNegotiationRequest(requestValue, this.#binding.projectId);
+    return this.#negotiateSurface(request, signal);
+  }
+
+  async #negotiateSurface(request, signal) {
+    const admitted = await this.#admissionService.negotiateSurface(
+      admissionSelection(this.#binding, { expectedRevision: null, targetAssetId: null }),
+      Object.freeze({ signal }),
+    );
+    invariant(
+      request.expectedProfileFingerprint === admitted.capabilityFingerprint,
+      'AUTHORING_V2_CAPABILITY_MISMATCH',
+      'The requested Authoring-v2 profile is not available.',
+    );
+    return validateAuthoringV2SurfaceNegotiation({
+      schemaVersion: AUTHORING_V2_SCHEMA_VERSION,
+      kind: AUTHORING_V2_SURFACE_NEGOTIATION_KIND,
+      status: 'READY',
+      featureId: AUTHORING_V2_FEATURE_ID,
+      projectId: request.projectId,
+      branchRevision: admitted.evidence.branchRevision,
+      budgetState: admitted.budgetState,
+      profile: {
+        profileId: admitted.capabilityManifest.profileId,
+        profileVersion: admitted.capabilityManifest.profileVersion,
+        fingerprint: admitted.capabilityFingerprint,
+      },
+      commandFeatures: AUTHORING_V2_COMMAND_FEATURES,
+    }, {
+      projectId: request.projectId,
+      expectedProfileFingerprint: request.expectedProfileFingerprint,
+    });
+  }
+
   async #readCapabilities(request, signal) {
     const admitted = await this.#admissionService.admit(
       admissionSelection(this.#binding, { expectedRevision: null, targetAssetId: null }),
       Object.freeze({ signal }),
     );
-    return deepFreeze({
+    return validateAuthoringV2Capabilities({
       schemaVersion: AUTHORING_V2_SCHEMA_VERSION,
       kind: AUTHORING_V2_CAPABILITIES_KIND,
       featureId: AUTHORING_V2_FEATURE_ID,
@@ -277,6 +607,9 @@ export class AuthoringV2ExecutionSession {
         manifest: admitted.capabilityManifest,
       },
       commandFeatures: AUTHORING_V2_COMMAND_FEATURES,
+    }, {
+      projectId: request.projectId,
+      expectedProfileFingerprint: admitted.capabilityFingerprint,
     });
   }
 

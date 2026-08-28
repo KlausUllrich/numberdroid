@@ -87,7 +87,7 @@ packages/numberdroid-adapter  pure deterministic CP5 snapshot/candidate mapping
 fixtures + scripts       deterministic evidence and verification
 ```
 
-SQLite/content-addressed persistence and the official MCP transport are the accepted operational path. Checkpoints 2C, 3, and 4 are accepted: they add slice-bound V2 assets/schema v9, immutable room authoring/schema v10, and isolated task review/schema v11 without changing the inward dependency boundary. The integrated but still unaccepted Checkpoint 4.5 source adds list-first task and guided-room projections plus schema-v12 normalized sparse room-shape cells. Candidate schema v13 adds only private branch-native processing-adoption lineage and retention; it adds no public dispatch or discovery surface. Rectangular portable rooms remain schema v2; a project uses schema v3 only when a room version contains `VOID` or `BLOCKED` cells. Shape replacement is owner-only and absent from the accepted discovery surfaces, so the accepted 19-tool/four-template and task-bound 30-tool/five-template contracts remain unchanged. That is a historical compatibility fact, not the forward agent-first target: a separately versioned authoring surface must later expose ordinary shape authoring on isolated task branches without granting owner review/merge/release authority. The integrated candidate-only Checkpoint 5 foundation implements the pure `numberdroid-adapter` and a fixed repository-side canonical compiler bridge, but not candidate persistence/approval or any later-stage authority. Source integration into `main` does not itself accept any candidate or authorize candidate output. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service/worker process is an accepted transitional packaging choice, not the final standalone packaging model.
+SQLite/content-addressed persistence and the official MCP transport are the accepted operational path. Checkpoints 2C, 3, and 4 are accepted: they add slice-bound V2 assets/schema v9, immutable room authoring/schema v10, and isolated task review/schema v11 without changing the inward dependency boundary. The integrated but still unaccepted Checkpoint 4.5 source adds list-first task and guided-room projections plus schema-v12 normalized sparse room-shape cells. Candidate schema v13 adds only private branch-native processing-adoption lineage and retention. Candidate A1.6b2b exposes that one adoption operation only through a separately selected, positively negotiated local Authoring-v2 MCP surface; it adds no public HTTP or UI surface and does not alter accepted legacy discovery. Rectangular portable rooms remain schema v2; a project uses schema v3 only when a room version contains `VOID` or `BLOCKED` cells. Shape replacement is owner-only and absent from every current discovery surface, so the accepted 19-tool/four-template and task-bound 30-tool/five-template contracts remain unchanged. That is a historical compatibility fact, not the forward agent-first target: later Authoring-v2 blocks must expose ordinary shape authoring on isolated task branches without granting owner review/merge/release authority. The integrated candidate-only Checkpoint 5 foundation implements the pure `numberdroid-adapter` and a fixed repository-side canonical compiler bridge, but not candidate persistence/approval or any later-stage authority. Source integration into `main` does not itself accept any candidate or authorize candidate output. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service/worker process is an accepted transitional packaging choice, not the final standalone packaging model.
 
 The sections below describe the target topology as checkpoints introduce it. A named target package is not implemented merely because it appears in this document. In particular, `apps/studio-ui` and `apps/studio-service` do not yet exist as standalone working packages; their current responsibilities remain in the combined server. `packages/numberdroid-adapter` now exists as a pure candidate builder, while persistence, UI review/approval, materialization, and publication remain deferred.
 
@@ -113,7 +113,7 @@ SQLite repositories, migrations, transaction implementation, event/revision stor
 
 ### `packages/preview`
 
-Checkpoint 2B implements the deterministic exact-PNG crop kernel in this package. It validates and decodes bounded non-interlaced 8-bit RGB/RGBA PNG input, verifies chunk order and CRC, rejects unsupported transparency chunks, crops exact source pixels, and emits a processor-owned canonical RGBA PNG whose digest and byte size are deterministic. It consumes artifacts and semantic models through ports; it does not decide semantics from pixels. The user-accepted A1.0 contract adds a projection from the pure schema-v1 `ProcessingRecipe` contract to this unchanged kernel. That schema accepts one immutable PNG input and one exact-crop operation, and deliberately excludes atlas pivot/replacement semantics and all execution or owner authority. The user-accepted A1.1 contract adds the pure schema-v1 `ProcessingResult` contract and a source-bytes exact-crop builder. It pins and cross-validates the recipe fingerprint, operation and processor identity, immutable input/output artifact descriptors, output order, dimensions, byte lengths and digests, and normalized structured findings. Separately, the user-accepted A1.2 `AssetInputSelection` value lives in `packages/domain`; it pins one explicit result output as a `surface`, `prop`, or `item` `primary-visual` input without creating or mutating an Asset. The candidate-only A1.3 Domain/Application seam closes those values against one exact capability operation, project revision, Asset identity/head observation, and registered-plus-physical CAS observations. Its immutable receipt is explicitly read-only, nonauthorizing, and stale by definition at any later mutation boundary. Candidate-only A1.4 adds a private, unregistered, agent-task-only command/planning seam. It rechecks exact Task/Grant/non-main branch authority before obtaining a fresh branch-bound A1.3 receipt, then describes explicit create or imagery-only update intent through a processing-specific binding while returning no authority, persistence, commit, or replay state. Candidate-only A1.5 supplies the private atomic-store boundary A1.4 required: it repeats every observation, derives a fresh receipt/plan internally, holds exact CAS evidence, and atomically persists a branch-local DRAFT processing Asset projection, immutable Aggregate/replay result, two retention roles, Activity, and one command charge in schema v13. Same-key/same-semantics retries return the original result without revalidation. The current Numberdroid profile v1 intentionally does not advertise the capability operation, and A1.5 remains unregistered and unwired from production dispatch. Candidate-only A1.6a adds one separately typed private command feature over 33 legacy definitions, the exact 31-scope vocabulary, additive Numberdroid profile v2, trusted task/grant catalog injection, and real SQLite/CAS-backed read ports for an effect-free A1.4 dry-run. Legacy profile/catalog/MCP defaults remain exact and no server, launcher, HTTP, UI, or MCP composition selects the v2 prerequisites. Candidate-only A1.6b1 closes current Grant liveness during strict HostBinding resolution and adds an unwired host-bound A1.5 port whose admission guard runs before replay and again inside the mutation transaction. A1.6b2 remains the separate positively handshaken Authoring-v2 transport candidate; public owner review/workflow authority and additional operations remain planned. The forward image module may add trim/padding, canvas/size normalization, deterministic resize, safely specified alpha/background cleanup, and atlas/sprite composition only as concrete Numberdroid needs justify them. No recipe overwrites its source or prior output.
+Checkpoint 2B implements the deterministic exact-PNG crop kernel in this package. It validates and decodes bounded non-interlaced 8-bit RGB/RGBA PNG input, verifies chunk order and CRC, rejects unsupported transparency chunks, crops exact source pixels, and emits a processor-owned canonical RGBA PNG whose digest and byte size are deterministic. It consumes artifacts and semantic models through ports; it does not decide semantics from pixels. The user-accepted A1.0 contract adds a projection from the pure schema-v1 `ProcessingRecipe` contract to this unchanged kernel. That schema accepts one immutable PNG input and one exact-crop operation, and deliberately excludes atlas pivot/replacement semantics and all execution or owner authority. The user-accepted A1.1 contract adds the pure schema-v1 `ProcessingResult` contract and a source-bytes exact-crop builder. It pins and cross-validates the recipe fingerprint, operation and processor identity, immutable input/output artifact descriptors, output order, dimensions, byte lengths and digests, and normalized structured findings. Separately, the user-accepted A1.2 `AssetInputSelection` value lives in `packages/domain`; it pins one explicit result output as a `surface`, `prop`, or `item` `primary-visual` input without creating or mutating an Asset. The candidate-only A1.3 Domain/Application seam closes those values against one exact capability operation, project revision, Asset identity/head observation, and registered-plus-physical CAS observations. Its immutable receipt is explicitly read-only, nonauthorizing, and stale by definition at any later mutation boundary. Candidate-only A1.4 adds a private, unregistered, agent-task-only command/planning seam. It rechecks exact Task/Grant/non-main branch authority before obtaining a fresh branch-bound A1.3 receipt, then describes explicit create or imagery-only update intent through a processing-specific binding while returning no authority, persistence, commit, or replay state. Candidate-only A1.5 supplies the private atomic-store boundary A1.4 required: it repeats every observation, derives a fresh receipt/plan internally, holds exact CAS evidence, and atomically persists a branch-local DRAFT processing Asset projection, immutable Aggregate/replay result, two retention roles, Activity, and one command charge in schema v13. Same-key/same-semantics retries return the original result without revalidation. The current Numberdroid profile v1 intentionally does not advertise the capability operation, and A1.5 remains unregistered and unwired from production dispatch. Candidate-only A1.6a adds one separately typed private command feature over 33 legacy definitions, the exact 31-scope vocabulary, additive Numberdroid profile v2, trusted task/grant catalog injection, and real SQLite/CAS-backed read ports for an effect-free A1.4 dry-run. Legacy profile/catalog/MCP defaults remain exact and no server, launcher, HTTP, UI, or MCP composition selects the v2 prerequisites. Candidate-only A1.6b1 closes current Grant liveness during strict HostBinding resolution and adds an unwired host-bound A1.5 port whose admission guard runs before replay and again inside the mutation transaction. A1.6b2a composes the hidden private session; candidate-only A1.6b2b adds its exact, positively negotiated local MCP transport. Public owner review/workflow authority and every additional operation remain planned. The forward image module may add trim/padding, canvas/size normalization, deterministic resize, safely specified alpha/background cleanup, and atlas/sprite composition only as concrete Numberdroid needs justify them. No recipe overwrites its source or prior output.
 
 A1.6b2 is now deliberately split. Candidate-only A1.6b2a gives the host-bound
 port a distinct kind and composes a private one-shot execution session:
@@ -124,7 +124,39 @@ stores only the private runtime in a module-private `WeakMap`; its v2
 provider/store remain closure-bound and its per-operation reader/ports/session
 remain transient. The runtime drains active operations before closing its
 writer; no HTTP, launcher, MCP, UI, or returned runtime surface is added.
-A1.6b2b remains the separate positively handshaken transport/exposure block.
+A1.6b2b now supplies that separate transport/exposure candidate. Only exact
+`NUMBERDROID_STUDIO_MCP_PROFILE=authoring-v2` selection requests it; an absent
+selector preserves legacy composition unchanged and every other set value
+fails startup closed. Before constructing stdio discovery, the gateway requires
+a positive Bearer-authenticated private loopback server negotiation for the
+same project, HostBinding, Task, Grant, non-main branch, profile fingerprint,
+and runtime/store readiness. Negotiation returns `AVAILABLE` while command
+budget remains or `REPLAY_ONLY` at exact exhaustion; it is surface admission,
+not mutation authority.
+
+The resulting MCP server is static for its lifetime and contains exactly 31
+tools and six resource templates: the complete matching-task legacy 30/five
+surface plus only `studio_processing_result_adopt` and
+`studio://projects/{projectId}/capabilities`. There is no fallback to 30/five.
+Capability reads and `dryRun: true` create fresh one-shot sessions and repeat
+full, budget-strict admission. `dryRun: false` creates a fresh strict
+HostBinding-bound session but enters the ledger-first A1.5 store directly, so a
+lost response remains replayable after exact command-budget exhaustion without
+authorizing a new command. Discovery does not mutate after revocation; each
+subsequent resource/tool invocation resolves current authority and denies it.
+
+The three Authoring-v2 endpoints remain private loopback/Bearer transport
+routes, not a public API. MCP cancellation propagates through gateway fetch and
+the HTTP abort signal to the one-shot session. The atomic transaction itself is
+not interrupted; callers resolve an unknown result with the same idempotency
+key. Shutdown stops intake and drains active runtime operations before SQLite
+closes. Restart reconstructs the runtime and requires a new positive
+negotiation; `REPLAY_ONLY` preserves recovery without granting new work.
+Successful negotiation, capability reads, and dry-runs create no
+`AUTHORIZED` attempt row. Successful commits use the atomic semantic Activity;
+attributable denials/failures create exactly one redacted final row, while
+invalid or pre-binding traffic remains without project attribution. See
+[`A1_6B2B_STATUS.md`](A1_6B2B_STATUS.md).
 
 The preview projection also owns deterministic Asset Library card states: resolved image, processing, missing artifact, unsupported media, and load failure. Each state has a stable kind-aware fallback descriptor so the UI never has to infer meaning from a failed image element or expose a filesystem path.
 
@@ -133,6 +165,15 @@ Apps and transport infrastructure host configured generation-provider adapters b
 ### `packages/mcp-server`
 
 Protocol transport plus semantic tool/resource mapping. The stdio bridge does not open SQLite or the CAS directly. It registers a short-lived pending host over a raw loopback pairing socket that browsers cannot speak, starts MCP discovery without authority, and receives a server-minted opaque `HostBinding` only after matching human approval in the Header panel. It then calls the running one-writer Studio service over the private loopback bridge. Only a digest of the credential is stored. On every call the service resolves the immutable binding, reloads its current grant, and injects actor/task/branch/grant execution context before application dispatch. Protocol connection state, client envelope metadata, and tool arguments are not authorization. Strict HostBinding resolution now closes both persisted Binding and current Grant liveness. Existing generic and specialized audited MCP routes use a separately typed `NOT_GRANTED` subject only for redacted denial/failure attribution, then repeat strict resolution inside the audited boundary. Policy, service selection, atomic authorized-attempt data, and dispatch use only the live result, while both phases retain one request correlation. This package contains no authoring rules.
+
+A1.6b2b does not replace that model. Exact Authoring-v2 process selection is a
+request to negotiate, never authority; only the private server can positively
+prove the v2 task/grant/branch/profile/store surface. The MCP mapper fixes the
+feature, tool, command type, and inner schema discriminators rather than
+accepting them from the caller, and delegates capability and adoption
+operations back to the one-writer service. Legacy 19/four and 30/five builders,
+the 33-command/30-scope catalog, Numberdroid profile v1, schema v13, and bundle
+v1-v3 remain unchanged.
 
 ### Target authoring modules and adapter contracts
 
@@ -306,9 +347,11 @@ Queries are side-effect-free and read versioned projections. Strongly consistent
 Every ordinary authoring mutation begins as a semantic application command.
 Human UI controls and MCP tools map to that command; neither may implement a
 second authoring path. Capability discovery determines whether the command is
-valid for the selected project. A later authoring-v2 MCP gate may add commands
-and resources, but it must pin new schemas and exact discovery counts rather than
-mutate the accepted 19/4 and task-bound 30/5 contracts silently.
+valid for the selected project. The first Authoring-v2 candidate gate adds only
+processing-result adoption and project capabilities at exact 31/six after
+explicit selection and positive server negotiation. Later additions require
+their own pinned schemas and exact discovery counts rather than mutating this
+candidate or the accepted 19/4 and task-bound 30/5 contracts silently.
 
 The UI is primarily the visual control, review, and correction adapter. Agents
 read resources and invoke semantic commands; they do not click UI controls. The
@@ -459,6 +502,9 @@ GitHub integration receives files from a verified candidate manifest. It is down
 ## 12. Security and trust boundaries
 
 - The accepted local service is loopback-only and hard-refuses non-local bind addresses; no configuration may widen that listener.
+- A1.6b2b's handshake, capability read, and adoption routes are private
+  loopback/Bearer endpoints only. They are not a public HTTP API, and neither
+  an environment value nor a successful discovery session creates authority.
 - MCP stdio is the initial 1B transport. Future network transports require per-call authenticated host context, origin controls, and TLS at the deployment boundary.
 - The 1B HTTP service refuses non-loopback bind addresses. Remote/team access must arrive through a separately authenticated deployment adapter; it cannot expose the local single-user API by changing the bind host.
 - Local host approval uses a raw loopback pairing listener rather than an HTTP/browser route for credential delivery. The verification request is in memory, expires quickly, is single-use, and disappears on service or host disconnect.
@@ -513,6 +559,14 @@ At each checkpoint, reviewers MUST demonstrate the checks that correspond to imp
 - candidate-only A1.6a tests pin unchanged legacy 33/30 catalogs and profile v1, one separately typed v2 command feature plus the exact 31-scope vocabulary and Numberdroid profile v2, trusted task/grant provisioning without auto-accept, and real SQLite/CAS-backed `READY`, blocked, stale, cancelled, and sanitized effect-free dry-runs while accepted MCP discovery remains 19/4 or 30/5;
 - candidate-only A1.6b1 tests close current HostBinding/Grant status, expiry, and coordinates; reject hostile host-bound captures and all command/context coordinate drift before dependencies; require current admission before replay; preserve live-only dispatch identity and one audit correlation; and prove revocation or crossed expiry during capability/CAS or before concurrent replay leaves no second adoption effect while accepted attempt auditing and discovery remain unchanged;
 - candidate-only A1.6b2a tests require exact one-shot/profile/store admission, hostile thenable/proxy and strict signal handling, revocation closure across profile reads, write-free real dry-run, a distinct host-bound commit port, `maxCommands: 1` replay/alias/conflict precedence, reopen/lost-response recovery, hidden write-free production composition, one shared clock, and unchanged 33/30 plus 19/4 or 30/5 compatibility surfaces;
+- candidate-only A1.6b2b tests require exact selector fail-closed behavior,
+  positive private server negotiation with `AVAILABLE`/`REPLAY_ONLY`, static
+  31/six discovery with only the one-tool/one-template delta, fresh strict
+  capability/dry-run admission, ledger-first commit replay after restart,
+  post-start revocation denial without discovery mutation, cancellation
+  propagation, active-operation shutdown drain, exact redacted audit behavior,
+  and unchanged 33/30, profile v1, 19/four, 30/five, schema v13, and bundle
+  v1-v3 compatibility;
 - an atlas preview fault cannot independently commit its semantic revision, job, budget, initial event, output metadata/reference, progress, applied slice revision, or authorized job-control audit;
 - retry never exceeds three attempts or switches input revision; revoked/expired/cross-task authority cannot claim, publish, cancel, retry, discard, or apply the job;
 - cancellation, failure, discard, recovery, and apply retain exactly the references permitted for their state, and graceful shutdown awaits the active worker before SQLite closes;
