@@ -593,9 +593,11 @@ own ID only after implementation exists. Planned work is not a candidate.
   closure `main` `cab9aa7c0d8f4037ead6f44d6127446c53598d45`. It adds the
   private admission reader/service, one-shot execution session, distinct
   host-bound atomic-port kind, and closed SQLite production composition
-  described in `A1_6B2A_STATUS.md`. Source PR/merge and Actions facts remain
-  pending until the repository gates complete; local implementation alone does
-  not close the user decision.
+  described in `A1_6B2A_STATUS.md`. Implementation source commit
+  `6de42142fc0fa72cb1d662dd2da8d1c313ec8c5e` was integrated through PR
+  [#160](https://github.com/KlausUllrich/numberdroid/pull/160) as squash commit
+  `89d6d4397057d5801aa7ba04e0b1cf6138df55eb`. Neither source integration nor
+  Actions closes the user decision.
 - **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-008 because the
   one-shot session composes A1.6b1 current Binding/Grant admission and A1.5
   replay. VT-004–VT-008 acceptance may still revise the underlying contract.
@@ -649,7 +651,16 @@ own ID only after implementation exists. Planned work is not a candidate.
   22 paths; the L3 PR still uses `[ci-full]`. Five independent actual-diff
   reviews for Security/Authority, Compatibility/MCP, Domain/Application,
   Persistence/Recovery, and QA/Docs are **GO** with no open findings. CI facts
-  must be appended only after those gates complete.
+  are also green: PR Actions run
+  [#2198 / 33202315502](https://github.com/KlausUllrich/numberdroid/actions/runs/33202315502)
+  passed the classifier, forced Root build, Linux Studio including browser
+  evidence, Windows Studio, and CI gate while Pages was correctly skipped.
+  Post-merge `main` Actions run
+  [#2199 / 33202908594](https://github.com/KlausUllrich/numberdroid/actions/runs/33202908594)
+  passed classifier, Linux Studio/browser, Windows Studio, and CI gate while
+  Root build and Pages were correctly skipped by the actual path
+  classification. This conservative CI evidence is not visual or contract
+  acceptance.
 - **Lifecycle evidence boundary:** the hidden runtime's active-operation drain
   is source-reviewed in A1.6b2a, while this block behaviorally probes idle
   startup/shutdown only. A bounded in-flight shutdown probe belongs to A1.6b2b,

@@ -138,8 +138,22 @@ The exact 22-path local classifier result is `docs=true`, `docs_only=false`,
 uses `[ci-full]`. Five independent final actual-diff reviews covering
 Security/Authority, Compatibility/MCP, Domain/Application,
 Persistence/Recovery, and QA/Docs are **GO** with no open findings.
-Windows/browser CI and PR/merge facts are recorded only after those gates
-complete. They must not be inferred from this local implementation record.
+
+The implementation source commit is
+`6de42142fc0fa72cb1d662dd2da8d1c313ec8c5e`. PR
+[#160](https://github.com/KlausUllrich/numberdroid/pull/160) was
+source-integrated into `main` as squash commit
+`89d6d4397057d5801aa7ba04e0b1cf6138df55eb`. PR Actions run
+[#2198 / 33202315502](https://github.com/KlausUllrich/numberdroid/actions/runs/33202315502)
+passed the classifier, forced Root build, Linux Studio including browser
+evidence, Windows Studio, and CI gate; Pages was correctly skipped in the PR
+context. Post-merge `main` Actions run
+[#2199 / 33202908594](https://github.com/KlausUllrich/numberdroid/actions/runs/33202908594)
+passed the classifier, Linux Studio including browser evidence, Windows
+Studio, and CI gate while Root build and Pages were correctly skipped by the
+actual 22-path classification. Conservative PR Root/browser/Windows coverage
+is regression evidence, not a new UI, visual-acceptance, or product-contract
+claim. Source integration and CI leave this candidate **NOT USER ACCEPTED**.
 
 ## Explicitly deferred to A1.6b2b
 
