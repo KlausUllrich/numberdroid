@@ -72,8 +72,9 @@ and the actual diff. Do not make every reviewer reread the whole repository.
 
 For one bounded block:
 
-1. classify the tier and record the reason, promise, exclusions, rollback, and
-   any escalation trigger;
+1. after mandatory reading, target a two-minute scope lock: classify the tier
+   and record the reason, one coherent promise, exclusions, finish condition,
+   rollback, and any escalation trigger;
 2. run one parallel planning pass with only the triggered roles;
 3. implement with one writer per shared file area;
 4. run tier-required focused verification;
@@ -84,6 +85,34 @@ For one bounded block:
 
 Repeat planning/review only after a material scope change or a substantive
 finding. Reviewer quantity never overrides a binding contract.
+
+### Efficiency without evidence loss
+
+- Falsify the current hypothesis with the narrowest relevant diagnostic first.
+  Widen only because the tier, changed paths, platform boundary, or a concrete
+  result requires it. An unchanged green broad suite is not rerun for comfort.
+- Parallelize independent reads, triggered reviews, and non-conflicting checks.
+  Preserve one writer per shared file area and one coordinator for the final
+  diff, evidence, and merge decision.
+- Freeze the code before the single independent actual-diff review. When a
+  finding changes only one seam, rerun that seam's tests and review; repeat the
+  complete review set only when the fix changes scope or another risk axis.
+- At ten minutes of active local work without a merge-ready result, send a
+  checkpoint containing the completed facts, remaining gates, current blocker,
+  and next bounded action. This checkpoint does not waive autonomous execution
+  or any gate; it prevents a long silent block and forces deliberate rescoping.
+- Diagnose the first decisive failure before retrying. Preserve already green,
+  independent lanes. For cross-platform fixtures that own filesystem, SQLite,
+  child-process, socket, or HTTP resources, verify teardown order explicitly:
+  stop intake, drain work, close handles/writers, then remove the exact temporary
+  directory.
+- Use one source PR for one coherent block. A second evidence-only PR is
+  justified only when a binding current document must retain facts that do not
+  exist until after source merge, such as the immutable merge SHA or post-merge
+  Actions identity. Do not create it as routine ceremony.
+- Do not start dependent implementation for the next block before the current
+  result and remaining boundary have been reported. Read-only planning may
+  overlap only as allowed by the post-merge concurrency rule below.
 
 ### Cohesive L1 batching
 
