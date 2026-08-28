@@ -17,7 +17,8 @@ Before changing anything in the repository, read completely in this order:
 2. `REPOSITORY_STRUCTURE.md`
 3. `docs/agents/ROLE_ENTRYPOINTS.md`
 4. `docs/agents/REPOSITORY_WORKFLOW.md`
-5. `docs/README.md`
+5. `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`
+6. `docs/README.md`
 
 Then classify the task by **primary role and triggers** and read the required bundle in `ROLE_ENTRYPOINTS.md`.
 
@@ -36,6 +37,7 @@ Use these authorities:
 - repository organization and file ownership: `REPOSITORY_STRUCTURE.md`
 - role/task reading routes: `docs/agents/ROLE_ENTRYPOINTS.md`
 - repository/GitHub workflow: `docs/agents/REPOSITORY_WORKFLOW.md`
+- change-risk, superagent, and verification tiers: `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`
 - binary repository assets / safe transport: `docs/agents/BINARY_ASSET_TRANSPORT.md`
 - durable gameplay/engineering invariants: `docs/agents/GAMEPLAY_AND_ENGINEERING_RULES.md`
 - current production code: `src/`
@@ -59,6 +61,10 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
 
 - `main` is canonical and should remain stable.
 - Verify current `main` HEAD and relevant GitHub Actions state before significant work.
+- Before planning reviews or tests, classify the change under
+  `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`. Use only trigger-relevant
+  superagents and gates; ambiguity or scope growth escalates rather than being
+  optimized away.
 - Use focused branches/PRs for changes.
 - For structured/textual remote repository operations use the connected GitHub connector and the discovery/recovery rules in `docs/agents/REPOSITORY_WORKFLOW.md`.
 - **Before any binary repository write**, read `docs/agents/BINARY_ASSET_TRANSPORT.md` and run the executable binary preflight before constructing a transport payload.
@@ -68,7 +74,13 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
 - If GitHub actions are not currently surfaced, **rediscover the GitHub connector/actions first** as defined in `docs/agents/REPOSITORY_WORKFLOW.md`; absence from the active tool schema is not evidence that repository access is unavailable.
 - Do not mix broad repository reorganization with gameplay changes.
 - Preserve `zahlenkern-prototyp-meta-v7.html` as the frozen behavioral reference; do not refactor it into production code.
-- Before merging runtime changes, run the available tests and production build. Art changes must also run their relevant art QA scripts.
+- Before merging behavior/runtime changes, run the relevant tests and any
+  production build selected by the risk tier and actual path triggers. Full
+  suites, browser evidence, and additional platforms require an L3
+  classification or a concrete trigger. Art changes must still run their
+  relevant art QA scripts. D0 documentation-only changes do not trigger product
+  suites unless they affect generated output, CI, configuration, fixtures, or
+  executable examples.
 - `CI green`, `merged`, and `visually accepted` are different states.
 - Update the relevant current contract/recipe when a durable decision or accepted asset changes.
 
@@ -108,6 +120,11 @@ In particular:
 A handoff must be self-explanatory enough for a new session and role-aware enough not to require reading the whole repository. Use `docs/agents/HANDOFF_PROTOCOL.md`.
 
 A handoff must never tell the receiver to trust the handoff instead of current code/contracts. The receiver verifies `main`, reads the common bootstrap, follows the role route, then uses the handoff as the current task snapshot.
+
+Do not create a full handoff for an ordinary candidate PR or merge. Update the
+directly affected current authority and compact decision/test backlog; create a
+full handoff only at a clean milestone, genuine session or primary-role
+transition, or a real stop gate.
 
 When handing from one role to another, explicitly state:
 

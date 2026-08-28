@@ -22,7 +22,8 @@ Every agent reads these before repository changes:
 2. `REPOSITORY_STRUCTURE.md`
 3. `docs/agents/ROLE_ENTRYPOINTS.md`
 4. `docs/agents/REPOSITORY_WORKFLOW.md`
-5. `docs/README.md`
+5. `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`
+6. `docs/README.md`
 
 Also verify:
 

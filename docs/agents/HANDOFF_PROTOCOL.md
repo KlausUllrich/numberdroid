@@ -144,6 +144,11 @@ Example:
 
 A handoff should be written at a clean milestone boundary, especially after a category/feature has been accepted and frozen or before the primary role changes.
 
+An ordinary candidate PR or merge is not by itself a full-handoff trigger. Use
+compact current status/decision/backlog updates between milestones. Create a
+new full handoff only for a clean milestone, a real session or primary-role
+transition, or when all useful authorized lanes are stopped.
+
 After a receiver completes the next milestone:
 
 - update current durable contracts/recipes;
