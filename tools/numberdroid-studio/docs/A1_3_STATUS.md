@@ -112,8 +112,11 @@ Local Node 22.17.0 verification on 2026-08-28:
 The first ambient Node 24 full-suite attempt lacked installed runtime
 dependencies. A lockfile install under the project's pinned Node 22.17.0
 runtime restored the intended environment and the complete suite then passed.
-This setup diagnostic is not product evidence. The exact reviewed candidate is
+This setup diagnostic is not product evidence. The exact reviewed candidate was
 PR #150 at implementation head
-`9ad3b68ac64a1a073fbdcec63b62d2205aa01d98`. Source integration and required
-GitHub Actions facts are recorded in VT-004 only after they exist; none will
-change this candidate-only acceptance state.
+`9ad3b68ac64a1a073fbdcec63b62d2205aa01d98`, with final PR head
+`13c1e5275c3ffe3e9939485a8cf93ee3d0d7b6aa`. It was source-integrated into
+`main` as merge commit `e0099629d9b932660ac85395e952db34b35d3e2b` after PR
+Actions run 33150271295 passed; post-merge `main` Actions run 33150374430 also
+passed. Source integration and CI do not change this candidate-only acceptance
+state.
