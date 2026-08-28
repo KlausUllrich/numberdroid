@@ -1,6 +1,11 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { StudioError, invariant } from '../../../domain/src/errors.js';
+import { invariant } from '../../../domain/src/errors.js';
 import { requireId, requireIsoDate } from '../../../domain/src/validation.js';
+import {
+  assertCurrentHostBinding,
+  currentHostBindingState,
+  readCurrentHostBindingByTokenDigest,
+} from './sqlite-host-binding-admission.js';
 import { SqliteWorkspace } from './sqlite-workspace.js';
 
 function tokenDigest(token) {
@@ -9,12 +14,9 @@ function tokenDigest(token) {
 }
 
 function bindingProjection(row, now) {
-  const bindingExpired = row.expires_at !== null && Date.parse(row.expires_at) <= Date.parse(now);
-  const grantExpired = row.grant_authorization_status === 'EXPIRED'
-    || (row.grant_expires_at !== undefined && row.grant_expires_at !== null
-      && Date.parse(row.grant_expires_at) <= Date.parse(now));
-  const grantRevoked = (row.grant_revoked_at !== undefined && row.grant_revoked_at !== null)
-    || ['REVOKED', 'LEGACY_UNBOUND'].includes(row.grant_authorization_status);
+  const {
+    bindingExpired, grantExpired, grantLegacy, grantRevoked,
+  } = currentHostBindingState(row, now);
   const revokedAt = row.revoked_at ?? (grantRevoked ? row.grant_revoked_at : null);
   return {
     schemaVersion: 1,
@@ -29,7 +31,7 @@ function bindingProjection(row, now) {
     expiresAt: row.expires_at,
     revokedAt,
     revokeReason: row.revoke_reason,
-    status: row.revoked_at || grantRevoked
+    status: row.revoked_at || grantLegacy || grantRevoked
       ? 'REVOKED'
       : bindingExpired || grantExpired ? 'EXPIRED' : 'ACTIVE',
   };
@@ -183,18 +185,26 @@ export class SqliteHostBindingStore {
 
   resolve(token) {
     const now = requireIsoDate(this.#clock(), 'clock');
-    const row = this.#workspace.database.prepare('SELECT * FROM host_bindings WHERE token_digest = ?')
-      .get(tokenDigest(token));
-    if (!row) throw new StudioError('HOST_BINDING_NOT_FOUND', 'The HostBinding is unknown or no longer available.');
+    const row = readCurrentHostBindingByTokenDigest(this.#workspace.database, tokenDigest(token));
+    assertCurrentHostBinding(row, now);
+    return bindingProjection(row, now);
+  }
+
+  resolveAttemptSubject(token) {
+    const now = requireIsoDate(this.#clock(), 'clock');
+    const row = readCurrentHostBindingByTokenDigest(this.#workspace.database, tokenDigest(token));
+    assertCurrentHostBinding(row, now, null, { requireActiveGrant: false });
     const binding = bindingProjection(row, now);
-    invariant(binding.status !== 'REVOKED', 'HOST_BINDING_REVOKED', 'The HostBinding has been revoked.', {
-      bindingId: binding.bindingId,
+    return Object.freeze({
+      schemaVersion: 1,
+      kind: 'studio.host-binding-attempt-subject',
+      projectId: binding.projectId,
+      grantId: binding.grantId,
+      actor: Object.freeze(binding.actor),
+      taskId: binding.taskId,
+      branchId: binding.branchId,
+      authorization: 'NOT_GRANTED',
     });
-    invariant(binding.status !== 'EXPIRED', 'HOST_BINDING_EXPIRED', 'The HostBinding has expired.', {
-      bindingId: binding.bindingId,
-      expiresAt: binding.expiresAt,
-    });
-    return binding;
   }
 
   revoke(bindingId, { revokedBy, reason = null } = {}) {
@@ -238,6 +248,11 @@ export class SqliteHostBindingStore {
     const now = requireIsoDate(this.#clock(), 'clock');
     return this.#workspace.database.prepare(`
       SELECT hb.*,
+        g.project_id AS current_grant_project_id,
+        g.grant_id AS current_grant_id,
+        g.agent_id AS grant_agent_id,
+        g.task_id AS grant_task_id,
+        g.branch_id AS grant_branch_id,
         g.authorization_status AS grant_authorization_status,
         g.status AS grant_status,
         g.revoked_at AS grant_revoked_at,

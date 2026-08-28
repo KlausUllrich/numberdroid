@@ -23,8 +23,8 @@ primary visual. No slice adds a persisted processing workflow, semantic
 adoption command, or new pixel operation. See the [A1.0 status](docs/A1_0_STATUS.md),
 [A1.1 status](docs/A1_1_STATUS.md), and [A1.2 status](docs/A1_2_STATUS.md).
 
-A1.3, A1.4, A1.5, and A1.6a are now **implemented candidates and are not
-user-accepted**.
+A1.3, A1.4, A1.5, A1.6a, and A1.6b1 are now **implemented candidates and are
+not user-accepted**.
 A1.3's read-only project-bound receipt closes Recipe → Result → Selection, an
 exact dedicated capability operation, registered-plus-physical CAS
 revalidation, findings policy, and exact Asset create/update plus
@@ -43,13 +43,20 @@ grant vocabulary. A1.6a adds one separately typed Authoring-v2 command feature,
 the exact additive 31-scope vocabulary, Numberdroid profile v2, trusted
 task/grant provisioning support, and real effect-free SQLite/CAS planning
 ports. No server, launcher, HostBinding, MCP, HTTP, or UI composition selects
-them, so no current client can receive or execute the new path. None of the
-four adds a new pixel operation, Main/CP2C mutation, or owner/release authority.
+them, so no current client can receive or execute the new path. A1.6b1 closes
+current Grant liveness in HostBinding resolution and adds a separately composed
+host-bound A1.5 port whose Binding/Grant guard runs before replay and again
+inside the mutation transaction. Existing audited generic and specialized MCP
+bridges now use only the strict live resolution for dispatch identity after
+nonauthorizing audit attribution, with one correlation across both phases. It
+still adds no callable surface. None of the
+five adds a new pixel operation, Main/CP2C mutation, or owner/release authority.
 See the
 [A1.3 candidate status](docs/A1_3_STATUS.md) and
 [A1.4 candidate status](docs/A1_4_STATUS.md), plus the
 [A1.5 persistence candidate status](docs/A1_5_STATUS.md) and
-[A1.6a prerequisite candidate status](docs/A1_6A_STATUS.md). A1.6b separately
+[A1.6a prerequisite candidate status](docs/A1_6A_STATUS.md), plus the
+[A1.6b1 admission candidate status](docs/A1_6B1_STATUS.md). A1.6b2 separately
 versioned Authoring-v2 exposure is the next planned bounded Artist block. The
 operations O0/O1 lane is independent and retains its own gates.
 
@@ -57,10 +64,10 @@ Checkpoint 2B acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb89
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.6a, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
+| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.6b1, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Accepted source/asset/room/task foundations plus candidate list-first tasks, useful prop previews, and persistent-canvas rectangle/irregular-room authoring |
-| Agent access | Public discovery remains 19 tools/four templates without a task and 30 tools/five templates for a matching task branch; private A1.5/A1.6a seams add no callable surface. A1.6b must positively handshake the separately versioned feature before exposing 31/six; authority, owner review, merge, materialization, and publication remain human-only. |
+| Agent access | Public discovery remains 19 tools/four templates without a task and 30 tools/five templates for a matching task branch; private A1.5/A1.6a/A1.6b1 seams add no callable surface. A1.6b2 must positively handshake the separately versioned feature before exposing 31/six; authority, owner review, merge, materialization, and publication remain human-only. |
 | Persistence | SQLite schema v13 WAL ledger with normalized immutable shape cells plus private branch-local processing-adoption lineage/retention; sanitized portable bundles remain v1/v2 and v3 only for masked rooms |
 | Numberdroid export | Dependent CP5 candidate-only snapshot/adapter/compiler foundation; no persistence/approval UI, materialization, commit, or publishing authority yet |
 

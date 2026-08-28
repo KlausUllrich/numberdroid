@@ -41,6 +41,10 @@ import {
   PROCESSING_ADOPTION_TASK_BRANCH_PREFLIGHT_READER_SCHEMA_VERSION,
 } from '../../../application/src/processing-result-adoption.js';
 import { ContentAddressedArtifactStore } from '../artifacts/content-addressed-artifact-store.js';
+import {
+  assertCurrentHostBinding,
+  readCurrentHostBindingById,
+} from './sqlite-host-binding-admission.js';
 import { SqliteWorkspace } from './sqlite-workspace.js';
 
 export const PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION = 1;
@@ -89,6 +93,114 @@ function exactContext(value) {
       ? null
       : requireId(context.correlationId, 'trustedExecutionContext.correlationId'),
   });
+}
+
+function exactOwnDataRecord(value, fields, label) {
+  invariant(
+    value !== null
+      && typeof value === 'object'
+      && !Array.isArray(value)
+      && !utilTypes.isProxy(value),
+    'HOST_BINDING_INVALID',
+    `${label} must be an inspectable plain object.`,
+  );
+  let prototype;
+  let keys;
+  try {
+    prototype = Object.getPrototypeOf(value);
+    keys = Reflect.ownKeys(value);
+  } catch {
+    invariant(false, 'HOST_BINDING_INVALID', `${label} must be inspectable.`);
+  }
+  invariant(
+    (prototype === Object.prototype || prototype === null)
+      && keys.length === fields.length
+      && keys.every((key) => typeof key === 'string' && fields.includes(key)),
+    'HOST_BINDING_INVALID',
+    `${label} must contain exactly its trusted v1 fields.`,
+  );
+  const result = Object.create(null);
+  for (const field of fields) {
+    let descriptor;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, field);
+    } catch {
+      invariant(false, 'HOST_BINDING_INVALID', `${label}.${field} must be inspectable.`);
+    }
+    invariant(
+      descriptor
+        && Object.hasOwn(descriptor, 'value')
+        && descriptor.enumerable === true,
+      'HOST_BINDING_INVALID',
+      `${label}.${field} must be an enumerable own data field.`,
+    );
+    result[field] = descriptor.value;
+  }
+  return result;
+}
+
+function captureHostBindingAdmission(value) {
+  const binding = exactOwnDataRecord(value, [
+    'schemaVersion',
+    'bindingId',
+    'projectId',
+    'grantId',
+    'actor',
+    'taskId',
+    'branchId',
+    'issuedBy',
+    'issuedAt',
+    'expiresAt',
+    'revokedAt',
+    'revokeReason',
+    'status',
+  ], 'trustedHostBinding');
+  const actor = exactOwnDataRecord(binding.actor, [
+    'id', 'kind', 'displayName',
+  ], 'trustedHostBinding.actor');
+  invariant(
+    binding.schemaVersion === 1
+      && actor.kind === 'agent'
+      && actor.displayName === null
+      && binding.status === 'ACTIVE'
+      && binding.revokedAt === null
+      && binding.revokeReason === null,
+    'HOST_BINDING_INVALID',
+    'Only a current active agent HostBinding can be captured for adoption.',
+  );
+  return Object.freeze({
+    bindingId: requireId(binding.bindingId, 'trustedHostBinding.bindingId'),
+    projectId: requireId(binding.projectId, 'trustedHostBinding.projectId'),
+    grantId: requireId(binding.grantId, 'trustedHostBinding.grantId'),
+    agentId: requireId(actor.id, 'trustedHostBinding.actor.id'),
+    taskId: requireId(binding.taskId, 'trustedHostBinding.taskId'),
+    branchId: requireId(binding.branchId, 'trustedHostBinding.branchId'),
+    issuedBy: requireId(binding.issuedBy, 'trustedHostBinding.issuedBy'),
+    issuedAt: requireIsoDate(binding.issuedAt, 'trustedHostBinding.issuedAt'),
+    expiresAt: binding.expiresAt === null
+      ? null
+      : requireIsoDate(binding.expiresAt, 'trustedHostBinding.expiresAt'),
+  });
+}
+
+function assertHostBindingContext(admission, command, context) {
+  invariant(
+    command.projectId === admission.projectId
+      && context.actor.id === admission.agentId
+      && context.taskId === admission.taskId
+      && context.grantId === admission.grantId
+      && context.branchId === admission.branchId,
+    'HOST_BINDING_GRANT_MISMATCH',
+    'The adoption command context does not match its current HostBinding.',
+  );
+}
+
+function assertHostBindingAdmission(database, admission, now) {
+  assertCurrentHostBinding(
+    readCurrentHostBindingById(database, admission.bindingId),
+    now,
+    admission,
+  );
 }
 
 function authorityBinding(command, context) {
@@ -906,6 +1018,18 @@ export class SqliteProcessingResultAdoptionStore {
     });
   }
 
+  asHostBoundAtomicStore(trustedBinding) {
+    const store = this;
+    const admission = captureHostBindingAdmission(trustedBinding);
+    return Object.freeze({
+      schemaVersion: PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION,
+      kind: PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_KIND,
+      commitProcessingResultAdoption: (command, trustedContext, options) => (
+        store.#commitProcessingResultAdoption(command, trustedContext, options, admission)
+      ),
+    });
+  }
+
   asPlanningPorts() {
     const store = this;
     return Object.freeze({
@@ -932,15 +1056,30 @@ export class SqliteProcessingResultAdoptionStore {
   }
 
   async commitProcessingResultAdoption(commandValue, trustedContextValue, { signal } = {}) {
+    return this.#commitProcessingResultAdoption(commandValue, trustedContextValue, { signal }, null);
+  }
+
+  async #commitProcessingResultAdoption(
+    commandValue,
+    trustedContextValue,
+    { signal } = {},
+    hostBindingAdmission = null,
+  ) {
     signal?.throwIfAborted();
     const command = validateProcessingResultAdoptionCommand(commandValue);
     const context = exactContext(trustedContextValue);
     const binding = authorityBinding(command, context);
     const semantic = { taskId: context.taskId, value: processingResultAdoptionSemanticSha256(command, binding) };
+    let precheckNow = null;
+    if (hostBindingAdmission !== null) {
+      assertHostBindingContext(hostBindingAdmission, command, context);
+      precheckNow = requireIsoDate(this.#clock(), 'clock');
+      assertHostBindingAdmission(this.#workspace.database, hostBindingAdmission, precheckNow);
+    }
     const prior = replay(this.#workspace.database, command, semantic);
     if (prior) return clone(prior);
 
-    const precheckNow = requireIsoDate(this.#clock(), 'clock');
+    precheckNow ??= requireIsoDate(this.#clock(), 'clock');
     readAuthority(this.#workspace.database, command, context, precheckNow);
     signal?.throwIfAborted();
     const request = command.payload.preflightRequest;
@@ -965,8 +1104,15 @@ export class SqliteProcessingResultAdoptionStore {
     return withPngEvidence(this.#artifactStore, inputDigest, async (inputPhysical) => {
       const commitWithPhysical = async (outputPhysical) => {
         signal?.throwIfAborted();
-        const now = requireIsoDate(this.#clock(), 'clock');
+        const legacyTransactionNow = hostBindingAdmission === null
+          ? requireIsoDate(this.#clock(), 'clock')
+          : null;
         const result = this.#workspace.transaction((database) => {
+          const now = legacyTransactionNow
+            ?? requireIsoDate(this.#clock(), 'clock');
+          if (hostBindingAdmission !== null) {
+            assertHostBindingAdmission(database, hostBindingAdmission, now);
+          }
           const concurrentReplay = replay(database, command, semantic);
           if (concurrentReplay) return concurrentReplay;
           const authority = readAuthority(database, command, context, now);

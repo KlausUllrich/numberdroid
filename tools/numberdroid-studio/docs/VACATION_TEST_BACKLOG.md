@@ -34,6 +34,7 @@ Keep these states distinct:
 | VT-005 | A1.4 processing-result adoption plan | NEEDS KLAUS REVIEW | VT-004 | Accept/revise the private agent-task command/policy and commitless create/update semantics |
 | VT-006 | A1.5 private adoption persistence | NEEDS KLAUS REVIEW | VT-005 | Accept/revise the private atomic/replay/retention boundary and DRAFT persistence semantics |
 | VT-007 | A1.6a Authoring-v2 prerequisites | NEEDS KLAUS REVIEW | VT-006 | Accept/revise the private v2 overlay/profile and real effect-free planning composition |
+| VT-008 | A1.6b1 host-bound adoption admission | NEEDS KLAUS REVIEW | VT-007 | Accept/revise the current Binding/Grant replay and mutation-UoW admission boundary |
 
 Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate.
@@ -496,11 +497,85 @@ own ID only after implementation exists. Planned work is not a candidate.
   merge/lifecycle, materialization, publication, or end-to-end `IMG-006`.
 - **Open Klaus decision:** accept or revise the separately versioned overlay,
   additive Numberdroid profile v2, trusted catalog-injection boundary, real
-  effect-free SQLite/CAS planning reads, and the A1.6b exact 31-tool/six-template
+  effect-free SQLite/CAS planning reads, and the A1.6b2 exact 31-tool/six-template
   handshake target. Automation cannot answer this product-contract decision.
 - **Recovery:** A1.6a adds no migration and its dry-run writes no workspace/CAS
   state. Revert the focused source candidate; no database downgrade, backup
   restore, CAS cleanup, task repair, or fixture deletion is required.
+
+## VT-008 — A1.6b1 host-bound adoption admission
+
+- **Implementation:** non-visual A1.6b1 candidate based on verified A1.6a
+  closure `main` `5a699b75597eac219580bddf2d3d8609c63ec2b0`. It closes
+  current Grant liveness in strict HostBinding resolution, preserves the
+  accepted generic and specialized attempt-audit boundary, and adds the unwired
+  host-bound A1.5 atomic port described in `A1_6B1_STATUS.md`. Source
+  integration is pending; neither integration nor Actions can close the user
+  decision.
+- **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-007 because the
+  port is a security prerequisite for exposing A1.6a's private feature and
+  A1.5's commit seam. VT-004–VT-007 acceptance may still revise the underlying
+  contract even when every race and compatibility test is green.
+- **Safe fixture/reset:** no live server composes the host-bound adoption port
+  and no client can invoke it. Reproduction uses only fresh temporary SQLite
+  and CAS directories created and deleted by `host-binding.node-test.js` and
+  `processing-adoption-sqlite-store.node-test.js`. Never point exploratory
+  code at a personal Studio workspace. No manual reset is required.
+- **Optional automated reproduction:** with Node 24.19.0 and lockfile
+  dependencies installed, run from `tools/numberdroid-studio/`:
+
+  ```bash
+  node --test \
+    tests/host-binding.node-test.js \
+    tests/specialized-mcp-audit.node-test.js \
+    tests/processing-adoption-*.node-test.js \
+    tests/authoring-v2-prerequisites.node-test.js \
+    tests/official-mcp.node-test.js \
+    tests/checkpoint-4-mcp.node-test.js \
+    tests/checkpoint-2c-http-mcp.node-test.js \
+    tests/package-boundaries.node-test.js
+  ```
+
+- **Review steps and expected result:**
+  1. Confirm strict HostBinding resolution joins the current Grant and rejects
+     either status column, revocation, expiry, legacy state, missing state, or
+     Binding↔Grant coordinate drift.
+  2. Confirm the generic and specialized audit-only subject says
+     `NOT_GRANTED`, rejects an invalid HostBinding, and is always followed by
+     strict resolution inside the redacted attempt-failure boundary. Confirm
+     only the live result supplies dispatch identity and both phases share one
+     request correlation.
+  3. Confirm only the exact own-data active HostBinding projection can create a
+     host-bound port; proxies/accessors/extras and command-context drift fail
+     without traps or dependency reads.
+  4. Confirm current Binding/Grant admission runs before initial replay and
+     inside `BEGIN IMMEDIATE` before concurrent replay or any write.
+  5. Confirm revocation or Binding/Grant expiry crossed during capability/CAS
+     prevents adoption, and revoked authority cannot receive a prior or
+     concurrently committed replay.
+  6. Confirm legacy A1.5 in-process replay, redacted attempt auditing, schema
+     v13, catalogs/profiles, and MCP 19/4 or 30/5 remain unchanged.
+- **Platform/evidence:** non-visual Authority/Persistence/compatibility review;
+  no browser, viewport, device, gameplay, or live-workspace acceptance gate.
+  Local evidence is 172/172 focused, 481/481 full Studio, and 141/141
+  JavaScript syntax files. Production-adapter evidence remains `VERIFIED` at
+  protected source-manifest hash
+  `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
+  Exact link/classifier/diff gates and five independent final actual-diff
+  reviews are green. Source, PR, merge, and Actions identities are frozen in
+  `A1_6B1_STATUS.md` only after their integration gates complete.
+- **Known limits:** private admission prerequisite only; no v2 handshake,
+  profile selection, adoption route/tool, capabilities resource, 31/6
+  discovery, public HTTP/UI, Main/CP2C mutation, owner review/merge/lifecycle,
+  materialization, publication, or end-to-end `IMG-006`.
+- **Open Klaus decision:** accept or revise the strict current-Grant
+  HostBinding semantics, nonauthorizing attempt-audit compatibility seam, and
+  the rule that host-bound replay is denied after authority revocation while
+  the private unhosted A1.5 store retains its original ledger-first recovery
+  semantics. Automation cannot answer this product-contract decision.
+- **Recovery:** A1.6b1 adds no migration or durable state. Revert the focused
+  candidate; no database downgrade, backup restore, CAS cleanup, task repair,
+  audit repair, or fixture deletion is required.
 
 ## Required record for every new candidate
 

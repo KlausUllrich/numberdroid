@@ -90,13 +90,13 @@ function bearerToken(request) {
   return authorization.slice('Bearer '.length);
 }
 
-function bindingExecutionContext(binding) {
+function bindingExecutionContext(binding, correlationId = `mcp.${randomUUID()}`) {
   return {
     actor: binding.actor,
     taskId: binding.taskId,
     grantId: binding.grantId,
     branchId: binding.branchId,
-    correlationId: `mcp.${randomUUID()}`,
+    correlationId,
   };
 }
 
@@ -481,6 +481,8 @@ function validateMcpSourceArtifact(command, artifactMetadataStore) {
 const ATTEMPT_DENIAL_CODES = new Set([
   'FORBIDDEN', 'GRANT_REQUIRED', 'GRANT_NOT_FOUND', 'GRANT_REVOKED', 'GRANT_ACTOR_MISMATCH',
   'GRANT_TASK_MISMATCH', 'GRANT_BRANCH_MISMATCH', 'GRANT_EXPIRED', 'GRANT_SCOPE_MISSING',
+  'HOST_BINDING_NOT_FOUND', 'HOST_BINDING_REVOKED', 'HOST_BINDING_EXPIRED',
+  'HOST_BINDING_GRANT_MISMATCH',
   'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'CONTEXT_PROJECT_MISMATCH',
   'JOB_AUTHORITY_MISMATCH',
   'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'ARTIFACT_URI_REQUIRED',
@@ -642,9 +644,13 @@ export function createStudioHttpServer({
       if (request.method === 'POST' && url.pathname === '/internal/mcp/execute') {
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
-        const binding = hostBindingStore.resolve(bearerToken(request));
-        const executionContext = bindingExecutionContext(binding);
-        const projectView = await studioService.readProjectTrusted(binding.projectId);
+        const token = bearerToken(request);
+        const attemptSubject = agentAttemptStore?.isLive === true
+          && typeof hostBindingStore.resolveAttemptSubject === 'function'
+          ? hostBindingStore.resolveAttemptSubject(token)
+          : hostBindingStore.resolve(token);
+        const attemptContext = bindingExecutionContext(attemptSubject);
+        const projectView = await studioService.readProjectTrusted(attemptSubject.projectId);
         const attemptId = `attempt.${randomUUID()}`;
         let definition = null;
         let commandId = null;
@@ -657,21 +663,25 @@ export function createStudioHttpServer({
           }
           definition = studioService.commandCatalog.find((candidate) => candidate.type === body.command.type);
           commandId = safeAttemptId(body.command.commandId);
-          if (body.command.projectId !== binding.projectId) {
+          const liveBinding = hostBindingStore.resolve(token);
+          const liveContext = bindingExecutionContext(liveBinding, attemptContext.correlationId);
+          if (body.command.projectId !== liveBinding.projectId) {
             throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside this HostBinding.', {
               requestedProjectId: body.command.projectId,
-              contextProjectId: binding.projectId,
+              contextProjectId: liveBinding.projectId,
             });
           }
           if (definition?.requiresDurableAgentLedger && agentAttemptStore?.isLive !== true) {
             throw new StudioError('AGENT_ATTEMPT_LEDGER_REQUIRED', 'This agent mutation is disabled until a durable attempt ledger is available.');
           }
-          await assertExecutableBindingPolicy(studioService, binding, agentTaskService);
+          await assertExecutableBindingPolicy(studioService, liveBinding, agentTaskService);
           validateMcpSourceArtifact(body.command, artifactMetadataStore);
-          const taskBound = agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId) === true;
+          const taskBound = agentTaskService?.hasTask(
+            liveBinding.projectId, liveBinding.taskId, liveBinding.branchId,
+          ) === true;
           result = await (taskBound ? agentTaskService : studioService).execute(
             body.command,
-            executionContext,
+            liveContext,
             { signal: requestAbort.signal },
           );
           if (definition?.type === 'atlas.preview.slices') atlasPreviewWorker?.kick();
@@ -680,15 +690,15 @@ export function createStudioHttpServer({
           if (agentAttemptStore?.isLive === true) {
             agentAttemptStore.recordFailure({
               attemptId,
-              projectId: binding.projectId,
-              correlationId: executionContext.correlationId,
-              actorId: binding.actor.id,
-              taskId: safeAttemptId(binding.taskId),
-              branchId: binding.branchId,
+              projectId: attemptSubject.projectId,
+              correlationId: attemptContext.correlationId,
+              actorId: attemptSubject.actor.id,
+              taskId: safeAttemptId(attemptSubject.taskId),
+              branchId: attemptSubject.branchId,
               commandId,
               commandType: definition?.type ?? 'unknown',
               targetKind: 'project',
-              targetId: binding.projectId,
+              targetId: attemptSubject.projectId,
               observedRevision: projectView.revision,
               status: ATTEMPT_DENIAL_CODES.has(error.code) ? 'DENIED' : 'FAILED',
               errorCode: error.code,
@@ -756,9 +766,13 @@ export function createStudioHttpServer({
       ].includes(url.pathname)) {
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
-        const binding = hostBindingStore.resolve(bearerToken(request));
-        const context = bindingExecutionContext(binding);
-        const projectView = await studioService.readProjectTrusted(binding.projectId);
+        const token = bearerToken(request);
+        const attemptSubject = agentAttemptStore?.isLive === true
+          && typeof hostBindingStore.resolveAttemptSubject === 'function'
+          ? hostBindingStore.resolveAttemptSubject(token)
+          : hostBindingStore.resolve(token);
+        const attemptContext = bindingExecutionContext(attemptSubject);
+        const projectView = await studioService.readProjectTrusted(attemptSubject.projectId);
         const attemptId = `attempt.${randomUUID()}`;
         const definition = {
           '/internal/mcp/atlas-grid-proposal': { operation: 'proposeAtlasGrid', commandType: 'atlas.propose.grid', atomicAudit: false, auditAuthorized: false },
@@ -771,15 +785,15 @@ export function createStudioHttpServer({
         }[url.pathname];
         const attempt = {
           attemptId,
-          projectId: binding.projectId,
-          correlationId: context.correlationId,
-          actorId: binding.actor.id,
-          taskId: safeAttemptId(binding.taskId),
-          branchId: binding.branchId,
+          projectId: attemptSubject.projectId,
+          correlationId: attemptContext.correlationId,
+          actorId: attemptSubject.actor.id,
+          taskId: safeAttemptId(attemptSubject.taskId),
+          branchId: attemptSubject.branchId,
           commandId: null,
           commandType: definition.commandType,
           targetKind: 'project',
-          targetId: binding.projectId,
+          targetId: attemptSubject.projectId,
           observedRevision: projectView.revision,
         };
         let result;
@@ -788,35 +802,38 @@ export function createStudioHttpServer({
             throw new StudioError('AGENT_ATTEMPT_LEDGER_REQUIRED', 'Specialized MCP operations require a durable attempt ledger.');
           }
           const body = await readJsonBody(request, { maxBytes: 128 * 1024 });
-          if (body?.projectId !== binding.projectId) {
-            throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside this HostBinding.', {
-              requestedProjectId: body?.projectId,
-              contextProjectId: binding.projectId,
-            });
-          }
           const safeJobId = definition.commandType.startsWith('job.') ? safeAttemptId(body?.jobId) : null;
           if (safeJobId) {
             attempt.targetKind = 'job';
             attempt.targetId = safeJobId;
           }
-          const safeAssetId = definition.commandType === 'asset.query' ? safeAttemptId(body?.assetId) : null;
-          if (safeAssetId) {
-            attempt.targetKind = 'asset';
-            attempt.targetId = safeAssetId;
+          const liveBinding = hostBindingStore.resolve(token);
+          const liveContext = bindingExecutionContext(liveBinding, attemptContext.correlationId);
+          if (body?.projectId !== liveBinding.projectId) {
+            throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'The requested project is outside this HostBinding.', {
+              requestedProjectId: body?.projectId,
+              contextProjectId: liveBinding.projectId,
+            });
           }
-          const safeRoomId = definition.commandType === 'room.query' ? safeAttemptId(body?.roomVariantId) : null;
-          if (safeRoomId) {
-            attempt.targetKind = 'room';
-            attempt.targetId = safeRoomId;
-          }
-          await assertExecutableBindingPolicy(studioService, binding, agentTaskService);
-          const taskBound = agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId) === true;
+          await assertExecutableBindingPolicy(studioService, liveBinding, agentTaskService);
+          const taskBound = agentTaskService?.hasTask(
+            liveBinding.projectId, liveBinding.taskId, liveBinding.branchId,
+          ) === true;
           const targetService = taskBound && ['proposeAtlasGrid', 'queryAssets', 'queryRooms'].includes(definition.operation)
             ? agentTaskService
             : studioService;
-          result = await targetService[definition.operation](body, context, {
+          const authorizedAttempt = {
+            ...attempt,
+            projectId: liveBinding.projectId,
+            correlationId: liveContext.correlationId,
+            actorId: liveBinding.actor.id,
+            taskId: safeAttemptId(liveBinding.taskId),
+            branchId: liveBinding.branchId,
+            targetId: attempt.targetKind === 'project' ? liveBinding.projectId : attempt.targetId,
+          };
+          result = await targetService[definition.operation](body, liveContext, {
             signal: requestAbort.signal,
-            ...(definition.atomicAudit ? { authorizedAttempt: attempt } : {}),
+            ...(definition.atomicAudit ? { authorizedAttempt } : {}),
           });
           if (definition.commandType.startsWith('job.')) result = jobHttpProjection(result);
           if (definition.operation === 'retryJob') atlasPreviewWorker?.kick();
