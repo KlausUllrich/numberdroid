@@ -37,7 +37,7 @@ Use these authorities:
 - repository organization and file ownership: `REPOSITORY_STRUCTURE.md`
 - role/task reading routes: `docs/agents/ROLE_ENTRYPOINTS.md`
 - repository/GitHub workflow: `docs/agents/REPOSITORY_WORKFLOW.md`
-- change-risk, superagent, and verification tiers: `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`
+- change-risk, superagent, bounded execution/polling, and verification tiers: `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`
 - binary repository assets / safe transport: `docs/agents/BINARY_ASSET_TRANSPORT.md`
 - durable gameplay/engineering invariants: `docs/agents/GAMEPLAY_AND_ENGINEERING_RULES.md`
 - current production code: `src/`
@@ -83,6 +83,37 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
   executable examples.
 - `CI green`, `merged`, and `visually accepted` are different states.
 - Update the relevant current contract/recipe when a durable decision or accepted asset changes.
+
+## Bounded execution and responsiveness — hard rules
+
+- Do not leave the user without a concise progress update for more than **60
+  seconds** while commands, delegated work, CI, or another external operation
+  are still active. State the current phase, the last observed result, and the
+  next bounded wait or takeover action.
+- Every locally started command, test, build, or diagnostic MUST have an
+  explicit risk-scaled wall-clock timeout. Do not start unbounded shell
+  commands or use a blocking sleep longer than 60 seconds. A legitimately long
+  process must run in a resumable session and be polled at intervals of at most
+  60 seconds.
+- Every delegated review or investigation MUST receive a deadline in its task.
+  The default maximum for a bounded review or diagnosis is **five minutes**.
+  When that deadline expires, interrupt it and take over or rescope the work;
+  do not keep waiting silently. A longer deadline is allowed only when the task
+  intrinsically requires it, and the reason and new bound are communicated
+  before the original deadline.
+- Poll GitHub Actions and comparable external jobs at **30–60 second
+  intervals**, not with an unbounded wait or a tight busy loop. Give the watch
+  an overall deadline based on the established workflow duration; when no
+  repository-specific duration is known, use **20 minutes**. Crossing the
+  deadline triggers log/heartbeat inspection and an explicit stalled/running
+  decision, never an inferred pass, an automatic merge, or silent abandonment.
+- A timeout is neither success nor failure evidence. Preserve partial output,
+  determine whether the cause is product code, test infrastructure, platform,
+  or an external runner, then run a narrower safe check, repair/retry, take
+  over, or report a genuine stop gate.
+- These time bounds scale execution and communication only. They never weaken
+  authority, safety, compatibility, recovery, acceptance, review, or green-CI
+  requirements.
 
 ## Art-specific hard rules
 
