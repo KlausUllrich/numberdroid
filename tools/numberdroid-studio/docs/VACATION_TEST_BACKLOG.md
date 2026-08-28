@@ -427,8 +427,11 @@ own ID only after implementation exists. Planned work is not a candidate.
   separately typed Authoring-v2 command feature, exact 31-scope vocabulary,
   additive Numberdroid profile v2,
   trusted task/grant catalog injection, and real SQLite/CAS-backed A1.4
-  planning ports described in `A1_6A_STATUS.md`. Source integration is pending;
-  neither integration nor Actions can close the user decision.
+  planning ports described in `A1_6A_STATUS.md`. Implementation source commit
+  `d978d6f89b4e2e1c83c590685727b12937f9215b` was integrated through PR
+  [#156](https://github.com/KlausUllrich/numberdroid/pull/156) as squash commit
+  `cdb531ed5d23422b5e143c3d61ecb789bea36515`. Neither source integration nor
+  Actions can close the user decision.
 - **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-006 because the real
   planning ports and profile describe exactly the A1.5 command and mutation
   boundary. VT-004–VT-006 acceptance may revise this candidate even when all
@@ -479,8 +482,14 @@ own ID only after implementation exists. Planned work is not a candidate.
   Production-adapter evidence remains `VERIFIED` at protected source-manifest
   hash `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
   Exact link/classifier/diff gates and five independent final actual-diff
-  reviews are green. PR Actions and post-merge Actions will be recorded in
-  `A1_6A_STATUS.md` after integration.
+  reviews are green. PR Actions run
+  [#2190 / 33167832235](https://github.com/KlausUllrich/numberdroid/actions/runs/33167832235)
+  passed the classifier, root build, Linux Studio including browser evidence,
+  Windows Studio, and CI gate while Pages was correctly skipped. Post-merge
+  `main` Actions run
+  [#2191 / 33168278934](https://github.com/KlausUllrich/numberdroid/actions/runs/33168278934)
+  passed the same selected jobs and again skipped Pages. Browser/Windows CI is
+  conservative regression coverage, not new UI or visual acceptance.
 - **Known limits:** private prerequisites only; no positive server handshake,
   profile/overlay selection, public dispatch, MCP resource/tool, HTTP/UI,
   durable job, new pixel operation, Main/CP2C Asset mutation, owner review,
