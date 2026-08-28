@@ -644,6 +644,12 @@ function capabilityStatusForObservation(request, observed) {
     && pin.manifestFingerprint === observed.manifestFingerprint;
   if (!pinMatches) return 'PIN_MISMATCH';
 
+  const supported = observed.assetKinds.includes(request.assetInputSelection.assetKind)
+    && supportsProcessingAdoptionCapability(observed);
+  return supported ? 'SUPPORTED' : 'UNSUPPORTED';
+}
+
+function supportsProcessingAdoptionCapability(observed) {
   const moduleVersions = new Map(observed.modules.map((entry) => [entry.id, entry.version]));
   const formatContracts = new Map(observed.outputFormats.map((entry) => [entry.id, entry]));
   const formatsMatch = (required) => required.every(({ id, version, mediaType }) => {
@@ -651,8 +657,7 @@ function capabilityStatusForObservation(request, observed) {
     return format?.version === version && format.mediaType === mediaType;
   });
   const operation = observed.operation;
-  const supported = observed.assetKinds.includes(request.assetInputSelection.assetKind)
-    && operation?.id === PROCESSING_ADOPTION_PREFLIGHT_OPERATION_ID
+  return operation?.id === PROCESSING_ADOPTION_PREFLIGHT_OPERATION_ID
     && operation.kind === 'validate'
     && operation.version === PROCESSING_ADOPTION_PREFLIGHT_OPERATION_VERSION
     && REQUIRED_MODULES.every(({ id, version }) => moduleVersions.get(id) === version)
@@ -661,7 +666,16 @@ function capabilityStatusForObservation(request, observed) {
     && sameIds(operation.moduleIds, REQUIRED_MODULES.map(({ id }) => id).sort())
     && sameIds(operation.inputFormatIds, REQUIRED_INPUT_FORMATS.map(({ id }) => id).sort())
     && sameIds(operation.outputFormatIds, REQUIRED_OUTPUT_FORMATS.map(({ id }) => id).sort());
-  return supported ? 'SUPPORTED' : 'UNSUPPORTED';
+}
+
+export function validateProcessingAdoptionCapabilityManifest(value) {
+  const manifest = validateProjectCapabilityManifest(snapshotPlainData(value, 'manifest'));
+  invariant(
+    supportsProcessingAdoptionCapability(capabilityObservation(manifest)),
+    'PROCESSING_ADOPTION_CAPABILITY_UNSUPPORTED',
+    'The project capability manifest does not support processing-result adoption.',
+  );
+  return manifest;
 }
 
 export function evaluateProcessingAdoptionCapability(requestValue, manifestValue) {

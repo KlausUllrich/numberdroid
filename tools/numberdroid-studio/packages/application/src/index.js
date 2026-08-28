@@ -44,6 +44,23 @@ export {
 export {
   PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_KIND,
   PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION,
+  PROCESSING_RESULT_ADOPTION_HOST_BOUND_ATOMIC_STORE_KIND,
   ProcessingResultAdoptionCommitService,
+  ProcessingResultAdoptionHostBoundCommitService,
   validateProcessingResultAdoptionAtomicStore,
+  validateProcessingResultAdoptionHostBoundAtomicStore,
 } from './processing-result-adoption-commit.js';
+export {
+  AUTHORING_V2_ADMISSION_EVIDENCE_KIND,
+  AUTHORING_V2_ADMISSION_READER_KIND,
+  AUTHORING_V2_ADMISSION_READER_SCHEMA_VERSION,
+  AUTHORING_V2_CAPABILITY_READER_KIND,
+  AUTHORING_V2_CAPABILITY_READER_SCHEMA_VERSION,
+  AuthoringV2AdmissionService,
+  validateAuthoringV2AdmissionReader,
+  validateAuthoringV2CapabilityReader,
+} from './authoring-v2-admission.js';
+export {
+  AUTHORING_V2_CAPABILITIES_KIND,
+  AuthoringV2ExecutionSession,
+} from './authoring-v2-execution-session.js';

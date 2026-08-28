@@ -5,20 +5,28 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   AgentTaskService,
+  AuthoringV2AdmissionService,
+  AuthoringV2ExecutionSession,
   FixedProjectCapabilityProvider,
+  ProcessingResultAdoptionPlanningService,
   StudioService,
 } from '../../../packages/application/src/index.js';
 import { StudioError, asStudioError } from '../../../packages/domain/src/index.js';
-import { NUMBERDROID_PROJECT_CAPABILITY_MANIFEST } from '../../../packages/numberdroid-adapter/src/index.js';
+import {
+  NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST,
+  NUMBERDROID_PROJECT_CAPABILITY_MANIFEST,
+} from '../../../packages/numberdroid-adapter/src/index.js';
 import {
   ContentAddressedArtifactStore,
   JsonProjectStore,
   SqliteAgentAttemptStore,
   SqliteAgentTaskStore,
+  SqliteAuthoringV2AdmissionReader,
   SqliteArtifactMetadataStore,
   SqliteHostBindingStore,
   SqliteJobStore,
   SqliteProjectStore,
+  SqliteProcessingResultAdoptionStore,
   SqliteSourceIntakeStore,
   TaskBranchProjectStore,
 } from '../../../packages/persistence/src/index.js';
@@ -48,6 +56,104 @@ const SOURCE_INTAKE_LIMITS = {
   maxWidth: 4096,
   maxHeight: 4096,
 };
+const privateAuthoringV2RuntimeByServer = new WeakMap();
+
+function createPrivateAuthoringV2Runtime({
+  workspace,
+  artifactStore,
+  hostBindingStore,
+  capabilityProvider,
+  clock,
+}) {
+  const adoptionStore = new SqliteProcessingResultAdoptionStore({
+    workspace,
+    artifactStore,
+    capabilityProvider,
+    clock,
+  });
+  const capabilityReader = Object.freeze({
+    schemaVersion: 1,
+    kind: 'studio.authoring-v2-capability-reader',
+    readProjectCapabilityManifest: (selection, options) => (
+      capabilityProvider.getProjectCapabilityManifest(selection, options)
+    ),
+  });
+  let state = 'OPEN';
+  let activeOperations = 0;
+  let drainedResolve = null;
+  let closePromise = null;
+
+  function assertOpen() {
+    if (state !== 'OPEN') {
+      throw new StudioError('AUTHORING_V2_RUNTIME_CLOSED', 'The private Authoring-v2 runtime is closing or closed.');
+    }
+  }
+
+  function finishOperation() {
+    activeOperations -= 1;
+    if (activeOperations === 0 && drainedResolve !== null) {
+      const resolveDrain = drainedResolve;
+      drainedResolve = null;
+      resolveDrain();
+    }
+  }
+
+  function track(operation) {
+    assertOpen();
+    activeOperations += 1;
+    let pending;
+    try {
+      pending = operation();
+    } catch (error) {
+      finishOperation();
+      throw error;
+    }
+    return Promise.prototype.finally.call(pending, finishOperation);
+  }
+
+  function openSession(token) {
+    assertOpen();
+    const binding = hostBindingStore.resolve(token);
+    const admissionReader = new SqliteAuthoringV2AdmissionReader({
+      workspace,
+      trustedBinding: binding,
+      clock,
+    });
+    const admissionService = new AuthoringV2AdmissionService({
+      admissionReader: admissionReader.asAdmissionReader(),
+      capabilityReader,
+      expectedCapabilityManifest: NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST,
+    });
+    const planningService = new ProcessingResultAdoptionPlanningService({
+      ...adoptionStore.asPlanningPorts(),
+      clock,
+    });
+    const session = new AuthoringV2ExecutionSession({
+      admissionService,
+      planningService,
+      hostBoundAtomicStore: adoptionStore.asHostBoundAtomicStore(binding),
+      trustedBinding: binding,
+    });
+    return Object.freeze({
+      readCapabilities: (request, options) => track(() => session.readCapabilities(request, options)),
+      executeProcessingResultAdoption: (request, options) => track(
+        () => session.executeProcessingResultAdoption(request, options),
+      ),
+    });
+  }
+
+  function close() {
+    if (closePromise !== null) return closePromise;
+    state = 'CLOSING';
+    closePromise = activeOperations === 0
+      ? Promise.resolve()
+      : new Promise((resolveDrain) => { drainedResolve = resolveDrain; });
+    closePromise = closePromise.then(() => { state = 'CLOSED'; });
+    return closePromise;
+  }
+
+  return Object.freeze({ openSession, close });
+}
 
 function sendJson(response, status, value) {
   const body = `${JSON.stringify(value)}\n`;
@@ -1543,6 +1649,20 @@ export async function startStudioHttpServer({
     ? new ContentAddressedArtifactStore({ rootDirectory: resolve(dataDirectory, 'artifacts') })
     : null;
   await artifactStore?.initialize();
+  const authoringV2CapabilityProvider = storeMode === 'sqlite'
+    ? new FixedProjectCapabilityProvider({
+      manifest: NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST,
+    })
+    : null;
+  const privateAuthoringV2Runtime = storeMode === 'sqlite'
+    ? createPrivateAuthoringV2Runtime({
+      workspace: store.workspace,
+      artifactStore,
+      hostBindingStore,
+      capabilityProvider: authoringV2CapabilityProvider,
+      clock,
+    })
+    : null;
   const artifactMetadataStore = storeMode === 'sqlite'
     ? new SqliteArtifactMetadataStore({ workspace: store.workspace })
     : null;
@@ -1585,16 +1705,27 @@ export async function startStudioHttpServer({
     jobStore,
     atlasPreviewWorker,
   });
+  if (privateAuthoringV2Runtime !== null) {
+    privateAuthoringV2RuntimeByServer.set(server, privateAuthoringV2Runtime);
+  }
   const closeHttpServer = server.close.bind(server);
   let shutdownPromise = null;
   server.close = (callback) => {
     if (!shutdownPromise) {
       const workerStopped = atlasPreviewWorker?.stop() ?? Promise.resolve();
+      const authoringV2Stopped = privateAuthoringV2Runtime?.close() ?? Promise.resolve();
       const httpClosed = new Promise((resolveClose, rejectClose) => {
         closeHttpServer((error) => (error ? rejectClose(error) : resolveClose()));
       });
-      shutdownPromise = Promise.all([workerStopped, httpClosed, pairing?.close() ?? Promise.resolve()])
-        .then(() => { if (typeof store.close === 'function') store.close(); });
+      shutdownPromise = Promise.all([
+        workerStopped,
+        authoringV2Stopped,
+        httpClosed,
+        pairing?.close() ?? Promise.resolve(),
+      ]).then(() => {
+        privateAuthoringV2RuntimeByServer.delete(server);
+        if (typeof store.close === 'function') store.close();
+      });
     }
     if (typeof callback === 'function') {
       shutdownPromise.then(() => callback()).catch((error) => callback(error));

@@ -70,22 +70,28 @@ integration, and CI do not constitute Klaus's contract acceptance.
 - Numberdroid profile v1 and v2 fingerprints, the legacy 33/30 catalogs, one
   separately typed v2 feature, and the existing 19/4 and matching-task 30/5
   MCP discovery surfaces remain unchanged.
-- No server currently composes the host-bound adoption port. There is no
+- At the A1.6b1 boundary no server composed the host-bound adoption port. There was no
   Authoring-v2 environment selector, handshake, capability resource, adoption
   tool, public route, UI, owner decision, review/apply/finalize, merge,
   lifecycle, materialization, publication, or release authority.
 
-## Explicitly deferred to A1.6b2
+## Subsequent A1.6b2 composition
 
-A1.6b2 may compose this port only from a freshly strict-resolved HostBinding
-and must still positively validate the exact v2 Task/Grant/non-main branch,
+A1.6b2a now composes this port only from a freshly strict-resolved HostBinding.
+Its private one-shot session positively validates the exact v2
+Task/Grant/non-main branch,
 scope/object/budget/ledger, Numberdroid profile, planning ports, and atomic
-store before building the static Authoring-v2 MCP surface. The only additive
+store for capabilities and dry-run, while commit enters the host-bound store
+directly so exhausted-budget ledger replay remains recoverable. It still adds
+no route or discovery. A1.6b2b remains responsible for building the static
+Authoring-v2 MCP surface. The only additive
 surface remains one required-`dryRun` adoption tool plus one capabilities
-resource, yielding exactly 31 tools/six templates. Every invocation must repeat
-the gate; discovery is never executable authority. Explicitly requested v2
-must fail closed rather than deriving readiness from an environment/client
-claim or silently creating authority.
+resource, yielding exactly 31 tools/six templates. Every invocation must create
+a fresh HostBinding-resolved one-shot session. Capabilities and dry-run repeat
+the full gate; commit retains the explicit host-bound direct-entry exception
+needed for exhausted-budget ledger replay. Discovery is never executable
+authority. Explicitly requested v2 must fail closed rather than deriving
+readiness from an environment/client claim or silently creating authority.
 
 ## Verification
 
@@ -127,5 +133,5 @@ integration and CI do not change the candidate-only acceptance state.
 A1.6b1 adds no migration or durable data. Source rollback is a focused revert
 of this candidate. Existing HostBinding, Grant, task, adoption, audit, and CAS
 rows require no downgrade, backup restore, cleanup, or repair. A future live
-A1.6b2 composition remains subject to the documented single-writer and
+A1.6b2b exposure remains subject to the documented single-writer and
 exclusive-maintenance boundary.
