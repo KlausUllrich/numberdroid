@@ -590,13 +590,36 @@ materialization, or release authority. Exact scope, identities, tests,
 operational limits, and rollback are recorded in
 [`A1_5_STATUS.md`](A1_5_STATUS.md).
 
-#### Remaining A1 completion sequence after A1.5
+#### A1.6a — Authoring-v2 prerequisites
 
-A1.5 still does not complete `IMG-006` or the Artist path. Re-plan each step
+**Status: IMPLEMENTED CANDIDATE — NOT USER ACCEPTED (2026-08-28).** A1.6a
+deliberately stops before transport exposure. It adds one separately versioned
+private command-feature/scope overlay, additive Numberdroid profile v2, trusted
+task/grant provisioning support, and real SQLite/CAS-backed A1.4 planning ports.
+The overlay is one separately typed command feature plus the exact 31-scope
+vocabulary while the legacy definitions/scopes remain 33/30; profile v1 is
+byte-identical while profile v2 adds only the dedicated
+processing-adoption preflight vocabulary and operation. Real dry-run returns a
+fresh `READY` plan or current blockers without writing, retaining, charging, or
+granting authority. A1.5 commit remains the only private mutation seam and
+repeats every check.
+
+No current server, launcher, HostBinding, HTTP route, UI, or MCP composition
+selects these prerequisites. Legacy MCP discovery remains exactly 19/4 without
+a task and 30/5 for a matching task. There is no owner decision, auto-accept,
+review, merge, lifecycle, materialization, or release authority. Exact scope,
+hashes, tests, and exclusions are recorded in
+[`A1_6A_STATUS.md`](A1_6A_STATUS.md).
+
+#### Remaining A1 completion sequence after A1.6a
+
+A1.6a still does not complete `IMG-006` or the Artist path. Re-plan each step
 from current truth, but keep the remaining risks in separate candidate blocks:
 
-1. **A1.6 — Authoring-v2 exposure:** add separately versioned MCP resources/tools
-   with newly pinned exact counts and no owner review/apply/finalize authority.
+1. **A1.6b — Authoring-v2 exposure:** positively handshake a matching v2
+   HostBinding/task/grant/branch/profile/store and expose exactly 31 MCP tools
+   and six resource templates; dry-run maps to A1.4 and commit maps to A1.5,
+   with no owner review/apply/finalize authority.
 2. **A1.7 — visual review/correction candidate:** create low-fidelity workflow
    states first, then one bounded UI candidate with browser evidence and a
    deferred Klaus live gate.

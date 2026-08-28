@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   ProcessingResultAdoptionCommitService,
+  ProcessingResultAdoptionPlanningService,
   StudioService,
 } from '../packages/application/src/index.js';
 import { fingerprint } from '../packages/application/src/value-utils.js';
@@ -21,7 +22,10 @@ import {
   projectCapabilityManifestSha256,
   validateProjectCapabilityManifest,
 } from '../packages/domain/src/index.js';
-import { NUMBERDROID_PROJECT_CAPABILITY_MANIFEST } from '../packages/numberdroid-adapter/src/index.js';
+import {
+  NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST,
+  NUMBERDROID_PROJECT_CAPABILITY_MANIFEST,
+} from '../packages/numberdroid-adapter/src/index.js';
 import {
   ContentAddressedArtifactStore,
   SqliteAgentTaskStore,
@@ -212,6 +216,10 @@ function taskUsage(state) {
   return { task: task.usage.commands, grant: grant.usage.commands };
 }
 
+function casObjectPath(root, digest) {
+  return join(root, 'sha256', digest.slice(0, 2), digest.slice(2, 4), digest);
+}
+
 function assertMainAndCp2cUnchanged(before, after) {
   assert.deepEqual(after.projects, before.projects);
   assert.deepEqual(after.mainRevisions, before.mainRevisions);
@@ -233,13 +241,14 @@ async function expectStudioError(operation, code) {
   return observed;
 }
 
-async function fixture(context, { sameDigest = false } = {}) {
+async function fixture(context, { sameDigest = false, manifestOverride = null } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'numberdroid-processing-adoption-persistence-'));
   const filename = join(root, 'studio.sqlite');
   const artifactRoot = join(root, 'artifacts');
-  const manifest = capabilityFixture();
+  const manifest = manifestOverride ?? capabilityFixture();
   const calls = { clock: 0, capability: 0, cas: 0 };
   const fault = { point: null, seen: 0, occurrence: 1 };
+  let adoptionNow = NOW;
   let store = await SqliteProjectStore.open({
     filename,
     databaseFactory: nodeSqliteDatabaseFactory,
@@ -392,14 +401,19 @@ async function fixture(context, { sameDigest = false } = {}) {
     payload: { preflightRequest: request, assetName: 'Processing Fixture Surface' },
   };
 
+  let capabilityOperation = async () => manifest;
   const capabilityProvider = {
-    async getProjectCapabilityManifest() {
+    async getProjectCapabilityManifest(...arguments_) {
       calls.capability += 1;
-      return manifest;
+      return capabilityOperation(...arguments_);
     },
   };
 
+  const instrumentedCasStores = new WeakSet();
+
   function instrumentCas(value) {
+    if (instrumentedCasStores.has(value)) return;
+    instrumentedCasStores.add(value);
     const verify = value.withVerifiedPngEvidence.bind(value);
     value.withVerifiedPngEvidence = async (...arguments_) => {
       calls.cas += 1;
@@ -407,20 +421,39 @@ async function fixture(context, { sameDigest = false } = {}) {
     };
   }
 
-  function commitService() {
+  function adoptionPersistence() {
     instrumentCas(artifactStore);
-    const adoptionStore = new SqliteProcessingResultAdoptionStore({
+    return new SqliteProcessingResultAdoptionStore({
       workspace: store.workspace,
       artifactStore,
       capabilityProvider,
       clock() {
         calls.clock += 1;
-        return NOW;
+        return adoptionNow;
       },
     });
+  }
+
+  function commitService() {
+    const adoptionStore = adoptionPersistence();
     return new ProcessingResultAdoptionCommitService({
       atomicStore: adoptionStore.asAtomicStore(),
     });
+  }
+
+  function planningService() {
+    const ports = planningPorts();
+    return new ProcessingResultAdoptionPlanningService({
+      ...ports,
+      clock() {
+        calls.clock += 1;
+        return adoptionNow;
+      },
+    });
+  }
+
+  function planningPorts() {
+    return adoptionPersistence().asPlanningPorts();
   }
 
   async function updateCommand({ changedDimensions = false } = {}) {
@@ -507,6 +540,7 @@ async function fixture(context, { sameDigest = false } = {}) {
   return {
     root,
     filename,
+    artifactRoot,
     manifest,
     calls,
     fault,
@@ -523,6 +557,23 @@ async function fixture(context, { sameDigest = false } = {}) {
       fault.occurrence = occurrence;
     },
     updateCommand,
+    planningService,
+    planningPorts,
+    setAdoptionNow(value) {
+      adoptionNow = value;
+    },
+    replaceCapabilityProvider(operation) {
+      capabilityOperation = operation;
+    },
+    replaceCasVerifier(operation) {
+      artifactStore.withVerifiedPngEvidence = operation;
+      instrumentedCasStores.delete(artifactStore);
+    },
+    wrapCasVerifier(operation) {
+      const verify = artifactStore.withVerifiedPngEvidence.bind(artifactStore);
+      artifactStore.withVerifiedPngEvidence = (...arguments_) => operation(verify, ...arguments_);
+      instrumentedCasStores.delete(artifactStore);
+    },
     async reopen() {
       store.close();
       store = await SqliteProjectStore.open({
@@ -543,6 +594,329 @@ async function fixture(context, { sameDigest = false } = {}) {
     },
   };
 }
+
+test('real A1.6a dry-run observes SQLite/CAS truth without persistence, retention, or budget effects', async (context) => {
+  const value = await fixture(context, {
+    manifestOverride: NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST,
+  });
+  const before = durableState(value.store);
+  const authority = await value.planningPorts().taskAuthorityReader.readTaskAuthority({
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    branchId: BRANCH_ID,
+    revision: 2,
+    actorId: AGENT.id,
+    taskId: TASK_ID,
+    grantId: GRANT_ID,
+    requiredScope: PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE,
+    targetAssetId: ASSET_ID,
+  });
+  assert.equal(authority.task.taskId, TASK_ID);
+  const service = value.planningService();
+  const result = await service.prepare(value.command, value.context);
+  const after = durableState(value.store);
+
+  assert.equal(result.status, 'READY');
+  assert.equal(result.plan.authority.commandBudgetCharge, 1);
+  assert.equal(result.plan.target.assetId, ASSET_ID);
+  assert.deepEqual(after, before);
+  assert.deepEqual(taskUsage(after), { task: 0, grant: 0 });
+  assert.equal(value.calls.capability, 1);
+  assert.equal(value.calls.cas, 2);
+
+  const committed = await value.service.commit(value.command, value.context);
+  assert.equal(committed.status, 'COMMITTED');
+  assert.deepEqual(taskUsage(durableState(value.store)), { task: 1, grant: 1 });
+});
+
+test('real A1.6a authority reader honors current grant state before capability or CAS', async (context) => {
+  const cases = [
+    {
+      name: 'revoked row',
+      code: 'GRANT_REVOKED',
+      mutate(value) {
+        value.store.workspace.database.prepare(`
+          UPDATE grants
+          SET authorization_status = 'REVOKED', status = 'REVOKED', revoked_at = ?
+          WHERE project_id = ? AND grant_id = ?
+        `).run(NOW, PROJECT_ID, GRANT_ID);
+      },
+    },
+    {
+      name: 'legacy-unbound row',
+      code: 'GRANT_REQUIRED',
+      mutate(value) {
+        value.store.workspace.database.prepare(`
+          UPDATE grants
+          SET authorization_status = 'LEGACY_UNBOUND', status = 'LEGACY_UNBOUND'
+          WHERE project_id = ? AND grant_id = ?
+        `).run(PROJECT_ID, GRANT_ID);
+      },
+    },
+    {
+      name: 'missing current row',
+      code: 'PROCESSING_ADOPTION_PORT_FAILED',
+      clock: 0,
+      mutate(value) {
+        const database = value.store.workspace.database;
+        database.exec('PRAGMA foreign_keys = OFF;');
+        database.prepare(`
+          DELETE FROM grants WHERE project_id = ? AND grant_id = ?
+        `).run(PROJECT_ID, GRANT_ID);
+        database.exec('PRAGMA foreign_keys = ON;');
+      },
+    },
+    {
+      name: 'authorization-status drift',
+      code: 'GRANT_REVOKED',
+      mutate(value) {
+        value.store.workspace.database.prepare(`
+          UPDATE grants SET authorization_status = 'REVOKED'
+          WHERE project_id = ? AND grant_id = ?
+        `).run(PROJECT_ID, GRANT_ID);
+      },
+    },
+    {
+      name: 'budget drift',
+      code: 'PROCESSING_ADOPTION_PORT_FAILED',
+      clock: 0,
+      mutate(value) {
+        value.store.workspace.database.prepare(`
+          UPDATE grants SET budget_json = ?
+          WHERE project_id = ? AND grant_id = ?
+        `).run(JSON.stringify({ ...BUDGET, maxCommands: 7 }), PROJECT_ID, GRANT_ID);
+      },
+    },
+    {
+      name: 'expired task and grant',
+      code: 'TASK_EXPIRED',
+      mutate(value) {
+        value.setAdoptionNow('2026-08-28T19:00:00.000Z');
+      },
+    },
+  ];
+  for (const candidate of cases) {
+    await context.test(candidate.name, async (subtest) => {
+      const value = await fixture(subtest);
+      candidate.mutate(value);
+      const before = durableState(value.store);
+      await expectStudioError(
+        () => value.planningService().prepare(value.command, value.context),
+        candidate.code,
+      );
+      assert.deepEqual(durableState(value.store), before);
+      assert.deepEqual(countCalls(value.calls), { clock: candidate.clock ?? 1, capability: 0, cas: 0 });
+    });
+  }
+});
+
+test('real A1.6a dry-run reports current artifact blockers without retaining or mutating', async (context) => {
+  const value = await fixture(context);
+  value.store.workspace.database.prepare(`
+    UPDATE artifacts SET state = 'QUARANTINED' WHERE digest = ?
+  `).run(value.outputArtifact.digest);
+  const before = durableState(value.store);
+  const result = await value.planningService().prepare(value.command, value.context);
+  const after = durableState(value.store);
+
+  assert.equal(result.status, 'BLOCKED');
+  assert.equal(result.plan, null);
+  assert.ok(result.freshPreflightReceipt.blockers.some(({ code, subject }) => (
+    code === 'PROCESSING_ADOPTION_ARTIFACT_NOT_LIVE' && subject === 'selected-output'
+  )));
+  assert.deepEqual(after, before);
+  assert.deepEqual(taskUsage(after), { task: 0, grant: 0 });
+  assert.equal(value.calls.capability, 1);
+  assert.equal(value.calls.cas, 1);
+});
+
+test('real A1.6a maps project reference, metadata, and physical CAS blockers without effects', async (context) => {
+  const cases = [
+    {
+      name: 'project reference missing',
+      blocker: 'PROCESSING_ADOPTION_ARTIFACT_PROJECT_REFERENCE_MISSING',
+      cas: 1,
+      async mutate(value) {
+        value.store.workspace.database.prepare(`
+          DELETE FROM artifact_references
+          WHERE project_id = ? AND digest = ?
+        `).run(PROJECT_ID, value.outputArtifact.digest);
+      },
+    },
+    {
+      name: 'metadata missing',
+      blocker: 'PROCESSING_ADOPTION_ARTIFACT_METADATA_MISSING',
+      cas: 1,
+      async mutate(value) {
+        const database = value.store.workspace.database;
+        database.exec('PRAGMA foreign_keys = OFF;');
+        database.prepare('DELETE FROM artifacts WHERE digest = ?').run(value.outputArtifact.digest);
+        database.exec('PRAGMA foreign_keys = ON;');
+      },
+    },
+    {
+      name: 'physical content missing',
+      blocker: 'PROCESSING_ADOPTION_ARTIFACT_CONTENT_MISSING',
+      cas: 2,
+      async mutate(value) {
+        await unlink(casObjectPath(value.artifactRoot, value.outputArtifact.digest));
+      },
+    },
+    {
+      name: 'physical content corrupt',
+      blocker: 'PROCESSING_ADOPTION_ARTIFACT_CONTENT_CORRUPT',
+      cas: 2,
+      async mutate(value) {
+        await writeFile(
+          casObjectPath(value.artifactRoot, value.outputArtifact.digest),
+          Buffer.from('not a PNG'),
+        );
+      },
+    },
+  ];
+  for (const candidate of cases) {
+    await context.test(candidate.name, async (subtest) => {
+      const value = await fixture(subtest);
+      await candidate.mutate(value);
+      const before = durableState(value.store);
+      const result = await value.planningService().prepare(value.command, value.context);
+      assert.equal(result.status, 'BLOCKED');
+      assert.ok(result.freshPreflightReceipt.blockers.some(({ code, subject }) => (
+        code === candidate.blocker && subject === 'selected-output'
+      )));
+      assert.deepEqual(durableState(value.store), before);
+      assert.deepEqual(taskUsage(before), { task: 0, grant: 0 });
+      assert.deepEqual(countCalls(value.calls), { clock: 1, capability: 1, cas: candidate.cas });
+    });
+  }
+});
+
+test('real A1.6a preserves current registered-state precedence across a CAS error race', async (context) => {
+  const value = await fixture(context);
+  let stateAfterExternalChange = null;
+  value.wrapCasVerifier(async (verify, digest, ...arguments_) => {
+    if (digest === value.outputArtifact.digest) {
+      value.store.workspace.database.prepare(`
+        UPDATE artifacts SET state = 'QUARANTINED' WHERE digest = ?
+      `).run(digest);
+      await unlink(casObjectPath(value.artifactRoot, digest));
+      stateAfterExternalChange = durableState(value.store);
+    }
+    return verify(digest, ...arguments_);
+  });
+  const result = await value.planningService().prepare(value.command, value.context);
+  assert.equal(result.status, 'BLOCKED');
+  assert.ok(result.freshPreflightReceipt.blockers.some(({ code, subject }) => (
+    code === 'PROCESSING_ADOPTION_ARTIFACT_NOT_LIVE' && subject === 'selected-output'
+  )));
+  assert.ok(!result.freshPreflightReceipt.blockers.some(({ code }) => (
+    code === 'PROCESSING_ADOPTION_ARTIFACT_CONTENT_MISSING'
+  )));
+  assert.deepEqual(durableState(value.store), stateAfterExternalChange);
+  assert.deepEqual(taskUsage(stateAfterExternalChange), { task: 0, grant: 0 });
+});
+
+test('real A1.6a dry-run rejects a stale branch before capability or CAS reads', async (context) => {
+  const value = await fixture(context);
+  const stale = structuredClone(value.command);
+  stale.baseRevision = 1;
+  stale.expectedVersion = 1;
+  stale.payload.preflightRequest.project.expectedRevision = 1;
+  const before = durableState(value.store);
+  await expectStudioError(
+    () => value.planningService().prepare(stale, value.context),
+    'REVISION_CONFLICT',
+  );
+  assert.deepEqual(durableState(value.store), before);
+  assert.deepEqual(countCalls(value.calls), { clock: 1, capability: 0, cas: 0 });
+});
+
+test('real A1.6a dry-run preserves cancellation during a real capability read with no effects', async (context) => {
+  const value = await fixture(context);
+  let startedResolve;
+  let releaseResolve;
+  const started = new Promise((resolve) => { startedResolve = resolve; });
+  const release = new Promise((resolve) => { releaseResolve = resolve; });
+  value.replaceCapabilityProvider(async () => {
+    startedResolve();
+    await release;
+    return value.manifest;
+  });
+  const controller = new AbortController();
+  const before = durableState(value.store);
+  const pending = value.planningService().prepare(
+    value.command,
+    value.context,
+    { signal: controller.signal },
+  );
+  await started;
+  controller.abort();
+  releaseResolve();
+  await assert.rejects(pending, (error) => error?.name === 'AbortError');
+  assert.deepEqual(durableState(value.store), before);
+  assert.deepEqual(countCalls(value.calls), { clock: 1, capability: 1, cas: 0 });
+});
+
+test('real A1.6a dry-run cannot return READY across a concurrent branch commit', async (context) => {
+  const value = await fixture(context);
+  let advanced = false;
+  let stateAfterCommit = null;
+  value.wrapCasVerifier(async (verify, ...arguments_) => {
+    const evidence = await verify(...arguments_);
+    if (!advanced) {
+      advanced = true;
+      const committed = await value.service.commit(value.command, value.context);
+      assert.equal(committed.status, 'COMMITTED');
+      stateAfterCommit = durableState(value.store);
+    }
+    return evidence;
+  });
+  await expectStudioError(
+    () => value.planningService().prepare(value.command, value.context),
+    'PROCESSING_ADOPTION_PORT_FAILED',
+  );
+  assert.equal(advanced, true);
+  assert.deepEqual(durableState(value.store), stateAfterCommit);
+  assert.deepEqual(taskUsage(stateAfterCommit), { task: 1, grant: 1 });
+});
+
+test('A1.5 commit revalidates and rejects authority revoked after an A1.6a READY dry-run', async (context) => {
+  const value = await fixture(context);
+  const planned = await value.planningService().prepare(value.command, value.context);
+  assert.equal(planned.status, 'READY');
+  value.store.workspace.database.prepare(`
+    UPDATE grants
+    SET authorization_status = 'REVOKED', status = 'REVOKED', revoked_at = ?
+    WHERE project_id = ? AND grant_id = ?
+  `).run(NOW, PROJECT_ID, GRANT_ID);
+  const beforeCommit = durableState(value.store);
+  await expectStudioError(
+    () => value.service.commit(value.command, value.context),
+    'GRANT_REVOKED',
+  );
+  assert.deepEqual(durableState(value.store), beforeCommit);
+  assert.deepEqual(taskUsage(beforeCommit), { task: 0, grant: 0 });
+  assert.deepEqual(countCalls(value.calls), { clock: 2, capability: 1, cas: 2 });
+});
+
+test('real A1.6a dry-run sanitizes hostile CAS failures without consulting thrown proxy traps', async (context) => {
+  const value = await fixture(context);
+  let trapCalls = 0;
+  const hostile = new Proxy({}, {
+    get() { trapCalls += 1; throw new Error('private trap'); },
+    getOwnPropertyDescriptor() { trapCalls += 1; throw new Error('private trap'); },
+    getPrototypeOf() { trapCalls += 1; throw new Error('private trap'); },
+    ownKeys() { trapCalls += 1; throw new Error('private trap'); },
+  });
+  value.replaceCasVerifier(async () => { throw hostile; });
+  const error = await expectStudioError(
+    () => value.planningService().prepare(value.command, value.context),
+    'PROCESSING_ADOPTION_PORT_FAILED',
+  );
+  assert.deepEqual(error.details, { port: 'taskBranchPreflightReader' });
+  assert.equal(trapCalls, 0);
+  assert.deepEqual(taskUsage(durableState(value.store)), { task: 0, grant: 0 });
+});
 
 test('real SQLite/CAS create commits once and exact replay survives process-store reopen without dependencies', async (context) => {
   const value = await fixture(context);

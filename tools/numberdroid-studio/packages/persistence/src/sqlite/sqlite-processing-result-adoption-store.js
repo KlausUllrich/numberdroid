@@ -1,3 +1,4 @@
+import { types as utilTypes } from 'node:util';
 import {
   PROCESSING_ADOPTION_PREFLIGHT_ARTIFACT_ROLES,
   PROCESSING_RESULT_ADOPTION_COMMAND_TYPE,
@@ -7,9 +8,13 @@ import {
   evaluateProcessingAdoptionArtifact,
   evaluateProcessingAdoptionAssetState,
   evaluateProcessingAdoptionCapability,
+  uncheckedProcessingAdoptionArtifacts,
+  uncheckedProcessingAdoptionAssetState,
+  uncheckedProcessingAdoptionCapability,
   processingResultAdoptionCommandSha256,
   processingResultAdoptionSemanticSha256,
   validateProcessingResultAdoptionCommand,
+  validateProcessingAdoptionPreflightRequest,
   validateProjectCapabilityManifest,
 } from '../../../domain/src/index.js';
 import {
@@ -21,11 +26,20 @@ import { StudioError, invariant } from '../../../domain/src/errors.js';
 import {
   requireActor,
   requireId,
+  requireInteger,
   requireIsoDate,
   requireRecord,
 } from '../../../domain/src/validation.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { projectCapabilitySelection } from '../../../application/src/project-capability-provider.js';
+import {
+  PROCESSING_ADOPTION_TASK_AUTHORITY_EVIDENCE_KIND,
+  PROCESSING_ADOPTION_TASK_AUTHORITY_READER_KIND,
+  PROCESSING_ADOPTION_TASK_AUTHORITY_READER_SCHEMA_VERSION,
+  PROCESSING_ADOPTION_TASK_BRANCH_PREFLIGHT_EVIDENCE_KIND,
+  PROCESSING_ADOPTION_TASK_BRANCH_PREFLIGHT_READER_KIND,
+  PROCESSING_ADOPTION_TASK_BRANCH_PREFLIGHT_READER_SCHEMA_VERSION,
+} from '../../../application/src/processing-result-adoption.js';
 import { ContentAddressedArtifactStore } from '../artifacts/content-addressed-artifact-store.js';
 import { SqliteWorkspace } from './sqlite-workspace.js';
 
@@ -532,6 +546,331 @@ function appendTimeline(database, projectId, taskId, event) {
   `).run(projectId, taskId, sequence, value.eventId, value.occurredAt, value.type, JSON.stringify(value));
 }
 
+function planningGrantState(grant, row) {
+  const legacy = grant.status === 'LEGACY_UNBOUND'
+    || row.status === 'LEGACY_UNBOUND'
+    || row.authorization_status === 'LEGACY_UNBOUND';
+  if (legacy) return { status: 'LEGACY_UNBOUND', revokedAt: row.revoked_at ?? grant.revokedAt };
+  const active = grant.status === 'ACTIVE'
+    && grant.revokedAt === null
+    && row.status === 'ACTIVE'
+    && row.authorization_status === 'ACTIVE'
+    && row.revoked_at === null;
+  return active
+    ? { status: 'ACTIVE', revokedAt: null }
+    : { status: 'REVOKED', revokedAt: row.revoked_at ?? grant.revokedAt };
+}
+
+function closedPlanningBranchHead(database, row, projectId, expectedRevision = null) {
+  invariant(row, 'TASK_NOT_FOUND', 'The selected task branch does not exist.');
+  const document = parseJson(row.head_document_json, 'agent_tasks.head_document_json');
+  const head = document.revisions?.at(-1);
+  invariant(
+    document.projectId === projectId
+      && head?.number === Number(row.head_revision)
+      && head.snapshot?.project?.id === projectId,
+    'CORRUPT_PROCESSING_RESULT_ADOPTION',
+    'The task branch head does not close its project and revision identity.',
+  );
+  if (expectedRevision !== null) {
+    invariant(
+      Number(row.head_revision) === expectedRevision,
+      'REVISION_CONFLICT',
+      'The task branch changed during processing-result adoption planning.',
+      { expectedRevision, actualRevision: Number(row.head_revision) },
+    );
+  }
+  const durableHeadRow = Number(row.head_revision) === Number(row.base_revision)
+    ? database.prepare(`
+      SELECT revision_json FROM revisions
+      WHERE project_id = ? AND revision_number = ?
+    `).get(projectId, Number(row.head_revision))
+    : database.prepare(`
+      SELECT revision_json FROM task_branch_revisions
+      WHERE project_id = ? AND task_id = ? AND branch_revision = ?
+    `).get(projectId, row.task_id, Number(row.head_revision));
+  const durableHead = durableHeadRow
+    ? parseJson(durableHeadRow.revision_json, 'durable planning head revision_json')
+    : null;
+  invariant(
+    durableHead && durableRevisionFingerprint(durableHead) === durableRevisionFingerprint(head),
+    'CORRUPT_PROCESSING_RESULT_ADOPTION',
+    'The task branch head disagrees with its immutable revision ledger.',
+  );
+  return { document, head };
+}
+
+function planningAuthorityEvidence(database, selection) {
+  const projectId = requireId(selection?.projectId, 'selection.projectId');
+  const taskId = requireId(selection?.taskId, 'selection.taskId');
+  const branchId = requireId(selection?.branchId, 'selection.branchId');
+  const revision = requireInteger(selection?.revision, 'selection.revision', { min: 1 });
+  const row = database.prepare(`
+    SELECT * FROM agent_tasks WHERE project_id = ? AND task_id = ?
+  `).get(projectId, taskId);
+  if (!row) {
+    return {
+      schemaVersion: 1,
+      kind: PROCESSING_ADOPTION_TASK_AUTHORITY_EVIDENCE_KIND,
+      projectId,
+      branchId,
+      branchRevision: revision,
+      task: null,
+      grant: null,
+    };
+  }
+  const task = parseJson(row.task_json, 'agent_tasks.task_json');
+  const { head } = closedPlanningBranchHead(database, row, projectId);
+  invariant(
+    task.projectId === projectId
+      && task.taskId === taskId
+      && task.branchId === row.branch_id
+      && task.agentId === row.agent_id
+      && task.grantId === row.grant_id
+      && task.state === row.state
+      && task.expiresAt === row.expires_at
+      && task.headRevision === Number(row.head_revision)
+      && head?.number === Number(row.head_revision),
+    'CORRUPT_PROCESSING_RESULT_ADOPTION',
+    'The task authority projection disagrees with its durable branch head.',
+  );
+  const grant = head.snapshot.grants?.find((candidate) => candidate.id === task.grantId) ?? null;
+  const grantRow = grant ? database.prepare(`
+    SELECT * FROM grants WHERE project_id = ? AND grant_id = ?
+  `).get(projectId, grant.id) : null;
+  if (grant !== null && grantRow !== null) {
+    invariant(
+      grant.agentId === grantRow.agent_id
+      && grant.taskId === grantRow.task_id
+      && grant.branchId === grantRow.branch_id
+      && grant.expiresAt === grantRow.expires_at
+      && fingerprint(grant.scopes) === fingerprint(parseJson(grantRow.scopes_json, 'grants.scopes_json'))
+      && fingerprint(grant.objectScopes) === fingerprint(parseJson(grantRow.object_scopes_json, 'grants.object_scopes_json'))
+      && fingerprint(task.budget) === fingerprint(grant.budget)
+      && fingerprint(grant.budget) === fingerprint(parseJson(grantRow.budget_json, 'grants.budget_json')),
+      'CORRUPT_PROCESSING_RESULT_ADOPTION',
+      'The task branch grant disagrees with its durable authority row.',
+    );
+    const baseUsage = parseJson(grantRow.usage_json, 'grants.usage_json');
+    const branchCharge = durableBranchCommandCharge(database, projectId, taskId);
+    invariant(
+      task.usage.commands === grant.usage.commands
+        && grant.usage.commands === baseUsage.commands + branchCharge,
+      'CORRUPT_PROCESSING_RESULT_ADOPTION',
+      'The task authority usage disagrees with the immutable branch ledger.',
+    );
+  }
+  const grantState = grant !== null && grantRow !== null
+    ? planningGrantState(grant, grantRow)
+    : null;
+  return {
+    schemaVersion: 1,
+    kind: PROCESSING_ADOPTION_TASK_AUTHORITY_EVIDENCE_KIND,
+    projectId,
+    branchId: row.branch_id,
+    branchRevision: Number(row.head_revision),
+    task: {
+      taskId: task.taskId,
+      projectId: task.projectId,
+      branchId: task.branchId,
+      agentId: task.agentId,
+      grantId: task.grantId,
+      state: task.state,
+      expiresAt: task.expiresAt,
+      capabilities: clone(task.capabilities),
+      objectScopes: clone(task.objectScopes),
+      maxCommands: task.budget.maxCommands,
+      usedCommands: task.usage.commands,
+      autoAcceptCommandTypes: clone(task.autoAcceptPolicy.allowedCommandTypes),
+    },
+    grant: grant === null || grantRow === null ? null : {
+      id: grant.id,
+      projectId,
+      branchId: grant.branchId,
+      agentId: grant.agentId,
+      taskId: grant.taskId,
+      status: grantState.status,
+      expiresAt: grant.expiresAt,
+      revokedAt: grantState.revokedAt,
+      scopes: clone(grant.scopes),
+      objectScopes: clone(grant.objectScopes),
+      maxCommands: grant.budget.maxCommands,
+      usedCommands: grant.usage.commands,
+    },
+  };
+}
+
+function planningMetadata(row, state = row?.state) {
+  if (!row) return null;
+  return {
+    artifactUri: row.uri,
+    sha256: row.digest,
+    mediaType: row.media_type,
+    byteSize: Number(row.byte_size),
+    width: Number(row.width),
+    height: Number(row.height),
+    state,
+  };
+}
+
+function directStudioErrorCode(value) {
+  if (value === null || typeof value !== 'object' || utilTypes.isProxy(value)) return null;
+  try {
+    if (Object.getPrototypeOf(value) !== StudioError.prototype) return null;
+    const descriptor = Object.getOwnPropertyDescriptor(value, 'code');
+    return descriptor && Object.hasOwn(descriptor, 'value') && typeof descriptor.value === 'string'
+      ? descriptor.value
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function planningArtifactStateEvidence({ database, request, role, observedRevision, physical = undefined }) {
+  const descriptor = role === 'recipe-input'
+    ? request.processingRecipe.inputs[0]
+    : request.assetInputSelection.selectedOutput;
+  const project = { projectId: request.project.projectId, observedRevision };
+  const base = {
+    schemaVersion: 1,
+    kind: 'studio.processing-adoption-artifact-verification',
+    project,
+    role,
+    sha256: descriptor.sha256,
+  };
+  if (!hasProjectArtifactReference(database, project.projectId, descriptor.sha256)) {
+    return { ...base, status: 'PROJECT_REFERENCE_MISSING', metadata: null, physical: null };
+  }
+  const metadataRow = database.prepare('SELECT * FROM artifacts WHERE digest = ?').get(descriptor.sha256);
+  if (!metadataRow) return { ...base, status: 'METADATA_MISSING', metadata: null, physical: null };
+  const gcMarked = Boolean(database.prepare('SELECT 1 FROM cas_gc_marks WHERE digest = ?').get(descriptor.sha256));
+  if (metadataRow.state !== 'LIVE' || gcMarked) {
+    const state = gcMarked && metadataRow.state === 'LIVE' ? 'QUARANTINED' : metadataRow.state;
+    return { ...base, status: 'NOT_LIVE', metadata: planningMetadata(metadataRow, state), physical: null };
+  }
+  if (physical === undefined) {
+    return { ...base, status: 'PENDING_PHYSICAL', metadata: planningMetadata(metadataRow), physical: null };
+  }
+  return { ...base, status: 'VERIFIED', metadata: planningMetadata(metadataRow), physical };
+}
+
+async function planningArtifactEvidence({ database, artifactStore, request, role, observedRevision, signal }) {
+  const current = planningArtifactStateEvidence({ database, request, role, observedRevision });
+  if (current.status !== 'PENDING_PHYSICAL') return current;
+  const descriptor = role === 'recipe-input'
+    ? request.processingRecipe.inputs[0]
+    : request.assetInputSelection.selectedOutput;
+  signal?.throwIfAborted();
+  try {
+    const physical = await artifactStore.withVerifiedPngEvidence(
+      descriptor.sha256,
+      async (evidence) => clone(evidence),
+    );
+    signal?.throwIfAborted();
+    return planningArtifactStateEvidence({ database, request, role, observedRevision, physical });
+  } catch (error) {
+    signal?.throwIfAborted();
+    const refreshed = planningArtifactStateEvidence({ database, request, role, observedRevision });
+    if (refreshed.status !== 'PENDING_PHYSICAL') return refreshed;
+    const code = directStudioErrorCode(error);
+    if (code === 'ARTIFACT_MISSING') {
+      return { ...refreshed, status: 'CONTENT_MISSING', physical: null };
+    }
+    if (['ARTIFACT_CORRUPT', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_MALFORMED', 'ARTIFACT_MEDIA_MISMATCH'].includes(code)) {
+      return { ...refreshed, status: 'CONTENT_CORRUPT', physical: null };
+    }
+    throw error;
+  }
+}
+
+async function planningPreflightEvidence({
+  database, artifactStore, capabilityProvider, selection, signal,
+}) {
+  const request = validateProcessingAdoptionPreflightRequest(selection?.request);
+  const projectId = requireId(selection?.projectId, 'selection.projectId');
+  const branchId = requireId(selection?.branchId, 'selection.branchId');
+  const revision = requireInteger(selection?.revision, 'selection.revision', { min: 1 });
+  invariant(
+    request.project.projectId === projectId && request.project.expectedRevision === revision,
+    'PROCESSING_ADOPTION_PREFLIGHT_SCOPE_MISMATCH',
+    'The task-branch preflight selection does not match its request.',
+  );
+  let row = database.prepare(`
+    SELECT * FROM agent_tasks
+    WHERE project_id = ? AND branch_id = ?
+  `).get(projectId, branchId);
+  const { head } = closedPlanningBranchHead(database, row, projectId, revision);
+  let receipt;
+  if (request.processingResult.findings.some(({ severity }) => severity === 'ERROR')) {
+    receipt = createProcessingAdoptionPreflightReceipt(request, {
+      capabilityCheck: uncheckedProcessingAdoptionCapability(),
+      assetStateCheck: uncheckedProcessingAdoptionAssetState(),
+      artifactChecks: uncheckedProcessingAdoptionArtifacts(),
+    });
+  } else {
+    signal?.throwIfAborted();
+    const manifest = await capabilityProvider.getProjectCapabilityManifest(
+      projectCapabilitySelection({ projectId, revision }),
+      Object.freeze({ signal }),
+    );
+    signal?.throwIfAborted();
+    const capabilityCheck = evaluateProcessingAdoptionCapability(request, manifest);
+    let assetStateCheck = uncheckedProcessingAdoptionAssetState();
+    let artifactChecks = uncheckedProcessingAdoptionArtifacts();
+    if (capabilityCheck.status === 'SUPPORTED') {
+      assetStateCheck = evaluateProcessingAdoptionAssetState(request, assetEvidence({
+        projectId,
+        baseRevision: Number(row.head_revision),
+        payload: { preflightRequest: request },
+      }, head.snapshot));
+      if (assetStateCheck.status === 'MATCHED') {
+        const observations = [];
+        for (const role of PROCESSING_ADOPTION_PREFLIGHT_ARTIFACT_ROLES) {
+          const evidence = await planningArtifactEvidence({
+            database,
+            artifactStore,
+            request,
+            role,
+            observedRevision: Number(row.head_revision),
+            signal,
+          });
+          observations.push(evidence);
+        }
+        const finalObservations = observations.every(({ status }) => status === 'VERIFIED')
+          ? observations.map((evidence) => planningArtifactStateEvidence({
+            database,
+            request,
+            role: evidence.role,
+            observedRevision: Number(row.head_revision),
+            physical: evidence.physical,
+          }))
+          : observations;
+        artifactChecks = finalObservations.map((evidence) => (
+          evaluateProcessingAdoptionArtifact(request, evidence.role, evidence)
+        ));
+      }
+    }
+    row = database.prepare(`
+      SELECT * FROM agent_tasks
+      WHERE project_id = ? AND branch_id = ?
+    `).get(projectId, branchId);
+    closedPlanningBranchHead(database, row, projectId, revision);
+    receipt = createProcessingAdoptionPreflightReceipt(request, {
+      capabilityCheck,
+      assetStateCheck,
+      artifactChecks,
+    });
+  }
+  return {
+    schemaVersion: 1,
+    kind: PROCESSING_ADOPTION_TASK_BRANCH_PREFLIGHT_EVIDENCE_KIND,
+    projectId,
+    branchId,
+    revision,
+    receipt,
+  };
+}
+
 export class SqliteProcessingResultAdoptionStore {
   schemaVersion = PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION;
 
@@ -564,6 +903,31 @@ export class SqliteProcessingResultAdoptionStore {
       commitProcessingResultAdoption: (command, trustedContext, options) => (
         store.commitProcessingResultAdoption(command, trustedContext, options)
       ),
+    });
+  }
+
+  asPlanningPorts() {
+    const store = this;
+    return Object.freeze({
+      taskAuthorityReader: Object.freeze({
+        schemaVersion: PROCESSING_ADOPTION_TASK_AUTHORITY_READER_SCHEMA_VERSION,
+        kind: PROCESSING_ADOPTION_TASK_AUTHORITY_READER_KIND,
+        readTaskAuthority: (selection, { signal } = {}) => {
+          signal?.throwIfAborted();
+          return planningAuthorityEvidence(store.#workspace.database, selection);
+        },
+      }),
+      taskBranchPreflightReader: Object.freeze({
+        schemaVersion: PROCESSING_ADOPTION_TASK_BRANCH_PREFLIGHT_READER_SCHEMA_VERSION,
+        kind: PROCESSING_ADOPTION_TASK_BRANCH_PREFLIGHT_READER_KIND,
+        preflightTaskBranch: (selection, { signal } = {}) => planningPreflightEvidence({
+          database: store.#workspace.database,
+          artifactStore: store.#artifactStore,
+          capabilityProvider: store.#capabilityProvider,
+          selection,
+          signal,
+        }),
+      }),
     });
   }
 

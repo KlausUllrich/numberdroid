@@ -1,5 +1,6 @@
 export { ProjectStore, headRevision, projectSummary } from './project-store.js';
 export { StudioService, implementedCommandTypes } from './studio-service.js';
+export { validateTrustedGrantScopes } from './grant-scope-catalog.js';
 export { AgentTaskService } from './agent-task-service.js';
 export {
   FixedProjectCapabilityProvider,

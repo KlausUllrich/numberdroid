@@ -270,8 +270,17 @@ or tool. None changes the accepted 19/4 or matching-task 30/5 discovery
 surfaces. A1.3's receipt and A1.4's plan are not executable authority; only the
 private A1.5 store can commit after fresh authorization/revalidation, and that
 commit is neither an owner decision nor review/merge/lifecycle authority.
-A1.6 must expose any callable adoption surface under separately versioned and
-feature-gated Authoring-v2 contracts with newly pinned counts.
+A1.6a now supplies only private prerequisites: one separately typed command
+feature over 33 legacy definitions, the exact 31-scope vocabulary, additive
+Numberdroid profile v2, trusted task/grant catalog injection, and real read-only
+SQLite/CAS A1.4 planning ports. No server,
+launcher, HostBinding, HTTP, UI, or MCP composition selects them, so accepted
+19/4 and matching-task 30/5 discovery remain exact. A1.6b must expose the
+callable adoption surface only after a server-validated v2 task/grant/branch/
+profile/store handshake, with exactly 31 tools/six resource templates for that
+matching v2 task. `dryRun: true` maps to A1.4 planning and `dryRun: false` maps
+to the A1.5 atomic commit. Client or environment claims can request but never
+create authority.
 
 `studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 

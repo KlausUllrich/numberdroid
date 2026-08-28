@@ -86,8 +86,8 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **IMG-008.** Project capability manifests MAY restrict formats, dimensions, color/alpha rules, frame layouts, or codecs. Unsupported processing MUST fail visibly before candidate creation.
 
 **Implementation status (2026-08-28): the bounded A1.0, A1.1, and A1.2
-contracts are explicitly user-accepted; A1.3, A1.4, and A1.5 are implemented
-candidates and are not user-accepted.** A1.0 supplies the fail-closed
+contracts are explicitly user-accepted; A1.3, A1.4, A1.5, and A1.6a are
+implemented candidates and are not user-accepted.** A1.0 supplies the fail-closed
 `ProcessingRecipe` schema and projection for the accepted exact-PNG crop
 processor. A1.1 adds a pure
 fail-closed `ProcessingResult` schema for that same operation, pinning the
@@ -119,8 +119,16 @@ atomically records a branch-local DRAFT processing Asset projection, immutable
 lineage/result, two exact artifact-retention roles, Activity, and one command
 charge. It does not register the command/scope, advertise a Numberdroid
 capability, mutate Main/CP2C Assets, create pixels, expose MCP/HTTP/UI, or grant
-review/merge/lifecycle/release authority. Therefore `IMG-001`–`IMG-008` remain
-unsatisfied end to end despite the private persistence evidence.
+review/merge/lifecycle/release authority. A1.6a adds one separately typed
+Authoring-v2 command feature, the exact additive 31-scope vocabulary,
+Numberdroid profile v2, trusted task/grant provisioning support, and real
+read-only SQLite/CAS
+planning ports. The default 33/30 catalogs, profile v1, and MCP 19/4 or 30/5
+surfaces remain exact; no server, launcher, HTTP, UI, or MCP composition selects
+the v2 prerequisites. Its real dry-run can therefore prove `READY` or current
+blockers without writing, retaining, or charging, but it is not yet a callable
+agent surface. Therefore `IMG-001`–`IMG-008` remain unsatisfied end to end
+despite the private persistence and planning evidence.
 
 ### 5.3 Atlas Cutter
 

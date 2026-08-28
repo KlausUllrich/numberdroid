@@ -9,6 +9,7 @@ import { StudioError, invariant } from '../../domain/src/errors.js';
 import { requireId, requireIsoDate, requireRecord } from '../../domain/src/validation.js';
 import { StudioService } from './studio-service.js';
 import { validateProjectCapabilityProvider } from './project-capability-provider.js';
+import { validateTrustedGrantScopes } from './grant-scope-catalog.js';
 import { fingerprint } from './value-utils.js';
 
 const BRANCH_EXTERNAL_SIDE_EFFECT_COMMANDS = new Set([
@@ -142,6 +143,7 @@ export class AgentTaskService {
   #createBranchStore;
   #clock;
   #capabilityProvider;
+  #grantScopes;
 
   constructor({
     studioService,
@@ -150,6 +152,7 @@ export class AgentTaskService {
     createBranchStore,
     clock = () => new Date().toISOString(),
     capabilityProvider = null,
+    grantScopes = KNOWN_GRANT_SCOPES,
   }) {
     invariant(studioService, 'VALIDATION_ERROR', 'StudioService is required.');
     invariant(projectStore, 'VALIDATION_ERROR', 'The authoritative ProjectStore is required.');
@@ -161,6 +164,7 @@ export class AgentTaskService {
     this.#createBranchStore = createBranchStore;
     this.#clock = clock;
     this.#capabilityProvider = validateProjectCapabilityProvider(capabilityProvider);
+    this.#grantScopes = validateTrustedGrantScopes(grantScopes);
   }
 
   async createTask(raw, trustedOwnerContext) {
@@ -176,7 +180,7 @@ export class AgentTaskService {
       projectId,
       baseRevision: projectView.revision + 1,
     });
-    const unknownScope = task.capabilities.find((scope) => !KNOWN_GRANT_SCOPES.includes(scope));
+    const unknownScope = task.capabilities.find((scope) => !this.#grantScopes.includes(scope));
     invariant(!unknownScope, 'UNKNOWN_GRANT_SCOPE', 'The task contains an unknown capability scope.', { scope: unknownScope });
     const existing = this.#taskStore.getTask(projectId, task.taskId);
     if (existing) return taskProjection(existing, this.#taskStore.listTimeline(projectId, task.taskId), this.#taskStore.getReview(projectId, task.taskId), now);
@@ -316,6 +320,7 @@ export class AgentTaskService {
       agentAttemptAuditReady: true,
       jobStore: null,
       capabilityProvider: this.#capabilityProvider,
+      grantScopes: this.#grantScopes,
     });
   }
 

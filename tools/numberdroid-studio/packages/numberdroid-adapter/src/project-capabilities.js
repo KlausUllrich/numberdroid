@@ -8,6 +8,8 @@ import {
   MAX_ROOM_CELLS,
   MAX_ROOM_CONNECTORS,
   MAX_ROOM_PLACEMENTS,
+  PROCESSING_ADOPTION_PREFLIGHT_OPERATION_ID,
+  PROCESSING_ADOPTION_PREFLIGHT_OPERATION_VERSION,
   projectCapabilityManifestSha256,
   validateProjectCapabilityManifest,
 } from '../../domain/src/index.js';
@@ -208,5 +210,34 @@ export function createNumberdroidProjectCapabilityProfile(adapterVersion) {
   return Object.freeze({
     manifest,
     fingerprint: projectCapabilityManifestSha256(manifest),
+  });
+}
+
+export function createNumberdroidAuthoringV2ProjectCapabilityProfile(adapterVersion) {
+  const manifest = structuredClone(createNumberdroidProjectCapabilityProfile(adapterVersion).manifest);
+  manifest.profileVersion = 2;
+  manifest.modules.push({ id: 'studio.image-processing', version: 'v1' });
+  manifest.outputFormats.push(
+    { id: 'studio.asset-input-selection', version: 1, mediaType: 'application/json' },
+    { id: 'studio.processing-adoption-preflight-receipt', version: 1, mediaType: 'application/json' },
+    { id: 'studio.processing-recipe', version: 1, mediaType: 'application/json' },
+    { id: 'studio.processing-result', version: 1, mediaType: 'application/json' },
+  );
+  manifest.operations.push({
+    id: PROCESSING_ADOPTION_PREFLIGHT_OPERATION_ID,
+    kind: 'validate',
+    version: PROCESSING_ADOPTION_PREFLIGHT_OPERATION_VERSION,
+    moduleIds: ['studio.asset', 'studio.image-processing'],
+    inputFormatIds: [
+      'studio.asset-input-selection',
+      'studio.processing-recipe',
+      'studio.processing-result',
+    ],
+    outputFormatIds: ['studio.processing-adoption-preflight-receipt'],
+  });
+  const validated = validateProjectCapabilityManifest(manifest);
+  return Object.freeze({
+    manifest: validated,
+    fingerprint: projectCapabilityManifestSha256(validated),
   });
 }

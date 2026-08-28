@@ -2,8 +2,8 @@
 
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
-Baseline recorded: 2026-08-28 at A1.5-implementation `main`
-`9c182a2211acdb2888fe360c55f592bc1c2e54ea`. Receivers MUST replace this with
+Baseline recorded: 2026-08-28 at A1.5-closure `main`
+`5816c88e14b74e521d742c3966b5186b7651f661`. Receivers MUST replace this with
 newer verified `main` truth as work lands.
 
 ## Purpose
@@ -33,6 +33,7 @@ Keep these states distinct:
 | VT-004 | A1.3 project-bound adoption preflight | NEEDS KLAUS REVIEW | VT-000 and accepted A1.0–A1.2 | Accept/revise the read-only capability/Asset/CAS closure; no live workflow |
 | VT-005 | A1.4 processing-result adoption plan | NEEDS KLAUS REVIEW | VT-004 | Accept/revise the private agent-task command/policy and commitless create/update semantics |
 | VT-006 | A1.5 private adoption persistence | NEEDS KLAUS REVIEW | VT-005 | Accept/revise the private atomic/replay/retention boundary and DRAFT persistence semantics |
+| VT-007 | A1.6a Authoring-v2 prerequisites | NEEDS KLAUS REVIEW | VT-006 | Accept/revise the private v2 overlay/profile and real effect-free planning composition |
 
 Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate.
@@ -418,6 +419,79 @@ own ID only after implementation exists. Planned work is not a candidate.
   pre-change workspace backup or applying a forward repair, never opening the
   database with v12 code or deleting immutable private rows. The current
   candidate is unwired, so ordinary users cannot create such state.
+
+## VT-007 — A1.6a Authoring-v2 prerequisites
+
+- **Implementation:** non-visual A1.6a candidate based on verified A1.5-closure
+  `main` `5816c88e14b74e521d742c3966b5186b7651f661`. It adds the private
+  separately typed Authoring-v2 command feature, exact 31-scope vocabulary,
+  additive Numberdroid profile v2,
+  trusted task/grant catalog injection, and real SQLite/CAS-backed A1.4
+  planning ports described in `A1_6A_STATUS.md`. Source integration is pending;
+  neither integration nor Actions can close the user decision.
+- **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-006 because the real
+  planning ports and profile describe exactly the A1.5 command and mutation
+  boundary. VT-004–VT-006 acceptance may revise this candidate even when all
+  automated compatibility and no-effect evidence is green.
+- **Safe fixture/reset:** no live client can select the v2 overlay/profile or
+  planning ports. Reproduction uses only fresh temporary SQLite/CAS directories
+  created and deleted by `tests/authoring-v2-prerequisites.node-test.js` and
+  `tests/processing-adoption-persistence.node-test.js`. Never point exploratory
+  code at a personal Studio workspace. No manual reset is required.
+- **Optional automated reproduction:** with Node 24.19.0 and lockfile
+  dependencies installed, run from `tools/numberdroid-studio/`:
+
+  ```bash
+  node --test \
+    tests/authoring-v2-prerequisites.node-test.js \
+    tests/processing-adoption-*.node-test.js \
+    tests/agent-task*.node-test.js \
+    tests/project-capability*.node-test.js \
+    tests/checkpoint-4-*.node-test.js
+  ```
+
+- **Review steps and expected result:**
+  1. Confirm legacy command/grant catalogs remain exactly 33/30 and profile v1
+     remains at its pinned hash; only explicit trusted composition can select
+     the one-feature/31-scope overlay or profile v2.
+  2. Confirm profile v2 adds only the image-processing module, four JSON
+     formats, and exact A1.3 validate operation; it adds no engine write,
+     destination, review, lifecycle, materialization, or release capability.
+  3. Confirm the default task service rejects the private scope while a trusted
+     complete v2 scope catalog lets an owner mint only the exact task/grant and
+     project/Asset object scopes. Adoption is always forbidden from auto-accept.
+  4. Confirm the real authority reader cross-checks Task, Grant, branch head,
+     immutable ledger, object/scope/expiry/budget state, and canonical usage.
+  5. Confirm real dry-run obtains fresh capability, Asset, registered-LIVE, and
+     physical CAS evidence and returns `READY` or a stable blocker without any
+     revision, charge, Activity, Asset, Aggregate, replay, or retention write.
+  6. Confirm stale branch coordinates stop before capability/CAS reads,
+     cancellation propagates, and hostile thrown CAS values are sanitized
+     without invoking proxy traps or accessors.
+  7. Confirm a later A1.5 commit repeats all checks and charges once; no A1.4
+     receipt or plan becomes executable authority.
+  8. Confirm MCP remains 19/4 or legacy task-bound 30/5 and that no launcher,
+     HostBinding, HTTP, UI, or environment selector activates A1.6a.
+- **Platform/evidence:** non-visual contract/composition review; no browser,
+  viewport, device, gameplay, or live-workspace acceptance gate. Local evidence
+  is 158/158 focused, 459/459 full Studio, 140/140 JavaScript syntax files, and
+  208/208 Numberdroid root tests followed by a successful production build.
+  Production-adapter evidence remains `VERIFIED` at protected source-manifest
+  hash `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
+  Exact link/classifier/diff gates and five independent final actual-diff
+  reviews are green. PR Actions and post-merge Actions will be recorded in
+  `A1_6A_STATUS.md` after integration.
+- **Known limits:** private prerequisites only; no positive server handshake,
+  profile/overlay selection, public dispatch, MCP resource/tool, HTTP/UI,
+  durable job, new pixel operation, Main/CP2C Asset mutation, owner review,
+  merge/lifecycle, materialization, publication, or end-to-end `IMG-006`.
+- **Open Klaus decision:** accept or revise the separately versioned overlay,
+  additive Numberdroid profile v2, trusted catalog-injection boundary, real
+  effect-free SQLite/CAS planning reads, and the A1.6b exact 31-tool/six-template
+  handshake target. Automation cannot answer this product-contract decision.
+- **Recovery:** A1.6a adds no migration and its dry-run writes no workspace/CAS
+  state. Revert the focused source candidate; no database downgrade, backup
+  restore, CAS cleanup, task repair, or fixture deletion is required.
 
 ## Required record for every new candidate
 
