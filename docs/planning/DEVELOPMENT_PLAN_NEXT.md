@@ -107,13 +107,17 @@ a command, change MCP 19/4 or task-bound 30/5, add HTTP/UI, introduce a pixel
 operation, materialize, or publish. Atomic adoption/persistence follows only as
 a separately reviewed A1.4 risk block.
 
-While Klaus cannot run live tests, safe candidate work follows the superagent
-loop in the Studio roadmap: one equally sized promise per block, parallel
-Domain/Security/Persistence/Compatibility/QA/Docs review, independent diff and
-CI verification, truthful candidate status, and a consolidated return-test
-backlog. Repository source integration requires the explicit bounded authority
-in the current human launch prompt and never implies user acceptance. The dated
-execution snapshot is
+While Klaus cannot run live tests, safe candidate work follows the adaptive
+D0/L1/L2/L3 policy in
+`docs/agents/CHANGE_RISK_AND_VERIFICATION.md`: one bounded promise and at most
+one high-risk axis, only trigger-relevant superagents, one planning pass, one
+independent actual-diff review, and tier-required verification. Two to four
+cohesive L1 microsteps may share one PR; routine blocks update only affected
+current authority plus the compact return-test backlog. Read-only planning for
+the next independent block may overlap post-merge CI, but dependent work waits
+for the prior `main` gate. Repository source integration still requires the
+explicit bounded authority in the current human launch prompt and never implies
+user acceptance. The dated execution snapshot is
 `docs/history/handoffs/HANDOFF_2026-08-28_NUMBERDROID_STUDIO_AUTONOMOUS_A1_EXECUTION.md`.
 
 After the complete Numberdroid vertical proof, one thin Godot 2D/Tower Defense

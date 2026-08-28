@@ -10,6 +10,12 @@
 
 **BASELINE CI / PAGES STATE:** GitHub Actions run `33109124192` on `0592d90` passed root build (`98646939194`), Linux Studio tests/browser evidence (`98646939382`), Windows Studio tests (`98646939286`), and Pages (`98647305006`). Local verification at this baseline passed 336/336 Studio tests, 23/23 focused A1 tests, 33/33 A0/Capability/Candidate/CP5/EngineBridge/boundary tests, `npm run check`, and `npm run evidence:verify`. Root Vitest was not locally installed; the exact baseline root build/test result is the green Actions run.
 
+**PROCESS CORRECTION — 2026-08-28:** Klaus explicitly replaced the original
+fixed 4–6-agent/full-matrix cadence with the binding adaptive D0/L1/L2/L3 policy
+in `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`. The corrected sections and
+copy-paste prompt below are authoritative for this handoff; the baseline facts
+remain unchanged.
+
 **PRIMARY RECEIVING ROLE:** Coordinator / Numberdroid Studio engineering
 
 **SECONDARY / TRIGGER ROLES:** Domain/Architecture, Security/Authority, Persistence/Recovery, Compatibility/MCP, QA/Integrator, Documentation/Product; UI/UX and Accessibility for visible work; Technical Artist for a new pixel operation; Numberdroid Runtime Engineering for Candidate/LevelSpec/compiler mapping; Game/Level Design when placement/collision/navigation semantics change; Story only for canonical narrative content
@@ -67,8 +73,9 @@ Read every item in this block completely before changing code.
 2. `REPOSITORY_STRUCTURE.md`
 3. `docs/agents/ROLE_ENTRYPOINTS.md`
 4. `docs/agents/REPOSITORY_WORKFLOW.md`
-5. `docs/README.md`
-6. `docs/agents/HANDOFF_PROTOCOL.md`
+5. `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`
+6. `docs/README.md`
+7. `docs/agents/HANDOFF_PROTOCOL.md`
 
 Use the Coordinator/cross-domain route in `ROLE_ENTRYPOINTS.md`, plus Engineering
 and QA. Add only the trigger roles required by the chosen block.
@@ -400,18 +407,21 @@ nothing and authorizes nothing.
 
 ### Definition of done
 
-1. The planning swarm agrees the package owner, schema, capability-versioning
+1. The tier-selected planning pass agrees the package owner, schema, capability-versioning
    strategy, CAS proof boundary, findings policy, and nonauthority language.
 2. The contract returns byte-identical canonical receipt data for identical
    validated inputs and fails closed for every enumerated attack/error class.
 3. The current Numberdroid profile v1 remains byte/fingerprint-identical; any
    profile-v2 work is additive and separately bounded.
-4. A1/Capability/Asset/CP5/package focused tests pass, then the complete Studio
-   suite, `npm run check`, and `npm run evidence:verify` pass.
+4. A1.3 is classified L2 while it remains a read-only Domain/Application seam.
+   Focused A1/Capability/Asset/CAS/package tests and every tier-triggered
+   Studio/check/boundary gate pass; browser, Windows, root, and unrelated
+   historical evidence are not automatic requirements.
 5. Exact command count 33, migrations 12, one job kind, MCP 19/4 and 30/5, and
    every protected fingerprint remain unchanged.
-6. Independent Domain, Security, Compatibility, QA, and Documentation reviews
-   inspect the actual diff and report GO; coordinator performs final verification.
+6. One tier-selected independent actual-diff review covers Domain,
+   Security/Authority, Compatibility, and QA triggers and reports GO;
+   coordinator performs final verification. Repeat only after material change.
 7. PR and docs say `IMPLEMENTED CANDIDATE — NOT USER ACCEPTED`; every implemented
    candidate gets a complete return-backlog record. For a purely automated block,
    mark the record `NEEDS KLAUS REVIEW` and state explicitly when no live steps
@@ -436,8 +446,9 @@ schemas or let a later block bypass a stop gate.
 ## Autonomous vacation development loop
 
 Klaus cannot currently test and wants substantial progress before one larger
-return session. Use superagents generously and keep executing rather than asking
-for routine confirmations already answered by current contracts.
+return session. Use superagents generously where risk triggers them, keep the
+work proportional under `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`, and do
+not ask for routine confirmations already answered by current contracts.
 
 ### Equal block rule
 
@@ -451,52 +462,59 @@ Each block has one testable product promise and at most one new high-risk axis:
 
 Schema/migration, public MCP/HTTP compatibility, authority/lifecycle, pixel
 operation, substantial UX flow, and materialization/filesystem boundary are
-separate risk axes. Split a block that introduces two. If reviewers cannot
-explain promise, boundaries, and rollback in five short points, the block is too
-large.
+separate risk axes. Split a block that introduces two. Two to four adjacent L1
+microsteps may share one PR only when their combined diff remains one cohesive
+pure promise with the same owner, authority, compatibility, and rollback. If
+reviewers cannot explain promise, boundaries, and rollback in five short points,
+the block is too large.
 
-### Planning and review swarm
+### Adaptive planning and review
 
-Use at least four, normally five or six parallel superagents:
+| Tier | Typical Studio scope | Targeted superagents |
+| --- | --- | ---: |
+| D0 | Markdown-only, no executable/generated/config effect | 0–1 |
+| L1 | portable pure Domain contract/helper | 2–3 |
+| L2 | Application/private compatible protocol/persistence/processor seam | 3–5 |
+| L3 | migration, public MCP/HTTP compatibility, authority, UI/browser, remote, packaging, materialization | 5–6 |
 
-| Role | Required attack/review |
-| --- | --- |
-| Coordinator/root | authority, exact scope, total diff, integration |
-| Domain/Architecture | package ownership, inward dependencies, aggregate/port |
-| Security/Authority | grants, actors, CAS/path/proxy/secret/escalation |
-| Persistence/Compatibility | schema, migration, MCP counts, goldens, recovery |
-| QA/Platform | failure matrix, fault/race/restart, Linux/Windows/browser |
-| Docs/Product | status truth, requirements, roadmap, handoff/test backlog |
-| UX/Accessibility | add for visible state flow, language, keyboard, viewport |
-
-The implementer and final independent reviewers must not be the same. Give one
-writer ownership of a shared file area; keep other agents read-only or on
-strictly disjoint files. Superagents may spawn further bounded read-only probes.
+Select only triggered roles from Domain/Architecture, Security/Authority,
+Persistence/Recovery, Compatibility/MCP, QA/Platform, Docs/Product, and for
+visible work UX/Accessibility. Run exactly one coordinated planning pass and one
+independent actual-diff review pass; repeat only after a substantive finding or
+material scope/diff change. The implementer and final reviewer must not be the
+same. Give one writer ownership of a shared file area; keep other agents
+read-only or on strictly disjoint files.
 
 ### Exact loop
 
-1. Verify current `main`, required ancestor, open PRs, Actions, worktree, current
-   authority, and differences from this handoff.
-2. Select the highest-priority unblocked block. Write promise, in/out, authority,
-   compatibility, tests, docs, and rollback before edits.
-3. Run the planning swarm. Resolve findings from binding authority, not reviewer
-   majority.
+1. Verify current `main`, required ancestor, relevant PRs/Actions, worktree,
+   authority, and differences from this handoff for the selected lane.
+2. Select the highest-priority unblocked block. Classify D0/L1/L2/L3 and write
+   promise, in/out, authority, compatibility, tests, docs, rollback, and
+   escalation triggers before edits.
+3. Run one tier-selected planning pass. Resolve findings from binding authority,
+   not reviewer majority.
 4. Implement fail-closed on a focused branch. Avoid broad cleanup or package
    reorganization.
-5. Run focused tests, complete Studio suite, check, evidence, package boundaries,
-   and relevant root/migration/restart/fault/race/browser/platform gates.
-6. Run the independent review swarm on the actual diff/results. Security and
-   Compatibility must explicitly GO; coordinator still verifies everything.
-7. Update Requirements/Architecture/MCP/Roadmap/status truth and
-   `VACATION_TEST_BACKLOG.md` in the same block where affected.
+5. Run focused checks and only the tier-triggered core, boundary, protocol,
+   migration/restart/fault/race, browser, Windows, root, and evidence gates.
+6. Run one independent actual-diff review with the triggered roles. Security and
+   Compatibility must explicitly GO when touched; coordinator verifies the whole
+   diff.
+7. Update only affected current authority/status and
+   `VACATION_TEST_BACKLOG.md`; full handoffs remain milestone/transition/stop
+   artifacts.
 8. Open a focused PR with base/head, promise, exclusions, authority, tests,
    migration/rollback, dependencies, and `IMPLEMENTED CANDIDATE — NOT USER ACCEPTED`.
-9. Wait for complete CI. Retry only a demonstrated infrastructure flake; never
+9. Wait for every selected required PR check; apply the `ci-full` label or
+   `[ci-full]` PR-title marker when semantic risk exceeds path inference. Retry
+   only a demonstrated infrastructure flake; never
    retry until randomly green.
 10. If the copied human prompt explicitly grants the limited integration
     authority below, and every gate is satisfied, merge the repository PR,
-    verify new `main` and post-merge CI, then start the next block. Otherwise
-    leave the PR open and continue only on a safe non-conflicting lane.
+    resolve new `main`, and observe post-merge CI. Read-only planning for the
+    next independent block may run concurrently; dependent implementation waits.
+    Otherwise leave the PR open and continue only on a safe non-conflicting lane.
 11. If a block reaches a real gate, switch to another authorized independent
     block such as Operations O0. Stop only when every useful lane is gated, and
     leave a precise decision/test queue rather than inventing progress.
@@ -508,8 +526,8 @@ merge a focused repository PR after all of these are true:
 
 - the change is additive/reversible and stays inside the frozen block;
 - no hard stop below is crossed;
-- independent Security and Compatibility reviewers plus coordinator return GO;
-- all required local tests and full PR CI are green;
+- every tier-triggered independent reviewer plus coordinator returns GO;
+- all tier-required local tests and every selected required PR check are green;
 - docs and return-test status are truthful;
 - the merge is ordinary repository source integration, not Studio task-merge,
   owner review, product acceptance, materialization, publication, or release.
@@ -632,11 +650,11 @@ owner, materialization, publication, and release decision.
    tests; do not trust counts copied from this snapshot if `main` moved.
 4. Summarize product/status/authority/compatibility and report only genuine
    conflicts with newer current authority.
-5. Spawn the A1.3 planning swarm, freeze one bounded preflight promise, and
-   implement directly if no hard gate remains. Klaus has asked not to be held at
-   routine checkpoints during the vacation.
-6. Run the complete review/CI/docs/backlog loop and, only under the copied prompt's
-   explicit limited authority, integrate a safe candidate and continue.
+5. Classify A1.3 as L2 while its scope remains read-only, run one targeted
+   planning pass, freeze the bounded preflight promise, and implement directly
+   if no hard gate remains. Klaus has asked not to be held at routine checkpoints.
+6. Run the tier-required review/CI/docs/backlog loop and, only under the copied
+   prompt's explicit limited authority, integrate a safe candidate and continue.
 7. Never claim user acceptance or cross a live/security/release gate. Switch to
    an independent authorized lane when possible; otherwise leave a precise stop.
 
@@ -665,23 +683,30 @@ Lies anschließend vollständig und in dieser Reihenfolge:
 2. `REPOSITORY_STRUCTURE.md`
 3. `docs/agents/ROLE_ENTRYPOINTS.md`
 4. `docs/agents/REPOSITORY_WORKFLOW.md`
-5. `docs/README.md`
-6. `docs/agents/HANDOFF_PROTOCOL.md`
-7. `docs/planning/DEVELOPMENT_PLAN_NEXT.md`
-8. `tools/numberdroid-studio/README.md`
-9. alle dort als aktuell maßgeblich verlinkten Vision-, Requirements-,
+5. `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`
+6. `docs/README.md`
+7. `docs/agents/HANDOFF_PROTOCOL.md`
+8. `docs/planning/DEVELOPMENT_PLAN_NEXT.md`
+9. `tools/numberdroid-studio/README.md`
+10. alle dort als aktuell maßgeblich verlinkten Vision-, Requirements-,
    Architektur-, MCP-, Roadmap-, Operations-, A1-, CP4.5-, CP5- und
    Return-Test-Dokumente
-10. den tatsächlichen aktuellen A0/A1-/Asset-/CAS-/MCP-Code und die Tests
-11. zuletzt
+11. den tatsächlichen aktuellen A0/A1-/Asset-/CAS-/MCP-Code und die Tests
+12. zuletzt
    `docs/history/handoffs/HANDOFF_2026-08-28_NUMBERDROID_STUDIO_AUTONOMOUS_A1_EXECUTION.md`
 
-Nutze großzügig Superagenten. Setze pro gleich großem Entwicklungsblock
-parallel mindestens Domain/Architektur, Security/Authority,
-Persistence/Compatibility, QA/Plattformen und Dokumentation/Product ein; bei
-sichtbarer Arbeit zusätzlich UI/UX/Accessibility. Implementer und finale
-Reviewer dürfen nicht identisch sein. Der Root-/Coordinator-Agent prüft den
-Gesamtdiff selbst.
+Nutze Superagenten großzügig, aber risikoproportional: D0-Dokumentation 0–1,
+L1-pure portable Verträge 2–3, L2-Integrationsnähte einschließlich kompatibler
+privater Protokollnähte 3–5 und L3-Migration/öffentliche MCP- oder
+HTTP-Kompatibilität/Authority/UI/Remote/Packaging/Materialisierung 5–6. Setze
+nur tatsächlich ausgelöste Rollen ein. Pro Block gibt es genau einen parallelen
+Planungsdurchlauf und einen unabhängigen Review des tatsächlichen Diffs;
+Wiederholung nur nach substantiellen Funden oder materieller Scope-/Diff-Änderung.
+Implementer und finaler Reviewer dürfen nicht identisch sein. Zwei bis vier
+benachbarte L1-Mikroschritte dürfen einen PR teilen, wenn sie zusammen ein
+einziges pures Versprechen mit gleichem Owner, gleicher Authority/Compatibility
+und gleichem Rollback bleiben. Der Root-/Coordinator-Agent prüft den Gesamtdiff
+selbst.
 
 Starte mit A1.3: einem read-only, projektgebundenen Adoption-Preflight für die
 akzeptierte Recipe→Result→Selection-Kette. Er muss Capability-Pins,
@@ -693,21 +718,28 @@ Command-Registrierung, Jobs, MCP/HTTP/UI, neue Pixeloperation,
 Candidate-/Adapter-Integration, Materialisierung oder Publication.
 
 Arbeite danach selbstständig in einem Loop aus gleich großen Kandidatenblöcken:
-Main/CI verifizieren → Scope und Stop-Gates einfrieren → Superagenten-Planung →
-Implementierung → fokussierte und vollständige Tests → unabhängiger Security-/
-Compatibility-/QA-Review → aktuelle Doku und
+relevantes Main/CI verifizieren → D0/L1/L2/L3 klassifizieren → Scope und
+Stop-Gates einfrieren → ein zielgerichteter Planungsdurchlauf → Implementierung
+→ nur tier-/trigger-erforderliche Tests und Plattformen → ein unabhängiger
+Actual-Diff-Review → nur betroffene aktuelle Doku und
 `tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md` aktualisieren →
-fokussierter PR → vollständige CI → neues Main verifizieren → nächster sicherer
-Block. Wenn A1 an einem echten Gate stoppt, wechsle auf einen unabhängigen,
+fokussierter PR → alle ausgewählten Pflichtchecks → neues Main auflösen und CI
+beobachten → nächster sicherer Block. Read-only Planung für einen unabhängigen
+Block darf während Post-Merge-CI weiterlaufen; abhängige Implementierung wartet.
+Wenn A1 an einem echten Gate stoppt, wechsle auf einen unabhängigen,
 autorisierten Block, insbesondere Operations O0 und danach höchstens die
-nicht-visuelle fail-closed O1-Application-/Job-Naht.
+nicht-visuelle fail-closed O1-Application-/Job-Naht. Vollständige Handoffs nur
+an Meilensteinen, echten Session-/Rollenwechseln oder realen Stop-Gates.
 
 Für diese Urlaubssession autorisiere ich ausdrücklich die gewöhnliche
 Repository-Source-Integration eines fokussierten Kandidaten-PRs in `main`, wenn
 der Block additiv/rückrollbar innerhalb des eingefrorenen Scopes bleibt, kein
-Stop-Gate überschreitet, unabhängige Security- und Compatibility-Reviewer sowie
-der Coordinator GO geben und alle lokalen Prüfungen sowie die vollständige
-GitHub-CI grün sind. Verifiziere nach jedem Merge das neue `main` und dessen CI.
+Stop-Gate überschreitet, alle vom Tier ausgelösten unabhängigen Reviewer sowie
+der Coordinator GO geben und alle tier-erforderlichen lokalen Prüfungen sowie
+alle ausgewählten GitHub-Pflichtchecks grün sind. Nutze das `ci-full`-Label oder
+den PR-Titelmarker `[ci-full]`, wenn das semantische Risiko höher als die
+Pfadklassifikation ist. Löse nach jedem Merge
+das neue `main` auf und beobachte dessen CI.
 Diese Erlaubnis ist keine User-Akzeptanz, keine Studio-Task-Merge-Autorität,
 keine Studio-Candidate-/Produktions-Materialisierung oder
 Repository-Produktionscommits durch Studio und keine Publish-/Release-Erlaubnis.

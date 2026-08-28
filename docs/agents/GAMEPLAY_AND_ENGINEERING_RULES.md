@@ -244,7 +244,11 @@ Desktop and mobile must be tested independently; do not assume responsive CSS th
 
 ## 15. Validation discipline
 
-For runtime/gameplay changes, at minimum run the available test suite and production build.
+For runtime/gameplay changes, run the tests, build, browser, and platform gates
+selected by `CHANGE_RISK_AND_VERIFICATION.md` and the actual affected paths.
+Pure portable helpers need focused coverage; visible or broad gameplay changes
+escalate to the relevant production build and interaction/platform regression
+gates.
 
 Manually verify the interaction paths affected by the change. For broad gameplay changes, regression coverage should include as relevant:
 

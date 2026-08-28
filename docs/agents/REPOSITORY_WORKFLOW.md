@@ -6,6 +6,10 @@ Companion binary transport authority:
 
 - `docs/agents/BINARY_ASSET_TRANSPORT.md`
 
+Companion execution and verification authority:
+
+- `docs/agents/CHANGE_RISK_AND_VERIFICATION.md`
+
 ## GitHub transport rule
 
 For structured/textual remote repository operations, use the **GitHub connector directly**:
@@ -86,6 +90,46 @@ The only narrow local-Git exception is the already-authenticated **binary publis
 If the GitHub connector itself fails, report that connector failure explicitly and stop/retry through the connector for connector-owned operations. Do not silently switch transport paths.
 
 Local/container tools may still be used for **offline computation or asset generation** when useful. Repository publication must follow either the connector path or the explicit binary transport contract.
+
+## Risk-scaled execution and CI
+
+Every change is classified D0, L1, L2, or L3 under
+`CHANGE_RISK_AND_VERIFICATION.md` before reviews and verification are selected.
+That classification scales process cost; it never weakens authority,
+compatibility, recovery, acceptance, or merge gates.
+
+The Build workflow implements a fail-closed lower bound:
+
+- pushes to `agent/**` do not run a duplicate full workflow; the PR against
+  `main` is the branch integration gate;
+- allow-listed Markdown-only changes run whitespace, UTF-8/all-link/bootstrap,
+  classifier, and summary checks without product suites;
+- explicitly allow-listed portable, headless Studio A0/A1 Domain/Application
+  contracts run the Linux Studio core without automatic browser or Windows
+  evidence; portable Preview changes still add Linux browser evidence;
+- persistence, filesystem, server/CLI/MCP, dependency, script, test, packaging,
+  and unclassified Studio paths add Windows;
+- visible Studio/server/preview/evidence-fixture paths add browser evidence;
+- Numberdroid adapter changes also add the root integration gate;
+- approved root art inputs consumed directly by Studio fixtures add Studio
+  Linux, browser, and Windows gates as well as the root gates;
+- root product changes run root test/build; root tests and repository helpers
+  skip grounding-browser evidence, and Pages deploys on `main` only when
+  deployable inputs changed;
+- GitHub automation/classifier changes, line-ending policy, unresolved diffs, a manual
+  Build-workflow run, the PR label `ci-full`, and the exact PR-title marker
+  `[ci-full]` select the complete matrix; adding the label or marker starts a
+  fresh classification run.
+
+The always-present `CI gate` job fails unless every selected job succeeded.
+Automated path selection is a lower bound: the coordinator or a reviewer MUST
+apply the `ci-full` label or `[ci-full]` title marker when semantic risk is
+higher than the path-derived result.
+
+Run targeted local checks first and do not duplicate full local/CI suites without
+a tier or trigger reason. After an authorized merge, read-only planning for the
+next independent block may overlap post-merge CI; dependent implementation or
+integration waits for the prior `main` gate, and any failure stops that lane.
 
 ## Why this is binding
 

@@ -17,6 +17,9 @@ level requirements → layout + actors + routes + logic → validated candidate
 
 ## Working loop for every checkpoint
 
+This full loop applies to milestone and user-checkpoint closure. Candidate
+implementation blocks follow the adaptive cadence below.
+
 1. **Plan:** product/architecture agent refines the vertical slice, migration impact, tests, and user-visible evidence.
 2. **Adversarial review:** a separate reviewer attacks permission, concurrency, data-loss, UX, and integration assumptions before implementation.
 3. **Implement:** code, fixtures, migrations, and user-facing documentation land together in the Studio folder.
@@ -35,43 +38,51 @@ candidates, but it MUST keep these states separate: implemented, automated
 green, source-integrated, live/visual-tested, and explicitly user-accepted.
 
 One autonomous block has exactly one testable product promise and at most one
-new high-risk axis. A normal block is one pure versioned contract, one
-application port or command/query seam, one persistent aggregate with at most
-one migration, one deterministic processor operation, or one small projection
-over already frozen commands. A migration, public MCP/HTTP gate, authority or
-lifecycle transition, pixel operation, substantial UX flow, and materialization
-boundary MUST NOT be combined casually; if two are required, split the work.
+new high-risk axis. Migration, public MCP/HTTP compatibility,
+authority/lifecycle, pixel behavior, substantial UX, remote/auth,
+materialization, and destructive/recovery boundaries remain separate axes.
 
-For every block the coordinator uses four to six independent superagents as
-appropriate: Domain/Architecture, Security/Authority, Persistence/Concurrency,
-Compatibility/MCP, QA/Platforms, Documentation/Product, and for visible work
-UX/Accessibility. The implementer and final independent reviewers are not the
-same role. Reviewers attack the actual diff and evidence; their majority cannot
-override a binding contract.
+Planning, review, and verification follow the binding adaptive policy in
+[`CHANGE_RISK_AND_VERIFICATION.md`](../../../docs/agents/CHANGE_RISK_AND_VERIFICATION.md):
+D0 documentation uses zero or one reviewer; L1 portable pure contracts use two
+or three targeted superagents; L2 integration seams, including compatible
+private protocol seams, use three to five; L3 visible/high-risk work, including
+public MCP/HTTP compatibility changes, uses five or six plus every triggered
+gate. Two to four adjacent L1 microsteps may share one PR only when their
+combined diff remains one cohesive pure promise with the same owner, authority,
+compatibility, and rollback. Use only triggered roles, one planning pass, and
+one independent actual-diff review pass. The implementer and final reviewer
+remain different; reviewer majority cannot override a binding contract.
 
 The loop is:
 
-1. verify current `main`, open PRs, exact Actions state, worktree, and newer
-   authority than this roadmap or any handoff;
-2. freeze one block's promise, scope, exclusions, authority boundary,
-   compatibility impact, tests, docs, and rollback;
-3. run the planning superagent swarm and resolve findings before writing;
+1. verify current `main`, relevant open PRs/Actions, worktree, and authority for
+   the selected lane rather than re-auditing unrelated history;
+2. classify D0/L1/L2/L3 and freeze promise, scope, exclusions, authority,
+   compatibility, tests, docs, rollback, and escalation triggers;
+3. run one tier-selected parallel planning pass and resolve findings before
+   writing;
 4. implement on a focused branch with one writer per shared file area;
-5. run focused tests, the complete Studio suite, checks, evidence, boundaries,
-   relevant root gates, and any migration/restart/fault/race/browser/platform
-   work implied by the block;
-6. obtain independent Security and Compatibility GO plus coordinator diff
-   verification;
-7. update every affected current contract/status document and append a complete
-   record for the candidate to `VACATION_TEST_BACKLOG.md` before source
-   integration;
+5. run focused checks plus only the core, boundary, protocol, persistence,
+   migration, restart/fault/race, browser, Windows, root, or evidence gates
+   required by the tier and actual triggers;
+6. run one independent actual-diff review with the triggered roles and
+   coordinator verification; Security/Compatibility GO is mandatory when those
+   boundaries are touched;
+7. update only directly affected current contract/status documents and append
+   one compact but complete candidate record to `VACATION_TEST_BACKLOG.md`
+   before source integration;
 8. open a focused PR labelled `IMPLEMENTED CANDIDATE — NOT USER ACCEPTED`, wait
-   for complete CI, and correct rather than retrying nondeterministically;
+   for every selected required check, and correct rather than retrying
+   nondeterministically; use the `ci-full` label or `[ci-full]` PR-title marker
+   when semantic risk exceeds path inference;
 9. merge only when the current human prompt explicitly authorizes repository
    source integration for that class of candidate; a merge is still neither
    product acceptance nor release;
-10. verify post-merge `main` and CI and, if integration facts changed, add a
-    focused closure record without rewriting the candidate's acceptance state;
+10. resolve the post-merge `main` SHA and observe CI. Read-only planning for the
+    next independent block may proceed concurrently, but dependent
+    implementation/integration waits; any failure stops that lane. Add a focused
+    closure record only when integration facts changed;
 11. continue with the next independent unblocked block. If one lane reaches a
     real gate, switch to another authorized lane; stop only when every useful
     lane is gated.
@@ -467,6 +478,10 @@ scope are recorded in [`A1_2_STATUS.md`](A1_2_STATUS.md).
 
 **Status: next planned bounded Artist-path block; not implemented.** A1.3 should
 add a read-only, nonauthorizing preflight contract rather than an Asset mutation.
+It is L2 while it remains a portable Domain/Application seam: use three to five
+triggered reviewers, focused A1/Capability/Asset/CAS/package tests, and the
+Linux Studio core. Browser, Windows, root, and unrelated historical evidence
+run only if the actual diff adds their trigger; scope growth escalates the tier.
 It closes one validated `ProcessingRecipe` → `ProcessingResult` →
 `AssetInputSelection` chain and returns an immutable receipt that:
 

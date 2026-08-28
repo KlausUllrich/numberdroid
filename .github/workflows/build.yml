@@ -4,16 +4,88 @@ on:
   push:
     branches:
       - main
-      - 'agent/**'
   pull_request:
     branches:
       - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+      - edited
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Classify change risk
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      docs: ${{ steps.classify.outputs.docs }}
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+      root: ${{ steps.classify.outputs.root }}
+      root_visual: ${{ steps.classify.outputs.root_visual }}
+      studio: ${{ steps.classify.outputs.studio }}
+      studio_visual: ${{ steps.classify.outputs.studio_visual }}
+      studio_windows: ${{ steps.classify.outputs.studio_windows }}
+      pages: ${{ steps.classify.outputs.pages }}
+      full: ${{ steps.classify.outputs.full }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify diff whitespace
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          USE_MERGE_BASE: ${{ github.event_name == 'pull_request' }}
+        run: |
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ && ! "$BASE_SHA" =~ ^0{40}$ ]]; then
+            EFFECTIVE_BASE="$BASE_SHA"
+            if [ "$USE_MERGE_BASE" = "true" ]; then
+              EFFECTIVE_BASE="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+            fi
+            git diff --check "$EFFECTIVE_BASE" "$HEAD_SHA"
+          else
+            git show --check --format= "$HEAD_SHA"
+          fi
+
+      - name: Classify changed paths
+        id: classify
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci-full') || contains(github.event.pull_request.title, '[ci-full]') }}
+          USE_MERGE_BASE: ${{ github.event_name == 'pull_request' }}
+        run: node scripts/repo/ci-change-classifier.mjs "$BASE_SHA" "$HEAD_SHA" "$FORCE_FULL" "$USE_MERGE_BASE" >> "$GITHUB_OUTPUT"
+
+      - name: Verify classifier policy
+        run: node scripts/repo/ci-change-classifier.selftest.mjs
+
+      - name: Verify repository documentation links
+        run: node scripts/repo/check-markdown-links.mjs
+
+      - name: Verify documentation checker policy
+        run: node scripts/repo/check-markdown-links.selftest.mjs
+
+      - name: Verify Studio syntax checker policy
+        run: node tools/numberdroid-studio/scripts/check-javascript-syntax.selftest.js
+
   build:
+    needs: changes
+    if: needs.changes.outputs.root == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -61,6 +133,8 @@ jobs:
           VITE_BUILD_SHA: ${{ github.sha }}
 
       - name: Real-browser grounding render QA
+        id: root_browser
+        if: needs.changes.outputs.root_visual == 'true'
         run: |
           CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
           if [ -z "$CHROME" ]; then
@@ -122,7 +196,7 @@ jobs:
             artifacts/grounding/browser-grounding-scene-off.png
 
       - name: Upload grounding diagnostic artifact
-        if: always()
+        if: always() && (steps.root_browser.outcome == 'success' || steps.root_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: actor-grounding-diagnostic
@@ -131,14 +205,14 @@ jobs:
           retention-days: 14
 
       - name: Upload Pages artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pages == 'true'
         uses: actions/upload-pages-artifact@v4
         with:
           path: ./dist
 
   deploy-pages:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pages == 'true' && needs.build.result == 'success'
+    needs: [changes, build]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -154,6 +228,8 @@ jobs:
         uses: actions/deploy-pages@v4
 
   studio:
+    needs: changes
+    if: needs.changes.outputs.studio == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -187,6 +263,8 @@ jobs:
         run: NUMBERDROID_EVIDENCE_REQUIRE_PRODUCTION_ADAPTER=1 npm run evidence:verify
 
       - name: Capture Studio 1A, 1B, 2A, 2B, 2C, 3, and 4 browser evidence
+        id: studio_browser
+        if: needs.changes.outputs.studio_visual == 'true'
         run: |
           set -euo pipefail
           CHROME="$(command -v google-chrome-stable || command -v google-chrome || command -v chromium || true)"
@@ -489,7 +567,7 @@ jobs:
           CHECKPOINT_4_PID=""
 
       - name: Upload Studio visual evidence
-        if: always()
+        if: always() && (steps.studio_browser.outcome == 'success' || steps.studio_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: numberdroid-studio-checkpoint-1b-visual
@@ -498,7 +576,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Studio Checkpoint 2A visual evidence
-        if: always()
+        if: always() && (steps.studio_browser.outcome == 'success' || steps.studio_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: numberdroid-studio-checkpoint-2a-visual
@@ -507,7 +585,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Studio Checkpoint 2B visual evidence
-        if: always()
+        if: always() && (steps.studio_browser.outcome == 'success' || steps.studio_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: numberdroid-studio-checkpoint-2b-visual
@@ -516,7 +594,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Studio Checkpoint 2C visual and bundle evidence
-        if: always()
+        if: always() && (steps.studio_browser.outcome == 'success' || steps.studio_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: numberdroid-studio-checkpoint-2c-evidence
@@ -525,7 +603,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Studio Checkpoint 3 visual and bundle evidence
-        if: always()
+        if: always() && (steps.studio_browser.outcome == 'success' || steps.studio_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: numberdroid-studio-checkpoint-3-evidence
@@ -534,7 +612,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Studio Checkpoint 4 task-branch evidence
-        if: always()
+        if: always() && (steps.studio_browser.outcome == 'success' || steps.studio_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: numberdroid-studio-checkpoint-4-evidence
@@ -543,7 +621,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Studio Checkpoint 4.5 combined-gate evidence
-        if: always()
+        if: always() && (steps.studio_browser.outcome == 'success' || steps.studio_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: numberdroid-studio-checkpoint-4-5-evidence
@@ -552,6 +630,8 @@ jobs:
           retention-days: 14
 
   studio-windows:
+    needs: changes
+    if: needs.changes.outputs.studio_windows == 'true'
     runs-on: windows-2022
     timeout-minutes: 10
 
@@ -585,3 +665,59 @@ jobs:
         env:
           NUMBERDROID_EVIDENCE_REQUIRE_PRODUCTION_ADAPTER: '1'
         run: npm run evidence:verify
+
+  ci-gate:
+    name: CI gate
+    if: always()
+    needs:
+      - changes
+      - build
+      - studio
+      - studio-windows
+      - deploy-pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Require every selected gate
+        shell: bash
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          ROOT_REQUIRED: ${{ needs.changes.outputs.root }}
+          ROOT_RESULT: ${{ needs.build.result }}
+          STUDIO_REQUIRED: ${{ needs.changes.outputs.studio }}
+          STUDIO_RESULT: ${{ needs.studio.result }}
+          WINDOWS_REQUIRED: ${{ needs.changes.outputs.studio_windows }}
+          WINDOWS_RESULT: ${{ needs['studio-windows'].result }}
+          PAGES_REQUIRED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.pages == 'true' }}
+          PAGES_RESULT: ${{ needs['deploy-pages'].result }}
+        run: |
+          require_result() {
+            local name="$1"
+            local required="$2"
+            local result="$3"
+            case "$result" in
+              success)
+                ;;
+              skipped)
+                if [ "$required" = "true" ]; then
+                  echo "$name was required but skipped" >&2
+                  return 1
+                fi
+                ;;
+              *)
+                echo "$name ended with $result" >&2
+                return 1
+                ;;
+            esac
+          }
+
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "change classification ended with $CHANGES_RESULT" >&2
+            exit 1
+          fi
+
+          require_result root "$ROOT_REQUIRED" "$ROOT_RESULT"
+          require_result studio "$STUDIO_REQUIRED" "$STUDIO_RESULT"
+          require_result windows "$WINDOWS_REQUIRED" "$WINDOWS_RESULT"
+          require_result pages "$PAGES_REQUIRED" "$PAGES_RESULT"
