@@ -180,10 +180,11 @@ own ID only after implementation exists. Planned work is not a candidate.
 
 ## VT-004 — A1.3 project-bound adoption preflight
 
-- **Implementation:** focused A1.3 candidate based on tested `main`
-  `dcf85b36f7b68d9b88d314cdccb49287dc70bdc8`; PR, implementation head, merge
-  SHA if any, and Actions run are appended after those facts exist. Exact
-  contract and fixture hashes are in `A1_3_STATUS.md`.
+- **Implementation:** focused A1.3 candidate in PR #150 at implementation head
+  `9ad3b68ac64a1a073fbdcec63b62d2205aa01d98`, based on tested `main`
+  `dcf85b36f7b68d9b88d314cdccb49287dc70bdc8`; merge SHA if any and Actions run
+  are appended only after those facts exist. Exact contract and fixture hashes
+  are in `A1_3_STATUS.md`.
 - **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-000 and the accepted
   A1.0–A1.2 contracts. Source integration and CI do not close this decision.
 - **Safe fixture/reset:** no Studio workspace, database, CAS directory, server,
