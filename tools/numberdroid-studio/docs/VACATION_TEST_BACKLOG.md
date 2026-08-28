@@ -683,15 +683,15 @@ own ID only after implementation exists. Planned work is not a candidate.
 
 ## VT-010 — A1.6b2b Authoring-v2 MCP transport
 
-- **Implementation:** non-visual A1.6b2b transport candidate at a locally
-  verified source checkpoint, still at the **PENDING** integration stage,
-  `f34b1f4aa7af0c0e427191ed623b8154caeaafe3`. It adds the
+- **Implementation:** non-visual A1.6b2b transport candidate at frozen source
+  head `5e2d5d96b6c7860290eaa9d07f87626de1634b1c`. It adds the
   explicit launcher selector, private positive server handshake, three narrow
   loopback/Bearer routes, gateway mapping, and the single Authoring-v2 MCP
-  tool/resource delta described in `A1_6B2B_STATUS.md`. Source PR, CI, merge,
-  and post-merge Actions are **PENDING**. Five independent final actual-diff
-  reviews are **GO** with no open findings; automation does not close the user
-  decision.
+  tool/resource delta described in `A1_6B2B_STATUS.md`. PR
+  [#162](https://github.com/KlausUllrich/numberdroid/pull/162) integrated it as
+  squash commit `0c5f6e5845b277716fd788375ade52905a9bf391`. Five independent
+  final actual-diff reviews are **GO** with no open findings; automation does
+  not close the user decision.
 - **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-009 because the
   transport exposes exactly the A1.6b2a one-shot/full-admission versus
   ledger-first commit boundary. VT-004–VT-009 acceptance may still revise the
@@ -759,8 +759,18 @@ own ID only after implementation exists. Planned work is not a candidate.
   Production-adapter evidence is `VERIFIED` at protected hash
   `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
   Five independent final actual-diff reviews are **GO** with no open findings.
-  PR/CI/merge/post-merge facts remain **PENDING** and must not be inferred from
-  the local evidence.
+  Initial PR Actions run
+  [#2202 / 33208418002](https://github.com/KlausUllrich/numberdroid/actions/runs/33208418002)
+  found a Windows-only `EBUSY` fixture teardown ordering bug. The fixed source
+  head closes runtime/SQLite before removing its temporary directory. Final PR
+  Actions run
+  [#2203 / 33209352949](https://github.com/KlausUllrich/numberdroid/actions/runs/33209352949)
+  passed classifier, forced Root build, Linux Studio/browser, Windows Studio,
+  and CI gate while Pages was correctly skipped. Post-merge `main` Actions run
+  [#2204 / 33209824883](https://github.com/KlausUllrich/numberdroid/actions/runs/33209824883)
+  passed classifier, Linux Studio/browser, Windows Studio, and CI gate while
+  Root build and Pages were correctly skipped. This is regression evidence,
+  not visual or contract acceptance.
 - **Known limits:** explicit private opt-in for one adoption tool and one
   capabilities template only; no launcher auto-opt-in, public Authoring-v2
   HTTP API, UI, owner decision/review, proposal apply/finalize, merge/revert,
@@ -771,9 +781,8 @@ own ID only after implementation exists. Planned work is not a candidate.
   nonauthorizing full-admission capabilities/dry-run boundary, and the
   ledger-first `REPLAY_ONLY` restart-recovery exception. Automation cannot
   answer this product-contract decision.
-- **Recovery:** A1.6b2b adds no migration or durable state format. Revert the
-  locally verified checkpoint
-  `f34b1f4aa7af0c0e427191ed623b8154caeaafe3`; existing
+- **Recovery:** A1.6b2b adds no migration or durable state format. Revert squash
+  commit `0c5f6e5845b277716fd788375ade52905a9bf391`; existing
   schema-v13 databases, portable bundles, HostBindings, Grants, task ledgers,
   adoption rows, retained CAS objects, and audit rows require no downgrade,
   cleanup, or repair.

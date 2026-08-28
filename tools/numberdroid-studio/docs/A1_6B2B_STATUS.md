@@ -3,15 +3,16 @@
 Status: **IMPLEMENTED CANDIDATE — NOT USER ACCEPTED**
 
 A1.6b2b is a non-visual L3 MCP/HTTP/Authority/Persistence compatibility
-candidate. The locally verified source checkpoint, still at the **PENDING**
-integration stage,
-`f34b1f4aa7af0c0e427191ed623b8154caeaafe3` exposes only the A1.6b2a
+candidate. The frozen source head
+`5e2d5d96b6c7860290eaa9d07f87626de1634b1c` exposes only the A1.6b2a
 processing-result adoption boundary through an explicit, private Authoring-v2
 transport. It does not make the candidate the default MCP profile and does not
 grant any new product, owner, lifecycle, materialization, publication, or
 release authority. All five final actual-diff reviews are **GO** with no open
-findings. Source PR, CI, and merge remain **PENDING**. Implementation, review,
-and automated evidence do not constitute Klaus's contract acceptance.
+findings. PR [#162](https://github.com/KlausUllrich/numberdroid/pull/162), its
+final `[ci-full]` Actions, squash merge, and post-merge `main` Actions are
+complete and green. Implementation, integration, review, and automated
+evidence do not constitute Klaus's contract acceptance.
 
 ## Explicit selection and positive private handshake
 
@@ -117,9 +118,8 @@ and automated evidence do not constitute Klaus's contract acceptance.
   merge/revert, lifecycle promotion, Main/CP2C mutation, materialization,
   repository write, publication, or release operation. The capabilities
   resource cannot grant any of those actions.
-- A1 remains incomplete. This locally verified candidate is **NOT USER
-  ACCEPTED**; A1.7 is the next bounded development block after A1.6b2b
-  integration gates close.
+- A1 remains incomplete. This integrated candidate is **NOT USER ACCEPTED**;
+  A1.7 is the next bounded development block.
 
 ## Verification
 
@@ -143,9 +143,25 @@ bounded bodies, cancellation, and active-operation shutdown drain.
 
 Five independent final actual-diff reviews for Security/Authority,
 Compatibility/MCP, Domain/Application, Persistence/Recovery, and QA/Docs are
-**GO** with no open findings. The source PR, `[ci-full]` PR Actions, merge, and
-post-merge `main` Actions are still **PENDING** and must not be inferred from
-local evidence.
+**GO** with no open findings.
+
+The first PR Actions run
+[#2202 / 33208418002](https://github.com/KlausUllrich/numberdroid/actions/runs/33208418002)
+correctly exposed a Windows-only fixture teardown defect: the test attempted to
+remove an open SQLite file before closing the Studio runtime, produced `EBUSY`,
+and the leaked handle reached the job timeout. Source head
+`5e2d5d96b6c7860290eaa9d07f87626de1634b1c` sequences runtime/SQLite close
+before removal. Final PR Actions run
+[#2203 / 33209352949](https://github.com/KlausUllrich/numberdroid/actions/runs/33209352949)
+passed the classifier, forced Root build, Linux Studio including browser
+evidence, Windows Studio, and CI gate; Pages was correctly skipped. PR #162 was
+then source-integrated into `main` as squash commit
+`0c5f6e5845b277716fd788375ade52905a9bf391`. Post-merge `main` Actions run
+[#2204 / 33209824883](https://github.com/KlausUllrich/numberdroid/actions/runs/33209824883)
+passed classifier, Linux Studio/browser, Windows Studio, and CI gate while Root
+build and Pages were correctly skipped by the actual 23-path classification.
+This conservative CI evidence is regression evidence, not UI, visual, or
+product-contract acceptance.
 
 ## Safe fixture and recovery
 
@@ -157,7 +173,7 @@ exact temporary directory. Never point these tests or exploratory launchers at
 `.numberdroid-studio`, an active personal workspace, a backup, or a Numberdroid
 checkout. No manual data reset or migration rollback is required.
 
-Source rollback is a focused revert of the locally verified checkpoint
-`f34b1f4aa7af0c0e427191ed623b8154caeaafe3`. Existing schema-v13 databases,
+Source rollback is a focused revert of squash commit
+`0c5f6e5845b277716fd788375ade52905a9bf391`. Existing schema-v13 databases,
 portable bundles, A1.5 adoption rows, retained CAS objects, task ledgers,
 HostBindings, Grants, and audit rows require no downgrade or repair.
