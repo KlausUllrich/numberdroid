@@ -179,7 +179,7 @@ Frozen local candidate verification on 2026-08-28:
 - production-adapter evidence verification: `VERIFIED`, with protected source
   manifest hash unchanged at
   `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`;
-- repository Markdown link check: **55 links, 0 failures across 190 files**;
+- repository Markdown link check: **55 links, 0 failures across 191 files**;
 - classifier self-test, link-checker self-test, Studio syntax-checker self-test,
   migration checksum verification, and `git diff --check`: passed.
 
@@ -191,7 +191,10 @@ own data descriptor. Sync and Promise-rejection Proxy/Accessor regressions are
 included in the final 111/435 counts. The exact reviewed candidate diff
 frozen immediately before recording this identity line had binary diff SHA-256
 `3baa14f4bdf712963b2c20da288d0768b5809839cacf6a774474457b572fc5bd`.
-Changed-path classification, implementation PR/merge, and pre-/post-merge
-Actions evidence are recorded after the source freeze. Those integration facts
-remain pending here and do not constitute Klaus's contract acceptance when
-added.
+The implementation source commit is
+`cfa731c751b07b207c7497024f8be1ad3e09f023`. Exact changed-path
+classification set docs, Studio, Studio visual, and Studio Windows true; docs
+only, root, root visual, Pages, and full remained false. Implementation
+PR/merge and pre-/post-merge Actions evidence are recorded after integration.
+Those facts remain pending here and do not constitute Klaus's contract
+acceptance when added.
