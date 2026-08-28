@@ -509,9 +509,11 @@ own ID only after implementation exists. Planned work is not a candidate.
   closure `main` `5a699b75597eac219580bddf2d3d8609c63ec2b0`. It closes
   current Grant liveness in strict HostBinding resolution, preserves the
   accepted generic and specialized attempt-audit boundary, and adds the unwired
-  host-bound A1.5 atomic port described in `A1_6B1_STATUS.md`. Source
-  integration is pending; neither integration nor Actions can close the user
-  decision.
+  host-bound A1.5 atomic port described in `A1_6B1_STATUS.md`. Implementation
+  source commit `df75727211c1ea7767916fb2e2c2192f450031b6` was integrated
+  through PR [#158](https://github.com/KlausUllrich/numberdroid/pull/158) as
+  squash commit `06ceaf58e2f7ebdad1fec17a1cf6178655c32e9a`. Neither source
+  integration nor Actions can close the user decision.
 - **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-007 because the
   port is a security prerequisite for exposing A1.6a's private feature and
   A1.5's commit seam. VT-004–VT-007 acceptance may still revise the underlying
@@ -562,8 +564,15 @@ own ID only after implementation exists. Planned work is not a candidate.
   protected source-manifest hash
   `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
   Exact link/classifier/diff gates and five independent final actual-diff
-  reviews are green. Source, PR, merge, and Actions identities are frozen in
-  `A1_6B1_STATUS.md` only after their integration gates complete.
+  reviews are green. PR Actions run
+  [#2194 / 33172043996](https://github.com/KlausUllrich/numberdroid/actions/runs/33172043996)
+  passed the classifier, Linux Studio including browser evidence, Windows
+  Studio, and CI gate while root build and Pages were correctly skipped.
+  Post-merge `main` Actions run
+  [#2195 / 33172499006](https://github.com/KlausUllrich/numberdroid/actions/runs/33172499006)
+  passed the same selected jobs and again skipped root build and Pages.
+  Browser/Windows CI is conservative regression coverage, not new UI or visual
+  acceptance.
 - **Known limits:** private admission prerequisite only; no v2 handshake,
   profile selection, adoption route/tool, capabilities resource, 31/6
   discovery, public HTTP/UI, Main/CP2C mutation, owner review/merge/lifecycle,

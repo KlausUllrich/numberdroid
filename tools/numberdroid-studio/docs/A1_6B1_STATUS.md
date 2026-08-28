@@ -105,10 +105,22 @@ change classifier selects `docs`, `studio`, `studio_visual`, and
 `studio_windows`; it leaves `docs_only`, `root`, `root_visual`, `pages`, and
 `full` false. Five independent final actual-diff reviews covering
 Security/Authority, Compatibility, Domain/Application, QA/CI, and
-CAS/Atomicity/Recovery are **GO**. Source identity, PR, merge, and Actions
-evidence are recorded only after those integration gates complete.
+CAS/Atomicity/Recovery are **GO**.
+
+The implementation source commit is
+`df75727211c1ea7767916fb2e2c2192f450031b6`. PR
+[#158](https://github.com/KlausUllrich/numberdroid/pull/158) was
+source-integrated into `main` as squash commit
+`06ceaf58e2f7ebdad1fec17a1cf6178655c32e9a`. PR Actions run
+[#2194 / 33172043996](https://github.com/KlausUllrich/numberdroid/actions/runs/33172043996)
+passed the change classifier, Linux Studio including browser evidence,
+Windows Studio, and CI gate; the root build and Pages were correctly skipped.
+Post-merge `main` Actions run
+[#2195 / 33172499006](https://github.com/KlausUllrich/numberdroid/actions/runs/33172499006)
+passed the same selected jobs and again skipped root build and Pages.
 Conservative browser/Windows selection is regression coverage for the
-server/persistence paths, not a new UI or visual-acceptance claim.
+server/persistence paths, not a new UI or visual-acceptance claim. Source
+integration and CI do not change the candidate-only acceptance state.
 
 ## Recovery
 
