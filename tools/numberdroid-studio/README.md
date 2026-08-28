@@ -23,19 +23,22 @@ primary visual. No slice adds a persisted processing workflow, semantic
 adoption command, or new pixel operation. See the [A1.0 status](docs/A1_0_STATUS.md),
 [A1.1 status](docs/A1_1_STATUS.md), and [A1.2 status](docs/A1_2_STATUS.md).
 
-The next bounded Artist-path candidate is A1.3: a read-only, project-bound
-adoption preflight that closes Recipe → Result → Selection, capability pins,
-CAS `LIVE` revalidation, findings policy, and exact Asset create/update plus
-metadata-version coordinates without mutating an Asset. It must add no
-migration, registered command, MCP/HTTP/UI
-surface, pixel operation, or owner/release authority. The operations O0/O1 lane
-is independent and retains its own gates.
+A1.3 is now an **implemented candidate and is not user-accepted**. Its read-only
+project-bound receipt closes Recipe → Result → Selection, an exact dedicated
+capability operation, registered-plus-physical CAS revalidation, findings
+policy, and exact Asset create/update plus metadata-version coordinates without
+mutating an Asset. The current Numberdroid profile v1 deliberately remains
+unsupported. A1.3 adds no production adapter, migration, registered command,
+MCP/HTTP/UI surface, pixel operation, or owner/release authority. See the
+[A1.3 candidate status](docs/A1_3_STATUS.md). A1.4 atomic/idempotent application
+adoption is the next planned bounded Artist block. The operations O0/O1 lane is
+independent and retains its own gates.
 
 Checkpoint 2B acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later commits `f116f25aed2f0a9d935de9061cf6492d3a56bef4` and `b9ce37e44fe3679b52b50dac6daf4e1a46024c1d` change only the `visualFixture`/test evidence harness; they do not change product behavior or reopen acceptance. Failed run `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and failed run `32572344465` (Studio job `97029542069`, isolating Chrome/CDP post-move pointer-capture bookkeeping) are invalid diagnostic evidence only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, and expires `2026-09-05T12:26:26Z`. Under Chrome `151.0.7922.137` at 1440×900 and 1060×900, it records zero runtime and visual errors and proves captured press, a same-pointer held move, deferred rendering, matching release/settlement/replacement, exact scroll/context retention, and telemetry cleanup. Run `32568108922` / artifact `9474639509` remain the product-repair evidence; run `32572870510` / artifact `9475808319` are the final post-acceptance closure evidence.
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
+| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Accepted source/asset/room/task foundations plus candidate list-first tasks, useful prop previews, and persistent-canvas rectangle/irregular-room authoring |
 | Agent access | Accepted schema-v12 compatibility keeps 19 tools/four templates without a task and 30 tools/five templates for a matching task branch. The target requires MCP parity for all ordinary authoring through a separately versioned, feature-gated surface; authority, owner review, merge, materialization, and publication remain human-only. |
@@ -196,6 +199,7 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [Accepted A1.0 ProcessingRecipe contract](docs/A1_0_STATUS.md)
 - [Accepted A1.1 ProcessingResult contract](docs/A1_1_STATUS.md)
 - [Accepted A1.2 AssetInputSelection contract](docs/A1_2_STATUS.md)
+- [A1.3 project-bound adoption preflight candidate](docs/A1_3_STATUS.md)
 - [Checkpoint 3 frozen implementation contract](docs/CHECKPOINT_3_CONTRACT.md)
 
 These current product documents are normative for the Studio implementation. If

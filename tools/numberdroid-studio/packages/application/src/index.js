@@ -19,3 +19,12 @@ export {
   validateEngineBridgePort,
   validateEngineBridgeValidationReceipt,
 } from './engine-bridge.js';
+export {
+  PROCESSING_ADOPTION_ARTIFACT_VERIFIER_KIND,
+  PROCESSING_ADOPTION_ARTIFACT_VERIFIER_SCHEMA_VERSION,
+  PROCESSING_ADOPTION_ASSET_STATE_READER_KIND,
+  PROCESSING_ADOPTION_ASSET_STATE_READER_SCHEMA_VERSION,
+  ProcessingAdoptionPreflightService,
+  validateProcessingAdoptionArtifactVerifier,
+  validateProcessingAdoptionAssetStateReader,
+} from './processing-adoption-preflight.js';
