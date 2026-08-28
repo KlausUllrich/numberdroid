@@ -604,8 +604,8 @@ fresh `READY` plan or current blockers without writing, retaining, charging, or
 granting authority. A1.5 commit remains the only private mutation seam and
 repeats every check.
 
-No current server, launcher, HostBinding, HTTP route, UI, or MCP composition
-selects these prerequisites. Legacy MCP discovery remains exactly 19/4 without
+At the A1.6a boundary no server, launcher, HostBinding, HTTP route, UI, or MCP
+composition selected these prerequisites. Legacy MCP discovery remains exactly 19/4 without
 a task and 30/5 for a matching task. There is no owner decision, auto-accept,
 review, merge, lifecycle, materialization, or release authority. Exact scope,
 hashes, tests, and exclusions are recorded in
@@ -625,18 +625,38 @@ durable through a nonauthorizing audit subject followed by strict resolution;
 only the strict live result supplies dispatch identity and both phases share
 one request correlation.
 
-No server composes the new port and no MCP/HTTP/UI surface, profile selection,
+At the A1.6b1 boundary no server composed the new port and no MCP/HTTP/UI surface, profile selection,
 command/scope registration, migration, owner decision, review, merge,
 lifecycle, materialization, or release authority is added. Exact behavior,
 tests, and recovery are recorded in
 [`A1_6B1_STATUS.md`](A1_6B1_STATUS.md).
 
-#### Remaining A1 completion sequence after A1.6b1
+#### A1.6b2a — private Authoring-v2 execution session
+
+**Status: IMPLEMENTED CANDIDATE — NOT USER ACCEPTED (2026-08-28).** A1.6b2a
+composes the previously unwired prerequisites behind one private, one-shot
+Application session. Capabilities and `dryRun: true` perform repeated current
+HostBinding/Grant/Task/branch/ledger admission around the exact Numberdroid v2
+profile and real A1.4 planning ports. `dryRun: false` instead enters a freshly
+bound, distinctly typed A1.6b1/A1.5 port directly so ledger-first
+lost-response replay remains available after `maxCommands: 1` is charged.
+
+The SQLite production server constructs the v2 provider, adoption store, and
+runtime with one clock, stores only the runtime in a module-private `WeakMap`,
+and creates reader, planning ports, and sessions transiently per operation.
+The runtime drains active operations before writer shutdown and returns none
+of these internals. There is still no route, launcher selector, gateway,
+MCP tool/resource, UI, migration, startup semantic write, owner decision,
+review, merge, lifecycle, materialization, publication, or release authority.
+Exact behavior, tests, and recovery are recorded in
+[`A1_6B2A_STATUS.md`](A1_6B2A_STATUS.md).
+
+#### Remaining A1 completion sequence after A1.6b2a
 
 A1.6a still does not complete `IMG-006` or the Artist path. Re-plan each step
 from current truth, but keep the remaining risks in separate candidate blocks:
 
-1. **A1.6b2 — Authoring-v2 exposure:** positively handshake a matching v2
+1. **A1.6b2b — Authoring-v2 exposure:** positively handshake a matching v2
    HostBinding/task/grant/branch/profile/store and expose exactly 31 MCP tools
    and six resource templates; dry-run maps to A1.4 and commit maps to A1.5,
    with no owner review/apply/finalize authority.

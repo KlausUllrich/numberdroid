@@ -6,6 +6,7 @@ export {
   AUTHORING_V2_PROCESSING_RESULT_ADOPTION_TOOL,
   AUTHORING_V2_SCHEMA_VERSION,
   listAuthoringV2GrantScopes,
+  validateAuthoringV2CapabilityManifest,
 } from './authoring-v2-registry.js';
 export {
   ATLAS_PROCESSOR_ID,
@@ -69,6 +70,7 @@ export {
   uncheckedProcessingAdoptionArtifacts,
   uncheckedProcessingAdoptionAssetState,
   uncheckedProcessingAdoptionCapability,
+  validateProcessingAdoptionCapabilityManifest,
   validateProcessingAdoptionPreflightReceipt,
   validateProcessingAdoptionPreflightRequest,
 } from './processing-adoption-preflight.js';

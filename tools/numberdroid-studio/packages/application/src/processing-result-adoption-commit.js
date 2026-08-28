@@ -15,6 +15,7 @@ import {
 
 export const PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION = 1;
 export const PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_KIND = 'studio.processing-result-adoption-atomic-store';
+export const PROCESSING_RESULT_ADOPTION_HOST_BOUND_ATOMIC_STORE_KIND = 'studio.processing-result-adoption-host-bound-atomic-store';
 
 const ATOMIC_STORE_PORT = 'processingResultAdoptionAtomicStore';
 const EXPECTED_ATOMIC_REJECTION_CODES = new Set([
@@ -178,7 +179,7 @@ function exactCommitOptions(value) {
   return validateAbortSignal(options.signal);
 }
 
-export function validateProcessingResultAdoptionAtomicStore(value) {
+function validateAtomicStore(value, expectedKind) {
   const port = exactPlainRecord(value, [
     'schemaVersion',
     'kind',
@@ -187,7 +188,7 @@ export function validateProcessingResultAdoptionAtomicStore(value) {
   invariant(
     Object.keys(port).length === 3
       && port.schemaVersion === PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION
-      && port.kind === PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_KIND,
+      && port.kind === expectedKind,
     'PROCESSING_RESULT_ADOPTION_COMMIT_PORT_INVALID',
     'Unsupported processing-result adoption atomic store.',
     { port: ATOMIC_STORE_PORT },
@@ -202,7 +203,7 @@ export function validateProcessingResultAdoptionAtomicStore(value) {
   const implementation = port.commitProcessingResultAdoption;
   return Object.freeze({
     schemaVersion: PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION,
-    kind: PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_KIND,
+    kind: expectedKind,
     commitProcessingResultAdoption: (command, trustedContext, options) => implementation.call(
       value,
       command,
@@ -210,6 +211,14 @@ export function validateProcessingResultAdoptionAtomicStore(value) {
       options,
     ),
   });
+}
+
+export function validateProcessingResultAdoptionAtomicStore(value) {
+  return validateAtomicStore(value, PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_KIND);
+}
+
+export function validateProcessingResultAdoptionHostBoundAtomicStore(value) {
+  return validateAtomicStore(value, PROCESSING_RESULT_ADOPTION_HOST_BOUND_ATOMIC_STORE_KIND);
 }
 
 function abort(signal) {
@@ -344,10 +353,10 @@ function evaluateCommitResult(value, command, trustedContext, signal) {
  * wholly inside the atomic-store unit of work. This service accepts no plan,
  * receipt, evidence, owner decision, or lifecycle/review/merge authority.
  */
-export class ProcessingResultAdoptionCommitService {
+class ProcessingResultAdoptionCommitServiceBase {
   #atomicStore;
 
-  constructor(options = {}) {
+  constructor(options, validator) {
     const config = exactPlainRecord(options, ['atomicStore'], 'processingResultAdoptionCommitServiceOptions');
     invariant(
       Object.keys(config).length === 1 && Object.hasOwn(config, 'atomicStore'),
@@ -355,7 +364,7 @@ export class ProcessingResultAdoptionCommitService {
       'Processing-result adoption commit requires one atomic store.',
       { port: ATOMIC_STORE_PORT },
     );
-    this.#atomicStore = validateProcessingResultAdoptionAtomicStore(config.atomicStore);
+    this.#atomicStore = validator(config.atomicStore);
   }
 
   async commit(commandValue, trustedExecutionContext, options = {}) {
@@ -372,5 +381,17 @@ export class ProcessingResultAdoptionCommitService {
       signal,
     );
     return evaluateCommitResult(value, command, trustedContext, signal);
+  }
+}
+
+export class ProcessingResultAdoptionCommitService extends ProcessingResultAdoptionCommitServiceBase {
+  constructor(options = {}) {
+    super(options, validateProcessingResultAdoptionAtomicStore);
+  }
+}
+
+export class ProcessingResultAdoptionHostBoundCommitService extends ProcessingResultAdoptionCommitServiceBase {
+  constructor(options = {}) {
+    super(options, validateProcessingResultAdoptionHostBoundAtomicStore);
   }
 }

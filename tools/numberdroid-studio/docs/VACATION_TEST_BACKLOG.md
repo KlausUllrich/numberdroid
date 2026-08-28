@@ -35,6 +35,7 @@ Keep these states distinct:
 | VT-006 | A1.5 private adoption persistence | NEEDS KLAUS REVIEW | VT-005 | Accept/revise the private atomic/replay/retention boundary and DRAFT persistence semantics |
 | VT-007 | A1.6a Authoring-v2 prerequisites | NEEDS KLAUS REVIEW | VT-006 | Accept/revise the private v2 overlay/profile and real effect-free planning composition |
 | VT-008 | A1.6b1 host-bound adoption admission | NEEDS KLAUS REVIEW | VT-007 | Accept/revise the current Binding/Grant replay and mutation-UoW admission boundary |
+| VT-009 | A1.6b2a private Authoring-v2 session | NEEDS KLAUS REVIEW | VT-008 | Accept/revise the one-shot/full-admission versus ledger-first commit boundary |
 
 Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate.
@@ -497,7 +498,7 @@ own ID only after implementation exists. Planned work is not a candidate.
   merge/lifecycle, materialization, publication, or end-to-end `IMG-006`.
 - **Open Klaus decision:** accept or revise the separately versioned overlay,
   additive Numberdroid profile v2, trusted catalog-injection boundary, real
-  effect-free SQLite/CAS planning reads, and the A1.6b2 exact 31-tool/six-template
+  effect-free SQLite/CAS planning reads, and the A1.6b2b exact 31-tool/six-template
   handshake target. Automation cannot answer this product-contract decision.
 - **Recovery:** A1.6a adds no migration and its dry-run writes no workspace/CAS
   state. Revert the focused source candidate; no database downgrade, backup
@@ -583,6 +584,88 @@ own ID only after implementation exists. Planned work is not a candidate.
   the private unhosted A1.5 store retains its original ledger-first recovery
   semantics. Automation cannot answer this product-contract decision.
 - **Recovery:** A1.6b1 adds no migration or durable state. Revert the focused
+  candidate; no database downgrade, backup restore, CAS cleanup, task repair,
+  audit repair, or fixture deletion is required.
+
+## VT-009 — A1.6b2a private Authoring-v2 execution session
+
+- **Implementation:** non-visual A1.6b2a candidate based on verified A1.6b1
+  closure `main` `cab9aa7c0d8f4037ead6f44d6127446c53598d45`. It adds the
+  private admission reader/service, one-shot execution session, distinct
+  host-bound atomic-port kind, and closed SQLite production composition
+  described in `A1_6B2A_STATUS.md`. Source PR/merge and Actions facts remain
+  pending until the repository gates complete; local implementation alone does
+  not close the user decision.
+- **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-008 because the
+  one-shot session composes A1.6b1 current Binding/Grant admission and A1.5
+  replay. VT-004–VT-008 acceptance may still revise the underlying contract.
+- **Safe fixture/reset:** reproduction uses only fresh temporary SQLite/CAS
+  directories allocated by `authoring-v2-private-session.node-test.js`. Never
+  point exploratory code at a personal Studio workspace. The production
+  startup probe creates its own temporary directory and closes the private
+  runtime before deleting it. No manual reset is required.
+- **Optional automated reproduction:** with Node 24.19.0 and lockfile
+  dependencies installed, run this exact focused 183-test regression command
+  from `tools/numberdroid-studio/`:
+
+  ```bash
+  node --test \
+    tests/host-binding.node-test.js \
+    tests/specialized-mcp-audit.node-test.js \
+    tests/processing-adoption-*.node-test.js \
+    tests/authoring-v2-*.node-test.js \
+    tests/official-mcp.node-test.js \
+    tests/checkpoint-4-mcp.node-test.js \
+    tests/checkpoint-2c-http-mcp.node-test.js \
+    tests/package-boundaries.node-test.js
+  ```
+
+- **Review steps and expected result:**
+  1. Confirm one private session accepts exactly one capabilities or adoption
+     operation and is consumed even on invalid input, failure, or cancellation.
+  2. Confirm capabilities and dry-run repeat current Binding/Grant/Task/branch,
+     ledger, scope/object/budget, no-auto-accept, and exact profile-v2 admission
+     around asynchronous reads.
+  3. Confirm `dryRun: true` returns the real A1.4 plan without revision,
+     Activity, retention, CAS, or usage effects.
+  4. Confirm `dryRun: false` accepts only the distinct host-bound port and does
+     not place full admission ahead of A1.5 ledger-first replay.
+  5. Confirm a lost first response with `maxCommands: 1` replays after reopen,
+     including a new command-ID alias, without another profile/CAS read or
+     effect; semantic/key conflicts retain A1.5 precedence.
+  6. Confirm the SQLite server returns no v2 provider/store/runtime/session,
+     writes no semantic startup state, and adds no HTTP, launcher, MCP, gateway,
+     resource, or UI exposure; legacy 33/30 and 19/4 or 30/5 remain exact.
+- **Platform/evidence:** non-visual Application/Persistence/Authority review;
+  no browser, viewport, device, gameplay, or live-workspace acceptance gate.
+  Local evidence is 183/183 focused, 310/310 conservatively expanded,
+  492/492 full Studio, and 145/145 JavaScript syntax files. Production-adapter
+  evidence is `VERIFIED` at protected hash
+  `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`;
+  64/64 Markdown links, checker self-tests, and full tracked-plus-new-file
+  `git diff --check` pass. Exact local classification is `docs=true`,
+  `docs_only=false`, `root=false`, `root_visual=false`, `studio=true`,
+  `studio_visual=true`, `studio_windows=true`, `pages=false`, `full=false` over
+  22 paths; the L3 PR still uses `[ci-full]`. Five independent actual-diff
+  reviews for Security/Authority, Compatibility/MCP, Domain/Application,
+  Persistence/Recovery, and QA/Docs are **GO** with no open findings. CI facts
+  must be appended only after those gates complete.
+- **Lifecycle evidence boundary:** the hidden runtime's active-operation drain
+  is source-reviewed in A1.6b2a, while this block behaviorally probes idle
+  startup/shutdown only. A bounded in-flight shutdown probe belongs to A1.6b2b,
+  once the transport supplies a callable operation without exposing a test-only
+  production backdoor.
+- **Known limits:** private server composition only; no callable route,
+  handshake, adoption MCP tool, capabilities resource, 31/6 discovery,
+  transport audit, public UI, Main/CP2C mutation, owner review/merge/lifecycle,
+  materialization, publication, or end-to-end `IMG-006`. A1.6b2b remains the
+  separate transport/exposure block.
+- **Open Klaus decision:** accept or revise the private one-shot API, repeated
+  full admission for capabilities/dry-run, and the explicit exception that
+  commit enters current-host-bound A1.5 directly so exhausted-budget
+  lost-response replay remains recoverable. Automation cannot answer this
+  product-contract decision.
+- **Recovery:** A1.6b2a adds no migration or durable state. Revert the focused
   candidate; no database downgrade, backup restore, CAS cleanup, task repair,
   audit repair, or fixture deletion is required.
 

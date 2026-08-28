@@ -40,6 +40,9 @@ import {
   PROCESSING_ADOPTION_TASK_BRANCH_PREFLIGHT_READER_KIND,
   PROCESSING_ADOPTION_TASK_BRANCH_PREFLIGHT_READER_SCHEMA_VERSION,
 } from '../../../application/src/processing-result-adoption.js';
+import {
+  PROCESSING_RESULT_ADOPTION_HOST_BOUND_ATOMIC_STORE_KIND,
+} from '../../../application/src/processing-result-adoption-commit.js';
 import { ContentAddressedArtifactStore } from '../artifacts/content-addressed-artifact-store.js';
 import {
   assertCurrentHostBinding,
@@ -712,7 +715,7 @@ function closedPlanningBranchHead(database, row, projectId, expectedRevision = n
   return { document, head };
 }
 
-function planningAuthorityEvidence(database, selection) {
+export function readProcessingAdoptionPlanningAuthorityEvidence(database, selection) {
   const projectId = requireId(selection?.projectId, 'selection.projectId');
   const taskId = requireId(selection?.taskId, 'selection.taskId');
   const branchId = requireId(selection?.branchId, 'selection.branchId');
@@ -1023,7 +1026,7 @@ export class SqliteProcessingResultAdoptionStore {
     const admission = captureHostBindingAdmission(trustedBinding);
     return Object.freeze({
       schemaVersion: PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION,
-      kind: PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_KIND,
+      kind: PROCESSING_RESULT_ADOPTION_HOST_BOUND_ATOMIC_STORE_KIND,
       commitProcessingResultAdoption: (command, trustedContext, options) => (
         store.#commitProcessingResultAdoption(command, trustedContext, options, admission)
       ),
@@ -1038,7 +1041,7 @@ export class SqliteProcessingResultAdoptionStore {
         kind: PROCESSING_ADOPTION_TASK_AUTHORITY_READER_KIND,
         readTaskAuthority: (selection, { signal } = {}) => {
           signal?.throwIfAborted();
-          return planningAuthorityEvidence(store.#workspace.database, selection);
+          return readProcessingAdoptionPlanningAuthorityEvidence(store.#workspace.database, selection);
         },
       }),
       taskBranchPreflightReader: Object.freeze({

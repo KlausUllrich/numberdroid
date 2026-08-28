@@ -22,6 +22,7 @@ import {
 import {
   FixedProjectCapabilityProvider,
   ProcessingResultAdoptionCommitService,
+  ProcessingResultAdoptionHostBoundCommitService,
 } from '../packages/application/src/index.js';
 import { fingerprint } from '../packages/application/src/value-utils.js';
 import {
@@ -450,7 +451,7 @@ function hostBoundCommitService(value, { expiresAt = EXPIRES_AT } = {}) {
     binding,
     bindingStore: hostBindingStore,
     issued,
-    service: new ProcessingResultAdoptionCommitService({
+    service: new ProcessingResultAdoptionHostBoundCommitService({
       atomicStore: value.atomicStore.asHostBoundAtomicStore(binding),
     }),
   };

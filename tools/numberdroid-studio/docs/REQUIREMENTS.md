@@ -86,7 +86,7 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **IMG-008.** Project capability manifests MAY restrict formats, dimensions, color/alpha rules, frame layouts, or codecs. Unsupported processing MUST fail visibly before candidate creation.
 
 **Implementation status (2026-08-28): the bounded A1.0, A1.1, and A1.2
-contracts are explicitly user-accepted; A1.3, A1.4, A1.5, A1.6a, and A1.6b1
+contracts are explicitly user-accepted; A1.3, A1.4, A1.5, A1.6a, A1.6b1, and A1.6b2a
 are implemented candidates and are not user-accepted.** A1.0 supplies the fail-closed
 `ProcessingRecipe` schema and projection for the accepted exact-PNG crop
 processor. A1.1 adds a pure
@@ -124,14 +124,20 @@ Authoring-v2 command feature, the exact additive 31-scope vocabulary,
 Numberdroid profile v2, trusted task/grant provisioning support, and real
 read-only SQLite/CAS
 planning ports. The default 33/30 catalogs, profile v1, and MCP 19/4 or 30/5
-surfaces remain exact; no server, launcher, HTTP, UI, or MCP composition selects
-the v2 prerequisites. Its real dry-run can therefore prove `READY` or current
+surfaces remain exact; at the A1.6a boundary no server, launcher, HTTP, UI, or
+MCP composition selected the v2 prerequisites. Its real dry-run can therefore prove `READY` or current
 blockers without writing, retaining, or charging, but it is not yet a callable
 agent surface. A1.6b1 additionally closes current Grant liveness in strict
 HostBinding resolution and supplies an unwired host-bound atomic port that
 checks Binding/Grant before replay and again inside the A1.5 transaction. It
 also keeps existing audited generic/specialized MCP execution live-binding-only
 after nonauthorizing denial attribution, without adding a discovery or callable
+surface. A1.6b2a composes the exact profile-v2 admission, real A1.4 dry-run,
+and separately typed host-bound A1.5 commit behind a private one-shot server
+session. Capability/dry-run repeats full current admission around asynchronous
+work; commit deliberately enters the host-bound ledger-first store directly so
+lost-response replay survives an exhausted one-command budget. The production
+runtime is module-private and adds no HTTP/MCP/UI/launcher or returned server
 surface. Therefore `IMG-001`–`IMG-008` remain unsatisfied end to end
 despite the private persistence and planning evidence.
 

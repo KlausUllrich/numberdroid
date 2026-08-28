@@ -273,9 +273,9 @@ commit is neither an owner decision nor review/merge/lifecycle authority.
 A1.6a now supplies only private prerequisites: one separately typed command
 feature over 33 legacy definitions, the exact 31-scope vocabulary, additive
 Numberdroid profile v2, trusted task/grant catalog injection, and real read-only
-SQLite/CAS A1.4 planning ports. No server,
-launcher, HostBinding, HTTP, UI, or MCP composition selects them, so accepted
-19/4 and matching-task 30/5 discovery remain exact. A1.6b2 must expose the
+SQLite/CAS A1.4 planning ports. At the A1.6a boundary no server,
+launcher, HostBinding, HTTP, UI, or MCP composition selected them, so accepted
+19/4 and matching-task 30/5 discovery remain exact. A1.6b2b must expose the
 callable adoption surface only after a server-validated v2 task/grant/branch/
 profile/store handshake, with exactly 31 tools/six resource templates for that
 matching v2 task. `dryRun: true` maps to A1.4 planning and `dryRun: false` maps
@@ -287,7 +287,14 @@ mutation transaction. Existing audited generic and specialized bridges use a
 nonauthorizing subject only for denial/failure attribution; strict live
 resolution alone supplies dispatch identity, with one correlation across both
 phases. It adds no tool, resource, route, launcher selector, or
-discovery change; A1.6b2 remains the transport/exposure block.
+discovery change. Candidate-only A1.6b2a now composes the profile-v2 admission,
+real A1.4 dry-run, and separately typed host-bound A1.5 commit behind a private
+one-shot server session. Full admission surrounds capability/dry-run reads;
+commit enters the host-bound ledger-first store directly so lost-response
+replay survives exhausted budget. The runtime remains module-private and adds
+no route, tool, resource, launcher, gateway, UI, or discovery change. A1.6b2b
+remains the transport/exposure block that must positively handshake and expose
+exactly 31/six.
 
 `studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 

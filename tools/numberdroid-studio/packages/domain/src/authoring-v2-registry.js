@@ -1,12 +1,14 @@
 import {
   PROCESSING_ADOPTION_PREFLIGHT_OPERATION_ID,
   PROCESSING_ADOPTION_PREFLIGHT_OPERATION_VERSION,
+  validateProcessingAdoptionCapabilityManifest,
 } from './processing-adoption-preflight.js';
 import {
   PROCESSING_RESULT_ADOPTION_COMMAND_TYPE,
   PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE,
 } from './processing-result-adoption.js';
 import { KNOWN_GRANT_SCOPES } from './command-catalog.js';
+import { invariant } from './errors.js';
 
 export const AUTHORING_V2_SCHEMA_VERSION = 2;
 export const AUTHORING_V2_FEATURE_ID = 'studio.authoring-v2';
@@ -43,6 +45,16 @@ export const AUTHORING_V2_COMMAND_FEATURES = deepFreeze([
 export const AUTHORING_V2_PRIVATE_GRANT_SCOPES = deepFreeze([
   PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE,
 ]);
+
+export function validateAuthoringV2CapabilityManifest(value) {
+  const manifest = validateProcessingAdoptionCapabilityManifest(value);
+  invariant(
+    manifest.profileVersion === 2,
+    'AUTHORING_V2_CAPABILITY_MANIFEST_INVALID',
+    'Authoring v2 requires an exact profile-v2 processing-adoption capability manifest.',
+  );
+  return manifest;
+}
 
 export function listAuthoringV2GrantScopes() {
   return structuredClone([...KNOWN_GRANT_SCOPES, ...AUTHORING_V2_PRIVATE_GRANT_SCOPES]);

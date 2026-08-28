@@ -23,6 +23,7 @@ export { SqliteArtifactMetadataStore } from './sqlite/sqlite-artifact-metadata-s
 export { SqliteAgentAttemptStore } from './sqlite/sqlite-agent-attempt-store.js';
 export { SqliteAgentTaskStore, TaskBranchProjectStore } from './sqlite/sqlite-agent-task-store.js';
 export { SqliteHostBindingStore } from './sqlite/sqlite-host-binding-store.js';
+export { SqliteAuthoringV2AdmissionReader } from './sqlite/sqlite-authoring-v2-admission-reader.js';
 export { SqliteJobStore } from './sqlite/sqlite-job-store.js';
 export { SqliteProjectStore } from './sqlite/sqlite-project-store.js';
 export {
