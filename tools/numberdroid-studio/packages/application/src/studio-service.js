@@ -40,6 +40,7 @@ import {
   requireString,
 } from '../../domain/src/validation.js';
 import { deepClone, deepFreeze, fingerprint } from './value-utils.js';
+import { validateTrustedGrantScopes } from './grant-scope-catalog.js';
 
 const PROJECT_STATUSES = ['draft', 'active', 'paused', 'in_review', 'archived'];
 const SOURCE_MEDIA_TYPES = ['image/png', 'image/webp'];
@@ -360,11 +361,11 @@ function assertAuthorized(command, snapshot, definition, now) {
   }
 }
 
-function validateScopes(value) {
+function validateScopes(value, allowedGrantScopes) {
   invariant(Array.isArray(value) && value.length > 0, 'VALIDATION_ERROR', 'scopes must be a non-empty array.');
   const scopes = [...new Set(value.map((scope, index) => requireString(scope, `scopes[${index}]`, { max: 100 })))];
   for (const scope of scopes) {
-    invariant(KNOWN_GRANT_SCOPES.includes(scope), 'VALIDATION_ERROR', `Unknown grant scope: ${scope}.`, { scope });
+    invariant(allowedGrantScopes.includes(scope), 'VALIDATION_ERROR', `Unknown grant scope: ${scope}.`, { scope });
   }
   return scopes.sort();
 }
@@ -946,6 +947,7 @@ function applyCommand(command, snapshot, now, {
   preparedAssetProposal = null,
   preparedRoomProposal = null,
   projectDocument = null,
+  grantScopes = KNOWN_GRANT_SCOPES,
 } = {}) {
   const payload = command.payload;
   const next = deepClone(snapshot);
@@ -974,7 +976,7 @@ function applyCommand(command, snapshot, now, {
         agentId: requireId(payload.agentId, 'payload.agentId'),
         taskId,
         branchId: requireId(payload.branchId, 'payload.branchId'),
-        scopes: validateScopes(payload.scopes),
+        scopes: validateScopes(payload.scopes, grantScopes),
         objectScopes: validateObjectScopes(payload.objectScopes),
         budget: validateBudget(payload.budget),
         usage: { commands: 0, jobs: 0, artifactBytes: 0, costCents: 0 },
@@ -2202,6 +2204,7 @@ export class StudioService {
   #agentAttemptAuditReady;
   #jobStore;
   #capabilityProvider;
+  #grantScopes;
 
   constructor({
     store,
@@ -2209,6 +2212,7 @@ export class StudioService {
     agentAttemptAuditReady = false,
     jobStore = null,
     capabilityProvider = null,
+    grantScopes = KNOWN_GRANT_SCOPES,
   }) {
     invariant(store, 'VALIDATION_ERROR', 'A ProjectStore is required.');
     this.#store = store;
@@ -2216,6 +2220,7 @@ export class StudioService {
     this.#agentAttemptAuditReady = agentAttemptAuditReady === true;
     this.#jobStore = jobStore;
     this.#capabilityProvider = validateProjectCapabilityProvider(capabilityProvider);
+    this.#grantScopes = validateTrustedGrantScopes(grantScopes);
   }
 
   get commandCatalog() {
@@ -2349,6 +2354,7 @@ export class StudioService {
       preparedAssetProposal,
       preparedRoomProposal,
       projectDocument: existing,
+      grantScopes: this.#grantScopes,
     });
     const revision = createRevision({
       command,

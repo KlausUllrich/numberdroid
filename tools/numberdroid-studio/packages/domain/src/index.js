@@ -1,5 +1,13 @@
 export { COMMAND_DEFINITIONS, KNOWN_GRANT_SCOPES, getCommandDefinition, listCommandDefinitions } from './command-catalog.js';
 export {
+  AUTHORING_V2_COMMAND_FEATURES,
+  AUTHORING_V2_FEATURE_ID,
+  AUTHORING_V2_PRIVATE_GRANT_SCOPES,
+  AUTHORING_V2_PROCESSING_RESULT_ADOPTION_TOOL,
+  AUTHORING_V2_SCHEMA_VERSION,
+  listAuthoringV2GrantScopes,
+} from './authoring-v2-registry.js';
+export {
   ATLAS_PROCESSOR_ID,
   MAX_ATLAS_INPUT_BYTES,
   MAX_ATLAS_OUTPUT_BYTES,

@@ -23,7 +23,7 @@ primary visual. No slice adds a persisted processing workflow, semantic
 adoption command, or new pixel operation. See the [A1.0 status](docs/A1_0_STATUS.md),
 [A1.1 status](docs/A1_1_STATUS.md), and [A1.2 status](docs/A1_2_STATUS.md).
 
-A1.3, A1.4, and A1.5 are now **implemented candidates and are not
+A1.3, A1.4, A1.5, and A1.6a are now **implemented candidates and are not
 user-accepted**.
 A1.3's read-only project-bound receipt closes Recipe → Result → Selection, an
 exact dedicated capability operation, registered-plus-physical CAS
@@ -38,13 +38,18 @@ holds exact CAS byte evidence through one SQLite transaction, and persists a
 DRAFT processing Asset projection, immutable Aggregate/replay result, two
 role-bearing retention references, Activity, and one branch command charge with
 fault/restart/integrity/backup evidence.
-The new type is intentionally absent from the accepted command catalog and
-grant scopes; no current task can receive or execute it. None of the three adds
-public dispatch, a Numberdroid profile-v2 adapter, MCP/HTTP/UI surface, a new
-pixel operation, Main/CP2C mutation, or owner/release authority. See the
+The new type remains absent from the accepted 33-command catalog and 30-scope
+grant vocabulary. A1.6a adds one separately typed Authoring-v2 command feature,
+the exact additive 31-scope vocabulary, Numberdroid profile v2, trusted
+task/grant provisioning support, and real effect-free SQLite/CAS planning
+ports. No server, launcher, HostBinding, MCP, HTTP, or UI composition selects
+them, so no current client can receive or execute the new path. None of the
+four adds a new pixel operation, Main/CP2C mutation, or owner/release authority.
+See the
 [A1.3 candidate status](docs/A1_3_STATUS.md) and
 [A1.4 candidate status](docs/A1_4_STATUS.md), plus the
-[A1.5 persistence candidate status](docs/A1_5_STATUS.md). A1.6 separately
+[A1.5 persistence candidate status](docs/A1_5_STATUS.md) and
+[A1.6a prerequisite candidate status](docs/A1_6A_STATUS.md). A1.6b separately
 versioned Authoring-v2 exposure is the next planned bounded Artist block. The
 operations O0/O1 lane is independent and retains its own gates.
 
@@ -52,10 +57,10 @@ Checkpoint 2B acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb89
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.5, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
+| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.6a, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Accepted source/asset/room/task foundations plus candidate list-first tasks, useful prop previews, and persistent-canvas rectangle/irregular-room authoring |
-| Agent access | Public discovery remains 19 tools/four templates without a task and 30 tools/five templates for a matching task branch; the private schema-v13 candidate adds no callable surface. The target requires MCP parity for all ordinary authoring through a separately versioned, feature-gated surface; authority, owner review, merge, materialization, and publication remain human-only. |
+| Agent access | Public discovery remains 19 tools/four templates without a task and 30 tools/five templates for a matching task branch; private A1.5/A1.6a seams add no callable surface. A1.6b must positively handshake the separately versioned feature before exposing 31/six; authority, owner review, merge, materialization, and publication remain human-only. |
 | Persistence | SQLite schema v13 WAL ledger with normalized immutable shape cells plus private branch-local processing-adoption lineage/retention; sanitized portable bundles remain v1/v2 and v3 only for masked rooms |
 | Numberdroid export | Dependent CP5 candidate-only snapshot/adapter/compiler foundation; no persistence/approval UI, materialization, commit, or publishing authority yet |
 
@@ -216,6 +221,7 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [A1.3 project-bound adoption preflight candidate](docs/A1_3_STATUS.md)
 - [A1.4 processing-result adoption planning candidate](docs/A1_4_STATUS.md)
 - [A1.5 processing-result adoption persistence candidate](docs/A1_5_STATUS.md)
+- [A1.6a Authoring-v2 prerequisites candidate](docs/A1_6A_STATUS.md)
 - [Checkpoint 3 frozen implementation contract](docs/CHECKPOINT_3_CONTRACT.md)
 
 These current product documents are normative for the Studio implementation. If
