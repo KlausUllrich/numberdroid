@@ -239,10 +239,11 @@ own ID only after implementation exists. Planned work is not a candidate.
 ## VT-005 — A1.4 processing-result adoption planning
 
 - **Implementation:** focused A1.4 candidate based on verified `main`
-  `1482a4ae1df450900e37209d0fc09c1ddfc831c3`. Exact command, semantic,
-  lineage, receipt, and plan fixture hashes are in `A1_4_STATUS.md`. PR, source
-  integration, and Actions facts will be appended at candidate closure; none
-  can close the user decision.
+  `1482a4ae1df450900e37209d0fc09c1ddfc831c3`. PR #152 implementation head
+  `8a2f372226add6a4ff3435a8ab5414e27035be17` was source-integrated into
+  `main` as `30de2527f607b7c3a899aad75d36e174872bbc49`. Exact command, semantic,
+  lineage, receipt, plan, and reviewed-diff hashes are in `A1_4_STATUS.md`.
+  Source integration and Actions do not close the user decision.
 - **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-004 because the plan
   deliberately repeats A1.3 rather than treating its receipt as authority.
 - **Safe fixture/reset:** no Studio workspace, database, CAS directory, server,
@@ -299,9 +300,14 @@ own ID only after implementation exists. Planned work is not a candidate.
   `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`;
   links, classifier self-test, link-checker self-test, and diff check pass. The
   exact classifier selects Studio, browser evidence, and Windows while leaving
-  root, Pages, and full false. Independent review, PR, and post-merge facts are
-  recorded only after those gates complete. Conservative browser/Windows CI
-  does not imply new UI or visual acceptance.
+  root, Pages, and full false. Independent QA, Security/Authority, Domain,
+  CAS/Atomicity, and Compatibility reviews all reported GO. PR Actions run
+  [33156327525](https://github.com/KlausUllrich/numberdroid/actions/runs/33156327525)
+  and post-merge `main` run
+  [33156739135](https://github.com/KlausUllrich/numberdroid/actions/runs/33156739135)
+  passed the classifier, Linux Studio including browser evidence, Windows
+  Studio, and CI gate; root, Pages, and full jobs were correctly skipped.
+  Conservative browser/Windows CI does not imply new UI or visual acceptance.
 - **Known limits:** read ports and test fakes only; no command/scope
   registration, production Task/Grant/preflight adapter, Numberdroid profile
   v2, persistence, mutation, transaction, reference/Activity/idempotency/budget
