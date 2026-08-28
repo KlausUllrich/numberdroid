@@ -28,6 +28,7 @@ import {
   ContentAddressedArtifactStore,
   SqliteAgentTaskStore,
   SqliteArtifactMetadataStore,
+  SqliteHostBindingStore,
   SqliteProcessingResultAdoptionStore,
   SqliteProjectStore,
   createWorkspaceBackup,
@@ -214,6 +215,7 @@ function adoptionCommand({
   inputArtifact,
   outputArtifact,
   baseRevision,
+  projectId = PROJECT_ID,
   operation = 'create',
   commandId = `command.adopt.${baseRevision}`,
   idempotencyKey = `idempotency.adopt.${baseRevision}`,
@@ -265,7 +267,7 @@ function adoptionCommand({
   const request = {
     schemaVersion: 1,
     kind: PROCESSING_ADOPTION_PREFLIGHT_REQUEST_KIND,
-    project: { projectId: PROJECT_ID, expectedRevision: baseRevision },
+    project: { projectId, expectedRevision: baseRevision },
     processingRecipe: recipe,
     processingResult,
     assetInputSelection,
@@ -291,7 +293,7 @@ function adoptionCommand({
     commandId,
     idempotencyKey,
     type: PROCESSING_RESULT_ADOPTION_COMMAND_TYPE,
-    projectId: PROJECT_ID,
+    projectId,
     baseRevision,
     expectedVersion: baseRevision,
     payload: {
@@ -301,7 +303,11 @@ function adoptionCommand({
   };
 }
 
-async function fixture(context, { faultPoint = null, sameDigest = false } = {}) {
+async function fixture(context, {
+  faultPoint = null,
+  sameDigest = false,
+  atomicClock = () => COMMITTED_AT,
+} = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-processing-adoption-'));
   afterTestCleanup(context, () => rm(directory, { recursive: true, force: true }));
   const fault = { armed: false, point: faultPoint };
@@ -384,7 +390,7 @@ async function fixture(context, { faultPoint = null, sameDigest = false } = {}) 
     capabilityProvider,
     clock: () => {
       dependencyCalls.clock += 1;
-      return COMMITTED_AT;
+      return atomicClock();
     },
   });
   const service = new ProcessingResultAdoptionCommitService({ atomicStore: atomicStore.asAtomicStore() });
@@ -425,6 +431,31 @@ async function committedCreateFixture(context) {
   return value;
 }
 
+function hostBoundCommitService(value, { expiresAt = EXPIRES_AT } = {}) {
+  const hostBindingStore = new SqliteHostBindingStore({
+    workspace: value.projectStore.workspace,
+    clock: () => COMMITTED_AT,
+  });
+  const issued = hostBindingStore.issue({
+    projectId: PROJECT_ID,
+    grantId: GRANT_ID,
+    agentId: AGENT.id,
+    taskId: TASK_ID,
+    branchId: BRANCH_ID,
+    issuedBy: OWNER.id,
+    expiresAt,
+  });
+  const binding = hostBindingStore.resolve(issued.token);
+  return {
+    binding,
+    bindingStore: hostBindingStore,
+    issued,
+    service: new ProcessingResultAdoptionCommitService({
+      atomicStore: value.atomicStore.asHostBoundAtomicStore(binding),
+    }),
+  };
+}
+
 async function assertTaskIntegrityFinding(value, code, predicate = () => true) {
   const integrity = await verifyWorkspaceIntegrity({
     projectStore: value.projectStore,
@@ -461,6 +492,269 @@ function durableTaskBranchState(database) {
     `).all(PROJECT_ID, TASK_ID),
   });
 }
+
+test('host-bound atomic admission rejects hostile captures without invoking traps or accessors', async (context) => {
+  const value = await fixture(context);
+  const { binding } = hostBoundCommitService(value);
+  let trapCalls = 0;
+  const proxy = new Proxy({}, {
+    get() { trapCalls += 1; throw new Error('private trap'); },
+    getOwnPropertyDescriptor() { trapCalls += 1; throw new Error('private trap'); },
+    getPrototypeOf() { trapCalls += 1; throw new Error('private trap'); },
+    ownKeys() { trapCalls += 1; throw new Error('private trap'); },
+  });
+  assert.throws(
+    () => value.atomicStore.asHostBoundAtomicStore(proxy),
+    (error) => error.code === 'HOST_BINDING_INVALID',
+  );
+  assert.equal(trapCalls, 0);
+
+  let getterCalls = 0;
+  const accessor = { ...binding };
+  Object.defineProperty(accessor, 'actor', {
+    enumerable: true,
+    get() { getterCalls += 1; throw new Error('private getter'); },
+  });
+  assert.throws(
+    () => value.atomicStore.asHostBoundAtomicStore(accessor),
+    (error) => error.code === 'HOST_BINDING_INVALID',
+  );
+  assert.equal(getterCalls, 0);
+});
+
+test('host-bound atomic admission rejects every command and execution-context coordinate drift before dependencies', async (context) => {
+  const value = await fixture(context);
+  const bound = hostBoundCommitService(value);
+  const command = adoptionCommand({
+    manifest: value.manifest,
+    inputArtifact: value.inputArtifact,
+    outputArtifact: value.firstOutputArtifact,
+    baseRevision: 2,
+  });
+  const before = durableTaskBranchState(value.projectStore.workspace.database);
+  const candidates = [
+    {
+      name: 'project',
+      command: adoptionCommand({
+        manifest: value.manifest,
+        inputArtifact: value.inputArtifact,
+        outputArtifact: value.firstOutputArtifact,
+        baseRevision: 2,
+        projectId: 'project.coordinate-drift',
+      }),
+      executionContext: value.contextValue,
+    },
+    {
+      name: 'actor',
+      command,
+      executionContext: { ...value.contextValue, actor: { ...value.contextValue.actor, id: 'agent.coordinate-drift' } },
+    },
+    {
+      name: 'task',
+      command,
+      executionContext: { ...value.contextValue, taskId: 'task.coordinate-drift' },
+    },
+    {
+      name: 'grant',
+      command,
+      executionContext: { ...value.contextValue, grantId: 'grant.coordinate-drift' },
+    },
+    {
+      name: 'branch',
+      command,
+      executionContext: { ...value.contextValue, branchId: 'branch.coordinate-drift' },
+    },
+  ];
+  for (const candidate of candidates) {
+    await assert.rejects(
+      bound.service.commit(candidate.command, candidate.executionContext),
+      (error) => error.code === 'HOST_BINDING_GRANT_MISMATCH',
+      candidate.name,
+    );
+  }
+  assert.equal(value.dependencyCalls.clock, 0);
+  assert.equal(value.capabilityProvider.calls, 0);
+  assert.equal(value.artifactStore.evidenceCalls, 0);
+  assert.equal(durableTaskBranchState(value.projectStore.workspace.database), before);
+});
+
+test('host-bound replay requires a currently live HostBinding and Grant before ledger lookup', async (context) => {
+  for (const candidate of [
+    {
+      name: 'HostBinding revoked',
+      code: 'HOST_BINDING_REVOKED',
+      revoke(value, bound) {
+        bound.bindingStore.revoke(bound.binding.bindingId, {
+          revokedBy: OWNER.id,
+          reason: 'replay admission test',
+        });
+      },
+    },
+    {
+      name: 'Grant revoked',
+      code: 'GRANT_REVOKED',
+      revoke(value) {
+        value.projectStore.workspace.database.prepare(`
+          UPDATE grants
+          SET authorization_status = 'REVOKED', status = 'REVOKED', revoked_at = ?
+          WHERE project_id = ? AND grant_id = ?
+        `).run(COMMITTED_AT, PROJECT_ID, GRANT_ID);
+      },
+    },
+  ]) {
+    await context.test(candidate.name, async (subtest) => {
+      const value = await fixture(subtest);
+      const bound = hostBoundCommitService(value);
+      const command = adoptionCommand({
+        manifest: value.manifest,
+        inputArtifact: value.inputArtifact,
+        outputArtifact: value.firstOutputArtifact,
+        baseRevision: 2,
+      });
+      const committed = await bound.service.commit(command, value.contextValue);
+      candidate.revoke(value, bound);
+      const beforeReplay = durableTaskBranchState(value.projectStore.workspace.database);
+      const capabilityCalls = value.capabilityProvider.calls;
+      const evidenceCalls = value.artifactStore.evidenceCalls;
+
+      await assert.rejects(
+        bound.service.commit(command, value.contextValue),
+        (error) => error.code === candidate.code,
+      );
+      assert.equal(durableTaskBranchState(value.projectStore.workspace.database), beforeReplay);
+      assert.equal(value.capabilityProvider.calls, capabilityCalls);
+      assert.equal(value.artifactStore.evidenceCalls, evidenceCalls);
+      assert.equal(committed.branchRevision, 3);
+    });
+  }
+});
+
+test('host-bound atomic admission rechecks HostBinding liveness inside the mutation UoW', async (context) => {
+  for (const candidate of ['capability', 'CAS']) {
+    await context.test(`revoked during ${candidate}`, async (subtest) => {
+      const value = await fixture(subtest);
+      const bound = hostBoundCommitService(value);
+      const command = adoptionCommand({
+        manifest: value.manifest,
+        inputArtifact: value.inputArtifact,
+        outputArtifact: value.firstOutputArtifact,
+        baseRevision: 2,
+      });
+      const database = value.projectStore.workspace.database;
+      const before = durableTaskBranchState(database);
+      let revoked = false;
+      const revoke = () => {
+        if (revoked) return;
+        revoked = true;
+        bound.bindingStore.revoke(bound.binding.bindingId, {
+          revokedBy: OWNER.id,
+          reason: `${candidate} race test`,
+        });
+      };
+      if (candidate === 'capability') {
+        const readCapability = value.capabilityProvider.getProjectCapabilityManifest
+          .bind(value.capabilityProvider);
+        value.capabilityProvider.getProjectCapabilityManifest = async (...arguments_) => {
+          const manifest = await readCapability(...arguments_);
+          revoke();
+          return manifest;
+        };
+      } else {
+        const verify = value.artifactStore.withVerifiedPngEvidence.bind(value.artifactStore);
+        value.artifactStore.withVerifiedPngEvidence = (digest, operation) => (
+          verify(digest, async (evidence) => {
+            revoke();
+            return operation(evidence);
+          })
+        );
+      }
+
+      await assert.rejects(
+        bound.service.commit(command, value.contextValue),
+        (error) => error.code === 'HOST_BINDING_REVOKED',
+      );
+      assert.equal(revoked, true);
+      assert.equal(durableTaskBranchState(database), before);
+      assert.equal(Number(database.prepare(`
+        SELECT COUNT(*) AS count FROM task_branch_processing_result_adoptions
+        WHERE project_id = ? AND task_id = ?
+      `).get(PROJECT_ID, TASK_ID).count), 0);
+    });
+  }
+});
+
+test('host-bound transaction clock rejects Binding or Grant expiry crossed during dependency work', async (context) => {
+  for (const candidate of [
+    { name: 'HostBinding expiry', bindingExpiresAt: EXPIRES_AT, code: 'HOST_BINDING_EXPIRED' },
+    { name: 'Grant expiry', bindingExpiresAt: null, code: 'GRANT_EXPIRED' },
+  ]) {
+    await context.test(candidate.name, async (subtest) => {
+      let clockReads = 0;
+      const value = await fixture(subtest, {
+        atomicClock() {
+          clockReads += 1;
+          return clockReads === 1 ? COMMITTED_AT : EXPIRES_AT;
+        },
+      });
+      const bound = hostBoundCommitService(value, { expiresAt: candidate.bindingExpiresAt });
+      const command = adoptionCommand({
+        manifest: value.manifest,
+        inputArtifact: value.inputArtifact,
+        outputArtifact: value.firstOutputArtifact,
+        baseRevision: 2,
+      });
+      const before = durableTaskBranchState(value.projectStore.workspace.database);
+
+      await assert.rejects(
+        bound.service.commit(command, value.contextValue),
+        (error) => error.code === candidate.code,
+      );
+      assert.ok(clockReads >= 2);
+      assert.equal(durableTaskBranchState(value.projectStore.workspace.database), before);
+      assert.equal(Number(value.projectStore.workspace.database.prepare(`
+        SELECT COUNT(*) AS count FROM task_branch_processing_result_adoptions
+        WHERE project_id = ? AND task_id = ?
+      `).get(PROJECT_ID, TASK_ID).count), 0);
+    });
+  }
+});
+
+test('host-bound transaction admission runs before a concurrently committed replay', async (context) => {
+  const value = await fixture(context);
+  const bound = hostBoundCommitService(value);
+  const command = adoptionCommand({
+    manifest: value.manifest,
+    inputArtifact: value.inputArtifact,
+    outputArtifact: value.firstOutputArtifact,
+    baseRevision: 2,
+  });
+  const readCapability = value.capabilityProvider.getProjectCapabilityManifest
+    .bind(value.capabilityProvider);
+  let injected = false;
+  let concurrentlyCommitted = null;
+  let stateAfterConcurrentCommit = null;
+  value.capabilityProvider.getProjectCapabilityManifest = async (...arguments_) => {
+    const manifest = await readCapability(...arguments_);
+    if (!injected) {
+      injected = true;
+      concurrentlyCommitted = await value.service.commit(command, value.contextValue);
+      bound.bindingStore.revoke(bound.binding.bindingId, {
+        revokedBy: OWNER.id,
+        reason: 'concurrent replay admission test',
+      });
+      stateAfterConcurrentCommit = durableTaskBranchState(value.projectStore.workspace.database);
+    }
+    return manifest;
+  };
+
+  await assert.rejects(
+    bound.service.commit(command, value.contextValue),
+    (error) => error.code === 'HOST_BINDING_REVOKED',
+  );
+  assert.equal(concurrentlyCommitted.status, 'COMMITTED');
+  assert.equal(concurrentlyCommitted.branchRevision, 3);
+  assert.equal(durableTaskBranchState(value.projectStore.workspace.database), stateAfterConcurrentCommit);
+});
 
 test('SQLite adoption commits create/update lineage atomically and replay never revalidates CAS', async (context) => {
   const value = await fixture(context);

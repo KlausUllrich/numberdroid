@@ -133,6 +133,93 @@ test('HostBindings persist only a digest and resolve exact grant authority', asy
   assert.doesNotMatch(JSON.stringify(visible), /grant\.atlas|token/);
 });
 
+test('HostBinding resolution closes current Grant status, expiry, and coordinates', async (context) => {
+  const cases = [
+    {
+      name: 'revoked grant',
+      code: 'GRANT_REVOKED',
+      visibleStatus: 'REVOKED',
+      update: `
+        UPDATE grants
+        SET authorization_status = 'REVOKED', status = 'REVOKED',
+          revoked_at = '2026-08-21T12:00:09.000Z'
+        WHERE project_id = ? AND grant_id = ?
+      `,
+    },
+    {
+      name: 'legacy-unbound grant',
+      code: 'GRANT_REQUIRED',
+      visibleStatus: 'REVOKED',
+      update: `
+        UPDATE grants
+        SET authorization_status = 'LEGACY_UNBOUND', status = 'LEGACY_UNBOUND'
+        WHERE project_id = ? AND grant_id = ?
+      `,
+    },
+    {
+      name: 'expired grant',
+      code: 'GRANT_EXPIRED',
+      visibleStatus: 'EXPIRED',
+      update: `
+        UPDATE grants
+        SET authorization_status = 'ACTIVE', status = 'ACTIVE',
+          expires_at = '2026-08-21T12:00:09.000Z'
+        WHERE project_id = ? AND grant_id = ?
+      `,
+    },
+    {
+      name: 'grant status drift',
+      code: 'GRANT_REVOKED',
+      visibleStatus: 'REVOKED',
+      update: `
+        UPDATE grants
+        SET status = 'REVOKED'
+        WHERE project_id = ? AND grant_id = ?
+      `,
+    },
+    {
+      name: 'grant coordinate drift',
+      code: 'HOST_BINDING_GRANT_MISMATCH',
+      visibleStatus: null,
+      update: `
+        UPDATE grants
+        SET agent_id = 'agent.drifted'
+        WHERE project_id = ? AND grant_id = ?
+      `,
+    },
+  ];
+  for (const candidate of cases) {
+    await context.test(candidate.name, async (subtest) => {
+      const { store, bindingStore } = await fixture(subtest);
+      const issued = bindingStore.issue({
+        projectId: PROJECT_ID,
+        grantId: 'grant.atlas',
+        agentId: AGENT.id,
+        taskId: 'task.atlas',
+        branchId: 'branch.task.atlas',
+        issuedBy: OWNER.id,
+      });
+      store.workspace.database.prepare(candidate.update).run(PROJECT_ID, 'grant.atlas');
+      assert.throws(
+        () => bindingStore.resolve(issued.token),
+        (error) => error.code === candidate.code,
+      );
+      if (candidate.visibleStatus !== null) {
+        assert.equal(bindingStore.listForProject(PROJECT_ID)[0].status, candidate.visibleStatus);
+        const attemptSubject = bindingStore.resolveAttemptSubject(issued.token);
+        assert.equal(attemptSubject.kind, 'studio.host-binding-attempt-subject');
+        assert.equal(attemptSubject.authorization, 'NOT_GRANTED');
+        assert.equal(attemptSubject.projectId, PROJECT_ID);
+      } else {
+        assert.throws(
+          () => bindingStore.resolveAttemptSubject(issued.token),
+          (error) => error.code === candidate.code,
+        );
+      }
+    });
+  }
+});
+
 test('private loopback bridge resolves HostBinding per call and revocation blocks the next call', async (context) => {
   const { studio, bindingStore } = await fixture(context);
   const issued = bindingStore.issue({
@@ -335,6 +422,10 @@ test('human UI authorizes a private pending MCP host without receiving its crede
   assert.equal(revoke.status, 200);
   assert.equal((await revoke.json()).bindingId, issued.binding.bindingId);
   assert.throws(() => bindingStore.resolve(token), (error) => error.code === 'HOST_BINDING_REVOKED');
+  assert.throws(
+    () => bindingStore.resolveAttemptSubject(token),
+    (error) => error.code === 'HOST_BINDING_REVOKED',
+  );
 
   const revokeReplay = await fetch(
     `${base}/api/projects/${PROJECT_ID}/agent-access/bindings/${encodeURIComponent(issued.binding.bindingId)}/revoke`,

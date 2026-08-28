@@ -275,12 +275,19 @@ feature over 33 legacy definitions, the exact 31-scope vocabulary, additive
 Numberdroid profile v2, trusted task/grant catalog injection, and real read-only
 SQLite/CAS A1.4 planning ports. No server,
 launcher, HostBinding, HTTP, UI, or MCP composition selects them, so accepted
-19/4 and matching-task 30/5 discovery remain exact. A1.6b must expose the
+19/4 and matching-task 30/5 discovery remain exact. A1.6b2 must expose the
 callable adoption surface only after a server-validated v2 task/grant/branch/
 profile/store handshake, with exactly 31 tools/six resource templates for that
 matching v2 task. `dryRun: true` maps to A1.4 planning and `dryRun: false` maps
 to the A1.5 atomic commit. Client or environment claims can request but never
-create authority.
+create authority. Candidate-only A1.6b1 is the private admission prerequisite:
+strict HostBinding resolution now closes the current Grant, and an unwired
+host-bound A1.5 port checks Binding/Grant before replay and again inside the
+mutation transaction. Existing audited generic and specialized bridges use a
+nonauthorizing subject only for denial/failure attribution; strict live
+resolution alone supplies dispatch identity, with one correlation across both
+phases. It adds no tool, resource, route, launcher selector, or
+discovery change; A1.6b2 remains the transport/exposure block.
 
 `studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 

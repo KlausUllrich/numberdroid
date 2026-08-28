@@ -88,9 +88,11 @@ not constitute Klaus's contract acceptance.
   lifecycle promotion, finalization, materialization, repository write,
   release, or publication authority.
 
-## Explicitly deferred to A1.6b
+## Explicitly deferred to A1.6b2
 
-A1.6b is a separate transport/composition candidate. It must leave both legacy
+A1.6b1 subsequently closed the private current HostBinding/Grant admission
+prerequisite without exposing a transport. A1.6b2 is the separate
+transport/composition candidate. It must leave both legacy
 discovery surfaces exact and expose the new adoption tool only after a
 server-validated Authoring-v2 HostBinding/task/grant/branch/profile/store
 handshake. The candidate contract is exactly **31 tools/six resource
@@ -143,5 +145,5 @@ not change the candidate-only acceptance state.
 A1.6a adds no migration and its dry-run writes no workspace/CAS state. Source
 rollback is a focused revert of this candidate. No database downgrade, backup
 restore, CAS cleanup, task repair, or user-workspace reset is required. Any
-future A1.6b live composition must preserve A1.5's documented v13 backup and
+future A1.6b2 live composition must preserve A1.5's documented v13 backup and
 single-writer/maintenance recovery boundary.
