@@ -100,3 +100,11 @@ Local verification on 2026-08-27:
 Post-merge closure on `main`: GitHub Actions run `33108074689` passed the root
 build, Linux Studio tests and browser evidence, Windows Studio tests, and Pages
 deployment for merge commit `9763170061e8c7dc918141f6869cbce3ddf944b6`.
+
+The durable acceptance record was then committed as
+`bbb7ace8f47ceed8534f34fad90136931f1f68e1` and merged through PR #147 as
+`0592d90f7bcfd23c3c01df490ef92cb2ed212a37`. Final main run `33109124192`
+passed root build, Linux Studio tests/browser evidence, Windows Studio tests,
+and Pages deployment. This documentation closure records the already explicit
+user acceptance; it does not add code, broaden A1.2, or accept the full Artist
+workflow.

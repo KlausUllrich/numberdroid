@@ -4,7 +4,7 @@
 
 Numberdroid Studio is a local, agent-first authoring product with multiple clients, not a collection of editor scripts. A single application core owns semantic commands, policy evaluation, validation, revisions, and jobs. The visual app, MCP server, CLI, and future remote API are adapters to that core. [VISION.md](VISION.md) is the binding product direction.
 
-The architecture protects three future moves:
+The architecture protects four future moves:
 
 1. extraction from the Numberdroid repository into a standalone application;
 2. replacement or addition of presentation and transport layers without changing domain behavior;
@@ -457,7 +457,7 @@ GitHub integration receives files from a verified candidate manifest. It is down
 - Read resources enforce project and object scope, not only mutation tools.
 - Publish is a separate high-risk capability with short expiry and a complete preview/manifest.
 
-Checkpoint 1 threat-focused tests cover its implemented grant/HostBinding forgery and widening paths, expired/revoked grants, cross-project references, stale replay, idempotency collisions, artifact/path validation, size/hash failures, cancellation at the atomic boundary, and unauthorized reads. Checkpoint 2B extends that suite to immutable job authority, cross-task controls, retry ceilings, lease recovery/stale-worker races, cancellation/discard reference release, sanitized failures, atomic output promotion/apply/audit, shutdown quiescence, state-specific integrity, and backup snapshot consistency. The 2C candidate additionally covers recut binding, batch/version conflicts, per-item budgets, exact asset references, cross-project preview/query containment, bundle sanitation, tampered trees/semantics/blobs, destination atomicity, and nonauthorizing imported job history. Providers, branch review, Numberdroid export, and publish escalation remain later gates.
+Checkpoint 1 threat-focused tests cover its implemented grant/HostBinding forgery and widening paths, expired/revoked grants, cross-project references, stale replay, idempotency collisions, artifact/path validation, size/hash failures, cancellation at the atomic boundary, and unauthorized reads. Checkpoint 2B extends that suite to immutable job authority, cross-task controls, retry ceilings, lease recovery/stale-worker races, cancellation/discard reference release, sanitized failures, atomic output promotion/apply/audit, shutdown quiescence, state-specific integrity, and backup snapshot consistency. Accepted Checkpoint 2C additionally covers recut binding, batch/version conflicts, per-item budgets, exact asset references, cross-project preview/query containment, bundle sanitation, tampered trees/semantics/blobs, destination atomicity, and nonauthorizing imported job history. Accepted Checkpoint 4 covers isolated task branches, review, semantic conflict handling, merge, and compensating revert. Providers, the complete Numberdroid authoring-to-candidate path, candidate persistence/approval, materialization, and publish escalation remain later gates; the current CP5 candidate proves only the pure snapshot/adapter/compiler boundary.
 
 ## 13. Standalone extraction
 

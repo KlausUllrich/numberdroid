@@ -12,7 +12,10 @@ Checkpoint 1 is the accepted foundation, Checkpoint 2A was user-accepted on 2026
 
 The agent-first A0.1–A0.4 contracts are integrated but not user-accepted.
 A1.0, A1.1, and A1.2 were explicitly user-accepted on 2026-08-27 and merged in
-that order through PRs #144–#146. Their bounded contracts cover the accepted
+that order through PRs #144–#146. The separate acceptance record was committed
+as `bbb7ace8f47ceed8534f34fad90136931f1f68e1`, merged through PR #147 as
+`0592d90f7bcfd23c3c01df490ef92cb2ed212a37`, and verified by green main run
+`33109124192`. Their bounded contracts cover the accepted
 exact-PNG crop operation only: a pure recipe, a pure result record with
 recipe/processor/input/output evidence and structured findings, and immutable
 selection intent for one exact result output as a `surface`, `prop`, or `item`
@@ -20,7 +23,15 @@ primary visual. No slice adds a persisted processing workflow, semantic
 adoption command, or new pixel operation. See the [A1.0 status](docs/A1_0_STATUS.md),
 [A1.1 status](docs/A1_1_STATUS.md), and [A1.2 status](docs/A1_2_STATUS.md).
 
-Acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later commits `f116f25aed2f0a9d935de9061cf6492d3a56bef4` and `b9ce37e44fe3679b52b50dac6daf4e1a46024c1d` change only the `visualFixture`/test evidence harness; they do not change product behavior or reopen acceptance. Failed run `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and failed run `32572344465` (Studio job `97029542069`, isolating Chrome/CDP post-move pointer-capture bookkeeping) are invalid diagnostic evidence only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, and expires `2026-09-05T12:26:26Z`. Under Chrome `151.0.7922.137` at 1440×900 and 1060×900, it records zero runtime and visual errors and proves captured press, a same-pointer held move, deferred rendering, matching release/settlement/replacement, exact scroll/context retention, and telemetry cleanup. Run `32568108922` / artifact `9474639509` remain the product-repair evidence; run `32572870510` / artifact `9475808319` are the final post-acceptance closure evidence.
+The next bounded Artist-path candidate is A1.3: a read-only, project-bound
+adoption preflight that closes Recipe → Result → Selection, capability pins,
+CAS `LIVE` revalidation, findings policy, and exact Asset create/update plus
+metadata-version coordinates without mutating an Asset. It must add no
+migration, registered command, MCP/HTTP/UI
+surface, pixel operation, or owner/release authority. The operations O0/O1 lane
+is independent and retains its own gates.
+
+Checkpoint 2B acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later commits `f116f25aed2f0a9d935de9061cf6492d3a56bef4` and `b9ce37e44fe3679b52b50dac6daf4e1a46024c1d` change only the `visualFixture`/test evidence harness; they do not change product behavior or reopen acceptance. Failed run `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and failed run `32572344465` (Studio job `97029542069`, isolating Chrome/CDP post-move pointer-capture bookkeeping) are invalid diagnostic evidence only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, and expires `2026-09-05T12:26:26Z`. Under Chrome `151.0.7922.137` at 1440×900 and 1060×900, it records zero runtime and visual errors and proves captured press, a same-pointer held move, deferred rendering, matching release/settlement/replacement, exact scroll/context retention, and telemetry cleanup. Run `32568108922` / artifact `9474639509` remain the product-repair evidence; run `32572870510` / artifact `9475808319` are the final post-acceptance closure evidence.
 
 | Area | Current status |
 | --- | --- |
@@ -170,6 +181,7 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [MCP contract](docs/MCP_CONTRACT.md)
 - [Roadmap and user checkpoints](docs/ROADMAP.md)
 - [Operations, Remote Access & Mobile masterplan](docs/OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md)
+- [Consolidated return test backlog](docs/VACATION_TEST_BACKLOG.md)
 - [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
 - [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)
 - [Accepted Checkpoint 2A source workflow](docs/CHECKPOINT_2A_STATUS.md)
@@ -186,7 +198,13 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [Accepted A1.2 AssetInputSelection contract](docs/A1_2_STATUS.md)
 - [Checkpoint 3 frozen implementation contract](docs/CHECKPOINT_3_CONTRACT.md)
 
-These documents are normative for the Studio implementation. If code and documentation disagree, the discrepancy must be resolved explicitly; it must not become an accidental new contract.
+These current product documents are normative for the Studio implementation. If
+code and documentation disagree, the discrepancy must be resolved explicitly;
+it must not become an accidental new contract.
+
+Current task launch snapshot: [2026-08-28 autonomous execution handoff](../../docs/history/handoffs/HANDOFF_2026-08-28_NUMBERDROID_STUDIO_AUTONOMOUS_A1_EXECUTION.md).
+It is a historical handoff, not a product contract, and remains subordinate to
+newer current code and documentation.
 
 ## Safe reset and recovery
 
