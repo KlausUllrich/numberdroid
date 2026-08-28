@@ -12,13 +12,18 @@ async function fileHash(path) {
   return createHash('sha256').update(await readFile(path)).digest('hex');
 }
 
+function integrityFindingCount(integrity) {
+  return Object.values(integrity)
+    .filter((section) => section && Array.isArray(section.findings))
+    .reduce((count, section) => count + section.findings.length, 0);
+}
+
 export async function createWorkspaceBackup({ projectStore, artifactStore, destinationDirectory, clock = () => new Date().toISOString() }) {
   invariant(projectStore instanceof SqliteProjectStore, 'VALIDATION_ERROR', 'SqliteProjectStore is required.');
   invariant(artifactStore instanceof ContentAddressedArtifactStore, 'VALIDATION_ERROR', 'ContentAddressedArtifactStore is required.');
   const sourceIntegrity = await verifyWorkspaceIntegrity({ projectStore, artifactStore });
   invariant(sourceIntegrity.ok, 'BACKUP_SOURCE_INTEGRITY_FAILED', 'Live workspace failed semantic, CAS, or job integrity checks before backup.', {
-    findingCount: [sourceIntegrity.artifacts, sourceIntegrity.sourceIntakes, sourceIntegrity.agentAttempts, sourceIntegrity.jobs]
-      .reduce((count, section) => count + section.findings.length, 0),
+    findingCount: integrityFindingCount(sourceIntegrity),
   });
   const destination = resolve(destinationDirectory);
   await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
@@ -38,8 +43,7 @@ export async function createWorkspaceBackup({ projectStore, artifactStore, desti
       artifactStore: new ContentAddressedArtifactStore({ rootDirectory: artifactDirectory }),
     });
     invariant(snapshotIntegrity.ok, 'BACKUP_SNAPSHOT_INTEGRITY_FAILED', 'The immutable backup snapshot failed semantic, CAS, or job integrity checks.', {
-      findingCount: [snapshotIntegrity.artifacts, snapshotIntegrity.sourceIntakes, snapshotIntegrity.agentAttempts, snapshotIntegrity.jobs]
-        .reduce((count, section) => count + section.findings.length, 0),
+      findingCount: integrityFindingCount(snapshotIntegrity),
     });
   } finally {
     snapshotStore.close();
@@ -87,8 +91,7 @@ export async function verifyWorkspaceBackup(backupDirectory) {
   try {
     const snapshotIntegrity = await verifyWorkspaceIntegrity({ projectStore: snapshotStore, artifactStore: artifacts });
     invariant(snapshotIntegrity.ok, 'BACKUP_SNAPSHOT_INTEGRITY_FAILED', 'Backup failed semantic, CAS, or job integrity verification.', {
-      findingCount: [snapshotIntegrity.artifacts, snapshotIntegrity.sourceIntakes, snapshotIntegrity.agentAttempts, snapshotIntegrity.jobs]
-        .reduce((count, section) => count + section.findings.length, 0),
+      findingCount: integrityFindingCount(snapshotIntegrity),
     });
   } finally {
     snapshotStore.close();

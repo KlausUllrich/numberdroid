@@ -113,7 +113,14 @@ export class SqliteArtifactMetadataStore {
   }
 
   listReferencedDigests() {
-    return new Set(this.#workspace.database.prepare('SELECT DISTINCT digest FROM artifact_references ORDER BY digest')
+    const schemaVersion = Number(this.#workspace.database.prepare('PRAGMA user_version').get().user_version);
+    const sql = schemaVersion >= 13 ? `
+      SELECT digest FROM artifact_references
+      UNION
+      SELECT digest FROM task_branch_processing_result_artifact_references
+      ORDER BY digest
+    ` : 'SELECT DISTINCT digest FROM artifact_references ORDER BY digest';
+    return new Set(this.#workspace.database.prepare(sql)
       .all().map((row) => row.digest));
   }
 

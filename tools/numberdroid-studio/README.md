@@ -23,7 +23,8 @@ primary visual. No slice adds a persisted processing workflow, semantic
 adoption command, or new pixel operation. See the [A1.0 status](docs/A1_0_STATUS.md),
 [A1.1 status](docs/A1_1_STATUS.md), and [A1.2 status](docs/A1_2_STATUS.md).
 
-A1.3 and A1.4 are now **implemented candidates and are not user-accepted**.
+A1.3, A1.4, and A1.5 are now **implemented candidates and are not
+user-accepted**.
 A1.3's read-only project-bound receipt closes Recipe → Result → Selection, an
 exact dedicated capability operation, registered-plus-physical CAS
 revalidation, findings policy, and exact Asset create/update plus
@@ -31,25 +32,31 @@ metadata-version coordinates without mutating an Asset. The current Numberdroid
 profile v1 deliberately remains unsupported. A1.4 adds the strict private
 `asset.processing-result.adopt` command and agent-task planning policy, then
 repeats a fresh branch-bound A1.3 preflight and produces only a deterministic
-nonauthorizing, nonpersisted plan.
+nonauthorizing, nonpersisted plan. A1.5 adds one private atomic-store port and
+schema-v13 branch-native persistence seam. It repeats every mutation-time check,
+holds exact CAS byte evidence through one SQLite transaction, and persists a
+DRAFT processing Asset projection, immutable Aggregate/replay result, two
+role-bearing retention references, Activity, and one branch command charge with
+fault/restart/integrity/backup evidence.
 The new type is intentionally absent from the accepted command catalog and
-grant scopes; no current task can receive or execute it. Neither candidate adds
-production adapters, migration, registered command, MCP/HTTP/UI surface, pixel
-operation, mutation, or owner/release authority. See the
+grant scopes; no current task can receive or execute it. None of the three adds
+public dispatch, a Numberdroid profile-v2 adapter, MCP/HTTP/UI surface, a new
+pixel operation, Main/CP2C mutation, or owner/release authority. See the
 [A1.3 candidate status](docs/A1_3_STATUS.md) and
-[A1.4 candidate status](docs/A1_4_STATUS.md). A1.5 durable atomic persistence is
-the next planned bounded Artist block. The operations O0/O1 lane is independent
-and retains its own gates.
+[A1.4 candidate status](docs/A1_4_STATUS.md), plus the
+[A1.5 persistence candidate status](docs/A1_5_STATUS.md). A1.6 separately
+versioned Authoring-v2 exposure is the next planned bounded Artist block. The
+operations O0/O1 lane is independent and retains its own gates.
 
 Checkpoint 2B acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later commits `f116f25aed2f0a9d935de9061cf6492d3a56bef4` and `b9ce37e44fe3679b52b50dac6daf4e1a46024c1d` change only the `visualFixture`/test evidence harness; they do not change product behavior or reopen acceptance. Failed run `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and failed run `32572344465` (Studio job `97029542069`, isolating Chrome/CDP post-move pointer-capture bookkeeping) are invalid diagnostic evidence only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, and expires `2026-09-05T12:26:26Z`. Under Chrome `151.0.7922.137` at 1440×900 and 1060×900, it records zero runtime and visual errors and proves captured press, a same-pointer held move, deferred rendering, matching release/settlement/replacement, exact scroll/context retention, and telemetry cleanup. Run `32568108922` / artifact `9474639509` remain the product-repair evidence; run `32572870510` / artifact `9475808319` are the final post-acceptance closure evidence.
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.4, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
+| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.5, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Accepted source/asset/room/task foundations plus candidate list-first tasks, useful prop previews, and persistent-canvas rectangle/irregular-room authoring |
-| Agent access | Accepted schema-v12 compatibility keeps 19 tools/four templates without a task and 30 tools/five templates for a matching task branch. The target requires MCP parity for all ordinary authoring through a separately versioned, feature-gated surface; authority, owner review, merge, materialization, and publication remain human-only. |
-| Persistence | SQLite schema v12 WAL ledger with normalized immutable shape cells; sanitized bundles use schema v1/v2 and v3 only for masked rooms |
+| Agent access | Public discovery remains 19 tools/four templates without a task and 30 tools/five templates for a matching task branch; the private schema-v13 candidate adds no callable surface. The target requires MCP parity for all ordinary authoring through a separately versioned, feature-gated surface; authority, owner review, merge, materialization, and publication remain human-only. |
+| Persistence | SQLite schema v13 WAL ledger with normalized immutable shape cells plus private branch-local processing-adoption lineage/retention; sanitized portable bundles remain v1/v2 and v3 only for masked rooms |
 | Numberdroid export | Dependent CP5 candidate-only snapshot/adapter/compiler foundation; no persistence/approval UI, materialization, commit, or publishing authority yet |
 
 ## Run the accepted Checkpoints 1–4 and the Checkpoint 4.5 candidate locally
@@ -208,6 +215,7 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [Accepted A1.2 AssetInputSelection contract](docs/A1_2_STATUS.md)
 - [A1.3 project-bound adoption preflight candidate](docs/A1_3_STATUS.md)
 - [A1.4 processing-result adoption planning candidate](docs/A1_4_STATUS.md)
+- [A1.5 processing-result adoption persistence candidate](docs/A1_5_STATUS.md)
 - [Checkpoint 3 frozen implementation contract](docs/CHECKPOINT_3_CONTRACT.md)
 
 These current product documents are normative for the Studio implementation. If

@@ -548,20 +548,56 @@ MCP/HTTP/UI surface, review, merge, lifecycle, materialization, or release
 authority. Exact scope, fixture identities, tests, and exclusions are recorded
 in [`A1_4_STATUS.md`](A1_4_STATUS.md).
 
-#### Remaining A1 completion sequence after A1.4
+#### A1.5 — private processing-result adoption persistence
 
-A1.4 still does not complete `IMG-006` or the Artist path. Re-plan each step
+**Status: IMPLEMENTED CANDIDATE — NOT USER ACCEPTED (2026-08-28).** A1.5
+implements the durable private boundary A1.4 specified without registering or
+publicly dispatching the command. One exact atomic-store port and additive
+schema v13 now:
+
+- resolve same-key/same-task-semantics replay from the immutable branch ledger
+  before clock, authority, capability, or CAS work, returning the original
+  result even for a new unused retry command ID; semantic-key and command-ID
+  conflicts retain deterministic precedence;
+- re-close ACTIVE Task, active Grant, exact agent/task/non-main branch/head,
+  immutable head-ledger agreement, project/Asset scopes, private scope, expiry,
+  no-auto-accept, command budget/usage, exact capability pin, Asset head,
+  derived metadata/findings, both current Main-authorized artifact descriptors,
+  and held physical PNG bytes;
+- derive a fresh A1.3 receipt, A1.4 plan, immutable adoption Aggregate, and
+  replay result internally rather than accepting any of them from a caller;
+- commit one branch revision, private DRAFT processing Asset projection, exact
+  processing lineage, two immutable role-bearing retention references,
+  Activity, and one branch command charge in one SQLite transaction;
+- prove create/update `1/1`, `N+1`, and `M`/`M+1` semantics; fault rollback,
+  lost-response/restart replay, deep tamper detection, usage rederivation,
+  private CAS retention, v12/v13 backup compatibility, unknown-newer-schema
+  rejection, and unchanged portable bundle v1-v3 semantics.
+
+Private references preserve CAS/backup reachability after temporary Main
+references are released but never satisfy new project artifact-authority
+checks. Main project/CP2C Asset tables and `ExactSliceBinding` remain unchanged.
+Unexpected MERGED processing state fails integrity and bundle export closed;
+CANCELLED/REJECTED private state remains absent from portable bundles. The
+all-or-none claim covers exact held pre-existing CAS bytes plus SQLite records,
+not a joint filesystem/database transaction or concurrent uncoordinated GC.
+
+The command/scope remain absent from the 33-command/30-scope contracts, current
+Numberdroid profile v1 remains unsupported, and MCP discovery remains 19/4 or
+task-bound 30/5. There is no StudioService/AgentTaskService route, Numberdroid
+profile v2, MCP/HTTP/UI exposure, owner decision, review, merge, lifecycle,
+materialization, or release authority. Exact scope, identities, tests,
+operational limits, and rollback are recorded in
+[`A1_5_STATUS.md`](A1_5_STATUS.md).
+
+#### Remaining A1 completion sequence after A1.5
+
+A1.5 still does not complete `IMG-006` or the Artist path. Re-plan each step
 from current truth, but keep the remaining risks in separate candidate blocks:
 
-1. **A1.5 — persistence/CAS seam:** add the durable aggregate/reference boundary
-   with at most one migration plus fault, restart, integrity, backup/bundle, and
-   stale Task/Grant/branch/Asset/metadata-version evidence. Every A1.4 check,
-   same-key replay/collision rule, metadata validation/finding and
-   warning-disposition reset, and all listed writes must close in one unit of
-   work.
-2. **A1.6 — Authoring-v2 exposure:** add separately versioned MCP resources/tools
+1. **A1.6 — Authoring-v2 exposure:** add separately versioned MCP resources/tools
    with newly pinned exact counts and no owner review/apply/finalize authority.
-3. **A1.7 — visual review/correction candidate:** create low-fidelity workflow
+2. **A1.7 — visual review/correction candidate:** create low-fidelity workflow
    states first, then one bounded UI candidate with browser evidence and a
    deferred Klaus live gate.
 

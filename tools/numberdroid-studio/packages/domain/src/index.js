@@ -86,6 +86,21 @@ export {
   validateProcessingResultAdoptionCommand,
 } from './processing-result-adoption.js';
 export {
+  PROCESSING_RESULT_ADOPTION_AGGREGATE_KIND,
+  PROCESSING_RESULT_ADOPTION_AGGREGATE_SCHEMA_VERSION,
+  PROCESSING_RESULT_ADOPTION_COMMIT_RESULT_KIND,
+  PROCESSING_RESULT_ADOPTION_COMMIT_RESULT_SCHEMA_VERSION,
+  canonicalProcessingResultAdoptionAggregateJson,
+  canonicalProcessingResultAdoptionCommitResultJson,
+  createProcessingResultAdoptionAggregate,
+  createProcessingResultAdoptionCommitResult,
+  processingResultAdoptionAggregateSha256,
+  processingResultAdoptionCommitResultSha256,
+  validateProcessingResultAdoptionAggregate,
+  validateProcessingResultAdoptionCommitResult,
+  validateProcessingResultAssetBinding,
+} from './processing-result-adoption-commit.js';
+export {
   ASSET_KINDS,
   ASSET_LIFECYCLES,
   ASSET_VALIDATOR_VERSION,

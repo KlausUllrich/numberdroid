@@ -261,12 +261,17 @@ Grant mint/revoke endpoints exist for the authenticated human UI/service API. Th
 A1.0, A1.1, and A1.2 are accepted pure Domain/Preview contracts. A1.3 is a
 candidate-only read-only Domain/Application preflight contract. A1.4 adds the
 private authority-free command DTO and an agent-task-only commitless planning
-service, but deliberately does not register its type/scope or provide a
-production adapter. None registers these tools or changes the accepted 19/4 or
-matching-task 30/5 discovery surfaces. A1.3's passing receipt and A1.4's plan
-are neither executable adoption authority nor owner decisions, and neither can
-substitute for atomic mutation-time authorization, revalidation, idempotency,
-budget charging, or persistence.
+service. A1.5 adds a private unwired atomic-store port and schema-v13
+branch-local persistence seam that repeats every mutation-time check and
+records an immutable DRAFT Aggregate/replay result, two retention roles,
+Activity, and one command charge. It still deliberately does not register the
+type/scope, advertise a Numberdroid capability, or add an MCP mapper, resource,
+or tool. None changes the accepted 19/4 or matching-task 30/5 discovery
+surfaces. A1.3's receipt and A1.4's plan are not executable authority; only the
+private A1.5 store can commit after fresh authorization/revalidation, and that
+commit is neither an owner decision nor review/merge/lifecycle authority.
+A1.6 must expose any callable adoption surface under separately versioned and
+feature-gated Authoring-v2 contracts with newly pinned counts.
 
 `studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 

@@ -1,10 +1,22 @@
 import { invariant } from '../../../domain/src/errors.js';
 import { canonicalRgbaPngByteSize } from '../../../domain/src/atlas-definition.js';
+import { createProcessingResultAdoptionPlan } from '../../../domain/src/processing-result-adoption.js';
+import {
+  processingResultAdoptionCommitResultSha256,
+  validateProcessingResultAdoptionAggregate,
+  validateProcessingResultAdoptionCommitResult,
+} from '../../../domain/src/processing-result-adoption-commit.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { ContentAddressedArtifactStore } from '../artifacts/content-addressed-artifact-store.js';
+import { SQLITE_MIGRATIONS } from '../sqlite/migration-runner.js';
 import { SqliteProjectStore } from '../sqlite/sqlite-project-store.js';
 
-function referencedArtifactRows(database) {
+function referencedArtifactRows(database, schemaVersion) {
+  const references = schemaVersion >= 13 ? `
+    SELECT digest FROM artifact_references
+    UNION ALL
+    SELECT digest FROM task_branch_processing_result_artifact_references
+  ` : 'SELECT digest FROM artifact_references';
   return database.prepare(`
     SELECT
       references_table.digest AS digest,
@@ -12,7 +24,7 @@ function referencedArtifactRows(database) {
       artifacts.byte_size AS byte_size,
       artifacts.state AS state,
       count(*) AS reference_count
-    FROM artifact_references AS references_table
+    FROM (${references}) AS references_table
     LEFT JOIN artifacts ON artifacts.digest = references_table.digest
     GROUP BY references_table.digest, artifacts.uri, artifacts.byte_size, artifacts.state
     ORDER BY references_table.digest
@@ -23,15 +35,40 @@ function finding(digest, code, message, details = {}) {
   return { digest, code, message, ...details };
 }
 
+function sameFingerprint(left, right) {
+  if (left === undefined || right === undefined) return false;
+  try { return fingerprint(left) === fingerprint(right); } catch { return false; }
+}
+
+function branchCommandBudgetCharge(revisionJson) {
+  let revision;
+  try { revision = JSON.parse(revisionJson); } catch { return null; }
+  const command = revision?.command;
+  if (!command || typeof command.type !== 'string') return null;
+  if (!['asset.proposal.submit', 'room.placement.proposal.submit'].includes(command.type)) return 1;
+  return Array.isArray(command.payload?.items)
+    && command.payload.items.length >= 1
+    && command.payload.items.length <= 64
+    ? command.payload.items.length
+    : null;
+}
+
 export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) {
   invariant(projectStore instanceof SqliteProjectStore, 'VALIDATION_ERROR', 'SqliteProjectStore is required.');
   invariant(artifactStore instanceof ContentAddressedArtifactStore, 'VALIDATION_ERROR', 'ContentAddressedArtifactStore is required.');
 
   const database = projectStore.integrityCheck();
+  const latestSupported = SQLITE_MIGRATIONS.at(-1)?.version ?? 0;
+  invariant(
+    database.userVersion <= latestSupported,
+    'DATABASE_SCHEMA_TOO_NEW',
+    'Database schema is newer than this Studio build.',
+    { userVersion: database.userVersion, latestSupported },
+  );
   const findings = [];
   let rows = [];
   try {
-    rows = referencedArtifactRows(projectStore.workspace.database);
+    rows = referencedArtifactRows(projectStore.workspace.database, database.userVersion);
   } catch (error) {
     findings.push(finding(null, 'ARTIFACT_REFERENCE_QUERY_FAILED', 'Referenced artifact metadata could not be read.', {
       cause: error.message,
@@ -927,6 +964,382 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
             taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_REVERT_MISMATCH', message: 'Task revert columns differ from immutable revert JSON.' });
           }
         }
+      }
+    }
+    if (database.userVersion >= 13) {
+      const adoptionRows = db.prepare(`
+        SELECT * FROM task_branch_processing_result_adoptions
+        ORDER BY project_id, task_id, branch_revision
+      `).all();
+      const adoptionReferences = db.prepare(`
+        SELECT * FROM task_branch_processing_result_artifact_references
+        WHERE project_id = ? AND task_id = ? AND branch_revision = ?
+        ORDER BY role
+      `);
+      const adoptionBranchRevision = db.prepare(`
+        SELECT * FROM task_branch_revisions
+        WHERE project_id = ? AND task_id = ? AND branch_revision = ?
+      `);
+      const adoptionTask = db.prepare(`
+        SELECT * FROM agent_tasks WHERE project_id = ? AND task_id = ?
+      `);
+      const artifactForAdoption = db.prepare(`
+        SELECT uri, media_type, byte_size, width, height, state
+        FROM artifacts WHERE digest = ?
+      `);
+      const usageChecked = new Set();
+      const adoptionProjectionByTask = new Map(taskRows.map((taskRow) => [
+        JSON.stringify([taskRow.project_id, taskRow.task_id]),
+        {
+          projectId: taskRow.project_id,
+          taskId: taskRow.task_id,
+          assetsByRevision: new Map(),
+        },
+      ]));
+
+      for (const adoption of adoptionRows) {
+        const coordinates = {
+          projectId: adoption.project_id,
+          taskId: adoption.task_id,
+          branchRevision: Number(adoption.branch_revision),
+        };
+        const adoptionTaskRow = adoptionTask.get(adoption.project_id, adoption.task_id);
+        const usageKey = `${adoption.project_id}:${adoption.task_id}`;
+        if (!usageChecked.has(usageKey)) {
+          usageChecked.add(usageKey);
+          let taskValue = null;
+          let baseValue = null;
+          let headValue = null;
+          try {
+            taskValue = JSON.parse(adoptionTaskRow?.task_json ?? 'null');
+            baseValue = JSON.parse(adoptionTaskRow?.base_document_json ?? 'null');
+            headValue = JSON.parse(adoptionTaskRow?.head_document_json ?? 'null');
+          } catch {}
+          const baseGrant = baseValue?.revisions?.at(-1)?.snapshot?.grants?.find(
+            (grant) => grant.id === adoptionTaskRow?.grant_id,
+          );
+          const headGrant = headValue?.revisions?.at(-1)?.snapshot?.grants?.find(
+            (grant) => grant.id === adoptionTaskRow?.grant_id,
+          );
+          const baseCommands = Number(baseGrant?.usage?.commands);
+          const headCommands = Number(headGrant?.usage?.commands);
+          const taskCommands = Number(taskValue?.usage?.commands);
+          const branchCharges = branchRows.all(adoption.project_id, adoption.task_id)
+            .map((row) => branchCommandBudgetCharge(row.revision_json));
+          const branchCharge = branchCharges.every(Number.isSafeInteger)
+            ? branchCharges.reduce((total, charge) => total + charge, 0)
+            : null;
+          if (!Number.isSafeInteger(baseCommands)
+            || !Number.isSafeInteger(headCommands)
+            || !Number.isSafeInteger(taskCommands)
+            || !Number.isSafeInteger(branchCharge)
+            || headCommands !== taskCommands
+            || headCommands !== baseCommands + branchCharge) {
+            taskFindings.push({
+              projectId: adoption.project_id,
+              taskId: adoption.task_id,
+              code: 'TASK_PROCESSING_ADOPTION_USAGE_MISMATCH',
+              message: 'Task usage and embedded branch-grant usage do not match the canonical branch command-charge history.',
+            });
+          }
+        }
+        let aggregate = null;
+        let result = null;
+        try {
+          aggregate = validateProcessingResultAdoptionAggregate(JSON.parse(adoption.record_json));
+          result = validateProcessingResultAdoptionCommitResult(JSON.parse(adoption.result_json));
+          const taskProjectionKey = JSON.stringify([adoption.project_id, adoption.task_id]);
+          const taskProjection = adoptionProjectionByTask.get(taskProjectionKey) ?? {
+            projectId: adoption.project_id,
+            taskId: adoption.task_id,
+            assetsByRevision: new Map(),
+          };
+          taskProjection.assetsByRevision.set(Number(adoption.branch_revision), aggregate.asset);
+          adoptionProjectionByTask.set(taskProjectionKey, taskProjection);
+        } catch (error) {
+          taskFindings.push({
+            ...coordinates,
+            code: 'TASK_PROCESSING_ADOPTION_RECORD_INVALID',
+            message: 'A private processing-result adoption record or replay result is invalid.',
+            validationCode: error.code ?? 'VALIDATION_ERROR',
+          });
+        }
+
+        const branch = adoptionBranchRevision.get(
+          adoption.project_id,
+          adoption.task_id,
+          adoption.branch_revision,
+        );
+        let branchValue = null;
+        try { branchValue = branch ? JSON.parse(branch.revision_json) : null; } catch {}
+        if (!branch || !branchValue
+          || branch.branch_id !== adoption.branch_id
+          || branch.command_id !== adoption.command_id
+          || branch.idempotency_key !== adoption.idempotency_key
+          || branch.command_type !== 'asset.processing-result.adopt'
+          || branch.committed_at !== adoption.committed_at) {
+          taskFindings.push({
+            ...coordinates,
+            code: 'TASK_PROCESSING_ADOPTION_BRANCH_REVISION_MISMATCH',
+            message: 'A private processing-result adoption differs from its immutable task-branch revision ledger.',
+          });
+        }
+
+        if (aggregate && result) {
+          let plan = null;
+          try {
+            plan = createProcessingResultAdoptionPlan(
+              aggregate.command,
+              aggregate.authorityBinding,
+              aggregate.freshPreflightReceipt,
+            );
+          } catch {}
+          const resultFingerprint = processingResultAdoptionCommitResultSha256(result);
+          const columnsMatch = aggregate.project.projectId === adoption.project_id
+            && aggregate.project.taskId === adoption.task_id
+            && aggregate.project.branchId === adoption.branch_id
+            && aggregate.project.branchRevision === Number(adoption.branch_revision)
+            && aggregate.operation === adoption.operation
+            && aggregate.command.commandId === adoption.command_id
+            && aggregate.command.idempotencyKey === adoption.idempotency_key
+            && aggregate.asset.assetId === adoption.asset_id
+            && aggregate.asset.kind === adoption.asset_kind
+            && aggregate.asset.assetVersion === Number(adoption.asset_version)
+            && aggregate.asset.metadataVersion === Number(adoption.metadata_version)
+            && aggregate.commandFingerprint === adoption.command_fingerprint
+            && aggregate.semanticFingerprint === adoption.semantic_fingerprint
+            && plan?.authority.bindingFingerprint === adoption.authority_binding_fingerprint
+            && aggregate.freshPreflightReceiptFingerprint === adoption.preflight_receipt_fingerprint
+            && aggregate.asset.processingBinding.fingerprint === adoption.processing_binding_fingerprint
+            && aggregate.planFingerprint === adoption.plan_fingerprint
+            && aggregate.asset.metadataFingerprint === adoption.metadata_fingerprint
+            && aggregate.asset.findingsFingerprint === adoption.findings_fingerprint
+            && resultFingerprint === adoption.result_fingerprint
+            && aggregate.committedAt === adoption.committed_at
+            && aggregate.committedBy === adoption.committed_by
+            && aggregate.commandBudgetCharge === 1
+            && result.commandBudgetCharge === 1
+            && sameFingerprint(aggregate.commitResult, result);
+          if (!columnsMatch) {
+            taskFindings.push({
+              ...coordinates,
+              code: 'TASK_PROCESSING_ADOPTION_PROJECTION_MISMATCH',
+              message: 'Normalized processing-result adoption columns differ from the validated immutable Aggregate.',
+            });
+          }
+          if (!branchValue
+            || branchValue.command?.commandId !== aggregate.command.commandId
+            || branchValue.command?.idempotencyKey !== aggregate.command.idempotencyKey
+            || branchValue.command?.type !== aggregate.command.type
+            || branchValue.command?.fingerprint !== aggregate.commandFingerprint
+            || !sameFingerprint(branchValue.command?.payload, aggregate.command.payload)
+            || !sameFingerprint(branchValue.result, result)
+            || branchValue.event?.commandId !== aggregate.command.commandId
+            || branchValue.event?.commandType !== aggregate.command.type
+            || branchValue.snapshot?.processingResultAdoptionHeads?.schemaVersion !== 1
+            || !sameFingerprint(branchValue.snapshot?.processingResultAdoptionHeads?.assets?.find(
+              (assetValue) => assetValue.assetId === aggregate.asset.assetId,
+            ), aggregate.asset)) {
+            taskFindings.push({
+              ...coordinates,
+              code: 'TASK_PROCESSING_ADOPTION_BRANCH_RESULT_MISMATCH',
+              message: 'The task-branch command or replay result differs from the persisted processing-result adoption Aggregate.',
+            });
+          }
+        }
+
+        const references = adoptionReferences.all(
+          adoption.project_id,
+          adoption.task_id,
+          adoption.branch_revision,
+        );
+        const referencesByRole = new Map(references.map((referenceRow) => [referenceRow.role, referenceRow]));
+        if (references.length !== 2
+          || !referencesByRole.has('recipe-input')
+          || !referencesByRole.has('selected-output')) {
+          taskFindings.push({
+            ...coordinates,
+            code: 'TASK_PROCESSING_ADOPTION_REFERENCE_SET_INVALID',
+            message: 'A private processing-result adoption must retain exactly its recipe-input and selected-output roles.',
+          });
+        }
+        const expectedReferences = new Map((aggregate?.permanentReferences ?? []).map((reference) => [reference.role, reference.descriptor]));
+        for (const referenceRow of references) {
+          const descriptor = expectedReferences.get(referenceRow.role);
+          const artifact = artifactForAdoption.get(referenceRow.digest);
+          const descriptorMatches = descriptor
+            && descriptor.sha256 === referenceRow.digest
+            && descriptor.artifactUri === referenceRow.artifact_uri
+            && descriptor.mediaType === referenceRow.media_type
+            && descriptor.byteSize === Number(referenceRow.byte_size)
+            && descriptor.width === Number(referenceRow.width)
+            && descriptor.height === Number(referenceRow.height);
+          const liveMetadataMatches = artifact?.state === 'LIVE'
+            && artifact.uri === referenceRow.artifact_uri
+            && artifact.media_type === referenceRow.media_type
+            && Number(artifact.byte_size) === Number(referenceRow.byte_size)
+            && Number(artifact.width) === Number(referenceRow.width)
+            && Number(artifact.height) === Number(referenceRow.height);
+          if (!descriptorMatches || !liveMetadataMatches
+            || referenceRow.verified_at !== adoption.committed_at) {
+            taskFindings.push({
+              ...coordinates,
+              role: referenceRow.role,
+              digest: referenceRow.digest,
+              code: 'TASK_PROCESSING_ADOPTION_ARTIFACT_MISMATCH',
+              message: 'A private processing-result adoption reference lost its exact descriptor or LIVE artifact metadata.',
+            });
+          }
+          try {
+            const evidence = JSON.parse(referenceRow.evidence_json);
+            const { evidenceFingerprint, ...evidenceBody } = evidence;
+            const evidenceKeys = Object.keys(evidence).sort();
+            const metadataKeys = Object.keys(evidence.metadata ?? {}).sort();
+            const physicalKeys = Object.keys(evidence.physical ?? {}).sort();
+            const evidenceMatches = JSON.stringify(evidenceKeys) === JSON.stringify([
+              'descriptor', 'evidenceFingerprint', 'metadata', 'physical', 'role', 'verifiedAt',
+            ])
+              && JSON.stringify(metadataKeys) === JSON.stringify([
+                'artifactUri', 'byteSize', 'height', 'mediaType', 'sha256', 'state', 'width',
+              ])
+              && JSON.stringify(physicalKeys) === JSON.stringify([
+                'byteSize', 'height', 'mediaType', 'sha256', 'width',
+              ])
+              && evidence.role === referenceRow.role
+              && evidence.verifiedAt === referenceRow.verified_at
+              && evidence.descriptor?.artifactUri === referenceRow.artifact_uri
+              && evidence.descriptor?.sha256 === referenceRow.digest
+              && evidence.descriptor?.mediaType === referenceRow.media_type
+              && evidence.descriptor?.byteSize === Number(referenceRow.byte_size)
+              && evidence.descriptor?.width === Number(referenceRow.width)
+              && evidence.descriptor?.height === Number(referenceRow.height)
+              && evidence.metadata?.artifactUri === referenceRow.artifact_uri
+              && evidence.metadata?.sha256 === referenceRow.digest
+              && evidence.metadata?.mediaType === referenceRow.media_type
+              && evidence.metadata?.byteSize === Number(referenceRow.byte_size)
+              && evidence.metadata?.width === Number(referenceRow.width)
+              && evidence.metadata?.height === Number(referenceRow.height)
+              && evidence.metadata?.state === 'LIVE'
+              && evidence.physical?.sha256 === referenceRow.digest
+              && evidence.physical?.mediaType === referenceRow.media_type
+              && evidence.physical?.byteSize === Number(referenceRow.byte_size)
+              && evidence.physical?.width === Number(referenceRow.width)
+              && evidence.physical?.height === Number(referenceRow.height)
+              && evidenceFingerprint === referenceRow.evidence_fingerprint
+              && fingerprint(evidenceBody) === referenceRow.evidence_fingerprint;
+            if (!evidenceMatches) {
+              taskFindings.push({
+                ...coordinates,
+                role: referenceRow.role,
+                digest: referenceRow.digest,
+                code: 'TASK_PROCESSING_ADOPTION_EVIDENCE_FINGERPRINT_MISMATCH',
+                message: 'A private processing-result adoption CAS evidence record differs from its immutable fingerprint.',
+              });
+            }
+          } catch {
+            taskFindings.push({
+              ...coordinates,
+              role: referenceRow.role,
+              digest: referenceRow.digest,
+              code: 'TASK_PROCESSING_ADOPTION_EVIDENCE_INVALID',
+              message: 'A private processing-result adoption CAS evidence record is invalid.',
+            });
+          }
+          try {
+            await artifactStore.withVerifiedPngEvidence(referenceRow.digest, (physical) => {
+              invariant(
+                physical.mediaType === referenceRow.media_type
+                  && physical.byteSize === Number(referenceRow.byte_size)
+                  && physical.width === Number(referenceRow.width)
+                  && physical.height === Number(referenceRow.height),
+                'TASK_PROCESSING_ADOPTION_PHYSICAL_DESCRIPTOR_MISMATCH',
+                'Physical CAS evidence differs from the persisted adoption descriptor.',
+              );
+            });
+          } catch (error) {
+            taskFindings.push({
+              ...coordinates,
+              role: referenceRow.role,
+              digest: referenceRow.digest,
+              code: error.code ?? 'TASK_PROCESSING_ADOPTION_PHYSICAL_ARTIFACT_INVALID',
+              message: 'A private processing-result adoption physical CAS artifact is missing, corrupt, or descriptor-incompatible.',
+            });
+          }
+        }
+        if (adoptionTaskRow?.state === 'MERGED') {
+          taskFindings.push({
+            ...coordinates,
+            code: 'TASK_PROCESSING_ADOPTION_MERGE_FORBIDDEN',
+            message: 'A private processing-result adoption cannot enter merged Main state.',
+          });
+        }
+      }
+      for (const taskProjection of adoptionProjectionByTask.values()) {
+        const expectedHeads = new Map();
+        for (const revisionRow of branchRows.all(taskProjection.projectId, taskProjection.taskId)) {
+          const adoptedAsset = taskProjection.assetsByRevision.get(Number(revisionRow.branch_revision));
+          if (adoptedAsset) expectedHeads.set(adoptedAsset.assetId, adoptedAsset);
+          let revisionValue = null;
+          try { revisionValue = JSON.parse(revisionRow.revision_json); } catch {}
+          const actualProjection = revisionValue?.snapshot?.processingResultAdoptionHeads;
+          const expectedAssets = [...expectedHeads.values()]
+            .sort((left, right) => left.assetId.localeCompare(right.assetId));
+          const projectionMatches = expectedAssets.length === 0
+            ? actualProjection === undefined
+            : actualProjection?.schemaVersion === 1
+              && sameFingerprint(actualProjection.assets, expectedAssets);
+          if (!projectionMatches) {
+            taskFindings.push({
+              projectId: taskProjection.projectId,
+              taskId: taskProjection.taskId,
+              branchRevision: Number(revisionRow.branch_revision),
+              code: 'TASK_PROCESSING_ADOPTION_HEAD_PROJECTION_MISMATCH',
+              message: 'Private processing-result adoption heads differ from the exact Aggregate history at this branch revision.',
+            });
+          }
+        }
+      }
+      const missingAdoptions = db.prepare(`
+        SELECT revisions.project_id, revisions.task_id, revisions.branch_revision
+        FROM task_branch_revisions AS revisions
+        LEFT JOIN task_branch_processing_result_adoptions AS adoptions
+          ON adoptions.project_id = revisions.project_id
+          AND adoptions.task_id = revisions.task_id
+          AND adoptions.branch_revision = revisions.branch_revision
+        WHERE revisions.command_type = 'asset.processing-result.adopt'
+          AND adoptions.branch_revision IS NULL
+        ORDER BY revisions.project_id, revisions.task_id, revisions.branch_revision
+      `).all();
+      for (const row of missingAdoptions) {
+        taskFindings.push({
+          projectId: row.project_id,
+          taskId: row.task_id,
+          branchRevision: Number(row.branch_revision),
+          code: 'TASK_PROCESSING_ADOPTION_RECORD_MISSING',
+          message: 'A processing-result adoption branch revision lost its durable Aggregate.',
+        });
+      }
+      const orphanReferences = db.prepare(`
+        SELECT references_table.project_id, references_table.task_id,
+          references_table.branch_revision, references_table.role
+        FROM task_branch_processing_result_artifact_references AS references_table
+        LEFT JOIN task_branch_processing_result_adoptions AS adoptions
+          ON adoptions.project_id = references_table.project_id
+          AND adoptions.task_id = references_table.task_id
+          AND adoptions.branch_revision = references_table.branch_revision
+        WHERE adoptions.branch_revision IS NULL
+        ORDER BY references_table.project_id, references_table.task_id,
+          references_table.branch_revision, references_table.role
+      `).all();
+      for (const row of orphanReferences) {
+        taskFindings.push({
+          projectId: row.project_id,
+          taskId: row.task_id,
+          branchRevision: Number(row.branch_revision),
+          role: row.role,
+          code: 'TASK_PROCESSING_ADOPTION_REFERENCE_ORPHANED',
+          message: 'A private processing-result artifact reference has no durable adoption Aggregate.',
+        });
       }
     }
   } catch (error) {

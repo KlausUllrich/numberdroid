@@ -148,6 +148,11 @@ function validateWebp(bytes) {
 
 export async function verifyImageFile(path, mediaType) {
   const bytes = await readFile(path);
+  verifyImageBytes(bytes, mediaType);
+}
+
+export function verifyImageBytes(bytesValue, mediaType) {
+  const bytes = Buffer.from(bytesValue);
   if (mediaType === 'image/png') validatePng(bytes);
   else if (mediaType === 'image/webp') validateWebp(bytes);
   else throw new StudioError('ARTIFACT_UNSUPPORTED_MEDIA', `Unsupported artifact media type: ${mediaType}.`);

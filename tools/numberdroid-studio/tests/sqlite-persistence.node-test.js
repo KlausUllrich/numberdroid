@@ -156,7 +156,7 @@ test('projection rebuild is deterministic and migrations reject checksum/version
   assert.equal(rebuilt.projectionHash, expected);
   assert.equal(store.workspace.database.prepare("SELECT projection_hash FROM projections WHERE projection_type = 'project_head'").get().projection_hash, expected);
   const migrations = await loadMigrationDefinitions();
-  assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
   store.close();
 
   const raw = nodeSqliteDatabaseFactory(filename);
@@ -218,9 +218,48 @@ test('schema migration faults roll back the individual version and safely resume
 
   const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
   afterTestCleanup(context, () => resumed.close());
-  assert.equal(resumed.integrityCheck().userVersion, 12);
+  assert.equal(resumed.integrityCheck().userVersion, 13);
   assert.deepEqual(
     resumed.workspace.database.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
   );
+});
+
+test('migration 0013 rolls back before/after its boundary and resumes with both private ledgers', async (context) => {
+  for (const boundary of ['before_migration_13', 'after_migration_13']) {
+    await context.test(boundary, async (childContext) => {
+      const { filename } = await tempWorkspace(childContext, `numberdroid-schema-${boundary}-`);
+      await assert.rejects(SqliteProjectStore.open({
+        filename,
+        databaseFactory: nodeSqliteDatabaseFactory,
+        faultInjector(point) {
+          if (point === boundary) throw new Error(`simulated ${boundary} crash`);
+        },
+      }), new RegExp(`simulated ${boundary} crash`));
+      const interrupted = nodeSqliteDatabaseFactory(filename);
+      assert.equal(Number(interrupted.prepare('PRAGMA user_version').get().user_version), 12);
+      assert.deepEqual(
+        interrupted.prepare(`
+          SELECT name FROM sqlite_schema
+          WHERE type = 'table' AND name LIKE 'task_branch_processing_result_%'
+          ORDER BY name
+        `).all(),
+        [],
+      );
+      interrupted.close();
+
+      const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
+      afterTestCleanup(childContext, () => resumed.close());
+      assert.equal(resumed.integrityCheck().userVersion, 13);
+      const tables = resumed.workspace.database.prepare(`
+        SELECT name, strict FROM pragma_table_list
+        WHERE name LIKE 'task_branch_processing_result_%'
+        ORDER BY name
+      `).all().map((row) => ({ name: row.name, strict: Number(row.strict) }));
+      assert.deepEqual(tables, [
+        { name: 'task_branch_processing_result_adoptions', strict: 1 },
+        { name: 'task_branch_processing_result_artifact_references', strict: 1 },
+      ]);
+    });
+  }
 });

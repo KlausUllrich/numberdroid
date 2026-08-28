@@ -2,8 +2,8 @@
 
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
-Baseline recorded: 2026-08-28 at pre-documentation `main`
-`0592d90f7bcfd23c3c01df490ef92cb2ed212a37`. Receivers MUST replace this with
+Baseline recorded: 2026-08-28 at A1.4-closure `main`
+`06ac195a26011e2e8c6e9b41b20521005da89094`. Receivers MUST replace this with
 newer verified `main` truth as work lands.
 
 ## Purpose
@@ -32,6 +32,7 @@ Keep these states distinct:
 | VT-003 | CP5 candidate-only adapter/compiler foundation | BLOCKED | VT-001 and later explicit CP5 gate | Candidate fidelity only; no materialization or publication |
 | VT-004 | A1.3 project-bound adoption preflight | NEEDS KLAUS REVIEW | VT-000 and accepted A1.0–A1.2 | Accept/revise the read-only capability/Asset/CAS closure; no live workflow |
 | VT-005 | A1.4 processing-result adoption plan | NEEDS KLAUS REVIEW | VT-004 | Accept/revise the private agent-task command/policy and commitless create/update semantics |
+| VT-006 | A1.5 private adoption persistence | NEEDS KLAUS REVIEW | VT-005 | Accept/revise the private atomic/replay/retention boundary and DRAFT persistence semantics |
 
 Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate.
@@ -321,6 +322,99 @@ own ID only after implementation exists. Planned work is not a candidate.
 - **Recovery:** A1.4 writes no workspace or schema state. Source rollback is a
   normal revert of its focused source commit/PR; no migration rollback, data
   restore, CAS cleanup, task repair, or fixture deletion is required.
+
+## VT-006 — A1.5 private processing-result adoption persistence
+
+- **Implementation:** non-visual A1.5 candidate based on verified `main`
+  `06ac195a26011e2e8c6e9b41b20521005da89094`. It adds the strict private
+  Aggregate/CommitResult, atomic-store port, one additive schema-v13 migration,
+  branch-local SQLite/CAS store, deep integrity, retention/backup compatibility,
+  and portable-bundle guards described in `A1_5_STATUS.md`. Source integration
+  and Actions evidence are recorded there after the exact candidate is frozen;
+  neither closes the user decision.
+- **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-005 because the store
+  enforces the exact private command, create/update, idempotency, and
+  revalidation policy A1.4 froze. VT-004/VT-005 acceptance may revise this
+  candidate contract even when all automated persistence evidence is green.
+- **Safe fixture/reset:** do not point any command at a personal Studio
+  workspace. Successful authority/capability exists only in fresh temporary
+  directories created by
+  `tests/processing-adoption-persistence.node-test.js` and
+  `tests/processing-adoption-sqlite-store.node-test.js`; each test deletes its
+  own SQLite/CAS fixture. The command and scope remain unregistered, the
+  Numberdroid profile remains unsupported, and no live server/browser/task can
+  invoke the seam. No manual reset is required.
+- **Optional automated reproduction:** with Node 22.17.0 and lockfile
+  dependencies installed, run from `tools/numberdroid-studio/`:
+
+  ```bash
+  node --test \
+    tests/processing-adoption-commit-application.node-test.js \
+    tests/processing-adoption-persistence-domain.node-test.js \
+    tests/processing-adoption-persistence.node-test.js \
+    tests/processing-adoption-sqlite-store.node-test.js \
+    tests/processing-adoption-compatibility.node-test.js
+  ```
+
+- **Review steps and expected result:**
+  1. Confirm the application accepts only the original command, trusted
+     agent-task context, and optional signal; no caller plan, receipt, evidence,
+     owner decision, lifecycle state, or `replayed` claim crosses the port.
+  2. Confirm the first commit repeats ACTIVE Task/Grant/head-ledger, actor,
+     non-main branch, project/Asset scopes, private scope, expiry, no-auto-accept,
+     budget/usage, capability, Asset, metadata/findings, current Main artifact
+     authority, and registered-LIVE plus physical CAS checks.
+  3. Confirm same key plus identical task-bound semantics returns the original
+     result with zero clock/capability/CAS calls, writes, or second charge—even
+     when a retry uses a new unused command ID. Confirm changed semantics and a
+     reused command ID retain their distinct deterministic conflicts.
+  4. Confirm Create records only a private branch-local DRAFT at versions `1/1`
+     with explicit name, normalized explicit-empty authored metadata, exact
+     processing lineage, eight incomplete-metadata findings, and empty warning
+     dispositions. Confirm Update produces `N+1`, preserves authored metadata,
+     and uses `M` only for an equal visual-facts fingerprint, otherwise `M+1`.
+  5. Confirm one transaction closes the branch revision/result, Aggregate, two
+     exact artifact roles, evolving private heads, Task/embedded-Grant usage,
+     and Activity. Each injected failure leaves none; retry after an unknown
+     post-commit outcome returns the original result after reopen.
+  6. Confirm private references preserve both CAS digests for GC/backup after a
+     temporary Main reference is released but never make
+     `hasProjectReference()` true or authorize a new adoption. Same digest must
+     remain two semantic roles.
+  7. Confirm deep integrity rejects Aggregate/result/column/head/usage/evidence
+     and physical-CAS tampering, unknown schema v14, and any MERGED processing
+     task. Confirm v12 backup reading, v13 backup/verify, CANCELLED/REJECTED
+     omission, and portable bundle v1-v3 compatibility remain intact.
+  8. Confirm Main project revisions/Activity, CP2C Asset versions/heads,
+     `ExactSliceBinding`, command/scope counts, Numberdroid profile v1, MCP
+     counts, HTTP/UI, and accepted visual evidence are unchanged.
+  9. Confirm the atomicity statement is deliberately limited to one SQLite
+     transaction plus exact held bytes of pre-existing immutable CAS objects;
+     it is not a joint filesystem/database transaction and assumes no
+     concurrent uncoordinated GC or external filesystem mutation.
+- **Platform/evidence:** non-visual contract/persistence review; no browser,
+  viewport, device, gameplay, or live-workspace acceptance gate. Exact local
+  test counts, syntax/evidence/link/classifier checks, independent review
+  verdicts, PR Actions, and post-merge Actions are recorded in
+  `A1_5_STATUS.md` after integration. Conservative Windows/browser CI selection
+  is regression coverage and does not imply a changed UI or visual acceptance.
+- **Known limits:** private unwired port only; no registered command/scope,
+  Numberdroid profile v2, production task/capability dispatch, job, MCP/HTTP/UI,
+  Main/CP2C Asset mutation, review/merge/lifecycle, new pixel operation,
+  materialization, publication, or end-to-end `IMG-006`. Existing coordinated
+  maintenance and absent-destination backup/restore preconditions remain; there
+  is no schema downgrade after committed v13 writes.
+- **Open Klaus decision:** accept or revise the durable private Aggregate and
+  result shapes, ledger-first alias replay, strict head/authority revalidation,
+  DRAFT create/update metadata policy, two-role retention without authority
+  widening, and documented CAS/SQLite/GC operational boundary. Automation
+  cannot answer this product-contract decision.
+- **Recovery:** before exercising any future wired form, create and verify a
+  workspace backup under exclusive maintenance. Migration 13 is forward-only;
+  rollback after a committed v13 adoption means restoring that verified
+  pre-change workspace backup or applying a forward repair, never opening the
+  database with v12 code or deleting immutable private rows. The current
+  candidate is unwired, so ordinary users cannot create such state.
 
 ## Required record for every new candidate
 
