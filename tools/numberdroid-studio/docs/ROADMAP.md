@@ -506,23 +506,62 @@ atlas/slice/pivot/remap authority. It adds no production port adapter, SQLite
 migration, command registration, durable job, MCP/HTTP/UI surface,
 CandidateManifest/adapter mapping, new pixel operation, or repository write.
 Exact scope, fixture fingerprints, tests, and exclusions are recorded in
-[`A1_3_STATUS.md`](A1_3_STATUS.md). A1.4 is the next planned bounded block and
-must design any atomic/idempotent mutation separately, revalidating rather than
-trusting the preflight receipt.
+[`A1_3_STATUS.md`](A1_3_STATUS.md). The subsequent A1.4 candidate revalidates
+rather than trusting the receipt and deliberately stops before atomic mutation.
 
-#### Remaining A1 completion sequence after A1.3
+#### A1.4 — processing-result adoption planning
 
-A1.3 does not complete `IMG-006` or the Artist path. Re-plan each step from
-current truth, but keep the remaining risks in separate candidate blocks:
+**Status: IMPLEMENTED CANDIDATE — NOT USER ACCEPTED (2026-08-28).** A1.4
+freezes a strict private `asset.processing-result.adopt` command and one
+agent-task-only planning policy without registering, executing, or persisting
+the command. The service:
 
-1. **A1.4 — application adoption seam:** freeze one atomic/idempotent semantic
-   command and task-branch policy without adding persistence or public transport.
-2. **A1.5 — persistence/CAS seam:** add the durable aggregate/reference boundary
+- requires exact ACTIVE Task and active Grant evidence bound to the trusted
+  agent, project, non-main task branch, branch revision, private scope, exact
+  project/Asset object scopes, expiry, one remaining command budget, and no
+  auto-accept entry before any preflight read;
+- embeds the complete A1.3 request rather than accepting a prior receipt, then
+  requires a fresh project/branch/revision-bound A1.3 result on every prepare;
+- returns no plan for a blocked receipt and preserves unresolved warnings for a
+  passing one without dispositioning them;
+- freezes the later atomic/idempotent rule without executing it: same key and
+  same task-bound semantics return the original result, same key with different
+  semantics fails as a conflict, a reused command ID with another key fails,
+  all listed effects are all-or-none, and an unknown outcome is resolved by
+  retrying the same key;
+- describes an explicit-name, validator-normalized explicit-empty-metadata
+  DRAFT create, or an imagery-lineage-only update that resets the new version
+  to DRAFT while preserving the name and authored metadata; derived visual
+  metadata, findings, and empty warning dispositions must be recomputed in the
+  later atomic unit of work, preserving metadata version `M` only when its
+  fingerprint stays equal and otherwise producing `M+1`;
+- uses a processing-specific lineage binding rather than CP2C
+  `ExactSliceBinding`, and enumerates all authority, head, capability, Asset,
+  CAS, idempotency, Activity, reference, budget, and revision work A1.5 must
+  repeat atomically.
+
+Every result remains `NONE`, `NOT_GRANTED`, `NOT_PERFORMED`, `NOT_ATTEMPTED`,
+and `REQUIRED_IN_ATOMIC_UNIT_OF_WORK`. The command type and scope remain absent
+from the 33-command/30-scope compatibility contracts, so current tasks cannot
+receive it. There is no production port, persistence, migration, dispatch,
+MCP/HTTP/UI surface, review, merge, lifecycle, materialization, or release
+authority. Exact scope, fixture identities, tests, and exclusions are recorded
+in [`A1_4_STATUS.md`](A1_4_STATUS.md).
+
+#### Remaining A1 completion sequence after A1.4
+
+A1.4 still does not complete `IMG-006` or the Artist path. Re-plan each step
+from current truth, but keep the remaining risks in separate candidate blocks:
+
+1. **A1.5 — persistence/CAS seam:** add the durable aggregate/reference boundary
    with at most one migration plus fault, restart, integrity, backup/bundle, and
-   stale Asset/metadata-version evidence.
-3. **A1.6 — Authoring-v2 exposure:** add separately versioned MCP resources/tools
+   stale Task/Grant/branch/Asset/metadata-version evidence. Every A1.4 check,
+   same-key replay/collision rule, metadata validation/finding and
+   warning-disposition reset, and all listed writes must close in one unit of
+   work.
+2. **A1.6 — Authoring-v2 exposure:** add separately versioned MCP resources/tools
    with newly pinned exact counts and no owner review/apply/finalize authority.
-4. **A1.7 — visual review/correction candidate:** create low-fidelity workflow
+3. **A1.7 — visual review/correction candidate:** create low-fidelity workflow
    states first, then one bounded UI candidate with browser evidence and a
    deferred Klaus live gate.
 

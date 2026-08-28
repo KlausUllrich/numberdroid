@@ -93,8 +93,9 @@ evidence.
   `ExactSliceBinding` reuse, new pixel operation, materialization, repository
   write, publication, release, or end-to-end satisfaction of `IMG-006`.
 
-A1.4 must revalidate all observations inside any later atomic mutation boundary;
-it cannot treat this receipt as authorization or a concurrency guarantee.
+A1.4 revalidates the observations before producing its commitless plan and does
+not treat this receipt as authorization or a concurrency guarantee. A1.5 must
+repeat them again inside any later atomic mutation boundary.
 
 ## Verification
 

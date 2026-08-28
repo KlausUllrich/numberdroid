@@ -348,20 +348,53 @@ export function validateAssetMetadata({ assetId, kind, metadata, sliceBinding })
   const normalizedAssetId = requireId(assetId, 'assetId');
   const normalizedKind = requireEnum(kind, 'kind', ASSET_KINDS);
   const binding = validateExactSliceBinding(sliceBinding);
+  return validateAssetMetadataForVisualFacts({
+    assetId: normalizedAssetId,
+    kind: normalizedKind,
+    metadata,
+    pixelSize: { width: binding.width, height: binding.height },
+    pivot: binding.rectangle.pivot,
+  });
+}
+
+/**
+ * Validates authored Asset metadata against explicit visual facts without
+ * assigning authority or assuming a particular imagery-lineage contract.
+ * ExactSliceBinding and processing-result bindings can therefore share the
+ * accepted typed-metadata and fingerprint semantics while keeping their
+ * lineage validators separate.
+ */
+export function validateAssetMetadataForVisualFacts({ assetId, kind, metadata, pixelSize, pivot }) {
+  const normalizedAssetId = requireId(assetId, 'assetId');
+  const normalizedKind = requireEnum(kind, 'kind', ASSET_KINDS);
+  const size = exactFields(pixelSize, ['width', 'height'], 'pixelSize');
+  const normalizedPixelSize = {
+    width: requireInteger(size.width, 'pixelSize.width', { min: 1, max: 65535 }),
+    height: requireInteger(size.height, 'pixelSize.height', { min: 1, max: 65535 }),
+  };
+  const normalizedPivot = pivot === null
+    ? null
+    : (() => {
+      const candidate = exactFields(pivot, ['x', 'y'], 'pivot');
+      return {
+        x: requireInteger(candidate.x, 'pivot.x', { min: 0, max: normalizedPixelSize.width - 1 }),
+        y: requireInteger(candidate.y, 'pivot.y', { min: 0, max: normalizedPixelSize.height - 1 }),
+      };
+    })();
   const authored = normalizeMetadata(metadata, normalizedKind);
   const normalized = Object.freeze({
     ...authored,
-    pixelSize: { width: binding.width, height: binding.height },
-    pivot: binding.rectangle.pivot,
+    pixelSize: normalizedPixelSize,
+    pivot: normalizedPivot,
   });
   const findings = metadataFindings(normalized, normalizedKind, normalizedAssetId);
   return Object.freeze({
     metadata: normalized,
     findings,
-    // metadataVersion tracks only the typed semantic document. Exact imagery
-    // lineage has its own immutable slice binding and still participates in
-    // proposal/content fingerprints, but changing imagery alone must not
-    // manufacture a metadata revision.
+    // metadataVersion tracks the typed semantic document, including its
+    // derived pixelSize and pivot. Exact imagery identity has a separate
+    // immutable lineage binding: replacing bytes while visual facts stay equal
+    // does not manufacture a metadata revision, while changed visual facts do.
     fingerprint: stableHash({ kind: normalizedKind, metadata: normalized }),
   });
 }
