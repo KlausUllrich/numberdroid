@@ -27,6 +27,70 @@ level requirements → layout + actors + routes + logic → validated candidate
 
 No checkpoint may claim user approval from silence or from an automated policy result.
 
+## Autonomous candidate cadence while live user testing is unavailable
+
+As of 2026-08-28 Klaus is temporarily unavailable for live or visual gates. The
+engineering loop may continue through small, equally sized implementation
+candidates, but it MUST keep these states separate: implemented, automated
+green, source-integrated, live/visual-tested, and explicitly user-accepted.
+
+One autonomous block has exactly one testable product promise and at most one
+new high-risk axis. A normal block is one pure versioned contract, one
+application port or command/query seam, one persistent aggregate with at most
+one migration, one deterministic processor operation, or one small projection
+over already frozen commands. A migration, public MCP/HTTP gate, authority or
+lifecycle transition, pixel operation, substantial UX flow, and materialization
+boundary MUST NOT be combined casually; if two are required, split the work.
+
+For every block the coordinator uses four to six independent superagents as
+appropriate: Domain/Architecture, Security/Authority, Persistence/Concurrency,
+Compatibility/MCP, QA/Platforms, Documentation/Product, and for visible work
+UX/Accessibility. The implementer and final independent reviewers are not the
+same role. Reviewers attack the actual diff and evidence; their majority cannot
+override a binding contract.
+
+The loop is:
+
+1. verify current `main`, open PRs, exact Actions state, worktree, and newer
+   authority than this roadmap or any handoff;
+2. freeze one block's promise, scope, exclusions, authority boundary,
+   compatibility impact, tests, docs, and rollback;
+3. run the planning superagent swarm and resolve findings before writing;
+4. implement on a focused branch with one writer per shared file area;
+5. run focused tests, the complete Studio suite, checks, evidence, boundaries,
+   relevant root gates, and any migration/restart/fault/race/browser/platform
+   work implied by the block;
+6. obtain independent Security and Compatibility GO plus coordinator diff
+   verification;
+7. update every affected current contract/status document and append a complete
+   record for the candidate to `VACATION_TEST_BACKLOG.md` before source
+   integration;
+8. open a focused PR labelled `IMPLEMENTED CANDIDATE — NOT USER ACCEPTED`, wait
+   for complete CI, and correct rather than retrying nondeterministically;
+9. merge only when the current human prompt explicitly authorizes repository
+   source integration for that class of candidate; a merge is still neither
+   product acceptance nor release;
+10. verify post-merge `main` and CI and, if integration facts changed, add a
+    focused closure record without rewriting the candidate's acceptance state;
+11. continue with the next independent unblocked block. If one lane reaches a
+    real gate, switch to another authorized lane; stop only when every useful
+    lane is gated.
+
+Hard stops without a new explicit decision include widened agent/owner
+authority, reinterpretation of accepted schemas or MCP 19/4 and 30/5 surfaces,
+destructive migration/cleanup, active restore cutover, provider egress or cost,
+remote exposure/authentication, repository/engine materialization, publication,
+and any claim of visual acceptance. Deterministic UI candidates may collect
+browser evidence, but CP4.5, backup UI, phone/touch behavior, and aesthetic
+results remain queued for Klaus's consolidated return walkthrough.
+
+Each candidate adds a return-test record with its dependency, PR/SHA, state,
+safe fixture/reset, exact steps and expected result, platform/viewport,
+evidence, open decision, known limits, and recovery path. The dated execution
+snapshot and copy-paste launch prompt live in
+`docs/history/handoffs/HANDOFF_2026-08-28_NUMBERDROID_STUDIO_AUTONOMOUS_A1_EXECUTION.md`;
+current code and contracts always override that snapshot.
+
 ## Checkpoint 1A — Architecture and observable development shell
 
 **Status: visually accepted by the user on 2026-08-21.** The accepted shell and interaction flow are the protected baseline for 1B. This records visual/workflow acceptance only; JSON persistence and the host-only agent adapter remain development implementations.
@@ -99,7 +163,7 @@ Exit decision: **approved by the user on 2026-08-21.** Checkpoint 1 is complete 
 
 ## Checkpoint 2 — Source, atlas, and asset-library vertical slice
 
-**Status: Checkpoints 2A, 2B, and 2C are user-accepted.** Checkpoint 2C was accepted on 2026-08-24 through the combined Checkpoint 2C + 3 + 4 walkthrough. The offline, project-scoped portable Studio bundle round trip remains the only accepted import/export authority. PR #135 was merged to `main` on 2026-08-24 after the separate merge decision; merge commit `bcc284684ea4d2e30158d3a20ebda57da77df93d` is the canonical baseline.
+**Status: Checkpoints 2A, 2B, and 2C are user-accepted.** Checkpoint 2C was accepted on 2026-08-24 through the combined Checkpoint 2C + 3 + 4 walkthrough. The offline, project-scoped portable Studio bundle round trip remains the only accepted import/export authority. PR #135 was merged to `main` on 2026-08-24 after the separate merge decision; merge commit `bcc284684ea4d2e30158d3a20ebda57da77df93d` is the historical checkpoint integration baseline, while newer `main` remains authoritative.
 
 **Outcome:** an approved atlas becomes reproducible, visually searchable assets without repository editing.
 
@@ -223,7 +287,8 @@ User verification scenario: export the approved room twice, compare manifests/ha
 
 Exit decision: approve adapter fidelity and choose the production publishing workflow.
 
-Candidate implementation, preserved on the combined integration branch and authorized for source integration without accepting CP4.5:
+Candidate implementation, source-integrated through PR #137 / merge
+`2ead87bdd1f386eb0c3d35265914ac8de161f454` without accepting CP4.5 or CP5:
 `CHECKPOINT_5_CONTRACT.md` freezes a candidate-only first slice.
 `packages/numberdroid-adapter` now creates a content-addressed immutable snapshot,
 maps exact room/asset/source pins to virtual Level Spec/provenance files and CAS
@@ -304,7 +369,7 @@ or user acceptance.
 - preserve the accepted 19/4 and task-bound 30/5 MCP surfaces until a separate
   authoring-v2 feature gate pins new exact counts.
 
-This is the safest next non-visual block. It adds contracts and tests, not broad
+This was the safest first non-visual interface block. It added contracts and tests, not broad
 UI, database migration, Godot/Unreal output, materialization, or publication.
 
 Implementation note (2026-08-27, **implemented but not user-accepted**): A0.1
@@ -314,8 +379,10 @@ adapter-owned Numberdroid profile. The profile separates the current LevelSpec
 target vocabulary from the five operations actually exercised by the CP5
 snapshot/candidate bridge and explicitly marks the known export and authority
 gaps. It adds no application query, MCP tool/resource, SQLite migration, UI,
-materialization, commit, or publication surface. The remaining A0 interface
-ports and any read-only capability projection remain planned.
+materialization, commit, or publication surface. At the A0.1 checkpoint, the
+remaining A0 ports and read-only capability projection were still planned;
+A0.2–A0.4 below later implemented those bounded candidates without user
+acceptance.
 
 A0.2 adds the injected read-only application query for that manifest and wires
 the fixed Numberdroid profile only at the Studio server composition root. Owner
@@ -395,6 +462,58 @@ capability advertisement, CandidateManifest/adapter mapping, MCP/HTTP/UI surface
 new pixel operation, materialization, repository write, or publication authority.
 It therefore does not satisfy `IMG-006` end to end. Exact evidence and remaining
 scope are recorded in [`A1_2_STATUS.md`](A1_2_STATUS.md).
+
+#### A1.3 — project-bound adoption preflight
+
+**Status: next planned bounded Artist-path block; not implemented.** A1.3 should
+add a read-only, nonauthorizing preflight contract rather than an Asset mutation.
+It closes one validated `ProcessingRecipe` → `ProcessingResult` →
+`AssetInputSelection` chain and returns an immutable receipt that:
+
+- models an explicit `create` or `update` target with stable Asset identity and
+  exact expected Asset and metadata versions, matching the accepted CP2C
+  vocabulary without reusing its slice binding;
+- pins the exact capability-manifest schema/version and fingerprint without
+  mutating the current pinned Numberdroid profile in place;
+- requires a project-scoped CAS revalidation port to prove input and selected
+  output digest, bytes, media type, dimensions, and current `LIVE` state;
+- requires a project-scoped read-only Asset-state port that proves a `create`
+  target is unused or an `update` target matches the exact expected current
+  Asset and metadata heads;
+- blocks `ERROR` findings and carries `WARNING` findings forward without
+  accepting or dispositioning them;
+- distinguishes a valid preflight from authorization, semantic adoption,
+  review, lifecycle, finalization, materialization, or publication.
+
+A1.3 must not reinterpret the accepted CP2C `ExactSliceBinding` or
+`AssetProposal`: A1 lineage lacks committed atlas/slice/pivot/remap authority.
+It adds no SQLite migration, command registration, durable job, MCP/HTTP/UI
+surface, CandidateManifest/adapter mapping, new pixel operation, or repository
+write. A later A1.4 may design atomic idempotent adoption and additive
+persistence as its own separately reviewed risk block.
+
+#### Remaining A1 completion sequence after A1.3
+
+A1.3 does not complete `IMG-006` or the Artist path. Re-plan each step from
+current truth, but keep the remaining risks in separate candidate blocks:
+
+1. **A1.4 — application adoption seam:** freeze one atomic/idempotent semantic
+   command and task-branch policy without adding persistence or public transport.
+2. **A1.5 — persistence/CAS seam:** add the durable aggregate/reference boundary
+   with at most one migration plus fault, restart, integrity, backup/bundle, and
+   stale Asset/metadata-version evidence.
+3. **A1.6 — Authoring-v2 exposure:** add separately versioned MCP resources/tools
+   with newly pinned exact counts and no owner review/apply/finalize authority.
+4. **A1.7 — visual review/correction candidate:** create low-fidelity workflow
+   states first, then one bounded UI candidate with browser evidence and a
+   deferred Klaus live gate.
+
+Additional processing operations remain one deterministic processor block each.
+A1 is complete only when an authorized task can execute the ordinary
+image-to-semantic-asset path end to end and stop at **Waiting for your review**
+without acquiring owner review, merge, finalization, materialization, or
+publication authority. A2 planning may proceed independently, but it cannot
+claim complete Artist parity while these A1 boundaries remain planned.
 
 ### A2 — Agent parity and concurrent production
 

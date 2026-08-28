@@ -90,11 +90,31 @@ Four versioned interfaces keep those layers honest:
 `CandidateManifest`, and `EngineBridge`. The current Checkpoint 5 adapter/compiler
 candidate is the first proof of the adapter direction, not the complete product.
 
-The safest next non-visual Studio block is the A0 interface foundation: freeze and
-test the capability/candidate/bridge contracts and describe current Numberdroid
-compiler/LevelSpec abilities as a fail-closed capability profile. It must not add
-a database migration, broad UI, change the accepted MCP 19/4 or task-bound 30/5
-discovery surfaces, implement Godot/Unreal output, materialize, or publish.
+A0.1–A0.4 now implement the bounded capability manifest/query,
+`CandidateManifest`, and validate-only `EngineBridge` candidates on `main`; they
+remain explicitly not user-accepted. A1.0–A1.2 are separately user-accepted and
+cover the exact-PNG crop Recipe, Result, and inert primary-visual selection only.
+
+The next non-visual Artist-path block is A1.3: a read-only, project-bound
+adoption preflight. It must close Recipe → Result → Selection, pin the capability
+profile, revalidate exact input/output metadata and `LIVE` state through a CAS
+port, resolve the project-scoped current Asset head through a read-only state
+port, block `ERROR`, preserve unresolved `WARNING`, and model explicit Asset
+`create`/`update` coordinates with exact expected Asset and metadata versions in
+a nonauthorizing receipt. It must not mutate an
+Asset, reinterpret the accepted slice-based CP2C path, add a migration, register
+a command, change MCP 19/4 or task-bound 30/5, add HTTP/UI, introduce a pixel
+operation, materialize, or publish. Atomic adoption/persistence follows only as
+a separately reviewed A1.4 risk block.
+
+While Klaus cannot run live tests, safe candidate work follows the superagent
+loop in the Studio roadmap: one equally sized promise per block, parallel
+Domain/Security/Persistence/Compatibility/QA/Docs review, independent diff and
+CI verification, truthful candidate status, and a consolidated return-test
+backlog. Repository source integration requires the explicit bounded authority
+in the current human launch prompt and never implies user acceptance. The dated
+execution snapshot is
+`docs/history/handoffs/HANDOFF_2026-08-28_NUMBERDROID_STUDIO_AUTONOMOUS_A1_EXECUTION.md`.
 
 After the complete Numberdroid vertical proof, one thin Godot 2D/Tower Defense
 fixture should test portability using paths, waves/spawners, actors, tower slots,
@@ -344,7 +364,7 @@ Flow floor relationship PARTIAL / OPEN
    - ~~Transfer Room + Hero floor anchoring~~ **DONE / LIVE_ACCEPTED**;
    - ~~PRIMUS systematic floor logic~~ **DONE / LIVE_ACCEPTED v2**.
 
-   The Main Hall and PRIMUS passes jointly establish the reusable semantic-floor rule set: define semantics before generation, archive/extract deterministically, store explicit metadata, place from Level semantics, remove structural bands before repeated multi-cell placement, and require exact divisibility of the usable domain by the macro span. See `FLOOR_TILE_METADATA_CONTRACT.md`.
+   The Main Hall and PRIMUS passes jointly establish the reusable semantic-floor rule set: define semantics before generation, archive/extract deterministically, store explicit metadata, place from Level semantics, remove structural bands before repeated multi-cell placement, and require exact divisibility of the usable domain by the macro span. See `docs/art/production/FLOOR_TILE_METADATA_CONTRACT.md`.
 
 2. **Add static wall ambient occlusion / architectural grounding**
    - derive from actual architecture/Shared Wall Graph;

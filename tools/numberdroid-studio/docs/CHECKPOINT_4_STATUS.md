@@ -83,4 +83,4 @@ The user rebuilt the repaired head on Linux, repeated the conflict review, and r
 
 ## Gate disposition
 
-Checkpoint 4 is explicitly user-accepted as of 2026-08-24. The accepted repair explains **Waiting for your review**, prevents a conflicted completion before confirmation, and states that completing a task ends the assigned agent's ability to change it. After documentation-head run `32711949905` passed, the user separately authorized PR #135 to merge; merge commit `bcc284684ea4d2e30158d3a20ebda57da77df93d` is now the canonical `main` baseline.
+Checkpoint 4 is explicitly user-accepted as of 2026-08-24. The accepted repair explains **Waiting for your review**, prevents a conflicted completion before confirmation, and states that completing a task ends the assigned agent's ability to change it. After documentation-head run `32711949905` passed, the user separately authorized PR #135 to merge; merge commit `bcc284684ea4d2e30158d3a20ebda57da77df93d` is the historical checkpoint integration baseline. Newer `main` remains authoritative.

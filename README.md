@@ -8,7 +8,13 @@ Agents must start with:
 
 1. `AGENTS.md`
 2. `REPOSITORY_STRUCTURE.md`
-3. `docs/README.md`
+3. `docs/agents/ROLE_ENTRYPOINTS.md`
+4. `docs/agents/REPOSITORY_WORKFLOW.md`
+5. `docs/README.md`
+
+After that universal bootstrap, select the relevant role bundle. Numberdroid
+Studio work starts at `tools/numberdroid-studio/README.md`; historical handoffs
+are read only when a current plan or prompt names one explicitly.
 
 The repository deliberately separates production code, runtime assets, reproducible art sources, current documentation and historical context.
 

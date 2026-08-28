@@ -9,7 +9,9 @@ did not create acceptance. The user explicitly accepted this exact bounded
 contract at implementation head
 `4f555baf4bad41dc3599bde4aceff22e94fee261`; it was then merged through PR
 #145 as `a5323636941acdb98342e5d737e358919b8e5fe7`. Acceptance does not broaden
-the authority boundary below or accept A1.2 or the complete A1 Artist workflow.
+the authority boundary below or, at that checkpoint, accept A1.2 or the complete
+A1 Artist workflow. A1.2 was later accepted separately; that later decision does
+not widen A1.1.
 
 ## Implemented scope
 

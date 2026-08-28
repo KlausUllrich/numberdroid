@@ -72,15 +72,23 @@ The selected label, DOM state, URL, browser storage, and UI request payload are 
 
 Resources are the preferred way to discover and inspect current state. All resources enforce project/object read scope and expose their projection revision.
 
-### Implemented resource templates
+### Accepted implemented resource templates
 
 ```text
 studio://projects/{projectId}
 studio://projects/{projectId}/jobs/{jobId}
 studio://projects/{projectId}/assets/{assetId}
+studio://projects/{projectId}/rooms/{roomVariantId}
+studio://projects/{projectId}/task
 ```
 
-The first template returns the current authorized, redacted project-head projection. The job template returns the same project-scoped, authority-checked, redacted projection as `studio_job_read`, including structured progress/events and output preview resource links when they are live. The asset template returns the same bounded, project-scoped V2 asset projection as `studio_asset_query`, including immutable slice lineage, typed metadata, findings, and proposal provenance. Before the complete v9 feature gate, discovery remains exactly the accepted two project/job templates. With the gate live, it is exactly these three templates; the server does not advertise resource listing or any other URI pattern.
+The first template returns the current authorized, redacted project-head projection. The job template returns the same project-scoped, authority-checked, redacted projection as `studio_job_read`, including structured progress/events and output preview resource links when they are live. The asset template returns the same bounded, project-scoped V2 asset projection as `studio_asset_query`, including immutable slice lineage, typed metadata, findings, and proposal provenance. The room template returns the accepted bounded schema-v10 room detail. The task template is advertised only when the private gateway resolves a live HostBinding to a matching Checkpoint 4 task; its task identity is host-bound rather than caller-selected.
+
+Discovery progressed additively from two project/job templates before v9, to
+three with the accepted v9 asset gate, to the accepted default four with the
+v10 room gate. A real matching task binding advertises exactly five by adding
+the task template. The server does not advertise resource listing or any URI
+pattern beyond the exact applicable gate.
 
 ### Planned Authoring v2 resource surface
 
@@ -249,6 +257,10 @@ Grant mint/revoke endpoints exist for the authenticated human UI/service API. Th
 - `studio_processing_recipe_preview`
 - `studio_processing_recipe_apply`
 - `studio_processing_result_adopt`
+
+A1.0, A1.1, and A1.2 are accepted pure Domain/Preview contracts only. They
+register none of these tools and do not change the accepted 19/4 or matching-task
+30/5 discovery surfaces.
 
 `studio_source_generate` invokes a configured provider as a durable job, requires generation authority and budget, and never exposes the provider credential. Neither provider operation is implemented or authorized by Checkpoint 2B.
 
@@ -447,7 +459,7 @@ Accepted Checkpoint 2A extends those tests with exact seven-tool audit-ready dis
 
 Accepted Checkpoint 2B extends them with exact 15-tool/two-template discovery; non-authoritative grid proposal; source-resolution rectangle validation; deterministic pinned PNG outputs; semantic/job creation atomicity; complete one-time budget charge; job/resource read equivalence; cancel/retry/discard idempotency; three-attempt enforcement; immutable creator-task authority; revoked/expired/cross-task denial; authorized-control audit atomicity; worker lease recovery and stale-worker exclusion; sanitized failures; exact output metadata and reference ownership; atomic semantic apply; restart/recovery; state-specific integrity; snapshot-consistent backup; and quiesced shutdown.
 
-The following target checks remain for the checkpoint that introduces the feature: general atomic batch rollback and batch budget accounting; source/atlas/asset detail resources beyond the current project/job templates; capability-driven Authoring v2 discovery; and the complete image-to-asset and requirements-to-candidate task flows.
+The following target checks remain for the checkpoint that introduces the feature: general atomic batch rollback and batch budget accounting; source/atlas and other Authoring-v2 detail resources beyond the accepted project/job/asset/room and conditional task surfaces; capability-driven Authoring v2 discovery; and the complete image-to-asset and requirements-to-candidate task flows.
 
 Authoring v2 must additionally prove:
 

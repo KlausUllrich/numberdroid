@@ -20,12 +20,13 @@ its own security, evidence, and user-acceptance boundary.
 ## 1. Reconciled starting point
 
 - Checkpoints 1–4 are accepted and merged on `main`.
-- Checkpoint 4.5 is green as a candidate and still awaits Klaus's live designer
-  walkthrough. Its source is authorized for integration into `main`, but its
-  editor and UI behavior are not silently accepted by this plan.
-- The Checkpoint 5 candidate-only foundation may share that integrated source
-  tree without accepting CP4.5. Its own output has no materialize, commit,
-  publish, deployment, or release authority.
+- Checkpoint 4.5 and the Checkpoint 5 candidate-only foundation are green and
+  source-integrated into `main` through PR #137 / merge
+  `2ead87bdd1f386eb0c3d35265914ac8de161f454`. Neither checkpoint is thereby
+  user-accepted; CP4.5 still awaits Klaus's live designer walkthrough.
+- The integrated Checkpoint 5 candidate has no materialize, commit, publish,
+  deployment, or release authority and does not accept CP4.5 by coexistence in
+  the same source tree.
 - `studio.sqlite` plus the SHA-256 artifact CAS are one consistency unit. The
   service remains the one authoritative writer.
 - The administration CLI already provides integrity checking, verified full

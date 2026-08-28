@@ -1,6 +1,6 @@
 # Checkpoint 5 candidate-only foundation status
 
-Status: **candidate-only foundation authorized for source integration; not user-accepted**
+Status: **candidate-only foundation source-integrated; not user-accepted**
 
 Integration posture: preserved on `agent/numberdroid-studio-checkpoint-5` at
 `b116a285b285aed87b2a56c5ca3406ad1859f8b0` and merged through PR #137 as
