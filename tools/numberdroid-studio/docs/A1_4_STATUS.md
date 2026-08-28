@@ -142,11 +142,19 @@ Local verification on 2026-08-28:
 - exact changed-path classification: docs and Studio true; Studio visual and
   Windows true; root, root visual, Pages, and full false.
 
-Independent actual-diff review, PR Actions, source integration, and post-merge
-Actions are pending final candidate closure and will be appended without
-changing this candidate-only acceptance state.
+The exact reviewed candidate had binary diff SHA-256
+`d6c0ebddefc76d6c8909bc4805b66148f68f3fc94771bbc1a745f370a1268962`.
+Independent QA, Security/Authority, Domain, CAS/Atomicity, and Compatibility
+actual-diff reviews all reported GO. PR #152 at implementation head
+`8a2f372226add6a4ff3435a8ab5414e27035be17` was source-integrated into
+`main` as squash commit `30de2527f607b7c3a899aad75d36e174872bbc49`
+after PR Actions run 33156327525 passed. Post-merge `main` Actions run
+33156739135 also passed. Both runs selected and passed the change classifier,
+Linux Studio including browser evidence, Windows Studio, and CI gate; root,
+Pages, and full jobs were correctly skipped. Source integration and CI do not
+change this candidate-only acceptance state.
 
 Because the new private module path is not in a narrow classifier allowlist,
-the feature PR is expected to fail closed to Linux Studio, browser-evidence,
-Windows Studio, and CI-gate checks. That conservative CI selection is risk
-coverage, not evidence of a new UI or of visual acceptance.
+the feature and post-merge runs failed closed to Linux Studio,
+browser-evidence, Windows Studio, and CI-gate checks. That conservative CI
+selection is risk coverage, not evidence of a new UI or of visual acceptance.
