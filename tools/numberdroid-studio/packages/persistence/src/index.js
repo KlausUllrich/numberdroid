@@ -25,6 +25,11 @@ export { SqliteAgentTaskStore, TaskBranchProjectStore } from './sqlite/sqlite-ag
 export { SqliteHostBindingStore } from './sqlite/sqlite-host-binding-store.js';
 export { SqliteJobStore } from './sqlite/sqlite-job-store.js';
 export { SqliteProjectStore } from './sqlite/sqlite-project-store.js';
+export {
+  PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_KIND,
+  PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION,
+  SqliteProcessingResultAdoptionStore,
+} from './sqlite/sqlite-processing-result-adoption-store.js';
 export { SqliteSourceIntakeStore } from './sqlite/sqlite-source-intake-store.js';
 export { SqliteWorkspace } from './sqlite/sqlite-workspace.js';
 export {

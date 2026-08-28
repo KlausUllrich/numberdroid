@@ -341,7 +341,7 @@ function assertAuthority(command, context, evidence, now) {
   invariant(grant.usedCommands < grant.maxCommands, 'BUDGET_EXCEEDED', 'The grant command budget is exhausted.');
 }
 
-function validateTrustedContext(value) {
+export function validateProcessingResultAdoptionTrustedContext(value) {
   let snapshot;
   try {
     snapshot = snapshotPlainData(value, 'trustedExecutionContext');
@@ -464,7 +464,7 @@ export class ProcessingResultAdoptionPlanningService {
   async prepare(commandValue, trustedExecutionContext, options = {}) {
     const signal = exactPrepareOptions(options);
     const command = validateProcessingResultAdoptionCommand(commandValue);
-    const context = validateTrustedContext(trustedExecutionContext);
+    const context = validateProcessingResultAdoptionTrustedContext(trustedExecutionContext);
     abort(signal);
     const authoritySelection = deepFreeze({
       schemaVersion: PROCESSING_ADOPTION_TASK_AUTHORITY_READER_SCHEMA_VERSION,

@@ -4,7 +4,7 @@ import { copyFile, link, lstat, mkdir, open, readdir, rename, stat, unlink, writ
 import { createReadStream } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
-import { inspectImageHeader, verifyImageFile } from './image-metadata.js';
+import { inspectImageHeader, verifyImageBytes, verifyImageFile } from './image-metadata.js';
 
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 
@@ -185,6 +185,83 @@ export class ContentAddressedArtifactStore {
       actualDigest,
     });
     return { digest, byteSize, path };
+  }
+
+  /**
+   * Keeps the no-follow file handle and the exact verified byte image private
+   * until operation completes. Callers receive descriptor evidence only; no
+   * filesystem path, handle, or mutable byte buffer crosses this boundary.
+   */
+  async withVerifiedPngEvidence(digest, operation) {
+    this.#assertDigest(digest);
+    invariant(typeof operation === 'function', 'VALIDATION_ERROR', 'Verified PNG evidence requires an operation callback.');
+    const path = this.#path(digest);
+    let pathInfo;
+    try {
+      pathInfo = await lstat(path);
+    } catch (error) {
+      if (error.code === 'ENOENT') throw new StudioError('ARTIFACT_MISSING', 'CAS object is missing.', { digest });
+      throw error;
+    }
+    invariant(
+      pathInfo.isFile() && !pathInfo.isSymbolicLink(),
+      'ARTIFACT_CORRUPT',
+      'CAS object is not a regular no-follow file.',
+      { digest },
+    );
+    let handle;
+    try {
+      handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    } catch (error) {
+      if (error.code === 'ENOENT') throw new StudioError('ARTIFACT_MISSING', 'CAS object is missing.', { digest });
+      if (['ELOOP', 'EMLINK'].includes(error.code)) {
+        throw new StudioError('ARTIFACT_CORRUPT', 'CAS object must not be a symbolic link.', { digest });
+      }
+      throw error;
+    }
+    try {
+      const info = await handle.stat();
+      invariant(
+        info.isFile() && info.dev === pathInfo.dev && info.ino === pathInfo.ino,
+        'ARTIFACT_CORRUPT',
+        'CAS object changed while its no-follow handle was acquired.',
+        { digest },
+      );
+      const bytes = await handle.readFile();
+      let currentPathInfo;
+      try {
+        currentPathInfo = await lstat(path);
+      } catch (error) {
+        if (error.code === 'ENOENT') throw new StudioError('ARTIFACT_MISSING', 'CAS object disappeared during verification.', { digest });
+        throw error;
+      }
+      invariant(
+        currentPathInfo.isFile()
+          && !currentPathInfo.isSymbolicLink()
+          && currentPathInfo.dev === info.dev
+          && currentPathInfo.ino === info.ino,
+        'ARTIFACT_CORRUPT',
+        'CAS object changed during no-follow verification.',
+        { digest },
+      );
+      const actualDigest = createHash('sha256').update(bytes).digest('hex');
+      invariant(actualDigest === digest, 'ARTIFACT_CORRUPT', 'CAS object no longer matches its digest.', {
+        digest,
+        actualDigest,
+      });
+      verifyImageBytes(bytes, 'image/png');
+      const dimensions = inspectImageHeader(bytes.subarray(0, 64), 'image/png');
+      const evidence = Object.freeze({
+        sha256: digest,
+        mediaType: 'image/png',
+        byteSize: bytes.length,
+        width: dimensions.width,
+        height: dimensions.height,
+      });
+      return await operation(evidence);
+    } finally {
+      await handle.close();
+    }
   }
 
   async createReadStream(digest) {

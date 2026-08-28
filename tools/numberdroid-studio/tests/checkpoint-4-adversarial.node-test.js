@@ -128,7 +128,9 @@ test('schema v11 task ledgers are STRICT and immutable history rejects updates',
     SELECT name, strict FROM pragma_table_list WHERE name LIKE 'task_%' OR name = 'agent_tasks' ORDER BY name
   `).all();
   assert.deepEqual(tables.map(({ name }) => name), [
-    'agent_tasks', 'task_branch_revisions', 'task_merges', 'task_reverts', 'task_reviews', 'task_timeline_events',
+    'agent_tasks', 'task_branch_processing_result_adoptions',
+    'task_branch_processing_result_artifact_references', 'task_branch_revisions',
+    'task_merges', 'task_reverts', 'task_reviews', 'task_timeline_events',
   ]);
   assert.ok(tables.every(({ strict }) => Number(strict) === 1));
   assert.throws(() => store.workspace.database.prepare(`

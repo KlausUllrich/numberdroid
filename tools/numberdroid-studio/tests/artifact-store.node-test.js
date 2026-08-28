@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, rm, symlink, unlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -115,6 +115,41 @@ test('CAS detects corruption and uses quarantine plus delayed sweep for garbage 
   const corruption = await store.ingest(pngHeader({ tail: 'corrupt-me' }), { mediaType: 'image/png' });
   await writeFile((await store.verify(corruption.digest)).path, 'changed');
   await assert.rejects(store.verify(corruption.digest), (error) => error.code === 'ARTIFACT_CORRUPT');
+});
+
+test('verified PNG evidence holds a no-follow object and exposes descriptor facts only', async (context) => {
+  const root = await tempDirectory(context, 'numberdroid-cas-evidence-');
+  const store = new ContentAddressedArtifactStore({ rootDirectory: root });
+  const bytes = pngHeader({ width: 9, height: 7, tail: 'held-evidence' });
+  const artifact = await store.ingest(bytes, { mediaType: 'image/png' });
+  const observed = await store.withVerifiedPngEvidence(artifact.digest, async (evidence) => {
+    assert.deepEqual(Object.keys(evidence), ['sha256', 'mediaType', 'byteSize', 'width', 'height']);
+    assert.ok(Object.isFrozen(evidence));
+    assert.equal(evidence.sha256, artifact.digest);
+    assert.equal(evidence.byteSize, bytes.length);
+    assert.equal(evidence.width, 9);
+    assert.equal(evidence.height, 7);
+    return 'closed';
+  });
+  assert.equal(observed, 'closed');
+
+  const path = (await store.verify(artifact.digest)).path;
+  const target = join(root, 'symlink-target.png');
+  await writeFile(target, bytes);
+  await unlink(path);
+  try {
+    await symlink(target, path);
+  } catch (error) {
+    if (['EPERM', 'EACCES', 'ENOSYS'].includes(error.code)) {
+      context.skip(`symbolic links unavailable: ${error.code}`);
+      return;
+    }
+    throw error;
+  }
+  await assert.rejects(
+    store.withVerifiedPngEvidence(artifact.digest, () => 'forbidden'),
+    (error) => error.code === 'ARTIFACT_CORRUPT',
+  );
 });
 
 test('artifact metadata and its live reference commit atomically or both roll back', async (context) => {

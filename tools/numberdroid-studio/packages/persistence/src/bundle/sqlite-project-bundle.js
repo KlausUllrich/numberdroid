@@ -940,6 +940,21 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
     invariant(activeTasks.length === 0, 'BUNDLE_NOT_QUIESCENT', 'Portable export requires every task branch to be terminal.', {
       taskIds: activeTasks.map((task) => task.task_id),
     });
+    const schemaVersion = Number(database.prepare('PRAGMA user_version').get().user_version);
+    const mergedProcessingTasks = schemaVersion >= 13 ? database.prepare(`
+      SELECT DISTINCT adoptions.task_id
+      FROM task_branch_processing_result_adoptions AS adoptions
+      JOIN agent_tasks AS tasks
+        ON tasks.project_id = adoptions.project_id AND tasks.task_id = adoptions.task_id
+      WHERE adoptions.project_id = ? AND tasks.state = 'MERGED'
+      ORDER BY adoptions.task_id
+    `).all(projectId) : [];
+    invariant(
+      mergedProcessingTasks.length === 0,
+      'BUNDLE_NOT_QUIESCENT',
+      'Portable export cannot represent a merged private processing-result adoption.',
+      { taskIds: mergedProcessingTasks.map((task) => task.task_id) },
+    );
     const proposalRows = database.prepare('SELECT * FROM asset_proposals WHERE project_id = ? ORDER BY proposal_id').all(projectId);
     const unsettled = proposalRows.filter((proposal) => proposal.status !== 'APPLIED');
     invariant(unsettled.length === 0, 'BUNDLE_NOT_QUIESCENT', 'Portable export requires every asset proposal to be applied.', { proposalIds: unsettled.map((proposal) => proposal.proposal_id) });

@@ -38,4 +38,11 @@ export {
   ProcessingResultAdoptionPlanningService,
   validateProcessingAdoptionTaskAuthorityReader,
   validateProcessingAdoptionTaskBranchPreflightReader,
+  validateProcessingResultAdoptionTrustedContext,
 } from './processing-result-adoption.js';
+export {
+  PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_KIND,
+  PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION,
+  ProcessingResultAdoptionCommitService,
+  validateProcessingResultAdoptionAtomicStore,
+} from './processing-result-adoption-commit.js';
