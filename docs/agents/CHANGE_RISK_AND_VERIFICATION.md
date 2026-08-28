@@ -23,6 +23,38 @@ the feature name.
 - Do not repeat a broad planning or review pass unless the scope/diff changed
   materially or the prior pass found a substantive issue.
 
+## Bounded execution, polling, and takeover
+
+All tiers use explicit time bounds. Higher risk may justify a longer command or
+workflow budget, but never an unbounded one.
+
+- Wrap local reads, diagnostics, tests, builds, and verification commands in an
+  explicit wall-clock timeout selected from the known or measured runtime plus
+  a reasonable safety margin. If no baseline exists, begin with a focused
+  probe, learn its runtime, and widen deliberately rather than starting an
+  unlimited full run.
+- A command that must continue beyond the current tool yield runs in a
+  resumable session. Poll it at intervals no longer than 60 seconds and send a
+  user-visible progress update within the same 60-second ceiling.
+- A bounded superagent review or diagnosis has a five-minute default deadline,
+  stated in the delegated task. On expiry, the coordinator interrupts and
+  performs the remaining review directly or assigns a smaller bounded follow-up.
+  Waiting for the same silent task again is prohibited. Intrinsically longer
+  delegated work requires a justified replacement deadline communicated before
+  the first one expires.
+- Poll selected PR and post-merge jobs every 30–60 seconds. Use their observed
+  repository baseline for the overall watch deadline, or 20 minutes when no
+  baseline is known. At the deadline, inspect job steps/log heartbeat and
+  classify the job as still healthy, stalled, failed, or externally blocked.
+  Extend once only with a new explicit bound and evidence that the job is
+  progressing; otherwise repair/retry or stop the affected lane.
+- Never translate timeout/cancellation into a green gate. Record the partial
+  facts, diagnose the responsible layer, and require the tier-selected evidence
+  to complete successfully before merge.
+
+These rules define responsiveness and takeover behavior; the authoritative
+user-facing summary remains in the universal `AGENTS.md` bootstrap.
+
 ## Adaptive tiers
 
 | Tier | Scope | Targeted superagents | Required local verification |
