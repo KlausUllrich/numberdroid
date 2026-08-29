@@ -95,17 +95,24 @@ A0.1–A0.4 now implement the bounded capability manifest/query,
 remain explicitly not user-accepted. A1.0–A1.2 are separately user-accepted and
 cover the exact-PNG crop Recipe, Result, and inert primary-visual selection only.
 
-The next non-visual Artist-path block is A1.3: a read-only, project-bound
-adoption preflight. It must close Recipe → Result → Selection, pin the capability
-profile, revalidate exact input/output metadata and `LIVE` state through a CAS
-port, resolve the project-scoped current Asset head through a read-only state
-port, block `ERROR`, preserve unresolved `WARNING`, and model explicit Asset
-`create`/`update` coordinates with exact expected Asset and metadata versions in
-a nonauthorizing receipt. It must not mutate an
-Asset, reinterpret the accepted slice-based CP2C path, add a migration, register
-a command, change MCP 19/4 or task-bound 30/5, add HTTP/UI, introduce a pixel
-operation, materialize, or publish. Atomic adoption/persistence follows only as
-a separately reviewed A1.4 risk block.
+A1.3–A1.6b2b are now source-integrated, non-accepted candidates. Together they
+implement the read-only project-bound preflight, strict task-branch plan,
+schema-v13 atomic DRAFT adoption, host-bound admission/session, and explicit
+private Authoring-v2 transport. They do not change the accepted legacy 19/4 or
+task-bound 30/5 MCP surfaces, Main/CP2C Assets, owner decisions, lifecycle,
+materialization, or publication. The discarded local A1.4 draft was not this
+integrated chain and must not be reconstructed or used to roll it back.
+
+The current Artist-path block is A1.7. Its implementation-grounded D0 state
+contract is frozen in
+`tools/numberdroid-studio/docs/A1_7_STATE_CONTRACT.md`. Current code confirms
+that the successful branch-local DRAFT and its exact selected-output preview do
+not reach a human-safe public projection. A1.7 therefore proceeds as two
+separate L3 changes: first the minimal owner-safe task/adoption read projection,
+then one bounded visual review/correction candidate in the selected Agent task.
+The visible path stops at **Waiting for your review** and adds no adoption,
+retry, owner review, merge, finalization, materialization, publication, or
+release authority.
 
 While Klaus cannot run live tests, safe candidate work follows the adaptive
 D0/L1/L2/L3 policy in
