@@ -36,8 +36,15 @@ workflow budget, but never an unbounded one.
 - A command that must continue beyond the current tool yield runs in a
   resumable session. Poll it at intervals no longer than 60 seconds and send a
   user-visible progress update within a separate 120-second ceiling. Technical
-  polls do not each require a user-visible message, but they never reset or
-  weaken that heartbeat deadline.
+  polls never reset or weaken that deadline; during 30–60-second external
+  polling, at most one poll may occur between user-visible updates.
+- Before starting an operation that may exceed the current response window,
+  select a yieldable path with an initial yield of at most 30 seconds. Retain
+  the complete control tuple: session/cell/job/run/operation ID, explicit
+  deadline, last output, and next poll/takeover action. Rendering a compact
+  status is encouraged; discarding the underlying handle or result metadata is
+  prohibited. A lost handle stops blind waiting and triggers process/job-state
+  recovery followed by takeover or the smallest safe idempotent recheck.
 - A bounded superagent review or diagnosis has a five-minute default deadline,
   stated in the delegated task. On expiry, the coordinator interrupts and
   performs the remaining review directly or assigns a smaller bounded follow-up.
@@ -50,12 +57,38 @@ workflow budget, but never an unbounded one.
   classify the job as still healthy, stalled, failed, or externally blocked.
   Extend once only with a new explicit bound and evidence that the job is
   progressing; otherwise repair/retry or stop the affected lane.
+- After two consecutive polls without an observable state or heartbeat change,
+  inspect the job steps/logs, process inventory, or a narrower source of truth
+  and make the current healthy/stalled decision user-visible before polling
+  again. A third identical blind status poll is prohibited.
+- Bound tool output to decision-relevant structured fields. If a result is
+  truncated, re-query the smallest exact slice that contains the missing fact;
+  do not infer any status from omitted output. Preserve control metadata even
+  when the displayed payload is compact.
 - Never translate timeout/cancellation into a green gate. Record the partial
   facts, diagnose the responsible layer, and require the tier-selected evidence
   to complete successfully before merge.
 
 These rules define responsiveness and takeover behavior; the authoritative
 user-facing summary remains in the universal `AGENTS.md` bootstrap.
+
+### Continuity checkpoint and compaction recovery
+
+Record a compact continuity checkpoint after every meaningful local or remote
+mutation. It contains:
+
+- canonical remote `main` SHA;
+- local branch, HEAD, and worktree state;
+- active remote branch and head SHA;
+- PR number, state, base, and head;
+- active workflow run ID, status, and watch deadline;
+- last verified result, next bounded action, and current blocker.
+
+After context compaction, tool-session replacement, or another boundary that
+may discard operation state, do not mutate again until remote `main`, local
+HEAD/worktree, PR head/state, active Actions run, and the next action have been
+re-verified. Send one recovered-state update so the user can distinguish a
+resumed verified session from an assumed continuation.
 
 ## Adaptive tiers
 
