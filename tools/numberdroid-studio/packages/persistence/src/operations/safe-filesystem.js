@@ -71,10 +71,10 @@ async function assertAbsent(path) {
   }
 }
 
-async function syncHandle(path, signal) {
+async function syncHandle(path, signal, openFlags = constants.O_RDONLY) {
   let handle;
   try {
-    handle = await open(path, constants.O_RDONLY);
+    handle = await open(path, openFlags);
     assertEffectFence(signal);
     await handle.sync();
   } catch (error) {
@@ -90,7 +90,11 @@ async function syncTree(path, platform, signal) {
   const info = await lstat(path);
   invariant(!info.isSymbolicLink(), 'BACKUP_PATH_UNSAFE', 'Operation output contains a symbolic link.');
   if (info.isFile()) {
-    await syncHandle(path, signal);
+    await syncHandle(
+      path,
+      signal,
+      platform === 'win32' ? constants.O_RDWR : constants.O_RDONLY,
+    );
     return;
   }
   invariant(info.isDirectory(), 'BACKUP_PATH_UNSAFE', 'Operation output contains an unsupported filesystem entry.');

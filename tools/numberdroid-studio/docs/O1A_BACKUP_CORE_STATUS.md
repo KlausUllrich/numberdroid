@@ -97,8 +97,8 @@ operation is never re-imported under a second provenance path.
 Local candidate evidence on 2026-08-29:
 
 - focused O1a Domain/Application, ledger, CAS, filesystem, quarantine, runtime,
-  failure/health, and restart suite: **58 tests — 54 passed, 0 failed, 4 Windows-only skips**;
-- full Studio suite: **588 tests — 584 passed, 0 failed, 4 Windows-only skips**;
+  failure/health, and restart suite: **59 tests — 55 passed, 0 failed, 4 Windows-only skips**;
+- full Studio suite: **589 tests — 585 passed, 0 failed, 4 Windows-only skips**;
 - JavaScript syntax check: **177 files passed**.
 
 The focused tests prove same-request replay with one durable output, changed
@@ -113,7 +113,10 @@ intake closure. It also proves periodic and immediate post-snapshot lease
 renewal, cooperative fencing between CAS objects and publication steps,
 primary-error precedence during cleanup, and Windows helper settlement before
 resource release. A static helper-bootstrap regression additionally closes the
-fixed PowerShell stderr-redirection API before the real Windows execution lane.
+fixed PowerShell stderr-redirection API and keeps regular descendant files on
+the no-follow reparse proof before directory-only NTFS identity checks. Real
+Windows file durability uses one writable file handle for the required flush;
+there is no read-only retry or fallback.
 The
 existing full suite additionally preserves schema-v13 SQLite/CAS behavior,
 legacy HTTP/MCP catalogs, A1.4–A1.7, accepted checkpoint behavior, and package

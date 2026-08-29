@@ -188,11 +188,14 @@ function Assert-SafeDescendants {
                 throw 'descendant-bound'
             }
             $entry = [NumberDroidWindowsRootProbe]::InspectEntry($entryPath)
-            if ($entry.FileSystem -cne 'NTFS' -or $entry.CaseSensitive -or
-                $null -ne $entry.ReparseTag -or $entry.VolumeSerial -cne $ExpectedVolume) {
+            if ($null -ne $entry.ReparseTag) {
                 throw 'filesystem'
             }
             if ($entry.IsDirectory) {
+                if ($entry.FileSystem -cne 'NTFS' -or $entry.CaseSensitive -or
+                    $entry.VolumeSerial -cne $ExpectedVolume) {
+                    throw 'filesystem'
+                }
                 $pending.Push($entryPath)
             }
         }
@@ -360,15 +363,27 @@ public static class NumberDroidWindowsRootProbe
                 throw new InvalidOperationException();
             }
 
+            // A regular descendant needs only the no-follow attribute/tag proof.
+            // A volume transition below this root requires a directory reparse
+            // point, which is rejected before traversal descends into it.
+            if (!isDirectory)
+            {
+                return new Result
+                {
+                    IsDirectory = false,
+                    FileSystem = null,
+                    CaseSensitive = false,
+                    VolumeSerial = null,
+                    FileId = null,
+                    ReparseTag = null
+                };
+            }
+
             FILE_ID_INFO identity = ReadInformation<FILE_ID_INFO>(
                 handle, FILE_INFO_BY_HANDLE_CLASS.FileIdInfo);
-            bool caseSensitive = false;
-            if (isDirectory)
-            {
-                FILE_CASE_SENSITIVE_INFO caseInfo = ReadInformation<FILE_CASE_SENSITIVE_INFO>(
-                    handle, FILE_INFO_BY_HANDLE_CLASS.FileCaseSensitiveInfo);
-                caseSensitive = (caseInfo.Flags & FILE_CS_FLAG_CASE_SENSITIVE_DIR) != 0;
-            }
+            FILE_CASE_SENSITIVE_INFO caseInfo = ReadInformation<FILE_CASE_SENSITIVE_INFO>(
+                handle, FILE_INFO_BY_HANDLE_CLASS.FileCaseSensitiveInfo);
+            bool caseSensitive = (caseInfo.Flags & FILE_CS_FLAG_CASE_SENSITIVE_DIR) != 0;
             if (identity.FileId.Identifier == null || identity.FileId.Identifier.Length != 16)
             {
                 throw new InvalidOperationException();
