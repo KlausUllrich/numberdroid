@@ -2,9 +2,10 @@
 
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
-Baseline recorded: 2026-08-29 at A1.7 read-projection `main`
-`df2e65a02d1c10ca7de9084539ebc262865f206b`. Receivers MUST replace this with
-newer verified `main` truth as work lands.
+Source baseline recorded: 2026-08-29 at integrated A1.7 visual-candidate `main`
+`2bac6e77d5e8dae8ee88021aaa9dfba7345c5196`. A later documentation-only
+integration record does not change the candidate runtime tree. Receivers MUST
+replace this with newer verified source `main` truth as work lands.
 
 ## Purpose
 
@@ -807,10 +808,12 @@ accepted** state.
   [#168](https://github.com/KlausUllrich/numberdroid/pull/168) as merge commit
   `df2e65a02d1c10ca7de9084539ebc262865f206b`. The bounded visual candidate is
   PR [#169](https://github.com/KlausUllrich/numberdroid/pull/169), based on that
-  exact `main`, with implementation head
-  `d8fe20a3f9628eac9230ad44a35941204e05f42c`. Its merge SHA and final tested
-  `main` are assigned at source integration. The visible result is
-  **implemented candidate — not user accepted**.
+  exact `main`. Its final tested head
+  `ea4079dd9599d10fbe077be092bdc6f558177f5c` has tree
+  `a0bcb5115d1bde5d2266ad391ce1dae51bebf0db` and was integrated as normal merge
+  commit `2bac6e77d5e8dae8ee88021aaa9dfba7345c5196`. The final tested source `main`
+  is that merge commit. The visible result is **implemented candidate — not
+  user accepted**.
 - **State/dependency:** `NEEDS KLAUS LIVE`; depends on VT-000 for the protected
   Studio baseline and on VT-004–VT-010 for the adoption semantics and private
   transport it presents without extending. Automated rendering and Chrome
@@ -876,9 +879,27 @@ accepted** state.
   and classifier self-tests pass. The
   exact 18-path classifier selects docs, Root, Root visual, Studio, Studio
   visual, Studio Windows, Pages and full lanes because the changed Actions
-  workflow is intentionally fail-closed. PR/main Actions jobs, Chrome artifact
-  ID, screenshots, merge SHA and final `main` are filled after CI/source
-  integration.
+  workflow is intentionally fail-closed. Final PR Actions
+  [#2223](https://github.com/KlausUllrich/numberdroid/actions/runs/33264560427)
+  passed classification, Root, Studio Linux/browser, Studio Windows and CI
+  gate. Its independently reverified A1.7 artifact
+  [#9718313654](https://github.com/KlausUllrich/numberdroid/actions/runs/33264560427/artifacts/9718313654)
+  has digest
+  `18f7f41a98aecc31d78e74436e65689764ce23410f728a721af703f47e76a890`.
+  Post-merge `main` Actions
+  [#2224](https://github.com/KlausUllrich/numberdroid/actions/runs/33264894733)
+  passed classification, Root, Studio Linux/browser, Studio Windows, Pages and
+  CI gate. Its independently reverified artifact
+  [#9718416600](https://github.com/KlausUllrich/numberdroid/actions/runs/33264894733/artifacts/9718416600)
+  has digest
+  `8df3dc8a9ce333c0e0f7f4b69d42587b49bc067796b64c5fccda4b5b98b893c8`.
+  Both artifacts contain final 1440×900 screenshot
+  `cd03a98645cdf71c9d32268482cd1fdc05e8bf8b101d8619dcf8da22c969e8c6`
+  and 1060×900 screenshot
+  `b3b838fd4a81332c64d3bd993f4c7eab93ae9b94edfd79a18890eb511647a269`.
+  Diagnostic runs #2218–#2222 exposed and bounded, respectively, asynchronous
+  task-selection capture, CSP evidence probes, compatible text/scroll restore,
+  and Windows fixture-cleanup ordering before the clean #2223 source freeze.
 - **Required platform/evidence:** desktop Chrome at exactly 1440×900 and
   1060×900. CI must retain and inspect the safe A1.7 evidence bundle containing
   both screenshots, bounded DOM/Accessibility observations, transport log,

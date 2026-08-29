@@ -89,9 +89,9 @@ The dedicated Chrome mode produces exactly two screenshots, at 1440×900 and
 - no horizontal overflow or browser runtime/network error.
 
 Chrome was not available in the local workspace. The real 1440/1060 browser
-bundle is therefore a required CI artifact and must be inspected before source
-integration is considered verified. This is an evidence limitation, not a
-user-acceptance substitute.
+bundle was therefore required from CI and was inspected before source
+integration was considered verified. This evidence limitation did not make the
+automated result a user-acceptance substitute.
 
 ## Compatibility and authority boundary
 
@@ -115,7 +115,7 @@ A1.7 section. They are not exercised by the A1.7 fixture or success path.
 
 ## Verification and acceptance
 
-At the current local candidate checkpoint:
+At the integrated source checkpoint:
 
 - focused A1.7, CP4.5 and HTTP regression: **17 passed, 0 failed**;
 - full Studio regression: **540 passed, 0 failed**;
@@ -128,16 +128,45 @@ At the current local candidate checkpoint:
   Transport/Races, Persistence/Recovery, UI/Accessibility and browser-evidence
   boundaries: **GO**, with no open code finding.
 
-Documentation and classifier results, plus PR/Actions/source-integration and
-real Chrome artifact evidence, are recorded at final source freeze in `VT-011`
-of
+Documentation and classifier results, PR/Actions/source integration, and real
+Chrome artifact evidence are recorded at final source freeze in `VT-011` of
 [`VACATION_TEST_BACKLOG.md`](VACATION_TEST_BACKLOG.md).
 
-The visual source candidate is PR
-[#169](https://github.com/KlausUllrich/numberdroid/pull/169) at implementation
-head `d8fe20a3f9628eac9230ad44a35941204e05f42c`, based on verified read-projection
-`main` `df2e65a02d1c10ca7de9084539ebc262865f206b`. Merge, post-merge Actions and
-real Chrome artifact evidence remain pending at this checkpoint.
+The visual source candidate was integrated through PR
+[#169](https://github.com/KlausUllrich/numberdroid/pull/169). Its final tested
+head is `ea4079dd9599d10fbe077be092bdc6f558177f5c`, with tree
+`a0bcb5115d1bde5d2266ad391ce1dae51bebf0db`, based on verified read-projection
+`main` `df2e65a02d1c10ca7de9084539ebc262865f206b`. GitHub created normal merge
+commit `2bac6e77d5e8dae8ee88021aaa9dfba7345c5196`.
+
+PR Actions
+[#2223](https://github.com/KlausUllrich/numberdroid/actions/runs/33264560427)
+completed successfully across classification, Root, Studio Linux/browser,
+Studio Windows and CI gate. Its A1.7 artifact
+[#9718313654](https://github.com/KlausUllrich/numberdroid/actions/runs/33264560427/artifacts/9718313654)
+has digest
+`18f7f41a98aecc31d78e74436e65689764ce23410f728a721af703f47e76a890`
+and was downloaded and independently reverified as two screenshots. Post-merge
+`main` Actions
+[#2224](https://github.com/KlausUllrich/numberdroid/actions/runs/33264894733)
+also completed successfully across classification, Root, Studio Linux/browser,
+Studio Windows, Pages and CI gate. Its independently reverified A1.7 artifact
+[#9718416600](https://github.com/KlausUllrich/numberdroid/actions/runs/33264894733/artifacts/9718416600)
+has digest
+`8df3dc8a9ce333c0e0f7f4b69d42587b49bc067796b64c5fccda4b5b98b893c8`.
+Both artifacts contain the same final screenshot hashes:
+`cd03a98645cdf71c9d32268482cd1fdc05e8bf8b101d8619dcf8da22c969e8c6`
+at 1440×900 and
+`b3b838fd4a81332c64d3bd993f4c7eab93ae9b94edfd79a18890eb511647a269`
+at 1060×900.
+
+Intermediate PR runs #2218–#2222 were diagnostic, not accepted evidence:
+#2218 exposed the older CP4 capture's missing wait for asynchronous task
+selection; #2219 exposed CSP-incompatible evidence probes; #2220 and #2221
+exposed incompatible text-boundary and task-root scroll restoration; and #2222
+passed the full Linux/browser path but exposed Windows `EBUSY` cleanup ordering.
+Each finding received the smallest bounded correction before the clean #2223
+source freeze.
 
 The final state remains **implemented candidate — not user accepted** and
 **Waiting for your review**. Only Klaus can accept or revise the visual and
