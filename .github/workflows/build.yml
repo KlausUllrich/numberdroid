@@ -291,6 +291,7 @@ jobs:
           CHECKPOINT_3_PID=""
           CHECKPOINT_4_PID=""
           CHECKPOINT_4_5_PID=""
+          A1_7_PID=""
           cleanup() {
             if [ -n "$BASELINE_PID" ]; then kill "$BASELINE_PID" 2>/dev/null || true; fi
             if [ -n "$CANDIDATE_PID" ]; then kill "$CANDIDATE_PID" 2>/dev/null || true; fi
@@ -301,6 +302,7 @@ jobs:
             if [ -n "$CHECKPOINT_3_PID" ]; then kill "$CHECKPOINT_3_PID" 2>/dev/null || true; fi
             if [ -n "$CHECKPOINT_4_PID" ]; then kill "$CHECKPOINT_4_PID" 2>/dev/null || true; fi
             if [ -n "$CHECKPOINT_4_5_PID" ]; then kill "$CHECKPOINT_4_5_PID" 2>/dev/null || true; fi
+            if [ -n "$A1_7_PID" ]; then kill "$A1_7_PID" 2>/dev/null || true; fi
           }
           trap cleanup EXIT
           mkdir -p "$EVIDENCE/baseline-1a" "$EVIDENCE/candidate-1b/dom"
@@ -331,10 +333,10 @@ jobs:
             local mode="$4"
             local dom_output="${5:-}"
             if [ -n "$dom_output" ]; then
-              node tools/numberdroid-studio/scripts/capture-studio-browser-evidence.js \
+              timeout 180s node tools/numberdroid-studio/scripts/capture-studio-browser-evidence.js \
                 "$CHROME" "$width" "$output" "$url" "$mode" "$dom_output"
             else
-              node tools/numberdroid-studio/scripts/capture-studio-browser-evidence.js \
+              timeout 180s node tools/numberdroid-studio/scripts/capture-studio-browser-evidence.js \
                 "$CHROME" "$width" "$output" "$url" "$mode"
             fi
           }
@@ -566,6 +568,32 @@ jobs:
           wait "$CHECKPOINT_4_PID" 2>/dev/null || true
           CHECKPOINT_4_PID=""
 
+          A1_7_DATA="$(timeout 10s mktemp -d "$RUNNER_TEMP/numberdroid-studio-a1-7-data.XXXXXX")"
+          A1_7_EVIDENCE="$GITHUB_WORKSPACE/artifacts/studio-a1-7"
+          A1_7_RAW_LOG="$RUNNER_TEMP/numberdroid-studio-a1-7-server.log"
+          mkdir -p "$A1_7_EVIDENCE"
+          timeout 120s node tools/numberdroid-studio/scripts/prepare-visual-a1-7-evidence.js \
+            "$A1_7_DATA" > "$A1_7_EVIDENCE/fixture.json"
+          NUMBERDROID_STUDIO_DATA="$A1_7_DATA" NUMBERDROID_STUDIO_PORT=4326 \
+            timeout 180s node tools/numberdroid-studio/apps/studio-server/src/server.js \
+            > /dev/null 2> "$A1_7_RAW_LOG" &
+          A1_7_PID=$!
+          wait_for_studio http://127.0.0.1:4326 /dev/null
+          for width in 1440 1060; do
+            capture "$width" "$A1_7_EVIDENCE/a1-7-review-$width.png" \
+              'http://127.0.0.1:4326/?visualFixture=a1-7#tasks' a1-7 \
+              "$A1_7_EVIDENCE/a1-7-review-$width.dom.json"
+          done
+          kill "$A1_7_PID"
+          wait "$A1_7_PID" 2>/dev/null || true
+          A1_7_PID=""
+          if timeout 10s rg -n 'token|grantId|bindingId|digest|sha256|studio://artifacts|/workspace|/home/runner|file:|[A-Za-z]:\\' "$A1_7_RAW_LOG" >/dev/null; then
+            exit 1
+          fi
+          timeout 10s cp "$A1_7_RAW_LOG" "$A1_7_EVIDENCE/server.log"
+          timeout 60s node tools/numberdroid-studio/scripts/assert-studio-a1-7-visual-evidence.js \
+            "$A1_7_EVIDENCE"
+
       - name: Upload Studio visual evidence
         if: always() && (steps.studio_browser.outcome == 'success' || steps.studio_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
@@ -626,6 +654,15 @@ jobs:
         with:
           name: numberdroid-studio-checkpoint-4-5-evidence
           path: artifacts/studio-checkpoint-4-5/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Studio A1.7 visual review evidence
+        if: steps.studio_browser.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: numberdroid-studio-a1-7-evidence
+          path: artifacts/studio-a1-7/
           if-no-files-found: error
           retention-days: 14
 

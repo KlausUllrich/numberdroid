@@ -48,6 +48,7 @@ const publicDirectory = resolve(moduleDirectory, '../public');
 const staticFiles = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+  ['/a1-7-state.js', ['a1-7-state.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
 ]);
 const SECURITY_RESPONSE_HEADERS = {
@@ -1992,4 +1993,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const address = running.address;
   process.stdout.write(`Numberdroid Studio: http://${address.address}:${address.port}\n`);
   process.stdout.write(`Project data: ${running.dataDirectory}\n`);
+  let shuttingDown = false;
+  const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    running.server.close((error) => {
+      if (error) {
+        process.stderr.write('Numberdroid Studio shutdown failed.\n');
+        process.exitCode = 1;
+      }
+    });
+  };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
 }

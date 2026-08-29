@@ -1,14 +1,15 @@
 # A1.7 visual review and correction state contract
 
-Status: **D0 CONTRACT FROZEN — READ PROJECTION IMPLEMENTED CANDIDATE, VISUAL NOT IMPLEMENTED, NOT USER ACCEPTED**
+Status: **D0 CONTRACT FROZEN — READ PROJECTION AND VISUAL IMPLEMENTED CANDIDATES, NOT USER ACCEPTED**
 
-Implementation state: the separately classified human-safe read projection is
-an **implemented candidate — not user accepted**; the bounded A1.7 browser
-surface is not implemented at this checkpoint. Its implementation record is
-[`A1_7_READ_PROJECTION_STATUS.md`](A1_7_READ_PROJECTION_STATUS.md). This
-document continues to freeze the implementation-grounded states and the
-remaining visual block. Automated tests, browser evidence, source integration,
-and CI cannot change the deferred Klaus acceptance gate.
+Implementation state: the separately classified human-safe read projection and
+the dependent bounded A1.7 browser surface are **implemented candidates — not
+user accepted**. Their implementation records are
+[`A1_7_READ_PROJECTION_STATUS.md`](A1_7_READ_PROJECTION_STATUS.md) and
+[`A1_7_UI_CANDIDATE_STATUS.md`](A1_7_UI_CANDIDATE_STATUS.md). This document
+continues to freeze the implementation-grounded states and the visual contract.
+Automated tests, browser evidence, source integration, and CI cannot change the
+deferred Klaus acceptance gate.
 
 ## Promise and finish boundary
 
@@ -309,8 +310,8 @@ Implemented candidate evidence now proves:
 
 ### L3 visual block
 
-Finish when focused and full Studio tests plus real Chrome evidence at 1440×900
-and 1060×900 prove:
+The implemented candidate and its dedicated evidence lane must keep proving at
+1440×900 and 1060×900:
 
 - additive placement in selected Agent task detail and the state precedence
   above;

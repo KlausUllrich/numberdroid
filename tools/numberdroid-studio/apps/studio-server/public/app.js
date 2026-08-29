@@ -1,3 +1,11 @@
+import {
+  normalizeProcessingAdoptionProjection,
+  processingAdoptionPresentation,
+  processingAdoptionPreviewPath,
+  processingAdoptionSelectionOwned,
+  unavailableProcessingAdoptionProjection,
+} from './a1-7-state.js';
+
 const visualFixture = new URLSearchParams(location.search).get('visualFixture');
 const MAX_ATLAS_JOB_ATTEMPTS = 3;
 const visualEvidenceErrors = [];
@@ -81,10 +89,12 @@ const state = {
   },
   taskMutationPending: false,
   tasks: [],
+  taskAdoption: null,
   taskUi: {
     view: 'list',
     selectedTaskId: null,
   },
+  taskDomState: null,
   workspace: location.hash.slice(1) || 'overview',
   refreshing: false,
 };
@@ -98,6 +108,11 @@ let cutterJobPollController = {
   inFlight: null,
   abortController: null,
 };
+let taskAdoptionLoadControllers = {
+  passive: { generation: 0, context: null, abortController: null, timer: null },
+  selection: { generation: 0, context: null, abortController: null, timer: null },
+};
+let taskSelectionGeneration = 0;
 let cutterDrag = null;
 let roomEditorFocusGeneration = 0;
 
@@ -253,6 +268,118 @@ async function api(path, options = {}) {
     throw error;
   }
   return body;
+}
+
+function cancelTaskAdoptionLoad({ clearState = false, channel = 'all' } = {}) {
+  const channels = channel === 'all' ? Object.keys(taskAdoptionLoadControllers) : [channel];
+  for (const name of channels) {
+    const controller = taskAdoptionLoadControllers[name];
+    const generation = controller.generation + 1;
+    if (controller.timer) clearTimeout(controller.timer);
+    controller.abortController?.abort();
+    taskAdoptionLoadControllers[name] = {
+      generation,
+      context: null,
+      abortController: null,
+      timer: null,
+    };
+  }
+  if (clearState) state.taskAdoption = null;
+}
+
+async function requestTaskAdoptionProjection(projectId, taskId, { channel = 'passive' } = {}) {
+  cancelTaskAdoptionLoad({ channel });
+  const generation = taskAdoptionLoadControllers[channel].generation;
+  const context = JSON.stringify([projectId, taskId]);
+  const abortController = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    abortController.abort();
+  }, 5_000);
+  taskAdoptionLoadControllers[channel] = { generation, context, abortController, timer };
+  const path = `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`
+    + '/processing-result-adoptions';
+  try {
+    const value = await api(path, { signal: abortController.signal });
+    if (abortController.signal.aborted
+        || taskAdoptionLoadControllers[channel].generation !== generation
+        || taskAdoptionLoadControllers[channel].context !== context) return null;
+    return {
+      projectId,
+      taskId,
+      projection: normalizeProcessingAdoptionProjection(value, projectId, taskId),
+    };
+  } catch (error) {
+    if ((abortController.signal.aborted && !timedOut)
+        || taskAdoptionLoadControllers[channel].generation !== generation
+        || taskAdoptionLoadControllers[channel].context !== context) return null;
+    return {
+      projectId,
+      taskId,
+      projection: unavailableProcessingAdoptionProjection(projectId, taskId),
+    };
+  } finally {
+    if (taskAdoptionLoadControllers[channel].generation === generation
+        && taskAdoptionLoadControllers[channel].context === context) {
+      clearTimeout(timer);
+      taskAdoptionLoadControllers[channel] = {
+        generation,
+        context: null,
+        abortController: null,
+        timer: null,
+      };
+    }
+  }
+}
+
+function selectedTaskAdoptionProjection(projectId, taskId) {
+  if (state.taskAdoption?.projectId === projectId && state.taskAdoption.taskId === taskId) {
+    return state.taskAdoption.projection;
+  }
+  return unavailableProcessingAdoptionProjection(projectId, taskId);
+}
+
+async function loadSelectedTaskAdoption({ preserveTaskContext = true } = {}) {
+  const projectId = state.project?.projectId;
+  const taskId = state.taskUi.view === 'detail' ? state.taskUi.selectedTaskId : null;
+  if (!projectId || !taskId || !state.tasks.some(({ task }) => task.taskId === taskId)) {
+    cancelTaskAdoptionLoad({ clearState: true });
+    return false;
+  }
+  taskSelectionGeneration += 1;
+  const result = await requestTaskAdoptionProjection(projectId, taskId);
+  if (!result
+      || state.project?.projectId !== projectId
+      || state.taskUi.view !== 'detail'
+      || state.taskUi.selectedTaskId !== taskId
+      || !state.tasks.some(({ task }) => task.taskId === taskId)) return false;
+  const previousFingerprint = state.workspace === 'tasks' ? workspaceRenderFingerprint() : null;
+  state.taskAdoption = result;
+  if (state.workspace === 'tasks' && previousFingerprint !== workspaceRenderFingerprint()) {
+    renderWorkspace({ preserveTaskContext });
+  }
+  return true;
+}
+
+async function openTaskDetailWithAdoption(taskId) {
+  const projectId = state.project?.projectId;
+  if (!projectId || !state.tasks.some(({ task }) => task.taskId === taskId)) return false;
+  taskSelectionGeneration += 1;
+  const selectionGeneration = taskSelectionGeneration;
+  cancelTaskAdoptionLoad({ channel: 'passive' });
+  const result = await requestTaskAdoptionProjection(projectId, taskId, { channel: 'selection' });
+  if (!result
+      || selectionGeneration !== taskSelectionGeneration
+      || state.project?.projectId !== projectId
+      || state.workspace !== 'tasks'
+      || !state.tasks.some(({ task }) => task.taskId === taskId)) return false;
+  state.taskUi.selectedTaskId = taskId;
+  state.taskUi.view = 'detail';
+  state.taskAdoption = result;
+  state.taskDomState = null;
+  renderWorkspace();
+  return true;
 }
 
 async function sha256Hex(blob) {
@@ -755,6 +882,117 @@ function restoreRoomDomState() {
     .find((candidate) => (candidate.dataset.roomFocusKey ?? candidate.dataset.roomControl) === saved.activeKey);
   active?.focus({ preventScroll: true });
   if (active && saved.selectionStart !== null && typeof active.setSelectionRange === 'function') active.setSelectionRange(saved.selectionStart, saved.selectionEnd);
+  window.scrollTo(saved.page.x, saved.page.y);
+}
+
+function textOffsetWithin(container, node, offset) {
+  const range = document.createRange(); range.selectNodeContents(container); range.setEnd(node, offset);
+  return range.toString().length;
+}
+
+function captureTaskTextSelection(root) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount !== 1 || selection.isCollapsed) return null;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null;
+  const elementFor = (node) => node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+  const startContainer = elementFor(range.startContainer)?.closest('[data-task-selection-key]');
+  const endContainer = elementFor(range.endContainer)?.closest('[data-task-selection-key]');
+  const container = startContainer === endContainer && startContainer ? startContainer : root;
+  return {
+    key: container.dataset.taskSelectionKey,
+    start: textOffsetWithin(container, range.startContainer, range.startOffset),
+    end: textOffsetWithin(container, range.endContainer, range.endOffset),
+    text: range.toString(),
+  };
+}
+
+function textPosition(container, offset) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let remaining = offset; let node = walker.nextNode();
+  while (node) {
+    if (remaining <= node.data.length) return { node, offset: remaining };
+    remaining -= node.data.length; node = walker.nextNode();
+  }
+  return null;
+}
+
+function restoreTaskTextSelection(root, saved) {
+  if (!saved) return;
+  const container = [...root.querySelectorAll('[data-task-selection-key]')]
+    .find((candidate) => candidate.dataset.taskSelectionKey === saved.key)
+    ?? (root.dataset.taskSelectionKey === saved.key ? root : null);
+  if (!container || container.textContent.slice(saved.start, saved.end) !== saved.text) return;
+  const start = textPosition(container, saved.start); const end = textPosition(container, saved.end);
+  if (!start || !end) return;
+  const range = document.createRange();
+  range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset);
+  const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+}
+
+function captureTaskDomState() {
+  if (state.workspace !== 'tasks') return;
+  const root = elements['workspace-content'].querySelector('[data-task-view="detail"][data-task-context]');
+  if (!root) return;
+  const active = document.activeElement?.closest?.('[data-task-focus-key]');
+  const scroll = {};
+  for (const element of root.querySelectorAll('[data-task-scroll]')) {
+    scroll[element.dataset.taskScroll] = { left: element.scrollLeft, top: element.scrollTop };
+  }
+  const disclosures = {};
+  for (const disclosure of root.querySelectorAll('details[data-task-disclosure-key]')) {
+    disclosures[disclosure.dataset.taskDisclosureKey] = disclosure.open;
+  }
+  const review = root.querySelector('[data-task-review-context]');
+  const reviewDrafts = {};
+  for (const select of root.querySelectorAll('[data-task-review-disposition]')) {
+    reviewDrafts[select.dataset.taskReviewDisposition] = select.value;
+  }
+  state.taskDomState = {
+    context: root.dataset.taskContext,
+    activeKey: active?.dataset.taskFocusKey ?? null,
+    selectionStart: Number.isInteger(active?.selectionStart) ? active.selectionStart : null,
+    selectionEnd: Number.isInteger(active?.selectionEnd) ? active.selectionEnd : null,
+    scroll,
+    disclosures,
+    reviewContext: review?.dataset.taskReviewContext ?? 'none',
+    reviewDrafts,
+    textSelection: captureTaskTextSelection(root),
+    page: { x: window.scrollX, y: window.scrollY },
+  };
+}
+
+function restoreTaskDomState() {
+  const saved = state.taskDomState;
+  const root = elements['workspace-content'].querySelector('[data-task-view="detail"][data-task-context]');
+  if (!saved || !root || saved.context !== root.dataset.taskContext) return;
+  for (const disclosure of root.querySelectorAll('details[data-task-disclosure-key]')) {
+    if (Object.hasOwn(saved.disclosures, disclosure.dataset.taskDisclosureKey)) {
+      disclosure.open = saved.disclosures[disclosure.dataset.taskDisclosureKey];
+    }
+  }
+  const review = root.querySelector('[data-task-review-context]');
+  if ((review?.dataset.taskReviewContext ?? 'none') === saved.reviewContext) {
+    for (const select of root.querySelectorAll('[data-task-review-disposition]')) {
+      const value = saved.reviewDrafts[select.dataset.taskReviewDisposition];
+      if (!select.disabled && value !== undefined && [...select.options].some((option) => option.value === value)) select.value = value;
+    }
+  }
+  for (const element of root.querySelectorAll('[data-task-scroll]')) {
+    const position = saved.scroll[element.dataset.taskScroll];
+    if (!position) continue;
+    element.scrollLeft = Math.max(0, Math.min(position.left, Math.max(0, element.scrollWidth - element.clientWidth)));
+    element.scrollTop = Math.max(0, Math.min(position.top, Math.max(0, element.scrollHeight - element.clientHeight)));
+  }
+  const active = saved.activeKey
+    ? [...root.querySelectorAll('[data-task-focus-key]')]
+      .find((candidate) => candidate.dataset.taskFocusKey === saved.activeKey)
+    : null;
+  active?.focus({ preventScroll: true });
+  if (active && saved.selectionStart !== null && typeof active.setSelectionRange === 'function') {
+    active.setSelectionRange(saved.selectionStart, saved.selectionEnd);
+  }
+  restoreTaskTextSelection(root, saved.textSelection);
   window.scrollTo(saved.page.x, saved.page.y);
 }
 
@@ -2644,6 +2882,7 @@ const TASK_CAPABILITY_LABELS = Object.freeze({
   'room.variant.placements.move': 'Move room contents',
   'room.variant.placements.remove': 'Remove room contents',
   'room.variant.validate': 'Check a room, but never finalize it',
+  'asset.processing-result.adopt': 'Save a processed image as a task-local DRAFT',
 });
 
 function taskStateLabel(stateValue) {
@@ -2685,6 +2924,189 @@ function taskWorkflowPresentation(entry) {
     EXPIRED: { actor: 'You', next: 'End this task and create a new task if work should continue.', consequence: 'The expired agent access cannot be resumed or used.' },
   };
   return { state: stateValue, ...(presentations[stateValue] ?? { actor: 'You', next: 'Inspect the task history.', consequence: 'No automatic action is taken.' }) };
+}
+
+function processingAttemptCopy(attempt, { secondary = false } = {}) {
+  if (attempt.status === 'denied') {
+    return secondary
+      ? 'A later attempt was blocked by an existing safety or authority check. The saved DRAFT remains unchanged.'
+      : 'An existing safety or authority check blocked that attempt. No DRAFT was created by that attempt.';
+  }
+  return secondary
+    ? 'A later attempt could not complete safely. The saved DRAFT remains unchanged.'
+    : 'The command did not complete safely. No processing DRAFT was created by that attempt.';
+}
+
+function processingGuidanceList(items, className, { correction = false } = {}) {
+  const list = document.createElement('ul'); list.className = className;
+  for (const item of items) {
+    const row = document.createElement('li');
+    if (correction) {
+      const label = document.createElement('strong'); label.textContent = item.label; row.append(label);
+    }
+    const explanation = document.createElement('span'); explanation.textContent = item.explanation;
+    const remediation = document.createElement('small'); remediation.textContent = item.remediation;
+    row.append(explanation, remediation); list.append(row);
+  }
+  return list;
+}
+
+function processingPreviewFallback(stage, section) {
+  stage.className = 'processed-asset-preview-stage asset-preview fallback';
+  stage.dataset.previewState = 'UNAVAILABLE';
+  stage.dataset.processingAdoptionPreviewState = 'UNAVAILABLE';
+  stage.setAttribute('role', 'img');
+  stage.setAttribute('aria-label', 'The exact image preview is unavailable.');
+  section.dataset.processingPreviewState = 'UNAVAILABLE';
+  const glyph = document.createElement('span'); glyph.className = 'preview-glyph'; glyph.setAttribute('aria-hidden', 'true'); glyph.textContent = '◇';
+  const copy = document.createElement('span');
+  const label = document.createElement('small'); label.textContent = 'Preview unavailable';
+  const message = document.createElement('strong'); message.textContent = 'The exact image preview is unavailable.';
+  copy.append(label, message); stage.replaceChildren(glyph, copy);
+}
+
+function renderProcessingPreview(adoption, section, projectId, taskId) {
+  const figure = document.createElement('figure'); figure.className = 'processed-asset-preview';
+  figure.dataset.processingAdoptionPreview = 'true';
+  const stage = document.createElement('div'); stage.className = 'processed-asset-preview-stage asset-preview';
+  const preview = adoption.asset.preview;
+  const previewPath = processingAdoptionPreviewPath(adoption, projectId, taskId);
+  if (preview.state === 'READY' && previewPath) {
+    stage.classList.add('ready'); stage.dataset.previewState = 'READY'; stage.dataset.processingAdoptionPreviewState = 'READY';
+    stage.removeAttribute('role'); stage.removeAttribute('aria-label');
+    section.dataset.processingPreviewState = 'READY';
+    const image = document.createElement('img'); image.src = previewPath; image.alt = preview.alt;
+    image.dataset.processingAdoptionPreviewImage = 'true';
+    image.width = preview.width; image.height = preview.height; image.decoding = 'async';
+    image.addEventListener('error', () => processingPreviewFallback(stage, section), { once: true });
+    stage.append(image);
+  } else processingPreviewFallback(stage, section);
+  const caption = document.createElement('figcaption');
+  caption.textContent = `${adoption.asset.kind} · ${adoption.asset.pixelSize.width} × ${adoption.asset.pixelSize.height} pixels`;
+  figure.append(stage, caption); return figure;
+}
+
+function renderProcessingAdoption(selected) {
+  const section = document.createElement('section'); section.className = 'task-processing-adoption';
+  section.dataset.taskAdoption = 'true';
+  section.dataset.processingAdoption = 'true';
+  section.dataset.processingAdoptionCandidate = 'not-user-accepted';
+  section.dataset.taskSelectionKey = 'processing-adoption';
+  const heading = document.createElement('div'); heading.className = 'task-processing-heading';
+  const title = document.createElement('h3'); title.id = 'processed-asset-draft-heading'; title.textContent = 'Processed asset draft';
+  const candidate = document.createElement('span'); candidate.className = 'candidate-label';
+  candidate.textContent = 'implemented candidate — not user accepted';
+  heading.append(title, candidate); section.append(heading); section.setAttribute('aria-labelledby', title.id);
+
+  const projection = selectedTaskAdoptionProjection(state.project?.projectId, selected.task.taskId);
+  const presentation = processingAdoptionPresentation({
+    projection,
+    activity: state.activity,
+    projectId: state.project?.projectId,
+    taskId: selected.task.taskId,
+  });
+  const adoptions = projection.availability === 'AVAILABLE' ? projection.adoptions : [];
+  if (presentation.state === 'PROJECTION_UNAVAILABLE') {
+    section.dataset.processingAdoptionState = 'PROJECTION_UNAVAILABLE';
+    const stateHeading = document.createElement('h4'); stateHeading.textContent = 'Processed asset details are unavailable.';
+    const copy = document.createElement('p'); copy.textContent = 'The task is still available; try loading it again.';
+    section.append(stateHeading, copy); return section;
+  }
+  if (presentation.state !== 'WAITING_FOR_YOUR_REVIEW') {
+    const { attempt } = presentation;
+    section.dataset.processingAdoptionState = presentation.state;
+    const stateHeading = document.createElement('h4');
+    stateHeading.textContent = attempt?.status === 'denied'
+      ? 'The agent was blocked before a draft could be saved.'
+      : attempt?.status === 'failed'
+        ? 'Preparing the draft failed.'
+        : 'No processed asset draft has been saved yet.';
+    section.append(stateHeading);
+    if (attempt) {
+      const copy = document.createElement('p'); copy.textContent = processingAttemptCopy(attempt); section.append(copy);
+    } else if (taskEffectiveState(selected) === 'ACTIVE') {
+      const copy = document.createElement('p');
+      copy.textContent = 'The assigned agent may continue through the semantic commands already authorized for this task.';
+      section.append(copy);
+    }
+    return section;
+  }
+
+  const { adoption } = presentation;
+  section.dataset.processingAdoptionState = 'WAITING_FOR_YOUR_REVIEW';
+  if (presentation.substates.includes('CORRECTION_REQUIRED')) section.dataset.correctionRequired = 'true';
+  if (presentation.substates.includes('WARNINGS_UNRESOLVED')) section.dataset.warningsUnresolved = 'true';
+  const stateHeading = document.createElement('h4'); stateHeading.textContent = 'Waiting for your review.';
+  const consequence = document.createElement('p'); consequence.className = 'processed-asset-consequence';
+  consequence.textContent = 'This exact image is saved in this task only. It is not part of Main or the project Asset Library.';
+  section.append(stateHeading, consequence);
+  const layout = document.createElement('div'); layout.className = 'processed-asset-layout';
+  layout.append(renderProcessingPreview(adoption, section, state.project?.projectId, selected.task.taskId));
+  const summary = document.createElement('div'); summary.className = 'processed-asset-summary';
+  const name = document.createElement('h5'); name.textContent = adoption.asset.name;
+  const facts = document.createElement('dl'); facts.className = 'policy-details';
+  for (const [label, value] of [
+    ['Kind', adoption.asset.kind],
+    ['Dimensions', `${adoption.asset.pixelSize.width} × ${adoption.asset.pixelSize.height} pixels`],
+    ['Saved as', adoption.operation === 'create' ? 'New task-local DRAFT' : 'Updated task-local DRAFT'],
+    ['Quality', adoption.quality.correctionRequired ? 'Details still need correction' : 'No correction errors reported'],
+  ]) {
+    const term = document.createElement('dt'); term.textContent = label;
+    const description = document.createElement('dd'); description.textContent = value; facts.append(term, description);
+  }
+  summary.append(name, facts); layout.append(summary); section.append(layout);
+
+  if (adoption.quality.correctionRequired) {
+    const quality = document.createElement('section'); quality.className = 'processed-asset-quality correction-required';
+    quality.dataset.processingAdoptionQuality = 'correction';
+    const qualityHeading = document.createElement('h5'); qualityHeading.textContent = 'Details still need correction.';
+    const qualityCopy = document.createElement('p'); qualityCopy.textContent = 'Keep the task open. This view does not add a metadata or correction command.';
+    quality.append(qualityHeading, qualityCopy,
+      processingGuidanceList(adoption.quality.correctionItems, 'processed-asset-guidance', { correction: true }));
+    section.append(quality);
+  }
+  if (adoption.quality.unresolvedWarnings.length) {
+    const warnings = document.createElement('section'); warnings.className = 'processed-asset-quality warnings-unresolved';
+    warnings.dataset.processingAdoptionQuality = 'warnings';
+    const warningHeading = document.createElement('h5'); warningHeading.textContent = 'Review these warnings.';
+    const warningCopy = document.createElement('p'); warningCopy.textContent = 'These warnings remain unresolved; this view does not accept or dismiss them.';
+    warnings.append(warningHeading, warningCopy,
+      processingGuidanceList(adoption.quality.unresolvedWarnings, 'processed-asset-guidance'));
+    section.append(warnings);
+  }
+  const { laterAttempt } = presentation;
+  if (laterAttempt) {
+    const notice = document.createElement('p'); notice.className = 'processed-asset-attempt-note';
+    notice.textContent = processingAttemptCopy(laterAttempt, { secondary: true }); section.append(notice);
+  }
+  if (adoptions.length > 1) {
+    const history = document.createElement('details'); history.className = 'task-technical-details processed-asset-history';
+    history.dataset.taskDisclosureKey = 'processing-history';
+    const historySummary = document.createElement('summary'); historySummary.textContent = `Earlier saved drafts (${adoptions.length - 1})`;
+    historySummary.dataset.taskFocusKey = 'processing-history-summary';
+    const list = document.createElement('ol');
+    for (const earlier of adoptions.slice(0, -1).reverse()) {
+      const item = document.createElement('li');
+      item.textContent = `${earlier.asset.name} · ${earlier.operation} · ${earlier.asset.pixelSize.width} × ${earlier.asset.pixelSize.height} pixels · ${new Date(earlier.committedAt).toLocaleString()}`;
+      list.append(item);
+    }
+    history.append(historySummary, list); section.append(history);
+  }
+  const technical = document.createElement('details'); technical.className = 'task-technical-details processed-asset-technical';
+  technical.dataset.processingAdoptionTechnical = 'true';
+  technical.dataset.taskDisclosureKey = 'processing-technical';
+  const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
+  technicalSummary.dataset.taskFocusKey = 'processing-technical-summary';
+  const technicalFacts = document.createElement('dl'); technicalFacts.className = 'policy-details';
+  for (const [label, value] of [
+    ['Task branch revision', adoption.branchRevision], ['Committed', new Date(adoption.committedAt).toLocaleString()],
+    ['Asset ID', adoption.asset.assetId], ['Asset / metadata version', `${adoption.asset.assetVersion} / ${adoption.asset.metadataVersion}`],
+    ['Lifecycle', adoption.asset.lifecycle],
+  ]) {
+    const term = document.createElement('dt'); term.textContent = label;
+    const description = document.createElement('dd'); description.textContent = value; technicalFacts.append(term, description);
+  }
+  technical.append(technicalSummary, technicalFacts); section.append(technical); return section;
 }
 
 function taskMergeBlockedReason(review) {
@@ -2747,6 +3169,13 @@ function renderTaskReview(entry) {
   const effectiveState = taskEffectiveState(entry);
   const reviewEditable = review?.state === 'OPEN' && effectiveState === 'IN_REVIEW';
   const section = document.createElement('section'); section.className = 'task-review task-detail-section';
+  section.dataset.taskSelectionKey = 'task-review';
+  section.dataset.taskReviewContext = review ? JSON.stringify({
+    reviewId: review.reviewId,
+    state: review.state,
+    branchHeadRevision: review.branchHeadRevision,
+    items: review.items.map(({ changeId, disposition }) => [changeId, disposition]),
+  }) : 'none';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
   const title = document.createElement('h3'); title.textContent = 'Review task result';
   heading.append(title); section.append(heading);
@@ -2769,17 +3198,21 @@ function renderTaskReview(entry) {
       : `Waiting for your review. Only the project owner (${ownerId}) can accept or reject these changes.`;
   section.append(guidance);
   const comparison = document.createElement('details'); comparison.className = 'task-technical-details';
+  comparison.dataset.taskDisclosureKey = 'review-comparison';
   const comparisonSummary = document.createElement('summary'); comparisonSummary.textContent = 'Technical comparison details';
+  comparisonSummary.dataset.taskFocusKey = 'review-comparison-summary';
   const comparisonCopy = document.createElement('p');
   comparisonCopy.textContent = `Started from project revision ${review.baseRevision} · agent result revision ${review.branchHeadRevision} · compared with project revision ${review.comparedMainRevision}`;
   comparison.append(comparisonSummary, comparisonCopy); section.append(comparison);
   const conflicts = document.createElement('ul'); conflicts.className = 'task-conflicts';
-  for (const conflict of review.conflicts ?? []) {
+  for (const [conflictIndex, conflict] of (review.conflicts ?? []).entries()) {
     const item = document.createElement('li');
     const message = document.createElement('strong');
     message.textContent = 'The same project item was changed both in this task and in the project after the task started.';
     const technical = document.createElement('details'); technical.className = 'task-technical-details';
+    technical.dataset.taskDisclosureKey = `review-conflict-${conflictIndex}`;
     const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
+    technicalSummary.dataset.taskFocusKey = `review-conflict-${conflictIndex}-summary`;
     const technicalCode = document.createElement('code'); technicalCode.textContent = `${conflict.code}: ${conflict.entityType}:${conflict.entityId}`;
     technical.append(technicalSummary, technicalCode);
     item.append(message, technical); conflicts.append(item);
@@ -2794,10 +3227,13 @@ function renderTaskReview(entry) {
     const copy = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = item.summary;
     const technical = document.createElement('details');
+    technical.dataset.taskDisclosureKey = `review-item-${item.changeId}`;
     const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
+    technicalSummary.dataset.taskFocusKey = `review-item-${item.changeId}-summary`;
     const code = document.createElement('code'); code.textContent = item.commandType;
     technical.append(technicalSummary, code); copy.append(strong, technical);
     const select = document.createElement('select'); select.dataset.taskReviewDisposition = item.changeId;
+    select.dataset.taskFocusKey = `review-disposition-${item.changeId}`;
     for (const [value, label] of [
       ['PENDING', 'Pending'], ['USER_ACCEPTED', 'Accept'], ['USER_REJECTED', 'Reject'], ['CHANGES_REQUESTED', 'Request changes'],
     ]) {
@@ -2814,19 +3250,19 @@ function renderTaskReview(entry) {
   }
   section.append(list);
   if (reviewEditable) {
-    const decide = document.createElement('button'); decide.type = 'button'; decide.dataset.taskControl = 'decide'; decide.textContent = 'Save review decisions';
+    const decide = document.createElement('button'); decide.type = 'button'; decide.dataset.taskControl = 'decide'; decide.dataset.taskFocusKey = 'review-decide'; decide.textContent = 'Save review decisions';
     section.append(decide);
     const blockedReason = taskMergeBlockedReason(review);
-    const merge = document.createElement('button'); merge.type = 'button'; merge.className = 'secondary'; merge.dataset.taskControl = 'merge'; merge.textContent = 'Add accepted changes and complete task';
+    const merge = document.createElement('button'); merge.type = 'button'; merge.className = 'secondary'; merge.dataset.taskControl = 'merge'; merge.dataset.taskFocusKey = 'review-merge'; merge.textContent = 'Add accepted changes and complete task';
     merge.disabled = Boolean(blockedReason); merge.title = blockedReason ?? 'Add the accepted changes to the project and complete this task.'; section.append(merge);
     if (blockedReason) {
       const note = document.createElement('p'); note.className = 'task-action-note'; note.textContent = blockedReason; section.append(note);
     }
-    const reject = document.createElement('button'); reject.type = 'button'; reject.className = 'secondary'; reject.dataset.taskControl = 'reject'; reject.textContent = TASK_ACTION_LABELS.reject; section.append(reject);
+    const reject = document.createElement('button'); reject.type = 'button'; reject.className = 'secondary'; reject.dataset.taskControl = 'reject'; reject.dataset.taskFocusKey = 'review-reject'; reject.textContent = TASK_ACTION_LABELS.reject; section.append(reject);
   } else if (effectiveState === 'MERGED' && review.mergeId && !taskWasReverted(entry)) {
     const note = document.createElement('p'); note.className = 'task-action-note';
     note.textContent = 'You can undo the project changes from this task without deleting its task or review history.';
-    const revert = document.createElement('button'); revert.type = 'button'; revert.className = 'secondary'; revert.dataset.taskControl = 'revert'; revert.textContent = 'Undo task changes'; section.append(note, revert);
+    const revert = document.createElement('button'); revert.type = 'button'; revert.className = 'secondary'; revert.dataset.taskControl = 'revert'; revert.dataset.taskFocusKey = 'review-revert'; revert.textContent = 'Undo task changes'; section.append(note, revert);
   }
   return section;
 }
@@ -2856,19 +3292,25 @@ function renderTaskList() {
 
 function renderTaskDetail(selected) {
   const detail = document.createElement('section'); detail.className = 'task-detail surface-card'; detail.dataset.taskView = 'detail';
+  detail.dataset.taskContext = `${state.project?.projectId}:${selected.task.taskId}`;
+  detail.dataset.taskScroll = 'detail';
+  detail.dataset.taskSelectionKey = 'task-detail';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
   const headCopy = document.createElement('div'); const selectedEyebrow = document.createElement('p'); selectedEyebrow.className = 'eyebrow'; selectedEyebrow.textContent = 'Selected task';
   const taskTitle = document.createElement('h2'); taskTitle.textContent = selected.task.title;
   const objective = document.createElement('p'); objective.textContent = selected.task.objective; headCopy.append(selectedEyebrow, taskTitle, objective);
   const headingActions = document.createElement('div'); headingActions.className = 'task-detail-header-actions';
-  const back = document.createElement('button'); back.type = 'button'; back.className = 'secondary'; back.dataset.taskControl = 'back-to-list'; back.textContent = 'Back to tasks';
+  const back = document.createElement('button'); back.type = 'button'; back.className = 'secondary'; back.dataset.taskControl = 'back-to-list'; back.dataset.taskFocusKey = 'back-to-list'; back.textContent = 'Back to tasks';
   headingActions.append(taskStateBadge(selected), back); heading.append(headCopy, headingActions); detail.append(heading);
   const presentation = taskWorkflowPresentation(selected);
   const workflow = document.createElement('section'); workflow.className = 'task-workflow-state';
+  workflow.dataset.taskSelectionKey = 'current-step';
   const workflowHeading = document.createElement('h3'); workflowHeading.textContent = 'Current step';
   const actor = document.createElement('p'); actor.className = 'task-next-step'; actor.textContent = `Who acts next: ${presentation.actor}. ${presentation.next}`;
   const consequence = document.createElement('p'); consequence.textContent = `What happens next: ${presentation.consequence}`; workflow.append(workflowHeading, actor, consequence); detail.append(workflow);
+  detail.append(renderProcessingAdoption(selected));
   const facts = document.createElement('dl'); facts.className = 'policy-details';
+  facts.dataset.taskSelectionKey = 'task-facts';
   for (const [label, value] of [
     ['Assigned agent', selected.task.agentId],
     ['Agent may', selected.task.capabilities.map((capability) => TASK_CAPABILITY_LABELS[capability] ?? capability).join(', ')],
@@ -2877,7 +3319,9 @@ function renderTaskDetail(selected) {
   ]) { const term = document.createElement('dt'); term.textContent = label; const desc = document.createElement('dd'); desc.textContent = value; facts.append(term, desc); }
   detail.append(facts);
   const technical = document.createElement('details'); technical.className = 'task-technical-details';
+  technical.dataset.taskDisclosureKey = 'task-technical';
   const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
+  technicalSummary.dataset.taskFocusKey = 'task-technical-summary';
   const technicalFacts = document.createElement('dl'); technicalFacts.className = 'policy-details';
   for (const [label, value] of [
     ['Isolated work ID', selected.task.branchId], ['Starting / current revision', `r${selected.task.baseRevision} / r${selected.task.headRevision}`],
@@ -2890,16 +3334,19 @@ function renderTaskDetail(selected) {
       : presentation.state === 'CHANGES_REQUESTED' ? ['resume', 'cancel']
         : presentation.state === 'EXPIRED' ? ['cancel'] : [];
   for (const action of actions) {
-    const button = document.createElement('button'); button.type = 'button'; button.dataset.taskControl = action; button.textContent = TASK_ACTION_LABELS[action] ?? action.replace('-', ' '); if (action === 'cancel') button.className = 'secondary'; controls.append(button);
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.taskControl = action; button.dataset.taskFocusKey = `task-action-${action}`; button.textContent = TASK_ACTION_LABELS[action] ?? action.replace('-', ' '); if (action === 'cancel') button.className = 'secondary'; controls.append(button);
   }
   detail.append(controls);
   const timelineHeading = document.createElement('h3'); timelineHeading.textContent = 'Progress';
   const timeline = document.createElement('ol'); timeline.className = 'task-timeline';
-  for (const event of selected.timeline) {
+  timeline.dataset.taskSelectionKey = 'task-timeline';
+  for (const [eventIndex, event] of selected.timeline.entries()) {
     const item = document.createElement('li'); const copy = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = TASK_EVENT_LABELS[event.type] ?? 'Task activity updated';
     const small = document.createElement('small'); small.textContent = `${new Date(event.occurredAt).toLocaleTimeString()} · ${taskEventActorLabel(selected, event)}`;
     const technicalEvent = document.createElement('details'); const summary = document.createElement('summary'); summary.textContent = 'Technical details';
+    technicalEvent.dataset.taskDisclosureKey = `timeline-${eventIndex}-${event.type}`;
+    summary.dataset.taskFocusKey = `timeline-${eventIndex}-${event.type}-summary`;
     const code = document.createElement('code'); code.textContent = `${event.type} · work version ${event.branchRevision ?? '—'}`; technicalEvent.append(summary, code);
     copy.append(strong, small); item.append(copy, technicalEvent); timeline.append(item);
   }
@@ -2919,11 +3366,15 @@ function renderTasks() {
 function reconcileTaskUiAfterRefresh() {
   if (state.taskUi.view !== 'detail') {
     state.taskUi.selectedTaskId = null;
+    state.taskAdoption = null;
     return;
   }
   if (!state.tasks.some(({ task }) => task.taskId === state.taskUi.selectedTaskId)) {
+    taskSelectionGeneration += 1;
     state.taskUi.selectedTaskId = null;
     state.taskUi.view = 'list';
+    state.taskAdoption = null;
+    state.taskDomState = null;
   }
 }
 
@@ -2992,6 +3443,24 @@ function workspaceRenderFingerprint() {
     taskMutationPending: state.taskMutationPending,
     tasks: state.workspace === 'tasks' ? state.tasks : null,
     taskUi: state.workspace === 'tasks' ? state.taskUi : null,
+    taskAdoption: state.workspace === 'tasks' && state.taskUi.view === 'detail'
+      ? state.taskAdoption
+      : null,
+    taskAdoptionAttempt: state.workspace === 'tasks' && state.taskUi.view === 'detail'
+      ? (() => {
+        const selected = state.tasks.find(({ task }) => task.taskId === state.taskUi.selectedTaskId);
+        if (!selected) return null;
+        const presentation = processingAdoptionPresentation({
+          projection: selectedTaskAdoptionProjection(state.project?.projectId, selected.task.taskId),
+          activity: state.activity,
+          projectId: state.project?.projectId,
+          taskId: selected.task.taskId,
+        });
+        return [presentation.attempt, presentation.laterAttempt]
+          .filter(Boolean)
+          .map(({ id, status, occurredAt }) => ({ id, status, occurredAt }));
+      })()
+      : null,
     assetUi: state.workspace === 'assets' ? {
       search: state.assetUi.search,
       kind: state.assetUi.kind,
@@ -3029,7 +3498,13 @@ function workspaceRenderFingerprint() {
   });
 }
 
-function renderWorkspace({ preserveCutterDraft = false, preserveAssetDraft = false, preserveRoomDraft = false, preserveRoomCanvas = false } = {}) {
+function renderWorkspace({
+  preserveCutterDraft = false,
+  preserveAssetDraft = false,
+  preserveRoomDraft = false,
+  preserveRoomCanvas = false,
+  preserveTaskContext = false,
+} = {}) {
   if (cutterDrag) {
     state.cutterDeferredRender = true;
     return;
@@ -3037,6 +3512,7 @@ function renderWorkspace({ preserveCutterDraft = false, preserveAssetDraft = fal
   captureCutterScroll();
   if (preserveAssetDraft) captureAssetDomState();
   if (preserveRoomDraft) captureRoomDomState();
+  if (preserveTaskContext) captureTaskDomState();
   const retainedRoomCanvas = preserveRoomCanvas && state.workspace === 'rooms'
     ? elements['workspace-content'].querySelector('.room-canvas-panel') : null;
   if (preserveCutterDraft) captureCutterDomDraft();
@@ -3093,6 +3569,7 @@ function renderWorkspace({ preserveCutterDraft = false, preserveAssetDraft = fal
   if (preserveCutterDraft) restoreCutterDomDraft();
   if (preserveAssetDraft) restoreAssetDomState();
   if (preserveRoomDraft) restoreRoomDomState();
+  if (preserveTaskContext) restoreTaskDomState();
 }
 
 function renderActivity() {
@@ -3117,13 +3594,14 @@ function renderProject({
   preserveCutterDraft = false,
   preserveAssetDraft = preserveCutterDraft && state.workspace === 'assets',
   preserveRoomDraft = preserveCutterDraft && state.workspace === 'rooms',
+  preserveTaskContext = preserveCutterDraft && state.workspace === 'tasks' && state.taskUi.view === 'detail',
 } = {}) {
   const project = state.project?.snapshot.project;
   elements['project-name'].textContent = project?.name || 'No project selected';
   elements['project-description'].textContent = project?.description || 'Create the safe demo project to see the shared command core in action.';
   elements['project-status'].textContent = project?.status || 'empty';
   elements['revision-label'].textContent = state.project ? `Revision ${state.project.revision}` : 'Revision —';
-  if (!preserveWorkspace) renderWorkspace({ preserveCutterDraft, preserveAssetDraft, preserveRoomDraft });
+  if (!preserveWorkspace) renderWorkspace({ preserveCutterDraft, preserveAssetDraft, preserveRoomDraft, preserveTaskContext });
   renderActivity(); renderAgentAccess();
 }
 
@@ -3276,7 +3754,10 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
     resetAssetUiProjectContext();
     resetRoomUiProjectContext();
+    taskSelectionGeneration += 1;
     state.tasks = []; state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null;
+    cancelTaskAdoptionLoad({ clearState: true });
+    state.taskDomState = null;
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
     state.agentAccess = null; setAgentAccessPanel(false); renderProject(); return;
@@ -3293,6 +3774,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
 let projectLoadGeneration = 0;
 async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } = {}) {
   if (!projectId) return;
+  cancelTaskAdoptionLoad({ channel: 'passive' });
   const generation = ++projectLoadGeneration;
   const mayPreserveWorkspace = preserveWorkspaceIfUnchanged
     && state.project?.projectId === projectId
@@ -3311,12 +3793,16 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     })()
     : null;
   if (state.project?.projectId && state.project.projectId !== projectId) {
+    cancelTaskAdoptionLoad();
     state.showMcpLauncherConfig = false;
     cancelCutterJobPolling();
     resetCutterScroll();
     resetAssetUiProjectContext();
     resetRoomUiProjectContext();
+    taskSelectionGeneration += 1;
     state.tasks = []; state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null;
+    state.taskAdoption = null;
+    state.taskDomState = null;
   }
   if (state.cutter?.projectId && state.cutter.projectId !== projectId) {
     cancelCutterJobPolling();
@@ -3330,16 +3816,31 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`),
     api(`/api/projects/${encodeURIComponent(projectId)}/tasks`).catch(() => ({ tasks: [] })),
   ]);
-  const taskDetails = await Promise.all((taskList.tasks ?? []).map((task) => (
-    api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
-  )));
+  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  const selectedTaskId = state.workspace === 'tasks'
+    && state.taskUi.view === 'detail'
+    && (taskList.tasks ?? []).some((task) => task.taskId === state.taskUi.selectedTaskId)
+    ? state.taskUi.selectedTaskId
+    : null;
+  const taskSelectionOwner = {
+    generation: taskSelectionGeneration,
+    projectId,
+    taskId: selectedTaskId,
+  };
+  const [taskDetails, selectedAdoption] = await Promise.all([
+    Promise.all((taskList.tasks ?? []).map((task) => (
+      api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
+    ))),
+    selectedTaskId ? requestTaskAdoptionProjection(projectId, selectedTaskId) : Promise.resolve(null),
+  ]);
   if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   if (state.project?.projectId !== projectId) {
     state.sourceDraft = null;
     state.resumingIntakeId = null;
     resetSourceIntakeForm();
   }
-  state.project = project; state.activity = activity.events;
+  state.project = project;
+  state.activity = Array.isArray(activity?.events) ? activity.events : [];
   reconcileAssetUi(project, previousAssetContext);
   reconcileRoomUi(project);
   if (state.cutter) {
@@ -3379,12 +3880,30 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
   state.sourceIntakes = sourceIntakes.intakes;
   state.tasks = taskDetails;
   reconcileTaskUiAfterRefresh();
+  const selectionOwned = processingAdoptionSelectionOwned(taskSelectionOwner, {
+    generation: taskSelectionGeneration,
+    projectId,
+    taskId: state.workspace === 'tasks' && state.taskUi.view === 'detail'
+      ? state.taskUi.selectedTaskId
+      : null,
+  });
+  if (selectionOwned) {
+    state.taskAdoption = selectedAdoption
+      && selectedAdoption.taskId === selectedTaskId
+      && selectedAdoption.projectId === projectId
+      ? selectedAdoption
+      : null;
+  }
   if (state.resumingIntakeId && !state.sourceIntakes.some((intake) => intake.intakeId === state.resumingIntakeId && intake.state === 'STAGED')) {
     state.resumingIntakeId = null;
   }
   const preserveWorkspace = (mayPreserveWorkspace && hasLiveTaskComposer())
     || (mayPreserveWorkspace && previousWorkspaceFingerprint === workspaceRenderFingerprint());
-  renderProject({ preserveWorkspace, preserveCutterDraft: preserveWorkspaceIfUnchanged });
+  renderProject({
+    preserveWorkspace,
+    preserveCutterDraft: preserveWorkspaceIfUnchanged,
+    preserveTaskContext: mayPreserveWorkspace && state.workspace === 'tasks' && state.taskUi.view === 'detail',
+  });
   return true;
 }
 
@@ -3942,7 +4461,9 @@ async function executeTaskRequest(path, body, successMessage) {
   } finally {
     const preserveTaskComposer = hasLiveTaskComposer();
     state.taskMutationPending = false; updateMutationControls();
-    if (!preserveTaskComposer) renderWorkspace();
+    if (!preserveTaskComposer) renderWorkspace({
+      preserveTaskContext: state.workspace === 'tasks' && state.taskUi.view === 'detail',
+    });
   }
 }
 
@@ -3973,9 +4494,7 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
     },
   }, 'Task created. The agent can only work within the limits you selected.');
   if (result?.task?.taskId) {
-    state.taskUi.selectedTaskId = result.task.taskId;
-    state.taskUi.view = 'detail';
-    renderWorkspace();
+    await openTaskDetailWithAdoption(result.task.taskId);
   }
 });
 
@@ -3983,10 +4502,11 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const control = event.target.closest('[data-task-control]');
   if (!control || state.workspace !== 'tasks' || !state.project) return;
   const action = control.dataset.taskControl;
-  if (action === 'open-create') { state.taskUi.view = 'create'; state.taskUi.selectedTaskId = null; renderWorkspace(); return; }
-  if (action === 'back-to-list') { state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null; renderWorkspace(); return; }
+  if (action === 'open-create') { taskSelectionGeneration += 1; state.taskUi.view = 'create'; state.taskUi.selectedTaskId = null; cancelTaskAdoptionLoad({ clearState: true }); state.taskDomState = null; renderWorkspace(); return; }
+  if (action === 'back-to-list') { taskSelectionGeneration += 1; state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null; cancelTaskAdoptionLoad({ clearState: true }); state.taskDomState = null; renderWorkspace(); return; }
   if (action === 'select') {
-    state.taskUi.selectedTaskId = control.dataset.taskId; state.taskUi.view = 'detail'; renderWorkspace(); return;
+    await openTaskDetailWithAdoption(control.dataset.taskId);
+    return;
   }
   const entry = state.tasks.find(({ task }) => task.taskId === state.taskUi.selectedTaskId);
   if (!entry) return;
@@ -4026,7 +4546,12 @@ elements['workspace-nav'].addEventListener('click', (event) => {
   const link = event.target.closest('[data-workspace]');
   if (!link) return;
   if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending || state.taskMutationPending) { event.preventDefault(); return; }
+  if (state.workspace === 'tasks' && link.dataset.workspace !== 'tasks') {
+    taskSelectionGeneration += 1;
+    cancelTaskAdoptionLoad({ channel: 'selection' });
+  }
   state.workspace = link.dataset.workspace; location.hash = state.workspace; renderWorkspace();
+  if (state.workspace === 'tasks' && state.taskUi.view === 'detail') void loadSelectedTaskAdoption();
   void publishVisualEvidence();
 });
 elements['project-select'].addEventListener('change', () => {
@@ -4628,6 +5153,33 @@ if (visualFixture) {
         loaded: Boolean(image?.complete && image.naturalWidth > 0),
       };
     },
+    async rerenderA17Candidate() {
+      if (visualFixture !== 'a1-7' || state.workspace !== 'tasks' || !state.project) return false;
+      await loadProject(state.project.projectId);
+      await publishVisualEvidence();
+      return true;
+    },
+    async exerciseA17ChangedProjectionRetention() {
+      const projectId = state.project?.projectId;
+      const taskId = state.taskUi.view === 'detail' ? state.taskUi.selectedTaskId : null;
+      if (visualFixture !== 'a1-7' || state.workspace !== 'tasks' || !projectId || !taskId
+          || state.taskAdoption?.projectId !== projectId || state.taskAdoption.taskId !== taskId
+          || state.taskAdoption.projection.availability !== 'AVAILABLE') return null;
+      const changedProjection = structuredClone(state.taskAdoption.projection);
+      const latest = changedProjection.adoptions.at(-1);
+      if (!latest?.quality?.unresolvedWarnings?.length) return null;
+      latest.quality.unresolvedWarnings[0].explanation += ' Compatible refresh probe.';
+      const beforeSection = document.querySelector('[data-processing-adoption]');
+      state.taskAdoption = { projectId, taskId, projection: changedProjection };
+      renderWorkspace({ preserveTaskContext: true });
+      const changedSection = document.querySelector('[data-processing-adoption]');
+      const restored = await loadSelectedTaskAdoption({ preserveTaskContext: true });
+      await publishVisualEvidence();
+      return {
+        changedSectionCreated: Boolean(changedSection && changedSection !== beforeSection),
+        restored,
+      };
+    },
   });
 }
 
@@ -4899,7 +5451,14 @@ window.addEventListener('hashchange', () => {
     history.replaceState(null, '', `#${state.workspace}`);
     return;
   }
-  state.workspace = location.hash.slice(1) || 'overview'; renderWorkspace();
+  const nextWorkspace = location.hash.slice(1) || 'overview';
+  if (nextWorkspace === state.workspace) { void publishVisualEvidence(); return; }
+  if (state.workspace === 'tasks' && nextWorkspace !== 'tasks') {
+    taskSelectionGeneration += 1;
+    cancelTaskAdoptionLoad({ channel: 'selection' });
+  }
+  state.workspace = nextWorkspace; renderWorkspace();
+  if (state.workspace === 'tasks' && state.taskUi.view === 'detail') void loadSelectedTaskAdoption();
   void publishVisualEvidence();
 });
 

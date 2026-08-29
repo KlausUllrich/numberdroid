@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5 [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5|a1-7 [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -150,6 +150,8 @@ try {
     devtools.send('Runtime.enable', {}, sessionId),
     devtools.send('Network.enable', {}, sessionId),
     devtools.send('Log.enable', {}, sessionId),
+    devtools.send('DOM.enable', {}, sessionId),
+    devtools.send('Accessibility.enable', {}, sessionId),
     devtools.send('Emulation.setDeviceMetricsOverride', {
       width, height, deviceScaleFactor: 1, mobile: false,
       screenWidth: width, screenHeight: height,
@@ -206,6 +208,13 @@ try {
                  && document.documentElement.dataset.visualRevision === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '37' : '36')}
                  && document.documentElement.dataset.visualActivityCount === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '38' : '37')}
                  && document.documentElement.dataset.visualConnectionState === 'Live'`
+              : mode === 'a1-7'
+                ? `document.documentElement.dataset.visualEvidenceReady === 'true'
+                   && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
+                   && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-a1-7'
+                   && document.documentElement.dataset.visualRevision === '2'
+                   && document.documentElement.dataset.visualActivityCount === '2'
+                   && document.documentElement.dataset.visualConnectionState === 'Live'`
           : `document.getElementById('connection-label')?.textContent === 'Live'
          && document.getElementById('revision-label')?.textContent === 'Revision 5'
          && document.querySelector(${JSON.stringify(`[data-workspace="${expectedWorkspace}"]`)})?.classList.contains('active')`;
@@ -236,6 +245,7 @@ try {
   let checkpoint45RoomFocus = null;
   let checkpoint45PhysicalPaint = null;
   let checkpoint45EditorContinuity = null;
+  let a17Evidence = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
     const focus = checkpoint2aFocus ?? 'intake-form';
@@ -1172,6 +1182,198 @@ try {
       };
     }
   }
+  if (mode === 'a1-7' && expectedWorkspace === 'tasks') {
+    const observed = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const waitFor = async (predicate, label, timeoutMs = 10_000) => {
+          const deadline = Date.now() + timeoutMs;
+          while (!predicate() && Date.now() < deadline) await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+          if (!predicate()) throw new Error('Timed out waiting for ' + label + '.');
+        };
+        const waitForPreview = () => waitFor(() => {
+          const image = document.querySelector('[data-processing-adoption-preview-image]');
+          return image?.complete && image.naturalWidth > 0;
+        }, 'the exact A1.7 preview');
+        const durableSnapshot = async () => {
+          const base = '/api/projects/numberdroid-studio-a1-7';
+          const taskBase = base + '/tasks/task.a1-7.processed-asset-review';
+          const responses = await Promise.all([
+            fetch(base),
+            fetch(taskBase),
+            fetch(taskBase + '/processing-result-adoptions'),
+            fetch(base + '/activity'),
+          ]);
+          if (responses.some((response) => !response.ok)) throw new Error('A1.7 durable snapshot read failed.');
+          return JSON.stringify(await Promise.all(responses.map((response) => response.json())));
+        };
+        const durableBefore = await durableSnapshot();
+        const select = document.querySelector('[data-task-control="select"]');
+        select?.focus(); select?.click();
+        await waitFor(() => document.querySelector('[data-processing-adoption-state="WAITING_FOR_YOUR_REVIEW"]'), 'the A1.7 review state');
+        await waitForPreview();
+        const firstSection = document.querySelector('[data-processing-adoption]');
+        const firstDetail = document.querySelector('[data-task-view="detail"]');
+        const firstImage = firstSection.querySelector('[data-processing-adoption-preview-image]');
+        const initial = {
+          selectedTaskId: firstDetail?.dataset.taskContext?.split(':').slice(1).join(':') ?? null,
+          state: firstSection.dataset.processingAdoptionState,
+          previewState: firstSection.dataset.processingPreviewState,
+          candidate: firstSection.dataset.processingAdoptionCandidate,
+          naturalWidth: firstImage.naturalWidth,
+          naturalHeight: firstImage.naturalHeight,
+          alt: firstImage.alt,
+          srcPath: new URL(firstImage.src).pathname,
+          objectFit: getComputedStyle(firstImage).objectFit,
+          objectPosition: getComputedStyle(firstImage).objectPosition,
+          checkerBackground: getComputedStyle(firstImage.closest('.asset-preview')).backgroundImage,
+          correctionCount: firstSection.querySelectorAll('[data-processing-adoption-quality="correction"] li').length,
+          warningCount: firstSection.querySelectorAll('[data-processing-adoption-quality="warnings"] li').length,
+          mutationControlCount: firstSection.querySelectorAll('button, form, input, select, textarea, a[href], [data-task-control]').length,
+          headingOrder: document.querySelector('.task-workflow-state').compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
+            ? (firstSection.compareDocumentPosition(document.querySelector('.task-detail > .policy-details')) & Node.DOCUMENT_POSITION_FOLLOWING ? 'current-adoption-facts' : 'invalid')
+            : 'invalid',
+        };
+        const invalidPreview = URL.createObjectURL(new Blob([new Uint8Array([0, 1, 2, 3])], { type: 'image/png' }));
+        const decodeFailed = new Promise((resolveFailure) => firstImage.addEventListener('error', resolveFailure, { once: true }));
+        firstImage.src = invalidPreview;
+        await decodeFailed;
+        URL.revokeObjectURL(invalidPreview);
+        await waitFor(() => firstSection.dataset.processingPreviewState === 'UNAVAILABLE', 'the real A1.7 preview decode fallback');
+        const fallback = {
+          decodeFailure: true,
+          primaryState: firstSection.dataset.processingAdoptionState,
+          previewState: firstSection.dataset.processingPreviewState,
+          text: firstSection.querySelector('[data-processing-adoption-preview]')?.textContent ?? null,
+          imageCount: firstSection.querySelectorAll('img').length,
+          correctionCount: firstSection.querySelectorAll('[data-processing-adoption-quality="correction"] li').length,
+          navigationPresent: Boolean(document.querySelector('[data-task-control="back-to-list"]')),
+        };
+        const rerendered = await window.__numberdroidStudioVisualTest?.rerenderA17Candidate();
+        await waitForPreview();
+        const section = document.querySelector('[data-processing-adoption]');
+        const detail = document.querySelector('[data-task-view="detail"]');
+        const technical = section.querySelector('[data-processing-adoption-technical]');
+        const technicalSummary = technical.querySelector('summary');
+        technical.open = true; technicalSummary.focus();
+        const selectedCopy = section.querySelector('[data-processing-adoption-quality="correction"] li span');
+        const selectionRange = document.createRange();
+        const selectedTextNode = selectedCopy.firstChild;
+        const selectedLength = Math.min(24, selectedTextNode.data.length);
+        selectionRange.setStart(selectedTextNode, 0); selectionRange.setEnd(selectedTextNode, selectedLength);
+        const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(selectionRange);
+        const scrollProbeStyle = document.createElement('style');
+        scrollProbeStyle.id = 'a1-7-task-scroll-probe';
+        scrollProbeStyle.textContent = '.task-detail { max-height: 420px; overflow: auto; }';
+        document.head.append(scrollProbeStyle);
+        technical.scrollIntoView({ block: 'center', inline: 'nearest' });
+        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        detail.scrollTop = Math.min(120, detail.scrollHeight - detail.clientHeight);
+        const beforeScroll = { x: window.scrollX, y: window.scrollY, taskTop: detail.scrollTop };
+        const selectedText = selection.toString();
+        const refresh = document.getElementById('refresh-button'); refresh.click();
+        await waitFor(() => !refresh.disabled, 'the passive A1.7 refresh');
+        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        const currentSection = document.querySelector('[data-processing-adoption]');
+        const currentDetail = document.querySelector('[data-task-view="detail"]');
+        const currentTechnical = currentSection.querySelector('[data-processing-adoption-technical]');
+        const currentSelection = window.getSelection();
+        const passiveRefresh = {
+          sameTaskNode: currentDetail === detail,
+          sameAdoptionNode: currentSection === section,
+          state: currentSection.dataset.processingAdoptionState,
+          previewState: currentSection.dataset.processingPreviewState,
+          disclosureOpen: currentTechnical.open,
+          focusedSummary: document.activeElement === technicalSummary,
+          selectedText: currentSelection?.toString() ?? null,
+          expectedSelectedText: selectedText,
+          scrollUnchanged: window.scrollX === beforeScroll.x && window.scrollY === beforeScroll.y,
+          taskScrollUnchanged: currentDetail.scrollTop === beforeScroll.taskTop,
+          taskScrollExercised: beforeScroll.taskTop > 0,
+        };
+        const changedProbe = await window.__numberdroidStudioVisualTest?.exerciseA17ChangedProjectionRetention();
+        await waitForPreview();
+        const changedSection = document.querySelector('[data-processing-adoption]');
+        const changedDetail = document.querySelector('[data-task-view="detail"]');
+        const changedTechnical = changedSection.querySelector('[data-processing-adoption-technical]');
+        const changedSelection = window.getSelection();
+        const changedProjectionRefresh = {
+          hookChangedSection: changedProbe?.changedSectionCreated === true,
+          hookRestored: changedProbe?.restored === true,
+          taskNodeReplaced: changedDetail !== currentDetail,
+          adoptionNodeReplaced: changedSection !== currentSection,
+          state: changedSection.dataset.processingAdoptionState,
+          previewState: changedSection.dataset.processingPreviewState,
+          disclosureOpen: changedTechnical.open,
+          focusedSummary: document.activeElement === changedTechnical.querySelector('summary'),
+          selectedText: changedSelection?.toString() ?? null,
+          expectedSelectedText: selectedText,
+          scrollUnchanged: window.scrollX === beforeScroll.x && window.scrollY === beforeScroll.y,
+          taskScrollUnchanged: changedDetail.scrollTop === beforeScroll.taskTop,
+          taskScrollExercised: beforeScroll.taskTop > 0,
+        };
+        changedTechnical.open = false;
+        scrollProbeStyle.remove();
+        const durableAfter = await durableSnapshot();
+        changedSection.scrollIntoView({ block: 'start', inline: 'nearest' }); window.scrollBy(0, -82);
+        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        const sectionRect = changedSection.getBoundingClientRect(); const detailRect = changedDetail.getBoundingClientRect();
+        const finalImage = changedSection.querySelector('[data-processing-adoption-preview-image]');
+        return {
+          initial,
+          fallback,
+          rerendered,
+          restoredReady: Boolean(finalImage?.complete && finalImage.naturalWidth === 64 && finalImage.naturalHeight === 64),
+          passiveRefresh,
+          changedProjectionRefresh,
+          durableSnapshotUnchanged: durableAfter === durableBefore,
+          final: {
+            sectionRect: { x: sectionRect.x, y: sectionRect.y, right: sectionRect.right, bottom: sectionRect.bottom, width: sectionRect.width, height: sectionRect.height },
+            detailRect: { x: detailRect.x, y: detailRect.y, right: detailRect.right, bottom: detailRect.bottom, width: detailRect.width, height: detailRect.height },
+            visible: sectionRect.bottom > 0 && sectionRect.top < innerHeight,
+            horizontallyContained: sectionRect.left >= detailRect.left && sectionRect.right <= detailRect.right
+              && sectionRect.left >= 0 && sectionRect.right <= innerWidth,
+            technicalClosed: changedTechnical.open === false,
+            selectedTaskState: document.querySelector('.task-detail [data-task-state]')?.dataset.taskState ?? null,
+            genericTaskReviewSectionPresent: Boolean(document.querySelector('.task-review')),
+          },
+        };
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    }, sessionId, 30_000);
+    a17Evidence = observed.result?.value ?? null;
+    const domDocument = await devtools.send('DOM.getDocument', { depth: 0, pierce: true }, sessionId);
+    const adoptionNode = await devtools.send('DOM.querySelector', {
+      nodeId: domDocument.root.nodeId,
+      selector: '[data-processing-adoption]',
+    }, sessionId);
+    const describedAdoption = await devtools.send('DOM.describeNode', { nodeId: adoptionNode.nodeId }, sessionId);
+    const axTree = await devtools.send('Accessibility.getFullAXTree', {}, sessionId);
+    const axById = new Map(axTree.nodes.map((node) => [node.nodeId, node]));
+    const axRoot = axTree.nodes.find((node) => node.backendDOMNodeId === describedAdoption.node.backendNodeId);
+    const scopedAxIds = new Set();
+    const visitAx = (nodeId) => {
+      if (!nodeId || scopedAxIds.has(nodeId)) return;
+      scopedAxIds.add(nodeId);
+      for (const childId of axById.get(nodeId)?.childIds ?? []) visitAx(childId);
+    };
+    visitAx(axRoot?.nodeId);
+    a17Evidence.accessibilityScope = axRoot ? 'processing-adoption' : 'missing';
+    a17Evidence.accessibility = axTree.nodes
+      .filter((node) => scopedAxIds.has(node.nodeId))
+      .map((node) => ({ role: node.role?.value ?? null, name: node.name?.value ?? null }))
+      .filter(({ role, name }) => ['heading', 'image', 'list', 'listitem', 'DisclosureTriangle'].includes(role)
+        && (role === 'list' || role === 'listitem' || /Processed asset draft|Transfer console processed draft|Technical details/.test(name ?? '')));
+    a17Evidence.browserRequests = devtools.events
+      .filter((event) => event.method === 'Network.requestWillBeSent')
+      .map((event) => ({
+        method: event.params?.request?.method ?? null,
+        path: (() => {
+          try { return new URL(event.params?.request?.url ?? '').pathname; } catch { return null; }
+        })(),
+      }))
+      .filter(({ path }) => path !== null);
+  }
   checkpoint2aSourceFocusBeforeLayout = await focusCheckpoint2aSourceTarget('before-layout');
   await devtools.send('Runtime.evaluate', {
     expression: `new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`,
@@ -1879,6 +2081,81 @@ try {
       'Checkpoint 4.5 concurrent room-version change did not retain and explicitly block the local shape draft.');
     }
   }
+  if (mode === 'a1-7') {
+    assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
+      'A1.7 screenshot was taken before error-free readiness.');
+    assert(layout.projectId === 'numberdroid-studio-a1-7'
+      && layout.revision === 2 && layout.activityCount === 2 && layout.connectionState === 'Live',
+    'A1.7 screenshot is not bound to the prepared revision-2 fixture.');
+    assert(expectedWorkspace === 'tasks'
+      && a17Evidence?.initial.state === 'WAITING_FOR_YOUR_REVIEW'
+      && a17Evidence.initial.previewState === 'READY'
+      && a17Evidence.initial.candidate === 'not-user-accepted'
+      && a17Evidence.initial.naturalWidth === 64
+      && a17Evidence.initial.naturalHeight === 64
+      && a17Evidence.initial.alt === 'Transfer console processed draft processed asset preview'
+      && a17Evidence.initial.srcPath === '/api/projects/numberdroid-studio-a1-7/tasks/task.a1-7.processed-asset-review/processing-result-adoptions/3/selected-output'
+      && a17Evidence.initial.objectFit === 'contain'
+      && a17Evidence.initial.objectPosition === '50% 50%'
+      && a17Evidence.initial.checkerBackground !== 'none'
+      && a17Evidence.initial.correctionCount === 8
+      && a17Evidence.initial.warningCount === 1
+      && a17Evidence.initial.mutationControlCount === 0
+      && a17Evidence.initial.headingOrder === 'current-adoption-facts',
+    `A1.7 exact review state, preview, quality facts, hierarchy, or no-control boundary failed: ${JSON.stringify(a17Evidence)}`);
+    assert(a17Evidence.fallback.primaryState === 'WAITING_FOR_YOUR_REVIEW'
+      && a17Evidence.fallback.decodeFailure === true
+      && a17Evidence.fallback.previewState === 'UNAVAILABLE'
+      && a17Evidence.fallback.text?.includes('The exact image preview is unavailable.')
+      && a17Evidence.fallback.imageCount === 0
+      && a17Evidence.fallback.correctionCount === 8
+      && a17Evidence.fallback.navigationPresent === true
+      && a17Evidence.rerendered === true
+      && a17Evidence.restoredReady === true,
+    'A1.7 real PNG decode failure did not remain bounded or restore the exact READY image.');
+    assert(a17Evidence.passiveRefresh.sameTaskNode === true
+      && a17Evidence.passiveRefresh.sameAdoptionNode === true
+      && a17Evidence.passiveRefresh.state === 'WAITING_FOR_YOUR_REVIEW'
+      && a17Evidence.passiveRefresh.previewState === 'READY'
+      && a17Evidence.passiveRefresh.disclosureOpen === true
+      && a17Evidence.passiveRefresh.focusedSummary === true
+      && a17Evidence.passiveRefresh.selectedText === a17Evidence.passiveRefresh.expectedSelectedText
+      && a17Evidence.passiveRefresh.scrollUnchanged === true
+      && a17Evidence.passiveRefresh.taskScrollUnchanged === true
+      && a17Evidence.passiveRefresh.taskScrollExercised === true,
+    `A1.7 unchanged passive refresh replaced DOM or lost focus, selection, disclosure, or scroll: ${JSON.stringify(a17Evidence.passiveRefresh)}`);
+    assert(a17Evidence.changedProjectionRefresh.hookChangedSection === true
+      && a17Evidence.changedProjectionRefresh.hookRestored === true
+      && a17Evidence.changedProjectionRefresh.taskNodeReplaced === true
+      && a17Evidence.changedProjectionRefresh.adoptionNodeReplaced === true
+      && a17Evidence.changedProjectionRefresh.state === 'WAITING_FOR_YOUR_REVIEW'
+      && a17Evidence.changedProjectionRefresh.previewState === 'READY'
+      && a17Evidence.changedProjectionRefresh.disclosureOpen === true
+      && a17Evidence.changedProjectionRefresh.focusedSummary === true
+      && a17Evidence.changedProjectionRefresh.selectedText === a17Evidence.changedProjectionRefresh.expectedSelectedText
+      && a17Evidence.changedProjectionRefresh.scrollUnchanged === true
+      && a17Evidence.changedProjectionRefresh.taskScrollUnchanged === true
+      && a17Evidence.changedProjectionRefresh.taskScrollExercised === true,
+    `A1.7 changed projection did not restore compatible focus, selection, disclosure, or scroll: ${JSON.stringify(a17Evidence.changedProjectionRefresh)}`);
+    assert(a17Evidence.durableSnapshotUnchanged === true,
+      'A1.7 browser reads changed the durable project/task/adoption/activity projection.');
+    assert(a17Evidence.final.visible === true
+      && a17Evidence.final.horizontallyContained === true
+      && a17Evidence.final.technicalClosed === true
+      && a17Evidence.final.selectedTaskState === 'ACTIVE'
+      && a17Evidence.final.genericTaskReviewSectionPresent === true,
+    'A1.7 final review frame is not a bounded ACTIVE task detail with closed technical disclosure.');
+    assert(a17Evidence.accessibilityScope === 'processing-adoption'
+      && a17Evidence.accessibility.some(({ role, name }) => role === 'heading' && name === 'Processed asset draft')
+      && a17Evidence.accessibility.some(({ role, name }) => role === 'image' && name === 'Transfer console processed draft processed asset preview')
+      && a17Evidence.accessibility.filter(({ role }) => role === 'list').length >= 2
+      && a17Evidence.accessibility.filter(({ role }) => role === 'listitem').length >= 9
+      && a17Evidence.accessibility.some(({ role, name }) => role === 'DisclosureTriangle' && name === 'Technical details'),
+    `A1.7 accessibility tree lost its named heading/image, lists, or disclosure: ${JSON.stringify(a17Evidence.accessibility)}`);
+    assert(a17Evidence.browserRequests.length > 0
+      && a17Evidence.browserRequests.every(({ method, path }) => method === 'GET' && !path.startsWith('/internal/')),
+    `A1.7 browser evidence crossed its read-only transport boundary: ${JSON.stringify(a17Evidence.browserRequests)}`);
+  }
   if (mode === 'checkpoint-2a') {
     assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
       'Checkpoint 2A screenshot was taken before error-free readiness.');
@@ -2068,7 +2345,16 @@ try {
   }, sessionId);
   const dom = domPath
     ? await devtools.send('Runtime.evaluate', {
-      expression: 'document.documentElement.outerHTML',
+      expression: mode === 'a1-7'
+        ? `JSON.stringify({
+          schemaVersion: 1,
+          projectId: document.documentElement.dataset.visualProjectId,
+          taskContext: document.querySelector('[data-task-view="detail"]')?.dataset.taskContext ?? null,
+          state: document.querySelector('[data-processing-adoption]')?.dataset.processingAdoptionState ?? null,
+          candidate: document.querySelector('[data-processing-adoption]')?.dataset.processingAdoptionCandidate ?? null,
+          sectionHtml: document.querySelector('[data-processing-adoption]')?.outerHTML ?? null,
+        }, null, 2)`
+        : 'document.documentElement.outerHTML',
       returnByValue: true,
     }, sessionId)
     : null;
@@ -2704,6 +2990,7 @@ try {
     checkpoint45RoomFocus,
     checkpoint45PhysicalPaint,
     checkpoint45EditorContinuity,
+    a17Evidence,
     layout,
     interactions: checkpoint2bInteractionEvidence,
   };
