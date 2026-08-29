@@ -62,6 +62,12 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **UI-010.** The pull-down MUST NOT offer an unbounded `Full access` shortcut. Finalization/export require separate explicit controls; production publish requires its own short-lived grant and confirmation outside the header selector.
 - **UI-011.** Primary designer-facing language MUST explain the current state, responsible actor, required decision, and consequence of an action in professional plain language. Internal terms such as branch, grant, provenance, immutable, atomic, semantic, CAS, command, and raw revision or rule identifiers MUST NOT be required to understand the normal workflow. When those details aid diagnosis or expert inspection, the UI SHOULD place them behind a secondary **Technical details** disclosure. A confirmation that ends authority MUST explain the practical result—for example, that completing a task prevents the assigned agent from changing it further—instead of merely naming the internal grant transition.
 - **UI-012.** Workspaces SHOULD use progressive disclosure around the current process step. A normal list view SHOULD offer the primary next action, such as **Create task**, without permanently showing the complete creation form, selected-object detail, review controls, and technical history at equal visual weight. Controls that are irrelevant or unavailable in the current state SHOULD be omitted or clearly explained rather than presented as unexplained technical options.
+- **UI-013.** A branch-local processing-result adoption MUST be shown only in its selected Agent task unless and until a separately implemented, owner-authorized compatible path later makes the Asset part of Main. No such compatible path exists in the current processing-adoption chain. The primary successful state is **Waiting for your review** and MUST say that the DRAFT is saved in the task only and is not part of Main or the project Asset Library.
+- **UI-014.** The processing-adoption browser projection MUST be an exact versioned allowlist. It MUST NOT expose Grant/HostBinding credentials or identity, execution authority, command/idempotency identity, raw ledger documents, CAS digests/URIs, machine paths, stacks, secrets, or unsanitized errors. Its same-origin preview route MUST authorize the exact task/adoption `selected-output` without widening Main project-reference authority.
+- **UI-015.** A committed processing DRAFT, a blocked ProcessingResult, a failed or denied attempt, missing semantic metadata, unresolved warnings, unavailable projection/preview, and an absent result MUST remain distinct. A committed DRAFT takes precedence over an uncertain or failed delivery attempt. Because no durable replay marker exists, the UI MUST NOT invent a replay badge or duplicate result.
+- **UI-016.** A committed processing DRAFT with Asset metadata errors MUST remain visibly successful but marked **Details still need correction**. ProcessingResult errors that blocked before commit MUST NOT be presented as a saved DRAFT. A1.7 correction guidance MUST NOT invent a browser metadata/retry command or widen task authority.
+- **UI-017.** The exact selected-output preview MUST use a server-generated same-origin resource, preserve aspect ratio with contain/no crop/no stretch, retain transparency, and provide deterministic accessible unavailable/load-failure copy without substituting source or recipe-input pixels.
+- **UI-018.** Passive refresh of the selected processing-adoption task MUST preserve the selected task, compatible DOM/focus, text selection, task/page scroll, open disclosures, and unsaved existing review choices. Unchanged adoption data MUST preserve its DOM node; the protected composer, Asset, Room/canvas, Cutter, layer, and active-pointer retention rules remain unchanged.
 
 ### 5.2 Source and Generation
 
@@ -160,6 +166,14 @@ acceptance or completion of `IMG-001`–`IMG-008` or A1. See
 Legacy command definitions/scopes remain 33/30, the profile-v1 fingerprint
 remains `826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049`,
 schema remains v13, and portable bundles remain v1-v3.
+
+The A1.7 D0 state contract is now frozen in
+[`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md). It records that the current
+human project/task projections cannot expose the private committed DRAFT,
+quality findings, or its durable selected-output preview. A minimal read-only
+task/adoption projection is therefore a separate L3 prerequisite to the
+bounded Agent-task visual candidate. D0 adds no product surface; both future
+blocks remain candidate-only and stop at **Waiting for your review**.
 
 ### 5.3 Atlas Cutter
 
