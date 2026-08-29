@@ -1240,11 +1240,9 @@ try {
             ? (firstSection.compareDocumentPosition(document.querySelector('.task-detail > .policy-details')) & Node.DOCUMENT_POSITION_FOLLOWING ? 'current-adoption-facts' : 'invalid')
             : 'invalid',
         };
-        const invalidPreview = URL.createObjectURL(new Blob([new Uint8Array([0, 1, 2, 3])], { type: 'image/png' }));
         const decodeFailed = new Promise((resolveFailure) => firstImage.addEventListener('error', resolveFailure, { once: true }));
-        firstImage.src = invalidPreview;
+        firstImage.src = 'data:image/png;base64,AAECAw==';
         await decodeFailed;
-        URL.revokeObjectURL(invalidPreview);
         await waitFor(() => firstSection.dataset.processingPreviewState === 'UNAVAILABLE', 'the real A1.7 preview decode fallback');
         const fallback = {
           decodeFailure: true,
@@ -1268,10 +1266,7 @@ try {
         const selectedLength = Math.min(24, selectedTextNode.data.length);
         selectionRange.setStart(selectedTextNode, 0); selectionRange.setEnd(selectedTextNode, selectedLength);
         const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(selectionRange);
-        const scrollProbeStyle = document.createElement('style');
-        scrollProbeStyle.id = 'a1-7-task-scroll-probe';
-        scrollProbeStyle.textContent = '.task-detail { max-height: 420px; overflow: auto; }';
-        document.head.append(scrollProbeStyle);
+        document.documentElement.dataset.visualTaskScrollProbe = 'true';
         technical.scrollIntoView({ block: 'center', inline: 'nearest' });
         await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
         detail.scrollTop = Math.min(120, detail.scrollHeight - detail.clientHeight);
@@ -1319,7 +1314,7 @@ try {
           taskScrollExercised: beforeScroll.taskTop > 0,
         };
         changedTechnical.open = false;
-        scrollProbeStyle.remove();
+        delete document.documentElement.dataset.visualTaskScrollProbe;
         const durableAfter = await durableSnapshot();
         changedSection.scrollIntoView({ block: 'start', inline: 'nearest' }); window.scrollBy(0, -82);
         await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));

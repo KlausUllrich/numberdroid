@@ -439,6 +439,7 @@ h2, h3 { margin: 0; }
 .task-list-item .status-pill { grid-column: 1; align-self: start; justify-self: start; box-sizing: border-box; max-width: 100%; line-height: 1.25; overflow-wrap: anywhere; text-align: left; white-space: normal; }
 .task-detail .status-pill { flex: 0 0 auto; white-space: nowrap; }
 .task-detail .panel-heading { align-items: start; }
+html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; overflow: auto; }
 .task-detail .panel-heading p { max-width: 640px; margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 .task-detail .panel-heading .eyebrow { margin: 0 0 5px; font-size: 9px; }
 .task-detail-header-actions { display: grid; justify-items: end; gap: 9px; }

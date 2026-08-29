@@ -219,19 +219,22 @@ test('A1.7 module and evidence wiring are same-origin, real-fixture, two-viewpor
   assert.match(await response.text(), /processingAdoptionPresentation/);
 
   const capture = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
+  const styles = await readFile(new URL('../apps/studio-server/public/styles.css', import.meta.url), 'utf8');
   const prepare = await readFile(new URL('../scripts/prepare-visual-a1-7-evidence.js', import.meta.url), 'utf8');
   const evidenceAssert = await readFile(new URL('../scripts/assert-studio-a1-7-visual-evidence.js', import.meta.url), 'utf8');
   const workflow = await readFile(new URL('../../../.github/workflows/build.yml', import.meta.url), 'utf8');
   assert.match(capture, /checkpoint-4-5\|a1-7/);
   assert.match(capture, /rerenderA17Candidate/);
   assert.match(capture, /exerciseA17ChangedProjectionRetention/);
-  assert.match(capture, /createObjectURL\(new Blob/);
+  assert.match(capture, /firstImage\.src = 'data:image\/png;base64,AAECAw=='/);
+  assert.doesNotMatch(capture, /createObjectURL\(new Blob/);
   assert.doesNotMatch(capture, /firstImage\.dispatchEvent\(new Event\('error'\)\)/);
   assert.match(capture, /durableSnapshotUnchanged/);
   assert.match(capture, /accessibilityScope = axRoot \? 'processing-adoption'/);
   assert.match(capture, /sameAdoptionNode/);
   assert.match(capture, /Accessibility\.getFullAXTree/);
   assert.match(capture, /const taskDetailDeadline = Date\.now\(\) \+ 6_000;[\s\S]{0,220}\.task-detail \[data-task-state\]/);
+  assert.match(styles, /html\[data-visual-task-scroll-probe="true"\] \.task-detail \{ max-height: 420px; overflow: auto; \}/);
   assert.match(prepare, /internal\/mcp\/authoring-v2\/processing-result-adopt/);
   assert.match(prepare, /task\.task\.state !== 'ACTIVE' \|\| task\.review !== null/);
   assert.doesNotMatch(prepare, /agentTaskService\.(submitReview|decideReview|mergeReview)|\/submit-review|\/reviews\/|\/publish|\/release/);
