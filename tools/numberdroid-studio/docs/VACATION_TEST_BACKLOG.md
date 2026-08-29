@@ -806,8 +806,10 @@ accepted** state.
   classified read projection was integrated through PR
   [#168](https://github.com/KlausUllrich/numberdroid/pull/168) as merge commit
   `df2e65a02d1c10ca7de9084539ebc262865f206b`. The bounded visual candidate is
-  based on that exact `main`; its implementation head, PR, merge SHA and final
-  tested `main` are assigned at source integration. The visible result is
+  PR [#169](https://github.com/KlausUllrich/numberdroid/pull/169), based on that
+  exact `main`, with implementation head
+  `d8fe20a3f9628eac9230ad44a35941204e05f42c`. Its merge SHA and final tested
+  `main` are assigned at source integration. The visible result is
   **implemented candidate — not user accepted**.
 - **State/dependency:** `NEEDS KLAUS LIVE`; depends on VT-000 for the protected
   Studio baseline and on VT-004–VT-010 for the adoption semantics and private
@@ -870,8 +872,13 @@ accepted** state.
   `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
   Fresh-fixture refusal, production Authoring-v2 fixture preparation and
   graceful SIGTERM shutdown pass. Five final actual-diff reviews are **GO**.
-  Exact docs/classifier results, PR/main Actions jobs, Chrome artifact ID,
-  screenshots and final source SHAs are filled after CI/source integration.
+  Markdown checks cover 89 links across 199 files with zero failures; Markdown
+  and classifier self-tests pass. The
+  exact 18-path classifier selects docs, Root, Root visual, Studio, Studio
+  visual, Studio Windows, Pages and full lanes because the changed Actions
+  workflow is intentionally fail-closed. PR/main Actions jobs, Chrome artifact
+  ID, screenshots, merge SHA and final `main` are filled after CI/source
+  integration.
 - **Required platform/evidence:** desktop Chrome at exactly 1440×900 and
   1060×900. CI must retain and inspect the safe A1.7 evidence bundle containing
   both screenshots, bounded DOM/Accessibility observations, transport log,

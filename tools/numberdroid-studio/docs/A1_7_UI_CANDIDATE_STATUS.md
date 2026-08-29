@@ -133,6 +133,12 @@ real Chrome artifact evidence, are recorded at final source freeze in `VT-011`
 of
 [`VACATION_TEST_BACKLOG.md`](VACATION_TEST_BACKLOG.md).
 
+The visual source candidate is PR
+[#169](https://github.com/KlausUllrich/numberdroid/pull/169) at implementation
+head `d8fe20a3f9628eac9230ad44a35941204e05f42c`, based on verified read-projection
+`main` `df2e65a02d1c10ca7de9084539ebc262865f206b`. Merge, post-merge Actions and
+real Chrome artifact evidence remain pending at this checkpoint.
+
 The final state remains **implemented candidate — not user accepted** and
 **Waiting for your review**. Only Klaus can accept or revise the visual and
 correction experience in the return test. Automation cannot close that gate.
