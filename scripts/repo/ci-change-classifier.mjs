@@ -15,6 +15,7 @@ const STUDIO_PORTABLE_SOURCE_PATHS = new Set([
   'tools/numberdroid-studio/packages/domain/src/processing-recipe.js',
   'tools/numberdroid-studio/packages/domain/src/processing-result.js',
   'tools/numberdroid-studio/packages/domain/src/processing-adoption-preflight.js',
+  'tools/numberdroid-studio/packages/domain/src/backup-operation.js',
   'tools/numberdroid-studio/packages/domain/src/asset-input-selection.js',
   'tools/numberdroid-studio/packages/domain/src/asset-definition.js',
   'tools/numberdroid-studio/packages/domain/src/room-definition.js',
@@ -28,6 +29,8 @@ const STUDIO_PORTABLE_SOURCE_PATHS = new Set([
   'tools/numberdroid-studio/packages/application/src/engine-bridge.js',
   'tools/numberdroid-studio/packages/application/src/project-capability-provider.js',
   'tools/numberdroid-studio/packages/application/src/processing-adoption-preflight.js',
+  'tools/numberdroid-studio/packages/application/src/backup-operation-service.js',
+  'tools/numberdroid-studio/packages/application/src/backup-operation-worker.js',
   'tools/numberdroid-studio/packages/application/src/studio-service.js',
   'tools/numberdroid-studio/packages/application/src/agent-task-service.js',
   'tools/numberdroid-studio/packages/application/src/project-store.js',
@@ -86,8 +89,8 @@ function isStudioVisualPath(path) {
     return true;
   }
 
-  const portableHeadlessContract = /^tools\/numberdroid-studio\/packages\/domain\/src\/(?:index|processing-(?:recipe|result|adoption-preflight)|asset-input-selection|project-capability-manifest|candidate-manifest)\.js$/.test(path)
-    || /^tools\/numberdroid-studio\/packages\/application\/src\/(?:index|project-capability-provider|engine-bridge|processing-adoption-preflight)\.js$/.test(path);
+  const portableHeadlessContract = /^tools\/numberdroid-studio\/packages\/domain\/src\/(?:index|backup-operation|processing-(?:recipe|result|adoption-preflight)|asset-input-selection|project-capability-manifest|candidate-manifest)\.js$/.test(path)
+    || /^tools\/numberdroid-studio\/packages\/application\/src\/(?:index|backup-operation-(?:service|worker)|project-capability-provider|engine-bridge|processing-adoption-preflight)\.js$/.test(path);
 
   if ((path.startsWith('tools/numberdroid-studio/packages/domain/')
       || path.startsWith('tools/numberdroid-studio/packages/application/'))

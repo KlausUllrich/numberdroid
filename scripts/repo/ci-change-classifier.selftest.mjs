@@ -48,6 +48,38 @@ expect(
 );
 
 expect(
+  [
+    'tools/numberdroid-studio/packages/domain/src/backup-operation.js',
+    'tools/numberdroid-studio/packages/application/src/backup-operation-service.js',
+    'tools/numberdroid-studio/packages/application/src/backup-operation-worker.js',
+  ],
+  { docs: false, root: false, studio: true, studio_visual: false, studio_windows: false, pages: false, full: false },
+);
+
+expect(
+  [
+    'tools/numberdroid-studio/packages/domain/src/backup-operation.js',
+    'tools/numberdroid-studio/packages/application/src/backup-operation-service.js',
+    'tools/numberdroid-studio/packages/persistence/src/operations/safe-filesystem.js',
+    'tools/numberdroid-studio/tests/backup-operations-domain.node-test.js',
+  ],
+  { docs: false, root: false, studio: true, studio_visual: false, studio_windows: true, pages: false, full: false },
+);
+
+expect(
+  ['tools/numberdroid-studio/packages/application/src/backup-operation-http.js'],
+  { docs: false, root: false, studio: true, studio_visual: true, studio_windows: true, pages: false, full: false },
+);
+
+expect(
+  [
+    'tools/numberdroid-studio/packages/persistence/src/operations/windows-root-inspect.ps1',
+    'tools/numberdroid-studio/tests/backup-operations-filesystem.node-test.js',
+  ],
+  { docs: false, root: false, studio: true, studio_visual: false, studio_windows: true, pages: false, full: false },
+);
+
+expect(
   ['tools/numberdroid-studio/packages/application/src/studio-service.js', 'tools/numberdroid-studio/docs/ROADMAP.md'],
   { docs: true, root: false, studio: true, studio_visual: true, studio_windows: false, pages: false, full: false },
 );

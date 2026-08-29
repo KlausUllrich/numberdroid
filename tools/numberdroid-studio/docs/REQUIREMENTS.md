@@ -539,8 +539,11 @@ remain split across gates O1–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
   be described as a complete backup.
 - **BAK-002.** Backup MUST coordinate with the one authoritative writer and
   produce a consistent pre- or post-mutation snapshot, never mixed semantic and
-  artifact state. The initiating browser disconnecting MUST NOT cancel or
-  corrupt the durable operation.
+  artifact state. One live-CAS-root shared/exclusive maintenance barrier MUST
+  cover Create plus every destructive mark/sweep path across all same-root CAS
+  instances; destructive maintenance MUST NOT have an optional bypass. The
+  initiating browser disconnecting MUST NOT cancel or corrupt the durable
+  operation.
 - **BAK-003.** Integrity MUST pass before backup, and the completed backup MUST
   be verified automatically. User-facing success means durable completion and
   verification, not merely queue acceptance.
@@ -569,7 +572,9 @@ remain split across gates O1–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
   external service control ledger outside the backed-up workspace and every
   backup/restore destination. It MUST NOT be copied into a restored workspace,
   become resumable work there, or carry source-host destination/lease authority.
-  There is no O1 fallback to `studio.sqlite` operation state.
+  There is no O1 fallback to `studio.sqlite` operation state. Fixed
+  ledger/lock SQLite sidecars are part of the external control store and carry
+  no separate authority.
 - **BAK-012.** The O0 implementation base is remote `main`
   `f31a0c2df962b4747ade6119ee6850e40e888186`, whose semantic workspace is
   already schema v13 with migration `0013`. O1 MUST allocate no workspace
@@ -586,19 +591,26 @@ remain split across gates O1–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
   MUST reject traversal, absolute/drive/UNC caller input, symlinks, Windows
   reparse points/junctions, case-fold collisions, containment escape, nested
   live/backup roots, and directory-swap TOCTOU. Manifest database/artifact names
-  MUST be fixed schema values rather than trusted paths.
+  MUST be fixed schema values rather than trusted paths. On Windows, fixed
+  bounded-stdin Win32 helpers MUST prove local NTFS volume/file identity,
+  no-follow ancestor/root/stage status, disabled per-directory case sensitivity,
+  and no reparse tag before effects and publication; missing or ambiguous proof
+  MUST fail closed without a Node-only fallback.
 - **BAK-015.** A backup or restored copy MUST become visible as usable only after
   complete database/CAS/manifest verification, durable file and directory
   closure, and atomic same-filesystem publication to a previously nonexistent
-  final destination.
+  final destination. Windows publication MUST use identity-bound
+  `MoveFileExW(MOVEFILE_WRITE_THROUGH)` without replace/copy fallback and prove
+  the same stage file ID at the final name.
 - **BAK-016.** Create, verify, recovery test, and restore MUST each have a fixed
   durable state machine with explicit phases, terminal states, lease ownership,
   retry/resume policy, idempotency, and stale-worker exclusion. Unknown client
   outcomes MUST be resolved by replaying the same logical operation identity.
 - **BAK-017.** A recovery test MUST open the restored workspace read-only and
-  MUST start no listener or worker. A durable restored copy MUST remain
-  quarantined until a separate owner-only activation/cutover contract is
-  executed.
+  MUST start no listener or worker. Its disposable copy MUST receive the fixed
+  quarantine marker before any SQLite open and may use only the internal
+  recovery-test read purpose. A durable restored copy MUST remain quarantined
+  until a separate owner-only activation/cutover contract is executed.
 - **BAK-018.** Copied sessions, HostBindings, grants, nonterminal backup
   operations, source-host destinations, and worker leases MUST NOT become live
   authority or resumable work in a recovery-test or restored copy. Later

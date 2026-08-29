@@ -118,7 +118,9 @@ must not reopen them implicitly:
 
 1. **Operation ledger.** External service control ledger, schema v1, outside
    every workspace/output root, with one service-owned control writer,
-   reconstruction rules, snapshot exclusion, and no restored resume authority.
+   fixed SQLite-owned WAL sidecars, a separate lifetime-exclusive SQLite
+   process lock, reconstruction rules, snapshot exclusion, and no restored
+   resume authority.
 2. **Implementation base and migration.** Exact base
    `f31a0c2df962b4747ade6119ee6850e40e888186`, workspace schema v13; O1 has no
    workspace migration and the external ledger writes no semantic project state.
@@ -130,21 +132,26 @@ must not reopen them implicitly:
 4. **Destination registry.** Trusted startup configuration supplies disjoint
    service-managed roots; browser/API callers use opaque IDs only. Resolution
    pins containment and same-filesystem identity, rejects links/reparse points,
-   case-fold/nesting/TOCTOU drift, and uses fixed manifest filenames.
+   case-fold/nesting/TOCTOU drift, and uses fixed manifest filenames. Windows
+   proof uses fixed bounded-stdin Win32 root-inspection/publication helpers,
+   local NTFS file identity, no reparse or case-sensitive ancestor, and no
+   weaker fallback.
 5. **Atomic visibility.** Unique same-filesystem stage reservation, durable
    lane-specific closure, complete verification, one service-exclusive
    serialized publisher, immediate final-absence proof, and atomic rename to a
    previously nonexistent final. A failed stage is never a visible backup and
-   is never silently reused.
+   is never silently reused. One live-CAS-root shared/exclusive barrier covers
+   Create plus every destructive mark/sweep path across same-root store objects.
 6. **Operation state machines.** Fixed phases, terminal states, backup-health
    states, one serialized effect worker, leases/idempotency, retry/resume policy,
    stale-worker exclusion, and interruption behavior separately for create,
    verify, recovery test, and restore. The first slice omits cancellation rather
    than offer unsafe partial cancellation.
-7. **Restored-copy quarantine.** Recovery test opens read-only with no listener
-   or worker. Every durable restored copy carries a startup-blocking quarantine
-   marker. Copied sessions, HostBindings, grants, jobs, and source-host
-   coordinates remain inert.
+7. **Restored-copy quarantine.** Recovery test writes the fixed marker before
+   its internal-purpose read-only open and starts no listener or worker. Every
+   durable restored copy carries the same startup-blocking quarantine marker.
+   Copied sessions, HostBindings, grants, jobs, and source-host coordinates
+   remain inert.
 8. **Activation boundary.** Restore-as-copy is not activation. Any later
    cutover requires a stopped original writer, reauthentication, security-state
    rotation/revocation, pre-cutover verification, and rollback record. It is
@@ -204,12 +211,15 @@ product gate without the bounded first UI below.
   each CAS copy boundary, manifest write, verification, durable flush, rename,
   and ledger completion;
 - disk-full, permission, read-only filesystem, and durable-flush failure;
-- Unix symlink, Windows reparse/junction, traversal, absolute/drive/UNC path,
-  case-fold collision, nested live/backup roots, and directory-swap TOCTOU;
+- Unix symlink, every Windows reparse tag, non-NTFS or case-sensitive/mixed
+  ancestor, traversal, absolute/drive/UNC path, case-fold collision, nested
+  live/backup roots, volume/file-ID drift, and directory-swap TOCTOU;
 - corrupt, missing, extra, or swapped database/manifest/CAS content at verify and
   restore boundaries;
-- concurrent semantic commit, atlas-job discard, and CAS GC, with the backup
-  equal to a complete pre- or post-mutation state;
+- concurrent semantic commit, atlas-job discard, reference release, and
+  faulted/delayed CAS mark plus sweep through a second same-root store, with the
+  backup equal to a complete pre- or post-mutation state and both barrier modes
+  released after failure;
 - process-death/stale-lease recovery only after both old process locks are
   released, with no live lease takeover and no second publication;
 - restore failure leaves no visible final copy and changes no active workspace,

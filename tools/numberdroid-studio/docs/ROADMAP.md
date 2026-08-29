@@ -334,7 +334,9 @@ The gates are:
    trust, MCP transport scope, mobile hierarchy, and adversarial tests. The
    frozen external-ledger decision and implementation-grounded state/test
    contract are in `O0_BACKUP_RECOVERY_CONTRACT.md`; O1 allocates no workspace
-   migration on the current schema-v13 base.
+   migration on the current schema-v13 base. Its post-freeze platform proof
+   requires fixed Win32 root inspection/publication and one shared/exclusive
+   live-CAS maintenance barrier before O1a code may proceed.
 2. **O1 — Backup and recovery.** Reuse the accepted SQLite/CAS integrity,
    backup, verify, and restore-to-new-destination primitives behind a durable
    human-owned job; then add **Create backup now**, **Verify again**, recovery
