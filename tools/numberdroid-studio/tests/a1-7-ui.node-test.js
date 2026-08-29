@@ -216,9 +216,16 @@ test('A1.7 passive refresh fingerprints bounded attempts and preserves compatibl
 
 test('A1.7 module and evidence wiring are same-origin, real-fixture, two-viewport, and candidate-only', async (context) => {
   const directory = await mkdtemp(join(tmpdir(), 'numberdroid-a1-7-static-'));
-  context.after(() => rm(directory, { recursive: true, force: true }));
-  const running = await startStudioHttpServer({ dataDirectory: directory, port: 0 });
-  context.after(() => new Promise((resolveClose) => running.server.close(resolveClose)));
+  let running = null;
+  context.after(async () => {
+    if (running) {
+      await new Promise((resolveClose, rejectClose) => {
+        running.server.close((error) => (error ? rejectClose(error) : resolveClose()));
+      });
+    }
+    await rm(directory, { recursive: true, force: true });
+  });
+  running = await startStudioHttpServer({ dataDirectory: directory, port: 0 });
   const base = `http://127.0.0.1:${running.address.port}`;
   const response = await fetch(`${base}/a1-7-state.js`);
   assert.equal(response.status, 200);
