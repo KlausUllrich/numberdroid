@@ -1,14 +1,16 @@
 # O0 backup and recovery operations contract
 
-Status: **D0 CONTRACT FROZEN — O1 IMPLEMENTATION AND USER ACCEPTANCE PENDING**
+Status: **D0 CONTRACT FROZEN — POST-FREEZE PLATFORM PROOF CLARIFIED — O1 IMPLEMENTATION AND USER ACCEPTANCE PENDING**
 
 Decision date: 2026-08-29
 
 Implementation base: remote `main`
 `f31a0c2df962b4747ade6119ee6850e40e888186`. This base contains the required
 PR #166 merge lineage and the current Studio schema v13 migration
-`0013_processing_result_adoptions.sql`. O0 changes documentation only. It adds
-no schema, listener, route, authentication behavior, worker, UI, MCP surface,
+`0013_processing_result_adoptions.sql`. The O0 freeze changes documentation;
+its post-freeze platform clarification additionally updates only the exact CI
+risk allowlist for the future portable O1a contract modules. Neither adds a
+schema, listener, route, authentication behavior, worker, UI, MCP surface,
 backup, restore, deletion, activation, remote function, materialization,
 publication, or release authority.
 
@@ -86,9 +88,22 @@ these fixed service-owned entries below it:
 
 ```text
 operations.sqlite
+operations.sqlite-wal   (SQLite-owned and present only while required)
+operations.sqlite-shm   (SQLite-owned and present only while required)
 operations.lock
+operations.lock-journal (SQLite-owned and transient during initialization)
 recovery-tests/
 ```
+
+No other control-root entry is implied. SQLite-owned sidecars belong to their
+fixed database, remain excluded with it, and carry no authority separately.
+
+`operations.lock` is a separate fixed SQLite lock database in rollback-journal
+mode. The service holds one `BEGIN EXCLUSIVE` transaction for its lifetime and
+performs no payload write inside that transaction. OS handle release on process
+death releases authority; O1 never uses a PID-file stale-unlink or timed live
+takeover. Failure to acquire or retain this lock makes the subsystem
+`OPERATIONS_UNAVAILABLE`.
 
 The control store has its own schema version 1, WAL, foreign keys, full
 synchronous durability, checksummed migrations, and one writer owned by the
@@ -245,13 +260,32 @@ the following mutation.
 The concrete adapter lives under `packages/persistence/src/operations/` and
 uses the existing Node 22 `node:fs/promises` surface; control schema v1 uses the
 existing `better-sqlite3` dependency. Linux publication uses Node file/directory
-sync plus same-filesystem rename. Windows publication invokes the fixed,
-checked-in, noninteractive
-`packages/persistence/src/operations/windows-publish.ps1` helper. The helper
-reads stage/final coordinates as bounded JSON on stdin, calls `MoveFileExW` with
-`MOVEFILE_WRITE_THROUGH` and without `MOVEFILE_REPLACE_EXISTING`, and returns
-only a stable success/error code. It emits no path and accepts no command text.
-O1 adds no compiled native addon.
+sync plus same-filesystem rename.
+
+Windows uses two fixed, checked-in, `-NoProfile -NonInteractive` PowerShell
+helpers and no compiled native addon:
+
+- `windows-root-inspect.ps1` accepts one bounded configured coordinate as JSON
+  on stdin. It opens the root and every relevant ancestor with `CreateFileW`,
+  `FILE_FLAG_BACKUP_SEMANTICS`, and `FILE_FLAG_OPEN_REPARSE_POINT`, then obtains
+  `FILE_ATTRIBUTE_TAG_INFO`, `FILE_ID_INFO`, per-directory case-sensitivity,
+  and filesystem facts. It returns only allowlisted `NTFS`, Boolean
+  `caseSensitive`, and hex-string `volumeSerial`, `fileId`, and `reparseTag`
+  (or `null`); it never emits a path or Win32 message. Every reparse point,
+  UNC/remote root, non-NTFS filesystem, case-sensitive or mixed-case-semantics
+  ancestor, missing fact, malformed/oversized output, stderr output, timeout,
+  or identity drift fails `BACKUP_PATH_UNSAFE`.
+- `windows-publish.ps1` accepts bounded stage/final coordinates and expected
+  root/stage identities as JSON on stdin. It repeats the no-follow NTFS/root/
+  stage proof immediately before publication, calls `MoveFileExW` with
+  `MOVEFILE_WRITE_THROUGH` and without `MOVEFILE_REPLACE_EXISTING` or
+  `MOVEFILE_COPY_ALLOWED`, then proves the same stage file ID at the final name.
+  It returns only a stable success/error code and emits no path, command text,
+  or raw Win32 error.
+
+Helper filenames and action are implementation constants, never caller input.
+Runtime bounds apply to stdin, stdout, stderr, and execution time. There is no
+Node-only or weaker Windows fallback.
 
 Supported roots are a same-volume local filesystem with atomic durable
 directory rename: Linux filesystems that permit directory sync and Windows
@@ -286,10 +320,12 @@ cannot encounter an entry created after the absence proof; the Windows helper
 also forbids replacement at the syscall boundary. A final that already exists
 produces `BACKUP_DESTINATION_CONFLICT` and is never renamed over.
 
-Linux additionally syncs the final parent. On Windows NTFS the adapter flushes
-and closes every database/artifact/manifest handle, requires no open stage
-handle, delegates the no-replace write-through rename to the fixed helper, then
-reopens and verifies the final. Failure of a required lane-specific
+Linux additionally syncs every staged regular file, all nested directories
+bottom-up, and the final parent. On Windows NTFS the adapter flushes and closes
+every database/artifact/manifest handle, requires no open stage handle,
+revalidates the root and stage through the fixed inspection logic, delegates
+the identity-bound no-replace write-through rename to the fixed publish helper,
+then reopens the same final identity and verifies it. Failure of a required lane-specific
 close/sync/write-through/reopen proof produces `BACKUP_DURABILITY_FAILED`; the
 UI never reports durable success on a weaker fallback.
 
@@ -382,20 +418,35 @@ a backup health or operation status and never appears in the valid-backup list.
 A successful restored-copy record has fixed lifecycle
 `QUARANTINED_VERIFIED`. O1 defines no transition out of that lifecycle.
 
-Create holds a service-level snapshot/CAS-GC read barrier from snapshot closure
-selection until all referenced bytes are copied. Semantic commits may continue;
-the result must equal one complete pre- or post-commit state. Atlas discard,
-reference release, and CAS GC cannot remove snapshot-required bytes while the
-barrier is live.
+Exactly one fair, root-scoped in-process CAS-maintenance barrier coordinates
+every `ContentAddressedArtifactStore` instance for the authoritative live CAS.
+Create acquires its shared/read permit before source-integrity work and the
+SQLite snapshot, then holds it through snapshot-derived closure copy and staged
+snapshot verification. The complete destructive maintenance path acquires the
+exclusive/write permit before freshly determining references and holds it
+through every `markUnreferenced` live-to-quarantine move/sync and every
+`sweepQuarantine` unlink/sync. Neither destructive method has an optional bypass.
+Barrier acquisition precedes SQLite work and never waits inside an open SQLite
+transaction; release is `finally`-safe and has no timed live takeover.
+Semantic commits and reference release may continue while Create holds the
+shared permit, but physical CAS removal waits. The result must equal one
+complete pre- or post-commit state.
 
 ### 7. Recovery-test and restored-copy quarantine
 
 A recovery test uses a generated directory below the fixed recovery-test root.
-It verifies the source backup, restores the full SQLite/CAS pair, verifies the
-copy, opens SQLite read-only, compares canonical integrity/manifest evidence,
-starts no HTTP listener, pairing socket, MCP host, atlas worker, operation
-worker, or semantic writer, and then removes only that exact disposable copy.
-Its durable result retains safe parity evidence and timestamps, not paths.
+It verifies the source backup, restores the full SQLite/CAS pair, writes the
+same fixed quarantine marker with an operation-derived internal copy ID before
+any SQLite open, verifies DB/CAS parity against the already verified source
+manifest identity, opens the recovered database only with the internal
+`RECOVERY_TEST` read purpose, starts no HTTP listener, pairing socket, MCP host,
+atlas worker, operation worker, or semantic writer, and then removes only that
+exact disposable copy. It creates no `restored_copies` registry entry. Its
+durable result retains safe parity evidence and timestamps, not paths.
+
+The marker write plus its durability proof belong to `COPY_STAGED`; the
+operation cannot advance to `COPY_VERIFIED` or attempt any SQLite open until
+that proof succeeds.
 
 `RESTORE_AS_COPY` and the offline `studio-admin restore` publish a complete
 copy only after writing and durably verifying the fixed quarantine marker
@@ -526,9 +577,9 @@ details are always redacted from UI/API results and ordinary logs.
 | Threat | Control | Required falsification evidence |
 | --- | --- | --- |
 | Live workspace loss | Restore never writes active data; all outputs use generated disjoint roots and no-overwrite publish. | Inject every restore failure and prove active DB/CAS hashes unchanged. |
-| Mixed SQLite/CAS snapshot | SQLite native snapshot plus snapshot-derived CAS closure and GC read barrier. | Race semantic commit, atlas discard, reference release, and GC; result equals one complete boundary state. |
+| Mixed SQLite/CAS snapshot | SQLite native snapshot plus snapshot-derived CAS closure and one live-root shared/exclusive CAS-maintenance barrier used by Create, mark, and sweep. | Race semantic commit, atlas discard, reference release, mark, and sweep through every copy seam; result equals one complete boundary state. |
 | Existing-output overwrite | Ledger reservation, service-exclusive root, single effect worker, immediate final-absence proof, exact final identity. | Precreate stage/final and race two reservations; earlier backups remain byte-identical. |
-| Traversal or root escape | No caller path; fixed filenames; pinned configured roots; safe filesystem adapter. | Traversal, absolute/drive/UNC, symlink, reparse/junction, case-fold, nesting, and directory-swap probes fail before mutation. |
+| Traversal or root escape | No caller path; fixed filenames; pinned configured roots; Linux no-follow identity and fixed bounded Windows Win32 root inspection. | Traversal, absolute/drive/UNC, symlink, every reparse tag, case-sensitive/mixed NTFS, case-fold, nesting, volume/root identity drift, and directory-swap probes fail before mutation. |
 | Confused deputy | Dedicated human capability and opaque registry IDs; no project/task/agent derivation. | Project owner, task grant, HostBinding, MCP, and guessed IDs all fail. |
 | Session theft/replay | Out-of-band one-use launcher secret, rate-limited bootstrap, in-memory expiring operator session, CSRF/origin checks, idempotency fingerprint. | HTTP cannot read/mint the launcher secret; missing/expired/reused secret or token, cross-origin request, stale CSRF, and changed replay fail without operation. |
 | Direct-port/remote bypass | Existing loopback refusal unchanged; O1 routes require operator session. | Non-loopback bind/start and non-loopback socket request fail; no metadata leaks. |
@@ -557,10 +608,10 @@ identity swaps and never treats a path check alone as authority.
 | `O1-T02` | Competing requests reserve exactly one stage/final; a second effect worker cannot run or reclaim a live lease. | Control-ledger integration, Linux + Windows |
 | `O1-T03` | Fault after every create phase, including each CAS copy, flush, rename, and ledger completion. | Persistence/control integration, Linux + Windows |
 | `O1-T04` | Fault after every restore and recovery-test phase; active/source/prior hashes never change. | Persistence/control integration, Linux + Windows |
-| `O1-T05` | Disk-full, permission, read-only, Linux sync, Windows write-through-helper absence/failure, close/reopen, preexisting-final, and rename failures. | Safe-filesystem adapter, Linux + Windows |
-| `O1-T06` | Traversal, absolute/drive/UNC, symlink, reparse/junction, case-fold, nested roots, and root-swap race. | Platform filesystem, Linux + Windows |
+| `O1-T05` | Disk-full, permission, read-only, Linux nested sync, Windows inspect/publish-helper absence, timeout, malformed/oversized output, stderr or write-through failure, close/reopen, preexisting-final, and rename failures. | Safe-filesystem adapter, Linux + Windows |
+| `O1-T06` | Traversal, absolute/drive/UNC, symlink, every reparse tag, non-NTFS, case-sensitive/mixed-case NTFS, case-fold, nested roots, volume/file-ID drift, and root-swap race. | Platform filesystem, Linux + Windows |
 | `O1-T07` | DB/manifest digest mismatch and missing/extra/swapped CAS fail verify, recovery test, and restore. | Existing backup primitives + orchestrator |
-| `O1-T08` | Concurrent semantic commit, atlas discard, reference release, and GC produce one complete snapshot. | Real SQLite/CAS integration |
+| `O1-T08` | Concurrent semantic commit, atlas discard, reference release, and delayed/faulted `markUnreferenced` plus `sweepQuarantine` across two same-root CAS objects produce one complete snapshot and release both barrier modes after failure. | Real SQLite/CAS integration |
 | `O1-T09` | Process death/restart at every phase reconciles one output or exact safe terminal state. | Spawned-process integration, Linux + Windows |
 | `O1-T10` | Browser disconnect after acceptance leaves durable work intact; replay resolves original operation. | HTTP integration + real browser |
 | `O1-T11` | Launcher secret is absent from HTTP/logs; missing/expired/reused/exhausted bootstrap or operator session, CSRF/origin failure, owner/task/HostBinding/MCP attempts all deny. | HTTP/security integration |
@@ -652,8 +703,18 @@ default.
   the shared quarantine guard, platform-specific durable publication, and
   launcher-secret/session boundaries were made explicit. It found no remaining
   contradiction, hidden authority, or implementation blocker.
-- O0 changes documentation only. It adds no route, UI, migration, listener,
-  worker, filesystem effect, backup, restore, or authority.
+- The initial freeze was integrated through PR #173 as remote `main`
+  `8a704620f15cd437daf41590528f8018f384570c`. The first O1a platform seam review
+  then exposed a narrower Windows identity-proof and CAS-maintenance-barrier
+  gap before runtime code was written. This post-freeze clarification adds the
+  fixed Win32 inspector, shared/exclusive live-root barrier, ledger WAL sidecars,
+  and recovery-test marker above; a second independent security review ended
+  `GO` and confirmed that no owner, product, remote, deletion, activation, or
+  acceptance decision changed.
+- O0 and this preparatory platform clarification add no product runtime. Their
+  only executable change is the exact CI risk-classification allowlist for the
+  future portable O1a Domain/Application modules. They add no route, UI,
+  migration, listener, worker, filesystem effect, backup, restore, or authority.
 
 ## O0 acceptance and next boundary
 

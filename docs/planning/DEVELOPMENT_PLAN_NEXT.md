@@ -183,6 +183,14 @@ accepted SQLite/CAS integrity, backup, verification, and
 restore-to-new-destination primitives and may not add overwrite, deletion,
 active-workspace cutover, remote listener, or agent backup authority.
 
+A post-freeze O1a platform seam review closed two implementation-proof gaps
+before runtime code: Windows now requires fixed bounded-stdin Win32 root-
+inspection plus identity-bound write-through publication, and one root-scoped
+shared/exclusive barrier now binds Create to every destructive CAS mark/sweep
+path. The CI classifier explicitly treats only the named pure O1a Domain/
+Application modules as headless, so the behavior PR selects Studio Linux and
+Windows without an unrelated browser lane; unknown paths still fail closed.
+
 After O1a passes its Linux and Windows failure/restart/race gates, a separately
 classified bounded O1b **Backups** UI is required for product acceptance. It may
 land only as **implemented candidate — not user accepted** while Klaus is away;

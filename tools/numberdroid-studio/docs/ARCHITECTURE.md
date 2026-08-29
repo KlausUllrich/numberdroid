@@ -393,7 +393,12 @@ results. The control root is outside the live workspace and every
 backup/restore destination; it is excluded from workspace snapshots and never
 stores semantic project state. The Studio service remains the one project
 writer and composes the operation worker with the already-open SQLite/CAS
-adapters plus a snapshot/CAS-GC read barrier.
+adapters plus one fair, live-CAS-root-scoped shared/exclusive maintenance
+barrier. Create holds shared access through staged snapshot verification;
+`markUnreferenced` and `sweepQuarantine` cannot bypass exclusive access. The
+ledger owns only its fixed SQLite WAL sidecars, while `operations.lock` is a
+separate rollback-journal SQLite database held in one lifetime
+`BEGIN EXCLUSIVE` transaction rather than a stale-reclaimable PID file.
 
 The current workspace is schema v13 and migration 0013 is already owned by
 processing-result adoption. O1 allocates no workspace migration; the external
@@ -402,6 +407,12 @@ backup, verification, and restore functions remain protected persistence
 primitives. Online O1 orchestration supplies configured opaque destinations,
 safe same-filesystem staging, durable no-overwrite publication, restart
 reconciliation, read-only recovery testing, and restored-copy quarantine.
+Linux pins realpath/device/inode identity and syncs the staged tree bottom-up.
+Windows additionally uses fixed bounded-stdin Win32 inspection and publication
+helpers: no-follow handles reject every reparse point and non-NTFS or mixed
+case-sensitive root, while identity-bound `MoveFileExW` uses write-through and
+never replace/copy fallback. Recovery-test copies receive the same quarantine
+marker before their internal read-only open.
 
 O1 authority is the dedicated local human capability
 `workspace.backup.manage`, authenticated through a one-use secret emitted only
