@@ -86,10 +86,12 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
 
 ## Bounded execution and responsiveness — hard rules
 
-- Do not leave the user without a concise progress update for more than **60
+- Do not leave the user without a concise progress update for more than **120
   seconds** while commands, delegated work, CI, or another external operation
   are still active. State the current phase, the last observed result, and the
-  next bounded wait or takeover action.
+  next bounded wait or takeover action. Shorter technical polling intervals do
+  not require a user-visible message after every poll; the independent
+  120-second user-visible heartbeat ceiling remains hard.
 - Every locally started command, test, build, or diagnostic MUST have an
   explicit risk-scaled wall-clock timeout. Do not start unbounded shell
   commands or use a blocking sleep longer than 60 seconds. A legitimately long

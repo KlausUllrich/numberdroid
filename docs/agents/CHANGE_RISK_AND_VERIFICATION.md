@@ -35,7 +35,9 @@ workflow budget, but never an unbounded one.
   unlimited full run.
 - A command that must continue beyond the current tool yield runs in a
   resumable session. Poll it at intervals no longer than 60 seconds and send a
-  user-visible progress update within the same 60-second ceiling.
+  user-visible progress update within a separate 120-second ceiling. Technical
+  polls do not each require a user-visible message, but they never reset or
+  weaken that heartbeat deadline.
 - A bounded superagent review or diagnosis has a five-minute default deadline,
   stated in the delegated task. On expiry, the coordinator interrupts and
   performs the remaining review directly or assigns a smaller bounded follow-up.
