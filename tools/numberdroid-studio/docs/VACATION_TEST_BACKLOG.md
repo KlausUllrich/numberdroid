@@ -40,8 +40,12 @@ Keep these states distinct:
 | VT-010 | A1.6b2b Authoring-v2 MCP transport | NEEDS KLAUS REVIEW | VT-009 | Accept/revise explicit handshake-gated 31/6 discovery, fresh authority, and restart replay |
 | VT-011 | A1.7 processed-asset review UI candidate | NEEDS KLAUS LIVE | VT-000 and VT-004–VT-010 | Accept/revise the selected-task preview, correction hierarchy, responsive layout, fallback, and return-state continuity |
 
-Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
-own ID only after implementation exists. Planned work is not a candidate.
+Future A1, O1, MCP, UI, backup, remote, and mobile blocks MUST append their own
+ID only after implementation exists. Planned work is not a candidate. The
+documentation-only O0 decision in
+[`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md) receives no
+`VT-` item; the required first O1 backup UI must append one when its
+implementation candidate exists.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
 [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately

@@ -315,8 +315,8 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 
 ## Parallel masterplan track — Operations, Remote Access & Mobile
 
-**Status: added to the current masterplan on 2026-08-25; each implementation
-gate and user acceptance remains separate.**
+**Status: O0 contract frozen on 2026-08-29; O1 implementation and every user
+acceptance gate remain separate.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -331,7 +331,10 @@ The gates are:
 
 1. **O0 — Contract and threat model.** Freeze backup job ownership,
    destination configuration, local/remote separation, authentication/proxy
-   trust, MCP transport scope, mobile hierarchy, and adversarial tests.
+   trust, MCP transport scope, mobile hierarchy, and adversarial tests. The
+   frozen external-ledger decision and implementation-grounded state/test
+   contract are in `O0_BACKUP_RECOVERY_CONTRACT.md`; O1 allocates no workspace
+   migration on the current schema-v13 base.
 2. **O1 — Backup and recovery.** Reuse the accepted SQLite/CAS integrity,
    backup, verify, and restore-to-new-destination primitives behind a durable
    human-owned job; then add **Create backup now**, **Verify again**, recovery
@@ -356,10 +359,12 @@ The gates are:
    exact counts. Remote Streamable HTTP MCP remains optional and separately
    security-reviewed.
 
-While the user cannot test, implementation may confidently proceed only through
-O0 and the non-visual fail-closed O1 application/job seam plus automated
-recovery/adversarial tests. Final UI composition, remote exposure/authentication,
-phone acceptance, and remote MCP remain later gates.
+While the user cannot test, implementation may proceed through the fail-closed
+O1a application/job seam plus automated recovery/adversarial tests and then the
+separately classified bounded O1b first backup-UI candidate. Both remain
+**implemented candidate — not user accepted**. The live backup-UI gate blocks
+remote exposure/authentication; phone acceptance and remote MCP remain later
+gates.
 
 Detailed contract: `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.
 

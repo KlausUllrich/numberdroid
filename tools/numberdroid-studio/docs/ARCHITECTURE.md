@@ -383,6 +383,36 @@ Artifacts are immutable and addressed by SHA-256. Writes stream into a bounded s
 
 Logical URIs use `studio://` resources. Binary retrieval resolves to authenticated local artifact endpoints or resource links. Tool payloads never carry base64 images or local paths. Reads fail closed on missing/digest-mismatched content; integrity audit, backup, and restore operate over the database/CAS pair and verify their manifest.
 
+### O0 external backup operations control plane
+
+The frozen O0 decision is
+[`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md). O1 uses an
+external SQLite control ledger with its own schema v1, writer lock,
+idempotency, phases, leases/fencing, destination registry, and sanitized
+results. The control root is outside the live workspace and every
+backup/restore destination; it is excluded from workspace snapshots and never
+stores semantic project state. The Studio service remains the one project
+writer and composes the operation worker with the already-open SQLite/CAS
+adapters plus a snapshot/CAS-GC read barrier.
+
+The current workspace is schema v13 and migration 0013 is already owned by
+processing-result adoption. O1 allocates no workspace migration; the external
+control schema is not part of the workspace migration sequence. Existing
+backup, verification, and restore functions remain protected persistence
+primitives. Online O1 orchestration supplies configured opaque destinations,
+safe same-filesystem staging, durable no-overwrite publication, restart
+reconciliation, read-only recovery testing, and restored-copy quarantine.
+
+O1 authority is the dedicated local human capability
+`workspace.backup.manage`, authenticated through a one-use secret emitted only
+to the local launcher terminal. Same-origin/CSRF protection alone, project
+ownership, task/Grant/HostBinding state, MCP discovery, or caller paths cannot
+derive it. O1 is SQLite-only; JSON mode composes no operations control plane or
+authority. The accepted loopback listener and exact MCP catalogs remain
+unchanged. The O1 product gate requires the bounded first **Backups** UI;
+deletion, retention, active-workspace activation/cutover, and remote invocation
+remain absent.
+
 ### Checkpoint 2A source intake and audit
 
 The human loopback upload streams through CAS with an intake-specific maximum of 16 MiB and 4096×4096. A `source_intakes` row and temporary `source_intake` artifact reference keep verified bytes reachable while the semantic commit is pending. One SQLite transaction claims the staged row, creates the revision/event/projection/idempotency records, installs canonical `source` and permanent `source_lineage` references, removes the temporary reference, and charges agent artifact bytes. Explicit idempotent abandonment removes only the temporary reference; shared CAS bytes remain subject to retention-delayed garbage collection.
