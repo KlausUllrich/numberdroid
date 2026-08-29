@@ -42,11 +42,13 @@ Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
-[`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md). D0 is documentation, not an
-implemented candidate, so it does not receive `VT-011`. After the separately
-classified read projection and visual surface exist, `VT-011` must record the
-combined visible return test while retaining their distinct PR/CI evidence and
-the **implemented candidate — not user accepted** state.
+[`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately
+classified read projection is an implemented candidate recorded in
+[`A1_7_READ_PROJECTION_STATUS.md`](A1_7_READ_PROJECTION_STATUS.md). Neither D0
+nor a non-visual prerequisite receives `VT-011`. After the visual surface also
+exists, `VT-011` must record the combined visible return test while retaining
+the blocks' distinct PR/CI evidence and the **implemented candidate — not user
+accepted** state.
 
 ## VT-000 — protected baseline and restart
 
@@ -702,9 +704,9 @@ the **implemented candidate — not user accepted** state.
 - **State/dependency:** `NEEDS KLAUS REVIEW`; depends on VT-009 because the
   transport exposes exactly the A1.6b2a one-shot/full-admission versus
   ledger-first commit boundary. VT-004–VT-009 acceptance may still revise the
-  underlying contract. A1.7 D0 is frozen; its minimal read projection and
-  bounded visual candidate are the next separate implementation blocks and are
-  not part of this gate.
+  underlying contract. A1.7 D0 is frozen and its minimal read projection is an
+  implemented candidate; the bounded visual candidate is the next separate
+  implementation block and is not part of this gate.
 - **Safe fixture/reset:** reproduction uses only unique directories allocated
   with `mkdtemp` by the Authoring-v2 transport/official-MCP tests. The fixture
   provisions synthetic schema-v13 SQLite/CAS data, a private task/Grant/

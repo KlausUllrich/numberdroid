@@ -23,7 +23,8 @@ primary visual. No slice adds a persisted processing workflow, semantic
 adoption command, or new pixel operation. See the [A1.0 status](docs/A1_0_STATUS.md),
 [A1.1 status](docs/A1_1_STATUS.md), and [A1.2 status](docs/A1_2_STATUS.md).
 
-A1.3, A1.4, A1.5, A1.6a, A1.6b1, A1.6b2a, and A1.6b2b are now
+A1.3, A1.4, A1.5, A1.6a, A1.6b1, A1.6b2a, A1.6b2b, and the A1.7 read
+projection are now
 **implemented candidates and are not user-accepted**.
 A1.3's read-only project-bound receipt closes Recipe → Result → Selection, an
 exact dedicated capability operation, registered-plus-physical CAS
@@ -81,15 +82,17 @@ See the
 [A1.6b2a private-session candidate status](docs/A1_6B2A_STATUS.md), and the
 [A1.6b2b transport candidate status](docs/A1_6B2B_STATUS.md). The
 [A1.7 implementation-grounded state contract](docs/A1_7_STATE_CONTRACT.md) is
-now frozen at D0. Its required human-safe read projection and bounded visual
-review/correction surface remain separate L3 implementation blocks; A1 remains
-incomplete. The operations O0/O1 lane is independent and retains its own gates.
+frozen at D0, and its separate
+[human-safe read projection](docs/A1_7_READ_PROJECTION_STATUS.md) is now an
+implemented candidate. The bounded visual review/correction surface remains
+the next L3 implementation block; A1 remains incomplete. The operations O0/O1
+lane is independent and retains its own gates.
 
 Checkpoint 2B acceptance was recorded in `52eb9d32cab4fcbf20559455bc141215e7fb8998`. Later commits `f116f25aed2f0a9d935de9061cf6492d3a56bef4` and `b9ce37e44fe3679b52b50dac6daf4e1a46024c1d` change only the `visualFixture`/test evidence harness; they do not change product behavior or reopen acceptance. Failed run `32571622269` (both Studio attempts failed; artifact `9475480760`, 846 bytes) and failed run `32572344465` (Studio job `97029542069`, isolating Chrome/CDP post-move pointer-capture bookkeeping) are invalid diagnostic evidence only. Final post-acceptance closure run `32572870510` passed Studio job `97030836851` and root job `97030836927`; Pages was intentionally skipped. Its valid 16-file artifact `9475808319` is 2,839,931 bytes, `sha256:1ec032b0516dab09ea8dd33f4347714ed90caaca86dfabea883db57821d8fc2f`, and expires `2026-09-05T12:26:26Z`. Under Chrome `151.0.7922.137` at 1440×900 and 1060×900, it records zero runtime and visual errors and proves captured press, a same-pointer held move, deferred rendering, matching release/settlement/replacement, exact scroll/context retention, and telemetry cleanup. Run `32568108922` / artifact `9474639509` remain the product-repair evidence; run `32572870510` / artifact `9475808319` are the final post-acceptance closure evidence.
 
 | Area | Current status |
 | --- | --- |
-| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.6b2b, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
+| Product contract | Checkpoints 1–4 and bounded A1.0–A1.2 contracts user-accepted; A1.3–A1.6b2b, the A1.7 read projection, Checkpoint 4.5, Checkpoint 5, and A0.1–A0.4 remain implemented candidates without user acceptance |
 | Standalone boundary | Accepted package/dependency boundary; extraction remains a later packaging task |
 | Human UI | Accepted source/asset/room/task foundations plus candidate list-first tasks, useful prop previews, and persistent-canvas rectangle/irregular-room authoring |
 | Agent access | Absent profile selection preserves 19 tools/four templates without a task and 30 tools/five templates for a matching legacy task. Exact `authoring-v2` selection plus a positive private server negotiation exposes static 31/six only for the matching v2 task; every other set selector, failed negotiation, later authority check, and fallback attempt fails closed. Owner review, merge, materialization, and publication remain human-only. |
@@ -276,6 +279,7 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [A1.6b2a private execution-session candidate](docs/A1_6B2A_STATUS.md)
 - [A1.6b2b private transport candidate](docs/A1_6B2B_STATUS.md)
 - [A1.7 visual review/correction state contract](docs/A1_7_STATE_CONTRACT.md)
+- [A1.7 processing-adoption read projection candidate](docs/A1_7_READ_PROJECTION_STATUS.md)
 - [Checkpoint 3 frozen implementation contract](docs/CHECKPOINT_3_CONTRACT.md)
 
 These current product documents are normative for the Studio implementation. If

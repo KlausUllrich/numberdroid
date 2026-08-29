@@ -2,12 +2,14 @@ import { readFile } from 'node:fs/promises';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   AgentTaskService,
   AuthoringV2AdmissionService,
   AuthoringV2ExecutionSession,
   FixedProjectCapabilityProvider,
+  ProcessingResultAdoptionReadService,
   ProcessingResultAdoptionPlanningService,
   StudioService,
 } from '../../../packages/application/src/index.js';
@@ -26,6 +28,7 @@ import {
   SqliteHostBindingStore,
   SqliteJobStore,
   SqliteProjectStore,
+  SqliteProcessingResultAdoptionReader,
   SqliteProcessingResultAdoptionStore,
   SqliteSourceIntakeStore,
   TaskBranchProjectStore,
@@ -177,14 +180,16 @@ function errorStatus(error, pathname = '') {
     if (error.code === 'TASK_NOT_FOUND') return 404;
     if (['AUTO_ACCEPT_FORBIDDEN', 'TASK_ACTOR_MISMATCH', 'TASK_BRANCH_MISMATCH', 'TASK_BRANCH_REQUIRED', 'TASK_CAPABILITY_MISSING', 'TASK_EXPIRED', 'TASK_GRANT_MISMATCH', 'TASK_NOT_EXECUTABLE', 'TASK_PAUSED'].includes(error.code)) return 403;
   }
+  if (pathname.includes('/processing-result-adoptions')
+    && ['TASK_NOT_FOUND', 'PROCESSING_RESULT_ADOPTION_NOT_FOUND'].includes(error.code)) return 404;
   if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND', 'JOB_NOT_FOUND', 'ASSET_NOT_FOUND', 'ASSET_PROPOSAL_NOT_FOUND', 'ASSET_SLICE_NOT_FOUND', 'ROOM_ARCHETYPE_NOT_FOUND', 'ROOM_VARIANT_NOT_FOUND', 'ROOM_PROPOSAL_NOT_FOUND', 'ROOM_PLACEMENT_NOT_FOUND', 'ROOM_CONNECTOR_NOT_FOUND'].includes(error.code)) return 404;
   if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'ENTITY_VERSION_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING', 'JOB_STATE_CONFLICT', 'JOB_ATTEMPT_CONFLICT', 'JOB_ATTEMPT_LIMIT', 'JOB_INPUT_MISMATCH', 'JOB_OUTPUT_MISMATCH', 'ASSET_LIFECYCLE_BLOCKED', 'ASSET_LIFECYCLE_TRANSITION_INVALID', 'ASSET_PROPOSAL_DECISION_DUPLICATE', 'ASSET_PROPOSAL_DECISION_INCOMPLETE', 'ASSET_PROPOSAL_DUPLICATE_ASSET', 'ASSET_PROPOSAL_DUPLICATE_ITEM', 'ASSET_PROPOSAL_VERSION_INVALID', 'ASSET_SLICE_STALE', 'ASSET_WARNING_NOT_FOUND', 'ASSET_WARNING_UNDISPOSITIONED', 'ROOM_EDIT_REQUIRES_DRAFT', 'ROOM_LIFECYCLE_BLOCKED', 'ROOM_LIFECYCLE_TRANSITION_INVALID', 'ROOM_PROPOSAL_UNRESOLVED', 'ROOM_PROPOSAL_STATE_CONFLICT', 'ROOM_PROPOSAL_DECISION_INCOMPLETE', 'ROOM_PROPOSAL_DECISION_DUPLICATE', 'ROOM_WARNING_NOT_FOUND', 'ROOM_WARNING_UNDISPOSITIONED', 'ROOM_RESIZE_CLIPS_CONTENT', 'ROOM_VERSION_CONFLICT'].includes(error.code)) return 409;
   if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'JOB_AUTHORITY_MISMATCH', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
   if (error.code === 'ARTIFACT_TOO_LARGE') return 413;
   if (['ARTIFACT_DIGEST_MISMATCH', 'ARTIFACT_METADATA_CONFLICT'].includes(error.code)) return 409;
-  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_MALFORMED', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED', 'PROVENANCE_PARAMETER_FORBIDDEN', 'ATLAS_RECT_INVALID', 'ATLAS_RECT_LIMIT', 'ATLAS_RECT_DUPLICATE', 'ATLAS_RECT_DUPLICATE_ID', 'ATLAS_RECT_OVERLAP', 'ATLAS_RECT_OUT_OF_BOUNDS', 'ATLAS_REMAP_INVALID', 'ATLAS_REMAP_NOT_ONE_TO_ONE', 'ATLAS_PADDING_POLICY_UNSUPPORTED', 'ATLAS_GRID_INVALID', 'ATLAS_OUTPUT_LIMIT', 'ATLAS_OUTPUT_BYTES_LIMIT', 'ATLAS_PNG_UNSUPPORTED', 'ATLAS_SOURCE_REQUIRED', 'ATLAS_SOURCE_MISMATCH', 'ASSET_ANCHOR_OUT_OF_BOUNDS', 'ASSET_CONNECTOR_DUPLICATE', 'ASSET_EXTENSION_INVALID', 'ASSET_PROPOSAL_BYTES_LIMIT', 'ASSET_PROPOSAL_INVALID', 'ASSET_PROPOSAL_LIMIT', 'ASSET_PROPOSAL_REJECTION_REASON_REQUIRED', 'ASSET_SLICE_BINDING_INVALID', 'ROOM_PROPOSAL_INVALID', 'ROOM_PROPOSAL_LIMIT', 'ROOM_PROPOSAL_REJECTION_REASON_REQUIRED', 'ROOM_CONNECTOR_OUT_OF_BOUNDS', 'ROOM_CELL_LIMIT', 'ROOM_DIMENSION_POLICY_INVALID', 'ROOM_CONNECTOR_POLICY_INVALID', 'ROOM_TAG_POLICY_INVALID'].includes(error.code)) return 400;
+  if (['VALIDATION_ERROR', 'INVALID_JSON', 'BODY_TOO_LARGE', 'CONTENT_TYPE_REQUIRED', 'UNKNOWN_AGENT_ACCESS_MODE', 'UNKNOWN_COMMAND', 'SCHEMA_VERSION_UNSUPPORTED', 'VERSION_INVARIANT_VIOLATION', 'EMBEDDED_ARTIFACT_FORBIDDEN', 'ARTIFACT_UNSUPPORTED_MEDIA', 'ARTIFACT_MEDIA_MISMATCH', 'ARTIFACT_MALFORMED', 'ARTIFACT_DIMENSIONS_EXCEEDED', 'ARTIFACT_INVALID_DIGEST', 'ARTIFACT_URI_REQUIRED', 'PROVENANCE_PARAMETER_FORBIDDEN', 'ATLAS_RECT_INVALID', 'ATLAS_RECT_LIMIT', 'ATLAS_RECT_DUPLICATE', 'ATLAS_RECT_DUPLICATE_ID', 'ATLAS_RECT_OVERLAP', 'ATLAS_RECT_OUT_OF_BOUNDS', 'ATLAS_REMAP_INVALID', 'ATLAS_REMAP_NOT_ONE_TO_ONE', 'ATLAS_PADDING_POLICY_UNSUPPORTED', 'ATLAS_GRID_INVALID', 'ATLAS_OUTPUT_LIMIT', 'ATLAS_OUTPUT_BYTES_LIMIT', 'ATLAS_PNG_UNSUPPORTED', 'ATLAS_SOURCE_REQUIRED', 'ATLAS_SOURCE_MISMATCH', 'ASSET_ANCHOR_OUT_OF_BOUNDS', 'ASSET_CONNECTOR_DUPLICATE', 'ASSET_EXTENSION_INVALID', 'ASSET_PROPOSAL_BYTES_LIMIT', 'ASSET_PROPOSAL_INVALID', 'ASSET_PROPOSAL_LIMIT', 'ASSET_PROPOSAL_REJECTION_REASON_REQUIRED', 'ASSET_SLICE_BINDING_INVALID', 'ROOM_PROPOSAL_INVALID', 'ROOM_PROPOSAL_LIMIT', 'ROOM_PROPOSAL_REJECTION_REASON_REQUIRED', 'ROOM_CONNECTOR_OUT_OF_BOUNDS', 'ROOM_CELL_LIMIT', 'ROOM_DIMENSION_POLICY_INVALID', 'ROOM_CONNECTOR_POLICY_INVALID', 'ROOM_TAG_POLICY_INVALID', 'PROCESSING_RESULT_ADOPTION_READ_REQUEST_INVALID'].includes(error.code)) return 400;
   if (error.code === 'SOURCE_INTAKE_NOT_FOUND') return 404;
-  if (['ARTIFACT_STORE_DISABLED', 'SOURCE_INTAKE_STORE_DISABLED', 'AGENT_ATTEMPT_LEDGER_REQUIRED', 'JOB_STORE_DISABLED', 'ASSET_STORE_DISABLED', 'ROOM_STORE_DISABLED'].includes(error.code)) return 503;
+  if (['ARTIFACT_STORE_DISABLED', 'SOURCE_INTAKE_STORE_DISABLED', 'AGENT_ATTEMPT_LEDGER_REQUIRED', 'JOB_STORE_DISABLED', 'ASSET_STORE_DISABLED', 'ROOM_STORE_DISABLED', 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE', 'PROCESSING_RESULT_ADOPTION_PREVIEW_UNAVAILABLE'].includes(error.code)) return 503;
   return 500;
 }
 
@@ -249,6 +254,28 @@ function taskRoute(pathname) {
   };
   const item = /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)$/.exec(pathname);
   return item ? { projectId: decodeURIComponent(item[1]), taskId: decodeURIComponent(item[2]), action: 'read' } : null;
+}
+
+function processingResultAdoptionRoute(pathname) {
+  const preview = /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/processing-result-adoptions\/([1-9][0-9]*)\/selected-output$/.exec(pathname);
+  if (preview) {
+    const revisionText = preview[3];
+    const branchRevision = Number(revisionText);
+    if (!Number.isSafeInteger(branchRevision) || branchRevision < 2 || String(branchRevision) !== revisionText) return null;
+    return {
+      projectId: decodeURIComponent(preview[1]),
+      taskId: decodeURIComponent(preview[2]),
+      branchRevision,
+      action: 'selected-output',
+    };
+  }
+  const collection = /^\/api\/projects\/([^/]+)\/tasks\/([^/]+)\/processing-result-adoptions$/.exec(pathname);
+  return collection ? {
+    projectId: decodeURIComponent(collection[1]),
+    taskId: decodeURIComponent(collection[2]),
+    branchRevision: null,
+    action: 'collection',
+  } : null;
 }
 
 function taskMergeRoute(pathname) {
@@ -767,6 +794,7 @@ function mcpLauncherProjection(
 export function createStudioHttpServer({
   studioService,
   agentTaskService = null,
+  processingResultAdoptionReadService = null,
   hostBindingStore = null,
   pairingBroker = null,
   pairingEndpoint = null,
@@ -1086,6 +1114,61 @@ export function createStudioHttpServer({
           });
         }
         sendJson(response, 200, result);
+        return;
+      }
+      const processingAdoptionRead = processingResultAdoptionRoute(url.pathname);
+      if (processingAdoptionRead) {
+        if (request.method !== 'GET') {
+          response.setHeader('allow', 'GET');
+          sendJson(response, 405, {
+            schemaVersion: 1,
+            error: { code: 'METHOD_NOT_ALLOWED' },
+          });
+          return;
+        }
+        if (url.search !== '') {
+          throw new StudioError(
+            'PROCESSING_RESULT_ADOPTION_READ_REQUEST_INVALID',
+            'Processing-result adoption reads do not accept query parameters.',
+          );
+        }
+        if (!processingResultAdoptionReadService) {
+          throw new StudioError(
+            'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE',
+            'Processed asset details are unavailable for this task.',
+          );
+        }
+        await studioService.readProjectTrusted(processingAdoptionRead.projectId);
+        if (agentTaskService) {
+          agentTaskService.readTask(
+            processingAdoptionRead.projectId,
+            processingAdoptionRead.taskId,
+          );
+        }
+        if (processingAdoptionRead.action === 'collection') {
+          sendJson(response, 200, await processingResultAdoptionReadService.readTaskAdoptions({
+            schemaVersion: 1,
+            projectId: processingAdoptionRead.projectId,
+            taskId: processingAdoptionRead.taskId,
+          }, { signal: requestAbort.signal }));
+          return;
+        }
+        await processingResultAdoptionReadService.withSelectedOutput({
+          schemaVersion: 1,
+          projectId: processingAdoptionRead.projectId,
+          taskId: processingAdoptionRead.taskId,
+          branchRevision: processingAdoptionRead.branchRevision,
+        }, async ({ mediaType, byteSize, readable }) => {
+          response.writeHead(200, {
+            'content-type': mediaType,
+            'content-length': byteSize,
+            'cache-control': 'private, max-age=31536000, immutable',
+            'content-security-policy': "default-src 'none'; frame-ancestors 'none'",
+            'x-content-type-options': 'nosniff',
+            ...SECURITY_RESPONSE_HEADERS,
+          });
+          await pipeline(readable, response, { signal: requestAbort.signal });
+        }, { signal: requestAbort.signal });
         return;
       }
       const taskRequest = taskRoute(url.pathname);
@@ -1716,10 +1799,16 @@ export function createStudioHttpServer({
       response.end('Not found\n');
     } catch (rawError) {
       if (requestAbort.signal.aborted && response.destroyed) return;
+      if (response.headersSent) {
+        if (!response.destroyed) response.destroy(rawError);
+        return;
+      }
       const error = asStudioError(rawError);
       const projected = url.pathname.startsWith('/internal/mcp/')
         ? internalMcpErrorProjection(error)
-        : { code: error.code, message: error.message, details: error.details };
+        : url.pathname.includes('/processing-result-adoptions')
+          ? { code: error.code, message: error.message }
+          : { code: error.code, message: error.message, details: error.details };
       sendJson(response, errorStatus(error, url.pathname), {
         schemaVersion: 1,
         error: projected,
@@ -1798,6 +1887,14 @@ export async function startStudioHttpServer({
   const artifactMetadataStore = storeMode === 'sqlite'
     ? new SqliteArtifactMetadataStore({ workspace: store.workspace })
     : null;
+  const processingResultAdoptionReadService = storeMode === 'sqlite'
+    ? new ProcessingResultAdoptionReadService({
+      reader: new SqliteProcessingResultAdoptionReader({
+        workspace: store.workspace,
+        artifactStore,
+      }).asReader(),
+    })
+    : null;
   const sourceIntakeStore = storeMode === 'sqlite'
     ? new SqliteSourceIntakeStore({ workspace: store.workspace })
     : null;
@@ -1827,6 +1924,7 @@ export async function startStudioHttpServer({
   const server = createStudioHttpServer({
     studioService,
     agentTaskService,
+    processingResultAdoptionReadService,
     hostBindingStore,
     pairingBroker,
     pairingEndpoint,

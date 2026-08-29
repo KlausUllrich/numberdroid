@@ -1,13 +1,14 @@
 # A1.7 visual review and correction state contract
 
-Status: **D0 CONTRACT FROZEN — CANDIDATE, NOT USER ACCEPTED**
+Status: **D0 CONTRACT FROZEN — READ PROJECTION IMPLEMENTED CANDIDATE, VISUAL NOT IMPLEMENTED, NOT USER ACCEPTED**
 
-Implementation state: **not implemented at this checkpoint**. Current `main`
-contains the A1.3–A1.6b2b processing-result adoption chain, but it contains no
-human-safe processing-adoption read projection and no A1.7 browser surface.
-This document freezes the implementation-grounded states and the two bounded
-implementation blocks that may follow. Automated tests, browser evidence,
-source integration, and CI cannot change the deferred Klaus acceptance gate.
+Implementation state: the separately classified human-safe read projection is
+an **implemented candidate — not user accepted**; the bounded A1.7 browser
+surface is not implemented at this checkpoint. Its implementation record is
+[`A1_7_READ_PROJECTION_STATUS.md`](A1_7_READ_PROJECTION_STATUS.md). This
+document continues to freeze the implementation-grounded states and the
+remaining visual block. Automated tests, browser evidence, source integration,
+and CI cannot change the deferred Klaus acceptance gate.
 
 ## Promise and finish boundary
 
@@ -162,9 +163,8 @@ raw internal code as the only actionable copy.
 
 ## Required read-projection block
 
-Current project and task HTTP projections cannot truthfully supply A1.7. Before
-the visual block, implement and integrate one separately reviewed L3 read-only
-projection. It must remain task/branch-local and must not add a command, grant
+The separately reviewed L3 read-only projection now supplies this prerequisite
+for the visual block. It remains task/branch-local and adds no command, grant
 scope, MCP tool/resource, discovery count, migration, or Main projection.
 
 The bounded owner-facing shape is:
@@ -298,7 +298,7 @@ repository write, publication, release, or user-acceptance claim.
 
 ### L3 read-projection block
 
-Finish when exact application/persistence/HTTP tests prove:
+Implemented candidate evidence now proves:
 
 - exact project/task/adoption association and ordered immutable read results;
 - empty, durable DRAFT, correction, warning, and preview-unavailable facts;

@@ -3,6 +3,7 @@ import { constants } from 'node:fs';
 import { copyFile, link, lstat, mkdir, open, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { Readable } from 'node:stream';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
 import { inspectImageHeader, verifyImageBytes, verifyImageFile } from './image-metadata.js';
 
@@ -192,7 +193,7 @@ export class ContentAddressedArtifactStore {
    * until operation completes. Callers receive descriptor evidence only; no
    * filesystem path, handle, or mutable byte buffer crosses this boundary.
    */
-  async withVerifiedPngEvidence(digest, operation) {
+  async #withVerifiedPngBytes(digest, operation) {
     this.#assertDigest(digest);
     invariant(typeof operation === 'function', 'VALIDATION_ERROR', 'Verified PNG evidence requires an operation callback.');
     const path = this.#path(digest);
@@ -258,10 +259,31 @@ export class ContentAddressedArtifactStore {
         width: dimensions.width,
         height: dimensions.height,
       });
-      return await operation(evidence);
+      return await operation(evidence, bytes);
     } finally {
       await handle.close();
     }
+  }
+
+  async withVerifiedPngEvidence(digest, operation) {
+    this.#assertDigest(digest);
+    invariant(typeof operation === 'function', 'VALIDATION_ERROR', 'Verified PNG evidence requires an operation callback.');
+    return this.#withVerifiedPngBytes(digest, (evidence) => operation(evidence));
+  }
+
+  /**
+   * Streams the exact byte image already read and verified through the held
+   * no-follow handle. No filesystem path, handle, or mutable CAS buffer crosses
+   * the callback boundary, and the callback must finish before verification
+   * scope closes.
+   */
+  async withVerifiedPngReadable(digest, operation) {
+    this.#assertDigest(digest);
+    invariant(typeof operation === 'function', 'VALIDATION_ERROR', 'Verified PNG streaming requires an operation callback.');
+    return this.#withVerifiedPngBytes(digest, (evidence, bytes) => operation(Object.freeze({
+      evidence,
+      readable: Readable.from([bytes]),
+    })));
   }
 
   async createReadStream(digest) {

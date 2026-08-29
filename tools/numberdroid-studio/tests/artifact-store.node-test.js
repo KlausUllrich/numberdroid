@@ -152,6 +152,32 @@ test('verified PNG evidence holds a no-follow object and exposes descriptor fact
   );
 });
 
+test('verified PNG readable streams the held verified bytes even if the live path changes', async (context) => {
+  const root = await tempDirectory(context, 'numberdroid-cas-readable-');
+  const store = new ContentAddressedArtifactStore({ rootDirectory: root });
+  const bytes = pngHeader({ width: 11, height: 5, tail: 'held-readable' });
+  const replacement = pngHeader({ width: 1, height: 1, tail: 'replacement' });
+  const artifact = await store.ingest(bytes, { mediaType: 'image/png' });
+  const path = (await store.verify(artifact.digest)).path;
+
+  const observed = await store.withVerifiedPngReadable(artifact.digest, async (stream) => {
+    assert.deepEqual(Object.keys(stream), ['evidence', 'readable']);
+    assert.ok(Object.isFrozen(stream));
+    const { evidence, readable } = stream;
+    assert.deepEqual(Object.keys(evidence), ['sha256', 'mediaType', 'byteSize', 'width', 'height']);
+    await writeFile(path, replacement);
+    const chunks = [];
+    for await (const chunk of readable) chunks.push(Buffer.from(chunk));
+    return { evidence, bytes: Buffer.concat(chunks) };
+  });
+
+  assert.equal(observed.evidence.sha256, artifact.digest);
+  assert.equal(observed.evidence.width, 11);
+  assert.equal(observed.evidence.height, 5);
+  assert.deepEqual(observed.bytes, bytes);
+  await assert.rejects(store.verify(artifact.digest), (error) => error.code === 'ARTIFACT_CORRUPT');
+});
+
 test('artifact metadata and its live reference commit atomically or both roll back', async (context) => {
   const directory = await tempDirectory(context, 'numberdroid-artifact-meta-');
   const projectStore = await SqliteProjectStore.open({

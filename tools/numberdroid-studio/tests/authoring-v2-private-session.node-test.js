@@ -1024,6 +1024,15 @@ test('production startup keeps the private v2 runtime hidden, write-free, and ab
   assert.equal(catalog.commands.some(({ type }) => type === PROCESSING_RESULT_ADOPTION_COMMAND_TYPE), false);
   const absentRoute = await fetch(`${origin}/internal/authoring-v2/capabilities`);
   assert.equal(absentRoute.status, 404);
+  const adoptionRead = await fetch(`${origin}/api/projects/project.unknown/tasks/task.unknown/processing-result-adoptions`);
+  assert.equal(adoptionRead.status, 404, 'production startup wires the adoption reader before project lookup');
+  assert.deepEqual(await adoptionRead.json(), {
+    schemaVersion: 1,
+    error: {
+      code: 'PROJECT_NOT_FOUND',
+      message: 'The project does not exist.',
+    },
+  });
 
   const defaultTools = createAgentToolCatalog(running.studioService, {
     contextProvider: async () => ({ projectId: PROJECT_ID }),
