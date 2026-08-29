@@ -23,6 +23,7 @@ import {
   FixedProjectCapabilityProvider,
   ProcessingResultAdoptionCommitService,
   ProcessingResultAdoptionHostBoundCommitService,
+  ProcessingResultAdoptionReadService,
 } from '../packages/application/src/index.js';
 import { fingerprint } from '../packages/application/src/value-utils.js';
 import {
@@ -30,6 +31,7 @@ import {
   SqliteAgentTaskStore,
   SqliteArtifactMetadataStore,
   SqliteHostBindingStore,
+  SqliteProcessingResultAdoptionReader,
   SqliteProcessingResultAdoptionStore,
   SqliteProjectStore,
   createWorkspaceBackup,
@@ -38,10 +40,13 @@ import {
 } from '../packages/persistence/src/index.js';
 import { NUMBERDROID_PROJECT_CAPABILITY_MANIFEST } from '../packages/numberdroid-adapter/src/index.js';
 import { encodeCanonicalRgbaPng } from '../packages/preview/src/index.js';
+import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
 import {
   AGENT,
   OWNER,
+  OWNER_CONTEXT,
   PROJECT_ID,
+  command,
   createHarness,
   createProject,
 } from './test-helpers.js';
@@ -404,6 +409,7 @@ async function fixture(context, {
   };
   return {
     projectStore,
+    studio,
     taskStore,
     artifactStore,
     artifactMetadata,
@@ -1390,6 +1396,12 @@ test('a post-commit fault reports unknown outcome but ledger-first retry resolve
     (error) => error.code === 'PROCESSING_RESULT_ADOPTION_COMMIT_PORT_FAILED',
   );
   value.fault.armed = false;
+  const recoveredBeforeRetry = await processingAdoptionReadHarness(value).service.readTaskAdoptions({
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    taskId: TASK_ID,
+  });
+  assert.deepEqual(recoveredBeforeRetry.adoptions.map(({ branchRevision }) => branchRevision), [3]);
   const calls = value.artifactStore.evidenceCalls;
   const replayed = await value.service.commit(command, value.contextValue);
   assert.equal(replayed.branchRevision, 3);
@@ -1397,4 +1409,566 @@ test('a post-commit fault reports unknown outcome but ledger-first retry resolve
   assert.equal(Number(value.projectStore.workspace.database.prepare(`
     SELECT COUNT(*) AS count FROM task_branch_processing_result_adoptions
   `).get().count), 1);
+  const recoveredRead = await processingAdoptionReadHarness(value).service.readTaskAdoptions({
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    taskId: TASK_ID,
+  });
+  assert.deepEqual(recoveredRead.adoptions.map(({ branchRevision }) => branchRevision), [3]);
+});
+
+function processingAdoptionReadHarness(value) {
+  const reader = new SqliteProcessingResultAdoptionReader({
+    workspace: value.projectStore.workspace,
+    artifactStore: value.artifactStore,
+  });
+  return {
+    reader,
+    service: new ProcessingResultAdoptionReadService({ reader: reader.asReader() }),
+  };
+}
+
+function createReadScopeTask(value, {
+  projectId,
+  taskId,
+  branchId,
+  baseRevision,
+  baseDocument,
+}) {
+  const task = validateAgentTaskSpec({
+    taskId,
+    branchId,
+    agentId: AGENT.id,
+    title: 'Read-scope isolation fixture',
+    objective: 'Prove that task-scoped adoption reads cannot cross an existing task boundary.',
+    capabilities: [PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE],
+    objectScopes: [{ kind: 'project', id: projectId }],
+    budget: {
+      maxCommands: 1,
+      maxJobs: 0,
+      maxArtifactBytes: 0,
+      maxCostCents: 0,
+    },
+    expiresAt: EXPIRES_AT,
+    autoAcceptPolicy: { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
+  }, { now: SETUP_AT, projectId, baseRevision });
+  value.taskStore.createTask({
+    task,
+    baseDocument,
+    grantId: null,
+    issuedBy: OWNER.id,
+    now: SETUP_AT,
+  });
+}
+
+function exactKeys(value, expected) {
+  assert.deepEqual(Object.keys(value).sort(), [...expected].sort());
+}
+
+function collectKeys(value, result = new Set()) {
+  if (!value || typeof value !== 'object') return result;
+  for (const [key, child] of Object.entries(value)) {
+    result.add(key);
+    collectKeys(child, result);
+  }
+  return result;
+}
+
+function durableReadState(database) {
+  const select = (sql) => database.prepare(sql).all();
+  return JSON.stringify({
+    userVersion: Number(database.prepare('PRAGMA user_version').get().user_version),
+    totalChanges: Number(database.prepare('SELECT total_changes() AS count').get().count),
+    projects: select('SELECT project_id, head_revision FROM projects ORDER BY project_id'),
+    projectRevisions: select('SELECT project_id, revision_number, revision_json FROM revisions ORDER BY project_id, revision_number'),
+    activity: select('SELECT * FROM activity_events ORDER BY project_id, revision_number'),
+    grants: select('SELECT * FROM grants ORDER BY project_id, grant_id'),
+    tasks: select('SELECT project_id, task_id, state, head_revision, task_json, head_document_json FROM agent_tasks ORDER BY project_id, task_id'),
+    revisions: select('SELECT project_id, task_id, branch_revision, revision_json FROM task_branch_revisions ORDER BY project_id, task_id, branch_revision'),
+    adoptions: select('SELECT * FROM task_branch_processing_result_adoptions ORDER BY project_id, task_id, branch_revision'),
+    adoptionReferences: select('SELECT * FROM task_branch_processing_result_artifact_references ORDER BY project_id, task_id, branch_revision, role'),
+    artifacts: select('SELECT * FROM artifacts ORDER BY digest'),
+    gcMarks: select('SELECT * FROM cas_gc_marks ORDER BY digest'),
+    mainReferences: select('SELECT * FROM artifact_references ORDER BY project_id, owner_kind, owner_id, digest'),
+    attempts: select('SELECT * FROM agent_attempts ORDER BY attempt_id'),
+    timeline: select('SELECT * FROM task_timeline_events ORDER BY project_id, task_id, sequence'),
+  });
+}
+
+async function listenForReadTest(context, server) {
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  afterTestCleanup(context, () => new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  }));
+  return `http://127.0.0.1:${server.address().port}`;
+}
+
+test('processing-result adoption read returns exact empty task facts without durable effects', async (context) => {
+  const value = await fixture(context);
+  const { service } = processingAdoptionReadHarness(value);
+  const database = value.projectStore.workspace.database;
+  const before = durableReadState(database);
+  const result = await service.readTaskAdoptions({
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    taskId: TASK_ID,
+  });
+
+  assert.deepEqual(result, {
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    taskId: TASK_ID,
+    availability: 'AVAILABLE',
+    adoptions: [],
+  });
+  assert.ok(Object.isFrozen(result));
+  assert.equal(durableReadState(database), before);
+  await assert.rejects(
+    service.readTaskAdoptions({
+      schemaVersion: 1,
+      projectId: PROJECT_ID,
+      taskId: 'task.unknown',
+    }),
+    (error) => error.code === 'TASK_NOT_FOUND',
+  );
+  assert.equal(durableReadState(database), before);
+});
+
+test('processing-result adoption read validates ordered DRAFT history and exposes only its allowlist', async (context) => {
+  const value = await committedCreateFixture(context);
+  const { service } = processingAdoptionReadHarness(value);
+  const first = await service.readTaskAdoptions({
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    taskId: TASK_ID,
+  });
+  assert.deepEqual(first.adoptions.map(({ branchRevision }) => branchRevision), [3]);
+
+  await value.service.commit(adoptionCommand({
+    manifest: value.manifest,
+    inputArtifact: value.inputArtifact,
+    outputArtifact: value.secondOutputArtifact,
+    baseRevision: 3,
+    operation: 'update',
+    commandId: 'command.adopt.read-update',
+    idempotencyKey: 'idempotency.adopt.read-update',
+    findings: [],
+  }), value.contextValue);
+  const result = await service.readTaskAdoptions({
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    taskId: TASK_ID,
+  });
+
+  exactKeys(result, ['schemaVersion', 'projectId', 'taskId', 'availability', 'adoptions']);
+  assert.equal(result.availability, 'AVAILABLE');
+  assert.deepEqual(result.adoptions.map(({ branchRevision }) => branchRevision), [3, 4]);
+  assert.deepEqual(result.adoptions[0], first.adoptions[0]);
+  assert.ok(Object.isFrozen(result));
+  assert.ok(Object.isFrozen(result.adoptions));
+  for (const adoption of result.adoptions) {
+    exactKeys(adoption, ['branchRevision', 'committedAt', 'operation', 'displayState', 'asset', 'quality']);
+    exactKeys(adoption.asset, [
+      'assetId', 'name', 'kind', 'lifecycle', 'assetVersion', 'metadataVersion',
+      'pixelSize', 'preview',
+    ]);
+    exactKeys(adoption.asset.pixelSize, ['width', 'height']);
+    exactKeys(adoption.asset.preview, [
+      'state', 'resourceUri', 'mediaType', 'width', 'height', 'alt',
+    ]);
+    exactKeys(adoption.quality, ['correctionRequired', 'correctionItems', 'unresolvedWarnings']);
+    assert.equal(adoption.displayState, 'WAITING_FOR_YOUR_REVIEW');
+    assert.equal(adoption.asset.lifecycle, 'DRAFT');
+    assert.equal(adoption.asset.preview.state, 'READY');
+    assert.ok(Object.isFrozen(adoption));
+    assert.ok(Object.isFrozen(adoption.asset));
+    assert.ok(Object.isFrozen(adoption.asset.pixelSize));
+    assert.ok(Object.isFrozen(adoption.asset.preview));
+    assert.ok(Object.isFrozen(adoption.quality));
+    assert.ok(Object.isFrozen(adoption.quality.correctionItems));
+    assert.ok(Object.isFrozen(adoption.quality.unresolvedWarnings));
+    assert.match(adoption.asset.preview.resourceUri, /^\/api\/projects\/[^/]+\/tasks\/[^/]+\/processing-result-adoptions\/[34]\/selected-output$/);
+    for (const item of adoption.quality.correctionItems) {
+      exactKeys(item, ['label', 'explanation', 'remediation']);
+      assert.ok(Object.isFrozen(item));
+    }
+    for (const warning of adoption.quality.unresolvedWarnings) {
+      exactKeys(warning, ['explanation', 'remediation']);
+      assert.ok(Object.isFrozen(warning));
+    }
+  }
+  assert.deepEqual(new Set(result.adoptions[0].quality.correctionItems.map(({ label }) => label)), new Set([
+    'Asset role',
+    'Tile footprint',
+    'Placement confirmation',
+    'Wall placement safety',
+    'Collision behavior',
+    'Navigation effect',
+    'Runtime eligibility',
+    'Visual weight',
+  ]));
+  assert.equal(result.adoptions[0].quality.unresolvedWarnings.length, 1);
+  assert.equal(result.adoptions[1].quality.unresolvedWarnings.length, 0);
+  const keys = collectKeys(result);
+  for (const forbidden of [
+    'grantId', 'bindingId', 'commandId', 'idempotencyKey', 'correlationId',
+    'branchId', 'committedBy', 'artifactUri', 'sha256', 'fingerprint', 'ruleId',
+    'objectRef', 'validatorVersion', 'details',
+  ]) assert.equal(keys.has(forbidden), false, `forbidden read-projection key: ${forbidden}`);
+  const serialized = JSON.stringify(result);
+  assert.doesNotMatch(serialized, /studio:\/\/|\/workspace\/|"stack"/i);
+  for (const forbiddenValue of [
+    GRANT_ID,
+    BRANCH_ID,
+    'command.adopt.2',
+    'idempotency.adopt.2',
+    value.firstOutputArtifact.digest,
+    value.firstOutputArtifact.uri,
+    projectCapabilityManifestSha256(value.manifest),
+  ]) assert.equal(serialized.includes(forbiddenValue), false, `forbidden read-projection value: ${forbiddenValue}`);
+  assert.equal(Number(value.projectStore.workspace.database.prepare(`
+    SELECT head_revision FROM projects WHERE project_id = ?
+  `).get(PROJECT_ID).head_revision), 2);
+  assert.equal(Number(value.projectStore.workspace.database.prepare(`
+    SELECT COUNT(*) AS count FROM asset_versions
+  `).get().count), 0);
+
+  value.projectStore.workspace.database.prepare(`
+    INSERT INTO cas_gc_marks(digest, marked_at, reason) VALUES (?, ?, ?)
+  `).run(value.secondOutputArtifact.digest, COMMITTED_AT, 'read projection GC fallback fixture');
+  const gcUnavailable = await service.readTaskAdoptions({
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    taskId: TASK_ID,
+  });
+  assert.equal(gcUnavailable.adoptions.at(-1).asset.preview.state, 'UNAVAILABLE');
+  assert.equal(gcUnavailable.adoptions.at(-1).asset.preview.resourceUri, null);
+  value.projectStore.workspace.database.prepare('DELETE FROM cas_gc_marks WHERE digest = ?')
+    .run(value.secondOutputArtifact.digest);
+
+  value.artifactMetadata.markState(value.secondOutputArtifact.digest, 'MISSING');
+  const unavailable = await service.readTaskAdoptions({
+    schemaVersion: 1,
+    projectId: PROJECT_ID,
+    taskId: TASK_ID,
+  });
+  assert.equal(unavailable.adoptions.length, 2);
+  assert.equal(unavailable.adoptions.at(-1).displayState, 'WAITING_FOR_YOUR_REVIEW');
+  assert.equal(unavailable.adoptions.at(-1).asset.preview.state, 'UNAVAILABLE');
+  assert.equal(unavailable.adoptions.at(-1).asset.preview.resourceUri, null);
+});
+
+test('processing-result adoption read fails closed when selected-output lineage points at recipe input', async (context) => {
+  const value = await committedCreateFixture(context);
+  const database = value.projectStore.workspace.database;
+  const input = database.prepare(`
+    SELECT digest, artifact_uri, media_type, byte_size, width, height
+    FROM task_branch_processing_result_artifact_references
+    WHERE project_id = ? AND task_id = ? AND branch_revision = 3 AND role = 'recipe-input'
+  `).get(PROJECT_ID, TASK_ID);
+  database.exec('DROP TRIGGER task_branch_processing_result_artifact_references_immutable');
+  database.prepare(`
+    UPDATE task_branch_processing_result_artifact_references
+    SET digest = ?, artifact_uri = ?, media_type = ?, byte_size = ?, width = ?, height = ?
+    WHERE project_id = ? AND task_id = ? AND branch_revision = 3 AND role = 'selected-output'
+  `).run(
+    input.digest, input.artifact_uri, input.media_type, input.byte_size, input.width, input.height,
+    PROJECT_ID, TASK_ID,
+  );
+  const { reader, service } = processingAdoptionReadHarness(value);
+  assert.throws(
+    () => reader.readTaskAdoptions({ schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID }),
+    (error) => error.code === 'CORRUPT_PROCESSING_RESULT_ADOPTION',
+  );
+  await assert.rejects(
+    service.readTaskAdoptions({ schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID }),
+    (error) => error.code === 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE',
+  );
+});
+
+test('processing-result adoption read never turns an incomplete adoption ledger into NO_DRAFT', async (context) => {
+  const value = await committedCreateFixture(context);
+  const database = value.projectStore.workspace.database;
+  database.prepare(`
+    DELETE FROM task_branch_processing_result_artifact_references
+    WHERE project_id = ? AND task_id = ? AND branch_revision = 3
+  `).run(PROJECT_ID, TASK_ID);
+  database.prepare(`
+    DELETE FROM task_branch_processing_result_adoptions
+    WHERE project_id = ? AND task_id = ? AND branch_revision = 3
+  `).run(PROJECT_ID, TASK_ID);
+  const { service } = processingAdoptionReadHarness(value);
+  await assert.rejects(
+    service.readTaskAdoptions({ schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID }),
+    (error) => error.code === 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE',
+  );
+});
+
+test('processing-result adoption read closes the declared task head when the complete adoption revision is removed', async (context) => {
+  const value = await committedCreateFixture(context);
+  const database = value.projectStore.workspace.database;
+  database.prepare(`
+    DELETE FROM task_branch_processing_result_artifact_references
+    WHERE project_id = ? AND task_id = ? AND branch_revision = 3
+  `).run(PROJECT_ID, TASK_ID);
+  database.prepare(`
+    DELETE FROM task_branch_processing_result_adoptions
+    WHERE project_id = ? AND task_id = ? AND branch_revision = 3
+  `).run(PROJECT_ID, TASK_ID);
+  database.prepare(`
+    DELETE FROM task_branch_revisions
+    WHERE project_id = ? AND task_id = ? AND branch_revision = 3
+  `).run(PROJECT_ID, TASK_ID);
+  const { service } = processingAdoptionReadHarness(value);
+  await assert.rejects(
+    service.readTaskAdoptions({ schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID }),
+    (error) => error.code === 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE',
+  );
+});
+
+test('processing-result adoption read rejects a mismatched branch head document', async (context) => {
+  const value = await committedCreateFixture(context);
+  const database = value.projectStore.workspace.database;
+  const row = database.prepare(`
+    SELECT head_document_json FROM agent_tasks WHERE project_id = ? AND task_id = ?
+  `).get(PROJECT_ID, TASK_ID);
+  const head = JSON.parse(row.head_document_json);
+  head.revisions.at(-1).parentRevision = 1;
+  database.prepare(`
+    UPDATE agent_tasks SET head_document_json = ? WHERE project_id = ? AND task_id = ?
+  `).run(JSON.stringify(head), PROJECT_ID, TASK_ID);
+  const { service } = processingAdoptionReadHarness(value);
+  await assert.rejects(
+    service.readTaskAdoptions({ schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID }),
+    (error) => error.code === 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE',
+  );
+});
+
+test('processing-result adoption read closes the durable base prefix and unique head suffix', async (context) => {
+  await context.test('duplicate effective head revision', async (childContext) => {
+    const value = await committedCreateFixture(childContext);
+    const database = value.projectStore.workspace.database;
+    const row = database.prepare(`
+      SELECT head_document_json FROM agent_tasks WHERE project_id = ? AND task_id = ?
+    `).get(PROJECT_ID, TASK_ID);
+    const head = JSON.parse(row.head_document_json);
+    const duplicate = structuredClone(head.revisions.at(-1));
+    duplicate.snapshot.project.name = 'tampered duplicate effective head';
+    head.revisions.push(duplicate);
+    database.prepare(`
+      UPDATE agent_tasks SET head_document_json = ? WHERE project_id = ? AND task_id = ?
+    `).run(JSON.stringify(head), PROJECT_ID, TASK_ID);
+    const { service } = processingAdoptionReadHarness(value);
+    await assert.rejects(
+      service.readTaskAdoptions({ schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID }),
+      (error) => error.code === 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE',
+    );
+  });
+
+  await context.test('base document and copied head prefix differ from durable Main history', async (childContext) => {
+    const value = await committedCreateFixture(childContext);
+    const database = value.projectStore.workspace.database;
+    const row = database.prepare(`
+      SELECT base_document_json, head_document_json
+      FROM agent_tasks WHERE project_id = ? AND task_id = ?
+    `).get(PROJECT_ID, TASK_ID);
+    const base = JSON.parse(row.base_document_json);
+    const head = JSON.parse(row.head_document_json);
+    base.revisions[0].snapshot.project.name = 'tampered durable base';
+    head.revisions[0] = structuredClone(base.revisions[0]);
+    database.prepare(`
+      UPDATE agent_tasks SET base_document_json = ?, head_document_json = ?
+      WHERE project_id = ? AND task_id = ?
+    `).run(JSON.stringify(base), JSON.stringify(head), PROJECT_ID, TASK_ID);
+    const { service } = processingAdoptionReadHarness(value);
+    await assert.rejects(
+      service.readTaskAdoptions({ schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID }),
+      (error) => error.code === 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE',
+    );
+  });
+
+  await context.test('base-head grant authority differs from durable Main history', async (childContext) => {
+    const value = await committedCreateFixture(childContext);
+    const database = value.projectStore.workspace.database;
+    const row = database.prepare(`
+      SELECT base_document_json, head_document_json
+      FROM agent_tasks WHERE project_id = ? AND task_id = ?
+    `).get(PROJECT_ID, TASK_ID);
+    const base = JSON.parse(row.base_document_json);
+    const head = JSON.parse(row.head_document_json);
+    const grant = base.revisions.at(-1).snapshot.grants.find(({ id }) => id === GRANT_ID);
+    grant.scopes.push('studio.tampered-scope');
+    head.revisions[base.revisions.length - 1] = structuredClone(base.revisions.at(-1));
+    database.prepare(`
+      UPDATE agent_tasks SET base_document_json = ?, head_document_json = ?
+      WHERE project_id = ? AND task_id = ?
+    `).run(JSON.stringify(base), JSON.stringify(head), PROJECT_ID, TASK_ID);
+    const { service } = processingAdoptionReadHarness(value);
+    await assert.rejects(
+      service.readTaskAdoptions({ schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID }),
+      (error) => error.code === 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE',
+    );
+  });
+});
+
+test('processing-result adoption read requires the exact supported SQLite schema', async (context) => {
+  for (const schemaVersion of [12, 14]) {
+    await context.test(`schema v${schemaVersion}`, async (childContext) => {
+      const value = await committedCreateFixture(childContext);
+      value.projectStore.workspace.database.exec(`PRAGMA user_version = ${schemaVersion}`);
+      const { service } = processingAdoptionReadHarness(value);
+      await assert.rejects(
+        service.readTaskAdoptions({ schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID }),
+        (error) => error.code === 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE'
+          && error.message === 'Processed asset details are unavailable for this task.',
+      );
+    });
+  }
+});
+
+test('selected-output read rechecks the exact SQLite schema while CAS bytes are held', async (context) => {
+  const value = await committedCreateFixture(context);
+  const database = value.projectStore.workspace.database;
+  const original = value.artifactStore.withVerifiedPngReadable.bind(value.artifactStore);
+  value.artifactStore.withVerifiedPngReadable = (digest, operation) => original(
+    digest,
+    async (descriptor) => {
+      database.exec('PRAGMA user_version = 14');
+      return operation(descriptor);
+    },
+  );
+  const { reader } = processingAdoptionReadHarness(value);
+  let operationCalls = 0;
+  try {
+    await assert.rejects(
+      reader.withSelectedOutput(
+        { schemaVersion: 1, projectId: PROJECT_ID, taskId: TASK_ID, branchRevision: 3 },
+        async () => { operationCalls += 1; },
+      ),
+      (error) => error.code === 'PROCESSING_RESULT_ADOPTION_PREVIEW_UNAVAILABLE'
+        && error.message === 'The exact processed image preview is unavailable.',
+    );
+  } finally {
+    database.exec('PRAGMA user_version = 13');
+  }
+  assert.equal(operationCalls, 0);
+});
+
+test('task-scoped adoption HTTP streams only selected-output bytes without widening Main references', async (context) => {
+  const value = await committedCreateFixture(context);
+  const siblingTaskId = 'task.processing-adoption.sibling';
+  createReadScopeTask(value, {
+    projectId: PROJECT_ID,
+    taskId: siblingTaskId,
+    branchId: 'branch.processing-adoption.sibling',
+    baseRevision: 2,
+    baseDocument: await value.projectStore.loadProject(PROJECT_ID),
+  });
+  const foreignProjectId = 'project.processing-adoption.foreign';
+  await value.studio.execute(command({
+    commandId: 'command.create.foreign-read-scope',
+    idempotencyKey: 'idempotency.create.foreign-read-scope',
+    projectId: foreignProjectId,
+    payload: { name: 'Foreign read scope', ownerId: OWNER.id },
+  }), OWNER_CONTEXT);
+  createReadScopeTask(value, {
+    projectId: foreignProjectId,
+    taskId: TASK_ID,
+    branchId: 'branch.processing-adoption.foreign',
+    baseRevision: 1,
+    baseDocument: await value.projectStore.loadProject(foreignProjectId),
+  });
+  const { service } = processingAdoptionReadHarness(value);
+  const server = createStudioHttpServer({
+    studioService: value.studio,
+    processingResultAdoptionReadService: service,
+    artifactStore: value.artifactStore,
+    artifactMetadataStore: value.artifactMetadata,
+  });
+  const base = await listenForReadTest(context, server);
+  const collectionPath = `/api/projects/${PROJECT_ID}/tasks/${TASK_ID}/processing-result-adoptions`;
+
+  const collectionResponse = await fetch(`${base}${collectionPath}`);
+  assert.equal(collectionResponse.status, 200);
+  assert.equal(collectionResponse.headers.get('cache-control'), 'no-store');
+  const collection = await collectionResponse.json();
+  assert.equal(collection.adoptions.length, 1);
+  const resourceUri = collection.adoptions[0].asset.preview.resourceUri;
+
+  value.projectStore.workspace.database.prepare(`
+    DELETE FROM artifact_references WHERE project_id = ?
+  `).run(PROJECT_ID);
+  const before = durableReadState(value.projectStore.workspace.database);
+  const generic = await fetch(`${base}/api/projects/${PROJECT_ID}/artifacts/sha256/${value.firstOutputArtifact.digest}`);
+  assert.equal(generic.status, 404);
+  assert.equal((await generic.json()).error.code, 'ARTIFACT_NOT_FOUND');
+
+  const preview = await fetch(`${base}${resourceUri}`);
+  assert.equal(preview.status, 200);
+  assert.equal(preview.headers.get('content-type'), 'image/png');
+  assert.equal(preview.headers.get('content-length'), String(value.firstOutputArtifact.byteSize));
+  assert.equal(preview.headers.get('cache-control'), 'private, max-age=31536000, immutable');
+  assert.equal(preview.headers.get('content-security-policy'), "default-src 'none'; frame-ancestors 'none'");
+  assert.equal(preview.headers.get('cross-origin-resource-policy'), 'same-origin');
+  assert.equal(preview.headers.get('referrer-policy'), 'no-referrer');
+  assert.equal(preview.headers.get('x-content-type-options'), 'nosniff');
+  assert.deepEqual(
+    Buffer.from(await preview.arrayBuffer()),
+    await (async () => {
+      const chunks = [];
+      const stream = await value.artifactStore.createReadStream(value.firstOutputArtifact.digest);
+      for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+      return Buffer.concat(chunks);
+    })(),
+  );
+
+  const missingTask = await fetch(`${base}/api/projects/${PROJECT_ID}/tasks/task.unknown/processing-result-adoptions`);
+  assert.equal(missingTask.status, 404);
+  const missingRevision = await fetch(`${base}${collectionPath}/999/selected-output`);
+  assert.equal(missingRevision.status, 404);
+  const crossTask = await fetch(`${base}/api/projects/${PROJECT_ID}/tasks/${siblingTaskId}/processing-result-adoptions/3/selected-output`);
+  assert.equal(crossTask.status, 404);
+  assert.equal((await crossTask.json()).error.code, 'PROCESSING_RESULT_ADOPTION_NOT_FOUND');
+  const crossProject = await fetch(`${base}/api/projects/${foreignProjectId}/tasks/${TASK_ID}/processing-result-adoptions/3/selected-output`);
+  assert.equal(crossProject.status, 404);
+  assert.equal((await crossProject.json()).error.code, 'PROCESSING_RESULT_ADOPTION_NOT_FOUND');
+  const invalidQuery = await fetch(`${base}${collectionPath}?grantId=forbidden`);
+  assert.equal(invalidQuery.status, 400);
+  const deniedMethod = await fetch(`${base}${collectionPath}`, { method: 'POST' });
+  assert.equal(deniedMethod.status, 405);
+  assert.equal(deniedMethod.headers.get('allow'), 'GET');
+  assert.equal(durableReadState(value.projectStore.workspace.database), before);
+
+  const selectedPath = (await value.artifactStore.verify(value.firstOutputArtifact.digest)).path;
+  await writeFile(selectedPath, Buffer.from('corrupt selected output'));
+  const corrupt = await fetch(`${base}${resourceUri}`);
+  assert.equal(corrupt.status, 503);
+  const corruptBody = await corrupt.json();
+  assert.deepEqual(Object.keys(corruptBody.error).sort(), ['code', 'message']);
+  assert.equal(corruptBody.error.code, 'PROCESSING_RESULT_ADOPTION_PREVIEW_UNAVAILABLE');
+  assert.doesNotMatch(JSON.stringify(corruptBody), /[a-f0-9]{64}|\/workspace\/|artifact[s]?\/sha256/i);
+  assert.equal(durableReadState(value.projectStore.workspace.database), before);
+
+  const taskRow = value.projectStore.workspace.database.prepare(`
+    SELECT head_document_json FROM agent_tasks WHERE project_id = ? AND task_id = ?
+  `).get(PROJECT_ID, TASK_ID);
+  const corruptHead = JSON.parse(taskRow.head_document_json);
+  corruptHead.revisions.at(-1).parentRevision = 1;
+  value.projectStore.workspace.database.prepare(`
+    UPDATE agent_tasks SET head_document_json = ? WHERE project_id = ? AND task_id = ?
+  `).run(JSON.stringify(corruptHead), PROJECT_ID, TASK_ID);
+  const unavailable = await fetch(`${base}${collectionPath}`);
+  assert.equal(unavailable.status, 503);
+  const unavailableBody = await unavailable.json();
+  assert.deepEqual(unavailableBody, {
+    schemaVersion: 1,
+    error: {
+      code: 'PROCESSING_RESULT_ADOPTION_READ_UNAVAILABLE',
+      message: 'Processed asset details are unavailable for this task.',
+    },
+  });
+  assert.equal(Object.hasOwn(unavailableBody, 'adoptions'), false);
 });

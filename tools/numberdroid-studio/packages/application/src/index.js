@@ -51,6 +51,13 @@ export {
   validateProcessingResultAdoptionHostBoundAtomicStore,
 } from './processing-result-adoption-commit.js';
 export {
+  PROCESSING_RESULT_ADOPTION_READ_FACTS_KIND,
+  PROCESSING_RESULT_ADOPTION_READER_KIND,
+  PROCESSING_RESULT_ADOPTION_READER_SCHEMA_VERSION,
+  ProcessingResultAdoptionReadService,
+  validateProcessingResultAdoptionReader,
+} from './processing-result-adoption-read.js';
+export {
   AUTHORING_V2_ADMISSION_EVIDENCE_KIND,
   AUTHORING_V2_ADMISSION_READER_KIND,
   AUTHORING_V2_ADMISSION_READER_SCHEMA_VERSION,

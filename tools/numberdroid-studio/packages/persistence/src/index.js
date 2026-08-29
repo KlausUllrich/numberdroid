@@ -31,6 +31,7 @@ export {
   PROCESSING_RESULT_ADOPTION_ATOMIC_STORE_SCHEMA_VERSION,
   SqliteProcessingResultAdoptionStore,
 } from './sqlite/sqlite-processing-result-adoption-store.js';
+export { SqliteProcessingResultAdoptionReader } from './sqlite/sqlite-processing-result-adoption-reader.js';
 export { SqliteSourceIntakeStore } from './sqlite/sqlite-source-intake-store.js';
 export { SqliteWorkspace } from './sqlite/sqlite-workspace.js';
 export {

@@ -91,9 +91,10 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 - **IMG-007.** Recutting, reprocessing, or replacing an output MUST create a new version or an explicit one-to-one replacement mapping; existing asset versions MUST NOT retarget silently.
 - **IMG-008.** Project capability manifests MAY restrict formats, dimensions, color/alpha rules, frame layouts, or codecs. Unsupported processing MUST fail visibly before candidate creation.
 
-**Implementation status (2026-08-28): the bounded A1.0, A1.1, and A1.2
+**Implementation status (2026-08-29): the bounded A1.0, A1.1, and A1.2
 contracts are explicitly user-accepted; A1.3, A1.4, A1.5, A1.6a, A1.6b1,
-A1.6b2a, and A1.6b2b are implemented candidates and are not user-accepted.**
+A1.6b2a, A1.6b2b, and the A1.7 read projection are implemented candidates and
+are not user-accepted.**
 A1.0 supplies the fail-closed
 `ProcessingRecipe` schema and projection for the accepted exact-PNG crop
 processor. A1.1 adds a pure
@@ -167,13 +168,15 @@ Legacy command definitions/scopes remain 33/30, the profile-v1 fingerprint
 remains `826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049`,
 schema remains v13, and portable bundles remain v1-v3.
 
-The A1.7 D0 state contract is now frozen in
-[`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md). It records that the current
-human project/task projections cannot expose the private committed DRAFT,
-quality findings, or its durable selected-output preview. A minimal read-only
-task/adoption projection is therefore a separate L3 prerequisite to the
-bounded Agent-task visual candidate. D0 adds no product surface; both future
-blocks remain candidate-only and stop at **Waiting for your review**.
+The A1.7 D0 state contract is frozen in
+[`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md). Its separately classified
+minimal read-only task/adoption projection is now an implemented candidate and
+is recorded in
+[`A1_7_READ_PROJECTION_STATUS.md`](A1_7_READ_PROJECTION_STATUS.md). It exposes
+the private committed DRAFT, quality guidance and exact selected-output preview
+through a redacted task-local GET without adding any browser mutation or Main
+authority. The bounded Agent-task visual candidate remains pending and must
+stop at **Waiting for your review**.
 
 ### 5.3 Atlas Cutter
 

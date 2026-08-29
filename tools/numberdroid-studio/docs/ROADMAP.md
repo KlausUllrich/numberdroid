@@ -694,12 +694,13 @@ but it does not complete the Artist path. The next dependent block is:
 
 1. **A1.7 — visual review/correction candidate:** the implementation-grounded
    D0 workflow/state contract is frozen in
-   [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md). Current code proves that
-   no human-safe public projection exposes the private adoption DRAFT or its
-   selected-output preview. Finish one separately classified minimal L3
-   task/adoption read projection, then one bounded selected-task UI candidate
-   with browser evidence and a deferred Klaus live gate. Neither block may add
-   a browser mutation or owner/release authority.
+   [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md). The separately
+   classified minimal L3 task/adoption read projection is now an implemented,
+   non-accepted candidate recorded in
+   [`A1_7_READ_PROJECTION_STATUS.md`](A1_7_READ_PROJECTION_STATUS.md). The next
+   dependent block is one bounded selected-task UI candidate with browser
+   evidence and a deferred Klaus live gate. Neither block may add a browser
+   mutation or owner/release authority.
 
 Additional processing operations remain one deterministic processor block each.
 A1 is complete only when an authorized task can execute the ordinary
