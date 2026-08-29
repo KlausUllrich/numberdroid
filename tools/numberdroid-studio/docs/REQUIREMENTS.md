@@ -527,8 +527,9 @@ The walkthrough also established the next requirements rather than silently trea
 
 ### Operations, remote access, mobile, and MCP onboarding
 
-**Status: binding masterplan requirements; implementation and acceptance remain
-split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
+**Status: binding masterplan requirements. The O0 architecture decision is
+frozen in `O0_BACKUP_RECOVERY_CONTRACT.md`; implementation and acceptance
+remain split across gates O1–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
 
 #### Backup and recovery
 
@@ -543,9 +544,9 @@ split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
 - **BAK-003.** Integrity MUST pass before backup, and the completed backup MUST
   be verified automatically. User-facing success means durable completion and
   verification, not merely queue acceptance.
-- **BAK-004.** Backup, verification, and recovery-test state MUST be durable,
-  restart-safe, attributable, and expose understandable phases plus sanitized
-  findings.
+- **BAK-004.** Backup, verification, recovery-test, and restore-as-copy state
+  MUST be durable, restart-safe, attributable, and expose understandable phases
+  plus sanitized findings.
 - **BAK-005.** Restore MUST create and verify a new working copy. It MUST NOT
   overwrite, merge into, or automatically replace the active workspace.
 - **BAK-006.** Browser/API callers MUST select only configured backup
@@ -564,20 +565,23 @@ split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
 - **BAK-010.** Automated recovery-test cleanup MUST be bound to the exact
   generated test-copy identity and MUST NOT target the active workspace, source
   backup, another restored copy, or a caller-selected path.
-- **BAK-011.** Durable backup-operation state MUST NOT become resumable work in
-  a restored workspace. Prefer a service control ledger outside the backed-up
-  workspace; if operation state is stored inside `studio.sqlite`, startup MUST
-  atomically make every restored nonterminal backup operation inert before any
-  worker claims work and MUST discard source-host destination/lease authority.
-- **BAK-012.** A Studio-database backup ledger MUST use the migration sequence of
-  its exact implementation base. It MUST NOT claim migration `0012`, which is
-  already owned by the integrated but still unaccepted CP4.5 room-shape source;
-  an independent control store must remain outside the semantic workspace and
-  must not become a second project writer.
+- **BAK-011.** O1 durable backup-operation state MUST live in the selected
+  external service control ledger outside the backed-up workspace and every
+  backup/restore destination. It MUST NOT be copied into a restored workspace,
+  become resumable work there, or carry source-host destination/lease authority.
+  There is no O1 fallback to `studio.sqlite` operation state.
+- **BAK-012.** The O0 implementation base is remote `main`
+  `f31a0c2df962b4747ade6119ee6850e40e888186`, whose semantic workspace is
+  already schema v13 with migration `0013`. O1 MUST allocate no workspace
+  migration. Its independent external control schema starts at version 1,
+  remains outside the semantic workspace, and MUST NOT become a second project
+  writer. `0014` is only the current next semantic slot, not O1 authority.
 - **BAK-013.** Workspace backup management MUST require a dedicated
-  authenticated human workspace-operator capability. Project ownership, task
-  scope, agent grants, ordinary authoring capabilities, and MCP discovery MUST
-  NOT imply create, verify, recovery-test, restore, cleanup, or cutover authority.
+  authenticated human workspace-operator capability rooted in an out-of-band
+  local launcher bootstrap; loopback reachability or CSRF alone is
+  insufficient. Project ownership, task scope, agent grants, ordinary authoring
+  capabilities, and MCP discovery MUST NOT imply create, verify, recovery-test,
+  restore, cleanup, or cutover authority.
 - **BAK-014.** Configured destination roots and every derived stage/final path
   MUST reject traversal, absolute/drive/UNC caller input, symlinks, Windows
   reparse points/junctions, case-fold collisions, containment escape, nested
@@ -602,6 +606,18 @@ split across gates O0–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
 - **BAK-019.** The O1 backend gate MUST leave accepted local HTTP behavior and
   exact MCP discovery unchanged; no backup, restore, path, cleanup, or cutover
   operation may be advertised to agents.
+- **BAK-020.** O1 product acceptance requires a bounded first human **Backups**
+  UI covering create, verify again, recovery test, and restore as a new working
+  copy. The non-visual backend block alone remains an implemented candidate and
+  MUST NOT be described as the accepted backup workflow.
+- **BAK-021.** O1 MUST expose no deletion, retention, active-workspace
+  activation/cutover, or remote function. Exact cleanup may remove only the
+  immutable operation-owned, never-published stage or disposable recovery-test
+  copy; it MUST NOT become a user-visible deletion feature or target published,
+  active, source, prior, or caller-selected data.
+- **BAK-022.** O1 is available only with the accepted SQLite/CAS workspace.
+  Protected JSON mode MUST open no operations ledger, operator bootstrap,
+  operation route, or worker and MUST expose no backup metadata or authority.
 
 #### Always-on private service
 

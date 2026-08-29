@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-27 with the agent-first Studio product direction**
+Status: **current forward plan — updated 2026-08-29 with frozen Studio O0 backup architecture**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -173,14 +173,20 @@ contract + threat model
 → runtime MCP onboarding and final role playbooks
 ```
 
-The safest autonomous block while Klaus cannot perform a visual gate is first
-the O0 architecture decision and adversarial test design. Only after independent
-review closes its operation-ledger, migration, human-authority, safe-path,
-atomic-publication, state-machine, restored-copy quarantine, and activation
-decisions may the non-visual backup application/job seam begin. That later seam
-must reuse the accepted SQLite/CAS integrity, backup, verification, and
-restore-to-new-destination primitives; it may not add overwrite, deletion,
+O0 now freezes the external control-ledger, current schema-v13/no-workspace-
+migration, human-authority, safe-path, atomic-publication, state-machine,
+restored-copy quarantine, activation boundary, failure-code, adversarial-test,
+and first-UI decisions in
+`tools/numberdroid-studio/docs/O0_BACKUP_RECOVERY_CONTRACT.md`. The next coherent
+block is the non-visual O1a backup application/job seam. It must reuse the
+accepted SQLite/CAS integrity, backup, verification, and
+restore-to-new-destination primitives and may not add overwrite, deletion,
 active-workspace cutover, remote listener, or agent backup authority.
+
+After O1a passes its Linux and Windows failure/restart/race gates, a separately
+classified bounded O1b **Backups** UI is required for product acceptance. It may
+land only as **implemented candidate — not user accepted** while Klaus is away;
+the live UI gate blocks O2 remote work.
 
 The detailed binding track plan and gate boundaries live in:
 

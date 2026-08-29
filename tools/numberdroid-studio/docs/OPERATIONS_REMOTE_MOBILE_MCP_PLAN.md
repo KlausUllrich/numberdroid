@@ -1,6 +1,6 @@
 # Numberdroid Studio — Operations, Remote Access & Mobile
 
-Status: **current masterplan track; implementation and user acceptance remain gate-specific**
+Status: **current masterplan track; O0 contract frozen, O1 implementation and user acceptance pending**
 
 Date added to the masterplan: 2026-08-25
 
@@ -29,6 +29,9 @@ its own security, evidence, and user-acceptance boundary.
   the same source tree.
 - `studio.sqlite` plus the SHA-256 artifact CAS are one consistency unit. The
   service remains the one authoritative writer.
+- The O0 implementation base is remote `main`
+  `f31a0c2df962b4747ade6119ee6850e40e888186`. Its workspace schema is v13;
+  migration `0013` is already owned by processing-result adoption.
 - The administration CLI already provides integrity checking, verified full
   backup, backup verification, and restore into a new destination. The UI must
   reuse those application/persistence primitives instead of introducing a
@@ -79,72 +82,76 @@ reviewable work, and stop at the human-owned decision boundary.
 
 ## 4. Gate O0 — contract, threat model, and test seam
 
-This gate can be completed while Klaus is unavailable for visual testing.
+This gate can be completed while Klaus is unavailable for visual testing. Its
+frozen decision is
+[`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md).
 
 Deliverables:
 
 - one architecture decision covering backup job ownership, destination
   configuration, remote/local deployment separation, authentication/session
   boundary, proxy trust, MCP transport scope, and mobile information hierarchy;
-- an exact implementation-base and migration-order decision: a backup ledger in
-  the Studio database may allocate no migration before the integrated source
-  containing CP4.5 migration `0012` is its documented base (the next slot would
-  be `0013`),
-  while an independent operational control store must be explicitly outside the
-  backed-up workspace and must not become a second semantic project writer;
-- an explicit self-snapshot rule. The recommended design keeps active backup
-  operation state in a service control ledger outside the workspace snapshot.
-  If an implementation instead stores it inside `studio.sqlite`, every restored
-  nonterminal backup operation must be atomically converted to a terminal inert
-  recovery state before any worker can claim work; destination/lease coordinates
-  from the source host must never resume on the restored copy;
+- an exact implementation-base and migration-order decision: the selected
+  external operations ledger uses independent control schema v1 outside the
+  backed-up workspace and every output root, while O1 allocates no workspace
+  migration on the current schema-v13 base (`0014` is only the current next
+  semantic slot, not O1 authority);
+- an explicit self-snapshot rule: active backup operation state lives only in
+  the selected external control ledger and is excluded from workspace
+  snapshots; restored copies receive no operation queue, destination registry,
+  lease, or source-host resume authority;
 - a threat model for workspace loss, mixed SQLite/CAS snapshots, overwrite,
   traversal, confused-deputy access, session theft, direct-port bypass, CSRF,
   stale/replayed commands, leaked paths/credentials, and second-writer startup;
 - a reusable adversarial test matrix and deterministic fixtures;
 - explicit owner decisions that remain open rather than hidden defaults.
 
-O0 changes no listener, authentication behavior, database schema, or UI. O1
-implementation cannot begin until the migration-order and self-snapshot rules
-above have one recorded decision and adversarial test design.
+O0 changes no listener, authentication behavior, database schema, or UI. The
+linked contract records the selected external-ledger, migration,
+self-snapshot/quarantine, state, authority, path, publication, UI, and
+adversarial-test decisions required before O1 implementation.
 
-### 4.1 Decisions required before O1 code
+### 4.1 Decisions frozen for O1 code
 
-O0 must freeze all of these decisions, not merely list them as future work:
+The linked O0 contract resolves all of these decisions; later implementation
+must not reopen them implicitly:
 
-1. **Operation ledger.** Choose an external service control ledger (recommended)
-   or a Studio-database extension. Define startup ownership, single-writer
-   behavior, reconstruction, backup inclusion/exclusion, and the exact way a
-   restored operation becomes permanently inert.
-2. **Implementation base and migration.** Name the exact `main` commit. A
-   Studio-database extension must use the sequence after the integrated pinned
-   migration `0012`; a parallel external ledger must not write semantic Studio
-   project state.
-3. **Workspace authority.** Introduce an authenticated, human-only local
-   workspace-operator capability for create/verify/recovery-test/restore.
-   Project ownership, task authority, agent grants, and MCP discovery cannot
-   imply it.
-4. **Destination registry.** Define configured roots, opaque IDs, containment,
-   same-filesystem staging, symlink/reparse-point rejection, case-fold rules,
-   nested live/backup-root rejection, and TOCTOU-safe path handling. Manifest
-   filenames are fixed schema values, not trusted path input.
-5. **Atomic visibility.** Define unique stage reservation, durable file close
-   and directory metadata flush, complete verification, and one atomic rename
-   to a previously nonexistent final destination. A failed stage is never a
-   visible backup and is never silently reused.
-6. **Operation state machines.** Freeze phases, terminal states, leases,
-   idempotency, retry/resume policy, stale-worker exclusion, and interruption
-   behavior separately for create, verify, recovery test, and restore. The first
-   slice may omit cancellation rather than offer unsafe partial cancellation.
-7. **Restored-copy quarantine.** A recovery test opens the copy read-only with
-   no listener or worker. A durable restored copy remains inert until a separate
-   explicit owner cutover. Copied sessions, HostBindings, grants, nonterminal
-   backup operations, and source-host destination/lease coordinates cannot
-   authorize or restart work in that copy.
-8. **Activation boundary.** Restore-as-copy is not activation. A later cutover
-   must require the original writer to be stopped, reauthentication, security
-   credential/session rotation or revocation, pre-cutover verification, and a
-   rollback record. It is outside O1.
+1. **Operation ledger.** External service control ledger, schema v1, outside
+   every workspace/output root, with one service-owned control writer,
+   reconstruction rules, snapshot exclusion, and no restored resume authority.
+2. **Implementation base and migration.** Exact base
+   `f31a0c2df962b4747ade6119ee6850e40e888186`, workspace schema v13; O1 has no
+   workspace migration and the external ledger writes no semantic project state.
+3. **Workspace authority.** Dedicated local human
+   `workspace.backup.manage` capability for create/verify/recovery-test/restore;
+   a one-use launcher-terminal secret authenticates the local bootstrap. CSRF
+   alone, project ownership, task authority, agent grants, and MCP discovery
+   cannot imply it.
+4. **Destination registry.** Trusted startup configuration supplies disjoint
+   service-managed roots; browser/API callers use opaque IDs only. Resolution
+   pins containment and same-filesystem identity, rejects links/reparse points,
+   case-fold/nesting/TOCTOU drift, and uses fixed manifest filenames.
+5. **Atomic visibility.** Unique same-filesystem stage reservation, durable
+   lane-specific closure, complete verification, one service-exclusive
+   serialized publisher, immediate final-absence proof, and atomic rename to a
+   previously nonexistent final. A failed stage is never a visible backup and
+   is never silently reused.
+6. **Operation state machines.** Fixed phases, terminal states, backup-health
+   states, one serialized effect worker, leases/idempotency, retry/resume policy,
+   stale-worker exclusion, and interruption behavior separately for create,
+   verify, recovery test, and restore. The first slice omits cancellation rather
+   than offer unsafe partial cancellation.
+7. **Restored-copy quarantine.** Recovery test opens read-only with no listener
+   or worker. Every durable restored copy carries a startup-blocking quarantine
+   marker. Copied sessions, HostBindings, grants, jobs, and source-host
+   coordinates remain inert.
+8. **Activation boundary.** Restore-as-copy is not activation. Any later
+   cutover requires a stopped original writer, reauthentication, security-state
+   rotation/revocation, pre-cutover verification, and rollback record. It is
+   outside O1.
+
+O1 is SQLite-only. Protected JSON mode opens no operations ledger, operator
+bootstrap, operation route, or worker and remains fail-closed unavailable.
 
 ### 4.2 O0 exit criteria
 
@@ -153,14 +160,15 @@ O0 is complete only when:
 - one reviewed architecture decision resolves all eight items above;
 - the state diagrams and stable failure codes are written;
 - the full adversarial matrix below is mapped to test seams;
-- package/transport boundaries show that O1 changes no UI, listener, CSS, or MCP
-  catalog; and
+- package/transport boundaries show that O1a changes no UI, listener, CSS, or
+  MCP catalog, while O1b adds only bounded loopback human HTTP/UI surfaces and
+  changes neither listener binding nor MCP catalog; and
 - the exact implementation base and migration/control-store ownership are
   recorded.
 
 ## 5. Gate O1 — trustworthy backup core and human UI
 
-### 5.1 Safe autonomous backend slice
+### 5.1 O1a safe autonomous backend candidate
 
 The first implementation block should be non-visual and fail closed:
 
@@ -182,8 +190,9 @@ The first implementation block should be non-visual and fail closed:
 - prove consistency under concurrent writes, worker/process failure, browser
   disconnect, corruption, duplicate request, and destination conflict.
 
-This backend block can be reviewed and verified by automated tests without
-claiming that the eventual human workflow is accepted.
+This backend block can be reviewed and verified by automated tests, but it is
+only **implemented candidate — not user accepted**. It cannot satisfy the O1
+product gate without the bounded first UI below.
 
 ### 5.2 Required adversarial evidence before the UI gate
 
@@ -201,7 +210,8 @@ claiming that the eventual human workflow is accepted.
   restore boundaries;
 - concurrent semantic commit, atlas-job discard, and CAS GC, with the backup
   equal to a complete pre- or post-mutation state;
-- lease expiry and stale-worker recovery where the old worker cannot publish;
+- process-death/stale-lease recovery only after both old process locks are
+  released, with no live lease takeover and no second publication;
 - restore failure leaves no visible final copy and changes no active workspace,
   source backup, or earlier backup;
 - recovery-test and restored-copy startup proves no listener, worker, session,
@@ -211,7 +221,7 @@ claiming that the eventual human workflow is accepted.
 - MCP discovery remains exactly the accepted 19/30-tool surfaces, while the
   loopback listener and accepted HTTP routes remain unchanged.
 
-### 5.3 Human UI gate
+### 5.3 O1b required first human UI candidate and gate
 
 Add **Backups** or **Safety & backups** with one dominant action:
 **Create backup now**. The normal view answers:
@@ -221,14 +231,20 @@ Add **Backups** or **Safety & backups** with one dominant action:
 - Is there a problem that needs action?
 - Can this backup be restored safely?
 
-Each backup exposes **Verify again** and **Restore as a new working copy**.
-Success means durably complete and verified, not merely queued. Technical
-details may show manifest, counts, size, revisions, and findings without making
-them the primary workflow.
+Each backup exposes **Verify again**, **Test recovery**, and **Restore as a new
+working copy**. Success means durably complete and verified, not merely queued.
+Technical details may show manifest, counts, size, revisions, and findings
+without making them the primary workflow. The candidate exposes no deletion,
+retention, activation/cutover, arbitrary path, or remote function.
 
-Klaus's acceptance walkthrough must create and verify a backup, restore it as a
-copy, compare the recovered project, and observe a deliberately failed/corrupt
-case without damage to active work or prior backups.
+O1b may be implemented and verified while Klaus is unavailable, but it must
+remain labelled **implemented candidate — not user accepted** and receive a
+return-test backlog entry. O1 acceptance still requires Klaus's live UI
+walkthrough.
+
+Klaus's acceptance walkthrough must create and verify a backup, pass a recovery
+test, restore it as a copy, compare the recovered project, and observe a
+deliberately failed/corrupt case without damage to active work or prior backups.
 
 ## 6. Gate O2 — always-on private remote service
 
@@ -369,17 +385,17 @@ Stop gates are strict:
 
 ## 10. Current autonomous next step
 
-While Klaus cannot test, the safest useful next block is:
+With O0 frozen, the next useful coherent block is:
 
-> Complete O0, including the exact operation-ledger/self-snapshot and migration
-> decisions. Once those are independently reviewed, implement only the
-> non-visual O1 backup application/job seam, reusing the accepted
-> integrity/backup/verify/restore primitives and proving failure, concurrency,
-> idempotency, restart, corruption, and no-overwrite behavior.
+> Implement O1a's non-visual backup application/job seam against the external
+> control ledger, reusing the accepted integrity/backup/verify/restore
+> primitives and proving failure, concurrency, idempotency, restart, corruption,
+> quarantine, and no-overwrite behavior. After its Linux and Windows gates are
+> green, implement the separately classified bounded O1b first UI candidate.
 
-Stop before the final backup UI composition, remote listener/authentication,
-Tailscale deployment, responsive visual redesign, or remote MCP. Those require
-their own evidence and, where noted, Klaus's explicit acceptance.
+Stop after O1b at Klaus's live backup-UI acceptance gate. Do not proceed to the
+remote listener/authentication, Tailscale deployment, responsive mobile
+redesign, or remote MCP before that decision.
 
 ## 11. Combined definition of done
 

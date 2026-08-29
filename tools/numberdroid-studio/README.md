@@ -256,6 +256,7 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [MCP contract](docs/MCP_CONTRACT.md)
 - [Roadmap and user checkpoints](docs/ROADMAP.md)
 - [Operations, Remote Access & Mobile masterplan](docs/OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md)
+- [O0 backup/recovery operations contract](docs/O0_BACKUP_RECOVERY_CONTRACT.md)
 - [Consolidated return test backlog](docs/VACATION_TEST_BACKLOG.md)
 - [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
 - [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)
