@@ -459,7 +459,14 @@ try {
         let createKeyboardReachable = false;
         if (focus === 'create') {
           createButton?.focus(); createKeyboardReachable = document.activeElement === createButton; createButton?.click();
-        } else target?.click();
+        } else {
+          target?.click();
+          const taskDetailDeadline = Date.now() + 6_000;
+          while (document.querySelector('.task-detail [data-task-state]')?.dataset.taskState !== state
+              && Date.now() < taskDetailDeadline) {
+            await new Promise((resolvePoll) => setTimeout(resolvePoll, 25));
+          }
+        }
         await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
         const detail = document.querySelector('.task-detail');
         const composer = document.querySelector('.task-composer');

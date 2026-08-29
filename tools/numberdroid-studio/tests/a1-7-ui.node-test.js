@@ -231,6 +231,7 @@ test('A1.7 module and evidence wiring are same-origin, real-fixture, two-viewpor
   assert.match(capture, /accessibilityScope = axRoot \? 'processing-adoption'/);
   assert.match(capture, /sameAdoptionNode/);
   assert.match(capture, /Accessibility\.getFullAXTree/);
+  assert.match(capture, /const taskDetailDeadline = Date\.now\(\) \+ 6_000;[\s\S]{0,220}\.task-detail \[data-task-state\]/);
   assert.match(prepare, /internal\/mcp\/authoring-v2\/processing-result-adopt/);
   assert.match(prepare, /task\.task\.state !== 'ACTIVE' \|\| task\.review !== null/);
   assert.doesNotMatch(prepare, /agentTaskService\.(submitReview|decideReview|mergeReview)|\/submit-review|\/reviews\/|\/publish|\/release/);
