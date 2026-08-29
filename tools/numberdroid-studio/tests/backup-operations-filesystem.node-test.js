@@ -127,7 +127,9 @@ test('Windows proof receives original root coordinates including the live worksp
   await assert.rejects(access(join(roots.control, 'recovery-tests')));
 });
 
-test('Linux operation filesystem durably publishes once and never overwrites a final', async (context) => {
+test('Linux operation filesystem durably publishes once and never overwrites a final', {
+  skip: process.platform === 'win32' && 'Linux directory-fsync semantics require a Linux host.',
+}, async (context) => {
   const { configuration } = await fixture(context);
   const filesystem = await OperationsFilesystem.create({ configuration, platform: 'linux' });
   const operationId = '11111111-1111-4111-8111-111111111111';
@@ -155,7 +157,9 @@ test('Linux operation filesystem durably publishes once and never overwrites a f
   );
 });
 
-test('publish fence after durable staging leaves the exact stage unpublished', async (context) => {
+test('publish fence after durable staging leaves the exact stage unpublished', {
+  skip: process.platform === 'win32' && 'Linux directory-fsync semantics require a Linux host.',
+}, async (context) => {
   const { configuration } = await fixture(context);
   const filesystem = await OperationsFilesystem.create({ configuration, platform: 'linux' });
   const allocated = await filesystem.allocatePublished({
@@ -293,7 +297,9 @@ test('Windows inspect fence ignores a post-spawn kill error until child settleme
   assert.equal(settled, true);
 });
 
-test('recovery cleanup is identity-bound and marker is durable before any open', async (context) => {
+test('recovery cleanup is identity-bound and marker is durable before any open', {
+  skip: process.platform === 'win32' && 'Linux directory-fsync semantics require a Linux host.',
+}, async (context) => {
   const { configuration } = await fixture(context);
   const filesystem = await OperationsFilesystem.create({ configuration, platform: 'linux' });
   const operationId = '33333333-3333-4333-8333-333333333333';
@@ -318,7 +324,9 @@ test('recovery cleanup is identity-bound and marker is durable before any open',
   await assert.rejects(access(coordinate.path));
 });
 
-test('recovery-test root identity is pinned for allocate, resolve, and cleanup', async (context) => {
+test('recovery-test root identity is pinned for allocate, resolve, and cleanup', {
+  skip: process.platform === 'win32' && 'Linux directory-fsync semantics require a Linux host.',
+}, async (context) => {
   const scenarios = ['allocate', 'resolve', 'cleanup'];
   for (const [index, scenario] of scenarios.entries()) {
     const { configuration } = await fixture(context);

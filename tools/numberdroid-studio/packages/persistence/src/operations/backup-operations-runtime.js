@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { backupOperationFailure } from '../../../domain/src/backup-operation.js';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
 import {
@@ -42,6 +42,12 @@ function sameCoordinate(left, right, platform) {
   return normalizedCoordinate(left, platform) === normalizedCoordinate(right, platform);
 }
 
+function samePathSegment(left, right, platform) {
+  return platform === 'win32'
+    ? left.toLowerCase() === right.toLowerCase()
+    : left === right;
+}
+
 async function directoryProof(path, label) {
   try {
     const entry = await lstat(path);
@@ -77,9 +83,14 @@ async function bindLiveStores({ configuration, projectStore, artifactStore, plat
     'The live SQLite store is not bound to the validated workspace root.',
   );
 
-  const expectedArtifactRoot = resolve(configuration.workspaceRoot, 'artifacts');
+  const artifactCoordinateParent = await directoryProof(
+    dirname(artifactStore.rootDirectory),
+    'Live CAS coordinate parent',
+  );
   invariant(
-    sameCoordinate(artifactStore.rootDirectory, expectedArtifactRoot, platform),
+    samePathSegment(basename(artifactStore.rootDirectory), 'artifacts', platform)
+      && artifactCoordinateParent.device === projectRoot.device
+      && artifactCoordinateParent.inode === projectRoot.inode,
     'BACKUP_PATH_UNSAFE',
     'The live CAS store is not rooted at the validated workspace artifact coordinate.',
   );
@@ -96,9 +107,11 @@ async function bindLiveStores({ configuration, projectStore, artifactStore, plat
     }
   }
   const artifactRoot = await directoryProof(artifactStore.rootDirectory, 'Live CAS root');
+  const artifactParent = await directoryProof(dirname(artifactRoot.path), 'Live CAS parent');
   invariant(
-    sameCoordinate(artifactRoot.path, expectedArtifactRoot, platform)
-      && sameCoordinate(dirname(artifactRoot.path), projectRoot.path, platform),
+    samePathSegment(basename(artifactRoot.path), 'artifacts', platform)
+      && artifactParent.device === projectRoot.device
+      && artifactParent.inode === projectRoot.inode,
     'BACKUP_PATH_UNSAFE',
     'The live CAS store is not an exact child of the validated workspace root.',
   );

@@ -12,6 +12,7 @@ import {
   OperationsLock,
 } from '../packages/persistence/src/operations/operations-lock.js';
 import { createBetterSqliteDatabase } from '../packages/persistence/src/sqlite/sqlite-driver.js';
+import { afterTestCleanup } from './persistence-test-helpers.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
@@ -22,7 +23,7 @@ const T0 = '2026-08-29T10:00:00.000Z';
 
 async function controlRoot(context, prefix) {
   const root = await mkdtemp(join(tmpdir(), prefix));
-  context.after(() => rm(root, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(root, { recursive: true, force: true }));
   return root;
 }
 
@@ -50,7 +51,7 @@ test('operations lock is a persistent rollback-journal SQLite file with one proc
       return firstDatabase;
     },
   });
-  context.after(() => first.close());
+  afterTestCleanup(context, () => first.close());
   assert.equal(first.isHeld, true);
   await assert.rejects(
     OperationsLock.acquire({ controlRoot: root, busyTimeoutMs: 0 }),
@@ -60,7 +61,7 @@ test('operations lock is a persistent rollback-journal SQLite file with one proc
   assert.equal(first.isHeld, false, 'the lock must fail closed as soon as its exclusive transaction is gone');
 
   const second = await OperationsLock.acquire({ controlRoot: root });
-  context.after(() => second.close());
+  afterTestCleanup(context, () => second.close());
   assert.equal(second.isHeld, true, 'a real second connection proves the first no longer owns the OS lock');
   first.close();
   assert.equal(first.isHeld, false);
@@ -93,10 +94,10 @@ test('external control ledger v1 is checksummed, idempotent, fenced, append-only
       return ledgerDatabase;
     },
   });
-  context.after(() => ledger.close());
+  afterTestCleanup(context, () => ledger.close());
 
   const inspection = createBetterSqliteDatabase(join(root, 'operations.sqlite'));
-  context.after(() => inspection.close());
+  afterTestCleanup(context, () => inspection.close());
   assert.equal(String(ledgerDatabase.pragma('journal_mode', { simple: true })).toLowerCase(), 'wal');
   assert.equal(Number(ledgerDatabase.pragma('foreign_keys', { simple: true })), 1);
   assert.equal(Number(ledgerDatabase.pragma('synchronous', { simple: true })), 2);
@@ -243,7 +244,7 @@ test('external control ledger v1 is checksummed, idempotent, fenced, append-only
 test('ledger supports exact restore lifecycle and restart-only reconciliation fencing without activation authority', async (context) => {
   const root = await controlRoot(context, 'numberdroid-operations-reconcile-');
   const ledger = await OperationsLedger.open({ controlRoot: root });
-  context.after(() => ledger.close());
+  afterTestCleanup(context, () => ledger.close());
   ledger.registerBackup({
     backupId: 'source-001',
     destinationId: 'destination.backup.local',

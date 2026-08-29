@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Set-StrictMode -Version Latest
-[Console]::Error.SetOut([System.IO.TextWriter]::Null)
+[Console]::SetError([System.IO.TextWriter]::Null)
 
 $script:MaximumInputCharacters = 8192
 $script:MaximumDescendantEntries = 100000

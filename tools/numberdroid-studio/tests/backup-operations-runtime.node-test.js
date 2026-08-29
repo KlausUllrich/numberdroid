@@ -413,6 +413,7 @@ test('O1a runtime proves Windows roots before creating either control database',
   const artifactStore = new ContentAddressedArtifactStore({
     rootDirectory: join(liveRoot, 'artifacts'),
   });
+  let helperAttempts = 0;
 
   await assert.rejects(
     BackupOperationsRuntime.open({
@@ -427,10 +428,14 @@ test('O1a runtime proves Windows roots before creating either control database',
       artifactStore,
       workspaceDatabaseFactory: nodeSqliteDatabaseFactory,
       platform: 'win32',
-      spawnProcess: unavailableWindowsHelper,
+      spawnProcess: (...args) => {
+        helperAttempts += 1;
+        return unavailableWindowsHelper(...args);
+      },
     }),
     (error) => error.code === 'BACKUP_PATH_UNSAFE',
   );
+  assert.equal(helperAttempts, 1, 'Windows root proof must be reached after live-store binding');
   assert.deepEqual(await readdir(controlRoot), []);
 });
 
