@@ -1,9 +1,17 @@
-import { closeSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { access, mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
 import { createBetterSqliteDatabase } from './sqlite-driver.js';
 import { runSqliteMigrations } from './migration-runner.js';
+
+const RESTORED_COPY_QUARANTINE_MARKER = '.numberdroid-restored-copy-quarantine.json';
+const INTERNAL_VERIFY_READER = Symbol('numberdroid.internal.verify-reader');
+const INTERNAL_RECOVERY_TEST_READER = Symbol('numberdroid.internal.recovery-test-reader');
+
+function assertEffectFence(signal) {
+  if (signal !== undefined) AbortSignal.prototype.throwIfAborted.call(signal);
+}
 
 function processExists(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -54,6 +62,60 @@ function quoteSqliteString(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
 
+function quarantineMarkerPresent(dataRoot) {
+  try {
+    lstatSync(resolve(dataRoot, RESTORED_COPY_QUARANTINE_MARKER));
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw new StudioError(
+      'RESTORED_COPY_QUARANTINED',
+      'Studio could not prove that this workspace is free of restored-copy quarantine.',
+    );
+  }
+}
+
+async function openWorkspace({
+  filename,
+  databaseFactory = createBetterSqliteDatabase,
+  mode = 'writer',
+  busyTimeoutMs = 5000,
+  faultInjector = null,
+}, internalReaderPurpose = null) {
+  invariant(typeof filename === 'string' && filename.length > 0, 'VALIDATION_ERROR', 'SQLite filename is required.');
+  invariant(['writer', 'reader'].includes(mode), 'VALIDATION_ERROR', 'SQLite mode must be writer or reader.');
+  const absoluteFilename = resolve(filename);
+  const dataRoot = dirname(absoluteFilename);
+  const markerPresent = quarantineMarkerPresent(dataRoot);
+  const internalReaderAllowed = mode === 'reader'
+    && [INTERNAL_VERIFY_READER, INTERNAL_RECOVERY_TEST_READER].includes(internalReaderPurpose);
+  if (markerPresent && !internalReaderAllowed) {
+    throw new StudioError(
+      'RESTORED_COPY_QUARANTINED',
+      'A restored workspace copy is quarantined and cannot be opened for normal Studio use.',
+    );
+  }
+  if (mode === 'writer') mkdirSync(dataRoot, { recursive: true, mode: 0o700 });
+  const writerLock = mode === 'writer' ? acquireWriterLock(absoluteFilename) : null;
+  let database;
+  try {
+    database = databaseFactory(absoluteFilename, { timeout: busyTimeoutMs, readonly: mode === 'reader' });
+    database.exec(`PRAGMA busy_timeout = ${Number(busyTimeoutMs)}`);
+    database.exec('PRAGMA foreign_keys = ON');
+    if (mode === 'writer') {
+      database.exec('PRAGMA journal_mode = WAL');
+      database.exec('PRAGMA synchronous = FULL');
+      database.exec('PRAGMA wal_autocheckpoint = 1000');
+      await runSqliteMigrations(database, { faultInjector });
+    }
+    return new SqliteWorkspace({ database, filename: absoluteFilename, writerLock, faultInjector });
+  } catch (error) {
+    try { database?.close(); } catch {}
+    releaseWriterLock(writerLock);
+    throw error;
+  }
+}
+
 export class SqliteWorkspace {
   #database;
   #filename;
@@ -61,35 +123,8 @@ export class SqliteWorkspace {
   #faultInjector;
   #closed = false;
 
-  static async open({
-    filename,
-    databaseFactory = createBetterSqliteDatabase,
-    mode = 'writer',
-    busyTimeoutMs = 5000,
-    faultInjector = null,
-  }) {
-    invariant(typeof filename === 'string' && filename.length > 0, 'VALIDATION_ERROR', 'SQLite filename is required.');
-    invariant(['writer', 'reader'].includes(mode), 'VALIDATION_ERROR', 'SQLite mode must be writer or reader.');
-    const absoluteFilename = resolve(filename);
-    mkdirSync(dirname(absoluteFilename), { recursive: true, mode: 0o700 });
-    const writerLock = mode === 'writer' ? acquireWriterLock(absoluteFilename) : null;
-    let database;
-    try {
-      database = databaseFactory(absoluteFilename, { timeout: busyTimeoutMs, readonly: mode === 'reader' });
-      database.exec(`PRAGMA busy_timeout = ${Number(busyTimeoutMs)}`);
-      database.exec('PRAGMA foreign_keys = ON');
-      if (mode === 'writer') {
-        database.exec('PRAGMA journal_mode = WAL');
-        database.exec('PRAGMA synchronous = FULL');
-        database.exec('PRAGMA wal_autocheckpoint = 1000');
-        await runSqliteMigrations(database, { faultInjector });
-      }
-      return new SqliteWorkspace({ database, filename: absoluteFilename, writerLock, faultInjector });
-    } catch (error) {
-      try { database?.close(); } catch {}
-      releaseWriterLock(writerLock);
-      throw error;
-    }
+  static async open(options) {
+    return openWorkspace(options);
   }
 
   constructor({ database, filename, writerLock, faultInjector }) {
@@ -146,9 +181,10 @@ export class SqliteWorkspace {
     return this.#database.prepare(`PRAGMA wal_checkpoint(${mode})`).get();
   }
 
-  async backupTo(destination) {
+  async backupTo(destination, { signal } = {}) {
     const absoluteDestination = resolve(destination);
     invariant(absoluteDestination !== this.#filename, 'VALIDATION_ERROR', 'Backup destination must differ from the live database.');
+    assertEffectFence(signal);
     await mkdir(dirname(absoluteDestination), { recursive: true, mode: 0o700 });
     try {
       await access(absoluteDestination);
@@ -160,9 +196,11 @@ export class SqliteWorkspace {
       if (error.code !== 'ENOENT') throw error;
     }
     try {
+      assertEffectFence(signal);
       this.#database.exec(`VACUUM INTO ${quoteSqliteString(absoluteDestination)}`);
       return absoluteDestination;
     } catch (error) {
+      assertEffectFence(signal);
       await rm(absoluteDestination, { force: true }).catch(() => {});
       throw error;
     }
@@ -177,4 +215,12 @@ export class SqliteWorkspace {
       try { this.#database.close(); } finally { releaseWriterLock(this.#writerLock); }
     }
   }
+}
+
+export function openSqliteWorkspaceForInternalVerification(options) {
+  return openWorkspace({ ...options, mode: 'reader' }, INTERNAL_VERIFY_READER);
+}
+
+export function openSqliteWorkspaceForInternalRecoveryTest(options) {
+  return openWorkspace({ ...options, mode: 'reader' }, INTERNAL_RECOVERY_TEST_READER);
 }

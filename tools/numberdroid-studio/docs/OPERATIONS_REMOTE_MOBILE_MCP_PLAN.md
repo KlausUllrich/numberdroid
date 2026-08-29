@@ -1,6 +1,6 @@
 # Numberdroid Studio — Operations, Remote Access & Mobile
 
-Status: **current masterplan track; O0 contract frozen, O1 implementation and user acceptance pending**
+Status: **current masterplan track; O0 frozen, O1a backend candidate implemented, O1b UI and user acceptance pending**
 
 Date added to the masterplan: 2026-08-25
 
@@ -395,13 +395,14 @@ Stop gates are strict:
 
 ## 10. Current autonomous next step
 
-With O0 frozen, the next useful coherent block is:
+With O0 frozen and the bounded O1a backend implemented as recorded in
+[`O1A_BACKUP_CORE_STATUS.md`](O1A_BACKUP_CORE_STATUS.md), the next useful
+coherent block is:
 
-> Implement O1a's non-visual backup application/job seam against the external
-> control ledger, reusing the accepted integrity/backup/verify/restore
-> primitives and proving failure, concurrency, idempotency, restart, corruption,
-> quarantine, and no-overwrite behavior. After its Linux and Windows gates are
-> green, implement the separately classified bounded O1b first UI candidate.
+> Complete O1a's selected Linux and Windows source-integration gates, then
+> implement the separately classified bounded O1b first UI candidate against
+> that exact backend. Preserve the four-operation, local-human-only boundary
+> and add no delete, activation, remote, or MCP authority.
 
 Stop after O1b at Klaus's live backup-UI acceptance gate. Do not proceed to the
 remote listener/authentication, Tailscale deployment, responsive mobile

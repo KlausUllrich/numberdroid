@@ -2182,6 +2182,6 @@ export class SqliteProjectStore extends ProjectStore {
   }
 
   integrityCheck() { return this.#workspace.integrityCheck(); }
-  backupTo(destination) { return this.#workspace.backupTo(destination); }
+  backupTo(destination, options = {}) { return this.#workspace.backupTo(destination, options); }
   close() { this.#workspace.close(); }
 }

@@ -1,5 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { access, lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { StudioError } from '../../../packages/domain/src/index.js';
 import {
@@ -16,6 +17,11 @@ import {
   verifyWorkspaceBackup,
   verifySqliteProjectBundle,
 } from '../../../packages/persistence/src/index.js';
+import {
+  verifyRestoredWorkspaceCopy,
+  writeRestoredWorkspaceQuarantineMarker,
+} from '../../../packages/persistence/src/backup/workspace-backup.js';
+import { inspectWindowsFilesystem } from '../../../packages/persistence/src/operations/windows-filesystem-proof.js';
 
 const MIGRATION_INTENT_FILE = '.json-migration-intent.json';
 
@@ -45,6 +51,38 @@ async function assertAbsent(path, label) {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+}
+
+async function createAdminMutationDestination(destination, { platform, spawnProcess }) {
+  if (platform !== 'win32') {
+    await mkdir(destination, { recursive: false, mode: 0o700 });
+    return null;
+  }
+  const parentPath = dirname(destination);
+  const parentIdentity = await inspectWindowsFilesystem(parentPath, { spawnProcess });
+  await inspectWindowsFilesystem(parentPath, {
+    expectedIdentity: parentIdentity,
+    spawnProcess,
+  });
+  await mkdir(destination, { recursive: false, mode: 0o700 });
+  const destinationIdentity = await inspectWindowsFilesystem(destination, {
+    inspectDescendants: true,
+    spawnProcess,
+  });
+  return Object.freeze({ destination, destinationIdentity, parentIdentity, parentPath });
+}
+
+async function revalidateAdminMutationDestination(proof, { platform, spawnProcess }) {
+  if (platform !== 'win32') return;
+  await inspectWindowsFilesystem(proof.parentPath, {
+    expectedIdentity: proof.parentIdentity,
+    spawnProcess,
+  });
+  await inspectWindowsFilesystem(proof.destination, {
+    expectedIdentity: proof.destinationIdentity,
+    inspectDescendants: true,
+    spawnProcess,
+  });
 }
 
 async function withWorkspace(dataDirectory, operation, { databaseFactory } = {}) {
@@ -142,7 +180,12 @@ async function prepareMigrationDestination({ sourceDirectory, destinationDirecto
   return intent;
 }
 
-export async function runAdmin([command, ...args], { databaseFactory, emit = output } = {}) {
+export async function runAdmin([command, ...args], {
+  databaseFactory,
+  emit = output,
+  platform = process.platform,
+  spawnProcess,
+} = {}) {
   if (!command || ['help', '--help', '-h'].includes(command)) {
     process.stdout.write(usage);
     return 0;
@@ -182,21 +225,48 @@ export async function runAdmin([command, ...args], { databaseFactory, emit = out
     const destinationDirectory = resolve(args[1]);
     await assertAbsent(destinationDirectory, 'Backup destination');
     emit(await withWorkspace(args[0], ({ projectStore, artifactStore }) => createWorkspaceBackup({
-      projectStore, artifactStore, destinationDirectory,
+      projectStore, artifactStore, destinationDirectory, platform, spawnProcess,
     }), { databaseFactory }));
     return 0;
   }
   if (command === 'verify-backup' && args.length === 1) {
-    emit(await verifyWorkspaceBackup(resolve(args[0])));
+    emit(await verifyWorkspaceBackup(resolve(args[0]), { platform, spawnProcess }));
     return 0;
   }
   if (command === 'restore' && args.length === 2) {
     const destination = resolve(args[1]);
     await assertAbsent(destination, 'Restore destination');
-    emit(await restoreWorkspaceBackup({
-      backupDirectory: resolve(args[0]),
+    const backupDirectory = resolve(args[0]);
+    const source = await verifyWorkspaceBackup(backupDirectory, { platform, spawnProcess });
+    const copyId = randomUUID();
+    const backupId = randomUUID();
+    const destinationProof = await createAdminMutationDestination(destination, { platform, spawnProcess });
+    await revalidateAdminMutationDestination(destinationProof, { platform, spawnProcess });
+    await writeRestoredWorkspaceQuarantineMarker(destination, {
+      copyId,
+      backupId,
+      manifestSha256: source.manifestSha256,
+    }, { platform });
+    await revalidateAdminMutationDestination(destinationProof, { platform, spawnProcess });
+    await restoreWorkspaceBackup({
+      backupDirectory,
       databaseDestination: resolve(destination, 'studio.sqlite'),
       artifactDestination: resolve(destination, 'artifacts'),
+    }, { platform, spawnProcess });
+    const verified = await verifyRestoredWorkspaceCopy({
+      copyDirectory: destination,
+      expectedManifest: source.manifest,
+      expectedManifestSha256: source.manifestSha256,
+      expectedBackupId: backupId,
+      expectedCopyId: copyId,
+      purpose: 'VERIFY',
+      ...(databaseFactory ? { databaseFactory } : {}),
+    }, { platform, spawnProcess });
+    emit(Object.freeze({
+      ...verified,
+      copyId,
+      backupId,
+      lifecycle: 'QUARANTINED_VERIFIED',
     }));
     return 0;
   }

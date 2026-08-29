@@ -315,8 +315,8 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 
 ## Parallel masterplan track — Operations, Remote Access & Mobile
 
-**Status: O0 contract frozen on 2026-08-29; O1 implementation and every user
-acceptance gate remain separate.**
+**Status: O0 contract frozen and O1a backend implemented as a candidate on
+2026-08-29; O1b UI and every user acceptance gate remain separate.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -361,9 +361,10 @@ The gates are:
    exact counts. Remote Streamable HTTP MCP remains optional and separately
    security-reviewed.
 
-While the user cannot test, implementation may proceed through the fail-closed
-O1a application/job seam plus automated recovery/adversarial tests and then the
-separately classified bounded O1b first backup-UI candidate. Both remain
+The fail-closed O1a application/job seam and its automated recovery/adversarial
+tests are now an **implemented candidate — not user accepted**, recorded in
+`O1A_BACKUP_CORE_STATUS.md`. While the user cannot test, implementation may
+proceed to the separately classified bounded O1b first backup-UI candidate. Both remain
 **implemented candidate — not user accepted**. The live backup-UI gate blocks
 remote exposure/authentication; phone acceptance and remote MCP remain later
 gates.
