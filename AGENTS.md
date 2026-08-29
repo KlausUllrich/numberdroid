@@ -89,9 +89,16 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
 - Do not leave the user without a concise progress update for more than **120
   seconds** while commands, delegated work, CI, or another external operation
   are still active. State the current phase, the last observed result, and the
-  next bounded wait or takeover action. Shorter technical polling intervals do
-  not require a user-visible message after every poll; the independent
-  120-second user-visible heartbeat ceiling remains hard.
+  next bounded wait or takeover action. Technical polls never reset this
+  deadline; during 30–60-second external polling, at most one poll may occur
+  between user-visible updates.
+- Any operation that may outlive the current tool response MUST use a yieldable,
+  resumable path whose first yield is bounded to at most 30 seconds. Preserve
+  its complete control metadata — including session/cell/job/run/operation ID,
+  deadline, and last output — before doing other work. Discarding the handle by
+  projecting only payload output is prohibited. If a handle is lost, stop blind
+  waiting, resolve the real process/job state, then take over or rerun only the
+  smallest safe idempotent check.
 - Every locally started command, test, build, or diagnostic MUST have an
   explicit risk-scaled wall-clock timeout. Do not start unbounded shell
   commands or use a blocking sleep longer than 60 seconds. A legitimately long
@@ -109,6 +116,20 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
   repository-specific duration is known, use **20 minutes**. Crossing the
   deadline triggers log/heartbeat inspection and an explicit stalled/running
   decision, never an inferred pass, an automatic merge, or silent abandonment.
+- Two consecutive polls with no observable state or heartbeat change trigger
+  diagnosis and a user-visible stalled/healthy decision before any third poll.
+  Never keep repeating an unchanged status query without inspecting the job,
+  logs, process inventory, or a narrower source of truth.
+- Keep tool output bounded and structured. Preserve control metadata, but emit
+  only fields needed for the decision. If output is truncated, re-query a
+  smaller exact slice before relying on omitted facts; truncation is never
+  evidence of success, failure, or unchanged state.
+- After every meaningful local or remote mutation, record a compact continuity
+  checkpoint containing canonical remote `main`, local branch/HEAD/worktree,
+  active branch/head, PR, workflow run/deadline, last verified result, next
+  bounded action, and blocker. After context compaction or another boundary
+  that may discard control state, re-verify that checkpoint before any further
+  mutation and send a recovered-state update.
 - A timeout is neither success nor failure evidence. Preserve partial output,
   determine whether the cause is product code, test infrastructure, platform,
   or an external runner, then run a narrower safe check, repair/retry, take
