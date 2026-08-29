@@ -887,7 +887,7 @@ function restoreRoomDomState() {
 
 function textOffsetWithin(container, node, offset) {
   const range = document.createRange(); range.selectNodeContents(container); range.setEnd(node, offset);
-  return range.toString().length;
+  return range.cloneContents().textContent.length;
 }
 
 function captureTaskTextSelection(root) {
@@ -978,12 +978,6 @@ function restoreTaskDomState() {
       if (!select.disabled && value !== undefined && [...select.options].some((option) => option.value === value)) select.value = value;
     }
   }
-  for (const element of root.querySelectorAll('[data-task-scroll]')) {
-    const position = saved.scroll[element.dataset.taskScroll];
-    if (!position) continue;
-    element.scrollLeft = Math.max(0, Math.min(position.left, Math.max(0, element.scrollWidth - element.clientWidth)));
-    element.scrollTop = Math.max(0, Math.min(position.top, Math.max(0, element.scrollHeight - element.clientHeight)));
-  }
   const active = saved.activeKey
     ? [...root.querySelectorAll('[data-task-focus-key]')]
       .find((candidate) => candidate.dataset.taskFocusKey === saved.activeKey)
@@ -994,6 +988,12 @@ function restoreTaskDomState() {
   }
   restoreTaskTextSelection(root, saved.textSelection);
   window.scrollTo(saved.page.x, saved.page.y);
+  for (const element of root.querySelectorAll('[data-task-scroll]')) {
+    const position = saved.scroll[element.dataset.taskScroll];
+    if (!position) continue;
+    element.scrollLeft = Math.max(0, Math.min(position.left, Math.max(0, element.scrollWidth - element.clientWidth)));
+    element.scrollTop = Math.max(0, Math.min(position.top, Math.max(0, element.scrollHeight - element.clientHeight)));
+  }
 }
 
 function settleRoomEditorControlFocus(focusKey) {
