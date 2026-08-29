@@ -697,10 +697,12 @@ but it does not complete the Artist path. The next dependent block is:
    [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md). The separately
    classified minimal L3 task/adoption read projection is now an implemented,
    non-accepted candidate recorded in
-   [`A1_7_READ_PROJECTION_STATUS.md`](A1_7_READ_PROJECTION_STATUS.md). The next
-   dependent block is one bounded selected-task UI candidate with browser
-   evidence and a deferred Klaus live gate. Neither block may add a browser
-   mutation or owner/release authority.
+   [`A1_7_READ_PROJECTION_STATUS.md`](A1_7_READ_PROJECTION_STATUS.md). Its
+   dependent bounded selected-task UI is also an implemented, non-accepted
+   candidate with dedicated browser evidence, recorded in
+   [`A1_7_UI_CANDIDATE_STATUS.md`](A1_7_UI_CANDIDATE_STATUS.md). The Klaus live
+   gate remains deferred. Neither block adds a browser mutation or owner/release
+   authority.
 
 Additional processing operations remain one deterministic processor block each.
 A1 is complete only when an authorized task can execute the ordinary

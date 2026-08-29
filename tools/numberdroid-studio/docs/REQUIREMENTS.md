@@ -93,8 +93,8 @@ The system MUST record the true actor for every mutation. `AUTO_ACCEPTED_BY_POLI
 
 **Implementation status (2026-08-29): the bounded A1.0, A1.1, and A1.2
 contracts are explicitly user-accepted; A1.3, A1.4, A1.5, A1.6a, A1.6b1,
-A1.6b2a, A1.6b2b, and the A1.7 read projection are implemented candidates and
-are not user-accepted.**
+A1.6b2a, A1.6b2b, and the A1.7 read projection and visual surface are
+implemented candidates and are not user-accepted.**
 A1.0 supplies the fail-closed
 `ProcessingRecipe` schema and projection for the accepted exact-PNG crop
 processor. A1.1 adds a pure
@@ -175,8 +175,12 @@ is recorded in
 [`A1_7_READ_PROJECTION_STATUS.md`](A1_7_READ_PROJECTION_STATUS.md). It exposes
 the private committed DRAFT, quality guidance and exact selected-output preview
 through a redacted task-local GET without adding any browser mutation or Main
-authority. The bounded Agent-task visual candidate remains pending and must
-stop at **Waiting for your review**.
+authority. The bounded Agent-task visual surface is now a separate implemented
+candidate recorded in
+[`A1_7_UI_CANDIDATE_STATUS.md`](A1_7_UI_CANDIDATE_STATUS.md). It stops at
+**Waiting for your review**, remains explicitly not user-accepted, and adds no
+adoption, retry, owner review, merge, finalization, materialization,
+publication, or release action.
 
 ### 5.3 Atlas Cutter
 

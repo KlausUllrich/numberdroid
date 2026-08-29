@@ -29,14 +29,14 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
     app.indexOf('function renderWorkspace'),
   );
   assert.match(reconciliation, /state\.taskUi\.view !== 'detail'/);
-  assert.match(reconciliation, /state\.taskUi\.selectedTaskId = null;\s*return;/);
+  assert.match(reconciliation, /state\.taskUi\.selectedTaskId = null;\s*(?:state\.taskAdoption = null;\s*)?return;/);
   assert.match(reconciliation, /state\.taskUi\.view = 'list'/);
   assert.match(app, /state\.tasks = taskDetails;\s*reconcileTaskUiAfterRefresh\(\)/);
   assert.match(app, /function hasLiveTaskComposer\(\)/);
   assert.match(app, /mayPreserveWorkspace && hasLiveTaskComposer\(\)/);
   assert.match(app, /previousWorkspaceFingerprint === workspaceRenderFingerprint\(\)/);
   assert.match(app, /const preserveTaskComposer = hasLiveTaskComposer\(\)/);
-  assert.match(app, /if \(!preserveTaskComposer\) renderWorkspace\(\)/);
+  assert.match(app, /if \(!preserveTaskComposer\) renderWorkspace\(\{[\s\S]*preserveTaskContext:/);
   assert.match(app, /if \(!preserveWorkspace\) renderWorkspace/);
   assert.doesNotMatch(app, /state\.tasks = taskDetails;\s*if \(!state\.tasks\.some/);
   const evidence = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');

@@ -105,15 +105,16 @@ integrated chain and must not be reconstructed or used to roll it back.
 
 The current Artist-path block is A1.7. Its implementation-grounded D0 state
 contract is frozen in
-`tools/numberdroid-studio/docs/A1_7_STATE_CONTRACT.md`. The first separately
-classified L3 prerequisite, the minimal owner-safe task/adoption read
-projection, is now an **implemented candidate — not user accepted** and is
-recorded in
-`tools/numberdroid-studio/docs/A1_7_READ_PROJECTION_STATUS.md`. The next
-dependent block is one bounded visual review/correction candidate in the
-selected Agent task. Its visible path stops at **Waiting for your review** and
-adds no adoption, retry, owner review, merge, finalization, materialization,
-publication, or release authority.
+`tools/numberdroid-studio/docs/A1_7_STATE_CONTRACT.md`. The separately
+classified minimal owner-safe task/adoption read projection and its dependent
+bounded selected-task visual review/correction surface are now **implemented
+candidates — not user accepted**, recorded in
+`tools/numberdroid-studio/docs/A1_7_READ_PROJECTION_STATUS.md` and
+`tools/numberdroid-studio/docs/A1_7_UI_CANDIDATE_STATUS.md`. The visible path
+stops at **Waiting for your review** and adds no adoption, retry, owner review,
+merge, finalization, materialization, publication, or release authority. Klaus's
+visual return gate and the remaining required deterministic processing
+operations keep A1 incomplete.
 
 While Klaus cannot run live tests, safe candidate work follows the adaptive
 D0/L1/L2/L3 policy in

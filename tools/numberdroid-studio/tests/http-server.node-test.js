@@ -135,7 +135,7 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(cutterPollHelpers, /!state\.cutterJob \|\| \(state\.cutterJob\.jobId === jobId[\s\S]*scheduleCutterJobPoll\(binding, 1000\)/);
   assert.match(cutterPollHelpers, /\['QUEUED', 'RUNNING'\]\.includes\(response\.job\.state\)[\s\S]*scheduleCutterJobPoll\(binding, 300\)[\s\S]*else cancelCutterJobPolling\(\)/);
   assert.match(clientScript, /preserveWorkspaceIfUnchanged: passive/);
-  assert.match(clientScript, /renderProject\(\{ preserveWorkspace, preserveCutterDraft: preserveWorkspaceIfUnchanged \}\)/);
+  assert.match(clientScript, /renderProject\(\{[\s\S]*preserveWorkspace,[\s\S]*preserveCutterDraft: preserveWorkspaceIfUnchanged,[\s\S]*preserveTaskContext:/);
   assert.match(clientScript, /setInterval\(\(\) => refresh\(\{ quiet: true, passive: true \}\), 5000\)/);
   assert.match(clientScript, /previousWorkspaceFingerprint === workspaceRenderFingerprint\(\)/);
   const loadProjectStart = clientScript.indexOf('async function loadProject');

@@ -2,8 +2,8 @@
 
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
-Baseline recorded: 2026-08-28 at A1.5-closure `main`
-`5816c88e14b74e521d742c3966b5186b7651f661`. Receivers MUST replace this with
+Baseline recorded: 2026-08-29 at A1.7 read-projection `main`
+`df2e65a02d1c10ca7de9084539ebc262865f206b`. Receivers MUST replace this with
 newer verified `main` truth as work lands.
 
 ## Purpose
@@ -37,6 +37,7 @@ Keep these states distinct:
 | VT-008 | A1.6b1 host-bound adoption admission | NEEDS KLAUS REVIEW | VT-007 | Accept/revise the current Binding/Grant replay and mutation-UoW admission boundary |
 | VT-009 | A1.6b2a private Authoring-v2 session | NEEDS KLAUS REVIEW | VT-008 | Accept/revise the one-shot/full-admission versus ledger-first commit boundary |
 | VT-010 | A1.6b2b Authoring-v2 MCP transport | NEEDS KLAUS REVIEW | VT-009 | Accept/revise explicit handshake-gated 31/6 discovery, fresh authority, and restart replay |
+| VT-011 | A1.7 processed-asset review UI candidate | NEEDS KLAUS LIVE | VT-000 and VT-004–VT-010 | Accept/revise the selected-task preview, correction hierarchy, responsive layout, fallback, and return-state continuity |
 
 Future A1, O0/O1, MCP, UI, backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate.
@@ -796,6 +797,110 @@ accepted** state.
   schema-v13 databases, portable bundles, HostBindings, Grants, task ledgers,
   adoption rows, retained CAS objects, and audit rows require no downgrade,
   cleanup, or repair.
+
+## VT-011 — A1.7 processed-asset review UI candidate
+
+- **Implementation:** the implementation-grounded D0 contract was integrated
+  through PR [#167](https://github.com/KlausUllrich/numberdroid/pull/167) as
+  merge commit `385620d1155db215b0dfaa80f2a27b6fc770a58f`; the separately
+  classified read projection was integrated through PR
+  [#168](https://github.com/KlausUllrich/numberdroid/pull/168) as merge commit
+  `df2e65a02d1c10ca7de9084539ebc262865f206b`. The bounded visual candidate is
+  PR [#169](https://github.com/KlausUllrich/numberdroid/pull/169), based on that
+  exact `main`, with implementation head
+  `d8fe20a3f9628eac9230ad44a35941204e05f42c`. Its merge SHA and final tested
+  `main` are assigned at source integration. The visible result is
+  **implemented candidate — not user accepted**.
+- **State/dependency:** `NEEDS KLAUS LIVE`; depends on VT-000 for the protected
+  Studio baseline and on VT-004–VT-010 for the adoption semantics and private
+  transport it presents without extending. Automated rendering and Chrome
+  evidence cannot accept the visual hierarchy or correction experience.
+- **Safe fixture/reset:** use only one newly allocated, empty temporary Studio
+  directory. The fixture refuses a non-empty target. Never use
+  `.numberdroid-studio`, an active workspace, checkout, backup, or another
+  return-test directory. From `tools/numberdroid-studio/` on Linux/macOS:
+
+  ```bash
+  A1_7_RETURN_DATA="$(mktemp -d)"
+  node scripts/prepare-visual-a1-7-evidence.js "$A1_7_RETURN_DATA"
+  NUMBERDROID_STUDIO_DATA="$A1_7_RETURN_DATA" npm run dev
+  ```
+
+  On Windows PowerShell:
+
+  ```powershell
+  $studioA17Return = Join-Path ([System.IO.Path]::GetTempPath()) ("numberdroid-a1-7-return-" + [guid]::NewGuid())
+  New-Item -ItemType Directory -Path $studioA17Return
+  node scripts/prepare-visual-a1-7-evidence.js $studioA17Return
+  $env:NUMBERDROID_STUDIO_DATA = $studioA17Return
+  npm run dev
+  ```
+
+- **Bounded Chrome walkthrough and expected result:**
+  1. Open `http://127.0.0.1:4317`, choose **Agent tasks**, and select
+     **Review processed transfer console**. Do not invoke submit-review, owner
+     decision, merge, revert, lifecycle, materialization, publication, or
+     release controls during this visual gate.
+  2. Confirm **Processed asset draft** appears directly after **Current step**
+     and before general task facts, visibly labeled **implemented candidate —
+     not user accepted** with the successful state **Waiting for your review**.
+  3. At 1440×900, judge the two-column preview/facts hierarchy: the exact
+     64×64 transfer-console image remains centered and contained on the
+     checkerboard, with useful name, dimensions and no implied Main/FINAL state.
+  4. Inspect the eight correction subjects and one unresolved warning. Confirm
+     that each explanation/remediation is scannable and that absence, a denied
+     attempt, and a durable DRAFT are not visually conflated.
+  5. Open and close **History** and **Technical details**. Confirm that version
+     identifiers remain secondary, disclosures are keyboard-focusable, and no
+     authority, digest, CAS path, workspace path, or new action control appears.
+  6. Reload once, then switch to another workspace and back. Confirm the task
+     returns coherently without stealing the other workspace, and that a
+     compatible refresh retains focus, text selection, disclosure and scroll
+     context rather than resetting the whole page.
+  7. Repeat the selected-task inspection at 1060×900. Confirm preview and facts
+     stack without horizontal overflow, clipped controls, replaced image, or a
+     new shell/minimum-width regression.
+  8. Record accept or revise for the preview treatment, correction/warning
+     hierarchy, fallback clarity, responsive composition and retained context.
+     Automation cannot record acceptance; until Klaus does, the result remains
+     **implemented candidate — not user accepted** and **Waiting for your
+     review**.
+- **Automated evidence at local source freeze:** 17/17 focused A1.7/CP4.5/HTTP
+  regression and 540/540 full Studio tests pass; 156 JavaScript files pass the
+  syntax checker and its self-test; protected production-adapter evidence is
+  `VERIFIED` at source-manifest hash
+  `7468adf14333c5fe9bce872526223ebf0134fb90ebf33d1ac2f5d809aa680673`.
+  Fresh-fixture refusal, production Authoring-v2 fixture preparation and
+  graceful SIGTERM shutdown pass. Five final actual-diff reviews are **GO**.
+  Markdown checks cover 89 links across 199 files with zero failures; Markdown
+  and classifier self-tests pass. The
+  exact 18-path classifier selects docs, Root, Root visual, Studio, Studio
+  visual, Studio Windows, Pages and full lanes because the changed Actions
+  workflow is intentionally fail-closed. PR/main Actions jobs, Chrome artifact
+  ID, screenshots, merge SHA and final `main` are filled after CI/source
+  integration.
+- **Required platform/evidence:** desktop Chrome at exactly 1440×900 and
+  1060×900. CI must retain and inspect the safe A1.7 evidence bundle containing
+  both screenshots, bounded DOM/Accessibility observations, transport log,
+  manifest and checksums. That artifact is automated evidence only and cannot
+  replace Klaus's live judgment.
+- **Known limits:** read-only selected-task presentation only. There is no new
+  processing operation, task submission, owner review/decision, merge/revert,
+  finalization, lifecycle promotion, Main/CP2C mutation, materialization,
+  publication, release, mobile/device gate, or end-to-end `IMG-006` acceptance.
+  Generic pre-existing task controls remain outside the A1.7 section and are
+  deliberately not exercised here.
+- **Open Klaus decision:** accept or revise the exact low-fidelity hierarchy,
+  useful preview/fallback behavior, correction and unresolved-warning copy,
+  technical disclosure depth, two protected responsive layouts and compatible
+  refresh/context retention. Only Klaus can close this visual product gate.
+- **Recovery:** stop Studio and retain the exact temporary directory until the
+  result is recorded. Then discard only that uniquely allocated directory
+  through normal temporary-file cleanup and clear
+  `NUMBERDROID_STUDIO_DATA` in PowerShell. The candidate adds no migration or
+  durable format; source rollback needs no SQLite/bundle downgrade, CAS or
+  reference cleanup, task/Main repair, materialized-file cleanup, publication
+  rollback, or release rollback.
 
 ## Required record for every new candidate
 

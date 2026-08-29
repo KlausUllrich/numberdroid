@@ -4,10 +4,11 @@ Status: **IMPLEMENTED CANDIDATE — NOT USER ACCEPTED**
 
 This separately classified L3 prerequisite implements the minimal human-safe,
 read-only projection required by the frozen
-[`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md). It does not implement the
-A1.7 browser surface. The visible product candidate remains pending and, when
-implemented, must stop at **Waiting for your review** with the explicit label
-**implemented candidate — not user accepted**.
+[`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md). The dependent browser
+surface is now a separate implemented candidate recorded in
+[`A1_7_UI_CANDIDATE_STATUS.md`](A1_7_UI_CANDIDATE_STATUS.md). It stops at
+**Waiting for your review** with the explicit label **implemented candidate —
+not user accepted**.
 
 ## Bounded result
 
@@ -82,8 +83,9 @@ Local candidate evidence on 2026-08-29:
   production startup wiring.
 
 Automated evidence and source integration cannot satisfy the deferred Klaus
-visual/live gate. `VT-011` is created only after the separate bounded visual
-candidate exists; until then A1.7 and A1 remain incomplete.
+visual/live gate. The combined visible return test is recorded as `VT-011` now
+that the separate bounded visual candidate exists. A1.7 remains unaccepted and
+A1 remains incomplete.
 
 ## Safe rollback
 
