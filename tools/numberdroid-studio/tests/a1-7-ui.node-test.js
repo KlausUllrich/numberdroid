@@ -161,11 +161,16 @@ test('A1.7 passive refresh fingerprints bounded attempts and preserves compatibl
   assert.match(app, /captureTaskTextSelection/);
   assert.match(app, /restoreTaskTextSelection/);
   assert.match(app, /range\.cloneContents\(\)\.textContent\.length/);
+  assert.match(app, /function textPositionCandidates/);
+  assert.match(app, /const starts = textPositionCandidates\(container, saved\.start\)\.reverse\(\)/);
+  assert.match(app, /if \(range\.toString\(\) !== saved\.text\) continue/);
+  assert.match(app, /function taskScrollElements[\s\S]*root\.matches\('\[data-task-scroll\]'\)/);
+  assert.match(app, /for \(const element of taskScrollElements\(root\)\)/);
   assert.match(app, /reviewContext: review\?\.dataset\.taskReviewContext/);
   assert.match(app, /if \(preserveTaskContext\) captureTaskDomState\(\)/);
   assert.match(app, /if \(preserveTaskContext\) restoreTaskDomState\(\)/);
   const taskRestore = app.slice(app.indexOf('function restoreTaskDomState'), app.indexOf('function settleRoomEditorControlFocus'));
-  assert.ok(taskRestore.indexOf('restoreTaskTextSelection') < taskRestore.indexOf("root.querySelectorAll('[data-task-scroll]')"));
+  assert.ok(taskRestore.indexOf('restoreTaskTextSelection') < taskRestore.indexOf('taskScrollElements(root)'));
   assert.match(app, /function requestTaskAdoptionProjection[\s\S]*AbortController[\s\S]*5_000/);
   assert.match(app, /requestTaskAdoptionProjection\(projectId, selectedTaskId\)/);
   const openTaskDetail = app.slice(

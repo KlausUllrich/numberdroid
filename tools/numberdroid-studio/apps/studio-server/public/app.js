@@ -907,14 +907,18 @@ function captureTaskTextSelection(root) {
   };
 }
 
-function textPosition(container, offset) {
+function textPositionCandidates(container, offset) {
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const candidates = [];
   let remaining = offset; let node = walker.nextNode();
   while (node) {
-    if (remaining <= node.data.length) return { node, offset: remaining };
+    if (remaining >= 0 && remaining <= node.data.length) {
+      candidates.push({ node, offset: remaining });
+    }
+    if (remaining < node.data.length) break;
     remaining -= node.data.length; node = walker.nextNode();
   }
-  return null;
+  return candidates;
 }
 
 function restoreTaskTextSelection(root, saved) {
@@ -922,12 +926,29 @@ function restoreTaskTextSelection(root, saved) {
   const container = [...root.querySelectorAll('[data-task-selection-key]')]
     .find((candidate) => candidate.dataset.taskSelectionKey === saved.key)
     ?? (root.dataset.taskSelectionKey === saved.key ? root : null);
-  if (!container || container.textContent.slice(saved.start, saved.end) !== saved.text) return;
-  const start = textPosition(container, saved.start); const end = textPosition(container, saved.end);
-  if (!start || !end) return;
-  const range = document.createRange();
-  range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset);
-  const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+  if (!container) return;
+  const starts = textPositionCandidates(container, saved.start).reverse();
+  const ends = textPositionCandidates(container, saved.end);
+  for (const start of starts) {
+    for (const end of ends) {
+      const range = document.createRange();
+      try {
+        range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset);
+      } catch {
+        continue;
+      }
+      if (range.toString() !== saved.text) continue;
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      return;
+    }
+  }
+}
+
+function taskScrollElements(root) {
+  return [
+    ...(root.matches('[data-task-scroll]') ? [root] : []),
+    ...root.querySelectorAll('[data-task-scroll]'),
+  ];
 }
 
 function captureTaskDomState() {
@@ -936,7 +957,7 @@ function captureTaskDomState() {
   if (!root) return;
   const active = document.activeElement?.closest?.('[data-task-focus-key]');
   const scroll = {};
-  for (const element of root.querySelectorAll('[data-task-scroll]')) {
+  for (const element of taskScrollElements(root)) {
     scroll[element.dataset.taskScroll] = { left: element.scrollLeft, top: element.scrollTop };
   }
   const disclosures = {};
@@ -988,7 +1009,7 @@ function restoreTaskDomState() {
   }
   restoreTaskTextSelection(root, saved.textSelection);
   window.scrollTo(saved.page.x, saved.page.y);
-  for (const element of root.querySelectorAll('[data-task-scroll]')) {
+  for (const element of taskScrollElements(root)) {
     const position = saved.scroll[element.dataset.taskScroll];
     if (!position) continue;
     element.scrollLeft = Math.max(0, Math.min(position.left, Math.max(0, element.scrollWidth - element.clientWidth)));
