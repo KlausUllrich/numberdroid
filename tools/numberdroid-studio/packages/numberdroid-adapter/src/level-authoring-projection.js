@@ -5,11 +5,14 @@ import {
   validateLevelRequirementSet,
   validateLogicGraph,
 } from '../../domain/src/index.js';
-import { createNumberdroidProjectCapabilityProfile } from './project-capabilities.js';
+import {
+  createNumberdroidA4bProjectCapabilityProfile,
+  createNumberdroidProjectCapabilityProfile,
+} from './project-capabilities.js';
 
-export const NUMBERDROID_LEVEL_AUTHORING_PROJECTION_SCHEMA_VERSION = 1;
+export const NUMBERDROID_LEVEL_AUTHORING_PROJECTION_SCHEMA_VERSION = 2;
 export const NUMBERDROID_LEVEL_AUTHORING_PROJECTION_KIND = 'numberdroid.level-authoring-projection';
-export const NUMBERDROID_LEVEL_AUTHORING_PROJECTION_VERSION = 'numberdroid.level-authoring-projection.v1';
+export const NUMBERDROID_LEVEL_AUTHORING_PROJECTION_VERSION = 'numberdroid.level-authoring-projection.v2';
 
 const ADAPTER_VERSION = 'numberdroid-studio.adapter.v1';
 const BASELINE_CAPABILITY_FINGERPRINT = '826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049';
@@ -72,11 +75,14 @@ const MATH_ROLES = new Set(['comfort', 'core', 'stretch', 'specialist', 'boss'])
 const DIFFICULTIES = new Set(['easy', 'medium', 'hard']);
 const ZONE_ANCHOR_KINDS = new Set(['space-center', 'connection', 'prop', 'actor', 'route', 'pickup']);
 const ROUTE_POSITIONS = new Set(['start', 'middle', 'end']);
-const TRIGGER_KINDS = new Set(['enter-space', 'enter-zone', 'interact', 'collect', 'state-change', 'proximity', 'timer']);
+const TRIGGER_KINDS = new Set(['enter-space', 'enter-zone', 'interact', 'collect', 'state-change', 'proximity', 'timer', 'actor-defeated']);
 const PROP_ROTATIONS = new Set([0, 90, 180, 270]);
 
 const EVENT_FIELDS = Object.freeze(Object.assign(Object.create(null), {
   'set-flag': ['id', 'kind', 'flag', 'value'],
+  'drop-item': ['id', 'kind', 'actorId', 'pickupId'],
+  'set-variable': ['id', 'kind', 'variableId', 'value'],
+  'show-text': ['id', 'kind', 'textRefId'],
   'grant-key': ['id', 'kind', 'keyId'],
   'unlock-door': ['id', 'kind', 'doorId'],
   'lock-door': ['id', 'kind', 'doorId'],
@@ -91,6 +97,7 @@ const GAP_DESCRIPTIONS = Object.freeze({
   'numberdroid.requirement-trace.not-authored': 'Current Numberdroid LevelSpec values do not author A3a requirement and assumption traces.',
   'numberdroid.props.asset-transform-pins-missing': 'Numberdroid prop requests do not carry the immutable asset/version/metadata/fingerprint and transform pins required by A3a placements.',
   'numberdroid.encounters.archetype-version-missing': 'Numberdroid encounter intents do not carry an immutable actor archetype version pin.',
+  'numberdroid.encounters.actor-reference-not-projected': 'A pinned Numberdroid encounter cannot project because its Space or Route is outside the safe A3a closure.',
   'numberdroid.staged-actors.archetype-version-missing': 'Numberdroid staged actors do not carry an immutable actor archetype version pin.',
   'numberdroid.routes.repeated-space-not-representable': 'A3a routes require unique ordered space identifiers, while Numberdroid routes may repeat spaces.',
   'numberdroid.identifiers.a3a-vocabulary-mismatch': 'One or more valid Numberdroid identifiers are outside the stricter A3a identifier vocabulary.',
@@ -101,6 +108,7 @@ const GAP_DESCRIPTIONS = Object.freeze({
 });
 
 const BASELINE_CAPABILITY = createNumberdroidProjectCapabilityProfile(ADAPTER_VERSION);
+const A4B_CAPABILITY = createNumberdroidA4bProjectCapabilityProfile(ADAPTER_VERSION);
 if (BASELINE_CAPABILITY.fingerprint !== BASELINE_CAPABILITY_FINGERPRINT) {
   throw new Error('Numberdroid production capability baseline changed without an A4a contract update.');
 }
@@ -415,7 +423,7 @@ function validateProp(value, label) {
 
 function validateEncounter(value, label) {
   const encounter = exactRecord(value, ['id', 'spaceId', 'enemyId', 'bodyId', 'behavior', 'mode', 'mathLabel', 'difficulty'],
-    ['mathRole', 'boss', 'tags', 'preferredWall', 'avoidDoorClearance', 'patrolRouteId'], label);
+    ['actorArchetype', 'mathRole', 'boss', 'tags', 'preferredWall', 'avoidDoorClearance', 'patrolRouteId'], label);
   requireId(encounter.id, `${label}.id`);
   requireId(encounter.spaceId, `${label}.spaceId`);
   requireEnum(encounter.enemyId, ENEMIES, `${label}.enemyId`);
@@ -424,6 +432,11 @@ function validateEncounter(value, label) {
   requireEnum(encounter.mode, MATH_MODES, `${label}.mode`);
   requireSourceText(encounter.mathLabel, `${label}.mathLabel`);
   requireEnum(encounter.difficulty, DIFFICULTIES, `${label}.difficulty`);
+  optional(encounter, 'actorArchetype', (entry) => {
+    const archetype = exactRecord(entry, ['id', 'version'], [], `${label}.actorArchetype`);
+    requireId(archetype.id, `${label}.actorArchetype.id`);
+    requireInteger(archetype.version, `${label}.actorArchetype.version`, { min: 1 });
+  });
   optional(encounter, 'mathRole', (entry) => requireEnum(entry, MATH_ROLES, `${label}.mathRole`));
   optional(encounter, 'boss', (entry) => requireBoolean(entry, `${label}.boss`));
   optional(encounter, 'tags', (entry) => validateStringArray(entry, `${label}.tags`));
@@ -451,13 +464,27 @@ function validateRoute(value, label) {
 }
 
 function validatePickup(value, label) {
-  const pickup = exactRecord(value, ['id', 'kind', 'keyId', 'spaceId'], ['propId', 'label'], label);
+  const pickup = exactRecord(value, ['id', 'kind', 'keyId', 'spaceId'], ['initiallyPresent', 'propId', 'label'], label);
   requireId(pickup.id, `${label}.id`);
   invariant(pickup.kind === 'access-key', 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${label}.kind is unsupported.`, { field: `${label}.kind` });
   requireId(pickup.keyId, `${label}.keyId`);
   requireId(pickup.spaceId, `${label}.spaceId`);
+  optional(pickup, 'initiallyPresent', (entry) => requireBoolean(entry, `${label}.initiallyPresent`));
   optional(pickup, 'propId', (entry) => requireSourceText(entry, `${label}.propId`));
   optional(pickup, 'label', (entry) => requireSourceText(entry, `${label}.label`));
+}
+
+function validateVariable(value, label) {
+  const variable = exactRecord(value, ['id', 'type', 'initialValue'], [], label);
+  requireId(variable.id, `${label}.id`);
+  invariant(variable.type === 'boolean', 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${label}.type is unsupported.`, { field: `${label}.type` });
+  requireBoolean(variable.initialValue, `${label}.initialValue`);
+}
+
+function validateTextReference(value, label) {
+  const reference = exactRecord(value, ['id', 'text'], [], label);
+  requireId(reference.id, `${label}.id`);
+  requireSourceText(reference.text, `${label}.text`, { max: 4_096, empty: false });
 }
 
 function validateZone(value, label) {
@@ -492,7 +519,7 @@ function validateTrigger(value, label) {
 }
 
 function validateEvent(value, label) {
-  const base = exactRecord(value, ['id', 'kind'], ['flag', 'value', 'keyId', 'doorId', 'actorId', 'spaceId', 'routeId', 'durationMs', 'beatId', 'blocking'], label);
+  const base = exactRecord(value, ['id', 'kind'], ['flag', 'value', 'keyId', 'doorId', 'actorId', 'pickupId', 'variableId', 'textRefId', 'spaceId', 'routeId', 'durationMs', 'beatId', 'blocking'], label);
   requireId(base.id, `${label}.id`);
   requireString(base.kind, `${label}.kind`, { max: 64 });
   invariant(Object.hasOwn(EVENT_FIELDS, base.kind), 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${label}.kind is unsupported.`, { field: `${label}.kind`, value: base.kind });
@@ -507,6 +534,15 @@ function validateEvent(value, label) {
     if (typeof base.value === 'string') requireSourceText(base.value, `${label}.value`);
   }
   if (base.kind === 'grant-key') requireId(base.keyId, `${label}.keyId`);
+  if (base.kind === 'drop-item') {
+    requireId(base.actorId, `${label}.actorId`);
+    requireId(base.pickupId, `${label}.pickupId`);
+  }
+  if (base.kind === 'set-variable') {
+    requireId(base.variableId, `${label}.variableId`);
+    requireBoolean(base.value, `${label}.value`);
+  }
+  if (base.kind === 'show-text') requireId(base.textRefId, `${label}.textRefId`);
   if (base.kind === 'unlock-door' || base.kind === 'lock-door') requireId(base.doorId, `${label}.doorId`);
   if (['spawn-actor', 'despawn-actor', 'move-actor', 'actor-passby'].includes(base.kind)) requireId(base.actorId, `${label}.actorId`);
   if (base.kind === 'spawn-actor') requireId(base.spaceId, `${label}.spaceId`);
@@ -575,7 +611,7 @@ function validateRuntime(value, label) {
 
 function validateLevelSpecSnapshot(spec) {
   const root = exactRecord(spec, ['id', 'version', 'seed', 'ruleSetRefs', 'rules', 'spaces', 'connections', 'props', 'encounters'],
-    ['runtime', 'stagedActors', 'routes', 'pickups', 'zones', 'triggers', 'events', 'overrides'], 'levelSpec');
+    ['runtime', 'stagedActors', 'routes', 'pickups', 'variables', 'textReferences', 'zones', 'triggers', 'events', 'overrides'], 'levelSpec');
   requireId(root.id, 'levelSpec.id');
   requireInteger(root.version, 'levelSpec.version', { min: 1 });
   if (typeof root.seed === 'string') requireId(root.seed, 'levelSpec.seed');
@@ -591,7 +627,8 @@ function validateLevelSpecSnapshot(spec) {
 
   const collections = [
     ['spaces', validateSpace, 1], ['connections', validateConnection, 0], ['props', validateProp, 0], ['encounters', validateEncounter, 0],
-    ['stagedActors', validateStagedActor, 0], ['routes', validateRoute, 0], ['pickups', validatePickup, 0], ['zones', validateZone, 0],
+    ['stagedActors', validateStagedActor, 0], ['routes', validateRoute, 0], ['pickups', validatePickup, 0],
+    ['variables', validateVariable, 0], ['textReferences', validateTextReference, 0], ['zones', validateZone, 0],
     ['triggers', validateTrigger, 0], ['events', validateEvent, 0], ['overrides', validateOverride, 0],
   ];
   const semanticIds = new Set();
@@ -742,7 +779,7 @@ function validateCompiledPropMetadata(value, label, expectedId) {
 
 function validatePlanClosure(planValue, source) {
   const plan = snapshotPlainData(planValue, 'compiler.semanticPlan', SEMANTIC_PLAN_SNAPSHOT_LIMITS);
-  const required = ['levelId', 'version', 'seed', 'ruleSetRefs', 'rules', 'spaces', 'connections', 'props', 'encounters', 'stagedActors', 'routes', 'pickups', 'zones', 'triggers', 'events', 'overrides', 'diagnostics'];
+  const required = ['levelId', 'version', 'seed', 'ruleSetRefs', 'rules', 'spaces', 'connections', 'props', 'encounters', 'stagedActors', 'routes', 'pickups', 'variables', 'textReferences', 'zones', 'triggers', 'events', 'overrides', 'diagnostics'];
   exactRecord(plan, required, ['runtime'], 'compiler.semanticPlan');
   invariant(plan.levelId === source.id && plan.version === source.version,
     'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', 'The semantic plan identity/version does not match the LevelSpec.');
@@ -754,7 +791,7 @@ function validatePlanClosure(planValue, source) {
   if (Object.hasOwn(source, 'runtime')) invariant(sameValue(plan.runtime, source.runtime),
     'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', 'The semantic-plan runtime value does not preserve the LevelSpec runtime.');
 
-  const collectionFields = ['spaces', 'connections', 'props', 'encounters', 'stagedActors', 'routes', 'pickups', 'zones', 'triggers', 'events', 'overrides'];
+  const collectionFields = ['spaces', 'connections', 'props', 'encounters', 'stagedActors', 'routes', 'pickups', 'variables', 'textReferences', 'zones', 'triggers', 'events', 'overrides'];
   for (const field of collectionFields) {
     const sourceEntries = source[field] ?? [];
     const planEntries = plan[field];
@@ -876,6 +913,22 @@ function buildA3aProjection(source) {
     .slice(0, A3A_COLLECTION_LIMIT)
     .map((route) => ({ routeId: route.id, kind: route.kind, spaceIds: [...route.spaceIds], ...trace() }));
   const routeIds = new Set(routes.map((route) => route.routeId));
+  const actors = source.encounters
+    .filter((actor) => a3aId(actor.id)
+      && actor.actorArchetype
+      && a3aId(actor.actorArchetype.id)
+      && spaceIds.has(actor.spaceId)
+      && (!actor.patrolRouteId || routeIds.has(actor.patrolRouteId)))
+    .slice(0, A3A_COLLECTION_LIMIT)
+    .map((actor) => ({
+      actorId: actor.id,
+      kind: 'encounter',
+      archetype: { archetypeId: actor.actorArchetype.id, version: actor.actorArchetype.version },
+      spaceId: actor.spaceId,
+      routeId: actor.patrolRouteId ?? null,
+      ...trace(),
+    }));
+  const actorIds = new Set(actors.map((actor) => actor.actorId));
   const pickups = (source.pickups ?? [])
     .filter((pickup) => a3aId(pickup.id) && a3aId(pickup.keyId) && spaceIds.has(pickup.spaceId))
     .slice(0, A3A_COLLECTION_LIMIT)
@@ -894,12 +947,74 @@ function buildA3aProjection(source) {
       return [{ zoneId: zone.id, kind: 'trigger-zone', spaceId: zone.spaceId, anchor: { kind: anchor.kind, targetId: null }, ...trace() }];
     }
     const projectedTarget = (anchor.kind === 'connection' && connectionIds.has(anchor.targetId))
+      || (anchor.kind === 'actor' && actorIds.has(anchor.targetId))
       || (anchor.kind === 'route' && routeIds.has(anchor.targetId))
       || (anchor.kind === 'pickup' && pickupIds.has(anchor.targetId));
     return projectedTarget && a3aId(anchor.targetId)
       ? [{ zoneId: zone.id, kind: 'trigger-zone', spaceId: zone.spaceId, anchor: { kind: anchor.kind, targetId: anchor.targetId }, ...trace() }]
       : [];
   }).slice(0, A3A_COLLECTION_LIMIT);
+
+  const variables = (source.variables ?? [])
+    .filter((variable) => a3aId(variable.id) && variable.type === 'boolean' && typeof variable.initialValue === 'boolean')
+    .slice(0, A3A_COLLECTION_LIMIT)
+    .map((variable) => ({ variableId: variable.id, type: variable.type, initialValue: variable.initialValue, ...trace() }));
+  const variableIds = new Set(variables.map((variable) => variable.variableId));
+  const textReferences = (source.textReferences ?? [])
+    .filter((reference) => a3aId(reference.id))
+    .slice(0, A3A_COLLECTION_LIMIT)
+    .map((reference) => ({ textRefId: reference.id, ...trace() }));
+  const textReferenceIds = new Set(textReferences.map((reference) => reference.textRefId));
+  const actions = (source.events ?? []).flatMap((event) => {
+    if (!a3aId(event.id)) return [];
+    if (event.kind === 'drop-item' && actorIds.has(event.actorId) && pickupIds.has(event.pickupId)) {
+      return [{ actionId: event.id, kind: event.kind, actorId: event.actorId, pickupId: event.pickupId, ...trace() }];
+    }
+    if (event.kind === 'set-variable' && variableIds.has(event.variableId) && typeof event.value === 'boolean') {
+      return [{ actionId: event.id, kind: event.kind, variableId: event.variableId, value: event.value, ...trace() }];
+    }
+    if (event.kind === 'show-text' && textReferenceIds.has(event.textRefId)) {
+      return [{ actionId: event.id, kind: event.kind, textRefId: event.textRefId, ...trace() }];
+    }
+    return [];
+  }).slice(0, A3A_COLLECTION_LIMIT);
+  const actionIds = new Set(actions.map((action) => action.actionId));
+  const triggers = (source.triggers ?? []).flatMap((trigger) => {
+    if (!a3aId(trigger.id)
+      || trigger.once !== true
+      || (trigger.delayMs ?? 0) !== 0
+      || !trigger.eventIds.every((eventId) => a3aId(eventId) && actionIds.has(eventId))) return [];
+    const core = {
+      triggerId: trigger.id,
+      kind: trigger.kind,
+      conditionIds: [],
+      actionIds: [...trigger.eventIds],
+      ...trace(),
+    };
+    if (trigger.kind === 'actor-defeated' && actorIds.has(trigger.sourceId)) return [{ ...core, actorId: trigger.sourceId }];
+    if (trigger.kind === 'collect' && pickupIds.has(trigger.sourceId)) return [{ ...core, pickupId: trigger.sourceId }];
+    if (trigger.kind === 'state-change' && variableIds.has(trigger.sourceId)) return [{ ...core, variableId: trigger.sourceId }];
+    return [];
+  }).slice(0, A3A_COLLECTION_LIMIT);
+  const logicBindings = triggers.flatMap((trigger) => {
+    if (trigger.kind === 'actor-defeated') {
+      return [{
+        bindingId: `binding.${stableIdentity(trigger.triggerId)}`,
+        target: { kind: 'actor', id: trigger.actorId },
+        triggerIds: [trigger.triggerId],
+        ...trace(),
+      }];
+    }
+    if (trigger.kind === 'collect') {
+      return [{
+        bindingId: `binding.${stableIdentity(trigger.triggerId)}`,
+        target: { kind: 'pickup', id: trigger.pickupId },
+        triggerIds: [trigger.triggerId],
+        ...trace(),
+      }];
+    }
+    return [];
+  });
 
   const levelGraph = validateLevelGraph({
     schemaVersion: 1,
@@ -917,10 +1032,10 @@ function buildA3aProjection(source) {
     zones,
     paths: [],
     placements: [],
-    actors: [],
+    actors,
     routes,
     pickups,
-    logicBindings: [],
+    logicBindings,
   });
   const logicGraph = validateLogicGraph({
     schemaVersion: 1,
@@ -933,11 +1048,11 @@ function buildA3aProjection(source) {
       version: levelGraph.version,
       fingerprint: a3aSha256(levelGraph),
     },
-    variables: [],
-    textReferences: [],
+    variables,
+    textReferences,
     conditions: [],
-    triggers: [],
-    actions: [],
+    triggers,
+    actions,
   });
   return {
     requirementSet,
@@ -983,7 +1098,6 @@ function analyzeGaps(source, a3a) {
   };
   add('numberdroid.requirement-trace.not-authored', '/');
   if (source.props.length) add('numberdroid.props.asset-transform-pins-missing', '/props');
-  if (source.encounters.length) add('numberdroid.encounters.archetype-version-missing', '/encounters');
   if ((source.stagedActors ?? []).length) add('numberdroid.staged-actors.archetype-version-missing', '/stagedActors');
   (source.routes ?? []).forEach((route, index) => {
     if (new Set(route.spaceIds).size !== route.spaceIds.length) add('numberdroid.routes.repeated-space-not-representable', `/routes/${index}/spaceIds`);
@@ -994,6 +1108,11 @@ function analyzeGaps(source, a3a) {
     routes: new Set(a3a.levelGraph.routes.map((entry) => entry.routeId)),
     pickups: new Set(a3a.levelGraph.pickups.map((entry) => entry.pickupId)),
     zones: new Set(a3a.levelGraph.zones.map((entry) => entry.zoneId)),
+    actors: new Set(a3a.levelGraph.actors.map((entry) => entry.actorId)),
+    variables: new Set(a3a.logicGraph.variables.map((entry) => entry.variableId)),
+    textReferences: new Set(a3a.logicGraph.textReferences.map((entry) => entry.textRefId)),
+    triggers: new Set(a3a.logicGraph.triggers.map((entry) => entry.triggerId)),
+    events: new Set(a3a.logicGraph.actions.map((entry) => entry.actionId)),
   };
   source.spaces.forEach((entry, index) => {
     if (!projected.spaces.has(entry.id)) add(a3aId(entry.id)
@@ -1005,6 +1124,16 @@ function analyzeGaps(source, a3a) {
       ? 'numberdroid.a3a.collection-limit-exceeded'
       : 'numberdroid.identifiers.a3a-vocabulary-mismatch', `/connections/${index}`);
   });
+  source.encounters.forEach((entry, index) => {
+    if (projected.actors.has(entry.id)) return;
+    if (!entry.actorArchetype) add('numberdroid.encounters.archetype-version-missing', `/encounters/${index}`);
+    else if (!a3aId(entry.id) || !a3aId(entry.actorArchetype.id) || !a3aId(entry.spaceId)
+      || (entry.patrolRouteId && !a3aId(entry.patrolRouteId))) {
+      add('numberdroid.identifiers.a3a-vocabulary-mismatch', `/encounters/${index}`);
+    } else if (!projected.spaces.has(entry.spaceId) || (entry.patrolRouteId && !projected.routes.has(entry.patrolRouteId))) {
+      add('numberdroid.encounters.actor-reference-not-projected', `/encounters/${index}`);
+    } else add('numberdroid.a3a.collection-limit-exceeded', `/encounters/${index}`);
+  });
   (source.routes ?? []).forEach((entry, index) => {
     if (!projected.routes.has(entry.id) && (new Set(entry.spaceIds).size === entry.spaceIds.length)) add(a3aId(entry.id) && entry.spaceIds.every(a3aId)
       ? 'numberdroid.a3a.collection-limit-exceeded'
@@ -1015,11 +1144,21 @@ function analyzeGaps(source, a3a) {
       ? 'numberdroid.a3a.collection-limit-exceeded'
       : 'numberdroid.identifiers.a3a-vocabulary-mismatch', `/pickups/${index}`);
   });
+  (source.variables ?? []).forEach((entry, index) => {
+    if (!projected.variables.has(entry.id)) add(a3aId(entry.id)
+      ? 'numberdroid.a3a.collection-limit-exceeded'
+      : 'numberdroid.identifiers.a3a-vocabulary-mismatch', `/variables/${index}`);
+  });
+  (source.textReferences ?? []).forEach((entry, index) => {
+    if (!projected.textReferences.has(entry.id)) add(a3aId(entry.id)
+      ? 'numberdroid.a3a.collection-limit-exceeded'
+      : 'numberdroid.identifiers.a3a-vocabulary-mismatch', `/textReferences/${index}`);
+  });
   (source.zones ?? []).forEach((entry, index) => {
     if (!projected.zones.has(entry.id)) {
       if (!a3aId(entry.id) || !a3aId(entry.spaceId) || ('targetId' in entry.anchor && !a3aId(entry.anchor.targetId))) add('numberdroid.identifiers.a3a-vocabulary-mismatch', `/zones/${index}`);
       else if (!projected.spaces.has(entry.spaceId)) add('numberdroid.a3a.collection-limit-exceeded', `/zones/${index}`);
-      else if (entry.anchor.kind === 'prop' || entry.anchor.kind === 'actor'
+      else if (entry.anchor.kind === 'prop' || (entry.anchor.kind === 'actor' && !projected.actors.has(entry.anchor.targetId))
         || (entry.anchor.kind === 'connection' && !projected.connections.has(entry.anchor.targetId))
         || (entry.anchor.kind === 'route' && !projected.routes.has(entry.anchor.targetId))
         || (entry.anchor.kind === 'pickup' && !projected.pickups.has(entry.anchor.targetId))) {
@@ -1027,10 +1166,12 @@ function analyzeGaps(source, a3a) {
       } else add('numberdroid.a3a.collection-limit-exceeded', `/zones/${index}`);
     }
   });
-  if ((source.triggers ?? []).length) add('numberdroid.logic.a3a-vocabulary-mismatch', '/triggers');
-  if ((source.events ?? []).length) add('numberdroid.logic.a3a-vocabulary-mismatch', '/events');
+  (source.triggers ?? []).forEach((trigger, index) => {
+    if (!projected.triggers.has(trigger.id)) add('numberdroid.logic.a3a-vocabulary-mismatch', `/triggers/${index}`);
+  });
   (source.events ?? []).forEach((event, index) => {
     if (event.kind === 'set-flag') add('numberdroid.flags.declaration-type-initial-value-missing', `/events/${index}`);
+    else if (!projected.events.has(event.id)) add('numberdroid.logic.a3a-vocabulary-mismatch', `/events/${index}`);
   });
   const gaps = [...affected.entries()].map(([gapId, pointers]) => ({
     gapId,
@@ -1045,15 +1186,23 @@ function gapForPointer(source, pointer, projected) {
   const segments = pointer === '/' ? [] : pointer.slice(1).split('/').map(unescapePointer);
   const [collection, indexText, field] = segments;
   const index = Number(indexText);
+  const entry = Number.isInteger(index) ? source[collection]?.[index] : null;
   if (collection === 'props' && source.props.length) return 'numberdroid.props.asset-transform-pins-missing';
-  if (collection === 'encounters' && source.encounters.length) return 'numberdroid.encounters.archetype-version-missing';
+  if (collection === 'encounters' && entry && !projected.actors.has(entry.id)) {
+    if (!entry.actorArchetype) return 'numberdroid.encounters.archetype-version-missing';
+    if (!a3aId(entry.id) || !a3aId(entry.actorArchetype.id) || !a3aId(entry.spaceId)
+      || (entry.patrolRouteId && !a3aId(entry.patrolRouteId))) return 'numberdroid.identifiers.a3a-vocabulary-mismatch';
+    if (!projected.spaces.has(entry.spaceId) || (entry.patrolRouteId && !projected.routes.has(entry.patrolRouteId))) {
+      return 'numberdroid.encounters.actor-reference-not-projected';
+    }
+    return 'numberdroid.a3a.collection-limit-exceeded';
+  }
   if (collection === 'stagedActors' && (source.stagedActors ?? []).length) return 'numberdroid.staged-actors.archetype-version-missing';
-  if (collection === 'triggers' && (source.triggers ?? []).length) return 'numberdroid.logic.a3a-vocabulary-mismatch';
+  if (collection === 'triggers' && entry && !projected.triggers.has(entry.id)) return 'numberdroid.logic.a3a-vocabulary-mismatch';
   if (collection === 'events' && (source.events ?? []).length) {
     if (source.events[index]?.kind === 'set-flag') return 'numberdroid.flags.declaration-type-initial-value-missing';
-    return 'numberdroid.logic.a3a-vocabulary-mismatch';
+    if (entry && !projected.events.has(entry.id)) return 'numberdroid.logic.a3a-vocabulary-mismatch';
   }
-  const entry = Number.isInteger(index) ? source[collection]?.[index] : null;
   if (collection === 'spaces' && entry && !projected.spaces.has(entry.id)) return a3aId(entry.id)
     ? 'numberdroid.a3a.collection-limit-exceeded'
     : 'numberdroid.identifiers.a3a-vocabulary-mismatch';
@@ -1070,12 +1219,18 @@ function gapForPointer(source, pointer, projected) {
   if (collection === 'pickups' && entry && !projected.pickups.has(entry.id)) return a3aId(entry.id) && a3aId(entry.keyId) && a3aId(entry.spaceId)
     ? 'numberdroid.a3a.collection-limit-exceeded'
     : 'numberdroid.identifiers.a3a-vocabulary-mismatch';
+  if (collection === 'variables' && entry && !projected.variables.has(entry.id)) return a3aId(entry.id)
+    ? 'numberdroid.a3a.collection-limit-exceeded'
+    : 'numberdroid.identifiers.a3a-vocabulary-mismatch';
+  if (collection === 'textReferences' && entry && !projected.textReferences.has(entry.id)) return a3aId(entry.id)
+    ? 'numberdroid.a3a.collection-limit-exceeded'
+    : 'numberdroid.identifiers.a3a-vocabulary-mismatch';
   if (collection === 'zones' && entry && !projected.zones.has(entry.id)) {
     return !a3aId(entry.id) || !a3aId(entry.spaceId) || ('targetId' in entry.anchor && !a3aId(entry.anchor.targetId))
       ? 'numberdroid.identifiers.a3a-vocabulary-mismatch'
       : !projected.spaces.has(entry.spaceId)
         ? 'numberdroid.a3a.collection-limit-exceeded'
-        : entry.anchor.kind === 'prop' || entry.anchor.kind === 'actor'
+        : entry.anchor.kind === 'prop' || (entry.anchor.kind === 'actor' && !projected.actors.has(entry.anchor.targetId))
           || (entry.anchor.kind === 'connection' && !projected.connections.has(entry.anchor.targetId))
           || (entry.anchor.kind === 'route' && !projected.routes.has(entry.anchor.targetId))
           || (entry.anchor.kind === 'pickup' && !projected.pickups.has(entry.anchor.targetId))
@@ -1094,8 +1249,18 @@ function a3aFieldPointer(source, pointer, projected) {
   if (!entry) return false;
   if (collection === 'spaces' && projected.spaces.has(entry.id)) return ['id', 'kind'].includes(field);
   if (collection === 'connections' && projected.connections.has(entry.id)) return ['id', 'kind', 'from', 'to'].includes(field);
+  if (collection === 'encounters' && projected.actors.has(entry.id)) {
+    return ['id', 'spaceId', 'patrolRouteId'].includes(field)
+      || (field === 'actorArchetype' && ['id', 'version'].includes(nested));
+  }
   if (collection === 'routes' && projected.routes.has(entry.id)) return ['id', 'kind'].includes(field) || (field === 'spaceIds' && nested !== undefined);
   if (collection === 'pickups' && projected.pickups.has(entry.id)) return ['id', 'kind', 'keyId', 'spaceId'].includes(field);
+  if (collection === 'variables' && projected.variables.has(entry.id)) return ['id', 'type', 'initialValue'].includes(field);
+  if (collection === 'textReferences' && projected.textReferences.has(entry.id)) return field === 'id';
+  if (collection === 'triggers' && projected.triggers.has(entry.id)) {
+    return ['id', 'kind', 'sourceId'].includes(field) || (field === 'eventIds' && nested !== undefined);
+  }
+  if (collection === 'events' && projected.events.has(entry.id)) return field !== undefined;
   if (collection === 'zones' && projected.zones.has(entry.id)) {
     return ['id', 'spaceId'].includes(field) || (field === 'anchor' && nested !== 'position');
   }
@@ -1121,27 +1286,32 @@ function buildCoverage(source, projected, gaps) {
 
 function buildCapabilityDelta() {
   return {
-    status: 'NOT_ADVERTISED',
+    status: 'ADVERTISED',
     baseline: {
       profileId: BASELINE_CAPABILITY.manifest.profileId,
       profileVersion: BASELINE_CAPABILITY.manifest.profileVersion,
       fingerprint: BASELINE_CAPABILITY.fingerprint,
     },
+    target: {
+      profileId: A4B_CAPABILITY.manifest.profileId,
+      profileVersion: A4B_CAPABILITY.manifest.profileVersion,
+      fingerprint: A4B_CAPABILITY.fingerprint,
+    },
     modules: [
-      { id: 'studio.level-requirements', status: 'A3A_PROJECTION_ONLY' },
-      { id: 'studio.level-graph', status: 'A3A_PROJECTION_ONLY' },
-      { id: 'studio.actor-route', status: 'BLOCKED' },
-      { id: 'studio.typed-logic', status: 'BLOCKED' },
-      { id: 'studio.dialogue-text', status: 'BLOCKED' },
+      { id: 'studio.level-requirements', status: 'ADVERTISED' },
+      { id: 'studio.level-graph', status: 'ADVERTISED' },
+      { id: 'studio.actor-route', status: 'ADVERTISED' },
+      { id: 'studio.typed-logic', status: 'ADVERTISED' },
+      { id: 'studio.dialogue-text', status: 'ADVERTISED' },
     ],
     vocabulary: {
-      triggerKinds: [{ id: 'actor-defeated', status: 'BLOCKED' }],
+      triggerKinds: [{ id: 'actor-defeated', status: 'ADVERTISED' }],
       actionKinds: [
-        { id: 'drop-item', status: 'BLOCKED' },
-        { id: 'set-variable', status: 'BLOCKED' },
-        { id: 'show-text', status: 'BLOCKED' },
+        { id: 'drop-item', status: 'ADVERTISED' },
+        { id: 'set-variable', status: 'ADVERTISED' },
+        { id: 'show-text', status: 'ADVERTISED' },
       ],
-      variableTypes: [{ id: 'boolean', status: 'BLOCKED' }],
+      variableTypes: [{ id: 'boolean', status: 'ADVERTISED' }],
     },
   };
 }

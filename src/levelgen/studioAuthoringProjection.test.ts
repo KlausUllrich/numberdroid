@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error A4a intentionally verifies the JavaScript-only Studio adapter boundary.
-import { NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT, createNumberdroidLevelAuthoringProjection, validateNumberdroidLevelAuthoringProjection } from "../../tools/numberdroid-studio/packages/numberdroid-adapter/src/index.js";
+import {
+  NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT,
+  NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST,
+  NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT,
+  createNumberdroidLevelAuthoringProjection,
+  validateNumberdroidLevelAuthoringProjection,
+} from "../../tools/numberdroid-studio/packages/numberdroid-adapter/src/index.js";
+// @ts-expect-error A4b verifies the JavaScript-only Studio application kernel boundary.
+import { validateLevelAuthoringKernel } from "../../tools/numberdroid-studio/packages/application/src/index.js";
 // @ts-expect-error The Node-only authority hash helper stays outside the browser TypeScript graph.
 import { numberdroidLevelCompilerVersion } from "../../tools/numberdroid-studio/tests/helpers/numberdroid-level-compiler-authority.js";
 import { compileLevelSpec } from "./compiler";
 import { validatePlacementOverrides } from "./overrides";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { BIOARK_PASSBY_PROOF_SPEC } from "./specs/bioArkPassbyProof";
+import { A4B_REFERENCE_LEVEL_SPEC } from "./specs/a4bReference";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
 import type { LevelSpec } from "./types";
 
@@ -135,5 +144,57 @@ describe("A4a Numberdroid level-authoring projection", () => {
     const projection = project(TS01_LEVEL_SPEC);
     const serialized = structuredClone(projection);
     expect(validateNumberdroidLevelAuthoringProjection(serialized, compiler)).toEqual(projection);
+  });
+
+  it("projects the real A4b fixture into one closed Actor-to-text A3a graph and advertised profile", () => {
+    const projection = project(A4B_REFERENCE_LEVEL_SPEC);
+    expect(projection.a3a.levelGraph.actors).toEqual([
+      expect.objectContaining({
+        actorId: "guard-actor",
+        archetype: { archetypeId: "numberdroid.sentry.guard", version: 1 },
+        routeId: "guard-route",
+      }),
+    ]);
+    expect(projection.a3a.levelGraph.pickups).toEqual([
+      expect.objectContaining({ pickupId: "guard-key", itemId: "guard-access" }),
+    ]);
+    expect(projection.a3a.logicGraph.variables).toEqual([
+      expect.objectContaining({ variableId: "state.guard-key-collected", type: "boolean", initialValue: false }),
+    ]);
+    expect(projection.a3a.logicGraph.textReferences).toEqual([
+      expect.objectContaining({ textRefId: "text.guard-key-collected" }),
+    ]);
+    expect(projection.a3a.logicGraph.conditions).toEqual([]);
+    expect(projection.a3a.logicGraph.triggers.map((trigger: { kind: string }) => trigger.kind).sort()).toEqual([
+      "actor-defeated",
+      "collect",
+      "state-change",
+    ]);
+    expect(projection.a3a.logicGraph.actions.map((action: { kind: string }) => action.kind).sort()).toEqual([
+      "drop-item",
+      "set-variable",
+      "show-text",
+    ]);
+    expect(projection.source.levelSpec.textReferences[0].text).toBe("<SYSTEM> WÄCHTER-ZUGANG GESICHERT");
+    expect(projection.gaps.map((gap: { gapId: string }) => gap.gapId)).toEqual([
+      "numberdroid.requirement-trace.not-authored",
+    ]);
+    expect(projection.capabilityDelta).toMatchObject({
+      status: "ADVERTISED",
+      baseline: { fingerprint: NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT },
+      target: { profileVersion: 3, fingerprint: NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT },
+    });
+
+    const validation = validateLevelAuthoringKernel({
+      requirementSet: projection.a3a.requirementSet,
+      levelGraph: projection.a3a.levelGraph,
+      logicGraph: projection.a3a.logicGraph,
+      capabilityManifest: NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST,
+    });
+    expect(validation.status).toBe("VALID");
+    expect(validation.findings.length).toBeGreaterThan(0);
+    expect(validation.findings.every((finding: { severity: string; ruleId: string }) =>
+      finding.severity === "WARNING" && finding.ruleId === "LEVEL_AUTHORING_TRACE_MISSING")).toBe(true);
+    expect(validateNumberdroidLevelAuthoringProjection(structuredClone(projection), compiler)).toEqual(projection);
   });
 });

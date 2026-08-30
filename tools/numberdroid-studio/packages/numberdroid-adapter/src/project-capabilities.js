@@ -241,3 +241,53 @@ export function createNumberdroidAuthoringV2ProjectCapabilityProfile(adapterVers
     fingerprint: projectCapabilityManifestSha256(validated),
   });
 }
+
+/**
+ * Additive A4b production profile. Historical v1/v2 manifests remain exact;
+ * consumers must deliberately select this bounded compiler/runtime contract.
+ */
+export function createNumberdroidA4bProjectCapabilityProfile(adapterVersion) {
+  const manifest = structuredClone(createNumberdroidAuthoringV2ProjectCapabilityProfile(adapterVersion).manifest);
+  manifest.profileVersion = 3;
+  const levelSpecModule = manifest.modules.find(({ id }) => id === 'numberdroid.level-spec');
+  levelSpecModule.version = 'v1';
+  manifest.modules.push(
+    { id: 'studio.level-requirements', version: 'v1' },
+    { id: 'studio.level-graph', version: 'v1' },
+    { id: 'studio.actor-route', version: 'v1' },
+    { id: 'studio.typed-logic', version: 'v1' },
+    { id: 'studio.dialogue-text', version: 'v1' },
+  );
+  manifest.vocabulary.triggerKinds.push('actor-defeated');
+  manifest.vocabulary.actionKinds.push('drop-item', 'set-variable', 'show-text');
+  manifest.vocabulary.variableTypes.push('boolean');
+  for (const format of manifest.outputFormats) {
+    if (format.id === formats.levelSpec || format.id === formats.compiledLevelSpec) format.version = 1;
+  }
+  for (const operation of manifest.operations) {
+    if (operation.id === 'numberdroid.compiler.compile-level-spec'
+      || operation.id === 'numberdroid.compiler.compile-workbench-plan') operation.version = 2;
+  }
+  manifest.limits.push(
+    { id: 'numberdroid.a4b.max-variables', value: 512, unit: 'items' },
+    { id: 'numberdroid.a4b.max-text-references', value: 512, unit: 'items' },
+    { id: 'numberdroid.a4b.max-triggers', value: 512, unit: 'items' },
+    { id: 'numberdroid.a4b.max-actions', value: 512, unit: 'items' },
+    { id: 'numberdroid.a4b.max-visible-text-code-units', value: 4096, unit: 'code-units' },
+  );
+  manifest.extensions['numberdroid.studio'].levelSpecContract = 'v1';
+  const implemented = new Set([
+    'actor-authoring',
+    'actor-defeated-trigger',
+    'drop-actions',
+    'visible-text',
+    'typed-variables',
+  ]);
+  manifest.extensions['numberdroid.studio'].unsupportedFeatures = manifest.extensions['numberdroid.studio'].unsupportedFeatures
+    .filter((feature) => !implemented.has(feature));
+  const validated = validateProjectCapabilityManifest(manifest);
+  return Object.freeze({
+    manifest: validated,
+    fingerprint: projectCapabilityManifestSha256(validated),
+  });
+}
