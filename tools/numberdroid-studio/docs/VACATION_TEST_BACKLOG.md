@@ -2,10 +2,10 @@
 
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
-Source baseline recorded: 2026-08-29 at integrated A1.7 visual-candidate `main`
-`2bac6e77d5e8dae8ee88021aaa9dfba7345c5196`. A later documentation-only
-integration record does not change the candidate runtime tree. Receivers MUST
-replace this with newer verified source `main` truth as work lands.
+Source baseline recorded: 2026-08-30 at integrated O1a backend-candidate `main`
+`b40e3deb3af5ad501aadc43e1f980e35a2670962`. The O1b visual candidate is based
+on that exact source. Receivers MUST replace this with newer verified source
+`main` truth as work lands.
 
 ## Purpose
 
@@ -39,16 +39,17 @@ Keep these states distinct:
 | VT-009 | A1.6b2a private Authoring-v2 session | NEEDS KLAUS REVIEW | VT-008 | Accept/revise the one-shot/full-admission versus ledger-first commit boundary |
 | VT-010 | A1.6b2b Authoring-v2 MCP transport | NEEDS KLAUS REVIEW | VT-009 | Accept/revise explicit handshake-gated 31/6 discovery, fresh authority, and restart replay |
 | VT-011 | A1.7 processed-asset review UI candidate | NEEDS KLAUS LIVE | VT-000 and VT-004–VT-010 | Accept/revise the selected-task preview, correction hierarchy, responsive layout, fallback, and return-state continuity |
+| VT-012 | O1b first Backups UI candidate | NEEDS KLAUS LIVE | VT-000 and integrated O0/O1a | Accept/revise the backup safety hierarchy and Create, Verify, Recovery-test, Restore-as-copy workflow without activation |
 
-Future A1, O1, MCP, UI, backup, remote, and mobile blocks MUST append their own
-ID only after implementation exists. Planned work is not a candidate. The
+Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
+own ID only after implementation exists. Planned work is not a candidate. The
 documentation-only O0 decision in
 [`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md) receives no
 `VT-` item. The non-visual O1a implementation recorded in
 [`O1A_BACKUP_CORE_STATUS.md`](O1A_BACKUP_CORE_STATUS.md) likewise has no live
 visual acceptance surface and therefore receives no `VT-` item. The required
-first O1b backup UI must append `VT-012` only when that implementation candidate
-exists.
+first O1b backup UI now exists as an **implemented candidate — not user
+accepted**, so its bounded live gate is recorded as `VT-012` below.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
 [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately
@@ -929,6 +930,131 @@ accepted** state.
   durable format; source rollback needs no SQLite/bundle downgrade, CAS or
   reference cleanup, task/Main repair, materialized-file cleanup, publication
   rollback, or release rollback.
+
+## VT-012 — O1b first Backups UI candidate
+
+- **Implementation:** O0 froze the governing safety and UI contract in
+  [`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md). The O1a
+  external-ledger backend was integrated through PR
+  [#175](https://github.com/KlausUllrich/numberdroid/pull/175) as `main`
+  `b40e3deb3af5ad501aadc43e1f980e35a2670962`. The O1b candidate is PR
+  [#176](https://github.com/KlausUllrich/numberdroid/pull/176), developed from
+  that exact base. Its implementation source-freeze head
+  `67464d7906109e8d16d607686b38ba7a99a373bf` has tree
+  `75a661d7b0e67a6e868735e36cb181142e1838dd`. The final product/evidence
+  head before the session-transition handoff is
+  `a11362329c5d0cd659fb2e73bcc518c8e9b6009e`, tree
+  `83088f6ba5727c9a23db5734891ecfac9585152c`. Build #2248, run
+  [33287719553](https://github.com/KlausUllrich/numberdroid/actions/runs/33287719553),
+  is green. The visible result is **implemented candidate — not user
+  accepted**.
+- **State/dependency:** `NEEDS KLAUS LIVE`; depends on VT-000 and the integrated
+  O0/O1a safety boundary. Automated HTTP, SQLite and Chrome evidence cannot
+  accept the human hierarchy, copy, or recovery confidence.
+- **Safe fixture/reset:** use only one newly allocated, empty temporary root.
+  The helper refuses relative, symlinked, or non-empty roots and creates four
+  fixed disjoint subroots plus the administrator-owned operations config. Never
+  use `.numberdroid-studio`, an active workspace, checkout, real backup root,
+  or another return-test directory. From `tools/numberdroid-studio/` on
+  Linux/macOS:
+
+  ```bash
+  O1B_RETURN_ROOT="$(mktemp -d)"
+  node scripts/prepare-o1b-backups-return-fixture.js "$O1B_RETURN_ROOT"
+  NUMBERDROID_STUDIO_DATA="$O1B_RETURN_ROOT/live-workspace" \
+  NUMBERDROID_STUDIO_OPERATIONS_CONFIG="$O1B_RETURN_ROOT/operations.json" \
+  npm run dev
+  ```
+
+  On Windows PowerShell:
+
+  ```powershell
+  $studioO1bReturn = Join-Path ([System.IO.Path]::GetTempPath()) ("numberdroid-o1b-return-" + [guid]::NewGuid())
+  New-Item -ItemType Directory -Path $studioO1bReturn
+  node scripts/prepare-o1b-backups-return-fixture.js $studioO1bReturn
+  $env:NUMBERDROID_STUDIO_DATA = Join-Path $studioO1bReturn 'live-workspace'
+  $env:NUMBERDROID_STUDIO_OPERATIONS_CONFIG = Join-Path $studioO1bReturn 'operations.json'
+  npm run dev
+  ```
+
+- **Bounded Chrome walkthrough and expected result:**
+  1. Open `http://127.0.0.1:4317/#backups`. Before unlock, confirm the page says
+     **implemented candidate — not user accepted**, shows no backup metadata,
+     and asks for the one-use code printed once to the controlling terminal.
+  2. Enter that code. Confirm the hierarchy is current safety → **Create backup
+     now** and configured destination → current durable operation → backup list
+     → selected backup/actions → closed technical details. No raw path appears.
+  3. Choose **Create backup now**. Confirm durable **Waiting to start**, then
+     phase-specific running progress, survive navigation/reload and finish as
+     **Backup complete and verified**. A lost browser response must not create a
+     second durable operation when the same action is retried.
+  4. Open the created backup and choose **Verify again**, then **Test recovery**.
+     Confirm the visible terminal states distinguish verification from
+     **Recovery test passed** and keep active work authoritative.
+  5. Choose **Restore as a new working copy**. Confirm the result explicitly
+     says the copy is ready for inspection and **It is not active**. There is no
+     activate, switch, delete, cleanup, retention, remote, agent, or MCP action.
+  6. Stop and restart Studio with the same two environment variables. Use the
+     newly printed one-use code; the earlier browser session must be invalid.
+     Confirm the four durable operation results and created backup remain.
+  7. For the deliberate damaged/failure case, remain inside this disposable
+     fixture. Copy the exact **Backup ID** from its closed technical details,
+     stop Studio, and rename only
+     `$O1B_RETURN_ROOT/backups/backup-<BACKUP_ID>` to the same name with
+     `.return-test-hidden` appended. Restart, unlock, select that registry row,
+     and choose **Verify again**. Confirm a safe failure plus visible **Missing**
+     health, while recovery and restore are disabled and Verify remains
+     available. Rename that exact directory back before any successful recheck.
+     On PowerShell use the corresponding exact paths beneath
+     `$studioO1bReturn\backups`; do not use a wildcard.
+  8. Inspect the filled list and selected detail at exactly 1440×900 and
+     1060×900. Confirm no horizontal overflow, visible keyboard focus, and that
+     a compatible passive refresh retains selection, focus, list scroll and an
+     open technical disclosure.
+  9. Record accept or revise for the safety summary, action prominence, durable
+     progress, backup list/detail hierarchy, failure/remediation copy,
+     responsive composition and restored-not-active truth. Until Klaus records
+     that decision, O1 remains **implemented candidate — not user accepted** and
+     stops at **Waiting for your review**.
+- **Automated evidence at local pre-PR source review:** 19/19 focused O1b
+  session/controller/HTTP/real-SQLite/UI/fixture tests, 4/4 external-ledger
+  tests, and 36/36 focused O1a/runtime/reconciliation/HTTP/gateway/package
+  compatibility tests pass. The full Studio suite reports 610 total, 606
+  passed, zero failed and four expected Windows-only skips. All 187 JavaScript
+  files pass syntax checking; syntax, classifier and Markdown self-tests pass,
+  and Markdown checks cover 103 links across 202 files with zero failures. Two
+  independent actual-diff reviews are **GO**. At final product/evidence head
+  `a11362329c5d0cd659fb2e73bcc518c8e9b6009e`, the selected `build`,
+  `studio`, `studio-windows`, and `CI gate` jobs succeeded; Pages was
+  correctly skipped. Artifact `numberdroid-studio-o1b-backups-evidence`, ID
+  `9725029756`, is 6,869,776 bytes with digest
+  `sha256:bf16de952ef38301e81fdb99cdc02646efcbea1209df1a01bf976908d46aa40e`
+  and expires `2026-09-13T02:25:52Z`. These are regression/evidence gates,
+  not live acceptance.
+- **Required platform/evidence:** desktop Chrome at exactly 1440×900 and
+  1060×900. CI must retain the bounded O1b evidence bundle with unavailable,
+  locked, empty, queued, running, filled-list, verified, recovery-passed,
+  failed, interrupted, unverified, suspect, missing and restored-not-active
+  screenshots, Accessibility observations and secret/token/path scan. That
+  artifact cannot replace Klaus's live judgment.
+- **Known limits:** exactly Create, Verify, Recovery-test and Restore-as-copy.
+  No deletion, cleanup/retention, activation/cutover, remote function, proxy
+  trust, MCP/agent authority, owner review, merge/finalization,
+  materialization, publication or release authority. The restored copy remains
+  quarantined and inactive.
+- **Open Klaus decision:** accept or revise the first backup safety hierarchy,
+  launcher-code experience, durable progress and result copy, list/detail and
+  technical disclosure depth, failure/damaged remediation, protected desktop
+  layouts, context retention, and explicit restored-not-active boundary. Only
+  Klaus can close this O1 product gate; O2 and O3 remain blocked.
+- **Recovery:** stop Studio and retain the exact temporary fixture root until
+  the result is recorded. Restore any `.return-test-hidden` directory to its
+  exact original name first. Then discard only that uniquely allocated root
+  through normal temporary-file cleanup. In PowerShell also run
+  `Remove-Item Env:NUMBERDROID_STUDIO_DATA` and
+  `Remove-Item Env:NUMBERDROID_STUDIO_OPERATIONS_CONFIG`. Do not delete an
+  active or real workspace/backup directory. The candidate adds no live
+  workspace migration and grants no activation or cleanup authority.
 
 ## Required record for every new candidate
 

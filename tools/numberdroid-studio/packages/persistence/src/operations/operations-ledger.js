@@ -709,6 +709,44 @@ export class OperationsLedger {
       .all(limit).map(operationProjection);
   }
 
+  listOperationsForOverview({ limit = 100 } = {}) {
+    invariant(Number.isSafeInteger(limit) && limit >= 2 && limit <= 500,
+      'VALIDATION_ERROR', 'overview limit must be between 2 and 500.');
+    const selected = this.#database.prepare(`
+      SELECT * FROM operations ORDER BY created_at DESC, operation_id DESC LIMIT ?
+    `).all(limit);
+    const essential = this.#database.prepare(`
+      SELECT * FROM operations
+      WHERE operation_id = (
+        SELECT operation_id FROM operations WHERE status = 'RUNNING'
+        ORDER BY created_at, operation_id LIMIT 1
+      ) OR operation_id = (
+        SELECT operation_id FROM operations WHERE status = 'QUEUED'
+        ORDER BY created_at, operation_id LIMIT 1
+      )
+    `).all();
+    const essentialIds = new Set(essential.map(({ operation_id: operationId }) => operationId));
+    const selectedIds = new Set(selected.map(({ operation_id: operationId }) => operationId));
+    for (const row of essential) {
+      if (selectedIds.has(row.operation_id)) continue;
+      if (selected.length >= limit) {
+        let removeIndex = selected.length - 1;
+        while (removeIndex >= 0 && essentialIds.has(selected[removeIndex].operation_id)) removeIndex -= 1;
+        invariant(removeIndex >= 0, 'OPERATIONS_UNAVAILABLE', 'The operation overview cannot retain its durable current state.');
+        selectedIds.delete(selected[removeIndex].operation_id);
+        selected.splice(removeIndex, 1);
+      }
+      selected.push(row);
+      selectedIds.add(row.operation_id);
+    }
+    selected.sort((left, right) => {
+      if (left.created_at !== right.created_at) return left.created_at < right.created_at ? 1 : -1;
+      if (left.operation_id === right.operation_id) return 0;
+      return left.operation_id < right.operation_id ? 1 : -1;
+    });
+    return selected.map(operationProjection);
+  }
+
   listOperationsForReconciliation() {
     return this.#database.prepare(`
       SELECT * FROM operations WHERE status IN ('QUEUED', 'RUNNING')
@@ -1282,9 +1320,11 @@ export class OperationsLedger {
     return backupWorkerRecord(this.#database.prepare('SELECT * FROM backups WHERE backup_id = ?').get(safeId));
   }
 
-  listBackups() {
-    return this.#database.prepare('SELECT * FROM backups ORDER BY registered_at DESC, backup_id DESC')
-      .all().map(backupProjection);
+  listBackups({ limit = 100 } = {}) {
+    invariant(Number.isSafeInteger(limit) && limit >= 1 && limit <= 500,
+      'VALIDATION_ERROR', 'limit must be between 1 and 500.');
+    return this.#database.prepare('SELECT * FROM backups ORDER BY registered_at DESC, backup_id DESC LIMIT ?')
+      .all(limit).map(backupProjection);
   }
 
   recordBackupHealth({

@@ -17,6 +17,8 @@ export const LOCAL_WORKSPACE_OPERATOR_SUBJECT = 'local.workspace-operator';
 
 export const BACKUP_OPERATION_COMMAND_STORE_SCHEMA_VERSION = 1;
 export const BACKUP_OPERATION_COMMAND_STORE_KIND = 'studio.backup-operation-command-store';
+export const BACKUP_OPERATION_QUERY_STORE_SCHEMA_VERSION = 1;
+export const BACKUP_OPERATION_QUERY_STORE_KIND = 'studio.backup-operation-query-store';
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
@@ -203,6 +205,30 @@ export function validateBackupOperationCommandStore(value) {
     kind: BACKUP_OPERATION_COMMAND_STORE_KIND,
     reserveOperation: (reservation) => reserveOperation.call(value, reservation),
     readOperation: (selection) => readOperation.call(value, selection),
+  });
+}
+
+export function validateBackupOperationQueryStore(value) {
+  const port = exactPlainRecord(
+    value,
+    ['schemaVersion', 'kind', 'listRecentOperations'],
+    'backupOperationQueryStore',
+    'OPERATIONS_UNAVAILABLE',
+  );
+  invariant(
+    port.schemaVersion === BACKUP_OPERATION_QUERY_STORE_SCHEMA_VERSION
+      && port.kind === BACKUP_OPERATION_QUERY_STORE_KIND
+      && typeof port.listRecentOperations === 'function'
+      && !utilTypes.isProxy(port.listRecentOperations),
+    'OPERATIONS_UNAVAILABLE',
+    'Unsupported backup operation query store.',
+    { port: 'backupOperationQueryStore' },
+  );
+  const listRecentOperations = port.listRecentOperations;
+  return Object.freeze({
+    schemaVersion: BACKUP_OPERATION_QUERY_STORE_SCHEMA_VERSION,
+    kind: BACKUP_OPERATION_QUERY_STORE_KIND,
+    listRecentOperations: () => listRecentOperations.call(value),
   });
 }
 
@@ -447,5 +473,27 @@ export class BackupOperationService {
     );
     if (record === null) throw backupOperationFailure('OPERATION_NOT_FOUND');
     return projectBackupOperation(record);
+  }
+}
+
+export class BackupOperationQueryService {
+  #store;
+
+  constructor({ store } = {}) {
+    this.#store = validateBackupOperationQueryStore(store);
+  }
+
+  async listRecentOperations(contextValue) {
+    validateLocalWorkspaceOperatorContext(contextValue);
+    const records = await invokeStore(
+      () => this.#store.listRecentOperations(),
+      'OPERATIONS_UNAVAILABLE',
+    );
+    invariant(
+      Array.isArray(records) && !utilTypes.isProxy(records) && records.length <= 100,
+      'OPERATIONS_UNAVAILABLE',
+      'The recent backup operation projection is invalid.',
+    );
+    return deepFreeze(records.map((record) => projectBackupOperation(record)));
   }
 }

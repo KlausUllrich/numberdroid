@@ -32,8 +32,15 @@ import {
   SqliteProcessingResultAdoptionStore,
   SqliteSourceIntakeStore,
   TaskBranchProjectStore,
+  assertWorkspaceNotQuarantined,
 } from '../../../packages/persistence/src/index.js';
+import { BackupOperationsRuntime } from '../../../packages/persistence/src/operations/backup-operations-runtime.js';
+import {
+  readOperationsConfigurationFile,
+  validateOperationsConfiguration,
+} from '../../../packages/persistence/src/operations/operations-config.js';
 import { ensureDemoProject, runDemoAction } from './demo-project.js';
+import { BackupOperationsController } from './backup-operations-controller.js';
 import { createHumanAgentAccessController } from './human-agent-access.js';
 import { jobHttpProjection, projectHttpProjection } from './http-projections.js';
 import { AtlasPreviewWorker } from './atlas-preview-worker.js';
@@ -42,6 +49,10 @@ import {
   McpPairingBroker,
   startMcpPairingSocket,
 } from './mcp-pairing-broker.js';
+import {
+  generateWorkspaceOperatorBootstrapSecret,
+  writeWorkspaceOperatorBootstrapSecret,
+} from './workspace-operator-session.js';
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = resolve(moduleDirectory, '../public');
@@ -49,7 +60,9 @@ const staticFiles = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/a1-7-state.js', ['a1-7-state.js', 'text/javascript; charset=utf-8']],
+  ['/o1b-backups-state.js', ['o1b-backups-state.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
+  ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
 ]);
 const SECURITY_RESPONSE_HEADERS = {
   'cross-origin-resource-policy': 'same-origin',
@@ -161,7 +174,7 @@ function createPrivateAuthoringV2Runtime({
   return Object.freeze({ openSession, close });
 }
 
-function sendJson(response, status, value) {
+function sendJson(response, status, value, headers = {}) {
   const body = `${JSON.stringify(value)}\n`;
   response.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
@@ -169,11 +182,21 @@ function sendJson(response, status, value) {
     'cache-control': 'no-store',
     'x-content-type-options': 'nosniff',
     ...SECURITY_RESPONSE_HEADERS,
+    ...headers,
   });
   response.end(body);
 }
 
 function errorStatus(error, pathname = '') {
+  if (pathname.startsWith('/api/backups')) {
+    if (error.code === 'WORKSPACE_OPERATOR_REQUIRED') return 401;
+    if (['WORKSPACE_OPERATOR_FORBIDDEN', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
+    if (error.code === 'OPERATION_NOT_FOUND') return 404;
+    if (['OPERATION_IDEMPOTENCY_CONFLICT', 'OPERATION_STATE_CONFLICT', 'BACKUP_DESTINATION_CONFLICT'].includes(error.code)) return 409;
+    if (error.code === 'OPERATIONS_UNAVAILABLE') return 503;
+    if (['VALIDATION_ERROR', 'CONTENT_TYPE_REQUIRED', 'INVALID_JSON', 'BODY_TOO_LARGE', 'BACKUP_DESTINATION_UNKNOWN'].includes(error.code)) return 400;
+    return 500;
+  }
   if (pathname.startsWith('/internal/mcp/authoring-v2/')) {
     if (['AUTHORING_V2_REQUEST_INVALID', 'PROCESSING_RESULT_ADOPTION_COMMAND_INVALID', 'PROCESSING_RESULT_ADOPTION_COMMAND_SCHEMA_UNSUPPORTED', 'PROCESSING_RESULT_ADOPTION_COMMAND_SCOPE_MISMATCH'].includes(error.code)) return 400;
     if (['AUTHORING_V2_SESSION_CONSUMED', 'AUTHORING_V2_CAPABILITY_MISMATCH', 'AUTHORING_V2_ADMISSION_DRIFT', 'PROCESSING_RESULT_ADOPTION_REVALIDATION_BLOCKED', 'PROCESSING_RESULT_ADOPTION_CURRENT_ASSET_CONFLICT'].includes(error.code)) return 409;
@@ -570,6 +593,17 @@ function assertHumanUiMutation(request, csrfToken) {
   }
 }
 
+function assertHumanUiRead(request) {
+  const remoteAddress = request.socket.remoteAddress ?? '';
+  const loopbackRemote = remoteAddress === '127.0.0.1'
+    || remoteAddress === '::1'
+    || remoteAddress === '::ffff:127.0.0.1';
+  const hostUrl = loopbackOrigin(`http://${request.headers.host ?? ''}`);
+  if (!loopbackRemote || !hostUrl) {
+    throw new StudioError('UI_ORIGIN_FORBIDDEN', 'Human backup reads are available only on direct loopback.');
+  }
+}
+
 function redactInternalDetails(value) {
   if (Array.isArray(value)) return value.map(redactInternalDetails);
   if (!value || typeof value !== 'object') return value;
@@ -805,6 +839,7 @@ export function createStudioHttpServer({
   agentAttemptStore = null,
   jobStore = null,
   atlasPreviewWorker = null,
+  backupOperationsController = null,
 }) {
   if (!studioService) throw new TypeError('studioService is required.');
   const humanUiCsrfToken = randomBytes(32).toString('base64url');
@@ -835,6 +870,51 @@ export function createStudioHttpServer({
       }
       if (request.method === 'GET' && url.pathname === '/api/ui-session') {
         sendJson(response, 200, { schemaVersion: 1, csrfToken: humanUiCsrfToken });
+        return;
+      }
+      if (backupOperationsController !== null
+        && request.method === 'POST'
+        && url.pathname === '/api/backups/operator-session') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 1024 });
+        assertExactKeys(body, new Set(['schemaVersion', 'bootstrapSecret']), 'Backup operator bootstrap');
+        if (body.schemaVersion !== 1 || typeof body.bootstrapSecret !== 'string') {
+          throw new StudioError('VALIDATION_ERROR', 'The backup operator bootstrap is invalid.');
+        }
+        const secret = body.bootstrapSecret;
+        body.bootstrapSecret = null;
+        const unlocked = backupOperationsController.unlock(secret);
+        sendJson(response, 200, unlocked.projection, { 'set-cookie': unlocked.cookie });
+        return;
+      }
+      if (backupOperationsController !== null
+        && request.method === 'GET'
+        && url.pathname === '/api/backups') {
+        assertHumanUiRead(request);
+        sendJson(response, 200, await backupOperationsController.overview(request.headers.cookie));
+        return;
+      }
+      const backupOperationRead = backupOperationsController !== null && request.method === 'GET'
+        ? /^\/api\/backups\/operations\/([^/]+)$/.exec(url.pathname)
+        : null;
+      if (backupOperationRead) {
+        assertHumanUiRead(request);
+        sendJson(response, 200, await backupOperationsController.readOperation(
+          decodeURIComponent(backupOperationRead[1]),
+          request.headers.cookie,
+        ));
+        return;
+      }
+      if (backupOperationsController !== null
+        && request.method === 'POST'
+        && url.pathname === '/api/backups/operations') {
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        const body = await readJsonBody(request, { maxBytes: 2048 });
+        const accepted = await backupOperationsController.request(
+          body,
+          request.headers.cookie,
+        );
+        sendJson(response, 202, accepted);
         return;
       }
       if (request.method === 'GET' && url.pathname === '/api/projects') {
@@ -1805,7 +1885,9 @@ export function createStudioHttpServer({
         return;
       }
       const error = asStudioError(rawError);
-      const projected = url.pathname.startsWith('/internal/mcp/')
+      const projected = url.pathname.startsWith('/api/backups')
+        ? { code: error.code, message: error.message }
+        : url.pathname.startsWith('/internal/mcp/')
         ? internalMcpErrorProjection(error)
         : url.pathname.includes('/processing-result-adoptions')
           ? { code: error.code, message: error.message }
@@ -1826,6 +1908,10 @@ export async function startStudioHttpServer({
   storeMode = process.env.NUMBERDROID_STUDIO_STORE ?? 'sqlite',
   clock = () => new Date().toISOString(),
   authoringV2CapabilityProvider = null,
+  operationsConfigurationFilename = process.env.NUMBERDROID_STUDIO_OPERATIONS_CONFIG ?? null,
+  operationsBootstrapSecret = null,
+  operationsBootstrapWriter = writeWorkspaceOperatorBootstrapSecret,
+  operationsSessionClock = Date.now,
 } = {}) {
   if (!['sqlite', 'json'].includes(storeMode)) throw new TypeError('storeMode must be sqlite or json.');
   // Trusted programmatic composition only. The private admission service still
@@ -1841,9 +1927,29 @@ export async function startStudioHttpServer({
       { host },
     );
   }
+  const resolvedDataDirectory = resolve(dataDirectory);
+  let operationsConfiguration = null;
+  if (storeMode === 'sqlite') {
+    assertWorkspaceNotQuarantined(resolvedDataDirectory);
+    if (operationsConfigurationFilename !== null) {
+      operationsConfiguration = await readOperationsConfigurationFile(
+        operationsConfigurationFilename,
+      );
+      await validateOperationsConfiguration(operationsConfiguration, {
+        liveWorkspaceRoot: resolvedDataDirectory,
+      });
+    }
+  }
   const store = storeMode === 'sqlite'
-    ? await SqliteProjectStore.open({ filename: resolve(dataDirectory, 'studio.sqlite') })
+    ? await SqliteProjectStore.open({ filename: resolve(resolvedDataDirectory, 'studio.sqlite') })
     : new JsonProjectStore({ directory: dataDirectory });
+  let backupOperationsController = null;
+  let pairing = null;
+  let privateAuthoringV2Runtime = null;
+  let atlasPreviewWorker = null;
+  let server = null;
+  let closeComposedHttpServer = null;
+  try {
   const jobStore = storeMode === 'sqlite'
     ? new SqliteJobStore({ workspace: store.workspace })
     : null;
@@ -1862,21 +1968,46 @@ export async function startStudioHttpServer({
     : null;
   const pairingBroker = storeMode === 'sqlite' ? new McpPairingBroker() : null;
   const requestedPairingEndpoint = pairingBroker ? defaultMcpPairingEndpoint(dataDirectory) : null;
-  const pairing = pairingBroker
+  const artifactStore = storeMode === 'sqlite'
+    ? new ContentAddressedArtifactStore({ rootDirectory: resolve(resolvedDataDirectory, 'artifacts') })
+    : null;
+  await artifactStore?.initialize();
+  if (operationsConfiguration !== null) {
+    let backupOperationsRuntime = null;
+    try {
+      backupOperationsRuntime = await BackupOperationsRuntime.open({
+        configuration: operationsConfiguration,
+        liveWorkspaceRoot: resolvedDataDirectory,
+        projectStore: store,
+        artifactStore,
+        clock,
+      });
+      const bootstrapSecret = operationsBootstrapSecret
+        ?? generateWorkspaceOperatorBootstrapSecret();
+      if (operationsBootstrapSecret === null) {
+        await operationsBootstrapWriter(bootstrapSecret);
+      }
+      backupOperationsController = new BackupOperationsController({
+        runtime: backupOperationsRuntime,
+        bootstrapSecret,
+        clock: operationsSessionClock,
+      });
+    } catch {
+      await backupOperationsRuntime?.close().catch(() => {});
+      backupOperationsController = null;
+    }
+  }
+  pairing = pairingBroker
     ? await startMcpPairingSocket({ broker: pairingBroker, endpoint: requestedPairingEndpoint })
     : null;
   const pairingServer = pairing?.server ?? null;
   const pairingEndpoint = pairing?.endpoint ?? null;
-  const artifactStore = storeMode === 'sqlite'
-    ? new ContentAddressedArtifactStore({ rootDirectory: resolve(dataDirectory, 'artifacts') })
-    : null;
-  await artifactStore?.initialize();
   const privateAuthoringV2CapabilityProvider = storeMode === 'sqlite'
     ? (authoringV2CapabilityProvider ?? new FixedProjectCapabilityProvider({
       manifest: NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST,
     }))
     : null;
-  const privateAuthoringV2Runtime = storeMode === 'sqlite'
+  privateAuthoringV2Runtime = storeMode === 'sqlite'
     ? createPrivateAuthoringV2Runtime({
       workspace: store.workspace,
       artifactStore,
@@ -1919,10 +2050,10 @@ export async function startStudioHttpServer({
       capabilityProvider,
     })
     : null;
-  const atlasPreviewWorker = storeMode === 'sqlite'
+  atlasPreviewWorker = storeMode === 'sqlite'
     ? new AtlasPreviewWorker({ jobStore, artifactStore, artifactMetadataStore, clock })
     : null;
-  const server = createStudioHttpServer({
+  server = createStudioHttpServer({
     studioService,
     agentTaskService,
     processingResultAdoptionReadService,
@@ -1935,27 +2066,31 @@ export async function startStudioHttpServer({
     agentAttemptStore,
     jobStore,
     atlasPreviewWorker,
+    backupOperationsController,
   });
   if (privateAuthoringV2Runtime !== null) {
     privateAuthoringV2RuntimeByServer.set(server, privateAuthoringV2Runtime);
   }
   const closeHttpServer = server.close.bind(server);
+  closeComposedHttpServer = closeHttpServer;
   let shutdownPromise = null;
   server.close = (callback) => {
     if (!shutdownPromise) {
-      const workerStopped = atlasPreviewWorker?.stop() ?? Promise.resolve();
-      const authoringV2Stopped = privateAuthoringV2Runtime?.close() ?? Promise.resolve();
-      const httpClosed = new Promise((resolveClose, rejectClose) => {
-        closeHttpServer((error) => (error ? rejectClose(error) : resolveClose()));
-      });
-      shutdownPromise = Promise.all([
-        workerStopped,
-        authoringV2Stopped,
-        httpClosed,
-        pairing?.close() ?? Promise.resolve(),
-      ]).then(() => {
+      shutdownPromise = Promise.allSettled([
+        Promise.resolve().then(() => atlasPreviewWorker?.stop()),
+        Promise.resolve().then(() => privateAuthoringV2Runtime?.close()),
+        Promise.resolve().then(() => backupOperationsController?.close()),
+        new Promise((resolveClose, rejectClose) => {
+          closeHttpServer((error) => (error ? rejectClose(error) : resolveClose()));
+        }),
+        Promise.resolve().then(() => pairing?.close()),
+      ]).then((results) => {
         privateAuthoringV2RuntimeByServer.delete(server);
-        if (typeof store.close === 'function') store.close();
+        let storeFailure = null;
+        try { if (typeof store.close === 'function') store.close(); } catch (error) { storeFailure = error; }
+        const stopFailure = results.find(({ status }) => status === 'rejected');
+        if (stopFailure) throw stopFailure.reason;
+        if (storeFailure) throw storeFailure;
       });
     }
     if (typeof callback === 'function') {
@@ -1964,9 +2099,14 @@ export async function startStudioHttpServer({
     return server;
   };
   await new Promise((resolveListen, reject) => {
-    server.once('error', reject);
-    server.listen(port, host, resolveListen);
+    const rejectListen = (error) => reject(error);
+    server.once('error', rejectListen);
+    server.listen(port, host, () => {
+      server.off('error', rejectListen);
+      resolveListen();
+    });
   });
+  backupOperationsController?.start();
   atlasPreviewWorker?.start();
   return {
     server,
@@ -1986,13 +2126,28 @@ export async function startStudioHttpServer({
     dataDirectory,
     storeMode,
   };
+  } catch (error) {
+    const httpStopped = server?.listening && closeComposedHttpServer
+      ? new Promise((resolveClose) => closeComposedHttpServer(() => resolveClose()))
+      : Promise.resolve();
+    await Promise.allSettled([
+      atlasPreviewWorker?.stop() ?? Promise.resolve(),
+      privateAuthoringV2Runtime?.close() ?? Promise.resolve(),
+      backupOperationsController?.close() ?? Promise.resolve(),
+      pairing?.close() ?? Promise.resolve(),
+      httpStopped,
+    ]);
+    if (server !== null) privateAuthoringV2RuntimeByServer.delete(server);
+    try { if (typeof store.close === 'function') store.close(); } catch {}
+    throw error;
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const running = await startStudioHttpServer();
   const address = running.address;
   process.stdout.write(`Numberdroid Studio: http://${address.address}:${address.port}\n`);
-  process.stdout.write(`Project data: ${running.dataDirectory}\n`);
+  process.stdout.write(`Storage mode: ${running.storeMode}\n`);
   let shuttingDown = false;
   const shutdown = () => {
     if (shuttingDown) return;

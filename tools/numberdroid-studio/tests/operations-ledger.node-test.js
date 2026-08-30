@@ -241,6 +241,41 @@ test('external control ledger v1 is checksummed, idempotent, fenced, append-only
   }).lastRecoveryTestedAt, '2026-08-29T10:06:00.000Z');
 });
 
+test('operation overview remains bounded while retaining the running and oldest queued work', async (context) => {
+  const root = await controlRoot(context, 'numberdroid-operations-overview-');
+  const ledger = await OperationsLedger.open({ controlRoot: root });
+  afterTestCleanup(context, () => ledger.close());
+  for (let index = 0; index < 102; index += 1) {
+    const suffix = String(index).padStart(3, '0');
+    ledger.reserveOperation({
+      operationId: `op-overview-${suffix}`,
+      kind: 'CREATE',
+      idempotencyKey: `idem.overview.${suffix}`,
+      requestFingerprint: HASH_A,
+      creatorSubject: 'operator.session.overview',
+      destinationId: 'destination.backup.local',
+      outputId: `backup-overview-${suffix}`,
+      now: new Date(Date.parse(T0) + index).toISOString(),
+    });
+  }
+  assert.equal(ledger.listOperations({ limit: 100 }).some(({ operationId }) => operationId === 'op-overview-000'), false);
+  const queuedOverview = ledger.listOperationsForOverview({ limit: 100 });
+  assert.equal(queuedOverview.length, 100);
+  assert.ok(queuedOverview.some(({ operationId }) => operationId === 'op-overview-000'));
+  assert.equal(queuedOverview.filter(({ status }) => status === 'QUEUED').at(-1).operationId, 'op-overview-000');
+
+  const claimed = ledger.claimNext({
+    workerId: 'worker.operations.overview',
+    now: '2026-08-29T10:00:01.000Z',
+    leaseExpiresAt: '2026-08-29T10:01:01.000Z',
+  });
+  assert.equal(claimed.operationId, 'op-overview-000');
+  const runningOverview = ledger.listOperationsForOverview({ limit: 100 });
+  assert.equal(runningOverview.length, 100);
+  assert.equal(runningOverview.find(({ status }) => status === 'RUNNING').operationId, 'op-overview-000');
+  assert.equal(runningOverview.filter(({ status }) => status === 'QUEUED').at(-1).operationId, 'op-overview-001');
+});
+
 test('ledger supports exact restore lifecycle and restart-only reconciliation fencing without activation authority', async (context) => {
   const root = await controlRoot(context, 'numberdroid-operations-reconcile-');
   const ledger = await OperationsLedger.open({ controlRoot: root });
