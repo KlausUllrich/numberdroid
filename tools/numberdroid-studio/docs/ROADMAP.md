@@ -315,9 +315,9 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 
 ## Parallel masterplan track — Operations, Remote Access & Mobile
 
-**Status: O0 contract frozen; O1a and O1b source-integrated and automated green
-on 2026-08-30; O1 user acceptance remains open; O2a is the next independent
-backend candidate.**
+**Status: O0 frozen; O1, O2a, and A3a source-integrated and automated green on
+2026-08-30; O1 user acceptance and O2 deployment remain open; A4 is the next
+autonomous product block.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -365,10 +365,10 @@ The gates are:
 The fail-closed O1a application/job seam and bounded O1b local-human UI are now
 source-integrated and automated green, recorded in `O1A_BACKUP_CORE_STATUS.md`
 and `O1B_BACKUPS_UI_STATUS.md`. They remain **not user accepted**. VT-012 blocks
-an O1 acceptance claim and remote backup metadata/operation authority; it does
-not block the isolated O2a private-service backend or UI-independent A3a
-contracts. Phone acceptance, remote backup authority, and remote MCP remain
-later gates.
+an O1 acceptance claim and remote backup metadata/operation authority. The
+separately bounded O2a service and A3a contracts are now source-integrated and
+automated green, without deployment or user acceptance. Phone acceptance,
+remote backup authority, and remote MCP remain later gates.
 
 Detailed contract: `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.
 
@@ -762,12 +762,13 @@ A3a adds no persistence, UI, MCP surface, runtime execution, materialization,
 publication, or release. It does not make the reference chain playable; the
 concrete Numberdroid extension and complete playable candidate remain A4.
 
-Implementation note (2026-08-30, **implemented candidate — not user
-accepted**): the strict schema-v1 Domain contracts, canonical fingerprints, and
-pure Application validator are implemented with the closed actor-to-text chain
-as automated contract evidence. The unchanged Numberdroid capability profile
-still blocks that chain. No production capability or operational surface is
-enabled. Scope, evidence, and preserved boundaries are recorded in
+Implementation note (2026-08-30, **source-integrated / automated green — not
+user accepted**): PR #179 integrated the strict schema-v1 Domain contracts,
+canonical fingerprints, and pure Application validator after Build #2264 / run
+`33313560001`; merge `7322542b07907710bbba16e3ffd7d1b2fc6aa5a3` passed
+post-merge Build #2265 / run `33313888975`. The unchanged Numberdroid capability
+profile still blocks the actor-to-text chain. No production capability or
+operational surface is enabled. Scope and evidence are recorded in
 [`A3A_LEVEL_LOGIC_KERNEL_STATUS.md`](A3A_LEVEL_LOGIC_KERNEL_STATUS.md).
 
 ### A4 — Complete Numberdroid vertical candidate
@@ -780,6 +781,18 @@ enabled. Scope, evidence, and preserved boundaries are recorded in
 - create, validate, compile, preview, diff, and submit an immutable complete level
   candidate entirely through a scoped agent task;
 - require human review/merge and keep repository materialization/publication separate.
+
+A4 proceeds in bounded dependency order:
+
+1. **A4a — lossless Numberdroid projection and capability delta:** adapter-owned
+   projection of existing LevelSpec/compiler semantics into A3a contracts,
+   pinned TS-01/gold-slice fixtures, and no capability claim without proof;
+2. **A4b — bounded reference behavior:** add only the missing routed
+   actor-defeated → key-drop → pickup → boolean-state → visible-text semantics
+   and advertise them only after compiler/runtime tests pass; and
+3. **A4c — task-scoped candidate path:** create, validate, compile, preview,
+   diff, and submit one immutable candidate, stopping at human review without
+   materialization, repository write, publication, or release authority.
 
 ### A5 — Thin portability proof
 

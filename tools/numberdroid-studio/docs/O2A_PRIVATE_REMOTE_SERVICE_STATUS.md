@@ -1,12 +1,18 @@
 # O2a private remote service candidate status
 
-Status: **IMPLEMENTED CANDIDATE — NOT DEPLOYED / NOT USER ACCEPTED**
+Status: **SOURCE-INTEGRATED / AUTOMATED GREEN — NOT DEPLOYED / NOT USER ACCEPTED**
 
 O2a adds a distinct authenticated deployment adapter for one private,
 Klaus-controlled Linux Studio host. It does not widen the accepted local
 listener. The candidate presents the existing Studio through an HTTPS ingress
 as an explicitly labelled read-only UI and keeps the authoritative SQLite/CAS
 workspace and O1 operations runtime in one supervised process.
+
+O2a is source-integrated through PR #178. Final head
+`89141c079c1d96a4aa4c45d8b8c4b88dc464484c` passed Build #2261 / run
+`33308845444`, merged as `b2b3768867321cd60e55ff84b7dee45b5d14f93b`,
+and passed post-merge Build #2263 / run `33313162805`. No host was configured or
+activated by source integration.
 
 The bounded operator guide is
 [`O2A_PRIVATE_REMOTE_SERVICE_RUNBOOK.md`](O2A_PRIVATE_REMOTE_SERVICE_RUNBOOK.md).
@@ -90,10 +96,13 @@ generic failures, read-only UI detection, required O1 startup, competing
 writers, crash recovery, restart persistence, session invalidation, occupied
 listener cleanup, and the unchanged local service boundary.
 
-The integration gate is the full Ubuntu and Windows Studio suite with the
-native SQLite dependency installed. CI evidence belongs in this record only
-after the candidate head is published and the exact run completes; local
-focused results are not substituted for that gate.
+The full Ubuntu and Windows Studio gate passed on the exact final PR head in
+Build #2261 / run `33308845444`; the merge commit passed Build #2263 / run
+`33313162805`. An earlier Windows timeout was isolated to test cleanup order:
+the fixture removal hook ran before server close and prevented the later close
+hook after Windows rejected deletion of open files. The bounded repair reused
+the established LIFO cleanup helper and consumed the response body. Product
+code and the persistent writer-lock design were unchanged.
 
 ## Suggested return test
 

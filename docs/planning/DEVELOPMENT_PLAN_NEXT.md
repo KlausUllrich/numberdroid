@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-30 after source integration of the CI-green Studio O1b candidate; VT-012 remains pending and O2a is next**
+Status: **current forward plan — updated 2026-08-30 after source integration of CI-green O2a and A3a; VT-012/O2 deployment remain pending and A4 is next**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -168,7 +168,7 @@ Required order:
 ```text
 contract + threat model
 → durable verified backup core and human backup UI
-→ separately authenticated O2a private-service backend candidate
+→ source-integrated authenticated O2a private-service backend
 → later live deployment/private-access gate
 → complete phone/touch workflows and real-device acceptance
 → runtime MCP onboarding and final role playbooks
@@ -205,29 +205,34 @@ evidence do not record Klaus's live acceptance: `VT-012` remains **NEEDS KLAUS
 LIVE**, and O1b remains **source-integrated / automated green — not user
 accepted**.
 
-Klaus's current engineering authority removes the earlier global development
-stop while that live review is pending. `VT-012` still blocks claiming O1 user
-acceptance and blocks remote exposure of backup metadata or backup-operation
-authority. It does not block a separately configured O2a private-service
-backend candidate, local MCP guidance based on already accepted semantics, or
-the UI-independent A3a level-logic kernel.
+Klaus's engineering authority removed the earlier global stop while VT-012 is
+pending. VT-012 still blocks an O1 user-acceptance claim and remote backup
+metadata/operation authority. O2a and A3a are now source-integrated and
+automated green without widening those gates:
+
+- O2a PR #178 head `89141c079c1d96a4aa4c45d8b8c4b88dc464484c`,
+  Build #2261 / run `33308845444`, merge
+  `b2b3768867321cd60e55ff84b7dee45b5d14f93b`, post-merge Build #2263 /
+  run `33313162805`;
+- A3a PR #179 final head `dbc6dabf6d821032c90ef31e87dfa0737fe20f48`,
+  Build #2264 / run `33313560001`, merge
+  `7322542b07907710bbba16e3ffd7d1b2fc6aa5a3`, post-merge Build #2265 /
+  run `33313888975`.
 
 Current autonomous engineering sequence:
 
 ```text
 O1b source-integrated; VT-012 retained for later live review
-→ O2a private-service backend candidate
-→ A3a typed level-logic kernel
+→ O2a source-integrated; deliberate deployment/VT-013 retained for Klaus
+→ A3a typed kernel source-integrated
+→ A4 complete Numberdroid vertical candidate
 → later O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
 ```
 
-O2a must add a distinct fail-closed deployment adapter without widening the
-accepted loopback listener. Its first block excludes remote MCP, remote backup
-reads or mutations, public registration/internet exposure, O3 redesign,
-deletion/retention, activation/cutover, materialization, publication, and
-release. A3a begins afterward as strict Domain/Application contracts and
-validation only; it adds no persistence, UI, MCP advertisement, runtime
-execution, materialization, or publication.
+A4 now proceeds in the bounded A4a lossless projection/capability-delta, A4b
+reference-behavior, and A4c task-scoped candidate slices defined in Studio
+`ROADMAP.md`. It must not add remote backup/MCP authority, deployment, O3/O4,
+materialization, publication, or release.
 
 The detailed binding track plan and gate boundaries live in:
 

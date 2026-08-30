@@ -2,10 +2,10 @@
 
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
-Source baseline recorded: 2026-08-30 at integrated O1a backend-candidate `main`
-`b40e3deb3af5ad501aadc43e1f980e35a2670962`. The O1b visual candidate is based
-on that exact source. Receivers MUST replace this with newer verified source
-`main` truth as work lands.
+Source baseline recorded: 2026-08-30 at O2a/A3a-integrated `main`
+`7322542b07907710bbba16e3ffd7d1b2fc6aa5a3`; post-merge Build #2265 / run
+`33313888975` passed. Receivers MUST still replace this with newer verified
+remote `main` truth as work lands.
 
 ## Purpose
 
@@ -40,6 +40,7 @@ Keep these states distinct:
 | VT-010 | A1.6b2b Authoring-v2 MCP transport | NEEDS KLAUS REVIEW | VT-009 | Accept/revise explicit handshake-gated 31/6 discovery, fresh authority, and restart replay |
 | VT-011 | A1.7 processed-asset review UI candidate | NEEDS KLAUS LIVE | VT-000 and VT-004–VT-010 | Accept/revise the selected-task preview, correction hierarchy, responsive layout, fallback, and return-state continuity |
 | VT-012 | O1b first Backups UI candidate | NEEDS KLAUS LIVE | VT-000 and integrated O0/O1a | Accept/revise the backup safety hierarchy and Create, Verify, Recovery-test, Restore-as-copy workflow without activation |
+| VT-013 | O2a private read-only service deployment | NEEDS KLAUS LIVE | integrated O2a and deliberately configured private host | Accept/revise authentication, read-only boundary, restart/session behavior, and operator burden; not O3 mobile UX |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -49,7 +50,10 @@ documentation-only O0 decision in
 [`O1A_BACKUP_CORE_STATUS.md`](O1A_BACKUP_CORE_STATUS.md) likewise has no live
 visual acceptance surface and therefore receives no `VT-` item. The required
 first O1b backup UI is source-integrated and automated green but remains **not
-user accepted**, so its bounded live gate is recorded as `VT-012` below.
+user accepted**, so its bounded live gate is recorded as `VT-012` below. O2a is
+also source-integrated and automated green but remains undeployed; its bounded
+host/deployment review is `VT-013`. A3a is non-visual contract evidence and
+therefore adds no live `VT-` item.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
 [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately
@@ -1054,8 +1058,9 @@ accepted** state.
   layouts, context retention, and explicit restored-not-active boundary. Only
   Klaus can close this O1 product gate. It blocks an O1 user-acceptance claim,
   remote exposure of backup metadata or backup-operation authority, and O3
-  completion; it does not block the separately bounded O2a backend candidate
-  or UI-independent A3a Domain/Application work.
+  completion. O2a and A3a are now source-integrated and automated green, but
+  neither integration closes VT-012, deploys a service, or grants remote backup
+  authority.
 - **Recovery:** stop Studio and retain the exact temporary fixture root until
   the result is recorded. Restore any `.return-test-hidden` directory to its
   exact original name first. Then discard only that uniquely allocated root
@@ -1064,6 +1069,40 @@ accepted** state.
   `Remove-Item Env:NUMBERDROID_STUDIO_OPERATIONS_CONFIG`. Do not delete an
   active or real workspace/backup directory. The candidate adds no live
   workspace migration and grants no activation or cleanup authority.
+
+## VT-013 — O2a private read-only service deployment review
+
+- **Prerequisites:** O2a source integration through PR #178; Build #2261 / run
+  `33308845444` and post-merge Build #2263 / run `33313162805` green; one
+  deliberately configured Klaus-controlled private Linux host following
+  `O2A_PRIVATE_REMOTE_SERVICE_RUNBOOK.md`; no real credential copied into chat,
+  logs, screenshots, argv, or environment.
+- **State:** `NEEDS KLAUS LIVE`. Source integration is not deployment or
+  acceptance. VT-012 is independent because O2a exposes no backup routes.
+- **Safe start:** use only the exact runbook, owner-only configuration and
+  credential files, marked persistent roots, loopback gateway, trusted private
+  HTTPS terminator, and a newly generated one-time-revealed owner token. Do not
+  enable Funnel/public exposure or reuse a production secret in evidence.
+- **Bounded steps:** prove direct loopback access returns no Studio data;
+  reject a wrong credential generically; sign in through the exact private
+  HTTPS origin; observe **Private remote · read only**; inspect approved
+  project/source/asset/room/task/activity reads; prove Backups, Agent access,
+  MCP, demo, unknown routes, and every mutation are unavailable; rotate and
+  log out; restart the supervised process; confirm workspace persistence and
+  pre-restart session invalidation.
+- **Required platform/evidence:** configured Linux/systemd host plus one private
+  desktop Chrome client. Phone layout/gesture acceptance belongs to O3, not
+  this test.
+- **Known limits:** no remote backup metadata or operations, no remote MCP, no
+  pairing/HostBinding, no mobile completion, no public exposure, no deletion,
+  activation, materialization, publication, or release.
+- **Open Klaus decision:** accept or revise the private sign-in/read-only
+  experience, restart/session behavior, visible safety boundary, and operator
+  setup burden. This does not accept O3 mobile UX.
+- **Recovery:** stop the supervised service; preserve the exact configuration,
+  credential verifier, marked storage roots, and logs needed for diagnosis.
+  Revoke/replace the test credential through the runbook. Do not delete or
+  repurpose active workspace, backup, or restored-copy roots.
 
 ## Required record for every new candidate
 

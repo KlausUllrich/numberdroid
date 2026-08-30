@@ -1,6 +1,6 @@
 # Numberdroid Studio — Operations, Remote Access & Mobile
 
-Status: **current masterplan track; O0 frozen, O1 source-integrated and automated green, O1 user acceptance pending, O2a backend next**
+Status: **current masterplan track; O0 frozen; O1 and O2a source-integrated and automated green; O1 acceptance and O2 deployment pending**
 
 Date added to the masterplan: 2026-08-25
 
@@ -293,8 +293,9 @@ stdio remains supported.
 ### 6.1 O2a — autonomous private-service backend candidate
 
 O2a is a separate remote-human gateway in front of the unchanged loopback-only
-Studio server. It may be implemented and source-integrated while VT-012 remains
-open because it neither exposes backup authority nor claims O1 acceptance.
+Studio server. It is source-integrated through PR #178 and remains undeployed
+and unaccepted. VT-012 may remain open because O2a exposes neither backup
+authority nor an O1 acceptance claim.
 
 The first coherent block must:
 
@@ -416,7 +417,7 @@ counts.
 O0 contract + threat model
 → O1 backup backend and recovery proofs
 → O1 backup UI source integration; VT-012 remains pending
-→ O2a private-service backend candidate
+→ O2a private-service backend source integration (complete)
 → O2 deployment/live private-access gate
 → O3 complete phone/touch workflows
 → O4 runtime onboarding + final role guides
@@ -438,15 +439,16 @@ Stop gates are strict:
 
 ## 10. Current autonomous next step
 
-O0 is frozen and O1a/O1b are source-integrated and automated green. VT-012
-remains **Waiting for your review** for O1 acceptance, but no longer globally
-blocks unrelated engineering. The current coherent implementation step is the
-bounded O2a gateway/backend candidate in section 6.1. The next UI-independent
-product-contract block is A3a in `ROADMAP.md`.
+O0 is frozen; O1a/O1b and O2a are source-integrated and automated green.
+VT-012 remains **Waiting for your review**, and O2a remains undeployed pending
+the deliberate VT-013 host/configuration gate. A3a is also source-integrated
+and automated green. The next UI-independent product block is A4 in
+`ROADMAP.md`.
 
-Do not activate a live deployment or add remote backup, remote MCP, responsive
-mobile redesign, deletion/retention, restore activation/cutover,
-materialization, publication, or release as part of O2a.
+Do not treat source integration as deployment or acceptance. Remote backup,
+remote MCP, responsive mobile completion, deletion/retention, restore
+activation/cutover, materialization, publication, and release remain outside
+the integrated O2a/A3a boundaries.
 
 ## 11. Combined definition of done
 
