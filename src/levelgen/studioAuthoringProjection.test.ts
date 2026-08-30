@@ -14,7 +14,7 @@ import { BIOARK_PASSBY_PROOF_SPEC } from "./specs/bioArkPassbyProof";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
 import type { LevelSpec } from "./types";
 
-const COMPILER_VERSION = "numberdroid-level-compiler.sha256:a1e3a0983ad0777759a2619b7c7053a0c520d336033bc59872d908489290ce40";
+const COMPILER_VERSION = "numberdroid-level-compiler.sha256:f410926ebe76f57e0cef7e7a6b4e13ddd7ea4829d09b62428de79b3614313713";
 const compiler = Object.freeze({
   compilerVersion: numberdroidLevelCompilerVersion(new URL("../../", import.meta.url)),
   validatePlacementOverrides,
@@ -51,15 +51,15 @@ const HASHES = Object.freeze({
     requirements: "a3df3bd0300a18ce4892f1baeb812f4fdb345f081689006483bdab8221077da9",
     level: "593ddaf28067d78289127b3eee5e63d52d94f883aa17e4b75afdd2c210b7aa42",
     logic: "ac6dcab9775188ee0416577c8e2af1df1c1d4cbe2c2273ffbab6f0f3c84777d9",
-    projection: "ce94e0433d1700c475df2059cc6b13dc4a1ab302e6cdafafe964287dd5a68bb1",
+    projection: "c472e63f06d2b8e49ad4c720ade3c53f437b0bb6538e9c68c301f8a297d6fa76",
   },
   bioark: {
     source: "c518203d3436b42de0c87fff4f48663edaa3c7fa23c05bf14f279b376a9c6f32",
-    plan: "898008b6a7ab729810bf3c3dc7b2330ed28e6b7b666159638f3917edaacf8660",
+    plan: "76778a445aaa6d2263480070bfd1fc532f71322fe9b148d79d2b811d4c0954bd",
     requirements: "3a713d8d23d4d534989815d6c4bdde9d4e1ce67cc557843185470c9d8b51493b",
     level: "fed30380f21dddf6be3b69291f73abe1eb9ea38da38b7a2713e1f70d6ca6caf7",
     logic: "5669efe5ce33880209292bcf7977ba0fcca6acdcf5b3ede022632bc333045cc7",
-    projection: "33d810c4acc5d1f64f4395822898b0fd6a72d5d7f4e4b94f5a47f076623acbe8",
+    projection: "13f8e73ae5f5251ce193280eb1d2eb2444751eb4f8a5fc284158707c203f0989",
   },
   flag: {
     source: "3da9fcd9f093f17a08ba28cf72cdcc33e52b203ff73feae4d317fe05ebe58918",
@@ -67,7 +67,7 @@ const HASHES = Object.freeze({
     requirements: "704365cef198da692679d62b0370908f9face64c35b2e82bcee925c7e6972d65",
     level: "20e0459f765adacb5e5eae3215c8e63f3f43c12b0d12944643342f4093f29f17",
     logic: "fdb6f0b08b3d0479a3b5da06daf0e2f8d616c0ecb8cbd3cd403147abd0dc28aa",
-    projection: "3da1b2ff87f0ec4103351b7dea134cd73027276cc6abe1e1c1f0dd4e84f739a4",
+    projection: "8ca7c3bed7a32b40e95e3144088353e4591df155c321daebe09c136362a6fc47",
   },
 });
 
