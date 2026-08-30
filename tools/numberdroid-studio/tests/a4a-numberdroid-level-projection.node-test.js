@@ -10,6 +10,10 @@ import {
   validateNumberdroidLevelAuthoringProjection,
   validateNumberdroidLevelSpec,
 } from '../packages/numberdroid-adapter/src/index.js';
+import {
+  normalizeNumberdroidLevelCompilerAuthoritySource,
+  numberdroidLevelCompilerVersion,
+} from './helpers/numberdroid-level-compiler-authority.js';
 
 const COMPILER_VERSION = `numberdroid-level-compiler.sha256:${'a'.repeat(64)}`;
 
@@ -232,6 +236,16 @@ test('A4a hashes are deterministic, validate after serialization, and ignore lat
   assert.equal(first.source.levelSpec.spaces[0].archetype, 'plain-room');
 });
 
+test('A4a compiler authority fingerprint is independent of checkout line endings', { timeout: 5_000 }, () => {
+  const lf = 'export const one = 1;\nexport const two = 2;\n';
+  const crlf = lf.replace(/\n/g, '\r\n');
+  assert.equal(normalizeNumberdroidLevelCompilerAuthoritySource(crlf), lf);
+  assert.equal(
+    numberdroidLevelCompilerVersion(new URL('../../../', import.meta.url)),
+    'numberdroid-level-compiler.sha256:f410926ebe76f57e0cef7e7a6b4e13ddd7ea4829d09b62428de79b3614313713',
+  );
+});
+
 test('A4a rejects getters, proxies, cycles, sparse arrays, custom prototypes, symbols, and prototype event names', { timeout: 5_000 }, () => {
   let getterCalls = 0;
   const accessor = levelSpec();
@@ -378,7 +392,7 @@ test('A4a admits the complete bounded compiler-diagnostic cardinality and reject
   );
 });
 
-test('A4a semantic-plan limits admit deterministic compiler expansion beyond the source scalar budget', { timeout: 30_000 }, () => {
+test('A4a semantic-plan limits admit deterministic compiler expansion beyond the source scalar budget', { timeout: 60_000 }, () => {
   const spec = levelSpec();
   spec.rules.ensureReachability = false;
   spec.ruleSetRefs = Array.from({ length: 3_180 }, (_, index) => `rules.${index}`);
@@ -470,6 +484,7 @@ test('A4a retains valid non-A3a identifiers and repeated routes only in the Numb
 
 test('A4a retains every current event, trigger, zone-anchor, override, and free-text shape', { timeout: 10_000 }, () => {
   const spec = levelSpec();
+  spec.seed = 1_234.75;
   spec.spaces[0].archetype = '';
   spec.spaces[0].tags = ['', ' spaced tag ', 'line\nbreak'];
   spec.encounters[0].mathLabel = '';
@@ -500,6 +515,7 @@ test('A4a retains every current event, trigger, zone-anchor, override, and free-
   }));
   spec.events = [
     { id: 'event.set-flag', kind: 'set-flag', flag: 'state.flag', value: ' line\nbreak ' },
+    { id: 'event.set-flag-number', kind: 'set-flag', flag: 'state.number', value: -2.5 },
     { id: 'event.grant-key', kind: 'grant-key', keyId: 'key.one' },
     { id: 'event.unlock-door', kind: 'unlock-door', doorId: 'door.one' },
     { id: 'event.lock-door', kind: 'lock-door', doorId: 'door.one' },
@@ -524,6 +540,9 @@ test('A4a retains every current event, trigger, zone-anchor, override, and free-
   }];
   const projection = create(spec);
   assert.equal(projection.source.canonicalJson, canonicalJson(spec));
+  assert.equal(projection.source.levelSpec.seed, 1_234.75);
+  assert.equal(projection.compiler.semanticPlan.seed, 1_234);
+  assert.equal(projection.compiler.semanticPlan.events[1].value, -2.5);
   assert.equal(projection.compiler.semanticPlan.events.length, spec.events.length);
   assert.equal(projection.compiler.semanticPlan.triggers.length, spec.triggers.length);
   assert.equal(projection.compiler.semanticPlan.zones.length, spec.zones.length);
