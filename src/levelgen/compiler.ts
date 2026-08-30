@@ -1,6 +1,7 @@
 import { deriveSubSeed, normalizeLevelSeed } from "./seed";
 import { overrideFor } from "./overrides";
 import type {
+  AccessPickupSpec,
   CompiledConnection,
   CompiledEncounterIntent,
   CompiledPropRequest,
@@ -18,8 +19,16 @@ import type {
   TriggerZoneSpec,
 } from "./types";
 
+const A4B_MAX_LOGIC_ENTRIES = 512;
+
 function assertId(id: string, context: string) {
   if (!id.trim()) throw new Error(`${context} requires a non-empty id.`);
+}
+
+function assertSafeStateKey(id: string, context: string) {
+  if (id === "__proto__" || id === "prototype" || id === "constructor") {
+    throw new Error(`${context} cannot use unsafe record key ${id}.`);
+  }
 }
 
 function validateRange(range: TileRange, context: string) {
@@ -60,6 +69,8 @@ function collectIds(spec: LevelSpec): Set<string> {
     ["staged actor", spec.stagedActors ?? []],
     ["route", spec.routes ?? []],
     ["pickup", spec.pickups ?? []],
+    ["variable", spec.variables ?? []],
+    ["text reference", spec.textReferences ?? []],
     ["trigger zone", spec.zones ?? []],
     ["trigger", spec.triggers ?? []],
     ["event", spec.events ?? []],
@@ -192,6 +203,10 @@ function validateEvents(
   routeById: Map<string, RouteSpec>,
   spaceIds: Set<string>,
   actorIds: Set<string>,
+  encounterById: Map<string, CompiledEncounterIntent>,
+  pickupById: Map<string, AccessPickupSpec>,
+  variableIds: Set<string>,
+  textReferenceIds: Set<string>,
 ) {
   for (const event of events) {
     if (event.kind === "unlock-door" || event.kind === "lock-door") {
@@ -201,7 +216,35 @@ function validateEvents(
     }
     if (event.kind === "grant-key" && !event.keyId.trim()) throw new Error(`Event ${event.id} requires a non-empty keyId.`);
     if (event.kind === "set-flag" && !event.flag.trim()) throw new Error(`Event ${event.id} requires a non-empty flag.`);
+    if (event.kind === "set-flag") assertSafeStateKey(event.flag, `Event ${event.id} flag`);
+    if (event.kind === "set-flag" && variableIds.has(event.flag)) {
+      throw new Error(`Legacy set-flag Event ${event.id} cannot write declared Boolean variable ${event.flag}.`);
+    }
     if (event.kind === "story-beat" && !event.beatId.trim()) throw new Error(`Event ${event.id} requires a non-empty beatId.`);
+
+    if (event.kind === "drop-item") {
+      const actor = encounterById.get(event.actorId);
+      if (!actor) throw new Error(`Event ${event.id} references unknown encounter actor ${event.actorId}.`);
+      const pickup = pickupById.get(event.pickupId);
+      if (!pickup) throw new Error(`Event ${event.id} references unknown pickup ${event.pickupId}.`);
+      if (pickup.initiallyPresent !== false) {
+        throw new Error(`Event ${event.id} drop-item requires hidden pickup ${event.pickupId} with initiallyPresent false.`);
+      }
+      if (pickup.spaceId !== actor.spaceId) {
+        throw new Error(`Event ${event.id} cannot drop pickup ${event.pickupId} outside actor ${event.actorId}'s space.`);
+      }
+    }
+    if (event.kind === "set-variable") {
+      if (!variableIds.has(event.variableId)) {
+        throw new Error(`Event ${event.id} references unknown Boolean variable ${event.variableId}.`);
+      }
+      if (typeof (event as { value: unknown }).value !== "boolean") {
+        throw new Error(`Event ${event.id} must assign a Boolean value to ${event.variableId}.`);
+      }
+    }
+    if (event.kind === "show-text" && !textReferenceIds.has(event.textRefId)) {
+      throw new Error(`Event ${event.id} references unknown visible text ${event.textRefId}.`);
+    }
 
     if (event.kind === "spawn-actor") {
       if (!actorIds.has(event.actorId)) throw new Error(`Event ${event.id} references unknown actor ${event.actorId}.`);
@@ -231,6 +274,8 @@ function validateTriggers(
   spaceIds: Set<string>,
   zoneIds: Set<string>,
   pickupIds: Set<string>,
+  encounterById: Map<string, CompiledEncounterIntent>,
+  stateSourceIds: Set<string>,
 ) {
   for (const trigger of triggers) {
     if (!trigger.eventIds.length) throw new Error(`Trigger ${trigger.id} must reference at least one event.`);
@@ -252,8 +297,55 @@ function validateTriggers(
     if (trigger.kind === "collect" && !pickupIds.has(trigger.sourceId)) {
       throw new Error(`Trigger ${trigger.id} references unknown pickup ${trigger.sourceId}.`);
     }
+    if (trigger.kind === "actor-defeated") {
+      const actor = encounterById.get(trigger.sourceId);
+      if (!actor) throw new Error(`Trigger ${trigger.id} references unknown encounter actor ${trigger.sourceId}.`);
+      if (!actor.actorArchetype) {
+        throw new Error(`Trigger ${trigger.id} requires actor ${trigger.sourceId} to declare an immutable actorArchetype pin.`);
+      }
+      if (actor.behavior !== "patrol" || !actor.patrolRouteId) {
+        throw new Error(`Trigger ${trigger.id} requires actor ${trigger.sourceId} to follow a patrol route.`);
+      }
+      if (trigger.once !== true || (trigger.delayMs ?? 0) !== 0) {
+        throw new Error(`Actor-defeated Trigger ${trigger.id} must be once-only with no delay.`);
+      }
+    }
+    if (trigger.kind === "state-change" && !stateSourceIds.has(trigger.sourceId)) {
+      throw new Error(`Trigger ${trigger.id} references unknown state source ${trigger.sourceId}.`);
+    }
     if ((trigger.kind === "interact" || trigger.kind === "proximity") && !sourceIds.has(trigger.sourceId)) {
       throw new Error(`Trigger ${trigger.id} references unknown source ${trigger.sourceId}.`);
+    }
+  }
+}
+
+function validateDropPrograms(
+  pickups: NonNullable<LevelSpec["pickups"]>,
+  triggers: TriggerSpec[],
+  events: LevelEventSpec[],
+) {
+  const dropEvents = events.filter((event): event is Extract<LevelEventSpec, { kind: "drop-item" }> => event.kind === "drop-item");
+  const droppedPickupIds = new Set<string>();
+  for (const event of dropEvents) {
+    if (droppedPickupIds.has(event.pickupId)) {
+      throw new Error(`Pickup ${event.pickupId} cannot have more than one drop-item Event.`);
+    }
+    droppedPickupIds.add(event.pickupId);
+    const owners = triggers.filter((trigger) => trigger.eventIds.includes(event.id));
+    if (owners.length !== 1) {
+      throw new Error(`Drop-item Event ${event.id} must be referenced by exactly one Trigger.`);
+    }
+    const trigger = owners[0];
+    if (trigger.kind !== "actor-defeated" || trigger.sourceId !== event.actorId) {
+      throw new Error(`Drop-item Event ${event.id} must be owned by an actor-defeated Trigger for actor ${event.actorId}.`);
+    }
+    if (trigger.once !== true || (trigger.delayMs ?? 0) !== 0) {
+      throw new Error(`Drop-item Trigger ${trigger.id} must be once-only with no delay.`);
+    }
+  }
+  for (const pickup of pickups) {
+    if (pickup.initiallyPresent === false && !droppedPickupIds.has(pickup.id)) {
+      throw new Error(`Hidden pickup ${pickup.id} requires exactly one drop-item Event.`);
     }
   }
 }
@@ -311,6 +403,12 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
   const routeIds = new Set(routeById.keys());
   const encounters: CompiledEncounterIntent[] = spec.encounters.map((encounter) => {
     if (!spaceIds.has(encounter.spaceId)) throw new Error(`Encounter ${encounter.id} references unknown space ${encounter.spaceId}.`);
+    if (encounter.actorArchetype) {
+      assertId(encounter.actorArchetype.id, `Encounter ${encounter.id} actorArchetype`);
+      if (!Number.isSafeInteger(encounter.actorArchetype.version) || encounter.actorArchetype.version <= 0) {
+        throw new Error(`Encounter ${encounter.id} actorArchetype version must be a positive safe integer.`);
+      }
+    }
     if (encounter.behavior === "patrol" && !encounter.patrolRouteId) {
       throw new Error(`Patrol encounter ${encounter.id} requires patrolRouteId.`);
     }
@@ -337,13 +435,63 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
   const stagedActors = spec.stagedActors ?? [];
   validateStagedActors(stagedActors, spaceIds);
   const actorIds = new Set([...encounters.map((encounter) => encounter.id), ...stagedActors.map((actor) => actor.id)]);
+  const encounterById = new Map(encounters.map((encounter) => [encounter.id, encounter]));
 
   const pickups = spec.pickups ?? [];
   for (const pickup of pickups) {
     if (!spaceIds.has(pickup.spaceId)) throw new Error(`Pickup ${pickup.id} references unknown space ${pickup.spaceId}.`);
     if (!pickup.keyId.trim()) throw new Error(`Pickup ${pickup.id} requires a non-empty keyId.`);
+    if (pickup.initiallyPresent !== undefined && typeof pickup.initiallyPresent !== "boolean") {
+      throw new Error(`Pickup ${pickup.id} initiallyPresent must be boolean when provided.`);
+    }
   }
   const pickupIds = new Set(pickups.map((pickup) => pickup.id));
+  const pickupById = new Map(pickups.map((pickup) => [pickup.id, pickup]));
+
+  const variables = spec.variables ?? [];
+  for (const variable of variables) {
+    assertSafeStateKey(variable.id, `Variable ${variable.id}`);
+    if (variable.type !== "boolean" || typeof variable.initialValue !== "boolean") {
+      throw new Error(`Variable ${variable.id} must declare a Boolean type and initial value.`);
+    }
+  }
+  const variableIds = new Set(variables.map((variable) => variable.id));
+
+  const textReferences = spec.textReferences ?? [];
+  for (const textReference of textReferences) {
+    if (typeof textReference.text !== "string" || !textReference.text.trim() || textReference.text.length > 4_096) {
+      throw new Error(`Visible text ${textReference.id} must contain 1 to 4096 non-whitespace characters.`);
+    }
+  }
+  const textReferenceIds = new Set(textReferences.map((textReference) => textReference.id));
+
+  const events = spec.events ?? [];
+  const storyBeatIds = new Set(events
+    .filter((event): event is Extract<LevelEventSpec, { kind: "story-beat" }> => event.kind === "story-beat")
+    .map((event) => event.beatId));
+  for (const textReference of textReferences) {
+    if (storyBeatIds.has(textReference.id)) {
+      throw new Error(`Visible text ${textReference.id} collides with an existing story-beat beatId.`);
+    }
+  }
+
+  const hasA4bLogic = variables.length > 0
+    || textReferences.length > 0
+    || events.some((event) => event.kind === "drop-item" || event.kind === "set-variable" || event.kind === "show-text")
+    || (spec.triggers ?? []).some((trigger) => trigger.kind === "actor-defeated");
+  if (hasA4bLogic) {
+    const boundedCollections: Array<[string, number]> = [
+      ["variables", variables.length],
+      ["text references", textReferences.length],
+      ["events", events.length],
+      ["triggers", (spec.triggers ?? []).length],
+    ];
+    for (const [kind, count] of boundedCollections) {
+      if (count > A4B_MAX_LOGIC_ENTRIES) {
+        throw new Error(`A4b LevelSpec supports at most ${A4B_MAX_LOGIC_ENTRIES} ${kind}; received ${count}.`);
+      }
+    }
+  }
 
   const zones = spec.zones ?? [];
   const zoneIds = new Set(zones.map((zone) => zone.id));
@@ -372,9 +520,18 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
     }
   }
 
-  const events = spec.events ?? [];
   const eventIds = new Set(events.map((event) => event.id));
-  validateEvents(events, connectionById, routeById, spaceIds, actorIds);
+  validateEvents(
+    events,
+    connectionById,
+    routeById,
+    spaceIds,
+    actorIds,
+    encounterById,
+    pickupById,
+    variableIds,
+    textReferenceIds,
+  );
 
   const triggerSourceIds = new Set([
     ...spaceIds,
@@ -386,7 +543,20 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
     ...zoneIds,
   ]);
   const triggers = spec.triggers ?? [];
-  validateTriggers(triggers, eventIds, triggerSourceIds, spaceIds, zoneIds, pickupIds);
+  const legacyFlagIds = new Set(events
+    .filter((event): event is Extract<LevelEventSpec, { kind: "set-flag" }> => event.kind === "set-flag")
+    .map((event) => event.flag));
+  validateTriggers(
+    triggers,
+    eventIds,
+    triggerSourceIds,
+    spaceIds,
+    zoneIds,
+    pickupIds,
+    encounterById,
+    new Set([...variableIds, ...legacyFlagIds]),
+  );
+  validateDropPrograms(pickups, triggers, events);
 
   for (const override of spec.overrides ?? []) {
     if (!allIds.has(override.targetId)) throw new Error(`Override references unknown semantic id ${override.targetId}.`);
@@ -421,6 +591,8 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
     stagedActors,
     routes,
     pickups,
+    variables,
+    textReferences,
     zones,
     triggers,
     events,

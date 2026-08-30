@@ -71,6 +71,10 @@ function triggerEdgeEligible(
     return current.collectedPickupIds.includes(trigger.sourceId)
       && !previous.collectedPickupIds.includes(trigger.sourceId);
   }
+  if (trigger.kind === "actor-defeated") {
+    return current.defeatedEncounterIds.includes(trigger.sourceId)
+      && !previous.defeatedEncounterIds.includes(trigger.sourceId);
+  }
   if (trigger.kind === "interact") return context.interactionSourceId === trigger.sourceId;
   if (trigger.kind === "state-change") {
     return previous.scriptState.flags[trigger.sourceId] !== current.scriptState.flags[trigger.sourceId];
@@ -82,13 +86,28 @@ function stagedActor(current: MetaState, actorId: string): ScriptedActorRunState
   return current.scriptState.stagedActors[actorId] ?? { present: false, mode: "idle" };
 }
 
-function applyEvent(current: MetaState, event: FloorScriptEventDefinition, nowMs: number) {
+function applyEvent(
+  current: MetaState,
+  event: FloorScriptEventDefinition,
+  nowMs: number,
+  changedStateSourceIds: Set<string>,
+) {
   const scriptState = current.scriptState;
   if (event.kind === "set-flag") {
     if (scriptState.flags[event.flag] === event.value) return false;
     scriptState.flags[event.flag] = event.value;
+    changedStateSourceIds.add(event.flag);
     return true;
   }
+  if (event.kind === "set-variable") {
+    if (scriptState.flags[event.variableId] === event.value) return false;
+    scriptState.flags[event.variableId] = event.value;
+    changedStateSourceIds.add(event.variableId);
+    return true;
+  }
+  // The once-only producer Trigger persisted in firedTriggerIds is the sole
+  // drop state. Pickup visibility/interactions derive from that trusted graph.
+  if (event.kind === "drop-item") return false;
   if (event.kind === "grant-key") {
     if (current.accessKeyIds.includes(event.keyId)) return false;
     current.accessKeyIds = [...current.accessKeyIds, event.keyId];
@@ -143,11 +162,13 @@ function applyEvent(current: MetaState, event: FloorScriptEventDefinition, nowMs
     return true;
   }
 
-  const alreadyActive = scriptState.activeStoryBeatId === event.beatId;
-  const alreadyQueued = scriptState.storyBeatQueue.includes(event.beatId);
+  const beatId = event.kind === "show-text" ? event.textRefId : event.beatId;
+  const blocking = event.kind === "show-text" ? true : event.blocking;
+  const alreadyActive = scriptState.activeStoryBeatId === beatId;
+  const alreadyQueued = scriptState.storyBeatQueue.includes(beatId);
   if (alreadyActive || alreadyQueued) return false;
-  if (event.blocking && !scriptState.activeStoryBeatId) scriptState.activeStoryBeatId = event.beatId;
-  else scriptState.storyBeatQueue.push(event.beatId);
+  if (blocking && !scriptState.activeStoryBeatId) scriptState.activeStoryBeatId = beatId;
+  else scriptState.storyBeatQueue.push(beatId);
   return true;
 }
 
@@ -211,7 +232,10 @@ export function advanceFloorScript(
   let changed = false;
 
   const fireTrigger = (trigger: FloorScriptTriggerDefinition) => {
-    if (firedThisAdvance.has(trigger.id) || triggerAlreadyFired(current, trigger)) return false;
+    const changedStateSourceIds = new Set<string>();
+    if (firedThisAdvance.has(trigger.id) || triggerAlreadyFired(current, trigger)) {
+      return { changed: false, changedStateSourceIds };
+    }
     firedThisAdvance.add(trigger.id);
     firedTriggerIds.push(trigger.id);
     let localChanged = removeSchedule(current, trigger.id);
@@ -221,7 +245,7 @@ export function advanceFloorScript(
     }
     for (const eventId of trigger.eventIds) {
       const event = eventById.get(eventId);
-      if (event && applyEvent(current, event, nowMs)) localChanged = true;
+      if (event && applyEvent(current, event, nowMs, changedStateSourceIds)) localChanged = true;
     }
     if (trigger.kind === "timer" && !trigger.once && trigger.delayMs > 0) {
       current.scriptState.scheduledTriggers[trigger.id] = {
@@ -230,7 +254,7 @@ export function advanceFloorScript(
       };
       localChanged = true;
     }
-    return localChanged;
+    return { changed: localChanged, changedStateSourceIds };
   };
 
   // Timers own their own persisted recurrence. Invalid zero-delay timers are
@@ -238,7 +262,7 @@ export function advanceFloorScript(
   for (const trigger of script.triggers) {
     if (trigger.kind !== "timer" || triggerAlreadyFired(current, trigger) || trigger.delayMs <= 0) continue;
     if (context.timerSourceId === trigger.sourceId) {
-      if (fireTrigger(trigger)) changed = true;
+      if (fireTrigger(trigger).changed) changed = true;
       continue;
     }
     if (scheduleTrigger(current, trigger, nowMs)) changed = true;
@@ -256,29 +280,45 @@ export function advanceFloorScript(
       if (removeSchedule(current, triggerId)) changed = true;
       continue;
     }
-    if (fireTrigger(trigger)) changed = true;
+    if (fireTrigger(trigger).changed) changed = true;
   }
 
-  // State-change events may unlock another trigger in the same authored beat.
-  // Bound the cascade so malformed non-once cycles cannot hang the runtime.
-  for (let pass = 0; pass < Math.max(1, script.triggers.length + 2); pass += 1) {
-    let progressedInPass = false;
-    for (const trigger of script.triggers) {
-      if (trigger.kind === "timer" || firedThisAdvance.has(trigger.id) || triggerAlreadyFired(current, trigger)) continue;
-      if (!triggerEdgeEligible(floor, trigger, previous, current, context)) continue;
-
-      if (trigger.delayMs > 0) {
-        if (scheduleTrigger(current, trigger, nowMs)) {
-          changed = true;
-          progressedInPass = true;
-        }
-        continue;
+  // Evaluate each ordinary edge once, then requeue only state-change Triggers
+  // whose exact source was mutated by an event. This keeps same-beat chains
+  // deterministic without repeatedly scanning the complete Trigger graph.
+  const queue = script.triggers.filter((trigger) => trigger.kind !== "timer");
+  const queuedIds = new Set(queue.map((trigger) => trigger.id));
+  const stateTriggersBySource = new Map<string, FloorScriptTriggerDefinition[]>();
+  for (const trigger of queue) {
+    if (trigger.kind !== "state-change") continue;
+    const existing = stateTriggersBySource.get(trigger.sourceId) ?? [];
+    existing.push(trigger);
+    stateTriggersBySource.set(trigger.sourceId, existing);
+  }
+  const enqueueStateTriggers = (sourceIds: Set<string>) => {
+    for (const sourceId of sourceIds) {
+      for (const trigger of stateTriggersBySource.get(sourceId) ?? []) {
+        if (queuedIds.has(trigger.id) || firedThisAdvance.has(trigger.id) || triggerAlreadyFired(current, trigger)) continue;
+        queue.push(trigger);
+        queuedIds.add(trigger.id);
       }
-
-      if (fireTrigger(trigger)) changed = true;
-      progressedInPass = true;
     }
-    if (!progressedInPass) break;
+  };
+
+  while (queue.length) {
+    const trigger = queue.shift()!;
+    queuedIds.delete(trigger.id);
+    if (firedThisAdvance.has(trigger.id) || triggerAlreadyFired(current, trigger)) continue;
+    if (!triggerEdgeEligible(floor, trigger, previous, current, context)) continue;
+
+    if (trigger.delayMs > 0) {
+      if (scheduleTrigger(current, trigger, nowMs)) changed = true;
+      continue;
+    }
+
+    const fired = fireTrigger(trigger);
+    if (fired.changed) changed = true;
+    enqueueStateTriggers(fired.changedStateSourceIds);
   }
 
   return { state: changed ? current : candidate, firedTriggerIds, changed };
@@ -349,7 +389,35 @@ export function dismissActiveStoryBeat(state: MetaState): MetaState {
   };
 }
 
+/** Fail-closed availability shared by rendering, interaction and save repair. */
+export function floorPickupIsAvailable(floor: FloorDefinition, state: MetaState, pickupId: string) {
+  const pickup = floor.pickups.find((entry) => entry.id === pickupId);
+  if (!pickup) return false;
+  if (pickup.initiallyPresent !== false) return true;
+  const script = floor.script;
+  if (!script) return false;
+  const dropEvents = script.events.filter((event): event is Extract<FloorScriptEventDefinition, { kind: "drop-item" }> =>
+    event.kind === "drop-item" && event.pickupId === pickupId);
+  if (dropEvents.length !== 1) return false;
+  const [dropEvent] = dropEvents;
+  const producers = script.triggers.filter((trigger) => trigger.eventIds.includes(dropEvent.id));
+  if (producers.length !== 1) return false;
+  const [producer] = producers;
+  return producer.kind === "actor-defeated"
+    && producer.sourceKind === "actor"
+    && producer.sourceId === dropEvent.actorId
+    && producer.once
+    && producer.delayMs === 0
+    && state.scriptState.firedTriggerIds.includes(producer.id);
+}
+
+/** Resolve authored visible text while retaining legacy Story Beat IDs. */
+export function storyBeatDisplayText(floor: FloorDefinition, beatId: string) {
+  return floor.script?.textReferences?.find((reference) => reference.id === beatId)?.text ?? beatId;
+}
+
 export function storyBeatIsBlocking(floor: FloorDefinition, beatId: string | null) {
   if (!beatId) return false;
-  return floor.script?.events.some((event) => event.kind === "story-beat" && event.beatId === beatId && event.blocking) ?? false;
+  return floor.script?.events.some((event) => (event.kind === "story-beat" && event.beatId === beatId && event.blocking)
+    || (event.kind === "show-text" && event.textRefId === beatId)) ?? false;
 }

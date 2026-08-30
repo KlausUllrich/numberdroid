@@ -97,6 +97,8 @@ export type PickupDefinition = Point & {
   kind: "access-key";
   keyId: string;
   label: string;
+  /** False only for a compiler-validated pickup activated by one drop-item program. */
+  initiallyPresent?: boolean;
 };
 
 export type DoorDefinition = Rect & {
@@ -204,14 +206,14 @@ export type FloorGoalDefinition =
     };
 
 export type ScriptValue = boolean | number | string;
-export type FloorScriptTriggerKind = "enter-space" | "enter-zone" | "interact" | "collect" | "state-change" | "proximity" | "timer";
+export type FloorScriptTriggerKind = "enter-space" | "enter-zone" | "interact" | "collect" | "state-change" | "proximity" | "timer" | "actor-defeated";
 export type FloorScriptRouteKind = "patrol" | "passby" | "scripted";
 export type FloorScriptCell = { x: number; y: number };
 
 export type FloorScriptTriggerDefinition = {
   id: string;
   kind: FloorScriptTriggerKind;
-  sourceKind: "space" | "zone" | "prop" | "actor" | "pickup" | "connection" | "route" | "flag" | "timer";
+  sourceKind: "space" | "zone" | "prop" | "actor" | "pickup" | "connection" | "route" | "flag" | "variable" | "timer";
   sourceId: string;
   sourceCells: FloorScriptCell[];
   eventIds: string[];
@@ -222,6 +224,9 @@ export type FloorScriptTriggerDefinition = {
 
 export type FloorScriptEventDefinition =
   | { id: string; kind: "set-flag"; flag: string; value: ScriptValue }
+  | { id: string; kind: "set-variable"; variableId: string; value: boolean }
+  | { id: string; kind: "drop-item"; actorId: string; pickupId: string }
+  | { id: string; kind: "show-text"; textRefId: string }
   | { id: string; kind: "grant-key"; keyId: string }
   | { id: string; kind: "unlock-door"; doorId: string }
   | { id: string; kind: "lock-door"; doorId: string }
@@ -245,8 +250,21 @@ export type FloorStagedActorDefinition = {
   defaultSpaceId?: string;
 };
 
+export type FloorBooleanVariableDefinition = {
+  id: string;
+  type: "boolean";
+  initialValue: boolean;
+};
+
+export type FloorTextReferenceDefinition = {
+  id: string;
+  text: string;
+};
+
 export type FloorScriptDefinition = {
   tileSize: number;
+  variables?: FloorBooleanVariableDefinition[];
+  textReferences?: FloorTextReferenceDefinition[];
   triggers: FloorScriptTriggerDefinition[];
   events: FloorScriptEventDefinition[];
   routes: FloorScriptRouteDefinition[];

@@ -26,6 +26,7 @@ import {
 } from "./game/playerProfile";
 import { loadAppSettings, saveAppSettings, type AppSettings } from "./game/appSettings";
 import { useAppFullscreen } from "./game/useFullscreen";
+import { advanceFloorScript } from "./game/scriptRuntime";
 import type { BattleResult, EncounterConfig, GameScreen, MetaState } from "./game/types";
 import { DestroyedScreen } from "./game/DestroyedScreen";
 import { CampaignSuccessScreen } from "./campaign/CampaignSuccessScreen";
@@ -269,7 +270,7 @@ export default function App() {
     const accessKeyIds = target.accessKey && !meta.accessKeyIds.includes(target.accessKey.keyId)
       ? [...meta.accessKeyIds, target.accessKey.keyId]
       : meta.accessKeyIds;
-    const afterTransfer = rotatePilot({
+    const transferCandidate = rotatePilot({
       ...meta,
       currentBody: target.bodyId,
       currentDeckSize: target.deckSize ?? "standard",
@@ -278,6 +279,9 @@ export default function App() {
       x: target.retreat.x,
       y: target.retreat.y,
     });
+    // MetaGame is unmounted during duel/transfer. Resolve the real undefeated →
+    // defeated edge here so actor-defeated cannot be lost at the screen boundary.
+    const afterTransfer = advanceFloorScript(getFloor(meta.floorId), meta, transferCandidate).state;
     setMeta(afterTransfer);
     setTransfer(null);
     setEncounter(null);

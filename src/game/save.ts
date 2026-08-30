@@ -1,5 +1,6 @@
 import { BODIES, MAX_META_ENERGY, STARTING_HP, robotCollisionRadius } from "./catalog";
 import { CURRENT_FLOOR, getFloor } from "./floors";
+import { floorPickupIsAvailable } from "./scriptRuntime";
 import type {
   BodyId,
   EnemyId,
@@ -53,7 +54,7 @@ function scriptedActorDefaults(floor: FloorDefinition) {
 export function createLevelScriptRunState(floor: FloorDefinition): LevelScriptRunState {
   return {
     firedTriggerIds: [],
-    flags: {},
+    flags: Object.fromEntries((floor.script?.variables ?? []).map((variable) => [variable.id, variable.initialValue])),
     doorStates: {},
     stagedActors: scriptedActorDefaults(floor),
     scheduledTriggers: {},
@@ -184,6 +185,10 @@ function validScriptValue(value: unknown): value is ScriptValue {
   return typeof value === "boolean" || typeof value === "number" || typeof value === "string";
 }
 
+function safeRecordKey(value: string) {
+  return value !== "__proto__" && value !== "prototype" && value !== "constructor";
+}
+
 function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelScriptRunState {
   const defaults = createLevelScriptRunState(floor);
   if (!candidate || typeof candidate !== "object") return defaults;
@@ -193,15 +198,31 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
   const doorIds = new Set(floor.doors.map((door) => door.id));
   const stagedIds = new Set((floor.script?.stagedActors ?? []).map((actor) => actor.id));
   const routeIds = new Set((floor.script?.routes ?? []).map((route) => route.id));
-  const beatIds = new Set(
-    (floor.script?.events ?? [])
-      .filter((event) => event.kind === "story-beat")
-      .map((event) => event.beatId),
-  );
+  const textReferenceIds = new Set((floor.script?.textReferences ?? []).map((reference) => reference.id));
+  const beatIds = new Set<string>();
+  for (const event of floor.script?.events ?? []) {
+    if (event.kind === "story-beat") beatIds.add(event.beatId);
+    if (event.kind === "show-text" && textReferenceIds.has(event.textRefId)) beatIds.add(event.textRefId);
+  }
 
-  const flags: Record<string, ScriptValue> = {};
+  const variableById = new Map((floor.script?.variables ?? []).map((variable) => [variable.id, variable]));
+  const legacyFlagIds = new Set<string>();
+  for (const event of floor.script?.events ?? []) if (event.kind === "set-flag") legacyFlagIds.add(event.flag);
+  for (const trigger of floor.script?.triggers ?? []) {
+    if (trigger.kind === "state-change" && trigger.sourceKind === "flag") legacyFlagIds.add(trigger.sourceId);
+  }
+
+  const flags: Record<string, ScriptValue> = { ...defaults.flags };
   if (raw.flags && typeof raw.flags === "object") {
-    for (const [key, value] of Object.entries(raw.flags)) if (validScriptValue(value)) flags[key] = value;
+    for (const [key, value] of Object.entries(raw.flags)) {
+      if (!safeRecordKey(key)) continue;
+      const variable = variableById.get(key);
+      if (variable) {
+        if (typeof value === "boolean") flags[key] = value;
+        continue;
+      }
+      if (legacyFlagIds.has(key) && validScriptValue(value)) flags[key] = value;
+    }
   }
 
   const doorStates: Record<string, "locked" | "unlocked"> = {};
@@ -251,7 +272,7 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
   }
 
   const storyBeatQueue = Array.isArray(raw.storyBeatQueue)
-    ? [...new Set(raw.storyBeatQueue.filter((id): id is string => typeof id === "string" && beatIds.has(id)))]
+    ? [...new Set(raw.storyBeatQueue.filter((id): id is string => typeof id === "string" && beatIds.has(id)))].slice(0, 512)
     : [];
   const activeStoryBeatId = typeof raw.activeStoryBeatId === "string" && beatIds.has(raw.activeStoryBeatId)
     ? raw.activeStoryBeatId
@@ -297,15 +318,37 @@ function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaSt
     ? [...new Set(state.usedStationIds.filter((id) => typeof id === "string" && validStationIds.has(id)))]
     : [];
 
+  const validEncounterIds = new Set(floor.encounters.map((encounter) => encounter.encounterId));
+  state.defeatedEncounterIds = Array.isArray(state.defeatedEncounterIds)
+    ? [...new Set(state.defeatedEncounterIds.filter((id) => typeof id === "string" && validEncounterIds.has(id)))]
+    : [];
+  inferDefeatedEncounterFromOwnedBody(state, floor);
+
+  // A forged actor-defeated firing without the corresponding defeated Actor is
+  // not a valid persisted edge and therefore cannot activate a dormant Pickup.
+  const triggerById = new Map((floor.script?.triggers ?? []).map((trigger) => [trigger.id, trigger]));
+  state.scriptState.firedTriggerIds = state.scriptState.firedTriggerIds.filter((id) => {
+    const trigger = triggerById.get(id);
+    return trigger?.kind !== "actor-defeated" || state.defeatedEncounterIds.includes(trigger.sourceId);
+  });
+
   const validPickupIds = new Set(floor.pickups.map((pickup) => pickup.id));
   state.collectedPickupIds = Array.isArray(state.collectedPickupIds)
-    ? [...new Set(state.collectedPickupIds.filter((id) => typeof id === "string" && validPickupIds.has(id)))]
+    ? [...new Set(state.collectedPickupIds.filter((id) => typeof id === "string"
+      && validPickupIds.has(id)
+      && floorPickupIsAvailable(floor, state, id)))]
     : [];
 
   const validAccessKeyIds = new Set<string>();
-  floor.doors.forEach((door) => { if (door.keyId) validAccessKeyIds.add(door.keyId); });
-  floor.pickups.forEach((pickup) => validAccessKeyIds.add(pickup.keyId));
-  floor.encounters.forEach((encounter) => { if (encounter.accessKey) validAccessKeyIds.add(encounter.accessKey.keyId); });
+  for (const pickupId of state.collectedPickupIds) {
+    const pickup = floor.pickups.find((entry) => entry.id === pickupId);
+    if (pickup) validAccessKeyIds.add(pickup.keyId);
+  }
+  floor.encounters.forEach((encounter) => {
+    if (encounter.accessKey && state.defeatedEncounterIds.includes(encounter.encounterId)) {
+      validAccessKeyIds.add(encounter.accessKey.keyId);
+    }
+  });
   for (const event of floor.script?.events ?? []) if (event.kind === "grant-key") validAccessKeyIds.add(event.keyId);
   state.accessKeyIds = Array.isArray(state.accessKeyIds)
     ? [...new Set(state.accessKeyIds.filter((id) => typeof id === "string" && validAccessKeyIds.has(id)))]
@@ -320,13 +363,6 @@ function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaSt
   state.completedActionIds = Array.isArray(state.completedActionIds)
     ? [...new Set(state.completedActionIds.filter((id) => typeof id === "string" && validActionIds.has(id)))]
     : [];
-
-  const validEncounterIds = new Set(floor.encounters.map((encounter) => encounter.encounterId));
-  state.defeatedEncounterIds = Array.isArray(state.defeatedEncounterIds)
-    ? [...new Set(state.defeatedEncounterIds.filter((id) => typeof id === "string" && validEncounterIds.has(id)))]
-    : [];
-
-  inferDefeatedEncounterFromOwnedBody(state, floor);
 
   state.playerCount = Math.max(1, Math.min(4, Number.isFinite(state.playerCount) ? state.playerCount : defaults.playerCount));
   state.pilotIndex = Math.max(0, Number.isFinite(state.pilotIndex) ? state.pilotIndex : 0) % state.playerCount;

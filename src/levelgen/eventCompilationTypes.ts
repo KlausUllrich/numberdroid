@@ -11,6 +11,7 @@ export type PickupPlacementDecision = {
   id: string;
   keyId: string;
   spaceId: string;
+  initiallyPresent: boolean;
   cell: NavigationCell;
   label?: string;
   score: number;
@@ -37,6 +38,7 @@ export type ResolvedTriggerSourceKind =
   | "connection"
   | "route"
   | "flag"
+  | "variable"
   | "timer";
 
 export type ResolvedTriggerSource = {

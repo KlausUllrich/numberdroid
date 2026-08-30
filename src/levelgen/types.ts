@@ -79,6 +79,8 @@ export type RouteSpec = { id: string; kind: RouteKind; spaceIds: string[]; loop?
 export type EncounterIntentSpec = {
   id: string;
   spaceId: string;
+  /** Immutable adapter/runtime archetype pin required for Studio actor projection. */
+  actorArchetype?: { id: string; version: number };
   enemyId: EnemyId;
   bodyId: BodyId;
   behavior: EncounterBehaviorKind;
@@ -111,8 +113,21 @@ export type AccessPickupSpec = {
   kind: "access-key";
   keyId: string;
   spaceId: string;
+  /** False keeps the compiled Pickup hidden until one drop-item Event activates it. */
+  initiallyPresent?: boolean;
   propId?: string;
   label?: string;
+};
+
+export type BooleanVariableSpec = {
+  id: string;
+  type: "boolean";
+  initialValue: boolean;
+};
+
+export type VisibleTextReferenceSpec = {
+  id: string;
+  text: string;
 };
 
 export type TriggerZoneAnchor =
@@ -135,7 +150,7 @@ export type TriggerZoneSpec = {
   tags?: string[];
 };
 
-export type TriggerKind = "enter-space" | "enter-zone" | "interact" | "collect" | "state-change" | "proximity" | "timer";
+export type TriggerKind = "enter-space" | "enter-zone" | "interact" | "collect" | "state-change" | "proximity" | "timer" | "actor-defeated";
 export type TriggerSpec = {
   id: string;
   kind: TriggerKind;
@@ -149,6 +164,9 @@ export type TriggerSpec = {
 
 export type LevelEventSpec =
   | { id: string; kind: "set-flag"; flag: string; value: boolean | number | string }
+  | { id: string; kind: "drop-item"; actorId: string; pickupId: string }
+  | { id: string; kind: "set-variable"; variableId: string; value: boolean }
+  | { id: string; kind: "show-text"; textRefId: string }
   | { id: string; kind: "grant-key"; keyId: string }
   | { id: string; kind: "unlock-door"; doorId: string }
   | { id: string; kind: "lock-door"; doorId: string }
@@ -246,6 +264,8 @@ export type LevelSpec = {
   stagedActors?: StagedActorSpec[];
   routes?: RouteSpec[];
   pickups?: AccessPickupSpec[];
+  variables?: BooleanVariableSpec[];
+  textReferences?: VisibleTextReferenceSpec[];
   zones?: TriggerZoneSpec[];
   triggers?: TriggerSpec[];
   events?: LevelEventSpec[];
@@ -324,6 +344,8 @@ export type SemanticCompilePlan = {
   stagedActors: StagedActorSpec[];
   routes: RouteSpec[];
   pickups: AccessPickupSpec[];
+  variables: BooleanVariableSpec[];
+  textReferences: VisibleTextReferenceSpec[];
   zones: TriggerZoneSpec[];
   triggers: TriggerSpec[];
   events: LevelEventSpec[];

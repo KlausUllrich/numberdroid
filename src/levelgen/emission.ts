@@ -361,6 +361,7 @@ export function emitRuntimeLevel(events: EventCompilationPlan, runtimeOverride?:
       properties: [
         prop("keyId", pickup.keyId, "string"),
         prop("label", pickup.label ?? friendly(pickup.id), "string"),
+        prop("initiallyPresent", pickup.initiallyPresent, "bool"),
       ],
     });
   });

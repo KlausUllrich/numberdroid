@@ -273,6 +273,7 @@ function parsePickups(map: TiledMapJson): PickupDefinition[] {
       kind: "access-key",
       keyId: requiredString(object.properties, "keyId", context),
       label: optionalString(object.properties, "label", "ZUGANGSKARTE"),
+      initiallyPresent: optionalBoolean(object.properties, "initiallyPresent", true),
       x: object.x,
       y: object.y,
     };

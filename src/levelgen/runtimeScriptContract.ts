@@ -11,6 +11,9 @@ import type { LevelEventSpec } from "./types";
 function runtimeEvent(event: LevelEventSpec): FloorScriptEventDefinition {
   switch (event.kind) {
     case "set-flag": return { id: event.id, kind: event.kind, flag: event.flag, value: event.value };
+    case "set-variable": return { id: event.id, kind: event.kind, variableId: event.variableId, value: event.value };
+    case "drop-item": return { id: event.id, kind: event.kind, actorId: event.actorId, pickupId: event.pickupId };
+    case "show-text": return { id: event.id, kind: event.kind, textRefId: event.textRefId };
     case "grant-key": return { id: event.id, kind: event.kind, keyId: event.keyId };
     case "unlock-door": return { id: event.id, kind: event.kind, doorId: event.doorId };
     case "lock-door": return { id: event.id, kind: event.kind, doorId: event.doorId };
@@ -58,6 +61,8 @@ export function runtimeScriptFromPlan(plan: RuntimeEmissionPlan): FloorScriptDef
 
   return {
     tileSize,
+    variables: plan.events.actors.props.navigation.geometry.semantic.variables.map((variable) => ({ ...variable })),
+    textReferences: plan.events.actors.props.navigation.geometry.semantic.textReferences.map((reference) => ({ ...reference })),
     triggers,
     events,
     routes,
