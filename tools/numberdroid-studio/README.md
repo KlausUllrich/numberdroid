@@ -267,6 +267,10 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [Roadmap and user checkpoints](docs/ROADMAP.md)
 - [Operations, Remote Access & Mobile masterplan](docs/OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md)
 - [O0 backup/recovery operations contract](docs/O0_BACKUP_RECOVERY_CONTRACT.md)
+- [O1a backup core status](docs/O1A_BACKUP_CORE_STATUS.md)
+- [O1b Backups UI status](docs/O1B_BACKUPS_UI_STATUS.md)
+- [O2a private remote service status](docs/O2A_PRIVATE_REMOTE_SERVICE_STATUS.md)
+- [A3a typed level/logic kernel status](docs/A3A_LEVEL_LOGIC_KERNEL_STATUS.md)
 - [Consolidated return test backlog](docs/VACATION_TEST_BACKLOG.md)
 - [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
 - [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)
@@ -297,9 +301,9 @@ These current product documents are normative for the Studio implementation. If
 code and documentation disagree, the discrepancy must be resolved explicitly;
 it must not become an accidental new contract.
 
-Current task launch snapshot: [2026-08-28 autonomous execution handoff](../../docs/history/handoffs/HANDOFF_2026-08-28_NUMBERDROID_STUDIO_AUTONOMOUS_A1_EXECUTION.md).
-It is a historical handoff, not a product contract, and remains subordinate to
-newer current code and documentation.
+Current task launch snapshot: [2026-08-30 O2a/A3a integrated, next A4 handoff](../../docs/history/handoffs/HANDOFF_2026-08-30_NUMBERDROID_STUDIO_O2A_A3A_INTEGRATED_NEXT_A4.md).
+It is a dated execution snapshot, not a product contract, and remains
+subordinate to newer current code and documentation.
 
 ## Safe reset and recovery
 
