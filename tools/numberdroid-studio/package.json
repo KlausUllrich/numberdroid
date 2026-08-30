@@ -17,6 +17,10 @@
     "evidence:visual-prepare": "node scripts/prepare-visual-evidence.js",
     "mcp": "node apps/studio-mcp/src/main.js",
     "admin": "node apps/studio-admin/src/main.js",
+    "remote:start": "node apps/studio-remote/src/main.js",
+    "remote:check": "node apps/studio-remote/src/check-config.js",
+    "remote:credential": "node apps/studio-remote/src/create-credential.js",
+    "remote:mark-mount": "node apps/studio-remote/src/create-mount-marker.js",
     "test": "node --test tests/*.node-test.js",
     "test:watch": "node --test --watch tests/*.node-test.js"
   },

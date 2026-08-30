@@ -544,6 +544,7 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
 .activity-item small { color: #607d74; font-size: 10px; }
 #toast { position: fixed; right: 20px; bottom: 20px; max-width: 380px; padding: 11px 14px; border: 1px solid #466b60; border-radius: 8px; background: #152a23; color: #eafff7; opacity: 0; transform: translateY(8px); pointer-events: none; transition: .18s ease; }
 #toast.visible { opacity: 1; transform: none; }
+.remote-read-only-badge { padding: 7px 10px; border: 1px solid #376a60; border-radius: 999px; background: #142a25; color: var(--mint); font: 10px ui-monospace, monospace; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 
 @media (max-width: 1200px) {
   .app-shell { grid-template-columns: 190px minmax(540px, 1fr) 300px; }
