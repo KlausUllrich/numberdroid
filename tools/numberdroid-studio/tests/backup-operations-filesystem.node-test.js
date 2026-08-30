@@ -438,6 +438,55 @@ test('injected Windows descendant proof blocks direct backup and restored-copy v
   }
 });
 
+test('Windows backup resolution refines only confirmed absence to MISSING', async (context) => {
+  const { roots, configuration } = await fixture(context);
+  const backupId = '12121212-1212-4121-8121-121212121212';
+  const finalPath = join(roots.backup, `backup-${backupId}`);
+  let rejectedFinalPath = null;
+  let rejectSecondRootProof = false;
+  let expectedRootProofs = 0;
+  const spawnProcess = injectedWindowsHelper((payload) => {
+    if (rejectSecondRootProof
+        && payload.path === roots.backup
+        && payload.expectedFileId !== undefined) {
+      expectedRootProofs += 1;
+      if (expectedRootProofs === 2) return { code: 'BACKUP_PATH_UNSAFE' };
+    }
+    return payload.path === rejectedFinalPath
+      ? { code: 'BACKUP_PATH_UNSAFE' }
+      : windowsProof(payload.path);
+  });
+  const filesystem = await OperationsFilesystem.create({
+    configuration,
+    platform: 'win32',
+    spawnProcess,
+  });
+
+  rejectedFinalPath = finalPath;
+  await assert.rejects(
+    filesystem.resolveBackup({ backupId, destinationId: 'backup.primary' }),
+    (error) => error.code === 'BACKUP_CONTENT_MISMATCH'
+      && error.details?.healthEffect === 'MISSING',
+  );
+
+  await mkdir(finalPath, { mode: 0o700 });
+  await assert.rejects(
+    filesystem.resolveBackup({ backupId, destinationId: 'backup.primary' }),
+    (error) => error.code === 'BACKUP_PATH_UNSAFE'
+      && error.details?.healthEffect === undefined,
+  );
+
+  const driftBackupId = '13131313-1313-4131-8131-131313131313';
+  rejectedFinalPath = join(roots.backup, `backup-${driftBackupId}`);
+  rejectSecondRootProof = true;
+  await assert.rejects(
+    filesystem.resolveBackup({ backupId: driftBackupId, destinationId: 'backup.primary' }),
+    (error) => error.code === 'BACKUP_PATH_UNSAFE'
+      && error.details?.healthEffect === undefined,
+  );
+  assert.equal(expectedRootProofs, 2);
+});
+
 test('Windows helpers prove NTFS identities and publish with write-through no-overwrite semantics', {
   skip: process.platform !== 'win32',
   timeout: 30_000,

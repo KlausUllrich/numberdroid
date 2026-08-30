@@ -19,6 +19,7 @@ const BACKUP_ARTIFACT_DIRECTORY = 'artifacts';
 const ARTIFACT_MANIFEST_FILENAME = 'manifest.json';
 export const RESTORED_COPY_QUARANTINE_MARKER = '.numberdroid-restored-copy-quarantine.json';
 const MAX_MANIFEST_BYTES = 1024 * 1024;
+const MAX_WINDOWS_MISSING_DIRECTORY_COMPONENTS = 256;
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const RESTORED_COPY_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9-]{8,55}$/;
 
@@ -230,6 +231,143 @@ async function proveWindowsMutationDirectories(paths, {
   return Object.freeze(proofs);
 }
 
+async function prepareWindowsMutationDirectory(path, {
+  spawnProcess,
+  inspectDescendants = false,
+  signal,
+}) {
+  const target = resolve(path);
+  const missing = [];
+  let current = target;
+  while (true) {
+    assertEffectFence(signal);
+    try {
+      const info = await lstat(current);
+      invariant(info.isDirectory() && !info.isSymbolicLink(),
+        'BACKUP_PATH_UNSAFE', 'Windows mutation parent is not a no-follow directory.');
+      break;
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason;
+      if (error instanceof StudioError) throw error;
+      if (error.code !== 'ENOENT') {
+        throw new StudioError('BACKUP_PATH_UNSAFE', 'Windows mutation parent could not be inspected safely.');
+      }
+      missing.push(current);
+      invariant(missing.length <= MAX_WINDOWS_MISSING_DIRECTORY_COMPONENTS,
+        'BACKUP_PATH_UNSAFE', 'Windows mutation parent exceeds its fixed component bound.');
+      const parent = dirname(current);
+      invariant(parent !== current,
+        'BACKUP_PATH_UNSAFE', 'Windows mutation parent has no existing safe ancestor.');
+      current = parent;
+    }
+  }
+
+  let identity = await inspectWindowsFilesystem(current, { spawnProcess, signal });
+  const pending = missing.reverse();
+  for (let index = 0; index < pending.length; index += 1) {
+    const next = pending[index];
+    await inspectWindowsFilesystem(current, {
+      expectedIdentity: identity,
+      spawnProcess,
+      signal,
+    });
+    assertEffectFence(signal);
+    try {
+      await mkdir(next, { recursive: false, mode: 0o700 });
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason;
+      throw new StudioError('BACKUP_PATH_UNSAFE', 'Windows mutation parent could not be created safely.');
+    }
+    await inspectWindowsFilesystem(current, {
+      expectedIdentity: identity,
+      spawnProcess,
+      signal,
+    });
+    const nextIdentity = await inspectWindowsFilesystem(next, {
+      inspectDescendants: inspectDescendants && index === pending.length - 1,
+      spawnProcess,
+      signal,
+    });
+    await inspectWindowsFilesystem(current, {
+      expectedIdentity: identity,
+      spawnProcess,
+      signal,
+    });
+    current = next;
+    identity = nextIdentity;
+  }
+
+  if (pending.length === 0 && inspectDescendants) {
+    identity = await inspectWindowsFilesystem(current, {
+      expectedIdentity: identity,
+      inspectDescendants: true,
+      spawnProcess,
+      signal,
+    });
+  }
+  return Object.freeze({ path: target, inspectDescendants, identity });
+}
+
+async function prepareWindowsMutationChild(path, parentProof, {
+  spawnProcess,
+  inspectDescendants = false,
+  signal,
+}) {
+  const target = resolve(path);
+  invariant(parentProof?.path === dirname(target),
+    'BACKUP_PATH_UNSAFE', 'Windows mutation child is not beneath its pinned parent.');
+  const revalidateParent = () => inspectWindowsFilesystem(parentProof.path, {
+    expectedIdentity: parentProof.identity,
+    inspectDescendants: parentProof.inspectDescendants,
+    spawnProcess,
+    signal,
+  });
+
+  await revalidateParent();
+  assertEffectFence(signal);
+  let exists = true;
+  try {
+    const info = await lstat(target);
+    invariant(info.isDirectory() && !info.isSymbolicLink(),
+      'BACKUP_PATH_UNSAFE', 'Windows mutation child is not a no-follow directory.');
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason;
+    if (error instanceof StudioError) throw error;
+    if (error.code !== 'ENOENT') {
+      throw new StudioError('BACKUP_PATH_UNSAFE', 'Windows mutation child could not be inspected safely.');
+    }
+    exists = false;
+  }
+
+  await revalidateParent();
+  if (!exists) {
+    assertEffectFence(signal);
+    try {
+      await mkdir(target, { recursive: false, mode: 0o700 });
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason;
+      throw new StudioError('BACKUP_PATH_UNSAFE', 'Windows mutation child could not be created safely.');
+    }
+    await revalidateParent();
+  }
+  const identity = await inspectWindowsFilesystem(target, {
+    inspectDescendants,
+    spawnProcess,
+    signal,
+  });
+  await revalidateParent();
+  return Object.freeze({ path: target, inspectDescendants, identity });
+}
+
+async function prepareWindowsMutationDirectories(paths, options) {
+  if (options.platform !== 'win32') return Object.freeze([]);
+  const proofs = [];
+  for (const path of [...new Set(paths.map((entry) => resolve(entry)))]) {
+    proofs.push(await prepareWindowsMutationDirectory(path, options));
+  }
+  return Object.freeze(proofs);
+}
+
 async function revalidateWindowsMutationDirectories(proofs, { platform, spawnProcess, signal }) {
   if (platform !== 'win32') return;
   for (const proof of proofs) {
@@ -261,7 +399,7 @@ export async function createWorkspaceBackup({
       findingCount: integrityFindingCount(sourceIntegrity),
     });
     const destination = resolve(destinationDirectory);
-    const parentProofs = await proveWindowsMutationDirectories([dirname(destination)], {
+    const parentProofs = await prepareWindowsMutationDirectories([dirname(destination)], {
       platform,
       spawnProcess,
       signal,
@@ -405,7 +543,7 @@ export async function restoreWorkspaceBackup({ backupDirectory, databaseDestinat
   const signal = options.signal;
   const databasePath = resolve(databaseDestination);
   const artifactPath = resolve(artifactDestination);
-  const parentProofs = await proveWindowsMutationDirectories([
+  const parentProofs = await prepareWindowsMutationDirectories([
     dirname(databasePath),
     dirname(artifactPath),
   ], { platform, spawnProcess, signal });
@@ -413,13 +551,18 @@ export async function restoreWorkspaceBackup({ backupDirectory, databaseDestinat
   if (platform !== 'win32') await mkdir(dirname(databasePath), { recursive: true, mode: 0o700 });
   await revalidateWindowsMutationDirectories(parentProofs, { platform, spawnProcess, signal });
   assertEffectFence(signal);
-  await mkdir(artifactPath, { recursive: true, mode: 0o700 });
-  const artifactProofs = await proveWindowsMutationDirectories([artifactPath], {
-    platform,
-    spawnProcess,
-    inspectDescendants: true,
-    signal,
-  });
+  let artifactProofs;
+  if (platform === 'win32') {
+    const artifactParentProof = parentProofs.find((proof) => proof.path === dirname(artifactPath));
+    artifactProofs = Object.freeze([await prepareWindowsMutationChild(artifactPath, artifactParentProof, {
+      spawnProcess,
+      inspectDescendants: true,
+      signal,
+    })]);
+  } else {
+    await mkdir(artifactPath, { recursive: true, mode: 0o700 });
+    artifactProofs = Object.freeze([]);
+  }
   await revalidateWindowsMutationDirectories(parentProofs, { platform, spawnProcess, signal });
   await revalidateWindowsMutationDirectories(artifactProofs, { platform, spawnProcess, signal });
   assertEffectFence(signal);

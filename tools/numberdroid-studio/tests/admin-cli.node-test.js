@@ -6,7 +6,7 @@ import { EventEmitter } from 'node:events';
 import { promisify } from 'node:util';
 import { access, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { StudioService } from '../packages/application/src/index.js';
@@ -16,6 +16,7 @@ import {
   SqliteArtifactMetadataStore,
   SqliteProjectStore,
   migrateJsonToSqlite,
+  restoreWorkspaceBackup,
 } from '../packages/persistence/src/index.js';
 import { runAdmin } from '../apps/studio-admin/src/main.js';
 import { OWNER, OWNER_CONTEXT, PROJECT_ID, createHarness, createProject } from './test-helpers.js';
@@ -223,8 +224,10 @@ test('admin Windows destination proof fails closed before backup or restore muta
   const rootDirectory = await temporaryDirectory(context, 'numberdroid-admin-windows-proof-');
   const dataDirectory = resolve(rootDirectory, 'data');
   const backupDirectory = resolve(rootDirectory, 'backup');
+  const nestedBackupDirectory = resolve(rootDirectory, 'nested', 'parents', 'backup');
   const rejectedBackupDirectory = resolve(rootDirectory, 'rejected-backup');
   const rejectedRestoreDirectory = resolve(rootDirectory, 'rejected-restore');
+  const driftRestoreDirectory = resolve(rootDirectory, 'drift-restore');
   const projectStore = await SqliteProjectStore.open({
     filename: resolve(dataDirectory, 'studio.sqlite'),
     databaseFactory: nodeSqliteDatabaseFactory,
@@ -248,6 +251,21 @@ test('admin Windows destination proof fails closed before backup or restore muta
   await assert.rejects(access(rejectedBackupDirectory));
   assert.equal(backupRequests[0].path, rootDirectory);
 
+  const nestedBackupRequests = [];
+  assert.equal(await runAdmin(['backup', dataDirectory, nestedBackupDirectory], {
+    databaseFactory: nodeSqliteDatabaseFactory,
+    emit: () => {},
+    platform: 'win32',
+    spawnProcess: injectedWindowsHelper((payload) => {
+      nestedBackupRequests.push(payload);
+      return windowsProof(payload.path);
+    }),
+  }), 0);
+  await access(resolve(nestedBackupDirectory, 'workspace-manifest.json'));
+  assert.equal(nestedBackupRequests.some(({ path }) => path === rootDirectory), true);
+  assert.equal(nestedBackupRequests.some(({ path }) => path === resolve(rootDirectory, 'nested')), true);
+  assert.equal(nestedBackupRequests.some(({ path }) => path === resolve(rootDirectory, 'nested', 'parents')), true);
+
   await runAdmin(['backup', dataDirectory, backupDirectory], {
     databaseFactory: nodeSqliteDatabaseFactory,
     emit: () => {},
@@ -269,6 +287,35 @@ test('admin Windows destination proof fails closed before backup or restore muta
   );
   await assert.rejects(access(rejectedRestoreDirectory));
   assert.deepEqual(restoreRequests.map(({ path }) => path), [backupDirectory, rootDirectory]);
+
+  await mkdir(driftRestoreDirectory, { mode: 0o700 });
+  let expectedDriftParentProofs = 0;
+  let driftParentReplaced = false;
+  await assert.rejects(
+    restoreWorkspaceBackup({
+      backupDirectory,
+      databaseDestination: resolve(driftRestoreDirectory, 'studio.sqlite'),
+      artifactDestination: resolve(driftRestoreDirectory, 'artifacts'),
+    }, {
+      platform: 'win32',
+      spawnProcess: injectedWindowsHelper((payload) => {
+        if (payload.path === driftRestoreDirectory) {
+          if (payload.expectedFileId !== undefined) {
+            expectedDriftParentProofs += 1;
+            if (expectedDriftParentProofs === 1) {
+              driftParentReplaced = true;
+              return windowsProof(payload.path);
+            }
+          }
+          if (driftParentReplaced) return { ...windowsProof(payload.path), fileId: 'F'.repeat(32) };
+        }
+        return windowsProof(payload.path);
+      }),
+    }),
+    (error) => error.code === 'BACKUP_PATH_UNSAFE',
+  );
+  assert.equal(expectedDriftParentProofs, 2);
+  await assert.rejects(access(resolve(driftRestoreDirectory, 'artifacts')));
 });
 
 test('admin Windows junction destinations are rejected before mutation', {
@@ -297,14 +344,16 @@ test('admin Windows junction destinations are rejected before mutation', {
     ['backup', dataDirectory, 'escaped-backup'],
     ['restore', backupDirectory, 'escaped-restore'],
   ]) {
+    const missingParent = `missing-parent-${command}`;
+    const relativeDestination = join(missingParent, basename);
     await assert.rejects(
-      runAdmin([command, source, resolve(junctionDirectory, basename)], {
+      runAdmin([command, source, resolve(junctionDirectory, relativeDestination)], {
         databaseFactory: nodeSqliteDatabaseFactory,
         emit: () => {},
       }),
       (error) => error.code === 'BACKUP_PATH_UNSAFE',
     );
-    await assert.rejects(access(resolve(targetDirectory, basename)));
+    await assert.rejects(access(resolve(targetDirectory, missingParent)));
   }
 });
 

@@ -45,6 +45,11 @@ review, every result remains **implemented candidate — not user accepted**.
   descendant reparse tag and case-sensitive directory, pin stable volume/file
   IDs, and publish through identity-bound
   `MoveFileExW(MOVEFILE_WRITE_THROUGH)` without replace or copy fallback.
+  Missing legacy destination parents are created one component at a time with
+  no-follow inspection, a fixed depth bound, non-recursive `mkdir`, and identity
+  revalidation around every mutation. Restore creates its artifact directory as
+  exactly one child of the already pinned destination parent; it never accepts
+  a freshly swapped parent identity.
   Fence loss terminates a running helper, and resource cleanup waits for the
   spawned child to actually settle even when termination itself reports an
   error.
@@ -94,11 +99,11 @@ operation is never re-imported under a second provenance path.
 
 ## Local verification
 
-Local candidate evidence on 2026-08-29:
+Local candidate evidence on 2026-08-30:
 
 - focused O1a Domain/Application, ledger, CAS, filesystem, quarantine, runtime,
-  failure/health, and restart suite: **59 tests — 55 passed, 0 failed, 4 Windows-only skips**;
-- full Studio suite: **589 tests — 585 passed, 0 failed, 4 Windows-only skips**;
+  failure/health, restart, and Windows-helper suite: **60 tests — 56 passed, 0 failed, 4 Windows-only skips**;
+- full Studio suite: **590 tests — 586 passed, 0 failed, 4 Windows-only skips**;
 - JavaScript syntax check: **177 files passed**.
 
 The focused tests prove same-request replay with one durable output, changed
@@ -112,11 +117,16 @@ pre-publication restored-copy verification, live-store binding, and fatal lease
 intake closure. It also proves periodic and immediate post-snapshot lease
 renewal, cooperative fencing between CAS objects and publication steps,
 primary-error precedence during cleanup, and Windows helper settlement before
-resource release. A static helper-bootstrap regression additionally closes the
-fixed PowerShell stderr-redirection API and keeps regular descendant files on
-the no-follow reparse proof before directory-only NTFS identity checks. Real
-Windows file durability uses one writable file handle for the required flush;
-there is no read-only retry or fallback.
+resource release. Windows compatibility tests additionally prove bounded nested
+parent creation, rejection before any junction-target parent mutation, and
+restore parent-swap fencing before child creation. A missing backup is classified
+as `MISSING` only after two absence observations with a pinned-root identity
+revalidation between them; helper or root uncertainty remains `BACKUP_PATH_UNSAFE`.
+A static helper-bootstrap regression closes the fixed PowerShell stderr-redirection
+API and keeps regular descendant files on the no-follow reparse proof before
+directory-only NTFS identity checks. Real Windows file durability uses one
+writable file handle for the required flush; there is no read-only retry or
+fallback.
 The
 existing full suite additionally preserves schema-v13 SQLite/CAS behavior,
 legacy HTTP/MCP catalogs, A1.4–A1.7, accepted checkpoint behavior, and package

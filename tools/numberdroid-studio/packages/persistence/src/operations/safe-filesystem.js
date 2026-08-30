@@ -62,6 +62,35 @@ async function inspectDirectory(path) {
   return Object.freeze({ device: String(info.dev), inode: String(info.ino) });
 }
 
+async function isConfirmedAbsent(path, signal) {
+  assertEffectFence(signal);
+  try {
+    await lstat(path);
+    assertEffectFence(signal);
+    return false;
+  } catch (error) {
+    if (signal?.aborted) throw signal.reason;
+    return error.code === 'ENOENT';
+  }
+}
+
+async function rethrowMissingDirectoryOrOriginal(path, originalError, revalidateRoot, signal) {
+  if (!await isConfirmedAbsent(path, signal)) throw originalError;
+  try {
+    await revalidateRoot();
+  } catch {
+    if (signal?.aborted) throw signal.reason;
+    throw originalError;
+  }
+  if (!await isConfirmedAbsent(path, signal)) throw originalError;
+  assertEffectFence(signal);
+  throw safeFailure(
+    'BACKUP_CONTENT_MISMATCH',
+    'Expected operation-owned directory is missing.',
+    { healthEffect: 'MISSING' },
+  );
+}
+
 async function assertAbsent(path) {
   try {
     await lstat(path);
@@ -389,9 +418,21 @@ export class OperationsFilesystem {
     const finalPath = join(root.path, `backup-${backupId}`);
     invariant(isPathWithin(root.path, finalPath, this.#platform),
       'BACKUP_PATH_UNSAFE', 'Backup identity escaped its configured root.');
-    const identity = this.#platform === 'win32'
-      ? await this.#inspect(finalPath, null, { inspectDescendants: true, signal })
-      : await inspectDirectory(finalPath);
+    let identity;
+    if (this.#platform === 'win32') {
+      try {
+        identity = await this.#inspect(finalPath, null, { inspectDescendants: true, signal });
+      } catch (error) {
+        await rethrowMissingDirectoryOrOriginal(
+          finalPath,
+          error,
+          () => this.#revalidate(root, { signal }),
+          signal,
+        );
+      }
+    } else {
+      identity = await inspectDirectory(finalPath);
+    }
     return Object.freeze({ backupId, destinationId, root, finalPath, identity });
   }
 
