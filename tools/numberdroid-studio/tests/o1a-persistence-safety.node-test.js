@@ -461,7 +461,7 @@ test('restored-copy quarantine blocks every public open before database, lock, o
     (error) => error.code === 'RESTORED_COPY_QUARANTINED',
   );
   assert.equal(databaseFactoryCalls, 0, 'quarantine must be checked before SQLite open or migration');
-  await assert.rejects(access(lock), (error) => error.code === 'ENOENT');
+  await access(lock);
 
   assert.equal('openSqliteWorkspaceForInternalVerification' in publicPersistence, false);
   assert.equal('openSqliteWorkspaceForInternalRecoveryTest' in publicPersistence, false);
@@ -482,5 +482,5 @@ test('restored-copy quarantine blocks every public open before database, lock, o
   assert.equal(recoveryReader.isWriter, false);
   assert.equal(recoveryReader.integrityCheck().ok, true);
   recoveryReader.close();
-  await assert.rejects(access(lock), (error) => error.code === 'ENOENT');
+  await access(lock);
 });

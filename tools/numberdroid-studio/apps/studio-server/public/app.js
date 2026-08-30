@@ -15,6 +15,10 @@ import {
   normalizeBackupOverview,
   unavailableBackupOverview,
 } from './o1b-backups-state.js';
+import {
+  detectStudioUiMode,
+  remoteReadOnlyAgentAccess,
+} from './remote-ui-mode.js';
 
 const visualFixture = new URLSearchParams(location.search).get('visualFixture');
 const MAX_ATLAS_JOB_ATTEMPTS = 3;
@@ -32,6 +36,7 @@ if (visualFixture) {
 }
 
 const state = {
+  uiMode: 'unknown',
   projects: [],
   project: null,
   activity: [],
@@ -230,10 +235,11 @@ function updateMutationControls() {
     || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending;
   elements['project-select'].disabled = pending;
   elements['refresh-button'].disabled = pending || state.refreshing;
-  elements['demo-button'].disabled = pending;
+  elements['demo-button'].disabled = pending || state.uiMode === 'remote';
   elements['agent-access-select'].disabled = pending || !state.project || !state.agentAccess
-    || state.agentAccess.state === 'REQUESTING';
-  elements['agent-access-state'].disabled = pending || !state.project || !state.agentAccess;
+    || state.agentAccess.state === 'REQUESTING' || state.uiMode === 'remote';
+  elements['agent-access-state'].disabled = pending || !state.project || !state.agentAccess
+    || state.uiMode === 'remote';
   elements['agent-access-panel'].inert = pending;
   for (const control of elements['workspace-content'].querySelectorAll('[data-task-control], [data-task-form] input, [data-task-form] textarea, [data-task-form] button')) {
     if (state.taskMutationPending) {
@@ -525,8 +531,9 @@ function renderAgentAccess() {
   const disabled = !state.project || !policy;
   const mutationPending = state.cutterPending || state.sourceMutationPending || state.assetMutationPending
     || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending;
-  elements['agent-access-select'].disabled = mutationPending || disabled || policy?.state === 'REQUESTING';
-  elements['agent-access-state'].disabled = mutationPending || disabled;
+  elements['agent-access-select'].disabled = mutationPending || disabled
+    || policy?.state === 'REQUESTING' || state.uiMode === 'remote';
+  elements['agent-access-state'].disabled = mutationPending || disabled || state.uiMode === 'remote';
   elements['agent-access-panel'].inert = mutationPending;
   elements['agent-access-select'].value = policy?.mode ?? 'off';
   const policyLabel = accessStateLabels[policy?.state] ?? 'OFF';
@@ -4250,8 +4257,30 @@ function reconcileAssetUi(project, previousContext) {
 }
 
 async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged = false } = {}) {
-  const session = await api('/api/ui-session');
-  state.agentAccessCsrf = session.csrfToken;
+  if (state.uiMode === 'unknown') {
+    const detected = await detectStudioUiMode();
+    state.uiMode = detected.mode;
+    if (detected.readOnly) {
+      document.documentElement.dataset.studioMode = 'remote-read-only';
+      const backupLink = elements['workspace-nav'].querySelector('[data-workspace="backups"]');
+      if (backupLink) backupLink.hidden = true;
+      if (state.workspace === 'backups') {
+        state.workspace = 'overview';
+        history.replaceState(null, '', '#overview');
+      }
+      const badge = document.createElement('span');
+      badge.className = 'remote-read-only-badge';
+      badge.textContent = 'Private remote · read only';
+      badge.setAttribute('role', 'status');
+      elements['project-select'].before(badge);
+    }
+  }
+  if (state.uiMode === 'local') {
+    const session = await api('/api/ui-session');
+    state.agentAccessCsrf = session.csrfToken;
+  } else {
+    state.agentAccessCsrf = null;
+  }
   const response = await api('/api/projects');
   state.projects = response.projects;
   const prior = preferredProjectId || elements['project-select'].value;
@@ -4327,7 +4356,9 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
   const [project, activity, agentAccess, sourceIntakes, taskList] = await Promise.all([
     api(`/api/projects/${encodeURIComponent(projectId)}`),
     api(`/api/projects/${encodeURIComponent(projectId)}/activity`),
-    api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`),
+    state.uiMode === 'remote'
+      ? Promise.resolve(remoteReadOnlyAgentAccess(projectId))
+      : api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`),
     api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`),
     api(`/api/projects/${encodeURIComponent(projectId)}/tasks`).catch(() => ({ tasks: [] })),
   ]);
@@ -6081,6 +6112,11 @@ window.addEventListener('hashchange', () => {
     return;
   }
   const nextWorkspace = location.hash.slice(1) || 'overview';
+  if (state.uiMode === 'remote' && nextWorkspace === 'backups') {
+    history.replaceState(null, '', `#${state.workspace}`);
+    showToast('Backups remain available only on the local Studio.');
+    return;
+  }
   if (nextWorkspace === state.workspace) { void publishVisualEvidence(); return; }
   if (state.workspace === 'tasks' && nextWorkspace !== 'tasks') {
     taskSelectionGeneration += 1;

@@ -61,6 +61,7 @@ const staticFiles = new Map([
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/a1-7-state.js', ['a1-7-state.js', 'text/javascript; charset=utf-8']],
   ['/o1b-backups-state.js', ['o1b-backups-state.js', 'text/javascript; charset=utf-8']],
+  ['/remote-ui-mode.js', ['remote-ui-mode.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
 ]);
@@ -1908,12 +1909,22 @@ export async function startStudioHttpServer({
   storeMode = process.env.NUMBERDROID_STUDIO_STORE ?? 'sqlite',
   clock = () => new Date().toISOString(),
   authoringV2CapabilityProvider = null,
+  pairingEnabled = true,
   operationsConfigurationFilename = process.env.NUMBERDROID_STUDIO_OPERATIONS_CONFIG ?? null,
+  operationsConfigurationValue = null,
+  operationsStartupPolicy = 'optional',
   operationsBootstrapSecret = null,
   operationsBootstrapWriter = writeWorkspaceOperatorBootstrapSecret,
   operationsSessionClock = Date.now,
 } = {}) {
   if (!['sqlite', 'json'].includes(storeMode)) throw new TypeError('storeMode must be sqlite or json.');
+  if (typeof pairingEnabled !== 'boolean') throw new TypeError('pairingEnabled must be a boolean.');
+  if (!['optional', 'required'].includes(operationsStartupPolicy)) {
+    throw new TypeError('operationsStartupPolicy must be optional or required.');
+  }
+  if (operationsConfigurationFilename !== null && operationsConfigurationValue !== null) {
+    throw new TypeError('Provide operations configuration by filename or value, not both.');
+  }
   // Trusted programmatic composition only. The private admission service still
   // pins every positive response to the exact Numberdroid Authoring-v2 manifest.
   if (authoringV2CapabilityProvider !== null
@@ -1929,12 +1940,19 @@ export async function startStudioHttpServer({
   }
   const resolvedDataDirectory = resolve(dataDirectory);
   let operationsConfiguration = null;
+  if (operationsStartupPolicy === 'required'
+    && (storeMode !== 'sqlite'
+      || (operationsConfigurationFilename === null && operationsConfigurationValue === null))) {
+    throw new StudioError(
+      'OPERATIONS_UNAVAILABLE',
+      'This Studio composition requires a valid SQLite operations control plane.',
+    );
+  }
   if (storeMode === 'sqlite') {
     assertWorkspaceNotQuarantined(resolvedDataDirectory);
-    if (operationsConfigurationFilename !== null) {
-      operationsConfiguration = await readOperationsConfigurationFile(
-        operationsConfigurationFilename,
-      );
+    if (operationsConfigurationFilename !== null || operationsConfigurationValue !== null) {
+      operationsConfiguration = operationsConfigurationValue
+        ?? await readOperationsConfigurationFile(operationsConfigurationFilename);
       await validateOperationsConfiguration(operationsConfiguration, {
         liveWorkspaceRoot: resolvedDataDirectory,
       });
@@ -1966,7 +1984,7 @@ export async function startStudioHttpServer({
   const hostBindingStore = storeMode === 'sqlite'
     ? new SqliteHostBindingStore({ workspace: store.workspace, clock })
     : null;
-  const pairingBroker = storeMode === 'sqlite' ? new McpPairingBroker() : null;
+  const pairingBroker = storeMode === 'sqlite' && pairingEnabled ? new McpPairingBroker() : null;
   const requestedPairingEndpoint = pairingBroker ? defaultMcpPairingEndpoint(dataDirectory) : null;
   const artifactStore = storeMode === 'sqlite'
     ? new ContentAddressedArtifactStore({ rootDirectory: resolve(resolvedDataDirectory, 'artifacts') })
@@ -1992,9 +2010,10 @@ export async function startStudioHttpServer({
         bootstrapSecret,
         clock: operationsSessionClock,
       });
-    } catch {
+    } catch (error) {
       await backupOperationsRuntime?.close().catch(() => {});
       backupOperationsController = null;
+      if (operationsStartupPolicy === 'required') throw error;
     }
   }
   pairing = pairingBroker
