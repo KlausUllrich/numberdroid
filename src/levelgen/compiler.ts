@@ -413,6 +413,7 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
     seed: normalizeLevelSeed(spec.seed),
     ruleSetRefs: [...spec.ruleSetRefs],
     rules: spec.rules,
+    ...(spec.runtime ? { runtime: spec.runtime } : {}),
     spaces,
     connections,
     props,
