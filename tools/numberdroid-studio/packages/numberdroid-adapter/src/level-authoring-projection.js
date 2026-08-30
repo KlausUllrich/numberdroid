@@ -28,9 +28,16 @@ const MAX_AGGREGATE_TEXT = 12_000_000;
 const MAX_KEY_LENGTH = 128;
 const MAX_NUMBER_MAGNITUDE = Number.MAX_SAFE_INTEGER;
 const A3A_COLLECTION_LIMIT = 512;
+const MAX_COMPILER_DIAGNOSTICS = (MAX_ARRAY_ENTRIES * 2) + 2;
 const LEVEL_SPEC_SNAPSHOT_LIMITS = Object.freeze({
   maxStringLength: 65_536,
   maxAggregateText: 1_000_000,
+});
+const SEMANTIC_PLAN_SNAPSHOT_LIMITS = Object.freeze({
+  maxArrayEntries: MAX_COMPILER_DIAGNOSTICS,
+  maxNodes: MAX_NODES * 2,
+  maxValues: MAX_VALUES * 2,
+  rejectSharedReferences: false,
 });
 const PROJECTION_SNAPSHOT_LIMITS = Object.freeze({
   maxDepth: MAX_DEPTH + 8,
@@ -731,7 +738,7 @@ function validateCompiledPropMetadata(value, label, expectedId) {
 }
 
 function validatePlanClosure(planValue, source) {
-  const plan = snapshotPlainData(planValue, 'compiler.semanticPlan', { rejectSharedReferences: false });
+  const plan = snapshotPlainData(planValue, 'compiler.semanticPlan', SEMANTIC_PLAN_SNAPSHOT_LIMITS);
   const required = ['levelId', 'version', 'seed', 'ruleSetRefs', 'rules', 'spaces', 'connections', 'props', 'encounters', 'stagedActors', 'routes', 'pickups', 'zones', 'triggers', 'events', 'overrides', 'diagnostics'];
   exactRecord(plan, required, ['runtime'], 'compiler.semanticPlan');
   invariant(plan.levelId === source.id && plan.version === source.version,
@@ -803,7 +810,7 @@ function validatePlanClosure(planValue, source) {
       'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `compiler.semanticPlan.props[${index}] does not preserve canonical prop defaults.`);
     validateCompiledPropMetadata(entry.metadata, `compiler.semanticPlan.props[${index}].metadata`, sourceEntry.propId);
   });
-  requireArray(plan.diagnostics, 'compiler.semanticPlan.diagnostics');
+  requireArray(plan.diagnostics, 'compiler.semanticPlan.diagnostics', { max: MAX_COMPILER_DIAGNOSTICS });
   plan.diagnostics.forEach((candidate, index) => {
     const label = `compiler.semanticPlan.diagnostics[${index}]`;
     const diagnostic = exactRecord(candidate, ['level', 'code', 'message'], ['targetId'], label);

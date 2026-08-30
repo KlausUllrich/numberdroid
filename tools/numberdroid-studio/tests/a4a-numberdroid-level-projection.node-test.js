@@ -358,6 +358,52 @@ test('A4a preserves bounded deterministic compiler diagnostics for valid non-A3a
   assert.equal(create(longSpec, longPort).compiler.semanticPlan.diagnostics[0].message, longMessage);
 });
 
+test('A4a admits the complete bounded compiler-diagnostic cardinality and rejects the next entry', { timeout: 30_000 }, () => {
+  const diagnosticPort = (count) => compiler({
+    compileLevelSpec(input) {
+      const plan = semanticPlan(input);
+      plan.diagnostics = Array.from({ length: count }, (_, index) => ({
+        level: index % 2 === 0 ? 'info' : 'warning',
+        code: 'BOUNDED_DIAGNOSTIC',
+        message: `Bounded compiler diagnostic ${index}.`,
+      }));
+      return plan;
+    },
+  });
+
+  assert.equal(create(levelSpec(), diagnosticPort(8_194)).compiler.semanticPlan.diagnostics.length, 8_194);
+  assertProjectionError(
+    () => create(levelSpec(), diagnosticPort(8_195)),
+    'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED',
+  );
+});
+
+test('A4a semantic-plan limits admit deterministic compiler expansion beyond the source scalar budget', { timeout: 30_000 }, () => {
+  const spec = levelSpec();
+  spec.rules.ensureReachability = false;
+  spec.ruleSetRefs = Array.from({ length: 3_180 }, (_, index) => `rules.${index}`);
+  spec.spaces = Array.from({ length: 48 }, (_, index) => ({
+    id: `room.scalar-volume.${index}`,
+    kind: 'room',
+    archetype: 'plain-room',
+    tags: Array.from({ length: 4_096 }, () => 't'),
+    size: { class: 'small' },
+  }));
+  spec.connections = [];
+  spec.props = [];
+  spec.encounters = [];
+  spec.stagedActors = [];
+  spec.routes = [];
+  spec.pickups = [];
+  spec.zones = [];
+  spec.triggers = [];
+  spec.events = [];
+  delete spec.runtime;
+
+  assert.doesNotThrow(() => validateNumberdroidLevelSpec(spec));
+  assert.equal(create(spec).compiler.semanticPlan.spaces.length, 48);
+});
+
 test('A4a serialized validation rejects source, plan, A3a, coverage, delta, and fingerprint tampering', { timeout: 5_000 }, () => {
   const projection = create();
   const mutations = [
