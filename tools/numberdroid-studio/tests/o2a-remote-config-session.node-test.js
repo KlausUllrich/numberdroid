@@ -4,6 +4,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  realpath,
   rename,
   rm,
   symlink,
@@ -107,7 +108,7 @@ test('O2a reads only the exact marked remote configuration and canonicalizes ide
   assert.equal(configuration.publicOrigin, 'https://studio.private.example');
   assert.deepEqual(configuration.listen, { host: '127.0.0.1', port: 4318 });
   assert.equal(configuration.trustedProxyAddress, '127.0.0.1');
-  assert.equal(configuration.workspaceRoot, fixture.mounts[0].root);
+  assert.equal(configuration.workspaceRoot, await realpath(fixture.mounts[0].root));
   assert.equal(configuration.workspaceMountId, 'workspace');
   assert.equal(configuration.mounts.length, 4);
   assert.equal(Object.isFrozen(configuration), true);
