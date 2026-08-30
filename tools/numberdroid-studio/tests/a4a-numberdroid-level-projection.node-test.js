@@ -648,6 +648,50 @@ test('A4a applies an honest source text budget before building the duplicated en
   assertProjectionError(() => validateNumberdroidLevelSpec(withTagVolume(3, 3_000)), 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED');
 });
 
+test('A4a projection limits admit worst-case JSON escaping within the source budget', { timeout: 120_000 }, () => {
+  const roomCount = 4_096;
+  const totalTags = 183_000;
+  const baseTags = Math.floor(totalTags / roomCount);
+  const extraTags = totalTags % roomCount;
+  let tagIndex = 0;
+  const spec = levelSpec();
+  spec.id = 'budget';
+  spec.version = 1;
+  spec.seed = 's';
+  spec.ruleSetRefs = [];
+  spec.rules = {
+    ensureReachability: false,
+    singleSharedWall: false,
+    doorsEmbeddedInWalls: false,
+    defaultCorridorWidth: { min: 1, preferred: 1, max: 1 },
+    defaultDoorClearance: { before: 0, after: 0 },
+  };
+  spec.spaces = Array.from({ length: roomCount }, (_, roomIndex) => ({
+    id: `r${roomIndex}`,
+    kind: 'room',
+    archetype: '',
+    tags: Array.from({ length: baseTags + (roomIndex < extraTags ? 1 : 0) }, () => (
+      '\u0000'.repeat(tagIndex++ < 28_759 ? 6 : 5)
+    )),
+    size: { class: 'small' },
+  }));
+  spec.connections = [];
+  spec.props = [];
+  spec.encounters = [];
+  spec.stagedActors = [];
+  spec.routes = [];
+  spec.pickups = [];
+  spec.zones = [];
+  spec.triggers = [];
+  spec.events = [];
+  spec.overrides = [];
+  delete spec.runtime;
+
+  const canonicalSource = canonicalJson(validateNumberdroidLevelSpec(spec));
+  assert.ok(canonicalSource.length > 8_000_000);
+  assert.equal(create(spec).source.canonicalJson, canonicalSource);
+});
+
 test('A4a projection fingerprint binds the complete immutable value', { timeout: 5_000 }, () => {
   const projection = create();
   const core = structuredClone(projection);

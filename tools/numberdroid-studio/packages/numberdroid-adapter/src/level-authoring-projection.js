@@ -29,6 +29,9 @@ const MAX_KEY_LENGTH = 128;
 const MAX_NUMBER_MAGNITUDE = Number.MAX_SAFE_INTEGER;
 const A3A_COLLECTION_LIMIT = 512;
 const MAX_COMPILER_DIAGNOSTICS = (MAX_ARRAY_ENTRIES * 2) + 2;
+// Canonical JSON can expand every bounded text code unit to a six-character
+// escape and adds deterministic schema/indentation overhead for every value.
+const MAX_CANONICAL_CLOSURE_STRING_LENGTH = 128_000_000;
 const LEVEL_SPEC_SNAPSHOT_LIMITS = Object.freeze({
   maxStringLength: 65_536,
   maxAggregateText: 1_000_000,
@@ -44,8 +47,8 @@ const PROJECTION_SNAPSHOT_LIMITS = Object.freeze({
   maxArrayEntries: 400_000,
   maxNodes: 750_000,
   maxValues: 2_000_000,
-  maxStringLength: 8_000_000,
-  maxAggregateText: 96_000_000,
+  maxStringLength: MAX_CANONICAL_CLOSURE_STRING_LENGTH,
+  maxAggregateText: 256_000_000,
 });
 
 const SPACE_KINDS = new Set(['room', 'corridor']);
