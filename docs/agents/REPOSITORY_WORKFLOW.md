@@ -14,6 +14,13 @@ Companion execution and verification authority:
 
 For structured/textual remote repository operations, use the **GitHub connector directly**:
 
+- read repository files through GitHub;
+- create/update/delete text repository files through GitHub;
+- create branches through GitHub;
+- inspect commits and diffs through GitHub;
+- create and merge pull requests through GitHub;
+- inspect GitHub Actions through GitHub.
+
 ## Durable work checkpoints
 
 A temporary workspace is never an acceptable sole copy of non-trivial work.
@@ -38,13 +45,6 @@ history tidy is prohibited.
 
 Only task-owned paths may enter a checkpoint. Existing unrelated local changes
 remain untouched and unpublished.
-
-- read repository files through GitHub;
-- create/update/delete text repository files through GitHub;
-- create branches through GitHub;
-- inspect commits and diffs through GitHub;
-- create and merge pull requests through GitHub;
-- inspect GitHub Actions through GitHub.
 
 ### Binary assets are a special transport case
 
