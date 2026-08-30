@@ -315,8 +315,8 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 
 ## Parallel masterplan track — Operations, Remote Access & Mobile
 
-**Status: O0 frozen; O1, O2a, A3a, and A4a source-integrated and automated
-green on 2026-08-30; O1 user acceptance and O2 deployment remain open; A4b is
+**Status: O0 frozen; O1, O2a, A3a, A4a, and A4b source-integrated and automated
+green on 2026-08-30; O1 user acceptance and O2 deployment remain open; A4c is
 the next autonomous product slice.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
@@ -366,10 +366,10 @@ The fail-closed O1a application/job seam and bounded O1b local-human UI are now
 source-integrated and automated green, recorded in `O1A_BACKUP_CORE_STATUS.md`
 and `O1B_BACKUPS_UI_STATUS.md`. They remain **not user accepted**. VT-012 blocks
 an O1 acceptance claim and remote backup metadata/operation authority. The
-separately bounded O2a service, A3a contracts, and A4a lossless Numberdroid
-projection are now source-integrated and automated green, without deployment
-or user acceptance. Phone acceptance, remote backup authority, and remote MCP
-remain later gates.
+separately bounded O2a service, A3a contracts, A4a lossless Numberdroid
+projection, and A4b reference behavior are now source-integrated and automated
+green, without deployment or user acceptance. Phone acceptance, remote backup
+authority, and remote MCP remain later gates.
 
 Detailed contract: `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.
 
@@ -805,7 +805,19 @@ coverage/gaps, and `NOT_ADVERTISED` capability delta are integrated. The
 production capability profile remains unchanged; all A4b vocabulary is still
 blocked. Scope and evidence are recorded in
 [`A4A_NUMBERDROID_LEVEL_PROJECTION_STATUS.md`](A4A_NUMBERDROID_LEVEL_PROJECTION_STATUS.md).
-A4b is next; A4c remains dependent on it.
+
+A4b implementation note (2026-08-30, **source-integrated / automated green —
+not user accepted**): PR #184 final head
+`475280def81cee3371c0a62606a496e846f010bc` passed Build #2275 / run
+`33341970255`; merge `8238d05a29ee6524f6457bfccc315179ee3896b5`
+passed post-merge Build #2276 / run `33342294000`, including Pages. The bounded
+Actor-defeated → key-drop → Pickup → Boolean-state → visible-text reference
+function, causal save restoration, additive profile-v3 capability delta, and
+honest unprojected-reference gaps are integrated. The fixture is not registered
+as a playable production Floor, so no distinct live `VT-` item is created and
+the slice remains not user accepted. Scope and evidence are recorded in
+[`A4B_REFERENCE_BEHAVIOR_STATUS.md`](A4B_REFERENCE_BEHAVIOR_STATUS.md).
+A4c is next.
 
 ### A5 — Thin portability proof
 
