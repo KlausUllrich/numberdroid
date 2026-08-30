@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
 
 async function fixture(context) {
-  const root = await mkdtemp(join(tmpdir(), 'numberdroid-o2a-required-operations-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'numberdroid-o2a-required-operations-')));
   context.after(() => rm(root, { recursive: true, force: true }));
   const roots = Object.fromEntries(['live', 'control', 'backups', 'restored-copies']
     .map((name) => [name, join(root, name)]));
@@ -30,7 +30,11 @@ async function fixture(context) {
 }
 
 function closeServer(server) {
-  return new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  if (!server.listening) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+    server.closeAllConnections?.();
+  });
 }
 
 test('O2a required operations rejects missing configuration before creating workspace data', { timeout: 10_000 }, async (context) => {

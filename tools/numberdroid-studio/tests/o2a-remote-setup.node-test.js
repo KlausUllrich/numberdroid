@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { lstat, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { REMOTE_MOUNT_MARKER_FILENAME } from '../apps/studio-remote/src/remote-config.js';
@@ -13,7 +13,7 @@ import {
 test('O2a setup creates an exclusive verifier and reveals the generated owner secret only to its sink', {
   timeout: 15_000,
 }, async (context) => {
-  const root = await mkdtemp(join(tmpdir(), 'numberdroid-o2a-setup-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'numberdroid-o2a-setup-')));
   context.after(() => rm(root, { recursive: true, force: true }));
   const filename = join(root, 'credential.json');
   let revealed = null;
@@ -41,7 +41,7 @@ test('O2a setup creates an exclusive verifier and reveals the generated owner se
 test('O2a setup creates one exact mount marker only in a private canonical root', {
   timeout: 5_000,
 }, async (context) => {
-  const root = await mkdtemp(join(tmpdir(), 'numberdroid-o2a-marker-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'numberdroid-o2a-marker-')));
   context.after(() => rm(root, { recursive: true, force: true }));
   const mount = join(root, 'workspace');
   await mkdir(mount, { mode: 0o700 });
