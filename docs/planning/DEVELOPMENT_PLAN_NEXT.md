@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-30 with CI-green Studio O1b Backups UI candidate waiting for user review**
+Status: **current forward plan — updated 2026-08-30 after source integration of the CI-green Studio O1b candidate; VT-012 remains pending and O2a is next**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -168,7 +168,8 @@ Required order:
 ```text
 contract + threat model
 → durable verified backup core and human backup UI
-→ separately authenticated private remote service
+→ separately authenticated O2a private-service backend candidate
+→ later live deployment/private-access gate
 → complete phone/touch workflows and real-device acceptance
 → runtime MCP onboarding and final role playbooks
 ```
@@ -178,7 +179,8 @@ migration, human-authority, safe-path, atomic-publication, state-machine,
 restored-copy quarantine, activation boundary, failure-code, adversarial-test,
 and first-UI decisions in
 `tools/numberdroid-studio/docs/O0_BACKUP_RECOVERY_CONTRACT.md`. The non-visual
-O1a backup application/job seam is now an implemented candidate, recorded in
+O1a backup application/job seam is now a source-integrated implemented
+candidate, recorded in
 `tools/numberdroid-studio/docs/O1A_BACKUP_CORE_STATUS.md`. It reuses the
 accepted SQLite/CAS integrity, backup, verification, and
 restore-to-new-destination primitives and adds no overwrite, deletion,
@@ -193,15 +195,39 @@ Application modules as headless, so the behavior PR selects Studio Linux and
 Windows without an unrelated browser lane; unknown paths still fail closed.
 
 O1a passed its selected Linux and Windows gates and is integrated through PR
-[#175](https://github.com/KlausUllrich/numberdroid/pull/175) as current baseline
+[#175](https://github.com/KlausUllrich/numberdroid/pull/175) at
 `b40e3deb3af5ad501aadc43e1f980e35a2670962`. The separately classified O1b
-**Backups** UI is implemented in open PR
-[#176](https://github.com/KlausUllrich/numberdroid/pull/176). Its final
-product/evidence head before the session-transition handoff is
-`a11362329c5d0cd659fb2e73bcc518c8e9b6009e`; selected Build #2248 is green
-with retained browser evidence. O1b remains **implemented candidate — not user
-accepted** and unmerged. The current coherent step is Klaus's `VT-012` live
-review; the live UI gate blocks O2 remote work.
+**Backups** UI passed Build #2252 / run `33300488531` at final PR head
+`589a7adaa0cb60b608fbc6ad1aec4df441731d94` and is source-integrated through PR
+[#176](https://github.com/KlausUllrich/numberdroid/pull/176) by merge commit
+`ac660f0edab39b7ae8b905cd4193f87f3bf87251`. Source integration and automated
+evidence do not record Klaus's live acceptance: `VT-012` remains **NEEDS KLAUS
+LIVE**, and O1b remains **source-integrated / automated green — not user
+accepted**.
+
+Klaus's current engineering authority removes the earlier global development
+stop while that live review is pending. `VT-012` still blocks claiming O1 user
+acceptance and blocks remote exposure of backup metadata or backup-operation
+authority. It does not block a separately configured O2a private-service
+backend candidate, local MCP guidance based on already accepted semantics, or
+the UI-independent A3a level-logic kernel.
+
+Current autonomous engineering sequence:
+
+```text
+O1b source-integrated; VT-012 retained for later live review
+→ O2a private-service backend candidate
+→ A3a typed level-logic kernel
+→ later O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
+```
+
+O2a must add a distinct fail-closed deployment adapter without widening the
+accepted loopback listener. Its first block excludes remote MCP, remote backup
+reads or mutations, public registration/internet exposure, O3 redesign,
+deletion/retention, activation/cutover, materialization, publication, and
+release. A3a begins afterward as strict Domain/Application contracts and
+validation only; it adds no persistence, UI, MCP advertisement, runtime
+execution, materialization, or publication.
 
 The detailed binding track plan and gate boundaries live in:
 

@@ -1,6 +1,6 @@
 # Numberdroid Studio — Operations, Remote Access & Mobile
 
-Status: **current masterplan track; O0 frozen, O1a backend and O1b first UI implemented candidates, O1 user acceptance pending**
+Status: **current masterplan track; O0 frozen, O1 source-integrated and automated green, O1 user acceptance pending, O2a backend next**
 
 Date added to the masterplan: 2026-08-25
 
@@ -24,6 +24,12 @@ its own security, evidence, and user-acceptance boundary.
   source-integrated into `main` through PR #137 / merge
   `2ead87bdd1f386eb0c3d35265914ac8de161f454`. Neither checkpoint is thereby
   user-accepted; CP4.5 still awaits Klaus's live designer walkthrough.
+- O1a and the bounded O1b first UI are source-integrated. PR #176 retained head
+  `589a7adaa0cb60b608fbc6ad1aec4df441731d94`, passed Build #2252 / run
+  `33300488531`, and merged as
+  `ac660f0edab39b7ae8b905cd4193f87f3bf87251`. Post-merge Build #2253 / run
+  `33303411344` is fully green. VT-012 and explicit O1 user acceptance remain
+  open; those states are not inferred from source integration or CI.
 - The integrated Checkpoint 5 candidate has no materialize, commit, publish,
   deployment, or release authority and does not accept CP4.5 by coexistence in
   the same source tree.
@@ -284,6 +290,36 @@ Remote MCP is not implied. Authenticated Streamable HTTP MCP requires its own
 reviewed credential, scoping, revocation, logging, and transport tests. Local
 stdio remains supported.
 
+### 6.1 O2a — autonomous private-service backend candidate
+
+O2a is a separate remote-human gateway in front of the unchanged loopback-only
+Studio server. It may be implemented and source-integrated while VT-012 remains
+open because it neither exposes backup authority nor claims O1 acceptance.
+
+The first coherent block must:
+
+- target one Klaus-controlled Linux host, one systemd-supervised process, local
+  persistent storage, and one exactly configured private HTTPS ingress;
+- keep both the existing Studio listener and the gateway upstream on loopback;
+- require a canonical external `https://` origin, exactly one trusted local
+  proxy hop, real application authentication, server-side sessions, per-session
+  CSRF, bounded login attempts, and fail-closed startup configuration;
+- use a positive method/path registry so unauthenticated, unknown, and newly
+  added routes expose no project, job, activity, artifact, or preview data;
+- validate explicit existing persistent roots and mount identities before any
+  listener or workspace writer opens;
+- prove one lifetime writer, readiness only after complete composition,
+  controlled drain/close ordering, restart persistence, and session
+  invalidation across restart; and
+- keep remote data and previews non-cacheable across logout/session changes.
+
+Even after login, O2a must deny `/api/backups/**`, `/internal/mcp/**`, remote
+agent pairing or access mutation, demo/bootstrap authority, arbitrary server
+paths, and any route not explicitly registered. It adds no remote backup or MCP
+authority, public-internet exposure, mobile redesign, deletion/retention,
+restore activation/cutover, materialization, publication, or release. No live
+deployment is activated by source integration alone.
+
 ## 7. Gate O3 — responsive and touch-usable Studio
 
 O3 room/canvas work depends on the CP4.5 persistent-editor candidate. It may
@@ -379,8 +415,9 @@ counts.
 ```text
 O0 contract + threat model
 → O1 backup backend and recovery proofs
-→ O1 human backup UI gate
-→ O2 private always-on service
+→ O1 backup UI source integration; VT-012 remains pending
+→ O2a private-service backend candidate
+→ O2 deployment/live private-access gate
 → O3 complete phone/touch workflows
 → O4 runtime onboarding + final role guides
 ```
@@ -393,22 +430,23 @@ Stop gates are strict:
 
 - O0 architecture/state/authority/path decisions before O1 code;
 - Linux and Windows failure/restart/race proof before backup UI work;
-- Klaus's backup UI acceptance before O2 remote access;
+- Klaus's backup UI acceptance before remote backup metadata or backup-operation
+  authority, but not before the isolated O2a gateway/backend candidate;
 - authenticated/direct-port/single-writer proof before O3 phone completion;
 - real Android/Chrome acceptance for O3; and
 - accepted local semantic playbooks before any remote MCP transport decision.
 
 ## 10. Current autonomous next step
 
-O0 is frozen, O1a is source-integrated, and the separately classified bounded
-O1b implementation is recorded in
-[`O1B_BACKUPS_UI_STATUS.md`](O1B_BACKUPS_UI_STATUS.md). The current coherent
-step is to complete O1b source review and its selected HTTP/Studio/browser CI,
-then stop at **Waiting for your review**.
+O0 is frozen and O1a/O1b are source-integrated and automated green. VT-012
+remains **Waiting for your review** for O1 acceptance, but no longer globally
+blocks unrelated engineering. The current coherent implementation step is the
+bounded O2a gateway/backend candidate in section 6.1. The next UI-independent
+product-contract block is A3a in `ROADMAP.md`.
 
-Do not proceed to remote listener/authentication, Tailscale deployment,
-responsive mobile redesign, remote MCP, deletion/retention, activation, or
-publication before Klaus completes the live backup-UI gate.
+Do not activate a live deployment or add remote backup, remote MCP, responsive
+mobile redesign, deletion/retention, restore activation/cutover,
+materialization, publication, or release as part of O2a.
 
 ## 11. Combined definition of done
 

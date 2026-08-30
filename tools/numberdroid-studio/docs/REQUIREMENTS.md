@@ -528,11 +528,12 @@ The walkthrough also established the next requirements rather than silently trea
 ### Operations, remote access, mobile, and MCP onboarding
 
 **Status: binding masterplan requirements. The O0 architecture decision is
-frozen in `O0_BACKUP_RECOVERY_CONTRACT.md`; O1a is an implemented backend
-candidate recorded in `O1A_BACKUP_CORE_STATUS.md`, and the separately
-classified O1b first UI is an implemented candidate recorded in
-`O1B_BACKUPS_UI_STATUS.md`. O1 user acceptance remains open and split from
-later gates O2–O4 in `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
+frozen in `O0_BACKUP_RECOVERY_CONTRACT.md`; O1a and the separately classified
+O1b first UI are source-integrated and automated green as recorded in
+`O1A_BACKUP_CORE_STATUS.md` and `O1B_BACKUPS_UI_STATUS.md`. O1 user acceptance
+remains open. It blocks remote backup metadata/operation authority but not the
+separately bounded O2a private-service backend described in
+`OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.**
 
 #### Backup and recovery
 

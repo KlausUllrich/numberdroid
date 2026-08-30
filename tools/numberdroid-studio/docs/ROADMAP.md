@@ -315,9 +315,9 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 
 ## Parallel masterplan track — Operations, Remote Access & Mobile
 
-**Status: O0 contract frozen, O1a backend source-integrated, and O1b first UI
-implemented as a candidate on 2026-08-30; every O1 user acceptance gate remains
-open.**
+**Status: O0 contract frozen; O1a and O1b source-integrated and automated green
+on 2026-08-30; O1 user acceptance remains open; O2a is the next independent
+backend candidate.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -362,13 +362,13 @@ The gates are:
    exact counts. Remote Streamable HTTP MCP remains optional and separately
    security-reviewed.
 
-The fail-closed O1a application/job seam and its automated recovery/adversarial
-tests are now an **implemented candidate — not user accepted**, recorded in
-`O1A_BACKUP_CORE_STATUS.md`. The separately classified bounded local-human
-HTTP/session and first backup-UI candidate is recorded in
-`O1B_BACKUPS_UI_STATUS.md`. Both remain **implemented candidate — not user
-accepted**. The live backup-UI gate blocks remote exposure/authentication;
-phone acceptance and remote MCP remain later gates.
+The fail-closed O1a application/job seam and bounded O1b local-human UI are now
+source-integrated and automated green, recorded in `O1A_BACKUP_CORE_STATUS.md`
+and `O1B_BACKUPS_UI_STATUS.md`. They remain **not user accepted**. VT-012 blocks
+an O1 acceptance claim and remote backup metadata/operation authority; it does
+not block the isolated O2a private-service backend or UI-independent A3a
+contracts. Phone acceptance, remote backup authority, and remote MCP remain
+later gates.
 
 Detailed contract: `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.
 
@@ -744,6 +744,23 @@ coverage are incomplete and unaccepted.
   and explicit unsupported-capability findings;
 - animation clips may cover actors as well as tiles/props; runtime behavior and
   animation-state execution remain game responsibilities.
+
+#### A3a — typed level-intent and logic-validation kernel
+
+- add immutable, versioned `LevelRequirementSet`, `LevelGraph`, and `LogicGraph`
+  contracts with stable IDs, canonical serialization, and deterministic
+  fingerprints in Domain/Application boundaries;
+- validate typed references, graph integrity, requirement coverage, and declared
+  project capabilities with stable findings;
+- use the reference chain “actor defeated → key drop → pickup → state change →
+  visible text” only as a contract/validation fixture; and
+- explicitly reject that fixture under the current Numberdroid capability
+  profile where actor-authoring, actor-defeated triggers, drop actions,
+  visible-text actions, or typed variables are unsupported.
+
+A3a adds no persistence, UI, MCP surface, runtime execution, materialization,
+publication, or release. It does not make the reference chain playable; the
+concrete Numberdroid extension and complete playable candidate remain A4.
 
 ### A4 — Complete Numberdroid vertical candidate
 
