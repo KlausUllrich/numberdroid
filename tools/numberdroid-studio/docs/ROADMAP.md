@@ -315,9 +315,9 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 
 ## Parallel masterplan track — Operations, Remote Access & Mobile
 
-**Status: O0 frozen; O1, O2a, and A3a source-integrated and automated green on
-2026-08-30; O1 user acceptance and O2 deployment remain open; A4 is the next
-autonomous product block.**
+**Status: O0 frozen; O1, O2a, A3a, and A4a source-integrated and automated
+green on 2026-08-30; O1 user acceptance and O2 deployment remain open; A4b is
+the next autonomous product slice.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -366,9 +366,10 @@ The fail-closed O1a application/job seam and bounded O1b local-human UI are now
 source-integrated and automated green, recorded in `O1A_BACKUP_CORE_STATUS.md`
 and `O1B_BACKUPS_UI_STATUS.md`. They remain **not user accepted**. VT-012 blocks
 an O1 acceptance claim and remote backup metadata/operation authority. The
-separately bounded O2a service and A3a contracts are now source-integrated and
-automated green, without deployment or user acceptance. Phone acceptance,
-remote backup authority, and remote MCP remain later gates.
+separately bounded O2a service, A3a contracts, and A4a lossless Numberdroid
+projection are now source-integrated and automated green, without deployment
+or user acceptance. Phone acceptance, remote backup authority, and remote MCP
+remain later gates.
 
 Detailed contract: `OPERATIONS_REMOTE_MOBILE_MCP_PLAN.md`.
 
@@ -793,6 +794,18 @@ A4 proceeds in bounded dependency order:
 3. **A4c — task-scoped candidate path:** create, validate, compile, preview,
    diff, and submit one immutable candidate, stopping at human review without
    materialization, repository write, publication, or release authority.
+
+A4a implementation note (2026-08-30, **source-integrated / automated green —
+not user accepted**): PR #182 final head
+`4b2d61ebfb37e280e7819c6c5db7b63ddcb7b6ff` passed Build #2271 / run
+`33337454662`; merge `e0b2396c31f7f58d500591dbc5c6f9a431d9ef45`
+passed post-merge Build #2272 / run `33337734484`, including Pages. The exact
+bounded Numberdroid source/compiler closure, safe A3a subset, exhaustive
+coverage/gaps, and `NOT_ADVERTISED` capability delta are integrated. The
+production capability profile remains unchanged; all A4b vocabulary is still
+blocked. Scope and evidence are recorded in
+[`A4A_NUMBERDROID_LEVEL_PROJECTION_STATUS.md`](A4A_NUMBERDROID_LEVEL_PROJECTION_STATUS.md).
+A4b is next; A4c remains dependent on it.
 
 ### A5 — Thin portability proof
 

@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-30 after source integration of CI-green O2a and A3a; VT-012/O2 deployment remain pending and A4 is next**
+Status: **current forward plan — updated 2026-08-30 after source integration of CI-green O2a, A3a, and A4a; VT-012/O2 deployment remain pending and A4b is next**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -207,7 +207,7 @@ accepted**.
 
 Klaus's engineering authority removed the earlier global stop while VT-012 is
 pending. VT-012 still blocks an O1 user-acceptance claim and remote backup
-metadata/operation authority. O2a and A3a are now source-integrated and
+metadata/operation authority. O2a, A3a, and A4a are now source-integrated and
 automated green without widening those gates:
 
 - O2a PR #178 head `89141c079c1d96a4aa4c45d8b8c4b88dc464484c`,
@@ -217,7 +217,11 @@ automated green without widening those gates:
 - A3a PR #179 final head `dbc6dabf6d821032c90ef31e87dfa0737fe20f48`,
   Build #2264 / run `33313560001`, merge
   `7322542b07907710bbba16e3ffd7d1b2fc6aa5a3`, post-merge Build #2265 /
-  run `33313888975`.
+  run `33313888975`;
+- A4a PR #182 final head `4b2d61ebfb37e280e7819c6c5db7b63ddcb7b6ff`,
+  Build #2271 / run `33337454662`, merge
+  `e0b2396c31f7f58d500591dbc5c6f9a431d9ef45`, post-merge Build #2272 /
+  run `33337734484`.
 
 Current autonomous engineering sequence:
 
@@ -225,14 +229,18 @@ Current autonomous engineering sequence:
 O1b source-integrated; VT-012 retained for later live review
 → O2a source-integrated; deliberate deployment/VT-013 retained for Klaus
 → A3a typed kernel source-integrated
-→ A4 complete Numberdroid vertical candidate
+→ A4a lossless Numberdroid projection source-integrated
+→ A4b bounded reference behavior
+→ A4c task-scoped candidate path stopping at Waiting for your review
 → later O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
 ```
 
-A4 now proceeds in the bounded A4a lossless projection/capability-delta, A4b
-reference-behavior, and A4c task-scoped candidate slices defined in Studio
-`ROADMAP.md`. It must not add remote backup/MCP authority, deployment, O3/O4,
-materialization, publication, or release.
+A4a is now source-integrated and automated green, with its exact evidence in
+`tools/numberdroid-studio/docs/A4A_NUMBERDROID_LEVEL_PROJECTION_STATUS.md`.
+The bounded A4b reference behavior is next, followed by the dependent A4c
+task-scoped candidate path defined in Studio `ROADMAP.md`. Neither slice may
+add remote backup/MCP authority, deployment, O3/O4, materialization,
+publication, or release.
 
 The detailed binding track plan and gate boundaries live in:
 
