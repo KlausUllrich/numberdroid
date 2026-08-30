@@ -762,6 +762,14 @@ A3a adds no persistence, UI, MCP surface, runtime execution, materialization,
 publication, or release. It does not make the reference chain playable; the
 concrete Numberdroid extension and complete playable candidate remain A4.
 
+Implementation note (2026-08-30, **implemented candidate — not user
+accepted**): the strict schema-v1 Domain contracts, canonical fingerprints, and
+pure Application validator are implemented with the closed actor-to-text chain
+as automated contract evidence. The unchanged Numberdroid capability profile
+still blocks that chain. No production capability or operational surface is
+enabled. Scope, evidence, and preserved boundaries are recorded in
+[`A3A_LEVEL_LOGIC_KERNEL_STATUS.md`](A3A_LEVEL_LOGIC_KERNEL_STATUS.md).
+
 ### A4 — Complete Numberdroid vertical candidate
 
 - preserve Numberdroid's existing rooms, connections, props, actors, staged actors,

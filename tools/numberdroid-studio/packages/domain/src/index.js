@@ -165,6 +165,23 @@ export {
   validateProjectCapabilityManifest,
 } from './project-capability-manifest.js';
 export {
+  LEVEL_GRAPH_KIND,
+  LEVEL_GRAPH_SCHEMA_VERSION,
+  LEVEL_REQUIREMENT_SET_KIND,
+  LEVEL_REQUIREMENT_SET_SCHEMA_VERSION,
+  LOGIC_GRAPH_KIND,
+  LOGIC_GRAPH_SCHEMA_VERSION,
+  canonicalLevelGraphJson,
+  canonicalLevelRequirementSetJson,
+  canonicalLogicGraphJson,
+  levelGraphSha256,
+  levelRequirementSetSha256,
+  logicGraphSha256,
+  validateLevelGraph,
+  validateLevelRequirementSet,
+  validateLogicGraph,
+} from './level-authoring-kernel.js';
+export {
   CANDIDATE_COMPILER_STATUSES,
   CANDIDATE_MANIFEST_KIND,
   CANDIDATE_MANIFEST_SCHEMA_VERSION,
