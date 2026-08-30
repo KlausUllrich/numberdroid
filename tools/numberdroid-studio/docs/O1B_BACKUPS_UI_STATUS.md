@@ -1,23 +1,28 @@
 # O1b first Backups UI candidate status
 
-Status: **IMPLEMENTED CANDIDATE — NOT USER ACCEPTED**
+Status: **SOURCE-INTEGRATED / AUTOMATED GREEN — NOT USER ACCEPTED**
 
 O1b composes the bounded human acceptance surface frozen by
 [`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md) on top of the
 integrated O1a backend recorded in
 [`O1A_BACKUP_CORE_STATUS.md`](O1A_BACKUP_CORE_STATUS.md). The implementation is
-based on source-integrated `main`
+based on the O1a `main` baseline
 `b40e3deb3af5ad501aadc43e1f980e35a2670962` and supports exactly `CREATE`,
-`VERIFY`, `RECOVERY_TEST`, and `RESTORE_AS_COPY`.
-The implementation source freeze is PR
+`VERIFY`, `RECOVERY_TEST`, and `RESTORE_AS_COPY`. The implementation source
+freeze is PR
 [#176](https://github.com/KlausUllrich/numberdroid/pull/176) at head
 `67464d7906109e8d16d607686b38ba7a99a373bf`, tree
 `75a661d7b0e67a6e868735e36cb181142e1838dd`. The final product/evidence head
-before the session-transition handoff is
+before the documentation-only tail is
 `a11362329c5d0cd659fb2e73bcc518c8e9b6009e`, tree
-`83088f6ba5727c9a23db5734891ecfac9585152c`; its third commit changes only
-the bounded Windows test completion window after the implementation and
-documentation-record commits.
+`83088f6ba5727c9a23db5734891ecfac9585152c`. The final PR head is
+`589a7adaa0cb60b608fbc6ad1aec4df441731d94`, tree
+`1622b0fb6428c079891f9675d8b4ae9601e87cad`; its commits after the product
+freeze change only current status documentation and the dated handoff. Build
+#2252 / run `33300488531` is green at that exact head. PR #176 is integrated on
+`main` by merge commit `ac660f0edab39b7ae8b905cd4193f87f3bf87251`;
+post-merge Build #2253 / run `33303411344` passed every selected job on that
+exact merge commit.
 
 This is the first visual candidate Klaus can later use for acceptance. It is
 not accepted now. It adds no deletion, cleanup/retention, activation/cutover,
@@ -105,22 +110,28 @@ and scans its bounded observation artifact for token/path fields. No suitable
 Chrome executable is installed in the local workspace, so local browser
 execution is deliberately **not claimed**.
 
-The selected L3 gate is green at final product/evidence head
-`a11362329c5d0cd659fb2e73bcc518c8e9b6009e`: Build #2248, run
-[33287719553](https://github.com/KlausUllrich/numberdroid/actions/runs/33287719553).
+The selected final PR gate is green at head
+`589a7adaa0cb60b608fbc6ad1aec4df441731d94`: Build #2252, run
+[33300488531](https://github.com/KlausUllrich/numberdroid/actions/runs/33300488531).
 The `build`, `studio`, `studio-windows`, and `CI gate` jobs succeeded;
 Pages was correctly skipped. Artifact
-`numberdroid-studio-o1b-backups-evidence`, ID `9725029756`, is 6,869,776
+`numberdroid-studio-o1b-backups-evidence`, ID `9728844060`, is 6,864,202
 bytes with digest
-`sha256:bf16de952ef38301e81fdb99cdc02646efcbea1209df1a01bf976908d46aa40e`
-and expiry `2026-09-13T02:25:52Z`. This is automated evidence only and does
+`sha256:a065f74bba6b77401fdd2d07589ccddfb719617395395162686275b681182ad5`
+and expiry `2026-09-13T08:05:46Z`. This is automated evidence only and does
 not replace Klaus's live judgment.
 
 ## Open gate
 
-After source review and selected CI are green, stop at **Waiting for your
-review**. Klaus must later use an administratively configured safe destination
-to judge the hierarchy and copy and to walk through Create, Verify,
-Recovery-test, Restore-as-copy, restart, and a deliberate failure/damaged case.
-Only that live review can accept O1. O2 remote access, O3 phone completion, and
-all owner/activation/publication work remain blocked.
+Klaus must later use an administratively configured safe destination to judge
+the hierarchy and copy and to walk through Create, Verify, Recovery-test,
+Restore-as-copy, restart, and a deliberate failure/damaged case. Only that live
+review can accept O1. Until then the candidate remains **Waiting for your
+review**.
+
+The pending live review no longer blocks unrelated autonomous engineering. A
+separate O2a private-service backend candidate and the UI-independent A3a
+level-logic kernel may proceed. Remote backup metadata or operation authority,
+O3 phone completion, deletion/retention, activation/cutover, remote MCP,
+owner-review widening, materialization, publication, and release remain later
+explicit gates.

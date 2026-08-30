@@ -48,8 +48,8 @@ documentation-only O0 decision in
 `VT-` item. The non-visual O1a implementation recorded in
 [`O1A_BACKUP_CORE_STATUS.md`](O1A_BACKUP_CORE_STATUS.md) likewise has no live
 visual acceptance surface and therefore receives no `VT-` item. The required
-first O1b backup UI now exists as an **implemented candidate — not user
-accepted**, so its bounded live gate is recorded as `VT-012` below.
+first O1b backup UI is source-integrated and automated green but remains **not
+user accepted**, so its bounded live gate is recorded as `VT-012` below.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
 [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately
@@ -937,17 +937,19 @@ accepted** state.
   [`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md). The O1a
   external-ledger backend was integrated through PR
   [#175](https://github.com/KlausUllrich/numberdroid/pull/175) as `main`
-  `b40e3deb3af5ad501aadc43e1f980e35a2670962`. The O1b candidate is PR
-  [#176](https://github.com/KlausUllrich/numberdroid/pull/176), developed from
-  that exact base. Its implementation source-freeze head
+  `b40e3deb3af5ad501aadc43e1f980e35a2670962`. The O1b candidate was developed
+  in PR [#176](https://github.com/KlausUllrich/numberdroid/pull/176) from that
+  exact base. Its implementation source-freeze head
   `67464d7906109e8d16d607686b38ba7a99a373bf` has tree
-  `75a661d7b0e67a6e868735e36cb181142e1838dd`. The final product/evidence
-  head before the session-transition handoff is
-  `a11362329c5d0cd659fb2e73bcc518c8e9b6009e`, tree
-  `83088f6ba5727c9a23db5734891ecfac9585152c`. Build #2248, run
-  [33287719553](https://github.com/KlausUllrich/numberdroid/actions/runs/33287719553),
-  is green. The visible result is **implemented candidate — not user
-  accepted**.
+  `75a661d7b0e67a6e868735e36cb181142e1838dd`. The final product/evidence freeze
+  is `a11362329c5d0cd659fb2e73bcc518c8e9b6009e`, tree
+  `83088f6ba5727c9a23db5734891ecfac9585152c`; the final PR head
+  `589a7adaa0cb60b608fbc6ad1aec4df441731d94` adds only current status and dated
+  handoff records. Build #2252, run
+  [33300488531](https://github.com/KlausUllrich/numberdroid/actions/runs/33300488531),
+  is green at that exact head. PR #176 is source-integrated by `main` merge
+  commit `ac660f0edab39b7ae8b905cd4193f87f3bf87251`. The visible result remains
+  **implemented candidate — not user accepted**.
 - **State/dependency:** `NEEDS KLAUS LIVE`; depends on VT-000 and the integrated
   O0/O1a safety boundary. Automated HTTP, SQLite and Chrome evidence cannot
   accept the human hierarchy, copy, or recovery confidence.
@@ -1023,14 +1025,18 @@ accepted** state.
   passed, zero failed and four expected Windows-only skips. All 187 JavaScript
   files pass syntax checking; syntax, classifier and Markdown self-tests pass,
   and Markdown checks cover 103 links across 202 files with zero failures. Two
-  independent actual-diff reviews are **GO**. At final product/evidence head
-  `a11362329c5d0cd659fb2e73bcc518c8e9b6009e`, the selected `build`,
-  `studio`, `studio-windows`, and `CI gate` jobs succeeded; Pages was
-  correctly skipped. Artifact `numberdroid-studio-o1b-backups-evidence`, ID
-  `9725029756`, is 6,869,776 bytes with digest
-  `sha256:bf16de952ef38301e81fdb99cdc02646efcbea1209df1a01bf976908d46aa40e`
-  and expires `2026-09-13T02:25:52Z`. These are regression/evidence gates,
-  not live acceptance.
+  independent actual-diff reviews are **GO**. The frozen product/evidence head
+  is `a11362329c5d0cd659fb2e73bcc518c8e9b6009e`; the final PR head is
+  `589a7adaa0cb60b608fbc6ad1aec4df441731d94`. Build #2252 / run
+  `33300488531` passed `build`, `studio`, `studio-windows`, and `CI gate` on
+  that exact PR head; Pages was correctly skipped. Artifact
+  `numberdroid-studio-o1b-backups-evidence`, ID `9728844060`, is 6,864,202
+  bytes with digest
+  `sha256:a065f74bba6b77401fdd2d07589ccddfb719617395395162686275b681182ad5`
+  and expires `2026-09-13T08:05:46Z`. PR #176 was merged without changing its
+  head as `ac660f0edab39b7ae8b905cd4193f87f3bf87251`; post-merge Build #2253 /
+  run `33303411344` passed every selected job on that merge commit. These are
+  source-integration and regression/evidence gates, not live acceptance.
 - **Required platform/evidence:** desktop Chrome at exactly 1440×900 and
   1060×900. CI must retain the bounded O1b evidence bundle with unavailable,
   locked, empty, queued, running, filled-list, verified, recovery-passed,
@@ -1046,7 +1052,10 @@ accepted** state.
   launcher-code experience, durable progress and result copy, list/detail and
   technical disclosure depth, failure/damaged remediation, protected desktop
   layouts, context retention, and explicit restored-not-active boundary. Only
-  Klaus can close this O1 product gate; O2 and O3 remain blocked.
+  Klaus can close this O1 product gate. It blocks an O1 user-acceptance claim,
+  remote exposure of backup metadata or backup-operation authority, and O3
+  completion; it does not block the separately bounded O2a backend candidate
+  or UI-independent A3a Domain/Application work.
 - **Recovery:** stop Studio and retain the exact temporary fixture root until
   the result is recorded. Restore any `.return-test-hidden` directory to its
   exact original name first. Then discard only that uniquely allocated root

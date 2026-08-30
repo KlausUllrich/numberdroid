@@ -431,9 +431,14 @@ configured-root filesystem adapters, quarantine readers, and fail-closed
 restart reconciliation without adding a server route or UI. It remains an
 implemented candidate. The separately classified local-human HTTP/session
 composition and bounded **Backups** surface are now implemented as recorded in
-[`O1B_BACKUPS_UI_STATUS.md`](O1B_BACKUPS_UI_STATUS.md). Both remain
-**implemented candidate — not user accepted**; only Klaus's live UI walkthrough
-can close O1, and O2 remains blocked.
+[`O1B_BACKUPS_UI_STATUS.md`](O1B_BACKUPS_UI_STATUS.md). O1a and O1b are
+source-integrated and automated green, but remain **not user accepted**; only
+Klaus's live UI walkthrough can close O1. That gate continues to block remote
+backup metadata/operation authority, not a separately authenticated O2a
+remote-human adapter. O2a must leave the accepted Studio server loopback-only,
+use a positive route registry, fail closed on auth/proxy/mount/writer startup,
+and deny backup, internal MCP, pairing, and remote agent-authority routes even
+after login.
 
 ### Checkpoint 2A source intake and audit
 
