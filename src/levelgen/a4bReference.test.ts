@@ -155,6 +155,21 @@ describe("A4b actor-defeated key reference", () => {
     expect(manipulated.scriptState.flags).toEqual({ "state.guard-key-collected": false });
     expect(Object.hasOwn(manipulated.scriptState.flags, "__proto__")).toBe(false);
 
+    const downstreamOnly = sanitizeMetaStateForFloor({
+      ...initial,
+      scriptState: {
+        ...initial.scriptState,
+        flags: { "state.guard-key-collected": true },
+        firedTriggerIds: ["trigger.guard-key-collected", "trigger.guard-key-state"],
+        storyBeatQueue: ["text.guard-key-collected"],
+        activeStoryBeatId: "text.guard-key-collected",
+      },
+    }, floor);
+    expect(downstreamOnly.scriptState.flags).toEqual({ "state.guard-key-collected": false });
+    expect(downstreamOnly.scriptState.firedTriggerIds).toEqual([]);
+    expect(downstreamOnly.scriptState.storyBeatQueue).toEqual([]);
+    expect(downstreamOnly.scriptState.activeStoryBeatId).toBeNull();
+
     const defeated = advanceFloorScript(floor, initial, { ...initial, defeatedEncounterIds: ["guard-actor"] }).state;
     const restored = sanitizeMetaStateForFloor(JSON.parse(JSON.stringify(defeated)), floor);
     expect(restored.scriptState.firedTriggerIds).toContain("trigger.guard-defeated");
@@ -196,12 +211,20 @@ describe("A4b actor-defeated key reference", () => {
       ["legacy typed-variable write", mutate((spec) => {
         spec.events!.push({ id: "action.legacy-write", kind: "set-flag", flag: "state.guard-key-collected", value: "bad" });
       }), /cannot write declared Boolean variable/],
+      ["set-variable without collect ownership", mutate((spec) => {
+        spec.triggers![1].eventIds = ["action.show-guard-key-text"];
+        spec.triggers![2].eventIds = ["action.set-guard-key-state"];
+      }), /must be owned by a collect Trigger/],
       ["unknown text", mutate((spec) => {
         const event = spec.events![2];
         if (event.kind === "show-text") event.textRefId = "text.unknown";
       }), /unknown visible text/],
       ["empty text", mutate((spec) => { spec.textReferences![0].text = "   "; }), /1 to 4096/],
       ["oversized text", mutate((spec) => { spec.textReferences![0].text = "x".repeat(4_097); }), /1 to 4096/],
+      ["show-text without state ownership", mutate((spec) => {
+        spec.triggers![2].kind = "collect";
+        spec.triggers![2].sourceId = "guard-key";
+      }), /must be owned by a state-change Trigger/],
       ["story id collision", mutate((spec) => {
         spec.events!.push({ id: "action.story", kind: "story-beat", beatId: "text.guard-key-collected", blocking: true });
       }), /collides with an existing story-beat/],

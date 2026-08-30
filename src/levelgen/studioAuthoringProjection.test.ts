@@ -21,7 +21,7 @@ const {
   validateNumberdroidLevelAuthoringProjection,
 } = numberdroidAdapter;
 
-const COMPILER_VERSION = "numberdroid-level-compiler.sha256:8d2350ae75c7c167d3eb11e92892fdc40b8301cc487a86840c2d460f30ee1cab";
+const COMPILER_VERSION = "numberdroid-level-compiler.sha256:01b144303ff217054f01c0dcd85acc3d442a02c1727ad9b01291dcc5c2559ce1";
 const compiler = Object.freeze({
   compilerVersion: numberdroidLevelCompilerVersion(new URL("../../", import.meta.url)),
   validatePlacementOverrides,
@@ -58,7 +58,7 @@ const HASHES = Object.freeze({
     requirements: "a3df3bd0300a18ce4892f1baeb812f4fdb345f081689006483bdab8221077da9",
     level: "593ddaf28067d78289127b3eee5e63d52d94f883aa17e4b75afdd2c210b7aa42",
     logic: "ac6dcab9775188ee0416577c8e2af1df1c1d4cbe2c2273ffbab6f0f3c84777d9",
-    projection: "1708a95dd90b0902214d0c5068736ccdb0d5edcded09bfec2d4e569bb0096000",
+    projection: "6dfb4f09a2603dd5fa62467a48a8bc34a6a53d7d0341796684ffb228ff3ec4de",
   },
   bioark: {
     source: "c518203d3436b42de0c87fff4f48663edaa3c7fa23c05bf14f279b376a9c6f32",
@@ -66,7 +66,7 @@ const HASHES = Object.freeze({
     requirements: "3a713d8d23d4d534989815d6c4bdde9d4e1ce67cc557843185470c9d8b51493b",
     level: "fed30380f21dddf6be3b69291f73abe1eb9ea38da38b7a2713e1f70d6ca6caf7",
     logic: "5669efe5ce33880209292bcf7977ba0fcca6acdcf5b3ede022632bc333045cc7",
-    projection: "233ddb98aaef73e50881e248554f43c40cc9e9e9db76f3aa62b0fb6f0492d1c9",
+    projection: "604958967821b49c083e98c9ebfc26940870df627c0f8533d40ff2784156eb81",
   },
   flag: {
     source: "3da9fcd9f093f17a08ba28cf72cdcc33e52b203ff73feae4d317fe05ebe58918",
@@ -74,7 +74,7 @@ const HASHES = Object.freeze({
     requirements: "704365cef198da692679d62b0370908f9face64c35b2e82bcee925c7e6972d65",
     level: "20e0459f765adacb5e5eae3215c8e63f3f43c12b0d12944643342f4093f29f17",
     logic: "fdb6f0b08b3d0479a3b5da06daf0e2f8d616c0ecb8cbd3cd403147abd0dc28aa",
-    projection: "1348ba28c8aeada958522cc9f16b2dc1224733b2f94b6662d4b28481583b3e3d",
+    projection: "695c5a56f7916300e4fcc595541bf7774893338290b09dcc4cd071fae5dc742d",
   },
   a4b: {
     source: "6acf09035b8c75b56f0557745a973b25bbf4e758294e6a226a06571e0a07f77c",
@@ -82,7 +82,7 @@ const HASHES = Object.freeze({
     requirements: "1147acfa7d8fc9bfc11560a533c6994e4b3310acc94f9b5be35e20f6842139f3",
     level: "48eb179b01f778cf3e261d84d0e9e70dde33026ad3cc45284067801dee4b2182",
     logic: "932b5663eab84f7f7aca37b3a1e7d9a00f65f4fcc16f39928ba712508059d46c",
-    projection: "f85502ac6395da1f611a9efc82f287dbe5a19da1eacf70d6f30e9730e9f437af",
+    projection: "12609f0972c242cece2d751bace8f85f62f66e49f38358d3a87160b273cd8142",
   },
 });
 
@@ -210,5 +210,41 @@ describe("A4a Numberdroid level-authoring projection", () => {
     expect(validation.findings.every((finding: { severity: string; ruleId: string }) =>
       finding.severity === "WARNING" && finding.ruleId === "LEVEL_AUTHORING_TRACE_MISSING")).toBe(true);
     expect(validateNumberdroidLevelAuthoringProjection(structuredClone(projection), compiler)).toEqual(projection);
+  });
+
+  it("reports unprojected A4b references honestly instead of calling supported vocabulary unsupported", () => {
+    const overLimit = structuredClone(A4B_REFERENCE_LEVEL_SPEC);
+    const actorTemplate = overLimit.encounters[0];
+    overLimit.encounters = Array.from({ length: 513 }, (_, index) => ({
+      ...structuredClone(actorTemplate),
+      id: `guard-actor-${String(index).padStart(3, "0")}`,
+    }));
+    const excessActorId = overLimit.encounters[512].id;
+    overLimit.triggers![0].sourceId = excessActorId;
+    const overLimitDrop = overLimit.events![0];
+    if (overLimitDrop.kind === "drop-item") overLimitDrop.actorId = excessActorId;
+
+    const limitedProjection = project(overLimit);
+    const limitedGap = limitedProjection.gaps.find((gap: { gapId: string }) =>
+      gap.gapId === "numberdroid.logic.reference-not-projected");
+    expect(limitedGap?.affectedPointers).toEqual(["/events/0", "/triggers/0"]);
+    expect(limitedProjection.coverage.entries.find((entry: { pointer: string }) =>
+      entry.pointer === "/events/0/actorId")?.gapId).toBe("numberdroid.logic.reference-not-projected");
+    expect(limitedProjection.gaps.find((gap: { gapId: string }) =>
+      gap.gapId === "numberdroid.a3a.collection-limit-exceeded")?.affectedPointers).toContain("/encounters/512");
+
+    const nonA3aReference = structuredClone(A4B_REFERENCE_LEVEL_SPEC);
+    nonA3aReference.encounters[0].id = "guard actor";
+    nonA3aReference.triggers![0].sourceId = "guard actor";
+    const nonA3aDrop = nonA3aReference.events![0];
+    if (nonA3aDrop.kind === "drop-item") nonA3aDrop.actorId = "guard actor";
+    const nonA3aProjection = project(nonA3aReference);
+    expect(nonA3aProjection.gaps.find((gap: { gapId: string }) =>
+      gap.gapId === "numberdroid.logic.reference-not-projected")?.affectedPointers).toEqual([
+      "/events/0",
+      "/triggers/0",
+    ]);
+    expect(nonA3aProjection.gaps.find((gap: { gapId: string }) =>
+      gap.gapId === "numberdroid.logic.a3a-vocabulary-mismatch")).toBeUndefined();
   });
 });

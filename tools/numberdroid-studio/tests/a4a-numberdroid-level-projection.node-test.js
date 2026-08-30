@@ -183,7 +183,7 @@ test('A4b retains the complete Numberdroid closure and advertises only the addit
     target: {
       profileId: 'numberdroid.studio',
       profileVersion: 3,
-      fingerprint: 'a0a85fcca3d4071bb3536fd5b50375a2f70f776568b31f4d346a8f972e353596',
+      fingerprint: '6079209041cb71a3e7c8b36ea41796c2e38ea6ef828bf78829e8f0dc4ea3f074',
     },
     modules: [
       { id: 'studio.level-requirements', status: 'ADVERTISED' },
@@ -251,7 +251,7 @@ test('A4a compiler authority fingerprint is independent of checkout line endings
   assert.equal(normalizeNumberdroidLevelCompilerAuthoritySource(crlf), lf);
   assert.equal(
     numberdroidLevelCompilerVersion(new URL('../../../', import.meta.url)),
-    'numberdroid-level-compiler.sha256:8d2350ae75c7c167d3eb11e92892fdc40b8301cc487a86840c2d460f30ee1cab',
+    'numberdroid-level-compiler.sha256:01b144303ff217054f01c0dcd85acc3d442a02c1727ad9b01291dcc5c2559ce1',
   );
 });
 

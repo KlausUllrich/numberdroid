@@ -103,6 +103,7 @@ const GAP_DESCRIPTIONS = Object.freeze({
   'numberdroid.identifiers.a3a-vocabulary-mismatch': 'One or more valid Numberdroid identifiers are outside the stricter A3a identifier vocabulary.',
   'numberdroid.zones.anchor-target-not-projected': 'A Numberdroid zone anchor targets an entity that is not safely projected into the A3a level graph.',
   'numberdroid.logic.a3a-vocabulary-mismatch': 'Existing Numberdroid trigger/event semantics are retained in the compiler closure but are not the bounded A3a typed-logic vocabulary.',
+  'numberdroid.logic.reference-not-projected': 'An A4b-supported trigger or action references a Numberdroid target that is outside the safe A3a projection closure.',
   'numberdroid.flags.declaration-type-initial-value-missing': 'Numberdroid set-flag events do not declare the variable type and initial value required by A3a typed variables.',
   'numberdroid.a3a.collection-limit-exceeded': 'The lossless Numberdroid closure exceeds an A3a schema-v1 collection limit; the excess remains only in the Numberdroid closure.',
 });
@@ -1090,6 +1091,42 @@ function unescapePointer(segment) {
   return segment.replaceAll('~1', '/').replaceAll('~0', '~');
 }
 
+function a4bEventGap(event, projected) {
+  if (!['drop-item', 'set-variable', 'show-text'].includes(event.kind)) {
+    return 'numberdroid.logic.a3a-vocabulary-mismatch';
+  }
+  if (!a3aId(event.id)) return 'numberdroid.identifiers.a3a-vocabulary-mismatch';
+  const referenceProjected = event.kind === 'drop-item'
+    ? projected.actors.has(event.actorId) && projected.pickups.has(event.pickupId)
+    : event.kind === 'set-variable'
+      ? projected.variables.has(event.variableId)
+      : projected.textReferences.has(event.textRefId);
+  return referenceProjected
+    ? 'numberdroid.a3a.collection-limit-exceeded'
+    : 'numberdroid.logic.reference-not-projected';
+}
+
+function a4bTriggerGap(source, trigger, projected) {
+  if (!['actor-defeated', 'collect', 'state-change'].includes(trigger.kind)) {
+    return 'numberdroid.logic.a3a-vocabulary-mismatch';
+  }
+  if (!a3aId(trigger.id)) return 'numberdroid.identifiers.a3a-vocabulary-mismatch';
+  const eventById = new Map((source.events ?? []).map((event) => [event.id, event]));
+  const referencedEvents = trigger.eventIds.map((eventId) => eventById.get(eventId));
+  if (referencedEvents.some((event) => !event || !['drop-item', 'set-variable', 'show-text'].includes(event.kind))) {
+    return 'numberdroid.logic.a3a-vocabulary-mismatch';
+  }
+  const sourceProjected = trigger.kind === 'actor-defeated'
+    ? projected.actors.has(trigger.sourceId)
+    : trigger.kind === 'collect'
+      ? projected.pickups.has(trigger.sourceId)
+      : projected.variables.has(trigger.sourceId);
+  if (!sourceProjected || !trigger.eventIds.every((eventId) => projected.events.has(eventId))) {
+    return 'numberdroid.logic.reference-not-projected';
+  }
+  return 'numberdroid.a3a.collection-limit-exceeded';
+}
+
 function analyzeGaps(source, a3a) {
   const affected = new Map();
   const add = (gapId, pointer) => {
@@ -1167,11 +1204,11 @@ function analyzeGaps(source, a3a) {
     }
   });
   (source.triggers ?? []).forEach((trigger, index) => {
-    if (!projected.triggers.has(trigger.id)) add('numberdroid.logic.a3a-vocabulary-mismatch', `/triggers/${index}`);
+    if (!projected.triggers.has(trigger.id)) add(a4bTriggerGap(source, trigger, projected), `/triggers/${index}`);
   });
   (source.events ?? []).forEach((event, index) => {
     if (event.kind === 'set-flag') add('numberdroid.flags.declaration-type-initial-value-missing', `/events/${index}`);
-    else if (!projected.events.has(event.id)) add('numberdroid.logic.a3a-vocabulary-mismatch', `/events/${index}`);
+    else if (!projected.events.has(event.id)) add(a4bEventGap(event, projected), `/events/${index}`);
   });
   const gaps = [...affected.entries()].map(([gapId, pointers]) => ({
     gapId,
@@ -1198,10 +1235,10 @@ function gapForPointer(source, pointer, projected) {
     return 'numberdroid.a3a.collection-limit-exceeded';
   }
   if (collection === 'stagedActors' && (source.stagedActors ?? []).length) return 'numberdroid.staged-actors.archetype-version-missing';
-  if (collection === 'triggers' && entry && !projected.triggers.has(entry.id)) return 'numberdroid.logic.a3a-vocabulary-mismatch';
+  if (collection === 'triggers' && entry && !projected.triggers.has(entry.id)) return a4bTriggerGap(source, entry, projected);
   if (collection === 'events' && (source.events ?? []).length) {
     if (source.events[index]?.kind === 'set-flag') return 'numberdroid.flags.declaration-type-initial-value-missing';
-    if (entry && !projected.events.has(entry.id)) return 'numberdroid.logic.a3a-vocabulary-mismatch';
+    if (entry && !projected.events.has(entry.id)) return a4bEventGap(entry, projected);
   }
   if (collection === 'spaces' && entry && !projected.spaces.has(entry.id)) return a3aId(entry.id)
     ? 'numberdroid.a3a.collection-limit-exceeded'

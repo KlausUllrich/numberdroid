@@ -293,6 +293,75 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
   };
 }
 
+function orderFiredTriggerIds(floor: FloorDefinition, fired: Set<string>) {
+  return (floor.script?.triggers ?? [])
+    .filter((trigger) => fired.has(trigger.id))
+    .map((trigger) => trigger.id);
+}
+
+function reconcileActorDefeatCausality(state: MetaState, floor: FloorDefinition) {
+  const fired = new Set(state.scriptState.firedTriggerIds);
+  for (const trigger of floor.script?.triggers ?? []) {
+    if (trigger.kind !== "actor-defeated") continue;
+    if (state.defeatedEncounterIds.includes(trigger.sourceId)) fired.add(trigger.id);
+    else fired.delete(trigger.id);
+    delete state.scriptState.scheduledTriggers[trigger.id];
+  }
+  state.scriptState.firedTriggerIds = orderFiredTriggerIds(floor, fired);
+}
+
+function reconcileTypedLogicCausality(state: MetaState, floor: FloorDefinition) {
+  const script = floor.script;
+  if (!script?.variables?.length) return;
+  const eventById = new Map(script.events.map((event) => [event.id, event]));
+  const variableById = new Map(script.variables.map((variable) => [variable.id, variable]));
+  const values = new Map(script.variables.map((variable) => [variable.id, variable.initialValue]));
+  const fired = new Set(state.scriptState.firedTriggerIds);
+
+  for (const trigger of script.triggers) {
+    const setters = trigger.eventIds
+      .map((eventId) => eventById.get(eventId))
+      .filter((event) => event?.kind === "set-variable");
+    if (!setters.length) continue;
+    const proven = trigger.kind === "collect" && state.collectedPickupIds.includes(trigger.sourceId);
+    if (proven) {
+      fired.add(trigger.id);
+      for (const event of setters) values.set(event.variableId, event.value);
+    } else fired.delete(trigger.id);
+    delete state.scriptState.scheduledTriggers[trigger.id];
+  }
+
+  const causallyVisibleTextIds = new Set<string>();
+  const allVisibleTextIds = new Set(script.events
+    .filter((event) => event.kind === "show-text")
+    .map((event) => event.textRefId));
+  for (const trigger of script.triggers) {
+    const visibleTextEvents = trigger.eventIds
+      .map((eventId) => eventById.get(eventId))
+      .filter((event) => event?.kind === "show-text");
+    if (!visibleTextEvents.length) continue;
+    const variable = variableById.get(trigger.sourceId);
+    const proven = trigger.kind === "state-change"
+      && variable !== undefined
+      && values.get(variable.id) !== variable.initialValue;
+    if (proven) {
+      fired.add(trigger.id);
+      for (const event of visibleTextEvents) causallyVisibleTextIds.add(event.textRefId);
+    } else fired.delete(trigger.id);
+    delete state.scriptState.scheduledTriggers[trigger.id];
+  }
+
+  for (const variable of script.variables) state.scriptState.flags[variable.id] = values.get(variable.id)!;
+  state.scriptState.firedTriggerIds = orderFiredTriggerIds(floor, fired);
+  state.scriptState.storyBeatQueue = state.scriptState.storyBeatQueue.filter((id) =>
+    !allVisibleTextIds.has(id) || causallyVisibleTextIds.has(id));
+  if (state.scriptState.activeStoryBeatId
+    && allVisibleTextIds.has(state.scriptState.activeStoryBeatId)
+    && !causallyVisibleTextIds.has(state.scriptState.activeStoryBeatId)) {
+    state.scriptState.activeStoryBeatId = null;
+  }
+}
+
 export function sanitizeMetaStateForFloor(
   candidate: Partial<MetaState> & { version?: unknown },
   floor: FloorDefinition,
@@ -330,13 +399,10 @@ export function sanitizeMetaStateForFloor(
     : [];
   inferDefeatedEncounterFromOwnedBody(state, floor);
 
-  // A forged actor-defeated firing without the corresponding defeated Actor is
-  // not a valid persisted edge and therefore cannot activate a dormant Pickup.
-  const triggerById = new Map((floor.script?.triggers ?? []).map((trigger) => [trigger.id, trigger]));
-  state.scriptState.firedTriggerIds = state.scriptState.firedTriggerIds.filter((id) => {
-    const trigger = triggerById.get(id);
-    return trigger?.kind !== "actor-defeated" || state.defeatedEncounterIds.includes(trigger.sourceId);
-  });
+  // Reconstruct the defeat edge from the trusted Actor fact; a forged fired ID
+  // alone cannot activate a dormant Pickup, while a real defeated Actor cannot
+  // lose its once-only drop edge through partial save data.
+  reconcileActorDefeatCausality(state, floor);
 
   const validPickupIds = new Set(floor.pickups.map((pickup) => pickup.id));
   state.collectedPickupIds = Array.isArray(state.collectedPickupIds)
@@ -344,6 +410,11 @@ export function sanitizeMetaStateForFloor(
       && validPickupIds.has(id)
       && floorPickupIsAvailable(floor, state, id)))]
     : [];
+
+  // Typed Boolean, collect/state fired IDs and visible text are downstream
+  // consequences. Rebuild them from sanitized Defeat → Drop → Collection facts
+  // instead of trusting individually allowlisted but causally impossible IDs.
+  reconcileTypedLogicCausality(state, floor);
 
   const validAccessKeyIds = new Set<string>();
   for (const pickupId of state.collectedPickupIds) {

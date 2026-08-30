@@ -261,6 +261,9 @@ export function createNumberdroidA4bProjectCapabilityProfile(adapterVersion) {
   manifest.vocabulary.triggerKinds.push('actor-defeated');
   manifest.vocabulary.actionKinds.push('drop-item', 'set-variable', 'show-text');
   manifest.vocabulary.variableTypes.push('boolean');
+  // A4b advertises only real encounter Actors. Staged Actors remain part of
+  // older descriptive vocabulary but cannot own defeat/drop authority.
+  manifest.vocabulary.actorKinds = ['encounter'];
   for (const format of manifest.outputFormats) {
     if (format.id === formats.levelSpec || format.id === formats.compiledLevelSpec) format.version = 1;
   }
@@ -276,6 +279,7 @@ export function createNumberdroidA4bProjectCapabilityProfile(adapterVersion) {
     { id: 'numberdroid.a4b.max-visible-text-code-units', value: 4096, unit: 'code-units' },
   );
   manifest.extensions['numberdroid.studio'].levelSpecContract = 'v1';
+  manifest.extensions['numberdroid.studio'].unsupportedFeatures.push('staged-actor-authoring');
   const implemented = new Set([
     'actor-authoring',
     'actor-defeated-trigger',

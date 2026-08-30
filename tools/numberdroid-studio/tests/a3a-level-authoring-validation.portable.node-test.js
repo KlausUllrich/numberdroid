@@ -229,7 +229,7 @@ test('the synthetic A3a profile validates the closed actor-to-text reference cha
 test('the additive A4b profile validates the closed reference chain while v1/v2 pins remain exact', { timeout: 5_000 }, () => {
   assert.equal(NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT, '826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049');
   assert.equal(NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT, '5488df72b2e45c738735d90046cd3c4a7a560a99922936cfeb5a3e84c63fc106');
-  assert.equal(NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT, 'a0a85fcca3d4071bb3536fd5b50375a2f70f776568b31f4d346a8f972e353596');
+  assert.equal(NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT, '6079209041cb71a3e7c8b36ea41796c2e38ea6ef828bf78829e8f0dc4ea3f074');
   assert.equal(NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST.profileVersion, 3);
   assert.equal(
     projectCapabilityManifestSha256(NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST),
@@ -243,6 +243,19 @@ test('the additive A4b profile validates the closed reference chain while v1/v2 
   assert.deepEqual(result.findings, []);
   assert.deepEqual(NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST.vocabulary.conditionKinds, []);
   assert.ok(NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST.extensions['numberdroid.studio'].unsupportedFeatures.includes('typed-conditions'));
+});
+
+test('the bounded A4b profile rejects staged Actors as defeat/drop authority', { timeout: 5_000 }, () => {
+  const fixture = createAuthoringFixture();
+  fixture.levelGraph.actors[0].kind = 'staged';
+  fixture.logicGraph.levelGraph.fingerprint = levelGraphSha256(fixture.levelGraph);
+  const result = validateLevelAuthoringKernel({
+    ...fixture,
+    capabilityManifest: NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST,
+  });
+  assert.equal(result.status, 'BLOCKED');
+  assert.ok(result.findings.some(({ ruleId, targetId }) =>
+    ruleId === 'LEVEL_AUTHORING_VOCABULARY_UNSUPPORTED' && targetId === 'actor.guard'));
 });
 
 test('each advertised A4b module and vocabulary member is required independently', { timeout: 5_000 }, () => {

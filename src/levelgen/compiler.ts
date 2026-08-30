@@ -319,11 +319,22 @@ function validateTriggers(
   }
 }
 
-function validateDropPrograms(
+function validateA4bReferencePrograms(
   pickups: NonNullable<LevelSpec["pickups"]>,
+  variables: NonNullable<LevelSpec["variables"]>,
   triggers: TriggerSpec[],
   events: LevelEventSpec[],
 ) {
+  const ownersByEventId = new Map<string, TriggerSpec[]>();
+  for (const trigger of triggers) {
+    for (const eventId of trigger.eventIds) {
+      const owners = ownersByEventId.get(eventId) ?? [];
+      owners.push(trigger);
+      ownersByEventId.set(eventId, owners);
+    }
+  }
+  const pickupById = new Map(pickups.map((pickup) => [pickup.id, pickup]));
+  const variableById = new Map(variables.map((variable) => [variable.id, variable]));
   const dropEvents = events.filter((event): event is Extract<LevelEventSpec, { kind: "drop-item" }> => event.kind === "drop-item");
   const droppedPickupIds = new Set<string>();
   for (const event of dropEvents) {
@@ -331,7 +342,7 @@ function validateDropPrograms(
       throw new Error(`Pickup ${event.pickupId} cannot have more than one drop-item Event.`);
     }
     droppedPickupIds.add(event.pickupId);
-    const owners = triggers.filter((trigger) => trigger.eventIds.includes(event.id));
+    const owners = ownersByEventId.get(event.id) ?? [];
     if (owners.length !== 1) {
       throw new Error(`Drop-item Event ${event.id} must be referenced by exactly one Trigger.`);
     }
@@ -346,6 +357,46 @@ function validateDropPrograms(
   for (const pickup of pickups) {
     if (pickup.initiallyPresent === false && !droppedPickupIds.has(pickup.id)) {
       throw new Error(`Hidden pickup ${pickup.id} requires exactly one drop-item Event.`);
+    }
+  }
+
+  const setterByVariableId = new Map<string, Extract<LevelEventSpec, { kind: "set-variable" }>>();
+  for (const event of events) {
+    if (event.kind !== "set-variable") continue;
+    const owners = ownersByEventId.get(event.id) ?? [];
+    if (owners.length !== 1) {
+      throw new Error(`Set-variable Event ${event.id} must be referenced by exactly one Trigger.`);
+    }
+    const trigger = owners[0];
+    const pickup = pickupById.get(trigger.sourceId);
+    if (trigger.kind !== "collect" || !pickup || pickup.initiallyPresent !== false || !droppedPickupIds.has(pickup.id)) {
+      throw new Error(`Set-variable Event ${event.id} must be owned by a collect Trigger for one dropped pickup.`);
+    }
+    if (trigger.once !== true || (trigger.delayMs ?? 0) !== 0) {
+      throw new Error(`Set-variable Trigger ${trigger.id} must be once-only with no delay.`);
+    }
+    if (setterByVariableId.has(event.variableId)) {
+      throw new Error(`Boolean variable ${event.variableId} cannot have more than one set-variable Event.`);
+    }
+    const variable = variableById.get(event.variableId)!;
+    if (event.value === variable.initialValue) {
+      throw new Error(`Set-variable Event ${event.id} must change Boolean variable ${event.variableId} from its initial value.`);
+    }
+    setterByVariableId.set(event.variableId, event);
+  }
+
+  for (const event of events) {
+    if (event.kind !== "show-text") continue;
+    const owners = ownersByEventId.get(event.id) ?? [];
+    if (owners.length !== 1) {
+      throw new Error(`Show-text Event ${event.id} must be referenced by exactly one Trigger.`);
+    }
+    const trigger = owners[0];
+    if (trigger.kind !== "state-change" || !setterByVariableId.has(trigger.sourceId)) {
+      throw new Error(`Show-text Event ${event.id} must be owned by a state-change Trigger for a collected Boolean variable.`);
+    }
+    if (trigger.once !== true || (trigger.delayMs ?? 0) !== 0) {
+      throw new Error(`Show-text Trigger ${trigger.id} must be once-only with no delay.`);
     }
   }
 }
@@ -556,7 +607,7 @@ export function compileLevelSpec(spec: LevelSpec, propRegistry: PropRegistry): S
     encounterById,
     new Set([...variableIds, ...legacyFlagIds]),
   );
-  validateDropPrograms(pickups, triggers, events);
+  validateA4bReferencePrograms(pickups, variables, triggers, events);
 
   for (const override of spec.overrides ?? []) {
     if (!allIds.has(override.targetId)) throw new Error(`Override references unknown semantic id ${override.targetId}.`);
