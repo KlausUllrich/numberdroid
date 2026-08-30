@@ -1,12 +1,6 @@
 import { createHash } from 'node:crypto';
 import { types as utilTypes } from 'node:util';
 import {
-  canonicalLevelGraphJson,
-  canonicalLevelRequirementSetJson,
-  canonicalLogicGraphJson,
-  levelGraphSha256,
-  levelRequirementSetSha256,
-  logicGraphSha256,
   validateLevelGraph,
   validateLevelRequirementSet,
   validateLogicGraph,
@@ -115,8 +109,8 @@ function safely(action, label) {
   }
 }
 
-function snapshotPlainData(value, label = 'value') {
-  const state = { nodes: 0, values: 0, text: 0, seen: new WeakSet() };
+function snapshotPlainData(value, label = 'value', { rejectSharedReferences = true } = {}) {
+  const state = { nodes: 0, values: 0, text: 0, seen: new WeakSet(), active: new WeakSet() };
 
   function visit(candidate, path, depth) {
     invariant(depth <= MAX_DEPTH, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', `${path} exceeds the maximum nesting depth.`, { field: path, limit: MAX_DEPTH });
@@ -146,8 +140,10 @@ function snapshotPlainData(value, label = 'value') {
 
     state.nodes += 1;
     invariant(state.nodes <= MAX_NODES, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', 'The input contains too many objects or arrays.', { limit: MAX_NODES });
-    invariant(!state.seen.has(candidate), 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} contains a cycle or repeated object reference.`, { field: path });
+    invariant(!state.active.has(candidate), 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} contains a cycle.`, { field: path });
+    invariant(!rejectSharedReferences || !state.seen.has(candidate), 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} contains a repeated object reference.`, { field: path });
     state.seen.add(candidate);
+    state.active.add(candidate);
 
     const prototype = safely(() => Object.getPrototypeOf(candidate), path);
     const keys = safely(() => Reflect.ownKeys(candidate), path);
@@ -167,6 +163,7 @@ function snapshotPlainData(value, label = 'value') {
         invariant(descriptor?.enumerable && Object.hasOwn(descriptor, 'value'), 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} must be a dense array of own data entries.`, { field: `${path}[${index}]` });
         result.push(visit(descriptor.value, `${path}[${index}]`, depth + 1));
       }
+      state.active.delete(candidate);
       return result;
     }
 
@@ -187,6 +184,7 @@ function snapshotPlainData(value, label = 'value') {
         writable: true,
       });
     }
+    state.active.delete(candidate);
     return result;
   }
 
@@ -219,6 +217,10 @@ function canonicalJson(value) {
 
 function sha256(value) {
   return createHash('sha256').update(value).digest('hex');
+}
+
+function a3aSha256(value) {
+  return sha256(canonicalJson(value));
 }
 
 function sameValue(left, right) {
@@ -567,7 +569,10 @@ function validateLevelSpecSnapshot(spec) {
 }
 
 export function validateNumberdroidLevelSpec(value) {
-  return deepFreeze(validateLevelSpecSnapshot(snapshotPlainData(value, 'levelSpec')));
+  // Current trusted Numberdroid fixtures deliberately reuse immutable range
+  // constants. Reference identity has no LevelSpec/JSON semantics, so a DAG is
+  // flattened into exact plain values while true cycles remain forbidden.
+  return deepFreeze(validateLevelSpecSnapshot(snapshotPlainData(value, 'levelSpec', { rejectSharedReferences: false })));
 }
 
 export function canonicalNumberdroidLevelSpecJson(value) {
@@ -643,7 +648,7 @@ function assertSourceFieldsPreserved(source, compiled, label, ignored = new Set(
 }
 
 function validatePlanClosure(planValue, source) {
-  const plan = snapshotPlainData(planValue, 'compiler.semanticPlan');
+  const plan = snapshotPlainData(planValue, 'compiler.semanticPlan', { rejectSharedReferences: false });
   const required = ['levelId', 'version', 'seed', 'ruleSetRefs', 'rules', 'spaces', 'connections', 'props', 'encounters', 'stagedActors', 'routes', 'pickups', 'zones', 'triggers', 'events', 'overrides', 'diagnostics'];
   exactRecord(plan, required, ['runtime'], 'compiler.semanticPlan');
   invariant(plan.levelId === source.id && plan.version === source.version,
@@ -779,7 +784,7 @@ function buildA3aProjection(source) {
     requirementSet: {
       requirementSetId: requirementSet.requirementSetId,
       version: requirementSet.version,
-      fingerprint: levelRequirementSetSha256(requirementSet),
+      fingerprint: a3aSha256(requirementSet),
     },
     spaces,
     connections,
@@ -800,7 +805,7 @@ function buildA3aProjection(source) {
     levelGraph: {
       levelGraphId: levelGraph.levelGraphId,
       version: levelGraph.version,
-      fingerprint: levelGraphSha256(levelGraph),
+      fingerprint: a3aSha256(levelGraph),
     },
     variables: [],
     textReferences: [],
@@ -810,11 +815,11 @@ function buildA3aProjection(source) {
   });
   return {
     requirementSet,
-    requirementSetFingerprint: levelRequirementSetSha256(requirementSet),
+    requirementSetFingerprint: a3aSha256(requirementSet),
     levelGraph,
-    levelGraphFingerprint: levelGraphSha256(levelGraph),
+    levelGraphFingerprint: a3aSha256(levelGraph),
     logicGraph,
-    logicGraphFingerprint: logicGraphSha256(logicGraph),
+    logicGraphFingerprint: a3aSha256(logicGraph),
   };
 }
 
@@ -1053,13 +1058,9 @@ export function validateNumberdroidLevelAuthoringProjection(value) {
   const requirementSet = validateLevelRequirementSet(a3aRecord.requirementSet);
   const levelGraph = validateLevelGraph(a3aRecord.levelGraph);
   const logicGraph = validateLogicGraph(a3aRecord.logicGraph);
-  validateStoredHash(a3aRecord.requirementSetFingerprint, levelRequirementSetSha256(requirementSet), 'projection.a3a.requirementSetFingerprint');
-  validateStoredHash(a3aRecord.levelGraphFingerprint, levelGraphSha256(levelGraph), 'projection.a3a.levelGraphFingerprint');
-  validateStoredHash(a3aRecord.logicGraphFingerprint, logicGraphSha256(logicGraph), 'projection.a3a.logicGraphFingerprint');
-  invariant(canonicalLevelRequirementSetJson(requirementSet) === canonicalLevelRequirementSetJson(a3aRecord.requirementSet)
-    && canonicalLevelGraphJson(levelGraph) === canonicalLevelGraphJson(a3aRecord.levelGraph)
-    && canonicalLogicGraphJson(logicGraph) === canonicalLogicGraphJson(a3aRecord.logicGraph),
-  'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', 'The A3a closure is not canonical.');
+  validateStoredHash(a3aRecord.requirementSetFingerprint, a3aSha256(requirementSet), 'projection.a3a.requirementSetFingerprint');
+  validateStoredHash(a3aRecord.levelGraphFingerprint, a3aSha256(levelGraph), 'projection.a3a.levelGraphFingerprint');
+  validateStoredHash(a3aRecord.logicGraphFingerprint, a3aSha256(logicGraph), 'projection.a3a.logicGraphFingerprint');
 
   const expected = buildAnalysis(source);
   invariant(sameValue(a3aRecord, expected.a3a), 'NUMBERDROID_LEVEL_PROJECTION_A3A_FORGED', 'The A3a graph closure is not the exact projection of the retained Numberdroid source.');
