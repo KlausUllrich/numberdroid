@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { createFloorState, sanitizeMetaStateForFloor } from "../game/save";
 import {
   advanceFloorScript,
@@ -76,8 +78,29 @@ describe("A4b actor-defeated key reference", () => {
     expect(storyBeatIsBlocking(floor, "text.guard-key-collected")).toBe(true);
     expect(storyBeatDisplayText(floor, "text.guard-key-collected")).toBe("<SYSTEM> WÄCHTER-ZUGANG GESICHERT");
 
+    const restored = sanitizeMetaStateForFloor(JSON.parse(JSON.stringify(collected.state)), floor);
+    expect(restored.collectedPickupIds).toEqual(["guard-key"]);
+    expect(restored.accessKeyIds).toEqual(["guard-access"]);
+    expect(restored.scriptState.flags["state.guard-key-collected"]).toBe(true);
+    expect(restored.scriptState.firedTriggerIds).toEqual([
+      "trigger.guard-defeated",
+      "trigger.guard-key-collected",
+      "trigger.guard-key-state",
+    ]);
+    expect(restored.scriptState.activeStoryBeatId).toBe("text.guard-key-collected");
+
     const repeated = advanceFloorScript(floor, collected.state, collected.state, { nowMs: 1_200 });
     expect(repeated.firedTriggerIds).toEqual([]);
+  });
+
+  it("renders HTML-shaped authored text only as an escaped React text node", () => {
+    const floor = structuredClone(compileFloor());
+    const hostileText = '<img src=x onerror="globalThis.pwned=true">';
+    floor.script!.textReferences![0].text = hostileText;
+    const markup = renderToStaticMarkup(createElement("strong", null,
+      storyBeatDisplayText(floor, "text.guard-key-collected")));
+    expect(markup).toContain("&lt;img src=x onerror=&quot;globalThis.pwned=true&quot;&gt;");
+    expect(markup).not.toContain("<img");
   });
 
   it("isolates the duel return to the defeat edge instead of firing unrelated movement triggers", () => {
@@ -114,8 +137,8 @@ describe("A4b actor-defeated key reference", () => {
     const rawFlags = Object.assign(Object.create(null), {
       "state.guard-key-collected": "true",
       unknown: true,
-      __proto__: true,
     });
+    Object.defineProperty(rawFlags, "__proto__", { value: true, enumerable: true });
     const manipulated = sanitizeMetaStateForFloor({
       ...initial,
       collectedPickupIds: ["guard-key"],
@@ -130,6 +153,7 @@ describe("A4b actor-defeated key reference", () => {
     expect(manipulated.accessKeyIds).toEqual([]);
     expect(manipulated.scriptState.firedTriggerIds).toEqual([]);
     expect(manipulated.scriptState.flags).toEqual({ "state.guard-key-collected": false });
+    expect(Object.hasOwn(manipulated.scriptState.flags, "__proto__")).toBe(false);
 
     const defeated = advanceFloorScript(floor, initial, { ...initial, defeatedEncounterIds: ["guard-actor"] }).state;
     const restored = sanitizeMetaStateForFloor(JSON.parse(JSON.stringify(defeated)), floor);
@@ -146,15 +170,21 @@ describe("A4b actor-defeated key reference", () => {
       }), /unknown encounter actor staged-guard/],
       ["missing route", mutate((spec) => { delete spec.encounters[0].patrolRouteId; }), /requires patrolRouteId/],
       ["wrong drop actor", mutate((spec) => {
+        spec.encounters.push({
+          ...structuredClone(spec.encounters[0]),
+          id: "other-actor",
+          actorArchetype: { id: "numberdroid.sentry.other", version: 1 },
+        });
         const event = spec.events![0];
         if (event.kind === "drop-item") event.actorId = "other-actor";
-      }), /unknown encounter actor other-actor/],
+      }), /must be owned by an actor-defeated Trigger for actor other-actor/],
       ["static pickup", mutate((spec) => { spec.pickups![0].initiallyPresent = true; }), /requires hidden pickup/],
       ["duplicate drop producer", mutate((spec) => {
         spec.events!.push({ id: "action.drop-again", kind: "drop-item", actorId: "guard-actor", pickupId: "guard-key" });
         spec.triggers!.push({ id: "trigger.drop-again", kind: "actor-defeated", sourceId: "guard-actor", eventIds: ["action.drop-again"], once: true, delayMs: 0 });
       }), /more than one drop-item Event/],
       ["non-once defeat", mutate((spec) => { spec.triggers![0].once = false; }), /must be once-only/],
+      ["delayed defeat", mutate((spec) => { spec.triggers![0].delayMs = 1; }), /must be once-only with no delay/],
       ["unknown variable", mutate((spec) => {
         const event = spec.events![1];
         if (event.kind === "set-variable") event.variableId = "state.unknown";
@@ -171,6 +201,7 @@ describe("A4b actor-defeated key reference", () => {
         if (event.kind === "show-text") event.textRefId = "text.unknown";
       }), /unknown visible text/],
       ["empty text", mutate((spec) => { spec.textReferences![0].text = "   "; }), /1 to 4096/],
+      ["oversized text", mutate((spec) => { spec.textReferences![0].text = "x".repeat(4_097); }), /1 to 4096/],
       ["story id collision", mutate((spec) => {
         spec.events!.push({ id: "action.story", kind: "story-beat", beatId: "text.guard-key-collected", blocking: true });
       }), /collides with an existing story-beat/],
@@ -195,5 +226,53 @@ describe("A4b actor-defeated key reference", () => {
 
     bounded.variables.push({ id: "state.limit-512", type: "boolean", initialValue: false });
     expect(() => compileSemantic(bounded)).toThrow(/at most 512 variables/);
+  });
+
+  it("pins 512/513 for every remaining advertised A4b collection limit", () => {
+    const visibleText = structuredClone(A4B_REFERENCE_LEVEL_SPEC);
+    visibleText.textReferences![0].text = "x".repeat(4_096);
+    expect(() => compileSemantic(visibleText)).not.toThrow();
+    visibleText.textReferences![0].text += "x";
+    expect(() => compileSemantic(visibleText)).toThrow(/1 to 4096/);
+
+    const texts = structuredClone(A4B_REFERENCE_LEVEL_SPEC);
+    texts.textReferences = Array.from({ length: 512 }, (_, index) => ({
+      id: `text.limit-${index}`,
+      text: `bounded text ${index}`,
+    }));
+    const showText = texts.events![2];
+    if (showText.kind === "show-text") showText.textRefId = texts.textReferences[0].id;
+    expect(() => compileSemantic(texts)).not.toThrow();
+    texts.textReferences.push({ id: "text.limit-512", text: "overflow" });
+    expect(() => compileSemantic(texts)).toThrow(/at most 512 text references/);
+
+    const events = structuredClone(A4B_REFERENCE_LEVEL_SPEC);
+    for (let index = events.events!.length; index < 512; index += 1) {
+      events.events!.push({ id: `action.limit-${index}`, kind: "set-flag", flag: `legacy.limit-${index}`, value: true });
+    }
+    expect(() => compileSemantic(events)).not.toThrow();
+    events.events!.push({ id: "action.limit-512", kind: "set-flag", flag: "legacy.limit-512", value: true });
+    expect(() => compileSemantic(events)).toThrow(/at most 512 events/);
+
+    const triggers = structuredClone(A4B_REFERENCE_LEVEL_SPEC);
+    triggers.events!.push({ id: "action.trigger-limit", kind: "set-flag", flag: "legacy.trigger-limit", value: true });
+    for (let index = triggers.triggers!.length; index < 512; index += 1) {
+      triggers.triggers!.push({
+        id: `trigger.limit-${index}`,
+        kind: "state-change",
+        sourceId: "legacy.trigger-limit",
+        eventIds: ["action.trigger-limit"],
+        once: true,
+      });
+    }
+    expect(() => compileSemantic(triggers)).not.toThrow();
+    triggers.triggers!.push({
+      id: "trigger.limit-512",
+      kind: "state-change",
+      sourceId: "legacy.trigger-limit",
+      eventIds: ["action.trigger-limit"],
+      once: true,
+    });
+    expect(() => compileSemantic(triggers)).toThrow(/at most 512 triggers/);
   });
 });
