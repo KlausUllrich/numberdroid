@@ -4,6 +4,7 @@ import {
   validateCandidateManifest,
 } from '../../domain/src/candidate-manifest.js';
 import {
+  createNumberdroidA4bProjectCapabilityProfile,
   createNumberdroidAuthoringV2ProjectCapabilityProfile,
   createNumberdroidProjectCapabilityProfile,
 } from './project-capabilities.js';
@@ -30,6 +31,9 @@ export const NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT = numberdroidProjectCapa
 const numberdroidAuthoringV2ProjectCapabilityProfile = createNumberdroidAuthoringV2ProjectCapabilityProfile(NUMBERDROID_ADAPTER_VERSION);
 export const NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST = numberdroidAuthoringV2ProjectCapabilityProfile.manifest;
 export const NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT = numberdroidAuthoringV2ProjectCapabilityProfile.fingerprint;
+const numberdroidA4bProjectCapabilityProfile = createNumberdroidA4bProjectCapabilityProfile(NUMBERDROID_ADAPTER_VERSION);
+export const NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST = numberdroidA4bProjectCapabilityProfile.manifest;
+export const NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT = numberdroidA4bProjectCapabilityProfile.fingerprint;
 
 const HASH = /^[a-f0-9]{64}$/;
 const CAS_URI = /^studio:\/\/artifacts\/sha256\/([a-f0-9]{64})$/;

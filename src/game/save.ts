@@ -1,5 +1,6 @@
 import { BODIES, MAX_META_ENERGY, STARTING_HP, robotCollisionRadius } from "./catalog";
 import { CURRENT_FLOOR, getFloor } from "./floors";
+import { floorPickupIsAvailable } from "./scriptRuntime";
 import type {
   BodyId,
   EnemyId,
@@ -53,7 +54,7 @@ function scriptedActorDefaults(floor: FloorDefinition) {
 export function createLevelScriptRunState(floor: FloorDefinition): LevelScriptRunState {
   return {
     firedTriggerIds: [],
-    flags: {},
+    flags: Object.fromEntries((floor.script?.variables ?? []).map((variable) => [variable.id, variable.initialValue])),
     doorStates: {},
     stagedActors: scriptedActorDefaults(floor),
     scheduledTriggers: {},
@@ -159,6 +160,10 @@ export function pointWalkable(
   collisionRadius = robotCollisionRadius("standard"),
 ) {
   const floor = getFloor(floorId);
+  return pointWalkableOnFloor(floor, x, y, collisionRadius);
+}
+
+function pointWalkableOnFloor(floor: FloorDefinition, x: number, y: number, collisionRadius: number) {
   const onFloor = footprintInsideWalkable(floor, x, y, collisionRadius);
   if (!onFloor) return false;
   const blocked = Array.from(nearbyObstacles(floor, x, y, collisionRadius))
@@ -184,6 +189,10 @@ function validScriptValue(value: unknown): value is ScriptValue {
   return typeof value === "boolean" || typeof value === "number" || typeof value === "string";
 }
 
+function safeRecordKey(value: string) {
+  return value !== "__proto__" && value !== "prototype" && value !== "constructor";
+}
+
 function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelScriptRunState {
   const defaults = createLevelScriptRunState(floor);
   if (!candidate || typeof candidate !== "object") return defaults;
@@ -193,15 +202,31 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
   const doorIds = new Set(floor.doors.map((door) => door.id));
   const stagedIds = new Set((floor.script?.stagedActors ?? []).map((actor) => actor.id));
   const routeIds = new Set((floor.script?.routes ?? []).map((route) => route.id));
-  const beatIds = new Set(
-    (floor.script?.events ?? [])
-      .filter((event) => event.kind === "story-beat")
-      .map((event) => event.beatId),
-  );
+  const textReferenceIds = new Set((floor.script?.textReferences ?? []).map((reference) => reference.id));
+  const beatIds = new Set<string>();
+  for (const event of floor.script?.events ?? []) {
+    if (event.kind === "story-beat") beatIds.add(event.beatId);
+    if (event.kind === "show-text" && textReferenceIds.has(event.textRefId)) beatIds.add(event.textRefId);
+  }
 
-  const flags: Record<string, ScriptValue> = {};
+  const variableById = new Map((floor.script?.variables ?? []).map((variable) => [variable.id, variable]));
+  const legacyFlagIds = new Set<string>();
+  for (const event of floor.script?.events ?? []) if (event.kind === "set-flag") legacyFlagIds.add(event.flag);
+  for (const trigger of floor.script?.triggers ?? []) {
+    if (trigger.kind === "state-change" && trigger.sourceKind === "flag") legacyFlagIds.add(trigger.sourceId);
+  }
+
+  const flags: Record<string, ScriptValue> = { ...defaults.flags };
   if (raw.flags && typeof raw.flags === "object") {
-    for (const [key, value] of Object.entries(raw.flags)) if (validScriptValue(value)) flags[key] = value;
+    for (const [key, value] of Object.entries(raw.flags)) {
+      if (!safeRecordKey(key)) continue;
+      const variable = variableById.get(key);
+      if (variable) {
+        if (typeof value === "boolean") flags[key] = value;
+        continue;
+      }
+      if (legacyFlagIds.has(key) && validScriptValue(value)) flags[key] = value;
+    }
   }
 
   const doorStates: Record<string, "locked" | "unlocked"> = {};
@@ -251,7 +276,7 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
   }
 
   const storyBeatQueue = Array.isArray(raw.storyBeatQueue)
-    ? [...new Set(raw.storyBeatQueue.filter((id): id is string => typeof id === "string" && beatIds.has(id)))]
+    ? [...new Set(raw.storyBeatQueue.filter((id): id is string => typeof id === "string" && beatIds.has(id)))].slice(0, 512)
     : [];
   const activeStoryBeatId = typeof raw.activeStoryBeatId === "string" && beatIds.has(raw.activeStoryBeatId)
     ? raw.activeStoryBeatId
@@ -268,8 +293,79 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
   };
 }
 
-function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaState {
-  const floor = getFloor(typeof candidate.floorId === "string" ? candidate.floorId : CURRENT_FLOOR.id);
+function orderFiredTriggerIds(floor: FloorDefinition, fired: Set<string>) {
+  return (floor.script?.triggers ?? [])
+    .filter((trigger) => fired.has(trigger.id))
+    .map((trigger) => trigger.id);
+}
+
+function reconcileActorDefeatCausality(state: MetaState, floor: FloorDefinition) {
+  const fired = new Set(state.scriptState.firedTriggerIds);
+  for (const trigger of floor.script?.triggers ?? []) {
+    if (trigger.kind !== "actor-defeated") continue;
+    if (state.defeatedEncounterIds.includes(trigger.sourceId)) fired.add(trigger.id);
+    else fired.delete(trigger.id);
+    delete state.scriptState.scheduledTriggers[trigger.id];
+  }
+  state.scriptState.firedTriggerIds = orderFiredTriggerIds(floor, fired);
+}
+
+function reconcileTypedLogicCausality(state: MetaState, floor: FloorDefinition) {
+  const script = floor.script;
+  if (!script?.variables?.length) return;
+  const eventById = new Map(script.events.map((event) => [event.id, event]));
+  const variableById = new Map(script.variables.map((variable) => [variable.id, variable]));
+  const values = new Map(script.variables.map((variable) => [variable.id, variable.initialValue]));
+  const fired = new Set(state.scriptState.firedTriggerIds);
+
+  for (const trigger of script.triggers) {
+    const setters = trigger.eventIds
+      .map((eventId) => eventById.get(eventId))
+      .filter((event) => event?.kind === "set-variable");
+    if (!setters.length) continue;
+    const proven = trigger.kind === "collect" && state.collectedPickupIds.includes(trigger.sourceId);
+    if (proven) {
+      fired.add(trigger.id);
+      for (const event of setters) values.set(event.variableId, event.value);
+    } else fired.delete(trigger.id);
+    delete state.scriptState.scheduledTriggers[trigger.id];
+  }
+
+  const causallyVisibleTextIds = new Set<string>();
+  const allVisibleTextIds = new Set(script.events
+    .filter((event) => event.kind === "show-text")
+    .map((event) => event.textRefId));
+  for (const trigger of script.triggers) {
+    const visibleTextEvents = trigger.eventIds
+      .map((eventId) => eventById.get(eventId))
+      .filter((event) => event?.kind === "show-text");
+    if (!visibleTextEvents.length) continue;
+    const variable = variableById.get(trigger.sourceId);
+    const proven = trigger.kind === "state-change"
+      && variable !== undefined
+      && values.get(variable.id) !== variable.initialValue;
+    if (proven) {
+      fired.add(trigger.id);
+      for (const event of visibleTextEvents) causallyVisibleTextIds.add(event.textRefId);
+    } else fired.delete(trigger.id);
+    delete state.scriptState.scheduledTriggers[trigger.id];
+  }
+
+  for (const variable of script.variables) state.scriptState.flags[variable.id] = values.get(variable.id)!;
+  state.scriptState.firedTriggerIds = orderFiredTriggerIds(floor, fired);
+  state.scriptState.storyBeatQueue = state.scriptState.storyBeatQueue.filter((id) =>
+    !allVisibleTextIds.has(id) || causallyVisibleTextIds.has(id));
+  if (state.scriptState.activeStoryBeatId
+    && allVisibleTextIds.has(state.scriptState.activeStoryBeatId)
+    && !causallyVisibleTextIds.has(state.scriptState.activeStoryBeatId)) {
+    state.scriptState.activeStoryBeatId = null;
+  }
+}
+
+export function sanitizeMetaStateForFloor(
+  candidate: Partial<MetaState> & { version?: unknown },
+  floor: FloorDefinition,
+): MetaState {
   const defaults = createFloorState(floor);
   const state: MetaState = {
     ...defaults,
@@ -283,7 +379,7 @@ function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaSt
   if (!validDeckSize(state.currentDeckSize)) state.currentDeckSize = defaults.currentDeckSize;
 
   const radius = robotCollisionRadius(state.currentDeckSize);
-  if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !pointWalkable(state.x, state.y, floor.id, radius)) {
+  if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !pointWalkableOnFloor(floor, state.x, state.y, radius)) {
     state.x = defaults.x;
     state.y = defaults.y;
     state.facing = defaults.facing;
@@ -297,15 +393,39 @@ function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaSt
     ? [...new Set(state.usedStationIds.filter((id) => typeof id === "string" && validStationIds.has(id)))]
     : [];
 
+  const validEncounterIds = new Set(floor.encounters.map((encounter) => encounter.encounterId));
+  state.defeatedEncounterIds = Array.isArray(state.defeatedEncounterIds)
+    ? [...new Set(state.defeatedEncounterIds.filter((id) => typeof id === "string" && validEncounterIds.has(id)))]
+    : [];
+  inferDefeatedEncounterFromOwnedBody(state, floor);
+
+  // Reconstruct the defeat edge from the trusted Actor fact; a forged fired ID
+  // alone cannot activate a dormant Pickup, while a real defeated Actor cannot
+  // lose its once-only drop edge through partial save data.
+  reconcileActorDefeatCausality(state, floor);
+
   const validPickupIds = new Set(floor.pickups.map((pickup) => pickup.id));
   state.collectedPickupIds = Array.isArray(state.collectedPickupIds)
-    ? [...new Set(state.collectedPickupIds.filter((id) => typeof id === "string" && validPickupIds.has(id)))]
+    ? [...new Set(state.collectedPickupIds.filter((id) => typeof id === "string"
+      && validPickupIds.has(id)
+      && floorPickupIsAvailable(floor, state, id)))]
     : [];
 
+  // Typed Boolean, collect/state fired IDs and visible text are downstream
+  // consequences. Rebuild them from sanitized Defeat → Drop → Collection facts
+  // instead of trusting individually allowlisted but causally impossible IDs.
+  reconcileTypedLogicCausality(state, floor);
+
   const validAccessKeyIds = new Set<string>();
-  floor.doors.forEach((door) => { if (door.keyId) validAccessKeyIds.add(door.keyId); });
-  floor.pickups.forEach((pickup) => validAccessKeyIds.add(pickup.keyId));
-  floor.encounters.forEach((encounter) => { if (encounter.accessKey) validAccessKeyIds.add(encounter.accessKey.keyId); });
+  for (const pickupId of state.collectedPickupIds) {
+    const pickup = floor.pickups.find((entry) => entry.id === pickupId);
+    if (pickup) validAccessKeyIds.add(pickup.keyId);
+  }
+  floor.encounters.forEach((encounter) => {
+    if (encounter.accessKey && state.defeatedEncounterIds.includes(encounter.encounterId)) {
+      validAccessKeyIds.add(encounter.accessKey.keyId);
+    }
+  });
   for (const event of floor.script?.events ?? []) if (event.kind === "grant-key") validAccessKeyIds.add(event.keyId);
   state.accessKeyIds = Array.isArray(state.accessKeyIds)
     ? [...new Set(state.accessKeyIds.filter((id) => typeof id === "string" && validAccessKeyIds.has(id)))]
@@ -321,17 +441,15 @@ function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaSt
     ? [...new Set(state.completedActionIds.filter((id) => typeof id === "string" && validActionIds.has(id)))]
     : [];
 
-  const validEncounterIds = new Set(floor.encounters.map((encounter) => encounter.encounterId));
-  state.defeatedEncounterIds = Array.isArray(state.defeatedEncounterIds)
-    ? [...new Set(state.defeatedEncounterIds.filter((id) => typeof id === "string" && validEncounterIds.has(id)))]
-    : [];
-
-  inferDefeatedEncounterFromOwnedBody(state, floor);
-
   state.playerCount = Math.max(1, Math.min(4, Number.isFinite(state.playerCount) ? state.playerCount : defaults.playerCount));
   state.pilotIndex = Math.max(0, Number.isFinite(state.pilotIndex) ? state.pilotIndex : 0) % state.playerCount;
   state.damageTaken = Math.max(0, Math.min(STARTING_HP, Number.isFinite(state.damageTaken) ? state.damageTaken : 0));
   return state;
+}
+
+function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaState {
+  const floor = getFloor(typeof candidate.floorId === "string" ? candidate.floorId : CURRENT_FLOOR.id);
+  return sanitizeMetaStateForFloor(candidate, floor);
 }
 
 function migrateV2(old: MetaStateV2): MetaState {

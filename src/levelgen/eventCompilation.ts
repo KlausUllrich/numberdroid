@@ -83,6 +83,7 @@ function placePickups(plan: ActorPlacementPlan): PickupPlacementDecision[] {
       spaceId: pickup.spaceId,
       cell: chosen.cell,
       label: pickup.label,
+      initiallyPresent: pickup.initiallyPresent ?? true,
       score: chosen.score,
       reasons: chosen.reasons.length ? chosen.reasons : ["best deterministic free cell"],
       candidateCount: candidates.length,
@@ -272,7 +273,10 @@ function compileTrigger(
     if (!pickup) throw new Error(`Trigger ${trigger.id} cannot resolve pickup ${trigger.sourceId}.`);
     source = { kind: "pickup", id: pickup.id, spaceId: pickup.spaceId, point: pickup.cell, cells: [pickup.cell], resolvedIds: [pickup.id] };
   } else if (trigger.kind === "state-change") {
-    source = { kind: "flag", id: trigger.sourceId, cells: [], resolvedIds: [trigger.sourceId] };
+    const sourceKind = plan.props.navigation.geometry.semantic.variables.some((entry) => entry.id === trigger.sourceId)
+      ? "variable"
+      : "flag";
+    source = { kind: sourceKind, id: trigger.sourceId, cells: [], resolvedIds: [trigger.sourceId] };
   } else if (trigger.kind === "timer") {
     source = { kind: "timer", id: trigger.sourceId, cells: [], resolvedIds: [trigger.sourceId] };
   } else {
@@ -293,6 +297,9 @@ function compileTrigger(
 
 function eventTargets(event: LevelEventSpec): string[] {
   if (event.kind === "set-flag") return [`flag:${event.flag}`];
+  if (event.kind === "set-variable") return [`variable:${event.variableId}`];
+  if (event.kind === "drop-item") return [event.actorId, event.pickupId];
+  if (event.kind === "show-text") return [`text:${event.textRefId}`];
   if (event.kind === "grant-key") return [`key:${event.keyId}`];
   if (event.kind === "unlock-door" || event.kind === "lock-door") return [event.doorId];
   if (event.kind === "spawn-actor") return [event.actorId, event.spaceId];
@@ -339,13 +346,14 @@ export function compileTriggerEvents(actors: ActorPlacementPlan): EventCompilati
     if (trigger.kind !== "state-change" || trigger.once) continue;
     const loops = trigger.eventIds
       .map((id) => semantic.events.find((event) => event.id === id))
-      .filter((event): event is Extract<LevelEventSpec, { kind: "set-flag" }> => event?.kind === "set-flag" && event.flag === trigger.source.id);
+      .filter((event) => (event?.kind === "set-flag" && event.flag === trigger.source.id)
+        || (event?.kind === "set-variable" && event.variableId === trigger.source.id));
     if (loops.length) {
       diagnostics.push({
         level: "warning",
         code: "POTENTIAL_STATE_TRIGGER_LOOP",
         targetId: trigger.id,
-        message: `State trigger ${trigger.id} writes its own observed flag ${trigger.source.id}; make it once-only or ensure runtime edge semantics prevent a loop.`,
+        message: `State trigger ${trigger.id} writes its own observed state ${trigger.source.id}; make it once-only or ensure runtime edge semantics prevent a loop.`,
       });
     }
   }

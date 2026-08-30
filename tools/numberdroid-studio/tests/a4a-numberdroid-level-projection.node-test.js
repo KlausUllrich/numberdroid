@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import {
   NUMBERDROID_LEVEL_AUTHORING_PROJECTION_KIND,
+  NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT,
   NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT,
   canonicalNumberdroidLevelAuthoringProjectionJson,
   createNumberdroidLevelAuthoringProjection,
@@ -139,6 +140,8 @@ function semanticPlan(spec) {
     stagedActors: [...(spec.stagedActors ?? [])],
     routes: [...(spec.routes ?? [])],
     pickups: [...(spec.pickups ?? [])],
+    variables: [...(spec.variables ?? [])],
+    textReferences: [...(spec.textReferences ?? [])],
     zones: [...(spec.zones ?? [])],
     triggers: [...(spec.triggers ?? [])],
     events: [...(spec.events ?? [])],
@@ -164,37 +167,43 @@ function assertProjectionError(action, code) {
   assert.throws(action, (error) => error?.code === code);
 }
 
-test('A4a retains the complete Numberdroid closure and advertises no production capability', { timeout: 5_000 }, () => {
+test('A4b retains the complete Numberdroid closure and advertises only the additive bounded profile', { timeout: 5_000 }, () => {
   const input = levelSpec();
   const projection = create(input);
   assert.equal(projection.kind, NUMBERDROID_LEVEL_AUTHORING_PROJECTION_KIND);
   assert.equal(projection.status, 'LOSSLESS_WITH_GAPS');
-  assert.equal(projection.capabilityDelta.status, 'NOT_ADVERTISED');
+  assert.equal(projection.capabilityDelta.status, 'ADVERTISED');
   assert.equal(canonicalJson(projection.capabilityDelta), canonicalJson({
-    status: 'NOT_ADVERTISED',
+    status: 'ADVERTISED',
     baseline: {
       profileId: 'numberdroid.studio',
       profileVersion: 1,
       fingerprint: '826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049',
     },
+    target: {
+      profileId: 'numberdroid.studio',
+      profileVersion: 3,
+      fingerprint: '6079209041cb71a3e7c8b36ea41796c2e38ea6ef828bf78829e8f0dc4ea3f074',
+    },
     modules: [
-      { id: 'studio.level-requirements', status: 'A3A_PROJECTION_ONLY' },
-      { id: 'studio.level-graph', status: 'A3A_PROJECTION_ONLY' },
-      { id: 'studio.actor-route', status: 'BLOCKED' },
-      { id: 'studio.typed-logic', status: 'BLOCKED' },
-      { id: 'studio.dialogue-text', status: 'BLOCKED' },
+      { id: 'studio.level-requirements', status: 'ADVERTISED' },
+      { id: 'studio.level-graph', status: 'ADVERTISED' },
+      { id: 'studio.actor-route', status: 'ADVERTISED' },
+      { id: 'studio.typed-logic', status: 'ADVERTISED' },
+      { id: 'studio.dialogue-text', status: 'ADVERTISED' },
     ],
     vocabulary: {
-      triggerKinds: [{ id: 'actor-defeated', status: 'BLOCKED' }],
+      triggerKinds: [{ id: 'actor-defeated', status: 'ADVERTISED' }],
       actionKinds: [
-        { id: 'drop-item', status: 'BLOCKED' },
-        { id: 'set-variable', status: 'BLOCKED' },
-        { id: 'show-text', status: 'BLOCKED' },
+        { id: 'drop-item', status: 'ADVERTISED' },
+        { id: 'set-variable', status: 'ADVERTISED' },
+        { id: 'show-text', status: 'ADVERTISED' },
       ],
-      variableTypes: [{ id: 'boolean', status: 'BLOCKED' }],
+      variableTypes: [{ id: 'boolean', status: 'ADVERTISED' }],
     },
   }));
   assert.equal(projection.capabilityDelta.baseline.fingerprint, NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT);
+  assert.equal(projection.capabilityDelta.target.fingerprint, NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT);
   assert.equal(NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT, '826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049');
   assert.deepEqual(JSON.parse(projection.source.canonicalJson), input);
   assert.equal(projection.compiler.semanticPlan.levelId, input.id);
@@ -242,7 +251,7 @@ test('A4a compiler authority fingerprint is independent of checkout line endings
   assert.equal(normalizeNumberdroidLevelCompilerAuthoritySource(crlf), lf);
   assert.equal(
     numberdroidLevelCompilerVersion(new URL('../../../', import.meta.url)),
-    'numberdroid-level-compiler.sha256:f410926ebe76f57e0cef7e7a6b4e13ddd7ea4829d09b62428de79b3614313713',
+    'numberdroid-level-compiler.sha256:01b144303ff217054f01c0dcd85acc3d442a02c1727ad9b01291dcc5c2559ce1',
   );
 });
 
@@ -425,7 +434,7 @@ test('A4a serialized validation rejects source, plan, A3a, coverage, delta, and 
     (value) => { value.compiler.semanticPlan.levelId = 'forged'; },
     (value) => { value.a3a.levelGraph.spaces[0].kind = 'forged'; },
     (value) => { value.coverage.entries[0].disposition = 'FORGED'; },
-    (value) => { value.capabilityDelta.status = 'ADVERTISED'; },
+    (value) => { value.capabilityDelta.status = 'NOT_ADVERTISED'; },
     (value) => { value.fingerprint = '0'.repeat(64); },
   ];
   for (const mutate of mutations) {

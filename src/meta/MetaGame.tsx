@@ -8,8 +8,10 @@ import {
   advanceFloorScript,
   completeStagedActorPassby,
   dismissActiveStoryBeat,
+  floorPickupIsAvailable,
   nextScheduledScriptDeadline,
   setStagedActorsPaused,
+  storyBeatDisplayText,
   storyBeatIsBlocking,
 } from "../game/scriptRuntime";
 import type { EncounterConfig, MetaState } from "../game/types";
@@ -83,6 +85,7 @@ function nearestInteractable(meta: MetaState): Nearby {
 
   for (const pickup of floor.pickups) {
     if (meta.collectedPickupIds.includes(pickup.id)) continue;
+    if (!floorPickupIsAvailable(floor, meta, pickup.id)) continue;
     const d = distance(meta.x, meta.y, pickup.x, pickup.y);
     if (d < 100 && d < bestDistance) {
       best = { type: "pickup", id: pickup.id };
@@ -402,7 +405,7 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
 
     if (nearby.type === "pickup") {
       const pickup = floor.pickups.find((entry) => entry.id === nearby.id);
-      if (!pickup || current.collectedPickupIds.includes(pickup.id)) return;
+      if (!pickup || current.collectedPickupIds.includes(pickup.id) || !floorPickupIsAvailable(floor, current, pickup.id)) return;
       const candidate = {
         ...current,
         collectedPickupIds: [...current.collectedPickupIds, pickup.id],
@@ -618,7 +621,8 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
     const ready = Boolean(goalAction && (!goalAction.requiresEncounterId || meta.defeatedEncounterIds.includes(goalAction.requiresEncounterId)));
     objective = complete ? goal.completedLabel : ready ? goal.readyLabel : goal.label;
   }
-  const activePickups = floor.pickups.filter((pickup) => !meta.collectedPickupIds.includes(pickup.id));
+  const activePickups = floor.pickups.filter((pickup) => !meta.collectedPickupIds.includes(pickup.id)
+    && floorPickupIsAvailable(floor, meta, pickup.id));
   const pose = latestMetaRef.current;
   const initialPlayerStyle: PlayerStyle = {
     "--player-x": `${pose.x}px`,
@@ -754,8 +758,10 @@ export function MetaGame({ meta, onMetaChange, onEncounter, tacticalChallengeId 
         {activeStoryBeatId && blockingStoryBeat && (
           <section className="zk-story-beat-runtime" role="dialog" aria-modal="true" aria-label="Story Beat">
             <small>LEVEL EVENT · STORY BEAT</small>
-            <strong>{activeStoryBeatId}</strong>
-            <span>Für diesen Beat ist noch kein finaler Story-Text hinterlegt. Die Runtime pausiert trotzdem korrekt und wartet auf die bewusste Fortsetzung.</span>
+            <strong>{storyBeatDisplayText(floor, activeStoryBeatId)}</strong>
+            {!floor.script?.textReferences?.some((reference) => reference.id === activeStoryBeatId) && (
+              <span>Für diesen Beat ist noch kein finaler Story-Text hinterlegt. Die Runtime pausiert trotzdem korrekt und wartet auf die bewusste Fortsetzung.</span>
+            )}
             <button onClick={dismissStoryBeat}>WEITER</button>
           </section>
         )}

@@ -24,6 +24,8 @@ import {
 } from '../packages/domain/src/index.js';
 import {
   NUMBERDROID_ADAPTER_VERSION,
+  NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT,
+  NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST,
   NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT,
   NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST,
   NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT,
@@ -91,8 +93,10 @@ test('Authoring-v2 registry is a one-command/one-scope overlay while legacy 33/3
   assert.equal(listAuthoringV2GrantScopes().at(-1), PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE);
 });
 
-test('Numberdroid profile v2 is additive and pinned while profile v1 remains byte-identical', () => {
+test('Numberdroid profiles v2/v3 are additive and pinned while profile v1 remains byte-identical', () => {
   assert.deepEqual(Object.keys(numberdroidAdapter).sort(), [
+    'NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT',
+    'NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST',
     'NUMBERDROID_ADAPTER_VERSION',
     'NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT',
     'NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST',
@@ -121,8 +125,10 @@ test('Numberdroid profile v2 is additive and pinned while profile v1 remains byt
   assert.equal(NUMBERDROID_ADAPTER_VERSION, 'numberdroid-studio.adapter.v1');
   assert.equal(NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT, '826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049');
   assert.equal(NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT, '5488df72b2e45c738735d90046cd3c4a7a560a99922936cfeb5a3e84c63fc106');
+  assert.equal(NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT, '6079209041cb71a3e7c8b36ea41796c2e38ea6ef828bf78829e8f0dc4ea3f074');
   assert.equal(NUMBERDROID_PROJECT_CAPABILITY_MANIFEST.profileVersion, 1);
   assert.equal(NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST.profileVersion, 2);
+  assert.equal(NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST.profileVersion, 3);
   assert.deepEqual(NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST.adapter, NUMBERDROID_PROJECT_CAPABILITY_MANIFEST.adapter);
   assert.deepEqual(
     NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST.operations.find(({ id }) => id === PROCESSING_ADOPTION_PREFLIGHT_OPERATION_ID),

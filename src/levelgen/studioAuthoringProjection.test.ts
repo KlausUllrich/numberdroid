@@ -1,16 +1,27 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error A4a intentionally verifies the JavaScript-only Studio adapter boundary.
-import { NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT, createNumberdroidLevelAuthoringProjection, validateNumberdroidLevelAuthoringProjection } from "../../tools/numberdroid-studio/packages/numberdroid-adapter/src/index.js";
+import * as numberdroidAdapter from "../../tools/numberdroid-studio/packages/numberdroid-adapter/src/index.js";
+// @ts-expect-error A4b verifies the JavaScript-only Studio application kernel boundary.
+import { validateLevelAuthoringKernel } from "../../tools/numberdroid-studio/packages/application/src/index.js";
 // @ts-expect-error The Node-only authority hash helper stays outside the browser TypeScript graph.
 import { numberdroidLevelCompilerVersion } from "../../tools/numberdroid-studio/tests/helpers/numberdroid-level-compiler-authority.js";
 import { compileLevelSpec } from "./compiler";
 import { validatePlacementOverrides } from "./overrides";
 import { NUMBERDROID_PROP_REGISTRY } from "./propRegistry";
 import { BIOARK_PASSBY_PROOF_SPEC } from "./specs/bioArkPassbyProof";
+import { A4B_REFERENCE_LEVEL_SPEC } from "./specs/a4bReference";
 import { TS01_LEVEL_SPEC } from "./specs/ts01";
 import type { LevelSpec } from "./types";
 
-const COMPILER_VERSION = "numberdroid-level-compiler.sha256:f410926ebe76f57e0cef7e7a6b4e13ddd7ea4829d09b62428de79b3614313713";
+const {
+  NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT,
+  NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST,
+  NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT,
+  createNumberdroidLevelAuthoringProjection,
+  validateNumberdroidLevelAuthoringProjection,
+} = numberdroidAdapter;
+
+const COMPILER_VERSION = "numberdroid-level-compiler.sha256:01b144303ff217054f01c0dcd85acc3d442a02c1727ad9b01291dcc5c2559ce1";
 const compiler = Object.freeze({
   compilerVersion: numberdroidLevelCompilerVersion(new URL("../../", import.meta.url)),
   validatePlacementOverrides,
@@ -43,27 +54,35 @@ const FLAG_LEVEL_SPEC: LevelSpec = {
 const HASHES = Object.freeze({
   ts01: {
     source: "cd2a3e0b6fb7f71090155a0b037af81cbfc4916107ac07a84b59e7be7a1a3f97",
-    plan: "ce72378232b9b089bf619a6f848aa4e39f817b8263706e622883e34b9063bf9e",
+    plan: "e110ab584b63efc35aace4b242c1d88d708a6506d8c9b808c300316619edf80a",
     requirements: "a3df3bd0300a18ce4892f1baeb812f4fdb345f081689006483bdab8221077da9",
     level: "593ddaf28067d78289127b3eee5e63d52d94f883aa17e4b75afdd2c210b7aa42",
     logic: "ac6dcab9775188ee0416577c8e2af1df1c1d4cbe2c2273ffbab6f0f3c84777d9",
-    projection: "c472e63f06d2b8e49ad4c720ade3c53f437b0bb6538e9c68c301f8a297d6fa76",
+    projection: "6dfb4f09a2603dd5fa62467a48a8bc34a6a53d7d0341796684ffb228ff3ec4de",
   },
   bioark: {
     source: "c518203d3436b42de0c87fff4f48663edaa3c7fa23c05bf14f279b376a9c6f32",
-    plan: "76778a445aaa6d2263480070bfd1fc532f71322fe9b148d79d2b811d4c0954bd",
+    plan: "dc85bc6e3b918447e01d1980ba8192b324291f03d426c05d7a8930436b5b7f65",
     requirements: "3a713d8d23d4d534989815d6c4bdde9d4e1ce67cc557843185470c9d8b51493b",
     level: "fed30380f21dddf6be3b69291f73abe1eb9ea38da38b7a2713e1f70d6ca6caf7",
     logic: "5669efe5ce33880209292bcf7977ba0fcca6acdcf5b3ede022632bc333045cc7",
-    projection: "13f8e73ae5f5251ce193280eb1d2eb2444751eb4f8a5fc284158707c203f0989",
+    projection: "604958967821b49c083e98c9ebfc26940870df627c0f8533d40ff2784156eb81",
   },
   flag: {
     source: "3da9fcd9f093f17a08ba28cf72cdcc33e52b203ff73feae4d317fe05ebe58918",
-    plan: "e39e819e4a6e0a488da38cc40a3da3e894b9a8e9b5804f6e3da117b2e6327d97",
+    plan: "c31f59b92ee9dd18c944eab6a13e078e34352322a17162b3a674e83a58cafe6c",
     requirements: "704365cef198da692679d62b0370908f9face64c35b2e82bcee925c7e6972d65",
     level: "20e0459f765adacb5e5eae3215c8e63f3f43c12b0d12944643342f4093f29f17",
     logic: "fdb6f0b08b3d0479a3b5da06daf0e2f8d616c0ecb8cbd3cd403147abd0dc28aa",
-    projection: "8ca7c3bed7a32b40e95e3144088353e4591df155c321daebe09c136362a6fc47",
+    projection: "695c5a56f7916300e4fcc595541bf7774893338290b09dcc4cd071fae5dc742d",
+  },
+  a4b: {
+    source: "6acf09035b8c75b56f0557745a973b25bbf4e758294e6a226a06571e0a07f77c",
+    plan: "21f9e5c1fe5f584176c7429244359ba2693ed0197b26841b43b556481d7b0c6b",
+    requirements: "1147acfa7d8fc9bfc11560a533c6994e4b3310acc94f9b5be35e20f6842139f3",
+    level: "48eb179b01f778cf3e261d84d0e9e70dde33026ad3cc45284067801dee4b2182",
+    logic: "932b5663eab84f7f7aca37b3a1e7d9a00f65f4fcc16f39928ba712508059d46c",
+    projection: "12609f0972c242cece2d751bace8f85f62f66e49f38358d3a87160b273cd8142",
   },
 });
 
@@ -72,12 +91,14 @@ function project(spec: LevelSpec) {
 }
 
 function expectHashes(projection: ReturnType<typeof project>, expected: (typeof HASHES)[keyof typeof HASHES]) {
-  expect(projection.source.sha256).toBe(expected.source);
-  expect(projection.compiler.sha256).toBe(expected.plan);
-  expect(projection.a3a.requirementSetFingerprint).toBe(expected.requirements);
-  expect(projection.a3a.levelGraphFingerprint).toBe(expected.level);
-  expect(projection.a3a.logicGraphFingerprint).toBe(expected.logic);
-  expect(projection.fingerprint).toBe(expected.projection);
+  expect({
+    source: projection.source.sha256,
+    plan: projection.compiler.sha256,
+    requirements: projection.a3a.requirementSetFingerprint,
+    level: projection.a3a.levelGraphFingerprint,
+    logic: projection.a3a.logicGraphFingerprint,
+    projection: projection.fingerprint,
+  }).toEqual(expected);
 }
 
 describe("A4a Numberdroid level-authoring projection", () => {
@@ -85,7 +106,7 @@ describe("A4a Numberdroid level-authoring projection", () => {
     expect(compiler.compilerVersion).toBe(COMPILER_VERSION);
   });
 
-  it("projects and pins the real TS-01 gold-slice closure without capability activation", () => {
+  it("projects and pins the real TS-01 gold-slice closure against the additive A4b profile", () => {
     const projection = project(TS01_LEVEL_SPEC);
     expectHashes(projection, HASHES.ts01);
     expect(projection.source.levelSpec.spaces).toHaveLength(TS01_LEVEL_SPEC.spaces.length);
@@ -95,8 +116,9 @@ describe("A4a Numberdroid level-authoring projection", () => {
     expect(projection.a3a.levelGraph.placements).toEqual([]);
     expect(projection.a3a.levelGraph.actors).toEqual([]);
     expect(projection.a3a.logicGraph.actions).toEqual([]);
-    expect(projection.capabilityDelta.status).toBe("NOT_ADVERTISED");
+    expect(projection.capabilityDelta.status).toBe("ADVERTISED");
     expect(projection.capabilityDelta.baseline.fingerprint).toBe(NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT);
+    expect(projection.capabilityDelta.target.fingerprint).toBe(NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT);
     expect(NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT).toBe("826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049");
   });
 
@@ -135,5 +157,94 @@ describe("A4a Numberdroid level-authoring projection", () => {
     const projection = project(TS01_LEVEL_SPEC);
     const serialized = structuredClone(projection);
     expect(validateNumberdroidLevelAuthoringProjection(serialized, compiler)).toEqual(projection);
+  });
+
+  it("projects the real A4b fixture into one closed Actor-to-text A3a graph and advertised profile", () => {
+    const projection = project(A4B_REFERENCE_LEVEL_SPEC);
+    expectHashes(projection, HASHES.a4b);
+    expect(projection.a3a.levelGraph.actors).toEqual([
+      expect.objectContaining({
+        actorId: "guard-actor",
+        archetype: { archetypeId: "numberdroid.sentry.guard", version: 1 },
+        routeId: "guard-route",
+      }),
+    ]);
+    expect(projection.a3a.levelGraph.pickups).toEqual([
+      expect.objectContaining({ pickupId: "guard-key", itemId: "guard-access" }),
+    ]);
+    expect(projection.a3a.logicGraph.variables).toEqual([
+      expect.objectContaining({ variableId: "state.guard-key-collected", type: "boolean", initialValue: false }),
+    ]);
+    expect(projection.a3a.logicGraph.textReferences).toEqual([
+      expect.objectContaining({ textRefId: "text.guard-key-collected" }),
+    ]);
+    expect(projection.a3a.logicGraph.conditions).toEqual([]);
+    expect(projection.a3a.logicGraph.triggers.map((trigger: { kind: string }) => trigger.kind).sort()).toEqual([
+      "actor-defeated",
+      "collect",
+      "state-change",
+    ]);
+    expect(projection.a3a.logicGraph.actions.map((action: { kind: string }) => action.kind).sort()).toEqual([
+      "drop-item",
+      "set-variable",
+      "show-text",
+    ]);
+    expect(projection.source.levelSpec.textReferences[0].text).toBe("<SYSTEM> WÄCHTER-ZUGANG GESICHERT");
+    expect(projection.gaps.map((gap: { gapId: string }) => gap.gapId)).toEqual([
+      "numberdroid.requirement-trace.not-authored",
+    ]);
+    expect(projection.capabilityDelta).toMatchObject({
+      status: "ADVERTISED",
+      baseline: { fingerprint: NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT },
+      target: { profileVersion: 3, fingerprint: NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT },
+    });
+
+    const validation = validateLevelAuthoringKernel({
+      requirementSet: projection.a3a.requirementSet,
+      levelGraph: projection.a3a.levelGraph,
+      logicGraph: projection.a3a.logicGraph,
+      capabilityManifest: NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST,
+    });
+    expect(validation.status).toBe("VALID");
+    expect(validation.findings.length).toBeGreaterThan(0);
+    expect(validation.findings.every((finding: { severity: string; ruleId: string }) =>
+      finding.severity === "WARNING" && finding.ruleId === "LEVEL_AUTHORING_TRACE_MISSING")).toBe(true);
+    expect(validateNumberdroidLevelAuthoringProjection(structuredClone(projection), compiler)).toEqual(projection);
+  });
+
+  it("reports unprojected A4b references honestly instead of calling supported vocabulary unsupported", () => {
+    const overLimit = structuredClone(A4B_REFERENCE_LEVEL_SPEC);
+    const actorTemplate = overLimit.encounters[0];
+    overLimit.encounters = Array.from({ length: 513 }, (_, index) => ({
+      ...structuredClone(actorTemplate),
+      id: `guard-actor-${String(index).padStart(3, "0")}`,
+    }));
+    const excessActorId = overLimit.encounters[512].id;
+    overLimit.triggers![0].sourceId = excessActorId;
+    const overLimitDrop = overLimit.events![0];
+    if (overLimitDrop.kind === "drop-item") overLimitDrop.actorId = excessActorId;
+
+    const limitedProjection = project(overLimit);
+    const limitedGap = limitedProjection.gaps.find((gap: { gapId: string }) =>
+      gap.gapId === "numberdroid.logic.reference-not-projected");
+    expect(limitedGap?.affectedPointers).toEqual(["/events/0", "/triggers/0"]);
+    expect(limitedProjection.coverage.entries.find((entry: { pointer: string }) =>
+      entry.pointer === "/events/0/actorId")?.gapId).toBe("numberdroid.logic.reference-not-projected");
+    expect(limitedProjection.gaps.find((gap: { gapId: string }) =>
+      gap.gapId === "numberdroid.a3a.collection-limit-exceeded")?.affectedPointers).toContain("/encounters/512");
+
+    const nonA3aReference = structuredClone(A4B_REFERENCE_LEVEL_SPEC);
+    nonA3aReference.encounters[0].id = "guard actor";
+    nonA3aReference.triggers![0].sourceId = "guard actor";
+    const nonA3aDrop = nonA3aReference.events![0];
+    if (nonA3aDrop.kind === "drop-item") nonA3aDrop.actorId = "guard actor";
+    const nonA3aProjection = project(nonA3aReference);
+    expect(nonA3aProjection.gaps.find((gap: { gapId: string }) =>
+      gap.gapId === "numberdroid.logic.reference-not-projected")?.affectedPointers).toEqual([
+      "/events/0",
+      "/triggers/0",
+    ]);
+    expect(nonA3aProjection.gaps.find((gap: { gapId: string }) =>
+      gap.gapId === "numberdroid.logic.a3a-vocabulary-mismatch")).toBeUndefined();
   });
 });
