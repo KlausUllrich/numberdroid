@@ -14,6 +14,31 @@ Companion execution and verification authority:
 
 For structured/textual remote repository operations, use the **GitHub connector directly**:
 
+## Durable work checkpoints
+
+A temporary workspace is never an acceptable sole copy of non-trivial work.
+For every focused task branch:
+
+1. create the remote branch from the verified canonical base before substantial
+   implementation;
+2. create a local/task commit as soon as the first coherent diff exists;
+3. after every reproducible focused-green state, publish that exact tree to the
+   remote task branch through the GitHub connector immediately;
+4. publish another checkpoint before context compaction, tool/session transfer,
+   a long or risky operation, or the ten-minute active-work checkpoint; and
+5. verify and record the resulting remote branch/head SHA.
+
+Do not delay durable storage until final review, complete CI, PR readiness, or a
+perfect commit history. A knowingly incomplete but valuable state may be
+published with a `checkpoint:` commit message only when its missing/failing gates
+are recorded explicitly. Such a checkpoint is recovery evidence only: it grants
+no acceptance, review, merge, materialization, publication, deployment, or
+release authority. Later cleanup or squashing is optional; losing work to keep
+history tidy is prohibited.
+
+Only task-owned paths may enter a checkpoint. Existing unrelated local changes
+remain untouched and unpublished.
+
 - read repository files through GitHub;
 - create/update/delete text repository files through GitHub;
 - create branches through GitHub;
