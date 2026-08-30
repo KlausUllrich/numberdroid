@@ -809,7 +809,7 @@ function validatePlanClosure(planValue, source) {
     const diagnostic = exactRecord(candidate, ['level', 'code', 'message'], ['targetId'], label);
     invariant(diagnostic.level === 'info' || diagnostic.level === 'warning', 'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `${label}.level is unsupported.`, { field: `${label}.level` });
     requireId(diagnostic.code, `${label}.code`);
-    requireString(diagnostic.message, `${label}.message`, { max: 4_096 });
+    requireSourceText(diagnostic.message, `${label}.message`, { max: 16_384 });
     optional(diagnostic, 'targetId', (entry) => requireId(entry, `${label}.targetId`));
   });
   return plan;

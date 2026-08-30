@@ -316,6 +316,48 @@ test('A4a captures an exact compiler port and rejects mutation, nondeterminism, 
   );
 });
 
+test('A4a preserves bounded deterministic compiler diagnostics for valid non-A3a identifiers', { timeout: 5_000 }, () => {
+  const spec = levelSpec();
+  spec.connections[0].id = 'door\none';
+  spec.zones[0].anchor.targetId = 'door\none';
+  const port = compiler({
+    compileLevelSpec(input) {
+      const plan = semanticPlan(input);
+      plan.diagnostics.push({
+        level: 'warning',
+        code: 'KEY_SOURCE_NOT_YET_AUTHORED',
+        targetId: 'door\none',
+        message: 'Locked door door\none uses a key without a source.',
+      });
+      return plan;
+    },
+  });
+  const projection = create(spec, port);
+  assert.equal(projection.compiler.semanticPlan.diagnostics[0].message, 'Locked door door\none uses a key without a source.');
+  assert.ok(projection.gaps.some(({ gapId }) => gapId === 'numberdroid.identifiers.a3a-vocabulary-mismatch'));
+
+  const longSpec = levelSpec();
+  const longId = 'd'.repeat(4_096);
+  const longKey = 'k'.repeat(4_096);
+  longSpec.connections[0].id = longId;
+  longSpec.connections[0].lock = { mode: 'access-key', keyId: longKey };
+  longSpec.zones[0].anchor.targetId = longId;
+  const longMessage = `Locked door ${longId} uses key ${longKey} but no pickup/grant event currently provides it.`;
+  const longPort = compiler({
+    compileLevelSpec(input) {
+      const plan = semanticPlan(input);
+      plan.diagnostics.push({
+        level: 'warning',
+        code: 'KEY_SOURCE_NOT_YET_AUTHORED',
+        targetId: longId,
+        message: longMessage,
+      });
+      return plan;
+    },
+  });
+  assert.equal(create(longSpec, longPort).compiler.semanticPlan.diagnostics[0].message, longMessage);
+});
+
 test('A4a serialized validation rejects source, plan, A3a, coverage, delta, and fingerprint tampering', { timeout: 5_000 }, () => {
   const projection = create();
   const mutations = [
