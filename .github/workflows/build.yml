@@ -594,6 +594,14 @@ jobs:
           timeout 60s node tools/numberdroid-studio/scripts/assert-studio-a1-7-visual-evidence.js \
             "$A1_7_EVIDENCE"
 
+          O1B_EVIDENCE="$GITHUB_WORKSPACE/artifacts/studio-o1b-backups"
+          timeout 180s node tools/numberdroid-studio/scripts/capture-o1b-backups-browser-evidence.js \
+            "$CHROME" "$O1B_EVIDENCE"
+          if timeout 10s rg -n 'numberdroid_backup_operator=|databaseSha256|/tmp/|/workspace|/home/runner|[A-Za-z]:\\' \
+            "$O1B_EVIDENCE/observation.json" >/dev/null; then
+            exit 1
+          fi
+
       - name: Upload Studio visual evidence
         if: always() && (steps.studio_browser.outcome == 'success' || steps.studio_browser.outcome == 'failure')
         uses: actions/upload-artifact@v4
@@ -663,6 +671,15 @@ jobs:
         with:
           name: numberdroid-studio-a1-7-evidence
           path: artifacts/studio-a1-7/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Studio O1b Backups visual review evidence
+        if: steps.studio_browser.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: numberdroid-studio-o1b-backups-evidence
+          path: artifacts/studio-o1b-backups/
           if-no-files-found: error
           retention-days: 14
 

@@ -75,6 +75,15 @@ function quarantineMarkerPresent(dataRoot) {
   }
 }
 
+export function assertWorkspaceNotQuarantined(dataRoot) {
+  if (quarantineMarkerPresent(dataRoot)) {
+    throw new StudioError(
+      'RESTORED_COPY_QUARANTINED',
+      'A restored workspace copy is quarantined and cannot be opened for normal Studio use.',
+    );
+  }
+}
+
 async function openWorkspace({
   filename,
   databaseFactory = createBetterSqliteDatabase,
@@ -86,15 +95,9 @@ async function openWorkspace({
   invariant(['writer', 'reader'].includes(mode), 'VALIDATION_ERROR', 'SQLite mode must be writer or reader.');
   const absoluteFilename = resolve(filename);
   const dataRoot = dirname(absoluteFilename);
-  const markerPresent = quarantineMarkerPresent(dataRoot);
   const internalReaderAllowed = mode === 'reader'
     && [INTERNAL_VERIFY_READER, INTERNAL_RECOVERY_TEST_READER].includes(internalReaderPurpose);
-  if (markerPresent && !internalReaderAllowed) {
-    throw new StudioError(
-      'RESTORED_COPY_QUARANTINED',
-      'A restored workspace copy is quarantined and cannot be opened for normal Studio use.',
-    );
-  }
+  if (!internalReaderAllowed) assertWorkspaceNotQuarantined(dataRoot);
   if (mode === 'writer') mkdirSync(dataRoot, { recursive: true, mode: 0o700 });
   const writerLock = mode === 'writer' ? acquireWriterLock(absoluteFilename) : null;
   let database;

@@ -4,6 +4,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { backupOperationFailure } from '../../../domain/src/backup-operation.js';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
 import {
+  BackupOperationQueryService,
   BackupOperationService,
   validateLocalWorkspaceOperatorContext,
 } from '../../../application/src/backup-operation-service.js';
@@ -122,6 +123,7 @@ export class BackupOperationsRuntime {
   #worker;
   #ledger;
   #filesystem;
+  #queryService;
   #lock;
   #workerId;
   #activeRun = null;
@@ -208,6 +210,9 @@ export class BackupOperationsRuntime {
         clock,
         idFactory,
       });
+      const queryService = new BackupOperationQueryService({
+        store: adapter.asQueryStore(),
+      });
       const worker = new BackupOperationWorker({
         store: adapter.asWorkerStore(),
         phaseExecutor: executor.asPhaseExecutor(),
@@ -217,6 +222,7 @@ export class BackupOperationsRuntime {
         worker,
         ledger,
         filesystem,
+        queryService,
         lock,
         workerId,
         clock,
@@ -234,6 +240,7 @@ export class BackupOperationsRuntime {
     worker,
     ledger,
     filesystem,
+    queryService = null,
     lock,
     workerId,
     clock = () => new Date().toISOString(),
@@ -243,6 +250,7 @@ export class BackupOperationsRuntime {
     this.#worker = worker;
     this.#ledger = ledger;
     this.#filesystem = filesystem;
+    this.#queryService = queryService;
     this.#lock = lock;
     this.#workerId = workerId;
     this.#clock = clock;
@@ -328,11 +336,28 @@ export class BackupOperationsRuntime {
     }
   }
 
-  listBackups(context) {
+  listBackups(context, { limit = 100 } = {}) {
     this.#assertAccepting();
     try {
       validateLocalWorkspaceOperatorContext(context);
-      return Object.freeze(this.#ledger.listBackups());
+      invariant(Number.isSafeInteger(limit) && limit >= 1 && limit <= 500,
+        'OPERATIONS_UNAVAILABLE', 'The backup query limit is unavailable.');
+      return Object.freeze(this.#ledger.listBackups({ limit }));
+    } catch (error) {
+      if (!['WORKSPACE_OPERATOR_REQUIRED', 'WORKSPACE_OPERATOR_FORBIDDEN'].includes(errorCode(error))) {
+        this.#accepting = false;
+        throw backupOperationFailure('OPERATIONS_UNAVAILABLE');
+      }
+      throw error;
+    }
+  }
+
+  async listRecentOperations(context) {
+    this.#assertAccepting();
+    try {
+      invariant(this.#queryService !== null,
+        'OPERATIONS_UNAVAILABLE', 'The operation query service is unavailable.');
+      return await this.#queryService.listRecentOperations(context);
     } catch (error) {
       if (!['WORKSPACE_OPERATOR_REQUIRED', 'WORKSPACE_OPERATOR_FORBIDDEN'].includes(errorCode(error))) {
         this.#accepting = false;

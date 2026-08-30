@@ -492,6 +492,41 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
 .task-conflicts li { display: grid; gap: 5px; }
 .task-conflicts small { color: #dca497; font: 9px ui-monospace, monospace; overflow-wrap: anywhere; }
 
+.backup-workspace { display: grid; gap: 14px; max-width: 920px; }
+.backup-candidate-note { justify-self: start; margin: 0; padding: 5px 9px; border: 1px solid #4a7669; border-radius: 999px; color: #b9d8cd; font: 9px/1.35 ui-monospace, monospace; }
+.backup-safety, .backup-create, .backup-operation, .backup-list, .backup-detail, .backup-unlock { min-width: 0; }
+.backup-safety { border-left: 4px solid #4e7f70; }
+.backup-safety[data-tone="pending"], .backup-operation[data-tone="pending"] { border-left-color: var(--amber); }
+.backup-safety[data-tone="problem"], .backup-operation[data-tone="problem"], .backup-detail[data-tone="problem"] { border-left-color: #d7795e; background: #211713; }
+.backup-safety h2, .backup-create h2, .backup-operation h2, .backup-list h2, .backup-detail h2 { font-size: 18px; }
+.backup-safety .eyebrow, .backup-create .eyebrow, .backup-operation .eyebrow, .backup-list .eyebrow, .backup-detail .eyebrow { margin: 0 0 6px; }
+.backup-safety p:not(.eyebrow), .backup-create p:not(.eyebrow), .backup-operation p:not(.eyebrow), .backup-list p:not(.eyebrow), .backup-detail p:not(.eyebrow) { margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.backup-section-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.backup-section-heading > div { min-width: 0; }
+.backup-primary-actions { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-top: 15px; padding-top: 13px; border-top: 1px solid var(--line); }
+.backup-destination-label { display: block; color: var(--cyan); font-size: 12px; }
+.backup-destination-select { display: grid; gap: 5px; min-width: min(260px, 100%); color: var(--muted); font-size: 10px; font-weight: 700; }
+.backup-destination-select select { width: 100%; min-width: 0; background: #111f1b; }
+.backup-operation progress { width: 100%; height: 8px; margin-top: 14px; accent-color: var(--mint); }
+.backup-operation-finding { margin-top: 10px; color: #ffd5c8; }
+.backup-operation-remediation { color: #c9d7d2; }
+.backup-technical-details { margin-top: 13px; padding: 9px 11px; border: 1px solid #29483f; border-radius: 7px; background: #0d1916; }
+.backup-technical-details summary { color: #b7d1c8; cursor: pointer; font-size: 10px; }
+.backup-facts { margin-bottom: 0; }
+.backup-list-items { display: grid; gap: 8px; max-height: 430px; margin: 14px 0 0; padding: 0; overflow: auto; overscroll-behavior: contain; list-style: none; }
+.backup-list-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; width: 100%; background: #10211c; text-align: left; }
+.backup-list-item strong { min-width: 0; overflow-wrap: anywhere; }
+.backup-list-item small { grid-column: 1 / -1; color: var(--muted); font: 9px/1.4 ui-monospace, monospace; }
+.backup-list-item[data-tone="problem"] { border-color: #805548; background: #261714; }
+.backup-list-item .status-pill { align-self: start; padding: 4px 7px; font-size: 8px; }
+.backup-detail-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.backup-restore-action { display: flex; flex: 1 1 360px; align-items: end; justify-content: flex-end; gap: 8px; }
+.backup-unlock { display: grid; gap: 12px; }
+.backup-unlock label { display: grid; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.backup-unlock input { width: min(440px, 100%); }
+.backup-unlock button { justify-self: start; }
+.backup-form-status { min-height: 18px; margin: 0; color: var(--muted); font-size: 11px; }
+
 .activity-panel { min-width: 0; padding: 23px 18px; border-left: 1px solid var(--line); background: #0d1815; }
 .panel-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .panel-heading .eyebrow { margin-left: 0; }
@@ -566,4 +601,7 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .task-detail-header-actions { justify-items: start; }
   .task-form .task-objective, .task-form fieldset { grid-column: auto; }
   .task-form fieldset { grid-template-columns: 1fr; }
+  .backup-section-heading, .backup-primary-actions, .backup-restore-action { display: grid; grid-template-columns: 1fr; justify-content: stretch; }
+  .backup-section-heading .count { justify-self: start; }
+  .backup-primary-actions button, .backup-restore-action button { width: 100%; }
 }

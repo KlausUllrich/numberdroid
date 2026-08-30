@@ -1,6 +1,6 @@
 # Numberdroid Studio — Operations, Remote Access & Mobile
 
-Status: **current masterplan track; O0 frozen, O1a backend candidate implemented, O1b UI and user acceptance pending**
+Status: **current masterplan track; O0 frozen, O1a backend and O1b first UI implemented candidates, O1 user acceptance pending**
 
 Date added to the masterplan: 2026-08-25
 
@@ -252,6 +252,11 @@ remain labelled **implemented candidate — not user accepted** and receive a
 return-test backlog entry. O1 acceptance still requires Klaus's live UI
 walkthrough.
 
+The bounded O1b implementation now exists as recorded in
+[`O1B_BACKUPS_UI_STATUS.md`](O1B_BACKUPS_UI_STATUS.md), with the return
+walkthrough in `VT-012`. Source integration and automated browser evidence do
+not close the live gate.
+
 Klaus's acceptance walkthrough must create and verify a backup, pass a recovery
 test, restore it as a copy, compare the recovered project, and observe a
 deliberately failed/corrupt case without damage to active work or prior backups.
@@ -395,18 +400,15 @@ Stop gates are strict:
 
 ## 10. Current autonomous next step
 
-With O0 frozen and the bounded O1a backend implemented as recorded in
-[`O1A_BACKUP_CORE_STATUS.md`](O1A_BACKUP_CORE_STATUS.md), the next useful
-coherent block is:
+O0 is frozen, O1a is source-integrated, and the separately classified bounded
+O1b implementation is recorded in
+[`O1B_BACKUPS_UI_STATUS.md`](O1B_BACKUPS_UI_STATUS.md). The current coherent
+step is to complete O1b source review and its selected HTTP/Studio/browser CI,
+then stop at **Waiting for your review**.
 
-> Complete O1a's selected Linux and Windows source-integration gates, then
-> implement the separately classified bounded O1b first UI candidate against
-> that exact backend. Preserve the four-operation, local-human-only boundary
-> and add no delete, activation, remote, or MCP authority.
-
-Stop after O1b at Klaus's live backup-UI acceptance gate. Do not proceed to the
-remote listener/authentication, Tailscale deployment, responsive mobile
-redesign, or remote MCP before that decision.
+Do not proceed to remote listener/authentication, Tailscale deployment,
+responsive mobile redesign, remote MCP, deletion/retention, activation, or
+publication before Klaus completes the live backup-UI gate.
 
 ## 11. Combined definition of done
 

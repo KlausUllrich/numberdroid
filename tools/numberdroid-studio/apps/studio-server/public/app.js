@@ -5,6 +5,16 @@ import {
   processingAdoptionSelectionOwned,
   unavailableProcessingAdoptionProjection,
 } from './a1-7-state.js';
+import {
+  BACKUP_CANDIDATE_STATUS,
+  backupAllowedActions,
+  backupHealthPresentation,
+  backupOperationPresentation,
+  currentBackupOperation,
+  normalizeAcceptedBackupOperation,
+  normalizeBackupOverview,
+  unavailableBackupOverview,
+} from './o1b-backups-state.js';
 
 const visualFixture = new URLSearchParams(location.search).get('visualFixture');
 const MAX_ATLAS_JOB_ATTEMPTS = 3;
@@ -95,6 +105,16 @@ const state = {
     selectedTaskId: null,
   },
   taskDomState: null,
+  backupMutationPending: false,
+  backupOperationKeys: new Map(),
+  backupOverview: unavailableBackupOverview(),
+  backupUi: {
+    view: 'list',
+    selectedBackupId: null,
+    createDestinationId: null,
+    restoreDestinationId: null,
+  },
+  backupDomState: null,
   workspace: location.hash.slice(1) || 'overview',
   refreshing: false,
 };
@@ -113,6 +133,11 @@ let taskAdoptionLoadControllers = {
   selection: { generation: 0, context: null, abortController: null, timer: null },
 };
 let taskSelectionGeneration = 0;
+let backupLoadController = {
+  generation: 0,
+  abortController: null,
+  timer: null,
+};
 let cutterDrag = null;
 let roomEditorFocusGeneration = 0;
 
@@ -175,6 +200,18 @@ function clearRoomOperationKey(operation, target, projectId = state.project?.pro
   state.roomOperationKeys.delete(`${operation}:${projectId}:${target}`);
 }
 
+function backupOperationKey(kind, backupId = null, destinationId = null) {
+  const target = `${kind}:${backupId ?? 'none'}:${destinationId ?? 'none'}`;
+  if (!state.backupOperationKeys.has(target)) {
+    state.backupOperationKeys.set(target, `backup.${kind.toLowerCase()}.${crypto.randomUUID()}`);
+  }
+  return state.backupOperationKeys.get(target);
+}
+
+function clearBackupOperationKey(kind, backupId = null, destinationId = null) {
+  state.backupOperationKeys.delete(`${kind}:${backupId ?? 'none'}:${destinationId ?? 'none'}`);
+}
+
 const elements = Object.fromEntries(
   [
     'project-select', 'demo-button', 'refresh-button', 'workspace-nav', 'workspace-content',
@@ -190,7 +227,7 @@ const elements = Object.fromEntries(
 
 function updateMutationControls() {
   const pending = state.cutterPending || state.sourceMutationPending || state.assetMutationPending
-    || state.roomMutationPending || state.taskMutationPending;
+    || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending;
   elements['project-select'].disabled = pending;
   elements['refresh-button'].disabled = pending || state.refreshing;
   elements['demo-button'].disabled = pending;
@@ -207,6 +244,16 @@ function updateMutationControls() {
       delete control.dataset.disabledByTaskPending;
     }
   }
+}
+
+function setBackupMutationPending(pending) {
+  state.backupMutationPending = pending;
+  updateMutationControls();
+  for (const control of elements['workspace-content'].querySelectorAll('[data-backup-control]')) {
+    control.disabled = pending || control.dataset.backupAllowed === 'false';
+  }
+  const root = elements['workspace-content'].querySelector('[data-backup-workspace]');
+  if (root) root.setAttribute('aria-busy', String(pending));
 }
 
 function setAssetMutationPending(pending) {
@@ -268,6 +315,68 @@ async function api(path, options = {}) {
     throw error;
   }
   return body;
+}
+
+function cancelBackupLoad() {
+  const generation = backupLoadController.generation + 1;
+  if (backupLoadController.timer !== null) clearTimeout(backupLoadController.timer);
+  backupLoadController.abortController?.abort();
+  backupLoadController = { generation, abortController: null, timer: null };
+}
+
+function reconcileBackupUi() {
+  const backups = state.backupOverview.backups;
+  if (state.backupUi.selectedBackupId
+      && !backups.some(({ backupId }) => backupId === state.backupUi.selectedBackupId)) {
+    state.backupUi.selectedBackupId = null;
+    state.backupUi.view = 'list';
+  }
+  const backupDestinationIds = new Set(
+    state.backupOverview.backupDestinations.map(({ destinationId }) => destinationId),
+  );
+  if (!backupDestinationIds.has(state.backupUi.createDestinationId)) {
+    state.backupUi.createDestinationId = state.backupOverview.backupDestinations[0]?.destinationId ?? null;
+  }
+  const restoreDestinationIds = new Set(
+    state.backupOverview.restoreDestinations.map(({ destinationId }) => destinationId),
+  );
+  if (!restoreDestinationIds.has(state.backupUi.restoreDestinationId)) {
+    state.backupUi.restoreDestinationId = state.backupOverview.restoreDestinations[0]?.destinationId ?? null;
+  }
+  if (!['READY', 'NO_BACKUPS'].includes(state.backupOverview.state)) {
+    state.backupUi.view = 'list';
+    state.backupUi.selectedBackupId = null;
+  }
+}
+
+async function loadBackupOverview({ preserveContext = false } = {}) {
+  cancelBackupLoad();
+  const generation = backupLoadController.generation;
+  const abortController = new AbortController();
+  const timer = setTimeout(() => abortController.abort(), 5_000);
+  backupLoadController = { generation, abortController, timer };
+  const previous = JSON.stringify(state.backupOverview);
+  let next;
+  try {
+    next = normalizeBackupOverview(await api('/api/backups', { signal: abortController.signal }));
+  } catch (error) {
+    if (abortController.signal.aborted || backupLoadController.generation !== generation) return false;
+    next = unavailableBackupOverview(
+      error.code === 'WORKSPACE_OPERATOR_REQUIRED' ? 'OPERATOR_LOCKED' : 'OPERATIONS_UNAVAILABLE',
+    );
+  } finally {
+    if (backupLoadController.generation === generation) {
+      clearTimeout(timer);
+      backupLoadController = { generation, abortController: null, timer: null };
+    }
+  }
+  if (backupLoadController.generation !== generation) return false;
+  state.backupOverview = next;
+  reconcileBackupUi();
+  if (state.workspace === 'backups' && previous !== JSON.stringify(next)) {
+    renderWorkspace({ preserveBackupContext: preserveContext });
+  }
+  return true;
 }
 
 function cancelTaskAdoptionLoad({ clearState = false, channel = 'all' } = {}) {
@@ -415,7 +524,7 @@ function renderAgentAccess() {
   const policy = state.agentAccess;
   const disabled = !state.project || !policy;
   const mutationPending = state.cutterPending || state.sourceMutationPending || state.assetMutationPending
-    || state.roomMutationPending || state.taskMutationPending;
+    || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending;
   elements['agent-access-select'].disabled = mutationPending || disabled || policy?.state === 'REQUESTING';
   elements['agent-access-state'].disabled = mutationPending || disabled;
   elements['agent-access-panel'].inert = mutationPending;
@@ -3433,6 +3542,351 @@ function renderCollection(items, workspace) {
   return grid;
 }
 
+function backupNode(tag, className = '', textContent = '') {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (textContent) node.textContent = textContent;
+  return node;
+}
+
+function formatBackupDate(value, fallback = 'Not yet') {
+  return value ? new Date(value).toLocaleString() : fallback;
+}
+
+function formatBackupBytes(value) {
+  if (!Number.isSafeInteger(value)) return '—';
+  if (value < 1024) return `${value} bytes`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function captureBackupDomState() {
+  const root = elements['workspace-content'].querySelector('[data-backup-workspace]');
+  if (!root) { state.backupDomState = null; return; }
+  const active = root.contains(document.activeElement)
+    ? document.activeElement.closest('[data-backup-focus-key]') : null;
+  state.backupDomState = {
+    context: root.dataset.backupContext,
+    focusKey: active?.dataset.backupFocusKey ?? null,
+    scrollTop: root.querySelector('[data-backup-scroll]')?.scrollTop ?? 0,
+    disclosures: [...root.querySelectorAll('[data-backup-disclosure-key][open]')]
+      .map(({ dataset }) => dataset.backupDisclosureKey),
+  };
+}
+
+function restoreBackupDomState() {
+  const root = elements['workspace-content'].querySelector('[data-backup-workspace]');
+  const retained = state.backupDomState;
+  if (!root || !retained || retained.context !== root.dataset.backupContext) return;
+  const scroller = root.querySelector('[data-backup-scroll]');
+  if (scroller) scroller.scrollTop = retained.scrollTop;
+  for (const details of root.querySelectorAll('[data-backup-disclosure-key]')) {
+    details.open = retained.disclosures.includes(details.dataset.backupDisclosureKey);
+  }
+  if (retained.focusKey) {
+    root.querySelector(`[data-backup-focus-key="${CSS.escape(retained.focusKey)}"]`)
+      ?.focus({ preventScroll: true });
+  }
+}
+
+function backupCandidateNote() {
+  const note = backupNode('p', 'backup-candidate-note', BACKUP_CANDIDATE_STATUS);
+  note.setAttribute('role', 'note');
+  return note;
+}
+
+function backupSafetyCard(tone, title, consequence) {
+  const section = backupNode('section', 'backup-safety surface-card');
+  section.dataset.tone = tone;
+  const eyebrow = backupNode('p', 'eyebrow', 'Current safety');
+  const heading = backupNode('h2', '', title);
+  const body = backupNode('p', '', consequence);
+  section.append(eyebrow, heading, body);
+  return section;
+}
+
+function backupFacts(entries) {
+  const facts = backupNode('dl', 'policy-details backup-facts');
+  for (const [label, value] of entries) {
+    const term = backupNode('dt', '', label);
+    const description = backupNode('dd', '', value ?? '—');
+    facts.append(term, description);
+  }
+  return facts;
+}
+
+function renderBackupOperation(value) {
+  const presentation = backupOperationPresentation(value);
+  const section = backupNode('section', 'backup-operation surface-card');
+  section.dataset.tone = presentation.tone;
+  section.setAttribute('aria-live', 'polite');
+  const heading = backupNode('div', 'backup-section-heading');
+  const copy = backupNode('div');
+  copy.append(
+    backupNode('p', 'eyebrow', 'Current durable operation'),
+    backupNode('h2', '', presentation.title),
+    backupNode('p', '', presentation.consequence),
+  );
+  if (value.failure) {
+    const finding = backupNode('p', 'backup-operation-finding');
+    finding.append(
+      backupNode('strong', '', `${value.failure.code}: `),
+      document.createTextNode(value.failure.message),
+    );
+    const remediation = value.status === 'INTERRUPTED'
+      ? 'No cleanup control is available here. Check the exact backup health before starting a fresh allowed action.'
+      : 'Resolve the safe finding, then retry the same action from the available backup controls.';
+    copy.append(finding, backupNode('p', 'backup-operation-remediation', remediation));
+  }
+  const status = backupNode('span', 'status-pill', value.status);
+  status.dataset.state = value.status;
+  heading.append(copy, status);
+  const progress = document.createElement('progress');
+  progress.max = value.progress.total;
+  progress.value = value.progress.current;
+  progress.setAttribute('aria-label', `${value.progress.current} of ${value.progress.total} durable steps completed`);
+  const technical = document.createElement('details');
+  technical.className = 'backup-technical-details';
+  technical.dataset.backupDisclosureKey = `operation-${value.operationId}`;
+  const summary = backupNode('summary', '', 'Technical details');
+  summary.dataset.backupFocusKey = `operation-${value.operationId}-summary`;
+  technical.append(summary, backupFacts([
+    ['Action', value.kind],
+    ['Phase', value.phase],
+    ['Operation ID', value.operationId],
+    ['Backup ID', value.backupId],
+    ['Restored copy ID', value.restoredCopyId],
+    ['Updated', formatBackupDate(value.updatedAt)],
+    ['Failure code', value.failure?.code ?? null],
+  ]));
+  section.append(heading, progress, technical);
+  return section;
+}
+
+function backupDestinationControl(destinations, selectedId, purpose) {
+  if (destinations.length <= 1) {
+    const label = backupNode('strong', 'backup-destination-label', destinations[0]?.label ?? 'No safe destination configured');
+    label.dataset.backupDestination = purpose;
+    return label;
+  }
+  const wrapper = backupNode('label', 'backup-destination-select');
+  wrapper.append(backupNode('span', '', purpose === 'create' ? 'Backup destination' : 'New copy destination'));
+  const select = document.createElement('select');
+  select.dataset.backupControl = 'true';
+  select.dataset.backupDestination = purpose;
+  select.dataset.backupFocusKey = `${purpose}-destination`;
+  for (const destination of destinations) {
+    const option = document.createElement('option');
+    option.value = destination.destinationId;
+    option.textContent = destination.label;
+    select.append(option);
+  }
+  select.value = selectedId;
+  wrapper.append(select);
+  return wrapper;
+}
+
+function renderBackupCreateAction() {
+  const section = backupNode('section', 'backup-create surface-card');
+  const heading = backupNode('div');
+  heading.append(
+    backupNode('p', 'eyebrow', 'Protected snapshot'),
+    backupNode('h2', '', 'Create a verified backup'),
+    backupNode('p', '', 'The request is saved durably before protected copying begins.'),
+  );
+  const controls = backupNode('div', 'backup-primary-actions');
+  controls.append(backupDestinationControl(
+    state.backupOverview.backupDestinations,
+    state.backupUi.createDestinationId,
+    'create',
+  ));
+  const create = backupNode('button', '', 'Create backup now');
+  create.type = 'button';
+  create.dataset.backupControl = 'true';
+  create.dataset.backupAllowed = String(Boolean(state.backupUi.createDestinationId));
+  create.dataset.backupOperationKind = 'CREATE';
+  create.dataset.backupFocusKey = 'create-backup';
+  create.disabled = state.backupMutationPending || !state.backupUi.createDestinationId;
+  controls.append(create);
+  section.append(heading, controls);
+  return section;
+}
+
+function renderBackupList() {
+  const section = backupNode('section', 'backup-list surface-card');
+  const heading = backupNode('div', 'backup-section-heading');
+  const copy = backupNode('div');
+  copy.append(
+    backupNode('p', 'eyebrow', 'Available backups'),
+    backupNode('h2', '', state.backupOverview.backups.length ? 'Choose a backup' : 'No verified backup yet.'),
+    backupNode('p', '', state.backupOverview.backups.length
+      ? state.backupOverview.backupWindow.truncated
+        ? 'Showing the 100 most recently registered backups. Older backups are outside this first candidate view.'
+        : 'Open one backup to verify it, test recovery, or restore a separate copy.'
+      : 'Create the first protected backup when you are ready.'),
+  );
+  heading.append(copy, backupNode('span', 'count', String(state.backupOverview.backups.length)));
+  section.append(heading);
+  if (!state.backupOverview.backups.length) return section;
+  const list = backupNode('ul', 'backup-list-items');
+  list.dataset.backupScroll = 'true';
+  for (const backup of state.backupOverview.backups) {
+    const presentation = backupHealthPresentation(backup);
+    const button = backupNode('button', 'backup-list-item');
+    button.type = 'button';
+    button.dataset.backupControl = 'true';
+    button.dataset.backupAllowed = 'true';
+    button.dataset.backupSelect = backup.backupId;
+    button.dataset.backupFocusKey = `backup-${backup.backupId}`;
+    button.dataset.tone = presentation.tone;
+    const title = backupNode('strong', '', presentation.title);
+    const status = backupNode('span', 'status-pill', presentation.label);
+    const detail = backupNode('small', '', `${backup.destinationLabel} · verified ${formatBackupDate(backup.lastVerifiedAt)}`);
+    button.append(title, status, detail);
+    const item = document.createElement('li');
+    item.append(button);
+    list.append(item);
+  }
+  section.append(list);
+  return section;
+}
+
+function renderBackupDetail(backup) {
+  const presentation = backupHealthPresentation(backup);
+  const section = backupNode('section', 'backup-detail surface-card');
+  section.dataset.tone = presentation.tone;
+  const heading = backupNode('div', 'backup-section-heading');
+  const copy = backupNode('div');
+  copy.append(
+    backupNode('p', 'eyebrow', 'Selected backup'),
+    backupNode('h2', '', presentation.title),
+    backupNode('p', '', presentation.consequence),
+    backupNode('span', 'status-pill', presentation.label),
+  );
+  const back = backupNode('button', 'secondary', 'Back to backup list');
+  back.type = 'button';
+  back.dataset.backupControl = 'true';
+  back.dataset.backupAllowed = 'true';
+  back.dataset.backupBack = 'true';
+  back.dataset.backupFocusKey = 'back-to-backups';
+  heading.append(copy, back);
+
+  const allowed = backupAllowedActions(backup);
+  const actions = backupNode('div', 'backup-detail-actions');
+  for (const [kind, label, enabled] of [
+    ['VERIFY', 'Verify again', allowed.verify],
+    ['RECOVERY_TEST', 'Test recovery', allowed.recoveryTest],
+  ]) {
+    const button = backupNode('button', kind === 'VERIFY' ? 'secondary' : '', label);
+    button.type = 'button';
+    button.dataset.backupControl = 'true';
+    button.dataset.backupAllowed = String(enabled);
+    button.dataset.backupOperationKind = kind;
+    button.dataset.backupId = backup.backupId;
+    button.dataset.backupFocusKey = `${kind.toLowerCase()}-${backup.backupId}`;
+    button.disabled = state.backupMutationPending || !enabled;
+    actions.append(button);
+  }
+  const restore = backupNode('div', 'backup-restore-action');
+  restore.append(backupDestinationControl(
+    state.backupOverview.restoreDestinations,
+    state.backupUi.restoreDestinationId,
+    'restore',
+  ));
+  const restoreButton = backupNode('button', '', 'Restore as a new working copy');
+  restoreButton.type = 'button';
+  restoreButton.dataset.backupControl = 'true';
+  restoreButton.dataset.backupAllowed = String(
+    allowed.restoreAsCopy && Boolean(state.backupUi.restoreDestinationId),
+  );
+  restoreButton.dataset.backupOperationKind = 'RESTORE_AS_COPY';
+  restoreButton.dataset.backupId = backup.backupId;
+  restoreButton.dataset.backupFocusKey = `restore-${backup.backupId}`;
+  restoreButton.disabled = state.backupMutationPending
+    || !allowed.restoreAsCopy
+    || !state.backupUi.restoreDestinationId;
+  restore.append(restoreButton);
+  actions.append(restore);
+
+  const technical = document.createElement('details');
+  technical.className = 'backup-technical-details';
+  technical.dataset.backupDisclosureKey = `backup-${backup.backupId}`;
+  const summary = backupNode('summary', '', 'Technical details');
+  summary.dataset.backupFocusKey = `backup-${backup.backupId}-summary`;
+  technical.append(summary, backupFacts([
+    ['Backup ID', backup.backupId],
+    ['Destination', backup.destinationLabel],
+    ['Health', backup.health],
+    ['Manifest identity', backup.manifestIdentity],
+    ['Protected items', backup.itemCount?.toLocaleString() ?? null],
+    ['Protected bytes', formatBackupBytes(backup.byteCount)],
+    ['Registered', formatBackupDate(backup.registeredAt)],
+    ['Last verified', formatBackupDate(backup.lastVerifiedAt)],
+    ['Last recovery test', formatBackupDate(backup.lastRecoveryTestedAt)],
+  ]));
+  section.append(heading, actions, technical);
+  return section;
+}
+
+function renderBackups() {
+  const root = backupNode('div', 'backup-workspace');
+  root.dataset.backupWorkspace = 'true';
+  root.dataset.backupContext = `${state.backupOverview.state}:${state.backupUi.view}:${state.backupUi.selectedBackupId ?? 'none'}`;
+  root.setAttribute('aria-busy', String(state.backupMutationPending));
+  root.append(backupCandidateNote());
+  if (state.backupOverview.state === 'OPERATIONS_UNAVAILABLE') {
+    root.append(backupSafetyCard(
+      'problem',
+      'Backups are unavailable.',
+      'Existing work remains open. Restart Studio from a controlling terminal and check the configured backup service.',
+    ));
+    return root;
+  }
+  if (state.backupOverview.state === 'OPERATOR_LOCKED') {
+    root.append(backupSafetyCard(
+      'pending',
+      'Unlock backup controls.',
+      'Use the one-time code shown by the local Studio launcher. No backup details are shown before unlock.',
+    ));
+    const form = backupNode('form', 'backup-unlock surface-card');
+    form.dataset.backupUnlockForm = 'true';
+    const label = backupNode('label');
+    label.append(backupNode('span', '', 'One-time launcher code'));
+    const input = document.createElement('input');
+    input.type = 'password';
+    input.name = 'bootstrapSecret';
+    input.autocomplete = 'off';
+    input.required = true;
+    input.dataset.backupControl = 'true';
+    input.dataset.backupFocusKey = 'unlock-code';
+    label.append(input);
+    const submit = backupNode('button', '', 'Unlock backup controls');
+    submit.type = 'submit';
+    submit.dataset.backupControl = 'true';
+    submit.dataset.backupAllowed = 'true';
+    submit.dataset.backupFocusKey = 'unlock-submit';
+    const status = backupNode('p', 'backup-form-status');
+    status.dataset.backupUnlockStatus = 'true';
+    status.setAttribute('aria-live', 'polite');
+    form.append(label, submit, status);
+    root.append(form);
+    return root;
+  }
+  root.append(backupSafetyCard(
+    'healthy',
+    'Backups protect a separate copy of this workspace.',
+    'Healthy backups stay quiet. Restore creates a new inactive copy and never changes the active workspace.',
+  ));
+  root.append(renderBackupCreateAction());
+  const current = currentBackupOperation(state.backupOverview);
+  if (current) root.append(renderBackupOperation(current));
+  const selected = state.backupOverview.backups
+    .find(({ backupId }) => backupId === state.backupUi.selectedBackupId);
+  if (state.backupUi.view === 'detail' && selected) root.append(renderBackupDetail(selected));
+  else root.append(renderBackupList());
+  return root;
+}
+
 function renderActivityWorkspace() {
   if (!state.activity.length) return emptyState('No activity', 'Accepted commands and durable denied or failed agent attempts will appear here.');
   const grid = document.createElement('div');
@@ -3446,6 +3900,14 @@ function renderActivityWorkspace() {
 }
 
 function workspaceRenderFingerprint() {
+  if (state.workspace === 'backups') {
+    return JSON.stringify({
+      workspace: state.workspace,
+      backupOverview: state.backupOverview,
+      backupUi: state.backupUi,
+      backupMutationPending: state.backupMutationPending,
+    });
+  }
   return JSON.stringify({
     projectId: state.project?.projectId ?? null,
     revision: state.project?.revision ?? null,
@@ -3482,6 +3944,9 @@ function workspaceRenderFingerprint() {
           .map(({ id, status, occurredAt }) => ({ id, status, occurredAt }));
       })()
       : null,
+    backupOverview: state.workspace === 'backups' ? state.backupOverview : null,
+    backupUi: state.workspace === 'backups' ? state.backupUi : null,
+    backupMutationPending: state.workspace === 'backups' ? state.backupMutationPending : false,
     assetUi: state.workspace === 'assets' ? {
       search: state.assetUi.search,
       kind: state.assetUi.kind,
@@ -3519,12 +3984,28 @@ function workspaceRenderFingerprint() {
   });
 }
 
+function renderWorkspaceHeader() {
+  const project = state.project?.snapshot.project;
+  if (state.workspace === 'backups') {
+    elements['project-name'].textContent = 'Workspace backups';
+    elements['project-description'].textContent = 'Create, verify, recovery-test, or restore a separate inactive copy through the local protected workflow.';
+    elements['project-status'].textContent = 'candidate';
+    elements['revision-label'].textContent = 'Local operator control';
+    return;
+  }
+  elements['project-name'].textContent = project?.name || 'No project selected';
+  elements['project-description'].textContent = project?.description || 'Create the safe demo project to see the shared command core in action.';
+  elements['project-status'].textContent = project?.status || 'empty';
+  elements['revision-label'].textContent = state.project ? `Revision ${state.project.revision}` : 'Revision —';
+}
+
 function renderWorkspace({
   preserveCutterDraft = false,
   preserveAssetDraft = false,
   preserveRoomDraft = false,
   preserveRoomCanvas = false,
   preserveTaskContext = false,
+  preserveBackupContext = false,
 } = {}) {
   if (cutterDrag) {
     state.cutterDeferredRender = true;
@@ -3534,6 +4015,7 @@ function renderWorkspace({
   if (preserveAssetDraft) captureAssetDomState();
   if (preserveRoomDraft) captureRoomDomState();
   if (preserveTaskContext) captureTaskDomState();
+  if (preserveBackupContext) captureBackupDomState();
   const retainedRoomCanvas = preserveRoomCanvas && state.workspace === 'rooms'
     ? elements['workspace-content'].querySelector('.room-canvas-panel') : null;
   if (preserveCutterDraft) captureCutterDomDraft();
@@ -3544,11 +4026,20 @@ function renderWorkspace({
   const title = {
     overview: 'Project overview', sources: 'Sources & creation details', assets: 'Visual asset library',
     rooms: 'Room & hallway designer', tasks: 'Agent tasks', levels: 'Level composer', activity: 'Activity history',
+    backups: 'Workspace backup safety',
   }[state.workspace] || 'Project overview';
   elements['workspace-eyebrow'].textContent = title;
+  renderWorkspaceHeader();
   const selectedSourceFile = sourceIntakeFormCache?.querySelector('[data-source-file]');
   if (state.workspace === 'sources' && sourceIntakeFormCache?.isConnected
       && (state.sourceFileChooserActive || selectedSourceFile?.files?.length > 0)) {
+    return;
+  }
+  if (state.workspace === 'backups') {
+    elements['workspace-content'].replaceChildren(renderBackups());
+    elements['workspace-content'].dataset.renderedProjectId = state.project?.projectId ?? '';
+    elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
+    if (preserveBackupContext) restoreBackupDomState();
     return;
   }
   if (!state.project) {
@@ -3591,6 +4082,7 @@ function renderWorkspace({
   if (preserveAssetDraft) restoreAssetDomState();
   if (preserveRoomDraft) restoreRoomDomState();
   if (preserveTaskContext) restoreTaskDomState();
+  if (preserveBackupContext) restoreBackupDomState();
 }
 
 function renderActivity() {
@@ -3617,11 +4109,7 @@ function renderProject({
   preserveRoomDraft = preserveCutterDraft && state.workspace === 'rooms',
   preserveTaskContext = preserveCutterDraft && state.workspace === 'tasks' && state.taskUi.view === 'detail',
 } = {}) {
-  const project = state.project?.snapshot.project;
-  elements['project-name'].textContent = project?.name || 'No project selected';
-  elements['project-description'].textContent = project?.description || 'Create the safe demo project to see the shared command core in action.';
-  elements['project-status'].textContent = project?.status || 'empty';
-  elements['revision-label'].textContent = state.project ? `Revision ${state.project.revision}` : 'Revision —';
+  renderWorkspaceHeader();
   if (!preserveWorkspace) renderWorkspace({ preserveCutterDraft, preserveAssetDraft, preserveRoomDraft, preserveTaskContext });
   renderActivity(); renderAgentAccess();
 }
@@ -3781,7 +4269,13 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     state.taskDomState = null;
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
-    state.agentAccess = null; setAgentAccessPanel(false); renderProject(); return;
+    state.agentAccess = null; setAgentAccessPanel(false);
+    renderProject({
+      preserveWorkspace: preserveWorkspaceIfUnchanged
+        && state.workspace === 'backups'
+        && elements['workspace-content'].dataset.renderedWorkspace === 'backups',
+    });
+    return;
   }
   for (const project of state.projects) {
     const option = document.createElement('option'); option.value = project.projectId;
@@ -3972,10 +4466,13 @@ async function requestAgentAccess(mode, {
 
 async function refresh({ quiet = false, passive = false } = {}) {
   if (state.refreshing || state.cutterPending || state.sourceMutationPending || state.assetMutationPending
-      || state.roomMutationPending || state.taskMutationPending) return;
+      || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending) return;
   state.refreshing = true; elements['refresh-button'].disabled = true;
   try {
     await loadProjects(state.project?.projectId, { preserveWorkspaceIfUnchanged: passive });
+    if (state.workspace === 'backups') {
+      await loadBackupOverview({ preserveContext: passive });
+    }
     elements['connection-dot'].classList.add('online'); elements['connection-label'].textContent = 'Live';
     if (!quiet) showToast('Project status refreshed.');
   } catch (error) {
@@ -3991,6 +4488,108 @@ async function refresh({ quiet = false, passive = false } = {}) {
     state.refreshing = false; updateMutationControls();
   }
 }
+
+async function executeBackupOperation(kind, backupId = null) {
+  if (!state.agentAccessCsrf || state.backupMutationPending) return;
+  const destinationId = kind === 'CREATE'
+    ? state.backupUi.createDestinationId
+    : kind === 'RESTORE_AS_COPY' ? state.backupUi.restoreDestinationId : null;
+  const idempotencyKey = backupOperationKey(kind, backupId, destinationId);
+  const request = {
+    schemaVersion: 1,
+    kind,
+    ...(destinationId ? { destinationId } : {}),
+    ...(backupId ? { backupId } : {}),
+    idempotencyKey,
+  };
+  setBackupMutationPending(true);
+  try {
+    const response = await api('/api/backups/operations', {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: JSON.stringify(request),
+    });
+    const accepted = normalizeAcceptedBackupOperation(response, kind);
+    if (accepted === null) {
+      const error = new Error('The durable backup request response was invalid.');
+      error.code = 'OPERATIONS_UNAVAILABLE';
+      throw error;
+    }
+    clearBackupOperationKey(kind, backupId, destinationId);
+    await loadBackupOverview({ preserveContext: true });
+    showToast(accepted.status === 'QUEUED'
+      ? 'Backup request saved. Waiting to start.'
+      : accepted.status === 'RUNNING'
+        ? 'The existing backup action is still running.'
+        : 'The existing backup action result was recovered.');
+  } catch (error) {
+    await loadBackupOverview({ preserveContext: true }).catch(() => false);
+    showToast(`${error.code || 'ERROR'}: ${error.message}`);
+  } finally {
+    setBackupMutationPending(false);
+  }
+}
+
+elements['workspace-content'].addEventListener('submit', async (event) => {
+  const form = event.target.closest('[data-backup-unlock-form]');
+  if (!form) return;
+  event.preventDefault();
+  if (!state.agentAccessCsrf || state.backupMutationPending) return;
+  const input = form.elements.bootstrapSecret;
+  const serialized = JSON.stringify({ schemaVersion: 1, bootstrapSecret: input.value });
+  input.value = '';
+  const status = form.querySelector('[data-backup-unlock-status]');
+  setBackupMutationPending(true);
+  status.textContent = 'Unlocking local backup controls…';
+  try {
+    await api('/api/backups/operator-session', {
+      method: 'POST',
+      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: serialized,
+    });
+    await loadBackupOverview();
+    showToast('Backup controls unlocked for this local browser session.');
+  } catch (error) {
+    status.textContent = `${error.code || 'ERROR'}: ${error.message}`;
+    showToast('Backup controls remain locked.');
+  } finally {
+    setBackupMutationPending(false);
+  }
+});
+
+elements['workspace-content'].addEventListener('change', (event) => {
+  const destination = event.target.closest('[data-backup-destination]');
+  if (!destination) return;
+  if (destination.dataset.backupDestination === 'create') {
+    state.backupUi.createDestinationId = destination.value;
+  } else if (destination.dataset.backupDestination === 'restore') {
+    state.backupUi.restoreDestinationId = destination.value;
+  }
+});
+
+elements['workspace-content'].addEventListener('click', (event) => {
+  const selected = event.target.closest('[data-backup-select]');
+  if (selected && !state.backupMutationPending) {
+    state.backupUi.view = 'detail';
+    state.backupUi.selectedBackupId = selected.dataset.backupSelect;
+    renderWorkspace();
+    elements['workspace-content'].querySelector('[data-backup-focus-key="back-to-backups"]')?.focus();
+    return;
+  }
+  const back = event.target.closest('[data-backup-back]');
+  if (back && !state.backupMutationPending) {
+    const prior = state.backupUi.selectedBackupId;
+    state.backupUi.view = 'list';
+    state.backupUi.selectedBackupId = null;
+    renderWorkspace();
+    if (prior) elements['workspace-content']
+      .querySelector(`[data-backup-focus-key="backup-${CSS.escape(prior)}"]`)?.focus();
+    return;
+  }
+  const action = event.target.closest('[data-backup-operation-kind]');
+  if (!action || action.disabled || action.dataset.backupAllowed === 'false') return;
+  void executeBackupOperation(action.dataset.backupOperationKind, action.dataset.backupId ?? null);
+});
 
 elements['workspace-content'].addEventListener('input', (event) => {
   const filter = event.target.closest('[data-asset-filter="search"]');
@@ -4566,24 +5165,31 @@ elements['workspace-content'].addEventListener('click', async (event) => {
 elements['workspace-nav'].addEventListener('click', (event) => {
   const link = event.target.closest('[data-workspace]');
   if (!link) return;
-  if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending || state.taskMutationPending) { event.preventDefault(); return; }
+  if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending
+      || state.taskMutationPending || state.backupMutationPending) { event.preventDefault(); return; }
   if (state.workspace === 'tasks' && link.dataset.workspace !== 'tasks') {
     taskSelectionGeneration += 1;
     cancelTaskAdoptionLoad({ channel: 'selection' });
   }
+  if (state.workspace === 'backups' && link.dataset.workspace !== 'backups') cancelBackupLoad();
   state.workspace = link.dataset.workspace; location.hash = state.workspace; renderWorkspace();
   if (state.workspace === 'tasks' && state.taskUi.view === 'detail') void loadSelectedTaskAdoption();
+  if (state.workspace === 'backups') void loadBackupOverview();
   void publishVisualEvidence();
 });
 elements['project-select'].addEventListener('change', () => {
-  if (state.cutterPending || state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending || state.taskMutationPending) {
+  if (state.cutterPending || state.sourceMutationPending || state.assetMutationPending
+      || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending) {
     elements['project-select'].value = state.project?.projectId ?? '';
     return;
   }
   void loadProject(elements['project-select'].value);
 });
 elements['refresh-button'].addEventListener('click', () => {
-  if (!state.cutterPending && !state.sourceMutationPending && !state.assetMutationPending && !state.roomMutationPending && !state.taskMutationPending) void refresh({ passive: true });
+  if (!state.cutterPending && !state.sourceMutationPending && !state.assetMutationPending
+      && !state.roomMutationPending && !state.taskMutationPending && !state.backupMutationPending) {
+    void refresh({ passive: true });
+  }
 });
 elements['agent-access-select'].addEventListener('change', () => {
   if (state.sourceMutationPending) return;
@@ -5454,7 +6060,8 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   showToast(`${state.labResult.code}: ${state.labResult.message}`);
 });
 elements['demo-button'].addEventListener('click', async () => {
-  if (state.cutterPending || state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending) return;
+  if (state.cutterPending || state.sourceMutationPending || state.assetMutationPending
+      || state.roomMutationPending || state.backupMutationPending) return;
   elements['demo-button'].disabled = true;
   try {
     const project = await api('/api/demo', {
@@ -5468,7 +6075,8 @@ elements['demo-button'].addEventListener('click', async () => {
   }
 });
 window.addEventListener('hashchange', () => {
-  if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending) {
+  if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending
+      || state.backupMutationPending) {
     history.replaceState(null, '', `#${state.workspace}`);
     return;
   }
@@ -5478,8 +6086,10 @@ window.addEventListener('hashchange', () => {
     taskSelectionGeneration += 1;
     cancelTaskAdoptionLoad({ channel: 'selection' });
   }
+  if (state.workspace === 'backups' && nextWorkspace !== 'backups') cancelBackupLoad();
   state.workspace = nextWorkspace; renderWorkspace();
   if (state.workspace === 'tasks' && state.taskUi.view === 'detail') void loadSelectedTaskAdoption();
+  if (state.workspace === 'backups') void loadBackupOverview();
   void publishVisualEvidence();
 });
 

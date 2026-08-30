@@ -139,11 +139,10 @@ O1a because this block changes no visual or HTTP surface.
 
 ## Next gate
 
-After O1a source integration, O1b must compose the local launcher-secret and
-human HTTP boundary and add the frozen bounded **Backups** view: safety summary,
-Create action, current operation, backup health/list/detail, Verify again,
-Recovery test, and Restore as a new working copy. It must display unavailable,
-empty, queued/running/succeeded/failed/interrupted, health, quarantine, and
-restart states while offering no delete, retention, activation, remote, or MCP
-action. O1b must append the first backup return-test item and stop at Klaus's
-live review gate.
+The separately classified O1b implementation is recorded in
+[`O1B_BACKUPS_UI_STATUS.md`](O1B_BACKUPS_UI_STATUS.md). It composes the local
+launcher-secret and human HTTP boundary, the bounded **Backups** view, and
+`VT-012` without widening O1a authority. O1 remains **implemented candidate —
+not user accepted** and stops at Klaus's live backup-UI review gate. O2 remote
+access, deletion/retention, restored-copy activation, MCP, and publication
+remain blocked.

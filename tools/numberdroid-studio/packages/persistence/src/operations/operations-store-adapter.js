@@ -1,6 +1,7 @@
 import { invariant } from '../../../domain/src/errors.js';
 import {
   BACKUP_OPERATION_COMMAND_STORE_KIND,
+  BACKUP_OPERATION_QUERY_STORE_KIND,
 } from '../../../application/src/backup-operation-service.js';
 import {
   BACKUP_OPERATION_WORKER_STORE_KIND,
@@ -150,6 +151,14 @@ export class OperationsStoreAdapter {
     });
   }
 
+  asQueryStore() {
+    return Object.freeze({
+      schemaVersion: 1,
+      kind: BACKUP_OPERATION_QUERY_STORE_KIND,
+      listRecentOperations: () => this.listRecentOperations(),
+    });
+  }
+
   asWorkerStore() {
     return Object.freeze({
       schemaVersion: 1,
@@ -188,6 +197,15 @@ export class OperationsStoreAdapter {
     invariant(operation, 'OPERATION_NOT_FOUND', 'The backup operation does not exist.');
     this.#guardControl();
     return this.#project(operation);
+  }
+
+  listRecentOperations() {
+    this.#guardControl();
+    const operations = this.#ledger.listOperationsForOverview({ limit: 100 }).map((operation) => (
+      this.#project(operation)
+    ));
+    this.#guardControl();
+    return Object.freeze(operations);
   }
 
   claimNextOperation({ workerId }) {
