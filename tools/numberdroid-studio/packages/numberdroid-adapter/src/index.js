@@ -8,6 +8,20 @@ import {
   createNumberdroidProjectCapabilityProfile,
 } from './project-capabilities.js';
 
+export {
+  NUMBERDROID_LEVEL_AUTHORING_PROJECTION_KIND,
+  NUMBERDROID_LEVEL_AUTHORING_PROJECTION_SCHEMA_VERSION,
+  NUMBERDROID_LEVEL_AUTHORING_PROJECTION_VERSION,
+  NumberdroidLevelAuthoringProjectionError,
+  canonicalNumberdroidLevelAuthoringProjectionJson,
+  canonicalNumberdroidLevelSpecJson,
+  createNumberdroidLevelAuthoringProjection,
+  numberdroidLevelAuthoringProjectionSha256,
+  numberdroidLevelSpecSha256,
+  validateNumberdroidLevelAuthoringProjection,
+  validateNumberdroidLevelSpec,
+} from './level-authoring-projection.js';
+
 export const NUMBERDROID_ADAPTER_VERSION = 'numberdroid-studio.adapter.v1';
 export const NUMBERDROID_CANDIDATE_VALIDATOR_VERSION = 'numberdroid-studio.candidate-validator.v1';
 const numberdroidProjectCapabilityProfile = createNumberdroidProjectCapabilityProfile(NUMBERDROID_ADAPTER_VERSION);
