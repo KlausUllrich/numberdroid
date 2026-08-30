@@ -12,6 +12,7 @@ import { REMOTE_MOUNT_MARKER_FILENAME } from '../apps/studio-remote/src/remote-c
 const require = createRequire(import.meta.url);
 let sqliteAvailable = true;
 try { require.resolve('better-sqlite3'); } catch { sqliteAvailable = false; }
+const linuxProcessE2eUnavailable = process.platform !== 'linux' || !sqliteAvailable;
 
 function closeNodeServer(server) {
   return new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
@@ -111,7 +112,7 @@ async function seedLocalDemo(running) {
 
 test('O2a process authenticates read-only Studio, persists workspace across restart, and invalidates sessions', {
   timeout: 90_000,
-  skip: !sqliteAvailable,
+  skip: linuxProcessE2eUnavailable,
 }, async (context) => {
   const fixture = await remoteFixture(context);
   let running = await startRemoteStudio(fixture);
@@ -166,7 +167,7 @@ test('O2a process authenticates read-only Studio, persists workspace across rest
 
 test('O2a competing process and occupied gateway port fail closed and release startup locks', {
   timeout: 90_000,
-  skip: !sqliteAvailable,
+  skip: linuxProcessE2eUnavailable,
 }, async (context) => {
   const port = await freePort();
   const fixture = await remoteFixture(context, { port });
