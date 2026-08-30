@@ -1,9 +1,10 @@
-import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync } from 'node:fs';
 import { access, mkdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
 import { createBetterSqliteDatabase } from './sqlite-driver.js';
 import { runSqliteMigrations } from './migration-runner.js';
+import { WorkspaceWriterLock } from './workspace-writer-lock.js';
 
 const RESTORED_COPY_QUARANTINE_MARKER = '.numberdroid-restored-copy-quarantine.json';
 const INTERNAL_VERIFY_READER = Symbol('numberdroid.internal.verify-reader');
@@ -11,51 +12,6 @@ const INTERNAL_RECOVERY_TEST_READER = Symbol('numberdroid.internal.recovery-test
 
 function assertEffectFence(signal) {
   if (signal !== undefined) AbortSignal.prototype.throwIfAborted.call(signal);
-}
-
-function processExists(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error.code === 'EPERM';
-  }
-}
-
-function acquireWriterLock(filename) {
-  const lockPath = `${filename}.writer.lock`;
-  const attempt = () => {
-    const descriptor = openSync(lockPath, 'wx', 0o600);
-    writeFileSync(descriptor, JSON.stringify({ pid: process.pid, openedAt: new Date().toISOString() }));
-    return { descriptor, lockPath };
-  };
-  try {
-    return attempt();
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-    let stale = false;
-    try {
-      const record = JSON.parse(readFileSync(lockPath, 'utf8'));
-      stale = !processExists(record.pid);
-    } catch {
-      stale = false;
-    }
-    if (stale) {
-      unlinkSync(lockPath);
-      return attempt();
-    }
-    throw new StudioError('SQLITE_WRITER_LOCKED', 'Another Studio process owns the authoritative SQLite writer.', {
-      database: filename,
-      lockPath,
-    });
-  }
-}
-
-function releaseWriterLock(lock) {
-  if (!lock) return;
-  try { closeSync(lock.descriptor); } catch {}
-  try { unlinkSync(lock.lockPath); } catch {}
 }
 
 function quoteSqliteString(value) {
@@ -99,7 +55,9 @@ async function openWorkspace({
     && [INTERNAL_VERIFY_READER, INTERNAL_RECOVERY_TEST_READER].includes(internalReaderPurpose);
   if (!internalReaderAllowed) assertWorkspaceNotQuarantined(dataRoot);
   if (mode === 'writer') mkdirSync(dataRoot, { recursive: true, mode: 0o700 });
-  const writerLock = mode === 'writer' ? acquireWriterLock(absoluteFilename) : null;
+  const writerLock = mode === 'writer'
+    ? await WorkspaceWriterLock.acquire({ filename: absoluteFilename, databaseFactory, busyTimeoutMs: 0 })
+    : null;
   let database;
   try {
     database = databaseFactory(absoluteFilename, { timeout: busyTimeoutMs, readonly: mode === 'reader' });
@@ -114,7 +72,7 @@ async function openWorkspace({
     return new SqliteWorkspace({ database, filename: absoluteFilename, writerLock, faultInjector });
   } catch (error) {
     try { database?.close(); } catch {}
-    releaseWriterLock(writerLock);
+    writerLock?.close();
     throw error;
   }
 }
@@ -139,7 +97,7 @@ export class SqliteWorkspace {
 
   get database() { return this.#database; }
   get filename() { return this.#filename; }
-  get isWriter() { return Boolean(this.#writerLock); }
+  get isWriter() { return this.#writerLock?.isHeld === true; }
 
   fault(point) { this.#faultInjector?.(point); }
 
@@ -215,7 +173,7 @@ export class SqliteWorkspace {
     try {
       if (this.isWriter) this.checkpoint('TRUNCATE');
     } finally {
-      try { this.#database.close(); } finally { releaseWriterLock(this.#writerLock); }
+      try { this.#database.close(); } finally { this.#writerLock?.close(); }
     }
   }
 }

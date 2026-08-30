@@ -148,6 +148,16 @@ unattributed. Restart reconstructs the surface through a new positive
 negotiation and may return `REPLAY_ONLY` so an exhausted-budget replay remains
 possible without authorizing new work.
 
+## Private remote read-only candidate
+
+O2a now has a separate Linux/systemd deployment adapter for an authenticated
+private HTTPS read-only Studio. It preserves the local loopback service and
+does not expose Backups, MCP, pairing, Agent-access authority, demo creation,
+or any mutation remotely. It is an implemented candidate, not an activated or
+user-accepted deployment. See the
+[O2a status](docs/O2A_PRIVATE_REMOTE_SERVICE_STATUS.md) and the
+[operator runbook](docs/O2A_PRIVATE_REMOTE_SERVICE_RUNBOOK.md).
+
 ## Administration, migration, and recovery
 
 Stop the Studio process before administrative commands. Backup and restore destinations must be new. `migrate-json` creates a migration-intent identity file and may reopen only the same matching partial migration after a crash; it refuses unrelated directories, other migration IDs, changed source manifests, foreign projects, or non-migration data.

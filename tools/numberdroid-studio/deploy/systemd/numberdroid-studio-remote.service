@@ -1,0 +1,39 @@
+[Unit]
+Description=Numberdroid Studio private read-only remote adapter
+After=network-online.target tailscaled.service
+Wants=network-online.target
+Requires=tailscaled.service
+
+[Service]
+Type=simple
+User=numberdroid
+Group=numberdroid
+WorkingDirectory=/opt/numberdroid/tools/numberdroid-studio
+Environment=NODE_ENV=production
+Environment=NUMBERDROID_STUDIO_REMOTE_CONFIG=/etc/numberdroid-studio/remote.json
+ExecStartPre=/usr/bin/node apps/studio-remote/src/check-config.js /etc/numberdroid-studio/remote.json
+ExecStart=/usr/bin/node apps/studio-remote/src/main.js
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=60s
+TimeoutStopSec=45s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/numberdroid-studio/workspace
+ReadWritePaths=/var/lib/numberdroid-studio/operations
+ReadWritePaths=/var/lib/numberdroid-studio/backups
+ReadWritePaths=/var/lib/numberdroid-studio/restored-copies
+
+[Install]
+WantedBy=multi-user.target
