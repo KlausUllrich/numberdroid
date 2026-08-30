@@ -439,15 +439,16 @@ test('injected Windows descendant proof blocks direct backup and restored-copy v
 });
 
 test('Windows backup resolution refines only confirmed absence to MISSING', async (context) => {
-  const { roots, configuration } = await fixture(context);
+  const { configuration } = await fixture(context);
+  const configuredBackup = configuration.backupDestinations[0];
   const backupId = '12121212-1212-4121-8121-121212121212';
-  const finalPath = join(roots.backup, `backup-${backupId}`);
+  const finalPath = join(configuredBackup.root, `backup-${backupId}`);
   let rejectedFinalPath = null;
   let rejectSecondRootProof = false;
   let expectedRootProofs = 0;
   const spawnProcess = injectedWindowsHelper((payload) => {
     if (rejectSecondRootProof
-        && payload.path === roots.backup
+        && payload.path === configuredBackup.inspectionPath
         && payload.expectedFileId !== undefined) {
       expectedRootProofs += 1;
       if (expectedRootProofs === 2) return { code: 'BACKUP_PATH_UNSAFE' };
@@ -477,7 +478,7 @@ test('Windows backup resolution refines only confirmed absence to MISSING', asyn
   );
 
   const driftBackupId = '13131313-1313-4131-8131-131313131313';
-  rejectedFinalPath = join(roots.backup, `backup-${driftBackupId}`);
+  rejectedFinalPath = join(configuredBackup.root, `backup-${driftBackupId}`);
   rejectSecondRootProof = true;
   await assert.rejects(
     filesystem.resolveBackup({ backupId: driftBackupId, destinationId: 'backup.primary' }),
