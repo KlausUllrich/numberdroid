@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-29 with implemented Studio O1a backup backend candidate**
+Status: **current forward plan — updated 2026-08-30 with CI-green Studio O1b Backups UI candidate waiting for user review**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -192,11 +192,16 @@ path. The CI classifier explicitly treats only the named pure O1a Domain/
 Application modules as headless, so the behavior PR selects Studio Linux and
 Windows without an unrelated browser lane; unknown paths still fail closed.
 
-After O1a passes its selected Linux and Windows source-integration gates, the
-next coherent block is the separately classified bounded O1b **Backups** UI
-required for product acceptance. It may
-land only as **implemented candidate — not user accepted** while Klaus is away;
-the live UI gate blocks O2 remote work.
+O1a passed its selected Linux and Windows gates and is integrated through PR
+[#175](https://github.com/KlausUllrich/numberdroid/pull/175) as current baseline
+`b40e3deb3af5ad501aadc43e1f980e35a2670962`. The separately classified O1b
+**Backups** UI is implemented in open PR
+[#176](https://github.com/KlausUllrich/numberdroid/pull/176). Its final
+product/evidence head before the session-transition handoff is
+`a11362329c5d0cd659fb2e73bcc518c8e9b6009e`; selected Build #2248 is green
+with retained browser evidence. O1b remains **implemented candidate — not user
+accepted** and unmerged. The current coherent step is Klaus's `VT-012` live
+review; the live UI gate blocks O2 remote work.
 
 The detailed binding track plan and gate boundaries live in:
 
