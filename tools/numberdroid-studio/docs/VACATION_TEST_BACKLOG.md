@@ -2,10 +2,10 @@
 
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
-Source baseline recorded: 2026-08-30 at O2a/A3a-integrated `main`
-`7322542b07907710bbba16e3ffd7d1b2fc6aa5a3`; post-merge Build #2265 / run
-`33313888975` passed. Receivers MUST still replace this with newer verified
-remote `main` truth as work lands.
+Source baseline recorded: 2026-08-30 at O2a/A3a/A4a-integrated `main`
+`e0b2396c31f7f58d500591dbc5c6f9a431d9ef45`; post-merge Build #2272 / run
+`33337734484` passed, including Pages. Receivers MUST still replace this with
+newer verified remote `main` truth as work lands.
 
 ## Purpose
 
@@ -52,8 +52,10 @@ visual acceptance surface and therefore receives no `VT-` item. The required
 first O1b backup UI is source-integrated and automated green but remains **not
 user accepted**, so its bounded live gate is recorded as `VT-012` below. O2a is
 also source-integrated and automated green but remains undeployed; its bounded
-host/deployment review is `VT-013`. A3a is non-visual contract evidence and
-therefore adds no live `VT-` item.
+host/deployment review is `VT-013`. A3a and A4a are UI-independent contract and
+projection evidence and therefore add no live `VT-` item. A4a remains not user
+accepted; A4b and A4c must add a bounded record only if their implemented
+surface creates a distinct Klaus review/live gate.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
 [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately
@@ -1058,9 +1060,8 @@ accepted** state.
   layouts, context retention, and explicit restored-not-active boundary. Only
   Klaus can close this O1 product gate. It blocks an O1 user-acceptance claim,
   remote exposure of backup metadata or backup-operation authority, and O3
-  completion. O2a and A3a are now source-integrated and automated green, but
-  neither integration closes VT-012, deploys a service, or grants remote backup
-  authority.
+  completion. O2a, A3a, and A4a are now source-integrated and automated green,
+  but none closes VT-012, deploys a service, or grants remote backup authority.
 - **Recovery:** stop Studio and retain the exact temporary fixture root until
   the result is recorded. Restore any `.return-test-hidden` directory to its
   exact original name first. Then discard only that uniquely allocated root

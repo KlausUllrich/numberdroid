@@ -271,6 +271,7 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [O1b Backups UI status](docs/O1B_BACKUPS_UI_STATUS.md)
 - [O2a private remote service status](docs/O2A_PRIVATE_REMOTE_SERVICE_STATUS.md)
 - [A3a typed level/logic kernel status](docs/A3A_LEVEL_LOGIC_KERNEL_STATUS.md)
+- [A4a Numberdroid level projection status](docs/A4A_NUMBERDROID_LEVEL_PROJECTION_STATUS.md)
 - [Consolidated return test backlog](docs/VACATION_TEST_BACKLOG.md)
 - [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
 - [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)
