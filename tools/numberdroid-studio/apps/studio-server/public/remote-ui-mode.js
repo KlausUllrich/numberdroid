@@ -1,4 +1,4 @@
-const REMOTE_SESSION_PATH = '/remote/session';
+const UI_MODE_PATH = '/health';
 
 function localMode() {
   return Object.freeze({ mode: 'local', readOnly: false });
@@ -6,24 +6,30 @@ function localMode() {
 
 function remoteMode(value) {
   if (value?.schemaVersion !== 1
-    || !value.session
-    || typeof value.session.csrfToken !== 'string'
-    || value.session.csrfToken.length !== 43) {
-    throw new Error('The private remote session projection is invalid.');
+    || value.status !== 'ok'
+    || value.service !== 'numberdroid-studio-remote'
+    || value.mode !== 'remote'
+    || value.readOnly !== true) {
+    throw new Error('The Studio UI mode projection is invalid.');
   }
   return Object.freeze({ mode: 'remote', readOnly: true });
 }
 
 export async function detectStudioUiMode({ fetchImpl = globalThis.fetch } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl must be a function.');
-  const response = await fetchImpl(REMOTE_SESSION_PATH, {
+  const response = await fetchImpl(UI_MODE_PATH, {
     method: 'GET',
     headers: { accept: 'application/json' },
     redirect: 'manual',
   });
-  if (response.status === 404) return localMode();
-  if (!response.ok) throw new Error('The private remote session is unavailable.');
-  return remoteMode(await response.json());
+  if (!response.ok) throw new Error('The Studio UI mode is unavailable.');
+  const value = await response.json();
+  if (value?.schemaVersion === 1
+    && value.status === 'ok'
+    && value.service === 'numberdroid-studio') {
+    return localMode();
+  }
+  return remoteMode(value);
 }
 
 export function remoteReadOnlyAgentAccess(projectId) {

@@ -216,6 +216,16 @@ export function createRemoteGateway({
         }
         return;
       }
+      if (request.method === 'GET' && pathname === '/health') {
+        sendJson(response, 200, {
+          schemaVersion: 1,
+          status: 'ok',
+          service: 'numberdroid-studio-remote',
+          mode: 'remote',
+          readOnly: true,
+        }, sessionHeaders(session));
+        return;
+      }
       if (request.method === 'GET' && pathname === '/remote/account') {
         sendHtml(response, 200, accountPage(session), sessionHeaders(session));
         return;

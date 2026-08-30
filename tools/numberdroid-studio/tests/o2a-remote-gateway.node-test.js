@@ -169,6 +169,18 @@ test('O2a gateway requires trusted ingress, supports generic health, and revokes
   response = await fetch(`${origin}/readyz`);
   assert.equal(response.status, 200);
 
+  response = await fetch(`${origin}/health`, {
+    headers: ingressHeaders({ cookie: SESSION_COOKIE }),
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    schemaVersion: 1,
+    status: 'ok',
+    service: 'numberdroid-studio-remote',
+    mode: 'remote',
+    readOnly: true,
+  });
+
   response = await fetch(`${origin}/api/projects`, { headers: { cookie: SESSION_COOKIE } });
   assert.equal(response.status, 403);
 

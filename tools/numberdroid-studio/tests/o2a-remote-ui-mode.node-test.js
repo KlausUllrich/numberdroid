@@ -16,15 +16,22 @@ function response(status, value = null) {
 test('O2a UI detects local and authenticated remote modes without granting mutation authority', {
   timeout: 5_000,
 }, async () => {
-  const local = await detectStudioUiMode({ fetchImpl: async () => response(404) });
+  const local = await detectStudioUiMode({ fetchImpl: async (target, options) => {
+    assert.equal(target, '/health');
+    assert.equal(options.method, 'GET');
+    return response(200, { schemaVersion: 1, status: 'ok', service: 'numberdroid-studio' });
+  } });
   assert.deepEqual(local, { mode: 'local', readOnly: false });
 
   const remote = await detectStudioUiMode({ fetchImpl: async (target, options) => {
-    assert.equal(target, '/remote/session');
+    assert.equal(target, '/health');
     assert.equal(options.method, 'GET');
     return response(200, {
       schemaVersion: 1,
-      session: { csrfToken: 'c'.repeat(43) },
+      status: 'ok',
+      service: 'numberdroid-studio-remote',
+      mode: 'remote',
+      readOnly: true,
     });
   } });
   assert.deepEqual(remote, { mode: 'remote', readOnly: true });
@@ -38,15 +45,21 @@ test('O2a UI detects local and authenticated remote modes without granting mutat
   assert.equal(Object.isFrozen(access), true);
 });
 
-test('O2a UI fails closed when a remote session projection is unavailable or malformed', {
+test('O2a UI fails closed when its mode projection is unavailable or malformed', {
   timeout: 5_000,
 }, async () => {
   await assert.rejects(
     detectStudioUiMode({ fetchImpl: async () => response(401) }),
-    /remote session is unavailable/i,
+    /UI mode is unavailable/i,
   );
   await assert.rejects(
     detectStudioUiMode({ fetchImpl: async () => response(200, { schemaVersion: 1, session: {} }) }),
-    /session projection is invalid/i,
+    /UI mode projection is invalid/i,
+  );
+  await assert.rejects(
+    detectStudioUiMode({
+      fetchImpl: async () => response(200, { schemaVersion: 1, mode: 'local', readOnly: true }),
+    }),
+    /UI mode projection is invalid/i,
   );
 });
