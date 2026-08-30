@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-29 with frozen Studio O0 backup architecture**
+Status: **current forward plan — updated 2026-08-29 with implemented Studio O1a backup backend candidate**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -173,14 +173,15 @@ contract + threat model
 → runtime MCP onboarding and final role playbooks
 ```
 
-O0 now freezes the external control-ledger, current schema-v13/no-workspace-
+O0 freezes the external control-ledger, current schema-v13/no-workspace-
 migration, human-authority, safe-path, atomic-publication, state-machine,
 restored-copy quarantine, activation boundary, failure-code, adversarial-test,
 and first-UI decisions in
-`tools/numberdroid-studio/docs/O0_BACKUP_RECOVERY_CONTRACT.md`. The next coherent
-block is the non-visual O1a backup application/job seam. It must reuse the
+`tools/numberdroid-studio/docs/O0_BACKUP_RECOVERY_CONTRACT.md`. The non-visual
+O1a backup application/job seam is now an implemented candidate, recorded in
+`tools/numberdroid-studio/docs/O1A_BACKUP_CORE_STATUS.md`. It reuses the
 accepted SQLite/CAS integrity, backup, verification, and
-restore-to-new-destination primitives and may not add overwrite, deletion,
+restore-to-new-destination primitives and adds no overwrite, deletion,
 active-workspace cutover, remote listener, or agent backup authority.
 
 A post-freeze O1a platform seam review closed two implementation-proof gaps
@@ -191,8 +192,9 @@ path. The CI classifier explicitly treats only the named pure O1a Domain/
 Application modules as headless, so the behavior PR selects Studio Linux and
 Windows without an unrelated browser lane; unknown paths still fail closed.
 
-After O1a passes its Linux and Windows failure/restart/race gates, a separately
-classified bounded O1b **Backups** UI is required for product acceptance. It may
+After O1a passes its selected Linux and Windows source-integration gates, the
+next coherent block is the separately classified bounded O1b **Backups** UI
+required for product acceptance. It may
 land only as **implemented candidate — not user accepted** while Klaus is away;
 the live UI gate blocks O2 remote work.
 

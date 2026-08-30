@@ -98,19 +98,31 @@ test('CAS detects corruption and uses quarantine plus delayed sweep for garbage 
   await utimes((await store.verify(retained.digest)).path, old, old);
   await utimes((await store.verify(garbage.digest)).path, old, old);
 
-  const marked = await store.markUnreferenced({
-    referencedDigests: new Set([retained.digest]),
+  const firstCollection = await store.collectGarbage({
+    readReferencedDigests: () => new Set([retained.digest]),
     now: new Date('2026-08-21T00:00:00.000Z'),
-    retentionMs: 1,
+    markRetentionMs: 1,
+    sweepRetentionMs: 24 * 60 * 60 * 1000,
   });
-  assert.deepEqual(marked.map(({ digest }) => digest), [garbage.digest]);
+  assert.deepEqual(firstCollection.marked.map(({ digest }) => digest), [garbage.digest]);
+  assert.deepEqual(firstCollection.swept, []);
   assert.equal((await store.verify(retained.digest)).digest, retained.digest);
   await assert.rejects(store.verify(garbage.digest), (error) => error.code === 'ARTIFACT_MISSING');
-  assert.deepEqual(await store.sweepQuarantine({ now: new Date('2026-08-21T00:00:00.000Z'), retentionMs: 1 }), []);
-  assert.deepEqual(
-    await store.sweepQuarantine({ now: new Date('2026-08-22T00:00:00.000Z'), retentionMs: 1 }),
-    [garbage.digest],
-  );
+  const secondCollection = await store.collectGarbage({
+    readReferencedDigests: () => new Set([retained.digest, garbage.digest]),
+    now: new Date('2026-08-22T00:00:00.000Z'),
+    markRetentionMs: 1,
+    sweepRetentionMs: 24 * 60 * 60 * 1000,
+  });
+  assert.deepEqual(secondCollection.marked, []);
+  assert.deepEqual(secondCollection.swept, [], 'a fresh reference also protects an already quarantined digest');
+  const thirdCollection = await store.collectGarbage({
+    readReferencedDigests: () => new Set([retained.digest]),
+    now: new Date('2026-08-23T00:00:00.000Z'),
+    markRetentionMs: 1,
+    sweepRetentionMs: 24 * 60 * 60 * 1000,
+  });
+  assert.deepEqual(thirdCollection.swept, [garbage.digest]);
 
   const corruption = await store.ingest(pngHeader({ tail: 'corrupt-me' }), { mediaType: 'image/png' });
   await writeFile((await store.verify(corruption.digest)).path, 'changed');

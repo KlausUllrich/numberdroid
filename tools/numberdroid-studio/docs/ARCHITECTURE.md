@@ -424,6 +424,14 @@ unchanged. The O1 product gate requires the bounded first **Backups** UI;
 deletion, retention, active-workspace activation/cutover, and remote invocation
 remain absent.
 
+The non-visual implementation of this boundary is recorded in
+[`O1A_BACKUP_CORE_STATUS.md`](O1A_BACKUP_CORE_STATUS.md). It composes the exact
+four-operation in-process service, serialized worker, external ledger/lock,
+configured-root filesystem adapters, quarantine readers, and fail-closed
+restart reconciliation without adding a server route or UI. It remains an
+implemented candidate; O1 acceptance still requires the separate bounded
+**Backups** surface.
+
 ### Checkpoint 2A source intake and audit
 
 The human loopback upload streams through CAS with an intake-specific maximum of 16 MiB and 4096×4096. A `source_intakes` row and temporary `source_intake` artifact reference keep verified bytes reachable while the semantic commit is pending. One SQLite transaction claims the staged row, creates the revision/event/projection/idempotency records, installs canonical `source` and permanent `source_lineage` references, removes the temporary reference, and charges agent artifact bytes. Explicit idempotent abandonment removes only the temporary reference; shared CAS bytes remain subject to retention-delayed garbage collection.

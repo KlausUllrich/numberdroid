@@ -44,8 +44,11 @@ Future A1, O1, MCP, UI, backup, remote, and mobile blocks MUST append their own
 ID only after implementation exists. Planned work is not a candidate. The
 documentation-only O0 decision in
 [`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md) receives no
-`VT-` item; the required first O1 backup UI must append one when its
-implementation candidate exists.
+`VT-` item. The non-visual O1a implementation recorded in
+[`O1A_BACKUP_CORE_STATUS.md`](O1A_BACKUP_CORE_STATUS.md) likewise has no live
+visual acceptance surface and therefore receives no `VT-` item. The required
+first O1b backup UI must append `VT-012` only when that implementation candidate
+exists.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
 [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately

@@ -6,8 +6,13 @@ import { dirname, join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
 import { inspectImageHeader, verifyImageBytes, verifyImageFile } from './image-metadata.js';
+import { maintenanceBarrierForRoot } from './root-maintenance-barrier.js';
 
 const DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+
+function assertEffectFence(signal) {
+  if (signal !== undefined) AbortSignal.prototype.throwIfAborted.call(signal);
+}
 
 async function syncDirectory(path) {
   let handle;
@@ -15,7 +20,7 @@ async function syncDirectory(path) {
     handle = await open(path, 'r');
     await handle.sync();
   } catch (error) {
-    if (!['EINVAL', 'ENOTSUP', 'EISDIR', 'EPERM'].includes(error.code)) throw error;
+    if (process.platform !== 'win32' || !['EINVAL', 'ENOTSUP', 'EISDIR', 'EPERM'].includes(error.code)) throw error;
   } finally {
     await handle?.close();
   }
@@ -33,6 +38,8 @@ export class ContentAddressedArtifactStore {
   #live;
   #quarantine;
   #limits;
+  #maintenanceBarrier;
+  #maintenanceFaultInjector;
 
   constructor({
     rootDirectory,
@@ -40,23 +47,35 @@ export class ContentAddressedArtifactStore {
       'image/png': { maxBytes: 128 * 1024 * 1024, maxWidth: 16384, maxHeight: 16384 },
       'image/webp': { maxBytes: 128 * 1024 * 1024, maxWidth: 16384, maxHeight: 16384 },
     },
+    maintenanceFaultInjector = null,
   }) {
     invariant(typeof rootDirectory === 'string' && rootDirectory.length > 0, 'VALIDATION_ERROR', 'CAS rootDirectory is required.');
+    invariant(
+      maintenanceFaultInjector === null || typeof maintenanceFaultInjector === 'function',
+      'VALIDATION_ERROR',
+      'CAS maintenanceFaultInjector must be a function when supplied.',
+    );
     this.#root = resolve(rootDirectory);
     this.#staging = join(this.#root, 'staging');
     this.#live = join(this.#root, 'sha256');
     this.#quarantine = join(this.#root, 'quarantine');
     this.#limits = structuredClone(limits);
+    this.#maintenanceBarrier = maintenanceBarrierForRoot(this.#root);
+    this.#maintenanceFaultInjector = maintenanceFaultInjector;
   }
 
   get rootDirectory() { return this.#root; }
 
-  async initialize() {
-    await Promise.all([
-      mkdir(this.#staging, { recursive: true, mode: 0o700 }),
-      mkdir(this.#live, { recursive: true, mode: 0o700 }),
-      mkdir(this.#quarantine, { recursive: true, mode: 0o700 }),
-    ]);
+  async withSharedMaintenancePermit(operation) {
+    invariant(typeof operation === 'function', 'VALIDATION_ERROR', 'Shared CAS maintenance permit requires an operation callback.');
+    return this.#maintenanceBarrier.withShared(operation);
+  }
+
+  async initialize({ signal } = {}) {
+    for (const directory of [this.#staging, this.#live, this.#quarantine]) {
+      assertEffectFence(signal);
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+    }
   }
 
   #assertDigest(digest) {
@@ -306,9 +325,11 @@ export class ContentAddressedArtifactStore {
     return digests.sort();
   }
 
-  async markUnreferenced({ referencedDigests, now = new Date(), retentionMs }) {
-    invariant(referencedDigests instanceof Set, 'VALIDATION_ERROR', 'referencedDigests must be a Set.');
-    invariant(Number.isFinite(retentionMs) && retentionMs >= 0, 'VALIDATION_ERROR', 'retentionMs must be non-negative.');
+  #maintenanceFault(point) {
+    this.#maintenanceFaultInjector?.(point);
+  }
+
+  async #markUnreferenced({ referencedDigests, now, retentionMs }) {
     const marked = [];
     for (const digest of await this.listLiveDigests()) {
       if (referencedDigests.has(digest)) continue;
@@ -317,44 +338,89 @@ export class ContentAddressedArtifactStore {
       if (now.getTime() - info.mtimeMs < retentionMs) continue;
       const target = join(this.#quarantine, `${digest}.${now.getTime()}`);
       await rename(source, target);
+      await syncDirectory(dirname(source));
+      this.#maintenanceFault('after_cas_gc_mark_source_leaf_sync');
+      await syncDirectory(this.#quarantine);
+      this.#maintenanceFault('after_cas_gc_mark_quarantine_sync');
       marked.push({ digest, path: target, markedAt: now.toISOString() });
     }
-    await syncDirectory(this.#quarantine);
     return marked;
   }
 
-  async sweepQuarantine({ now = new Date(), retentionMs }) {
+  async #sweepQuarantine({ referencedDigests, now, retentionMs }) {
     await this.initialize();
     const removed = [];
     for (const entry of await readdir(this.#quarantine, { withFileTypes: true })) {
       if (!entry.isFile()) continue;
       const [digest, timestamp] = entry.name.split('.');
       if (!DIGEST_PATTERN.test(digest) || !/^\d+$/.test(timestamp)) continue;
+      if (referencedDigests.has(digest)) continue;
       if (now.getTime() - Number(timestamp) < retentionMs) continue;
       await unlink(join(this.#quarantine, entry.name));
+      await syncDirectory(this.#quarantine);
+      this.#maintenanceFault('after_cas_gc_sweep_unlink_parent_sync');
       removed.push(digest);
     }
     return removed.sort();
   }
 
-  async createManifest(digests = null) {
+  async collectGarbage({
+    readReferencedDigests,
+    now = new Date(),
+    markRetentionMs,
+    sweepRetentionMs,
+  }) {
+    invariant(typeof readReferencedDigests === 'function', 'VALIDATION_ERROR', 'CAS garbage collection requires a fresh reference reader.');
+    invariant(now instanceof Date && Number.isFinite(now.getTime()), 'VALIDATION_ERROR', 'CAS garbage collection now must be a valid Date.');
+    invariant(Number.isFinite(markRetentionMs) && markRetentionMs >= 0, 'VALIDATION_ERROR', 'markRetentionMs must be non-negative.');
+    invariant(Number.isFinite(sweepRetentionMs) && sweepRetentionMs >= 0, 'VALIDATION_ERROR', 'sweepRetentionMs must be non-negative.');
+    const maintenanceNow = new Date(now.getTime());
+    return this.#maintenanceBarrier.withExclusive(async () => {
+      const freshReferences = await readReferencedDigests();
+      invariant(freshReferences instanceof Set, 'VALIDATION_ERROR', 'Fresh CAS references must be returned as a Set.');
+      const referencedDigests = new Set(freshReferences);
+      for (const digest of referencedDigests) this.#assertDigest(digest);
+      const marked = await this.#markUnreferenced({
+        referencedDigests,
+        now: maintenanceNow,
+        retentionMs: markRetentionMs,
+      });
+      const swept = await this.#sweepQuarantine({
+        referencedDigests,
+        now: maintenanceNow,
+        retentionMs: sweepRetentionMs,
+      });
+      return {
+        referencedCount: referencedDigests.size,
+        marked,
+        swept,
+      };
+    });
+  }
+
+  async createManifest(digests = null, { signal } = {}) {
     const selected = digests ?? await this.listLiveDigests();
     const entries = [];
     for (const digest of [...selected].sort()) {
+      assertEffectFence(signal);
       const verified = await this.verify(digest);
       entries.push({ digest, byteSize: verified.byteSize });
     }
     return { schemaVersion: 1, algorithm: 'sha256', entries };
   }
 
-  async backupTo(destinationRoot, digests = null) {
+  async backupTo(destinationRoot, digests = null, { signal } = {}) {
     const destination = new ContentAddressedArtifactStore({ rootDirectory: destinationRoot, limits: this.#limits });
-    await destination.initialize();
+    assertEffectFence(signal);
+    await destination.initialize({ signal });
     const selected = digests ?? await this.listLiveDigests();
     for (const digest of selected) {
+      assertEffectFence(signal);
       await this.verify(digest);
       const target = destination.#path(digest);
+      assertEffectFence(signal);
       await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+      assertEffectFence(signal);
       try {
         await copyFile(this.#path(digest), target, constants.COPYFILE_EXCL);
       } catch (error) {
@@ -362,7 +428,9 @@ export class ContentAddressedArtifactStore {
       }
       await destination.verify(digest);
     }
-    const manifest = await destination.createManifest(new Set(selected));
+    assertEffectFence(signal);
+    const manifest = await destination.createManifest(new Set(selected), { signal });
+    assertEffectFence(signal);
     await writeFile(join(resolve(destinationRoot), 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
     return manifest;
   }
