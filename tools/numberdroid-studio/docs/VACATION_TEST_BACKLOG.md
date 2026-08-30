@@ -937,10 +937,13 @@ accepted** state.
   [`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md). The O1a
   external-ledger backend was integrated through PR
   [#175](https://github.com/KlausUllrich/numberdroid/pull/175) as `main`
-  `b40e3deb3af5ad501aadc43e1f980e35a2670962`. The O1b candidate is developed
-  from that exact base on `feat/o1b-backups-ui-candidate`; its PR, tested head,
-  selected Actions run, and artifact identity must be appended at final source
-  freeze. The visible result is **implemented candidate — not user accepted**.
+  `b40e3deb3af5ad501aadc43e1f980e35a2670962`. The O1b candidate is PR
+  [#176](https://github.com/KlausUllrich/numberdroid/pull/176), developed from
+  that exact base. Its implementation source-freeze head
+  `67464d7906109e8d16d607686b38ba7a99a373bf` has tree
+  `75a661d7b0e67a6e868735e36cb181142e1838dd`. The selected Actions run and
+  artifact identity remain PR evidence; they must be green before handoff. The
+  visible result is **implemented candidate — not user accepted**.
 - **State/dependency:** `NEEDS KLAUS LIVE`; depends on VT-000 and the integrated
   O0/O1a safety boundary. Automated HTTP, SQLite and Chrome evidence cannot
   accept the human hierarchy, copy, or recovery confidence.
@@ -1015,7 +1018,7 @@ accepted** state.
   compatibility tests pass. The full Studio suite reports 610 total, 606
   passed, zero failed and four expected Windows-only skips. All 187 JavaScript
   files pass syntax checking; syntax, classifier and Markdown self-tests pass,
-  and Markdown checks cover 101 links across 201 files with zero failures. Two
+  and Markdown checks cover 103 links across 202 files with zero failures. Two
   independent actual-diff reviews are **GO**. The selected
   Linux/Windows/Chrome Actions run and evidence artifact must be appended at
   final source freeze. These are regression/evidence gates, not live

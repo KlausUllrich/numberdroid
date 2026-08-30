@@ -9,6 +9,10 @@ integrated O1a backend recorded in
 based on source-integrated `main`
 `b40e3deb3af5ad501aadc43e1f980e35a2670962` and supports exactly `CREATE`,
 `VERIFY`, `RECOVERY_TEST`, and `RESTORE_AS_COPY`.
+The implementation source freeze is PR
+[#176](https://github.com/KlausUllrich/numberdroid/pull/176) at head
+`67464d7906109e8d16d607686b38ba7a99a373bf`, tree
+`75a661d7b0e67a6e868735e36cb181142e1838dd`.
 
 This is the first visual candidate Klaus can later use for acceptance. It is
 not accepted now. It adds no deletion, cleanup/retention, activation/cutover,
@@ -80,7 +84,7 @@ Local source-freeze evidence on 2026-08-30:
   Windows-only skips**;
 - JavaScript syntax check: **187 files passed**; syntax-checker self-test,
   classifier self-test, and Markdown checker/self-test pass. Markdown checks
-  cover 101 links across 201 files with zero failures;
+  cover 103 links across 202 files with zero failures;
 - two independent actual-diff reviews are **GO** with no open findings.
 
 The real-SQLite HTTP test creates one backup, verifies it, completes an isolated
