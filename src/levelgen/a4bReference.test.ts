@@ -80,6 +80,32 @@ describe("A4b actor-defeated key reference", () => {
     expect(repeated.firedTriggerIds).toEqual([]);
   });
 
+  it("isolates the duel return to the defeat edge instead of firing unrelated movement triggers", () => {
+    const floor = structuredClone(compileFloor());
+    const initial = createFloorState(floor, 1);
+    const tileSize = floor.script!.tileSize;
+    const transferCandidate = { ...initial, defeatedEncounterIds: ["guard-actor"] };
+    floor.script!.events.push({ id: "action.unrelated-enter", kind: "set-flag", flag: "legacy.unrelated", value: true });
+    floor.script!.triggers.push({
+      id: "trigger.unrelated-enter",
+      kind: "enter-space",
+      sourceKind: "space",
+      sourceId: "guard-room",
+      sourceCells: [{ x: Math.floor(initial.x / tileSize), y: Math.floor(initial.y / tileSize) }],
+      eventIds: ["action.unrelated-enter"],
+      once: true,
+      delayMs: 0,
+    });
+
+    const preTransferPosition = { ...initial, x: initial.x + tileSize * 10 };
+    expect(advanceFloorScript(floor, preTransferPosition, transferCandidate).firedTriggerIds).toContain("trigger.unrelated-enter");
+
+    const defeatPrevious = { ...transferCandidate, defeatedEncounterIds: initial.defeatedEncounterIds };
+    const isolated = advanceFloorScript(floor, defeatPrevious, transferCandidate);
+    expect(isolated.firedTriggerIds).toEqual(["trigger.guard-defeated"]);
+    expect(isolated.state.scriptState.flags["legacy.unrelated"]).toBeUndefined();
+  });
+
   it("does not fire on defeat loss and fail-closes manipulated or ill-typed save state", () => {
     const floor = compileFloor();
     const initial = createFloorState(floor, 1);

@@ -279,9 +279,11 @@ export default function App() {
       x: target.retreat.x,
       y: target.retreat.y,
     });
-    // MetaGame is unmounted during duel/transfer. Resolve the real undefeated →
-    // defeated edge here so actor-defeated cannot be lost at the screen boundary.
-    const afterTransfer = advanceFloorScript(getFloor(meta.floorId), meta, transferCandidate).state;
+    // MetaGame is unmounted during duel/transfer. Compare identical post-transfer
+    // state except for the real undefeated → defeated edge so unrelated movement,
+    // collection or state Triggers cannot fire at this screen boundary.
+    const defeatPrevious = { ...transferCandidate, defeatedEncounterIds: meta.defeatedEncounterIds };
+    const afterTransfer = advanceFloorScript(getFloor(meta.floorId), defeatPrevious, transferCandidate).state;
     setMeta(afterTransfer);
     setTransfer(null);
     setEncounter(null);
