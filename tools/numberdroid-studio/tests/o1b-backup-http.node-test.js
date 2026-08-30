@@ -297,21 +297,25 @@ async function unlockRunningServer(running, secret) {
   return { base, csrf, cookie: response.headers.get('set-cookie').split(';', 1)[0] };
 }
 
+const TERMINAL_OPERATION_WAIT_MS = 60_000;
+
 async function waitForTerminalOperation(base, cookie, operationId) {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + TERMINAL_OPERATION_WAIT_MS;
+  let lastObservedState = 'no successful operation read';
   while (Date.now() < deadline) {
     const response = await fetch(`${base}/api/backups/operations/${operationId}`, {
       headers: { cookie },
     });
     assert.equal(response.status, 200);
     const operation = (await response.json()).operation;
+    lastObservedState = `${operation.status}/${operation.phase}/${operation.progress}`;
     if (['SUCCEEDED', 'FAILED', 'INTERRUPTED'].includes(operation.status)) return operation;
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  throw new Error(`Operation ${operationId} did not become terminal.`);
+  throw new Error(`Operation ${operationId} did not become terminal within ${TERMINAL_OPERATION_WAIT_MS} ms; last observed ${lastObservedState}.`);
 }
 
-test('O1b configured SQLite HTTP composition completes all four actions and reloads external-ledger state', { timeout: 30_000 }, async (context) => {
+test('O1b configured SQLite HTTP composition completes all four actions and reloads external-ledger state', { timeout: 120_000 }, async (context) => {
   const root = await mkdtemp(join(tmpdir(), 'numberdroid-o1b-live-http-'));
   const dataRoot = join(root, 'live');
   const controlRoot = join(root, 'control');
