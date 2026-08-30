@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error A4a intentionally verifies the JavaScript-only Studio adapter boundary.
-import {
-  NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT,
-  createNumberdroidLevelAuthoringProjection,
-  validateNumberdroidLevelAuthoringProjection,
-} from "../../tools/numberdroid-studio/packages/numberdroid-adapter/src/index.js";
+import { NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT, createNumberdroidLevelAuthoringProjection, validateNumberdroidLevelAuthoringProjection } from "../../tools/numberdroid-studio/packages/numberdroid-adapter/src/index.js";
 // @ts-expect-error The Node-only authority hash helper stays outside the browser TypeScript graph.
 import { numberdroidLevelCompilerVersion } from "../../tools/numberdroid-studio/tests/helpers/numberdroid-level-compiler-authority.js";
 import { compileLevelSpec } from "./compiler";
