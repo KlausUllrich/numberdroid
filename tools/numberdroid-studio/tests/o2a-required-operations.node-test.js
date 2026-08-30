@@ -4,10 +4,11 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
+import { afterTestCleanup } from './persistence-test-helpers.js';
 
 async function fixture(context) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'numberdroid-o2a-required-operations-')));
-  context.after(() => rm(root, { recursive: true, force: true }));
+  afterTestCleanup(context, () => rm(root, { recursive: true, force: true }));
   const roots = Object.fromEntries(['live', 'control', 'backups', 'restored-copies']
     .map((name) => [name, join(root, name)]));
   await Promise.all(Object.values(roots).map((path) => mkdir(path, { mode: 0o700 })));
@@ -66,8 +67,9 @@ test('O2a required operations propagates bootstrap/runtime failure and releases 
     pairingEnabled: false,
     operationsBootstrapSecret: Buffer.alloc(24, 0x61).toString('base64url'),
   });
-  context.after(() => closeServer(running.server));
+  afterTestCleanup(context, () => closeServer(running.server));
   const response = await fetch(`http://127.0.0.1:${running.address.port}/api/backups`);
+  await response.arrayBuffer();
   assert.equal(response.status, 401);
 });
 
