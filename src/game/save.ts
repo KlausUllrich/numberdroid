@@ -160,6 +160,10 @@ export function pointWalkable(
   collisionRadius = robotCollisionRadius("standard"),
 ) {
   const floor = getFloor(floorId);
+  return pointWalkableOnFloor(floor, x, y, collisionRadius);
+}
+
+function pointWalkableOnFloor(floor: FloorDefinition, x: number, y: number, collisionRadius: number) {
   const onFloor = footprintInsideWalkable(floor, x, y, collisionRadius);
   if (!onFloor) return false;
   const blocked = Array.from(nearbyObstacles(floor, x, y, collisionRadius))
@@ -289,8 +293,10 @@ function sanitizeScriptState(candidate: unknown, floor: FloorDefinition): LevelS
   };
 }
 
-function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaState {
-  const floor = getFloor(typeof candidate.floorId === "string" ? candidate.floorId : CURRENT_FLOOR.id);
+export function sanitizeMetaStateForFloor(
+  candidate: Partial<MetaState> & { version?: unknown },
+  floor: FloorDefinition,
+): MetaState {
   const defaults = createFloorState(floor);
   const state: MetaState = {
     ...defaults,
@@ -304,7 +310,7 @@ function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaSt
   if (!validDeckSize(state.currentDeckSize)) state.currentDeckSize = defaults.currentDeckSize;
 
   const radius = robotCollisionRadius(state.currentDeckSize);
-  if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !pointWalkable(state.x, state.y, floor.id, radius)) {
+  if (!Number.isFinite(state.x) || !Number.isFinite(state.y) || !pointWalkableOnFloor(floor, state.x, state.y, radius)) {
     state.x = defaults.x;
     state.y = defaults.y;
     state.facing = defaults.facing;
@@ -368,6 +374,11 @@ function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaSt
   state.pilotIndex = Math.max(0, Number.isFinite(state.pilotIndex) ? state.pilotIndex : 0) % state.playerCount;
   state.damageTaken = Math.max(0, Math.min(STARTING_HP, Number.isFinite(state.damageTaken) ? state.damageTaken : 0));
   return state;
+}
+
+function sanitize(candidate: Partial<MetaState> & { version?: unknown }): MetaState {
+  const floor = getFloor(typeof candidate.floorId === "string" ? candidate.floorId : CURRENT_FLOOR.id);
+  return sanitizeMetaStateForFloor(candidate, floor);
 }
 
 function migrateV2(old: MetaStateV2): MetaState {
