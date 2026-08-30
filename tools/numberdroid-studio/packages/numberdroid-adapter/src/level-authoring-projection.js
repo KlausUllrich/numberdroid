@@ -357,13 +357,13 @@ function validateSpace(value, label) {
   requireEnum(base.kind, SPACE_KINDS, `${label}.kind`);
   if (base.kind === 'room') {
     exactRecord(base, ['id', 'kind', 'archetype', 'size'], ['tags', 'rationality', 'relations'], label);
-    requireId(base.archetype, `${label}.archetype`);
+    requireSourceText(base.archetype, `${label}.archetype`);
     validateSizeSpec(base.size, `${label}.size`);
     optional(base, 'rationality', (entry) => requireEnum(entry, RATIONALITIES, `${label}.rationality`));
   } else {
     exactRecord(base, ['id', 'kind', 'width'], ['archetype', 'tags', 'length', 'orientation', 'relations'], label);
     validateRange(base.width, `${label}.width`);
-    optional(base, 'archetype', (entry) => requireId(entry, `${label}.archetype`));
+    optional(base, 'archetype', (entry) => requireSourceText(entry, `${label}.archetype`));
     optional(base, 'length', (entry) => validateRange(entry, `${label}.length`));
     optional(base, 'orientation', (entry) => requireEnum(entry, ORIENTATIONS, `${label}.orientation`));
   }
@@ -446,7 +446,7 @@ function validatePickup(value, label) {
   invariant(pickup.kind === 'access-key', 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${label}.kind is unsupported.`, { field: `${label}.kind` });
   requireId(pickup.keyId, `${label}.keyId`);
   requireId(pickup.spaceId, `${label}.spaceId`);
-  optional(pickup, 'propId', (entry) => requireId(entry, `${label}.propId`));
+  optional(pickup, 'propId', (entry) => requireSourceText(entry, `${label}.propId`));
   optional(pickup, 'label', (entry) => requireSourceText(entry, `${label}.label`));
 }
 
@@ -1027,7 +1027,7 @@ function analyzeGaps(source, a3a) {
     status: 'OPEN',
     description: GAP_DESCRIPTIONS[gapId],
     affectedPointers: [...pointers].sort(),
-  })).sort((left, right) => left.gapId.localeCompare(right.gapId));
+  })).sort((left, right) => (left.gapId < right.gapId ? -1 : left.gapId > right.gapId ? 1 : 0));
   return { gaps, projected };
 }
 

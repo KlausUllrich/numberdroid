@@ -166,6 +166,30 @@ test('A4a retains the complete Numberdroid closure and advertises no production 
   assert.equal(projection.kind, NUMBERDROID_LEVEL_AUTHORING_PROJECTION_KIND);
   assert.equal(projection.status, 'LOSSLESS_WITH_GAPS');
   assert.equal(projection.capabilityDelta.status, 'NOT_ADVERTISED');
+  assert.equal(canonicalJson(projection.capabilityDelta), canonicalJson({
+    status: 'NOT_ADVERTISED',
+    baseline: {
+      profileId: 'numberdroid.studio',
+      profileVersion: 1,
+      fingerprint: '826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049',
+    },
+    modules: [
+      { id: 'studio.level-requirements', status: 'A3A_PROJECTION_ONLY' },
+      { id: 'studio.level-graph', status: 'A3A_PROJECTION_ONLY' },
+      { id: 'studio.actor-route', status: 'BLOCKED' },
+      { id: 'studio.typed-logic', status: 'BLOCKED' },
+      { id: 'studio.dialogue-text', status: 'BLOCKED' },
+    ],
+    vocabulary: {
+      triggerKinds: [{ id: 'actor-defeated', status: 'BLOCKED' }],
+      actionKinds: [
+        { id: 'drop-item', status: 'BLOCKED' },
+        { id: 'set-variable', status: 'BLOCKED' },
+        { id: 'show-text', status: 'BLOCKED' },
+      ],
+      variableTypes: [{ id: 'boolean', status: 'BLOCKED' }],
+    },
+  }));
   assert.equal(projection.capabilityDelta.baseline.fingerprint, NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT);
   assert.equal(NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT, '826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049');
   assert.deepEqual(JSON.parse(projection.source.canonicalJson), input);
@@ -253,6 +277,24 @@ test('A4a canonicalization does not execute global toJSON hooks', { timeout: 5_0
   }
 });
 
+test('A4a public canonicalization rejects hostile serialized envelopes without invoking accessors', { timeout: 5_000 }, () => {
+  const projection = structuredClone(create());
+  let getterCalls = 0;
+  Object.defineProperty(projection.source, 'canonicalJson', {
+    enumerable: true,
+    get() { getterCalls += 1; return 'forged'; },
+  });
+  assertProjectionError(
+    () => canonicalNumberdroidLevelAuthoringProjectionJson(projection, compiler()),
+    'NUMBERDROID_LEVEL_PROJECTION_FIELD_FORBIDDEN',
+  );
+  assert.equal(getterCalls, 0);
+  assertProjectionError(
+    () => canonicalNumberdroidLevelAuthoringProjectionJson(new Proxy(structuredClone(create()), {}), compiler()),
+    'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID',
+  );
+});
+
 test('A4a captures an exact compiler port and rejects mutation, nondeterminism, and raw compiler errors', { timeout: 5_000 }, () => {
   assertProjectionError(() => create(levelSpec(), { ...compiler(), extra: true }), 'NUMBERDROID_LEVEL_PROJECTION_COMPILER_INVALID');
   assertProjectionError(() => create(levelSpec(), compiler({ compilerVersion: 'dev' })), 'NUMBERDROID_LEVEL_PROJECTION_COMPILER_INVALID');
@@ -336,6 +378,68 @@ test('A4a retains valid non-A3a identifiers and repeated routes only in the Numb
   const gaps = new Set(projection.gaps.map(({ gapId }) => gapId));
   assert.ok(gaps.has('numberdroid.identifiers.a3a-vocabulary-mismatch'));
   assert.ok(gaps.has('numberdroid.routes.repeated-space-not-representable'));
+});
+
+test('A4a retains every current event, trigger, zone-anchor, override, and free-text shape', { timeout: 10_000 }, () => {
+  const spec = levelSpec();
+  spec.spaces[0].archetype = '';
+  spec.spaces[0].tags = ['', ' spaced tag ', 'line\nbreak'];
+  spec.encounters[0].mathLabel = '';
+  spec.pickups[0].label = ' line\nbreak ';
+  spec.pickups[0].propId = '';
+  spec.runtime.floorName = '';
+  spec.zones = [
+    { id: 'zone.space', spaceId: 'room.one', anchor: { kind: 'space-center' } },
+    { id: 'zone.connection', spaceId: 'room.one', anchor: { kind: 'connection', targetId: 'door.one' } },
+    { id: 'zone.prop', spaceId: 'room.one', anchor: { kind: 'prop', targetId: 'prop.console' } },
+    { id: 'zone.actor', spaceId: 'room.one', anchor: { kind: 'actor', targetId: 'actor.guard' } },
+    { id: 'zone.route', spaceId: 'room.one', anchor: { kind: 'route', targetId: 'route.guard', position: 'middle' } },
+    { id: 'zone.pickup', spaceId: 'room.one', anchor: { kind: 'pickup', targetId: 'pickup.key' } },
+  ];
+  const triggerKinds = ['enter-space', 'enter-zone', 'interact', 'collect', 'state-change', 'proximity', 'timer'];
+  spec.triggers = triggerKinds.map((kind, index) => ({
+    id: `trigger.${kind}`,
+    kind,
+    sourceId: kind === 'enter-space' ? 'room.one'
+      : kind === 'enter-zone' ? 'zone.space'
+        : kind === 'collect' ? 'pickup.key'
+          : kind === 'timer' || kind === 'state-change' ? 'state.source'
+            : 'prop.console',
+    eventIds: ['event.set-flag'],
+    once: index % 2 === 0,
+    ...(kind === 'timer' ? { delayMs: 250 } : {}),
+    ...(kind === 'proximity' ? { radiusTiles: 2 } : {}),
+  }));
+  spec.events = [
+    { id: 'event.set-flag', kind: 'set-flag', flag: 'state.flag', value: ' line\nbreak ' },
+    { id: 'event.grant-key', kind: 'grant-key', keyId: 'key.one' },
+    { id: 'event.unlock-door', kind: 'unlock-door', doorId: 'door.one' },
+    { id: 'event.lock-door', kind: 'lock-door', doorId: 'door.one' },
+    { id: 'event.spawn-actor', kind: 'spawn-actor', actorId: 'actor.staged', spaceId: 'hall.one' },
+    { id: 'event.despawn-actor', kind: 'despawn-actor', actorId: 'actor.staged' },
+    { id: 'event.move-actor', kind: 'move-actor', actorId: 'actor.staged', routeId: 'route.guard' },
+    { id: 'event.actor-passby', kind: 'actor-passby', actorId: 'actor.staged', routeId: 'route.guard', durationMs: 500 },
+    { id: 'event.story-beat', kind: 'story-beat', beatId: 'beat.one', blocking: true },
+  ];
+  spec.overrides = [{
+    targetId: 'room.one',
+    lockGeometry: true,
+    lockedGeometry: { offsetFromRootTiles: { x: 1, y: -1 }, sizeTiles: { w: 4, h: 5 } },
+    lockPlacement: true,
+    lockedPlacement: { offsetTiles: { x: -2, y: 3 }, rotation: 90, wallSide: null },
+    offsetTiles: { x: 2, y: -3 },
+    preferredSide: 'north',
+    preferredWall: 'east',
+    size: { class: 'medium', width: { min: 3, preferred: 4, max: 5 } },
+    robotType: 'magnetar',
+    seedSalt: 7,
+  }];
+  const projection = create(spec);
+  assert.equal(projection.source.canonicalJson, canonicalJson(spec));
+  assert.equal(projection.compiler.semanticPlan.events.length, spec.events.length);
+  assert.equal(projection.compiler.semanticPlan.triggers.length, spec.triggers.length);
+  assert.equal(projection.compiler.semanticPlan.zones.length, spec.zones.length);
+  assert.equal(projection.compiler.semanticPlan.overrides.length, spec.overrides.length);
 });
 
 test('A4a makes the A3a 512-entry limit explicit without losing the Numberdroid closure', { timeout: 10_000 }, () => {
