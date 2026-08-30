@@ -15,7 +15,7 @@ export function numberdroidLevelCompilerVersion(repositoryRootUrl) {
       absolutePath,
       relativePath: relative(repositoryRoot, absolutePath).split(sep).join('/'),
     }))
-    .sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+    .sort((left, right) => (left.relativePath < right.relativePath ? -1 : left.relativePath > right.relativePath ? 1 : 0));
   const hash = createHash('sha256');
   for (const file of normalized) {
     hash.update(`${file.relativePath}\0`);

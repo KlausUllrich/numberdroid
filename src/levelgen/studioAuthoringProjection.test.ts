@@ -108,6 +108,7 @@ describe("A4a Numberdroid level-authoring projection", () => {
     const projection = project(BIOARK_PASSBY_PROOF_SPEC);
     expectHashes(projection, HASHES.bioark);
     expect(projection.source.levelSpec.runtime).toEqual(BIOARK_PASSBY_PROOF_SPEC.runtime);
+    expect(projection.compiler.semanticPlan.runtime).toEqual(BIOARK_PASSBY_PROOF_SPEC.runtime);
     expect(projection.compiler.semanticPlan.stagedActors).toEqual(BIOARK_PASSBY_PROOF_SPEC.stagedActors);
     expect(projection.compiler.semanticPlan.events).toEqual(BIOARK_PASSBY_PROOF_SPEC.events);
     expect(projection.a3a.levelGraph.routes.map((route: { routeId: string }) => route.routeId)).toEqual(["grazer-pass-route"]);
@@ -137,6 +138,6 @@ describe("A4a Numberdroid level-authoring projection", () => {
   it("round-trips a serialized projection through the hostile validator", () => {
     const projection = project(TS01_LEVEL_SPEC);
     const serialized = structuredClone(projection);
-    expect(validateNumberdroidLevelAuthoringProjection(serialized)).toEqual(projection);
+    expect(validateNumberdroidLevelAuthoringProjection(serialized, compiler)).toEqual(projection);
   });
 });

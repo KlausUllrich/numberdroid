@@ -28,6 +28,18 @@ const MAX_AGGREGATE_TEXT = 12_000_000;
 const MAX_KEY_LENGTH = 128;
 const MAX_NUMBER_MAGNITUDE = Number.MAX_SAFE_INTEGER;
 const A3A_COLLECTION_LIMIT = 512;
+const LEVEL_SPEC_SNAPSHOT_LIMITS = Object.freeze({
+  maxStringLength: 65_536,
+  maxAggregateText: 1_000_000,
+});
+const PROJECTION_SNAPSHOT_LIMITS = Object.freeze({
+  maxDepth: MAX_DEPTH + 8,
+  maxArrayEntries: 400_000,
+  maxNodes: 750_000,
+  maxValues: 2_000_000,
+  maxStringLength: 8_000_000,
+  maxAggregateText: 96_000_000,
+});
 
 const SPACE_KINDS = new Set(['room', 'corridor']);
 const SIZE_CLASSES = new Set(['tiny', 'small', 'medium', 'large', 'hero']);
@@ -109,37 +121,48 @@ function safely(action, label) {
   }
 }
 
-function snapshotPlainData(value, label = 'value', { rejectSharedReferences = true } = {}) {
+function snapshotPlainData(value, label = 'value', {
+  rejectSharedReferences = true,
+  maxDepth = MAX_DEPTH,
+  maxArrayEntries = MAX_ARRAY_ENTRIES,
+  maxObjectFields = MAX_OBJECT_FIELDS,
+  maxNodes = MAX_NODES,
+  maxValues = MAX_VALUES,
+  maxStringLength = MAX_STRING_LENGTH,
+  maxAggregateText = MAX_AGGREGATE_TEXT,
+  maxKeyLength = MAX_KEY_LENGTH,
+  maxNumberMagnitude = MAX_NUMBER_MAGNITUDE,
+} = {}) {
   const state = { nodes: 0, values: 0, text: 0, seen: new WeakSet(), active: new WeakSet() };
 
   function visit(candidate, path, depth) {
-    invariant(depth <= MAX_DEPTH, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', `${path} exceeds the maximum nesting depth.`, { field: path, limit: MAX_DEPTH });
+    invariant(depth <= maxDepth, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', `${path} exceeds the maximum nesting depth.`, { field: path, limit: maxDepth });
 
     if (candidate === null || typeof candidate === 'boolean') {
       state.values += 1;
-      invariant(state.values <= MAX_VALUES, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', 'The input contains too many scalar values.', { limit: MAX_VALUES });
+      invariant(state.values <= maxValues, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', 'The input contains too many scalar values.', { limit: maxValues });
       return candidate;
     }
     if (typeof candidate === 'string') {
       state.values += 1;
       state.text += candidate.length;
-      invariant(candidate.length <= MAX_STRING_LENGTH && state.text <= MAX_AGGREGATE_TEXT,
+      invariant(candidate.length <= maxStringLength && state.text <= maxAggregateText,
         'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', `${path} exceeds the bounded text budget.`, { field: path });
-      invariant(state.values <= MAX_VALUES, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', 'The input contains too many scalar values.', { limit: MAX_VALUES });
+      invariant(state.values <= maxValues, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', 'The input contains too many scalar values.', { limit: maxValues });
       return candidate;
     }
     if (typeof candidate === 'number') {
       state.values += 1;
-      invariant(Number.isFinite(candidate) && Math.abs(candidate) <= MAX_NUMBER_MAGNITUDE && !Object.is(candidate, -0),
+      invariant(Number.isFinite(candidate) && Math.abs(candidate) <= maxNumberMagnitude && !Object.is(candidate, -0),
         'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} must be a bounded finite number and may not be negative zero.`, { field: path });
-      invariant(state.values <= MAX_VALUES, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', 'The input contains too many scalar values.', { limit: MAX_VALUES });
+      invariant(state.values <= maxValues, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', 'The input contains too many scalar values.', { limit: maxValues });
       return candidate;
     }
     invariant(typeof candidate === 'object', 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} must contain JSON-compatible plain data.`, { field: path });
     invariant(!utilTypes.isProxy(candidate), 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} may not be a Proxy.`, { field: path });
 
     state.nodes += 1;
-    invariant(state.nodes <= MAX_NODES, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', 'The input contains too many objects or arrays.', { limit: MAX_NODES });
+    invariant(state.nodes <= maxNodes, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', 'The input contains too many objects or arrays.', { limit: maxNodes });
     invariant(!state.active.has(candidate), 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} contains a cycle.`, { field: path });
     invariant(!rejectSharedReferences || !state.seen.has(candidate), 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} contains a repeated object reference.`, { field: path });
     state.seen.add(candidate);
@@ -151,8 +174,8 @@ function snapshotPlainData(value, label = 'value', { rejectSharedReferences = tr
       invariant(prototype === Array.prototype, 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} must be a standard array.`, { field: path });
       const lengthDescriptor = safely(() => Object.getOwnPropertyDescriptor(candidate, 'length'), `${path}.length`);
       const length = lengthDescriptor?.value;
-      invariant(Number.isSafeInteger(length) && length >= 0 && length <= MAX_ARRAY_ENTRIES,
-        'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', `${path} exceeds the array-entry limit.`, { field: path, limit: MAX_ARRAY_ENTRIES });
+      invariant(Number.isSafeInteger(length) && length >= 0 && length <= maxArrayEntries,
+        'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', `${path} exceeds the array-entry limit.`, { field: path, limit: maxArrayEntries });
       for (const key of keys) {
         const isIndex = typeof key === 'string' && ARRAY_INDEX_PATTERN.test(key) && Number(key) < length;
         invariant(key === 'length' || isIndex, 'NUMBERDROID_LEVEL_PROJECTION_FIELD_FORBIDDEN', `${path}.${String(key)} is not permitted.`, { field: `${path}.${String(key)}` });
@@ -169,10 +192,10 @@ function snapshotPlainData(value, label = 'value', { rejectSharedReferences = tr
 
     invariant(prototype === Object.prototype || prototype === null,
       'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${path} must be a plain data object.`, { field: path });
-    invariant(keys.length <= MAX_OBJECT_FIELDS, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', `${path} exceeds the object-field limit.`, { field: path, limit: MAX_OBJECT_FIELDS });
+    invariant(keys.length <= maxObjectFields, 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED', `${path} exceeds the object-field limit.`, { field: path, limit: maxObjectFields });
     const result = Object.create(null);
     for (const key of keys) {
-      invariant(typeof key === 'string' && key.length >= 1 && key.length <= MAX_KEY_LENGTH && !CONTROL_CHARACTER_PATTERN.test(key),
+      invariant(typeof key === 'string' && key.length >= 1 && key.length <= maxKeyLength && !CONTROL_CHARACTER_PATTERN.test(key),
         'NUMBERDROID_LEVEL_PROJECTION_FIELD_FORBIDDEN', `${path}.${String(key)} is not a safe bounded field name.`, { field: `${path}.${String(key)}` });
       const descriptor = safely(() => Object.getOwnPropertyDescriptor(candidate, key), `${path}.${key}`);
       invariant(descriptor?.enumerable && Object.hasOwn(descriptor, 'value'),
@@ -271,7 +294,15 @@ function requireString(value, label, { max = 4_096, trimmed = true, empty = fals
 }
 
 function requireId(value, label) {
-  return requireString(value, label, { max: 128 });
+  invariant(typeof value === 'string' && value.length <= 4_096 && value.trim().length > 0,
+    'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${label} must be a bounded, non-blank string.`, { field: label });
+  return value;
+}
+
+function requireSourceText(value, label, { max = 4_096, empty = true } = {}) {
+  invariant(typeof value === 'string' && value.length <= max && (empty || value.length > 0),
+    'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${label} must be a bounded string.`, { field: label });
+  return value;
 }
 
 function requireEnum(value, allowed, label) {
@@ -285,7 +316,7 @@ function optional(record, key, validator) {
 
 function validateStringArray(value, label, { ids = false, min = 0 } = {}) {
   requireArray(value, label, { min });
-  value.forEach((entry, index) => (ids ? requireId : requireString)(entry, `${label}[${index}]`, { max: 1_024 }));
+  value.forEach((entry, index) => (ids ? requireId(entry, `${label}[${index}]`) : requireSourceText(entry, `${label}[${index}]`, { max: 1_024 })));
 }
 
 function validateRange(value, label) {
@@ -336,7 +367,7 @@ function validateSpace(value, label) {
     optional(base, 'length', (entry) => validateRange(entry, `${label}.length`));
     optional(base, 'orientation', (entry) => requireEnum(entry, ORIENTATIONS, `${label}.orientation`));
   }
-  optional(base, 'tags', (entry) => validateStringArray(entry, `${label}.tags`, { ids: true }));
+  optional(base, 'tags', (entry) => validateStringArray(entry, `${label}.tags`));
   optional(base, 'relations', (entry) => validateRelations(entry, `${label}.relations`));
 }
 
@@ -381,11 +412,11 @@ function validateEncounter(value, label) {
   requireEnum(encounter.bodyId, BODIES, `${label}.bodyId`);
   requireEnum(encounter.behavior, BEHAVIORS, `${label}.behavior`);
   requireEnum(encounter.mode, MATH_MODES, `${label}.mode`);
-  requireString(encounter.mathLabel, `${label}.mathLabel`);
+  requireSourceText(encounter.mathLabel, `${label}.mathLabel`);
   requireEnum(encounter.difficulty, DIFFICULTIES, `${label}.difficulty`);
   optional(encounter, 'mathRole', (entry) => requireEnum(entry, MATH_ROLES, `${label}.mathRole`));
   optional(encounter, 'boss', (entry) => requireBoolean(entry, `${label}.boss`));
-  optional(encounter, 'tags', (entry) => validateStringArray(entry, `${label}.tags`, { ids: true }));
+  optional(encounter, 'tags', (entry) => validateStringArray(entry, `${label}.tags`));
   optional(encounter, 'preferredWall', (entry) => requireEnum(entry, CARDINAL_DIRECTIONS, `${label}.preferredWall`));
   optional(encounter, 'avoidDoorClearance', (entry) => requireBoolean(entry, `${label}.avoidDoorClearance`));
   optional(encounter, 'patrolRouteId', (entry) => requireId(entry, `${label}.patrolRouteId`));
@@ -395,7 +426,7 @@ function validateStagedActor(value, label) {
   const actor = exactRecord(value, ['id', 'actorType'], ['tags', 'initiallyPresent', 'defaultSpaceId'], label);
   requireId(actor.id, `${label}.id`);
   requireId(actor.actorType, `${label}.actorType`);
-  optional(actor, 'tags', (entry) => validateStringArray(entry, `${label}.tags`, { ids: true }));
+  optional(actor, 'tags', (entry) => validateStringArray(entry, `${label}.tags`));
   optional(actor, 'initiallyPresent', (entry) => requireBoolean(entry, `${label}.initiallyPresent`));
   optional(actor, 'defaultSpaceId', (entry) => requireId(entry, `${label}.defaultSpaceId`));
 }
@@ -406,7 +437,7 @@ function validateRoute(value, label) {
   requireEnum(route.kind, ROUTE_KINDS, `${label}.kind`);
   validateStringArray(route.spaceIds, `${label}.spaceIds`, { ids: true, min: 1 });
   optional(route, 'loop', (entry) => requireBoolean(entry, `${label}.loop`));
-  optional(route, 'tags', (entry) => validateStringArray(entry, `${label}.tags`, { ids: true }));
+  optional(route, 'tags', (entry) => validateStringArray(entry, `${label}.tags`));
 }
 
 function validatePickup(value, label) {
@@ -416,7 +447,7 @@ function validatePickup(value, label) {
   requireId(pickup.keyId, `${label}.keyId`);
   requireId(pickup.spaceId, `${label}.spaceId`);
   optional(pickup, 'propId', (entry) => requireId(entry, `${label}.propId`));
-  optional(pickup, 'label', (entry) => requireString(entry, `${label}.label`));
+  optional(pickup, 'label', (entry) => requireSourceText(entry, `${label}.label`));
 }
 
 function validateZone(value, label) {
@@ -436,7 +467,7 @@ function validateZone(value, label) {
     requireInteger(size.w, `${label}.sizeTiles.w`, { min: 1 });
     requireInteger(size.h, `${label}.sizeTiles.h`, { min: 1 });
   });
-  optional(zone, 'tags', (entry) => validateStringArray(entry, `${label}.tags`, { ids: true }));
+  optional(zone, 'tags', (entry) => validateStringArray(entry, `${label}.tags`));
 }
 
 function validateTrigger(value, label) {
@@ -463,7 +494,7 @@ function validateEvent(value, label) {
     invariant(typeof base.value === 'boolean' || typeof base.value === 'string' || typeof base.value === 'number',
       'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', `${label}.value must be boolean, string, or number.`, { field: `${label}.value` });
     if (typeof base.value === 'number') requireFinite(base.value, `${label}.value`);
-    if (typeof base.value === 'string') requireString(base.value, `${label}.value`, { max: 4_096, trimmed: false, empty: true });
+    if (typeof base.value === 'string') requireSourceText(base.value, `${label}.value`);
   }
   if (base.kind === 'grant-key') requireId(base.keyId, `${label}.keyId`);
   if (base.kind === 'unlock-door' || base.kind === 'lock-door') requireId(base.doorId, `${label}.doorId`);
@@ -521,7 +552,7 @@ function validatePositiveIntegerSize(value, label) {
 function validateRuntime(value, label) {
   const runtime = exactRecord(value, [], ['tileSize', 'wallCollisionPx', 'wallVisualPx', 'floorName', 'subtitle', 'objectiveDefault', 'objectiveAfterEnergy', 'start'], label);
   for (const field of ['tileSize', 'wallCollisionPx', 'wallVisualPx']) optional(runtime, field, (entry) => requireFinite(entry, `${label}.${field}`, { min: Number.MIN_VALUE }));
-  for (const field of ['floorName', 'subtitle', 'objectiveDefault', 'objectiveAfterEnergy']) optional(runtime, field, (entry) => requireString(entry, `${label}.${field}`, { max: 4_096 }));
+  for (const field of ['floorName', 'subtitle', 'objectiveDefault', 'objectiveAfterEnergy']) optional(runtime, field, (entry) => requireSourceText(entry, `${label}.${field}`));
   optional(runtime, 'start', (entry) => {
     const start = exactRecord(entry, [], ['spaceId', 'bodyId', 'facing', 'metaEnergy', 'preferredSide'], `${label}.start`);
     optional(start, 'spaceId', (item) => requireId(item, `${label}.start.spaceId`));
@@ -537,7 +568,7 @@ function validateLevelSpecSnapshot(spec) {
     ['runtime', 'stagedActors', 'routes', 'pickups', 'zones', 'triggers', 'events', 'overrides'], 'levelSpec');
   requireId(root.id, 'levelSpec.id');
   requireInteger(root.version, 'levelSpec.version', { min: 1 });
-  if (typeof root.seed === 'string') requireString(root.seed, 'levelSpec.seed', { max: 4_096 });
+  if (typeof root.seed === 'string') requireId(root.seed, 'levelSpec.seed');
   else requireFinite(root.seed, 'levelSpec.seed');
   validateStringArray(root.ruleSetRefs, 'levelSpec.ruleSetRefs');
   const rules = exactRecord(root.rules, ['ensureReachability', 'singleSharedWall', 'doorsEmbeddedInWalls', 'defaultCorridorWidth', 'defaultDoorClearance'], [], 'levelSpec.rules');
@@ -572,7 +603,10 @@ export function validateNumberdroidLevelSpec(value) {
   // Current trusted Numberdroid fixtures deliberately reuse immutable range
   // constants. Reference identity has no LevelSpec/JSON semantics, so a DAG is
   // flattened into exact plain values while true cycles remain forbidden.
-  return deepFreeze(validateLevelSpecSnapshot(snapshotPlainData(value, 'levelSpec', { rejectSharedReferences: false })));
+  return deepFreeze(validateLevelSpecSnapshot(snapshotPlainData(value, 'levelSpec', {
+    ...LEVEL_SPEC_SNAPSHOT_LIMITS,
+    rejectSharedReferences: false,
+  })));
 }
 
 export function canonicalNumberdroidLevelSpecJson(value) {
@@ -647,6 +681,55 @@ function assertSourceFieldsPreserved(source, compiled, label, ignored = new Set(
   }
 }
 
+function validatePropBounds(value, label) {
+  const bounds = exactRecord(value, ['x', 'y', 'w', 'h'], [], label);
+  requireFinite(bounds.x, `${label}.x`, { min: 0 });
+  requireFinite(bounds.y, `${label}.y`, { min: 0 });
+  requireFinite(bounds.w, `${label}.w`, { min: Number.MIN_VALUE });
+  requireFinite(bounds.h, `${label}.h`, { min: Number.MIN_VALUE });
+}
+
+function validateCompiledPropMetadata(value, label, expectedId) {
+  const metadata = exactRecord(value,
+    ['id', 'tags', 'attachment', 'allowedRotations', 'footprintTiles', 'placement'], ['exactFit'], label);
+  invariant(metadata.id === expectedId, 'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `${label}.id does not match the source propId.`, { field: `${label}.id` });
+  validateStringArray(metadata.tags, `${label}.tags`);
+  invariant(['floor', 'wall', 'either'].includes(metadata.attachment),
+    'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `${label}.attachment is unsupported.`, { field: `${label}.attachment` });
+  requireArray(metadata.allowedRotations, `${label}.allowedRotations`, { min: 1 });
+  metadata.allowedRotations.forEach((rotation, index) => requireEnum(rotation, PROP_ROTATIONS, `${label}.allowedRotations[${index}]`));
+  validatePositiveIntegerSize(metadata.footprintTiles, `${label}.footprintTiles`);
+  const placement = exactRecord(metadata.placement, [], [
+    'requiredSpaceTags', 'preferWallAdjacent', 'preferCorner', 'preferNearTags', 'preferRoomCenter',
+    'forbidDoorClearance', 'forbidPrimaryPath', 'forbidInFrontOfWallProp', 'preferOppositeDoor',
+    'approachDepthTiles', 'clearanceAroundTiles',
+  ], `${label}.placement`);
+  optional(placement, 'requiredSpaceTags', (entry) => validateStringArray(entry, `${label}.placement.requiredSpaceTags`));
+  optional(placement, 'preferNearTags', (entry) => validateStringArray(entry, `${label}.placement.preferNearTags`));
+  for (const field of [
+    'preferWallAdjacent', 'preferCorner', 'preferRoomCenter', 'forbidDoorClearance', 'forbidPrimaryPath',
+    'forbidInFrontOfWallProp', 'preferOppositeDoor',
+  ]) optional(placement, field, (entry) => requireBoolean(entry, `${label}.placement.${field}`));
+  for (const field of ['approachDepthTiles', 'clearanceAroundTiles']) {
+    optional(placement, field, (entry) => requireFinite(entry, `${label}.placement.${field}`, { min: 0 }));
+  }
+  optional(metadata, 'exactFit', (entry) => {
+    const exactFit = exactRecord(entry, [], [
+      'visualBoundsTiles', 'collisionBoundsTiles', 'placementEnvelope', 'customEnvelopeTiles', 'wallBoundary',
+    ], `${label}.exactFit`);
+    optional(exactFit, 'visualBoundsTiles', (bounds) => validatePropBounds(bounds, `${label}.exactFit.visualBoundsTiles`));
+    optional(exactFit, 'collisionBoundsTiles', (bounds) => validatePropBounds(bounds, `${label}.exactFit.collisionBoundsTiles`));
+    optional(exactFit, 'customEnvelopeTiles', (bounds) => validatePropBounds(bounds, `${label}.exactFit.customEnvelopeTiles`));
+    optional(exactFit, 'placementEnvelope', (kind) => {
+      invariant(['visual', 'collision', 'custom'].includes(kind), 'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `${label}.exactFit.placementEnvelope is unsupported.`);
+      if (kind === 'custom') invariant(Object.hasOwn(exactFit, 'customEnvelopeTiles'), 'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `${label}.exactFit.customEnvelopeTiles is required for a custom envelope.`);
+    });
+    optional(exactFit, 'wallBoundary', (kind) => {
+      invariant(kind === 'visual' || kind === 'collision', 'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `${label}.exactFit.wallBoundary is unsupported.`);
+    });
+  });
+}
+
 function validatePlanClosure(planValue, source) {
   const plan = snapshotPlainData(planValue, 'compiler.semanticPlan', { rejectSharedReferences: false });
   const required = ['levelId', 'version', 'seed', 'ruleSetRefs', 'rules', 'spaces', 'connections', 'props', 'encounters', 'stagedActors', 'routes', 'pickups', 'zones', 'triggers', 'events', 'overrides', 'diagnostics'];
@@ -656,10 +739,10 @@ function validatePlanClosure(planValue, source) {
   invariant(plan.seed === normalizeSeed(source.seed), 'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', 'The semantic plan seed is not the canonical Numberdroid seed.');
   invariant(sameValue(plan.ruleSetRefs, source.ruleSetRefs) && sameValue(plan.rules, source.rules),
     'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', 'The semantic plan does not preserve ruleSetRefs and rules.');
-  if (Object.hasOwn(plan, 'runtime')) {
-    invariant(Object.hasOwn(source, 'runtime') && sameValue(plan.runtime, source.runtime),
-      'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', 'The optional semantic-plan runtime value does not preserve the LevelSpec runtime.');
-  }
+  invariant(Object.hasOwn(plan, 'runtime') === Object.hasOwn(source, 'runtime'),
+    'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', 'The semantic-plan runtime presence does not match the LevelSpec.');
+  if (Object.hasOwn(source, 'runtime')) invariant(sameValue(plan.runtime, source.runtime),
+    'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', 'The semantic-plan runtime value does not preserve the LevelSpec runtime.');
 
   const collectionFields = ['spaces', 'connections', 'props', 'encounters', 'stagedActors', 'routes', 'pickups', 'zones', 'triggers', 'events', 'overrides'];
   for (const field of collectionFields) {
@@ -668,7 +751,23 @@ function validatePlanClosure(planValue, source) {
     invariant(Array.isArray(planEntries) && planEntries.length === sourceEntries.length,
       'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `compiler.semanticPlan.${field} does not preserve collection cardinality.`, { field: `compiler.semanticPlan.${field}` });
     for (let index = 0; index < sourceEntries.length; index += 1) {
+      const additions = {
+        spaces: ['seed'],
+        connections: ['seed', 'widthTiles', 'clearanceTiles', 'lock'],
+        props: ['seed', 'quantity', 'required', 'metadata'],
+        encounters: ['seed'],
+      }[field] ?? [];
+      exactRecord(planEntries[index], [...new Set([...Object.keys(sourceEntries[index]), ...additions])], [], `compiler.semanticPlan.${field}[${index}]`);
       const ignored = new Set();
+      if (field === 'connections') {
+        ignored.add('widthTiles');
+        ignored.add('clearanceTiles');
+        ignored.add('lock');
+      }
+      if (field === 'props') {
+        ignored.add('quantity');
+        ignored.add('required');
+      }
       if (field === 'encounters') {
         const override = (source.overrides ?? []).find((entry) => entry.targetId === sourceEntries[index].id && entry.robotType);
         if (override) {
@@ -688,6 +787,23 @@ function validatePlanClosure(planValue, source) {
         'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `compiler.semanticPlan.${field}[${index}].seed is not deterministic.`, { field: `compiler.semanticPlan.${field}[${index}].seed` });
     });
   }
+  plan.connections.forEach((entry, index) => {
+    const sourceEntry = source.connections[index];
+    const expectedWidth = sourceEntry.widthTiles ?? (sourceEntry.kind === 'standard-door' ? 1 : 2);
+    const expectedClearance = sourceEntry.kind === 'opening'
+      ? { before: 0, after: 0 }
+      : sourceEntry.clearanceTiles ?? source.rules.defaultDoorClearance;
+    const expectedLock = sourceEntry.lock ?? { mode: 'none' };
+    invariant(entry.widthTiles === expectedWidth && sameValue(entry.clearanceTiles, expectedClearance) && sameValue(entry.lock, expectedLock),
+      'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `compiler.semanticPlan.connections[${index}] does not preserve canonical connection defaults.`);
+  });
+  plan.props.forEach((entry, index) => {
+    const sourceEntry = source.props[index];
+    invariant(entry.quantity === (sourceEntry.quantity ?? 1) && entry.required === (sourceEntry.required ?? true),
+      'NUMBERDROID_LEVEL_PROJECTION_PLAN_INVALID', `compiler.semanticPlan.props[${index}] does not preserve canonical prop defaults.`);
+    validateCompiledPropMetadata(entry.metadata, `compiler.semanticPlan.props[${index}].metadata`, sourceEntry.propId);
+  });
+  requireArray(plan.diagnostics, 'compiler.semanticPlan.diagnostics');
   plan.diagnostics.forEach((candidate, index) => {
     const label = `compiler.semanticPlan.diagnostics[${index}]`;
     const diagnostic = exactRecord(candidate, ['level', 'code', 'message'], ['targetId'], label);
@@ -892,11 +1008,17 @@ function analyzeGaps(source, a3a) {
   (source.zones ?? []).forEach((entry, index) => {
     if (!projected.zones.has(entry.id)) {
       if (!a3aId(entry.id) || !a3aId(entry.spaceId) || ('targetId' in entry.anchor && !a3aId(entry.anchor.targetId))) add('numberdroid.identifiers.a3a-vocabulary-mismatch', `/zones/${index}`);
-      else if (entry.anchor.kind === 'prop' || entry.anchor.kind === 'actor') add('numberdroid.zones.anchor-target-not-projected', `/zones/${index}/anchor`);
-      else add('numberdroid.a3a.collection-limit-exceeded', `/zones/${index}`);
+      else if (!projected.spaces.has(entry.spaceId)) add('numberdroid.a3a.collection-limit-exceeded', `/zones/${index}`);
+      else if (entry.anchor.kind === 'prop' || entry.anchor.kind === 'actor'
+        || (entry.anchor.kind === 'connection' && !projected.connections.has(entry.anchor.targetId))
+        || (entry.anchor.kind === 'route' && !projected.routes.has(entry.anchor.targetId))
+        || (entry.anchor.kind === 'pickup' && !projected.pickups.has(entry.anchor.targetId))) {
+        add('numberdroid.zones.anchor-target-not-projected', `/zones/${index}/anchor`);
+      } else add('numberdroid.a3a.collection-limit-exceeded', `/zones/${index}`);
     }
   });
-  if ((source.triggers ?? []).length || (source.events ?? []).length) add('numberdroid.logic.a3a-vocabulary-mismatch', '/triggers');
+  if ((source.triggers ?? []).length) add('numberdroid.logic.a3a-vocabulary-mismatch', '/triggers');
+  if ((source.events ?? []).length) add('numberdroid.logic.a3a-vocabulary-mismatch', '/events');
   (source.events ?? []).forEach((event, index) => {
     if (event.kind === 'set-flag') add('numberdroid.flags.declaration-type-initial-value-missing', `/events/${index}`);
   });
@@ -909,16 +1031,16 @@ function analyzeGaps(source, a3a) {
   return { gaps, projected };
 }
 
-function gapForPointer(source, pointer, projected, gaps) {
-  const present = new Set(gaps.map((entry) => entry.gapId));
+function gapForPointer(source, pointer, projected) {
   const segments = pointer === '/' ? [] : pointer.slice(1).split('/').map(unescapePointer);
   const [collection, indexText, field] = segments;
   const index = Number(indexText);
   if (collection === 'props' && source.props.length) return 'numberdroid.props.asset-transform-pins-missing';
   if (collection === 'encounters' && source.encounters.length) return 'numberdroid.encounters.archetype-version-missing';
   if (collection === 'stagedActors' && (source.stagedActors ?? []).length) return 'numberdroid.staged-actors.archetype-version-missing';
-  if (collection === 'triggers' || collection === 'events') {
-    if (collection === 'events' && source.events?.[index]?.kind === 'set-flag') return 'numberdroid.flags.declaration-type-initial-value-missing';
+  if (collection === 'triggers' && (source.triggers ?? []).length) return 'numberdroid.logic.a3a-vocabulary-mismatch';
+  if (collection === 'events' && (source.events ?? []).length) {
+    if (source.events[index]?.kind === 'set-flag') return 'numberdroid.flags.declaration-type-initial-value-missing';
     return 'numberdroid.logic.a3a-vocabulary-mismatch';
   }
   const entry = Number.isInteger(index) ? source[collection]?.[index] : null;
@@ -939,10 +1061,14 @@ function gapForPointer(source, pointer, projected, gaps) {
     ? 'numberdroid.a3a.collection-limit-exceeded'
     : 'numberdroid.identifiers.a3a-vocabulary-mismatch';
   if (collection === 'zones' && entry && !projected.zones.has(entry.id)) {
-    return present.has('numberdroid.identifiers.a3a-vocabulary-mismatch')
-      && (!a3aId(entry.id) || !a3aId(entry.spaceId) || ('targetId' in entry.anchor && !a3aId(entry.anchor.targetId)))
+    return !a3aId(entry.id) || !a3aId(entry.spaceId) || ('targetId' in entry.anchor && !a3aId(entry.anchor.targetId))
       ? 'numberdroid.identifiers.a3a-vocabulary-mismatch'
-      : entry.anchor.kind === 'prop' || entry.anchor.kind === 'actor'
+      : !projected.spaces.has(entry.spaceId)
+        ? 'numberdroid.a3a.collection-limit-exceeded'
+        : entry.anchor.kind === 'prop' || entry.anchor.kind === 'actor'
+          || (entry.anchor.kind === 'connection' && !projected.connections.has(entry.anchor.targetId))
+          || (entry.anchor.kind === 'route' && !projected.routes.has(entry.anchor.targetId))
+          || (entry.anchor.kind === 'pickup' && !projected.pickups.has(entry.anchor.targetId))
         ? 'numberdroid.zones.anchor-target-not-projected'
         : 'numberdroid.a3a.collection-limit-exceeded';
   }
@@ -960,13 +1086,15 @@ function a3aFieldPointer(source, pointer, projected) {
   if (collection === 'connections' && projected.connections.has(entry.id)) return ['id', 'kind', 'from', 'to'].includes(field);
   if (collection === 'routes' && projected.routes.has(entry.id)) return ['id', 'kind'].includes(field) || (field === 'spaceIds' && nested !== undefined);
   if (collection === 'pickups' && projected.pickups.has(entry.id)) return ['id', 'kind', 'keyId', 'spaceId'].includes(field);
-  if (collection === 'zones' && projected.zones.has(entry.id)) return ['id', 'spaceId'].includes(field) || field === 'anchor';
+  if (collection === 'zones' && projected.zones.has(entry.id)) {
+    return ['id', 'spaceId'].includes(field) || (field === 'anchor' && nested !== 'position');
+  }
   return false;
 }
 
 function buildCoverage(source, projected, gaps) {
   const entries = leafPointers(source).map((pointer) => {
-    const gapId = gapForPointer(source, pointer, projected, gaps);
+    const gapId = gapForPointer(source, pointer, projected);
     const disposition = gapId ? 'BLOCKED' : a3aFieldPointer(source, pointer, projected) ? 'A3A' : 'NUMBERDROID_CLOSURE';
     return { pointer, disposition, gapId };
   });
@@ -992,7 +1120,7 @@ function buildCapabilityDelta() {
     modules: [
       { id: 'studio.level-requirements', status: 'A3A_PROJECTION_ONLY' },
       { id: 'studio.level-graph', status: 'A3A_PROJECTION_ONLY' },
-      { id: 'studio.actor-route', status: 'A3A_PROJECTION_ONLY' },
+      { id: 'studio.actor-route', status: 'BLOCKED' },
       { id: 'studio.typed-logic', status: 'BLOCKED' },
       { id: 'studio.dialogue-text', status: 'BLOCKED' },
     ],
@@ -1030,8 +1158,9 @@ function projectionFingerprint(value) {
   return sha256(canonicalJson(core));
 }
 
-export function validateNumberdroidLevelAuthoringProjection(value) {
-  const projection = snapshotPlainData(value, 'projection');
+export function validateNumberdroidLevelAuthoringProjection(value, compiler) {
+  const projection = snapshotPlainData(value, 'projection', PROJECTION_SNAPSHOT_LIMITS);
+  const port = validateCompilerPort(compiler);
   exactRecord(projection, ['schemaVersion', 'kind', 'projectionVersion', 'status', 'source', 'compiler', 'a3a', 'gaps', 'coverage', 'capabilityDelta', 'fingerprint'], [], 'projection');
   invariant(projection.schemaVersion === NUMBERDROID_LEVEL_AUTHORING_PROJECTION_SCHEMA_VERSION
     && projection.kind === NUMBERDROID_LEVEL_AUTHORING_PROJECTION_KIND
@@ -1041,18 +1170,20 @@ export function validateNumberdroidLevelAuthoringProjection(value) {
 
   const sourceRecord = exactRecord(projection.source, ['formatId', 'levelSpec', 'canonicalJson', 'sha256'], [], 'projection.source');
   invariant(sourceRecord.formatId === 'numberdroid.level-spec', 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', 'projection.source.formatId is invalid.');
-  const source = validateLevelSpecSnapshot(sourceRecord.levelSpec);
+  const source = validateNumberdroidLevelSpec(sourceRecord.levelSpec);
   const expectedSourceJson = canonicalJson(source);
   invariant(sourceRecord.canonicalJson === expectedSourceJson, 'NUMBERDROID_LEVEL_PROJECTION_HASH_MISMATCH', 'projection.source.canonicalJson is not canonical.');
   validateStoredHash(sourceRecord.sha256, sha256(expectedSourceJson), 'projection.source.sha256');
 
   const compilerRecord = exactRecord(projection.compiler, ['compilerVersion', 'formatId', 'semanticPlan', 'canonicalJson', 'sha256'], [], 'projection.compiler');
-  invariant(COMPILER_VERSION_PATTERN.test(compilerRecord.compilerVersion), 'NUMBERDROID_LEVEL_PROJECTION_COMPILER_INVALID', 'projection.compiler.compilerVersion is not an exact source pin.');
-  invariant(compilerRecord.formatId === 'numberdroid.workbench-plan', 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', 'projection.compiler.formatId is invalid.');
+  invariant(compilerRecord.compilerVersion === port.compilerVersion, 'NUMBERDROID_LEVEL_PROJECTION_COMPILER_INVALID', 'projection.compiler.compilerVersion does not match the trusted compiler port.');
+  invariant(compilerRecord.formatId === 'numberdroid.compiled-level-spec', 'NUMBERDROID_LEVEL_PROJECTION_INPUT_INVALID', 'projection.compiler.formatId is invalid.');
   const plan = validatePlanClosure(compilerRecord.semanticPlan, source);
   const expectedPlanJson = canonicalJson(plan);
   invariant(compilerRecord.canonicalJson === expectedPlanJson, 'NUMBERDROID_LEVEL_PROJECTION_HASH_MISMATCH', 'projection.compiler.canonicalJson is not canonical.');
   validateStoredHash(compilerRecord.sha256, sha256(expectedPlanJson), 'projection.compiler.sha256');
+  const trustedPlan = compileTrustedPlan(source, port, expectedSourceJson);
+  invariant(sameValue(plan, trustedPlan), 'NUMBERDROID_LEVEL_PROJECTION_PLAN_FORGED', 'The compiler closure is not the exact output of the trusted pinned compiler port.');
 
   const a3aRecord = exactRecord(projection.a3a, ['requirementSet', 'requirementSetFingerprint', 'levelGraph', 'levelGraphFingerprint', 'logicGraph', 'logicGraphFingerprint'], [], 'projection.a3a');
   const requirementSet = validateLevelRequirementSet(a3aRecord.requirementSet);
@@ -1076,6 +1207,34 @@ export function createNumberdroidLevelAuthoringProjection({ levelSpec, compiler 
   const port = validateCompilerPort(compiler);
   const sourceJson = canonicalJson(source);
 
+  const plan = compileTrustedPlan(source, port, sourceJson);
+  const planJson = canonicalJson(plan);
+  const analysis = buildAnalysis(source);
+  const projection = {
+    schemaVersion: NUMBERDROID_LEVEL_AUTHORING_PROJECTION_SCHEMA_VERSION,
+    kind: NUMBERDROID_LEVEL_AUTHORING_PROJECTION_KIND,
+    projectionVersion: NUMBERDROID_LEVEL_AUTHORING_PROJECTION_VERSION,
+    status: 'LOSSLESS_WITH_GAPS',
+    source: {
+      formatId: 'numberdroid.level-spec',
+      levelSpec: source,
+      canonicalJson: sourceJson,
+      sha256: sha256(sourceJson),
+    },
+    compiler: {
+      compilerVersion: port.compilerVersion,
+      formatId: 'numberdroid.compiled-level-spec',
+      semanticPlan: plan,
+      canonicalJson: planJson,
+      sha256: sha256(planJson),
+    },
+    ...analysis,
+  };
+  projection.fingerprint = projectionFingerprint(projection);
+  return validateNumberdroidLevelAuthoringProjection(projection, port);
+}
+
+function compileTrustedPlan(source, port, sourceJson) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const validationInput = deepFreeze(snapshotPlainData(source, `compiler.validationInput[${attempt}]`));
     const result = callCompiler(port.validatePlacementOverrides, validationInput,
@@ -1093,37 +1252,13 @@ export function createNumberdroidLevelAuthoringProjection({ levelSpec, compiler 
     plans.push(validatePlanClosure(rawPlan, source));
   }
   invariant(sameValue(plans[0], plans[1]), 'NUMBERDROID_LEVEL_PROJECTION_COMPILER_NONDETERMINISTIC', 'The exact compiler port produced different semantic plans for the same LevelSpec.');
-  const plan = plans[0];
-  const planJson = canonicalJson(plan);
-  const analysis = buildAnalysis(source);
-  const projection = {
-    schemaVersion: NUMBERDROID_LEVEL_AUTHORING_PROJECTION_SCHEMA_VERSION,
-    kind: NUMBERDROID_LEVEL_AUTHORING_PROJECTION_KIND,
-    projectionVersion: NUMBERDROID_LEVEL_AUTHORING_PROJECTION_VERSION,
-    status: 'LOSSLESS_WITH_GAPS',
-    source: {
-      formatId: 'numberdroid.level-spec',
-      levelSpec: source,
-      canonicalJson: sourceJson,
-      sha256: sha256(sourceJson),
-    },
-    compiler: {
-      compilerVersion: port.compilerVersion,
-      formatId: 'numberdroid.workbench-plan',
-      semanticPlan: plan,
-      canonicalJson: planJson,
-      sha256: sha256(planJson),
-    },
-    ...analysis,
-  };
-  projection.fingerprint = projectionFingerprint(projection);
-  return validateNumberdroidLevelAuthoringProjection(projection);
+  return plans[0];
 }
 
-export function canonicalNumberdroidLevelAuthoringProjectionJson(value) {
-  return canonicalJson(validateNumberdroidLevelAuthoringProjection(value));
+export function canonicalNumberdroidLevelAuthoringProjectionJson(value, compiler) {
+  return canonicalJson(validateNumberdroidLevelAuthoringProjection(value, compiler));
 }
 
-export function numberdroidLevelAuthoringProjectionSha256(value) {
-  return validateNumberdroidLevelAuthoringProjection(value).fingerprint;
+export function numberdroidLevelAuthoringProjectionSha256(value, compiler) {
+  return validateNumberdroidLevelAuthoringProjection(value, compiler).fingerprint;
 }

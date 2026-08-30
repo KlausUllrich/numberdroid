@@ -8,6 +8,7 @@ import {
   createNumberdroidLevelAuthoringProjection,
   numberdroidLevelAuthoringProjectionSha256,
   validateNumberdroidLevelAuthoringProjection,
+  validateNumberdroidLevelSpec,
 } from '../packages/numberdroid-adapter/src/index.js';
 
 const COMPILER_VERSION = `numberdroid-level-compiler.sha256:${'a'.repeat(64)}`;
@@ -27,6 +28,31 @@ function normalizeSeed(seed) {
 
 function derivedSeed(seed, path) {
   return fnv1a32(`${normalizeSeed(seed)}:${path}`);
+}
+
+function canonicalJson(value) {
+  const sorted = (candidate) => Array.isArray(candidate)
+    ? candidate.map(sorted)
+    : candidate && typeof candidate === 'object'
+      ? Object.fromEntries(Object.keys(candidate).sort().map((key) => [key, sorted(candidate[key])]))
+      : candidate;
+  return `${JSON.stringify(sorted(value), null, 2)}\n`;
+}
+
+function sha256(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+function resignProjection(projection) {
+  const core = structuredClone(projection);
+  delete core.fingerprint;
+  projection.fingerprint = sha256(canonicalJson(core));
+}
+
+function resignCompilerClosure(projection) {
+  projection.compiler.canonicalJson = canonicalJson(projection.compiler.semanticPlan);
+  projection.compiler.sha256 = sha256(projection.compiler.canonicalJson);
+  resignProjection(projection);
 }
 
 function levelSpec() {
@@ -75,12 +101,13 @@ function semanticPlan(spec) {
     seed: normalizeSeed(spec.seed),
     ruleSetRefs: [...spec.ruleSetRefs],
     rules: spec.rules,
+    ...(spec.runtime ? { runtime: spec.runtime } : {}),
     spaces: spec.spaces.map((entry) => ({ ...entry, seed: derivedSeed(spec.seed, `space/${entry.id}`) })),
     connections: spec.connections.map((entry) => ({
       ...entry,
       seed: derivedSeed(spec.seed, `connection/${entry.id}`),
       widthTiles: entry.widthTiles ?? (entry.kind === 'standard-door' ? 1 : 2),
-      clearanceTiles: entry.clearanceTiles ?? spec.rules.defaultDoorClearance,
+      clearanceTiles: entry.kind === 'opening' ? { before: 0, after: 0 } : entry.clearanceTiles ?? spec.rules.defaultDoorClearance,
       lock: entry.lock ?? { mode: 'none' },
     })),
     props: spec.props.map((entry) => ({
@@ -88,7 +115,14 @@ function semanticPlan(spec) {
       seed: derivedSeed(spec.seed, `prop/${entry.id}`),
       quantity: entry.quantity ?? 1,
       required: entry.required ?? true,
-      metadata: { id: entry.propId, tags: [], attachment: 'floor' },
+      metadata: {
+        id: entry.propId,
+        tags: [],
+        attachment: 'floor',
+        allowedRotations: [0],
+        footprintTiles: { w: 1, h: 1 },
+        placement: {},
+      },
     })),
     encounters: spec.encounters.map((entry) => {
       const robotType = (spec.overrides ?? []).find((override) => override.targetId === entry.id)?.robotType;
@@ -136,6 +170,8 @@ test('A4a retains the complete Numberdroid closure and advertises no production 
   assert.equal(NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT, '826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049');
   assert.deepEqual(JSON.parse(projection.source.canonicalJson), input);
   assert.equal(projection.compiler.semanticPlan.levelId, input.id);
+  assert.equal(canonicalJson(projection.compiler.semanticPlan.runtime), canonicalJson(input.runtime));
+  assert.equal(projection.compiler.formatId, 'numberdroid.compiled-level-spec');
   assert.equal(projection.a3a.levelGraph.spaces.length, 2);
   assert.equal(projection.a3a.levelGraph.connections.length, 1);
   assert.equal(projection.a3a.levelGraph.placements.length, 0);
@@ -164,10 +200,10 @@ test('A4a hashes are deterministic, validate after serialization, and ignore lat
   const first = create(input);
   const second = create(structuredClone(input));
   assert.equal(first.fingerprint, second.fingerprint);
-  assert.equal(numberdroidLevelAuthoringProjectionSha256(first), first.fingerprint);
-  assert.equal(canonicalNumberdroidLevelAuthoringProjectionJson(first), canonicalNumberdroidLevelAuthoringProjectionJson(second));
-  const serialized = JSON.parse(canonicalNumberdroidLevelAuthoringProjectionJson(first));
-  assert.deepEqual(validateNumberdroidLevelAuthoringProjection(serialized), first);
+  assert.equal(numberdroidLevelAuthoringProjectionSha256(first, compiler()), first.fingerprint);
+  assert.equal(canonicalNumberdroidLevelAuthoringProjectionJson(first, compiler()), canonicalNumberdroidLevelAuthoringProjectionJson(second, compiler()));
+  const serialized = JSON.parse(canonicalNumberdroidLevelAuthoringProjectionJson(first, compiler()));
+  assert.deepEqual(validateNumberdroidLevelAuthoringProjection(serialized, compiler()), first);
   input.spaces[0].archetype = 'mutated';
   assert.equal(first.source.levelSpec.spaces[0].archetype, 'plain-room');
 });
@@ -209,7 +245,7 @@ test('A4a canonicalization does not execute global toJSON hooks', { timeout: 5_0
   Object.defineProperty(Array.prototype, 'toJSON', { configurable: true, value() { calls += 1; throw new Error('must not run'); } });
   try {
     const projection = create();
-    assert.ok(canonicalNumberdroidLevelAuthoringProjectionJson(projection).endsWith('\n'));
+    assert.ok(canonicalNumberdroidLevelAuthoringProjectionJson(projection, compiler()).endsWith('\n'));
     assert.equal(calls, 0);
   } finally {
     delete Object.prototype.toJSON;
@@ -251,8 +287,35 @@ test('A4a serialized validation rejects source, plan, A3a, coverage, delta, and 
   for (const mutate of mutations) {
     const candidate = structuredClone(projection);
     mutate(candidate);
-    assert.throws(() => validateNumberdroidLevelAuthoringProjection(candidate));
+    assert.throws(() => validateNumberdroidLevelAuthoringProjection(candidate, compiler()));
   }
+});
+
+test('A4a rejects fully rehashed compiler and A3a forgeries against trusted authority', { timeout: 5_000 }, () => {
+  const planForgeries = [
+    (value) => { delete value.compiler.semanticPlan.runtime; },
+    (value) => { value.compiler.semanticPlan.spaces[0].authority = 'forged'; },
+    (value) => { value.compiler.semanticPlan.props[0].metadata.tags = ['forged']; },
+    (value) => { value.compiler.semanticPlan.diagnostics.push({ level: 'info', code: 'FORGED', message: 'forged' }); },
+  ];
+  for (const forge of planForgeries) {
+    const candidate = structuredClone(create());
+    forge(candidate);
+    resignCompilerClosure(candidate);
+    assert.throws(() => validateNumberdroidLevelAuthoringProjection(candidate, compiler()));
+  }
+
+  const candidate = structuredClone(create());
+  const forgedSpace = candidate.a3a.levelGraph.spaces.find(({ spaceId }) => spaceId === 'room.one');
+  forgedSpace.kind = 'corridor';
+  candidate.a3a.levelGraphFingerprint = sha256(canonicalJson(candidate.a3a.levelGraph));
+  candidate.a3a.logicGraph.levelGraph.fingerprint = candidate.a3a.levelGraphFingerprint;
+  candidate.a3a.logicGraphFingerprint = sha256(canonicalJson(candidate.a3a.logicGraph));
+  resignProjection(candidate);
+  assertProjectionError(
+    () => validateNumberdroidLevelAuthoringProjection(candidate, compiler()),
+    'NUMBERDROID_LEVEL_PROJECTION_A3A_FORGED',
+  );
 });
 
 test('A4a retains valid non-A3a identifiers and repeated routes only in the Numberdroid closure', { timeout: 5_000 }, () => {
@@ -298,21 +361,86 @@ test('A4a makes the A3a 512-entry limit explicit without losing the Numberdroid 
   assert.equal(projection.source.levelSpec.spaces.length, 513);
   assert.equal(projection.compiler.semanticPlan.spaces.length, 513);
   assert.equal(projection.a3a.levelGraph.spaces.length, 512);
+  const declaredGapIds = new Set(projection.gaps.map(({ gapId }) => gapId));
+  assert.ok(projection.coverage.entries.every(({ disposition, gapId }) => (
+    disposition !== 'BLOCKED' || declaredGapIds.has(gapId)
+  )));
   assert.ok(projection.gaps.some(({ gapId, affectedPointers }) => (
     gapId === 'numberdroid.a3a.collection-limit-exceeded'
       && affectedPointers.includes('/spaces/512')
   )));
 });
 
+test('A4a reports route-anchor position and unprojected targets without false A3a coverage', { timeout: 5_000 }, () => {
+  const anchored = levelSpec();
+  anchored.zones = [{
+    id: 'zone.route',
+    spaceId: 'room.one',
+    anchor: { kind: 'route', targetId: 'route.guard', position: 'end' },
+  }];
+  const projected = create(anchored);
+  assert.equal(canonicalJson(projected.a3a.levelGraph.zones[0].anchor), canonicalJson({ kind: 'route', targetId: 'route.guard' }));
+  assert.equal(
+    canonicalJson(projected.coverage.entries.find(({ pointer }) => pointer === '/zones/0/anchor/position')),
+    canonicalJson({ pointer: '/zones/0/anchor/position', disposition: 'NUMBERDROID_CLOSURE', gapId: null }),
+  );
+
+  anchored.routes[0].spaceIds = ['room.one', 'room.one'];
+  const blocked = create(anchored);
+  assert.ok(blocked.gaps.some(({ gapId, affectedPointers }) => (
+    gapId === 'numberdroid.zones.anchor-target-not-projected'
+      && affectedPointers.includes('/zones/0/anchor')
+  )));
+});
+
+test('A4a preserves compiler normalization for opening clearance and runtime', { timeout: 5_000 }, () => {
+  const spec = levelSpec();
+  spec.connections[0] = {
+    id: 'opening.one',
+    from: 'room.one',
+    to: 'hall.one',
+    kind: 'opening',
+    clearanceTiles: { before: 7, after: 9 },
+  };
+  spec.zones = [];
+  const projection = create(spec);
+  assert.equal(canonicalJson(projection.compiler.semanticPlan.connections[0].clearanceTiles), canonicalJson({ before: 0, after: 0 }));
+  assert.equal(canonicalJson(projection.compiler.semanticPlan.runtime), canonicalJson(spec.runtime));
+});
+
+test('A4a applies an honest source text budget before building the duplicated envelope', { timeout: 15_000 }, () => {
+  const withTagVolume = (spaceCount, tagCount) => {
+    const spec = levelSpec();
+    spec.rules.ensureReachability = false;
+    spec.spaces = Array.from({ length: spaceCount }, (_, index) => ({
+      id: `room.volume.${index}`,
+      kind: 'room',
+      archetype: 'plain-room',
+      tags: Array.from({ length: tagCount }, () => 't'.repeat(120)),
+      size: { class: 'small' },
+    }));
+    spec.connections = [];
+    spec.props = [];
+    spec.encounters = [];
+    spec.stagedActors = [];
+    spec.routes = [];
+    spec.pickups = [];
+    spec.zones = [];
+    spec.triggers = [];
+    spec.events = [];
+    delete spec.runtime;
+    return spec;
+  };
+  const withinBudget = withTagVolume(2, 3_500);
+  assert.doesNotThrow(() => validateNumberdroidLevelSpec(withinBudget));
+  assert.doesNotThrow(() => create(withinBudget));
+  assertProjectionError(() => validateNumberdroidLevelSpec(withTagVolume(3, 3_000)), 'NUMBERDROID_LEVEL_PROJECTION_LIMIT_EXCEEDED');
+});
+
 test('A4a projection fingerprint binds the complete immutable value', { timeout: 5_000 }, () => {
   const projection = create();
   const core = structuredClone(projection);
   delete core.fingerprint;
-  const sorted = (value) => Array.isArray(value)
-    ? value.map(sorted)
-    : value && typeof value === 'object'
-      ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, sorted(value[key])]))
-      : value;
-  const expected = createHash('sha256').update(`${JSON.stringify(sorted(core), null, 2)}\n`).digest('hex');
+  const expected = sha256(canonicalJson(core));
   assert.equal(projection.fingerprint, expected);
 });
