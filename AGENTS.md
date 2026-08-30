@@ -66,6 +66,23 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
   superagents and gates; ambiguity or scope growth escalates rather than being
   optimized away.
 - Use focused branches/PRs for changes.
+- Treat every local/scratch workspace as disposable. As soon as a task has a
+  coherent non-trivial diff, create a focused task-branch commit at the first
+  reproducible checkpoint. After a focused check turns green, publish that
+  exact state to the remote task branch through the GitHub connector
+  immediately; never wait for final review, full CI, or merge readiness before
+  creating the only durable copy.
+- Before context compaction, a tool/session handoff, a potentially long or
+  risky operation, or the ten-minute active-work checkpoint, commit and publish
+  the current coherent task state. If it is knowingly incomplete or red but
+  valuable, prefix the commit message with `checkpoint:`, record every missing
+  or failing gate, and never present it as merge-ready.
+- Checkpoint commits and remote task branches are recovery history, not user
+  acceptance, review approval, CI evidence, merge authority, or a reason to
+  weaken final gates. Prefer recoverability over a cosmetically minimal commit
+  history; squash only later when useful and safe.
+- Stage and checkpoint only task-owned paths. Never absorb, reset, delete, or
+  publish unrelated user changes merely to make a checkpoint clean.
 - For structured/textual remote repository operations use the connected GitHub connector and the discovery/recovery rules in `docs/agents/REPOSITORY_WORKFLOW.md`.
 - **Before any binary repository write**, read `docs/agents/BINARY_ASSET_TRANSPORT.md` and run the executable binary preflight before constructing a transport payload.
 - **Never inline Base64 for repository binary files, regardless of file size.** Do not route PNG/JPG/WEBP/ZIP/audio bytes through model-visible reasoning or string-based tool arguments.

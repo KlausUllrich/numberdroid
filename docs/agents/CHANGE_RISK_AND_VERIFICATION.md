@@ -74,6 +74,15 @@ user-facing summary remains in the universal `AGENTS.md` bootstrap.
 
 ### Continuity checkpoint and compaction recovery
 
+Continuity is both a state record and a durable Git checkpoint. Local scratch
+storage is disposable and must not be the sole copy of a coherent non-trivial
+diff. Create the focused remote task branch before substantial implementation;
+commit the first coherent state early; publish every reproducible focused-green
+state immediately; and publish again before compaction, session/tool transfer,
+long or risky work, or the ten-minute active-work checkpoint. A deliberately
+incomplete checkpoint uses a `checkpoint:` commit message and records its exact
+missing/failing gates. It never counts as green evidence or merge readiness.
+
 Record a compact continuity checkpoint after every meaningful local or remote
 mutation. It contains:
 
