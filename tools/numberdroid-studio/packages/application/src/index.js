@@ -8,6 +8,12 @@ export {
   validateProjectCapabilityProvider,
 } from './project-capability-provider.js';
 export {
+  LEVEL_AUTHORING_VALIDATION_KIND,
+  LEVEL_AUTHORING_VALIDATION_SCHEMA_VERSION,
+  LEVEL_AUTHORING_VALIDATOR_VERSION,
+  validateLevelAuthoringKernel,
+} from './level-authoring-validation.js';
+export {
   ENGINE_BRIDGE_CANDIDATE_SELECTION_KIND,
   ENGINE_BRIDGE_PORT_DIRECTION,
   ENGINE_BRIDGE_PORT_KIND,
