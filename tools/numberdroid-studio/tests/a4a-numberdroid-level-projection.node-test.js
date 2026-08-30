@@ -251,7 +251,7 @@ test('A4a compiler authority fingerprint is independent of checkout line endings
   assert.equal(normalizeNumberdroidLevelCompilerAuthoritySource(crlf), lf);
   assert.equal(
     numberdroidLevelCompilerVersion(new URL('../../../', import.meta.url)),
-    'numberdroid-level-compiler.sha256:f410926ebe76f57e0cef7e7a6b4e13ddd7ea4829d09b62428de79b3614313713',
+    'numberdroid-level-compiler.sha256:8d2350ae75c7c167d3eb11e92892fdc40b8301cc487a86840c2d460f30ee1cab',
   );
 });
 
