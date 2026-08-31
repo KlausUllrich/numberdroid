@@ -205,7 +205,7 @@ Checkpoint 1B adds two approved visual requirements without authorizing a broade
 5. **Numberdroid first, interfaces reusable.** The complete Numberdroid path proves abstractions before another adapter is built.
 6. **Local first.** Work-in-progress lives in a local database and content store. GitHub is an explicit, deterministic publish boundary, not an editing transport.
 7. **Reversible by default.** Mutations are attributed, revisioned, idempotent where required, and recoverable through task branches and immutable history.
-8. **Least authority for agents.** A human creates scoped grants. Authoring, review, merge, materialization, and publishing are distinct capabilities.
+8. **Least authority for agents.** Every authority chain starts with a human-created root grant; trusted service-derived child tasks can only attenuate it. Authoring, review, merge, materialization, and publishing are distinct capabilities.
 9. **Exportable product.** No core or reusable authoring module may depend on Numberdroid repository internals.
 
 ## Accepted Checkpoint 1 implementation layout
@@ -273,6 +273,7 @@ Studio may configure level-local actors and logic by reference to runtime system
 - [A3a typed level/logic kernel status](docs/A3A_LEVEL_LOGIC_KERNEL_STATUS.md)
 - [A4a Numberdroid level projection status](docs/A4A_NUMBERDROID_LEVEL_PROJECTION_STATUS.md)
 - [A4b bounded reference behavior status](docs/A4B_REFERENCE_BEHAVIOR_STATUS.md)
+- [A4c Level Candidate and derived child-task authority](docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md)
 - [Consolidated return test backlog](docs/VACATION_TEST_BACKLOG.md)
 - [Accepted Checkpoint 1A baseline](docs/CHECKPOINT_1A_BASELINE.md)
 - [Accepted Checkpoint 1B foundation](docs/CHECKPOINT_1B_STATUS.md)

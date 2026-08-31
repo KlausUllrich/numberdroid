@@ -238,8 +238,8 @@ Checkpoint 1B completed that infrastructure substitution behind the existing app
 | `ProjectCapabilityManifest` | Versioned adapter declaration that determines which modules, vocabularies, limits, validations, and output operations are valid for a project. |
 | `ValidationFinding` | Stable rule result with severity, target/location, message, disposition, validator version, and evidence. |
 | `Revision` | Immutable DAG node containing parents, command/event range, actor, timestamp, summary, and projection/content hashes. |
-| `AgentTask` | Human-defined objective and bounded branch context; links grants, jobs, activities, budget use, and result disposition. |
-| `Grant` | Human-minted authority scoped by actor/task/project/branch/capabilities/objects/budget/expiry. Immutable; revocation is a new event. |
+| `AgentTask` | Human-created root objective or trusted-service-derived attenuated child with bounded branch/ancestor context; links grants, jobs, activities, budget use, and result disposition. |
+| `Grant` | Immutable human-minted root authority or service-derived attenuation record scoped by actor/task/project/branch/capabilities/objects/budget/expiry. Revocation is a new event; derivation never widens the root chain. |
 | `Job` | Durable long operation with input snapshot, state, progress, events, cancellation, attempts, and result artifacts. |
 | `ExportSnapshot` | Immutable input closure of exact project revisions, requirements, referenced artifacts/recipes, adapter/version/options, and findings. |
 | `CandidateManifest` | Immutable content-addressed output closure containing logical files/data, input traceability, compiler/adapter versions, validation evidence, and hashes; it has no implicit materialization or publication authority. |
@@ -355,11 +355,14 @@ candidate or the accepted 19/4 and task-bound 30/5 contracts silently.
 
 The UI is primarily the visual control, review, and correction adapter. Agents
 read resources and invoke semantic commands; they do not click UI controls. The
-human-exclusive boundary is authorization, owner review decision, task merge,
-recovered-workspace activation, repository/engine materialization, and
-publication. Ordinary drafting, processing, placement, actor/route/logic editing,
-validation, candidate build, and review submission are agent-operable under the
-corresponding narrow task capabilities.
+human-exclusive boundary is root-task/root-grant creation and widening, owner
+review decision, task merge, recovered-workspace activation, repository/engine
+materialization, and publication. The trusted service may derive only the
+separately approved immutable, budget-reserved A4c child attenuation from an
+active parent; the agent request never becomes authority. Ordinary drafting,
+processing, placement, actor/route/logic editing, validation, candidate build,
+and review submission are agent-operable under the corresponding narrow task
+capabilities.
 
 Multiple agents share immutable CAS artifacts but write mutable semantics only
 through isolated task branches. Dependencies are explicit; branch/apply/merge
@@ -513,6 +516,25 @@ Revert emits a compensating semantic main revision and immutable revert record. 
 
 The v8 atlas job tables remain bound by foreign key to authoritative main revisions. Checkpoint 4 therefore rejects shared-effect intake/preview/commit commands inside an isolated task branch rather than creating misleading branch-local jobs. Tasks consume already committed atlas/slice inputs; a later explicit schema/worker change is required if branch-local bitmap jobs become an acceptance requirement.
 
+### A4c derived child-task extension — authorized, not implemented or accepted
+
+Checkpoint 4's owner-created workflow remains its accepted compatibility truth.
+The additive A4c extension permits an agent to request one trusted-service
+derivation from its exact current parent. In one transaction the service must
+pin the parent's current branch head, keep project and actor unchanged, allocate
+a non-main child branch, derive capability/object subsets, reserve command/job/
+artifact/cost budget from the parent, cap expiry at the parent, disable
+auto-accept and further child creation, and append the audit record. The same
+idempotency key cannot produce a second child or charge budget twice.
+
+Every command on the child walks the immutable ancestor chain. Parent pause or
+review denies new mutation; cancellation, rejection, merge, expiry, or revoke
+invalidates execution for all descendants. No request field can select another
+actor, project, root grant, base, branch destination, capability, or budget. The
+first implementation is a separate L3 task/grant/persistence risk slice after
+the Level Candidate path and requires race, restart, cascade, fault, and
+cross-principal negative tests.
+
 ## 9. Implemented atlas jobs and expanded observability
 
 Checkpoint 2B implements durable jobs for deterministic atlas preview slicing. The original-source preview remains synchronous; generation providers, general derivative processing, validation, bundles, and export do not gain jobs by implication. Every atlas job records its exact semantic input revision, definition fingerprint, source digest, normalized rectangles, processor identity, creator authority, output-byte reservation, progress, events, and artifact metadata so a retry cannot switch to a newer project head.
@@ -556,6 +578,23 @@ The adapter must preserve Numberdroid rules: runtime files under the runtime pub
 
 GitHub integration receives files from a verified candidate manifest. It is downstream of authoring and cannot mutate Studio state except to record publication evidence. A future Godot or Unreal bridge follows the same one-way separation; engine-native round-trip ownership is not assumed.
 
+### A4c private task-candidate path — authorized, not complete or accepted
+
+The private application scope `level.candidate.create` is not an MCP-discovered
+operation. It binds one current task/grant/actor/branch/base/head closure to the
+actual A4b LevelSpec, A4a/A3a projection and validation, canonical compiler,
+validate-only EngineBridge receipt, complete output bytes, deterministic preview,
+ADD-only create diff, and idempotent submission. Domain DTO validation alone is
+not a trusted bridge invocation or task transition; the Application layer must
+revalidate the receipt against its configured port/selection and perform fresh
+authority/head checks in the same atomic submission boundary.
+
+Success leaves `main` untouched and commits task `IN_REVIEW`, one `OPEN` review
+with every item `PENDING`, exact branch head, `REVIEW_SUBMITTED`, and visible
+**Waiting for your review**. There is no automatic decision, merge, destination,
+filesystem/repository write, materialization, publication, or release member.
+Current 19/4, 30/5, and selected 31/6 discovery catalogs remain unchanged.
+
 ## 12. Security and trust boundaries
 
 - The accepted local service is loopback-only and hard-refuses non-local bind addresses; no configuration may widen that listener.
@@ -566,7 +605,7 @@ GitHub integration receives files from a verified candidate manifest. It is down
 - The 1B HTTP service refuses non-loopback bind addresses. Remote/team access must arrive through a separately authenticated deployment adapter; it cannot expose the local single-user API by changing the bind host.
 - Local host approval uses a raw loopback pairing listener rather than an HTTP/browser route for credential delivery. The verification request is in memory, expires quickly, is single-use, and disappears on service or host disconnect.
 - HostBinding coordinates never change. Any grant posture rotation revokes bindings before a new immutable grant can be host-bound; stale tokens cannot acquire new rights.
-- Grants are immutable, signed or server-authenticated capabilities identified by opaque IDs. Only authenticated human roles can mint or widen them.
+- Grants are immutable, signed or server-authenticated capabilities identified by opaque IDs. Only authenticated humans may mint, widen, or renew root grants. The trusted service may create an immutable attenuated child grant under the A4c derived-child contract; an agent request or payload is never authority.
 - The Header Agent access control displays service-returned effective policy; its DOM/client state, selected label, and browser storage are never authorization inputs.
 - Tool payloads cannot name arbitrary filesystem paths. Imports use approved file handles/roots; exports use configured destinations and manifest-relative paths.
 - Archive and image processing defends against traversal, decompression bombs, oversized dimensions, malformed codecs, and symlink escapes.

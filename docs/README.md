@@ -113,6 +113,7 @@ PICO physical grounding is now independently **LIVE_ACCEPTED**. That acceptance 
 ## Authoring tools
 
 - `../tools/numberdroid-studio/README.md` — **Numberdroid Studio:** standalone-ready local visual authoring product for source atlases, semantic assets, rooms/hallways, agent-observable workflows and deterministic export candidates. Studio requirements and architecture remain encapsulated with the tool.
+- `../tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md` — current user-approved A4c implementation boundary for the private Level Candidate path and strictly attenuated derived child tasks; not A4c acceptance.
 
 ## History
 

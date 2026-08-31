@@ -1,6 +1,6 @@
 # Numberdroid Studio — Product Vision
 
-Status: **binding product direction — 2026-08-27**
+Status: **binding product direction — updated 2026-08-31**
 
 This document defines the intended product. Accepted checkpoint contracts remain
 binding compatibility and regression records for the slices they accepted, but
@@ -53,9 +53,9 @@ it. The human UI and MCP call the same application commands and receive the same
 validation, conflicts, revisions, and activity records. A workflow that exists
 only as a UI gesture is incomplete.
 
-Human-exclusive controls are limited to authority and release boundaries:
+Human-exclusive controls are limited to root authority and release boundaries:
 
-- issue, narrow, revoke, or replace an agent grant;
+- create a root task and mint, widen, renew, revoke, or replace its root grant;
 - make an owner review decision;
 - merge accepted task work;
 - activate or cut over a recovered workspace;
@@ -64,6 +64,14 @@ Human-exclusive controls are limited to authority and release boundaries:
 
 Finalization and candidate creation MAY be delegated only by an explicit narrow
 capability. They never imply merge, materialization, or publication.
+
+Every authority chain starts at a human-created root task and root grant. Under
+the separately approved A4c contract, an agent may request that the trusted
+service derive an isolated child task and immutable attenuated child grant from
+its exact active parent. The service reserves parent budget and keeps project,
+actor, capability, object, branch-head, expiry, and ancestor-state constraints;
+the agent never mints, selects, widens, renews, or reinterprets authority. The
+first slice does not pass child-creation authority to the child.
 
 Multiple agents may work concurrently, but there remains one authoritative
 writer. Each agent task uses an isolated semantic branch with explicit object

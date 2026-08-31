@@ -74,8 +74,10 @@ reviewable work, and stop at the human-owned decision boundary.
 8. No remote mode exposes an unauthenticated project, artifact, preview,
    backup, job, pairing, or MCP endpoint.
 9. The loopback development mode and local stdio MCP remain secure defaults.
-10. Role names do not widen human-created project/task/branch/object/budget/time
-   grants.
+10. Role names do not widen human-rooted project/task/branch/object/budget/time
+    authority chains. A4c child derivation is local private application authority
+    that can only attenuate an active parent; it grants no remote, browser, MCP,
+    Pairing, or HostBinding authority.
 11. Agents cannot create, verify, recovery-test, restore, clean up, or activate
    workspace backups; approve, merge, perform restore cutover, materialize,
    publish, select arbitrary server paths, or access unrelated work.
@@ -442,8 +444,10 @@ Stop gates are strict:
 O0 is frozen; O1a/O1b and O2a are source-integrated and automated green.
 VT-012 remains **Waiting for your review**, and O2a remains undeployed pending
 the deliberate VT-013 host/configuration gate. A3a is also source-integrated
-and automated green. The next UI-independent product block is A4 in
-`ROADMAP.md`.
+and automated green. A4a/A4b are source-integrated and automated green; the
+next UI-independent product block is the private A4c Application candidate path
+in `ROADMAP.md`. Its separately authorized derived-child task support is a later
+local L3 slice, not Remote MCP work and not a prerequisite.
 
 Do not treat source integration as deployment or acceptance. Remote backup,
 remote MCP, responsive mobile completion, deletion/retention, restore
