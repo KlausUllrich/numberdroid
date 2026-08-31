@@ -190,4 +190,21 @@ export {
   canonicalCandidateManifestJson,
   validateCandidateManifest,
 } from './candidate-manifest.js';
+export {
+  TASK_CANDIDATE_DIFF_KIND,
+  TASK_CANDIDATE_PAYLOAD_KIND,
+  TASK_CANDIDATE_PREVIEW_KIND,
+  TASK_CANDIDATE_SCHEMA_VERSION,
+  TASK_CANDIDATE_SUBMISSION_KIND,
+  createTaskCandidateDiff,
+  createTaskCandidatePayload,
+  createTaskCandidatePreview,
+  createTaskCandidateSubmission,
+  taskCandidateOutputClosureSha256,
+  taskCandidateSha256,
+  validateTaskCandidateDiff,
+  validateTaskCandidatePayload,
+  validateTaskCandidatePreview,
+  validateTaskCandidateSubmission,
+} from './task-candidate.js';
 export { StudioError, asStudioError, invariant } from './errors.js';
