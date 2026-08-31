@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-30 after source integration of CI-green O2a, A3a, A4a, and A4b; VT-012/O2 deployment remain pending and A4c is next**
+Status: **current forward plan — updated 2026-08-31 after the bounded A4c authority decision; O2a, A3a, A4a, and A4b are source-integrated, VT-012/O2 deployment remain pending, and the A4c Application path is next**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -74,8 +74,12 @@ Studio is agent-first: every ordinary authoring action must be a semantic
 application command available through an appropriately authorized MCP task
 surface. The human UI uses the same commands and focuses on visual understanding,
 correction, review, conflicts, and release decisions. Agents never automate UI
-clicks. Human-exclusive authority remains grant issue/revoke, owner review,
-merge, recovered-copy activation, repository/engine materialization, and publish.
+clicks. Human-exclusive authority remains root-task/root-grant creation,
+widening, renewal and revocation, owner review, merge, recovered-copy
+activation, repository/engine materialization, and publish. The trusted service
+may derive only a strictly attenuated child task/grant from an exact active
+parent under the separately approved A4c contract; an agent request never mints
+or widens authority.
 
 Growth uses three layers:
 
@@ -235,7 +239,8 @@ O1b source-integrated; VT-012 retained for later live review
 → A3a typed kernel source-integrated
 → A4a lossless Numberdroid projection source-integrated
 → A4b bounded reference behavior source-integrated
-→ A4c task-scoped candidate path stopping at Waiting for your review
+→ A4c authority-neutral Domain foundation integration
+→ A4c task-scoped Application candidate path stopping at Waiting for your review
 → later O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
 ```
 
@@ -245,6 +250,18 @@ and `tools/numberdroid-studio/docs/A4B_REFERENCE_BEHAVIOR_STATUS.md`. The
 dependent A4c task-scoped candidate path defined in Studio `ROADMAP.md` is next.
 It may not add remote backup/MCP authority, deployment, O3/O4,
 materialization, publication, or release.
+
+Klaus's 2026-08-31 scope decision authorizes two exact A4c mechanisms without
+accepting them: private `level.candidate.create` for one task-bound immutable
+Create/Validate/Compile/Preview/Diff/Submit closure, and a later trusted-service
+operation that derives a same-project/same-actor child task as a strict subset
+of an active human-rooted parent with atomically reserved budget and cascading
+ancestor denial. The private candidate scope changes no MCP discovery count and
+must stop at task/effective `IN_REVIEW`, review `OPEN`, every item `PENDING`,
+`REVIEW_SUBMITTED`, and **Waiting for your review**. Candidate Application work
+comes first; child-task persistence is a separate L3 risk axis and is not a
+prerequisite. Current implementation truth and exact pins live in
+`tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md`.
 
 The detailed binding track plan and gate boundaries live in:
 

@@ -795,6 +795,30 @@ A4 proceeds in bounded dependency order:
    diff, and submit one immutable candidate, stopping at human review without
    materialization, repository write, publication, or release authority.
 
+**A4c authority decision — 2026-08-31 (implementation authorized; not
+implemented or user accepted):** every chain remains rooted in a human-created
+task/grant. The private application scope `level.candidate.create` may authorize
+exactly the task-bound create → validate → compile → preview → diff → submit
+sequence and must stop at `IN_REVIEW` / `OPEN` / all `PENDING` /
+`REVIEW_SUBMITTED` / **Waiting for your review**. An agent may separately
+request a trusted-service-derived child task only as an atomic attenuation of
+its exact active parent: same project/actor, exact parent head, subset scope,
+reserved parent budget, no later expiry, ancestor rechecks, cascading denial,
+disabled auto-accept, and no further child delegation in the first slice.
+Neither mechanism grants root-task/grant management, review, merge, main append,
+materialization, repository write, publication, release, Remote MCP, Pairing,
+HostBinding, browser, public, or Funnel authority. Existing 19/4, 30/5, and
+selected 31/6 discovery catalogs do not change. The candidate path comes first;
+derived-child persistence is a separate later L3 slice, not a prerequisite.
+
+The authority-neutral A4c Domain DTO foundation is an implemented candidate on
+the current integration branch and has independent focused review/test evidence.
+It performs no I/O and does not implement the Application candidate path,
+EngineBridge trust check, task/review persistence, child derivation, or any
+operational surface. Exact contract, recovery provenance, pins, and next gates
+are recorded in
+[`A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md`](A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md).
+
 A4a implementation note (2026-08-30, **source-integrated / automated green —
 not user accepted**): PR #182 final head
 `4b2d61ebfb37e280e7819c6c5db7b63ddcb7b6ff` passed Build #2271 / run
@@ -817,7 +841,7 @@ honest unprojected-reference gaps are integrated. The fixture is not registered
 as a playable production Floor, so no distinct live `VT-` item is created and
 the slice remains not user accepted. Scope and evidence are recorded in
 [`A4B_REFERENCE_BEHAVIOR_STATUS.md`](A4B_REFERENCE_BEHAVIOR_STATUS.md).
-A4c is next.
+A4c Application integration is next.
 
 ### A5 — Thin portability proof
 

@@ -3,8 +3,8 @@
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
 Source baseline recorded: 2026-08-30 at O2a/A3a/A4a/A4b-integrated `main`
-`8238d05a29ee6524f6457bfccc315179ee3896b5`; post-merge Build #2276 / run
-`33342294000` passed, including Pages. Receivers MUST still replace this with
+`8e66a773292ab9b4a6757be9175d8a5cd15232a7`; post-documentation Build #2278 /
+run `33343133574` passed, including Pages. Receivers MUST still replace this with
 newer verified remote `main` truth as work lands.
 
 ## Purpose
@@ -58,6 +58,13 @@ source-integrated and automated green but its reference fixture is not
 registered as a playable production Floor, so it adds no distinct live `VT-`
 item. A3a, A4a, and A4b remain not user accepted. A4c must add a bounded record
 only if its implemented surface creates a distinct Klaus review/live gate.
+
+Klaus's 2026-08-31 approval of private `level.candidate.create` and strictly
+parent-derived child-task implementation is a scope decision, not product
+acceptance. The authority-neutral A4c Domain DTO foundation has no visible/live
+surface and therefore adds no `VT-` item. A future implemented A4c candidate or
+child-task surface may receive the next ID only when it creates a distinct Klaus
+review/live gate; planned authority and CI evidence alone never allocate one.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
 [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately

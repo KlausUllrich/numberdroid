@@ -19,7 +19,7 @@ Numberdroid Studio MUST make the complete path from generated or uploaded image 
 - **G-003 — Reliable extraction.** An approved atlas can be divided into explicit rectangles, reviewed visually, and turned into stable reusable assets.
 - **G-004 — Semantic authoring.** Assets carry explicit role, connectivity, placement, footprint, collision, and export metadata.
 - **G-005 — Requirements-driven levels.** Users and agents can turn explicit level requirements into layouts, rooms, actors, routes, pickups, variables, triggers/actions, and validated candidates.
-- **G-006 — Agent parity.** With an appropriate human-created grant, an agent can perform every authoring step available to a person through a semantic MCP interface.
+- **G-006 — Agent parity.** With an appropriate human-rooted authority chain, an agent can perform every ordinary authoring step available to a person through a semantic MCP interface.
 - **G-007 — Human control.** Every agent action is visible, attributed, interruptible when long-running, reviewable, and reversible.
 - **G-008 — Local speed.** Interactive work uses a local database and artifact store; source control is used only for explicit export/publish operations.
 - **G-009 — Reusable boundaries.** Numberdroid proves the complete workflow first; stable core, authoring-module, capability, candidate, and adapter interfaces can later serve concrete other projects without replacing core identities.
@@ -275,7 +275,7 @@ publication, or release action.
 ### 5.9 Agent operation and human control
 
 - **AGT-001.** MCP tools MUST expose semantic intent and batch operations, not raw database writes, arbitrary filesystem writes, or UI gestures.
-- **AGT-002.** Read access and mutation access MUST be separate. Mutation commands require a valid human-created grant.
+- **AGT-002.** Read access and mutation access MUST be separate. Mutation commands require a valid human-rooted authority chain.
 - **AGT-003.** An agent mutation grant MUST be bounded by project, task, branch, capabilities, object scope, budget, expiry, and issuer.
 - **AGT-004.** Agents MUST NOT mint, widen, renew, or reinterpret their own grants.
 - **AGT-005.** `finalize`, `export`, and `publish` MUST be distinct capabilities from ordinary edit capabilities.
@@ -297,7 +297,7 @@ publication, or release action.
 - **AGT-021.** A clean agent MUST be able to discover project capabilities, required inputs, current task dependencies, validation rules, and available semantic operations without repository knowledge or visual UI inspection.
 - **AGT-022.** Multiple agents MUST be able to work concurrently through isolated task branches under one authoritative writer. Shared immutable artifacts MAY be referenced across tasks; mutable semantic work MUST retain task/base/version coordinates and produce explicit dependency or merge conflicts.
 - **AGT-023.** Agent commands SHOULD support typed batch operations and replace-draft semantics for efficient level and asset construction, while preserving one documented atomic boundary, per-item findings, idempotency, and budget accounting.
-- **AGT-024.** Agent role names such as **Artist** or **Level Designer** are onboarding/workflow profiles, not authority. The immutable human-created grant remains the only capability source.
+- **AGT-024.** Agent role names such as **Artist** or **Level Designer** are onboarding/workflow profiles, not authority. The immutable human-created root grant remains the origin of every capability chain.
 - **AGT-025.** Ordinary agent authoring MUST be able to end in an immutable candidate and **Waiting for your review** state. Owner review decision, merge, recovered-workspace activation, repository materialization, and publication MUST remain unavailable to agents.
 - **AGT-026.** Authoring-v2 MCP MUST be requested only by an exact versioned
   selector. An absent selector MUST preserve accepted legacy startup; an
@@ -320,6 +320,38 @@ publication, or release action.
   dry-run MUST NOT invent authorization Activity; attributable denials and
   failures MUST create exactly one redacted final attempt, while pre-binding
   traffic remains unattributed.
+- **AGT-030.** An agent MAY request a child task only through a separately
+  typed trusted-service derivation from its exact active parent task and grant.
+  The agent request is not authority and MUST NOT create a root task, target
+  `main`, select another project/actor/root grant, or invoke general grant
+  management.
+- **AGT-031.** Child task, non-main branch, immutable child grant, and parent
+  budget reservation MUST be created atomically and idempotently. Project and
+  actor remain the parent's; the branch begins at the exact parent head;
+  capabilities/object scopes are subsets; expiry is no later; and aggregate
+  command/job/artifact/cost authority cannot increase.
+- **AGT-032.** Every child operation MUST re-authorize the complete ancestor
+  chain. Parent pause or review state denies child mutation; cancellation,
+  rejection, merge, expiry, or revocation makes descendants non-executable.
+  The first bounded slice MUST disable auto-accept and MUST NOT delegate child
+  creation to the child.
+- **AGT-033.** Child derivation MUST be durable, restart-safe, fully audited,
+  race-safe, and fail without a partial task, branch, grant, or double-spent
+  budget reservation.
+- **AGT-034.** The private application scope `level.candidate.create` MAY
+  authorize exactly one task-bound immutable Numberdroid candidate through
+  create, validate, compile, preview, diff, and submit. It MUST NOT authorize
+  owner review, merge, main append, destination selection, filesystem or
+  repository write, materialization, publication, or release.
+- **AGT-035.** Successful candidate submission MUST atomically leave the task
+  and effective state `IN_REVIEW`, create one `OPEN` review with all complete
+  items `PENDING`, append `REVIEW_SUBMITTED`, retain the exact branch head, and
+  present **Waiting for your review**. CI, compiler success, screenshots, and
+  submission MUST NOT be represented as user acceptance.
+- **AGT-036.** `level.candidate.create` is a private application scope and MUST
+  remain absent from current MCP discovery and the accepted 19/4 and 30/5 plus
+  separately selected A1.6b2b 31/6 compatibility catalogs unless a later
+  explicit transport contract changes those surfaces.
 
 ### 5.10 Animations
 
@@ -476,6 +508,13 @@ Post-acceptance failed run `32571622269` (both Studio attempts failed; artifact 
 ### Checkpoint 4 — delegated task branches and review control
 
 **Status: explicitly user-accepted on 2026-08-24 after the repaired conflict completion control passed on Windows and Linux.** The accepted boundary is the committed-atlas-to-DRAFT-room task workflow with isolated branches, truthful owner review, atomic merge, and compensating revert. It does not include branch-local bitmap jobs, finalization, export, materialization, or publication authority.
+
+The numbered owner-only task-creation rules below remain the accepted historical
+compatibility baseline. The separately versioned A4c decision of 2026-08-31
+authorizes implementation of strictly attenuated service-derived child tasks and
+private `level.candidate.create`; it does not rewrite Checkpoint 4 and is not A4c
+acceptance. See
+[`A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md`](A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md).
 
 1. Only the project owner may compose or control an `AgentTask`. The task pins its project, agent, isolated branch, immutable main base revision, exact capabilities/object scopes, command/job/artifact/cost ceilings, expiry of at most seven days, and optional disabled-by-default low-risk auto-accept allowlist.
 2. Schema v11 persists the task, base/head documents, immutable branch revisions, monotonic task timeline, immutable versioned reviews, atomic merge lineage, and compensating revert lineage in STRICT tables with fixed migration checksum.
@@ -691,7 +730,8 @@ separately bounded O2a private-service backend described in
   task/scope/budget/expiry, safe mutation rules, and who acts next.
 - **ONB-002.** Studio MUST provide versioned getting-started guidance plus
   practical **Artist** and **Level Designer** playbooks. A role name is workflow
-  guidance and MUST NOT widen the immutable human-created grant.
+  guidance and MUST NOT widen the immutable human-created root grant or any
+  service-derived attenuation chain.
 - **ONB-003.** Each playbook MUST state mission, allowed reads/mutations,
   human-only decisions, discovery sequence, normal workflow, preview/validation
   expectations, `dryRun`/version/idempotency use, recovery behavior, completion
