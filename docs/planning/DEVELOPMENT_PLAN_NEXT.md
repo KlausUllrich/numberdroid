@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-31 after the bounded A4c authority decision; O2a, A3a, A4a, and A4b are source-integrated, VT-012/O2 deployment remain pending, and the A4c Application path is next**
+Status: **current forward plan — updated 2026-08-31 after source integration of the bounded A4c Domain foundation; O2a, A3a, A4a, and A4b remain integrated, VT-012/O2 deployment remain pending, and the A4c Application Level Candidate path is next**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -239,7 +239,7 @@ O1b source-integrated; VT-012 retained for later live review
 → A3a typed kernel source-integrated
 → A4a lossless Numberdroid projection source-integrated
 → A4b bounded reference behavior source-integrated
-→ A4c authority-neutral Domain foundation integration
+→ A4c authority-neutral Domain foundation source-integrated
 → A4c task-scoped Application candidate path stopping at Waiting for your review
 → later O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
 ```

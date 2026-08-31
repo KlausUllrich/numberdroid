@@ -304,7 +304,7 @@ These current product documents are normative for the Studio implementation. If
 code and documentation disagree, the discrepancy must be resolved explicitly;
 it must not become an accidental new contract.
 
-Current task launch snapshot: [2026-08-30 O2a/A3a integrated, next A4 handoff](../../docs/history/handoffs/HANDOFF_2026-08-30_NUMBERDROID_STUDIO_O2A_A3A_INTEGRATED_NEXT_A4.md).
+Current task launch snapshot: [2026-08-31 A4a/A4b integrated, A4c authorized handoff](../../docs/history/handoffs/HANDOFF_2026-08-31_NUMBERDROID_STUDIO_A4A_A4B_INTEGRATED_A4C_AUTHORIZED.md).
 It is a dated execution snapshot, not a product contract, and remains
 subordinate to newer current code and documentation.
 
