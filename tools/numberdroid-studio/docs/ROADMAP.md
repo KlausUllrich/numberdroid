@@ -811,12 +811,14 @@ HostBinding, browser, public, or Funnel authority. Existing 19/4, 30/5, and
 selected 31/6 discovery catalogs do not change. The candidate path comes first;
 derived-child persistence is a separate later L3 slice, not a prerequisite.
 
-The authority-neutral A4c Domain DTO foundation is an implemented candidate on
-the current integration branch and has independent focused review/test evidence.
-It performs no I/O and does not implement the Application candidate path,
-EngineBridge trust check, task/review persistence, child derivation, or any
-operational surface. Exact contract, recovery provenance, pins, and next gates
-are recorded in
+The authority-neutral A4c Domain DTO foundation is **source-integrated /
+automated green — not user accepted** through PR #186, final head
+`c70019e5d510dcc06d2593b0258bd1970a0e2a6d`, Build #2279 / run
+`33365246228`, merge `93187bfd039e00147ce930a937ff0801c09c9784`, and
+post-merge Build #2280 / run `33368143760`. It performs no I/O and does not
+implement the Application candidate path, EngineBridge trust check, task/review
+persistence, child derivation, or any operational surface. Exact contract,
+recovery provenance, pins, and next gates are recorded in
 [`A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md`](A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md).
 
 A4a implementation note (2026-08-30, **source-integrated / automated green —

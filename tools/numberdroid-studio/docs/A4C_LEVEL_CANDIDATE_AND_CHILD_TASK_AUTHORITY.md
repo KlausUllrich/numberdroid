@@ -1,8 +1,8 @@
 # A4c Level Candidate and Derived Child-Task Authority
 
 Status: **user-approved implementation boundary — 2026-08-31; Domain
-foundation implemented candidate, executable A4c workflow not implemented and
-not user accepted**
+foundation source-integrated and automated green, executable A4c workflow not
+implemented and not user accepted**
 
 This document records the two narrow A4c authority decisions Klaus approved on
 2026-08-31. It is an additive forward contract. It does not rewrite the
@@ -68,16 +68,17 @@ The remote recovery checkpoint `codex/a4c-candidate-path` at
 it had no PR or Actions run and contained only an untested Domain draft plus
 exports. It is provenance, not a merge-ready implementation.
 
-The independently reviewed replacement foundation is the authority-neutral
-Domain commit `009704c51e33830f7f1d3b69df6d81ca1c18e0ba` on
-`docs/a4c-authority-handoff` (tree
-`575692bac2a34acffd89237f31c236f6fdc4187e`). It defines deterministic,
-restart-portable candidate payload, preview, semantic/output diff, and
-submission DTOs. It binds complete text-output bytes and hashes, requires
-`artifacts=[]` in schema v1, rejects unsafe paths and hostile/non-plain input,
-and fixes review/merge/materialize/commit/publish/release authority at
-`NOT_AUTHORIZED`. Focused Domain, manifest, EngineBridge, package-boundary,
-syntax, and whitespace checks are green.
+The independently reviewed replacement foundation was integrated through PR
+#186 at final head `c70019e5d510dcc06d2593b0258bd1970a0e2a6d` and tree
+`bb95ef32b44f93eee48f756b333b5ad048b83789`. Build #2279 / run
+`33365246228` passed the selected Studio Linux/browser and Windows gates plus
+the final CI gate. Merge `93187bfd039e00147ce930a937ff0801c09c9784`
+passed post-merge Build #2280 / run `33368143760` with the same selected gates.
+The foundation defines deterministic, restart-portable candidate payload,
+preview, semantic/output diff, and submission DTOs. It binds complete
+text-output bytes and hashes, requires `artifacts=[]` in schema v1, rejects
+unsafe paths and hostile/non-plain input, and fixes review/merge/materialize/
+commit/publish/release authority at `NOT_AUTHORIZED`.
 
 That foundation performs no I/O and creates no Task, Grant, Review, branch
 revision, MCP surface, EngineBridge invocation, or candidate. It does not prove

@@ -2,9 +2,9 @@
 
 Status: **current live backlog for candidate work created while Klaus cannot test**
 
-Source baseline recorded: 2026-08-30 at O2a/A3a/A4a/A4b-integrated `main`
-`8e66a773292ab9b4a6757be9175d8a5cd15232a7`; post-documentation Build #2278 /
-run `33343133574` passed, including Pages. Receivers MUST still replace this with
+Source baseline recorded: 2026-08-31 after the A4c Domain foundation merge at
+`main` `93187bfd039e00147ce930a937ff0801c09c9784`; post-merge Build #2280 /
+run `33368143760` passed. Receivers MUST still replace this with
 newer verified remote `main` truth as work lands.
 
 ## Purpose
