@@ -108,7 +108,27 @@ Run the complete Universal Bootstrap, including connector-only remote truth,
 clean-worktree protection, explicit timeouts, 120-second heartbeats, CI handles,
 30–60-second polling, two-unchanged-poll diagnosis, and durable checkpoints.
 
-### 2. Current Studio authority — read completely in this order
+### 2. Mandatory role routes — read completely and apply
+
+Use these explicit routes from `docs/agents/ROLE_ENTRYPOINTS.md`:
+
+1. **Engineer / Runtime Developer (section 4) is the primary authoring
+   route.** Read `docs/agents/GAMEPLAY_AND_ENGINEERING_RULES.md`,
+   `docs/architecture/ARCHITECTURE.md`, the actual implementation/tests listed
+   below, and the current planning documents in the next block. The first A4c
+   slice is Studio Application/persistence work; `TILED_MAPS.md` and
+   `ROBOT_BODY_SIZE.md` are not mandatory unless the actual diff triggers their
+   map/GID/layer/object or body-footprint domains.
+2. **QA / Integrator / Release (section 7) is the verification and integration
+   route.** Read the A4c authority/contract, actual code and tests, explicit
+   definition of done in this handoff, and verify actual GitHub Actions state.
+   QA may report failures but does not own product or authority redesign.
+3. **Coordinator / cross-domain task (section 8) is the sequencing route.** Use
+   it to combine Contract, Numberdroid compiler/runtime, security/authority,
+   persistence/fault, and test-scope evidence without silently transferring
+   decision ownership between those roles.
+
+### 3. Current Studio authority — read completely in this order
 
 1. `tools/numberdroid-studio/README.md`
 2. `tools/numberdroid-studio/docs/VISION.md`
@@ -131,7 +151,7 @@ clean-worktree protection, explicit timeouts, 120-second heartbeats, CI handles,
 Do not modify `CHECKPOINT_4_CONTRACT.md`, `CHECKPOINT_4_STATUS.md`, or
 `MCP_CONTRACT.md` to retrofit A4c. They preserve accepted historical surfaces.
 
-### 3. A4c source — inspect before editing
+### 4. A4c source — inspect before editing
 
 - New portable foundation:
   - `tools/numberdroid-studio/packages/domain/src/task-candidate.js`
@@ -238,6 +258,47 @@ merge/expiry/revocation makes descendants non-executable. No `grant.issue`,
 `grant.manage`, root-task creation, `main` target, or authority widening exists.
 
 Implement this only after the Level Candidate path as its own L3 PR/slice.
+
+## Cross-role handoff
+
+Studio Application/Persistence Engineering is now primary because the prior
+Domain/Contract work froze the restart-portable payload, preview, diff, and
+submission closure, while no executable task-bound command, persistence, or
+review transition exists yet. QA/Integrator remains co-primary for the L3
+evidence and GitHub integration loop; Coordinator owns sequencing, not a new
+product decision.
+
+The previous domains already resolved the information the receiver must carry
+forward:
+
+- Domain/Contract fixed the authority-neutral A4c DTO closure, deterministic
+  hashes/bytes, create-only ADD/null diff meaning, safe-path/value bounds, and
+  the fact that the Domain layer performs no I/O or lifecycle transition.
+- Numberdroid compiler/runtime work fixed the real `A4B_REFERENCE_LEVEL_SPEC`,
+  lossless A4a projection, A3a validation boundary, profile-v3 fingerprint, and
+  canonical compiler pin recorded below.
+- Security/authority work fixed private `level.candidate.create`, exact
+  task/grant/actor/branch/head closure, atomic idempotent submit-to-review, no
+  MCP discovery, and the separate later parent-derived child-task authority.
+
+Ownership and exact re-engagement triggers are:
+
+- re-engage Domain/Contract before changing any candidate DTO, canonicalization,
+  hash/byte closure, diff semantics, or package dependency direction;
+- re-engage Numberdroid compiler/runtime before changing root `src/`, the A4a
+  projection, A3a semantics, compiler selection/pins, emitted runtime content,
+  or EngineBridge validation behavior;
+- re-engage Security/Authority before changing scopes, actors, grants, task or
+  review lifecycle, ancestry, branch/head checks, command discovery, transport,
+  or any public/remote surface;
+- re-engage Persistence/Fault whenever schema, migration, transaction,
+  idempotency, restart, or lost-response behavior changes, and keep that review
+  independent of the writer;
+- QA/Integrator owns falsification and integration evidence, but routes a
+  requested contract change back to the owning role rather than redesigning it;
+- Klaus alone owns user/live acceptance, review decisions, production
+  materialization, repository publication, release, and any authority beyond
+  the two approved A4c mechanisms. Stop and return to Klaus at those gates.
 
 ## Next autonomous milestone — A4c Level Candidate
 
