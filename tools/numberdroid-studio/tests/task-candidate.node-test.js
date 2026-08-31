@@ -229,3 +229,19 @@ test('task-candidate validators reject proxy, accessor, cycle, and sparse-array 
   sparse.preview.facts = new Array(1);
   expectCode(() => validateTaskCandidateSubmission(sparse), 'TASK_CANDIDATE_INPUT_INVALID');
 });
+
+test('task-candidate bounds count numeric values and UTF-8 bytes, not only containers or code units', () => {
+  const tooManyNumbers = structuredClone(submissionFixture());
+  tooManyNumbers.oversized = Array.from({ length: 74 }, () => new Array(4_096).fill(0));
+  expectCode(() => validateTaskCandidateSubmission(tooManyNumbers), 'TASK_CANDIDATE_LIMIT_EXCEEDED');
+
+  const oversizedContent = '€'.repeat(2_666_667);
+  const oversizedOutput = outputFixture()[0];
+  oversizedOutput.content = oversizedContent;
+  oversizedOutput.byteSize = Buffer.byteLength(oversizedContent);
+  oversizedOutput.sha256 = hash(oversizedContent);
+  expectCode(
+    () => taskCandidateOutputClosureSha256([oversizedOutput]),
+    'TASK_CANDIDATE_LIMIT_EXCEEDED',
+  );
+});

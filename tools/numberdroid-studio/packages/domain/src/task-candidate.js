@@ -58,6 +58,7 @@ function snapshotPlainData(value, label = 'value') {
       state.values += 1;
       invariant(Number.isFinite(candidate) && Number.isSafeInteger(candidate) && !Object.is(candidate, -0),
         'TASK_CANDIDATE_INPUT_INVALID', `${path} must be a safe finite integer.`, { field: path });
+      invariant(state.values <= MAX_VALUES, 'TASK_CANDIDATE_LIMIT_EXCEEDED', 'The candidate contains too many values.');
       return candidate;
     }
     if (typeof candidate === 'string') {
@@ -228,6 +229,8 @@ function normalizeOutputBytes(values) {
     const output = exactFields(raw, ['logicalPath', 'mediaType', 'byteSize', 'sha256', 'role', 'content'], `candidate.outputs[${index}]`);
     const content = requireString(output.content, `candidate.outputs[${index}].content`, { min: 0, max: MAX_OUTPUT_BYTES, controls: true });
     const byteSize = Buffer.byteLength(content);
+    invariant(byteSize <= MAX_OUTPUT_BYTES,
+      'TASK_CANDIDATE_LIMIT_EXCEEDED', 'Candidate output bytes exceed the per-file limit.', { logicalPath: output.logicalPath });
     invariant(byteSize === output.byteSize && sha256(content) === output.sha256,
       'TASK_CANDIDATE_OUTPUT_MISMATCH', 'Candidate output bytes do not match their declared size and hash.', { logicalPath: output.logicalPath });
     return {
