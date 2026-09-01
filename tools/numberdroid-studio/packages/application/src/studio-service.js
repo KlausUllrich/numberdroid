@@ -804,14 +804,16 @@ function assertNoActiveRoomProposal(library, current) {
   });
 }
 
-function exactRoomAssetVersions(document, placements) {
+function exactRoomAssetVersions(document, placements, { maxProjectRevision = Number.MAX_SAFE_INTEGER } = {}) {
+  requireInteger(maxProjectRevision, 'maxProjectRevision', { min: 1 });
+  const eligibleRevisions = document.revisions.filter(({ number }) => number <= maxProjectRevision);
   const assets = new Map();
   for (const placement of placements) {
     const key = `${placement.assetId}:${placement.assetVersion}:${placement.metadataVersion}`;
     const coordinate = `${placement.assetId}@${placement.assetVersion}:${placement.metadataVersion}`;
     if (assets.has(coordinate)) continue;
     let resolved = null;
-    for (const revision of [...document.revisions].reverse()) {
+    for (const revision of [...eligibleRevisions].reverse()) {
       const candidate = revision.snapshot.assetLibrary?.assets?.find((asset) => (
         asset.assetId === placement.assetId
           && asset.assetVersion === placement.assetVersion
@@ -2833,6 +2835,82 @@ export class StudioService {
         : [],
       variants,
       proposals: visibleProposals,
+    });
+  }
+
+  async queryRoomPreviewSource(rawRequest, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
+    invariant(this.durableRoomStoreReady, 'ROOM_STORE_DISABLED', 'Room preview reads require the authoritative SQLite v10 store.');
+    const request = requireRecord(rawRequest, 'request');
+    assertExactFields(request, new Set([
+      'schemaVersion', 'projectId', 'projectRevision', 'roomVariantId', 'roomVersion',
+    ]), 'Room preview request');
+    for (const field of AUTHORITY_FIELDS) {
+      invariant(!Object.hasOwn(request, field), 'UNTRUSTED_AUTHORITY_FIELD', `Room preview request must not contain authority field: ${field}.`, { field });
+    }
+    invariant(request.schemaVersion === 1, 'SCHEMA_VERSION_UNSUPPORTED', 'Unsupported room preview request schema version.');
+    const projectId = requireId(request.projectId, 'projectId');
+    const projectRevision = requireInteger(request.projectRevision, 'projectRevision', { min: 1 });
+    const roomVariantId = requireId(request.roomVariantId, 'roomVariantId');
+    const roomVersion = requireInteger(request.roomVersion, 'roomVersion', { min: 1 });
+    const executionContext = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId);
+    signal?.throwIfAborted();
+    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
+    const liveHead = headRevision(document);
+    assertAuthorized(
+      { ...executionContext, projectId, type: 'project.read', payload: {} },
+      liveHead.snapshot,
+      { ownerOnly: false, requiredScope: 'project.read' },
+      this.#clock(),
+    );
+    invariant(projectRevision === liveHead.number, 'REVISION_CONFLICT', 'The project changed after the room preview was requested.', {
+      projectId,
+      expectedRevision: projectRevision,
+      actualRevision: liveHead.number,
+    });
+    const revision = liveHead;
+    const entry = revision.snapshot.roomLibrary?.variants?.find((candidate) => candidate.roomVariantId === roomVariantId);
+    invariant(entry, 'ROOM_VARIANT_NOT_FOUND', 'The room variant does not exist at the exact project revision.', {
+      projectId,
+      projectRevision,
+      roomVariantId,
+    });
+    invariant(entry.headVersion === roomVersion, 'ROOM_VERSION_CONFLICT', 'The requested room version is not the exact head at the requested project revision.', {
+      roomVariantId,
+      expectedVersion: roomVersion,
+      actualVersion: entry.headVersion,
+      projectRevision,
+    });
+    const room = entry.versions.find(({ version }) => version === roomVersion);
+    invariant(room, 'ROOM_VARIANT_HEAD_MISSING', 'The exact room head is unavailable at the requested project revision.', {
+      roomVariantId,
+      roomVersion,
+      projectRevision,
+    });
+    invariant(room.roomVariantId === roomVariantId && room.version === roomVersion, 'ROOM_VARIANT_HEAD_MISSING', 'The exact room head identity is corrupt.', {
+      roomVariantId,
+      roomVersion,
+      projectRevision,
+    });
+    const roomCreatedRevision = requireInteger(room.createdRevision, 'room.createdRevision', { min: 1 });
+    invariant(roomCreatedRevision <= projectRevision, 'ROOM_VARIANT_HEAD_MISSING', 'The room head was created after its project revision.', {
+      roomVariantId,
+      roomVersion,
+      roomCreatedRevision,
+      projectRevision,
+    });
+    const assets = exactRoomAssetVersions(document, room.placements, { maxProjectRevision: roomCreatedRevision });
+    return deepFreeze({
+      schemaVersion: 1,
+      projectId,
+      projectRevision,
+      room: deepClone(room),
+      assets: [...assets.values()]
+        .map(deepClone)
+        .sort((left, right) => left.assetId.localeCompare(right.assetId)
+          || left.assetVersion - right.assetVersion
+          || left.metadataVersion - right.metadataVersion),
     });
   }
 

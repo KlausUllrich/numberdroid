@@ -21,6 +21,8 @@ import {
   validateProcessingResultForRecipe,
 } from '../../domain/src/processing-result.js';
 
+export * from './room-preview-scene.js';
+
 export {
   ATLAS_PROCESSOR_ID,
   MAX_ATLAS_INPUT_BYTES,

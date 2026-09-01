@@ -30,7 +30,7 @@ export const PROJECT_BUNDLE_LIMITS = Object.freeze({
   maxTotalArtifactBytes: 512 * 1024 * 1024,
   maxImageWidth: 16384,
   maxImageHeight: 16384,
-  maxJsonDepth: 12,
+  maxJsonDepth: 14,
   maxJsonNodes: 250000,
   maxStringBytes: 1024 * 1024,
   maxSources: 1024,

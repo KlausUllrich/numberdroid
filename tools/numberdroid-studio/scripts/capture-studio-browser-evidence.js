@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
+import { decodeSupportedPng } from '../packages/preview/src/index.js';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
 if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7'].includes(mode)) {
@@ -205,8 +206,8 @@ try {
               ? `document.documentElement.dataset.visualEvidenceReady === 'true'
                  && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
                  && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-2c'
-                 && document.documentElement.dataset.visualRevision === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '37' : '36')}
-                 && document.documentElement.dataset.visualActivityCount === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '38' : '37')}
+                 && document.documentElement.dataset.visualRevision === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '38' : '37')}
+                 && document.documentElement.dataset.visualActivityCount === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '39' : '38')}
                  && document.documentElement.dataset.visualConnectionState === 'Live'`
               : mode === 'a1-7'
                 ? `document.documentElement.dataset.visualEvidenceReady === 'true'
@@ -247,6 +248,7 @@ try {
   let checkpoint45EditorContinuity = null;
   let checkpoint45FindingsNavigation = null;
   let checkpoint45DirectManipulation = null;
+  let checkpoint45StudioPreview = null;
   let a17Evidence = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
@@ -747,6 +749,505 @@ try {
     checkpoint45RoomFocus = focused.result?.value ?? null;
     assert(checkpoint45RoomFocus?.roomId && checkpoint45RoomFocus.editorToolCount === 7,
       `Checkpoint 4.5 could not focus the requested room evidence: ${JSON.stringify(checkpoint45RoomFocus)}`);
+    if (checkpoint45Focus === 'prop') {
+      const networkStart = devtools.events.length;
+      const editorBeforePreviewResult = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const zoom = document.querySelector('[data-room-zoom-slider]');
+          zoom.value = '1000'; zoom.dispatchEvent(new Event('input', { bubbles: true }));
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_VOID"]')?.click();
+          document.querySelector('.room-cell[data-x="1"][data-y="0"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="palette-asset"][data-palette-asset-id="asset.transfer-apparatus-cp45"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-asset-preview-rotation="90"]')?.click();
+          const placementPreview = await window.__numberdroidStudioVisualTest?.refreshVisualEvidence();
+          let seededScrollKey = null;
+          for (const element of document.querySelectorAll('[data-room-scroll]')) {
+            const maxTop = element.scrollHeight - element.clientHeight;
+            const maxLeft = element.scrollWidth - element.clientWidth;
+            if (maxTop > 1) { element.scrollTop = Math.min(37, maxTop); seededScrollKey = element.dataset.roomScroll; break; }
+            if (maxLeft > 1) { element.scrollLeft = Math.min(37, maxLeft); seededScrollKey = element.dataset.roomScroll; break; }
+          }
+          const control = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]');
+          control?.focus({ preventScroll: true });
+          const scroll = Object.fromEntries([...document.querySelectorAll('[data-room-scroll]')]
+            .map((element) => [element.dataset.roomScroll, { left: element.scrollLeft, top: element.scrollTop }]));
+          return {
+            activeKey: document.activeElement?.dataset.roomFocusKey ?? document.activeElement?.dataset.roomControl ?? null,
+            scroll,
+            page: { x: window.scrollX, y: window.scrollY },
+            shape: window.__numberdroidStudioVisualTest?.roomShapeState() ?? null,
+            seededScrollKey,
+            nonZeroScrollKeys: Object.entries(scroll).filter(([, value]) => value.left > 0 || value.top > 0).map(([key]) => key),
+            roomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
+            editorPresent: Boolean(document.querySelector('[data-room-board]')),
+            placementPreview,
+            selectedRotation: document.querySelector('[data-asset-preview-rotation][data-selected="true"]')?.dataset.assetPreviewRotation ?? null,
+          };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      const editorBeforePreview = editorBeforePreviewResult.result?.value;
+      assert(editorBeforePreview?.activeKey === 'room-tool-PROP' && editorBeforePreview.editorPresent
+        && editorBeforePreview.shape?.dirty === true && editorBeforePreview.nonZeroScrollKeys.length > 0
+        && editorBeforePreview.placementPreview?.ready === 'true'
+        && editorBeforePreview.placementPreview.loaded === true
+        && editorBeforePreview.selectedRotation === '90',
+        `Studio preview could not establish exact editor continuity state: ${JSON.stringify(editorBeforePreview)}`);
+      await devtools.send('Page.bringToFront', {}, sessionId);
+      const focusedPreview = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const button = document.querySelector('[data-room-view="preview"]');
+          const root = document.getElementById('workspace-content');
+          const events = [];
+          const bubbles = [];
+          const pageErrors = [];
+          const onClick = (event) => {
+            const view = event.target.closest?.('[data-room-view]');
+            if (view) events.push({
+              type: event.type,
+              roomView: view.dataset.roomView ?? null,
+              isTrusted: event.isTrusted,
+              detail: event.detail,
+              eventPhase: event.eventPhase,
+              defaultPrevented: event.defaultPrevented,
+              cancelBubble: event.cancelBubble,
+            });
+          };
+          const onKey = (event) => {
+            if (event.key !== 'Enter') return;
+            const view = event.target.closest?.('[data-room-view]');
+            events.push({
+              type: event.type,
+              key: event.key,
+              code: event.code,
+              repeat: event.repeat,
+              isTrusted: event.isTrusted,
+              roomView: view?.dataset.roomView ?? null,
+            });
+          };
+          const onBubble = (event) => {
+            const view = event.target.closest?.('[data-room-view]');
+            if (view?.dataset.roomView !== 'preview') return;
+            bubbles.push({
+              rootPresent: Boolean(document.querySelector('[data-room-preview]')),
+              previewPressed: document.querySelector('[data-room-view="preview"]')?.getAttribute('aria-pressed') ?? null,
+              targetConnected: event.target.isConnected,
+              defaultPrevented: event.defaultPrevented,
+              cancelBubble: event.cancelBubble,
+              renderedWorkspace: root?.dataset.renderedWorkspace ?? null,
+              editorPresent: Boolean(document.querySelector('[data-room-board]')),
+              activationState: window.__numberdroidStudioVisualTest?.roomPreviewActivationState() ?? null,
+            });
+          };
+          const onWindowError = (event) => pageErrors.push({
+            type: 'error', message: event.message, filename: event.filename,
+            lineNumber: event.lineno, columnNumber: event.colno,
+            description: event.error?.stack ?? event.error?.message ?? null,
+          });
+          const onUnhandledRejection = (event) => pageErrors.push({
+            type: 'unhandledrejection',
+            description: event.reason?.stack ?? event.reason?.message ?? String(event.reason),
+          });
+          window.__checkpoint45PreviewKeyboard = {
+            root, events, bubbles, pageErrors, onClick, onKey, onBubble, onWindowError, onUnhandledRejection,
+          };
+          root?.addEventListener('click', onClick, true);
+          root?.addEventListener('click', onBubble);
+          document.addEventListener('keydown', onKey, true);
+          document.addEventListener('keyup', onKey, true);
+          window.addEventListener('error', onWindowError);
+          window.addEventListener('unhandledrejection', onUnhandledRejection);
+          button?.focus({ preventScroll: true });
+          return {
+            buttonFocused: Boolean(button && document.activeElement === button),
+            buttonEnabled: Boolean(button && !button.disabled),
+            documentFocused: document.hasFocus(),
+            visibilityState: document.visibilityState,
+            activationState: window.__numberdroidStudioVisualTest?.roomPreviewActivationState() ?? null,
+          };
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(focusedPreview.result?.value?.buttonFocused === true
+        && focusedPreview.result.value.buttonEnabled === true
+        && focusedPreview.result.value.documentFocused === true
+        && focusedPreview.result.value.visibilityState === 'visible',
+      `Studio preview view could not receive active-document keyboard focus: ${JSON.stringify(focusedPreview.result?.value)}`);
+      const previewActivationRuntimeStart = devtools.events.length;
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+      }, sessionId);
+      let previewActivation = null;
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const observed = await devtools.send('Runtime.evaluate', {
+          expression: `(() => ({
+            events: window.__checkpoint45PreviewKeyboard?.events.map((event) => ({ ...event })) ?? [],
+            bubbles: window.__checkpoint45PreviewKeyboard?.bubbles.map((bubble) => ({ ...bubble })) ?? [],
+            pageErrors: window.__checkpoint45PreviewKeyboard?.pageErrors.map((error) => ({ ...error })) ?? [],
+            rootPresent: Boolean(document.querySelector('[data-room-preview]')),
+            previewPressed: document.querySelector('[data-room-view="preview"]')?.getAttribute('aria-pressed') ?? null,
+            activationState: window.__numberdroidStudioVisualTest?.roomPreviewActivationState() ?? null,
+          }))()`, returnByValue: true,
+        }, sessionId);
+        previewActivation = observed.result?.value ?? null;
+        if (previewActivation?.events.some(({ type }) => type === 'click') && previewActivation.rootPresent) break;
+        await delay(50);
+      }
+      const activationBrowserErrors = devtools.events.slice(previewActivationRuntimeStart)
+        .filter(({ method, params }) => method === 'Runtime.exceptionThrown'
+          || (method === 'Log.entryAdded' && params?.entry?.level === 'error'))
+        .slice(-8)
+        .map(({ method, params }) => method === 'Runtime.exceptionThrown'
+          ? {
+              method,
+              text: params.exceptionDetails?.text ?? null,
+              description: params.exceptionDetails?.exception?.description ?? null,
+              url: params.exceptionDetails?.url ?? null,
+              lineNumber: params.exceptionDetails?.lineNumber ?? null,
+              columnNumber: params.exceptionDetails?.columnNumber ?? null,
+            }
+          : { method, text: params.entry?.text ?? null, url: params.entry?.url ?? null });
+      previewActivation = { ...previewActivation, browserErrors: activationBrowserErrors };
+      assert(previewActivation?.events.length === 3
+        && previewActivation.events[0].type === 'keydown'
+        && previewActivation.events[0].key === 'Enter'
+        && previewActivation.events[0].code === 'Enter'
+        && previewActivation.events[0].repeat === false
+        && previewActivation.events[0].isTrusted === true
+        && previewActivation.events[0].roomView === 'preview'
+        && previewActivation.events[1].type === 'click'
+        && previewActivation.events[1].roomView === 'preview'
+        && previewActivation.events[1].isTrusted === true
+        && previewActivation.events[1].detail === 0
+        && previewActivation.events[2].type === 'keyup'
+        && previewActivation.events[2].key === 'Enter'
+        && previewActivation.events[2].code === 'Enter'
+        && previewActivation.events[2].repeat === false
+        && previewActivation.events[2].isTrusted === true
+        && previewActivation.bubbles.length === 1
+        && previewActivation.bubbles[0].rootPresent === true
+        && previewActivation.bubbles[0].previewPressed === 'true'
+        && previewActivation.bubbles[0].activationState?.view === 'preview'
+        && previewActivation.bubbles[0].activationState?.previewStatus === 'LOADING'
+        && previewActivation.pageErrors.length === 0
+        && previewActivation.browserErrors.length === 0
+        && previewActivation.rootPresent === true
+        && previewActivation.previewPressed === 'true',
+      `Physical Preview activation did not produce one exact trusted keyboard click: ${JSON.stringify(previewActivation)}`);
+      let previewReady = false; let previewReadyObservation = null;
+      for (let attempt = 0; attempt < 240 && !previewReady; attempt += 1) {
+        const observed = await devtools.send('Runtime.evaluate', {
+          expression: `(() => {
+            const root = document.querySelector('[data-room-preview]');
+            const resources = [...document.querySelectorAll('[data-preview-resource-state]')];
+            return {
+              ready: Boolean(root && root.dataset.roomPreviewState === 'READY'
+              && resources.length > 0
+              && resources.every((resource) => resource.dataset.previewResourceState === 'READY')),
+              state: root?.dataset.roomPreviewState ?? null,
+              status: root?.querySelector('[data-preview-load-status]')?.textContent ?? null,
+              resources: resources.map((resource) => resource.dataset.previewResourceState),
+              activationState: window.__numberdroidStudioVisualTest?.roomPreviewActivationState() ?? null,
+              pageErrors: window.__checkpoint45PreviewKeyboard?.pageErrors.map((error) => ({ ...error })) ?? [],
+            };
+          })()`, returnByValue: true,
+        }, sessionId);
+        previewReadyObservation = observed.result?.value ?? null;
+        previewReady = previewReadyObservation?.ready === true;
+        if (!previewReady) await delay(50);
+      }
+      const previewRequestIds = new Set(devtools.events.slice(networkStart)
+        .filter(({ method, params }) => method === 'Network.requestWillBeSent'
+          && new URL(params.request.url).pathname.endsWith('/preview-scene'))
+        .map(({ params }) => params.requestId));
+      const previewNetwork = devtools.events.slice(networkStart)
+        .filter(({ params }) => previewRequestIds.has(params?.requestId))
+        .map(({ method, params }) => ({
+          method,
+          requestMethod: params.request?.method ?? null,
+          url: params.request?.url ?? params.response?.url ?? null,
+          status: params.response?.status ?? null,
+          mimeType: params.response?.mimeType ?? null,
+          encodedDataLength: params.encodedDataLength ?? null,
+          errorText: params.errorText ?? null,
+          canceled: params.canceled ?? null,
+          blockedReason: params.blockedReason ?? null,
+        }));
+      const previewBrowserErrors = devtools.events.slice(previewActivationRuntimeStart)
+        .filter(({ method, params }) => method === 'Runtime.exceptionThrown'
+          || (method === 'Log.entryAdded' && params?.entry?.level === 'error'))
+        .slice(-8)
+        .map(({ method, params }) => method === 'Runtime.exceptionThrown'
+          ? {
+              method,
+              text: params.exceptionDetails?.text ?? null,
+              description: params.exceptionDetails?.exception?.description ?? null,
+              url: params.exceptionDetails?.url ?? null,
+              lineNumber: params.exceptionDetails?.lineNumber ?? null,
+              columnNumber: params.exceptionDetails?.columnNumber ?? null,
+            }
+          : { method, text: params.entry?.text ?? null, url: params.entry?.url ?? null });
+      assert(previewReady, `Exact Studio preview scene or PNG resources did not reach READY: ${JSON.stringify({
+        ...previewReadyObservation, network: previewNetwork, browserErrors: previewBrowserErrors,
+      })}`);
+      await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const evidence = window.__checkpoint45PreviewKeyboard;
+          evidence?.root?.removeEventListener('click', evidence.onClick, true);
+          evidence?.root?.removeEventListener('click', evidence.onBubble);
+          document.removeEventListener('keydown', evidence?.onKey, true);
+          document.removeEventListener('keyup', evidence?.onKey, true);
+          window.removeEventListener('error', evidence?.onWindowError);
+          window.removeEventListener('unhandledrejection', evidence?.onUnhandledRejection);
+          delete window.__checkpoint45PreviewKeyboard;
+        })()`, returnByValue: true,
+      }, sessionId);
+      const loadFocusResult = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const root = document.querySelector('[data-room-preview]');
+          return Boolean(root && document.activeElement === root);
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(loadFocusResult.result?.value === true, 'Async Studio preview load did not preserve focus on the preview root.');
+      const inspectFocused = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const inspect = document.querySelector('[data-preview-inspect="prop.preview-overhang"]');
+          inspect?.focus({ preventScroll: true });
+          return Boolean(inspect && document.activeElement === inspect);
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(inspectFocused.result?.value === true, 'Preview overhang object could not receive keyboard focus.');
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+      }, sessionId);
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const observed = await devtools.send('Runtime.evaluate', {
+          expression: `(() => {
+            const resources = [...document.querySelectorAll('[data-preview-resource-state]')];
+            return Boolean(document.querySelector('[data-preview-logical-footprint="prop.preview-overhang"]')
+              && resources.length > 0
+              && resources.every((resource) => resource.dataset.previewResourceState === 'READY'));
+          })()`, returnByValue: true,
+        }, sessionId);
+        if (observed.result?.value === true) break;
+        await delay(50);
+      }
+      const previewViewportPosition = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const stage = document.querySelector('[data-room-preview] .room-preview-stage');
+          const svg = document.querySelector('[data-room-preview] [data-preview-scene]');
+          if (!stage || !svg) return { positioned: false, reason: 'stage-or-scene-missing' };
+          stage.scrollIntoView({ block: 'center', inline: 'nearest' });
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const stageRect = stage.getBoundingClientRect();
+          return {
+            positioned: stageRect.left < window.innerWidth && stageRect.right > 0
+              && stageRect.top < window.innerHeight && stageRect.bottom > 0,
+            stage: { left: stageRect.left, top: stageRect.top, right: stageRect.right, bottom: stageRect.bottom },
+          };
+        })()`, returnByValue: true,
+        awaitPromise: true,
+      }, sessionId);
+      assert(previewViewportPosition.result?.value?.positioned === true,
+        `Preview pixel oracle could not position the overhang sample inside the physical viewport: ${JSON.stringify(previewViewportPosition.result?.value)}`);
+      const previewFactsResult = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const root = document.querySelector('[data-room-preview]');
+          const svg = root?.querySelector('[data-preview-scene]');
+          const toScreen = (x, y) => {
+            const point = svg.createSVGPoint(); point.x = x; point.y = y;
+            const screen = point.matrixTransform(svg.getScreenCTM());
+            return { x: screen.x, y: screen.y };
+          };
+          const groups = [...root.querySelectorAll('[data-preview-placement-id="prop.preview-overhang"]')];
+          const logical = root.querySelector('[data-preview-logical-footprint="prop.preview-overhang"]');
+          const visual = root.querySelector('[data-preview-visual-bounds="prop.preview-overhang"]');
+          const anchor = root.querySelector('[data-preview-ground-anchor="prop.preview-overhang"]');
+          const previewLayout = root.querySelector('.room-preview-layout');
+          const stage = root.querySelector('.room-preview-stage');
+          const objects = root.querySelector('.room-preview-objects');
+          const stageRect = stage?.getBoundingClientRect(); const objectsRect = objects?.getBoundingClientRect();
+          const sideBySide = Boolean(stageRect && objectsRect && objectsRect.left >= stageRect.right - 1 && objectsRect.top < stageRect.bottom);
+          const stacked = Boolean(stageRect && objectsRect && objectsRect.top >= stageRect.bottom - 1);
+          const transparentSample = toScreen(1.15, .55);
+          const opaqueOverhangSample = toScreen(1.9, .55);
+          return {
+            state: root?.dataset.roomPreviewState ?? null,
+            binding: root?.querySelector('.room-preview-binding')?.textContent ?? null,
+            notice: root?.querySelector('[data-preview-read-only-notice]')?.textContent ?? null,
+            limits: root?.querySelector('.room-preview-limits')?.textContent ?? null,
+            phases: groups.map((group) => group.dataset.previewSegmentKind),
+            drawIndexes: groups.map((group) => Number(group.dataset.previewDrawIndex)),
+            resourceStates: groups.map((group) => group.querySelector('[data-preview-resource-state]')?.dataset.previewResourceState ?? null),
+            inspectFocus: document.activeElement?.dataset.previewInspect ?? null,
+            inspectPressed: root?.querySelector('[data-preview-inspect="prop.preview-overhang"]')?.getAttribute('aria-pressed') ?? null,
+            logical: logical ? { x: Number(logical.getAttribute('x')), y: Number(logical.getAttribute('y')), width: Number(logical.getAttribute('width')), height: Number(logical.getAttribute('height')) } : null,
+            visual: visual ? { x: Number(visual.getAttribute('x')), y: Number(visual.getAttribute('y')), width: Number(visual.getAttribute('width')), height: Number(visual.getAttribute('height')) } : null,
+            anchor: anchor ? { x: Number(anchor.getAttribute('cx')), y: Number(anchor.getAttribute('cy')) } : null,
+            cellCount: root?.querySelectorAll('[data-preview-cell-kind]').length ?? 0,
+            voidCount: root?.querySelectorAll('[data-preview-cell-kind="VOID"]').length ?? 0,
+            blockedCount: root?.querySelectorAll('[data-preview-cell-kind="BLOCKED"]').length ?? 0,
+            connectorCount: root?.querySelectorAll('[data-preview-connector-id]').length ?? 0,
+            mutationControlCount: root?.querySelectorAll('[data-room-control], form').length ?? 0,
+            pageHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth || document.body.scrollWidth > document.body.clientWidth,
+            stageVisible: Boolean(svg && svg.getBoundingClientRect().width > 0 && svg.getBoundingClientRect().height > 0),
+            responsiveLayout: {
+              viewportWidth: window.innerWidth,
+              display: previewLayout ? getComputedStyle(previewLayout).display : null,
+              gridTemplateColumns: previewLayout ? getComputedStyle(previewLayout).gridTemplateColumns : null,
+              sideBySide,
+              stacked,
+            },
+            transparentSample,
+            opaqueOverhangSample,
+            pixelSamplesInViewport: [transparentSample, opaqueOverhangSample].every((point) => (
+              point.x >= 0 && point.x < window.innerWidth && point.y >= 0 && point.y < window.innerHeight
+            )),
+          };
+        })()`, returnByValue: true,
+      }, sessionId);
+      const previewFacts = previewFactsResult.result?.value;
+      const painted = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId, 30_000);
+      const previewOutputPath = outputPath.replace(/prop-(\d+)\.png$/i, 'studio-preview-$1.png');
+      const previewBytes = Buffer.from(painted.data, 'base64');
+      await mkdir(dirname(previewOutputPath), { recursive: true });
+      await writeFile(previewOutputPath, previewBytes);
+      const hiddenState = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const groups = [...document.querySelectorAll('[data-preview-placement-id="prop.preview-overhang"]')];
+          for (const group of groups) {
+            group.dataset.previewEvidenceDisplay = group.style.display;
+            group.style.display = 'none';
+          }
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          return {
+            count: groups.length,
+            hiddenCount: groups.filter((group) => getComputedStyle(group).display === 'none').length,
+          };
+        })()`, returnByValue: true,
+        awaitPromise: true,
+      }, sessionId);
+      assert(hiddenState.result?.value?.count === 3 && hiddenState.result.value.hiddenCount === 3,
+        `Preview pixel oracle could not isolate all three overhang segments: ${JSON.stringify(hiddenState.result?.value)}`);
+      const reference = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId, 30_000);
+      const referenceOutputPath = outputPath.replace(/prop-(\d+)\.png$/i, 'studio-preview-reference-$1.png');
+      const referenceBytes = Buffer.from(reference.data, 'base64');
+      await writeFile(referenceOutputPath, referenceBytes);
+      const restoredState = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const groups = [...document.querySelectorAll('[data-preview-placement-id="prop.preview-overhang"]')];
+          for (const group of groups) {
+            const display = group.dataset.previewEvidenceDisplay;
+            if (display) group.style.display = display; else group.style.removeProperty('display');
+            delete group.dataset.previewEvidenceDisplay;
+          }
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          return groups.filter((group) => getComputedStyle(group).display !== 'none').length;
+        })()`, returnByValue: true,
+        awaitPromise: true,
+      }, sessionId);
+      assert(restoredState.result?.value === 3, 'Preview pixel oracle could not restore all three overhang segments.');
+      const decodedPainted = decodeSupportedPng(previewBytes, { maxWidth: 2048, maxHeight: 1200, maxInputBytes: 32 * 1024 * 1024 });
+      const decodedReference = decodeSupportedPng(referenceBytes, { maxWidth: 2048, maxHeight: 1200, maxInputBytes: 32 * 1024 * 1024 });
+      assert(decodedPainted.width === decodedReference.width && decodedPainted.height === decodedReference.height,
+        'Preview painted and reference screenshots must have identical dimensions.');
+      const pixel = (decoded, point) => {
+        const x = Math.round(point.x); const y = Math.round(point.y);
+        assert(Number.isFinite(point.x) && Number.isFinite(point.y)
+          && x >= 0 && x < decoded.width && y >= 0 && y < decoded.height,
+        `Preview pixel sample lies outside the physical screenshot: ${JSON.stringify({ point, width: decoded.width, height: decoded.height })}`);
+        const offset = (y * decoded.width + x) * 4;
+        return [...decoded.rgba.subarray(offset, offset + 4)];
+      };
+      const delta = (left, right) => left.reduce((sum, value, index) => sum + Math.abs(value - right[index]), 0);
+      const transparentPainted = pixel(decodedPainted, previewFacts.transparentSample);
+      const transparentReference = pixel(decodedReference, previewFacts.transparentSample);
+      const opaquePainted = pixel(decodedPainted, previewFacts.opaqueOverhangSample);
+      const opaqueReference = pixel(decodedReference, previewFacts.opaqueOverhangSample);
+      let changedPixelCount = 0;
+      for (let offset = 0; offset < decodedPainted.rgba.length; offset += 4) {
+        const paintedPixel = decodedPainted.rgba.subarray(offset, offset + 4);
+        const referencePixel = decodedReference.rgba.subarray(offset, offset + 4);
+        if (delta(paintedPixel, referencePixel) > 8) changedPixelCount += 1;
+      }
+      const nonGetRequests = devtools.events.slice(networkStart)
+        .filter(({ method }) => method === 'Network.requestWillBeSent')
+        .map(({ params }) => params.request)
+        .filter(({ method }) => method !== 'GET')
+        .map(({ method, url }) => ({ method, url }));
+      checkpoint45StudioPreview = {
+        ...previewFacts,
+        physicalKeyboardOpen: previewActivation?.events.length === 3
+          && previewActivation.events[0].type === 'keydown'
+          && previewActivation.events[0].isTrusted === true
+          && previewActivation.events[1].type === 'click'
+          && previewActivation.events[1].roomView === 'preview'
+          && previewActivation.events[1].isTrusted === true
+          && previewActivation.events[1].detail === 0
+          && previewActivation.events[2].type === 'keyup'
+          && previewActivation.events[2].isTrusted === true,
+        loadFocusPreserved: loadFocusResult.result?.value === true,
+        transparentPixelDelta: delta(transparentPainted, transparentReference),
+        opaqueOverhangPixelDelta: delta(opaquePainted, opaqueReference),
+        changedPixelCount,
+        transparentPainted, transparentReference, opaquePainted, opaqueReference,
+        nonGetRequests,
+        previewOutputPath, referenceOutputPath,
+      };
+      const focusedEditor = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const button = document.querySelector('[data-room-view="editor"]');
+          button?.focus({ preventScroll: true }); return document.activeElement === button;
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(focusedEditor.result?.value === true, 'Editor return control could not receive keyboard focus.');
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+      }, sessionId);
+      let editorAfterPreview = null;
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const editorAfterResult = await devtools.send('Runtime.evaluate', {
+          expression: `(() => {
+            const scroll = Object.fromEntries([...document.querySelectorAll('[data-room-scroll]')]
+              .map((element) => [element.dataset.roomScroll, { left: element.scrollLeft, top: element.scrollTop }]));
+            return {
+              activeKey: document.activeElement?.dataset.roomFocusKey ?? document.activeElement?.dataset.roomControl ?? null,
+              scroll,
+              page: { x: window.scrollX, y: window.scrollY },
+              shape: window.__numberdroidStudioVisualTest?.roomShapeState() ?? null,
+              roomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
+              editorPresent: Boolean(document.querySelector('[data-room-board]')),
+              previewPresent: Boolean(document.querySelector('[data-room-preview]')),
+            };
+          })()`, returnByValue: true,
+        }, sessionId);
+        editorAfterPreview = editorAfterResult.result?.value;
+        if (editorAfterPreview?.editorPresent && editorAfterPreview.activeKey === editorBeforePreview.activeKey) break;
+        await delay(50);
+      }
+      checkpoint45StudioPreview.editorRoundTrip = {
+        before: editorBeforePreview,
+        after: editorAfterPreview,
+        sameScroll: JSON.stringify(editorAfterPreview?.scroll) === JSON.stringify(editorBeforePreview.scroll),
+        samePage: JSON.stringify(editorAfterPreview?.page) === JSON.stringify(editorBeforePreview.page),
+        sameShape: JSON.stringify(editorAfterPreview?.shape) === JSON.stringify(editorBeforePreview.shape),
+      };
+    }
     if (checkpoint45Focus === 'irregular') {
       const observations = []; let dirtyMutationGuard = null;
       for (const [tool, expectedKind] of [['PAINT_VOID', 'VOID'], ['PAINT_BLOCKED', 'BLOCKED'], ['PAINT_ROOM', 'ROOM']]) {
@@ -813,7 +1314,7 @@ try {
         }, sessionId);
         assert(painted.result?.value?.kind === expectedKind && painted.result.value.overlap === 0
           && painted.result.value.total === painted.result.value.floor + painted.result.value.outside + painted.result.value.blocked
-          && painted.result.value.revision === 36,
+          && painted.result.value.revision === 37,
         `Checkpoint 4.5 physical paint was not immediately visible and exclusive: ${JSON.stringify(painted.result?.value)}`);
         observations.push(painted.result.value);
         if (tool === 'PAINT_VOID') {
@@ -822,8 +1323,8 @@ try {
           }, sessionId);
           dirtyMutationGuard = guarded.result?.value ?? null;
           assert(painted.result.value.dirty === true && painted.result.value.resizeDisabled === true
-            && dirtyMutationGuard?.accepted === false && dirtyMutationGuard.beforeRevision === 36
-            && dirtyMutationGuard.afterRevision === 36 && dirtyMutationGuard.message?.includes('Save or discard shape changes'),
+            && dirtyMutationGuard?.accepted === false && dirtyMutationGuard.beforeRevision === 37
+            && dirtyMutationGuard.afterRevision === 37 && dirtyMutationGuard.message?.includes('Save or discard shape changes'),
           `Checkpoint 4.5 dirty shape did not visibly and semantically block other room mutations: ${JSON.stringify({ painted: painted.result.value, dirtyMutationGuard })}`);
         }
       }
@@ -1140,7 +1641,7 @@ try {
                 window.__roomDirectManipulationEvidence.rejectNextAdd = false;
                 throw new TypeError('Synthetic connection loss before commit.');
               }
-              return new Response(JSON.stringify({ projectId: 'numberdroid-studio-checkpoint-2c', revision: 37 }), {
+              return new Response(JSON.stringify({ projectId: 'numberdroid-studio-checkpoint-2c', revision: 38 }), {
                 status: 200, headers: { 'content-type': 'application/json' },
               });
             }
@@ -2775,7 +3276,7 @@ try {
   if (mode === 'checkpoint-4-5') {
     assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
       'Checkpoint 4.5 screenshot was taken before error-free readiness.');
-    const expectedCheckpoint45Revision = checkpoint45Focus === 'shape-conflict' ? (width === 1440 ? 37 : 38) : 36;
+    const expectedCheckpoint45Revision = checkpoint45Focus === 'shape-conflict' ? (width === 1440 ? 38 : 39) : 37;
     assert(layout.projectId === 'numberdroid-studio-checkpoint-2c'
       && layout.revision === expectedCheckpoint45Revision
       && layout.activityCount === expectedCheckpoint45Revision + 1 && layout.connectionState === 'Live',
@@ -2803,7 +3304,7 @@ try {
         && checkpoint45RoomFocus.selectedOptionText?.includes('5 saved errors')
         && checkpoint45RoomFocus.errorBannerState === 'ERROR'
         && checkpoint45RoomFocus.errorBannerText?.includes('5 saved errors need correction')
-        && checkpoint45RoomFocus.errorBannerText.includes('exact room v7')
+        && checkpoint45RoomFocus.errorBannerText.includes('exact room v8')
         && layout.roomDesigner.shapeSavePresent
         && layout.roomDesigner.shapeConflictPresent === false
         && layout.roomDesigner.editorStatus?.includes('Saved')
@@ -2843,6 +3344,55 @@ try {
         && layout.roomDesigner.placementPreview.fillsRotatedStage === true
         && layout.roomDesigner.placementPreview.useDisabled === false,
       `Checkpoint 4.5 prop evidence lost its exact image, footprint, rotation, navigation, bounds, or placement gate: ${JSON.stringify(layout.roomDesigner.placementPreview)}`);
+      assert(checkpoint45StudioPreview?.physicalKeyboardOpen === true
+        && checkpoint45StudioPreview.state === 'READY'
+        && checkpoint45StudioPreview.binding?.includes('revision r37')
+        && checkpoint45StudioPreview.binding.includes('room version v8')
+        && checkpoint45StudioPreview.notice === 'Approximate Studio Preview · read-only'
+        && checkpoint45StudioPreview.limits?.includes('not Numberdroid runtime output')
+        && checkpoint45StudioPreview.limits.includes('does not validate, accept, finalize, publish, or change the room')
+        && checkpoint45StudioPreview.phases.join(',') === 'BACKGROUND,BODY,FOREGROUND'
+        && checkpoint45StudioPreview.resourceStates.every((value) => value === 'READY')
+        && checkpoint45StudioPreview.inspectFocus === 'prop.preview-overhang'
+        && checkpoint45StudioPreview.inspectPressed === 'true'
+        && checkpoint45StudioPreview.logical?.x === 3
+        && checkpoint45StudioPreview.logical.y === 0
+        && checkpoint45StudioPreview.logical.width === 1
+        && checkpoint45StudioPreview.logical.height === 1
+        && checkpoint45StudioPreview.visual?.x === 1
+        && checkpoint45StudioPreview.visual.y === -2
+        && checkpoint45StudioPreview.visual.width === 3
+        && checkpoint45StudioPreview.visual.height === 3
+        && checkpoint45StudioPreview.anchor?.x === 3.5
+        && checkpoint45StudioPreview.anchor.y === 1
+        && checkpoint45StudioPreview.cellCount === 12
+        && checkpoint45StudioPreview.voidCount === 2
+        && checkpoint45StudioPreview.blockedCount === 1
+        && checkpoint45StudioPreview.connectorCount >= 1
+        && checkpoint45StudioPreview.mutationControlCount === 0
+        && checkpoint45StudioPreview.pageHorizontalOverflow === false
+        && checkpoint45StudioPreview.stageVisible === true
+        && checkpoint45StudioPreview.loadFocusPreserved === true
+        && checkpoint45StudioPreview.responsiveLayout?.viewportWidth === width
+        && checkpoint45StudioPreview.responsiveLayout.display === 'grid'
+        && (width > 1200
+          ? checkpoint45StudioPreview.responsiveLayout.sideBySide === true && checkpoint45StudioPreview.responsiveLayout.stacked === false
+          : checkpoint45StudioPreview.responsiveLayout.sideBySide === false && checkpoint45StudioPreview.responsiveLayout.stacked === true)
+        && checkpoint45StudioPreview.pixelSamplesInViewport === true
+        && checkpoint45StudioPreview.transparentPixelDelta <= 8
+        && checkpoint45StudioPreview.opaqueOverhangPixelDelta >= 30
+        && checkpoint45StudioPreview.changedPixelCount > 0
+        && checkpoint45StudioPreview.nonGetRequests.length === 0
+        && checkpoint45StudioPreview.editorRoundTrip?.after?.activeKey === 'room-tool-PROP'
+        && checkpoint45StudioPreview.editorRoundTrip.after.roomId === 'room.family-gathering'
+        && checkpoint45StudioPreview.editorRoundTrip.after.editorPresent === true
+        && checkpoint45StudioPreview.editorRoundTrip.after.previewPresent === false
+        && checkpoint45StudioPreview.editorRoundTrip.before.shape?.dirty === true
+        && checkpoint45StudioPreview.editorRoundTrip.before.nonZeroScrollKeys.length > 0
+        && checkpoint45StudioPreview.editorRoundTrip.sameScroll === true
+        && checkpoint45StudioPreview.editorRoundTrip.samePage === true
+        && checkpoint45StudioPreview.editorRoundTrip.sameShape === true,
+      `Studio preview lost exact pins, read-only authority, logical/visual separation, alpha, overhang, or segment order: ${JSON.stringify(checkpoint45StudioPreview)}`);
     }
     if (checkpoint45Focus === 'shape-refresh') {
       assert(checkpoint45RoomFocus.roomId === 'room.family-gathering'
@@ -3776,6 +4326,7 @@ try {
     checkpoint45EditorContinuity,
     checkpoint45FindingsNavigation,
     checkpoint45DirectManipulation,
+    checkpoint45StudioPreview,
     a17Evidence,
     layout,
     interactions: checkpoint2bInteractionEvidence,

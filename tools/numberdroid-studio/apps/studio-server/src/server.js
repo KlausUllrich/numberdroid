@@ -18,6 +18,7 @@ import {
   NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST,
   NUMBERDROID_PROJECT_CAPABILITY_MANIFEST,
 } from '../../../packages/numberdroid-adapter/src/index.js';
+import { createRoomPreviewScene } from '../../../packages/preview/src/room-preview-scene.js';
 import {
   ContentAddressedArtifactStore,
   JsonProjectStore,
@@ -62,6 +63,7 @@ const staticFiles = new Map([
   ['/a1-7-state.js', ['a1-7-state.js', 'text/javascript; charset=utf-8']],
   ['/o1b-backups-state.js', ['o1b-backups-state.js', 'text/javascript; charset=utf-8']],
   ['/remote-ui-mode.js', ['remote-ui-mode.js', 'text/javascript; charset=utf-8']],
+  ['/room-preview-state.js', ['room-preview-state.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
 ]);
@@ -207,7 +209,7 @@ function errorStatus(error, pathname = '') {
   }
   if (pathname.includes('/processing-result-adoptions')
     && ['TASK_NOT_FOUND', 'PROCESSING_RESULT_ADOPTION_NOT_FOUND'].includes(error.code)) return 404;
-  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND', 'JOB_NOT_FOUND', 'ASSET_NOT_FOUND', 'ASSET_PROPOSAL_NOT_FOUND', 'ASSET_SLICE_NOT_FOUND', 'ROOM_ARCHETYPE_NOT_FOUND', 'ROOM_VARIANT_NOT_FOUND', 'ROOM_PROPOSAL_NOT_FOUND', 'ROOM_PLACEMENT_NOT_FOUND', 'ROOM_CONNECTOR_NOT_FOUND'].includes(error.code)) return 404;
+  if (['PROJECT_NOT_FOUND', 'ARTIFACT_NOT_FOUND', 'HOST_PAIRING_NOT_FOUND', 'JOB_NOT_FOUND', 'ASSET_NOT_FOUND', 'ASSET_PROPOSAL_NOT_FOUND', 'ASSET_SLICE_NOT_FOUND', 'ROOM_ARCHETYPE_NOT_FOUND', 'ROOM_VARIANT_NOT_FOUND', 'ROOM_ASSET_VERSION_NOT_FOUND', 'ROOM_PROPOSAL_NOT_FOUND', 'ROOM_PLACEMENT_NOT_FOUND', 'ROOM_CONNECTOR_NOT_FOUND'].includes(error.code)) return 404;
   if (['PROJECT_EXISTS', 'REVISION_CONFLICT', 'IDEMPOTENCY_CONFLICT', 'COMMAND_ID_CONFLICT', 'ENTITY_EXISTS', 'ENTITY_STATE_CONFLICT', 'ENTITY_VERSION_CONFLICT', 'BROADER_ACCESS_CONFIRMATION_REQUIRED', 'AGENT_TARGET_REQUIRED', 'HOST_PAIRING_CONFIRMATION_REQUIRED', 'DRAFT_BRANCH_NOT_AVAILABLE_1B', 'ARTIFACT_NOT_LIVE', 'SOURCE_INTAKE_ALREADY_CLAIMED', 'SOURCE_INTAKE_ARTIFACT_MISMATCH', 'SOURCE_INTAKE_ORIGIN_MISMATCH', 'SOURCE_INTAKE_REFERENCE_MISSING', 'JOB_STATE_CONFLICT', 'JOB_ATTEMPT_CONFLICT', 'JOB_ATTEMPT_LIMIT', 'JOB_INPUT_MISMATCH', 'JOB_OUTPUT_MISMATCH', 'ASSET_LIFECYCLE_BLOCKED', 'ASSET_LIFECYCLE_TRANSITION_INVALID', 'ASSET_PROPOSAL_DECISION_DUPLICATE', 'ASSET_PROPOSAL_DECISION_INCOMPLETE', 'ASSET_PROPOSAL_DUPLICATE_ASSET', 'ASSET_PROPOSAL_DUPLICATE_ITEM', 'ASSET_PROPOSAL_VERSION_INVALID', 'ASSET_SLICE_STALE', 'ASSET_WARNING_NOT_FOUND', 'ASSET_WARNING_UNDISPOSITIONED', 'ROOM_EDIT_REQUIRES_DRAFT', 'ROOM_LIFECYCLE_BLOCKED', 'ROOM_LIFECYCLE_TRANSITION_INVALID', 'ROOM_PROPOSAL_UNRESOLVED', 'ROOM_PROPOSAL_STATE_CONFLICT', 'ROOM_PROPOSAL_DECISION_INCOMPLETE', 'ROOM_PROPOSAL_DECISION_DUPLICATE', 'ROOM_WARNING_NOT_FOUND', 'ROOM_WARNING_UNDISPOSITIONED', 'ROOM_RESIZE_CLIPS_CONTENT', 'ROOM_VERSION_CONFLICT'].includes(error.code)) return 409;
   if (error.code.startsWith('GRANT_') || error.code.startsWith('HOST_BINDING_') || ['FORBIDDEN', 'CONTEXT_PROJECT_MISMATCH', 'OBJECT_SCOPE_DENIED', 'BUDGET_EXCEEDED', 'JOB_AUTHORITY_MISMATCH', 'UNTRUSTED_AGENT_CONTEXT', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
   if (error.code === 'ARTIFACT_TOO_LARGE') return 413;
@@ -409,6 +411,20 @@ function roomRoute(pathname) {
   return collection ? { projectId: decodeURIComponent(collection[1]), roomVariantId: null, action: 'collection' } : null;
 }
 
+function roomPreviewSceneRoute(pathname) {
+  const match = /^\/api\/projects\/([^/]+)\/revisions\/([1-9][0-9]*)\/room-variants\/([^/]+)\/versions\/([1-9][0-9]*)\/preview-scene$/.exec(pathname);
+  if (!match) return null;
+  const projectRevision = Number(match[2]);
+  const roomVersion = Number(match[4]);
+  if (!Number.isSafeInteger(projectRevision) || !Number.isSafeInteger(roomVersion)) return null;
+  return {
+    projectId: decodeURIComponent(match[1]),
+    projectRevision,
+    roomVariantId: decodeURIComponent(match[3]),
+    roomVersion,
+  };
+}
+
 function roomArchetypeRoute(pathname) {
   const collection = /^\/api\/projects\/([^/]+)\/room-archetypes$/.exec(pathname);
   return collection ? { projectId: decodeURIComponent(collection[1]) } : null;
@@ -515,6 +531,23 @@ function assetBindingPreview(projectId, binding, alt) {
       : null,
     alt,
   };
+}
+
+function roomPreviewSceneHttpProjection(scene) {
+  const projected = structuredClone(scene);
+  const prefix = `/api/projects/${encodeURIComponent(projected.source.projectId)}/artifacts/sha256/`;
+  const projectArtifact = (artifact) => ({
+    ...artifact,
+    resourceUri: `${prefix}${artifact.digest}`,
+  });
+  for (const entity of projected.entities) {
+    entity.artifact = projectArtifact(entity.artifact);
+    entity.segments = entity.segments.map((segment) => ({
+      ...segment,
+      artifact: projectArtifact(segment.artifact),
+    }));
+  }
+  return projected;
 }
 
 function assetQueryHttpProjection(view) {
@@ -1447,6 +1480,27 @@ export function createStudioHttpServer({
           humanOwnerContext(projectView),
           { signal: requestAbort.signal },
         ));
+        return;
+      }
+      const roomPreviewSceneRequest = roomPreviewSceneRoute(url.pathname);
+      if (roomPreviewSceneRequest) {
+        if (request.method !== 'GET') {
+          response.setHeader('allow', 'GET');
+          sendJson(response, 405, {
+            schemaVersion: 1,
+            error: { code: 'METHOD_NOT_ALLOWED' },
+          });
+          return;
+        }
+        if (url.search !== '') {
+          throw new StudioError('VALIDATION_ERROR', 'Room preview scene reads do not accept query parameters.');
+        }
+        const projectView = await studioService.readProjectTrusted(roomPreviewSceneRequest.projectId);
+        const source = await studioService.queryRoomPreviewSource({
+          schemaVersion: 1,
+          ...roomPreviewSceneRequest,
+        }, humanOwnerContext(projectView), { signal: requestAbort.signal });
+        sendJson(response, 200, roomPreviewSceneHttpProjection(createRoomPreviewScene(source)));
         return;
       }
       const roomRequest = roomRoute(url.pathname);

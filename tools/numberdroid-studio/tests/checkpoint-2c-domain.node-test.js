@@ -179,6 +179,7 @@ test('unknown fields and unsafe or unbounded extensions fail closed', () => {
     { 'numberdroid.adapter': { sourcePath: '/tmp/source.png' } },
     { 'numberdroid.adapter': { callback: 'https://example.invalid' } },
     { unnamespaced: { safe: true } },
+    { 'numberdroid.adapter': { one: { two: { three: { four: { five: true } } } } } },
   ]) {
     assert.throws(() => validateAssetMetadata({
       assetId: 'asset.extension', kind: 'surface', metadata: familySurface({ extensions }), sliceBinding,
