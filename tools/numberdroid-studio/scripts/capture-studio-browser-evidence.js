@@ -676,11 +676,31 @@ try {
         const roomAttention = [...document.querySelectorAll('.overview-attention-item')]
           .filter((item) => item.querySelector('[data-overview-open="room-findings"]'))
           .map((item) => ({ tone: item.dataset.tone ?? null, text: item.textContent }));
-        await navigate('rooms');
+        let overviewOpenEvidence = null;
+        if (focus === 'irregular') {
+          const open = document.querySelector('[data-overview-open="room-findings"][data-room-variant-id="' + roomId + '"]');
+          open.focus(); open.click();
+          const deadline = Date.now() + 5_000;
+          while (document.getElementById('workspace-content')?.dataset.renderedWorkspace !== 'rooms' && Date.now() < deadline) {
+            await new Promise((resolvePoll) => setTimeout(resolvePoll, 25));
+          }
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          overviewOpenEvidence = {
+            activated: Boolean(open),
+            workspace: document.getElementById('workspace-content')?.dataset.renderedWorkspace ?? null,
+            roomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
+            panel: document.querySelector('[data-room-control="editor-panel"][data-selected="true"]')?.dataset.editorPanel ?? null,
+            selectedFindingId: document.querySelector('.room-findings [data-selected="true"]')?.dataset.findingId ?? null,
+            selectedFindingCount: document.querySelectorAll('.room-findings [data-selected="true"]').length,
+            findingsVisible: document.querySelector('.room-findings')?.getBoundingClientRect().height > 0,
+          };
+        } else await navigate('rooms');
         const selector = document.querySelector('[data-room-variant-select]');
-        selector.value = roomId;
-        selector.dispatchEvent(new Event('change', { bubbles: true }));
-        await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        if (selector.value !== roomId) {
+          selector.value = roomId;
+          selector.dispatchEvent(new Event('change', { bubbles: true }));
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        }
         const tool = focus === 'prop' ? 'PROP' : 'PAINT_ROOM';
         document.querySelector('[data-room-control="editor-tool"][data-editor-tool="' + tool + '"]')?.click();
         await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
@@ -711,6 +731,7 @@ try {
           blockedCount: document.querySelectorAll('.room-cell[data-cell-kind="BLOCKED"]').length,
           overviewMetrics,
           roomAttention,
+          overviewOpenEvidence,
           selectedOptionText: document.querySelector('[data-room-variant-select] option:checked')?.textContent ?? null,
           errorBannerText: document.querySelector('.room-error-attention')?.textContent ?? null,
           errorBannerState: document.querySelector('.room-error-attention')?.dataset.roomErrorState ?? null,
@@ -910,6 +931,7 @@ try {
               targetId: first?.dataset.targetId ?? null,
               focused: document.activeElement === first,
             },
+            dockScrollable: dock.scrollHeight > dock.clientHeight,
             before: {
               findings: list.scrollTop,
               dock: dock.scrollTop,
@@ -987,16 +1009,71 @@ try {
           return result;
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
+      const findingPointerSetup = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="SELECT"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const selectedPlacementId = document.querySelector('[data-room-board] [data-placement-id][data-selected="true"]')?.dataset.placementId ?? null;
+          const target = [...document.querySelectorAll('[data-room-board] .room-placement[data-placement-id]')]
+            .find((candidate) => candidate.dataset.placementId !== selectedPlacementId);
+          const rect = target?.getBoundingClientRect();
+          return {
+            selectedFindingCount: document.querySelectorAll('.room-findings [data-selected="true"]').length,
+            selectedPlacementId,
+            targetPlacementId: target?.dataset.placementId ?? null,
+            point: rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null,
+          };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      const findingPointerPoint = findingPointerSetup.result?.value?.point;
+      await devtools.send('Input.dispatchMouseEvent', {
+        type: 'mousePressed', x: findingPointerPoint.x, y: findingPointerPoint.y,
+        button: 'left', buttons: 1, clickCount: 1,
+      }, sessionId);
+      const findingPointerDuring = await devtools.send('Runtime.evaluate', {
+        expression: `({
+          selectedPlacementId: document.querySelector('[data-room-board] [data-placement-id][data-selected="true"]')?.dataset.placementId ?? null,
+          selectedFindingCount: document.querySelectorAll('.room-findings [data-selected="true"]').length,
+          currentFindingCount: document.querySelectorAll('.room-findings [aria-current="true"]').length,
+          gestureActive: window.__numberdroidStudioVisualTest?.roomPlacementInteractionState()?.gestureActive ?? false,
+        })`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27,
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27,
+      }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', {
+        type: 'mouseReleased', x: findingPointerPoint.x, y: findingPointerPoint.y,
+        button: 'left', buttons: 0, clickCount: 1,
+      }, sessionId);
+      const findingPointerAfter = await devtools.send('Runtime.evaluate', {
+        expression: `({
+          selectedPlacementId: document.querySelector('[data-room-board] [data-placement-id][data-selected="true"]')?.dataset.placementId ?? null,
+          selectedFindingCount: document.querySelectorAll('.room-findings [data-selected="true"]').length,
+          currentFindingCount: document.querySelectorAll('.room-findings [aria-current="true"]').length,
+          gestureActive: window.__numberdroidStudioVisualTest?.roomPlacementInteractionState()?.gestureActive ?? false,
+        })`, returnByValue: true,
+      }, sessionId);
       checkpoint45FindingsNavigation = {
         setup: findingsSetup.result?.value ?? null,
         first: findingsFirst.result?.value ?? null,
         second: findingsSecond.result?.value ?? null,
+        pointerSelection: {
+          setup: findingPointerSetup.result?.value ?? null,
+          during: findingPointerDuring.result?.value ?? null,
+          after: findingPointerAfter.result?.value ?? null,
+        },
       };
       assert(checkpoint45FindingsNavigation.setup?.errorCount === 5
         && checkpoint45FindingsNavigation.setup.targetCount === 4
         && checkpoint45FindingsNavigation.setup.staticError?.buttonCount === 0
         && checkpoint45FindingsNavigation.setup.staticError.text?.includes('Room-wide issue')
         && checkpoint45FindingsNavigation.setup.first?.focused === true
+        && checkpoint45FindingsNavigation.setup.before.findings > 0
+        && (width !== 1440 || (checkpoint45FindingsNavigation.setup.dockScrollable === true
+          && checkpoint45FindingsNavigation.setup.before.dock > 0))
         && checkpoint45FindingsNavigation.first?.first.focusedKey === checkpoint45FindingsNavigation.setup.first.focusKey
         && checkpoint45FindingsNavigation.first.first.selectedFindingId === checkpoint45FindingsNavigation.setup.first.findingId
         && checkpoint45FindingsNavigation.first.first.selectedPlacementId === checkpoint45FindingsNavigation.setup.first.targetId
@@ -1012,7 +1089,18 @@ try {
         && checkpoint45FindingsNavigation.second.hasExplanation === true
         && checkpoint45FindingsNavigation.second.hasRemediation === true
         && checkpoint45FindingsNavigation.second.technicalText?.includes('ERROR')
-        && checkpoint45FindingsNavigation.second.requestCount === 0,
+        && checkpoint45FindingsNavigation.second.requestCount === 0
+        && checkpoint45FindingsNavigation.pointerSelection.setup?.selectedFindingCount === 1
+        && checkpoint45FindingsNavigation.pointerSelection.setup.targetPlacementId
+        && checkpoint45FindingsNavigation.pointerSelection.setup.targetPlacementId !== checkpoint45FindingsNavigation.pointerSelection.setup.selectedPlacementId
+        && checkpoint45FindingsNavigation.pointerSelection.during?.selectedPlacementId === checkpoint45FindingsNavigation.pointerSelection.setup.targetPlacementId
+        && checkpoint45FindingsNavigation.pointerSelection.during.selectedFindingCount === 0
+        && checkpoint45FindingsNavigation.pointerSelection.during.currentFindingCount === 0
+        && checkpoint45FindingsNavigation.pointerSelection.during.gestureActive === true
+        && checkpoint45FindingsNavigation.pointerSelection.after?.selectedPlacementId === checkpoint45FindingsNavigation.pointerSelection.setup.targetPlacementId
+        && checkpoint45FindingsNavigation.pointerSelection.after.selectedFindingCount === 0
+        && checkpoint45FindingsNavigation.pointerSelection.after.currentFindingCount === 0
+        && checkpoint45FindingsNavigation.pointerSelection.after.gestureActive === false,
       `Checkpoint 4.5 finding navigation did not preserve exact identity, target, focus, scroll, readability, or read-only authority: ${JSON.stringify(checkpoint45FindingsNavigation)}`);
       const directSetup = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
@@ -2680,6 +2768,13 @@ try {
         && checkpoint45RoomFocus.roomAttention?.length === 1
         && checkpoint45RoomFocus.roomAttention[0].tone === 'problem'
         && checkpoint45RoomFocus.roomAttention[0].text?.includes('5 saved room errors: Family Gathering Room')
+        && checkpoint45RoomFocus.overviewOpenEvidence?.activated === true
+        && checkpoint45RoomFocus.overviewOpenEvidence.workspace === 'rooms'
+        && checkpoint45RoomFocus.overviewOpenEvidence.roomId === 'room.family-gathering'
+        && checkpoint45RoomFocus.overviewOpenEvidence.panel === 'check'
+        && checkpoint45RoomFocus.overviewOpenEvidence.selectedFindingCount === 1
+        && checkpoint45RoomFocus.overviewOpenEvidence.selectedFindingId
+        && checkpoint45RoomFocus.overviewOpenEvidence.findingsVisible === true
         && checkpoint45RoomFocus.roomId === 'room.family-gathering'
         && checkpoint45RoomFocus.tool === 'PAINT_ROOM'
         && checkpoint45RoomFocus.cellCount === 12

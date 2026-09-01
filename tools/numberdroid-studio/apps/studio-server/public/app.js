@@ -112,6 +112,7 @@ const state = {
   },
   taskMutationPending: false,
   tasks: [],
+  tasksAvailability: 'UNAVAILABLE',
   taskAdoption: null,
   taskUi: {
     view: 'list',
@@ -1961,8 +1962,10 @@ function renderOverview(snapshot) {
   const roomVariants = snapshot.roomLibrary?.variants?.length ?? snapshot.rooms.length;
   const pendingProposals = (snapshot.assetLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0)
     + (snapshot.roomLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0);
-  const taskAttention = state.tasks.map((entry) => ({ entry, attention: taskAttentionPresentation(entry) }))
-    .filter(({ attention }) => attention);
+  const tasksAvailable = state.tasksAvailability === 'AVAILABLE';
+  const taskAttention = tasksAvailable
+    ? state.tasks.map((entry) => ({ entry, attention: taskAttentionPresentation(entry) })).filter(({ attention }) => attention)
+    : [];
   const taskConflicts = taskAttention.filter(({ attention }) => attention.kind === 'CONFLICT');
   const roomAttention = currentRoomLibrary(snapshot).variants.map((entry) => ({ entry, projection: roomHeadFindingProjection(entry) }))
     .filter(({ projection }) => projection.state !== 'AVAILABLE' || projection.errors.length > 0);
@@ -1973,7 +1976,7 @@ function renderOverview(snapshot) {
     ['Sources', snapshot.sources.length], ['Assets', snapshot.assets.length + v2Assets],
     ['Rooms', roomVariants], ['Levels', snapshot.levels.length],
     ...(snapshot.assetLibrary ? [['Pending reviews', pendingProposals]] : []),
-    ['Tasks needing you', taskAttention.length], ['Task conflicts', taskConflicts.length],
+    ['Tasks needing you', tasksAvailable ? taskAttention.length : '—'], ['Task conflicts', tasksAvailable ? taskConflicts.length : '—'],
     ['Saved room errors', savedRoomErrors],
     ['Active grants', activeGrants.length],
   ];
@@ -1988,6 +1991,13 @@ function renderOverview(snapshot) {
   const attention = document.createElement('section'); attention.className = 'overview-attention';
   attention.append(sectionHeading('Needs your attention', 'These are read-only signals from saved task reviews and exact saved room heads. Nothing is accepted, fixed, or merged here.'));
   const attentionList = document.createElement('div'); attentionList.className = 'overview-attention-list';
+  if (!tasksAvailable) {
+    const item = document.createElement('article'); item.className = 'overview-attention-item'; item.dataset.tone = 'problem';
+    const copy = document.createElement('div'); const label = document.createElement('strong'); label.textContent = 'Task status unavailable — needs attention';
+    const detail = document.createElement('p'); detail.textContent = 'Studio could not read the saved task projection and will not present it as clear or empty.';
+    copy.append(label, detail); const open = document.createElement('button'); open.type = 'button'; open.className = 'secondary'; open.dataset.overviewOpen = 'tasks'; open.textContent = 'Open task overview';
+    item.append(copy, open); attentionList.append(item);
+  }
   for (const { entry, attention: task } of taskAttention) {
     const item = document.createElement('article'); item.className = 'overview-attention-item'; item.dataset.tone = task.kind === 'CONFLICT' ? 'problem' : 'attention';
     const copy = document.createElement('div');
@@ -3241,30 +3251,49 @@ function renderRooms(snapshot) {
     return fragment;
   }
   if (!library.variants.some(({ roomVariantId }) => roomVariantId === state.roomUi.selectedRoomVariantId)) state.roomUi.selectedRoomVariantId = library.variants[0].roomVariantId;
-  const { entry: selectedEntry, variant } = currentRoomVariant(snapshot); const archetype = library.archetypes.find(({ roomArchetypeId, version }) => roomArchetypeId === variant.roomArchetypeId && version === variant.archetypeVersion);
+  const selectedEntry = library.variants.find(({ roomVariantId }) => roomVariantId === state.roomUi.selectedRoomVariantId);
+  const variant = exactRoomHead(selectedEntry);
   const header = document.createElement('section'); header.className = 'room-header';
   const selectorLabel = document.createElement('label'); const selectorCaption = document.createElement('span'); selectorCaption.textContent = 'Room / hallway';
   const selector = document.createElement('select'); selector.dataset.roomVariantSelect = 'true'; selector.dataset.roomControl = 'room-select';
   for (const entry of library.variants) {
-    const head = roomHead(entry); const projection = roomHeadFindingProjection(entry);
-    const entryArchetype = library.archetypes.find((candidate) => candidate.roomArchetypeId === head.roomArchetypeId && candidate.version === head.archetypeVersion);
-    const attention = projection.state !== 'AVAILABLE' ? ' · status unavailable'
-      : projection.errors.length ? ` · ${projection.errors.length} saved error${projection.errors.length === 1 ? '' : 's'}` : '';
-    const option = document.createElement('option'); option.value = entry.roomVariantId; option.textContent = `${head.displayName} · ${entryArchetype?.kind ?? 'room'} · ${head.lifecycle} v${head.version}${attention}`; selector.append(option);
+    const head = exactRoomHead(entry); const projection = roomHeadFindingProjection(entry); const option = document.createElement('option'); option.value = entry.roomVariantId;
+    if (!head) {
+      option.textContent = `${entry.roomVariantId} · exact head unavailable`;
+    } else {
+      const entryArchetype = library.archetypes.find((candidate) => candidate.roomArchetypeId === head.roomArchetypeId && candidate.version === head.archetypeVersion);
+      const attention = projection.errors.length ? ` · ${projection.errors.length} saved error${projection.errors.length === 1 ? '' : 's'}` : '';
+      option.textContent = `${head.displayName} · ${entryArchetype?.kind ?? 'room'} · ${head.lifecycle} v${head.version}${attention}`;
+    }
+    selector.append(option);
   }
-  selector.value = variant.roomVariantId; selectorLabel.append(selectorCaption, selector);
-  const identity = document.createElement('div'); const heading = document.createElement('h2'); heading.textContent = variant.displayName;
-  const detail = document.createElement('p'); detail.textContent = `${archetype?.displayName ?? 'Reusable room type'} · ${findingSummary(variant.findings)}`;
+  selector.value = selectedEntry.roomVariantId; selectorLabel.append(selectorCaption, selector);
+  const identity = document.createElement('div'); const heading = document.createElement('h2'); heading.textContent = variant?.displayName ?? selectedEntry.roomVariantId;
+  const detail = document.createElement('p');
+  const archetype = variant
+    ? library.archetypes.find(({ roomArchetypeId, version }) => roomArchetypeId === variant.roomArchetypeId && version === variant.archetypeVersion)
+    : null;
+  detail.textContent = variant
+    ? `${archetype?.displayName ?? 'Reusable room type'} · ${findingSummary(variant.findings)}`
+    : 'The exact referenced room head is unavailable. No fallback version is opened as current.';
   const technical = document.createElement('details'); technical.className = 'room-header-technical';
   const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
-  const technicalCopy = document.createElement('code'); technicalCopy.textContent = `${variant.roomVariantId} · archetype ${variant.roomArchetypeId}@${variant.archetypeVersion} · room version ${variant.version} · ${variant.lifecycle}`;
+  const technicalCopy = document.createElement('code'); technicalCopy.textContent = variant
+    ? `${variant.roomVariantId} · archetype ${variant.roomArchetypeId}@${variant.archetypeVersion} · room version ${variant.version} · ${variant.lifecycle}`
+    : `${selectedEntry.roomVariantId} · referenced head version ${selectedEntry.headVersion} · unavailable`;
   technical.append(technicalSummary, technicalCopy); identity.append(heading, detail, technical);
+  const status = variant ? roomStatusPill(variant.lifecycle) : document.createElement('span');
+  if (!variant) { status.className = 'status-pill'; status.dataset.roomLifecycle = 'UNAVAILABLE'; status.textContent = 'Head unavailable'; }
+  header.append(selectorLabel, identity, status); fragment.append(header);
+  const errorAttention = renderRoomErrorAttention(selectedEntry); if (errorAttention) fragment.append(errorAttention);
+  if (!variant) {
+    fragment.append(emptyState('Exact room head unavailable', 'Studio will not open a fallback room version as current. Restore the exact referenced head before editing or inspecting current findings.'));
+    return fragment;
+  }
   const editor = document.createElement('section'); editor.className = 'room-editor'; editor.append(renderRoomToolOptions(variant));
   const shell = document.createElement('div'); shell.className = 'room-editor-shell';
   shell.append(renderRoomToolbox(variant), renderRoomCanvas(variant, snapshot), renderRoomEditorDock(variant, snapshot, library));
   editor.append(shell); applyRoomShapeDraftLock(editor, variant);
-  header.append(selectorLabel, identity, roomStatusPill(variant.lifecycle)); fragment.append(header);
-  const errorAttention = renderRoomErrorAttention(selectedEntry); if (errorAttention) fragment.append(errorAttention);
   fragment.append(editor);
   return fragment;
 }
@@ -3365,7 +3394,7 @@ function taskWorkflowPresentation(entry) {
 function taskAttentionPresentation(entry) {
   const stateValue = taskEffectiveState(entry);
   const conflicts = Array.isArray(entry.review?.conflicts) ? entry.review.conflicts : [];
-  if (conflicts.length) {
+  if (stateValue === 'IN_REVIEW' && entry.review?.state === 'OPEN' && conflicts.length) {
     const comparedRevision = Number.isInteger(entry.review?.comparedMainRevision)
       ? ` during the saved review comparison at project r${entry.review.comparedMainRevision}` : ' in the saved review';
     return {
@@ -3731,7 +3760,13 @@ function renderTaskList() {
   const copy = document.createElement('div'); const listHeading = document.createElement('h2'); listHeading.textContent = 'Tasks';
   const help = document.createElement('p'); help.textContent = 'Choose a task to see who acts next, or create a new task.'; copy.append(listHeading, help);
   const create = document.createElement('button'); create.type = 'button'; create.dataset.taskControl = 'open-create'; create.textContent = 'Create task';
+  create.disabled = state.tasksAvailability !== 'AVAILABLE';
+  if (create.disabled) create.title = 'Task creation stays unavailable until the saved task projection can be read.';
   header.append(copy, create); list.append(header);
+  if (state.tasksAvailability !== 'AVAILABLE') {
+    list.append(emptyState('Task status unavailable', 'Studio could not read the saved task projection and will not present it as empty. Refresh before creating or acting on tasks.'));
+    return list;
+  }
   if (!state.tasks.length) {
     list.append(emptyState('No delegated tasks', 'Create a task. Finalize, export, and publish remain unavailable.'));
     return list;
@@ -4260,6 +4295,7 @@ function workspaceRenderFingerprint() {
     roomMutationPending: state.roomMutationPending,
     taskMutationPending: state.taskMutationPending,
     tasks: ['overview', 'tasks'].includes(state.workspace) ? state.tasks : null,
+    tasksAvailability: ['overview', 'tasks'].includes(state.workspace) ? state.tasksAvailability : null,
     taskUi: state.workspace === 'tasks' ? state.taskUi : null,
     taskAdoption: state.workspace === 'tasks' && state.taskUi.view === 'detail'
       ? state.taskAdoption
@@ -4709,7 +4745,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     resetAssetUiProjectContext();
     resetRoomUiProjectContext();
     taskSelectionGeneration += 1;
-    state.tasks = []; state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null;
+    state.tasks = []; state.tasksAvailability = 'UNAVAILABLE'; state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null;
     cancelTaskAdoptionLoad({ clearState: true });
     state.taskDomState = null;
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
@@ -4776,12 +4812,15 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
       ? Promise.resolve(remoteReadOnlyAgentAccess(projectId))
       : api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`),
     api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`),
-    api(`/api/projects/${encodeURIComponent(projectId)}/tasks`).catch(() => ({ tasks: [] })),
+    api(`/api/projects/${encodeURIComponent(projectId)}/tasks`)
+      .then((value) => ({ available: true, tasks: value.tasks ?? [] }))
+      .catch(() => ({ available: false, tasks: [] })),
   ]);
   if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   const selectedTaskId = state.workspace === 'tasks'
     && state.taskUi.view === 'detail'
-    && (taskList.tasks ?? []).some((task) => task.taskId === state.taskUi.selectedTaskId)
+    && taskList.available
+    && taskList.tasks.some((task) => task.taskId === state.taskUi.selectedTaskId)
     ? state.taskUi.selectedTaskId
     : null;
   const taskSelectionOwner = {
@@ -4790,7 +4829,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     taskId: selectedTaskId,
   };
   const [taskDetails, selectedAdoption] = await Promise.all([
-    Promise.all((taskList.tasks ?? []).map((task) => (
+    Promise.all(taskList.tasks.map((task) => (
       api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
     ))),
     selectedTaskId ? requestTaskAdoptionProjection(projectId, selectedTaskId) : Promise.resolve(null),
@@ -4841,6 +4880,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
   state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
   state.sourceIntakes = sourceIntakes.intakes;
   state.tasks = taskDetails;
+  state.tasksAvailability = taskList.available ? 'AVAILABLE' : 'UNAVAILABLE';
   reconcileTaskUiAfterRefresh();
   const selectionOwned = processingAdoptionSelectionOwned(taskSelectionOwner, {
     generation: taskSelectionGeneration,
@@ -5160,7 +5200,10 @@ elements['workspace-content'].addEventListener('pointerdown', (event) => {
   const board = target.closest('[data-room-board]'); const pointerCell = roomCellFromPointer(board, event);
   if (!pointerCell) return;
   state.roomUi.selectedPlacementId = placement.placementId;
-  state.roomUi.selectedConnectorId = null; state.roomUi.selectedPaletteAssetId = null; state.roomUi.placementHover = null;
+  state.roomUi.selectedConnectorId = null; state.roomUi.selectedFinding = null; state.roomUi.selectedPaletteAssetId = null; state.roomUi.placementHover = null;
+  for (const item of elements['workspace-content'].querySelectorAll('.room-findings [data-selected="true"]')) {
+    item.dataset.selected = 'false'; item.querySelector('[aria-current="true"]')?.removeAttribute('aria-current');
+  }
   for (const candidate of board.querySelectorAll('.room-placement[data-selected="true"]')) candidate.dataset.selected = 'false';
   target.dataset.selected = 'true'; target.focus({ preventScroll: true });
   state.roomUi.placementGesture = {

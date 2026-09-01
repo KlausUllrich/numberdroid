@@ -28,6 +28,7 @@ test('Task overview exposes persisted conflicts and owner actions without invent
   const attention = app.slice(app.indexOf('function taskAttentionPresentation'), app.indexOf('function processingAttemptCopy'));
   assert.match(attention, /entry\.review\?\.conflicts/);
   assert.match(attention, /taskEffectiveState\(entry\)/);
+  assert.match(attention, /stateValue === 'IN_REVIEW' && entry\.review\?\.state === 'OPEN' && conflicts\.length/);
   assert.match(attention, /kind: 'CONFLICT'/);
   assert.match(attention, /Recorded conflict — action required/);
   assert.match(attention, /saved review comparison at project r/);
@@ -38,6 +39,11 @@ test('Task overview exposes persisted conflicts and owner actions without invent
   assert.match(app, /Tasks needing you/);
   assert.match(app, /Task conflicts/);
   assert.match(app, /tasks: \['overview', 'tasks'\]\.includes\(state\.workspace\) \? state\.tasks : null/);
+  assert.match(app, /tasksAvailability: 'UNAVAILABLE'/);
+  assert.match(app, /tasksAvailable \? taskAttention\.length : '—'/);
+  assert.match(app, /Task status unavailable — needs attention/);
+  assert.match(app, /will not present it as clear or empty/);
+  assert.match(app, /create\.disabled = state\.tasksAvailability !== 'AVAILABLE'/);
   assert.match(styles, /\.status-pill\[data-task-state="IN_REVIEW"\] \{[^}]*var\(--amber\)/);
   assert.match(styles, /\.task-list-item\[data-task-attention="CONFLICT"\] \{[^}]*repeating-linear-gradient/);
   assert.match(styles, /\.task-list-attention strong \{[^}]*font-size: 10px/);
@@ -52,7 +58,7 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
   assert.match(reconciliation, /state\.taskUi\.view !== 'detail'/);
   assert.match(reconciliation, /state\.taskUi\.selectedTaskId = null;\s*(?:state\.taskAdoption = null;\s*)?return;/);
   assert.match(reconciliation, /state\.taskUi\.view = 'list'/);
-  assert.match(app, /state\.tasks = taskDetails;\s*reconcileTaskUiAfterRefresh\(\)/);
+  assert.match(app, /state\.tasks = taskDetails;\s*state\.tasksAvailability = taskList\.available \? 'AVAILABLE' : 'UNAVAILABLE';\s*reconcileTaskUiAfterRefresh\(\)/);
   assert.match(app, /function hasLiveTaskComposer\(\)/);
   assert.match(app, /mayPreserveWorkspace && hasLiveTaskComposer\(\)/);
   assert.match(app, /previousWorkspaceFingerprint === workspaceRenderFingerprint\(\)/);

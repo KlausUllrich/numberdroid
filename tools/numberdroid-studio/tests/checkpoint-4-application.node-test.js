@@ -184,6 +184,15 @@ test('review compare records explicit same-object main/branch conflict', async (
     .getReview(PROJECT_ID, created.task.taskId, result.review.reviewId);
   assert.equal(persisted.comparedMainRevision, result.review.comparedMainRevision);
   assert.deepEqual(persisted.conflicts, result.review.conflicts);
+  const cancelled = await tasks.control(PROJECT_ID, created.task.taskId, 'cancel', {
+    actorId: OWNER.id,
+    reason: 'The recorded conflict belongs to a task that is now closed.',
+  });
+  assert.equal(cancelled.task.state, 'CANCELLED');
+  const afterCancel = tasks.readTask(PROJECT_ID, created.task.taskId);
+  assert.equal(afterCancel.task.effectiveState, 'CANCELLED');
+  assert.equal(afterCancel.review.state, 'OPEN');
+  assert.deepEqual(afterCancel.review.conflicts, result.review.conflicts);
 });
 
 test('agent room authoring cannot bypass the isolated task service onto main', async (context) => {
