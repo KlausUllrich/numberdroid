@@ -786,26 +786,51 @@ try {
       assert(editorBeforePreview?.activeKey === 'room-tool-PROP' && editorBeforePreview.editorPresent
         && editorBeforePreview.shape?.dirty === true && editorBeforePreview.nonZeroScrollKeys.length > 0,
         `Studio preview could not establish exact editor continuity state: ${JSON.stringify(editorBeforePreview)}`);
+      await devtools.send('Page.bringToFront', {}, sessionId);
       const focusedPreview = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const button = document.querySelector('[data-room-view="preview"]');
           const root = document.getElementById('workspace-content');
-          const clicks = [];
+          const events = [];
           const onClick = (event) => {
             const view = event.target.closest?.('[data-room-view]');
-            if (view) clicks.push({
+            if (view) events.push({
+              type: event.type,
               roomView: view.dataset.roomView ?? null,
               isTrusted: event.isTrusted,
               detail: event.detail,
             });
           };
-          window.__checkpoint45PreviewKeyboard = { root, clicks, onClick };
+          const onKey = (event) => {
+            if (event.key !== 'Enter') return;
+            const view = event.target.closest?.('[data-room-view]');
+            events.push({
+              type: event.type,
+              key: event.key,
+              code: event.code,
+              repeat: event.repeat,
+              isTrusted: event.isTrusted,
+              roomView: view?.dataset.roomView ?? null,
+            });
+          };
+          window.__checkpoint45PreviewKeyboard = { root, events, onClick, onKey };
           root?.addEventListener('click', onClick, true);
+          document.addEventListener('keydown', onKey, true);
+          document.addEventListener('keyup', onKey, true);
           button?.focus({ preventScroll: true });
-          return Boolean(button && document.activeElement === button && !button.disabled);
+          return {
+            buttonFocused: Boolean(button && document.activeElement === button),
+            buttonEnabled: Boolean(button && !button.disabled),
+            documentFocused: document.hasFocus(),
+            visibilityState: document.visibilityState,
+          };
         })()`, returnByValue: true,
       }, sessionId);
-      assert(focusedPreview.result?.value === true, 'Studio preview view could not receive physical keyboard focus.');
+      assert(focusedPreview.result?.value?.buttonFocused === true
+        && focusedPreview.result.value.buttonEnabled === true
+        && focusedPreview.result.value.documentFocused === true
+        && focusedPreview.result.value.visibilityState === 'visible',
+      `Studio preview view could not receive active-document keyboard focus: ${JSON.stringify(focusedPreview.result?.value)}`);
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'rawKeyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
       }, sessionId);
@@ -816,26 +841,40 @@ try {
       for (let attempt = 0; attempt < 40; attempt += 1) {
         const observed = await devtools.send('Runtime.evaluate', {
           expression: `(() => ({
-            clicks: window.__checkpoint45PreviewKeyboard?.clicks.map((click) => ({ ...click })) ?? [],
+            events: window.__checkpoint45PreviewKeyboard?.events.map((event) => ({ ...event })) ?? [],
             rootPresent: Boolean(document.querySelector('[data-room-preview]')),
             previewPressed: document.querySelector('[data-room-view="preview"]')?.getAttribute('aria-pressed') ?? null,
           }))()`, returnByValue: true,
         }, sessionId);
         previewActivation = observed.result?.value ?? null;
-        if (previewActivation?.clicks.length > 0 && previewActivation.rootPresent) break;
+        if (previewActivation?.events.some(({ type }) => type === 'click') && previewActivation.rootPresent) break;
         await delay(50);
       }
       await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const evidence = window.__checkpoint45PreviewKeyboard;
           evidence?.root?.removeEventListener('click', evidence.onClick, true);
+          document.removeEventListener('keydown', evidence?.onKey, true);
+          document.removeEventListener('keyup', evidence?.onKey, true);
           delete window.__checkpoint45PreviewKeyboard;
         })()`, returnByValue: true,
       }, sessionId);
-      assert(previewActivation?.clicks.length === 1
-        && previewActivation.clicks[0].roomView === 'preview'
-        && previewActivation.clicks[0].isTrusted === true
-        && previewActivation.clicks[0].detail === 0
+      assert(previewActivation?.events.length === 3
+        && previewActivation.events[0].type === 'keydown'
+        && previewActivation.events[0].key === 'Enter'
+        && previewActivation.events[0].code === 'Enter'
+        && previewActivation.events[0].repeat === false
+        && previewActivation.events[0].isTrusted === true
+        && previewActivation.events[0].roomView === 'preview'
+        && previewActivation.events[1].type === 'click'
+        && previewActivation.events[1].roomView === 'preview'
+        && previewActivation.events[1].isTrusted === true
+        && previewActivation.events[1].detail === 0
+        && previewActivation.events[2].type === 'keyup'
+        && previewActivation.events[2].key === 'Enter'
+        && previewActivation.events[2].code === 'Enter'
+        && previewActivation.events[2].repeat === false
+        && previewActivation.events[2].isTrusted === true
         && previewActivation.rootPresent === true
         && previewActivation.previewPressed === 'true',
       `Physical Preview activation did not produce one exact trusted keyboard click: ${JSON.stringify(previewActivation)}`);
@@ -986,10 +1025,15 @@ try {
         .map(({ method, url }) => ({ method, url }));
       checkpoint45StudioPreview = {
         ...previewFacts,
-        physicalKeyboardOpen: previewActivation?.clicks.length === 1
-          && previewActivation.clicks[0].roomView === 'preview'
-          && previewActivation.clicks[0].isTrusted === true
-          && previewActivation.clicks[0].detail === 0,
+        physicalKeyboardOpen: previewActivation?.events.length === 3
+          && previewActivation.events[0].type === 'keydown'
+          && previewActivation.events[0].isTrusted === true
+          && previewActivation.events[1].type === 'click'
+          && previewActivation.events[1].roomView === 'preview'
+          && previewActivation.events[1].isTrusted === true
+          && previewActivation.events[1].detail === 0
+          && previewActivation.events[2].type === 'keyup'
+          && previewActivation.events[2].isTrusted === true,
         loadFocusPreserved: loadFocusResult.result?.value === true,
         transparentPixelDelta: delta(transparentPainted, transparentReference),
         opaqueOverhangPixelDelta: delta(opaquePainted, opaqueReference),

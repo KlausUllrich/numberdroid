@@ -55,19 +55,21 @@ test('Room Studio Preview renders bounded SVG alpha, rotation, overhang, guides,
 
 test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visible non-occupying overhang', async () => {
   const capture = await readFile(capturePath, 'utf8');
-  const openStart = capture.indexOf('const focusedPreview =');
+  const openStart = capture.indexOf("await devtools.send('Page.bringToFront'");
   const openEnd = capture.indexOf('let previewReady = false', openStart);
   const physicalOpen = capture.slice(openStart, openEnd);
   assert.ok(openStart >= 0 && openEnd > openStart);
   assert.match(capture, /\[data-room-view=\"preview\"\][\s\S]*Input\.dispatchKeyEvent/);
   assert.match(capture, /text: '\\r', unmodifiedText: '\\r'/);
+  assert.match(physicalOpen, /Page\.bringToFront[\s\S]*document\.hasFocus\(\)[\s\S]*document\.visibilityState/);
   assert.match(physicalOpen, /type: 'rawKeyDown', key: 'Enter'/);
   assert.match(physicalOpen, /type: 'keyUp', key: 'Enter'/);
   assert.match(physicalOpen, /isTrusted: event\.isTrusted/);
   assert.match(physicalOpen, /detail: event\.detail/);
-  assert.match(physicalOpen, /clicks\.length === 1[\s\S]*roomView === 'preview'[\s\S]*isTrusted === true[\s\S]*detail === 0/);
+  assert.match(physicalOpen, /events\.length === 3[\s\S]*type === 'keydown'[\s\S]*roomView === 'preview'[\s\S]*type === 'click'[\s\S]*detail === 0[\s\S]*type === 'keyup'/);
+  assert.doesNotMatch(physicalOpen, /type: 'keyDown'/);
   assert.doesNotMatch(physicalOpen, /\.click\(|new KeyboardEvent|dispatchEvent\(new KeyboardEvent/);
-  assert.match(capture, /physicalKeyboardOpen: previewActivation\?\.clicks\.length === 1/);
+  assert.match(capture, /physicalKeyboardOpen: previewActivation\?\.events\.length === 3/);
   assert.match(capture, /transparentPixelDelta/);
   assert.match(capture, /opaqueOverhangPixelDelta/);
   assert.match(capture, /transparentPixelDelta <= 8/);
