@@ -856,12 +856,15 @@ try {
           await waitFor(() => !document.querySelector('[data-room-control="use-preview-asset"]')?.disabled, 'the exact prop placement control');
           document.querySelector('[data-room-control="use-preview-asset"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const board = document.querySelector('[data-room-board]');
+          board.scrollIntoView({ block: 'center', inline: 'center' });
           const pointFor = (x, y) => {
             const cell = document.querySelector('.room-cell[data-x="' + x + '"][data-y="' + y + '"]');
-            cell.scrollIntoView({ block: 'center', inline: 'center' });
             const rect = cell.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
           };
-          return { validPoint: pointFor(1, 0), invalidPoint: pointFor(5, 2), requestCount: window.__roomDirectManipulationEvidence.requests.length };
+          const validPoint = pointFor(1, 0); const invalidPoint = pointFor(5, 2);
+          document.querySelector('[data-room-control="rotate-placement-ghost"]')?.focus({ preventScroll: true });
+          return { validPoint, invalidPoint, requestCount: window.__roomDirectManipulationEvidence.requests.length };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR' }, sessionId);
@@ -1122,10 +1125,11 @@ try {
           slider.dispatchEvent(new Event('input', { bubbles: true }));
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const scroll = document.querySelector('.room-canvas-scroll'); scroll.scrollLeft = 250; scroll.scrollTop = 120;
-          const board = document.querySelector('[data-room-board]').getBoundingClientRect();
+          const scrollRect = scroll.getBoundingClientRect();
           return { requests, ghostCleared: !document.querySelector('.room-placement-ghost'),
             selectedPlacementId: document.querySelector('.room-placement[data-selected="true"]')?.dataset.placementId ?? null,
-            panStart: { left: scroll.scrollLeft, top: scroll.scrollTop }, panPoint: { x: board.left + board.width / 2, y: board.top + board.height / 2 } };
+            panStart: { left: scroll.scrollLeft, top: scroll.scrollTop },
+            panPoint: { x: scrollRect.left + scrollRect.width / 2, y: scrollRect.top + scrollRect.height / 2 } };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
       const panPoint = afterDrag.result.value.panPoint;
