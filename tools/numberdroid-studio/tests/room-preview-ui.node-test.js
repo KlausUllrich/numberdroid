@@ -45,6 +45,11 @@ test('Room Studio Preview renders bounded SVG alpha, rotation, overhang, guides,
   assert.match(preview, /createElementNS\(ROOM_PREVIEW_SVG_NS/);
   assert.match(preview, /validateRoomPreviewResource\(segment\.artifact, binding\.projectId\)/);
   assert.match(preview, /roomPreviewImageMatrix\(segment, entity\.source\.rotation\)/);
+  const imageStart = preview.indexOf("const image = roomPreviewSvgElement('image'");
+  const imageEnd = preview.indexOf('});', imageStart);
+  assert.ok(imageStart >= 0 && imageEnd > imageStart);
+  assert.doesNotMatch(preview.slice(imageStart, imageEnd), /clip-path/);
+  assert.match(preview, /const group = roomPreviewSvgElement\('g', \{ 'clip-path':/);
   assert.ok(preview.indexOf("image.addEventListener('load'") < preview.indexOf("image.setAttribute('href', resource.resourcePath)"));
   assert.match(preview, /rotation === 90/);
   assert.match(preview, /rotation === 180/);
@@ -86,6 +91,7 @@ test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visi
   assert.match(capture, /opaqueOverhangPixelDelta/);
   assert.match(capture, /transparentPixelDelta <= 8/);
   assert.match(capture, /opaqueOverhangPixelDelta >= 30/);
+  assert.match(capture, /changedPixelCount > 0/);
   assert.match(capture, /nonGetRequests\.length === 0/);
   assert.match(capture, /inspectFocus === 'prop\.preview-overhang'/);
   assert.match(capture, /loadFocusPreserved === true/);
@@ -93,8 +99,10 @@ test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visi
   assert.match(capture, /zoom\.value = '1000'[\s\S]*dispatchEvent\(new Event\('input'/);
   assert.match(capture, /data-editor-tool="PAINT_VOID"[\s\S]*data-editor-tool="PROP"[\s\S]*data-palette-asset-id="asset\.transfer-apparatus-cp45"[\s\S]*data-asset-preview-rotation="90"[\s\S]*data-asset-preview-rotation\]\[data-selected="true"[\s\S]*placementPreview\.loaded === true/);
   assert.match(capture, /nonZeroScrollKeys\.length > 0/);
-  assert.match(capture, /responsiveLayout\.columnCount === 2/);
-  assert.match(capture, /responsiveLayout\.columnCount === 1/);
+  assert.match(capture, /responsiveLayout\.sideBySide === true[\s\S]*responsiveLayout\.stacked === false/);
+  assert.match(capture, /responsiveLayout\.sideBySide === false[\s\S]*responsiveLayout\.stacked === true/);
+  assert.match(capture, /requestAnimationFrame\(\(\) => requestAnimationFrame\(resolveFrame\)\)/);
+  assert.match(capture, /getComputedStyle\(group\)\.display === 'none'/);
   assert.match(capture, /errorBannerText\.includes\('exact room v8'\)/);
   assert.match(capture, /editorRoundTrip\.sameScroll === true/);
   assert.match(capture, /editorRoundTrip\.samePage === true/);

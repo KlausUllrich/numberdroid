@@ -3474,7 +3474,7 @@ function renderRoomPreviewSvg(scene, binding, requestId, rootOwner) {
       x: 0, y: 0,
       width: resource.pixelSize.width, height: resource.pixelSize.height,
       transform: `matrix(${roomPreviewImageMatrix(segment, entity.source.rotation).join(' ')})`,
-      'clip-path': `url(#${clipId})`, 'aria-hidden': 'true',
+      'aria-hidden': 'true',
     });
     image.dataset.previewDigest = resource.digest;
     image.dataset.previewResourceState = 'LOADING';

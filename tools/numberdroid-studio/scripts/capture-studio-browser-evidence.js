@@ -1060,6 +1060,8 @@ try {
           const stage = root.querySelector('.room-preview-stage');
           const objects = root.querySelector('.room-preview-objects');
           const stageRect = stage?.getBoundingClientRect(); const objectsRect = objects?.getBoundingClientRect();
+          const sideBySide = Boolean(stageRect && objectsRect && objectsRect.left >= stageRect.right - 1 && objectsRect.top < stageRect.bottom);
+          const stacked = Boolean(stageRect && objectsRect && objectsRect.top >= stageRect.bottom - 1);
           return {
             state: root?.dataset.roomPreviewState ?? null,
             binding: root?.querySelector('.room-preview-binding')?.textContent ?? null,
@@ -1082,9 +1084,10 @@ try {
             stageVisible: Boolean(svg && svg.getBoundingClientRect().width > 0 && svg.getBoundingClientRect().height > 0),
             responsiveLayout: {
               viewportWidth: window.innerWidth,
-              columnCount: previewLayout ? getComputedStyle(previewLayout).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length : 0,
-              sideBySide: Boolean(stageRect && objectsRect && objectsRect.left >= stageRect.right - 1 && objectsRect.top < stageRect.bottom),
-              stacked: Boolean(stageRect && objectsRect && objectsRect.top >= stageRect.bottom - 1),
+              display: previewLayout ? getComputedStyle(previewLayout).display : null,
+              gridTemplateColumns: previewLayout ? getComputedStyle(previewLayout).gridTemplateColumns : null,
+              sideBySide,
+              stacked,
             },
             transparentSample: toScreen(1.15, .55),
             opaqueOverhangSample: toScreen(1.9, .55),
@@ -1097,24 +1100,41 @@ try {
       const previewBytes = Buffer.from(painted.data, 'base64');
       await mkdir(dirname(previewOutputPath), { recursive: true });
       await writeFile(previewOutputPath, previewBytes);
-      const hiddenCount = await devtools.send('Runtime.evaluate', {
-        expression: `(() => {
+      const hiddenState = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
           const groups = [...document.querySelectorAll('[data-preview-placement-id="prop.preview-overhang"]')];
-          for (const group of groups) group.setAttribute('visibility', 'hidden');
-          return groups.length;
+          for (const group of groups) {
+            group.dataset.previewEvidenceDisplay = group.style.display;
+            group.style.display = 'none';
+          }
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          return {
+            count: groups.length,
+            hiddenCount: groups.filter((group) => getComputedStyle(group).display === 'none').length,
+          };
         })()`, returnByValue: true,
+        awaitPromise: true,
       }, sessionId);
-      assert(hiddenCount.result?.value === 3, 'Preview pixel oracle could not isolate all three overhang segments.');
-      await delay(50);
+      assert(hiddenState.result?.value?.count === 3 && hiddenState.result.value.hiddenCount === 3,
+        `Preview pixel oracle could not isolate all three overhang segments: ${JSON.stringify(hiddenState.result?.value)}`);
       const reference = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId, 30_000);
       const referenceOutputPath = outputPath.replace(/prop-(\d+)\.png$/i, 'studio-preview-reference-$1.png');
       const referenceBytes = Buffer.from(reference.data, 'base64');
       await writeFile(referenceOutputPath, referenceBytes);
-      await devtools.send('Runtime.evaluate', {
-        expression: `(() => {
-          for (const group of document.querySelectorAll('[data-preview-placement-id="prop.preview-overhang"]')) group.removeAttribute('visibility');
+      const restoredState = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const groups = [...document.querySelectorAll('[data-preview-placement-id="prop.preview-overhang"]')];
+          for (const group of groups) {
+            const display = group.dataset.previewEvidenceDisplay;
+            if (display) group.style.display = display; else group.style.removeProperty('display');
+            delete group.dataset.previewEvidenceDisplay;
+          }
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          return groups.filter((group) => getComputedStyle(group).display !== 'none').length;
         })()`, returnByValue: true,
+        awaitPromise: true,
       }, sessionId);
+      assert(restoredState.result?.value === 3, 'Preview pixel oracle could not restore all three overhang segments.');
       const decodedPainted = decodeSupportedPng(previewBytes, { maxWidth: 2048, maxHeight: 1200, maxInputBytes: 32 * 1024 * 1024 });
       const decodedReference = decodeSupportedPng(referenceBytes, { maxWidth: 2048, maxHeight: 1200, maxInputBytes: 32 * 1024 * 1024 });
       const pixel = (decoded, point) => {
@@ -1128,6 +1148,12 @@ try {
       const transparentReference = pixel(decodedReference, previewFacts.transparentSample);
       const opaquePainted = pixel(decodedPainted, previewFacts.opaqueOverhangSample);
       const opaqueReference = pixel(decodedReference, previewFacts.opaqueOverhangSample);
+      let changedPixelCount = 0;
+      for (let offset = 0; offset < decodedPainted.rgba.length; offset += 4) {
+        const paintedPixel = decodedPainted.rgba.subarray(offset, offset + 4);
+        const referencePixel = decodedReference.rgba.subarray(offset, offset + 4);
+        if (delta(paintedPixel, referencePixel) > 8) changedPixelCount += 1;
+      }
       const nonGetRequests = devtools.events.slice(networkStart)
         .filter(({ method }) => method === 'Network.requestWillBeSent')
         .map(({ params }) => params.request)
@@ -1147,6 +1173,7 @@ try {
         loadFocusPreserved: loadFocusResult.result?.value === true,
         transparentPixelDelta: delta(transparentPainted, transparentReference),
         opaqueOverhangPixelDelta: delta(opaquePainted, opaqueReference),
+        changedPixelCount,
         transparentPainted, transparentReference, opaquePainted, opaqueReference,
         nonGetRequests,
         previewOutputPath, referenceOutputPath,
@@ -3320,11 +3347,13 @@ try {
         && checkpoint45StudioPreview.stageVisible === true
         && checkpoint45StudioPreview.loadFocusPreserved === true
         && checkpoint45StudioPreview.responsiveLayout?.viewportWidth === width
+        && checkpoint45StudioPreview.responsiveLayout.display === 'grid'
         && (width > 1200
-          ? checkpoint45StudioPreview.responsiveLayout.columnCount === 2 && checkpoint45StudioPreview.responsiveLayout.sideBySide === true
-          : checkpoint45StudioPreview.responsiveLayout.columnCount === 1 && checkpoint45StudioPreview.responsiveLayout.stacked === true)
+          ? checkpoint45StudioPreview.responsiveLayout.sideBySide === true && checkpoint45StudioPreview.responsiveLayout.stacked === false
+          : checkpoint45StudioPreview.responsiveLayout.sideBySide === false && checkpoint45StudioPreview.responsiveLayout.stacked === true)
         && checkpoint45StudioPreview.transparentPixelDelta <= 8
         && checkpoint45StudioPreview.opaqueOverhangPixelDelta >= 30
+        && checkpoint45StudioPreview.changedPixelCount > 0
         && checkpoint45StudioPreview.nonGetRequests.length === 0
         && checkpoint45StudioPreview.editorRoundTrip?.after?.activeKey === 'room-tool-PROP'
         && checkpoint45StudioPreview.editorRoundTrip.after.roomId === 'room.family-gathering'
