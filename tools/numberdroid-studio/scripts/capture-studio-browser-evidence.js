@@ -759,6 +759,12 @@ try {
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_VOID"]')?.click();
           document.querySelector('.room-cell[data-x="1"][data-y="0"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="palette-asset"][data-palette-asset-id="asset.transfer-apparatus-cp45"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-asset-preview-rotation="90"]')?.click();
+          const placementPreview = await window.__numberdroidStudioVisualTest?.refreshVisualEvidence();
           let seededScrollKey = null;
           for (const element of document.querySelectorAll('[data-room-scroll]')) {
             const maxTop = element.scrollHeight - element.clientHeight;
@@ -779,12 +785,17 @@ try {
             nonZeroScrollKeys: Object.entries(scroll).filter(([, value]) => value.left > 0 || value.top > 0).map(([key]) => key),
             roomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
             editorPresent: Boolean(document.querySelector('[data-room-board]')),
+            placementPreview,
+            selectedRotation: document.querySelector('[data-asset-preview-rotation][data-selected="true"]')?.dataset.assetPreviewRotation ?? null,
           };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
       const editorBeforePreview = editorBeforePreviewResult.result?.value;
       assert(editorBeforePreview?.activeKey === 'room-tool-PROP' && editorBeforePreview.editorPresent
-        && editorBeforePreview.shape?.dirty === true && editorBeforePreview.nonZeroScrollKeys.length > 0,
+        && editorBeforePreview.shape?.dirty === true && editorBeforePreview.nonZeroScrollKeys.length > 0
+        && editorBeforePreview.placementPreview?.ready === 'true'
+        && editorBeforePreview.placementPreview.loaded === true
+        && editorBeforePreview.selectedRotation === '90',
         `Studio preview could not establish exact editor continuity state: ${JSON.stringify(editorBeforePreview)}`);
       await devtools.send('Page.bringToFront', {}, sessionId);
       const focusedPreview = await devtools.send('Runtime.evaluate', {
