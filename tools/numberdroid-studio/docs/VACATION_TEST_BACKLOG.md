@@ -1,11 +1,12 @@
 # Numberdroid Studio — Consolidated Return Test Backlog
 
-Status: **current live backlog for candidate work created while Klaus cannot test**
+Status: **current live backlog; Room Editor source repairs are green and still require Klaus live verification**
 
-Source baseline recorded: 2026-08-31 after the A4c Domain foundation merge at
-`main` `93187bfd039e00147ce930a937ff0801c09c9784`; post-merge Build #2280 /
-run `33368143760` passed. Receivers MUST still replace this with
-newer verified remote `main` truth as work lands.
+Source baseline recorded: 2026-09-01 after the Room Editor L3 completion merge
+at `main` `fc0969452ec6e22e2e3bddab399a2c56f5e6f63d`, tree
+`46afd8f915a17a2143363424a2eb057d9b5902a7`; post-merge Build #2341 / run
+`33541276661` passed. Receivers MUST still replace this with newer verified
+remote `main` truth as work lands.
 
 ## Purpose
 
@@ -28,7 +29,7 @@ Keep these states distinct:
 | ID | Candidate | State | Depends on | User gate |
 | --- | --- | --- | --- | --- |
 | VT-000 | Protected Studio baseline and restart | AUTOMATED GREEN | accepted CP1–4 | Quick safety/regression confirmation at session start |
-| VT-001 | CP4.5 designer workflow candidate | REVISE — LIVE TESTED 2026-09-01 | VT-000 | Desktop list/create/detail, preview, persistent editor, `VOID`/`BLOCKED` |
+| VT-001 | CP4.5 designer workflow plus Room Editor L3 repairs | REVISE — SOURCE REPAIRS GREEN / NEEDS KLAUS LIVE | VT-000 | Desktop task attention, direct editing, findings and exact read-only Studio Preview |
 | VT-002 | A0.1–A0.4 interface candidates | NEEDS KLAUS REVIEW | VT-000 | Accept/revise bounded capability, candidate, query, and validate-only bridge contracts |
 | VT-003 | CP5 candidate-only adapter/compiler foundation | BLOCKED | VT-001 and later explicit CP5 gate | Candidate fidelity only; no materialization or publication |
 | VT-004 | A1.3 project-bound adoption preflight | NEEDS KLAUS REVIEW | VT-000 and accepted A1.0–A1.2 | Accept/revise the read-only capability/Asset/CAS closure; no live workflow |
@@ -79,6 +80,12 @@ accepted** state.
 
 Full 2026-09-01 evidence and prioritized findings: [`LIVE_VERIFICATION_2026_09_01.md`](LIVE_VERIFICATION_2026_09_01.md).
 
+The bounded source response to VT-001 is integrated through PRs #191, #192 and
+#194–#196. Its exact implementation and CI ledger is
+[`ROOM_EDITOR_L3_STATUS.md`](ROOM_EDITOR_L3_STATUS.md). PR #191 and PR #192,
+and the later Room Editor slices, remain implemented but not user accepted;
+automation and source integration do not change the `REVISE` live result.
+
 ## VT-000 — protected baseline and restart
 
 - **Implementation/merge:** accepted CP1–4 history; current `main` must be
@@ -124,10 +131,16 @@ Full 2026-09-01 evidence and prioritized findings: [`LIVE_VERIFICATION_2026_09_0
 
 ## VT-001 — CP4.5 desktop designer gate
 
-- **Implementation:** PR #137; candidate status and evidence are pinned in
-  `CHECKPOINT_4_5_STATUS.md`.
-- **State:** implemented, source-integrated, Linux/Windows/browser green, not
-  user-accepted.
+- **Implementation:** PR #137 established the original candidate. The bounded
+  live-finding response is integrated through PR #191 (functional repairs), PR
+  #192 (zoom/pan), PR #194 (placement ghost/direct manipulation), PR #195
+  (overview attention/errors and findings navigation), and PR #196 (portable
+  exact read-only Studio Preview). Candidate and completion evidence is pinned
+  in `CHECKPOINT_4_5_STATUS.md` and `ROOM_EDITOR_L3_STATUS.md`.
+- **State:** source-integrated and exact-head/post-merge Linux, Windows,
+  browser-evidence and CI green; **REVISE / NEEDS KLAUS LIVE**. PR #191 and PR
+  #192 explicitly remain implemented but not accepted pending Klaus's live
+  regression. The later repairs also require explicit live acceptance.
 - **Platform:** desktop Chrome at a useful width; protected automated widths are
   1440×900 and 1060×900.
 - **Safe fixtures:** this gate requires two different freshly allocated
@@ -153,10 +166,14 @@ Full 2026-09-01 evidence and prioritized findings: [`LIVE_VERIFICATION_2026_09_0
   ```
 
 - **Task walkthrough:**
-  1. Open **Agent tasks** and verify list → focused creation → one selected-task
-     flow, including next actor, consequence, conflict-disabled completion,
-     rejection, and one-time undo.
-  2. Stop Studio after recording the task result. Do not reuse this directory
+  1. Open **Agent tasks** and, before opening task detail, confirm the
+     conflict/action-required badge and plain-language next action are already
+     visible in the task overview. Use the overview action and confirm it opens
+     the exact blocked task.
+  2. Continue through the focused creation and selected-task flow, including
+     next actor, consequence, conflict-disabled completion, rejection, and
+     one-time undo.
+  3. Stop Studio after recording the task result. Do not reuse this directory
      for room preparation.
 - **Prepare the room fixture on Linux/macOS:** allocate a second directory with
   `mktemp -d`, copy its exact path, replace
@@ -192,8 +209,38 @@ Full 2026-09-01 evidence and prioritized findings: [`LIVE_VERIFICATION_2026_09_0
   5. Inspect a real prop and judge whether exact image, footprint, anchor,
      rotation, collision/navigation, and placement readiness are useful before
      acting.
-- **Decision:** accept or reject the task flow, useful preview, persistent
-  editor, and `VOID`/`BLOCKED` authoring semantics. Automation cannot close it.
+  6. At both 1440×900 and 1060×900, exercise Fit and 100–1000% zoom, readable
+     scaled labels and middle-mouse panning. Confirm the controls remain usable,
+     middle-mouse remains camera-only, and the page has no horizontal overflow.
+  7. Place a new Transfer Apparatus as the disposable test object. Inspect
+     valid and invalid rotated ghosts, then directly select, move, rotate and
+     delete that new placement only. Leave the fixture placement
+     `prop.preview-overhang` unchanged for the Preview test. Confirm Escape
+     cancels, keyboard/inspector controls remain equivalent, and each completed
+     gesture produces one semantic edit rather than pixel persistence.
+  8. Return to the Rooms overview and confirm the saved room's persisted error
+     state is visible before detail. Use its action to open the exact ERROR
+     finding, then choose successive findings. Confirm focus enters the finding
+     in the Check dock, nonzero dock scroll/context is retained, and the
+     remediation remains readable and plain-language.
+  9. Before opening Preview, create one unsaved shape draft, restore the Prop
+     tool/focus, and establish nonzero page and canvas scroll. Open **Studio
+     Preview** and confirm the visible copy names the exact current saved
+     project revision and current saved room version, excludes the unsaved
+     draft, says read-only and says **not Numberdroid runtime output**. Match
+     saved positions, rotations,
+     transparent layering and the `prop.preview-overhang` pixels outside its
+     logical footprint. At 1440×900 the preview is side-by-side; at 1060×900 it
+     stacks without page overflow.
+  10. Return to the editor and confirm the unsaved shape draft, Prop tool/focus,
+      page scroll and inner canvas scroll are preserved exactly. Without
+      editing, reopen Studio Preview and compare the saved projection, then
+      return once more and confirm the same draft/focus/scroll state. Confirm
+      no project revision, room version, task, review or acceptance state
+      changed.
+- **Decision:** accept or revise the task flow, persistent editor,
+  `VOID`/`BLOCKED` semantics, direct manipulation, overview/error visibility,
+  findings navigation and ordinary Studio Preview. Automation cannot close it.
 - **Recovery:** stop Studio and retain both exact temp directories until results
   are recorded. Discard only those unique directories through normal temp-file
   cleanup; clear `NUMBERDROID_STUDIO_DATA` in PowerShell. Never aim a fixture

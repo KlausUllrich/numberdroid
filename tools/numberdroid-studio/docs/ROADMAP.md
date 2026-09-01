@@ -278,23 +278,28 @@ Exit decision: approve the designer-facing task flow, prop preview, guided room 
 
 Candidate implementation: `CHECKPOINT_4_5_CONTRACT.md` freezes the bounded semantics and `CHECKPOINT_4_5_STATUS.md` records the candidate. The implementation adds list/create/detail task views, trusted expiry projection, useful exact-slice previews, one persistent canvas with toolbox/options/dock workflow, owner-only complete shape replacement, schema-v12 normalized shape cells, schema-v2 rectangular parity, and schema-v3 masked-room round trips. It adds no generation, bitmap-job, export, materialization, publication, or wider agent authority.
 
-### Room Editor usability continuation — current L3 sequence
+### Room Editor usability continuation — source-integrated, live acceptance pending
 
 Klaus's 2026-09-01 live verification authorized a bounded sequence before A4c
-continues:
+continues. The complete source sequence is now integrated and automated green;
+none of these merges substitutes for Klaus's later live acceptance:
 
 1. repair Surface-under-Prop placement, rotated prop preview and narrow intent
-   layout — integrated through PR #191;
+   layout — integrated through PR #191; implemented, not user accepted;
 2. add 100–1000% zoom, Fit, scaled canvas labels and middle-mouse pan —
    integrated through PR #192 after exact-head CI and independent review;
+   implemented, not user accepted;
 3. add placement ghosts and direct select/move/rotate/delete interactions while
-   retaining semantic command, exact-version and idempotency boundaries;
+   retaining semantic command, exact-version and idempotency boundaries —
+   integrated through PR #194;
 4. surface persisted room errors and task conflicts/action-required state in the
-   overview, with readable sequential finding navigation;
-5. add an engine-neutral, read-only Studio Preview from the exact room revision.
+   overview, with readable sequential finding navigation — integrated through
+   PR #195;
+5. add an engine-neutral, read-only Studio Preview from the exact current saved
+   Project head and current saved Room head.
    Top-down ships first. It preserves positions, rotations, layers, transparency
    and the separation between logical footprint and visual bounds/overhang. It
-   explicitly does not claim runtime fidelity;
+   explicitly does not claim runtime fidelity — integrated through PR #196;
 6. prepare, but do not require for this usability milestone, a later 2.5D
    renderer over the same preview scene. It may use ground-anchor depth sorting,
    elevation, side-facing/billboard sprites and optional segmented occlusion.
@@ -302,6 +307,9 @@ continues:
 The generic Studio Preview does not invoke Numberdroid or EngineBridge.
 Engine-specific previews remain later adapter features. The 2.5D renderer is
 planned after the top-down preview and is not a prerequisite for resuming A4c.
+Exact merge, CI, verification and acceptance state is recorded in
+[`ROOM_EDITOR_L3_STATUS.md`](ROOM_EDITOR_L3_STATUS.md). The next bounded
+engineering slice is the A4c task-scoped Application candidate path.
 
 ## Checkpoint 5 — First deterministic Numberdroid adapter candidate
 
@@ -341,8 +349,9 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 ## Parallel masterplan track — Operations, Remote Access & Mobile
 
 **Status: O0 frozen; O1, O2a, A3a, A4a, and A4b source-integrated and automated
-green on 2026-08-30; O1 user acceptance and O2 deployment remain open; A4c is
-next within the A4 track after the bounded Room Editor L3 continuation.**
+green on 2026-08-30; the bounded Room Editor L3 continuation is source-integrated
+and automated green on 2026-09-01 but not user accepted; O1 user acceptance and
+O2 deployment remain open; A4c is next within the A4 track.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -870,7 +879,8 @@ honest unprojected-reference gaps are integrated. The fixture is not registered
 as a playable production Floor, so no distinct live `VT-` item is created and
 the slice remains not user accepted. Scope and evidence are recorded in
 [`A4B_REFERENCE_BEHAVIOR_STATUS.md`](A4B_REFERENCE_BEHAVIOR_STATUS.md).
-A4c Application integration follows the bounded Room Editor L3 continuation.
+A4c Application integration is next after the source-integrated, not-yet-
+accepted Room Editor L3 continuation.
 
 ### A5 — Thin portability proof
 

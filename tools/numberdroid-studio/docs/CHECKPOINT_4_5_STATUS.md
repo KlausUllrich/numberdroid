@@ -4,6 +4,15 @@
 
 Klaus verified the core task/room workflow on Linux Chrome. Persistence, task conflict safety, painting, layers, surfaces and Props work, but acceptance is blocked by Surface-under-Prop click interception, cropped rotated Prop preview, insufficient saved-with-errors/action-required visibility and responsive overflow. The complete prioritized record is [`LIVE_VERIFICATION_2026_09_01.md`](LIVE_VERIFICATION_2026_09_01.md). Larger editor improvements are sequenced after the bounded functional repair.
 
+## 2026-09-01 source repair follow-up
+
+The bounded Room Editor repairs and usability continuation are source-integrated
+through PRs #191, #192 and #194–#196 with exact-head and post-merge Linux,
+Windows, browser-evidence and CI gates green. This closes the authorized source
+sequence, not the live gate: CP4.5 / VT-001 remains **REVISE** until Klaus
+retests and explicitly accepts it. Exact implementation and CI facts are in
+[`ROOM_EDITOR_L3_STATUS.md`](ROOM_EDITOR_L3_STATUS.md).
+
 
 - **Date:** 2026-08-24
 - **Status:** implemented, CI/browser-verified, and source-integrated into `main` through PR #137 on 2026-08-25; awaiting explicit user acceptance.

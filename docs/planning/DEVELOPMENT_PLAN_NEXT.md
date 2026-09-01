@@ -2,10 +2,10 @@
 
 ## 2026-09-01 verified execution adjustment
 
-Klaus live-tested VT-001 and VT-011 as REVISE and accepted VT-012. The immediate implementation sequence is: bounded Room Editor functional repair; zoom/pan; placement ghost/direct manipulation; persisted error/action visibility; then an engine-neutral read-only top-down Studio Preview. A later 2.5D projection is planned over the same portable preview scene but is not the current completion gate. The generic preview does not invoke Numberdroid or EngineBridge; it separates logical footprint from visual bounds, ground anchor and overhang. After these coherent L3 slices, resume the private A4c Level Candidate path. This sequencing changes no A4c, MCP, remote, repository, materialization, publication or release authority. Evidence: [`../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md`](../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md).
+Klaus live-tested VT-001 and VT-011 as REVISE and accepted VT-012. The bounded Room Editor source sequence is now integrated through PRs #191, #192 and #194–#196: functional repair; zoom/pan; placement ghost/direct manipulation; persisted error/action visibility; and an engine-neutral read-only top-down Studio Preview. These merges, CI and browser evidence do not close the deferred Klaus live gate. A later 2.5D projection remains planned over the same portable preview scene and is not a completion gate. The generic preview does not invoke Numberdroid or EngineBridge; it separates logical footprint from visual bounds, ground anchor and overhang. The immediate implementation sequence now resumes the private A4c Level Candidate path. This sequencing changes no A4c, MCP, remote, repository, materialization, publication or release authority. Evidence: [`../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md`](../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md) and [`../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md`](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md).
 
 
-Status: **current forward plan — Room Editor L3 usability continuation is next; the A4c Application Level Candidate path follows it; O2a deployment remains pending**
+Status: **current forward plan — Room Editor L3 is source-integrated but not user accepted; A4c Application Level Candidate is next; O2a deployment remains pending**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -243,7 +243,7 @@ O1b source-integrated and user-accepted through VT-012
 → A4a lossless Numberdroid projection source-integrated
 → A4b bounded reference behavior source-integrated
 → A4c authority-neutral Domain foundation source-integrated
-→ bounded Room Editor L3 continuation: direct manipulation, action/error visibility, engine-neutral top-down Studio Preview
+→ bounded Room Editor L3 continuation source-integrated through PRs #191, #192, #194, #195 and #196; live acceptance pending
 → A4c task-scoped Application candidate path stopping at Waiting for your review
 → later O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
 ```
@@ -251,8 +251,9 @@ O1b source-integrated and user-accepted through VT-012
 A4a and A4b are now source-integrated and automated green, with exact evidence in
 `tools/numberdroid-studio/docs/A4A_NUMBERDROID_LEVEL_PROJECTION_STATUS.md`
 and `tools/numberdroid-studio/docs/A4B_REFERENCE_BEHAVIOR_STATUS.md`. The
-dependent A4c task-scoped candidate path defined in Studio `ROADMAP.md` follows
-the bounded Room Editor L3 usability continuation.
+dependent A4c task-scoped candidate path defined in Studio `ROADMAP.md` is now
+the next bounded engineering slice after the source-integrated Room Editor L3
+continuation.
 It may not add remote backup/MCP authority, deployment, O3/O4,
 materialization, publication, or release.
 
