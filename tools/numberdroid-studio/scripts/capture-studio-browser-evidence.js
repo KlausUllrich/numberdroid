@@ -1202,7 +1202,7 @@ try {
         && Object.values(checkpoint45DirectManipulation.invalidReleases).every(({ during, after }) => (
           during.allowed === 'false' && during.requestCount === requestBaseline
             && after.requestCount === requestBaseline && after.ghostCleared === true
-            && after.hint?.includes('Drag a placement')
+            && after.hint?.includes('Drag the selected placement')
         ))
         && checkpoint45DirectManipulation.invalidReleases.void.during.reason?.includes('outside-room cell')
         && checkpoint45DirectManipulation.invalidReleases.blocked.during.reason?.includes('blocked')
