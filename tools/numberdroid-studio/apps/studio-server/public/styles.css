@@ -339,15 +339,18 @@ h2, h3 { margin: 0; }
 .room-zoom, .room-layer-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
 .room-zoom button { padding: 5px 7px; font-size: 8px; }
 .room-zoom button[data-selected="true"] { border-color: var(--mint); color: var(--mint); }
+.room-zoom input[type="range"] { width: min(180px, 32vw); accent-color: var(--mint); }
+.room-zoom output { min-width: 42px; color: var(--cyan); font: 9px ui-monospace, monospace; text-align: right; }
 .room-layer-controls label { display: flex; align-items: center; gap: 3px; color: var(--muted); font-size: 8px; }
 .room-layer-controls input { width: auto; }
-.room-canvas-scroll { max-width: 100%; max-height: 68vh; padding: 18px; overflow: auto; overscroll-behavior: contain; border: 1px solid #27453c; border-radius: 8px; background-color: #07110e; background-image: radial-gradient(#315046 1px, transparent 1px); background-size: 10px 10px; }
+.room-canvas-scroll { max-width: 100%; max-height: 68vh; padding: 18px; overflow: auto; overscroll-behavior: contain; border: 1px solid #27453c; border-radius: 8px; background-color: #07110e; background-image: radial-gradient(#315046 1px, transparent 1px); background-size: 10px 10px; cursor: grab; }
+.room-canvas-scroll[data-panning="true"] { cursor: grabbing; user-select: none; }
 .room-board { position: relative; width: calc(var(--room-width) * var(--room-cell)); height: calc(var(--room-height) * var(--room-cell)); margin: auto; box-shadow: 0 0 0 3px #6b9b8c; }
 .room-cell-grid { display: grid; grid-template-columns: repeat(var(--room-width), var(--room-cell)); grid-template-rows: repeat(var(--room-height), var(--room-cell)); }
 .room-cell { position: relative; z-index: 0; display: block; width: var(--room-cell); height: var(--room-cell); padding: 0; border: 0; border-right: 1px solid #36564b88; border-bottom: 1px solid #36564b88; border-radius: 0; background: #10201b; color: #6e8e84; }
 .room-cell:hover, .room-cell:focus-visible { z-index: 4; outline: 2px solid var(--mint); outline-offset: -2px; background: #193128; }
-.room-cell span { position: absolute; top: 2px; left: 3px; font: 6px ui-monospace, monospace; pointer-events: none; }
-.room-cell small { position: absolute; right: 2px; bottom: 2px; font: 5px ui-monospace, monospace; pointer-events: none; }
+.room-cell span { position: absolute; top: 2px; left: 3px; font: clamp(6px, calc(var(--room-cell) * .16), 28px) ui-monospace, monospace; pointer-events: none; }
+.room-cell small { position: absolute; right: 2px; bottom: 2px; font: clamp(5px, calc(var(--room-cell) * .13), 22px) ui-monospace, monospace; pointer-events: none; }
 .room-cell[data-cell-kind="VOID"] { border: 1px dashed #5d6b67; background-color: #070b0a; background-image: repeating-linear-gradient(135deg, #18201d 0 3px, transparent 3px 7px); color: #9aa8a3; }
 .room-cell[data-cell-kind="BLOCKED"] { border: 1px solid #a36551; background-color: #381d18; background-image: linear-gradient(45deg, transparent 42%, #cf765b 43% 57%, transparent 58%); color: #ffd0c2; }
 .room-board[data-shape-editing="true"] .room-cell { z-index: 3; background-color: #10201b99; cursor: crosshair; }
@@ -362,8 +365,8 @@ h2, h3 { margin: 0; }
 .room-placement[data-selected="true"] { z-index: 5; outline: 3px solid #ffe09a; outline-offset: 1px; }
 .room-placement .asset-preview { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; opacity: .86; }
 .room-placement .asset-preview.fallback { display: none; }
-.room-placement > span { position: relative; z-index: 2; display: block; padding: 2px; overflow: hidden; background: #06100dcc; font: 6px ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
-.room-connector { position: absolute; z-index: 4; min-width: 5px; min-height: 5px; padding: 1px; overflow: hidden; border: 2px solid var(--amber); border-radius: 0; background: #f0b85c38; color: #fff2cf; font: 6px ui-monospace, monospace; }
+.room-placement > span { position: relative; z-index: 2; display: block; padding: 2px; overflow: hidden; background: #06100dcc; font: clamp(6px, calc(var(--room-cell) * .13), 22px) ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.room-connector { position: absolute; z-index: 4; min-width: 5px; min-height: 5px; padding: 1px; overflow: hidden; border: 2px solid var(--amber); border-radius: 0; background: #f0b85c38; color: #fff2cf; font: clamp(6px, calc(var(--room-cell) * .13), 22px) ui-monospace, monospace; }
 .room-connector.north { border-top-width: 5px; } .room-connector.south { border-bottom-width: 5px; }
 .room-connector.west { border-left-width: 5px; } .room-connector.east { border-right-width: 5px; }
 .room-connector[data-selected="true"] { outline: 2px solid white; outline-offset: 1px; }
