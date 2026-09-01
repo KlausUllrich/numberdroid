@@ -99,6 +99,7 @@ test('CP4.5 presents one persistent canvas, editor tools, truthful cell kinds, a
 
 test('CP4.5 useful prop preview exposes footprint, anchor, rotation, collision, and readiness before placement', async () => {
   const app = await readFile(appUrl, 'utf8');
+  const styles = await readFile(stylesUrl, 'utf8');
   const preview = app.slice(app.indexOf('function usefulAssetPreview'), app.indexOf('function renderAssetLibrary'));
   assert.match(preview, /spanTiles/);
   assert.match(preview, /anchor/);
