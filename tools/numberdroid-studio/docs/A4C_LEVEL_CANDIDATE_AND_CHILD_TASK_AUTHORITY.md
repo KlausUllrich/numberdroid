@@ -1,8 +1,8 @@
 # A4c Level Candidate and Derived Child-Task Authority
 
-Status: **user-approved implementation boundary — 2026-08-31; Domain
-foundation source-integrated and automated green, executable A4c workflow not
-implemented and not user accepted**
+Status: **user-approved implementation boundary — 2026-08-31; complete bounded
+Candidate and derived-child source sequence integrated and automated green on
+2026-09-01; not user accepted**
 
 This document records the two narrow A4c authority decisions Klaus approved on
 2026-08-31. It is an additive forward contract. It does not rewrite the
@@ -80,21 +80,42 @@ text-output bytes and hashes, requires `artifacts=[]` in schema v1, rejects
 unsafe paths and hostile/non-plain input, and fixes review/merge/materialize/
 commit/publish/release authority at `NOT_AUTHORIZED`.
 
-That foundation performs no I/O and creates no Task, Grant, Review, branch
-revision, MCP surface, EngineBridge invocation, or candidate. It does not prove
-the executable A4c path. Its portable EngineBridge receipt still has to be
-checked by the Application layer against the actually configured bridge and
-candidate selection.
+That foundation by itself performs no I/O and creates no Task, Grant, Review,
+branch revision, MCP surface, EngineBridge invocation, or candidate. The later
+Application and persistence slices below compose it without expanding its
+authority.
 
-## 4. Executable A4c definition of done
+The immutable Level Candidate Application slice was integrated through PR #198
+at final head `6ea743ff5570677c24a58fae2c5cad210af19d3d`, Build #2344 /
+run `33553937139`, merge `053f9c407f5ecd7c93c1775249aa0630c88b6460`
+and post-merge Build #2345 / run `33554781224`. It implements the exact private
+Create → Validate → Compile → Preview → Diff → Submit closure and stops at
+**Waiting for your review**. A failed-only post-merge rerun closed an unrelated
+Room focus flake on the unchanged merge commit; it did not change the source or
+accept the candidate.
 
-The next implementation must use the actual
+The separate restricted derived-child slice was integrated through PR #199 at
+final head `6f7c6bfee89fec2e22200fe66002b3d3c73fb968`, tree
+`c14f39c687214434ab7b8850dfc4411bf2fe1a60`, Build #2347 / run
+`33562709548`, merge `122a2533a12abe5e51e6458fa80f2047825240b4`
+and post-merge Build #2348 / run `33563416584`. Build #2348 attempt 1 reached
+the Windows ten-minute job limit; a failed-only rerun on the unchanged merge
+commit passed Windows and the final gate. Child derivation is private,
+trusted-service-owned, one level deep, human-rooted and strictly attenuated.
+
+The exact implementation, persistence, test and remaining acceptance truth is
+recorded in
+[`A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md`](A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md).
+
+## 4. Executable A4c definition of done — satisfied in source
+
+The integrated implementation uses the actual
 `src/levelgen/specs/a4bReference.ts` `A4B_REFERENCE_LEVEL_SPEC`, Numberdroid
 profile-v3 fingerprint
 `6079209041cb71a3e7c8b36ea41796c2e38ea6ef828bf78829e8f0dc4ea3f074`, and
 compiler pin
 `numberdroid-level-compiler.sha256:01b144303ff217054f01c0dcd85acc3d442a02c1727ad9b01291dcc5c2559ce1`.
-It must:
+Its completed source boundary:
 
 1. run the real A4a projection, A3a validation, Numberdroid adapter/compiler,
    and validate-only EngineBridge path;
@@ -109,9 +130,11 @@ It must:
 6. prove tamper, blocked compiler/profile/bridge, stale head, cross-task,
    paused/expired/revoked authority, replay, fault, and no-partial-review cases.
 
-Candidate implementation and derived-child implementation are separate risk
-axes and should use separate L3 slices. The Level Candidate path comes first;
-derived children are authorized but are not its prerequisite.
+Candidate implementation and derived-child implementation remained separate
+risk axes and separate L3 slices. The Level Candidate path was integrated
+first; the child followed only after its post-merge gate. This source Definition
+of Done does not establish Klaus acceptance and does not authorize A5 or wider
+operations work.
 
 ## 5. Unchanged exclusions
 

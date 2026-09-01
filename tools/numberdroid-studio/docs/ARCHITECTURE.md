@@ -89,7 +89,7 @@ fixtures + scripts       deterministic evidence and verification
 
 SQLite/content-addressed persistence and the official MCP transport are the accepted operational path. Checkpoints 2C, 3, and 4 are accepted: they add slice-bound V2 assets/schema v9, immutable room authoring/schema v10, and isolated task review/schema v11 without changing the inward dependency boundary. The integrated but still unaccepted Checkpoint 4.5 source adds list-first task and guided-room projections plus schema-v12 normalized sparse room-shape cells. Candidate schema v13 adds only private branch-native processing-adoption lineage and retention. Candidate A1.6b2b exposes that one adoption operation only through a separately selected, positively negotiated local Authoring-v2 MCP surface; it adds no public HTTP or UI surface and does not alter accepted legacy discovery. Rectangular portable rooms remain schema v2; a project uses schema v3 only when a room version contains `VOID` or `BLOCKED` cells. Shape replacement is owner-only and absent from every current discovery surface, so the accepted 19-tool/four-template and task-bound 30-tool/five-template contracts remain unchanged. That is a historical compatibility fact, not the forward agent-first target: later Authoring-v2 blocks must expose ordinary shape authoring on isolated task branches without granting owner review/merge/release authority. The integrated candidate-only Checkpoint 5 foundation implements the pure `numberdroid-adapter` and a fixed repository-side canonical compiler bridge, but not candidate persistence/approval or any later-stage authority. Source integration into `main` does not itself accept any candidate or authorize candidate output. The JSON adapter remains only for protected 1A regression and migration. The combined `studio-server` UI/service/worker process is an accepted transitional packaging choice, not the final standalone packaging model.
 
-The sections below describe the target topology as checkpoints introduce it. A named target package is not implemented merely because it appears in this document. In particular, `apps/studio-ui` and `apps/studio-service` do not yet exist as standalone working packages; their current responsibilities remain in the combined server. `packages/numberdroid-adapter` now exists as a pure candidate builder, while persistence, UI review/approval, materialization, and publication remain deferred.
+The sections below describe the target topology as checkpoints introduce it. A named target package is not implemented merely because it appears in this document. In particular, `apps/studio-ui` and `apps/studio-service` do not yet exist as standalone working packages; their current responsibilities remain in the combined server. `packages/numberdroid-adapter` now exists as a pure candidate builder. Private A4c Candidate/child persistence and the combined-server read-only inspection projection are source-integrated but not accepted; owner review-decision/approval, materialization, and publication remain deferred.
 
 ### `apps/studio-ui`
 
@@ -544,12 +544,12 @@ Revert emits a compensating semantic main revision and immutable revert record. 
 
 The v8 atlas job tables remain bound by foreign key to authoritative main revisions. Checkpoint 4 therefore rejects shared-effect intake/preview/commit commands inside an isolated task branch rather than creating misleading branch-local jobs. Tasks consume already committed atlas/slice inputs; a later explicit schema/worker change is required if branch-local bitmap jobs become an acceptance requirement.
 
-### A4c derived child-task extension — authorized, not implemented or accepted
+### A4c derived child-task extension — source-integrated, not accepted
 
 Checkpoint 4's owner-created workflow remains its accepted compatibility truth.
 The additive A4c extension permits an agent to request one trusted-service
-derivation from its exact current parent. In one transaction the service must
-pin the parent's current branch head, keep project and actor unchanged, allocate
+derivation from its exact current parent. In one transaction the integrated
+service pins the parent's current branch head, keeps project and actor unchanged, allocates
 a non-main child branch, derive capability/object subsets, reserve command/job/
 artifact/cost budget from the parent, cap expiry at the parent, disable
 auto-accept and further child creation, and append the audit record. The same
@@ -559,9 +559,11 @@ Every command on the child walks the immutable ancestor chain. Parent pause or
 review denies new mutation; cancellation, rejection, merge, expiry, or revoke
 invalidates execution for all descendants. No request field can select another
 actor, project, root grant, base, branch destination, capability, or budget. The
-first implementation is a separate L3 task/grant/persistence risk slice after
-the Level Candidate path and requires race, restart, cascade, fault, and
-cross-principal negative tests.
+implementation was integrated as a separate L3 task/grant/persistence risk slice
+after the Level Candidate path. Race, restart, cascade, fault and cross-principal
+negative tests are part of its source gate. Exact status and remaining Klaus
+decision are recorded in
+[`A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md`](A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md).
 
 ## 9. Implemented atlas jobs and expanded observability
 
@@ -606,15 +608,15 @@ The adapter must preserve Numberdroid rules: runtime files under the runtime pub
 
 GitHub integration receives files from a verified candidate manifest. It is downstream of authoring and cannot mutate Studio state except to record publication evidence. A future Godot or Unreal bridge follows the same one-way separation; engine-native round-trip ownership is not assumed.
 
-### A4c private task-candidate path — authorized, not complete or accepted
+### A4c private task-candidate path — source-integrated, not accepted
 
 The private application scope `level.candidate.create` is not an MCP-discovered
-operation. It binds one current task/grant/actor/branch/base/head closure to the
+operation. The integrated Application path binds one current task/grant/actor/branch/base/head closure to the
 actual A4b LevelSpec, A4a/A3a projection and validation, canonical compiler,
 validate-only EngineBridge receipt, complete output bytes, deterministic preview,
 ADD-only create diff, and idempotent submission. Domain DTO validation alone is
-not a trusted bridge invocation or task transition; the Application layer must
-revalidate the receipt against its configured port/selection and perform fresh
+not a trusted bridge invocation or task transition; the Application layer
+revalidates the receipt against its configured port/selection and performs fresh
 authority/head checks in the same atomic submission boundary.
 
 Success leaves `main` untouched and commits task `IN_REVIEW`, one `OPEN` review
@@ -641,7 +643,7 @@ Current 19/4, 30/5, and selected 31/6 discovery catalogs remain unchanged.
 - Read resources enforce project and object scope, not only mutation tools.
 - Publish is a separate high-risk capability with short expiry and a complete preview/manifest.
 
-Checkpoint 1 threat-focused tests cover its implemented grant/HostBinding forgery and widening paths, expired/revoked grants, cross-project references, stale replay, idempotency collisions, artifact/path validation, size/hash failures, cancellation at the atomic boundary, and unauthorized reads. Checkpoint 2B extends that suite to immutable job authority, cross-task controls, retry ceilings, lease recovery/stale-worker races, cancellation/discard reference release, sanitized failures, atomic output promotion/apply/audit, shutdown quiescence, state-specific integrity, and backup snapshot consistency. Accepted Checkpoint 2C additionally covers recut binding, batch/version conflicts, per-item budgets, exact asset references, cross-project preview/query containment, bundle sanitation, tampered trees/semantics/blobs, destination atomicity, and nonauthorizing imported job history. Accepted Checkpoint 4 covers isolated task branches, review, semantic conflict handling, merge, and compensating revert. Providers, the complete Numberdroid authoring-to-candidate path, candidate persistence/approval, materialization, and publish escalation remain later gates; the current CP5 candidate proves only the pure snapshot/adapter/compiler boundary.
+Checkpoint 1 threat-focused tests cover its implemented grant/HostBinding forgery and widening paths, expired/revoked grants, cross-project references, stale replay, idempotency collisions, artifact/path validation, size/hash failures, cancellation at the atomic boundary, and unauthorized reads. Checkpoint 2B extends that suite to immutable job authority, cross-task controls, retry ceilings, lease recovery/stale-worker races, cancellation/discard reference release, sanitized failures, atomic output promotion/apply/audit, shutdown quiescence, state-specific integrity, and backup snapshot consistency. Accepted Checkpoint 2C additionally covers recut binding, batch/version conflicts, per-item budgets, exact asset references, cross-project preview/query containment, bundle sanitation, tampered trees/semantics/blobs, destination atomicity, and nonauthorizing imported job history. Accepted Checkpoint 4 covers isolated task branches, review, semantic conflict handling, merge, and compensating revert. Providers and the bounded A4c Numberdroid authoring-to-Candidate path with candidate persistence are source-integrated but not user accepted. Owner approval, materialization and publish escalation remain later gates; the CP5 candidate still proves only the pure snapshot/adapter/compiler boundary.
 
 ## 13. Standalone extraction
 
