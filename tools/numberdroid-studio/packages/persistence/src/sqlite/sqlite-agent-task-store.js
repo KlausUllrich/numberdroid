@@ -76,6 +76,18 @@ function mapReview(row) {
   return row ? parseJson(row.review_json, 'task_reviews.review_json') : null;
 }
 
+function hasLevelCandidateSource(database, projectId, taskId) {
+  return Boolean(database.prepare(`
+    SELECT 1 FROM task_branch_revisions
+    WHERE project_id = ? AND task_id = ? AND command_type = 'level.candidate.create'
+    LIMIT 1
+  `).get(projectId, taskId));
+}
+
+function assertNoLevelCandidateSource(database, projectId, taskId, code, message) {
+  invariant(!hasLevelCandidateSource(database, projectId, taskId), code, message, { projectId, taskId });
+}
+
 export class SqliteAgentTaskStore {
   #workspace;
 
@@ -86,6 +98,10 @@ export class SqliteAgentTaskStore {
 
   get workspace() { return this.#workspace; }
   get isLive() { return this.#workspace.isWriter; }
+
+  hasLevelCandidateSource(projectId, taskId) {
+    return hasLevelCandidateSource(this.#workspace.database, projectId, taskId);
+  }
 
   createTask({ task, baseDocument, grantId = null, issuedBy, now }) {
     const head = baseDocument.revisions.at(-1);
@@ -259,6 +275,9 @@ export class SqliteAgentTaskStore {
     return this.#workspace.transaction((database) => {
       const row = taskRow(database, projectId, taskId);
       invariant(row, 'TASK_NOT_FOUND', 'The agent task does not exist.', { projectId, taskId });
+      assertNoLevelCandidateSource(database, projectId, taskId,
+        'LEVEL_CANDIDATE_GENERIC_REVIEW_FORBIDDEN',
+        'A Level Candidate source can only enter its dedicated read-only Candidate review path.');
       const task = mapTask(row);
       const submitted = transitionAgentTask(task, 'submit', { now, reason: 'Branch submitted for human review.' });
       const branchRevisions = database.prepare(`
@@ -318,6 +337,11 @@ export class SqliteAgentTaskStore {
       invariant(row, 'REVIEW_NOT_FOUND', 'The task review does not exist.', { reviewId });
       const review = mapReview(row);
       invariant(review.state === 'OPEN', 'REVIEW_STATE_CONFLICT', 'Only an open review can receive decisions.');
+      assertNoLevelCandidateSource(database, projectId, taskId,
+        'LEVEL_CANDIDATE_REVIEW_DECISION_FORBIDDEN',
+        'Level Candidate review decisions require a later explicit owner authority contract.');
+      invariant(review.kind !== 'studio.level-candidate-review', 'LEVEL_CANDIDATE_REVIEW_DECISION_FORBIDDEN',
+        'Level Candidate review decisions require a later explicit owner authority contract.');
       const storedTaskRow = taskRow(database, projectId, taskId);
       invariant(storedTaskRow, 'TASK_NOT_FOUND', 'The agent task does not exist.', { projectId, taskId });
       const task = mapTask(storedTaskRow);
@@ -391,10 +415,15 @@ export class SqliteAgentTaskStore {
     invariant(row, 'TASK_NOT_FOUND', 'The agent task does not exist.', { projectId, taskId });
     const task = mapTask(row);
     invariant(task.state === 'IN_REVIEW', 'TASK_STATE_CONFLICT', 'Only a task in review can merge.', { state: task.state });
+    assertNoLevelCandidateSource(database, projectId, taskId,
+      'LEVEL_CANDIDATE_MERGE_FORBIDDEN',
+      'Level Candidates cannot be merged or appended to main by the A4c create path.');
     const reviewRow = latestReviewRow(database, projectId, taskId, reviewId);
     invariant(reviewRow, 'REVIEW_NOT_FOUND', 'The task review does not exist.', { reviewId });
     const review = mapReview(reviewRow);
     invariant(review.state === 'OPEN', 'REVIEW_STATE_CONFLICT', 'Only an open review can merge.');
+    invariant(review.kind !== 'studio.level-candidate-review', 'LEVEL_CANDIDATE_MERGE_FORBIDDEN',
+      'Level Candidates cannot be merged or appended to main by the A4c create path.');
     const merge = {
       schemaVersion: 1,
       mergeId,

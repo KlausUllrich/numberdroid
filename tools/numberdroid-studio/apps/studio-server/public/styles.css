@@ -570,6 +570,7 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
 .task-review-items details { min-width: 0; }
 .task-review-items code { overflow-wrap: anywhere; color: var(--cyan); font-size: 10px; }
 .task-review-items select { min-width: 175px; background: #111f1b; }
+.task-review-disposition-readonly { color: #e5bf6d; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .task-review > button { margin: 12px 8px 0 0; }
 .task-action-note { margin: 10px 0 0; color: var(--muted); font-size: 10px; }
 .task-conflicts { padding: 10px 10px 10px 28px; border: 1px solid #805548; border-radius: 7px; background: #2b1815; color: #ffb294; font-size: 11px; }

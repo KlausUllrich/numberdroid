@@ -3721,6 +3721,7 @@ const TASK_CAPABILITY_LABELS = Object.freeze({
   'room.variant.placements.remove': 'Remove room contents',
   'room.variant.validate': 'Check a room, but never finalize it',
   'asset.processing-result.adopt': 'Save a processed image as a task-local DRAFT',
+  'level.candidate.create': 'Create one immutable Level Candidate for read-only review',
 });
 
 function taskStateLabel(stateValue) {
@@ -3750,6 +3751,7 @@ function taskEventActorLabel(entry, event) {
 
 function taskWorkflowPresentation(entry) {
   const stateValue = taskEffectiveState(entry);
+  const levelCandidateReview = entry.review?.kind === 'studio.level-candidate-review';
   const presentations = {
     ACTIVE: { actor: 'Assigned agent', next: taskHasSavedChanges(entry) ? 'The agent can continue, or you can review the current result.' : 'The agent can work within the limits you chose.', consequence: 'Changes stay separate from the project until you review and accept them.' },
     PAUSED: { actor: 'You', next: 'Choose whether the agent should continue or the task should end.', consequence: 'The assigned agent cannot make changes while this task is paused.' },
@@ -3761,11 +3763,26 @@ function taskWorkflowPresentation(entry) {
     REJECTED: { actor: 'No one', next: 'Create a new task from the current project if more work is needed.', consequence: 'No task changes were added and the assigned agent can no longer change this task.' },
     EXPIRED: { actor: 'You', next: 'End this task and create a new task if work should continue.', consequence: 'The expired agent access cannot be resumed or used.' },
   };
+  if (levelCandidateReview && stateValue === 'IN_REVIEW') {
+    return {
+      state: stateValue,
+      actor: 'You',
+      next: 'Inspect the immutable Candidate evidence. This create path cannot decide or merge it.',
+      consequence: 'The Candidate stays separate from the project. Review decision, merge, materialization, publication, and release require later explicit authority.',
+    };
+  }
   return { state: stateValue, ...(presentations[stateValue] ?? { actor: 'You', next: 'Inspect the task history.', consequence: 'No automatic action is taken.' }) };
 }
 
 function taskAttentionPresentation(entry) {
   const stateValue = taskEffectiveState(entry);
+  if (stateValue === 'IN_REVIEW' && entry.review?.kind === 'studio.level-candidate-review') {
+    return {
+      kind: 'ACTION_REQUIRED',
+      label: 'Waiting for your review',
+      summary: 'Inspect the immutable Candidate evidence. This A4c create path provides no review-decision, merge, or materialization authority.',
+    };
+  }
   const conflicts = Array.isArray(entry.review?.conflicts) ? entry.review.conflicts : [];
   if (stateValue === 'IN_REVIEW' && entry.review?.state === 'OPEN' && conflicts.length) {
     const comparedRevision = Number.isInteger(entry.review?.comparedMainRevision)
@@ -4027,7 +4044,8 @@ function renderTaskComposer() {
 function renderTaskReview(entry) {
   const review = entry.review;
   const effectiveState = taskEffectiveState(entry);
-  const reviewEditable = review?.state === 'OPEN' && effectiveState === 'IN_REVIEW';
+  const levelCandidateReview = review?.kind === 'studio.level-candidate-review';
+  const reviewEditable = review?.state === 'OPEN' && effectiveState === 'IN_REVIEW' && !levelCandidateReview;
   const section = document.createElement('section'); section.className = 'task-review task-detail-section';
   section.dataset.taskSelectionKey = 'task-review';
   section.dataset.taskReviewContext = review ? JSON.stringify({
@@ -4055,7 +4073,9 @@ function renderTaskReview(entry) {
         ? 'This task ended without adding more changes. Its review remains available as read-only history.'
         : effectiveState === 'EXPIRED'
           ? 'This task expired. Its review remains available as read-only history, and its agent access cannot resume.'
-      : `Waiting for your review. Only the project owner (${ownerId}) can accept or reject these changes.`;
+      : levelCandidateReview
+        ? 'Waiting for your review. This immutable Candidate is read-only: the A4c create path does not authorize a review decision, merge, materialization, publication, or release.'
+        : `Waiting for your review. Only the project owner (${ownerId}) can accept or reject these changes.`;
   section.append(guidance);
   const comparison = document.createElement('details'); comparison.className = 'task-technical-details';
   comparison.dataset.taskDisclosureKey = 'review-comparison';
@@ -4092,21 +4112,27 @@ function renderTaskReview(entry) {
     technicalSummary.dataset.taskFocusKey = `review-item-${item.changeId}-summary`;
     const code = document.createElement('code'); code.textContent = item.commandType;
     technical.append(technicalSummary, code); copy.append(strong, technical);
-    const select = document.createElement('select'); select.dataset.taskReviewDisposition = item.changeId;
-    select.dataset.taskFocusKey = `review-disposition-${item.changeId}`;
-    for (const [value, label] of [
-      ['PENDING', 'Pending'], ['USER_ACCEPTED', 'Accept'], ['USER_REJECTED', 'Reject'], ['CHANGES_REQUESTED', 'Request changes'],
-    ]) {
-      const option = document.createElement('option'); option.value = value; option.textContent = label; select.append(option);
-    }
-    if (item.disposition === 'AUTO_ACCEPTED_BY_POLICY') {
-      select.replaceChildren();
-      const option = document.createElement('option'); option.value = item.disposition; option.textContent = 'Accepted automatically under your task settings'; select.append(option); select.disabled = true;
+    let disposition;
+    if (levelCandidateReview) {
+      disposition = document.createElement('span'); disposition.className = 'task-review-disposition-readonly';
+      disposition.textContent = item.disposition === 'PENDING' ? 'Pending · read-only' : item.disposition.replaceAll('_', ' ').toLowerCase();
     } else {
-      select.value = item.disposition;
-      select.disabled = !reviewEditable;
+      disposition = document.createElement('select'); disposition.dataset.taskReviewDisposition = item.changeId;
+      disposition.dataset.taskFocusKey = `review-disposition-${item.changeId}`;
+      for (const [value, label] of [
+        ['PENDING', 'Pending'], ['USER_ACCEPTED', 'Accept'], ['USER_REJECTED', 'Reject'], ['CHANGES_REQUESTED', 'Request changes'],
+      ]) {
+        const option = document.createElement('option'); option.value = value; option.textContent = label; disposition.append(option);
+      }
+      if (item.disposition === 'AUTO_ACCEPTED_BY_POLICY') {
+        disposition.replaceChildren();
+        const option = document.createElement('option'); option.value = item.disposition; option.textContent = 'Accepted automatically under your task settings'; disposition.append(option); disposition.disabled = true;
+      } else {
+        disposition.value = item.disposition;
+        disposition.disabled = !reviewEditable;
+      }
     }
-    row.append(copy, select); list.append(row);
+    row.append(copy, disposition); list.append(row);
   }
   section.append(list);
   if (reviewEditable) {

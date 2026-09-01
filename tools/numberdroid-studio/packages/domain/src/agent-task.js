@@ -18,7 +18,7 @@ const FORBIDDEN_AUTO_ACCEPT_COMMANDS = new Set([
   ...FORBIDDEN_DELEGATED_CAPABILITIES, 'project.create', 'source.review.decide',
   'asset.proposal.decide', 'asset.proposal.apply', 'room.placement.proposal.decide',
   'room.placement.proposal.apply', 'room.variant.validate', 'room.variant.fork',
-  'asset.processing-result.adopt',
+  'asset.processing-result.adopt', 'level.candidate.create',
 ]);
 
 function exactKeys(value, allowed, label) {

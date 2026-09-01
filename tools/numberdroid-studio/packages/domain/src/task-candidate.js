@@ -549,6 +549,8 @@ export function validateTaskCandidateSubmission(value) {
   }));
   invariant(canonicalJson(diff.outputs) === canonicalJson(expectedOutputDiff),
     'TASK_CANDIDATE_BINDING_MISMATCH', 'The create diff must add exactly the candidate output closure.');
+  invariant(diff.changes.every(({ operation }) => operation === 'ADD'),
+    'TASK_CANDIDATE_BINDING_MISMATCH', 'The create diff may contain ADD semantic changes only.');
   const normalized = {
     schemaVersion: TASK_CANDIDATE_SCHEMA_VERSION,
     kind: TASK_CANDIDATE_SUBMISSION_KIND,
