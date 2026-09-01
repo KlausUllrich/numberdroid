@@ -942,7 +942,7 @@ try {
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
-        type: 'rawKeyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
@@ -976,7 +976,7 @@ try {
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
-        type: 'rawKeyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
