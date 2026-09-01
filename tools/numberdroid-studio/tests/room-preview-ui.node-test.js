@@ -62,6 +62,7 @@ test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visi
   assert.match(capture, /inspectFocus === 'prop\.preview-overhang'/);
   assert.match(capture, /loadFocusPreserved === true/);
   assert.match(capture, /shape\?\.dirty === true/);
+  assert.match(capture, /zoom\.value = '1000'[\s\S]*dispatchEvent\(new Event\('input'/);
   assert.match(capture, /nonZeroScrollKeys\.length > 0/);
   assert.match(capture, /responsiveLayout\.columnCount === 2/);
   assert.match(capture, /responsiveLayout\.columnCount === 1/);

@@ -753,6 +753,9 @@ try {
       const networkStart = devtools.events.length;
       const editorBeforePreviewResult = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
+          const zoom = document.querySelector('[data-room-zoom-slider]');
+          zoom.value = '1000'; zoom.dispatchEvent(new Event('input', { bubbles: true }));
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_VOID"]')?.click();
           document.querySelector('.room-cell[data-x="1"][data-y="0"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
