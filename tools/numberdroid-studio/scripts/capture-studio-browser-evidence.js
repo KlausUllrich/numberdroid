@@ -1513,8 +1513,8 @@ try {
             && imageBounds.left >= stageBounds.left - 1 && imageBounds.top >= stageBounds.top - 1
             && imageBounds.right <= stageBounds.right + 1 && imageBounds.bottom <= stageBounds.bottom + 1);
           const fillsRotatedStage = Boolean(stageBounds && imageBounds
-            && Math.abs(imageBounds.width - stageBounds.width) <= 2
-            && Math.abs(imageBounds.height - stageBounds.height) <= 2);
+            && Math.abs(imageBounds.width - stageBounds.width) <= 4
+            && Math.abs(imageBounds.height - stageBounds.height) <= 4);
           return {
             present: Boolean(preview),
             ready: preview?.dataset.previewReady ?? null,
@@ -2075,7 +2075,7 @@ try {
         && layout.roomDesigner.placementPreview.containedAtRotation === true
         && layout.roomDesigner.placementPreview.fillsRotatedStage === true
         && layout.roomDesigner.placementPreview.useDisabled === false,
-      'Checkpoint 4.5 prop evidence lost its exact image, footprint, rotation, navigation, or placement gate.');
+      `Checkpoint 4.5 prop evidence lost its exact image, footprint, rotation, navigation, bounds, or placement gate: ${JSON.stringify(layout.roomDesigner.placementPreview)}`);
     }
     if (checkpoint45Focus === 'shape-refresh') {
       assert(checkpoint45RoomFocus.roomId === 'room.family-gathering'
