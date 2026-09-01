@@ -21,6 +21,7 @@ test('Room Studio Preview is an exact read-only view with visible non-runtime tr
   assert.match(app, /LOAD_FAILED[\s\S]*captureRoomPreviewDomState\(\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
   assert.match(app, /data-preview-retry[\s\S]*captureRoomPreviewDomState\(retry\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
   assert.match(app, /data-preview-inspect[\s\S]*focus\(\{ preventScroll: true \}\)/);
+  assert.match(app, /if \(visualFixture\)[\s\S]*roomPreviewActivationState\(\)[\s\S]*previewStatus: state\.roomUi\.preview\.status/);
   assert.match(app, /markRoomPreviewResourceFailed\(\{ digest, bindingKey, requestId, rootOwner \}\)[\s\S]*rootElement !== rootOwner[\s\S]*bindingKey, requestId, digest[\s\S]*transitioned === preview/);
   assert.match(app, /markRoomPreviewResourceFailed\(\{ digest: resource\.digest, bindingKey: binding\.key, requestId, rootOwner \}\)/);
   assert.match(app, /data\.roomPreviewState|dataset\.roomPreviewState/);
@@ -67,6 +68,9 @@ test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visi
   assert.match(physicalOpen, /isTrusted: event\.isTrusted/);
   assert.match(physicalOpen, /detail: event\.detail/);
   assert.match(physicalOpen, /events\.length === 3[\s\S]*type === 'keydown'[\s\S]*roomView === 'preview'[\s\S]*type === 'click'[\s\S]*detail === 0[\s\S]*type === 'keyup'/);
+  assert.match(physicalOpen, /onBubble[\s\S]*roomPreviewActivationState[\s\S]*bubbles\.length === 1[\s\S]*rootPresent === true[\s\S]*previewPressed === 'true'/);
+  assert.match(physicalOpen, /Runtime\.exceptionThrown[\s\S]*Log\.entryAdded/);
+  assert.match(physicalOpen, /unhandledrejection[\s\S]*pageErrors\.length === 0[\s\S]*browserErrors\.length === 0/);
   assert.doesNotMatch(physicalOpen, /type: 'rawKeyDown'/);
   assert.doesNotMatch(physicalOpen, /\.click\(|new KeyboardEvent|dispatchEvent\(new KeyboardEvent/);
   assert.match(capture, /physicalKeyboardOpen: previewActivation\?\.events\.length === 3/);

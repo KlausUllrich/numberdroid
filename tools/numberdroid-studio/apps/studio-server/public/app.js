@@ -6985,6 +6985,17 @@ if (visualFixture) {
         pointerTrace: cutterPointerTrace.slice(),
       };
     },
+    roomPreviewActivationState() {
+      return {
+        workspace: state.workspace,
+        view: state.roomUi.view,
+        roomMutationPending: state.roomMutationPending,
+        pendingPlacementAdd: Boolean(state.roomUi.pendingPlacementAdd),
+        cutterDragActive: Boolean(cutterDrag),
+        cutterDeferredRender: state.cutterDeferredRender,
+        previewStatus: state.roomUi.preview.status,
+      };
+    },
     roomDirectManipulationState() {
       return {
         gestureActive: Boolean(state.roomUi.placementGesture),

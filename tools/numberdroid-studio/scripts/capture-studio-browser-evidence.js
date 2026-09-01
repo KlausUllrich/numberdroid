@@ -792,6 +792,8 @@ try {
           const button = document.querySelector('[data-room-view="preview"]');
           const root = document.getElementById('workspace-content');
           const events = [];
+          const bubbles = [];
+          const pageErrors = [];
           const onClick = (event) => {
             const view = event.target.closest?.('[data-room-view]');
             if (view) events.push({
@@ -799,6 +801,9 @@ try {
               roomView: view.dataset.roomView ?? null,
               isTrusted: event.isTrusted,
               detail: event.detail,
+              eventPhase: event.eventPhase,
+              defaultPrevented: event.defaultPrevented,
+              cancelBubble: event.cancelBubble,
             });
           };
           const onKey = (event) => {
@@ -813,16 +818,45 @@ try {
               roomView: view?.dataset.roomView ?? null,
             });
           };
-          window.__checkpoint45PreviewKeyboard = { root, events, onClick, onKey };
+          const onBubble = (event) => {
+            const view = event.target.closest?.('[data-room-view]');
+            if (view?.dataset.roomView !== 'preview') return;
+            bubbles.push({
+              rootPresent: Boolean(document.querySelector('[data-room-preview]')),
+              previewPressed: document.querySelector('[data-room-view="preview"]')?.getAttribute('aria-pressed') ?? null,
+              targetConnected: event.target.isConnected,
+              defaultPrevented: event.defaultPrevented,
+              cancelBubble: event.cancelBubble,
+              renderedWorkspace: root?.dataset.renderedWorkspace ?? null,
+              editorPresent: Boolean(document.querySelector('[data-room-board]')),
+              activationState: window.__numberdroidStudioVisualTest?.roomPreviewActivationState() ?? null,
+            });
+          };
+          const onWindowError = (event) => pageErrors.push({
+            type: 'error', message: event.message, filename: event.filename,
+            lineNumber: event.lineno, columnNumber: event.colno,
+            description: event.error?.stack ?? event.error?.message ?? null,
+          });
+          const onUnhandledRejection = (event) => pageErrors.push({
+            type: 'unhandledrejection',
+            description: event.reason?.stack ?? event.reason?.message ?? String(event.reason),
+          });
+          window.__checkpoint45PreviewKeyboard = {
+            root, events, bubbles, pageErrors, onClick, onKey, onBubble, onWindowError, onUnhandledRejection,
+          };
           root?.addEventListener('click', onClick, true);
+          root?.addEventListener('click', onBubble);
           document.addEventListener('keydown', onKey, true);
           document.addEventListener('keyup', onKey, true);
+          window.addEventListener('error', onWindowError);
+          window.addEventListener('unhandledrejection', onUnhandledRejection);
           button?.focus({ preventScroll: true });
           return {
             buttonFocused: Boolean(button && document.activeElement === button),
             buttonEnabled: Boolean(button && !button.disabled),
             documentFocused: document.hasFocus(),
             visibilityState: document.visibilityState,
+            activationState: window.__numberdroidStudioVisualTest?.roomPreviewActivationState() ?? null,
           };
         })()`, returnByValue: true,
       }, sessionId);
@@ -831,6 +865,7 @@ try {
         && focusedPreview.result.value.documentFocused === true
         && focusedPreview.result.value.visibilityState === 'visible',
       `Studio preview view could not receive active-document keyboard focus: ${JSON.stringify(focusedPreview.result?.value)}`);
+      const previewActivationRuntimeStart = devtools.events.length;
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
         text: '\r', unmodifiedText: '\r',
@@ -843,8 +878,11 @@ try {
         const observed = await devtools.send('Runtime.evaluate', {
           expression: `(() => ({
             events: window.__checkpoint45PreviewKeyboard?.events.map((event) => ({ ...event })) ?? [],
+            bubbles: window.__checkpoint45PreviewKeyboard?.bubbles.map((bubble) => ({ ...bubble })) ?? [],
+            pageErrors: window.__checkpoint45PreviewKeyboard?.pageErrors.map((error) => ({ ...error })) ?? [],
             rootPresent: Boolean(document.querySelector('[data-room-preview]')),
             previewPressed: document.querySelector('[data-room-view="preview"]')?.getAttribute('aria-pressed') ?? null,
+            activationState: window.__numberdroidStudioVisualTest?.roomPreviewActivationState() ?? null,
           }))()`, returnByValue: true,
         }, sessionId);
         previewActivation = observed.result?.value ?? null;
@@ -855,11 +893,29 @@ try {
         expression: `(() => {
           const evidence = window.__checkpoint45PreviewKeyboard;
           evidence?.root?.removeEventListener('click', evidence.onClick, true);
+          evidence?.root?.removeEventListener('click', evidence.onBubble);
           document.removeEventListener('keydown', evidence?.onKey, true);
           document.removeEventListener('keyup', evidence?.onKey, true);
+          window.removeEventListener('error', evidence?.onWindowError);
+          window.removeEventListener('unhandledrejection', evidence?.onUnhandledRejection);
           delete window.__checkpoint45PreviewKeyboard;
         })()`, returnByValue: true,
       }, sessionId);
+      const activationBrowserErrors = devtools.events.slice(previewActivationRuntimeStart)
+        .filter(({ method, params }) => method === 'Runtime.exceptionThrown'
+          || (method === 'Log.entryAdded' && params?.entry?.level === 'error'))
+        .slice(-8)
+        .map(({ method, params }) => method === 'Runtime.exceptionThrown'
+          ? {
+              method,
+              text: params.exceptionDetails?.text ?? null,
+              description: params.exceptionDetails?.exception?.description ?? null,
+              url: params.exceptionDetails?.url ?? null,
+              lineNumber: params.exceptionDetails?.lineNumber ?? null,
+              columnNumber: params.exceptionDetails?.columnNumber ?? null,
+            }
+          : { method, text: params.entry?.text ?? null, url: params.entry?.url ?? null });
+      previewActivation = { ...previewActivation, browserErrors: activationBrowserErrors };
       assert(previewActivation?.events.length === 3
         && previewActivation.events[0].type === 'keydown'
         && previewActivation.events[0].key === 'Enter'
@@ -876,6 +932,13 @@ try {
         && previewActivation.events[2].code === 'Enter'
         && previewActivation.events[2].repeat === false
         && previewActivation.events[2].isTrusted === true
+        && previewActivation.bubbles.length === 1
+        && previewActivation.bubbles[0].rootPresent === true
+        && previewActivation.bubbles[0].previewPressed === 'true'
+        && previewActivation.bubbles[0].activationState?.view === 'preview'
+        && previewActivation.bubbles[0].activationState?.previewStatus === 'LOADING'
+        && previewActivation.pageErrors.length === 0
+        && previewActivation.browserErrors.length === 0
         && previewActivation.rootPresent === true
         && previewActivation.previewPressed === 'true',
       `Physical Preview activation did not produce one exact trusted keyboard click: ${JSON.stringify(previewActivation)}`);
