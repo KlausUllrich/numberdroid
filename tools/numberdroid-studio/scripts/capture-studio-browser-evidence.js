@@ -1090,6 +1090,7 @@ try {
       }, sessionId, 20_000);
       const inspectorMovePoint = await devtools.send('Runtime.evaluate', {
         expression: `(() => { const button = document.querySelector('[data-room-control="move-placement"][data-dx="0"][data-dy="1"]');
+          button?.scrollIntoView({ block: 'center', inline: 'center' });
           const rect = button?.getBoundingClientRect(); return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null; })()`, returnByValue: true,
       }, sessionId);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: inspectorMovePoint.result.value.x, y: inspectorMovePoint.result.value.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
@@ -1129,8 +1130,8 @@ try {
       }, sessionId);
       const panPoint = afterDrag.result.value.panPoint;
       await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: panPoint.x, y: panPoint.y, button: 'middle', buttons: 4, clickCount: 1 }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: panPoint.x + 70, y: panPoint.y + 45, button: 'middle', buttons: 4 }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: panPoint.x + 70, y: panPoint.y + 45, button: 'middle', buttons: 0, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: panPoint.x + 35, y: panPoint.y + 25, button: 'middle', buttons: 4 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: panPoint.x + 35, y: panPoint.y + 25, button: 'middle', buttons: 0, clickCount: 1 }, sessionId);
       const panAndRestore = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
           const evidence = window.__roomDirectManipulationEvidence; const scroll = document.querySelector('.room-canvas-scroll');
