@@ -144,6 +144,7 @@ export class AgentTaskService {
   #clock;
   #capabilityProvider;
   #grantScopes;
+  #derivedChildService;
 
   constructor({
     studioService,
@@ -153,6 +154,7 @@ export class AgentTaskService {
     clock = () => new Date().toISOString(),
     capabilityProvider = null,
     grantScopes = KNOWN_GRANT_SCOPES,
+    derivedChildService = null,
   }) {
     invariant(studioService, 'VALIDATION_ERROR', 'StudioService is required.');
     invariant(projectStore, 'VALIDATION_ERROR', 'The authoritative ProjectStore is required.');
@@ -165,6 +167,25 @@ export class AgentTaskService {
     this.#clock = clock;
     this.#capabilityProvider = validateProjectCapabilityProvider(capabilityProvider);
     this.#grantScopes = validateTrustedGrantScopes(grantScopes);
+    invariant(derivedChildService === null || typeof derivedChildService?.deriveCandidateChild === 'function',
+      'DERIVED_CHILD_APPLICATION_INVALID', 'The derived-child service is invalid.');
+    this.#derivedChildService = derivedChildService;
+  }
+
+  #authorityTask(task, now) {
+    return {
+      ...structuredClone(task),
+      authority: this.#taskStore.taskAuthorityProjection(task.projectId, task.taskId, now),
+    };
+  }
+
+  #projection(task, timeline, review, now) {
+    return taskProjection(this.#authorityTask(task, now), timeline, review, now);
+  }
+
+  #assertExecutionAuthority(task, context, now) {
+    assertTaskCanExecute(task, context, now);
+    this.#taskStore.assertExecutionAuthority(task.projectId, task.taskId, now);
   }
 
   async createTask(raw, trustedOwnerContext) {
@@ -183,7 +204,7 @@ export class AgentTaskService {
     const unknownScope = task.capabilities.find((scope) => !this.#grantScopes.includes(scope));
     invariant(!unknownScope, 'UNKNOWN_GRANT_SCOPE', 'The task contains an unknown capability scope.', { scope: unknownScope });
     const existing = this.#taskStore.getTask(projectId, task.taskId);
-    if (existing) return taskProjection(existing, this.#taskStore.listTimeline(projectId, task.taskId), this.#taskStore.getReview(projectId, task.taskId), now);
+    if (existing) return this.#projection(existing, this.#taskStore.listTimeline(projectId, task.taskId), this.#taskStore.getReview(projectId, task.taskId), now);
 
     const grantId = `grant.task.${task.taskId}`;
     let grantIssued = false;
@@ -212,7 +233,7 @@ export class AgentTaskService {
         issuedBy: trustedOwnerContext.actor.id,
         now,
       });
-      return taskProjection(created, this.#taskStore.listTimeline(projectId, task.taskId), null, now);
+      return this.#projection(created, this.#taskStore.listTimeline(projectId, task.taskId), null, now);
     } catch (error) {
       if (grantIssued && !this.#taskStore.getTask(projectId, task.taskId)) {
         try {
@@ -233,7 +254,8 @@ export class AgentTaskService {
   readTask(projectId, taskId) {
     const task = this.#taskStore.getTask(projectId, taskId);
     invariant(task, 'TASK_NOT_FOUND', 'The agent task does not exist.', { projectId, taskId });
-    return taskProjection(task, this.#taskStore.listTimeline(projectId, taskId), this.#taskStore.getReview(projectId, taskId), this.#clock());
+    const now = this.#clock();
+    return this.#projection(task, this.#taskStore.listTimeline(projectId, taskId), this.#taskStore.getReview(projectId, taskId), now);
   }
 
   hasTask(projectId, taskId, branchId = null) {
@@ -250,8 +272,9 @@ export class AgentTaskService {
       && trustedContext.branchId === task.branchId
       && trustedContext.grantId === task.grantId,
     'TASK_CONTEXT_MISMATCH', 'The host binding does not match this task.');
+    this.#taskStore.assertExecutionAuthority(projectId, task.taskId, this.#clock());
     const { grantId: _grantId, ...redactedTask } = task;
-    return taskProjection(
+    return this.#projection(
       redactedTask,
       this.#taskStore.listTimeline(projectId, task.taskId),
       this.#taskStore.getReview(projectId, task.taskId),
@@ -261,7 +284,7 @@ export class AgentTaskService {
 
   async submitOwnReview(projectId, reviewId, trustedContext) {
     const task = this.#taskStore.getTask(projectId, trustedContext.taskId);
-    assertTaskCanExecute(task, trustedContext, this.#clock());
+    this.#assertExecutionAuthority(task, trustedContext, this.#clock());
     invariant(trustedContext.grantId === task.grantId, 'TASK_GRANT_MISMATCH', 'The bound grant does not match the task.');
     const mainDocument = await this.#projectStore.loadProject(projectId);
     return {
@@ -280,7 +303,7 @@ export class AgentTaskService {
       schemaVersion: 1,
       projectId,
       tasks: this.#taskStore.listTasks(projectId).map((task) => ({
-        ...task,
+        ...this.#authorityTask(task, now),
         effectiveState: taskEffectiveState(task, now),
       })),
     };
@@ -295,6 +318,7 @@ export class AgentTaskService {
         && trustedContext.branchId === task.branchId
         && trustedContext.grantId === task.grantId,
       'TASK_CONTEXT_MISMATCH', 'The agent cannot read another task branch.');
+      this.#taskStore.assertExecutionAuthority(projectId, taskId, this.#clock());
     }
     const document = this.#taskStore.loadBranchDocument(projectId, taskId);
     const head = document.revisions.at(-1);
@@ -344,7 +368,7 @@ export class AgentTaskService {
 
   async proposeAtlasGrid(request, trustedContext, options = {}) {
     const task = this.#taskStore.getTask(request.projectId, trustedContext.taskId);
-    assertTaskCanExecute(task, trustedContext, this.#clock());
+    this.#assertExecutionAuthority(task, trustedContext, this.#clock());
     return this.#branchService(request.projectId, task.taskId).proposeAtlasGrid(request, trustedContext, options);
   }
 
@@ -352,7 +376,7 @@ export class AgentTaskService {
     const projectId = requireId(rawCommand?.projectId, 'projectId');
     const taskId = requireId(trustedAgentContext?.taskId, 'trustedExecutionContext.taskId');
     const task = this.#taskStore.getTask(projectId, taskId);
-    assertTaskCanExecute(task, trustedAgentContext, this.#clock());
+    this.#assertExecutionAuthority(task, trustedAgentContext, this.#clock());
     invariant(trustedAgentContext.grantId === task.grantId, 'TASK_GRANT_MISMATCH', 'The trusted grant does not match the task authority.');
     const definition = getCommandDefinition(rawCommand.type);
     invariant(definition, 'UNKNOWN_COMMAND', 'Unknown Studio command.', { commandType: rawCommand.type });
@@ -381,6 +405,11 @@ export class AgentTaskService {
       }
     }
     return this.readTask(projectId, taskId);
+  }
+
+  deriveCandidateChild(projectId, request, trustedContext) {
+    invariant(this.#derivedChildService, 'DERIVED_CHILD_APPLICATION_DISABLED', 'Derived-child authority is not configured.');
+    return this.#derivedChildService.deriveCandidateChild(projectId, request, trustedContext);
   }
 
   async submitReview(projectId, taskId, { reviewId, actorId }) {

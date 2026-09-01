@@ -7,6 +7,7 @@ export const LEVEL_CANDIDATE_CREATE_REQUIRED_SCOPE = 'level.candidate.create';
 export const A4C_PRIVATE_GRANT_SCOPES = Object.freeze([
   ...AUTHORING_V2_PRIVATE_GRANT_SCOPES,
   LEVEL_CANDIDATE_CREATE_REQUIRED_SCOPE,
+  'task.child.derive',
 ].sort());
 
 export function listA4cGrantScopes() {

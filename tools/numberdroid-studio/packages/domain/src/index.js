@@ -214,3 +214,15 @@ export {
   LEVEL_CANDIDATE_CREATE_REQUIRED_SCOPE,
   listA4cGrantScopes,
 } from './level-candidate-authority.js';
+export {
+  DERIVED_CHILD_CREATE_REQUIRED_SCOPE,
+  DERIVED_CHILD_PRIVATE_GRANT_SCOPES,
+  addBudgetUsage,
+  assertBudgetReservationFits,
+  assertCandidateChildAttenuation,
+  candidateChildCapabilities,
+  normalizeDerivedChildPolicy,
+  normalizeDerivedChildTaskRequest,
+  requireDerivedChildContext,
+  zeroTaskBudgetUsage,
+} from './derived-child-task.js';

@@ -563,6 +563,9 @@ jobs:
             capture "$width" "$CHECKPOINT_4_EVIDENCE/task-candidate-readonly-$width.png" \
               'http://127.0.0.1:4324/?visualFixture=checkpoint-4&visualFocus=candidate#tasks' checkpoint-4 \
               "$CHECKPOINT_4_EVIDENCE/dom/task-candidate-readonly-$width.html"
+            capture "$width" "$CHECKPOINT_4_EVIDENCE/task-derived-child-$width.png" \
+              'http://127.0.0.1:4324/?visualFixture=checkpoint-4&visualFocus=child#tasks' checkpoint-4 \
+              "$CHECKPOINT_4_EVIDENCE/dom/task-derived-child-$width.html"
             capture "$width" "$CHECKPOINT_4_EVIDENCE/task-create-$width.png" \
               'http://127.0.0.1:4324/?visualFixture=checkpoint-4&visualFocus=create#tasks' checkpoint-4 \
               "$CHECKPOINT_4_EVIDENCE/dom/task-create-$width.html"

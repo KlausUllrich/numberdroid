@@ -53,6 +53,7 @@ test('A4c Level Candidate reviews are visibly read-only and never expose decisio
   const app = await readFile(appUrl, 'utf8');
   const styles = await readFile(stylesUrl, 'utf8');
   const capture = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
+  const fixture = await readFile(new URL('../scripts/prepare-checkpoint-4-visual-evidence.js', import.meta.url), 'utf8');
   const buildWorkflow = await readFile(new URL('../../../.github/workflows/build.yml', import.meta.url), 'utf8');
   const workflow = app.slice(app.indexOf('function taskWorkflowPresentation'), app.indexOf('function taskAttentionPresentation'));
   const attention = app.slice(app.indexOf('function taskAttentionPresentation'), app.indexOf('function processingAttemptCopy'));
@@ -77,6 +78,35 @@ test('A4c Level Candidate reviews are visibly read-only and never expose decisio
   assert.match(capture, /readonlyDispositionText === 'Pending · read-only'/);
   assert.match(buildWorkflow, /visualFocus=candidate#tasks/);
   assert.match(buildWorkflow, /task-candidate-readonly-\$width\.png/);
+  assert.match(fixture, /deriveCandidateChild/);
+  assert.match(fixture, /executionAvailability === 'BLOCKED_BY_ANCESTOR'/);
+  assert.match(capture, /checkpoint4Focus === 'child'/);
+  assert.match(capture, /selectedOrigin === 'TRUSTED_SERVICE_CHILD'/);
+  assert.match(capture, /authorityLineageText\.includes\('Reserved command budget1'\)/);
+  assert.match(capture, /taskActionCount === 0/);
+  assert.match(buildWorkflow, /task-derived-child-\$width\.png/);
+});
+
+test('derived Candidate children expose read-only lineage, reservations, and ancestor blocking without creation controls', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const effectiveState = app.slice(app.indexOf('function taskEffectiveState'), app.indexOf('function taskWorkflowPresentation'));
+  const list = app.slice(app.indexOf('function renderTaskList'), app.indexOf('function renderTaskDetail'));
+  const detail = app.slice(app.indexOf('function renderTaskDetail'), app.indexOf('function renderTasks'));
+  assert.match(app, /ANCESTOR_BLOCKED: 'Blocked by parent task'/);
+  assert.match(app, /'task\.child\.derive': 'Let Studio derive one restricted Candidate child'/);
+  assert.match(effectiveState, /executionAvailability === 'BLOCKED_BY_ANCESTOR'/);
+  assert.match(list, /data(?:set)?\.taskOrigin|dataset\.taskOrigin/);
+  assert.match(list, /Service-derived child task/);
+  assert.match(detail, /Authority lineage/);
+  assert.match(detail, /data(?:set)?\.taskAuthorityLineage|dataset\.taskAuthorityLineage/);
+  assert.match(detail, /reserved for child tasks/);
+  assert.match(detail, /Auto-accept, further child derivation, review decisions or merge, Main writes, materialization, repository writes, publication, and release/);
+  assert.doesNotMatch(detail, /taskControl = 'derive'|data-task-control="derive"/);
+  const workflow = app.slice(app.indexOf('function taskWorkflowPresentation'), app.indexOf('function taskAttentionPresentation'));
+  assert.match(workflow, /origin === 'TRUSTED_SERVICE_CHILD' && stateValue === 'ACTIVE'/);
+  assert.match(workflow, /exactly one immutable Candidate/);
+  assert.match(workflow, /read-only inspection/);
+  assert.match(workflow, /No review decision, acceptance, merge, Main write, materialization, repository write, publication, or release is authorized/);
 });
 
 test('CP4.5 passive refresh preserves the focused task composer and its live DOM draft', async () => {
