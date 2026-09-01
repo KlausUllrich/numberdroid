@@ -919,8 +919,16 @@ try {
             hint: document.querySelector('.room-canvas-hint')?.textContent ?? null };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      const exactRetryPoint = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const board = document.querySelector('[data-room-board]'); board.scrollIntoView({ block: 'center', inline: 'center' });
+          const rect = document.querySelector('.room-cell[data-x="1"][data-y="0"]').getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: exactRetryPoint.result.value.x, y: exactRetryPoint.result.value.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: exactRetryPoint.result.value.x, y: exactRetryPoint.result.value.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
       const exactAddRetry = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
           const deadline = Date.now() + 10_000;
@@ -1048,11 +1056,23 @@ try {
       }, sessionId);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
 
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: sourcePoint.x, y: sourcePoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      const committedPoints = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const placement = document.querySelector('[data-placement-id="prop.family-table"]');
+          placement.scrollIntoView({ block: 'center', inline: 'center' });
+          const targetCell = document.querySelector('.room-cell[data-x="2"][data-y="2"]');
+          const source = placement.getBoundingClientRect(); const target = targetCell.getBoundingClientRect();
+          return { source: { x: source.left + source.width / 2, y: source.top + source.height / 2 },
+            target: { x: target.left + target.width / 2, y: target.top + target.height / 2 } };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      const committedSource = committedPoints.result.value.source; const committedTarget = committedPoints.result.value.target;
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: committedSource.x, y: committedSource.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
       for (const ratio of [.25, .5, .75, 1]) {
         await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved',
-          x: sourcePoint.x + (targetPoint.x - sourcePoint.x) * ratio,
-          y: sourcePoint.y + (targetPoint.y - sourcePoint.y) * ratio, button: 'left', buttons: 1 }, sessionId);
+          x: committedSource.x + (committedTarget.x - committedSource.x) * ratio,
+          y: committedSource.y + (committedTarget.y - committedSource.y) * ratio, button: 'left', buttons: 1 }, sessionId);
       }
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR' }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'r', code: 'KeyR' }, sessionId);
@@ -1061,7 +1081,7 @@ try {
           allowed: document.querySelector('.room-placement-ghost')?.dataset.allowed ?? null,
           state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() }))()`, returnByValue: true,
       }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: committedTarget.x, y: committedTarget.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
       await devtools.send('Runtime.evaluate', {
         expression: `(async () => { const deadline = Date.now() + 10_000;
           while ((window.__roomDirectManipulationEvidence.requests.length < ${requestBaseline + 1}
