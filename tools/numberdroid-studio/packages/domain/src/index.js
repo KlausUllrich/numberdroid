@@ -208,3 +208,9 @@ export {
   validateTaskCandidateSubmission,
 } from './task-candidate.js';
 export { StudioError, asStudioError, invariant } from './errors.js';
+export {
+  A4C_PRIVATE_GRANT_SCOPES,
+  LEVEL_CANDIDATE_CREATE_COMMAND_TYPE,
+  LEVEL_CANDIDATE_CREATE_REQUIRED_SCOPE,
+  listA4cGrantScopes,
+} from './level-candidate-authority.js';

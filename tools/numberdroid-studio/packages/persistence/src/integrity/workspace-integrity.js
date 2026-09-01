@@ -6,9 +6,11 @@ import {
   validateProcessingResultAdoptionAggregate,
   validateProcessingResultAdoptionCommitResult,
 } from '../../../domain/src/processing-result-adoption-commit.js';
+import { validateTaskCandidateSubmission } from '../../../domain/src/task-candidate.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { ContentAddressedArtifactStore } from '../artifacts/content-addressed-artifact-store.js';
 import { SQLITE_MIGRATIONS } from '../sqlite/migration-runner.js';
+import { validateStoredLevelCandidateRow } from '../sqlite/sqlite-level-candidate-store.js';
 import { SqliteProjectStore } from '../sqlite/sqlite-project-store.js';
 
 function referencedArtifactRows(database, schemaVersion) {
@@ -38,6 +40,17 @@ function finding(digest, code, message, details = {}) {
 function sameFingerprint(left, right) {
   if (left === undefined || right === undefined) return false;
   try { return fingerprint(left) === fingerprint(right); } catch { return false; }
+}
+
+function closesEmbeddedFingerprint(value) {
+  if (!value || typeof value !== 'object' || typeof value.fingerprint !== 'string') return false;
+  try {
+    const core = structuredClone(value);
+    delete core.fingerprint;
+    return value.fingerprint === fingerprint(core);
+  } catch {
+    return false;
+  }
 }
 
 function branchCommandBudgetCharge(revisionJson) {
@@ -1339,6 +1352,187 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
           role: row.role,
           code: 'TASK_PROCESSING_ADOPTION_REFERENCE_ORPHANED',
           message: 'A private processing-result artifact reference has no durable adoption Aggregate.',
+        });
+      }
+    }
+    if (database.userVersion >= 14) {
+      const candidateRows = db.prepare(`
+        SELECT * FROM task_level_candidate_submissions
+        ORDER BY project_id, task_id, submission_id
+      `).all();
+      const candidateTask = db.prepare(`
+        SELECT * FROM agent_tasks WHERE project_id = ? AND task_id = ?
+      `);
+      const candidateReviewRows = db.prepare(`
+        SELECT * FROM task_reviews
+        WHERE project_id = ? AND task_id = ? AND review_id = ?
+        ORDER BY review_version
+      `);
+      const candidateTimelineRows = db.prepare(`
+        SELECT * FROM task_timeline_events
+        WHERE project_id = ? AND task_id = ? AND event_id = ?
+      `);
+      const candidateMerge = db.prepare(`
+        SELECT 1 FROM task_merges WHERE project_id = ? AND task_id = ?
+      `);
+      for (const row of candidateRows) {
+        const coordinates = {
+          projectId: row.project_id,
+          taskId: row.task_id,
+          submissionId: row.submission_id,
+        };
+        let configuredBinding;
+        let aggregate;
+        let submission;
+        let result;
+        try {
+          validateStoredLevelCandidateRow(db, row);
+          configuredBinding = JSON.parse(row.configured_binding_json);
+          aggregate = JSON.parse(row.aggregate_json);
+          submission = validateTaskCandidateSubmission(JSON.parse(row.submission_json));
+          result = JSON.parse(row.result_json);
+        } catch (error) {
+          taskFindings.push({
+            ...coordinates,
+            code: error?.code === 'CORRUPT_LEVEL_CANDIDATE'
+              ? 'TASK_LEVEL_CANDIDATE_SEMANTIC_MISMATCH'
+              : 'TASK_LEVEL_CANDIDATE_JSON_INVALID',
+            message: 'An immutable Level Candidate contains invalid, non-canonical, or fingerprint-divergent semantic state.',
+            cause: error.message,
+          });
+          continue;
+        }
+        const identity = aggregate?.identity;
+        const authorityBinding = aggregate?.authorityBinding;
+        const columnsMatch = submission.projectId === row.project_id
+          && submission.taskId === row.task_id
+          && submission.submissionId === row.submission_id
+          && submission.branchId === row.branch_id
+          && Number(submission.baseRevision) === Number(row.base_revision)
+          && Number(submission.branchHeadRevision) === Number(row.branch_head_revision)
+          && submission.idempotencyKeyHash === row.idempotency_key_hash
+          && submission.fingerprint === row.submission_fingerprint
+          && submission.projectionFingerprint === row.projection_fingerprint
+          && submission.candidate.candidateFingerprint === row.candidate_fingerprint
+          && identity?.projectId === row.project_id
+          && identity?.taskId === row.task_id
+          && identity?.submissionId === row.submission_id
+          && identity?.branchId === row.branch_id
+          && identity?.actorId === row.actor_id
+          && identity?.grantId === row.grant_id
+          && identity?.idempotencyKeyHash === row.idempotency_key_hash
+          && identity?.requestFingerprint === row.request_fingerprint
+          && aggregate?.requestFingerprint === row.request_fingerprint
+          && aggregate?.authorityBindingFingerprint === row.authority_binding_fingerprint
+          && aggregate?.submissionFingerprint === row.submission_fingerprint
+          && aggregate?.resultFingerprint === result?.fingerprint
+          && aggregate?.reviewId === row.review_id
+          && aggregate?.submittedAt === row.submitted_at
+          && authorityBinding?.fingerprint === row.authority_binding_fingerprint
+          && authorityBinding?.projectId === row.project_id
+          && authorityBinding?.taskId === row.task_id
+          && authorityBinding?.branchId === row.branch_id
+          && authorityBinding?.actorId === row.actor_id
+          && authorityBinding?.grantId === row.grant_id
+          && Number(authorityBinding?.baseRevision) === Number(row.base_revision)
+          && Number(authorityBinding?.branchHeadRevision) === Number(row.branch_head_revision)
+          && sameFingerprint(aggregate?.configuredBinding, configuredBinding)
+          && closesEmbeddedFingerprint(authorityBinding)
+          && closesEmbeddedFingerprint(aggregate)
+          && closesEmbeddedFingerprint(result)
+          && result?.kind === 'studio.level-candidate-submit-result'
+          && result?.status === 'WAITING_FOR_HUMAN_REVIEW'
+          && result?.message === 'Waiting for your review'
+          && result?.submissionId === row.submission_id
+          && result?.submissionFingerprint === row.submission_fingerprint
+          && result?.candidateFingerprint === row.candidate_fingerprint
+          && result?.reviewId === row.review_id
+          && Number(result?.baseRevision) === Number(row.base_revision)
+          && Number(result?.branchHeadRevision) === Number(row.branch_head_revision);
+        if (!columnsMatch) {
+          taskFindings.push({
+            ...coordinates,
+            code: 'TASK_LEVEL_CANDIDATE_SEMANTIC_MISMATCH',
+            message: 'Level Candidate columns, configured authority, Aggregate, submission, and result do not form one fingerprint-closed record.',
+          });
+        }
+        const reviewVersions = candidateReviewRows.all(row.project_id, row.task_id, row.review_id);
+        const timeline = candidateTimelineRows.all(
+          row.project_id,
+          row.task_id,
+          `task-event:${row.task_id}:candidate:${row.submission_id}`,
+        );
+        let review = null;
+        let event = null;
+        try {
+          review = reviewVersions.length === 1 ? JSON.parse(reviewVersions[0].review_json) : null;
+          event = timeline.length === 1 ? JSON.parse(timeline[0].event_json) : null;
+        } catch {}
+        const task = candidateTask.get(row.project_id, row.task_id);
+        if (!task
+          || !['IN_REVIEW', 'REJECTED', 'CANCELLED'].includes(task.state)
+          || reviewVersions.length !== 1
+          || review?.kind !== 'studio.level-candidate-review'
+          || review?.reviewVersion !== 1
+          || review?.state !== 'OPEN'
+          || review?.candidateSubmissionId !== row.submission_id
+          || review?.items?.length !== 1
+          || !review.items.every(({ disposition }) => disposition === 'PENDING')
+          || review?.candidateEvidence?.submissionFingerprint !== row.submission_fingerprint
+          || review?.candidateEvidence?.candidateFingerprint !== row.candidate_fingerprint
+          || timeline.length !== 1
+          || event?.type !== 'REVIEW_SUBMITTED'
+          || event?.state !== 'IN_REVIEW'
+          || event?.details?.reviewId !== row.review_id
+          || event?.details?.submissionId !== row.submission_id
+          || event?.details?.candidateFingerprint !== row.candidate_fingerprint
+          || candidateMerge.get(row.project_id, row.task_id)) {
+          taskFindings.push({
+            ...coordinates,
+            code: 'TASK_LEVEL_CANDIDATE_REVIEW_CLOSURE_MISMATCH',
+            message: 'A Level Candidate lost its single PENDING review, REVIEW_SUBMITTED event, or non-merge authority boundary.',
+          });
+        }
+      }
+      const orphanCandidateReviews = db.prepare(`
+        SELECT reviews.project_id, reviews.task_id, reviews.review_id
+        FROM task_reviews AS reviews
+        LEFT JOIN task_level_candidate_submissions AS candidates
+          ON candidates.project_id = reviews.project_id
+          AND candidates.task_id = reviews.task_id
+          AND candidates.review_id = reviews.review_id
+        WHERE json_extract(reviews.review_json, '$.kind') = 'studio.level-candidate-review'
+          AND candidates.submission_id IS NULL
+        ORDER BY reviews.project_id, reviews.task_id, reviews.review_id
+      `).all();
+      for (const row of orphanCandidateReviews) {
+        taskFindings.push({
+          projectId: row.project_id,
+          taskId: row.task_id,
+          reviewId: row.review_id,
+          code: 'TASK_LEVEL_CANDIDATE_REVIEW_ORPHANED',
+          message: 'A Level Candidate review has no immutable Candidate submission.',
+        });
+      }
+      const orphanCandidateTimeline = db.prepare(`
+        SELECT events.project_id, events.task_id, events.event_id
+        FROM task_timeline_events AS events
+        LEFT JOIN task_level_candidate_submissions AS candidates
+          ON candidates.project_id = events.project_id
+          AND candidates.task_id = events.task_id
+          AND candidates.submission_id = json_extract(events.event_json, '$.details.submissionId')
+        WHERE events.event_type = 'REVIEW_SUBMITTED'
+          AND json_extract(events.event_json, '$.details.submissionId') LIKE 'candidate:%'
+          AND candidates.submission_id IS NULL
+        ORDER BY events.project_id, events.task_id, events.event_id
+      `).all();
+      for (const row of orphanCandidateTimeline) {
+        taskFindings.push({
+          projectId: row.project_id,
+          taskId: row.task_id,
+          eventId: row.event_id,
+          code: 'TASK_LEVEL_CANDIDATE_TIMELINE_ORPHANED',
+          message: 'A Level Candidate REVIEW_SUBMITTED event has no immutable Candidate submission.',
         });
       }
     }

@@ -3,6 +3,11 @@ export { StudioService, implementedCommandTypes } from './studio-service.js';
 export { validateTrustedGrantScopes } from './grant-scope-catalog.js';
 export { AgentTaskService } from './agent-task-service.js';
 export {
+  LEVEL_CANDIDATE_APPLICATION_KIND,
+  LEVEL_CANDIDATE_APPLICATION_SCHEMA_VERSION,
+  LevelCandidateApplicationService,
+} from './level-candidate-application.js';
+export {
   FixedProjectCapabilityProvider,
   projectCapabilitySelection,
   validateProjectCapabilityProvider,

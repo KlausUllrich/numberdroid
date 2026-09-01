@@ -22,6 +22,7 @@ export const SQLITE_MIGRATIONS = Object.freeze([
   { version: 11, name: 'agent_task_branches', file: '0011_agent_task_branches.sql', checksum: 'f6ed508f3098e6cdeb3dca2af0a9be7baca12c18fcd9d518f75f4f353242639d' },
   { version: 12, name: 'room_shape_cells', file: '0012_room_shape_cells.sql', checksum: '1e48171a0c70c4d015001287d254aad8359ea34970bddcb17168a8a368dd17e1' },
   { version: 13, name: 'processing_result_adoptions', file: '0013_processing_result_adoptions.sql', checksum: 'af908897b489d24110dabbd1cad8754bd85959bfc744cf811b81c376b4603043' },
+  { version: 14, name: 'level_candidate_submissions', file: '0014_level_candidate_submissions.sql', checksum: '67c8bbfb84cc668fb41d460414436c6b544123a1cbc372c9615d4f2ec13dbd1b' },
 ]);
 
 export function migrationChecksum(sql) {

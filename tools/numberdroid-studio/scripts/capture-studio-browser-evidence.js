@@ -199,8 +199,8 @@ try {
             ? `document.documentElement.dataset.visualEvidenceReady === 'true'
                && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
                && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-4'
-               && document.documentElement.dataset.visualRevision === '5'
-               && document.documentElement.dataset.visualActivityCount === '5'
+               && document.documentElement.dataset.visualRevision === '6'
+               && document.documentElement.dataset.visualActivityCount === '6'
                && document.documentElement.dataset.visualConnectionState === 'Live'`
             : mode === 'checkpoint-4-5'
               ? `document.documentElement.dataset.visualEvidenceReady === 'true'
@@ -447,6 +447,8 @@ try {
       expression: `(async () => {
         const focus = ${JSON.stringify(checkpoint4Focus)};
         const state = focus === 'merged' ? 'MERGED' : 'IN_REVIEW';
+        const taskId = focus === 'merged' ? 'task.checkpoint-4.accepted'
+          : focus === 'candidate' ? 'task.checkpoint-4.candidate' : 'task.checkpoint-4.conflict';
         const navigate = async (workspace) => {
           location.hash = workspace;
           const deadline = Date.now() + 5_000;
@@ -464,13 +466,14 @@ try {
         await navigate('tasks');
         const taskButtons = [...document.querySelectorAll('[data-task-control="select"]')];
         const target = [...document.querySelectorAll('[data-task-control="select"]')]
-          .find((button) => button.querySelector('[data-task-state]')?.dataset.taskState === state);
+          .find((button) => button.dataset.taskId === taskId);
         const list = document.querySelector('.task-list');
         const listHeader = document.querySelector('.task-list-header');
         const initialStates = taskButtons.map((button) => button.querySelector('[data-task-state]')?.dataset.taskState);
         const initialAttention = taskButtons.map((button) => {
           const badge = button.querySelector('[data-task-state]'); const badgeStyle = badge ? getComputedStyle(badge) : null;
           return {
+            taskId: button.dataset.taskId ?? null,
             state: badge?.dataset.taskState ?? null,
             attention: button.dataset.taskAttention ?? null,
             text: button.textContent,
@@ -590,11 +593,11 @@ try {
             concurrentChangeExercised,
             serverStateMatched: concurrentChangeExercised
               ? refreshedTaskList.tasks.some((task) => task.taskId === concurrentTaskId)
+                && document.getElementById('revision-label').textContent === 'Revision 7'
+                && document.getElementById('activity-count').textContent === '7'
+              : refreshedTaskList.tasks.length === 3
                 && document.getElementById('revision-label').textContent === 'Revision 6'
-                && document.getElementById('activity-count').textContent === '6'
-              : refreshedTaskList.tasks.length === 2
-                && document.getElementById('revision-label').textContent === 'Revision 5'
-                && document.getElementById('activity-count').textContent === '5',
+                && document.getElementById('activity-count').textContent === '6',
             sameComposer: currentComposer === composer,
             sameForm: currentForm === form,
             sameField: currentObjectiveField === objectiveField && currentObjectiveField?.isConnected === true,
@@ -641,6 +644,9 @@ try {
           reviewItemCount: document.querySelectorAll('.task-review-items li').length,
           timelineCount: document.querySelectorAll('.task-timeline li').length,
           hasMerge: Boolean(merge),
+          hasDecide: Boolean(document.querySelector('[data-task-control="decide"]')),
+          dispositionSelectCount: document.querySelectorAll('[data-task-review-disposition]').length,
+          readonlyDispositionText: document.querySelector('.task-review-disposition-readonly')?.textContent ?? null,
           mergeDisabled: merge?.disabled ?? null,
           mergeConfirmCalls,
           hasRevert: Boolean(document.querySelector('[data-task-control="revert"]')),
@@ -656,7 +662,7 @@ try {
       returnByValue: true,
     }, sessionId, checkpoint4Focus === 'create' ? 30_000 : 10_000);
     checkpoint4TaskFocus = focused.result?.value ?? null;
-    assert(checkpoint4TaskFocus?.found === true && checkpoint4TaskFocus.taskCount === 2,
+    assert(checkpoint4TaskFocus?.found === true && checkpoint4TaskFocus.taskCount === 3,
       `Checkpoint 4 could not focus the requested task evidence: ${JSON.stringify(checkpoint4TaskFocus)}`);
   }
   if (mode === 'checkpoint-4-5' && expectedWorkspace === 'rooms') {
@@ -3188,19 +3194,19 @@ try {
     assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
       'Checkpoint 4 screenshot was taken before error-free readiness.');
     assert(layout.projectId === 'numberdroid-studio-checkpoint-4'
-      && layout.revision === 5 && layout.activityCount === 5 && layout.connectionState === 'Live',
-    'Checkpoint 4 screenshot is not bound to the prepared revision-5 fixture.');
+      && layout.revision === 6 && layout.activityCount === 6 && layout.connectionState === 'Live',
+    'Checkpoint 4 screenshot is not bound to the prepared revision-6 fixture.');
     if (expectedWorkspace === 'tasks') {
-      assert(checkpoint4TaskFocus?.taskCount === 2
+      const conflictOverviewAttention = checkpoint4TaskFocus.overviewAttention?.find(({ tone }) => tone === 'problem');
+      assert(checkpoint4TaskFocus?.taskCount === 3
         && checkpoint4TaskFocus.initialStates.includes('MERGED')
-        && checkpoint4TaskFocus.initialStates.includes('IN_REVIEW')
-        && checkpoint4TaskFocus.overviewMetrics?.['Tasks needing you'] === '1'
+        && checkpoint4TaskFocus.initialStates.filter((state) => state === 'IN_REVIEW').length === 2
+        && checkpoint4TaskFocus.overviewMetrics?.['Tasks needing you'] === '2'
         && checkpoint4TaskFocus.overviewMetrics?.['Task conflicts'] === '1'
-        && checkpoint4TaskFocus.overviewAttention?.length === 1
-        && checkpoint4TaskFocus.overviewAttention[0].tone === 'problem'
-        && checkpoint4TaskFocus.overviewAttention[0].text?.includes('Recorded conflict — action required')
+        && checkpoint4TaskFocus.overviewAttention?.length === 2
+        && conflictOverviewAttention?.text?.includes('Recorded conflict — action required')
         && checkpoint4TaskFocus.listContained === true,
-      'Checkpoint 4 list-first task workspace lost its two branches, workflow states, or bounded list layout.');
+      'Checkpoint 4 list-first task workspace lost its three branches, workflow states, or bounded list layout.');
       if (checkpoint4Focus === 'create') {
         assert(!checkpoint4TaskFocus.createRefreshEvidence?.runtimeErrorMessage,
           `Checkpoint 4 concurrent create-refresh setup failed: ${JSON.stringify(checkpoint4TaskFocus.createRefreshEvidence)}`);
@@ -3238,7 +3244,8 @@ try {
         'Checkpoint 4 selected task lost its visible capability or budget projection.');
       }
       if (checkpoint4Focus === 'conflict') {
-        const conflictAttention = checkpoint4TaskFocus.initialAttention?.find(({ state }) => state === 'IN_REVIEW');
+        const conflictAttention = checkpoint4TaskFocus.initialAttention
+          ?.find(({ taskId }) => taskId === 'task.checkpoint-4.conflict');
         const completedAttention = checkpoint4TaskFocus.initialAttention?.find(({ state }) => state === 'MERGED');
         assert(checkpoint4TaskFocus?.selectedState === 'IN_REVIEW'
           && conflictAttention?.attention === 'CONFLICT'
@@ -3270,6 +3277,25 @@ try {
           && layout.taskWorkspace.reviewDispositions.includes('USER_ACCEPTED')
           && layout.taskWorkspace.controlNames.includes('revert'),
         'Checkpoint 4 merged lineage, human disposition, timeline, or compensating-revert control is not visibly inspectable.');
+      }
+      if (checkpoint4Focus === 'candidate') {
+        const candidateAttention = checkpoint4TaskFocus.initialAttention
+          ?.find(({ taskId }) => taskId === 'task.checkpoint-4.candidate');
+        assert(checkpoint4TaskFocus.selectedState === 'IN_REVIEW'
+          && candidateAttention?.attention === 'ACTION_REQUIRED'
+          && candidateAttention.text?.includes('Waiting for your review')
+          && candidateAttention.text.includes('no review-decision, merge, or materialization authority')
+          && checkpoint4TaskFocus.reviewItemCount === 1
+          && checkpoint4TaskFocus.reviewVisible === true
+          && checkpoint4TaskFocus.hasMerge === false
+          && checkpoint4TaskFocus.hasDecide === false
+          && checkpoint4TaskFocus.dispositionSelectCount === 0
+          && checkpoint4TaskFocus.readonlyDispositionText === 'Pending · read-only'
+          && layout.taskWorkspace.reviewText?.includes('immutable Candidate is read-only')
+          && layout.taskWorkspace.reviewText.includes('does not authorize a review decision, merge, materialization, publication, or release')
+          && !layout.taskWorkspace.controlNames.includes('decide')
+          && !layout.taskWorkspace.controlNames.includes('merge'),
+        'Checkpoint 4 Candidate review exposed mutable review controls or lost its truthful read-only authority boundary.');
       }
     }
   }

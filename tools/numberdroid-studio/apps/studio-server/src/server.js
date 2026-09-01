@@ -1963,6 +1963,7 @@ export async function startStudioHttpServer({
   storeMode = process.env.NUMBERDROID_STUDIO_STORE ?? 'sqlite',
   clock = () => new Date().toISOString(),
   authoringV2CapabilityProvider = null,
+  agentTaskGrantScopes = undefined,
   pairingEnabled = true,
   operationsConfigurationFilename = process.env.NUMBERDROID_STUDIO_OPERATIONS_CONFIG ?? null,
   operationsConfigurationValue = null,
@@ -2034,6 +2035,7 @@ export async function startStudioHttpServer({
     agentAttemptAuditReady: storeMode === 'sqlite',
     jobStore,
     capabilityProvider,
+    grantScopes: agentTaskGrantScopes,
   });
   const hostBindingStore = storeMode === 'sqlite'
     ? new SqliteHostBindingStore({ workspace: store.workspace, clock })
@@ -2121,6 +2123,7 @@ export async function startStudioHttpServer({
       }),
       clock,
       capabilityProvider,
+      grantScopes: agentTaskGrantScopes,
     })
     : null;
   atlasPreviewWorker = storeMode === 'sqlite'

@@ -133,8 +133,8 @@ test('v13 verifier and backup remain schema-aware for a v12 workspace', async (c
   assert.equal((await new StudioService({ store }).readProjectTrusted(PROJECT_ID)).revision, 1);
 });
 
-test('read-only integrity and backup verification reject a re-signed v14 snapshot', async (context) => {
-  const { root, store } = await workspace(context, 'numberdroid-adoption-v14-backup-');
+test('read-only integrity and backup verification reject a re-signed v15 snapshot', async (context) => {
+  const { root, store } = await workspace(context, 'numberdroid-adoption-v15-backup-');
   const artifacts = new ContentAddressedArtifactStore({ rootDirectory: join(root, 'artifacts') });
   const backupDirectory = join(root, 'backup-v13');
   await createWorkspaceBackup({
@@ -144,25 +144,25 @@ test('read-only integrity and backup verification reject a re-signed v14 snapsho
     clock: () => '2026-08-28T16:30:00.000Z',
   });
 
-  store.workspace.database.exec('PRAGMA user_version = 14');
+  store.workspace.database.exec('PRAGMA user_version = 15');
   await assert.rejects(
     verifyWorkspaceIntegrity({ projectStore: store, artifactStore: artifacts }),
     (error) => error.code === 'DATABASE_SCHEMA_TOO_NEW'
-      && error.details.userVersion === 14
-      && error.details.latestSupported === 13,
+      && error.details.userVersion === 15
+      && error.details.latestSupported === 14,
   );
   await assert.rejects(
     createWorkspaceBackup({
       projectStore: store,
       artifactStore: artifacts,
-      destinationDirectory: join(root, 'backup-v14'),
+      destinationDirectory: join(root, 'backup-v15'),
     }),
     (error) => error.code === 'DATABASE_SCHEMA_TOO_NEW',
   );
 
   const databasePath = join(backupDirectory, 'studio.sqlite');
   const backupDatabase = nodeSqliteDatabaseFactory(databasePath);
-  backupDatabase.exec('PRAGMA user_version = 14');
+  backupDatabase.exec('PRAGMA user_version = 15');
   backupDatabase.close();
   const manifestPath = join(backupDirectory, 'workspace-manifest.json');
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));

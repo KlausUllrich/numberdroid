@@ -1,0 +1,17 @@
+import {
+  createNumberdroidA4bProjectCapabilityProfile,
+  createNumberdroidAuthoringV2ProjectCapabilityProfile,
+  createNumberdroidProjectCapabilityProfile,
+} from './project-capabilities.js';
+
+export const NUMBERDROID_ADAPTER_VERSION = 'numberdroid-studio.adapter.v1';
+export const NUMBERDROID_CANDIDATE_VALIDATOR_VERSION = 'numberdroid-studio.candidate-validator.v1';
+const numberdroidProjectCapabilityProfile = createNumberdroidProjectCapabilityProfile(NUMBERDROID_ADAPTER_VERSION);
+export const NUMBERDROID_PROJECT_CAPABILITY_MANIFEST = numberdroidProjectCapabilityProfile.manifest;
+export const NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT = numberdroidProjectCapabilityProfile.fingerprint;
+const numberdroidAuthoringV2ProjectCapabilityProfile = createNumberdroidAuthoringV2ProjectCapabilityProfile(NUMBERDROID_ADAPTER_VERSION);
+export const NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_MANIFEST = numberdroidAuthoringV2ProjectCapabilityProfile.manifest;
+export const NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT = numberdroidAuthoringV2ProjectCapabilityProfile.fingerprint;
+const numberdroidA4bProjectCapabilityProfile = createNumberdroidA4bProjectCapabilityProfile(NUMBERDROID_ADAPTER_VERSION);
+export const NUMBERDROID_A4B_PROJECT_CAPABILITY_MANIFEST = numberdroidA4bProjectCapabilityProfile.manifest;
+export const NUMBERDROID_A4B_PROJECT_CAPABILITY_FINGERPRINT = numberdroidA4bProjectCapabilityProfile.fingerprint;

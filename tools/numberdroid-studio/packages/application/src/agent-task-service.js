@@ -403,12 +403,17 @@ export class AgentTaskService {
   }
 
   async mergeReview(projectId, taskId, reviewId, { mergeId, actorId }) {
-    const existingMerge = this.#taskStore.getMergeForTask(projectId, taskId);
-    if (existingMerge) return { schemaVersion: 1, merge: existingMerge, replayed: true };
     const task = this.#taskStore.getTask(projectId, taskId);
     invariant(task, 'TASK_NOT_FOUND', 'The agent task does not exist.', { projectId, taskId });
+    invariant(!this.#taskStore.hasLevelCandidateSource(projectId, taskId),
+      'LEVEL_CANDIDATE_MERGE_FORBIDDEN',
+      'Level Candidates cannot be merged or appended to main by the A4c create path.');
+    const existingMerge = this.#taskStore.getMergeForTask(projectId, taskId);
+    if (existingMerge) return { schemaVersion: 1, merge: existingMerge, replayed: true };
     const review = this.#taskStore.getReview(projectId, taskId, reviewId);
     invariant(review, 'REVIEW_NOT_FOUND', 'The task review does not exist.', { reviewId });
+    invariant(review.kind !== 'studio.level-candidate-review', 'LEVEL_CANDIDATE_MERGE_FORBIDDEN',
+      'Level Candidates cannot be merged or appended to main by the A4c create path.');
     const accepted = assertReviewMergeable(review);
     const mainDocument = await this.#projectStore.loadProject(projectId);
     const mainHead = mainDocument.revisions.at(-1);

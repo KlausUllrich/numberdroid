@@ -49,6 +49,36 @@ test('Task overview exposes persisted conflicts and owner actions without invent
   assert.match(styles, /\.task-list-attention strong \{[^}]*font-size: 10px/);
 });
 
+test('A4c Level Candidate reviews are visibly read-only and never expose decision or merge controls', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const styles = await readFile(stylesUrl, 'utf8');
+  const capture = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
+  const buildWorkflow = await readFile(new URL('../../../.github/workflows/build.yml', import.meta.url), 'utf8');
+  const workflow = app.slice(app.indexOf('function taskWorkflowPresentation'), app.indexOf('function taskAttentionPresentation'));
+  const attention = app.slice(app.indexOf('function taskAttentionPresentation'), app.indexOf('function processingAttemptCopy'));
+  const review = app.slice(app.indexOf('function renderTaskReview'), app.indexOf('function renderTaskList'));
+  assert.match(workflow, /entry\.review\?\.kind === 'studio\.level-candidate-review'/);
+  assert.match(workflow, /This create path cannot decide or merge it/);
+  assert.match(workflow, /Review decision, merge, materialization, publication, and release require later explicit authority/);
+  assert.match(attention, /label: 'Waiting for your review'/);
+  assert.match(attention, /no review-decision, merge, or materialization authority/);
+  assert.match(review, /const levelCandidateReview = review\?\.kind === 'studio\.level-candidate-review'/);
+  assert.match(review, /&& !levelCandidateReview/);
+  assert.match(review, /Pending · read-only/);
+  assert.match(review, /if \(levelCandidateReview\)[\s\S]*task-review-disposition-readonly/);
+  assert.match(review, /if \(reviewEditable\)[\s\S]*Save review decisions[\s\S]*Add accepted changes and complete task/);
+  assert.match(review, /does not authorize a review decision, merge, materialization, publication, or release/);
+  assert.match(styles, /\.task-review-disposition-readonly \{[^}]*white-space: nowrap/);
+  assert.match(capture, /focus === 'candidate' \? 'task\.checkpoint-4\.candidate'/);
+  assert.match(capture, /candidateAttention\?\.attention === 'ACTION_REQUIRED'/);
+  assert.match(capture, /checkpoint4TaskFocus\.hasMerge === false/);
+  assert.match(capture, /checkpoint4TaskFocus\.hasDecide === false/);
+  assert.match(capture, /checkpoint4TaskFocus\.dispositionSelectCount === 0/);
+  assert.match(capture, /readonlyDispositionText === 'Pending · read-only'/);
+  assert.match(buildWorkflow, /visualFocus=candidate#tasks/);
+  assert.match(buildWorkflow, /task-candidate-readonly-\$width\.png/);
+});
+
 test('CP4.5 passive refresh preserves the focused task composer and its live DOM draft', async () => {
   const app = await readFile(appUrl, 'utf8');
   const reconciliation = app.slice(
@@ -77,8 +107,8 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
   assert.match(evidence, /const concurrentChangeExercised = \$\{width === 1060\}/);
   assert.match(evidence, /serverStateMatched: concurrentChangeExercised/);
   assert.match(evidence, /concurrentChangeExercised === \(width === 1060\)/);
-  assert.match(evidence, /textContent === 'Revision 6'/);
-  assert.match(evidence, /textContent === '6'/);
+  assert.match(evidence, /textContent === 'Revision 7'/);
+  assert.match(evidence, /textContent === '7'/);
   assert.match(evidence, /sameComposer: currentComposer === composer/);
   assert.match(evidence, /sameForm: currentForm === form/);
   assert.match(evidence, /sameField: currentObjectiveField === objectiveField/);

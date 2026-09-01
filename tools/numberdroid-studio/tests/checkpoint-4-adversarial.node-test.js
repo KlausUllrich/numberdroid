@@ -130,6 +130,7 @@ test('schema v11 task ledgers are STRICT and immutable history rejects updates',
   assert.deepEqual(tables.map(({ name }) => name), [
     'agent_tasks', 'task_branch_processing_result_adoptions',
     'task_branch_processing_result_artifact_references', 'task_branch_revisions',
+    'task_level_candidate_submissions',
     'task_merges', 'task_reverts', 'task_reviews', 'task_timeline_events',
   ]);
   assert.ok(tables.every(({ strict }) => Number(strict) === 1));

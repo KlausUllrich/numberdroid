@@ -1815,7 +1815,7 @@ test('processing-result adoption read closes the durable base prefix and unique 
 });
 
 test('processing-result adoption read requires the exact supported SQLite schema', async (context) => {
-  for (const schemaVersion of [12, 14]) {
+  for (const schemaVersion of [12, 15]) {
     await context.test(`schema v${schemaVersion}`, async (childContext) => {
       const value = await committedCreateFixture(childContext);
       value.projectStore.workspace.database.exec(`PRAGMA user_version = ${schemaVersion}`);
@@ -1836,7 +1836,7 @@ test('selected-output read rechecks the exact SQLite schema while CAS bytes are 
   value.artifactStore.withVerifiedPngReadable = (digest, operation) => original(
     digest,
     async (descriptor) => {
-      database.exec('PRAGMA user_version = 14');
+      database.exec('PRAGMA user_version = 15');
       return operation(descriptor);
     },
   );
@@ -1852,7 +1852,7 @@ test('selected-output read rechecks the exact SQLite schema while CAS bytes are 
         && error.message === 'The exact processed image preview is unavailable.',
     );
   } finally {
-    database.exec('PRAGMA user_version = 13');
+    database.exec('PRAGMA user_version = 14');
   }
   assert.equal(operationCalls, 0);
 });
