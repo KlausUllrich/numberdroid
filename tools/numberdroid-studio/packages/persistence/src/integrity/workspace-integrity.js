@@ -58,12 +58,29 @@ function branchCommandBudgetCharge(revisionJson) {
   try { revision = JSON.parse(revisionJson); } catch { return null; }
   const command = revision?.command;
   if (!command || typeof command.type !== 'string') return null;
+  if (command.type === 'task.child.derive') return 0;
   if (!['asset.proposal.submit', 'room.placement.proposal.submit'].includes(command.type)) return 1;
   return Array.isArray(command.payload?.items)
     && command.payload.items.length >= 1
     && command.payload.items.length <= 64
     ? command.payload.items.length
     : null;
+}
+
+function taskBranchBaseRevision(row) {
+  return Number(row.branch_origin_revision ?? row.base_revision);
+}
+
+function reservationCloses(priorUsage, currentUsage, reservation) {
+  return [
+    ['commands', 'maxCommands'], ['jobs', 'maxJobs'],
+    ['artifactBytes', 'maxArtifactBytes'], ['costCents', 'maxCostCents'],
+  ].every(([usageField, budgetField]) => (
+    Number.isSafeInteger(priorUsage?.[usageField])
+      && Number.isSafeInteger(currentUsage?.[usageField])
+      && Number.isSafeInteger(reservation?.[budgetField])
+      && currentUsage[usageField] === priorUsage[usageField] + reservation[budgetField]
+  ));
 }
 
 export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) {
@@ -878,7 +895,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
       if (task.projectId !== row.project_id || task.taskId !== row.task_id
         || task.branchId !== row.branch_id || task.agentId !== row.agent_id
         || (task.grantId ?? null) !== row.grant_id || task.state !== row.state
-        || Number(task.baseRevision) !== Number(row.base_revision)
+        || Number(task.baseRevision) !== taskBranchBaseRevision(row)
         || Number(task.headRevision) !== Number(row.head_revision)
         || task.expiresAt !== row.expires_at || task.updatedAt !== row.updated_at) {
         taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_COLUMNS_MISMATCH', message: 'Task columns differ from their durable semantic JSON.' });
@@ -886,14 +903,14 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
       const baseHead = baseDocument?.revisions?.at(-1);
       const branchHead = headDocument?.revisions?.at(-1);
       if (baseDocument?.projectId !== row.project_id || headDocument?.projectId !== row.project_id
-        || Number(baseHead?.number) !== Number(row.base_revision)
+        || Number(baseHead?.number) !== taskBranchBaseRevision(row)
         || Number(branchHead?.number) !== Number(row.head_revision)) {
         taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_BRANCH_HEAD_MISMATCH', message: 'Task base/head documents do not match their durable revision pointers.' });
       }
       const revisions = branchRows.all(row.project_id, row.task_id);
       const expectedHead = revisions.length > 0
-        ? Number(row.base_revision) + revisions.length
-        : Number(row.base_revision);
+        ? taskBranchBaseRevision(row) + revisions.length
+        : taskBranchBaseRevision(row);
       if (expectedHead !== Number(row.head_revision)) {
         taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_BRANCH_SEQUENCE_INVALID', message: 'Task branch revisions are missing or non-consecutive.' });
       }
@@ -903,7 +920,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
           taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_BRANCH_REVISION_JSON_INVALID', message: 'A task branch revision contains invalid JSON.' });
           continue;
         }
-        const expectedRevision = Number(row.base_revision) + index + 1;
+        const expectedRevision = taskBranchBaseRevision(row) + index + 1;
         const documentRevision = headDocument?.revisions?.find((candidate) => candidate.number === expectedRevision);
         if (Number(revisionRow.branch_revision) !== expectedRevision
           || revision.id !== revisionRow.revision_id || revision.number !== expectedRevision
@@ -976,6 +993,131 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
             || Number(revertValue.lastRevision) !== Number(revert.last_revision)) {
             taskFindings.push({ projectId: row.project_id, taskId: row.task_id, code: 'TASK_REVERT_MISMATCH', message: 'Task revert columns differ from immutable revert JSON.' });
           }
+        }
+      }
+    }
+    if (database.userVersion >= 15) {
+      const relations = db.prepare(`
+        SELECT * FROM derived_task_relations ORDER BY project_id, parent_task_id, child_task_id
+      `).all();
+      const relationTaskKeys = new Set(relations.map((row) => JSON.stringify([row.project_id, row.child_task_id])));
+      for (const taskRowValue of taskRows) {
+        let taskValue = null;
+        try { taskValue = JSON.parse(taskRowValue.task_json); } catch {}
+        if (taskValue?.derivation?.kind === 'TRUSTED_SERVICE_CHILD'
+          && !relationTaskKeys.has(JSON.stringify([taskRowValue.project_id, taskRowValue.task_id]))) {
+          taskFindings.push({
+            projectId: taskRowValue.project_id,
+            taskId: taskRowValue.task_id,
+            code: 'DERIVED_TASK_RELATION_MISSING',
+            message: 'A service-derived task lost its immutable ancestor relation.',
+          });
+        }
+      }
+      for (const row of relations) {
+        let relation;
+        let result;
+        let reservation;
+        try {
+          relation = JSON.parse(row.relation_json);
+          result = JSON.parse(row.result_json);
+          reservation = JSON.parse(row.reservation_json);
+        } catch {
+          taskFindings.push({ projectId: row.project_id, taskId: row.child_task_id, code: 'DERIVED_TASK_JSON_INVALID', message: 'Derived-child lineage JSON is invalid.' });
+          continue;
+        }
+        const parent = taskRows.find((candidate) => candidate.project_id === row.project_id && candidate.task_id === row.parent_task_id);
+        const child = taskRows.find((candidate) => candidate.project_id === row.project_id && candidate.task_id === row.child_task_id);
+        const childGrant = db.prepare('SELECT * FROM grants WHERE project_id = ? AND grant_id = ?').get(row.project_id, row.child_grant_id);
+        let parentTask;
+        let childTask;
+        let parentDocument;
+        let childBaseDocument;
+        let childGrantScopes;
+        let childGrantObjectScopes;
+        let childGrantBudget;
+        let childGrantUsage;
+        try {
+          parentTask = JSON.parse(parent?.task_json ?? 'null');
+          childTask = JSON.parse(child?.task_json ?? 'null');
+          parentDocument = JSON.parse(parent?.head_document_json ?? 'null');
+          childBaseDocument = JSON.parse(child?.base_document_json ?? 'null');
+          childGrantScopes = JSON.parse(childGrant?.scopes_json ?? 'null');
+          childGrantObjectScopes = JSON.parse(childGrant?.object_scopes_json ?? 'null');
+          childGrantBudget = JSON.parse(childGrant?.budget_json ?? 'null');
+          childGrantUsage = JSON.parse(childGrant?.usage_json ?? 'null');
+        } catch {}
+        const parentOriginIndex = parentDocument?.revisions?.findIndex(
+          (revision) => Number(revision.number) === Number(row.parent_head_revision),
+        ) ?? -1;
+        const parentOriginHead = parentOriginIndex >= 0 ? parentDocument.revisions[parentOriginIndex] : null;
+        const parentOriginDocument = parentOriginIndex >= 0
+          ? { ...parentDocument, revisions: parentDocument.revisions.slice(0, parentOriginIndex + 1) }
+          : null;
+        const parentPriorHead = parentDocument?.revisions?.find(
+          (revision) => Number(revision.number) === Number(row.parent_head_revision) - 1,
+        );
+        const parentOriginGrant = parentOriginHead?.snapshot?.grants?.find(({ id }) => id === row.parent_grant_id);
+        const parentPriorGrant = parentPriorHead?.snapshot?.grants?.find(({ id }) => id === row.parent_grant_id);
+        const columnsClose = relation?.kind === 'studio.derived-child-task-relation'
+          && relation.projectId === row.project_id
+          && relation.childTaskId === row.child_task_id
+          && relation.parentTaskId === row.parent_task_id
+          && relation.rootTaskId === row.root_task_id
+          && relation.childGrantId === row.child_grant_id
+          && relation.parentGrantId === row.parent_grant_id
+          && Number(relation.parentHeadRevision) === Number(row.parent_head_revision)
+          && relation.parentHeadFingerprint === row.parent_head_fingerprint
+          && sameFingerprint(relation.reservation, reservation)
+          && relation.createdAt === row.created_at
+          && result?.kind === 'studio.derived-child-task-result'
+          && result?.task?.taskId === row.child_task_id
+          && result?.relation?.childTaskId === row.child_task_id;
+        const authorityCloses = parent && child && childGrant
+          && !relations.some((candidate) => candidate.child_task_id === row.parent_task_id)
+          && row.root_task_id === row.parent_task_id
+          && fingerprint(parentOriginHead) === row.parent_head_fingerprint
+          && Number(child.branch_origin_revision) === Number(row.parent_head_revision)
+          && Number(childTask?.baseRevision) === Number(row.parent_head_revision)
+          && sameFingerprint(childBaseDocument, parentOriginDocument)
+          && childTask?.agentId === parentTask?.agentId
+          && childTask?.derivation?.kind === 'TRUSTED_SERVICE_CHILD'
+          && childTask?.derivation?.parentTaskId === row.parent_task_id
+          && childTask?.derivation?.rootTaskId === row.root_task_id
+          && childTask?.derivation?.furtherChildDerivation === 'NOT_AUTHORIZED'
+          && sameFingerprint(childTask?.capabilities, ['level.candidate.create'])
+          && sameFingerprint(childTask?.objectScopes, parentTask?.objectScopes)
+          && sameFingerprint(childTask?.budget, reservation)
+          && childTask?.autoAcceptPolicy?.enabled === false
+          && Date.parse(childTask?.expiresAt) <= Date.parse(parentTask?.expiresAt)
+          && Date.parse(childTask?.expiresAt) <= Date.parse(parentOriginGrant?.expiresAt)
+          && sameFingerprint(parentTask?.reservedForChildren, {
+            commands: reservation?.maxCommands,
+            jobs: reservation?.maxJobs,
+            artifactBytes: reservation?.maxArtifactBytes,
+            costCents: reservation?.maxCostCents,
+          })
+          && reservationCloses(parentPriorGrant?.usage, parentOriginGrant?.usage, reservation)
+          && childGrant.task_id === row.child_task_id
+          && childGrant.agent_id === childTask?.agentId
+          && childGrant.branch_id === childTask?.branchId
+          && childGrant.expires_at === childTask?.expiresAt
+          && sameFingerprint(childGrantScopes, childTask?.capabilities)
+          && sameFingerprint(childGrantObjectScopes, childTask?.objectScopes)
+          && sameFingerprint(childGrantBudget, reservation)
+          && sameFingerprint(childGrantUsage, { commands: 0, jobs: 0, artifactBytes: 0, costCents: 0 })
+          && sameFingerprint(result?.relation, relation)
+          && sameFingerprint(result?.task?.capabilities, childTask?.capabilities)
+          && sameFingerprint(result?.task?.objectScopes, childTask?.objectScopes)
+          && sameFingerprint(result?.task?.budget, childTask?.budget)
+          && result?.task?.autoAcceptPolicy?.enabled === false;
+        if (!columnsClose || !authorityCloses) {
+          taskFindings.push({
+            projectId: row.project_id,
+            taskId: row.child_task_id,
+            code: 'DERIVED_TASK_AUTHORITY_MISMATCH',
+            message: 'Derived-child lineage, exact parent head, grant, reservation, and immutable task authority disagree.',
+          });
         }
       }
     }

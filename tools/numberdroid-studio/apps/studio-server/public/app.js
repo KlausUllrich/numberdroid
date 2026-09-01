@@ -485,12 +485,21 @@ function selectedTaskAdoptionProjection(projectId, taskId) {
   return unavailableProcessingAdoptionProjection(projectId, taskId);
 }
 
+function taskMayLoadProcessingAdoption(entry) {
+  return entry?.task?.authority?.origin !== 'TRUSTED_SERVICE_CHILD';
+}
+
 async function loadSelectedTaskAdoption({ preserveTaskContext = true } = {}) {
   const projectId = state.project?.projectId;
   const taskId = state.taskUi.view === 'detail' ? state.taskUi.selectedTaskId : null;
-  if (!projectId || !taskId || !state.tasks.some(({ task }) => task.taskId === taskId)) {
+  const selected = state.tasks.find(({ task }) => task.taskId === taskId);
+  if (!projectId || !taskId || !selected) {
     cancelTaskAdoptionLoad({ clearState: true });
     return false;
+  }
+  if (!taskMayLoadProcessingAdoption(selected)) {
+    cancelTaskAdoptionLoad({ clearState: true });
+    return true;
   }
   taskSelectionGeneration += 1;
   const result = await requestTaskAdoptionProjection(projectId, taskId);
@@ -509,11 +518,15 @@ async function loadSelectedTaskAdoption({ preserveTaskContext = true } = {}) {
 
 async function openTaskDetailWithAdoption(taskId) {
   const projectId = state.project?.projectId;
-  if (!projectId || !state.tasks.some(({ task }) => task.taskId === taskId)) return false;
+  const selected = state.tasks.find(({ task }) => task.taskId === taskId);
+  if (!projectId || !selected) return false;
   taskSelectionGeneration += 1;
   const selectionGeneration = taskSelectionGeneration;
   cancelTaskAdoptionLoad({ channel: 'passive' });
-  const result = await requestTaskAdoptionProjection(projectId, taskId, { channel: 'selection' });
+  const mayLoadAdoption = taskMayLoadProcessingAdoption(selected);
+  const result = mayLoadAdoption
+    ? await requestTaskAdoptionProjection(projectId, taskId, { channel: 'selection' })
+    : { projectId, taskId, projection: unavailableProcessingAdoptionProjection(projectId, taskId) };
   if (!result
       || selectionGeneration !== taskSelectionGeneration
       || state.project?.projectId !== projectId
@@ -521,7 +534,7 @@ async function openTaskDetailWithAdoption(taskId) {
       || !state.tasks.some(({ task }) => task.taskId === taskId)) return false;
   state.taskUi.selectedTaskId = taskId;
   state.taskUi.view = 'detail';
-  state.taskAdoption = result;
+  state.taskAdoption = mayLoadAdoption ? result : null;
   state.taskDomState = null;
   renderWorkspace();
   return true;
@@ -3680,6 +3693,7 @@ const TASK_STATE_LABELS = Object.freeze({
   CANCELLED: 'Task ended',
   REJECTED: 'Task ended without changes',
   EXPIRED: 'Agent access expired',
+  ANCESTOR_BLOCKED: 'Blocked by parent task',
   REVERTED: 'Changes undone',
 });
 
@@ -3706,6 +3720,8 @@ const TASK_EVENT_LABELS = Object.freeze({
   TASK_MERGED: 'Accepted changes added to project',
   TASK_REVERT: 'Task changes undone',
   MERGE_REVERTED: 'Task changes undone',
+  CHILD_TASK_DERIVED: 'Restricted child task derived by Studio',
+  TASK_DERIVED: 'Restricted child task derived by Studio',
 });
 
 const TASK_CAPABILITY_LABELS = Object.freeze({
@@ -3722,6 +3738,7 @@ const TASK_CAPABILITY_LABELS = Object.freeze({
   'room.variant.validate': 'Check a room, but never finalize it',
   'asset.processing-result.adopt': 'Save a processed image as a task-local DRAFT',
   'level.candidate.create': 'Create one immutable Level Candidate for read-only review',
+  'task.child.derive': 'Let Studio derive one restricted Candidate child',
 });
 
 function taskStateLabel(stateValue) {
@@ -3738,6 +3755,7 @@ function taskHasSavedChanges(entry) {
 
 function taskEffectiveState(entry) {
   if (taskWasReverted(entry)) return 'REVERTED';
+  if (entry.task.state === 'ACTIVE' && entry.task.authority?.executionAvailability === 'BLOCKED_BY_ANCESTOR') return 'ANCESTOR_BLOCKED';
   return entry.task.effectiveState ?? entry.task.state;
 }
 
@@ -3754,6 +3772,7 @@ function taskWorkflowPresentation(entry) {
   const levelCandidateReview = entry.review?.kind === 'studio.level-candidate-review';
   const presentations = {
     ACTIVE: { actor: 'Assigned agent', next: taskHasSavedChanges(entry) ? 'The agent can continue, or you can review the current result.' : 'The agent can work within the limits you chose.', consequence: 'Changes stay separate from the project until you review and accept them.' },
+    ANCESTOR_BLOCKED: { actor: 'You', next: 'Inspect the parent task. This child cannot continue while its saved ancestor authority is blocked.', consequence: 'The child cannot execute, create a Candidate, or change the project.' },
     PAUSED: { actor: 'You', next: 'Choose whether the agent should continue or the task should end.', consequence: 'The assigned agent cannot make changes while this task is paused.' },
     CHANGES_REQUESTED: { actor: 'You', next: 'Let the agent continue when you are ready for the requested changes.', consequence: 'The assigned agent remains blocked until you restart the task.' },
     IN_REVIEW: { actor: 'You', next: 'Review every proposed change, then complete or end the task.', consequence: 'Nothing enters the project until you make and confirm the decision.' },
@@ -3769,6 +3788,14 @@ function taskWorkflowPresentation(entry) {
       actor: 'You',
       next: 'Inspect the immutable Candidate evidence. This create path cannot decide or merge it.',
       consequence: 'The Candidate stays separate from the project. Review decision, merge, materialization, publication, and release require later explicit authority.',
+    };
+  }
+  if (entry.task.authority?.origin === 'TRUSTED_SERVICE_CHILD' && stateValue === 'ACTIVE') {
+    return {
+      state: stateValue,
+      actor: 'Assigned agent',
+      next: 'The child may create exactly one immutable Candidate, then it must stop for your read-only inspection.',
+      consequence: 'No review decision, acceptance, merge, Main write, materialization, repository write, publication, or release is authorized.',
     };
   }
   return { state: stateValue, ...(presentations[stateValue] ?? { actor: 'You', next: 'Inspect the task history.', consequence: 'No automatic action is taken.' }) };
@@ -3795,6 +3822,7 @@ function taskAttentionPresentation(entry) {
   }
   const presentations = {
     IN_REVIEW: { label: 'Waiting for your review', summary: 'Review every proposed change, then explicitly complete or end the task.' },
+    ANCESTOR_BLOCKED: { label: 'Blocked by parent task', summary: 'Inspect the saved parent task. This child has no executable authority while its ancestor is blocked.' },
     PAUSED: { label: 'Action required', summary: 'Choose whether the assigned agent should continue or the task should end.' },
     CHANGES_REQUESTED: { label: 'Action required', summary: 'Restart the task when the assigned agent should address your requested changes.' },
     EXPIRED: { label: 'Action required', summary: 'End the expired task and create a new task if the work should continue.' },
@@ -4174,6 +4202,7 @@ function renderTaskList() {
   for (const entry of state.tasks) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'task-list-item secondary';
     button.dataset.taskControl = 'select'; button.dataset.taskId = entry.task.taskId;
+    button.dataset.taskOrigin = entry.task.authority?.origin ?? 'HUMAN_ROOT';
     const strong = document.createElement('strong'); strong.textContent = entry.task.title;
     const presentation = taskWorkflowPresentation(entry);
     const attention = taskAttentionPresentation(entry); button.dataset.taskAttention = attention?.kind ?? 'NONE';
@@ -4184,7 +4213,11 @@ function renderTaskList() {
       const detail = document.createElement('span'); detail.textContent = attention.summary; callout.append(label, detail);
     }
     const small = document.createElement('small'); small.textContent = `${presentation.actor} acts next · ${presentation.next}`;
-    button.append(strong, taskStateBadge(entry)); if (callout) button.append(callout); button.append(small); items.append(button);
+    button.append(strong, taskStateBadge(entry));
+    if (entry.task.authority?.origin === 'TRUSTED_SERVICE_CHILD') {
+      const origin = document.createElement('span'); origin.className = 'status-pill'; origin.textContent = 'Service-derived child task'; button.append(origin);
+    }
+    if (callout) button.append(callout); button.append(small); items.append(button);
   }
   list.append(items); return list;
 }
@@ -4192,6 +4225,7 @@ function renderTaskList() {
 function renderTaskDetail(selected) {
   const detail = document.createElement('section'); detail.className = 'task-detail surface-card'; detail.dataset.taskView = 'detail';
   detail.dataset.taskContext = `${state.project?.projectId}:${selected.task.taskId}`;
+  detail.dataset.taskOrigin = selected.task.authority?.origin ?? 'HUMAN_ROOT';
   detail.dataset.taskScroll = 'detail';
   detail.dataset.taskSelectionKey = 'task-detail';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
@@ -4207,16 +4241,34 @@ function renderTaskDetail(selected) {
   const workflowHeading = document.createElement('h3'); workflowHeading.textContent = 'Current step';
   const actor = document.createElement('p'); actor.className = 'task-next-step'; actor.textContent = `Who acts next: ${presentation.actor}. ${presentation.next}`;
   const consequence = document.createElement('p'); consequence.textContent = `What happens next: ${presentation.consequence}`; workflow.append(workflowHeading, actor, consequence); detail.append(workflow);
-  detail.append(renderProcessingAdoption(selected));
+  if (taskMayLoadProcessingAdoption(selected)) detail.append(renderProcessingAdoption(selected));
   const facts = document.createElement('dl'); facts.className = 'policy-details';
   facts.dataset.taskSelectionKey = 'task-facts';
+  const reservedCommands = selected.task.reservedForChildren?.commands ?? 0;
+  const chargedCommands = selected.task.usage?.commands ?? 0;
+  const usedCommands = Math.max(0, chargedCommands - reservedCommands);
+  const availableCommands = Math.max(0, selected.task.budget.maxCommands - chargedCommands);
   for (const [label, value] of [
     ['Assigned agent', selected.task.agentId],
     ['Agent may', selected.task.capabilities.map((capability) => TASK_CAPABILITY_LABELS[capability] ?? capability).join(', ')],
     ['Agent access ends', new Date(selected.task.expiresAt).toLocaleString()],
-    ['Usage', `${selected.task.usage?.commands ?? 0} of ${selected.task.budget.maxCommands} allowed changes used`],
+    ['Usage', `${usedCommands} used · ${reservedCommands} reserved for child tasks · ${availableCommands} still available`],
   ]) { const term = document.createElement('dt'); term.textContent = label; const desc = document.createElement('dd'); desc.textContent = value; facts.append(term, desc); }
   detail.append(facts);
+  const lineage = selected.task.authority?.lineage;
+  if (lineage) {
+    const authority = document.createElement('section'); authority.className = 'task-workflow-state'; authority.dataset.taskAuthorityLineage = 'read-only';
+    const authorityHeading = document.createElement('h3'); authorityHeading.textContent = 'Authority lineage';
+    const lineageFacts = document.createElement('dl'); lineageFacts.className = 'policy-details';
+    for (const [label, value] of [
+      ['Origin', 'Restricted child task derived by Studio'],
+      ['Parent / root task', `${lineage.parentTaskId} / ${lineage.rootTaskId}`],
+      ['Exact parent head', `r${lineage.parentHeadRevision}`],
+      ['Reserved command budget', `${lineage.reservation?.maxCommands ?? 0}`],
+      ['Not authorized', 'Auto-accept, further child derivation, review decisions or merge, Main writes, materialization, repository writes, publication, and release'],
+    ]) { const term = document.createElement('dt'); term.textContent = label; const desc = document.createElement('dd'); desc.textContent = value; lineageFacts.append(term, desc); }
+    authority.append(authorityHeading, lineageFacts); detail.append(authority);
+  }
   const technical = document.createElement('details'); technical.className = 'task-technical-details';
   technical.dataset.taskDisclosureKey = 'task-technical';
   const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
@@ -5232,6 +5284,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     && taskList.tasks.some((task) => task.taskId === state.taskUi.selectedTaskId)
     ? state.taskUi.selectedTaskId
     : null;
+  const selectedTaskSummary = taskList.tasks.find(({ taskId }) => taskId === selectedTaskId);
   const taskSelectionOwner = {
     generation: taskSelectionGeneration,
     projectId,
@@ -5241,7 +5294,9 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     Promise.all(taskList.tasks.map((task) => (
       api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
     ))),
-    selectedTaskId ? requestTaskAdoptionProjection(projectId, selectedTaskId) : Promise.resolve(null),
+    selectedTaskId && taskMayLoadProcessingAdoption({ task: selectedTaskSummary })
+      ? requestTaskAdoptionProjection(projectId, selectedTaskId)
+      : Promise.resolve(null),
   ]);
   if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   if (state.project?.projectId !== projectId) {

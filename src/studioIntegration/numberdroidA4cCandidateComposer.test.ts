@@ -6,11 +6,11 @@ import { tmpdir } from "node:os";
 // @ts-expect-error The app intentionally has no production Node type dependency; this is a Node-only integration test.
 import { join } from "node:path";
 // @ts-expect-error A4c intentionally verifies the JavaScript-only Studio application boundary.
-import { AgentTaskService, LevelCandidateApplicationService, StudioService } from "../../tools/numberdroid-studio/packages/application/src/index.js";
+import { AgentTaskService, DerivedChildTaskService, LevelCandidateApplicationService, StudioService } from "../../tools/numberdroid-studio/packages/application/src/index.js";
 // @ts-expect-error A4c intentionally verifies the JavaScript-only Studio domain boundary.
 import { listA4cGrantScopes } from "../../tools/numberdroid-studio/packages/domain/src/index.js";
 // @ts-expect-error A4c intentionally verifies the JavaScript-only Studio persistence boundary.
-import { SqliteAgentTaskStore, SqliteLevelCandidateStore, SqliteProjectStore, TaskBranchProjectStore } from "../../tools/numberdroid-studio/packages/persistence/src/index.js";
+import { SqliteAgentTaskStore, SqliteDerivedChildTaskStore, SqliteLevelCandidateStore, SqliteProjectStore, TaskBranchProjectStore } from "../../tools/numberdroid-studio/packages/persistence/src/index.js";
 // @ts-expect-error A4c intentionally reuses the Studio's real SQLite test driver.
 import { nodeSqliteDatabaseFactory } from "../../tools/numberdroid-studio/tests/persistence-test-helpers.js";
 // @ts-expect-error A4c intentionally reuses the Studio's canonical task/project test identities.
@@ -203,6 +203,103 @@ describe("A4c real Numberdroid candidate composition", () => {
       expect(Number(projectStore.workspace.database.prepare(
         "SELECT COUNT(*) AS count FROM task_branch_revisions WHERE command_type = 'level.candidate.create'",
       ).get().count)).toBe(2);
+    } finally {
+      projectStore?.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("derives an exact-head candidate child and runs the unchanged production A4c closure under ancestor authority", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "numberdroid-a4c-derived-child-"));
+    const filename = join(directory, "studio.sqlite");
+    const clock = () => "2026-09-01T12:00:00.000Z";
+    let projectStore: InstanceType<typeof SqliteProjectStore> | null = null;
+    try {
+      projectStore = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
+      const grantScopes = listA4cGrantScopes();
+      const studio = new StudioService({ store: projectStore, clock, agentAttemptAuditReady: true, grantScopes });
+      await createProject(studio);
+      const taskStore = new SqliteAgentTaskStore({ workspace: projectStore.workspace });
+      const childService = new DerivedChildTaskService({
+        store: new SqliteDerivedChildTaskStore({ workspace: projectStore.workspace }),
+        clock,
+        policy: {
+          budget: { maxCommands: 1, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
+          ttlSeconds: 1800,
+        },
+      });
+      const tasks = new AgentTaskService({
+        studioService: studio,
+        projectStore,
+        taskStore,
+        createBranchStore: ({ projectId, taskId }: { projectId: string; taskId: string }) => (
+          new TaskBranchProjectStore({ taskStore, projectId, taskId })
+        ),
+        clock,
+        grantScopes,
+        derivedChildService: childService,
+      });
+      const parent = await tasks.createTask({
+        projectId: PROJECT_ID,
+        task: {
+          taskId: "task.a4c.derived-parent",
+          branchId: "branch.task.a4c.derived-parent",
+          agentId: AGENT.id,
+          title: "Human-rooted Candidate parent",
+          objective: "Delegate one exact Candidate child.",
+          capabilities: ["level.candidate.create", "project.read", "task.child.derive"],
+          objectScopes: [{ kind: "project", id: PROJECT_ID }],
+          budget: { maxCommands: 2, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
+          expiresAt: "2026-09-01T13:00:00.000Z",
+          autoAcceptPolicy: { enabled: false, allowedCommandTypes: [], maxChanges: 0 },
+        },
+      }, OWNER_CONTEXT);
+      const parentContext = {
+        actor: AGENT,
+        taskId: parent.task.taskId,
+        branchId: parent.task.branchId,
+        grantId: parent.task.grantId,
+      };
+      const derived = tasks.deriveCandidateChild(PROJECT_ID, {
+        schemaVersion: 1,
+        idempotencyKey: "derive.a4c.production-child",
+        title: "Restricted Candidate child",
+        objective: "Create one Candidate and stop at owner review.",
+        expectedParentHeadRevision: parent.task.headRevision,
+      }, parentContext);
+      const childContext = {
+        actor: AGENT,
+        taskId: derived.task.taskId,
+        branchId: derived.task.branchId,
+        grantId: derived.task.grantId,
+      };
+      const request = {
+        projectId: PROJECT_ID,
+        taskId: derived.task.taskId,
+        branchId: derived.task.branchId,
+        expectedBaseRevision: derived.task.baseRevision,
+        expectedBranchHeadRevision: derived.task.baseRevision,
+        idempotencyKey: "a4c-derived-production-vertical",
+      };
+      const mainBefore = (await projectStore.loadProject(PROJECT_ID)).revisions.at(-1).number;
+      const result = await createNumberdroidA4cCandidateApplication({ workspace: projectStore.workspace, clock })
+        .create(request, childContext);
+      expect(result.result).toMatchObject({ status: "WAITING_FOR_HUMAN_REVIEW", message: "Waiting for your review" });
+      expect(taskStore.getTask(PROJECT_ID, derived.task.taskId)).toMatchObject({
+        state: "IN_REVIEW",
+        usage: { commands: 1 },
+        headRevision: derived.task.baseRevision + 1,
+      });
+      expect((await projectStore.loadProject(PROJECT_ID)).revisions.at(-1).number).toBe(mainBefore);
+      expect(NUMBERDROID_A4C_ENGINE_BRIDGE.mode).toBe("VALIDATE_ONLY");
+      taskStore.transition(PROJECT_ID, parent.task.taskId, "pause", {
+        actorId: OWNER_CONTEXT.actor.id,
+        now: clock(),
+        reason: "Prove ancestor blocking.",
+      });
+      const replay = await createNumberdroidA4cCandidateApplication({ workspace: projectStore.workspace, clock })
+        .create(request, childContext);
+      expect(replay.replayed).toBe(true);
     } finally {
       projectStore?.close();
       await rm(directory, { recursive: true, force: true });

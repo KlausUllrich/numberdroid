@@ -9,6 +9,7 @@ import { StudioError, invariant } from '../../../domain/src/errors.js';
 import { requireIsoDate } from '../../../domain/src/validation.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { SqliteWorkspace } from './sqlite-workspace.js';
+import { assertDerivedTaskAncestorChain } from './sqlite-derived-child-task-store.js';
 
 export const SQLITE_LEVEL_CANDIDATE_STORE_SCHEMA_VERSION = 1;
 export const SQLITE_LEVEL_CANDIDATE_STORE_KIND = 'studio.sqlite-level-candidate-store';
@@ -46,6 +47,10 @@ function hasProjectScope(scopes, projectId) {
 
 function taskRow(database, projectId, taskId) {
   return database.prepare('SELECT * FROM agent_tasks WHERE project_id = ? AND task_id = ?').get(projectId, taskId);
+}
+
+function branchBaseRevision(row) {
+  return Number(row.branch_origin_revision ?? row.base_revision);
 }
 
 function nextTimelineSequence(database, projectId, taskId) {
@@ -151,7 +156,7 @@ function closedHead(database, row) {
     && task.branchId === row.branch_id
     && task.agentId === row.agent_id
     && task.grantId === row.grant_id
-    && task.baseRevision === Number(row.base_revision)
+    && task.baseRevision === branchBaseRevision(row)
     && task.headRevision === Number(row.head_revision)
     && task.state === row.state
     && task.expiresAt === row.expires_at
@@ -159,7 +164,7 @@ function closedHead(database, row) {
     && head?.number === Number(row.head_revision)
     && head?.snapshot?.project?.id === row.project_id,
   'CORRUPT_LEVEL_CANDIDATE', 'Task, task row, and branch head document disagree.');
-  if (Number(row.head_revision) > Number(row.base_revision)) {
+  if (Number(row.head_revision) > branchBaseRevision(row)) {
     const durable = database.prepare(`
       SELECT revision_json FROM task_branch_revisions
       WHERE project_id = ? AND task_id = ? AND branch_revision = ?
@@ -201,6 +206,7 @@ function readFreshAuthority(database, identity, {
   const row = taskRow(database, identity.projectId, identity.taskId);
   invariant(row, 'TASK_NOT_FOUND', 'The bound Level Candidate task does not exist.');
   const { task, document, head } = closedHead(database, row);
+  assertDerivedTaskAncestorChain(database, row, { now: timestamp });
   invariant(row.state === 'ACTIVE', row.state === 'PAUSED' ? 'TASK_PAUSED' : 'TASK_NOT_EXECUTABLE',
     'The bound Level Candidate task is not executable.', { state: row.state });
   invariant(Date.parse(row.expires_at) > Date.parse(timestamp), 'TASK_EXPIRED', 'The bound Level Candidate task has expired.');
@@ -211,12 +217,12 @@ function readFreshAuthority(database, identity, {
     && row.agent_id === identity.actorId
     && row.grant_id === identity.grantId,
   'LEVEL_CANDIDATE_CONTEXT_MISMATCH', 'Trusted actor/task/grant/branch coordinates do not match the task.');
-  invariant(Number(row.base_revision) === expectedBaseRevision
+  invariant(branchBaseRevision(row) === expectedBaseRevision
     && Number(row.head_revision) === expectedBranchHeadRevision
     && expectedBranchHeadRevision >= expectedBaseRevision,
   'REVISION_CONFLICT', 'The Level Candidate branch coordinates are stale.', {
     expectedBaseRevision, expectedBranchHeadRevision,
-    actualBaseRevision: Number(row.base_revision), actualBranchHeadRevision: Number(row.head_revision),
+    actualBaseRevision: branchBaseRevision(row), actualBranchHeadRevision: Number(row.head_revision),
   });
   invariant(task.capabilities.includes(LEVEL_CANDIDATE_CREATE_REQUIRED_SCOPE),
     'TASK_CAPABILITY_MISSING', 'The task lacks private Level Candidate authority.');
@@ -267,11 +273,11 @@ function readFreshAuthority(database, identity, {
     'GRANT_EXPIRED', 'The bound Level Candidate grant has expired.');
   return {
     row, task, document, head, grant,
-    baseRevision: Number(row.base_revision),
+    baseRevision: branchBaseRevision(row),
     branchHeadRevision: Number(row.head_revision),
     authorityBinding: authorityBinding({
       identity, task, grant,
-      baseRevision: Number(row.base_revision), branchHeadRevision: Number(row.head_revision),
+      baseRevision: branchBaseRevision(row), branchHeadRevision: Number(row.head_revision),
     }),
   };
 }
@@ -349,7 +355,7 @@ function replaySource(database, identity, source, configuredBinding) {
     'REVISION_CONFLICT', 'The Level Candidate source is no longer the exact task head.');
   return {
     schemaVersion: 1,
-    baseRevision: Number(task.base_revision),
+    baseRevision: branchBaseRevision(task),
     sourceParentRevision: revision.parentRevision,
     branchHeadRevision: revision.number,
     sourceFingerprint: fingerprint(source),

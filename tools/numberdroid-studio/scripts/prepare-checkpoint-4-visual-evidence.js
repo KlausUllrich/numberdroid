@@ -233,7 +233,10 @@ function taskSpec(id, agentId) {
       : candidate
         ? 'Inspect one immutable Candidate without decision, merge, materialization, publication, or release authority.'
       : 'Independently refine the same semantic source and surface any concurrent overlap for human review.',
-    capabilities: candidate ? ['project.read', 'source.write', 'level.candidate.create'] : ['project.read', 'source.write'],
+    capabilities: candidate ? ['project.read', 'source.write', 'level.candidate.create']
+      : id === 'accepted'
+        ? ['level.candidate.create', 'project.read', 'source.write', 'task.child.derive']
+        : ['project.read', 'source.write'],
     objectScopes: [{ kind: 'project', id: projectId }],
     budget: { maxCommands: 6, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 },
     expiresAt: '2026-08-24T10:00:00.000Z',
@@ -275,6 +278,14 @@ try {
     grantId: accepted.task.grantId,
   };
   await running.agentTaskService.execute(sourceCommand(accepted.task.baseRevision, 'accepted', 'Approved bounded source draft'), acceptedAgent);
+  const acceptedAfterSource = running.agentTaskService.readTask(projectId, accepted.task.taskId).task;
+  const derivedChild = running.agentTaskService.deriveCandidateChild(projectId, {
+    schemaVersion: 1,
+    idempotencyKey: 'checkpoint-4-derived-candidate-child',
+    title: 'Restricted Candidate child',
+    objective: 'Create exactly one immutable Candidate, then stop for read-only inspection.',
+    expectedParentHeadRevision: acceptedAfterSource.headRevision,
+  }, acceptedAgent);
   await running.agentTaskService.control(projectId, accepted.task.taskId, 'pause', { actorId: owner.id, reason: 'Inspect the isolated branch before review.' });
   await running.agentTaskService.control(projectId, accepted.task.taskId, 'resume', { actorId: owner.id, reason: 'Inspection complete; continue to review.' });
   const acceptedReview = await running.agentTaskService.submitReview(projectId, accepted.task.taskId, {
@@ -335,9 +346,11 @@ try {
 
   const project = await running.studioService.readProjectTrusted(projectId);
   const tasks = running.agentTaskService.listTasks(projectId).tasks;
-  if (project.revision !== 6 || tasks.length !== 3
+  if (project.revision !== 6 || tasks.length !== 4
     || !tasks.some(({ state }) => state === 'MERGED')
-    || tasks.filter(({ state }) => state === 'IN_REVIEW').length !== 2) {
+    || tasks.filter(({ state }) => state === 'IN_REVIEW').length !== 2
+    || !tasks.some(({ taskId, authority }) => taskId === derivedChild.task.taskId
+      && authority?.executionAvailability === 'BLOCKED_BY_ANCESTOR')) {
     throw new Error(`Checkpoint 4 fixture did not reach the exact merged, conflicting-review, and read-only Candidate state: ${JSON.stringify({ revision: project.revision, tasks: tasks.map(({ taskId, state }) => ({ taskId, state })) })}`);
   }
   process.stdout.write(`${JSON.stringify({
@@ -349,6 +362,7 @@ try {
     mergedTaskId: accepted.task.taskId,
     conflictTaskId: concurrent.task.taskId,
     candidateTaskId: candidate.task.taskId,
+    derivedChildTaskId: derivedChild.task.taskId,
     conflictCount: conflictReview.review.conflicts.length,
     mergeId: merged.merge.mergeId,
     address: running.address,

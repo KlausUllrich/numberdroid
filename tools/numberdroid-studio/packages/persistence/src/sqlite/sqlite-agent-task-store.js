@@ -7,6 +7,7 @@ import {
 import { StudioError, invariant } from '../../../domain/src/errors.js';
 import { ProjectStore, projectSummary } from '../../../application/src/project-store.js';
 import { SqliteWorkspace } from './sqlite-workspace.js';
+import { assertDerivedTaskAncestorChain } from './sqlite-derived-child-task-store.js';
 
 function parseJson(value, label) {
   try {
@@ -101,6 +102,30 @@ export class SqliteAgentTaskStore {
 
   hasLevelCandidateSource(projectId, taskId) {
     return hasLevelCandidateSource(this.#workspace.database, projectId, taskId);
+  }
+
+  assertExecutionAuthority(projectId, taskId, now) {
+    const row = taskRow(this.#workspace.database, projectId, taskId);
+    invariant(row, 'TASK_NOT_FOUND', 'The agent task does not exist.', { projectId, taskId });
+    return assertDerivedTaskAncestorChain(this.#workspace.database, row, { now });
+  }
+
+  taskAuthorityProjection(projectId, taskId, now) {
+    const row = taskRow(this.#workspace.database, projectId, taskId);
+    invariant(row, 'TASK_NOT_FOUND', 'The agent task does not exist.', { projectId, taskId });
+    const relation = this.#workspace.database.prepare(`
+      SELECT relation_json FROM derived_task_relations WHERE project_id = ? AND child_task_id = ?
+    `).get(projectId, taskId);
+    let executionAvailability = 'EXECUTABLE';
+    let blockedCode = null;
+    try { assertDerivedTaskAncestorChain(this.#workspace.database, row, { now }); }
+    catch (error) { executionAvailability = 'BLOCKED_BY_ANCESTOR'; blockedCode = error?.code ?? 'ANCESTOR_TASK_BLOCKED'; }
+    return {
+      origin: relation ? 'TRUSTED_SERVICE_CHILD' : 'HUMAN_ROOT',
+      lineage: relation ? parseJson(relation.relation_json, 'derived_task_relations.relation_json') : null,
+      executionAvailability,
+      blockedCode,
+    };
   }
 
   createTask({ task, baseDocument, grantId = null, issuedBy, now }) {
@@ -282,7 +307,8 @@ export class SqliteAgentTaskStore {
       const submitted = transitionAgentTask(task, 'submit', { now, reason: 'Branch submitted for human review.' });
       const branchRevisions = database.prepare(`
         SELECT revision_json FROM task_branch_revisions
-        WHERE project_id = ? AND task_id = ? ORDER BY branch_revision
+        WHERE project_id = ? AND task_id = ? AND command_type <> 'task.child.derive'
+        ORDER BY branch_revision
       `).all(projectId, taskId).map((entry) => parseJson(entry.revision_json, 'task_branch_revisions.revision_json'));
       invariant(branchRevisions.length > 0, 'TASK_BRANCH_EMPTY', 'An empty task branch cannot be submitted for review.');
       const mainHead = mainDocument.revisions.at(-1);

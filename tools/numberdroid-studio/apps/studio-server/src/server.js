@@ -6,6 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   AgentTaskService,
+  DerivedChildTaskService,
   AuthoringV2AdmissionService,
   AuthoringV2ExecutionSession,
   FixedProjectCapabilityProvider,
@@ -24,6 +25,7 @@ import {
   JsonProjectStore,
   SqliteAgentAttemptStore,
   SqliteAgentTaskStore,
+  SqliteDerivedChildTaskStore,
   SqliteAuthoringV2AdmissionReader,
   SqliteArtifactMetadataStore,
   SqliteHostBindingStore,
@@ -2111,6 +2113,12 @@ export async function startStudioHttpServer({
   const agentTaskStore = storeMode === 'sqlite'
     ? new SqliteAgentTaskStore({ workspace: store.workspace })
     : null;
+  const derivedChildTaskService = storeMode === 'sqlite'
+    ? new DerivedChildTaskService({
+      store: new SqliteDerivedChildTaskStore({ workspace: store.workspace }),
+      clock,
+    })
+    : null;
   const agentTaskService = storeMode === 'sqlite'
     ? new AgentTaskService({
       studioService,
@@ -2124,6 +2132,7 @@ export async function startStudioHttpServer({
       clock,
       capabilityProvider,
       grantScopes: agentTaskGrantScopes,
+      derivedChildService: derivedChildTaskService,
     })
     : null;
   atlasPreviewWorker = storeMode === 'sqlite'

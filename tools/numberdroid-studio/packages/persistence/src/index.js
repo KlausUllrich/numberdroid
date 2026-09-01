@@ -23,6 +23,10 @@ export { SqliteArtifactMetadataStore } from './sqlite/sqlite-artifact-metadata-s
 export { SqliteAgentAttemptStore } from './sqlite/sqlite-agent-attempt-store.js';
 export { SqliteAgentTaskStore, TaskBranchProjectStore } from './sqlite/sqlite-agent-task-store.js';
 export {
+  SqliteDerivedChildTaskStore,
+  assertDerivedTaskAncestorChain,
+} from './sqlite/sqlite-derived-child-task-store.js';
+export {
   LEVEL_CANDIDATE_RESULT_KIND,
   LEVEL_CANDIDATE_REVIEW_KIND,
   SQLITE_LEVEL_CANDIDATE_STORE_KIND,

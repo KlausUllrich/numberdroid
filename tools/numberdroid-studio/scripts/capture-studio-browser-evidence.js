@@ -446,9 +446,10 @@ try {
     const focused = await devtools.send('Runtime.evaluate', {
       expression: `(async () => {
         const focus = ${JSON.stringify(checkpoint4Focus)};
-        const state = focus === 'merged' ? 'MERGED' : 'IN_REVIEW';
+        const state = focus === 'merged' ? 'MERGED' : focus === 'child' ? 'ANCESTOR_BLOCKED' : 'IN_REVIEW';
         const taskId = focus === 'merged' ? 'task.checkpoint-4.accepted'
-          : focus === 'candidate' ? 'task.checkpoint-4.candidate' : 'task.checkpoint-4.conflict';
+          : focus === 'candidate' ? 'task.checkpoint-4.candidate'
+            : focus === 'child' ? null : 'task.checkpoint-4.conflict';
         const navigate = async (workspace) => {
           location.hash = workspace;
           const deadline = Date.now() + 5_000;
@@ -466,7 +467,9 @@ try {
         await navigate('tasks');
         const taskButtons = [...document.querySelectorAll('[data-task-control="select"]')];
         const target = [...document.querySelectorAll('[data-task-control="select"]')]
-          .find((button) => button.dataset.taskId === taskId);
+          .find((button) => focus === 'child'
+            ? button.dataset.taskOrigin === 'TRUSTED_SERVICE_CHILD'
+            : button.dataset.taskId === taskId);
         const list = document.querySelector('.task-list');
         const listHeader = document.querySelector('.task-list-header');
         const initialStates = taskButtons.map((button) => button.querySelector('[data-task-state]')?.dataset.taskState);
@@ -595,7 +598,7 @@ try {
               ? refreshedTaskList.tasks.some((task) => task.taskId === concurrentTaskId)
                 && document.getElementById('revision-label').textContent === 'Revision 7'
                 && document.getElementById('activity-count').textContent === '7'
-              : refreshedTaskList.tasks.length === 3
+              : refreshedTaskList.tasks.length === 4
                 && document.getElementById('revision-label').textContent === 'Revision 6'
                 && document.getElementById('activity-count').textContent === '6',
             sameComposer: currentComposer === composer,
@@ -651,6 +654,10 @@ try {
           mergeConfirmCalls,
           hasRevert: Boolean(document.querySelector('[data-task-control="revert"]')),
           detailVisible: Boolean(detail && detail.getBoundingClientRect().bottom > 0 && detail.getBoundingClientRect().top < innerHeight),
+          selectedOrigin: detail?.dataset.taskOrigin ?? null,
+          authorityLineageText: detail?.querySelector('[data-task-authority-lineage]')?.textContent ?? null,
+          processingAdoptionSectionCount: detail?.querySelectorAll('[data-processing-adoption]').length ?? 0,
+          taskActionCount: detail?.querySelectorAll('.task-controls [data-task-control]').length ?? 0,
           reviewVisible: Boolean(review && review.getBoundingClientRect().bottom > 0 && review.getBoundingClientRect().top < innerHeight),
           createVisible: Boolean(composer && composer.getBoundingClientRect().bottom > 0 && composer.getBoundingClientRect().top < innerHeight),
           createFieldCount: composer?.querySelectorAll('input, textarea').length ?? 0,
@@ -662,7 +669,7 @@ try {
       returnByValue: true,
     }, sessionId, checkpoint4Focus === 'create' ? 30_000 : 10_000);
     checkpoint4TaskFocus = focused.result?.value ?? null;
-    assert(checkpoint4TaskFocus?.found === true && checkpoint4TaskFocus.taskCount === 3,
+    assert(checkpoint4TaskFocus?.found === true && checkpoint4TaskFocus.taskCount === 4,
       `Checkpoint 4 could not focus the requested task evidence: ${JSON.stringify(checkpoint4TaskFocus)}`);
   }
   if (mode === 'checkpoint-4-5' && expectedWorkspace === 'rooms') {
@@ -3198,12 +3205,13 @@ try {
     'Checkpoint 4 screenshot is not bound to the prepared revision-6 fixture.');
     if (expectedWorkspace === 'tasks') {
       const conflictOverviewAttention = checkpoint4TaskFocus.overviewAttention?.find(({ tone }) => tone === 'problem');
-      assert(checkpoint4TaskFocus?.taskCount === 3
+      assert(checkpoint4TaskFocus?.taskCount === 4
         && checkpoint4TaskFocus.initialStates.includes('MERGED')
         && checkpoint4TaskFocus.initialStates.filter((state) => state === 'IN_REVIEW').length === 2
-        && checkpoint4TaskFocus.overviewMetrics?.['Tasks needing you'] === '2'
+        && checkpoint4TaskFocus.initialStates.includes('ANCESTOR_BLOCKED')
+        && checkpoint4TaskFocus.overviewMetrics?.['Tasks needing you'] === '3'
         && checkpoint4TaskFocus.overviewMetrics?.['Task conflicts'] === '1'
-        && checkpoint4TaskFocus.overviewAttention?.length === 2
+        && checkpoint4TaskFocus.overviewAttention?.length === 3
         && conflictOverviewAttention?.text?.includes('Recorded conflict — action required')
         && checkpoint4TaskFocus.listContained === true,
       'Checkpoint 4 list-first task workspace lost its three branches, workflow states, or bounded list layout.');
@@ -3237,8 +3245,8 @@ try {
         `Checkpoint 4 focused task composer is missing, unbounded, or not keyboard-reachable from the list action: ${JSON.stringify(checkpoint4TaskFocus)}`);
       } else {
         assert(layout.taskWorkspace.detail
-          && layout.taskWorkspace.selectedText?.includes('Add or update sources')
-          && layout.taskWorkspace.selectedText.includes('allowed changes used')
+          && layout.taskWorkspace.selectedText?.includes(checkpoint4Focus === 'child' ? 'Create one immutable Level Candidate' : 'Add or update sources')
+          && layout.taskWorkspace.selectedText.includes('still available')
           && layout.taskWorkspace.selectedText.includes('Who acts next')
           && layout.taskWorkspace.controlNames.includes('back-to-list'),
         'Checkpoint 4 selected task lost its visible capability or budget projection.');
@@ -3271,7 +3279,7 @@ try {
       }
       if (checkpoint4Focus === 'merged') {
         assert(checkpoint4TaskFocus?.selectedState === 'MERGED'
-          && checkpoint4TaskFocus.timelineCount === 7
+          && checkpoint4TaskFocus.timelineCount === 8
           && checkpoint4TaskFocus.hasRevert === true
           && checkpoint4TaskFocus.detailVisible === true
           && layout.taskWorkspace.reviewDispositions.includes('USER_ACCEPTED')
@@ -3296,6 +3304,25 @@ try {
           && !layout.taskWorkspace.controlNames.includes('decide')
           && !layout.taskWorkspace.controlNames.includes('merge'),
         'Checkpoint 4 Candidate review exposed mutable review controls or lost its truthful read-only authority boundary.');
+      }
+      if (checkpoint4Focus === 'child') {
+        const childAttention = checkpoint4TaskFocus.initialAttention
+          ?.find(({ state }) => state === 'ANCESTOR_BLOCKED');
+        assert(checkpoint4TaskFocus.selectedState === 'ANCESTOR_BLOCKED'
+          && childAttention?.attention === 'ACTION_REQUIRED'
+          && childAttention.text?.includes('Blocked by parent task')
+          && checkpoint4TaskFocus.selectedOrigin === 'TRUSTED_SERVICE_CHILD'
+          && checkpoint4TaskFocus.authorityLineageText?.includes('Authority lineage')
+          && checkpoint4TaskFocus.authorityLineageText.includes('Reserved command budget1')
+          && checkpoint4TaskFocus.authorityLineageText.includes('review decisions or merge')
+          && checkpoint4TaskFocus.processingAdoptionSectionCount === 0
+          && checkpoint4TaskFocus.taskActionCount === 0
+          && checkpoint4TaskFocus.hasMerge === false
+          && checkpoint4TaskFocus.hasDecide === false
+          && layout.taskWorkspace.selectedText?.includes('The child cannot execute, create a Candidate, or change the project')
+          && !layout.taskWorkspace.controlNames.includes('merge')
+          && !layout.taskWorkspace.controlNames.includes('decide'),
+        'Checkpoint 4 derived child lost lineage, reservation, ancestor blocking, or read-only authority truth.');
       }
     }
   }
