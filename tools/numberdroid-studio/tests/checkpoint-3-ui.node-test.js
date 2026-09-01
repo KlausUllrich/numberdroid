@@ -90,6 +90,37 @@ test('Checkpoint 3 canvas supports bounded manual zoom and non-mutating middle-b
   assert.match(app, /requestAnimationFrame\(applyRoomCanvasFit\)/);
 });
 
+test('Room direct manipulation remains transient, revision-pinned, cancellable, and accessible', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const styles = await readFile(stylesUrl, 'utf8');
+  const gesture = app.slice(app.indexOf('function roomCellFromPointer'), app.indexOf("elements['workspace-content'].addEventListener('click', async (event) =>"));
+  assert.match(app, /function roomPlacementGhostModel/);
+  assert.match(app, /The exact version-pinned asset is unavailable/);
+  assert.match(app, /rotated logical footprint exceeds the room bounds/);
+  assert.match(app, /crosses an outside-room cell/);
+  assert.match(app, /cannot occupy a blocked room cell/);
+  assert.match(app, /logical footprint overlaps placement/);
+  assert.match(app, /Authored collision geometry overlaps placement/);
+  assert.match(app, /Server validation remains authoritative/);
+  assert.match(app, /\u2713 placement ghost|✓ placement ghost/);
+  assert.match(app, /blocked placement ghost/);
+  assert.match(gesture, /roomManipulationContext\(variant, placement\)/);
+  assert.match(gesture, /roomManipulationContextMatches\(gesture, variant, placement\)/);
+  assert.match(gesture, /setPointerCapture/);
+  assert.match(gesture, /pointercancel/);
+  assert.match(gesture, /lostpointercapture/);
+  assert.match(gesture, /Direct manipulation cancelled\. No room command was sent/);
+  assert.match(gesture, /suppressCanvasClick = true/);
+  assert.match(gesture, /await moveRoomPlacement\(placement, gesture\.anchor, gesture\.rotation, gesture\)/);
+  assert.match(gesture, /event\.button !== 0/);
+  assert.match(app, /event\.key === 'Delete' \|\| event\.key === 'Backspace'/);
+  assert.match(app, /ArrowLeft: \[-1, 0\].*ArrowRight: \[1, 0\]/s);
+  assert.match(app, /event\.key === 'r' \|\| event\.key === 'R'/);
+  assert.match(styles, /\.room-placement-ghost\[data-allowed="false"\]/);
+  assert.match(styles, /repeating-linear-gradient/);
+  assert.match(styles, /\.room-placement \{[^}]*cursor: grab;[^}]*touch-action: none/);
+});
+
 test('CP4.5 presents one persistent canvas, editor tools, truthful cell kinds, and complete shape saves', async () => {
   const app = await readFile(appUrl, 'utf8');
   const styles = await readFile(stylesUrl, 'utf8');

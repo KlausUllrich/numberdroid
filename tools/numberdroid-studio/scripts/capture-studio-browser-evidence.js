@@ -245,6 +245,7 @@ try {
   let checkpoint45RoomFocus = null;
   let checkpoint45PhysicalPaint = null;
   let checkpoint45EditorContinuity = null;
+  let checkpoint45DirectManipulation = null;
   let a17Evidence = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
@@ -820,6 +821,170 @@ try {
         && checkpoint45EditorContinuity.layerState.scrollTop === checkpoint45EditorContinuity.expectedScroll.top
         && checkpoint45EditorContinuity.layerState.checked === false && checkpoint45EditorContinuity.finalBoardCount === 1,
       `Checkpoint 4.5 tool/dock/layer changes did not preserve one usable canvas, focus, geometry, and scroll: ${JSON.stringify(checkpoint45EditorContinuity)}`);
+      const directSetup = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const waitFor = async (predicate, label) => {
+            const deadline = Date.now() + 10_000;
+            while (!predicate() && Date.now() < deadline) await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+            if (!predicate()) throw new Error('Timed out waiting for ' + label + '.');
+          };
+          const originalFetch = window.fetch;
+          window.__roomDirectManipulationEvidence = { requests: [], originalFetch };
+          window.fetch = async (...args) => {
+            const request = args[0]; const url = typeof request === 'string' ? request : request.url;
+            if (url.includes('/placements-')) {
+              const init = args[1] ?? {}; const body = JSON.parse(init.body ?? '{}');
+              window.__roomDirectManipulationEvidence.requests.push({ url, method: init.method ?? 'GET', body });
+              return new Response(JSON.stringify({ projectId: 'numberdroid-studio-checkpoint-2c', revision: 37 }), {
+                status: 200, headers: { 'content-type': 'application/json' },
+              });
+            }
+            return originalFetch(...args);
+          };
+          const selector = document.querySelector('[data-room-variant-select]'); selector.value = 'hall.service-east-west';
+          selector.dispatchEvent(new Event('change', { bubbles: true }));
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="palette-asset"][data-palette-asset-id="asset.transfer-apparatus-cp45"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          await window.__numberdroidStudioVisualTest?.refreshVisualEvidence();
+          await waitFor(() => !document.querySelector('[data-room-control="use-preview-asset"]')?.disabled, 'the exact prop placement control');
+          document.querySelector('[data-room-control="use-preview-asset"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const pointFor = (x, y) => {
+            const cell = document.querySelector('.room-cell[data-x="' + x + '"][data-y="' + y + '"]');
+            cell.scrollIntoView({ block: 'center', inline: 'center' });
+            const rect = cell.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+          };
+          return { validPoint: pointFor(1, 0), invalidPoint: pointFor(5, 2), requestCount: window.__roomDirectManipulationEvidence.requests.length };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'r', code: 'KeyR' }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directSetup.result.value.validPoint.x, y: directSetup.result.value.validPoint.y }, sessionId);
+      await delay(50);
+      const validGhost = await devtools.send('Runtime.evaluate', {
+        expression: `(() => { const ghost = document.querySelector('.room-placement-ghost'); const rect = ghost?.getBoundingClientRect(); const board = document.querySelector('[data-room-board]')?.getBoundingClientRect(); return {
+          allowed: ghost?.dataset.allowed ?? null, cue: ghost?.querySelector('strong')?.textContent ?? null,
+          rotation: ghost?.querySelector('span')?.textContent ?? null,
+          cellsWide: rect && board ? Math.round(rect.width / (board.width / 6)) : null,
+          cellsHigh: rect && board ? Math.round(rect.height / (board.height / 3)) : null,
+          requestCount: window.__roomDirectManipulationEvidence.requests.length,
+        }; })()`, returnByValue: true,
+      }, sessionId);
+      const validScreenshot = await devtools.send('Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId, 30_000);
+      const validGhostPath = outputPath.replace(/\.png$/i, '-direct-valid-ghost.png');
+      await writeFile(validGhostPath, Buffer.from(validScreenshot.data, 'base64'));
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directSetup.result.value.invalidPoint.x, y: directSetup.result.value.invalidPoint.y }, sessionId);
+      await delay(50);
+      const invalidGhost = await devtools.send('Runtime.evaluate', {
+        expression: `(() => { const ghost = document.querySelector('.room-placement-ghost'); return {
+          allowed: ghost?.dataset.allowed ?? null, cue: ghost?.querySelector('strong')?.textContent ?? null,
+          reason: ghost?.querySelector('small')?.textContent ?? null,
+          requestCount: window.__roomDirectManipulationEvidence.requests.length,
+        }; })()`, returnByValue: true,
+      }, sessionId);
+      const invalidScreenshot = await devtools.send('Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId, 30_000);
+      const invalidGhostPath = outputPath.replace(/\.png$/i, '-direct-invalid-ghost.png');
+      await writeFile(invalidGhostPath, Buffer.from(invalidScreenshot.data, 'base64'));
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' }, sessionId);
+      const dragSetup = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const selector = document.querySelector('[data-room-variant-select]'); selector.value = 'room.family-gathering';
+          selector.dispatchEvent(new Event('change', { bubbles: true }));
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="SELECT"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const placement = document.querySelector('[data-placement-id="prop.family-table"]');
+          const targetCell = document.querySelector('.room-cell[data-x="2"][data-y="2"]');
+          placement.scrollIntoView({ block: 'center', inline: 'center' });
+          const source = placement.getBoundingClientRect(); const target = targetCell.getBoundingClientRect();
+          return { source: { x: source.left + source.width / 2, y: source.top + source.height / 2 },
+            target: { x: target.left + target.width / 2, y: target.top + target.height / 2 } };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      const sourcePoint = dragSetup.result.value.source; const targetPoint = dragSetup.result.value.target;
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: sourcePoint.x, y: sourcePoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 1 }, sessionId);
+      const duringCancelledDrag = await devtools.send('Runtime.evaluate', {
+        expression: `(() => ({ requestCount: window.__roomDirectManipulationEvidence.requests.length,
+          ghost: Boolean(document.querySelector('.room-placement-ghost')) }))()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: sourcePoint.x, y: sourcePoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      for (const ratio of [.25, .5, .75, 1]) {
+        await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved',
+          x: sourcePoint.x + (targetPoint.x - sourcePoint.x) * ratio,
+          y: sourcePoint.y + (targetPoint.y - sourcePoint.y) * ratio, button: 'left', buttons: 1 }, sessionId);
+      }
+      const duringCommittedDrag = await devtools.send('Runtime.evaluate', {
+        expression: `(() => ({ requestCount: window.__roomDirectManipulationEvidence.requests.length,
+          allowed: document.querySelector('.room-placement-ghost')?.dataset.allowed ?? null }))()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      await delay(250);
+      const afterDrag = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const evidence = window.__roomDirectManipulationEvidence;
+          const requests = evidence.requests.map(({ url, method, body }) => ({ url, method, body }));
+          const slider = document.querySelector('[data-room-zoom-slider]'); slider.value = '1000';
+          slider.dispatchEvent(new Event('input', { bubbles: true }));
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const scroll = document.querySelector('.room-canvas-scroll'); scroll.scrollLeft = 250; scroll.scrollTop = 120;
+          const board = document.querySelector('[data-room-board]').getBoundingClientRect();
+          return { requests, ghostCleared: !document.querySelector('.room-placement-ghost'),
+            selectedPlacementId: document.querySelector('.room-placement[data-selected="true"]')?.dataset.placementId ?? null,
+            panStart: { left: scroll.scrollLeft, top: scroll.scrollTop }, panPoint: { x: board.left + board.width / 2, y: board.top + board.height / 2 } };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      const panPoint = afterDrag.result.value.panPoint;
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: panPoint.x, y: panPoint.y, button: 'middle', buttons: 4, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: panPoint.x - 70, y: panPoint.y - 45, button: 'middle', buttons: 4 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: panPoint.x - 70, y: panPoint.y - 45, button: 'middle', buttons: 0, clickCount: 1 }, sessionId);
+      const panAndRestore = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const evidence = window.__roomDirectManipulationEvidence; const scroll = document.querySelector('.room-canvas-scroll');
+          const pan = { left: scroll.scrollLeft, top: scroll.scrollTop, panning: scroll.dataset.panning ?? null,
+            requestCount: evidence.requests.length };
+          window.fetch = evidence.originalFetch;
+          document.querySelector('[data-room-control="zoom"][data-room-zoom="fit"]')?.click();
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_ROOM"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          return pan;
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      checkpoint45DirectManipulation = {
+        validGhost: validGhost.result.value, invalidGhost: invalidGhost.result.value,
+        cancelledDrag: duringCancelledDrag.result.value, committedDrag: duringCommittedDrag.result.value,
+        afterDrag: afterDrag.result.value, pan: panAndRestore.result.value,
+        screenshots: { validGhostPath, invalidGhostPath },
+      };
+      assert(checkpoint45DirectManipulation.validGhost?.allowed === 'true'
+        && checkpoint45DirectManipulation.validGhost.cellsWide === 3
+        && checkpoint45DirectManipulation.validGhost.cellsHigh === 2
+        && checkpoint45DirectManipulation.validGhost.rotation?.includes('90°')
+        && checkpoint45DirectManipulation.invalidGhost?.allowed === 'false'
+        && checkpoint45DirectManipulation.invalidGhost.cue?.includes('blocked')
+        && checkpoint45DirectManipulation.invalidGhost.reason?.includes('exceeds the room bounds')
+        && checkpoint45DirectManipulation.cancelledDrag?.requestCount === 0
+        && checkpoint45DirectManipulation.cancelledDrag.ghost === true
+        && checkpoint45DirectManipulation.committedDrag?.requestCount === 0
+        && checkpoint45DirectManipulation.committedDrag.allowed === 'true'
+        && checkpoint45DirectManipulation.afterDrag?.requests?.length === 1
+        && checkpoint45DirectManipulation.afterDrag.requests[0].url.endsWith('/placements-move')
+        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves?.[0]?.placementId === 'prop.family-table'
+        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].anchor?.x === 2
+        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].anchor?.y === 2
+        && checkpoint45DirectManipulation.afterDrag.ghostCleared === true
+        && checkpoint45DirectManipulation.pan?.requestCount === 1
+        && checkpoint45DirectManipulation.pan.panning === null
+        && (checkpoint45DirectManipulation.pan.left !== checkpoint45DirectManipulation.afterDrag.panStart.left
+          || checkpoint45DirectManipulation.pan.top !== checkpoint45DirectManipulation.afterDrag.panStart.top),
+      `Checkpoint 4.5 direct manipulation did not preserve transient, single-command, cancellation, ghost, or middle-pan semantics: ${JSON.stringify(checkpoint45DirectManipulation)}`);
       checkpoint45RoomFocus.tool = 'PAINT_ROOM';
     }
   }
@@ -3007,6 +3172,7 @@ try {
     checkpoint45RoomFocus,
     checkpoint45PhysicalPaint,
     checkpoint45EditorContinuity,
+    checkpoint45DirectManipulation,
     a17Evidence,
     layout,
     interactions: checkpoint2bInteractionEvidence,

@@ -343,7 +343,7 @@ h2, h3 { margin: 0; }
 .room-zoom output { min-width: 42px; color: var(--cyan); font: 9px ui-monospace, monospace; text-align: right; }
 .room-layer-controls label { display: flex; align-items: center; gap: 3px; color: var(--muted); font-size: 8px; }
 .room-layer-controls input { width: auto; }
-.room-canvas-scroll { max-width: 100%; max-height: 68vh; padding: 18px; overflow: auto; overscroll-behavior: contain; border: 1px solid #27453c; border-radius: 8px; background-color: #07110e; background-image: radial-gradient(#315046 1px, transparent 1px); background-size: 10px 10px; cursor: grab; }
+.room-canvas-scroll { max-width: 100%; max-height: 68vh; padding: 18px; overflow: auto; overscroll-behavior: contain; border: 1px solid #27453c; border-radius: 8px; background-color: #07110e; background-image: radial-gradient(#315046 1px, transparent 1px); background-size: 10px 10px; cursor: default; }
 .room-canvas-scroll[data-panning="true"] { cursor: grabbing; user-select: none; }
 .room-board { position: relative; width: calc(var(--room-width) * var(--room-cell)); height: calc(var(--room-height) * var(--room-cell)); margin: auto; box-shadow: 0 0 0 3px #6b9b8c; }
 .room-cell-grid { display: grid; grid-template-columns: repeat(var(--room-width), var(--room-cell)); grid-template-rows: repeat(var(--room-height), var(--room-cell)); }
@@ -360,12 +360,18 @@ h2, h3 { margin: 0; }
 .room-board[data-shape-editing="true"] .room-connector,
 .room-board[data-asset-placement-editing="true"] .room-placement,
 .room-board[data-asset-placement-editing="true"] .room-connector { opacity: .42; filter: saturate(.45); pointer-events: none; }
-.room-placement { position: absolute; z-index: 2; min-width: 0; min-height: 0; padding: 1px; overflow: hidden; border: 1px solid #a3dccc; border-radius: 2px; background: #173b31dd; color: #effff9; box-shadow: 0 1px 5px #0008; }
+.room-placement { position: absolute; z-index: 2; min-width: 0; min-height: 0; padding: 1px; overflow: hidden; border: 1px solid #a3dccc; border-radius: 2px; background: #173b31dd; color: #effff9; box-shadow: 0 1px 5px #0008; cursor: grab; touch-action: none; }
 .room-placement.structural_surface { z-index: 1; border-color: #4d8876; background: #23473ddd; }
 .room-placement[data-selected="true"] { z-index: 5; outline: 3px solid #ffe09a; outline-offset: 1px; }
 .room-placement .asset-preview { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; opacity: .86; }
 .room-placement .asset-preview.fallback { display: none; }
 .room-placement > span { position: relative; z-index: 2; display: block; padding: 2px; overflow: hidden; background: #06100dcc; font: clamp(6px, calc(var(--room-cell) * .13), 22px) ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.room-placement-ghost { position: absolute; z-index: 7; display: grid; align-content: start; min-width: 0; min-height: 0; padding: 3px; overflow: visible; pointer-events: none; border: 3px dashed #b7f4d4; background: repeating-linear-gradient(135deg, #163c2bb8 0 7px, #07110e99 7px 14px); color: #f4fff9; box-shadow: 0 0 0 2px #06100dcc; }
+.room-placement-ghost[data-allowed="false"] { border-style: double; border-color: #ffb49e; background: repeating-linear-gradient(45deg, #6b231fb8 0 6px, #150a0999 6px 12px); }
+.room-placement-ghost strong { font: 700 clamp(8px, calc(var(--room-cell) * .2), 16px) ui-monospace, monospace; text-transform: uppercase; }
+.room-placement-ghost span { overflow: hidden; font: clamp(7px, calc(var(--room-cell) * .16), 14px) ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.room-placement-ghost small { width: max(180px, 100%); max-width: min(340px, 50vw); margin-top: 4px; padding: 4px; border-radius: 3px; background: #06100eee; font-size: 10px; line-height: 1.3; }
+.room-board[data-asset-placement-editing="true"] .room-cell { cursor: crosshair; }
 .room-connector { position: absolute; z-index: 4; min-width: 5px; min-height: 5px; padding: 1px; overflow: hidden; border: 2px solid var(--amber); border-radius: 0; background: #f0b85c38; color: #fff2cf; font: clamp(6px, calc(var(--room-cell) * .13), 22px) ui-monospace, monospace; }
 .room-connector.north { border-top-width: 5px; } .room-connector.south { border-bottom-width: 5px; }
 .room-connector.west { border-left-width: 5px; } .room-connector.east { border-right-width: 5px; }

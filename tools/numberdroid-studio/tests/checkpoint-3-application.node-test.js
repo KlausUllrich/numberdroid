@@ -147,6 +147,88 @@ test('room archetype and DRAFT variant preserve intent, exact pins, and determin
   assert.match(result.variants[0].current.contentFingerprint, /^[a-f0-9]{64}$/);
 });
 
+test('owner placement add, move/rotate, and remove each create one immutable version and replay once', async () => {
+  const { studio } = await fixture();
+  const add = roomCommand({
+    type: 'room.variant.placements.add', expectedVersion: 4, suffix: 'room.direct.add',
+    payload: {
+      roomVariantId: 'room.family-table', expectedRoomVariantVersion: 1,
+      placements: [placement({ placementId: 'prop.direct-table', assetId: 'asset.table', x: 2, y: 1, layer: 'SET_DRESSING' })],
+    },
+  });
+  const added = await studio.execute(add, OWNER_CONTEXT);
+  const addReplay = await studio.execute(add, OWNER_CONTEXT);
+  assert.equal(added.revision, 5);
+  assert.equal(added.value.roomVariantVersion, 2);
+  assert.equal(addReplay.replayed, true);
+  assert.deepEqual({ ...addReplay, replayed: false }, added);
+  await assert.rejects(studio.execute({
+    ...structuredClone(add),
+    payload: { ...structuredClone(add.payload), placements: [placement({ placementId: 'prop.direct-table', assetId: 'asset.table', x: 3, y: 2, layer: 'SET_DRESSING' })] },
+  }, OWNER_CONTEXT), (error) => error.code === 'IDEMPOTENCY_CONFLICT');
+  await assert.rejects(studio.execute(roomCommand({
+    type: 'room.variant.placements.move', expectedVersion: 4, suffix: 'room.direct.stale-project',
+    payload: {
+      roomVariantId: 'room.family-table', expectedRoomVariantVersion: 2,
+      moves: [{ placementId: 'prop.direct-table', expectedAssetId: 'asset.table', anchor: { x: 2, y: 2 }, rotation: 0 }],
+    },
+  }), OWNER_CONTEXT), (error) => error.code === 'REVISION_CONFLICT');
+  await assert.rejects(studio.execute(roomCommand({
+    type: 'room.variant.placements.move', expectedVersion: 5, suffix: 'room.direct.stale-room',
+    payload: {
+      roomVariantId: 'room.family-table', expectedRoomVariantVersion: 1,
+      moves: [{ placementId: 'prop.direct-table', expectedAssetId: 'asset.table', anchor: { x: 2, y: 2 }, rotation: 0 }],
+    },
+  }), OWNER_CONTEXT), (error) => error.code === 'ENTITY_VERSION_CONFLICT');
+  await assert.rejects(studio.execute(roomCommand({
+    type: 'room.variant.placements.move', expectedVersion: 5, suffix: 'room.direct.wrong-asset',
+    payload: {
+      roomVariantId: 'room.family-table', expectedRoomVariantVersion: 2,
+      moves: [{ placementId: 'prop.direct-table', expectedAssetId: 'asset.floor', anchor: { x: 2, y: 2 }, rotation: 0 }],
+    },
+  }), OWNER_CONTEXT), (error) => error.code === 'ENTITY_VERSION_CONFLICT');
+  assert.equal((await studio.readProjectTrusted(PROJECT_ID)).revision, 5);
+
+  const move = roomCommand({
+    type: 'room.variant.placements.move', expectedVersion: 5, suffix: 'room.direct.move',
+    payload: {
+      roomVariantId: 'room.family-table', expectedRoomVariantVersion: 2,
+      moves: [{ placementId: 'prop.direct-table', expectedAssetId: 'asset.table', anchor: { x: 2, y: 2 }, rotation: 90 }],
+    },
+  });
+  const moved = await studio.execute(move, OWNER_CONTEXT);
+  const moveReplay = await studio.execute(move, OWNER_CONTEXT);
+  assert.equal(moved.revision, 6);
+  assert.equal(moved.value.roomVariantVersion, 3);
+  assert.equal(moveReplay.replayed, true);
+  assert.deepEqual({ ...moveReplay, replayed: false }, moved);
+
+  const remove = roomCommand({
+    type: 'room.variant.placements.remove', expectedVersion: 6, suffix: 'room.direct.remove',
+    payload: {
+      roomVariantId: 'room.family-table', expectedRoomVariantVersion: 3,
+      placements: [{ placementId: 'prop.direct-table', expectedAssetId: 'asset.table' }],
+    },
+  });
+  const removed = await studio.execute(remove, OWNER_CONTEXT);
+  const removeReplay = await studio.execute(remove, OWNER_CONTEXT);
+  assert.equal(removed.revision, 7);
+  assert.equal(removed.value.roomVariantVersion, 4);
+  assert.equal(removeReplay.replayed, true);
+  assert.deepEqual({ ...removeReplay, replayed: false }, removed);
+
+  const room = (await studio.queryRooms({
+    schemaVersion: 1, projectId: PROJECT_ID, roomVariantId: 'room.family-table', includeVersions: true,
+  }, OWNER_CONTEXT)).variants[0];
+  assert.equal(room.versions.length, 4);
+  assert.equal(room.versions[0].placements.length, 12);
+  assert.equal(room.versions[1].placements.at(-1).placementId, 'prop.direct-table');
+  assert.deepEqual(room.versions[1].placements.at(-1).anchor, { x: 2, y: 1 });
+  assert.deepEqual(room.versions[2].placements.at(-1).anchor, { x: 2, y: 2 });
+  assert.equal(room.versions[2].placements.at(-1).rotation, 90);
+  assert.equal(room.current.placements.some(({ placementId }) => placementId === 'prop.direct-table'), false);
+});
+
 test('CP4.5 owner shape replacement creates an immutable room version and remains unavailable to agents', async () => {
   const { studio } = await fixture();
   const shaped = await studio.execute(roomCommand({
