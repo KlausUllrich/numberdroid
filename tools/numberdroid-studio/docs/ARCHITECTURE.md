@@ -160,6 +160,34 @@ invalid or pre-binding traffic remains without project attribution. See
 
 The preview projection also owns deterministic Asset Library card states: resolved image, processing, missing artifact, unsupported media, and load failure. Each state has a stable kind-aware fallback descriptor so the UI never has to infer meaning from a failed image element or expose a filesystem path.
 
+#### Engine-neutral room preview scene
+
+Room preview extends the reusable preview boundary with a pure, read-only scene
+projection. It consumes an exact project revision and immutable room version and
+returns only portable presentation primitives: room cells, ordered layers,
+connectors, asset/version references, transform, logical footprint, ground
+anchor, visual bounds/offset, elevation, transparency/occlusion hints and
+findings. It performs no application command and owns no task, review, merge,
+candidate, repository or release authority.
+
+The scene is renderer-independent:
+
+room revision -> preview scene -> top-down renderer or later 2.5D renderer
+
+Logical footprint remains the authority for placement, collision and navigation.
+Visual bounds may extend outside that footprint. Renderers sort ordinary sprites
+deterministically by layer and ground anchor; optional bounded
+background/body/foreground segments handle the rare asset whose pixels must
+occlude on both sides of another object. Renderer metadata never changes room
+semantics.
+
+The initial top-down Studio renderer is approximate but positionally faithful.
+A later 2.5D renderer may apply an isometric/dimetric projection, simple
+elevation and side-facing/billboard sprites. Neither renderer invokes the
+validate-only EngineBridge. Higher-fidelity Numberdroid, Godot or Unreal
+previews are optional adapter ports and must truthfully identify their additional
+compiler, registry and runtime pins.
+
 Apps and transport infrastructure host configured generation-provider adapters behind an application port. Provider credentials and network calls remain outside the domain; a generation job records the provider/model response, prompt/seed/options, cost evidence where available, and immutable output artifact before exposing it for review.
 
 ### `packages/mcp-server`
