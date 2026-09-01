@@ -11,7 +11,8 @@ test('Checkpoint 3 exposes a coordinate-visible layered room and hallway designe
   assert.match(renderer, /New room archetype/);
   assert.match(renderer, /New room \/ hallway/);
   assert.match(renderer, /Origin 0,0/);
-  assert.match(renderer, /\['fit', 'Fit'\], \['1', '100%'\], \['2', '200%'\]/);
+  assert.match(renderer, /slider\.min = '100'; slider\.max = '1000'; slider\.step = '25'/);
+  assert.match(renderer, /roomControl\('Fit', 'zoom'/);
   assert.match(renderer, /STRUCTURAL_SURFACE/);
   assert.match(renderer, /SET_DRESSING/);
   assert.match(renderer, /clearanceInside/);
@@ -57,6 +58,7 @@ test('Checkpoint 3 retains room selection, zoom, layers, dirty decisions, focus,
   assert.match(restore, /window\.scrollTo/);
   assert.match(app, /selectedPaletteAssetId/);
   assert.match(app, /zoom: 'fit'/);
+  assert.match(app, /zoomPercent: 100/);
   assert.match(app, /layers: \{ STRUCTURAL_SURFACE: true, SET_DRESSING: true, CONNECTORS: true \}/);
   assert.match(app, /state\.roomUi\.dirty/);
   assert.match(app, /Your local draft was retained/);
@@ -66,10 +68,26 @@ test('Checkpoint 3 canvas and review surfaces remain bounded at 1440 and protect
   const styles = await readFile(stylesUrl, 'utf8');
   assert.match(styles, /\.room-editor-shell \{[^}]*grid-template-columns: 92px minmax\(360px, 1fr\) minmax\(255px, \.72fr\)/);
   assert.match(styles, /\.room-canvas-scroll \{[^}]*overflow: auto/);
+  assert.match(styles, /\.room-canvas-scroll\[data-panning="true"\]/);
+  assert.match(styles, /calc\(var\(--room-cell\) \* \.16\)/);
   assert.match(styles, /\.room-palette-list \{[^}]*overflow: auto/);
   assert.match(styles, /\.room-placement-list \{[^}]*overflow: auto/);
   assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: 82px minmax\(300px, 1fr\)/);
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: 1fr/);
+});
+
+test('Checkpoint 3 canvas supports bounded manual zoom and non-mutating middle-button panning', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  assert.match(app, /event\.button !== 1/);
+  assert.match(app, /setPointerCapture/);
+  assert.match(app, /scrollLeft = pan\.startLeft/);
+  assert.match(app, /scrollTop = pan\.startTop/);
+  assert.match(app, /pointerup', finishRoomCanvasPan/);
+  assert.match(app, /pointercancel', finishRoomCanvasPan/);
+  assert.match(app, /lostpointercapture', finishRoomCanvasPan/);
+  assert.match(app, /Math\.round\(38 \* state\.roomUi\.zoomPercent \/ 100\)/);
+  assert.match(app, /availableWidth \/ width, availableHeight \/ height/);
+  assert.match(app, /requestAnimationFrame\(applyRoomCanvasFit\)/);
 });
 
 test('CP4.5 presents one persistent canvas, editor tools, truthful cell kinds, and complete shape saves', async () => {
