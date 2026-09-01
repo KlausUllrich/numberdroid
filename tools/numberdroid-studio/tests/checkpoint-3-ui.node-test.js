@@ -104,7 +104,11 @@ test('Saved room errors are visible before deep detail and finding navigation ke
   assert.doesNotMatch(evidence, /roomPlacementInteractionState/);
   const findingNavigation = evidence.slice(evidence.indexOf('const findingsSetup'), evidence.indexOf('const directSetup'));
   assert.equal(findingNavigation.match(/type: 'keyDown', key: 'Enter'/g)?.length, 2);
+  assert.equal(findingNavigation.match(/type: 'keyUp', key: 'Enter'/g)?.length, 2);
+  assert.equal(findingNavigation.match(/text: '\\r', unmodifiedText: '\\r'/g)?.length, 2);
   assert.doesNotMatch(findingNavigation, /type: 'rawKeyDown', key: 'Enter'/);
+  assert.match(findingNavigation, /isTrusted === true && detail === 0/);
+  assert.doesNotMatch(findingNavigation, /(?:targetButtons\[[^\]]+\]|first|secondButton)\??\.click\(\)/);
 });
 
 test('Checkpoint 3 canvas and review surfaces remain bounded at 1440 and protected 1060 widths', async () => {

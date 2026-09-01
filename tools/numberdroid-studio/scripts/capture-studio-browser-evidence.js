@@ -904,7 +904,17 @@ try {
           const targetButtons = errorItems.flatMap((item) => [...item.querySelectorAll('[data-room-control="finding"]')]);
           const staticError = errorItems.find((item) => !item.querySelector('[data-room-control="finding"]'));
           const originalFetch = window.fetch;
-          window.__roomFindingsNavigationEvidence = { originalFetch, requests: [] };
+          const root = document.getElementById('workspace-content');
+          const findingClickObserver = (event) => {
+            const target = event.target.closest?.('[data-room-control="finding"]');
+            if (target) window.__roomFindingsNavigationEvidence.clicks.push({
+              findingId: target.dataset.findingId ?? null,
+              isTrusted: event.isTrusted,
+              detail: event.detail,
+            });
+          };
+          window.__roomFindingsNavigationEvidence = { originalFetch, root, findingClickObserver, requests: [], clicks: [] };
+          root.addEventListener('click', findingClickObserver, true);
           window.fetch = async (...args) => {
             const request = args[0]; const init = args[1] ?? {};
             const method = String(init.method ?? request?.method ?? 'GET').toUpperCase();
@@ -943,6 +953,7 @@ try {
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
@@ -977,6 +988,7 @@ try {
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
@@ -1003,8 +1015,12 @@ try {
             hasRemediation: item?.querySelector('.room-finding-remediation')?.textContent?.startsWith('Next:') ?? false,
             technicalText: item?.querySelector('.room-finding-technical')?.textContent ?? null,
             requestCount: window.__roomFindingsNavigationEvidence?.requests.length ?? -1,
+            clicks: window.__roomFindingsNavigationEvidence?.clicks.map((click) => ({ ...click })) ?? [],
           };
           window.fetch = window.__roomFindingsNavigationEvidence.originalFetch;
+          window.__roomFindingsNavigationEvidence.root.removeEventListener(
+            'click', window.__roomFindingsNavigationEvidence.findingClickObserver, true,
+          );
           delete window.__roomFindingsNavigationEvidence;
           return result;
         })()`, awaitPromise: true, returnByValue: true,
@@ -1088,6 +1104,10 @@ try {
         && checkpoint45FindingsNavigation.second.lineHeight >= checkpoint45FindingsNavigation.second.fontSize * 1.4
         && checkpoint45FindingsNavigation.second.hasExplanation === true
         && checkpoint45FindingsNavigation.second.hasRemediation === true
+        && checkpoint45FindingsNavigation.second.clicks?.length === 2
+        && checkpoint45FindingsNavigation.second.clicks[0].findingId === checkpoint45FindingsNavigation.setup.first.findingId
+        && checkpoint45FindingsNavigation.second.clicks[1].findingId === checkpoint45FindingsNavigation.first.second.findingId
+        && checkpoint45FindingsNavigation.second.clicks.every(({ isTrusted, detail }) => isTrusted === true && detail === 0)
         && checkpoint45FindingsNavigation.second.technicalText?.includes('ERROR')
         && checkpoint45FindingsNavigation.second.requestCount === 0
         && checkpoint45FindingsNavigation.pointerSelection.setup?.selectedFindingCount === 1
