@@ -109,9 +109,10 @@ test('CP4.5 useful prop preview exposes footprint, anchor, rotation, collision, 
   assert.match(preview, /preview is unavailable/);
   assert.match(app, /use\.disabled = variant\.lifecycle !== 'DRAFT' \|\| preview\.dataset\.previewReady !== 'true'/);
   assert.match(app, /draft\.disposition === 'ACCEPTED'\) draft\.disposition = 'REJECTED'/);
-  assert.match(app, /previewQuarterTurn/);
-  assert.match(styles, /container-type: size/);
-  assert.match(styles, /data-preview-quarter-turn="true"\] img \{ width: 100cqh; height: 100cqw/);
+  assert.match(app, /--preview-unrotated-width/);
+  assert.match(app, /--preview-unrotated-height/);
+  assert.match(styles, /position: absolute; top: 50%; left: 50%/);
+  assert.match(styles, /translate\(-50%, -50%\) rotate/);
   assert.doesNotMatch(styles, /preview-rotation-scale/);
   assert.match(styles, /\.room-form\.intent \{[^}]*minmax\(0, 1fr\)[^}]*min-width: 0/);
 });
