@@ -308,8 +308,9 @@ The generic Studio Preview does not invoke Numberdroid or EngineBridge.
 Engine-specific previews remain later adapter features. The 2.5D renderer is
 planned after the top-down preview and is not a prerequisite for resuming A4c.
 Exact merge, CI, verification and acceptance state is recorded in
-[`ROOM_EDITOR_L3_STATUS.md`](ROOM_EDITOR_L3_STATUS.md). The next bounded
-engineering slice is the A4c task-scoped Application candidate path.
+[`ROOM_EDITOR_L3_STATUS.md`](ROOM_EDITOR_L3_STATUS.md). The separately bounded
+A4c Candidate and derived-child source slices have since been integrated; Room
+Editor acceptance remains an independent Klaus gate.
 
 ## Checkpoint 5 — First deterministic Numberdroid adapter candidate
 
@@ -348,10 +349,10 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 
 ## Parallel masterplan track — Operations, Remote Access & Mobile
 
-**Status: O0 frozen; O1, O2a, A3a, A4a, and A4b source-integrated and automated
-green on 2026-08-30; the bounded Room Editor L3 continuation is source-integrated
-and automated green on 2026-09-01 but not user accepted; O1 user acceptance and
-O2 deployment remain open; A4c is next within the A4 track.**
+**Status: O0 frozen; O1, O2a, A3a, A4a, A4b and the complete bounded A4c source
+sequence are source-integrated and automated green; Room Editor L3 is also
+source-integrated and green but not user accepted; O1b is user accepted, O2
+deployment remains open; no A5 source work is authorized by this status.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -831,8 +832,8 @@ A4 proceeds in bounded dependency order:
    diff, and submit one immutable candidate, stopping at human review without
    materialization, repository write, publication, or release authority.
 
-**A4c authority decision — 2026-08-31 (implementation authorized; not
-implemented or user accepted):** every chain remains rooted in a human-created
+**A4c authority decision — 2026-08-31 (implemented in bounded source slices on
+2026-09-01; not user accepted):** every chain remains rooted in a human-created
 task/grant. The private application scope `level.candidate.create` may authorize
 exactly the task-bound create → validate → compile → preview → diff → submit
 sequence and must stop at `IN_REVIEW` / `OPEN` / all `PENDING` /
@@ -845,7 +846,7 @@ Neither mechanism grants root-task/grant management, review, merge, main append,
 materialization, repository write, publication, release, Remote MCP, Pairing,
 HostBinding, browser, public, or Funnel authority. Existing 19/4, 30/5, and
 selected 31/6 discovery catalogs do not change. The candidate path comes first;
-derived-child persistence is a separate later L3 slice, not a prerequisite.
+derived-child persistence is a separate L3 slice, not a prerequisite.
 
 The authority-neutral A4c Domain DTO foundation is **source-integrated /
 automated green — not user accepted** through PR #186, final head
@@ -856,6 +857,25 @@ implement the Application candidate path, EngineBridge trust check, task/review
 persistence, child derivation, or any operational surface. Exact contract,
 recovery provenance, pins, and next gates are recorded in
 [`A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md`](A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md).
+
+The private immutable Candidate Application is **source-integrated / automated,
+browser and Windows green — not user accepted** through PR #198, final head
+`6ea743ff5570677c24a58fae2c5cad210af19d3d`, Build #2344 / run
+`33553937139`, merge `053f9c407f5ecd7c93c1775249aa0630c88b6460`, and
+post-merge Build #2345 / run `33554781224`. It binds the real A4b source,
+A4a/A3a/adapter/compiler/validate-only EngineBridge closure and immutable
+submission atomically, then stops at `IN_REVIEW` / `OPEN` / `PENDING` /
+**Waiting for your review** with `main` unchanged.
+
+The separately bounded derived-child slice is likewise **source-integrated /
+automated, browser and Windows green — not user accepted** through PR #199,
+final head `6f7c6bfee89fec2e22200fe66002b3d3c73fb968`, Build #2347 / run
+`33562709548`, merge `122a2533a12abe5e51e6458fa80f2047825240b4`, and
+post-merge Build #2348 / run `33563416584` attempt 2. It derives only a
+same-actor/same-project, exact-head, equal-or-narrower, budget-reserved,
+no-later-expiry, depth-one child from an active human-rooted parent. Exact
+implementation and verification truth is recorded in
+[`A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md`](A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md).
 
 A4a implementation note (2026-08-30, **source-integrated / automated green —
 not user accepted**): PR #182 final head
@@ -879,8 +899,10 @@ honest unprojected-reference gaps are integrated. The fixture is not registered
 as a playable production Floor, so no distinct live `VT-` item is created and
 the slice remains not user accepted. Scope and evidence are recorded in
 [`A4B_REFERENCE_BEHAVIOR_STATUS.md`](A4B_REFERENCE_BEHAVIOR_STATUS.md).
-A4c Application integration is next after the source-integrated, not-yet-
-accepted Room Editor L3 continuation.
+The currently authorized A4 source sequence is complete in source. VT-014 keeps
+the Candidate/child product and authority decision open for Klaus. Room Editor
+VT-001 remains separately `REVISE`. Neither open gate authorizes A5, A6,
+materialization, repository publication or release.
 
 ### A5 — Thin portability proof
 

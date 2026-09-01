@@ -2,10 +2,10 @@
 
 ## 2026-09-01 verified execution adjustment
 
-Klaus live-tested VT-001 and VT-011 as REVISE and accepted VT-012. The bounded Room Editor source sequence is now integrated through PRs #191, #192 and #194–#196: functional repair; zoom/pan; placement ghost/direct manipulation; persisted error/action visibility; and an engine-neutral read-only top-down Studio Preview. These merges, CI and browser evidence do not close the deferred Klaus live gate. A later 2.5D projection remains planned over the same portable preview scene and is not a completion gate. The generic preview does not invoke Numberdroid or EngineBridge; it separates logical footprint from visual bounds, ground anchor and overhang. The immediate implementation sequence now resumes the private A4c Level Candidate path. This sequencing changes no A4c, MCP, remote, repository, materialization, publication or release authority. Evidence: [`../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md`](../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md) and [`../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md`](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md).
+Klaus live-tested VT-001 and VT-011 as REVISE and accepted VT-012. The bounded Room Editor source sequence is integrated through PRs #191, #192 and #194–#196: functional repair; zoom/pan; placement ghost/direct manipulation; persisted error/action visibility; and an engine-neutral read-only top-down Studio Preview. The separately bounded A4c immutable Candidate and strictly attenuated derived-child slices are integrated through PRs #198 and #199. These merges, CI and browser evidence close source Definitions of Done only: Room Editor VT-001 and A4c VT-014 remain explicit Klaus gates. A later 2.5D projection remains planned over the portable preview scene and is not a completion gate. The generic preview does not invoke Numberdroid or EngineBridge; A4c uses EngineBridge only for its existing validate-only contract. No A5, MCP, remote, repository materialization, publication or release work follows without a new explicit scope decision. Evidence: [`../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md`](../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md), [`../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md`](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md), and [`../../tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md`](../../tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md).
 
 
-Status: **current forward plan — Room Editor L3 is source-integrated but not user accepted; A4c Application Level Candidate is next; O2a deployment remains pending**
+Status: **current forward plan — Room Editor L3 and the complete authorized A4c source sequence are integrated but not user accepted; Klaus gates and O2a deployment remain pending; no A5 source work is authorized**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -214,7 +214,7 @@ Create, Verify, Recovery-test, Restore-as-copy, restart/session invalidation,
 durable state, deliberate missing-backup failure/recovery, keyboard focus, and
 responsive layouts passed. Low priority: open `Technical details` disclosures
 close after `F5`. Acceptance does not grant remote backup metadata/operation
-authority, activation, deletion, cleanup/retention, or deployment. O2a, A3a, A4a, and A4b are now source-integrated and
+authority, activation, deletion, cleanup/retention, or deployment. O2a, A3a, A4a, A4b, and the bounded A4c sequence are now source-integrated and
 automated green without widening those gates:
 
 - O2a PR #178 head `89141c079c1d96a4aa4c45d8b8c4b88dc464484c`,
@@ -232,7 +232,15 @@ automated green without widening those gates:
 - A4b PR #184 final head `475280def81cee3371c0a62606a496e846f010bc`,
   Build #2275 / run `33341970255`, merge
   `8238d05a29ee6524f6457bfccc315179ee3896b5`, post-merge Build #2276 /
-  run `33342294000`.
+  run `33342294000`;
+- A4c Candidate PR #198 final head
+  `6ea743ff5570677c24a58fae2c5cad210af19d3d`, Build #2344 / run
+  `33553937139`, merge `053f9c407f5ecd7c93c1775249aa0630c88b6460`,
+  post-merge Build #2345 / run `33554781224`, failed-only rerun green;
+- A4c derived child PR #199 final head
+  `6f7c6bfee89fec2e22200fe66002b3d3c73fb968`, Build #2347 / run
+  `33562709548`, merge `122a2533a12abe5e51e6458fa80f2047825240b4`,
+  post-merge Build #2348 / run `33563416584`, failed-only rerun green.
 
 Current autonomous engineering sequence:
 
@@ -244,30 +252,34 @@ O1b source-integrated and user-accepted through VT-012
 → A4b bounded reference behavior source-integrated
 → A4c authority-neutral Domain foundation source-integrated
 → bounded Room Editor L3 continuation source-integrated through PRs #191, #192, #194, #195 and #196; live acceptance pending
-→ A4c task-scoped Application candidate path stopping at Waiting for your review
-→ later O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
+→ A4c task-scoped Application candidate source-integrated; stops at Waiting for your review
+→ A4c trusted-service derived child source-integrated; human-rooted, strictly attenuated and depth one
+→ Klaus VT-001 / VT-014 decisions or a new explicit scope decision
+→ later deliberate O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
 ```
 
-A4a and A4b are now source-integrated and automated green, with exact evidence in
+A4a and A4b are source-integrated and automated green, with exact evidence in
 `tools/numberdroid-studio/docs/A4A_NUMBERDROID_LEVEL_PROJECTION_STATUS.md`
-and `tools/numberdroid-studio/docs/A4B_REFERENCE_BEHAVIOR_STATUS.md`. The
-dependent A4c task-scoped candidate path defined in Studio `ROADMAP.md` is now
-the next bounded engineering slice after the source-integrated Room Editor L3
-continuation.
-It may not add remote backup/MCP authority, deployment, O3/O4,
+and `tools/numberdroid-studio/docs/A4B_REFERENCE_BEHAVIOR_STATUS.md`. A4c is
+also source-integrated and green through the separate Candidate and child
+slices, with exact evidence in
+`tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md`.
+All remain unaccepted unless explicitly recorded otherwise. No implied next
+slice may add remote backup/MCP authority, deployment, O3/O4/A5/A6,
 materialization, publication, or release.
 
-Klaus's 2026-08-31 scope decision authorizes two exact A4c mechanisms without
+Klaus's 2026-08-31 scope decision authorized two exact A4c mechanisms without
 accepting them: private `level.candidate.create` for one task-bound immutable
-Create/Validate/Compile/Preview/Diff/Submit closure, and a later trusted-service
+Create/Validate/Compile/Preview/Diff/Submit closure, and a trusted-service
 operation that derives a same-project/same-actor child task as a strict subset
 of an active human-rooted parent with atomically reserved budget and cascading
 ancestor denial. The private candidate scope changes no MCP discovery count and
 must stop at task/effective `IN_REVIEW`, review `OPEN`, every item `PENDING`,
 `REVIEW_SUBMITTED`, and **Waiting for your review**. Candidate Application work
-comes first; child-task persistence is a separate L3 risk axis and is not a
-prerequisite. Current implementation truth and exact pins live in
-`tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md`.
+was integrated first; child-task persistence remained a separate L3 risk axis.
+Current authority and implementation truth live in
+`tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md`
+and `tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md`.
 
 The detailed binding track plan and gate boundaries live in:
 

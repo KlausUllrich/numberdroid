@@ -1,12 +1,12 @@
 # Numberdroid Studio — Consolidated Return Test Backlog
 
-Status: **current live backlog; Room Editor source repairs are green and still require Klaus live verification**
+Status: **current live backlog; Room Editor and bounded A4c source sequences are green; VT-001 live verification and VT-014 review remain with Klaus**
 
-Source baseline recorded: 2026-09-01 after the Room Editor L3 completion merge
-at `main` `fc0969452ec6e22e2e3bddab399a2c56f5e6f63d`, tree
-`46afd8f915a17a2143363424a2eb057d9b5902a7`; post-merge Build #2341 / run
-`33541276661` passed. Receivers MUST still replace this with newer verified
-remote `main` truth as work lands.
+Source baseline recorded: 2026-09-01 after the A4c derived-child merge at `main`
+`122a2533a12abe5e51e6458fa80f2047825240b4`, tree
+`c14f39c687214434ab7b8850dfc4411bf2fe1a60`; post-merge Build #2348 / run
+`33563416584` attempt 2 passed. Receivers MUST still replace this with newer
+verified remote `main` truth as work lands.
 
 ## Purpose
 
@@ -42,6 +42,7 @@ Keep these states distinct:
 | VT-011 | A1.7 processed-asset review UI candidate | REVISE — LIVE TESTED 2026-09-01 | VT-000 and VT-004–VT-010 | Accept/revise the selected-task preview, correction hierarchy, responsive layout, fallback, and return-state continuity |
 | VT-012 | O1b first Backups UI candidate | USER ACCEPTED 2026-09-01 | VT-000 and integrated O0/O1a | Accepted after live Create, Verify, Recovery-test, Restore-as-copy, restart, missing-backup, recovery and responsive checks; low-priority disclosure-state finding retained |
 | VT-013 | O2a private read-only service deployment | NEEDS KLAUS LIVE | integrated O2a and deliberately configured private host | Accept/revise authentication, read-only boundary, restart/session behavior, and operator burden; not O3 mobile UX |
+| VT-014 | A4c immutable Level Candidate and restricted derived child | NEEDS KLAUS REVIEW | VT-000 and source-integrated A3a/A4a/A4b/A4c | Accept/revise private Candidate closure, strict child attenuation and truthful read-only task presentation; no materialization or publication |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -59,15 +60,17 @@ host/deployment review is `VT-013`. A3a and A4a are UI-independent contract and
 projection evidence and therefore add no live `VT-` item. A4b is also
 source-integrated and automated green but its reference fixture is not
 registered as a playable production Floor, so it adds no distinct live `VT-`
-item. A3a, A4a, and A4b remain not user accepted. A4c must add a bounded record
-only if its implemented surface creates a distinct Klaus review/live gate.
+item. A3a, A4a, and A4b remain not user accepted. The now-implemented A4c
+Candidate and child surface creates the distinct contract/product gate recorded
+as `VT-014`.
 
 Klaus's 2026-08-31 approval of private `level.candidate.create` and strictly
 parent-derived child-task implementation is a scope decision, not product
-acceptance. The authority-neutral A4c Domain DTO foundation has no visible/live
-surface and therefore adds no `VT-` item. A future implemented A4c candidate or
-child-task surface may receive the next ID only when it creates a distinct Klaus
-review/live gate; planned authority and CI evidence alone never allocate one.
+acceptance. The authority-neutral A4c Domain DTO foundation alone has no
+visible/live surface and therefore allocated no `VT-` item. PRs #198 and #199
+implemented the private Candidate closure, restricted child persistence and a
+read-only task projection, so `VT-014` now records the still-open Klaus decision.
+CI and browser evidence do not close it.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
 [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately
@@ -1168,6 +1171,90 @@ automation and source integration do not change the `REVISE` live result.
   Revoke/replace the test credential through the runbook. Do not delete or
   repurpose active workspace, backup, or restored-copy roots.
 
+## VT-014 — A4c immutable Candidate and restricted derived child
+
+- **Prerequisites/implementation:** VT-000; source-integrated A3a, A4a and A4b;
+  the A4c Domain foundation through PR #186; Candidate PR #198 final head
+  `6ea743ff5570677c24a58fae2c5cad210af19d3d`, merge
+  `053f9c407f5ecd7c93c1775249aa0630c88b6460`; and derived-child PR #199
+  final head `6f7c6bfee89fec2e22200fe66002b3d3c73fb968`, merge/tested `main`
+  `122a2533a12abe5e51e6458fa80f2047825240b4`, tree
+  `c14f39c687214434ab7b8850dfc4411bf2fe1a60`.
+- **State:** `NEEDS KLAUS REVIEW`. Source, automated, browser and Windows gates
+  are green; neither the private authority contract nor the read-only product
+  presentation is user accepted. This gate does not accept A3a/A4a/A4b or
+  resolve Room Editor VT-001.
+- **Safe fixture on Linux/macOS:** from `tools/numberdroid-studio/`, allocate a
+  fresh directory with `mktemp -d`, copy its exact absolute path, replace
+  `PASTE_ABSOLUTE_A4C_REVIEW_PATH`, then run:
+
+  ```bash
+  node scripts/prepare-checkpoint-4-visual-evidence.js "PASTE_ABSOLUTE_A4C_REVIEW_PATH"
+  NUMBERDROID_STUDIO_DATA="PASTE_ABSOLUTE_A4C_REVIEW_PATH" npm run dev
+  ```
+
+- **Safe fixture on Windows PowerShell:** allocate a new unique directory as in
+  VT-000, assign it to `$studioA4cReview`, then run:
+
+  ```powershell
+  node scripts/prepare-checkpoint-4-visual-evidence.js $studioA4cReview
+  $env:NUMBERDROID_STUDIO_DATA = $studioA4cReview
+  npm run dev
+  ```
+
+  The prepared fixture uses fixed local identities and creates four tasks,
+  including an immutable Candidate and an ancestor-blocked trusted-service
+  child. The script does not prove that its target is empty: the operator MUST
+  supply the newly allocated path and never point it at a personal, active,
+  backup or restored workspace.
+- **Bounded review:**
+  1. Open `http://127.0.0.1:4317`, choose **Agent tasks**, and confirm the
+     overview names action-required state before detail.
+  2. Select **Review immutable A4b Level Candidate**. Confirm the visible
+     **Waiting for your review** state and pending read-only disposition are
+     understandable without exposing Decide or Merge controls. The underlying
+     automated integrity evidence, not this UI step, proves task `IN_REVIEW`
+     and review `OPEN`.
+  3. Confirm the Candidate explanation says review decision, merge,
+     materialization, publication and release are not authorized. Do not infer a
+     runtime preview or playable Numberdroid Floor.
+  4. Return to the list and select the task marked **Blocked by parent task**.
+     Confirm its origin is trusted-service child and its same-project/same-actor
+     lineage, exact parent origin, reserved budget and ancestor-blocked reason
+     are readable.
+  5. Confirm the child exposes no task mutation, Decide, Merge, processing-result
+     adoption or child-derivation control and states that it cannot execute,
+     create a Candidate or change the Project while the ancestor is blocked.
+  6. Open technical details only to inspect exact IDs/bindings; close and reopen
+     the task and restart Studio. Confirm the same immutable Candidate/lineage is
+     present with no duplicate visible review, child, reservation or timeline
+     event and with the visible Project revision unchanged. Automated restart/
+     integrity tests separately prove Grant uniqueness and unchanged `main`.
+- **Required platform/evidence:** contract review is primary; the read-only
+  presentation portion requires desktop Chrome at one protected viewport,
+  1440×900 or 1060×900. PR #198 passed
+  Build #2344 / run `33553937139`; post-merge Build #2345 / run
+  `33554781224` passed after a failed-only rerun. PR #199 passed Build #2347 /
+  run `33562709548`; its `numberdroid-studio-checkpoint-4-evidence` artifact
+  contains `task-candidate-readonly-1440.png`,
+  `task-candidate-readonly-1060.png`, `task-derived-child-1440.png` and
+  `task-derived-child-1060.png`. Post-merge Build #2348 / run `33563416584`
+  passed on attempt 2 after attempt 1 hit only the Windows ten-minute job limit.
+- **Known limits:** there is no public create/derive route, MCP discovery,
+  EngineBridge render extension, auto-accept, owner decision, merge, `main`
+  append, materialization, repository publication or release. The fixture is a
+  read-only inspection surface, not a UI for exercising the private services.
+- **Open Klaus decision:** accept or revise the one-candidate stop at **Waiting
+  for your review**, exact immutable evidence, strict child attenuation and
+  understandable no-authority/ancestor-blocked presentation. Any change to the
+  authority contract requires a new explicit decision; CI cannot make it.
+- **Recovery:** stop Studio and retain the exact temporary directory until the
+  decision is recorded; then discard only that uniquely allocated directory via
+  normal temporary-file cleanup. On PowerShell also run
+  `Remove-Item Env:NUMBERDROID_STUDIO_DATA`. Schema v14/v15 upgrades in a real
+  workspace are forward-only: use a verified pre-upgrade copy or a forward
+  repair, never an unsupported downgrade or ad-hoc row deletion.
+
 ## Required record for every new candidate
 
 Append one section containing:
@@ -1190,9 +1277,10 @@ Append one section containing:
 3. New A1 image-to-asset candidates in dependency order, followed by VT-002
    interface review where useful.
 4. Agent/MCP scope, revoke, conflict, review, and **Waiting for your review**.
-5. Backup UI and restore-as-copy only after an O1 UI candidate exists.
-6. CP5 candidate review after its prerequisites.
-7. Remote/Android tests only after all O2/O3 predecessor gates are explicitly
+5. VT-014 A4c immutable Candidate and restricted-child contract/product review.
+6. Backup UI and restore-as-copy only after an O1 UI candidate exists.
+7. CP5 candidate review after its prerequisites.
+8. Remote/Android tests only after all O2/O3 predecessor gates are explicitly
    satisfied; automated phone screenshots do not replace the real device gate.
 
 Every backup/recovery test targets a new or copied workspace. No active user
