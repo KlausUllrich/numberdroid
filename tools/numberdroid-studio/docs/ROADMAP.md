@@ -362,10 +362,12 @@ The gates are:
    exact counts. Remote Streamable HTTP MCP remains optional and separately
    security-reviewed.
 
-The fail-closed O1a application/job seam and bounded O1b local-human UI are now
+The fail-closed O1a application/job seam and bounded O1b local-human UI are
 source-integrated and automated green, recorded in `O1A_BACKUP_CORE_STATUS.md`
-and `O1B_BACKUPS_UI_STATUS.md`. They remain **not user accepted**. VT-012 blocks
-an O1 acceptance claim and remote backup metadata/operation authority. The
+and `O1B_BACKUPS_UI_STATUS.md`. Klaus **user-accepted O1b through VT-012 on
+2026-09-01**. The accepted boundary still grants no remote backup
+metadata/operation authority. The low-priority `Technical details` reload-state
+finding remains recorded without reopening acceptance. The
 separately bounded O2a service, A3a contracts, A4a lossless Numberdroid
 projection, and A4b reference behavior are now source-integrated and automated
 green, without deployment or user acceptance. Phone acceptance, remote backup
