@@ -193,6 +193,35 @@ are stable enough that a mockup will not freeze accidental architecture.
 
 ## Near-term success
 
+### Engine-neutral Studio preview
+
+The ordinary authoring preview is a Studio responsibility, not a dependency on
+the Numberdroid runtime or any other engine. Studio MUST project the exact
+immutable room revision into an engine-neutral, read-only preview scene and MAY
+render that scene through multiple presentation projections.
+
+The first renderer is a fast top-down composition that preserves room shape,
+positions, rotations, anchors, ordered layers, transparency, footprints,
+connectors and validation overlays. It is an approximate authoring preview and
+MUST say that engine lighting, animation, shaders, physics and runtime behavior
+may differ. It grants no validation, acceptance, materialization or publication
+authority.
+
+The preview scene MUST separate logical occupancy from visual presentation. An
+asset's collision/navigation footprint is independent from its ground anchor,
+visual bounds, visual offset, elevation and optional overhang. A side-facing or
+2.5D sprite may therefore extend across cells behind its logical footprint
+without occupying those cells. Transparency continues to reveal lower layers.
+Selection and diagnostics expose both the footprint and visible bounds.
+
+A later Studio renderer MAY provide a 2.5D/isometric or dimetric projection of
+the same preview scene, including simple height classes, billboard/side-facing
+sprites, depth ordering by ground anchor, and optional segmented foreground or
+background parts for complex occlusion. This is deliberately separate from
+engine-specific preview adapters. Numberdroid remains top-down; optional
+Numberdroid, Godot or Unreal runtime previews are higher-fidelity adapter
+features, never the foundation of the portable Studio preview.
+
 Studio has reached the intended first product milestone when an authorized agent,
 starting only from project guidance and MCP discovery, can:
 
