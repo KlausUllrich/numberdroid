@@ -1506,6 +1506,15 @@ try {
           const preview = document.querySelector('.room-placement-preview .useful-asset-preview');
           const image = preview?.querySelector('.asset-preview.ready img');
           const use = document.querySelector('[data-room-control="use-preview-asset"]');
+          const stage = preview?.querySelector('.prop-preview-stage');
+          const stageBounds = stage?.getBoundingClientRect();
+          const imageBounds = image?.getBoundingClientRect();
+          const containedAtRotation = Boolean(stageBounds && imageBounds
+            && imageBounds.left >= stageBounds.left - 1 && imageBounds.top >= stageBounds.top - 1
+            && imageBounds.right <= stageBounds.right + 1 && imageBounds.bottom <= stageBounds.bottom + 1);
+          const fillsRotatedStage = Boolean(stageBounds && imageBounds
+            && Math.abs(imageBounds.width - stageBounds.width) <= 2
+            && Math.abs(imageBounds.height - stageBounds.height) <= 2);
           return {
             present: Boolean(preview),
             ready: preview?.dataset.previewReady ?? null,
@@ -1516,6 +1525,10 @@ try {
             collisionCount: preview?.querySelectorAll('.prop-collision-overlay').length ?? 0,
             topLeftMarker: Boolean(preview?.querySelector('.prop-top-left-marker')),
             anchorLabel: preview?.querySelector('.prop-anchor-marker')?.getAttribute('aria-label') ?? null,
+            containedAtRotation,
+            fillsRotatedStage,
+            stageBounds: stageBounds ? { width: stageBounds.width, height: stageBounds.height } : null,
+            imageBounds: imageBounds ? { width: imageBounds.width, height: imageBounds.height } : null,
           };
         })(),
       };
@@ -2059,6 +2072,8 @@ try {
         && layout.roomDesigner.placementPreview.collisionCount === 1
         && layout.roomDesigner.placementPreview.topLeftMarker === true
         && layout.roomDesigner.placementPreview.anchorLabel?.includes('after 90 degree rotation')
+        && layout.roomDesigner.placementPreview.containedAtRotation === true
+        && layout.roomDesigner.placementPreview.fillsRotatedStage === true
         && layout.roomDesigner.placementPreview.useDisabled === false,
       'Checkpoint 4.5 prop evidence lost its exact image, footprint, rotation, navigation, or placement gate.');
     }
