@@ -90,6 +90,7 @@ const state = {
     selectedRoomVariantId: null,
     selectedPlacementId: null,
     selectedConnectorId: null,
+    selectedFinding: null,
     selectedPaletteAssetId: null,
     previewAssetId: null,
     selectedProposalId: null,
@@ -1960,10 +1961,20 @@ function renderOverview(snapshot) {
   const roomVariants = snapshot.roomLibrary?.variants?.length ?? snapshot.rooms.length;
   const pendingProposals = (snapshot.assetLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0)
     + (snapshot.roomLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0);
+  const taskAttention = state.tasks.map((entry) => ({ entry, attention: taskAttentionPresentation(entry) }))
+    .filter(({ attention }) => attention);
+  const taskConflicts = taskAttention.filter(({ attention }) => attention.kind === 'CONFLICT');
+  const roomAttention = currentRoomLibrary(snapshot).variants.map((entry) => ({ entry, projection: roomHeadFindingProjection(entry) }))
+    .filter(({ projection }) => projection.state !== 'AVAILABLE' || projection.errors.length > 0);
+  const savedRoomErrors = roomAttention.reduce((total, { projection }) => (
+    projection.state === 'AVAILABLE' ? total + projection.errors.length : total
+  ), 0);
   const values = [
     ['Sources', snapshot.sources.length], ['Assets', snapshot.assets.length + v2Assets],
     ['Rooms', roomVariants], ['Levels', snapshot.levels.length],
     ...(snapshot.assetLibrary ? [['Pending reviews', pendingProposals]] : []),
+    ['Tasks needing you', taskAttention.length], ['Task conflicts', taskConflicts.length],
+    ['Saved room errors', savedRoomErrors],
     ['Active grants', activeGrants.length],
   ];
   for (const [label, value] of values) {
@@ -1973,7 +1984,42 @@ function renderOverview(snapshot) {
     const strong = document.createElement('strong'); strong.textContent = value;
     metric.append(small, strong); metrics.append(metric);
   }
-  fragment.append(metrics, sectionHeading('Production board', 'See what is ready, what needs attention, and which people or agents changed the project.'));
+  fragment.append(metrics);
+  const attention = document.createElement('section'); attention.className = 'overview-attention';
+  attention.append(sectionHeading('Needs your attention', 'These are read-only signals from saved task reviews and exact saved room heads. Nothing is accepted, fixed, or merged here.'));
+  const attentionList = document.createElement('div'); attentionList.className = 'overview-attention-list';
+  for (const { entry, attention: task } of taskAttention) {
+    const item = document.createElement('article'); item.className = 'overview-attention-item'; item.dataset.tone = task.kind === 'CONFLICT' ? 'problem' : 'attention';
+    const copy = document.createElement('div');
+    const label = document.createElement('strong'); label.textContent = `${task.label}: ${entry.task.title}`;
+    const detail = document.createElement('p'); detail.textContent = task.summary; copy.append(label, detail);
+    const open = document.createElement('button'); open.type = 'button'; open.className = 'secondary'; open.dataset.overviewOpen = 'tasks'; open.textContent = 'Open task overview';
+    item.append(copy, open); attentionList.append(item);
+  }
+  for (const { entry, projection } of roomAttention) {
+    const item = document.createElement('article'); item.className = 'overview-attention-item'; item.dataset.tone = 'problem';
+    const copy = document.createElement('div'); const label = document.createElement('strong');
+    const detail = document.createElement('p');
+    if (projection.state === 'AVAILABLE') {
+      label.textContent = `${projection.errors.length} saved room error${projection.errors.length === 1 ? '' : 's'}: ${projection.head.displayName}`;
+      detail.textContent = `Exact saved room v${projection.head.version} needs correction before validation. Open its persisted findings for the next steps.`;
+    } else {
+      label.textContent = `Saved room status unavailable: ${entry.roomVariantId}`;
+      detail.textContent = 'The exact referenced room head is unavailable. Studio will not present this room as clear.';
+    }
+    copy.append(label, detail);
+    item.append(copy);
+    if (projection.state === 'AVAILABLE') {
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'secondary'; open.dataset.overviewOpen = 'room-findings'; open.dataset.roomVariantId = entry.roomVariantId;
+      if (projection.errors[0]) open.dataset.findingId = projection.errors[0].findingId;
+      open.textContent = 'Open saved findings'; item.append(open);
+    }
+    attentionList.append(item);
+  }
+  if (!attentionList.children.length) {
+    const clear = document.createElement('p'); clear.className = 'overview-attention-clear'; clear.textContent = 'No saved task action or exact-head room error currently needs attention.'; attentionList.append(clear);
+  }
+  attention.append(attentionList); fragment.append(attention, sectionHeading('Production board', 'See what is ready, what needs attention, and which people or agents changed the project.'));
   const grid = document.createElement('div');
   grid.className = 'card-grid';
   grid.append(
@@ -2413,8 +2459,45 @@ function currentRoomLibrary(snapshot = state.project?.snapshot) {
   return snapshot?.roomLibrary ?? { schemaVersion: 1, archetypes: [], variants: [], proposals: [] };
 }
 
+function exactRoomHead(entry) {
+  return entry?.versions?.find(({ version }) => version === entry.headVersion) ?? null;
+}
+
 function roomHead(entry) {
-  return entry?.versions?.find(({ version }) => version === entry.headVersion) ?? entry?.versions?.at(-1) ?? null;
+  return exactRoomHead(entry) ?? entry?.versions?.at(-1) ?? null;
+}
+
+function roomHeadFindingProjection(entry) {
+  const head = exactRoomHead(entry);
+  if (!head || !Array.isArray(head.findings)) return { state: 'UNAVAILABLE', head: null, errors: [] };
+  return {
+    state: 'AVAILABLE',
+    head,
+    errors: head.findings.filter(({ severity }) => severity === 'ERROR'),
+  };
+}
+
+function roomFindingFocusKey(roomVariantId, roomVersion, findingId) {
+  return `room-finding:${roomVariantId}:${roomVersion}:${findingId}`;
+}
+
+function selectRoomFinding(variant, finding) {
+  if (!state.project || !variant || !finding) return null;
+  const selection = {
+    projectId: state.project.projectId,
+    roomVariantId: variant.roomVariantId,
+    roomVersion: variant.version,
+    findingId: finding.findingId,
+  };
+  state.roomUi.selectedFinding = selection;
+  if (finding.targetKind === 'roomPlacement'
+      && variant.placements.some(({ placementId }) => placementId === finding.targetId)) {
+    state.roomUi.selectedPlacementId = finding.targetId; state.roomUi.selectedConnectorId = null;
+  } else if (finding.targetKind === 'roomConnector'
+      && variant.connectors.some(({ connectorId }) => connectorId === finding.targetId)) {
+    state.roomUi.selectedConnectorId = finding.targetId; state.roomUi.selectedPlacementId = null;
+  }
+  return roomFindingFocusKey(variant.roomVariantId, variant.version, finding.findingId);
 }
 
 function currentRoomVariant(snapshot = state.project?.snapshot) {
@@ -2869,17 +2952,41 @@ function renderRoomLayers() {
 
 function renderRoomFindings(variant) {
   const section = document.createElement('section'); section.className = 'room-findings';
-  const title = document.createElement('h3'); title.textContent = `Live findings · ${findingSummary(variant.findings)}`; section.append(title);
+  const title = document.createElement('h3'); title.textContent = `Saved findings · ${findingSummary(variant.findings)}`; section.append(title);
+  const guidance = document.createElement('p'); guidance.className = 'room-findings-guidance';
+  guidance.textContent = `These findings belong to exact saved room v${variant.version}. Choose a linked target to locate it; no automatic fix or acceptance is performed.`;
+  section.append(guidance);
   const list = document.createElement('ul'); list.className = 'asset-findings'; list.dataset.roomScroll = 'findings';
   if (!variant.findings.length) { const clear = document.createElement('li'); clear.className = 'clear'; clear.textContent = 'No current findings.'; list.append(clear); }
   for (const finding of variant.findings) {
-    const item = document.createElement('li'); item.dataset.severity = finding.severity;
-    const focus = document.createElement('button'); focus.type = 'button'; focus.className = 'room-finding-link';
-    focus.dataset.roomControl = 'finding'; focus.dataset.targetKind = finding.targetKind; focus.dataset.targetId = finding.targetId;
-    focus.textContent = `${finding.severity} · ${finding.ruleId}`;
-    const explanation = document.createElement('span'); explanation.textContent = finding.explanation;
-    const remediation = document.createElement('small'); remediation.textContent = finding.remediation;
-    item.append(focus, explanation, remediation); list.append(item);
+    const focusKey = roomFindingFocusKey(variant.roomVariantId, variant.version, finding.findingId);
+    const selected = state.roomUi.selectedFinding?.projectId === state.project?.projectId
+      && state.roomUi.selectedFinding.roomVariantId === variant.roomVariantId
+      && state.roomUi.selectedFinding.roomVersion === variant.version
+      && state.roomUi.selectedFinding.findingId === finding.findingId;
+    const item = document.createElement('li'); item.dataset.severity = finding.severity; item.dataset.findingId = finding.findingId; item.dataset.selected = String(selected);
+    const explanation = document.createElement('strong'); explanation.className = 'room-finding-explanation'; explanation.textContent = finding.explanation;
+    const targetExists = finding.targetKind === 'roomPlacement'
+      ? variant.placements.some(({ placementId }) => placementId === finding.targetId)
+      : finding.targetKind === 'roomConnector'
+        ? variant.connectors.some(({ connectorId }) => connectorId === finding.targetId) : false;
+    if (targetExists) {
+      const focus = document.createElement('button'); focus.type = 'button'; focus.className = 'room-finding-link';
+      focus.dataset.roomControl = 'finding'; focus.dataset.roomFocusKey = focusKey;
+      focus.dataset.findingId = finding.findingId; focus.dataset.targetKind = finding.targetKind; focus.dataset.targetId = finding.targetId;
+      focus.textContent = finding.targetKind === 'roomPlacement'
+        ? `Show affected placement ${finding.targetId}` : `Show affected connector ${finding.targetId}`;
+      if (selected) focus.setAttribute('aria-current', 'true'); item.append(explanation, focus);
+    } else {
+      const scope = document.createElement('span'); scope.className = 'room-finding-scope';
+      scope.textContent = finding.targetKind === 'roomVariant' ? 'Room-wide issue' : 'No navigable saved target';
+      item.append(explanation, scope);
+    }
+    const remediation = document.createElement('p'); remediation.className = 'room-finding-remediation'; remediation.textContent = `Next: ${finding.remediation}`;
+    const technical = document.createElement('details'); technical.className = 'room-finding-technical';
+    const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical finding identity';
+    const technicalCode = document.createElement('code'); technicalCode.textContent = `${finding.severity} · ${finding.ruleId} · ${finding.path}`;
+    technical.append(technicalSummary, technicalCode); item.append(remediation, technical); list.append(item);
   }
   section.append(list); return section;
 }
@@ -2950,7 +3057,7 @@ function renderRoomShapeControls(variant) {
 }
 
 function renderRoomEditorDock(variant, snapshot, library) {
-  const dock = document.createElement('aside'); dock.className = 'room-editor-dock'; dock.append(renderRoomDockNavigation(), renderRoomLayers());
+  const dock = document.createElement('aside'); dock.className = 'room-editor-dock'; dock.dataset.roomScroll = 'dock'; dock.append(renderRoomDockNavigation(), renderRoomLayers());
   if (state.roomUi.dockPanel === 'properties') {
     dock.append(renderRoomEditForms(variant, 'purpose'), renderRoomCreation(library));
   } else if (state.roomUi.dockPanel === 'check') {
@@ -3105,6 +3212,27 @@ function renderRoomLifecycle(variant) {
   section.append(actions); return section;
 }
 
+function renderRoomErrorAttention(entry) {
+  const projection = roomHeadFindingProjection(entry);
+  if (projection.state === 'AVAILABLE' && projection.errors.length === 0) return null;
+  const section = document.createElement('section'); section.className = 'room-error-attention'; section.setAttribute('role', 'alert');
+  section.dataset.roomErrorState = projection.state === 'AVAILABLE' ? 'ERROR' : 'UNAVAILABLE';
+  const copy = document.createElement('div'); const title = document.createElement('strong'); const detail = document.createElement('p');
+  if (projection.state === 'AVAILABLE') {
+    title.textContent = `${projection.errors.length} saved error${projection.errors.length === 1 ? '' : 's'} need correction`;
+    detail.textContent = `These findings are persisted with exact room v${projection.head.version}; validation remains blocked until a new saved version resolves them.`;
+  } else {
+    title.textContent = 'Saved room status unavailable — needs attention';
+    detail.textContent = 'The exact referenced room head or its findings are unavailable. Studio will not present this room as clear.';
+  }
+  copy.append(title, detail);
+  section.append(copy);
+  if (projection.state === 'AVAILABLE') {
+    const open = roomControl('Show saved findings', 'show-findings'); open.classList.add('secondary'); section.append(open);
+  }
+  return section;
+}
+
 function renderRooms(snapshot) {
   const fragment = document.createDocumentFragment(); const library = currentRoomLibrary(snapshot);
   if (!library.variants.length) {
@@ -3113,13 +3241,16 @@ function renderRooms(snapshot) {
     return fragment;
   }
   if (!library.variants.some(({ roomVariantId }) => roomVariantId === state.roomUi.selectedRoomVariantId)) state.roomUi.selectedRoomVariantId = library.variants[0].roomVariantId;
-  const { variant } = currentRoomVariant(snapshot); const archetype = library.archetypes.find(({ roomArchetypeId, version }) => roomArchetypeId === variant.roomArchetypeId && version === variant.archetypeVersion);
+  const { entry: selectedEntry, variant } = currentRoomVariant(snapshot); const archetype = library.archetypes.find(({ roomArchetypeId, version }) => roomArchetypeId === variant.roomArchetypeId && version === variant.archetypeVersion);
   const header = document.createElement('section'); header.className = 'room-header';
   const selectorLabel = document.createElement('label'); const selectorCaption = document.createElement('span'); selectorCaption.textContent = 'Room / hallway';
   const selector = document.createElement('select'); selector.dataset.roomVariantSelect = 'true'; selector.dataset.roomControl = 'room-select';
   for (const entry of library.variants) {
-    const head = roomHead(entry); const entryArchetype = library.archetypes.find((candidate) => candidate.roomArchetypeId === head.roomArchetypeId && candidate.version === head.archetypeVersion);
-    const option = document.createElement('option'); option.value = entry.roomVariantId; option.textContent = `${head.displayName} · ${entryArchetype?.kind ?? 'room'} · ${head.lifecycle} v${head.version}`; selector.append(option);
+    const head = roomHead(entry); const projection = roomHeadFindingProjection(entry);
+    const entryArchetype = library.archetypes.find((candidate) => candidate.roomArchetypeId === head.roomArchetypeId && candidate.version === head.archetypeVersion);
+    const attention = projection.state !== 'AVAILABLE' ? ' · status unavailable'
+      : projection.errors.length ? ` · ${projection.errors.length} saved error${projection.errors.length === 1 ? '' : 's'}` : '';
+    const option = document.createElement('option'); option.value = entry.roomVariantId; option.textContent = `${head.displayName} · ${entryArchetype?.kind ?? 'room'} · ${head.lifecycle} v${head.version}${attention}`; selector.append(option);
   }
   selector.value = variant.roomVariantId; selectorLabel.append(selectorCaption, selector);
   const identity = document.createElement('div'); const heading = document.createElement('h2'); heading.textContent = variant.displayName;
@@ -3132,7 +3263,9 @@ function renderRooms(snapshot) {
   const shell = document.createElement('div'); shell.className = 'room-editor-shell';
   shell.append(renderRoomToolbox(variant), renderRoomCanvas(variant, snapshot), renderRoomEditorDock(variant, snapshot, library));
   editor.append(shell); applyRoomShapeDraftLock(editor, variant);
-  header.append(selectorLabel, identity, roomStatusPill(variant.lifecycle)); fragment.append(header, editor);
+  header.append(selectorLabel, identity, roomStatusPill(variant.lifecycle)); fragment.append(header);
+  const errorAttention = renderRoomErrorAttention(selectedEntry); if (errorAttention) fragment.append(errorAttention);
+  fragment.append(editor);
   return fragment;
 }
 
@@ -3227,6 +3360,28 @@ function taskWorkflowPresentation(entry) {
     EXPIRED: { actor: 'You', next: 'End this task and create a new task if work should continue.', consequence: 'The expired agent access cannot be resumed or used.' },
   };
   return { state: stateValue, ...(presentations[stateValue] ?? { actor: 'You', next: 'Inspect the task history.', consequence: 'No automatic action is taken.' }) };
+}
+
+function taskAttentionPresentation(entry) {
+  const stateValue = taskEffectiveState(entry);
+  const conflicts = Array.isArray(entry.review?.conflicts) ? entry.review.conflicts : [];
+  if (conflicts.length) {
+    const comparedRevision = Number.isInteger(entry.review?.comparedMainRevision)
+      ? ` during the saved review comparison at project r${entry.review.comparedMainRevision}` : ' in the saved review';
+    return {
+      kind: 'CONFLICT',
+      label: 'Recorded conflict — action required',
+      summary: `${conflicts.length} overlapping project item${conflicts.length === 1 ? ' was' : 's were'} recorded${comparedRevision}. End this task without adding its changes, then create a new task from the current project. Main is always checked again before any merge.`,
+    };
+  }
+  const presentations = {
+    IN_REVIEW: { label: 'Waiting for your review', summary: 'Review every proposed change, then explicitly complete or end the task.' },
+    PAUSED: { label: 'Action required', summary: 'Choose whether the assigned agent should continue or the task should end.' },
+    CHANGES_REQUESTED: { label: 'Action required', summary: 'Restart the task when the assigned agent should address your requested changes.' },
+    EXPIRED: { label: 'Action required', summary: 'End the expired task and create a new task if the work should continue.' },
+  };
+  const presentation = presentations[stateValue];
+  return presentation ? { kind: 'ACTION_REQUIRED', ...presentation } : null;
 }
 
 function processingAttemptCopy(attempt, { secondary = false } = {}) {
@@ -3587,8 +3742,15 @@ function renderTaskList() {
     button.dataset.taskControl = 'select'; button.dataset.taskId = entry.task.taskId;
     const strong = document.createElement('strong'); strong.textContent = entry.task.title;
     const presentation = taskWorkflowPresentation(entry);
+    const attention = taskAttentionPresentation(entry); button.dataset.taskAttention = attention?.kind ?? 'NONE';
+    let callout = null;
+    if (attention) {
+      callout = document.createElement('span'); callout.className = 'task-list-attention';
+      const label = document.createElement('strong'); label.textContent = attention.label;
+      const detail = document.createElement('span'); detail.textContent = attention.summary; callout.append(label, detail);
+    }
     const small = document.createElement('small'); small.textContent = `${presentation.actor} acts next · ${presentation.next}`;
-    button.append(strong, taskStateBadge(entry), small); items.append(button);
+    button.append(strong, taskStateBadge(entry)); if (callout) button.append(callout); button.append(small); items.append(button);
   }
   list.append(items); return list;
 }
@@ -4097,7 +4259,7 @@ function workspaceRenderFingerprint() {
     assetMutationPending: state.assetMutationPending,
     roomMutationPending: state.roomMutationPending,
     taskMutationPending: state.taskMutationPending,
-    tasks: state.workspace === 'tasks' ? state.tasks : null,
+    tasks: ['overview', 'tasks'].includes(state.workspace) ? state.tasks : null,
     taskUi: state.workspace === 'tasks' ? state.taskUi : null,
     taskAdoption: state.workspace === 'tasks' && state.taskUi.view === 'detail'
       ? state.taskAdoption
@@ -4141,6 +4303,7 @@ function workspaceRenderFingerprint() {
       selectedRoomVariantId: state.roomUi.selectedRoomVariantId,
       selectedPlacementId: state.roomUi.selectedPlacementId,
       selectedConnectorId: state.roomUi.selectedConnectorId,
+      selectedFinding: state.roomUi.selectedFinding,
       selectedPaletteAssetId: state.roomUi.selectedPaletteAssetId,
       previewAssetId: state.roomUi.previewAssetId,
       selectedProposalId: state.roomUi.selectedProposalId,
@@ -4384,6 +4547,7 @@ function resetRoomUiProjectContext() {
   state.roomUi.selectedRoomVariantId = null;
   state.roomUi.selectedPlacementId = null;
   state.roomUi.selectedConnectorId = null;
+  state.roomUi.selectedFinding = null;
   state.roomUi.selectedPaletteAssetId = null;
   state.roomUi.previewAssetId = null;
   state.roomUi.selectedProposalId = null;
@@ -4410,8 +4574,16 @@ function reconcileRoomUi(project) {
     state.roomUi.selectedRoomVariantId = library.variants[0]?.roomVariantId ?? null;
     state.roomUi.selectedPlacementId = null;
     state.roomUi.selectedConnectorId = null;
+    state.roomUi.selectedFinding = null;
   }
   const { variant } = currentRoomVariant(project.snapshot);
+  const selectedFinding = state.roomUi.selectedFinding;
+  if (selectedFinding && (selectedFinding.projectId !== project.projectId
+      || selectedFinding.roomVariantId !== variant?.roomVariantId
+      || selectedFinding.roomVersion !== variant?.version
+      || !variant?.findings?.some(({ findingId }) => findingId === selectedFinding.findingId))) {
+    state.roomUi.selectedFinding = null;
+  }
   const pendingAdd = state.roomUi.pendingPlacementAdd;
   if (pendingAdd) {
     const committed = variant?.placements.find(({ placementId }) => placementId === pendingAdd.placementId);
@@ -5443,7 +5615,7 @@ elements['workspace-content'].addEventListener('change', (event) => {
       renderWorkspace({ preserveRoomDraft: true }); return;
     }
     if ((state.roomUi.dirty || state.roomUi.shapeDraft?.dirty) && !window.confirm('Discard the unsaved room draft and switch rooms?')) { renderWorkspace({ preserveRoomDraft: true }); return; }
-    state.roomUi.selectedRoomVariantId = roomSelect.value; state.roomUi.selectedPlacementId = null; state.roomUi.selectedConnectorId = null;
+    state.roomUi.selectedRoomVariantId = roomSelect.value; state.roomUi.selectedPlacementId = null; state.roomUi.selectedConnectorId = null; state.roomUi.selectedFinding = null;
     state.roomUi.selectedPaletteAssetId = null; state.roomUi.previewAssetId = null; state.roomUi.selectedProposalId = null; state.roomUi.dirty = false; state.roomUi.conflict = null;
     state.roomUi.placementHover = null; state.roomUi.placementGesture = null; state.roomUi.placementRotation = 0;
     state.roomUi.shapeDraft = null; state.roomUi.shapeConflict = null; renderWorkspace(); return;
@@ -5550,6 +5722,11 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     showToast('PLACEMENT_ADD_PENDING: Resolve the exact placement retry before changing placement context.'); return;
   }
   const { variant } = currentRoomVariant();
+  if (action === 'show-findings') {
+    state.roomUi.dockPanel = 'check'; renderWorkspace({ preserveRoomDraft: true });
+    requestAnimationFrame(() => elements['workspace-content'].querySelector('.room-findings')?.scrollIntoView({ block: 'nearest' }));
+    return;
+  }
   if (action === 'editor-tool') {
     const tool = control.dataset.editorTool;
     state.roomUi.activeTool = tool; state.roomUi.dockPanel = 'tool'; state.roomUi.selectedPaletteAssetId = null;
@@ -5592,12 +5769,13 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   if (action === 'placement-select') {
     if (state.roomUi.suppressCanvasClick && control.closest('[data-room-board]')) return;
     state.roomUi.selectedPlacementId = control.dataset.placementId; state.roomUi.selectedPaletteAssetId = null; state.roomUi.selectedConnectorId = null;
-    state.roomUi.placementHover = null; state.roomUi.placementRotation = 0; renderWorkspace({ preserveRoomDraft: true }); return;
+    state.roomUi.selectedFinding = null; state.roomUi.placementHover = null; state.roomUi.placementRotation = 0; renderWorkspace({ preserveRoomDraft: true }); return;
   }
-  if (action === 'connector-select') { state.roomUi.selectedConnectorId = control.dataset.connectorId; state.roomUi.selectedPlacementId = null; state.roomUi.selectedPaletteAssetId = null; renderWorkspace({ preserveRoomDraft: true }); return; }
+  if (action === 'connector-select') { state.roomUi.selectedConnectorId = control.dataset.connectorId; state.roomUi.selectedPlacementId = null; state.roomUi.selectedFinding = null; state.roomUi.selectedPaletteAssetId = null; renderWorkspace({ preserveRoomDraft: true }); return; }
   if (action === 'finding') {
-    if (control.dataset.targetKind === 'roomPlacement') { state.roomUi.selectedPlacementId = control.dataset.targetId; state.roomUi.selectedConnectorId = null; }
-    if (control.dataset.targetKind === 'roomConnector') { state.roomUi.selectedConnectorId = control.dataset.targetId; state.roomUi.selectedPlacementId = null; }
+    const finding = variant?.findings.find(({ findingId }) => findingId === control.dataset.findingId);
+    if (!finding) { showToast('ROOM_FINDING_STALE: The selected saved finding is no longer present.'); return; }
+    selectRoomFinding(variant, finding);
     renderWorkspace({ preserveRoomDraft: true }); return;
   }
   if (!variant || !state.project || state.roomMutationPending) return;
@@ -5782,6 +5960,35 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     if (!window.confirm('Undo the project changes from this completed task? The original task and review will remain in the history.')) return;
     await executeTaskRequest(`/api/projects/${encodeURIComponent(projectId)}/task-merges/${encodeURIComponent(entry.review.mergeId)}/revert`, { revertId: `revert.${entry.review.mergeId}`, confirm: true }, 'The task changes were undone. The original task and review remain in the history.');
   }
+});
+
+elements['workspace-content'].addEventListener('click', (event) => {
+  const open = event.target.closest('[data-overview-open]');
+  if (!open || state.workspace !== 'overview' || !state.project) return;
+  if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending
+      || state.taskMutationPending || state.backupMutationPending) return;
+  if (open.dataset.overviewOpen === 'tasks') {
+    state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null; state.taskAdoption = null;
+    state.workspace = 'tasks'; location.hash = state.workspace; renderWorkspace(); void publishVisualEvidence(); return;
+  }
+  if (open.dataset.overviewOpen !== 'room-findings') return;
+  if (state.roomUi.pendingPlacementAdd && state.roomUi.selectedRoomVariantId !== open.dataset.roomVariantId) {
+    showToast('PLACEMENT_ADD_PENDING: Resolve the exact placement retry before switching rooms.'); return;
+  }
+  state.roomUi.selectedRoomVariantId = open.dataset.roomVariantId;
+  state.roomUi.dockPanel = 'check'; state.roomUi.selectedPlacementId = null; state.roomUi.selectedConnectorId = null;
+  state.roomUi.selectedFinding = null; state.roomUi.selectedPaletteAssetId = null; state.roomUi.previewAssetId = null;
+  const { variant } = currentRoomVariant();
+  const finding = variant?.findings.find(({ findingId }) => findingId === open.dataset.findingId) ?? null;
+  const focusKey = finding ? selectRoomFinding(variant, finding) : null;
+  state.workspace = 'rooms'; location.hash = state.workspace; renderWorkspace();
+  requestAnimationFrame(() => {
+    const target = focusKey ? [...elements['workspace-content'].querySelectorAll('[data-room-focus-key]')]
+      .find((candidate) => candidate.dataset.roomFocusKey === focusKey) : null;
+    (target ?? elements['workspace-content'].querySelector('.room-findings'))?.scrollIntoView({ block: 'nearest' });
+    target?.focus({ preventScroll: true });
+  });
+  void publishVisualEvidence();
 });
 
 elements['workspace-nav'].addEventListener('click', (event) => {

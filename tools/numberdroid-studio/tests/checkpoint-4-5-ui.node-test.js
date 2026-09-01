@@ -22,6 +22,27 @@ test('CP4.5 tasks are list-first with one focused create/detail flow and plain n
   assert.doesNotMatch(effectiveState, /Date\.now/);
 });
 
+test('Task overview exposes persisted conflicts and owner actions without inventing merge authority', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const styles = await readFile(stylesUrl, 'utf8');
+  const attention = app.slice(app.indexOf('function taskAttentionPresentation'), app.indexOf('function processingAttemptCopy'));
+  assert.match(attention, /entry\.review\?\.conflicts/);
+  assert.match(attention, /taskEffectiveState\(entry\)/);
+  assert.match(attention, /kind: 'CONFLICT'/);
+  assert.match(attention, /Recorded conflict — action required/);
+  assert.match(attention, /saved review comparison at project r/);
+  assert.match(attention, /Main is always checked again before any merge/);
+  for (const state of ['IN_REVIEW', 'PAUSED', 'CHANGES_REQUESTED', 'EXPIRED']) assert.match(attention, new RegExp(state));
+  assert.doesNotMatch(attention, /MERGED:|REVERTED:|AUTO_ACCEPT/);
+  assert.match(app, /button\.dataset\.taskAttention = attention\?\.kind \?\? 'NONE'/);
+  assert.match(app, /Tasks needing you/);
+  assert.match(app, /Task conflicts/);
+  assert.match(app, /tasks: \['overview', 'tasks'\]\.includes\(state\.workspace\) \? state\.tasks : null/);
+  assert.match(styles, /\.status-pill\[data-task-state="IN_REVIEW"\] \{[^}]*var\(--amber\)/);
+  assert.match(styles, /\.task-list-item\[data-task-attention="CONFLICT"\] \{[^}]*repeating-linear-gradient/);
+  assert.match(styles, /\.task-list-attention strong \{[^}]*font-size: 10px/);
+});
+
 test('CP4.5 passive refresh preserves the focused task composer and its live DOM draft', async () => {
   const app = await readFile(appUrl, 'utf8');
   const reconciliation = app.slice(

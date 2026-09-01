@@ -164,7 +164,7 @@ test('request changes supersedes the review and returns the task to an explicit 
 });
 
 test('review compare records explicit same-object main/branch conflict', async (context) => {
-  const { studio, tasks, created, agentContext } = await fixture(context);
+  const { store, studio, tasks, created, agentContext } = await fixture(context);
   await tasks.execute(sourceCommand(2), agentContext);
   await studio.execute(sourceCommand(2, 'main'), OWNER_CONTEXT);
   const result = await tasks.submitReview(PROJECT_ID, created.task.taskId, {
@@ -174,6 +174,16 @@ test('review compare records explicit same-object main/branch conflict', async (
   assert.equal(result.review.items.length, 1);
   assert.equal(result.review.conflicts.length, 1);
   assert.equal(result.review.conflicts[0].code, 'SEMANTIC_MERGE_CONFLICT');
+  const reopened = await SqliteProjectStore.open({
+    filename: store.workspace.filename,
+    mode: 'reader',
+    databaseFactory: nodeSqliteDatabaseFactory,
+  });
+  afterTestCleanup(context, () => reopened.close());
+  const persisted = new SqliteAgentTaskStore({ workspace: reopened.workspace })
+    .getReview(PROJECT_ID, created.task.taskId, result.review.reviewId);
+  assert.equal(persisted.comparedMainRevision, result.review.comparedMainRevision);
+  assert.deepEqual(persisted.conflicts, result.review.conflicts);
 });
 
 test('agent room authoring cannot bypass the isolated task service onto main', async (context) => {
