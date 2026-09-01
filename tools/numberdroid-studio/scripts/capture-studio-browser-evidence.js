@@ -245,6 +245,7 @@ try {
   let checkpoint45RoomFocus = null;
   let checkpoint45PhysicalPaint = null;
   let checkpoint45EditorContinuity = null;
+  let checkpoint45DirectManipulation = null;
   let a17Evidence = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
@@ -820,6 +821,442 @@ try {
         && checkpoint45EditorContinuity.layerState.scrollTop === checkpoint45EditorContinuity.expectedScroll.top
         && checkpoint45EditorContinuity.layerState.checked === false && checkpoint45EditorContinuity.finalBoardCount === 1,
       `Checkpoint 4.5 tool/dock/layer changes did not preserve one usable canvas, focus, geometry, and scroll: ${JSON.stringify(checkpoint45EditorContinuity)}`);
+      const directSetup = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const waitFor = async (predicate, label) => {
+            const deadline = Date.now() + 10_000;
+            while (!predicate() && Date.now() < deadline) await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+            if (!predicate()) throw new Error('Timed out waiting for ' + label + '.');
+          };
+          const originalFetch = window.fetch;
+          window.__roomDirectManipulationEvidence = { requests: [], originalFetch, rejectNextAdd: false };
+          window.fetch = async (...args) => {
+            const request = args[0]; const url = typeof request === 'string' ? request : request.url;
+            if (url.includes('/placements-')) {
+              const init = args[1] ?? {}; const body = JSON.parse(init.body ?? '{}');
+              window.__roomDirectManipulationEvidence.requests.push({ url, method: init.method ?? 'GET', body });
+              if (url.endsWith('/placements-add') && window.__roomDirectManipulationEvidence.rejectNextAdd) {
+                window.__roomDirectManipulationEvidence.rejectNextAdd = false;
+                throw new TypeError('Synthetic connection loss before commit.');
+              }
+              return new Response(JSON.stringify({ projectId: 'numberdroid-studio-checkpoint-2c', revision: 37 }), {
+                status: 200, headers: { 'content-type': 'application/json' },
+              });
+            }
+            return originalFetch(...args);
+          };
+          const selector = document.querySelector('[data-room-variant-select]'); selector.value = 'hall.service-east-west';
+          selector.dispatchEvent(new Event('change', { bubbles: true }));
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="palette-asset"][data-palette-asset-id="asset.transfer-apparatus-cp45"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          await window.__numberdroidStudioVisualTest?.refreshVisualEvidence();
+          await waitFor(() => !document.querySelector('[data-room-control="use-preview-asset"]')?.disabled, 'the exact prop placement control');
+          document.querySelector('[data-room-control="use-preview-asset"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="rotate-placement-ghost"]')?.focus({ preventScroll: true });
+          return { requestCount: window.__roomDirectManipulationEvidence.requests.length };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'r', code: 'KeyR' }, sessionId);
+      const directPoints = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const board = document.querySelector('[data-room-board]');
+          board.scrollIntoView({ block: 'center', inline: 'center' });
+          const pointFor = (x, y) => { const cell = document.querySelector('.room-cell[data-x="' + x + '"][data-y="' + y + '"]');
+            const rect = cell.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; };
+          return { validPoint: pointFor(1, 0), invalidPoint: pointFor(5, 2) };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y }, sessionId);
+      await delay(50);
+      const validGhost = await devtools.send('Runtime.evaluate', {
+        expression: `(() => { const ghost = document.querySelector('.room-placement-ghost'); const rect = ghost?.getBoundingClientRect(); const board = document.querySelector('[data-room-board]')?.getBoundingClientRect(); return {
+          allowed: ghost?.dataset.allowed ?? null, cue: ghost?.querySelector('strong')?.textContent ?? null,
+          rotation: ghost?.querySelector('span')?.textContent ?? null,
+          cellsWide: rect && board ? Math.round(rect.width / (board.width / 6)) : null,
+          cellsHigh: rect && board ? Math.round(rect.height / (board.height / 3)) : null,
+          requestCount: window.__roomDirectManipulationEvidence.requests.length,
+        }; })()`, returnByValue: true,
+      }, sessionId);
+      const validScreenshot = await devtools.send('Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId, 30_000);
+      const validGhostPath = outputPath.replace(/\.png$/i, '-direct-valid-ghost.png');
+      await writeFile(validGhostPath, Buffer.from(validScreenshot.data, 'base64'));
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.invalidPoint.x, y: directPoints.result.value.invalidPoint.y }, sessionId);
+      await delay(50);
+      const invalidGhost = await devtools.send('Runtime.evaluate', {
+        expression: `(() => { const ghost = document.querySelector('.room-placement-ghost'); return {
+          allowed: ghost?.dataset.allowed ?? null, cue: ghost?.querySelector('strong')?.textContent ?? null,
+          reason: ghost?.querySelector('small')?.textContent ?? null,
+          requestCount: window.__roomDirectManipulationEvidence.requests.length,
+        }; })()`, returnByValue: true,
+      }, sessionId);
+      const invalidScreenshot = await devtools.send('Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId, 30_000);
+      const invalidGhostPath = outputPath.replace(/\.png$/i, '-direct-invalid-ghost.png');
+      await writeFile(invalidGhostPath, Buffer.from(invalidScreenshot.data, 'base64'));
+      const addRetryStart = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          window.__roomDirectManipulationEvidence.rejectNextAdd = true;
+          return window.__roomDirectManipulationEvidence.requests.length;
+        })()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      const firstUnknownAdd = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const deadline = Date.now() + 10_000;
+          while ((window.__roomDirectManipulationEvidence.requests.length < ${addRetryStart.result.value + 1}
+              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
+            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+          }
+          return { requestCount: window.__roomDirectManipulationEvidence.requests.length,
+            state: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
+            hint: document.querySelector('.room-canvas-hint')?.textContent ?? null };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      const exactRetryPoint = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const board = document.querySelector('[data-room-board]'); board.scrollIntoView({ block: 'center', inline: 'center' });
+          const rect = document.querySelector('.room-cell[data-x="1"][data-y="0"]').getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: exactRetryPoint.result.value.x, y: exactRetryPoint.result.value.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: exactRetryPoint.result.value.x, y: exactRetryPoint.result.value.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      const exactAddRetry = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const deadline = Date.now() + 10_000;
+          while ((window.__roomDirectManipulationEvidence.requests.length < ${addRetryStart.result.value + 2}
+              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
+            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+          }
+          const requests = window.__roomDirectManipulationEvidence.requests.slice(${addRetryStart.result.value});
+          return { requests, sameBody: JSON.stringify(requests[0]?.body) === JSON.stringify(requests[1]?.body),
+            state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      const authoritativeAddRecovery = await devtools.send('Runtime.evaluate', {
+        expression: `window.__numberdroidStudioVisualTest.exerciseRoomPlacementAddRecovery()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' }, sessionId);
+      const dragSetup = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const selector = document.querySelector('[data-room-variant-select]'); selector.value = 'room.family-gathering';
+          selector.dispatchEvent(new Event('change', { bubbles: true }));
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="SELECT"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const placement = document.querySelector('[data-placement-id="prop.family-table"]');
+          const targetCell = document.querySelector('.room-cell[data-x="2"][data-y="2"]');
+          placement.scrollIntoView({ block: 'center', inline: 'center' });
+          const pointFor = (x, y) => { const rect = document.querySelector('.room-cell[data-x="' + x + '"][data-y="' + y + '"]').getBoundingClientRect();
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; };
+          const source = placement.getBoundingClientRect(); const target = targetCell.getBoundingClientRect(); const board = document.querySelector('[data-room-board]').getBoundingClientRect();
+          return { source: { x: source.left + source.width / 2, y: source.top + source.height / 2 },
+            target: { x: target.left + target.width / 2, y: target.top + target.height / 2 },
+            invalid: { void: pointFor(0, 0), blocked: pointFor(1, 2), overlap: pointFor(1, 1),
+              outside: { x: board.left - 12, y: board.top + board.height / 2 } },
+            requestBaseline: window.__roomDirectManipulationEvidence.requests.length };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      const sourcePoint = dragSetup.result.value.source; const targetPoint = dragSetup.result.value.target;
+      const requestBaseline = dragSetup.result.value.requestBaseline;
+
+      const invalidReleases = {};
+      for (const [kind, point] of Object.entries(dragSetup.result.value.invalid)) {
+        await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: sourcePoint.x, y: sourcePoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+        await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y, button: 'left', buttons: 1 }, sessionId);
+        const during = await devtools.send('Runtime.evaluate', {
+          expression: `(() => ({ allowed: document.querySelector('.room-placement-ghost')?.dataset.allowed ?? null,
+            reason: document.querySelector('.room-placement-ghost small')?.textContent ?? null,
+            requestCount: window.__roomDirectManipulationEvidence.requests.length }))()`, returnByValue: true,
+        }, sessionId);
+        await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+        await delay(75);
+        const after = await devtools.send('Runtime.evaluate', {
+          expression: `(() => ({ ghostCleared: !document.querySelector('.room-placement-ghost'),
+            hint: document.querySelector('.room-canvas-hint')?.textContent ?? null,
+            requestCount: window.__roomDirectManipulationEvidence.requests.length }))()`, returnByValue: true,
+        }, sessionId);
+        invalidReleases[kind] = { during: during.result.value, after: after.result.value };
+      }
+
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: sourcePoint.x, y: sourcePoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 1 }, sessionId);
+      const duringCancelledDrag = await devtools.send('Runtime.evaluate', {
+        expression: `(() => ({ requestCount: window.__roomDirectManipulationEvidence.requests.length,
+          ghost: Boolean(document.querySelector('.room-placement-ghost')) }))()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      const afterCancelledDrag = await devtools.send('Runtime.evaluate', {
+        expression: `(() => ({ requestCount: window.__roomDirectManipulationEvidence.requests.length,
+          ghostCleared: !document.querySelector('.room-placement-ghost'),
+          hint: document.querySelector('.room-canvas-hint')?.textContent ?? null,
+          state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() }))()`, returnByValue: true,
+      }, sessionId);
+
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: sourcePoint.x, y: sourcePoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 1 }, sessionId);
+      const pointerCancelState = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const state = window.__numberdroidStudioVisualTest.roomDirectManipulationState();
+          const target = document.querySelector('[data-placement-id="prop.family-table"]');
+          target?.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: state.gesturePointerId, pointerType: 'mouse' }));
+          return { before: state, after: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
+            ghostCleared: !document.querySelector('.room-placement-ghost'), requestCount: window.__roomDirectManipulationEvidence.requests.length };
+        })()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: sourcePoint.x, y: sourcePoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 1 }, sessionId);
+      const passiveRefresh = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const evidence = window.__roomDirectManipulationEvidence;
+          evidence.liveBoard = document.querySelector('[data-room-board]');
+          evidence.liveTarget = document.querySelector('[data-placement-id="prop.family-table"]');
+          evidence.liveTarget.focus({ preventScroll: true });
+          const scroll = document.querySelector('.room-canvas-scroll');
+          const before = { left: scroll.scrollLeft, top: scroll.scrollTop, windowY: window.scrollY,
+            requestCount: evidence.requests.length };
+          document.querySelector('#refresh-button').click();
+          const deadline = Date.now() + 10_000;
+          while (document.querySelector('#refresh-button')?.disabled && Date.now() < deadline) {
+            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+          }
+          const afterScroll = document.querySelector('.room-canvas-scroll');
+          return { before, sameBoard: evidence.liveBoard === document.querySelector('[data-room-board]'),
+            sameTarget: evidence.liveTarget === document.querySelector('[data-placement-id="prop.family-table"]'),
+            focused: document.activeElement === evidence.liveTarget,
+            scroll: { left: afterScroll.scrollLeft, top: afterScroll.scrollTop, windowY: window.scrollY },
+            requestCount: evidence.requests.length,
+            state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: sourcePoint.x, y: sourcePoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 1 }, sessionId);
+      const staleProjection = await devtools.send('Runtime.evaluate', {
+        expression: `(() => ({ changed: window.__numberdroidStudioVisualTest.exerciseRoomGestureProjectionChange(),
+          state: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
+          ghostCleared: !document.querySelector('.room-placement-ghost'), requestCount: window.__roomDirectManipulationEvidence.requests.length }))()`,
+        returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: targetPoint.x, y: targetPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+
+      const committedPoints = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const placement = document.querySelector('[data-placement-id="prop.family-table"]');
+          placement.scrollIntoView({ block: 'center', inline: 'center' });
+          const targetCell = document.querySelector('.room-cell[data-x="2"][data-y="2"]');
+          const source = placement.getBoundingClientRect(); const target = targetCell.getBoundingClientRect();
+          return { source: { x: source.left + source.width / 2, y: source.top + source.height / 2 },
+            target: { x: target.left + target.width / 2, y: target.top + target.height / 2 } };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      const committedSource = committedPoints.result.value.source; const committedTarget = committedPoints.result.value.target;
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: committedSource.x, y: committedSource.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      for (const ratio of [.25, .5, .75, 1]) {
+        await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved',
+          x: committedSource.x + (committedTarget.x - committedSource.x) * ratio,
+          y: committedSource.y + (committedTarget.y - committedSource.y) * ratio, button: 'left', buttons: 1 }, sessionId);
+      }
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'r', code: 'KeyR' }, sessionId);
+      const duringCommittedDrag = await devtools.send('Runtime.evaluate', {
+        expression: `(() => ({ requestCount: window.__roomDirectManipulationEvidence.requests.length,
+          allowed: document.querySelector('.room-placement-ghost')?.dataset.allowed ?? null,
+          state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() }))()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: committedTarget.x, y: committedTarget.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      await devtools.send('Runtime.evaluate', {
+        expression: `(async () => { const deadline = Date.now() + 10_000;
+          while ((window.__roomDirectManipulationEvidence.requests.length < ${requestBaseline + 1}
+              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
+            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+          } return true; })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+
+      const unrelatedShortcut = await devtools.send('Runtime.evaluate', {
+        expression: `(() => { document.querySelector('#refresh-button').focus(); return {
+          requestCount: window.__roomDirectManipulationEvidence.requests.length,
+          selectedPlacementId: window.__numberdroidStudioVisualTest.roomDirectManipulationState().selectedPlacementId }; })()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight' }, sessionId);
+      const afterUnrelatedShortcut = await devtools.send('Runtime.evaluate', {
+        expression: `(() => ({ requestCount: window.__roomDirectManipulationEvidence.requests.length,
+          selectedPlacementId: window.__numberdroidStudioVisualTest.roomDirectManipulationState().selectedPlacementId }))()`, returnByValue: true,
+      }, sessionId);
+
+      await devtools.send('Runtime.evaluate', {
+        expression: `document.querySelector('[data-placement-id="prop.family-table"]')?.focus({ preventScroll: true })`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'r', code: 'KeyR' }, sessionId);
+      await devtools.send('Runtime.evaluate', {
+        expression: `(async () => { const deadline = Date.now() + 10_000;
+          while ((window.__roomDirectManipulationEvidence.requests.length < ${requestBaseline + 2}
+              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
+            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+          } return true; })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      const inspectorMovePoint = await devtools.send('Runtime.evaluate', {
+        expression: `(() => { const button = document.querySelector('[data-room-control="move-placement"][data-dx="0"][data-dy="1"]');
+          button?.scrollIntoView({ block: 'center', inline: 'center' });
+          const rect = button?.getBoundingClientRect(); return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null; })()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: inspectorMovePoint.result.value.x, y: inspectorMovePoint.result.value.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: inspectorMovePoint.result.value.x, y: inspectorMovePoint.result.value.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      await devtools.send('Runtime.evaluate', {
+        expression: `(async () => { const deadline = Date.now() + 10_000;
+          while ((window.__roomDirectManipulationEvidence.requests.length < ${requestBaseline + 3}
+              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
+            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+          } return true; })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      await devtools.send('Runtime.evaluate', {
+        expression: `(() => { window.confirm = () => true; document.querySelector('[data-placement-id="prop.family-table"]')?.focus({ preventScroll: true }); })()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Delete', code: 'Delete' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Delete', code: 'Delete' }, sessionId);
+      await devtools.send('Runtime.evaluate', {
+        expression: `(async () => { const deadline = Date.now() + 10_000;
+          while ((window.__roomDirectManipulationEvidence.requests.length < ${requestBaseline + 4}
+              || document.querySelector('#refresh-button')?.disabled) && Date.now() < deadline) {
+            await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+          } return true; })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      const afterDrag = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const evidence = window.__roomDirectManipulationEvidence;
+          const requests = evidence.requests.slice(${requestBaseline}).map(({ url, method, body }) => ({ url, method, body }));
+          const slider = document.querySelector('[data-room-zoom-slider]'); slider.value = '1000';
+          slider.dispatchEvent(new Event('input', { bubbles: true }));
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const scroll = document.querySelector('.room-canvas-scroll'); scroll.scrollLeft = 250; scroll.scrollTop = 120;
+          scroll.scrollIntoView({ block: 'center', inline: 'center' });
+          const scrollRect = scroll.getBoundingClientRect();
+          const panPoint = { x: scrollRect.left + scrollRect.width / 2, y: scrollRect.top + scrollRect.height / 2 };
+          return { requests, ghostCleared: !document.querySelector('.room-placement-ghost'),
+            selectedPlacementId: document.querySelector('.room-placement[data-selected="true"]')?.dataset.placementId ?? null,
+            panStart: { left: scroll.scrollLeft, top: scroll.scrollTop },
+            panPoint, panTargetInside: document.elementFromPoint(panPoint.x, panPoint.y)?.closest('.room-canvas-scroll') === scroll };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      const panPoint = afterDrag.result.value.panPoint;
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: panPoint.x, y: panPoint.y, button: 'middle', buttons: 4, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: panPoint.x + 35, y: panPoint.y + 25, button: 'middle', buttons: 4 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: panPoint.x + 35, y: panPoint.y + 25, button: 'middle', buttons: 0, clickCount: 1 }, sessionId);
+      const panAndRestore = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const evidence = window.__roomDirectManipulationEvidence; const scroll = document.querySelector('.room-canvas-scroll');
+          const pan = { left: scroll.scrollLeft, top: scroll.scrollTop, panning: scroll.dataset.panning ?? null,
+            requestCount: evidence.requests.length, semanticRequestCount: evidence.requests.length - ${requestBaseline} };
+          window.fetch = evidence.originalFetch;
+          document.querySelector('[data-room-control="zoom"][data-room-zoom="fit"]')?.click();
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_ROOM"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          return pan;
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId);
+      checkpoint45DirectManipulation = {
+        validGhost: validGhost.result.value, invalidGhost: invalidGhost.result.value,
+        firstUnknownAdd: firstUnknownAdd.result.value, exactAddRetry: exactAddRetry.result.value,
+        authoritativeAddRecovery: authoritativeAddRecovery.result.value,
+        invalidReleases, cancelledDrag: { during: duringCancelledDrag.result.value, after: afterCancelledDrag.result.value },
+        pointerCancel: pointerCancelState.result.value, passiveRefresh: passiveRefresh.result.value,
+        staleProjection: staleProjection.result.value, committedDrag: duringCommittedDrag.result.value,
+        unrelatedShortcut: { before: unrelatedShortcut.result.value, after: afterUnrelatedShortcut.result.value },
+        afterDrag: afterDrag.result.value, pan: panAndRestore.result.value,
+        screenshots: { validGhostPath, invalidGhostPath },
+      };
+      assert(checkpoint45DirectManipulation.validGhost?.allowed === 'true'
+        && checkpoint45DirectManipulation.validGhost.cellsWide === 3
+        && checkpoint45DirectManipulation.validGhost.cellsHigh === 2
+        && checkpoint45DirectManipulation.validGhost.rotation?.includes('90°')
+        && checkpoint45DirectManipulation.invalidGhost?.allowed === 'false'
+        && checkpoint45DirectManipulation.invalidGhost.cue?.includes('blocked')
+        && checkpoint45DirectManipulation.invalidGhost.reason?.includes('exceeds the room bounds')
+        && checkpoint45DirectManipulation.firstUnknownAdd?.state?.pendingPlacementAdd
+        && checkpoint45DirectManipulation.firstUnknownAdd.hint?.includes('Unresolved exact placement retry')
+        && checkpoint45DirectManipulation.exactAddRetry?.requests?.length === 2
+        && checkpoint45DirectManipulation.exactAddRetry.sameBody === true
+        && checkpoint45DirectManipulation.exactAddRetry.requests[0].body.idempotencyKey === checkpoint45DirectManipulation.exactAddRetry.requests[1].body.idempotencyKey
+        && checkpoint45DirectManipulation.exactAddRetry.requests[0].body.placements?.[0]?.placementId === checkpoint45DirectManipulation.exactAddRetry.requests[1].body.placements?.[0]?.placementId
+        && checkpoint45DirectManipulation.exactAddRetry.state?.pendingPlacementAdd === null
+        && checkpoint45DirectManipulation.authoritativeAddRecovery?.pendingPlacementAdd === null
+        && checkpoint45DirectManipulation.authoritativeAddRecovery?.selectedPlacementId
+        && checkpoint45DirectManipulation.authoritativeAddRecovery.message?.includes('PLACEMENT_ADD_RECOVERED')
+        && Object.values(checkpoint45DirectManipulation.invalidReleases).every(({ during, after }) => (
+          during.allowed === 'false' && during.requestCount === requestBaseline
+            && after.requestCount === requestBaseline && after.ghostCleared === true
+            && after.hint?.includes('Drag the selected placement')
+        ))
+        && checkpoint45DirectManipulation.invalidReleases.void.during.reason?.includes('outside-room cell')
+        && checkpoint45DirectManipulation.invalidReleases.blocked.during.reason?.includes('blocked')
+        && checkpoint45DirectManipulation.invalidReleases.overlap.during.reason?.includes('overlap')
+        && checkpoint45DirectManipulation.invalidReleases.outside.during.reason?.includes('Release inside the room board')
+        && checkpoint45DirectManipulation.cancelledDrag.during?.requestCount === requestBaseline
+        && checkpoint45DirectManipulation.cancelledDrag.during.ghost === true
+        && checkpoint45DirectManipulation.cancelledDrag.after?.requestCount === requestBaseline
+        && checkpoint45DirectManipulation.cancelledDrag.after.ghostCleared === true
+        && checkpoint45DirectManipulation.cancelledDrag.after.state?.gestureActive === false
+        && checkpoint45DirectManipulation.pointerCancel?.before?.gestureActive === true
+        && checkpoint45DirectManipulation.pointerCancel.after?.gestureActive === false
+        && checkpoint45DirectManipulation.pointerCancel.ghostCleared === true
+        && checkpoint45DirectManipulation.pointerCancel.requestCount === requestBaseline
+        && checkpoint45DirectManipulation.passiveRefresh?.sameBoard === true
+        && checkpoint45DirectManipulation.passiveRefresh.sameTarget === true
+        && checkpoint45DirectManipulation.passiveRefresh.focused === true
+        && checkpoint45DirectManipulation.passiveRefresh.state?.gestureActive === true
+        && checkpoint45DirectManipulation.passiveRefresh.requestCount === requestBaseline
+        && checkpoint45DirectManipulation.passiveRefresh.scroll.left === checkpoint45DirectManipulation.passiveRefresh.before.left
+        && checkpoint45DirectManipulation.passiveRefresh.scroll.top === checkpoint45DirectManipulation.passiveRefresh.before.top
+        && checkpoint45DirectManipulation.passiveRefresh.scroll.windowY === checkpoint45DirectManipulation.passiveRefresh.before.windowY
+        && checkpoint45DirectManipulation.staleProjection?.changed?.gestureActive === false
+        && checkpoint45DirectManipulation.staleProjection.changed.targetHadCapture === false
+        && checkpoint45DirectManipulation.staleProjection.state?.gestureActive === false
+        && checkpoint45DirectManipulation.staleProjection.ghostCleared === true
+        && checkpoint45DirectManipulation.staleProjection.requestCount === requestBaseline
+        && checkpoint45DirectManipulation.committedDrag?.requestCount === requestBaseline
+        && checkpoint45DirectManipulation.committedDrag.allowed === 'true'
+        && checkpoint45DirectManipulation.committedDrag.state?.gestureRotation === 90
+        && checkpoint45DirectManipulation.unrelatedShortcut.before?.requestCount === requestBaseline + 1
+        && checkpoint45DirectManipulation.unrelatedShortcut.after?.requestCount === requestBaseline + 1
+        && checkpoint45DirectManipulation.unrelatedShortcut.after.selectedPlacementId === checkpoint45DirectManipulation.unrelatedShortcut.before.selectedPlacementId
+        && checkpoint45DirectManipulation.afterDrag?.requests?.length === 4
+        && checkpoint45DirectManipulation.afterDrag.requests[0].url.endsWith('/placements-move')
+        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves?.[0]?.placementId === 'prop.family-table'
+        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].anchor?.x === 2
+        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].anchor?.y === 2
+        && checkpoint45DirectManipulation.afterDrag.requests[0].body.moves[0].rotation === 90
+        && checkpoint45DirectManipulation.afterDrag.requests[1].url.endsWith('/placements-move')
+        && checkpoint45DirectManipulation.afterDrag.requests[1].body.moves?.[0]?.rotation === 90
+        && checkpoint45DirectManipulation.afterDrag.requests[2].url.endsWith('/placements-move')
+        && checkpoint45DirectManipulation.afterDrag.requests[2].body.moves?.[0]?.anchor?.y === 2
+        && checkpoint45DirectManipulation.afterDrag.requests[3].url.endsWith('/placements-remove')
+        && checkpoint45DirectManipulation.afterDrag.requests[3].body.placements?.[0]?.placementId === 'prop.family-table'
+        && checkpoint45DirectManipulation.afterDrag.ghostCleared === true
+        && checkpoint45DirectManipulation.afterDrag.panTargetInside === true
+        && checkpoint45DirectManipulation.pan?.semanticRequestCount === 4
+        && checkpoint45DirectManipulation.pan.panning === null
+        && (checkpoint45DirectManipulation.pan.left !== checkpoint45DirectManipulation.afterDrag.panStart.left
+          || checkpoint45DirectManipulation.pan.top !== checkpoint45DirectManipulation.afterDrag.panStart.top),
+      `Checkpoint 4.5 direct manipulation did not preserve transient, single-command, cancellation, ghost, or middle-pan semantics: ${JSON.stringify(checkpoint45DirectManipulation)}`);
       checkpoint45RoomFocus.tool = 'PAINT_ROOM';
     }
   }
@@ -3007,6 +3444,7 @@ try {
     checkpoint45RoomFocus,
     checkpoint45PhysicalPaint,
     checkpoint45EditorContinuity,
+    checkpoint45DirectManipulation,
     a17Evidence,
     layout,
     interactions: checkpoint2bInteractionEvidence,

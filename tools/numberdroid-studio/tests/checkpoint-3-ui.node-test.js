@@ -30,7 +30,7 @@ test('Checkpoint 3 room controls use human-only routes with exact versions and e
   assert.match(app, /\/placements-move/);
   assert.match(app, /\/placements-remove/);
   assert.match(app, /expectedRoomVariantVersion: variant\.version/);
-  assert.match(app, /assetVersion: asset\.assetVersion, metadataVersion: asset\.metadataVersion/);
+  assert.match(app, /assetVersion: intent\.assetVersion, metadataVersion: intent\.metadataVersion/);
   assert.match(app, /Resize requires explicit removal/);
   assert.match(app, /Validate this DRAFT as a new immutable version/);
   assert.match(app, /Finalize this VALIDATED room/);
@@ -88,6 +88,50 @@ test('Checkpoint 3 canvas supports bounded manual zoom and non-mutating middle-b
   assert.match(app, /Math\.round\(38 \* state\.roomUi\.zoomPercent \/ 100\)/);
   assert.match(app, /availableWidth \/ width, availableHeight \/ height/);
   assert.match(app, /requestAnimationFrame\(applyRoomCanvasFit\)/);
+});
+
+test('Room direct manipulation remains transient, revision-pinned, cancellable, and accessible', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const styles = await readFile(stylesUrl, 'utf8');
+  const gesture = app.slice(app.indexOf('function roomCellFromPointer'), app.indexOf("elements['workspace-content'].addEventListener('click', async (event) =>"));
+  assert.match(app, /function roomPlacementGhostModel/);
+  assert.match(app, /The exact version-pinned asset is unavailable/);
+  assert.match(app, /rotated logical footprint exceeds the room bounds/);
+  assert.match(app, /crosses an outside-room cell/);
+  assert.match(app, /cannot occupy a blocked room cell/);
+  assert.match(app, /logical footprint overlaps placement/);
+  assert.match(app, /Authored collision geometry overlaps placement/);
+  assert.match(app, /Server validation remains authoritative/);
+  assert.match(app, /\u2713 placement ghost|✓ placement ghost/);
+  assert.match(app, /blocked placement ghost/);
+  assert.match(gesture, /roomManipulationContext\(variant, placement\)/);
+  assert.match(gesture, /roomManipulationContextMatches\(gesture, variant, placement\)/);
+  assert.match(gesture, /setPointerCapture/);
+  assert.match(gesture, /pointercancel/);
+  assert.match(gesture, /lostpointercapture/);
+  assert.match(gesture, /Direct manipulation cancelled\. No room command was sent/);
+  assert.match(gesture, /suppressCanvasClick = true/);
+  assert.match(gesture, /await moveRoomPlacement\(placement, gesture\.anchor, gesture\.rotation, gesture\)/);
+  assert.match(gesture, /event\.button !== 0/);
+  assert.match(app, /event\.key === 'Delete' \|\| event\.key === 'Backspace'/);
+  assert.match(app, /ArrowLeft: \[-1, 0\].*ArrowRight: \[1, 0\]/s);
+  assert.match(app, /event\.key === 'r' \|\| event\.key === 'R'/);
+  assert.match(app, /const activeGesture = state\.roomUi\.placementGesture/);
+  assert.match(app, /activeGesture\.rotation =/);
+  assert.match(app, /placementShortcutSurface/);
+  assert.match(app, /event\.preventDefault\(\); await moveRoomPlacement/);
+  assert.match(app, /function clearPendingRoomPlacementAdd/);
+  assert.match(app, /samePendingIntent/);
+  assert.match(app, /advancedAuthorityContext/);
+  assert.match(app, /project\.revision > pendingAdd\.projectRevision/);
+  assert.match(app, /variant\.version > pendingAdd\.roomVersion/);
+  assert.match(app, /PLACEMENT_ADD_RECOVERED/);
+  assert.match(app, /original idempotency key can resolve safely/);
+  assert.match(app, /gesture\.outsideBoard/);
+  assert.match(app, /x: geometry\.left, y: geometry\.top/);
+  assert.match(styles, /\.room-placement-ghost\[data-allowed="false"\]/);
+  assert.match(styles, /repeating-linear-gradient/);
+  assert.match(styles, /\.room-placement \{[^}]*cursor: grab;[^}]*touch-action: none/);
 });
 
 test('CP4.5 presents one persistent canvas, editor tools, truthful cell kinds, and complete shape saves', async () => {
