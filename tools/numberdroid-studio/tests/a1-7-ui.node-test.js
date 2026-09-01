@@ -153,7 +153,7 @@ test('A1.7 passive refresh fingerprints bounded attempts and preserves compatibl
   const app = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
   const styles = await readFile(new URL('../apps/studio-server/public/styles.css', import.meta.url), 'utf8');
   const fingerprint = app.slice(app.indexOf('function workspaceRenderFingerprint'), app.indexOf('function renderWorkspace'));
-  assert.match(fingerprint, /tasks: state\.workspace === 'tasks' \? state\.tasks : null/);
+  assert.match(fingerprint, /tasks: \['overview', 'tasks'\]\.includes\(state\.workspace\) \? state\.tasks : null/);
   assert.match(fingerprint, /processingAdoptionPresentation/);
   assert.doesNotMatch(fingerprint, /taskDomState/);
   assert.match(app, /function captureTaskDomState/);
