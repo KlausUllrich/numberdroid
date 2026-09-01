@@ -1,5 +1,10 @@
 # Numberdroid Studio — Checkpoint 4.5 Candidate Record
 
+## 2026-09-01 live gate: REVISE
+
+Klaus verified the core task/room workflow on Linux Chrome. Persistence, task conflict safety, painting, layers, surfaces and Props work, but acceptance is blocked by Surface-under-Prop click interception, cropped rotated Prop preview, insufficient saved-with-errors/action-required visibility and responsive overflow. The complete prioritized record is [`LIVE_VERIFICATION_2026_09_01.md`](LIVE_VERIFICATION_2026_09_01.md). Larger editor improvements are sequenced after the bounded functional repair.
+
+
 - **Date:** 2026-08-24
 - **Status:** implemented, CI/browser-verified, and source-integrated into `main` through PR #137 on 2026-08-25; awaiting explicit user acceptance.
 - **Evidence branch:** `agent/numberdroid-studio-checkpoint-4-5`; combined integration safety branch: `agent/numberdroid-studio-checkpoint-5`

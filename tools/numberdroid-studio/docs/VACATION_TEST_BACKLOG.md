@@ -28,7 +28,7 @@ Keep these states distinct:
 | ID | Candidate | State | Depends on | User gate |
 | --- | --- | --- | --- | --- |
 | VT-000 | Protected Studio baseline and restart | AUTOMATED GREEN | accepted CP1–4 | Quick safety/regression confirmation at session start |
-| VT-001 | CP4.5 designer workflow candidate | NEEDS KLAUS LIVE | VT-000 | Desktop list/create/detail, preview, persistent editor, `VOID`/`BLOCKED` |
+| VT-001 | CP4.5 designer workflow candidate | REVISE — LIVE TESTED 2026-09-01 | VT-000 | Desktop list/create/detail, preview, persistent editor, `VOID`/`BLOCKED` |
 | VT-002 | A0.1–A0.4 interface candidates | NEEDS KLAUS REVIEW | VT-000 | Accept/revise bounded capability, candidate, query, and validate-only bridge contracts |
 | VT-003 | CP5 candidate-only adapter/compiler foundation | BLOCKED | VT-001 and later explicit CP5 gate | Candidate fidelity only; no materialization or publication |
 | VT-004 | A1.3 project-bound adoption preflight | NEEDS KLAUS REVIEW | VT-000 and accepted A1.0–A1.2 | Accept/revise the read-only capability/Asset/CAS closure; no live workflow |
@@ -38,7 +38,7 @@ Keep these states distinct:
 | VT-008 | A1.6b1 host-bound adoption admission | NEEDS KLAUS REVIEW | VT-007 | Accept/revise the current Binding/Grant replay and mutation-UoW admission boundary |
 | VT-009 | A1.6b2a private Authoring-v2 session | NEEDS KLAUS REVIEW | VT-008 | Accept/revise the one-shot/full-admission versus ledger-first commit boundary |
 | VT-010 | A1.6b2b Authoring-v2 MCP transport | NEEDS KLAUS REVIEW | VT-009 | Accept/revise explicit handshake-gated 31/6 discovery, fresh authority, and restart replay |
-| VT-011 | A1.7 processed-asset review UI candidate | NEEDS KLAUS LIVE | VT-000 and VT-004–VT-010 | Accept/revise the selected-task preview, correction hierarchy, responsive layout, fallback, and return-state continuity |
+| VT-011 | A1.7 processed-asset review UI candidate | REVISE — LIVE TESTED 2026-09-01 | VT-000 and VT-004–VT-010 | Accept/revise the selected-task preview, correction hierarchy, responsive layout, fallback, and return-state continuity |
 | VT-012 | O1b first Backups UI candidate | USER ACCEPTED 2026-09-01 | VT-000 and integrated O0/O1a | Accepted after live Create, Verify, Recovery-test, Restore-as-copy, restart, missing-backup, recovery and responsive checks; low-priority disclosure-state finding retained |
 | VT-013 | O2a private read-only service deployment | NEEDS KLAUS LIVE | integrated O2a and deliberately configured private host | Accept/revise authentication, read-only boundary, restart/session behavior, and operator burden; not O3 mobile UX |
 
@@ -76,6 +76,8 @@ nor a non-visual prerequisite receives `VT-011`. After the visual surface also
 exists, `VT-011` must record the combined visible return test while retaining
 the blocks' distinct PR/CI evidence and the **implemented candidate — not user
 accepted** state.
+
+Full 2026-09-01 evidence and prioritized findings: [`LIVE_VERIFICATION_2026_09_01.md`](LIVE_VERIFICATION_2026_09_01.md).
 
 ## VT-000 — protected baseline and restart
 
