@@ -1148,11 +1148,13 @@ try {
           slider.dispatchEvent(new Event('input', { bubbles: true }));
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const scroll = document.querySelector('.room-canvas-scroll'); scroll.scrollLeft = 250; scroll.scrollTop = 120;
+          scroll.scrollIntoView({ block: 'center', inline: 'center' });
           const scrollRect = scroll.getBoundingClientRect();
+          const panPoint = { x: scrollRect.left + scrollRect.width / 2, y: scrollRect.top + scrollRect.height / 2 };
           return { requests, ghostCleared: !document.querySelector('.room-placement-ghost'),
             selectedPlacementId: document.querySelector('.room-placement[data-selected="true"]')?.dataset.placementId ?? null,
             panStart: { left: scroll.scrollLeft, top: scroll.scrollTop },
-            panPoint: { x: scrollRect.left + scrollRect.width / 2, y: scrollRect.top + scrollRect.height / 2 } };
+            panPoint, panTargetInside: document.elementFromPoint(panPoint.x, panPoint.y)?.closest('.room-canvas-scroll') === scroll };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
       const panPoint = afterDrag.result.value.panPoint;
@@ -1249,6 +1251,7 @@ try {
         && checkpoint45DirectManipulation.afterDrag.requests[3].url.endsWith('/placements-remove')
         && checkpoint45DirectManipulation.afterDrag.requests[3].body.placements?.[0]?.placementId === 'prop.family-table'
         && checkpoint45DirectManipulation.afterDrag.ghostCleared === true
+        && checkpoint45DirectManipulation.afterDrag.panTargetInside === true
         && checkpoint45DirectManipulation.pan?.semanticRequestCount === 4
         && checkpoint45DirectManipulation.pan.panning === null
         && (checkpoint45DirectManipulation.pan.left !== checkpoint45DirectManipulation.afterDrag.panStart.left
