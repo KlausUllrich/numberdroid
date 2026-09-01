@@ -30,7 +30,7 @@ test('Checkpoint 3 room controls use human-only routes with exact versions and e
   assert.match(app, /\/placements-move/);
   assert.match(app, /\/placements-remove/);
   assert.match(app, /expectedRoomVariantVersion: variant\.version/);
-  assert.match(app, /assetVersion: asset\.assetVersion, metadataVersion: asset\.metadataVersion/);
+  assert.match(app, /assetVersion: intent\.assetVersion, metadataVersion: intent\.metadataVersion/);
   assert.match(app, /Resize requires explicit removal/);
   assert.match(app, /Validate this DRAFT as a new immutable version/);
   assert.match(app, /Finalize this VALIDATED room/);
@@ -116,6 +116,16 @@ test('Room direct manipulation remains transient, revision-pinned, cancellable, 
   assert.match(app, /event\.key === 'Delete' \|\| event\.key === 'Backspace'/);
   assert.match(app, /ArrowLeft: \[-1, 0\].*ArrowRight: \[1, 0\]/s);
   assert.match(app, /event\.key === 'r' \|\| event\.key === 'R'/);
+  assert.match(app, /const activeGesture = state\.roomUi\.placementGesture/);
+  assert.match(app, /activeGesture\.rotation =/);
+  assert.match(app, /placementShortcutSurface/);
+  assert.match(app, /event\.preventDefault\(\); await moveRoomPlacement/);
+  assert.match(app, /function clearPendingRoomPlacementAdd/);
+  assert.match(app, /samePendingIntent/);
+  assert.match(app, /PLACEMENT_ADD_RECOVERED/);
+  assert.match(app, /original idempotency key can resolve safely/);
+  assert.match(app, /gesture\.outsideBoard/);
+  assert.match(app, /x: geometry\.left, y: geometry\.top/);
   assert.match(styles, /\.room-placement-ghost\[data-allowed="false"\]/);
   assert.match(styles, /repeating-linear-gradient/);
   assert.match(styles, /\.room-placement \{[^}]*cursor: grab;[^}]*touch-action: none/);

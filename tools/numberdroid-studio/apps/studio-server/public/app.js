@@ -100,6 +100,7 @@ const state = {
     placementRotation: 0,
     placementHover: null,
     placementGesture: null,
+    pendingPlacementAdd: null,
     suppressCanvasClick: false,
     layers: { STRUCTURAL_SURFACE: true, SET_DRESSING: true, CONNECTORS: true },
     decisionDrafts: {},
@@ -209,6 +210,12 @@ function roomOperationKey(operation, target, projectId = state.project?.projectI
 
 function clearRoomOperationKey(operation, target, projectId = state.project?.projectId ?? 'none') {
   state.roomOperationKeys.delete(`${operation}:${projectId}:${target}`);
+}
+
+function clearPendingRoomPlacementAdd({ clearOperationKey = true } = {}) {
+  const pending = state.roomUi.pendingPlacementAdd;
+  if (pending && clearOperationKey) clearRoomOperationKey('room-placement-add', pending.placementId, pending.projectId);
+  state.roomUi.pendingPlacementAdd = null;
 }
 
 function backupOperationKey(kind, backupId = null, destinationId = null) {
@@ -2580,7 +2587,8 @@ function roomPlacementGhostModel({ variant, snapshot, asset, anchor, rotation, l
     }
   }
   for (const connector of variant.connectors) {
-    const clearance = connectorGeometry(connector, variant);
+    const geometry = connectorGeometry(connector, variant);
+    const clearance = { x: geometry.left, y: geometry.top, width: geometry.width, height: geometry.height };
     if (candidateCollisions.some((rect) => roomRectsIntersect(rect, clearance))) {
       blockers.push(`Authored collision geometry blocks connector ${connector.connectorId}.`);
       break;
@@ -2596,14 +2604,26 @@ function roomPlacementGhostModel({ variant, snapshot, asset, anchor, rotation, l
 function currentRoomPlacementGhost() {
   const { variant } = currentRoomVariant();
   if (!variant) return null;
+  const pending = state.roomUi.pendingPlacementAdd;
+  if (pending) {
+    const asset = currentAssetLibrary().assets.find((candidate) => candidate.assetId === pending.assetId
+      && candidate.assetVersion === pending.assetVersion && candidate.metadataVersion === pending.metadataVersion) ?? null;
+    return roomPlacementGhostModel({
+      variant, snapshot: state.project.snapshot, asset, anchor: pending.anchor,
+      rotation: pending.rotation, layer: pending.layer,
+    });
+  }
   const gesture = state.roomUi.placementGesture;
   if (gesture) {
     const placement = variant.placements.find(({ placementId }) => placementId === gesture.placementId);
     const asset = placement ? exactRoomAsset(placement) : null;
-    return roomPlacementGhostModel({
+    const model = roomPlacementGhostModel({
       variant, snapshot: state.project.snapshot, asset, anchor: gesture.anchor,
       rotation: gesture.rotation, layer: placement?.layer, ignorePlacementId: gesture.placementId,
     });
+    return gesture.outsideBoard
+      ? { ...model, allowed: false, message: 'Release inside the room board, or cancel the drag.' }
+      : model;
   }
   if (!state.roomUi.selectedPaletteAssetId || !state.roomUi.placementHover) return null;
   const asset = currentAssetLibrary().assets.find(({ assetId }) => assetId === state.roomUi.selectedPaletteAssetId) ?? null;
@@ -2616,7 +2636,7 @@ function currentRoomPlacementGhost() {
 
 function renderRoomPlacementGhost(model) {
   const ghost = document.createElement('div'); ghost.className = 'room-placement-ghost';
-  ghost.dataset.allowed = String(model.allowed); ghost.setAttribute('aria-live', 'polite'); ghost.setAttribute('role', 'status');
+  ghost.dataset.allowed = String(model.allowed); ghost.setAttribute('aria-hidden', 'true');
   ghost.style.left = `calc(${model.anchor.x} * var(--room-cell))`; ghost.style.top = `calc(${model.anchor.y} * var(--room-cell))`;
   ghost.style.width = `calc(${model.footprint.width} * var(--room-cell))`; ghost.style.height = `calc(${model.footprint.height} * var(--room-cell))`;
   const cue = document.createElement('strong'); cue.textContent = model.allowed ? '✓ placement ghost' : '× blocked placement ghost';
@@ -2632,7 +2652,23 @@ function updateRoomPlacementGhostDom() {
   const model = currentRoomPlacementGhost();
   if (model) board.append(renderRoomPlacementGhost(model));
   const hint = elements['workspace-content'].querySelector('.room-canvas-hint');
-  if (hint && model) hint.textContent = `${model.allowed ? '✓' : '×'} ${model.message} Server validation remains authoritative.`;
+  const { variant } = currentRoomVariant();
+  if (hint && variant) hint.textContent = roomCanvasHintText(variant, model);
+}
+
+function roomCanvasHintText(variant, ghost = currentRoomPlacementGhost()) {
+  if (variant.lifecycle !== 'DRAFT') return `${variant.lifecycle} versions are read-only. Fork a FINAL version to continue authoring.`;
+  if (state.roomUi.activeTool.startsWith('PAINT_')) return 'Click a cell, or focus it and press Enter/Space, to paint the active class. Existing content is ghosted while painting.';
+  if (state.roomUi.pendingPlacementAdd) return `Unresolved exact placement retry at ${state.roomUi.pendingPlacementAdd.anchor.x},${state.roomUi.pendingPlacementAdd.anchor.y}. Choose that cell again so the original idempotency key can resolve safely.`;
+  if (state.roomUi.placementGesture) return `${ghost?.allowed ? '✓' : '×'} ${ghost?.message ?? 'Drag the placement to a snapped cell.'} Server validation remains authoritative.`;
+  if (state.roomUi.selectedPlacementId) return 'Drag the selected placement, use the arrow keys, press R to rotate, or Delete to remove it. Inspector controls remain available.';
+  if (state.roomUi.selectedPaletteAssetId) return ghost
+    ? `${ghost.allowed ? '✓' : '×'} ${ghost.message} Press R to rotate; Escape cancels. Server validation remains authoritative.`
+    : 'Point to or focus a cell to inspect the exact rotated placement ghost. Press R to rotate or Escape to cancel.';
+  if (state.roomUi.activeTool === 'ENTRANCE') return 'Choose an existing entrance on the canvas, or add one with the tool options.';
+  if (state.roomUi.activeTool === 'SURFACE') return 'Choose an exact-version surface in the tool options, then place it on the canvas.';
+  if (state.roomUi.activeTool === 'PROP') return 'Inspect a prop in the tool options, choose “Use in room”, then place it on the canvas.';
+  return 'Select a placement or entrance on the canvas, or choose another tool from the left toolbar.';
 }
 
 function roomControl(label, value, dataset = {}) {
@@ -2814,18 +2850,8 @@ function renderRoomCanvas(variant, snapshot) {
   }
   const ghost = currentRoomPlacementGhost(); if (ghost) board.append(renderRoomPlacementGhost(ghost));
   scroll.append(board); panel.append(scroll);
-  const hint = document.createElement('p'); hint.className = 'room-canvas-hint';
-  if (variant.lifecycle !== 'DRAFT') hint.textContent = `${variant.lifecycle} versions are read-only. Fork a FINAL version to continue authoring.`;
-  else if (state.roomUi.activeTool.startsWith('PAINT_')) hint.textContent = 'Click a cell, or focus it and press Enter/Space, to paint the active class. Existing content is ghosted while painting.';
-  else if (state.roomUi.placementGesture) hint.textContent = `${ghost?.allowed ? '✓' : '×'} ${ghost?.message ?? 'Drag the placement to a snapped cell.'} Server validation remains authoritative.`;
-  else if (state.roomUi.selectedPlacementId) hint.textContent = 'Drag the selected placement, use the arrow keys, press R to rotate, or Delete to remove it. Inspector controls remain available.';
-  else if (state.roomUi.selectedPaletteAssetId) hint.textContent = ghost
-    ? `${ghost.allowed ? '✓' : '×'} ${ghost.message} Press R to rotate; Escape cancels. Server validation remains authoritative.`
-    : 'Point to or focus a cell to inspect the exact rotated placement ghost. Press R to rotate or Escape to cancel.';
-  else if (state.roomUi.activeTool === 'ENTRANCE') hint.textContent = 'Choose an existing entrance on the canvas, or add one with the tool options.';
-  else if (state.roomUi.activeTool === 'SURFACE') hint.textContent = 'Choose an exact-version surface in the tool options, then place it on the canvas.';
-  else if (state.roomUi.activeTool === 'PROP') hint.textContent = 'Inspect a prop in the tool options, choose “Use in room”, then place it on the canvas.';
-  else hint.textContent = 'Select a placement or entrance on the canvas, or choose another tool from the left toolbar.';
+  const hint = document.createElement('p'); hint.className = 'room-canvas-hint'; hint.setAttribute('role', 'status'); hint.setAttribute('aria-live', 'polite');
+  hint.textContent = roomCanvasHintText(variant, ghost);
   panel.append(hint); return panel;
 }
 
@@ -4132,6 +4158,7 @@ function workspaceRenderFingerprint() {
         anchor: state.roomUi.placementGesture.anchor,
         rotation: state.roomUi.placementGesture.rotation,
       } : null,
+      pendingPlacementAdd: state.roomUi.pendingPlacementAdd,
       layers: state.roomUi.layers,
       decisionDrafts: state.roomUi.decisionDrafts,
       decisionContext: state.roomUi.decisionContext,
@@ -4367,6 +4394,7 @@ function resetRoomUiProjectContext() {
   state.roomUi.placementRotation = 0;
   state.roomUi.placementHover = null;
   state.roomUi.placementGesture = null;
+  clearPendingRoomPlacementAdd();
   state.roomUi.suppressCanvasClick = false;
   state.roomUi.layers = { STRUCTURAL_SURFACE: true, SET_DRESSING: true, CONNECTORS: true };
   state.roomUi.decisionDrafts = {};
@@ -4384,12 +4412,41 @@ function reconcileRoomUi(project) {
     state.roomUi.selectedConnectorId = null;
   }
   const { variant } = currentRoomVariant(project.snapshot);
+  const pendingAdd = state.roomUi.pendingPlacementAdd;
+  if (pendingAdd) {
+    const committed = variant?.placements.find(({ placementId }) => placementId === pendingAdd.placementId);
+    const exactCommit = committed
+      && committed.assetId === pendingAdd.assetId
+      && committed.assetVersion === pendingAdd.assetVersion
+      && committed.metadataVersion === pendingAdd.metadataVersion
+      && committed.layer === pendingAdd.layer
+      && committed.anchor.x === pendingAdd.anchor.x
+      && committed.anchor.y === pendingAdd.anchor.y
+      && committed.rotation === pendingAdd.rotation;
+    if (exactCommit) {
+      clearPendingRoomPlacementAdd();
+      state.roomUi.selectedPlacementId = committed.placementId;
+      state.roomUi.selectedPaletteAssetId = null;
+      state.roomUi.placementHover = null;
+      state.roomUi.placementRotation = 0;
+      showToast('PLACEMENT_ADD_RECOVERED: The authoritative reload confirmed the original exact placement. No second command was sent.');
+    } else if (pendingAdd.projectId !== project.projectId
+        || pendingAdd.projectRevision !== project.revision
+        || pendingAdd.roomVariantId !== variant?.roomVariantId
+        || pendingAdd.roomVersion !== variant?.version) {
+      clearPendingRoomPlacementAdd();
+      state.roomUi.selectedPaletteAssetId = null;
+      state.roomUi.placementHover = null;
+      state.roomUi.placementRotation = 0;
+      showToast('ROOM_CONTEXT_CHANGED: The unresolved placement was not found after the room changed. Prepare a fresh explicit placement.');
+    }
+  }
   const gesture = state.roomUi.placementGesture;
   if (gesture && (gesture.projectId !== project.projectId
       || gesture.projectRevision !== project.revision
       || gesture.roomVariantId !== variant?.roomVariantId
       || gesture.roomVersion !== variant?.version)) {
-    state.roomUi.placementGesture = null;
+    cancelRoomPlacementGesture({ suppressClick: true });
     state.roomUi.placementHover = null;
     showToast('ROOM_CONTEXT_CHANGED: Direct manipulation was cancelled because the authoritative room changed.');
   }
@@ -4903,10 +4960,14 @@ function roomCellFromPointer(board, event) {
   return { x, y };
 }
 
-function cancelRoomPlacementGesture({ announce = false } = {}) {
+function cancelRoomPlacementGesture({ announce = false, suppressClick = false } = {}) {
   const gesture = state.roomUi.placementGesture; if (!gesture) return false;
   const target = gesture.target;
   state.roomUi.placementGesture = null;
+  if (suppressClick) {
+    state.roomUi.suppressCanvasClick = true;
+    setTimeout(() => { state.roomUi.suppressCanvasClick = false; }, 250);
+  }
   if (target?.hasPointerCapture?.(gesture.pointerId)) target.releasePointerCapture(gesture.pointerId);
   updateRoomPlacementGhostDom();
   if (announce) showToast('Direct manipulation cancelled. No room command was sent.');
@@ -4925,12 +4986,12 @@ elements['workspace-content'].addEventListener('pointerdown', (event) => {
   state.roomUi.selectedPlacementId = placement.placementId;
   state.roomUi.selectedConnectorId = null; state.roomUi.selectedPaletteAssetId = null; state.roomUi.placementHover = null;
   for (const candidate of board.querySelectorAll('.room-placement[data-selected="true"]')) candidate.dataset.selected = 'false';
-  target.dataset.selected = 'true';
+  target.dataset.selected = 'true'; target.focus({ preventScroll: true });
   state.roomUi.placementGesture = {
     ...roomManipulationContext(variant, placement), pointerId: event.pointerId, target, board,
     startClient: { x: event.clientX, y: event.clientY },
     grabOffset: { x: pointerCell.x - placement.anchor.x, y: pointerCell.y - placement.anchor.y },
-    originalAnchor: { ...placement.anchor }, anchor: { ...placement.anchor }, rotation: placement.rotation, moved: false,
+    originalAnchor: { ...placement.anchor }, anchor: { ...placement.anchor }, rotation: placement.rotation, moved: false, outsideBoard: false,
   };
   target.setPointerCapture?.(event.pointerId); updateRoomPlacementGhostDom(); event.preventDefault();
 });
@@ -4944,14 +5005,18 @@ elements['workspace-content'].addEventListener('pointermove', (event) => {
     if (!roomManipulationContextMatches(gesture, variant, placement) || !gesture.board.isConnected) {
       cancelRoomPlacementGesture(); showToast('ROOM_CONTEXT_CHANGED: Direct manipulation was cancelled as stale.'); return;
     }
-    const pointerCell = roomCellFromPointer(gesture.board, event); if (!pointerCell) return;
+    const pointerCell = roomCellFromPointer(gesture.board, event);
+    if (!pointerCell) {
+      gesture.outsideBoard = true; gesture.moved = true; updateRoomPlacementGhostDom(); event.preventDefault(); return;
+    }
+    gesture.outsideBoard = false;
     const anchor = { x: pointerCell.x - gesture.grabOffset.x, y: pointerCell.y - gesture.grabOffset.y };
     const movedPixels = Math.hypot(event.clientX - gesture.startClient.x, event.clientY - gesture.startClient.y) >= 3;
     if (anchor.x === gesture.anchor.x && anchor.y === gesture.anchor.y && !movedPixels) return;
     gesture.anchor = anchor; gesture.moved ||= movedPixels || anchor.x !== gesture.originalAnchor.x || anchor.y !== gesture.originalAnchor.y;
     updateRoomPlacementGhostDom(); event.preventDefault(); return;
   }
-  if (!state.roomUi.selectedPaletteAssetId) return;
+  if (!state.roomUi.selectedPaletteAssetId || state.roomUi.pendingPlacementAdd) return;
   const board = event.target.closest('[data-room-board]'); if (!board) return;
   const anchor = roomCellFromPointer(board, event); if (!anchor) return;
   if (anchor.x === state.roomUi.placementHover?.x && anchor.y === state.roomUi.placementHover?.y) return;
@@ -4959,7 +5024,8 @@ elements['workspace-content'].addEventListener('pointermove', (event) => {
 });
 
 elements['workspace-content'].addEventListener('focusin', (event) => {
-  if (state.workspace !== 'rooms' || !state.roomUi.selectedPaletteAssetId || state.roomUi.placementGesture) return;
+  if (state.workspace !== 'rooms' || !state.roomUi.selectedPaletteAssetId
+      || state.roomUi.placementGesture || state.roomUi.pendingPlacementAdd) return;
   const cell = event.target.closest('[data-room-control="cell"]'); if (!cell) return;
   state.roomUi.placementHover = { x: Number(cell.dataset.x), y: Number(cell.dataset.y) };
   updateRoomPlacementGhostDom();
@@ -4970,12 +5036,15 @@ elements['workspace-content'].addEventListener('pointerup', async (event) => {
   if (!gesture || gesture.pointerId !== event.pointerId) return;
   const { variant } = currentRoomVariant();
   const placement = variant?.placements.find(({ placementId }) => placementId === gesture.placementId);
-  const shouldMove = gesture.moved && (gesture.anchor.x !== gesture.originalAnchor.x || gesture.anchor.y !== gesture.originalAnchor.y);
+  const shouldMove = gesture.moved && !gesture.outsideBoard
+    && (gesture.anchor.x !== gesture.originalAnchor.x || gesture.anchor.y !== gesture.originalAnchor.y);
   state.roomUi.placementGesture = null;
   if (gesture.target.hasPointerCapture?.(event.pointerId)) gesture.target.releasePointerCapture(event.pointerId);
   updateRoomPlacementGhostDom();
+  if (gesture.moved) {
+    state.roomUi.suppressCanvasClick = true; setTimeout(() => { state.roomUi.suppressCanvasClick = false; }, 250);
+  }
   if (!shouldMove) return;
-  state.roomUi.suppressCanvasClick = true; setTimeout(() => { state.roomUi.suppressCanvasClick = false; }, 0);
   if (!roomManipulationContextMatches(gesture, variant, placement)) {
     showToast('ROOM_CONTEXT_CHANGED: Direct manipulation was cancelled as stale.'); return;
   }
@@ -4983,44 +5052,64 @@ elements['workspace-content'].addEventListener('pointerup', async (event) => {
 });
 
 elements['workspace-content'].addEventListener('pointercancel', (event) => {
-  if (state.roomUi.placementGesture?.pointerId === event.pointerId) cancelRoomPlacementGesture({ announce: true });
+  if (state.roomUi.placementGesture?.pointerId === event.pointerId) cancelRoomPlacementGesture({ announce: true, suppressClick: true });
 });
 elements['workspace-content'].addEventListener('lostpointercapture', (event) => {
-  if (state.roomUi.placementGesture?.pointerId === event.pointerId) cancelRoomPlacementGesture({ announce: true });
+  if (state.roomUi.placementGesture?.pointerId === event.pointerId) cancelRoomPlacementGesture({ announce: true, suppressClick: true });
 });
 
 document.addEventListener('keydown', async (event) => {
   if (state.workspace !== 'rooms' || event.defaultPrevented || state.roomMutationPending) return;
   if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
   if (event.key === 'Escape') {
-    const cancelledGesture = cancelRoomPlacementGesture({ announce: true });
-    const cancelledAsset = Boolean(state.roomUi.selectedPaletteAssetId);
+    const cancelledGesture = cancelRoomPlacementGesture({ announce: true, suppressClick: true });
+    const cancelledAsset = Boolean(state.roomUi.selectedPaletteAssetId) && !state.roomUi.pendingPlacementAdd;
     if (cancelledAsset) {
       state.roomUi.selectedPaletteAssetId = null; state.roomUi.placementHover = null; state.roomUi.placementRotation = 0;
       renderWorkspace({ preserveRoomDraft: true }); showToast('Placement ghost cancelled. No room command was sent.');
     }
+    if (state.roomUi.pendingPlacementAdd) showToast('PLACEMENT_ADD_PENDING: Retry the exact unresolved placement so the original idempotency key can resolve safely.');
     if (cancelledGesture || cancelledAsset) event.preventDefault();
     return;
   }
+  const activeGesture = state.roomUi.placementGesture;
+  if (activeGesture) {
+    if (event.key === 'r' || event.key === 'R') {
+      event.preventDefault();
+      const { variant } = currentRoomVariant();
+      const placement = variant?.placements.find(({ placementId }) => placementId === activeGesture.placementId);
+      const asset = placement ? exactRoomAsset(placement) : null;
+      activeGesture.rotation = asset?.metadata?.rotationPolicy === 'cardinal'
+        ? (activeGesture.rotation + 90) % 360 : 0;
+      updateRoomPlacementGhostDom();
+      return;
+    }
+    if (['Delete', 'Backspace', 'ArrowLeft', 'ArrowUp', 'ArrowDown', 'ArrowRight'].includes(event.key)) {
+      event.preventDefault(); return;
+    }
+  }
+  const placementShortcutSurface = event.target.closest('[data-room-board], .room-inspector, [data-room-control="rotate-placement-ghost"]');
+  if (!placementShortcutSurface) return;
   const { variant } = currentRoomVariant(); if (!variant || variant.lifecycle !== 'DRAFT') return;
   if ((event.key === 'r' || event.key === 'R') && state.roomUi.selectedPaletteAssetId) {
+    event.preventDefault();
     const asset = currentAssetLibrary().assets.find(({ assetId }) => assetId === state.roomUi.selectedPaletteAssetId);
     state.roomUi.placementRotation = asset?.metadata?.rotationPolicy === 'cardinal'
       ? (state.roomUi.placementRotation + 90) % 360 : 0;
-    renderWorkspace({ preserveRoomDraft: true }); event.preventDefault(); return;
+    renderWorkspace({ preserveRoomDraft: true }); return;
   }
   const placement = variant.placements.find(({ placementId }) => placementId === state.roomUi.selectedPlacementId);
   if (!placement) return;
   if (event.key === 'r' || event.key === 'R') {
-    await moveRoomPlacement(placement, placement.anchor, (placement.rotation + 90) % 360); event.preventDefault(); return;
+    event.preventDefault(); await moveRoomPlacement(placement, placement.anchor, (placement.rotation + 90) % 360); return;
   }
   if (event.key === 'Delete' || event.key === 'Backspace') {
-    await removeRoomPlacement(placement); event.preventDefault(); return;
+    event.preventDefault(); await removeRoomPlacement(placement); return;
   }
   const delta = { ArrowLeft: [-1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowRight: [1, 0] }[event.key];
   if (delta) {
-    await moveRoomPlacement(placement, { x: placement.anchor.x + delta[0], y: placement.anchor.y + delta[1] }, placement.rotation);
     event.preventDefault();
+    await moveRoomPlacement(placement, { x: placement.anchor.x + delta[0], y: placement.anchor.y + delta[1] }, placement.rotation);
   }
 });
 
@@ -5277,18 +5366,45 @@ async function addRoomPlacement(asset, anchor, rotation) {
   if (!roomManipulationContextMatches(context, variant)) {
     showToast('ROOM_CONTEXT_CHANGED: The asset was not placed because its rendered room context is stale.'); return false;
   }
-  const placementId = stableUiId('placement', asset.name);
+  const pending = state.roomUi.pendingPlacementAdd;
+  const samePendingIntent = pending
+    && pending.projectId === context.projectId
+    && pending.projectRevision === context.projectRevision
+    && pending.roomVariantId === context.roomVariantId
+    && pending.roomVersion === context.roomVersion
+    && pending.assetId === asset.assetId
+    && pending.assetVersion === asset.assetVersion
+    && pending.metadataVersion === asset.metadataVersion
+    && pending.layer === layer
+    && pending.anchor.x === anchor.x && pending.anchor.y === anchor.y
+    && pending.rotation === rotation;
+  if (pending && !samePendingIntent) {
+    showToast('PLACEMENT_ADD_PENDING: Retry the exact unresolved placement, or press Escape to cancel it before preparing another.');
+    return false;
+  }
+  const intent = pending ?? {
+    ...context,
+    placementId: stableUiId('placement', asset.name),
+    assetId: asset.assetId,
+    assetVersion: asset.assetVersion,
+    metadataVersion: asset.metadataVersion,
+    layer,
+    anchor: { ...anchor },
+    rotation,
+  };
+  state.roomUi.pendingPlacementAdd = intent;
   const basePath = `/api/projects/${encodeURIComponent(context.projectId)}/rooms/${encodeURIComponent(context.roomVariantId)}`;
   return executeRoomMutation({
-    operation: 'room-placement-add', target: placementId, path: `${basePath}/placements-add`,
-    body: { expectedRoomVariantVersion: context.roomVersion, placements: [{
-      placementId, assetId: asset.assetId, assetVersion: asset.assetVersion, metadataVersion: asset.metadataVersion,
-      layer, anchor, rotation, variantTag: null, proposalId: null, proposalItemId: null,
+    operation: 'room-placement-add', target: intent.placementId, path: `${basePath}/placements-add`,
+    body: { expectedRoomVariantVersion: intent.roomVersion, placements: [{
+      placementId: intent.placementId, assetId: intent.assetId, assetVersion: intent.assetVersion, metadataVersion: intent.metadataVersion,
+      layer: intent.layer, anchor: intent.anchor, rotation: intent.rotation, variantTag: null, proposalId: null, proposalItemId: null,
     }] },
     successMessage: `${asset.name} placed at ${anchor.x},${anchor.y}.`,
     onBeforeReload: () => {
-      state.roomUi.selectedPlacementId = placementId; state.roomUi.selectedPaletteAssetId = null;
+      state.roomUi.selectedPlacementId = intent.placementId; state.roomUi.selectedPaletteAssetId = null;
       state.roomUi.placementHover = null; state.roomUi.placementRotation = 0;
+      clearPendingRoomPlacementAdd({ clearOperationKey: false });
     },
   });
 }
@@ -5318,6 +5434,10 @@ elements['workspace-content'].addEventListener('input', (event) => {
 elements['workspace-content'].addEventListener('change', (event) => {
   const roomSelect = event.target.closest('[data-room-variant-select]');
   if (roomSelect) {
+    if (state.roomUi.pendingPlacementAdd) {
+      showToast('PLACEMENT_ADD_PENDING: Resolve the exact placement retry before switching rooms.');
+      renderWorkspace({ preserveRoomDraft: true }); return;
+    }
     if ((state.roomUi.dirty || state.roomUi.shapeDraft?.dirty) && !window.confirm('Discard the unsaved room draft and switch rooms?')) { renderWorkspace({ preserveRoomDraft: true }); return; }
     state.roomUi.selectedRoomVariantId = roomSelect.value; state.roomUi.selectedPlacementId = null; state.roomUi.selectedConnectorId = null;
     state.roomUi.selectedPaletteAssetId = null; state.roomUi.previewAssetId = null; state.roomUi.selectedProposalId = null; state.roomUi.dirty = false; state.roomUi.conflict = null;
@@ -5421,6 +5541,10 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const control = event.target.closest('[data-room-control]'); if (!control || state.workspace !== 'rooms') return;
   const action = control.dataset.roomControl;
   if (['palette-search', 'layer', 'room-select', 'proposal-select', 'proposal-disposition', 'proposal-reason'].includes(action)) return;
+  if (state.roomUi.pendingPlacementAdd
+      && ['editor-tool', 'palette-asset', 'use-preview-asset', 'close-preview-asset'].includes(action)) {
+    showToast('PLACEMENT_ADD_PENDING: Resolve the exact placement retry before changing placement context.'); return;
+  }
   const { variant } = currentRoomVariant();
   if (action === 'editor-tool') {
     const tool = control.dataset.editorTool;
@@ -5443,7 +5567,8 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   }
   if (action === 'use-preview-asset') {
     state.roomUi.selectedPaletteAssetId = control.dataset.paletteAssetId; state.roomUi.previewAssetId = control.dataset.paletteAssetId;
-    state.roomUi.placementRotation = 0; state.roomUi.placementHover = null; renderWorkspace({ preserveRoomDraft: true }); return;
+    state.roomUi.placementRotation = state.assetUi.previewRotations[`room:${control.dataset.paletteAssetId}`] ?? 0;
+    state.roomUi.placementHover = null; renderWorkspace({ preserveRoomDraft: true }); return;
   }
   if (action === 'close-preview-asset') {
     state.roomUi.previewAssetId = null; state.roomUi.selectedPaletteAssetId = null;
@@ -5675,6 +5800,10 @@ elements['project-select'].addEventListener('change', () => {
       || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending) {
     elements['project-select'].value = state.project?.projectId ?? '';
     return;
+  }
+  if (state.roomUi.pendingPlacementAdd) {
+    elements['project-select'].value = state.project?.projectId ?? '';
+    showToast('PLACEMENT_ADD_PENDING: Resolve the exact placement retry before switching projects.'); return;
   }
   void loadProject(elements['project-select'].value);
 });
@@ -6185,6 +6314,57 @@ if (visualFixture) {
         marker: state.cutterJob?.visualFixtureProjectionMarker ?? null,
         pointerTrace: cutterPointerTrace.slice(),
       };
+    },
+    roomDirectManipulationState() {
+      return {
+        gestureActive: Boolean(state.roomUi.placementGesture),
+        gesturePointerId: state.roomUi.placementGesture?.pointerId ?? null,
+        gestureRotation: state.roomUi.placementGesture?.rotation ?? null,
+        pendingPlacementAdd: state.roomUi.pendingPlacementAdd ? structuredClone(state.roomUi.pendingPlacementAdd) : null,
+        selectedPlacementId: state.roomUi.selectedPlacementId,
+        projectRevision: state.project?.revision ?? null,
+        roomVersion: currentRoomVariant().variant?.version ?? null,
+        suppressCanvasClick: state.roomUi.suppressCanvasClick,
+      };
+    },
+    exerciseRoomPlacementAddRecovery() {
+      const { variant } = currentRoomVariant();
+      const placement = variant?.placements[0];
+      if (!state.project || !variant || !placement) return null;
+      state.roomUi.pendingPlacementAdd = {
+        ...roomManipulationContext(variant),
+        placementId: placement.placementId,
+        assetId: placement.assetId,
+        assetVersion: placement.assetVersion,
+        metadataVersion: placement.metadataVersion,
+        layer: placement.layer,
+        anchor: { ...placement.anchor },
+        rotation: placement.rotation,
+      };
+      roomOperationKey('room-placement-add', placement.placementId, state.project.projectId);
+      reconcileRoomUi(state.project);
+      return {
+        pendingPlacementAdd: state.roomUi.pendingPlacementAdd,
+        selectedPlacementId: state.roomUi.selectedPlacementId,
+        message: elements.toast.textContent,
+      };
+    },
+    exerciseRoomGestureProjectionChange() {
+      if (!state.roomUi.placementGesture || !state.project) return null;
+      const originalProject = state.project;
+      const target = state.roomUi.placementGesture.target;
+      const pointerId = state.roomUi.placementGesture.pointerId;
+      state.project = { ...originalProject, revision: originalProject.revision + 1 };
+      reconcileRoomUi(state.project);
+      const changed = {
+        gestureActive: Boolean(state.roomUi.placementGesture),
+        targetHadCapture: Boolean(target?.hasPointerCapture?.(pointerId)),
+        suppressCanvasClick: state.roomUi.suppressCanvasClick,
+      };
+      state.project = originalProject;
+      reconcileRoomUi(state.project);
+      renderWorkspace({ preserveRoomDraft: true });
+      return changed;
     },
     async exerciseRoomShapeRefresh() {
       if (state.workspace !== 'rooms' || !state.roomUi.activeTool.startsWith('PAINT_')) return null;
