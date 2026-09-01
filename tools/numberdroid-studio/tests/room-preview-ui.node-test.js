@@ -18,6 +18,8 @@ test('Room Studio Preview is an exact read-only view with visible non-runtime tr
   assert.match(app, /button\.setAttribute\('aria-pressed', String\(state\.roomUi\.previewSelectedEntityId === entity\.entityId\)\)/);
   assert.match(app, /captureRoomDomState\(\{ preserveActiveKey: true \}\)/);
   assert.match(app, /captureRoomPreviewDomState[\s\S]*restoreRoomPreviewDomState/);
+  assert.match(app, /type: 'OPEN',[\s\S]*binding: \{[\s\S]*projectId: binding\.projectId,[\s\S]*projectRevision: binding\.projectRevision,[\s\S]*roomVariantId: binding\.roomVariantId,[\s\S]*roomVersion: binding\.roomVersion/);
+  assert.doesNotMatch(app, /type: 'OPEN', binding, requestId/);
   assert.match(app, /LOAD_FAILED[\s\S]*captureRoomPreviewDomState\(\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
   assert.match(app, /data-preview-retry[\s\S]*captureRoomPreviewDomState\(retry\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
   assert.match(app, /data-preview-inspect[\s\S]*focus\(\{ preventScroll: true \}\)/);

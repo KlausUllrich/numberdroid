@@ -167,6 +167,9 @@ test('UI transitions are immutable, exact-request owned, and fail closed', { tim
   const loading = transitionRoomPreviewUiState(closed, { type: 'OPEN', binding: BINDING, requestId: 1 });
   assert.equal(loading.status, 'LOADING');
   assert.equal(Object.isFrozen(loading.binding), true);
+  assert.throws(() => transitionRoomPreviewUiState(closed, {
+    type: 'OPEN', binding: createRoomPreviewBinding(BINDING), requestId: 2,
+  }), /binding\.key is not permitted/);
 
   const staleScene = transitionRoomPreviewUiState(loading, {
     type: 'SCENE_READY', bindingKey: loading.bindingKey, requestId: 2, scene: scene(),

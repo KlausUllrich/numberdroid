@@ -3343,7 +3343,16 @@ function beginRoomPreviewLoad(binding, { retry = false } = {}) {
   state.roomUi.previewRequestId = requestId;
   state.roomUi.preview = transitionRoomPreviewUiState(state.roomUi.preview, retry
     ? { type: 'RETRY', requestId }
-    : { type: 'OPEN', binding, requestId });
+    : {
+        type: 'OPEN',
+        binding: {
+          projectId: binding.projectId,
+          projectRevision: binding.projectRevision,
+          roomVariantId: binding.roomVariantId,
+          roomVersion: binding.roomVersion,
+        },
+        requestId,
+      });
   const abortController = new AbortController();
   state.roomUi.previewAbortController = abortController;
   queueMicrotask(() => loadRoomPreviewScene(binding, requestId, abortController));
