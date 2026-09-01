@@ -1043,6 +1043,24 @@ try {
         if (observed.result?.value === true) break;
         await delay(50);
       }
+      const previewViewportPosition = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const stage = document.querySelector('[data-room-preview] .room-preview-stage');
+          const svg = document.querySelector('[data-room-preview] [data-preview-scene]');
+          if (!stage || !svg) return { positioned: false, reason: 'stage-or-scene-missing' };
+          stage.scrollIntoView({ block: 'center', inline: 'nearest' });
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const stageRect = stage.getBoundingClientRect();
+          return {
+            positioned: stageRect.left < window.innerWidth && stageRect.right > 0
+              && stageRect.top < window.innerHeight && stageRect.bottom > 0,
+            stage: { left: stageRect.left, top: stageRect.top, right: stageRect.right, bottom: stageRect.bottom },
+          };
+        })()`, returnByValue: true,
+        awaitPromise: true,
+      }, sessionId);
+      assert(previewViewportPosition.result?.value?.positioned === true,
+        `Preview pixel oracle could not position the overhang sample inside the physical viewport: ${JSON.stringify(previewViewportPosition.result?.value)}`);
       const previewFactsResult = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const root = document.querySelector('[data-room-preview]');
@@ -1062,6 +1080,8 @@ try {
           const stageRect = stage?.getBoundingClientRect(); const objectsRect = objects?.getBoundingClientRect();
           const sideBySide = Boolean(stageRect && objectsRect && objectsRect.left >= stageRect.right - 1 && objectsRect.top < stageRect.bottom);
           const stacked = Boolean(stageRect && objectsRect && objectsRect.top >= stageRect.bottom - 1);
+          const transparentSample = toScreen(1.15, .55);
+          const opaqueOverhangSample = toScreen(1.9, .55);
           return {
             state: root?.dataset.roomPreviewState ?? null,
             binding: root?.querySelector('.room-preview-binding')?.textContent ?? null,
@@ -1089,8 +1109,11 @@ try {
               sideBySide,
               stacked,
             },
-            transparentSample: toScreen(1.15, .55),
-            opaqueOverhangSample: toScreen(1.9, .55),
+            transparentSample,
+            opaqueOverhangSample,
+            pixelSamplesInViewport: [transparentSample, opaqueOverhangSample].every((point) => (
+              point.x >= 0 && point.x < window.innerWidth && point.y >= 0 && point.y < window.innerHeight
+            )),
           };
         })()`, returnByValue: true,
       }, sessionId);
@@ -1137,9 +1160,13 @@ try {
       assert(restoredState.result?.value === 3, 'Preview pixel oracle could not restore all three overhang segments.');
       const decodedPainted = decodeSupportedPng(previewBytes, { maxWidth: 2048, maxHeight: 1200, maxInputBytes: 32 * 1024 * 1024 });
       const decodedReference = decodeSupportedPng(referenceBytes, { maxWidth: 2048, maxHeight: 1200, maxInputBytes: 32 * 1024 * 1024 });
+      assert(decodedPainted.width === decodedReference.width && decodedPainted.height === decodedReference.height,
+        'Preview painted and reference screenshots must have identical dimensions.');
       const pixel = (decoded, point) => {
-        const x = Math.max(0, Math.min(decoded.width - 1, Math.round(point.x)));
-        const y = Math.max(0, Math.min(decoded.height - 1, Math.round(point.y)));
+        const x = Math.round(point.x); const y = Math.round(point.y);
+        assert(Number.isFinite(point.x) && Number.isFinite(point.y)
+          && x >= 0 && x < decoded.width && y >= 0 && y < decoded.height,
+        `Preview pixel sample lies outside the physical screenshot: ${JSON.stringify({ point, width: decoded.width, height: decoded.height })}`);
         const offset = (y * decoded.width + x) * 4;
         return [...decoded.rgba.subarray(offset, offset + 4)];
       };
@@ -3351,6 +3378,7 @@ try {
         && (width > 1200
           ? checkpoint45StudioPreview.responsiveLayout.sideBySide === true && checkpoint45StudioPreview.responsiveLayout.stacked === false
           : checkpoint45StudioPreview.responsiveLayout.sideBySide === false && checkpoint45StudioPreview.responsiveLayout.stacked === true)
+        && checkpoint45StudioPreview.pixelSamplesInViewport === true
         && checkpoint45StudioPreview.transparentPixelDelta <= 8
         && checkpoint45StudioPreview.opaqueOverhangPixelDelta >= 30
         && checkpoint45StudioPreview.changedPixelCount > 0

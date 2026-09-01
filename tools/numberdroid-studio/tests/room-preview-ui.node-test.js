@@ -101,6 +101,13 @@ test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visi
   assert.match(capture, /nonZeroScrollKeys\.length > 0/);
   assert.match(capture, /responsiveLayout\.sideBySide === true[\s\S]*responsiveLayout\.stacked === false/);
   assert.match(capture, /responsiveLayout\.sideBySide === false[\s\S]*responsiveLayout\.stacked === true/);
+  assert.match(capture, /stage\.scrollIntoView\(\{ block: 'center', inline: 'nearest' \}\)/);
+  assert.match(capture, /pixelSamplesInViewport === true/);
+  const pixelStart = capture.indexOf('const pixel = (decoded, point) =>');
+  const pixelEnd = capture.indexOf('const delta =', pixelStart);
+  assert.ok(pixelStart >= 0 && pixelEnd > pixelStart);
+  assert.doesNotMatch(capture.slice(pixelStart, pixelEnd), /Math\.max|Math\.min/);
+  assert.match(capture.slice(pixelStart, pixelEnd), /x >= 0 && x < decoded\.width && y >= 0 && y < decoded\.height/);
   assert.match(capture, /requestAnimationFrame\(\(\) => requestAnimationFrame\(resolveFrame\)\)/);
   assert.match(capture, /getComputedStyle\(group\)\.display === 'none'/);
   assert.match(capture, /errorBannerText\.includes\('exact room v8'\)/);
