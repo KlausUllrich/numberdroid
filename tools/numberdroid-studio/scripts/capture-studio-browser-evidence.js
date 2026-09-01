@@ -889,18 +889,6 @@ try {
         if (previewActivation?.events.some(({ type }) => type === 'click') && previewActivation.rootPresent) break;
         await delay(50);
       }
-      await devtools.send('Runtime.evaluate', {
-        expression: `(() => {
-          const evidence = window.__checkpoint45PreviewKeyboard;
-          evidence?.root?.removeEventListener('click', evidence.onClick, true);
-          evidence?.root?.removeEventListener('click', evidence.onBubble);
-          document.removeEventListener('keydown', evidence?.onKey, true);
-          document.removeEventListener('keyup', evidence?.onKey, true);
-          window.removeEventListener('error', evidence?.onWindowError);
-          window.removeEventListener('unhandledrejection', evidence?.onUnhandledRejection);
-          delete window.__checkpoint45PreviewKeyboard;
-        })()`, returnByValue: true,
-      }, sessionId);
       const activationBrowserErrors = devtools.events.slice(previewActivationRuntimeStart)
         .filter(({ method, params }) => method === 'Runtime.exceptionThrown'
           || (method === 'Log.entryAdded' && params?.entry?.level === 'error'))
@@ -955,6 +943,8 @@ try {
               state: root?.dataset.roomPreviewState ?? null,
               status: root?.querySelector('[data-preview-load-status]')?.textContent ?? null,
               resources: resources.map((resource) => resource.dataset.previewResourceState),
+              activationState: window.__numberdroidStudioVisualTest?.roomPreviewActivationState() ?? null,
+              pageErrors: window.__checkpoint45PreviewKeyboard?.pageErrors.map((error) => ({ ...error })) ?? [],
             };
           })()`, returnByValue: true,
         }, sessionId);
@@ -962,7 +952,52 @@ try {
         previewReady = previewReadyObservation?.ready === true;
         if (!previewReady) await delay(50);
       }
-      assert(previewReady, `Exact Studio preview scene or PNG resources did not reach READY: ${JSON.stringify(previewReadyObservation)}`);
+      const previewRequestIds = new Set(devtools.events.slice(networkStart)
+        .filter(({ method, params }) => method === 'Network.requestWillBeSent'
+          && new URL(params.request.url).pathname.endsWith('/preview-scene'))
+        .map(({ params }) => params.requestId));
+      const previewNetwork = devtools.events.slice(networkStart)
+        .filter(({ params }) => previewRequestIds.has(params?.requestId))
+        .map(({ method, params }) => ({
+          method,
+          requestMethod: params.request?.method ?? null,
+          url: params.request?.url ?? params.response?.url ?? null,
+          status: params.response?.status ?? null,
+          mimeType: params.response?.mimeType ?? null,
+          encodedDataLength: params.encodedDataLength ?? null,
+          errorText: params.errorText ?? null,
+          canceled: params.canceled ?? null,
+          blockedReason: params.blockedReason ?? null,
+        }));
+      const previewBrowserErrors = devtools.events.slice(previewActivationRuntimeStart)
+        .filter(({ method, params }) => method === 'Runtime.exceptionThrown'
+          || (method === 'Log.entryAdded' && params?.entry?.level === 'error'))
+        .slice(-8)
+        .map(({ method, params }) => method === 'Runtime.exceptionThrown'
+          ? {
+              method,
+              text: params.exceptionDetails?.text ?? null,
+              description: params.exceptionDetails?.exception?.description ?? null,
+              url: params.exceptionDetails?.url ?? null,
+              lineNumber: params.exceptionDetails?.lineNumber ?? null,
+              columnNumber: params.exceptionDetails?.columnNumber ?? null,
+            }
+          : { method, text: params.entry?.text ?? null, url: params.entry?.url ?? null });
+      assert(previewReady, `Exact Studio preview scene or PNG resources did not reach READY: ${JSON.stringify({
+        ...previewReadyObservation, network: previewNetwork, browserErrors: previewBrowserErrors,
+      })}`);
+      await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const evidence = window.__checkpoint45PreviewKeyboard;
+          evidence?.root?.removeEventListener('click', evidence.onClick, true);
+          evidence?.root?.removeEventListener('click', evidence.onBubble);
+          document.removeEventListener('keydown', evidence?.onKey, true);
+          document.removeEventListener('keyup', evidence?.onKey, true);
+          window.removeEventListener('error', evidence?.onWindowError);
+          window.removeEventListener('unhandledrejection', evidence?.onUnhandledRejection);
+          delete window.__checkpoint45PreviewKeyboard;
+        })()`, returnByValue: true,
+      }, sessionId);
       const loadFocusResult = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const root = document.querySelector('[data-room-preview]');

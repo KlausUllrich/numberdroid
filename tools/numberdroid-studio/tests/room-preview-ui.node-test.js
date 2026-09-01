@@ -18,8 +18,11 @@ test('Room Studio Preview is an exact read-only view with visible non-runtime tr
   assert.match(app, /button\.setAttribute\('aria-pressed', String\(state\.roomUi\.previewSelectedEntityId === entity\.entityId\)\)/);
   assert.match(app, /captureRoomDomState\(\{ preserveActiveKey: true \}\)/);
   assert.match(app, /captureRoomPreviewDomState[\s\S]*restoreRoomPreviewDomState/);
-  assert.match(app, /type: 'OPEN',[\s\S]*binding: \{[\s\S]*projectId: binding\.projectId,[\s\S]*projectRevision: binding\.projectRevision,[\s\S]*roomVariantId: binding\.roomVariantId,[\s\S]*roomVersion: binding\.roomVersion/);
+  assert.match(app, /function roomPreviewBindingCoordinates\(binding\)[\s\S]*projectId: binding\.projectId,[\s\S]*projectRevision: binding\.projectRevision,[\s\S]*roomVariantId: binding\.roomVariantId,[\s\S]*roomVersion: binding\.roomVersion/);
+  assert.match(app, /type: 'OPEN',[\s\S]*binding: roomPreviewBindingCoordinates\(binding\)/);
+  assert.match(app, /assertRoomPreviewSceneBinding\(scene, roomPreviewBindingCoordinates\(binding\)\)/);
   assert.doesNotMatch(app, /type: 'OPEN', binding, requestId/);
+  assert.doesNotMatch(app, /assertRoomPreviewSceneBinding\(scene, binding\)/);
   assert.match(app, /LOAD_FAILED[\s\S]*captureRoomPreviewDomState\(\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
   assert.match(app, /data-preview-retry[\s\S]*captureRoomPreviewDomState\(retry\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
   assert.match(app, /data-preview-inspect[\s\S]*focus\(\{ preventScroll: true \}\)/);
@@ -73,6 +76,9 @@ test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visi
   assert.match(physicalOpen, /onBubble[\s\S]*roomPreviewActivationState[\s\S]*bubbles\.length === 1[\s\S]*rootPresent === true[\s\S]*previewPressed === 'true'/);
   assert.match(physicalOpen, /Runtime\.exceptionThrown[\s\S]*Log\.entryAdded/);
   assert.match(physicalOpen, /unhandledrejection[\s\S]*pageErrors\.length === 0[\s\S]*browserErrors\.length === 0/);
+  assert.match(capture, /activationState: window\.__numberdroidStudioVisualTest\?\.roomPreviewActivationState/);
+  assert.match(capture, /previewRequestIds[\s\S]*Network\.requestWillBeSent[\s\S]*preview-scene/);
+  assert.match(capture, /previewBrowserErrors[\s\S]*Runtime\.exceptionThrown[\s\S]*browserErrors: previewBrowserErrors/);
   assert.doesNotMatch(physicalOpen, /type: 'rawKeyDown'/);
   assert.doesNotMatch(physicalOpen, /\.click\(|new KeyboardEvent|dispatchEvent\(new KeyboardEvent/);
   assert.match(capture, /physicalKeyboardOpen: previewActivation\?\.events\.length === 3/);

@@ -3272,6 +3272,15 @@ function roomPreviewBinding(variant) {
   });
 }
 
+function roomPreviewBindingCoordinates(binding) {
+  return {
+    projectId: binding.projectId,
+    projectRevision: binding.projectRevision,
+    roomVariantId: binding.roomVariantId,
+    roomVersion: binding.roomVersion,
+  };
+}
+
 function cancelRoomPreviewLoad({ close = true } = {}) {
   state.roomUi.previewAbortController?.abort();
   state.roomUi.previewAbortController = null;
@@ -3345,12 +3354,7 @@ function beginRoomPreviewLoad(binding, { retry = false } = {}) {
     ? { type: 'RETRY', requestId }
     : {
         type: 'OPEN',
-        binding: {
-          projectId: binding.projectId,
-          projectRevision: binding.projectRevision,
-          roomVariantId: binding.roomVariantId,
-          roomVersion: binding.roomVersion,
-        },
+        binding: roomPreviewBindingCoordinates(binding),
         requestId,
       });
   const abortController = new AbortController();
@@ -3412,7 +3416,7 @@ function markRoomPreviewResourceFailed({ digest, bindingKey, requestId, rootOwne
 }
 
 function renderRoomPreviewSvg(scene, binding, requestId, rootOwner) {
-  assertRoomPreviewSceneBinding(scene, binding);
+  assertRoomPreviewSceneBinding(scene, roomPreviewBindingCoordinates(binding));
   const drawOrder = roomPreviewTopDownDrawOrder(scene);
   const mapping = mapRoomPreviewViewport(scene, { width: 960, height: 620, padding: .5 });
   const svg = roomPreviewSvgElement('svg', {
