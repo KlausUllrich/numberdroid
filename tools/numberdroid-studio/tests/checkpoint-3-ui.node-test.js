@@ -92,6 +92,8 @@ test('CP4.5 presents one persistent canvas, editor tools, truthful cell kinds, a
   assert.match(styles, /\.room-cell\[data-cell-kind="VOID"\][^{]*\{[^}]*repeating-linear-gradient/);
   assert.match(styles, /\.room-cell\[data-cell-kind="BLOCKED"\][^{]*\{[^}]*linear-gradient/);
   assert.match(styles, /\.room-board\[data-shape-editing="true"\] \.room-placement,[\s\S]*pointer-events: none/);
+  assert.match(app, /selectedPaletteAssetId\) board\.dataset\.assetPlacementEditing = 'true'/);
+  assert.match(styles, /\.room-board\[data-asset-placement-editing="true"\] \.room-placement,[\s\S]*pointer-events: none/);
   assert.match(styles, /\.asset-conflict\[hidden\] \{ display: none; \}/);
 });
 
@@ -106,4 +108,7 @@ test('CP4.5 useful prop preview exposes footprint, anchor, rotation, collision, 
   assert.match(preview, /preview is unavailable/);
   assert.match(app, /use\.disabled = variant\.lifecycle !== 'DRAFT' \|\| preview\.dataset\.previewReady !== 'true'/);
   assert.match(app, /draft\.disposition === 'ACCEPTED'\) draft\.disposition = 'REJECTED'/);
+  assert.match(app, /--preview-rotation-scale/);
+  assert.match(styles, /scale\(var\(--preview-rotation-scale, 1\)\)/);
+  assert.match(styles, /\.room-form\.intent \{[^}]*minmax\(0, 1fr\)[^}]*min-width: 0/);
 });
