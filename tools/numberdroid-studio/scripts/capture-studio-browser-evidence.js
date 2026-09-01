@@ -832,7 +832,8 @@ try {
         && focusedPreview.result.value.visibilityState === 'visible',
       `Studio preview view could not receive active-document keyboard focus: ${JSON.stringify(focusedPreview.result?.value)}`);
       await devtools.send('Input.dispatchKeyEvent', {
-        type: 'rawKeyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,

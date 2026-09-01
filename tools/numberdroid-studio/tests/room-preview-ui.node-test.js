@@ -62,12 +62,12 @@ test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visi
   assert.match(capture, /\[data-room-view=\"preview\"\][\s\S]*Input\.dispatchKeyEvent/);
   assert.match(capture, /text: '\\r', unmodifiedText: '\\r'/);
   assert.match(physicalOpen, /Page\.bringToFront[\s\S]*document\.hasFocus\(\)[\s\S]*document\.visibilityState/);
-  assert.match(physicalOpen, /type: 'rawKeyDown', key: 'Enter'/);
+  assert.match(physicalOpen, /type: 'keyDown', key: 'Enter'[\s\S]*text: '\\r', unmodifiedText: '\\r'/);
   assert.match(physicalOpen, /type: 'keyUp', key: 'Enter'/);
   assert.match(physicalOpen, /isTrusted: event\.isTrusted/);
   assert.match(physicalOpen, /detail: event\.detail/);
   assert.match(physicalOpen, /events\.length === 3[\s\S]*type === 'keydown'[\s\S]*roomView === 'preview'[\s\S]*type === 'click'[\s\S]*detail === 0[\s\S]*type === 'keyup'/);
-  assert.doesNotMatch(physicalOpen, /type: 'keyDown'/);
+  assert.doesNotMatch(physicalOpen, /type: 'rawKeyDown'/);
   assert.doesNotMatch(physicalOpen, /\.click\(|new KeyboardEvent|dispatchEvent\(new KeyboardEvent/);
   assert.match(capture, /physicalKeyboardOpen: previewActivation\?\.events\.length === 3/);
   assert.match(capture, /transparentPixelDelta/);
