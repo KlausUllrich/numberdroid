@@ -856,20 +856,23 @@ try {
           await waitFor(() => !document.querySelector('[data-room-control="use-preview-asset"]')?.disabled, 'the exact prop placement control');
           document.querySelector('[data-room-control="use-preview-asset"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-          const board = document.querySelector('[data-room-board]');
-          board.scrollIntoView({ block: 'center', inline: 'center' });
-          const pointFor = (x, y) => {
-            const cell = document.querySelector('.room-cell[data-x="' + x + '"][data-y="' + y + '"]');
-            const rect = cell.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-          };
-          const validPoint = pointFor(1, 0); const invalidPoint = pointFor(5, 2);
           document.querySelector('[data-room-control="rotate-placement-ghost"]')?.focus({ preventScroll: true });
-          return { validPoint, invalidPoint, requestCount: window.__roomDirectManipulationEvidence.requests.length };
+          return { requestCount: window.__roomDirectManipulationEvidence.requests.length };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR' }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'r', code: 'KeyR' }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directSetup.result.value.validPoint.x, y: directSetup.result.value.validPoint.y }, sessionId);
+      const directPoints = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          const board = document.querySelector('[data-room-board]');
+          board.scrollIntoView({ block: 'center', inline: 'center' });
+          const pointFor = (x, y) => { const cell = document.querySelector('.room-cell[data-x="' + x + '"][data-y="' + y + '"]');
+            const rect = cell.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; };
+          return { validPoint: pointFor(1, 0), invalidPoint: pointFor(5, 2) };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y }, sessionId);
       await delay(50);
       const validGhost = await devtools.send('Runtime.evaluate', {
         expression: `(() => { const ghost = document.querySelector('.room-placement-ghost'); const rect = ghost?.getBoundingClientRect(); const board = document.querySelector('[data-room-board]')?.getBoundingClientRect(); return {
@@ -883,7 +886,7 @@ try {
       const validScreenshot = await devtools.send('Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId, 30_000);
       const validGhostPath = outputPath.replace(/\.png$/i, '-direct-valid-ghost.png');
       await writeFile(validGhostPath, Buffer.from(validScreenshot.data, 'base64'));
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directSetup.result.value.invalidPoint.x, y: directSetup.result.value.invalidPoint.y }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.invalidPoint.x, y: directPoints.result.value.invalidPoint.y }, sessionId);
       await delay(50);
       const invalidGhost = await devtools.send('Runtime.evaluate', {
         expression: `(() => { const ghost = document.querySelector('.room-placement-ghost'); return {
@@ -901,9 +904,9 @@ try {
           return window.__roomDirectManipulationEvidence.requests.length;
         })()`, returnByValue: true,
       }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directSetup.result.value.validPoint.x, y: directSetup.result.value.validPoint.y }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: directSetup.result.value.validPoint.x, y: directSetup.result.value.validPoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: directSetup.result.value.validPoint.x, y: directSetup.result.value.validPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
       const firstUnknownAdd = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
           const deadline = Date.now() + 10_000;
@@ -916,8 +919,8 @@ try {
             hint: document.querySelector('.room-canvas-hint')?.textContent ?? null };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: directSetup.result.value.validPoint.x, y: directSetup.result.value.validPoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
-      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: directSetup.result.value.validPoint.x, y: directSetup.result.value.validPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId);
       const exactAddRetry = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
           const deadline = Date.now() + 10_000;
