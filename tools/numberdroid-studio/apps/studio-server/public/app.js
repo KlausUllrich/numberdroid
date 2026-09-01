@@ -95,6 +95,8 @@ const state = {
     selectedProposalId: null,
     paletteSearch: '',
     zoom: 'fit',
+    zoomPercent: 100,
+    canvasPan: null,
     layers: { STRUCTURAL_SURFACE: true, SET_DRESSING: true, CONNECTORS: true },
     decisionDrafts: {},
     decisionContext: null,
@@ -2628,15 +2630,17 @@ function renderRoomCanvas(variant, snapshot) {
   const toolbar = document.createElement('div'); toolbar.className = 'room-canvas-toolbar';
   const origin = document.createElement('strong'); origin.textContent = `Origin 0,0 · ${variant.width}×${variant.height}`;
   const zoom = document.createElement('div'); zoom.className = 'room-zoom';
-  for (const [value, label] of [['fit', 'Fit'], ['1', '100%'], ['2', '200%']]) {
-    const button = roomControl(label, 'zoom', { roomZoom: value }); button.dataset.selected = String(state.roomUi.zoom === value); button.dataset.roomFocusKey = `room-zoom-${value}`; zoom.append(button);
-  }
+  const fit = roomControl('Fit', 'zoom', { roomZoom: 'fit' }); fit.dataset.selected = String(state.roomUi.zoom === 'fit'); fit.dataset.roomFocusKey = 'room-zoom-fit';
+  const slider = document.createElement('input'); slider.type = 'range'; slider.min = '100'; slider.max = '1000'; slider.step = '25'; slider.value = String(state.roomUi.zoomPercent); slider.dataset.roomZoomSlider = ''; slider.dataset.roomFocusKey = 'room-zoom-slider'; slider.setAttribute('aria-label', 'Canvas zoom from 100 to 1000 percent');
+  const zoomValue = document.createElement('output'); zoomValue.dataset.roomZoomValue = ''; zoomValue.value = `${state.roomUi.zoomPercent}%`; zoomValue.textContent = `${state.roomUi.zoomPercent}%`;
+  zoom.append(fit, slider, zoomValue);
   toolbar.append(origin, zoom); panel.append(toolbar);
   const scroll = document.createElement('div'); scroll.className = 'room-canvas-scroll'; scroll.dataset.roomScroll = 'canvas';
   const board = document.createElement('div'); board.className = 'room-board'; board.dataset.roomBoard = 'true';
   if (state.roomUi.activeTool.startsWith('PAINT_')) board.dataset.shapeEditing = 'true';
   if (state.roomUi.selectedPaletteAssetId) board.dataset.assetPlacementEditing = 'true';
-  const cellSize = state.roomUi.zoom === '2' ? 58 : state.roomUi.zoom === '1' ? 38 : 28;
+  const cellSize = state.roomUi.zoom === 'fit' ? 28 : Math.round(38 * state.roomUi.zoomPercent / 100);
+  board.dataset.zoomMode = state.roomUi.zoom;
   board.style.setProperty('--room-width', String(variant.width)); board.style.setProperty('--room-height', String(variant.height));
   board.style.setProperty('--room-cell', `${cellSize}px`);
   const grid = document.createElement('div'); grid.className = 'room-cell-grid';
@@ -3984,6 +3988,7 @@ function workspaceRenderFingerprint() {
       selectedProposalId: state.roomUi.selectedProposalId,
       paletteSearch: state.roomUi.paletteSearch,
       zoom: state.roomUi.zoom,
+      zoomPercent: state.roomUi.zoomPercent,
       layers: state.roomUi.layers,
       decisionDrafts: state.roomUi.decisionDrafts,
       decisionContext: state.roomUi.decisionContext,
@@ -4094,6 +4099,22 @@ function renderWorkspace({
   if (preserveRoomDraft) restoreRoomDomState();
   if (preserveTaskContext) restoreTaskDomState();
   if (preserveBackupContext) restoreBackupDomState();
+  if (state.workspace === 'rooms' && state.roomUi.zoom === 'fit') requestAnimationFrame(applyRoomCanvasFit);
+}
+
+function applyRoomCanvasFit() {
+  if (state.workspace !== 'rooms' || state.roomUi.zoom !== 'fit') return;
+  const scroll = elements['workspace-content'].querySelector('.room-canvas-scroll');
+  const board = scroll?.querySelector('[data-room-board]'); if (!scroll || !board) return;
+  const width = Number(board.style.getPropertyValue('--room-width'));
+  const height = Number(board.style.getPropertyValue('--room-height'));
+  const computed = getComputedStyle(scroll);
+  const horizontalPadding = parseFloat(computed.paddingLeft) + parseFloat(computed.paddingRight);
+  const verticalPadding = parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom);
+  const availableWidth = Math.max(1, scroll.clientWidth - horizontalPadding);
+  const availableHeight = Math.max(1, Math.min(scroll.clientHeight, window.innerHeight * .68) - verticalPadding);
+  const cell = Math.max(2, Math.floor(Math.min(availableWidth / width, availableHeight / height)));
+  board.style.setProperty('--room-cell', `${cell}px`);
 }
 
 function renderActivity() {
@@ -4198,6 +4219,8 @@ function resetRoomUiProjectContext() {
   state.roomUi.selectedProposalId = null;
   state.roomUi.paletteSearch = '';
   state.roomUi.zoom = 'fit';
+  state.roomUi.zoomPercent = 100;
+  state.roomUi.canvasPan = null;
   state.roomUi.layers = { STRUCTURAL_SURFACE: true, SET_DRESSING: true, CONNECTORS: true };
   state.roomUi.decisionDrafts = {};
   state.roomUi.decisionContext = null;
@@ -4678,6 +4701,42 @@ elements['workspace-content'].addEventListener('change', (event) => {
   renderWorkspace({ preserveAssetDraft: true });
 });
 
+elements['workspace-content'].addEventListener('pointerdown', (event) => {
+  if (state.workspace !== 'rooms' || event.button !== 1) return;
+  const scroll = event.target.closest('.room-canvas-scroll'); if (!scroll) return;
+  event.preventDefault();
+  scroll.setPointerCapture?.(event.pointerId);
+  scroll.dataset.panning = 'true';
+  state.roomUi.canvasPan = {
+    pointerId: event.pointerId, scroll,
+    startX: event.clientX, startY: event.clientY,
+    startLeft: scroll.scrollLeft, startTop: scroll.scrollTop,
+  };
+});
+
+elements['workspace-content'].addEventListener('pointermove', (event) => {
+  const pan = state.roomUi.canvasPan;
+  if (!pan || pan.pointerId !== event.pointerId) return;
+  event.preventDefault();
+  pan.scroll.scrollLeft = pan.startLeft - (event.clientX - pan.startX);
+  pan.scroll.scrollTop = pan.startTop - (event.clientY - pan.startY);
+});
+
+function finishRoomCanvasPan(event) {
+  const pan = state.roomUi.canvasPan;
+  if (!pan || pan.pointerId !== event.pointerId) return;
+  if (pan.scroll.hasPointerCapture?.(event.pointerId)) pan.scroll.releasePointerCapture(event.pointerId);
+  delete pan.scroll.dataset.panning;
+  state.roomUi.canvasPan = null;
+}
+
+elements['workspace-content'].addEventListener('pointerup', finishRoomCanvasPan);
+elements['workspace-content'].addEventListener('pointercancel', finishRoomCanvasPan);
+elements['workspace-content'].addEventListener('lostpointercapture', finishRoomCanvasPan);
+elements['workspace-content'].addEventListener('auxclick', (event) => {
+  if (event.button === 1 && event.target.closest('.room-canvas-scroll')) event.preventDefault();
+});
+
 elements['workspace-content'].addEventListener('click', async (event) => {
   const previewRotation = event.target.closest('[data-asset-preview-rotation]');
   if (previewRotation) {
@@ -4862,6 +4921,12 @@ async function executeRoomMutation({ operation, target, path, body, successMessa
 }
 
 elements['workspace-content'].addEventListener('input', (event) => {
+  const zoomSlider = event.target.closest('[data-room-zoom-slider]');
+  if (zoomSlider) {
+    state.roomUi.zoom = 'custom'; state.roomUi.zoomPercent = Number(zoomSlider.value);
+    renderWorkspace({ preserveRoomDraft: true });
+    return;
+  }
   const search = event.target.closest('[data-room-palette-search]');
   if (search) {
     const start = search.selectionStart; state.roomUi.paletteSearch = search.value; renderWorkspace({ preserveRoomDraft: true });
