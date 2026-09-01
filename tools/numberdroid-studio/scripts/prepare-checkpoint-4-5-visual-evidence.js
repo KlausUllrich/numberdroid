@@ -43,6 +43,33 @@ function propMetadata() {
   };
 }
 
+function previewOverhangMetadata() {
+  return {
+    role: 'system-apparatus', tags: ['transfer', 'preview-overhang'], variantGroup: null,
+    compatibilityGroups: [], spanTiles: { width: 1, height: 1 }, anchor: { x: 0, y: 0 },
+    attachment: 'ground', rotationPolicy: 'cardinal',
+    placement: { modes: ['manual'], wallSafe: true, tags: ['studio-preview'], confirmation: 'confirmed' },
+    collision: { mode: 'bounds', bounds: { x: 0, y: 0, width: 1, height: 1 }, parts: [] },
+    navigation: { effect: 'blocked', cost: null }, runtimeEligible: true,
+    connectors: [], continuityProfile: null, continuityTags: [], selectionPriority: 21,
+    visualWeight: 'heavy',
+    extensions: {
+      'studio.preview.presentation': {
+        schemaVersion: 1,
+        groundAnchor: { x: .5, y: 1 },
+        visualBounds: { x: -2, y: -2, width: 3, height: 3 },
+        visualOffset: { x: 0, y: 0 },
+        elevation: 1,
+        segments: [
+          { phase: 'BACKGROUND', sourceRect: { x: 0, y: 0, width: 1, height: 1 / 3 }, visualBounds: { x: -2, y: -2, width: 3, height: 1 } },
+          { phase: 'BODY', sourceRect: { x: 0, y: 1 / 3, width: 1, height: 1 / 3 }, visualBounds: { x: -2, y: -1, width: 3, height: 1 } },
+          { phase: 'FOREGROUND', sourceRect: { x: 0, y: 2 / 3, width: 1, height: 1 / 3 }, visualBounds: { x: -2, y: 0, width: 3, height: 1 } },
+        ],
+      },
+    },
+  };
+}
+
 try {
   const initial = await running.studioService.readProjectTrusted(projectId);
   const roomEntry = initial.snapshot.roomLibrary?.variants.find(({ roomVariantId }) => roomVariantId === 'room.family-gathering');
@@ -99,15 +126,25 @@ try {
   const slice = committed.value.slices[0];
   await running.studioService.execute(command('asset.proposal.submit', 32, 'prop-proposal', {
     proposalId: 'proposal.transfer-apparatus-cp45', expectedRevision: 32,
-    items: [{
-      itemId: 'item.transfer-apparatus-cp45', operation: 'create', assetId: 'asset.transfer-apparatus-cp45',
-      expectedAssetVersion: 0, expectedMetadataVersion: 0, sliceId: slice.sliceId,
-      expectedSliceVersion: slice.version, name: 'Transfer Apparatus', kind: 'prop', metadata: propMetadata(),
-    }],
+    items: [
+      {
+        itemId: 'item.transfer-apparatus-cp45', operation: 'create', assetId: 'asset.transfer-apparatus-cp45',
+        expectedAssetVersion: 0, expectedMetadataVersion: 0, sliceId: slice.sliceId,
+        expectedSliceVersion: slice.version, name: 'Transfer Apparatus', kind: 'prop', metadata: propMetadata(),
+      },
+      {
+        itemId: 'item.preview-overhang-cp45', operation: 'create', assetId: 'asset.preview-overhang-cp45',
+        expectedAssetVersion: 0, expectedMetadataVersion: 0, sliceId: slice.sliceId,
+        expectedSliceVersion: slice.version, name: 'Preview Overhang Apparatus', kind: 'prop', metadata: previewOverhangMetadata(),
+      },
+    ],
   }), ownerContext);
   await running.studioService.execute(command('asset.proposal.decide', 33, 'prop-decision', {
     proposalId: 'proposal.transfer-apparatus-cp45', expectedProposalVersion: 1,
-    decisions: [{ itemId: 'item.transfer-apparatus-cp45', disposition: 'ACCEPTED', reason: null }],
+    decisions: [
+      { itemId: 'item.transfer-apparatus-cp45', disposition: 'ACCEPTED', reason: null },
+      { itemId: 'item.preview-overhang-cp45', disposition: 'ACCEPTED', reason: null },
+    ],
   }), ownerContext);
   await running.studioService.execute(command('asset.proposal.apply', 34, 'prop-apply', {
     proposalId: 'proposal.transfer-apparatus-cp45', expectedProposalVersion: 2,
@@ -116,27 +153,38 @@ try {
     roomVariantId: 'room.family-gathering', expectedRoomVariantVersion: 6,
     voidCells: [{ x: 0, y: 0 }, { x: 3, y: 2 }], blockedCells: [{ x: 1, y: 2 }],
   }), ownerContext);
+  await running.studioService.execute(command('room.variant.placements.add', 36, 'preview-overhang-placement', {
+    roomVariantId: 'room.family-gathering', expectedRoomVariantVersion: 7,
+    placements: [{
+      placementId: 'prop.preview-overhang', assetId: 'asset.preview-overhang-cp45',
+      assetVersion: 1, metadataVersion: 1, layer: 'SET_DRESSING',
+      anchor: { x: 3, y: 0 }, rotation: 0, variantTag: null, proposalId: null, proposalItemId: null,
+    }],
+  }), ownerContext);
 
   const final = await running.studioService.readProjectTrusted(projectId);
   const irregular = final.snapshot.roomLibrary.variants.find(({ roomVariantId }) => roomVariantId === 'room.family-gathering').versions.at(-1);
   const rectangle = final.snapshot.roomLibrary.variants.find(({ roomVariantId }) => roomVariantId === 'hall.service-east-west').versions.at(-1);
   const prop = final.snapshot.assetLibrary.assets.find(({ assetId }) => assetId === 'asset.transfer-apparatus-cp45');
+  const previewProp = final.snapshot.assetLibrary.assets.find(({ assetId }) => assetId === 'asset.preview-overhang-cp45');
   const persistedErrors = irregular.findings.filter(({ severity }) => severity === 'ERROR');
-  if (final.revision !== 36 || irregular.version !== 7
+  if (final.revision !== 37 || irregular.version !== 8
       || irregular.voidCells.length !== 2 || irregular.blockedCells.length !== 1
       || persistedErrors.length !== 5
       || persistedErrors[0].targetKind !== 'roomVariant'
       || persistedErrors.filter(({ targetKind }) => targetKind === 'roomPlacement').length !== 4
       || (rectangle.voidCells?.length ?? 0) !== 0 || (rectangle.blockedCells?.length ?? 0) !== 0
       || prop?.kind !== 'prop' || prop.lifecycle !== 'DRAFT'
-      || prop.metadata.spanTiles.width !== 2 || prop.metadata.spanTiles.height !== 3) {
+      || prop.metadata.spanTiles.width !== 2 || prop.metadata.spanTiles.height !== 3
+      || previewProp?.metadata.spanTiles.width !== 1 || previewProp.metadata.spanTiles.height !== 1
+      || !irregular.placements.some(({ placementId }) => placementId === 'prop.preview-overhang')) {
     throw new Error('Checkpoint 4.5 fixture did not reach its exact irregular, rectangular, and prop-preview state.');
   }
   process.stdout.write(`${JSON.stringify({
     schemaVersion: 1,
     projectId,
     revision: final.revision,
-    activityCount: 37,
+    activityCount: 38,
     irregularRoom: {
       roomVariantId: irregular.roomVariantId, version: irregular.version,
       voidCells: irregular.voidCells, blockedCells: irregular.blockedCells,
@@ -147,6 +195,12 @@ try {
     prop: {
       assetId: prop.assetId, assetVersion: prop.assetVersion, metadataVersion: prop.metadataVersion,
       kind: prop.kind, sourceDigest: propSourceDigest, sliceDigest: slice.digest,
+    },
+    previewProp: {
+      assetId: previewProp.assetId, assetVersion: previewProp.assetVersion,
+      metadataVersion: previewProp.metadataVersion, placementId: 'prop.preview-overhang',
+      logicalFootprint: { width: 1, height: 1 }, visualBounds: { x: -2, y: -2, width: 3, height: 3 },
+      segmentPhases: ['BACKGROUND', 'BODY', 'FOREGROUND'], sliceDigest: slice.digest,
     },
   }, null, 2)}\n`);
 } finally {

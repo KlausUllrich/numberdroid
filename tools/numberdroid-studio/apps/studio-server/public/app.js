@@ -19,6 +19,15 @@ import {
   detectStudioUiMode,
   remoteReadOnlyAgentAccess,
 } from './remote-ui-mode.js';
+import {
+  assertRoomPreviewSceneBinding,
+  createRoomPreviewBinding,
+  createRoomPreviewUiState,
+  mapRoomPreviewViewport,
+  transitionRoomPreviewUiState,
+  validateRoomPreviewDrawOrder,
+  validateRoomPreviewResource,
+} from './room-preview-state.js';
 
 const visualFixture = new URLSearchParams(location.search).get('visualFixture');
 const MAX_ATLAS_JOB_ATTEMPTS = 3;
@@ -82,6 +91,12 @@ const state = {
   roomMutationPending: false,
   roomOperationKeys: new Map(),
   roomUi: {
+    view: 'editor',
+    editorDomState: null,
+    preview: createRoomPreviewUiState(),
+    previewRequestId: 0,
+    previewAbortController: null,
+    previewSelectedEntityId: null,
     activeTool: 'SELECT',
     dockPanel: 'properties',
     lastShapeEdit: null,
@@ -3243,6 +3258,297 @@ function renderRoomErrorAttention(entry) {
   return section;
 }
 
+const ROOM_PREVIEW_SVG_NS = 'http://www.w3.org/2000/svg';
+
+function roomPreviewBinding(variant) {
+  return createRoomPreviewBinding({
+    projectId: state.project.projectId,
+    projectRevision: state.project.revision,
+    roomVariantId: variant.roomVariantId,
+    roomVersion: variant.version,
+  });
+}
+
+function cancelRoomPreviewLoad({ close = true } = {}) {
+  state.roomUi.previewAbortController?.abort();
+  state.roomUi.previewAbortController = null;
+  if (close) state.roomUi.preview = transitionRoomPreviewUiState(state.roomUi.preview, { type: 'CLOSE' });
+}
+
+async function loadRoomPreviewScene(binding, requestId, abortController) {
+  try {
+    const scene = await api(binding.path, { signal: abortController.signal });
+    if (abortController.signal.aborted) return;
+    state.roomUi.preview = transitionRoomPreviewUiState(state.roomUi.preview, {
+      type: 'SCENE_READY', bindingKey: binding.key, requestId, scene,
+    });
+  } catch (error) {
+    if (abortController.signal.aborted || error?.name === 'AbortError') return;
+    state.roomUi.preview = transitionRoomPreviewUiState(state.roomUi.preview, {
+      type: 'LOAD_FAILED', bindingKey: binding.key, requestId,
+      code: error?.code === 'REVISION_CONFLICT' || error?.code === 'ROOM_VERSION_CONFLICT'
+        ? 'PREVIEW_BINDING_MISMATCH' : 'PREVIEW_UNAVAILABLE',
+    });
+  } finally {
+    if (state.roomUi.previewAbortController === abortController) state.roomUi.previewAbortController = null;
+  }
+  if (state.workspace === 'rooms' && state.roomUi.view === 'preview') renderWorkspace();
+}
+
+function beginRoomPreviewLoad(binding, { retry = false } = {}) {
+  cancelRoomPreviewLoad({ close: false });
+  const requestId = state.roomUi.previewRequestId + 1;
+  state.roomUi.previewRequestId = requestId;
+  state.roomUi.preview = transitionRoomPreviewUiState(state.roomUi.preview, retry
+    ? { type: 'RETRY', requestId }
+    : { type: 'OPEN', binding, requestId });
+  const abortController = new AbortController();
+  state.roomUi.previewAbortController = abortController;
+  queueMicrotask(() => loadRoomPreviewScene(binding, requestId, abortController));
+}
+
+function ensureRoomPreviewLoad(binding) {
+  if (state.roomUi.preview.bindingKey === binding.key && state.roomUi.preview.status !== 'CLOSED') return;
+  beginRoomPreviewLoad(binding);
+}
+
+function roomPreviewSvgElement(name, attributes = {}) {
+  const element = document.createElementNS(ROOM_PREVIEW_SVG_NS, name);
+  for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, String(value));
+  return element;
+}
+
+function roomPreviewImageMatrix(segment, rotation) {
+  const destination = segment.visualExtent;
+  const pixels = segment.artifact.pixelSize;
+  const source = {
+    x: segment.sourceRect.x * pixels.width,
+    y: segment.sourceRect.y * pixels.height,
+    width: segment.sourceRect.width * pixels.width,
+    height: segment.sourceRect.height * pixels.height,
+  };
+  if (rotation === 0) {
+    const sx = destination.width / source.width; const sy = destination.height / source.height;
+    return [sx, 0, 0, sy, destination.x - sx * source.x, destination.y - sy * source.y];
+  }
+  if (rotation === 90) {
+    const sx = destination.height / source.width; const sy = destination.width / source.height;
+    return [0, sx, -sy, 0, destination.x + destination.width + sy * source.y, destination.y - sx * source.x];
+  }
+  if (rotation === 180) {
+    const sx = destination.width / source.width; const sy = destination.height / source.height;
+    return [-sx, 0, 0, -sy, destination.x + destination.width + sx * source.x, destination.y + destination.height + sy * source.y];
+  }
+  const sx = destination.height / source.width; const sy = destination.width / source.height;
+  return [0, -sx, sy, 0, destination.x - sy * source.y, destination.y + destination.height + sx * source.x];
+}
+
+function markRoomPreviewResourceFailed(digest) {
+  const preview = state.roomUi.preview;
+  if (!['READY', 'DEGRADED'].includes(preview.status)) return;
+  state.roomUi.preview = transitionRoomPreviewUiState(preview, {
+    type: 'RESOURCE_FAILED', bindingKey: preview.bindingKey, requestId: preview.requestId, digest,
+  });
+  const rootElement = elements['workspace-content'].querySelector('[data-room-preview]');
+  if (!rootElement) return;
+  rootElement.dataset.roomPreviewState = state.roomUi.preview.status;
+  const status = rootElement.querySelector('[data-preview-load-status]');
+  if (status) status.textContent = 'Some exact PNGs could not be loaded. Deterministic labeled placeholders are shown; no newer asset was substituted.';
+  for (const resource of rootElement.querySelectorAll(`[data-preview-digest="${digest}"]`)) resource.setAttribute('visibility', 'hidden');
+  for (const fallback of rootElement.querySelectorAll(`[data-preview-fallback-digest="${digest}"]`)) fallback.removeAttribute('visibility');
+}
+
+function renderRoomPreviewSvg(scene, binding) {
+  assertRoomPreviewSceneBinding(scene, binding);
+  const drawOrder = validateRoomPreviewDrawOrder(scene);
+  const mapping = mapRoomPreviewViewport(scene, { width: 960, height: 620, padding: .5 });
+  const svg = roomPreviewSvgElement('svg', {
+    viewBox: `${mapping.viewBox.x} ${mapping.viewBox.y} ${mapping.viewBox.width} ${mapping.viewBox.height}`,
+    preserveAspectRatio: 'xMidYMid meet', role: 'img',
+    'aria-label': `Top-down approximate Studio preview of ${scene.room.displayName}`,
+  });
+  svg.dataset.previewScene = '';
+  const background = roomPreviewSvgElement('rect', {
+    x: scene.room.bounds.x, y: scene.room.bounds.y,
+    width: scene.room.bounds.width, height: scene.room.bounds.height,
+    class: 'room-preview-room-bounds',
+  });
+  svg.append(background);
+  const voidCells = new Set(scene.room.voidCells.map(({ x, y }) => `${x},${y}`));
+  const blockedCells = new Set(scene.room.blockedCells.map(({ x, y }) => `${x},${y}`));
+  for (let y = 0; y < scene.room.bounds.height; y += 1) {
+    for (let x = 0; x < scene.room.bounds.width; x += 1) {
+      const key = `${x},${y}`; const kind = voidCells.has(key) ? 'VOID' : blockedCells.has(key) ? 'BLOCKED' : 'ROOM';
+      const cell = roomPreviewSvgElement('rect', { x, y, width: 1, height: 1, class: `room-preview-cell ${kind.toLowerCase()}` });
+      cell.dataset.previewCellKind = kind; cell.dataset.x = String(x); cell.dataset.y = String(y); svg.append(cell);
+    }
+  }
+  const defs = roomPreviewSvgElement('defs'); svg.append(defs);
+  const entityById = new Map(scene.entities.map((entity) => [entity.entityId, entity]));
+  let drawIndex = 0;
+  for (const order of drawOrder) {
+    const entity = entityById.get(order.entityId);
+    const segment = entity?.segments.find(({ segmentId }) => segmentId === order.segmentId);
+    if (!entity || !segment) continue;
+    const resource = validateRoomPreviewResource(segment.artifact, binding.projectId);
+    const clipId = `room-preview-clip-${drawIndex}`;
+    const clipPath = roomPreviewSvgElement('clipPath', { id: clipId });
+    clipPath.append(roomPreviewSvgElement('rect', {
+      x: segment.visualExtent.x, y: segment.visualExtent.y,
+      width: segment.visualExtent.width, height: segment.visualExtent.height,
+    }));
+    defs.append(clipPath);
+    const group = roomPreviewSvgElement('g', { 'clip-path': `url(#${clipId})` });
+    group.dataset.previewPlacementId = entity.entityId;
+    group.dataset.previewSegmentKind = segment.phase;
+    group.dataset.previewDrawIndex = String(drawIndex);
+    const fallback = roomPreviewSvgElement('g', { visibility: 'hidden' }); fallback.dataset.previewFallbackDigest = resource.digest;
+    fallback.append(roomPreviewSvgElement('rect', {
+      x: segment.visualExtent.x, y: segment.visualExtent.y,
+      width: segment.visualExtent.width, height: segment.visualExtent.height,
+      class: 'room-preview-resource-fallback',
+    }));
+    const fallbackLabel = roomPreviewSvgElement('text', {
+      x: segment.visualExtent.x + .08, y: segment.visualExtent.y + .3,
+      class: 'room-preview-resource-fallback-label',
+    });
+    fallbackLabel.textContent = 'exact PNG unavailable'; fallback.append(fallbackLabel);
+    const image = roomPreviewSvgElement('image', {
+      href: resource.resourcePath, x: 0, y: 0,
+      width: resource.pixelSize.width, height: resource.pixelSize.height,
+      transform: `matrix(${roomPreviewImageMatrix(segment, entity.source.rotation).join(' ')})`,
+      'clip-path': `url(#${clipId})`, 'aria-hidden': 'true',
+    });
+    image.dataset.previewDigest = resource.digest;
+    image.dataset.previewResourceState = 'LOADING';
+    image.addEventListener('load', () => { image.dataset.previewResourceState = 'READY'; }, { once: true });
+    image.addEventListener('error', () => {
+      image.dataset.previewResourceState = 'FAILED'; markRoomPreviewResourceFailed(resource.digest);
+    }, { once: true });
+    group.append(fallback, image); svg.append(group); drawIndex += 1;
+  }
+  const selected = entityById.get(state.roomUi.previewSelectedEntityId);
+  if (selected) {
+    const footprint = roomPreviewSvgElement('rect', {
+      x: selected.logicalFootprint.x, y: selected.logicalFootprint.y,
+      width: selected.logicalFootprint.width, height: selected.logicalFootprint.height,
+      class: 'room-preview-logical-footprint',
+    });
+    footprint.dataset.previewLogicalFootprint = selected.entityId; svg.append(footprint);
+    const visual = roomPreviewSvgElement('rect', {
+      x: selected.visual.extent.x, y: selected.visual.extent.y,
+      width: selected.visual.extent.width, height: selected.visual.extent.height,
+      class: 'room-preview-visual-bounds',
+    });
+    visual.dataset.previewVisualBounds = selected.entityId; svg.append(visual);
+    const anchor = roomPreviewSvgElement('circle', {
+      cx: selected.groundAnchor.x, cy: selected.groundAnchor.y, r: .12,
+      class: 'room-preview-ground-anchor',
+    });
+    anchor.dataset.previewGroundAnchor = selected.entityId; svg.append(anchor);
+  }
+  for (const connector of scene.room.connectors) {
+    const thickness = .12; const horizontal = connector.side === 'north' || connector.side === 'south';
+    const x = connector.side === 'east' ? scene.room.bounds.width - thickness : connector.side === 'west' ? 0 : connector.offset;
+    const y = connector.side === 'south' ? scene.room.bounds.height - thickness : connector.side === 'north' ? 0 : connector.offset;
+    const marker = roomPreviewSvgElement('rect', {
+      x, y, width: horizontal ? connector.width : thickness,
+      height: horizontal ? thickness : connector.width, class: 'room-preview-connector',
+    });
+    marker.dataset.previewConnectorId = connector.connectorId; svg.append(marker);
+  }
+  return svg;
+}
+
+function renderRoomPreviewObjects(scene) {
+  const aside = document.createElement('aside'); aside.className = 'room-preview-objects'; aside.dataset.previewObjectList = '';
+  const heading = document.createElement('h3'); heading.textContent = 'Exact placed objects';
+  const copy = document.createElement('p'); copy.textContent = 'Inspect presentation guides without changing editor selection or room state.';
+  const list = document.createElement('ul');
+  for (const entity of scene.entities) {
+    const item = document.createElement('li'); const button = document.createElement('button'); button.type = 'button';
+    button.className = 'secondary'; button.dataset.previewInspect = entity.entityId;
+    button.dataset.selected = String(state.roomUi.previewSelectedEntityId === entity.entityId);
+    const label = document.createElement('strong'); label.textContent = entity.entityId;
+    const detail = document.createElement('span');
+    detail.textContent = `${entity.source.assetId} · A${entity.source.assetVersion}/M${entity.source.metadataVersion} · ${entity.source.rotation}° · ${entity.source.layer}`;
+    button.append(label, detail); item.append(button); list.append(item);
+  }
+  aside.append(heading, copy, list);
+  const legend = document.createElement('dl'); legend.className = 'room-preview-legend';
+  for (const [term, description] of [
+    ['Footprint', 'logical occupancy only'], ['Anchor', 'ground contact and primary depth'],
+    ['Visual bounds', 'may overhang unoccupied cells'], ['Segments', 'background / body / foreground with PNG alpha'],
+  ]) {
+    const dt = document.createElement('dt'); dt.textContent = term; const dd = document.createElement('dd'); dd.textContent = description; legend.append(dt, dd);
+  }
+  aside.append(legend);
+  const findings = [...scene.room.findings, ...scene.findings];
+  if (findings.length) {
+    const findingsHeading = document.createElement('h3'); findingsHeading.textContent = 'Read-only findings';
+    const findingsList = document.createElement('ul'); findingsList.className = 'room-preview-findings';
+    for (const finding of findings) {
+      const item = document.createElement('li'); const strong = document.createElement('strong'); strong.textContent = `${finding.severity} · ${finding.ruleId}`;
+      const text = document.createElement('span'); text.textContent = finding.explanation; item.append(strong, text); findingsList.append(item);
+    }
+    aside.append(findingsHeading, findingsList);
+  }
+  return aside;
+}
+
+function renderRoomViewSwitch(variant) {
+  const navigation = document.createElement('nav'); navigation.className = 'room-view-switch'; navigation.setAttribute('aria-label', 'Room view');
+  for (const [view, label] of [['editor', 'Editor'], ['preview', 'Studio preview']]) {
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.roomView = view; button.textContent = label;
+    button.setAttribute('aria-pressed', String(state.roomUi.view === view));
+    button.disabled = view === 'preview' && (state.roomMutationPending || Boolean(state.roomUi.pendingPlacementAdd));
+    if (view === 'preview') button.setAttribute('aria-describedby', 'room-preview-view-description');
+    navigation.append(button);
+  }
+  const description = document.createElement('span'); description.id = 'room-preview-view-description'; description.className = 'room-view-description';
+  description.textContent = state.roomUi.shapeDraft?.dirty
+    ? `Preview uses saved room v${variant.version}; unsaved shape changes are excluded.`
+    : 'Preview reads the exact saved room version.';
+  navigation.append(description); return navigation;
+}
+
+function renderRoomStudioPreview(variant) {
+  const binding = roomPreviewBinding(variant); ensureRoomPreviewLoad(binding);
+  const preview = state.roomUi.preview;
+  const section = document.createElement('section'); section.className = 'room-studio-preview'; section.dataset.roomPreview = '';
+  section.tabIndex = -1;
+  section.dataset.roomPreviewState = preview.status; section.dataset.projectId = binding.projectId;
+  section.dataset.projectRevision = String(binding.projectRevision); section.dataset.roomVariantId = binding.roomVariantId;
+  section.dataset.roomVersion = String(binding.roomVersion); section.setAttribute('aria-busy', String(preview.status === 'LOADING'));
+  const header = document.createElement('header'); header.className = 'room-preview-header';
+  const copy = document.createElement('div'); const heading = document.createElement('h2'); heading.textContent = 'Approximate Studio Preview · read-only';
+  heading.dataset.previewReadOnlyNotice = '';
+  const exact = document.createElement('p'); exact.className = 'room-preview-binding';
+  exact.textContent = `Project ${binding.projectId} · revision r${binding.projectRevision} · Room ${binding.roomVariantId} · room version v${binding.roomVersion}`;
+  const limits = document.createElement('p'); limits.className = 'room-preview-limits';
+  limits.textContent = 'Position and layering only — not Numberdroid runtime output. This does not validate, accept, finalize, publish, or change the room. Lighting, animation, shaders, physics and runtime behavior may differ.';
+  copy.append(heading, exact, limits); header.append(copy); section.append(header);
+  const status = document.createElement('p'); status.className = 'room-preview-load-status'; status.dataset.previewLoadStatus = ''; status.setAttribute('aria-live', 'polite');
+  if (preview.status === 'LOADING') {
+    status.textContent = `Loading exact saved revision r${binding.projectRevision}, room v${binding.roomVersion}…`; section.append(status); return section;
+  }
+  if (preview.status === 'ERROR') {
+    status.setAttribute('role', 'alert'); status.textContent = preview.error?.message ?? 'The exact Studio preview is unavailable.';
+    const actions = document.createElement('div'); actions.className = 'room-preview-error-actions';
+    const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'secondary'; retry.dataset.previewRetry = ''; retry.textContent = 'Retry exact preview';
+    const back = document.createElement('button'); back.type = 'button'; back.dataset.roomView = 'editor'; back.textContent = 'Back to editor'; actions.append(retry, back);
+    section.append(status, actions); return section;
+  }
+  const scene = preview.scene;
+  status.textContent = preview.status === 'DEGRADED'
+    ? 'Some exact PNGs are unavailable. Labeled placeholders are shown without fallback substitution.'
+    : 'Exact portable scene loaded. Transparent PNG pixels preserve lower layers.';
+  const layout = document.createElement('div'); layout.className = 'room-preview-layout';
+  const stage = document.createElement('div'); stage.className = 'room-preview-stage'; stage.dataset.roomScroll = 'studio-preview';
+  stage.append(renderRoomPreviewSvg(scene, binding)); layout.append(stage, renderRoomPreviewObjects(scene)); section.append(status, layout);
+  return section;
+}
+
 function renderRooms(snapshot) {
   const fragment = document.createDocumentFragment(); const library = currentRoomLibrary(snapshot);
   if (!library.variants.length) {
@@ -3288,6 +3594,11 @@ function renderRooms(snapshot) {
   const errorAttention = renderRoomErrorAttention(selectedEntry); if (errorAttention) fragment.append(errorAttention);
   if (!variant) {
     fragment.append(emptyState('Exact room head unavailable', 'Studio will not open a fallback room version as current. Restore the exact referenced head before editing or inspecting current findings.'));
+    return fragment;
+  }
+  fragment.append(renderRoomViewSwitch(variant));
+  if (state.roomUi.view === 'preview') {
+    fragment.append(renderRoomStudioPreview(variant));
     return fragment;
   }
   const editor = document.createElement('section'); editor.className = 'room-editor'; editor.append(renderRoomToolOptions(variant));
@@ -4575,6 +4886,11 @@ function resetAssetUiProjectContext() {
 }
 
 function resetRoomUiProjectContext() {
+  cancelRoomPreviewLoad();
+  state.roomUi.view = 'editor';
+  state.roomUi.editorDomState = null;
+  state.roomUi.previewRequestId = 0;
+  state.roomUi.previewSelectedEntityId = null;
   state.roomUi.activeTool = 'SELECT';
   state.roomUi.dockPanel = 'properties';
   state.roomUi.lastShapeEdit = null;
@@ -4613,6 +4929,11 @@ function reconcileRoomUi(project) {
     state.roomUi.selectedFinding = null;
   }
   const { variant } = currentRoomVariant(project.snapshot);
+  const previewBinding = variant ? roomPreviewBinding(variant) : null;
+  if (state.roomUi.preview.bindingKey !== null && state.roomUi.preview.bindingKey !== previewBinding?.key) {
+    cancelRoomPreviewLoad();
+    state.roomUi.previewSelectedEntityId = null;
+  }
   const selectedFinding = state.roomUi.selectedFinding;
   if (selectedFinding && (selectedFinding.projectId !== project.projectId
       || selectedFinding.roomVariantId !== variant?.roomVariantId
@@ -5753,6 +6074,43 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
   if (form.dataset.roomForm === 'intent') {
     const intentTrace = ['game_design', 'level_design', 'room_design'].map((layer) => ({ layer, ruleId: `ui:${layer}`, summary: String(data.get(layer)), disposition: 'governing' }));
     await executeRoomMutation({ operation: 'room-intent-set', target: `${variant.roomVariantId}:${variant.version}`, path: `${basePath}/intent`, body: { expectedRoomVariantVersion: variant.version, intentTrace }, successMessage: 'Three-layer room intent trace saved.' });
+  }
+});
+
+elements['workspace-content'].addEventListener('click', (event) => {
+  if (state.workspace !== 'rooms') return;
+  const view = event.target.closest('[data-room-view]');
+  if (view) {
+    if (view.disabled || !['editor', 'preview'].includes(view.dataset.roomView)) return;
+    if (view.dataset.roomView === 'preview') {
+      if (state.roomMutationPending || state.roomUi.pendingPlacementAdd) return;
+      captureRoomDomState();
+      state.roomUi.editorDomState = state.roomUi.domState ? structuredClone(state.roomUi.domState) : null;
+      state.roomUi.view = 'preview'; state.roomUi.previewSelectedEntityId = null;
+      renderWorkspace();
+      requestAnimationFrame(() => {
+        const preview = elements['workspace-content'].querySelector('[data-room-preview]');
+        preview?.focus({ preventScroll: true });
+      });
+    } else {
+      cancelRoomPreviewLoad(); state.roomUi.view = 'editor'; state.roomUi.previewSelectedEntityId = null;
+      const editorDomState = state.roomUi.editorDomState; renderWorkspace();
+      state.roomUi.domState = editorDomState; restoreRoomDomState();
+    }
+    return;
+  }
+  const retry = event.target.closest('[data-preview-retry]');
+  if (retry) {
+    const { variant } = currentRoomVariant(); if (!variant) return;
+    beginRoomPreviewLoad(roomPreviewBinding(variant), { retry: true }); renderWorkspace(); return;
+  }
+  const inspect = event.target.closest('[data-preview-inspect]');
+  if (inspect) {
+    const scene = state.roomUi.preview.scene;
+    if (!scene?.entities.some(({ entityId }) => entityId === inspect.dataset.previewInspect)) return;
+    state.roomUi.previewSelectedEntityId = state.roomUi.previewSelectedEntityId === inspect.dataset.previewInspect
+      ? null : inspect.dataset.previewInspect;
+    renderWorkspace();
   }
 });
 

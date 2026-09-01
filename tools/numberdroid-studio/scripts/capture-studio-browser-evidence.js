@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
+import { decodeSupportedPng } from '../packages/preview/src/index.js';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
 if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7'].includes(mode)) {
@@ -205,8 +206,8 @@ try {
               ? `document.documentElement.dataset.visualEvidenceReady === 'true'
                  && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
                  && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-checkpoint-2c'
-                 && document.documentElement.dataset.visualRevision === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '37' : '36')}
-                 && document.documentElement.dataset.visualActivityCount === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '38' : '37')}
+                 && document.documentElement.dataset.visualRevision === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '38' : '37')}
+                 && document.documentElement.dataset.visualActivityCount === ${JSON.stringify(checkpoint45Focus === 'shape-conflict' && width === 1060 ? '39' : '38')}
                  && document.documentElement.dataset.visualConnectionState === 'Live'`
               : mode === 'a1-7'
                 ? `document.documentElement.dataset.visualEvidenceReady === 'true'
@@ -247,6 +248,7 @@ try {
   let checkpoint45EditorContinuity = null;
   let checkpoint45FindingsNavigation = null;
   let checkpoint45DirectManipulation = null;
+  let checkpoint45StudioPreview = null;
   let a17Evidence = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
@@ -747,6 +749,168 @@ try {
     checkpoint45RoomFocus = focused.result?.value ?? null;
     assert(checkpoint45RoomFocus?.roomId && checkpoint45RoomFocus.editorToolCount === 7,
       `Checkpoint 4.5 could not focus the requested room evidence: ${JSON.stringify(checkpoint45RoomFocus)}`);
+    if (checkpoint45Focus === 'prop') {
+      const networkStart = devtools.events.length;
+      const focusedPreview = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const button = document.querySelector('[data-room-view="preview"]');
+          button?.focus({ preventScroll: true });
+          return Boolean(button && document.activeElement === button && !button.disabled);
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(focusedPreview.result?.value === true, 'Studio preview view could not receive physical keyboard focus.');
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+      }, sessionId);
+      let previewReady = false;
+      for (let attempt = 0; attempt < 120 && !previewReady; attempt += 1) {
+        const observed = await devtools.send('Runtime.evaluate', {
+          expression: `(() => {
+            const root = document.querySelector('[data-room-preview]');
+            const resources = [...document.querySelectorAll('[data-preview-resource-state]')];
+            return Boolean(root && root.dataset.roomPreviewState === 'READY'
+              && resources.length > 0
+              && resources.every((resource) => resource.dataset.previewResourceState === 'READY'));
+          })()`, returnByValue: true,
+        }, sessionId);
+        previewReady = observed.result?.value === true;
+        if (!previewReady) await delay(50);
+      }
+      assert(previewReady, 'Exact Studio preview scene or PNG resources did not reach READY.');
+      const inspectFocused = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const inspect = document.querySelector('[data-preview-inspect="prop.preview-overhang"]');
+          inspect?.focus({ preventScroll: true });
+          return Boolean(inspect && document.activeElement === inspect);
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(inspectFocused.result?.value === true, 'Preview overhang object could not receive keyboard focus.');
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+      }, sessionId);
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const observed = await devtools.send('Runtime.evaluate', {
+          expression: `(() => {
+            const resources = [...document.querySelectorAll('[data-preview-resource-state]')];
+            return Boolean(document.querySelector('[data-preview-logical-footprint="prop.preview-overhang"]')
+              && resources.length > 0
+              && resources.every((resource) => resource.dataset.previewResourceState === 'READY'));
+          })()`, returnByValue: true,
+        }, sessionId);
+        if (observed.result?.value === true) break;
+        await delay(50);
+      }
+      const previewFactsResult = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const root = document.querySelector('[data-room-preview]');
+          const svg = root?.querySelector('[data-preview-scene]');
+          const toScreen = (x, y) => {
+            const point = svg.createSVGPoint(); point.x = x; point.y = y;
+            const screen = point.matrixTransform(svg.getScreenCTM());
+            return { x: screen.x, y: screen.y };
+          };
+          const groups = [...root.querySelectorAll('[data-preview-placement-id="prop.preview-overhang"]')];
+          const logical = root.querySelector('[data-preview-logical-footprint="prop.preview-overhang"]');
+          const visual = root.querySelector('[data-preview-visual-bounds="prop.preview-overhang"]');
+          const anchor = root.querySelector('[data-preview-ground-anchor="prop.preview-overhang"]');
+          return {
+            state: root?.dataset.roomPreviewState ?? null,
+            binding: root?.querySelector('.room-preview-binding')?.textContent ?? null,
+            notice: root?.querySelector('[data-preview-read-only-notice]')?.textContent ?? null,
+            limits: root?.querySelector('.room-preview-limits')?.textContent ?? null,
+            phases: groups.map((group) => group.dataset.previewSegmentKind),
+            drawIndexes: groups.map((group) => Number(group.dataset.previewDrawIndex)),
+            resourceStates: groups.map((group) => group.querySelector('[data-preview-resource-state]')?.dataset.previewResourceState ?? null),
+            logical: logical ? { x: Number(logical.getAttribute('x')), y: Number(logical.getAttribute('y')), width: Number(logical.getAttribute('width')), height: Number(logical.getAttribute('height')) } : null,
+            visual: visual ? { x: Number(visual.getAttribute('x')), y: Number(visual.getAttribute('y')), width: Number(visual.getAttribute('width')), height: Number(visual.getAttribute('height')) } : null,
+            anchor: anchor ? { x: Number(anchor.getAttribute('cx')), y: Number(anchor.getAttribute('cy')) } : null,
+            cellCount: root?.querySelectorAll('[data-preview-cell-kind]').length ?? 0,
+            voidCount: root?.querySelectorAll('[data-preview-cell-kind="VOID"]').length ?? 0,
+            blockedCount: root?.querySelectorAll('[data-preview-cell-kind="BLOCKED"]').length ?? 0,
+            connectorCount: root?.querySelectorAll('[data-preview-connector-id]').length ?? 0,
+            mutationControlCount: root?.querySelectorAll('[data-room-control], form').length ?? 0,
+            pageHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth || document.body.scrollWidth > document.body.clientWidth,
+            stageVisible: Boolean(svg && svg.getBoundingClientRect().width > 0 && svg.getBoundingClientRect().height > 0),
+            transparentSample: toScreen(1.15, .55),
+            opaqueOverhangSample: toScreen(1.9, .55),
+          };
+        })()`, returnByValue: true,
+      }, sessionId);
+      const previewFacts = previewFactsResult.result?.value;
+      const painted = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId, 30_000);
+      const previewOutputPath = outputPath.replace(/prop-(\d+)\.png$/i, 'studio-preview-$1.png');
+      const previewBytes = Buffer.from(painted.data, 'base64');
+      await mkdir(dirname(previewOutputPath), { recursive: true });
+      await writeFile(previewOutputPath, previewBytes);
+      const hiddenCount = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const groups = [...document.querySelectorAll('[data-preview-placement-id="prop.preview-overhang"]')];
+          for (const group of groups) group.setAttribute('visibility', 'hidden');
+          return groups.length;
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(hiddenCount.result?.value === 3, 'Preview pixel oracle could not isolate all three overhang segments.');
+      await delay(50);
+      const reference = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId, 30_000);
+      const referenceOutputPath = outputPath.replace(/prop-(\d+)\.png$/i, 'studio-preview-reference-$1.png');
+      const referenceBytes = Buffer.from(reference.data, 'base64');
+      await writeFile(referenceOutputPath, referenceBytes);
+      await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          for (const group of document.querySelectorAll('[data-preview-placement-id="prop.preview-overhang"]')) group.removeAttribute('visibility');
+        })()`, returnByValue: true,
+      }, sessionId);
+      const decodedPainted = decodeSupportedPng(previewBytes, { maxWidth: 2048, maxHeight: 1200, maxInputBytes: 32 * 1024 * 1024 });
+      const decodedReference = decodeSupportedPng(referenceBytes, { maxWidth: 2048, maxHeight: 1200, maxInputBytes: 32 * 1024 * 1024 });
+      const pixel = (decoded, point) => {
+        const x = Math.max(0, Math.min(decoded.width - 1, Math.round(point.x)));
+        const y = Math.max(0, Math.min(decoded.height - 1, Math.round(point.y)));
+        const offset = (y * decoded.width + x) * 4;
+        return [...decoded.rgba.subarray(offset, offset + 4)];
+      };
+      const delta = (left, right) => left.reduce((sum, value, index) => sum + Math.abs(value - right[index]), 0);
+      const transparentPainted = pixel(decodedPainted, previewFacts.transparentSample);
+      const transparentReference = pixel(decodedReference, previewFacts.transparentSample);
+      const opaquePainted = pixel(decodedPainted, previewFacts.opaqueOverhangSample);
+      const opaqueReference = pixel(decodedReference, previewFacts.opaqueOverhangSample);
+      const nonGetRequests = devtools.events.slice(networkStart)
+        .filter(({ method }) => method === 'Network.requestWillBeSent')
+        .map(({ params }) => params.request)
+        .filter(({ method }) => method !== 'GET')
+        .map(({ method, url }) => ({ method, url }));
+      checkpoint45StudioPreview = {
+        ...previewFacts,
+        physicalKeyboardOpen: true,
+        transparentPixelDelta: delta(transparentPainted, transparentReference),
+        opaqueOverhangPixelDelta: delta(opaquePainted, opaqueReference),
+        transparentPainted, transparentReference, opaquePainted, opaqueReference,
+        nonGetRequests,
+        previewOutputPath, referenceOutputPath,
+      };
+      const focusedEditor = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const button = document.querySelector('[data-room-view="editor"]');
+          button?.focus({ preventScroll: true }); return document.activeElement === button;
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(focusedEditor.result?.value === true, 'Editor return control could not receive keyboard focus.');
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+        text: '\r', unmodifiedText: '\r',
+      }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', {
+        type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+      }, sessionId);
+      await delay(100);
+    }
     if (checkpoint45Focus === 'irregular') {
       const observations = []; let dirtyMutationGuard = null;
       for (const [tool, expectedKind] of [['PAINT_VOID', 'VOID'], ['PAINT_BLOCKED', 'BLOCKED'], ['PAINT_ROOM', 'ROOM']]) {
@@ -2775,7 +2939,7 @@ try {
   if (mode === 'checkpoint-4-5') {
     assert(layout.visualEvidenceReady === 'true' && layout.visualErrorCount === 0,
       'Checkpoint 4.5 screenshot was taken before error-free readiness.');
-    const expectedCheckpoint45Revision = checkpoint45Focus === 'shape-conflict' ? (width === 1440 ? 37 : 38) : 36;
+    const expectedCheckpoint45Revision = checkpoint45Focus === 'shape-conflict' ? (width === 1440 ? 38 : 39) : 37;
     assert(layout.projectId === 'numberdroid-studio-checkpoint-2c'
       && layout.revision === expectedCheckpoint45Revision
       && layout.activityCount === expectedCheckpoint45Revision + 1 && layout.connectionState === 'Live',
@@ -2843,6 +3007,36 @@ try {
         && layout.roomDesigner.placementPreview.fillsRotatedStage === true
         && layout.roomDesigner.placementPreview.useDisabled === false,
       `Checkpoint 4.5 prop evidence lost its exact image, footprint, rotation, navigation, bounds, or placement gate: ${JSON.stringify(layout.roomDesigner.placementPreview)}`);
+      assert(checkpoint45StudioPreview?.physicalKeyboardOpen === true
+        && checkpoint45StudioPreview.state === 'READY'
+        && checkpoint45StudioPreview.binding?.includes('revision r37')
+        && checkpoint45StudioPreview.binding.includes('room version v8')
+        && checkpoint45StudioPreview.notice === 'Approximate Studio Preview · read-only'
+        && checkpoint45StudioPreview.limits?.includes('not Numberdroid runtime output')
+        && checkpoint45StudioPreview.limits.includes('does not validate, accept, finalize, publish, or change the room')
+        && checkpoint45StudioPreview.phases.join(',') === 'BACKGROUND,BODY,FOREGROUND'
+        && checkpoint45StudioPreview.resourceStates.every((value) => value === 'READY')
+        && checkpoint45StudioPreview.logical?.x === 3
+        && checkpoint45StudioPreview.logical.y === 0
+        && checkpoint45StudioPreview.logical.width === 1
+        && checkpoint45StudioPreview.logical.height === 1
+        && checkpoint45StudioPreview.visual?.x === 1
+        && checkpoint45StudioPreview.visual.y === -2
+        && checkpoint45StudioPreview.visual.width === 3
+        && checkpoint45StudioPreview.visual.height === 3
+        && checkpoint45StudioPreview.anchor?.x === 3.5
+        && checkpoint45StudioPreview.anchor.y === 1
+        && checkpoint45StudioPreview.cellCount === 12
+        && checkpoint45StudioPreview.voidCount === 2
+        && checkpoint45StudioPreview.blockedCount === 1
+        && checkpoint45StudioPreview.connectorCount >= 1
+        && checkpoint45StudioPreview.mutationControlCount === 0
+        && checkpoint45StudioPreview.pageHorizontalOverflow === false
+        && checkpoint45StudioPreview.stageVisible === true
+        && checkpoint45StudioPreview.transparentPixelDelta <= 8
+        && checkpoint45StudioPreview.opaqueOverhangPixelDelta >= 30
+        && checkpoint45StudioPreview.nonGetRequests.length === 0,
+      `Studio preview lost exact pins, read-only authority, logical/visual separation, alpha, overhang, or segment order: ${JSON.stringify(checkpoint45StudioPreview)}`);
     }
     if (checkpoint45Focus === 'shape-refresh') {
       assert(checkpoint45RoomFocus.roomId === 'room.family-gathering'
@@ -3776,6 +3970,7 @@ try {
     checkpoint45EditorContinuity,
     checkpoint45FindingsNavigation,
     checkpoint45DirectManipulation,
+    checkpoint45StudioPreview,
     a17Evidence,
     layout,
     interactions: checkpoint2bInteractionEvidence,

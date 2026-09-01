@@ -304,6 +304,49 @@ h2, h3 { margin: 0; }
 .room-error-attention strong { color: #ffc1b1; font-size: 13px; }
 .room-error-attention p { margin: 5px 0 0; color: #dfb1a5; font-size: 10px; line-height: 1.5; }
 .room-error-attention button { white-space: nowrap; }
+.room-view-switch { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; padding: 5px; border: 1px solid #315046; border-radius: 9px; background: #0b1714; }
+.room-view-switch button { padding: 7px 12px; border-color: #315046; background: #10201b; color: #cfe5dd; font-size: 10px; }
+.room-view-switch button[aria-pressed="true"] { border-color: var(--mint); background: #214438; color: #f2fff9; box-shadow: inset 3px 0 var(--mint); }
+.room-view-description { flex: 1 1 260px; padding: 0 7px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.room-studio-preview { min-width: 0; padding: 14px; border: 1px solid #416f61; border-radius: 10px; background: #0b1714; }
+.room-studio-preview:focus { outline: 2px solid var(--mint); outline-offset: 2px; }
+.room-preview-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.room-preview-header h2 { color: #e7fff6; font-size: 18px; }
+.room-preview-binding { margin: 6px 0 0; color: var(--cyan); font: 9px/1.45 ui-monospace, monospace; overflow-wrap: anywhere; }
+.room-preview-limits { max-width: 920px; margin: 7px 0 0; color: #b7cbc4; font-size: 10px; line-height: 1.5; }
+.room-preview-load-status { margin: 12px 0 0; padding: 8px 10px; border-left: 3px solid var(--cyan); background: #10201b; color: #cfe5dd; font-size: 10px; line-height: 1.45; }
+.room-studio-preview[data-room-preview-state="ERROR"] .room-preview-load-status,
+.room-studio-preview[data-room-preview-state="DEGRADED"] .room-preview-load-status { border-left-color: #ff9a80; background: #2b1815; color: #ffc1b1; }
+.room-preview-error-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.room-preview-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(240px, .55fr); gap: 12px; margin-top: 12px; min-width: 0; }
+.room-preview-stage { min-width: 0; min-height: 430px; max-height: 68vh; padding: 10px; overflow: auto; overscroll-behavior: contain; border: 1px solid #27453c; border-radius: 9px; background-color: #07110e; background-image: radial-gradient(#315046 1px, transparent 1px); background-size: 10px 10px; }
+.room-preview-stage svg { display: block; width: 100%; min-width: 0; height: min(620px, 62vh); overflow: visible; }
+.room-preview-room-bounds { fill: #10201b; stroke: #8ab8a9; stroke-width: .05; }
+.room-preview-cell { fill: #173128; stroke: #41655a; stroke-width: .025; }
+.room-preview-cell.void { fill: #070b0a; stroke: #8b9a95; stroke-width: .05; stroke-dasharray: .12 .08; }
+.room-preview-cell.blocked { fill: #381d18; stroke: #ff9a80; stroke-width: .07; }
+.room-preview-resource-fallback { fill: #321b17; stroke: #ff9a80; stroke-width: .04; stroke-dasharray: .12 .08; }
+.room-preview-resource-fallback-label { fill: #ffd0c2; font: .18px ui-monospace, monospace; }
+.room-preview-logical-footprint { fill: #6ee7ba1f; stroke: #6ee7ba; stroke-width: .08; stroke-dasharray: .16 .08; pointer-events: none; }
+.room-preview-visual-bounds { fill: none; stroke: #76d9ff; stroke-width: .06; stroke-dasharray: .06 .08; pointer-events: none; }
+.room-preview-ground-anchor { fill: #ffe09a; stroke: #291d05; stroke-width: .04; pointer-events: none; }
+.room-preview-connector { fill: #f0b85c88; stroke: #fff2cf; stroke-width: .04; }
+.room-preview-objects { min-width: 0; max-height: 68vh; padding: 11px; overflow: auto; border: 1px solid #315046; border-radius: 9px; background: #0d1916; }
+.room-preview-objects h3 { margin: 0 0 6px; font-size: 12px; }
+.room-preview-objects > p { margin: 0 0 9px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.room-preview-objects ul { display: grid; gap: 5px; margin: 0 0 12px; padding: 0; list-style: none; }
+.room-preview-objects button { display: grid; gap: 3px; width: 100%; min-width: 0; padding: 7px; text-align: left; }
+.room-preview-objects button[data-selected="true"] { border-color: var(--mint); box-shadow: inset 3px 0 var(--mint); }
+.room-preview-objects button strong, .room-preview-objects button span { overflow-wrap: anywhere; }
+.room-preview-objects button strong { font-size: 9px; }
+.room-preview-objects button span { color: var(--muted); font: 7px/1.4 ui-monospace, monospace; }
+.room-preview-legend { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 4px 7px; margin: 0 0 12px; font-size: 8px; }
+.room-preview-legend dt { color: var(--cyan); font-weight: 750; }
+.room-preview-legend dd { margin: 0; color: var(--muted); }
+.room-preview-findings li { padding: 7px; border: 1px solid #6f7656; border-radius: 6px; background: #1c2a22; }
+.room-preview-findings strong, .room-preview-findings span { display: block; }
+.room-preview-findings strong { color: #e9d39d; font-size: 8px; }
+.room-preview-findings span { margin-top: 3px; color: #d5e3de; font-size: 8px; line-height: 1.4; }
 .room-editor { display: grid; gap: 10px; min-width: 0; }
 .room-tool-options { position: sticky; top: 0; z-index: 8; display: grid; grid-template-columns: minmax(190px, 1fr) auto auto; align-items: center; gap: 10px; min-width: 0; padding: 9px 11px; border: 1px solid #416f61; border-radius: 9px; background: #10201bea; backdrop-filter: blur(8px); }
 .room-tool-options > div:first-child { display: grid; gap: 3px; min-width: 0; }
@@ -608,6 +651,8 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .overview-attention-item, .room-error-attention { grid-template-columns: 1fr; }
   .overview-attention-item button, .room-error-attention button { justify-self: start; }
   .room-editor-shell { grid-template-columns: 82px minmax(300px, 1fr); }
+  .room-preview-layout { grid-template-columns: 1fr; }
+  .room-preview-objects { max-height: none; }
   .room-editor-dock { grid-column: 2; max-height: none; overflow: visible; }
   .room-tool-options { grid-template-columns: minmax(170px, 1fr) auto; }
   .room-editor-status { justify-self: end; }
@@ -629,6 +674,8 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .room-editor-status { justify-self: start; }
   .room-tool-actions { grid-column: auto; }
   .room-editor-shell { grid-template-columns: 1fr; }
+  .room-preview-stage { min-height: 330px; }
+  .room-preview-stage svg { height: min(500px, 58vh); }
   .room-toolbox { position: static; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .room-toolbox > strong { grid-column: 1 / -1; }
   .room-tool { grid-template-columns: 22px minmax(0, 1fr); }

@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { readFile } from 'node:fs/promises';
+
+const appPath = new URL('../apps/studio-server/public/app.js', import.meta.url);
+const cssPath = new URL('../apps/studio-server/public/styles.css', import.meta.url);
+const serverPath = new URL('../apps/studio-server/src/server.js', import.meta.url);
+const capturePath = new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url);
+
+test('Room Studio Preview is an exact read-only view with visible non-runtime truth', async () => {
+  const [app, server] = await Promise.all([readFile(appPath, 'utf8'), readFile(serverPath, 'utf8')]);
+  assert.match(app, /\['editor', 'Editor'\], \['preview', 'Studio preview'\]/);
+  assert.match(app, /Approximate Studio Preview · read-only/);
+  assert.match(app, /Project \$\{binding\.projectId\} · revision r\$\{binding\.projectRevision\} · Room \$\{binding\.roomVariantId\} · room version v\$\{binding\.roomVersion\}/);
+  assert.match(app, /not Numberdroid runtime output/);
+  assert.match(app, /does not validate, accept, finalize, publish, or change the room/);
+  assert.match(app, /state\.roomUi\.shapeDraft\?\.dirty[\s\S]*Preview uses saved room v/);
+  assert.match(app, /data\.roomPreviewState|dataset\.roomPreviewState/);
+  assert.match(server, /roomPreviewSceneRoute[\s\S]*preview-scene/);
+  assert.match(server, /request\.method !== 'GET'[\s\S]*METHOD_NOT_ALLOWED/);
+  assert.match(server, /roomPreviewSceneHttpProjection\(createRoomPreviewScene\(source\)\)/);
+  assert.doesNotMatch(server.slice(server.indexOf('function roomPreviewSceneHttpProjection'), server.indexOf('function assetQueryHttpProjection')), /execute|EngineBridge|numberdroid-adapter|mcp/i);
+});
+
+test('Room Studio Preview renders bounded SVG alpha, rotation, overhang, guides, and connector overlays', async () => {
+  const [app, css] = await Promise.all([readFile(appPath, 'utf8'), readFile(cssPath, 'utf8')]);
+  const start = app.indexOf('const ROOM_PREVIEW_SVG_NS');
+  const end = app.indexOf('function renderRooms', start);
+  const preview = app.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.match(preview, /createElementNS\(ROOM_PREVIEW_SVG_NS/);
+  assert.match(preview, /validateRoomPreviewResource\(segment\.artifact, binding\.projectId\)/);
+  assert.match(preview, /roomPreviewImageMatrix\(segment, entity\.source\.rotation\)/);
+  assert.match(preview, /rotation === 90/);
+  assert.match(preview, /rotation === 180/);
+  assert.match(preview, /dataset\.previewSegmentKind = segment\.phase/);
+  assert.match(preview, /dataset\.previewLogicalFootprint/);
+  assert.match(preview, /dataset\.previewGroundAnchor/);
+  assert.match(preview, /dataset\.previewVisualBounds/);
+  assert.match(preview, /dataset\.previewConnectorId/);
+  assert.doesNotMatch(preview, /innerHTML|foreignObject|data:|blob:/);
+  assert.match(css, /\.room-preview-layout \{ display: grid; grid-template-columns:/);
+  assert.match(css, /@media \(max-width: 1200px\)[\s\S]*\.room-preview-layout \{ grid-template-columns: 1fr; \}/);
+  assert.match(css, /\.room-preview-stage svg[\s\S]*overflow: visible/);
+});
+
+test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visible non-occupying overhang', async () => {
+  const capture = await readFile(capturePath, 'utf8');
+  assert.match(capture, /\[data-room-view=\"preview\"\][\s\S]*Input\.dispatchKeyEvent/);
+  assert.match(capture, /text: '\\r', unmodifiedText: '\\r'/);
+  assert.match(capture, /transparentPixelDelta/);
+  assert.match(capture, /opaqueOverhangPixelDelta/);
+  assert.match(capture, /transparentPixelDelta <= 8/);
+  assert.match(capture, /opaqueOverhangPixelDelta >= 30/);
+  assert.match(capture, /nonGetRequests\.length === 0/);
+  assert.match(capture, /studio-preview-\$1\.png/);
+  assert.match(capture, /studio-preview-reference-\$1\.png/);
+});
