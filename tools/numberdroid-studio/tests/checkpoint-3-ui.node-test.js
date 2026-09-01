@@ -122,6 +122,9 @@ test('Room direct manipulation remains transient, revision-pinned, cancellable, 
   assert.match(app, /event\.preventDefault\(\); await moveRoomPlacement/);
   assert.match(app, /function clearPendingRoomPlacementAdd/);
   assert.match(app, /samePendingIntent/);
+  assert.match(app, /advancedAuthorityContext/);
+  assert.match(app, /project\.revision > pendingAdd\.projectRevision/);
+  assert.match(app, /variant\.version > pendingAdd\.roomVersion/);
   assert.match(app, /PLACEMENT_ADD_RECOVERED/);
   assert.match(app, /original idempotency key can resolve safely/);
   assert.match(app, /gesture\.outsideBoard/);

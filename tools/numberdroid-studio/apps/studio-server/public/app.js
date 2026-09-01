@@ -4415,7 +4415,11 @@ function reconcileRoomUi(project) {
   const pendingAdd = state.roomUi.pendingPlacementAdd;
   if (pendingAdd) {
     const committed = variant?.placements.find(({ placementId }) => placementId === pendingAdd.placementId);
-    const exactCommit = committed
+    const advancedAuthorityContext = pendingAdd.projectId === project.projectId
+      && pendingAdd.roomVariantId === variant?.roomVariantId
+      && project.revision > pendingAdd.projectRevision
+      && variant.version > pendingAdd.roomVersion;
+    const exactCommit = advancedAuthorityContext && committed
       && committed.assetId === pendingAdd.assetId
       && committed.assetVersion === pendingAdd.assetVersion
       && committed.metadataVersion === pendingAdd.metadataVersion
@@ -6333,6 +6337,8 @@ if (visualFixture) {
       if (!state.project || !variant || !placement) return null;
       state.roomUi.pendingPlacementAdd = {
         ...roomManipulationContext(variant),
+        projectRevision: state.project.revision - 1,
+        roomVersion: variant.version - 1,
         placementId: placement.placementId,
         assetId: placement.assetId,
         assetVersion: placement.assetVersion,
