@@ -225,7 +225,12 @@ publication, or release action.
 - **ROM-006.** Room metadata MUST trace intent from game design to level design to room design. Agent-created metadata MUST cite the governing rule or mark the value as a proposal.
 - **ROM-007.** The user MUST be able to browse the available asset vocabulary alongside the room, filter it, preview placement, and inspect why an asset is invalid for a position.
 - **ROM-008.** Validation MUST cover overlaps, bounds, footprint/exact-fit constraints, connectors, required access, navigation/collision, required tags, unresolved proposals, and adapter-specific rules.
-- **ROM-009.** Finalization MUST create an immutable final revision; subsequent edits create a new draft lineage.
+- **ROM-009.** Studio MUST provide a read-only engine-neutral room preview pinned to the exact project revision and room-version identity. Its first renderer MUST compose room shape, ordered layers, exact asset versions, positions, rotations, anchors, transparency, connectors and optional validation overlays in top-down view without invoking EngineBridge, mutating authoring state or implying runtime fidelity or acceptance.
+- **ROM-010.** Preview presentation MUST distinguish an asset's logical footprint from its visual bounds, visual offset, ground anchor and elevation. Visual pixels MAY extend beyond occupied cells and transparent pixels MUST reveal lower layers; visual overhang MUST NOT silently alter collision, navigation, triggers, placement validity or occupied cells.
+- **ROM-011.** Preview selection and diagnostics MUST be able to show the logical footprint, ground anchor, visible bounds and overhang together. Occlusion ordering MUST be deterministic and primarily ground-anchor based; an asset MAY optionally define bounded background/body/foreground visual segments when one sprite cannot represent a correct overlap.
+- **ROM-012.** The engine-neutral preview model MUST permit both top-down and later 2.5D/isometric or dimetric renderers without changing room semantics. Optional projection metadata such as view, facing, elevation, preview height, visual offset, visual bounds, occlusion mode and side treatment is presentation-only and MUST NOT become gameplay authority.
+- **ROM-013.** Every Studio preview MUST visibly identify itself as approximate. Engine-specific rendering, animation, lighting, shaders, physics and runtime behavior remain the responsibility of an explicitly selected project/engine preview adapter and are not inferred from Studio output.
+- **ROM-014.** Finalization MUST create an immutable final revision; subsequent edits create a new draft lineage.
 
 ### 5.6 Level Composition
 
