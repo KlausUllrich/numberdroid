@@ -1,12 +1,12 @@
 # Numberdroid Studio — Room Editor Preview Handoff
 
-DATE: 2026-09-01  
-REPOSITORY: `KlausUllrich/numberdroid`  
-STATUS: **Room Editor live findings recorded; functional repairs and zoom/pan integrated; direct manipulation, action visibility and engine-neutral Studio Preview authorized next**  
-BASELINE MAIN HEAD AT CREATION: `d33afa61a8c66a9245401efb0f677c426ed3b086`, tree `42d9f61ae396eb4bd1961dfbb705d68e1bacc4eb` (pre-handoff-document baseline; receiver must re-resolve current `main`)  
-BASELINE CI / PAGES STATE: PR #192 exact head `326c9509322a69e5f6f4717e1b3118a764a2ebbf`, Build #2303 / run `33495245029`, green; merge `d33afa61a8c66a9245401efb0f677c426ed3b086`; post-merge Build #2304 / run `33496734765`, green  
-PRIMARY RECEIVING ROLE: Engineer / Runtime Developer  
-SECONDARY / TRIGGER ROLES: QA / Integrator / Release; Coordinator / cross-domain; Product/Designer for live usability; Numberdroid adapter/compiler reviewer only when engine-specific preview or A4c resumes  
+DATE: 2026-09-01
+REPOSITORY: `KlausUllrich/numberdroid`
+STATUS: **Room Editor live findings recorded; functional repairs and zoom/pan integrated; direct manipulation, action visibility and engine-neutral Studio Preview authorized next**
+BASELINE MAIN HEAD AT CREATION: `d33afa61a8c66a9245401efb0f677c426ed3b086`, tree `42d9f61ae396eb4bd1961dfbb705d68e1bacc4eb` (pre-handoff-document baseline; receiver must re-resolve current `main`)
+BASELINE CI / PAGES STATE: PR #192 exact head `326c9509322a69e5f6f4717e1b3118a764a2ebbf`, Build #2303 / run `33495245029`, green; merge `d33afa61a8c66a9245401efb0f677c426ed3b086`; post-merge Build #2304 / run `33496734765`, green
+PRIMARY RECEIVING ROLE: Engineer / Runtime Developer
+SECONDARY / TRIGGER ROLES: QA / Integrator / Release; Coordinator / cross-domain; Product/Designer for live usability; Numberdroid adapter/compiler reviewer only when engine-specific preview or A4c resumes
 NEXT MILESTONE / TASK: complete the bounded Room Editor usability continuation, then resume the private A4c Level Candidate path
 
 ## 1. Universal bootstrap and required reading
