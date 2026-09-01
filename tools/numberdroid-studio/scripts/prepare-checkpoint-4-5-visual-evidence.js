@@ -121,8 +121,12 @@ try {
   const irregular = final.snapshot.roomLibrary.variants.find(({ roomVariantId }) => roomVariantId === 'room.family-gathering').versions.at(-1);
   const rectangle = final.snapshot.roomLibrary.variants.find(({ roomVariantId }) => roomVariantId === 'hall.service-east-west').versions.at(-1);
   const prop = final.snapshot.assetLibrary.assets.find(({ assetId }) => assetId === 'asset.transfer-apparatus-cp45');
+  const persistedErrors = irregular.findings.filter(({ severity }) => severity === 'ERROR');
   if (final.revision !== 36 || irregular.version !== 7
       || irregular.voidCells.length !== 2 || irregular.blockedCells.length !== 1
+      || persistedErrors.length !== 5
+      || persistedErrors[0].targetKind !== 'roomVariant'
+      || persistedErrors.filter(({ targetKind }) => targetKind === 'roomPlacement').length !== 4
       || (rectangle.voidCells?.length ?? 0) !== 0 || (rectangle.blockedCells?.length ?? 0) !== 0
       || prop?.kind !== 'prop' || prop.lifecycle !== 'DRAFT'
       || prop.metadata.spanTiles.width !== 2 || prop.metadata.spanTiles.height !== 3) {
@@ -133,7 +137,12 @@ try {
     projectId,
     revision: final.revision,
     activityCount: 37,
-    irregularRoom: { roomVariantId: irregular.roomVariantId, version: irregular.version, voidCells: irregular.voidCells, blockedCells: irregular.blockedCells },
+    irregularRoom: {
+      roomVariantId: irregular.roomVariantId, version: irregular.version,
+      voidCells: irregular.voidCells, blockedCells: irregular.blockedCells,
+      persistedErrorCount: persistedErrors.length,
+      persistedErrorFindingIds: persistedErrors.map(({ findingId }) => findingId),
+    },
     rectangularRoom: { roomVariantId: rectangle.roomVariantId, version: rectangle.version, voidCells: rectangle.voidCells ?? [], blockedCells: rectangle.blockedCells ?? [] },
     prop: {
       assetId: prop.assetId, assetVersion: prop.assetVersion, metadataVersion: prop.metadataVersion,

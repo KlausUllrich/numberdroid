@@ -64,6 +64,53 @@ test('Checkpoint 3 retains room selection, zoom, layers, dirty decisions, focus,
   assert.match(app, /Your local draft was retained/);
 });
 
+test('Saved room errors are visible before deep detail and finding navigation keeps exact identity', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const styles = await readFile(stylesUrl, 'utf8');
+  const evidence = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
+  assert.match(app, /function exactRoomHead/);
+  assert.match(app, /versions\?\.find\(\(\{ version \}\) => version === entry\.headVersion\)/);
+  assert.match(app, /function roomHeadFindingProjection/);
+  assert.match(app, /head\.findings\.filter\(\(\{ severity \}\) => severity === 'ERROR'\)/);
+  assert.match(app, /Saved room errors/);
+  assert.match(app, /saved error\$\{projection\.errors\.length === 1/);
+  assert.match(app, /validation remains blocked until a new saved version resolves them/);
+  assert.match(app, /Saved room status unavailable — needs attention/);
+  assert.match(app, /Studio will not present this room as clear/);
+  const rooms = app.slice(app.indexOf('function renderRooms'), app.indexOf('const TASK_STATE_LABELS'));
+  assert.match(rooms, /const variant = exactRoomHead\(selectedEntry\)/);
+  assert.match(rooms, /No fallback version is opened as current/);
+  assert.match(rooms, /Studio will not open a fallback room version as current/);
+  assert.doesNotMatch(rooms, /const \{ entry: selectedEntry, variant \} = currentRoomVariant/);
+  assert.match(app, /function roomFindingFocusKey/);
+  assert.match(app, /room-finding:\$\{roomVariantId\}:\$\{roomVersion\}:\$\{findingId\}/);
+  assert.match(app, /focus\.dataset\.findingId = finding\.findingId/);
+  assert.match(app, /dock\.dataset\.roomScroll = 'dock'/);
+  assert.match(app, /guidance\.textContent = `These findings belong to exact saved room v\$\{variant\.version\}/);
+  assert.match(app, /remediation\.textContent = `Next: \$\{finding\.remediation\}`/);
+  assert.match(app, /finding\.targetKind === 'roomVariant' \? 'Room-wide issue'/);
+  assert.match(app, /ROOM_FINDING_STALE/);
+  assert.match(app, /state\.roomUi\.selectedConnectorId = null; state\.roomUi\.selectedFinding = null; state\.roomUi\.selectedPaletteAssetId/);
+  assert.match(app, /\.room-findings \[data-selected="true"\]/);
+  assert.match(styles, /\.room-findings \.asset-findings li \{[^}]*font-size: 11px;[^}]*line-height: 1\.45/);
+  assert.match(styles, /\.room-error-attention \{[^}]*border-left: 5px solid/);
+  assert.match(evidence, /open\.focus\(\); open\.click\(\)/);
+  assert.match(evidence, /overviewOpenEvidence\.panel === 'check'/);
+  assert.match(evidence, /setup\.before\.findings > 0/);
+  assert.match(evidence, /setup\.dockScrollable === true/);
+  assert.match(evidence, /pointerSelection\.during\.selectedFindingCount === 0/);
+  assert.match(evidence, /Input\.dispatchKeyEvent'[\s\S]*key: 'Escape'/);
+  assert.match(evidence, /roomDirectManipulationState\(\)\?\.gestureActive/);
+  assert.doesNotMatch(evidence, /roomPlacementInteractionState/);
+  const findingNavigation = evidence.slice(evidence.indexOf('const findingsSetup'), evidence.indexOf('const directSetup'));
+  assert.equal(findingNavigation.match(/type: 'keyDown', key: 'Enter'/g)?.length, 2);
+  assert.equal(findingNavigation.match(/type: 'keyUp', key: 'Enter'/g)?.length, 2);
+  assert.equal(findingNavigation.match(/text: '\\r', unmodifiedText: '\\r'/g)?.length, 2);
+  assert.doesNotMatch(findingNavigation, /type: 'rawKeyDown', key: 'Enter'/);
+  assert.match(findingNavigation, /isTrusted === true && detail === 0/);
+  assert.doesNotMatch(findingNavigation, /(?:targetButtons\[[^\]]+\]|first|secondButton)\??\.click\(\)/);
+});
+
 test('Checkpoint 3 canvas and review surfaces remain bounded at 1440 and protected 1060 widths', async () => {
   const styles = await readFile(stylesUrl, 'utf8');
   assert.match(styles, /\.room-editor-shell \{[^}]*grid-template-columns: 92px minmax\(360px, 1fr\) minmax\(255px, \.72fr\)/);
