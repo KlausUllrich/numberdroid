@@ -822,8 +822,7 @@ function usefulAssetPreview(asset, { previewKey = asset.assetId ?? asset.itemId 
   wrapper.dataset.previewReady = 'false';
   wrapper.dataset.previewStatus = canLoad ? 'LOADING' : 'UNAVAILABLE';
   preview.style.setProperty('--preview-rotation', `${selectedRotation}deg`);
-  preview.style.setProperty('--preview-unrotated-width', `${(span.width / geometry.width) * 100}%`);
-  preview.style.setProperty('--preview-unrotated-height', `${(span.height / geometry.height) * 100}%`);
+  preview.dataset.previewQuarterTurn = String(selectedRotation === 90 || selectedRotation === 270);
   stage.append(preview);
   const grid = document.createElement('span'); grid.className = 'prop-preview-grid'; grid.setAttribute('aria-hidden', 'true'); stage.append(grid);
   const collision = metadata.collision;
