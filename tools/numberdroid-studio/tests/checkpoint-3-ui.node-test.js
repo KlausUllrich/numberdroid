@@ -92,11 +92,14 @@ test('CP4.5 presents one persistent canvas, editor tools, truthful cell kinds, a
   assert.match(styles, /\.room-cell\[data-cell-kind="VOID"\][^{]*\{[^}]*repeating-linear-gradient/);
   assert.match(styles, /\.room-cell\[data-cell-kind="BLOCKED"\][^{]*\{[^}]*linear-gradient/);
   assert.match(styles, /\.room-board\[data-shape-editing="true"\] \.room-placement,[\s\S]*pointer-events: none/);
+  assert.match(app, /selectedPaletteAssetId\) board\.dataset\.assetPlacementEditing = 'true'/);
+  assert.match(styles, /\.room-board\[data-asset-placement-editing="true"\] \.room-placement,[\s\S]*pointer-events: none/);
   assert.match(styles, /\.asset-conflict\[hidden\] \{ display: none; \}/);
 });
 
 test('CP4.5 useful prop preview exposes footprint, anchor, rotation, collision, and readiness before placement', async () => {
   const app = await readFile(appUrl, 'utf8');
+  const styles = await readFile(stylesUrl, 'utf8');
   const preview = app.slice(app.indexOf('function usefulAssetPreview'), app.indexOf('function renderAssetLibrary'));
   assert.match(preview, /spanTiles/);
   assert.match(preview, /anchor/);
@@ -106,4 +109,10 @@ test('CP4.5 useful prop preview exposes footprint, anchor, rotation, collision, 
   assert.match(preview, /preview is unavailable/);
   assert.match(app, /use\.disabled = variant\.lifecycle !== 'DRAFT' \|\| preview\.dataset\.previewReady !== 'true'/);
   assert.match(app, /draft\.disposition === 'ACCEPTED'\) draft\.disposition = 'REJECTED'/);
+  assert.match(app, /--preview-unrotated-width/);
+  assert.match(app, /--preview-unrotated-height/);
+  assert.match(styles, /position: absolute; top: 50%; left: 50%/);
+  assert.match(styles, /translate\(-50%, -50%\) rotate/);
+  assert.doesNotMatch(styles, /preview-rotation-scale/);
+  assert.match(styles, /\.room-form\.intent \{[^}]*minmax\(0, 1fr\)[^}]*min-width: 0/);
 });

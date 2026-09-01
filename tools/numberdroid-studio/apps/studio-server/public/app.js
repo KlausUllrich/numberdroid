@@ -821,7 +821,10 @@ function usefulAssetPreview(asset, { previewKey = asset.assetId ?? asset.itemId 
   const canLoad = preview.classList.contains('ready');
   wrapper.dataset.previewReady = 'false';
   wrapper.dataset.previewStatus = canLoad ? 'LOADING' : 'UNAVAILABLE';
-  preview.style.setProperty('--preview-rotation', `${selectedRotation}deg`); stage.append(preview);
+  preview.style.setProperty('--preview-rotation', `${selectedRotation}deg`);
+  preview.style.setProperty('--preview-unrotated-width', `${(span.width / geometry.width) * 100}%`);
+  preview.style.setProperty('--preview-unrotated-height', `${(span.height / geometry.height) * 100}%`);
+  stage.append(preview);
   const grid = document.createElement('span'); grid.className = 'prop-preview-grid'; grid.setAttribute('aria-hidden', 'true'); stage.append(grid);
   const collision = metadata.collision;
   const rects = collision?.mode === 'bounds' && collision.bounds ? [collision.bounds]
@@ -2632,6 +2635,7 @@ function renderRoomCanvas(variant, snapshot) {
   const scroll = document.createElement('div'); scroll.className = 'room-canvas-scroll'; scroll.dataset.roomScroll = 'canvas';
   const board = document.createElement('div'); board.className = 'room-board'; board.dataset.roomBoard = 'true';
   if (state.roomUi.activeTool.startsWith('PAINT_')) board.dataset.shapeEditing = 'true';
+  if (state.roomUi.selectedPaletteAssetId) board.dataset.assetPlacementEditing = 'true';
   const cellSize = state.roomUi.zoom === '2' ? 58 : state.roomUi.zoom === '1' ? 38 : 28;
   board.style.setProperty('--room-width', String(variant.width)); board.style.setProperty('--room-height', String(variant.height));
   board.style.setProperty('--room-cell', `${cellSize}px`);
