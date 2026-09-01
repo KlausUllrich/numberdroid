@@ -24,8 +24,8 @@ import {
   createRoomPreviewBinding,
   createRoomPreviewUiState,
   mapRoomPreviewViewport,
+  roomPreviewTopDownDrawOrder,
   transitionRoomPreviewUiState,
-  validateRoomPreviewDrawOrder,
   validateRoomPreviewResource,
 } from './room-preview-state.js';
 
@@ -1002,18 +1002,21 @@ function restoreAssetDomState() {
   window.scrollTo(saved.page.x, saved.page.y);
 }
 
-function captureRoomDomState() {
+function captureRoomDomState({ activeElement = document.activeElement, preserveActiveKey = false } = {}) {
   if (state.workspace !== 'rooms') return;
-  const active = document.activeElement?.closest?.('[data-room-focus-key], [data-room-control]');
+  const active = activeElement?.closest?.('[data-room-focus-key], [data-room-control]');
   const scroll = {};
   for (const element of elements['workspace-content'].querySelectorAll('[data-room-scroll]')) {
     scroll[element.dataset.roomScroll] = { left: element.scrollLeft, top: element.scrollTop };
   }
+  const context = `${state.project?.projectId ?? 'none'}:${state.roomUi.selectedRoomVariantId ?? 'none'}:${state.roomUi.selectedProposalId ?? 'none'}`;
+  const retained = preserveActiveKey && state.roomUi.domState?.context === context
+    ? state.roomUi.domState : null;
   state.roomUi.domState = {
-    context: `${state.project?.projectId ?? 'none'}:${state.roomUi.selectedRoomVariantId ?? 'none'}:${state.roomUi.selectedProposalId ?? 'none'}`,
-    activeKey: active?.dataset.roomFocusKey ?? active?.dataset.roomControl ?? null,
-    selectionStart: Number.isInteger(active?.selectionStart) ? active.selectionStart : null,
-    selectionEnd: Number.isInteger(active?.selectionEnd) ? active.selectionEnd : null,
+    context,
+    activeKey: active?.dataset.roomFocusKey ?? active?.dataset.roomControl ?? retained?.activeKey ?? null,
+    selectionStart: Number.isInteger(active?.selectionStart) ? active.selectionStart : retained?.selectionStart ?? null,
+    selectionEnd: Number.isInteger(active?.selectionEnd) ? active.selectionEnd : retained?.selectionEnd ?? null,
     scroll,
     page: { x: window.scrollX, y: window.scrollY },
   };
@@ -3360,7 +3363,7 @@ function markRoomPreviewResourceFailed(digest) {
 
 function renderRoomPreviewSvg(scene, binding) {
   assertRoomPreviewSceneBinding(scene, binding);
-  const drawOrder = validateRoomPreviewDrawOrder(scene);
+  const drawOrder = roomPreviewTopDownDrawOrder(scene);
   const mapping = mapRoomPreviewViewport(scene, { width: 960, height: 620, padding: .5 });
   const svg = roomPreviewSvgElement('svg', {
     viewBox: `${mapping.viewBox.x} ${mapping.viewBox.y} ${mapping.viewBox.width} ${mapping.viewBox.height}`,
@@ -3462,6 +3465,7 @@ function renderRoomPreviewSvg(scene, binding) {
 
 function renderRoomPreviewObjects(scene) {
   const aside = document.createElement('aside'); aside.className = 'room-preview-objects'; aside.dataset.previewObjectList = '';
+  aside.dataset.roomScroll = 'studio-preview-objects';
   const heading = document.createElement('h3'); heading.textContent = 'Exact placed objects';
   const copy = document.createElement('p'); copy.textContent = 'Inspect presentation guides without changing editor selection or room state.';
   const list = document.createElement('ul');
@@ -3469,6 +3473,7 @@ function renderRoomPreviewObjects(scene) {
     const item = document.createElement('li'); const button = document.createElement('button'); button.type = 'button';
     button.className = 'secondary'; button.dataset.previewInspect = entity.entityId;
     button.dataset.selected = String(state.roomUi.previewSelectedEntityId === entity.entityId);
+    button.setAttribute('aria-pressed', String(state.roomUi.previewSelectedEntityId === entity.entityId));
     const label = document.createElement('strong'); label.textContent = entity.entityId;
     const detail = document.createElement('span');
     detail.textContent = `${entity.source.assetId} · A${entity.source.assetVersion}/M${entity.source.metadataVersion} · ${entity.source.rotation}° · ${entity.source.layer}`;
@@ -5375,6 +5380,13 @@ elements['workspace-content'].addEventListener('change', (event) => {
   }
 });
 
+elements['workspace-content'].addEventListener('focusin', (event) => {
+  if (state.workspace !== 'rooms' || state.roomUi.view !== 'editor') return;
+  if (event.target.closest?.('[data-room-view="preview"]')) {
+    captureRoomDomState({ activeElement: event.relatedTarget, preserveActiveKey: true });
+  }
+});
+
 elements['workspace-content'].addEventListener('click', (event) => {
   const selected = event.target.closest('[data-backup-select]');
   if (selected && !state.backupMutationPending) {
@@ -6084,7 +6096,7 @@ elements['workspace-content'].addEventListener('click', (event) => {
     if (view.disabled || !['editor', 'preview'].includes(view.dataset.roomView)) return;
     if (view.dataset.roomView === 'preview') {
       if (state.roomMutationPending || state.roomUi.pendingPlacementAdd) return;
-      captureRoomDomState();
+      captureRoomDomState({ preserveActiveKey: true });
       state.roomUi.editorDomState = state.roomUi.domState ? structuredClone(state.roomUi.domState) : null;
       state.roomUi.view = 'preview'; state.roomUi.previewSelectedEntityId = null;
       renderWorkspace();
@@ -6108,9 +6120,22 @@ elements['workspace-content'].addEventListener('click', (event) => {
   if (inspect) {
     const scene = state.roomUi.preview.scene;
     if (!scene?.entities.some(({ entityId }) => entityId === inspect.dataset.previewInspect)) return;
+    const scroll = new Map([...elements['workspace-content'].querySelectorAll('[data-room-scroll]')]
+      .map((element) => [element.dataset.roomScroll, { left: element.scrollLeft, top: element.scrollTop }]));
+    const page = { x: window.scrollX, y: window.scrollY };
     state.roomUi.previewSelectedEntityId = state.roomUi.previewSelectedEntityId === inspect.dataset.previewInspect
       ? null : inspect.dataset.previewInspect;
     renderWorkspace();
+    requestAnimationFrame(() => {
+      for (const element of elements['workspace-content'].querySelectorAll('[data-room-scroll]')) {
+        const position = scroll.get(element.dataset.roomScroll); if (!position) continue;
+        element.scrollLeft = Math.max(0, Math.min(position.left, element.scrollWidth - element.clientWidth));
+        element.scrollTop = Math.max(0, Math.min(position.top, element.scrollHeight - element.clientHeight));
+      }
+      elements['workspace-content'].querySelector(`[data-preview-inspect="${CSS.escape(inspect.dataset.previewInspect)}"]`)
+        ?.focus({ preventScroll: true });
+      window.scrollTo(page.x, page.y);
+    });
   }
 });
 

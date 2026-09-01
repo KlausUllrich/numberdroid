@@ -751,6 +751,25 @@ try {
       `Checkpoint 4.5 could not focus the requested room evidence: ${JSON.stringify(checkpoint45RoomFocus)}`);
     if (checkpoint45Focus === 'prop') {
       const networkStart = devtools.events.length;
+      const editorBeforePreviewResult = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const control = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]');
+          control?.focus({ preventScroll: true });
+          const scroll = Object.fromEntries([...document.querySelectorAll('[data-room-scroll]')]
+            .map((element) => [element.dataset.roomScroll, { left: element.scrollLeft, top: element.scrollTop }]));
+          return {
+            activeKey: document.activeElement?.dataset.roomFocusKey ?? document.activeElement?.dataset.roomControl ?? null,
+            scroll,
+            page: { x: window.scrollX, y: window.scrollY },
+            shape: window.__numberdroidStudioVisualTest?.roomShapeState() ?? null,
+            roomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
+            editorPresent: Boolean(document.querySelector('[data-room-board]')),
+          };
+        })()`, returnByValue: true,
+      }, sessionId);
+      const editorBeforePreview = editorBeforePreviewResult.result?.value;
+      assert(editorBeforePreview?.activeKey === 'room-tool-PROP' && editorBeforePreview.editorPresent,
+        `Studio preview could not establish exact editor continuity state: ${JSON.stringify(editorBeforePreview)}`);
       const focusedPreview = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const button = document.querySelector('[data-room-view="preview"]');
@@ -829,6 +848,8 @@ try {
             phases: groups.map((group) => group.dataset.previewSegmentKind),
             drawIndexes: groups.map((group) => Number(group.dataset.previewDrawIndex)),
             resourceStates: groups.map((group) => group.querySelector('[data-preview-resource-state]')?.dataset.previewResourceState ?? null),
+            inspectFocus: document.activeElement?.dataset.previewInspect ?? null,
+            inspectPressed: root?.querySelector('[data-preview-inspect="prop.preview-overhang"]')?.getAttribute('aria-pressed') ?? null,
             logical: logical ? { x: Number(logical.getAttribute('x')), y: Number(logical.getAttribute('y')), width: Number(logical.getAttribute('width')), height: Number(logical.getAttribute('height')) } : null,
             visual: visual ? { x: Number(visual.getAttribute('x')), y: Number(visual.getAttribute('y')), width: Number(visual.getAttribute('width')), height: Number(visual.getAttribute('height')) } : null,
             anchor: anchor ? { x: Number(anchor.getAttribute('cx')), y: Number(anchor.getAttribute('cy')) } : null,
@@ -909,7 +930,34 @@ try {
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
       }, sessionId);
-      await delay(100);
+      let editorAfterPreview = null;
+      for (let attempt = 0; attempt < 120; attempt += 1) {
+        const editorAfterResult = await devtools.send('Runtime.evaluate', {
+          expression: `(() => {
+            const scroll = Object.fromEntries([...document.querySelectorAll('[data-room-scroll]')]
+              .map((element) => [element.dataset.roomScroll, { left: element.scrollLeft, top: element.scrollTop }]));
+            return {
+              activeKey: document.activeElement?.dataset.roomFocusKey ?? document.activeElement?.dataset.roomControl ?? null,
+              scroll,
+              page: { x: window.scrollX, y: window.scrollY },
+              shape: window.__numberdroidStudioVisualTest?.roomShapeState() ?? null,
+              roomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
+              editorPresent: Boolean(document.querySelector('[data-room-board]')),
+              previewPresent: Boolean(document.querySelector('[data-room-preview]')),
+            };
+          })()`, returnByValue: true,
+        }, sessionId);
+        editorAfterPreview = editorAfterResult.result?.value;
+        if (editorAfterPreview?.editorPresent && editorAfterPreview.activeKey === editorBeforePreview.activeKey) break;
+        await delay(50);
+      }
+      checkpoint45StudioPreview.editorRoundTrip = {
+        before: editorBeforePreview,
+        after: editorAfterPreview,
+        sameScroll: JSON.stringify(editorAfterPreview?.scroll) === JSON.stringify(editorBeforePreview.scroll),
+        samePage: JSON.stringify(editorAfterPreview?.page) === JSON.stringify(editorBeforePreview.page),
+        sameShape: JSON.stringify(editorAfterPreview?.shape) === JSON.stringify(editorBeforePreview.shape),
+      };
     }
     if (checkpoint45Focus === 'irregular') {
       const observations = []; let dirtyMutationGuard = null;
@@ -977,7 +1025,7 @@ try {
         }, sessionId);
         assert(painted.result?.value?.kind === expectedKind && painted.result.value.overlap === 0
           && painted.result.value.total === painted.result.value.floor + painted.result.value.outside + painted.result.value.blocked
-          && painted.result.value.revision === 36,
+          && painted.result.value.revision === 37,
         `Checkpoint 4.5 physical paint was not immediately visible and exclusive: ${JSON.stringify(painted.result?.value)}`);
         observations.push(painted.result.value);
         if (tool === 'PAINT_VOID') {
@@ -986,8 +1034,8 @@ try {
           }, sessionId);
           dirtyMutationGuard = guarded.result?.value ?? null;
           assert(painted.result.value.dirty === true && painted.result.value.resizeDisabled === true
-            && dirtyMutationGuard?.accepted === false && dirtyMutationGuard.beforeRevision === 36
-            && dirtyMutationGuard.afterRevision === 36 && dirtyMutationGuard.message?.includes('Save or discard shape changes'),
+            && dirtyMutationGuard?.accepted === false && dirtyMutationGuard.beforeRevision === 37
+            && dirtyMutationGuard.afterRevision === 37 && dirtyMutationGuard.message?.includes('Save or discard shape changes'),
           `Checkpoint 4.5 dirty shape did not visibly and semantically block other room mutations: ${JSON.stringify({ painted: painted.result.value, dirtyMutationGuard })}`);
         }
       }
@@ -1304,7 +1352,7 @@ try {
                 window.__roomDirectManipulationEvidence.rejectNextAdd = false;
                 throw new TypeError('Synthetic connection loss before commit.');
               }
-              return new Response(JSON.stringify({ projectId: 'numberdroid-studio-checkpoint-2c', revision: 37 }), {
+              return new Response(JSON.stringify({ projectId: 'numberdroid-studio-checkpoint-2c', revision: 38 }), {
                 status: 200, headers: { 'content-type': 'application/json' },
               });
             }
@@ -3016,6 +3064,8 @@ try {
         && checkpoint45StudioPreview.limits.includes('does not validate, accept, finalize, publish, or change the room')
         && checkpoint45StudioPreview.phases.join(',') === 'BACKGROUND,BODY,FOREGROUND'
         && checkpoint45StudioPreview.resourceStates.every((value) => value === 'READY')
+        && checkpoint45StudioPreview.inspectFocus === 'prop.preview-overhang'
+        && checkpoint45StudioPreview.inspectPressed === 'true'
         && checkpoint45StudioPreview.logical?.x === 3
         && checkpoint45StudioPreview.logical.y === 0
         && checkpoint45StudioPreview.logical.width === 1
@@ -3035,7 +3085,14 @@ try {
         && checkpoint45StudioPreview.stageVisible === true
         && checkpoint45StudioPreview.transparentPixelDelta <= 8
         && checkpoint45StudioPreview.opaqueOverhangPixelDelta >= 30
-        && checkpoint45StudioPreview.nonGetRequests.length === 0,
+        && checkpoint45StudioPreview.nonGetRequests.length === 0
+        && checkpoint45StudioPreview.editorRoundTrip?.after?.activeKey === 'room-tool-PROP'
+        && checkpoint45StudioPreview.editorRoundTrip.after.roomId === 'room.family-gathering'
+        && checkpoint45StudioPreview.editorRoundTrip.after.editorPresent === true
+        && checkpoint45StudioPreview.editorRoundTrip.after.previewPresent === false
+        && checkpoint45StudioPreview.editorRoundTrip.sameScroll === true
+        && checkpoint45StudioPreview.editorRoundTrip.samePage === true
+        && checkpoint45StudioPreview.editorRoundTrip.sameShape === true,
       `Studio preview lost exact pins, read-only authority, logical/visual separation, alpha, overhang, or segment order: ${JSON.stringify(checkpoint45StudioPreview)}`);
     }
     if (checkpoint45Focus === 'shape-refresh') {

@@ -3,7 +3,6 @@ export const ROOM_PREVIEW_SCENE_KIND = 'studio.room-preview-scene';
 export const ROOM_PREVIEW_PRESENTATION_NAMESPACE = 'studio.preview.presentation';
 export const ROOM_PREVIEW_PRESENTATION_SCHEMA_VERSION = 1;
 export const ROOM_PREVIEW_BLEND_MODE = 'SOURCE_OVER';
-export const ROOM_PREVIEW_PROJECTION = 'ORTHOGRAPHIC_TOP_DOWN';
 export const ROOM_PREVIEW_SEGMENT_PHASES = Object.freeze(['BACKGROUND', 'BODY', 'FOREGROUND']);
 
 const PHASE_ORDER = Object.freeze(Object.fromEntries(
@@ -104,9 +103,9 @@ function sourceRect(value, field) {
   return rect;
 }
 
-function defaultPresentation(span) {
+function defaultPresentation(span, groundAnchor) {
   return {
-    groundAnchor: { x: span.width / 2, y: span.height },
+    groundAnchor,
     visualBounds: { x: 0, y: 0, width: span.width, height: span.height },
     visualOffset: { x: 0, y: 0 },
     elevation: 0,
@@ -121,9 +120,11 @@ function defaultPresentation(span) {
   };
 }
 
-function normalizePresentation(value, span) {
-  const fallback = defaultPresentation(span);
-  if (value === undefined) return { presentation: fallback, invalid: false };
+function normalizePresentation(value, span, defaultGroundAnchor) {
+  const fallback = defaultPresentation(span, defaultGroundAnchor);
+  if (value === undefined) {
+    return { presentation: fallback, invalid: false, usesDefaultGroundAnchor: true };
+  }
   try {
     const record = assertExactFields(value, [
       'schemaVersion', 'groundAnchor', 'visualBounds', 'visualOffset', 'elevation', 'segments',
@@ -196,9 +197,23 @@ function normalizePresentation(value, span) {
     return {
       presentation: { groundAnchor, visualBounds, visualOffset, elevation, segments },
       invalid: false,
+      usesDefaultGroundAnchor: record.groundAnchor === undefined,
     };
   } catch {
-    return { presentation: fallback, invalid: true };
+    return { presentation: fallback, invalid: true, usesDefaultGroundAnchor: true };
+  }
+}
+
+function authoredGroundAnchor(value, span) {
+  const inferred = { x: span.width / 2, y: span.height };
+  if (value === null || value === undefined) return { groundAnchor: inferred, inferred: true };
+  try {
+    const anchor = assertExactFields(value, ['x', 'y'], 'metadata.anchor');
+    const x = requiredInteger(anchor.x, 'metadata.anchor.x', { min: 0, max: span.width - 1 });
+    const y = requiredInteger(anchor.y, 'metadata.anchor.y', { min: 0, max: span.height - 1 });
+    return { groundAnchor: { x: x + 0.5, y: y + 0.5 }, inferred: false };
+  } catch {
+    return { groundAnchor: inferred, inferred: true };
   }
 }
 
@@ -351,6 +366,21 @@ function previewFinding(placementId, placementIndex) {
   };
 }
 
+function inferredAnchorFinding(placementId, placementIndex) {
+  return {
+    findingId: `studio.preview.ground-anchor.inferred:${placementId}`,
+    severity: 'WARNING',
+    scope: 'PREVIEW_ONLY',
+    ruleId: 'studio.preview.ground-anchor.inferred',
+    targetKind: 'roomPlacement',
+    targetId: placementId,
+    path: `/placements/${placementIndex}/asset/metadata/anchor`,
+    explanation: 'The exact asset has no usable authored anchor; Studio Preview inferred bottom-center ground contact.',
+    remediation: 'Author a bounded asset anchor or an explicit Studio preview ground anchor. Room gameplay semantics are unchanged.',
+    validatorVersion: 'numberdroid-studio.room-preview-scene.v1',
+  };
+}
+
 function entityFor(placement, placementIndex, asset, projectId) {
   const span = assertRecord(asset.metadata?.spanTiles, `assets.${asset.assetId}.metadata.spanTiles`);
   const sourceSpan = {
@@ -384,7 +414,8 @@ function entityFor(placement, placementIndex, asset, projectId) {
   } catch {
     extension = null;
   }
-  const normalized = normalizePresentation(extension, sourceSpan);
+  const authoredAnchor = authoredGroundAnchor(asset.metadata?.anchor, sourceSpan);
+  const normalized = normalizePresentation(extension, sourceSpan, authoredAnchor.groundAnchor);
   const presentation = normalized.presentation;
   const rotatedGroundAnchor = rotatedPoint(presentation.groundAnchor, sourceSpan, rotation);
   const groundAnchor = { ...worldPoint(rotatedGroundAnchor, anchor), z: 0 };
@@ -430,7 +461,11 @@ function entityFor(placement, placementIndex, asset, projectId) {
       artifact,
       segments,
     },
-    finding: normalized.invalid ? previewFinding(placement.placementId, placementIndex) : null,
+    findings: [
+      ...(normalized.invalid ? [previewFinding(placement.placementId, placementIndex)] : []),
+      ...(authoredAnchor.inferred && normalized.usesDefaultGroundAnchor
+        ? [inferredAnchorFinding(placement.placementId, placementIndex)] : []),
+    ],
   };
 }
 
@@ -461,30 +496,6 @@ function persistedFinding(value, index) {
     remediation: boundedString(finding.remediation, `${field}.remediation`),
     validatorVersion: requiredString(finding.validatorVersion, `${field}.validatorVersion`),
   };
-}
-
-function drawOrderEntry(entity, segment) {
-  return {
-    entityId: entity.entityId,
-    segmentId: segment.segmentId,
-    depth: {
-      layer: entity.source.layer,
-      groundY: entity.groundAnchor.y,
-      groundX: entity.groundAnchor.x,
-      phase: segment.phase,
-      elevation: segment.visualExtent.z,
-    },
-  };
-}
-
-function compareDrawOrder(left, right) {
-  return (LAYER_ORDER[left.depth.layer] ?? 99) - (LAYER_ORDER[right.depth.layer] ?? 99)
-    || left.depth.groundY - right.depth.groundY
-    || left.depth.groundX - right.depth.groundX
-    || PHASE_ORDER[left.depth.phase] - PHASE_ORDER[right.depth.phase]
-    || left.depth.elevation - right.depth.elevation
-    || left.entityId.localeCompare(right.entityId)
-    || left.segmentId.localeCompare(right.segmentId);
 }
 
 function deepFreeze(value, seen = new Set()) {
@@ -541,13 +552,10 @@ export function createRoomPreviewScene({ projectId, projectRevision, room, asset
     });
     const projected = entityFor(placement, index, asset, exactProjectId);
     entities.push(projected.entity);
-    if (projected.finding) findings.push(projected.finding);
+    findings.push(...projected.findings);
   }
   entities.sort((left, right) => left.entityId.localeCompare(right.entityId));
   findings.sort((left, right) => left.targetId.localeCompare(right.targetId) || left.path.localeCompare(right.path));
-  const drawOrder = entities
-    .flatMap((entity) => entity.segments.map((segment) => drawOrderEntry(entity, segment)))
-    .sort(compareDrawOrder);
   const voidCells = (exactRoom.voidCells ?? []).map((candidate, index) => cell(candidate, `room.voidCells[${index}]`, width, height)).sort(compareCells);
   const blockedCells = (exactRoom.blockedCells ?? []).map((candidate, index) => cell(candidate, `room.blockedCells[${index}]`, width, height)).sort(compareCells);
   assert(Array.isArray(exactRoom.findings), 'ROOM_PREVIEW_INPUT_INVALID', 'room.findings must be the persisted exact finding array.', { field: 'room.findings' });
@@ -580,7 +588,6 @@ export function createRoomPreviewScene({ projectId, projectRevision, room, asset
       axes: { x: 'EAST', y: 'SOUTH', z: 'UP' },
       origin,
     },
-    view: { projection: ROOM_PREVIEW_PROJECTION },
     compositing: { blendMode: ROOM_PREVIEW_BLEND_MODE, sourceAlpha: 'PRESERVE' },
     visualExtent,
     room: {
@@ -593,7 +600,6 @@ export function createRoomPreviewScene({ projectId, projectRevision, room, asset
       findings: roomFindings,
     },
     entities,
-    drawOrder,
     findings,
   });
 }

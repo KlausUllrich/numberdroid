@@ -277,15 +277,15 @@ function drawOrderEntry(entity, entityIndex, segment, segmentIndex) {
 
 function compareDrawOrder(left, right) {
   return LAYER_ORDER[left.depth.layer] - LAYER_ORDER[right.depth.layer]
+    || SEGMENT_ORDER[left.depth.phase] - SEGMENT_ORDER[right.depth.phase]
     || left.depth.groundY - right.depth.groundY
     || left.depth.groundX - right.depth.groundX
-    || SEGMENT_ORDER[left.depth.phase] - SEGMENT_ORDER[right.depth.phase]
     || left.depth.elevation - right.depth.elevation
     || left.entityId.localeCompare(right.entityId)
     || left.segmentId.localeCompare(right.segmentId);
 }
 
-export function normalizeRoomPreviewDrawOrder(scene) {
+export function roomPreviewTopDownDrawOrder(scene) {
   const source = record(scene, 'scene');
   if (!Array.isArray(source.entities)) fail('scene.entities must be an array.');
   const keys = new Set();
@@ -307,30 +307,6 @@ export function normalizeRoomPreviewDrawOrder(scene) {
     });
   }).sort(compareDrawOrder);
   return immutableClone(normalized);
-}
-
-export function validateRoomPreviewDrawOrder(scene) {
-  const source = record(scene, 'scene');
-  if (!Array.isArray(source.drawOrder)) fail('scene.drawOrder must be an array.');
-  const expected = normalizeRoomPreviewDrawOrder(source);
-  if (source.drawOrder.length !== expected.length) fail('scene.drawOrder is incomplete.');
-  for (let index = 0; index < expected.length; index += 1) {
-    const actual = exactFields(source.drawOrder[index], ['entityId', 'segmentId', 'depth'], `scene.drawOrder[${index}]`);
-    const depth = exactFields(actual.depth, [
-      'layer', 'groundY', 'groundX', 'phase', 'elevation',
-    ], `scene.drawOrder[${index}].depth`);
-    const canonical = expected[index];
-    if (actual.entityId !== canonical.entityId
-        || actual.segmentId !== canonical.segmentId
-        || depth.layer !== canonical.depth.layer
-        || depth.groundY !== canonical.depth.groundY
-        || depth.groundX !== canonical.depth.groundX
-        || depth.phase !== canonical.depth.phase
-        || depth.elevation !== canonical.depth.elevation) {
-      fail('scene.drawOrder does not match the canonical scene geometry.');
-    }
-  }
-  return expected;
 }
 
 export function assertRoomPreviewSceneBinding(scene, bindingValue) {
@@ -421,7 +397,10 @@ export function transitionRoomPreviewUiState(current, eventValue) {
   if (event.type === 'SCENE_READY') {
     if (state.status !== 'LOADING') fail(`SCENE_READY is not valid while the preview is ${state.status}.`);
     assertRoomPreviewSceneBinding(event.scene, bindingCoordinates(state.binding));
-    validateRoomPreviewDrawOrder(event.scene);
+    if (Object.hasOwn(event.scene, 'view') || Object.hasOwn(event.scene, 'drawOrder')) {
+      fail('The portable preview scene must not embed a renderer projection or final draw order.');
+    }
+    roomPreviewTopDownDrawOrder(event.scene);
     roomPreviewSceneExtent(event.scene);
     for (const entity of event.scene.entities) {
       for (const segment of entity.segments) {

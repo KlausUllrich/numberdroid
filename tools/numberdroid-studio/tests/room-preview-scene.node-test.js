@@ -3,7 +3,6 @@ import test from 'node:test';
 import {
   ROOM_PREVIEW_BLEND_MODE,
   ROOM_PREVIEW_PRESENTATION_NAMESPACE,
-  ROOM_PREVIEW_PROJECTION,
   createRoomPreviewScene,
 } from '../packages/preview/src/room-preview-scene.js';
 
@@ -25,6 +24,7 @@ function asset(assetId, {
   assetVersion = 1,
   metadataVersion = 1,
   span = { width: 1, height: 1 },
+  anchor = { x: 0, y: 0 },
   presentation,
   digit = 'a',
 } = {}) {
@@ -37,6 +37,7 @@ function asset(assetId, {
     lifecycle: 'FINAL',
     metadata: {
       spanTiles: span,
+      anchor,
       extensions: presentation === undefined ? {} : {
         [ROOM_PREVIEW_PRESENTATION_NAMESPACE]: presentation,
       },
@@ -129,7 +130,8 @@ test('portable room scene pins exact source/artifact identity and keeps unclippe
     axes: { x: 'EAST', y: 'SOUTH', z: 'UP' },
     origin: { x: 0, y: 0, z: 0 },
   });
-  assert.equal(result.view.projection, ROOM_PREVIEW_PROJECTION);
+  assert.equal(Object.hasOwn(result, 'view'), false);
+  assert.equal(Object.hasOwn(result, 'drawOrder'), false);
   assert.equal(result.compositing.blendMode, ROOM_PREVIEW_BLEND_MODE);
   assert.deepEqual(result.entities[0].logicalFootprint, {
     x: 11,
@@ -202,11 +204,10 @@ test('ground anchor, presentation geometry, elevation, overhang, alpha, and segm
     segment.compositing.blendMode === 'SOURCE_OVER'
       && segment.compositing.sourceAlpha === 'PRESERVE'
   )));
-  assert.deepEqual(complexResult.drawOrder.map(({ segmentId }) => segmentId), ['background', 'body', 'foreground']);
   assert.deepEqual(complexResult.visualExtent, { x: 0, y: 0, z: 0, width: 12, height: 10, depth: 2 });
 });
 
-test('draw order is deterministic with semantic layer first and ground anchor as primary in-layer depth', () => {
+test('portable scene preserves deterministic renderer inputs without embedding a projection or final order', () => {
   const phases = {
     schemaVersion: 1,
     segments: [
@@ -230,14 +231,37 @@ test('draw order is deterministic with semantic layer first and ground anchor as
   ]));
 
   assert.deepEqual(first, second);
-  assert.deepEqual(first.drawOrder.map(({ entityId, segmentId }) => `${entityId}:${segmentId}`), [
-    'floor.last-id:body',
-    'a.near:background',
-    'a.near:foreground',
-    'z.far:background',
-    'z.far:foreground',
-  ]);
-  assert.ok(first.drawOrder[1].depth.groundY < first.drawOrder[3].depth.groundY);
+  assert.deepEqual(first.entities.map(({ entityId }) => entityId), ['a.near', 'floor.last-id', 'z.far']);
+  assert.equal(Object.hasOwn(first, 'view'), false);
+  assert.equal(Object.hasOwn(first, 'drawOrder'), false);
+  assert.ok(first.entities[0].groundAnchor.y < first.entities[2].groundAnchor.y);
+});
+
+test('default ground contact derives from the exact authored asset anchor, not visual bounds', () => {
+  const authored = asset('asset.prop.authored-anchor', {
+    span: { width: 3, height: 2 },
+    anchor: { x: 2, y: 0 },
+  });
+  const result = scene(room([
+    placement('placement.authored-anchor', authored.assetId, { x: 4, y: 5 }),
+  ]), [authored]);
+  assert.deepEqual(result.entities[0].groundAnchor, { x: 6.5, y: 5.5, z: 0 });
+  assert.deepEqual(result.entities[0].logicalFootprint, {
+    x: 4, y: 5, z: 0, width: 3, height: 2,
+    cells: [
+      { x: 4, y: 5 }, { x: 5, y: 5 }, { x: 6, y: 5 },
+      { x: 4, y: 6 }, { x: 5, y: 6 }, { x: 6, y: 6 },
+    ],
+  });
+  assert.deepEqual(result.findings, []);
+
+  const inferred = asset('asset.prop.inferred-anchor', { span: { width: 3, height: 2 }, anchor: null });
+  const inferredResult = scene(room([
+    placement('placement.inferred-anchor', inferred.assetId, { x: 4, y: 5 }),
+  ]), [inferred]);
+  assert.deepEqual(inferredResult.entities[0].groundAnchor, { x: 5.5, y: 7, z: 0 });
+  assert.equal(inferredResult.findings[0].ruleId, 'studio.preview.ground-anchor.inferred');
+  assert.equal(inferredResult.findings[0].scope, 'PREVIEW_ONLY');
 });
 
 test('quarter-turn transforms are deterministic for points, rectangles, vectors, and footprints', () => {
@@ -299,7 +323,6 @@ test('malformed optional presentation emits a preview-only finding and falls bac
       placement('placement.safe', broken.assetId, { x: 3, y: 4 }),
     ]), [broken]);
     assert.deepEqual(result.entities, safeResult.entities);
-    assert.deepEqual(result.drawOrder, safeResult.drawOrder);
     assert.equal(result.findings.length, 1);
     assert.equal(result.findings[0].scope, 'PREVIEW_ONLY');
     assert.equal(result.findings[0].ruleId, 'studio.preview.presentation.invalid');

@@ -7,13 +7,12 @@ import {
   createRoomPreviewBinding,
   createRoomPreviewUiState,
   mapRoomPreviewViewport,
-  normalizeRoomPreviewDrawOrder,
   roomPreviewArtifactPath,
   roomPreviewBindingKey,
   roomPreviewSceneExtent,
   roomPreviewScenePath,
+  roomPreviewTopDownDrawOrder,
   transitionRoomPreviewUiState,
-  validateRoomPreviewDrawOrder,
   validateRoomPreviewResource,
 } from '../apps/studio-server/public/room-preview-state.js';
 
@@ -85,7 +84,6 @@ function scene() {
     },
     entities,
   };
-  value.drawOrder = normalizeRoomPreviewDrawOrder(value);
   return value;
 }
 
@@ -146,25 +144,22 @@ test('viewport mapping contains room and visual overhang without changing scene 
   assert.throws(() => mapRoomPreviewViewport(value, { width: 0, height: 900 }), /bounded finite number/);
 });
 
-test('draw order is derived from authoritative layer, ground anchor, segment and stable IDs', { timeout: 5_000 }, () => {
+test('top-down renderer orders global phases around anchor-sorted bodies without mutating the portable scene', { timeout: 5_000 }, () => {
   const value = scene();
-  assert.deepEqual(value.drawOrder.map(({ entityId, segmentId }) => [entityId, segmentId]), [
+  const order = roomPreviewTopDownDrawOrder(value);
+  assert.deepEqual(order.map(({ entityId, segmentId }) => [entityId, segmentId]), [
     ['placement.surface', 'body'],
     ['placement.back', 'background'],
     ['placement.back', 'body'],
-    ['placement.back', 'foreground'],
     ['placement.front', 'body'],
+    ['placement.back', 'foreground'],
   ]);
-  assert.deepEqual(validateRoomPreviewDrawOrder(value), value.drawOrder);
-  const tampered = structuredClone(value);
-  tampered.drawOrder.reverse();
-  assert.throws(() => validateRoomPreviewDrawOrder(tampered), /canonical scene geometry/);
-  const injected = structuredClone(value);
-  injected.drawOrder[0].style = 'display:none';
-  assert.throws(() => validateRoomPreviewDrawOrder(injected), /not permitted/);
+  assert.equal(Object.hasOwn(value, 'drawOrder'), false);
+  assert.equal(Object.hasOwn(value, 'view'), false);
+  assert.equal(Object.isFrozen(order), true);
   const duplicate = structuredClone(value);
   duplicate.entities[0].segments[1].segmentId = 'foreground';
-  assert.throws(() => normalizeRoomPreviewDrawOrder(duplicate), /draw identities must be unique/);
+  assert.throws(() => roomPreviewTopDownDrawOrder(duplicate), /draw identities must be unique/);
 });
 
 test('UI transitions are immutable, exact-request owned, and fail closed', { timeout: 5_000 }, () => {
@@ -191,10 +186,19 @@ test('UI transitions are immutable, exact-request owned, and fail closed', { tim
 
   const wrongResourceScene = scene();
   wrongResourceScene.entities[0].segments[0].artifact.digest = 'not-a-digest';
-  wrongResourceScene.drawOrder = normalizeRoomPreviewDrawOrder(wrongResourceScene);
   assert.throws(() => transitionRoomPreviewUiState(loading, {
     type: 'SCENE_READY', bindingKey: loading.bindingKey, requestId: 1, scene: wrongResourceScene,
   }), /lowercase SHA-256/);
+
+  for (const rendererPolicy of [
+    { view: { projection: 'ORTHOGRAPHIC_TOP_DOWN' } },
+    { drawOrder: roomPreviewTopDownDrawOrder(scene()) },
+  ]) {
+    const policyScene = Object.assign(scene(), rendererPolicy);
+    assert.throws(() => transitionRoomPreviewUiState(loading, {
+      type: 'SCENE_READY', bindingKey: loading.bindingKey, requestId: 1, scene: policyScene,
+    }), /must not embed a renderer projection or final draw order/);
+  }
 
   const ready = transitionRoomPreviewUiState(loading, {
     type: 'SCENE_READY', bindingKey: loading.bindingKey, requestId: 1, scene: scene(),

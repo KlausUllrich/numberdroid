@@ -15,6 +15,9 @@ test('Room Studio Preview is an exact read-only view with visible non-runtime tr
   assert.match(app, /not Numberdroid runtime output/);
   assert.match(app, /does not validate, accept, finalize, publish, or change the room/);
   assert.match(app, /state\.roomUi\.shapeDraft\?\.dirty[\s\S]*Preview uses saved room v/);
+  assert.match(app, /button\.setAttribute\('aria-pressed', String\(state\.roomUi\.previewSelectedEntityId === entity\.entityId\)\)/);
+  assert.match(app, /captureRoomDomState\(\{ preserveActiveKey: true \}\)/);
+  assert.match(app, /data-preview-inspect[\s\S]*focus\(\{ preventScroll: true \}\)/);
   assert.match(app, /data\.roomPreviewState|dataset\.roomPreviewState/);
   assert.match(server, /roomPreviewSceneRoute[\s\S]*preview-scene/);
   assert.match(server, /request\.method !== 'GET'[\s\S]*METHOD_NOT_ALLOWED/);
@@ -53,6 +56,10 @@ test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visi
   assert.match(capture, /transparentPixelDelta <= 8/);
   assert.match(capture, /opaqueOverhangPixelDelta >= 30/);
   assert.match(capture, /nonGetRequests\.length === 0/);
+  assert.match(capture, /inspectFocus === 'prop\.preview-overhang'/);
+  assert.match(capture, /editorRoundTrip\.sameScroll === true/);
+  assert.match(capture, /editorRoundTrip\.samePage === true/);
+  assert.match(capture, /editorRoundTrip\.sameShape === true/);
   assert.match(capture, /studio-preview-\$1\.png/);
   assert.match(capture, /studio-preview-reference-\$1\.png/);
 });
