@@ -485,12 +485,21 @@ function selectedTaskAdoptionProjection(projectId, taskId) {
   return unavailableProcessingAdoptionProjection(projectId, taskId);
 }
 
+function taskMayLoadProcessingAdoption(entry) {
+  return entry?.task?.authority?.origin !== 'TRUSTED_SERVICE_CHILD';
+}
+
 async function loadSelectedTaskAdoption({ preserveTaskContext = true } = {}) {
   const projectId = state.project?.projectId;
   const taskId = state.taskUi.view === 'detail' ? state.taskUi.selectedTaskId : null;
-  if (!projectId || !taskId || !state.tasks.some(({ task }) => task.taskId === taskId)) {
+  const selected = state.tasks.find(({ task }) => task.taskId === taskId);
+  if (!projectId || !taskId || !selected) {
     cancelTaskAdoptionLoad({ clearState: true });
     return false;
+  }
+  if (!taskMayLoadProcessingAdoption(selected)) {
+    cancelTaskAdoptionLoad({ clearState: true });
+    return true;
   }
   taskSelectionGeneration += 1;
   const result = await requestTaskAdoptionProjection(projectId, taskId);
@@ -509,11 +518,15 @@ async function loadSelectedTaskAdoption({ preserveTaskContext = true } = {}) {
 
 async function openTaskDetailWithAdoption(taskId) {
   const projectId = state.project?.projectId;
-  if (!projectId || !state.tasks.some(({ task }) => task.taskId === taskId)) return false;
+  const selected = state.tasks.find(({ task }) => task.taskId === taskId);
+  if (!projectId || !selected) return false;
   taskSelectionGeneration += 1;
   const selectionGeneration = taskSelectionGeneration;
   cancelTaskAdoptionLoad({ channel: 'passive' });
-  const result = await requestTaskAdoptionProjection(projectId, taskId, { channel: 'selection' });
+  const mayLoadAdoption = taskMayLoadProcessingAdoption(selected);
+  const result = mayLoadAdoption
+    ? await requestTaskAdoptionProjection(projectId, taskId, { channel: 'selection' })
+    : { projectId, taskId, projection: unavailableProcessingAdoptionProjection(projectId, taskId) };
   if (!result
       || selectionGeneration !== taskSelectionGeneration
       || state.project?.projectId !== projectId
@@ -521,7 +534,7 @@ async function openTaskDetailWithAdoption(taskId) {
       || !state.tasks.some(({ task }) => task.taskId === taskId)) return false;
   state.taskUi.selectedTaskId = taskId;
   state.taskUi.view = 'detail';
-  state.taskAdoption = result;
+  state.taskAdoption = mayLoadAdoption ? result : null;
   state.taskDomState = null;
   renderWorkspace();
   return true;
@@ -4228,7 +4241,7 @@ function renderTaskDetail(selected) {
   const workflowHeading = document.createElement('h3'); workflowHeading.textContent = 'Current step';
   const actor = document.createElement('p'); actor.className = 'task-next-step'; actor.textContent = `Who acts next: ${presentation.actor}. ${presentation.next}`;
   const consequence = document.createElement('p'); consequence.textContent = `What happens next: ${presentation.consequence}`; workflow.append(workflowHeading, actor, consequence); detail.append(workflow);
-  detail.append(renderProcessingAdoption(selected));
+  if (taskMayLoadProcessingAdoption(selected)) detail.append(renderProcessingAdoption(selected));
   const facts = document.createElement('dl'); facts.className = 'policy-details';
   facts.dataset.taskSelectionKey = 'task-facts';
   const reservedCommands = selected.task.reservedForChildren?.commands ?? 0;
@@ -5271,6 +5284,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     && taskList.tasks.some((task) => task.taskId === state.taskUi.selectedTaskId)
     ? state.taskUi.selectedTaskId
     : null;
+  const selectedTaskSummary = taskList.tasks.find(({ taskId }) => taskId === selectedTaskId);
   const taskSelectionOwner = {
     generation: taskSelectionGeneration,
     projectId,
@@ -5280,7 +5294,9 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     Promise.all(taskList.tasks.map((task) => (
       api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
     ))),
-    selectedTaskId ? requestTaskAdoptionProjection(projectId, selectedTaskId) : Promise.resolve(null),
+    selectedTaskId && taskMayLoadProcessingAdoption({ task: selectedTaskSummary })
+      ? requestTaskAdoptionProjection(projectId, selectedTaskId)
+      : Promise.resolve(null),
   ]);
   if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   if (state.project?.projectId !== projectId) {

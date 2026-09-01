@@ -656,6 +656,7 @@ try {
           detailVisible: Boolean(detail && detail.getBoundingClientRect().bottom > 0 && detail.getBoundingClientRect().top < innerHeight),
           selectedOrigin: detail?.dataset.taskOrigin ?? null,
           authorityLineageText: detail?.querySelector('[data-task-authority-lineage]')?.textContent ?? null,
+          processingAdoptionSectionCount: detail?.querySelectorAll('[data-processing-adoption]').length ?? 0,
           taskActionCount: detail?.querySelectorAll('.task-controls [data-task-control]').length ?? 0,
           reviewVisible: Boolean(review && review.getBoundingClientRect().bottom > 0 && review.getBoundingClientRect().top < innerHeight),
           createVisible: Boolean(composer && composer.getBoundingClientRect().bottom > 0 && composer.getBoundingClientRect().top < innerHeight),
@@ -3314,6 +3315,7 @@ try {
           && checkpoint4TaskFocus.authorityLineageText?.includes('Authority lineage')
           && checkpoint4TaskFocus.authorityLineageText.includes('Reserved command budget1')
           && checkpoint4TaskFocus.authorityLineageText.includes('review decisions or merge')
+          && checkpoint4TaskFocus.processingAdoptionSectionCount === 0
           && checkpoint4TaskFocus.taskActionCount === 0
           && checkpoint4TaskFocus.hasMerge === false
           && checkpoint4TaskFocus.hasDecide === false
