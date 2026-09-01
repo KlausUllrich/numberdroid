@@ -39,7 +39,7 @@ Keep these states distinct:
 | VT-009 | A1.6b2a private Authoring-v2 session | NEEDS KLAUS REVIEW | VT-008 | Accept/revise the one-shot/full-admission versus ledger-first commit boundary |
 | VT-010 | A1.6b2b Authoring-v2 MCP transport | NEEDS KLAUS REVIEW | VT-009 | Accept/revise explicit handshake-gated 31/6 discovery, fresh authority, and restart replay |
 | VT-011 | A1.7 processed-asset review UI candidate | NEEDS KLAUS LIVE | VT-000 and VT-004–VT-010 | Accept/revise the selected-task preview, correction hierarchy, responsive layout, fallback, and return-state continuity |
-| VT-012 | O1b first Backups UI candidate | NEEDS KLAUS LIVE | VT-000 and integrated O0/O1a | Accept/revise the backup safety hierarchy and Create, Verify, Recovery-test, Restore-as-copy workflow without activation |
+| VT-012 | O1b first Backups UI candidate | USER ACCEPTED 2026-09-01 | VT-000 and integrated O0/O1a | Accepted after live Create, Verify, Recovery-test, Restore-as-copy, restart, missing-backup, recovery and responsive checks; low-priority disclosure-state finding retained |
 | VT-013 | O2a private read-only service deployment | NEEDS KLAUS LIVE | integrated O2a and deliberately configured private host | Accept/revise authentication, read-only boundary, restart/session behavior, and operator burden; not O3 mobile UX |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
@@ -49,8 +49,10 @@ documentation-only O0 decision in
 `VT-` item. The non-visual O1a implementation recorded in
 [`O1A_BACKUP_CORE_STATUS.md`](O1A_BACKUP_CORE_STATUS.md) likewise has no live
 visual acceptance surface and therefore receives no `VT-` item. The required
-first O1b backup UI is source-integrated and automated green but remains **not
-user accepted**, so its bounded live gate is recorded as `VT-012` below. O2a is
+first O1b backup UI is source-integrated, automated green, and **user accepted
+on 2026-09-01** through the bounded `VT-012` live gate below. The acceptance
+retains one low-priority UX finding: an open `Technical details` disclosure
+closes after a full `F5` reload. O2a is
 also source-integrated and automated green but remains undeployed; its bounded
 host/deployment review is `VT-013`. A3a and A4a are UI-independent contract and
 projection evidence and therefore add no live `VT-` item. A4b is also
@@ -963,11 +965,12 @@ accepted** state.
   handoff records. Build #2252, run
   [33300488531](https://github.com/KlausUllrich/numberdroid/actions/runs/33300488531),
   is green at that exact head. PR #176 is source-integrated by `main` merge
-  commit `ac660f0edab39b7ae8b905cd4193f87f3bf87251`. The visible result remains
-  **implemented candidate — not user accepted**.
-- **State/dependency:** `NEEDS KLAUS LIVE`; depends on VT-000 and the integrated
-  O0/O1a safety boundary. Automated HTTP, SQLite and Chrome evidence cannot
-  accept the human hierarchy, copy, or recovery confidence.
+  commit `ac660f0edab39b7ae8b905cd4193f87f3bf87251`. Klaus live-tested and accepted
+  the bounded result on 2026-09-01.
+- **State/dependency:** `USER ACCEPTED 2026-09-01`; VT-000 and the integrated
+  O0/O1a safety boundary passed. The live walkthrough covered unlock, create,
+  verify, recovery-test, restore-as-copy, restart/session invalidation,
+  persistence, missing-backup failure, recovery, and protected desktop layouts.
 - **Safe fixture/reset:** use only one newly allocated, empty temporary root.
   The helper refuses relative, symlinked, or non-empty roots and creates four
   fixed disjoint subroots plus the administrator-owned operations config. Never
@@ -1030,9 +1033,10 @@ accepted** state.
      open technical disclosure.
   9. Record accept or revise for the safety summary, action prominence, durable
      progress, backup list/detail hierarchy, failure/remediation copy,
-     responsive composition and restored-not-active truth. Until Klaus records
-     that decision, O1 remains **implemented candidate — not user accepted** and
-     stops at **Waiting for your review**.
+     responsive composition and restored-not-active truth. Klaus recorded
+     acceptance on 2026-09-01. An open `Technical details` disclosure closing
+     after `F5` is retained as a low-priority UX finding and does not reopen the
+     accepted backup safety/function boundary.
 - **Automated evidence at local pre-PR source review:** 19/19 focused O1b
   session/controller/HTTP/real-SQLite/UI/fixture tests, 4/4 external-ledger
   tests, and 36/36 focused O1a/runtime/reconciliation/HTTP/gateway/package
@@ -1063,15 +1067,15 @@ accepted** state.
   trust, MCP/agent authority, owner review, merge/finalization,
   materialization, publication or release authority. The restored copy remains
   quarantined and inactive.
-- **Open Klaus decision:** accept or revise the first backup safety hierarchy,
-  launcher-code experience, durable progress and result copy, list/detail and
-  technical disclosure depth, failure/damaged remediation, protected desktop
-  layouts, context retention, and explicit restored-not-active boundary. Only
-  Klaus can close this O1 product gate. It blocks an O1 user-acceptance claim,
-  remote exposure of backup metadata or backup-operation authority, and O3
-  completion. O2a, A3a, A4a, and A4b are now source-integrated and automated
-  green, but none closes VT-012, deploys a service, or grants remote backup
-  authority.
+- **Acceptance record:** Klaus accepted the first backup safety/function
+  boundary on 2026-09-01 after the complete Linux/Chrome live walkthrough.
+  Create, Verify, Recovery-test, Restore-as-copy, restart/session invalidation,
+  durable state, deliberate missing-backup failure, restored health, keyboard
+  focus, and responsive layouts passed. Low priority: `Technical details`
+  disclosures close after `F5` instead of restoring their open state. This
+  acceptance grants no remote backup metadata/operation authority, deployment,
+  activation, deletion, cleanup/retention, MCP/agent authority, materialization,
+  publication, or release.
 - **Recovery:** stop Studio and retain the exact temporary fixture root until
   the result is recorded. Restore any `.return-test-hidden` directory to its
   exact original name first. Then discard only that uniquely allocated root

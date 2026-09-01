@@ -1,6 +1,6 @@
 # Numberdroid — Current Development Plan
 
-Status: **current forward plan — updated 2026-08-31 after source integration of the bounded A4c Domain foundation; O2a, A3a, A4a, and A4b remain integrated, VT-012/O2 deployment remain pending, and the A4c Application Level Candidate path is next**
+Status: **current forward plan — updated 2026-09-01 after Klaus accepted the bounded O1b Backups UI through VT-012; O2a deployment remains pending, and the A4c Application Level Candidate path is next**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -204,14 +204,12 @@ O1a passed its selected Linux and Windows gates and is integrated through PR
 **Backups** UI passed Build #2252 / run `33300488531` at final PR head
 `589a7adaa0cb60b608fbc6ad1aec4df441731d94` and is source-integrated through PR
 [#176](https://github.com/KlausUllrich/numberdroid/pull/176) by merge commit
-`ac660f0edab39b7ae8b905cd4193f87f3bf87251`. Source integration and automated
-evidence do not record Klaus's live acceptance: `VT-012` remains **NEEDS KLAUS
-LIVE**, and O1b remains **source-integrated / automated green — not user
-accepted**.
-
-Klaus's engineering authority removed the earlier global stop while VT-012 is
-pending. VT-012 still blocks an O1 user-acceptance claim and remote backup
-metadata/operation authority. O2a, A3a, A4a, and A4b are now source-integrated and
+`ac660f0edab39b7ae8b905cd4193f87f3bf87251`. Klaus live-tested and **accepted O1b through VT-012 on 2026-09-01**. Unlock,
+Create, Verify, Recovery-test, Restore-as-copy, restart/session invalidation,
+durable state, deliberate missing-backup failure/recovery, keyboard focus, and
+responsive layouts passed. Low priority: open `Technical details` disclosures
+close after `F5`. Acceptance does not grant remote backup metadata/operation
+authority, activation, deletion, cleanup/retention, or deployment. O2a, A3a, A4a, and A4b are now source-integrated and
 automated green without widening those gates:
 
 - O2a PR #178 head `89141c079c1d96a4aa4c45d8b8c4b88dc464484c`,
@@ -234,7 +232,7 @@ automated green without widening those gates:
 Current autonomous engineering sequence:
 
 ```text
-O1b source-integrated; VT-012 retained for later live review
+O1b source-integrated and user-accepted through VT-012
 → O2a source-integrated; deliberate deployment/VT-013 retained for Klaus
 → A3a typed kernel source-integrated
 → A4a lossless Numberdroid projection source-integrated

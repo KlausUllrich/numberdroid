@@ -1,6 +1,6 @@
 # O1b first Backups UI candidate status
 
-Status: **SOURCE-INTEGRATED / AUTOMATED GREEN — NOT USER ACCEPTED**
+Status: **USER ACCEPTED 2026-09-01 — SOURCE-INTEGRATED / AUTOMATED GREEN**
 
 O1b composes the bounded human acceptance surface frozen by
 [`O0_BACKUP_RECOVERY_CONTRACT.md`](O0_BACKUP_RECOVERY_CONTRACT.md) on top of the
@@ -24,9 +24,16 @@ freeze change only current status documentation and the dated handoff. Build
 post-merge Build #2253 / run `33303411344` passed every selected job on that
 exact merge commit.
 
-This is the first visual candidate Klaus can later use for acceptance. It is
-not accepted now. It adds no deletion, cleanup/retention, activation/cutover,
-remote function, proxy trust, MCP/agent authority, owner review, merge,
+Klaus live-tested and accepted this bounded O1b surface on 2026-09-01. The
+walkthrough passed unlock, Create, Verify, Recovery-test, Restore-as-copy,
+restart/session invalidation, durable state, deliberate missing-backup failure,
+restored health, keyboard focus, and responsive desktop layouts. One
+low-priority UX finding remains: an open `Technical details` disclosure closes
+after a full `F5` reload. This does not reopen the accepted backup
+safety/function boundary.
+
+Acceptance adds no deletion, cleanup/retention, activation/cutover, remote
+function, proxy trust, MCP/agent authority, owner review, merge,
 materialization, publication, or release authority.
 
 ## Implemented boundary
