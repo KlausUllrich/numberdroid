@@ -1,154 +1,64 @@
-# Numberdroid — Prompt for the next agent — Gold Slice
+Arbeite auf dem tatsächlich aktuellen Remote-Stand von
+`KlausUllrich/numberdroid`.
 
-You are continuing **Numberdroid** in:
+Verifiziere zuerst ausschließlich über den GitHub-Connector:
 
-`KlausUllrich/numberdroid`
+- Remote-HEAD und Tree von `main`;
+- offene PRs und vorhandene Room-Editor-/A4c-Branches;
+- aktuelle GitHub-Actions-Läufe;
+- Merge- und post-merge-CI-Status von PR #191 und PR #192.
 
-Canonical branch is **`main`**. Do not continue old PR/architecture branches.
+Remote-GitHub-Lese- und Schreiboperationen erfolgen ausschließlich über den
+GitHub-Connector.
 
-## First: read these completely, in this order
+Lies `AGENTS.md` vollständig und führe den Universal Bootstrap aus. Lies danach
+die universelle Reihenfolge und die dort vorgeschriebenen Rollenrouten. Verwende
+Engineer / Runtime Developer als primäre Autorenroute, QA / Integrator / Release
+für Verifikation/Integration und Coordinator / cross-domain für Sequenzierung.
 
-1. `AGENT_REPOSITORY_WORKFLOW.md`
-2. `HANDOFF_2026-08-13_GOLD_SLICE.md`
-3. `TRANSFER_HALL_LAYER_RULES.md`
-4. `TRANSFER_HALL_ART_SLICE.md`
-5. `ART_DIRECTION_TRANSFER_SHIP.md`
-6. `ART_PRODUCTION_RULES_TRANSFER_SHIP.md`
-7. `STORY_WORLD_FOUNDATION.md`
-8. `CAMPAIGN_STORY_LEVEL_PROGRESSION.md`
+Lies anschließend vollständig als aktuellen Task-Snapshot:
 
-Then inspect the actual current code/assets relevant to Transfer Hall before changing anything.
+`docs/history/handoffs/HANDOFF_2026-09-01_NUMBERDROID_STUDIO_ROOM_EDITOR_PREVIEW_NEXT.md`
 
-## Repository workflow is binding
+Lies alle darin verlangten Dokumente vollständig und halte Autoritätsgrenzen,
+Quellpfade, Akzeptanzzustände, Definition of Done und Testanweisungen exakt ein.
 
-Use the connected **GitHub connector directly** for repository reads/writes/branches/PRs/Actions.
+Setze die verbleibenden Room-Editor-L3-Slices autonom und getrennt fort:
 
-Never use container-network `git clone`, `git fetch`, `curl`, `wget`, or similar as a GitHub fallback. A container network failure does not mean GitHub is unavailable.
+1. Placement-Ghost sowie direktes Auswählen, Verschieben, Drehen und Löschen
+   über die bestehenden semantischen Commands;
+2. sichtbare Task-Konflikte/Aktionsanforderungen und persistierte Room-Errors
+   bereits in Übersichten sowie stabile, lesbare Findings-Navigation;
+3. engine-neutrale, read-only Top-down Studio Preview vom exakten
+   Room-/Project-Stand.
 
-Offline tools may be used for asset generation, but repository transport stays on the GitHub connector.
+Die gewöhnliche Preview ist keine Numberdroid-Runtime-Preview. Verwende ein
+portables Preview-Szenenmodell. Trenne logischen Footprint strikt von
+Ground-Anchor, visuellen Bounds/Offset, Elevation und Überhang. Transparente oder
+seitlich dargestellte Assets dürfen visuell über andere Zellen hinausragen, ohne
+diese logisch zu belegen. Bereite die Modellgrenze für eine spätere
+2.5D/isometrische Projektion vor; der 2.5D-Renderer selbst ist kein aktuelles
+Completion Gate. EngineBridge bleibt validate-only und wird nicht für Preview
+erweitert.
 
-## Verify current baseline
+Nutze großzügig unabhängige Subagenten für Interaction/UX, Security/Authority,
+Persistence/Idempotency, Preview-/Rendering-Architektur und tatsächlichen
+Test-/CI-Scope. Der Hauptagent liest alle bindenden Dokumente selbst, integriert
+die Ergebnisse und prüft den kombinierten Diff.
 
-Before changing anything:
+Jeder Befehl und Test erhält einen expliziten Timeout. Heartbeat spätestens alle
+120 Sekunden. CI-Polling alle 30–60 Sekunden, höchstens 20 Minuten; nach zwei
+unveränderten Polls diagnostizieren. Sichere wertvolle Arbeit früh als Commit
+und Remote-Checkpoint. Integriere nur unveränderte Heads mit vollständig grünen,
+durch den tatsächlichen Diff ausgelösten lokalen/CI/Browser-/Windows-Gates und
+blockerfreien unabhängigen Reviews. Beobachte post-merge CI vor abhängiger
+Folgearbeit.
 
-- verify current `main` HEAD;
-- verify latest GitHub Actions tests/build/Pages;
-- inspect the public preview:
-  `https://klausullrich.github.io/numberdroid/?floor=transfer-hall`
+Keine Remote-Backup-/MCP-/Pairing-/HostBinding-/Funnel-Erweiterung, keine
+Löschung/Aktivierung, kein Auto-Accept, kein O3/O4/A5/A6, keine
+Produktmaterialisierung, Repository-Publikation oder Release-Autorität.
 
-At handoff creation, the accepted Slice 0 baseline was main commit `d8cfc376de784cdfbbbf53f999c7b46427b1e90b`, PR #8 merged, main tests/build/Pages green. Treat newer `main` as authoritative if it has moved.
-
-## Slice 0 is DONE
-
-Do not start another architecture/foundation pass.
-
-Preserve the implemented contracts:
-
-- orthographic top-down environment;
-- characters alone may use front/side/back/diagonal views;
-- eight-direction PICO runtime;
-- landscape-only mobile gameplay;
-- separate Ground / FloorFX / Architecture / WallProps / FloorProps / Characters / LightOverlay / UI;
-- no baked floor pixels inside props;
-- visual footprint separate from collision footprint;
-- visible openings match traversal;
-- 10 px wall / 5 px moving door-leaf foundation;
-- moving door leaves retract below Architecture into wall pockets;
-- room-clipped LightOverlay illuminates PICO, not walls, and does not bleed into the next room;
-- global GID for global tile-state effects;
-- direct `?floor=transfer-hall` art preview without changing normal menu/campaign flow;
-- floating room labels in the preview are debug/art annotations, not final campaign UI.
-
-Two small visual defects are intentionally deferred into Gold art:
-
-1. a thin cyan/teal line remains at one wall corner/junction;
-2. an open door can still show two thin guide/pocket lines.
-
-Fix their presentation during the Gold Slice. Do not redesign the underlying wall/door/collision systems.
-
-## Your next task: the actual visual Gold Slice
-
-The current art is still technical placeholder art and is **not** the target look.
-
-The central lesson from previous attempts is:
-
-**PNG is not a style.** Flat programmatic/vector-like source art still looks like SVG even when exported to PNG.
-
-The Gold Slice must finally move toward the stronger **second mockup** direction:
-
-- richer, authored materiality;
-- recognizable real objects rather than abstract sci-fi symbols;
-- civic/optimistic Transfer technology rather than generic military sci-fi;
-- strict top-down environment;
-- characterful front/side/back robot sprites;
-- CORE & SLOT visual grammar;
-- warm personal family traces;
-- calm early-game lighting with Transfer as the restrained warm focus.
-
-### Highest priority: PICO
-
-PICO must become a genuine hero character:
-
-- sympathetic immediately;
-- compact, capable, versatile, not babyish;
-- neutral body material; allegiance remains runtime color treatment;
-- eight genuinely authored directions:
-  `N(back) | NE(rear 3/4) | E(profile) | SE(front 3/4) | S(front) | SW(front 3/4) | W(profile) | NW(rear 3/4)`;
-- clear face/personality at the front;
-- unmistakable rear/service detail;
-- true profiles and meaningful diagonals;
-- no rotated single image and no duplicated/mirrored four-direction cheat.
-
-## Bounded Gold Slice deliverable
-
-Do not attempt all Transfer Ship art.
-
-Create one small coherent target-quality area containing:
-
-1. polished PICO 8-way turnaround;
-2. polished Transfer apparatus/cradle;
-3. one final-ish wall + door assembly, including cleanup of the cyan corner seam and open-door guide lines;
-4. one strict top-down PRIMUS console/wall object;
-5. one small family/personal prop set;
-6. one convincing floor/material patch;
-7. the existing LightOverlay integrated with the new art.
-
-Prefer one truly convincing crop over replacing the whole room with another intermediate visual style.
-
-## Production approach
-
-First establish the Gold visual target before mass-producing runtime replacements.
-
-If image generation is available, use it for high-quality concept/hero source art. Do not fall back to simple geometric SVG/CSS construction as the final visible aesthetic.
-
-After the target is established, derive exact transparent runtime PNGs/sprite sheets/atlas fragments while preserving stable IDs and collision data.
-
-Do not ask Klaus broad questions that are already answered by the docs. Your first response should be short:
-
-1. summarize what you understood;
-2. state the exact Gold Slice block you will produce first;
-3. identify any genuinely blocking ambiguity only if one exists.
-
-The goal is to move quickly into visual production, not another long design discussion.
-
-## Acceptance criteria
-
-The Gold Slice is not done merely because tests pass. It must visibly achieve:
-
-- PICO looks sympathetic;
-- all eight directions are obvious at gameplay size;
-- art no longer reads as SVG-minimalist/icon art;
-- hero props are recognizable named things;
-- materials have believable depth/texture/shadow;
-- environment remains top-down-only;
-- character-view exception feels deliberate;
-- Transfer light reads as scene illumination;
-- result is clearly closer to the good mockup than the Slice 0 placeholder.
-
-## Implementation/merge workflow
-
-Klaus is testing primarily on his phone and prefers the agent to do the repository work.
-
-Use a short branch from current `main`, implement the bounded Gold Slice, run/verify GitHub Actions tests and production build, then merge the validated branch back to `main` and verify Pages. Give Klaus the live preview link afterward.
-
-Do not require Klaus to run local commands.
+Nach vollständiger Integration der Room-Editor-Slices aktualisiere Roadmap,
+Entwicklungsplan, Status/Backlog und schreibe gemäß
+`docs/agents/HANDOFF_PROTOCOL.md` eine neue datierte Abschlussübergabe.
+Erst danach A4c unter dessen vollständigem bindenden Dokumentpaket fortsetzen.
