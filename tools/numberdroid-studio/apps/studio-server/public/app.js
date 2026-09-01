@@ -3456,7 +3456,7 @@ function renderRoomPreviewSvg(scene, binding) {
     });
     fallbackLabel.textContent = 'exact PNG unavailable'; fallback.append(fallbackLabel);
     const image = roomPreviewSvgElement('image', {
-      href: resource.resourcePath, x: 0, y: 0,
+      x: 0, y: 0,
       width: resource.pixelSize.width, height: resource.pixelSize.height,
       transform: `matrix(${roomPreviewImageMatrix(segment, entity.source.rotation).join(' ')})`,
       'clip-path': `url(#${clipId})`, 'aria-hidden': 'true',
@@ -3467,6 +3467,7 @@ function renderRoomPreviewSvg(scene, binding) {
     image.addEventListener('error', () => {
       image.dataset.previewResourceState = 'FAILED'; markRoomPreviewResourceFailed(resource.digest);
     }, { once: true });
+    image.setAttribute('href', resource.resourcePath);
     group.append(fallback, image); svg.append(group); drawIndex += 1;
   }
   const selected = entityById.get(state.roomUi.previewSelectedEntityId);

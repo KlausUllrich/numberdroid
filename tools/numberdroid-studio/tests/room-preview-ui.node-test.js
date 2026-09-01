@@ -37,6 +37,7 @@ test('Room Studio Preview renders bounded SVG alpha, rotation, overhang, guides,
   assert.match(preview, /createElementNS\(ROOM_PREVIEW_SVG_NS/);
   assert.match(preview, /validateRoomPreviewResource\(segment\.artifact, binding\.projectId\)/);
   assert.match(preview, /roomPreviewImageMatrix\(segment, entity\.source\.rotation\)/);
+  assert.ok(preview.indexOf("image.addEventListener('load'") < preview.indexOf("image.setAttribute('href', resource.resourcePath)"));
   assert.match(preview, /rotation === 90/);
   assert.match(preview, /rotation === 180/);
   assert.match(preview, /dataset\.previewSegmentKind = segment\.phase/);

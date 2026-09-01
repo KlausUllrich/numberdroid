@@ -801,21 +801,27 @@ try {
       await devtools.send('Input.dispatchKeyEvent', {
         type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
       }, sessionId);
-      let previewReady = false;
-      for (let attempt = 0; attempt < 120 && !previewReady; attempt += 1) {
+      let previewReady = false; let previewReadyObservation = null;
+      for (let attempt = 0; attempt < 240 && !previewReady; attempt += 1) {
         const observed = await devtools.send('Runtime.evaluate', {
           expression: `(() => {
             const root = document.querySelector('[data-room-preview]');
             const resources = [...document.querySelectorAll('[data-preview-resource-state]')];
-            return Boolean(root && root.dataset.roomPreviewState === 'READY'
+            return {
+              ready: Boolean(root && root.dataset.roomPreviewState === 'READY'
               && resources.length > 0
-              && resources.every((resource) => resource.dataset.previewResourceState === 'READY'));
+              && resources.every((resource) => resource.dataset.previewResourceState === 'READY')),
+              state: root?.dataset.roomPreviewState ?? null,
+              status: root?.querySelector('[data-preview-load-status]')?.textContent ?? null,
+              resources: resources.map((resource) => resource.dataset.previewResourceState),
+            };
           })()`, returnByValue: true,
         }, sessionId);
-        previewReady = observed.result?.value === true;
+        previewReadyObservation = observed.result?.value ?? null;
+        previewReady = previewReadyObservation?.ready === true;
         if (!previewReady) await delay(50);
       }
-      assert(previewReady, 'Exact Studio preview scene or PNG resources did not reach READY.');
+      assert(previewReady, `Exact Studio preview scene or PNG resources did not reach READY: ${JSON.stringify(previewReadyObservation)}`);
       const loadFocusResult = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const root = document.querySelector('[data-room-preview]');
