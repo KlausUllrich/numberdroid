@@ -21,6 +21,8 @@ test('Room Studio Preview is an exact read-only view with visible non-runtime tr
   assert.match(app, /LOAD_FAILED[\s\S]*captureRoomPreviewDomState\(\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
   assert.match(app, /data-preview-retry[\s\S]*captureRoomPreviewDomState\(retry\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
   assert.match(app, /data-preview-inspect[\s\S]*focus\(\{ preventScroll: true \}\)/);
+  assert.match(app, /markRoomPreviewResourceFailed\(\{ digest, bindingKey, requestId, rootOwner \}\)[\s\S]*rootElement !== rootOwner[\s\S]*bindingKey, requestId, digest[\s\S]*transitioned === preview/);
+  assert.match(app, /markRoomPreviewResourceFailed\(\{ digest: resource\.digest, bindingKey: binding\.key, requestId, rootOwner \}\)/);
   assert.match(app, /data\.roomPreviewState|dataset\.roomPreviewState/);
   assert.match(server, /roomPreviewSceneRoute[\s\S]*preview-scene/);
   assert.match(server, /request\.method !== 'GET'[\s\S]*METHOD_NOT_ALLOWED/);

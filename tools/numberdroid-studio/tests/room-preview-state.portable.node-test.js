@@ -215,6 +215,13 @@ test('UI transitions are immutable, exact-request owned, and fail closed', { tim
   });
   assert.equal(recovered.status, 'READY');
 
+  for (const digest of [DIGEST_A, 'd'.repeat(64)]) {
+    const staleResource = transitionRoomPreviewUiState(ready, {
+      type: 'RESOURCE_FAILED', bindingKey: `${ready.bindingKey}:stale`, requestId: 99, digest,
+    });
+    assert.equal(staleResource, ready);
+  }
+
   const retrying = transitionRoomPreviewUiState(degraded, { type: 'RETRY', requestId: 3 });
   assert.equal(retrying.status, 'LOADING');
   assert.equal(retrying.bindingKey, degraded.bindingKey);

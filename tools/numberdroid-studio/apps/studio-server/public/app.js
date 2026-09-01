@@ -3385,14 +3385,16 @@ function roomPreviewImageMatrix(segment, rotation) {
   return [0, -sx, sy, 0, destination.x - sy * source.y, destination.y + destination.height + sx * source.x];
 }
 
-function markRoomPreviewResourceFailed(digest) {
+function markRoomPreviewResourceFailed({ digest, bindingKey, requestId, rootOwner }) {
   const preview = state.roomUi.preview;
   if (!['READY', 'DEGRADED'].includes(preview.status)) return;
-  state.roomUi.preview = transitionRoomPreviewUiState(preview, {
-    type: 'RESOURCE_FAILED', bindingKey: preview.bindingKey, requestId: preview.requestId, digest,
-  });
   const rootElement = elements['workspace-content'].querySelector('[data-room-preview]');
-  if (!rootElement) return;
+  if (rootElement !== rootOwner) return;
+  const transitioned = transitionRoomPreviewUiState(preview, {
+    type: 'RESOURCE_FAILED', bindingKey, requestId, digest,
+  });
+  if (transitioned === preview) return;
+  state.roomUi.preview = transitioned;
   rootElement.dataset.roomPreviewState = state.roomUi.preview.status;
   const status = rootElement.querySelector('[data-preview-load-status]');
   if (status) status.textContent = 'Some exact PNGs could not be loaded. Deterministic labeled placeholders are shown; no newer asset was substituted.';
@@ -3400,7 +3402,7 @@ function markRoomPreviewResourceFailed(digest) {
   for (const fallback of rootElement.querySelectorAll(`[data-preview-fallback-digest="${digest}"]`)) fallback.removeAttribute('visibility');
 }
 
-function renderRoomPreviewSvg(scene, binding) {
+function renderRoomPreviewSvg(scene, binding, requestId, rootOwner) {
   assertRoomPreviewSceneBinding(scene, binding);
   const drawOrder = roomPreviewTopDownDrawOrder(scene);
   const mapping = mapRoomPreviewViewport(scene, { width: 960, height: 620, padding: .5 });
@@ -3465,7 +3467,8 @@ function renderRoomPreviewSvg(scene, binding) {
     image.dataset.previewResourceState = 'LOADING';
     image.addEventListener('load', () => { image.dataset.previewResourceState = 'READY'; }, { once: true });
     image.addEventListener('error', () => {
-      image.dataset.previewResourceState = 'FAILED'; markRoomPreviewResourceFailed(resource.digest);
+      image.dataset.previewResourceState = 'FAILED';
+      markRoomPreviewResourceFailed({ digest: resource.digest, bindingKey: binding.key, requestId, rootOwner });
     }, { once: true });
     image.setAttribute('href', resource.resourcePath);
     group.append(fallback, image); svg.append(group); drawIndex += 1;
@@ -3590,7 +3593,8 @@ function renderRoomStudioPreview(variant) {
     : 'Exact portable scene loaded. Transparent PNG pixels preserve lower layers.';
   const layout = document.createElement('div'); layout.className = 'room-preview-layout';
   const stage = document.createElement('div'); stage.className = 'room-preview-stage'; stage.dataset.roomScroll = 'studio-preview';
-  stage.append(renderRoomPreviewSvg(scene, binding)); layout.append(stage, renderRoomPreviewObjects(scene)); section.append(status, layout);
+  stage.append(renderRoomPreviewSvg(scene, binding, preview.requestId, section));
+  layout.append(stage, renderRoomPreviewObjects(scene)); section.append(status, layout);
   return section;
 }
 
