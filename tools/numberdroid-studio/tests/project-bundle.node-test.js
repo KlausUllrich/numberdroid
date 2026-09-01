@@ -89,6 +89,36 @@ async function expectMissing(path) {
   await assert.rejects(access(path), (error) => error.code === 'ENOENT');
 }
 
+test('canonical bundle depth admits the bounded proposal presentation envelope and rejects the next level', () => {
+  const proposalPresentation = {
+    proposals: [{
+      semantic: {
+        items: [{
+          diff: {
+            after: {
+              metadata: {
+                extensions: {
+                  'studio.preview.presentation': {
+                    segments: [{ visualBounds: { x: 0 } }],
+                  },
+                },
+              },
+            },
+          },
+        }],
+      },
+    }],
+  };
+  assert.equal(PROJECT_BUNDLE_LIMITS.maxJsonDepth, 14);
+  assert.doesNotThrow(() => canonicalBundleJson(proposalPresentation));
+  proposalPresentation.proposals[0].semantic.items[0].diff.after.metadata
+    .extensions['studio.preview.presentation'].segments[0].visualBounds.x = { beyond: 0 };
+  assert.throws(
+    () => canonicalBundleJson(proposalPresentation),
+    (error) => error.code === 'BUNDLE_JSON_LIMIT',
+  );
+});
+
 test('portable project bundle export is canonical, exact-closure, and deterministic', async (context) => {
   const value = await fixture(context);
   const firstBundle = await createBundle(value, 'bundle-one');
@@ -137,6 +167,30 @@ test('portable project document rejects authority, machine locations, nontermina
   );
   assert.throws(
     () => validatePortableProjectDocument({ ...base, proposals: [{ proposalId: 'proposal.one', status: 'APPLIED', proposerGrantId: 'grant.secret' }] }),
+    (error) => error.code === 'BUNDLE_AUTHORITY_FORBIDDEN',
+  );
+  assert.throws(
+    () => validatePortableProjectDocument({
+      ...base,
+      proposals: [{
+        status: 'APPLIED',
+        semantic: {
+          items: [{
+            diff: {
+              after: {
+                metadata: {
+                  extensions: {
+                    'studio.preview.presentation': {
+                      segments: [{ visualBounds: { token: 'secret' } }],
+                    },
+                  },
+                },
+              },
+            },
+          }],
+        },
+      }],
+    }),
     (error) => error.code === 'BUNDLE_AUTHORITY_FORBIDDEN',
   );
   assert.throws(
