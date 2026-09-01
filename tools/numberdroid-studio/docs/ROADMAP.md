@@ -278,6 +278,31 @@ Exit decision: approve the designer-facing task flow, prop preview, guided room 
 
 Candidate implementation: `CHECKPOINT_4_5_CONTRACT.md` freezes the bounded semantics and `CHECKPOINT_4_5_STATUS.md` records the candidate. The implementation adds list/create/detail task views, trusted expiry projection, useful exact-slice previews, one persistent canvas with toolbox/options/dock workflow, owner-only complete shape replacement, schema-v12 normalized shape cells, schema-v2 rectangular parity, and schema-v3 masked-room round trips. It adds no generation, bitmap-job, export, materialization, publication, or wider agent authority.
 
+### Room Editor usability continuation — current L3 sequence
+
+Klaus's 2026-09-01 live verification authorized a bounded sequence before A4c
+continues:
+
+1. repair Surface-under-Prop placement, rotated prop preview and narrow intent
+   layout — integrated through PR #191;
+2. add 100–1000% zoom, Fit, scaled canvas labels and middle-mouse pan —
+   integrated through PR #192 after exact-head CI and independent review;
+3. add placement ghosts and direct select/move/rotate/delete interactions while
+   retaining semantic command, exact-version and idempotency boundaries;
+4. surface persisted room errors and task conflicts/action-required state in the
+   overview, with readable sequential finding navigation;
+5. add an engine-neutral, read-only Studio Preview from the exact room revision.
+   Top-down ships first. It preserves positions, rotations, layers, transparency
+   and the separation between logical footprint and visual bounds/overhang. It
+   explicitly does not claim runtime fidelity;
+6. prepare, but do not require for this usability milestone, a later 2.5D
+   renderer over the same preview scene. It may use ground-anchor depth sorting,
+   elevation, side-facing/billboard sprites and optional segmented occlusion.
+
+The generic Studio Preview does not invoke Numberdroid or EngineBridge.
+Engine-specific previews remain later adapter features. The 2.5D renderer is
+planned after the top-down preview and is not a prerequisite for resuming A4c.
+
 ## Checkpoint 5 — First deterministic Numberdroid adapter candidate
 
 **Outcome:** the accepted room/hallway slice proves the first immutable
@@ -317,7 +342,7 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 
 **Status: O0 frozen; O1, O2a, A3a, A4a, and A4b source-integrated and automated
 green on 2026-08-30; O1 user acceptance and O2 deployment remain open; A4c is
-the next autonomous product slice.**
+next within the A4 track after the bounded Room Editor L3 continuation.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -845,7 +870,7 @@ honest unprojected-reference gaps are integrated. The fixture is not registered
 as a playable production Floor, so no distinct live `VT-` item is created and
 the slice remains not user accepted. Scope and evidence are recorded in
 [`A4B_REFERENCE_BEHAVIOR_STATUS.md`](A4B_REFERENCE_BEHAVIOR_STATUS.md).
-A4c Application integration is next.
+A4c Application integration follows the bounded Room Editor L3 continuation.
 
 ### A5 — Thin portability proof
 
