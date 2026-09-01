@@ -3278,6 +3278,42 @@ function cancelRoomPreviewLoad({ close = true } = {}) {
   if (close) state.roomUi.preview = transitionRoomPreviewUiState(state.roomUi.preview, { type: 'CLOSE' });
 }
 
+function captureRoomPreviewDomState(activeElement = document.activeElement) {
+  const root = activeElement?.closest?.('[data-room-preview]');
+  if (!root) return null;
+  const inspect = activeElement.closest('[data-preview-inspect]');
+  const focus = inspect
+    ? { kind: 'inspect', entityId: inspect.dataset.previewInspect }
+    : activeElement.closest('[data-preview-retry]')
+      ? { kind: 'retry' }
+      : { kind: 'root' };
+  const scroll = {};
+  for (const element of root.querySelectorAll('[data-room-scroll]')) {
+    scroll[element.dataset.roomScroll] = { left: element.scrollLeft, top: element.scrollTop };
+  }
+  return { focus, scroll, page: { x: window.scrollX, y: window.scrollY } };
+}
+
+function restoreRoomPreviewDomState(saved) {
+  if (!saved) return;
+  requestAnimationFrame(() => {
+    const root = elements['workspace-content'].querySelector('[data-room-preview]');
+    if (!root) return;
+    for (const element of root.querySelectorAll('[data-room-scroll]')) {
+      const position = saved.scroll[element.dataset.roomScroll]; if (!position) continue;
+      element.scrollLeft = Math.max(0, Math.min(position.left, element.scrollWidth - element.clientWidth));
+      element.scrollTop = Math.max(0, Math.min(position.top, element.scrollHeight - element.clientHeight));
+    }
+    const target = saved.focus.kind === 'inspect'
+      ? root.querySelector(`[data-preview-inspect="${CSS.escape(saved.focus.entityId)}"]`)
+      : saved.focus.kind === 'retry'
+        ? root.querySelector('[data-preview-retry]')
+        : root;
+    (target ?? root).focus({ preventScroll: true });
+    window.scrollTo(saved.page.x, saved.page.y);
+  });
+}
+
 async function loadRoomPreviewScene(binding, requestId, abortController) {
   try {
     const scene = await api(binding.path, { signal: abortController.signal });
@@ -3295,7 +3331,10 @@ async function loadRoomPreviewScene(binding, requestId, abortController) {
   } finally {
     if (state.roomUi.previewAbortController === abortController) state.roomUi.previewAbortController = null;
   }
-  if (state.workspace === 'rooms' && state.roomUi.view === 'preview') renderWorkspace();
+  if (state.workspace === 'rooms' && state.roomUi.view === 'preview') {
+    const domState = captureRoomPreviewDomState();
+    renderWorkspace(); restoreRoomPreviewDomState(domState);
+  }
 }
 
 function beginRoomPreviewLoad(binding, { retry = false } = {}) {
@@ -6114,28 +6153,17 @@ elements['workspace-content'].addEventListener('click', (event) => {
   const retry = event.target.closest('[data-preview-retry]');
   if (retry) {
     const { variant } = currentRoomVariant(); if (!variant) return;
-    beginRoomPreviewLoad(roomPreviewBinding(variant), { retry: true }); renderWorkspace(); return;
+    const domState = captureRoomPreviewDomState(retry);
+    beginRoomPreviewLoad(roomPreviewBinding(variant), { retry: true }); renderWorkspace(); restoreRoomPreviewDomState(domState); return;
   }
   const inspect = event.target.closest('[data-preview-inspect]');
   if (inspect) {
     const scene = state.roomUi.preview.scene;
     if (!scene?.entities.some(({ entityId }) => entityId === inspect.dataset.previewInspect)) return;
-    const scroll = new Map([...elements['workspace-content'].querySelectorAll('[data-room-scroll]')]
-      .map((element) => [element.dataset.roomScroll, { left: element.scrollLeft, top: element.scrollTop }]));
-    const page = { x: window.scrollX, y: window.scrollY };
+    const domState = captureRoomPreviewDomState(inspect);
     state.roomUi.previewSelectedEntityId = state.roomUi.previewSelectedEntityId === inspect.dataset.previewInspect
       ? null : inspect.dataset.previewInspect;
-    renderWorkspace();
-    requestAnimationFrame(() => {
-      for (const element of elements['workspace-content'].querySelectorAll('[data-room-scroll]')) {
-        const position = scroll.get(element.dataset.roomScroll); if (!position) continue;
-        element.scrollLeft = Math.max(0, Math.min(position.left, element.scrollWidth - element.clientWidth));
-        element.scrollTop = Math.max(0, Math.min(position.top, element.scrollHeight - element.clientHeight));
-      }
-      elements['workspace-content'].querySelector(`[data-preview-inspect="${CSS.escape(inspect.dataset.previewInspect)}"]`)
-        ?.focus({ preventScroll: true });
-      window.scrollTo(page.x, page.y);
-    });
+    renderWorkspace(); restoreRoomPreviewDomState(domState);
   }
 });
 

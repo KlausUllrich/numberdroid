@@ -752,7 +752,17 @@ try {
     if (checkpoint45Focus === 'prop') {
       const networkStart = devtools.events.length;
       const editorBeforePreviewResult = await devtools.send('Runtime.evaluate', {
-        expression: `(() => {
+        expression: `(async () => {
+          document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_VOID"]')?.click();
+          document.querySelector('.room-cell[data-x="1"][data-y="0"]')?.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          let seededScrollKey = null;
+          for (const element of document.querySelectorAll('[data-room-scroll]')) {
+            const maxTop = element.scrollHeight - element.clientHeight;
+            const maxLeft = element.scrollWidth - element.clientWidth;
+            if (maxTop > 1) { element.scrollTop = Math.min(37, maxTop); seededScrollKey = element.dataset.roomScroll; break; }
+            if (maxLeft > 1) { element.scrollLeft = Math.min(37, maxLeft); seededScrollKey = element.dataset.roomScroll; break; }
+          }
           const control = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]');
           control?.focus({ preventScroll: true });
           const scroll = Object.fromEntries([...document.querySelectorAll('[data-room-scroll]')]
@@ -762,13 +772,16 @@ try {
             scroll,
             page: { x: window.scrollX, y: window.scrollY },
             shape: window.__numberdroidStudioVisualTest?.roomShapeState() ?? null,
+            seededScrollKey,
+            nonZeroScrollKeys: Object.entries(scroll).filter(([, value]) => value.left > 0 || value.top > 0).map(([key]) => key),
             roomId: document.querySelector('[data-room-variant-select]')?.value ?? null,
             editorPresent: Boolean(document.querySelector('[data-room-board]')),
           };
-        })()`, returnByValue: true,
+        })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
       const editorBeforePreview = editorBeforePreviewResult.result?.value;
-      assert(editorBeforePreview?.activeKey === 'room-tool-PROP' && editorBeforePreview.editorPresent,
+      assert(editorBeforePreview?.activeKey === 'room-tool-PROP' && editorBeforePreview.editorPresent
+        && editorBeforePreview.shape?.dirty === true && editorBeforePreview.nonZeroScrollKeys.length > 0,
         `Studio preview could not establish exact editor continuity state: ${JSON.stringify(editorBeforePreview)}`);
       const focusedPreview = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
@@ -800,6 +813,13 @@ try {
         if (!previewReady) await delay(50);
       }
       assert(previewReady, 'Exact Studio preview scene or PNG resources did not reach READY.');
+      const loadFocusResult = await devtools.send('Runtime.evaluate', {
+        expression: `(() => {
+          const root = document.querySelector('[data-room-preview]');
+          return Boolean(root && document.activeElement === root);
+        })()`, returnByValue: true,
+      }, sessionId);
+      assert(loadFocusResult.result?.value === true, 'Async Studio preview load did not preserve focus on the preview root.');
       const inspectFocused = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const inspect = document.querySelector('[data-preview-inspect="prop.preview-overhang"]');
@@ -840,6 +860,10 @@ try {
           const logical = root.querySelector('[data-preview-logical-footprint="prop.preview-overhang"]');
           const visual = root.querySelector('[data-preview-visual-bounds="prop.preview-overhang"]');
           const anchor = root.querySelector('[data-preview-ground-anchor="prop.preview-overhang"]');
+          const previewLayout = root.querySelector('.room-preview-layout');
+          const stage = root.querySelector('.room-preview-stage');
+          const objects = root.querySelector('.room-preview-objects');
+          const stageRect = stage?.getBoundingClientRect(); const objectsRect = objects?.getBoundingClientRect();
           return {
             state: root?.dataset.roomPreviewState ?? null,
             binding: root?.querySelector('.room-preview-binding')?.textContent ?? null,
@@ -860,6 +884,12 @@ try {
             mutationControlCount: root?.querySelectorAll('[data-room-control], form').length ?? 0,
             pageHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth || document.body.scrollWidth > document.body.clientWidth,
             stageVisible: Boolean(svg && svg.getBoundingClientRect().width > 0 && svg.getBoundingClientRect().height > 0),
+            responsiveLayout: {
+              viewportWidth: window.innerWidth,
+              columnCount: previewLayout ? getComputedStyle(previewLayout).gridTemplateColumns.trim().split(/\s+/).filter(Boolean).length : 0,
+              sideBySide: Boolean(stageRect && objectsRect && objectsRect.left >= stageRect.right - 1 && objectsRect.top < stageRect.bottom),
+              stacked: Boolean(stageRect && objectsRect && objectsRect.top >= stageRect.bottom - 1),
+            },
             transparentSample: toScreen(1.15, .55),
             opaqueOverhangSample: toScreen(1.9, .55),
           };
@@ -910,6 +940,7 @@ try {
       checkpoint45StudioPreview = {
         ...previewFacts,
         physicalKeyboardOpen: true,
+        loadFocusPreserved: loadFocusResult.result?.value === true,
         transparentPixelDelta: delta(transparentPainted, transparentReference),
         opaqueOverhangPixelDelta: delta(opaquePainted, opaqueReference),
         transparentPainted, transparentReference, opaquePainted, opaqueReference,
@@ -3015,7 +3046,7 @@ try {
         && checkpoint45RoomFocus.selectedOptionText?.includes('5 saved errors')
         && checkpoint45RoomFocus.errorBannerState === 'ERROR'
         && checkpoint45RoomFocus.errorBannerText?.includes('5 saved errors need correction')
-        && checkpoint45RoomFocus.errorBannerText.includes('exact room v7')
+        && checkpoint45RoomFocus.errorBannerText.includes('exact room v8')
         && layout.roomDesigner.shapeSavePresent
         && layout.roomDesigner.shapeConflictPresent === false
         && layout.roomDesigner.editorStatus?.includes('Saved')
@@ -3083,6 +3114,11 @@ try {
         && checkpoint45StudioPreview.mutationControlCount === 0
         && checkpoint45StudioPreview.pageHorizontalOverflow === false
         && checkpoint45StudioPreview.stageVisible === true
+        && checkpoint45StudioPreview.loadFocusPreserved === true
+        && checkpoint45StudioPreview.responsiveLayout?.viewportWidth === width
+        && (width > 1200
+          ? checkpoint45StudioPreview.responsiveLayout.columnCount === 2 && checkpoint45StudioPreview.responsiveLayout.sideBySide === true
+          : checkpoint45StudioPreview.responsiveLayout.columnCount === 1 && checkpoint45StudioPreview.responsiveLayout.stacked === true)
         && checkpoint45StudioPreview.transparentPixelDelta <= 8
         && checkpoint45StudioPreview.opaqueOverhangPixelDelta >= 30
         && checkpoint45StudioPreview.nonGetRequests.length === 0
@@ -3090,6 +3126,8 @@ try {
         && checkpoint45StudioPreview.editorRoundTrip.after.roomId === 'room.family-gathering'
         && checkpoint45StudioPreview.editorRoundTrip.after.editorPresent === true
         && checkpoint45StudioPreview.editorRoundTrip.after.previewPresent === false
+        && checkpoint45StudioPreview.editorRoundTrip.before.shape?.dirty === true
+        && checkpoint45StudioPreview.editorRoundTrip.before.nonZeroScrollKeys.length > 0
         && checkpoint45StudioPreview.editorRoundTrip.sameScroll === true
         && checkpoint45StudioPreview.editorRoundTrip.samePage === true
         && checkpoint45StudioPreview.editorRoundTrip.sameShape === true,

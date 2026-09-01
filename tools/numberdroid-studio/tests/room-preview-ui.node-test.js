@@ -17,6 +17,9 @@ test('Room Studio Preview is an exact read-only view with visible non-runtime tr
   assert.match(app, /state\.roomUi\.shapeDraft\?\.dirty[\s\S]*Preview uses saved room v/);
   assert.match(app, /button\.setAttribute\('aria-pressed', String\(state\.roomUi\.previewSelectedEntityId === entity\.entityId\)\)/);
   assert.match(app, /captureRoomDomState\(\{ preserveActiveKey: true \}\)/);
+  assert.match(app, /captureRoomPreviewDomState[\s\S]*restoreRoomPreviewDomState/);
+  assert.match(app, /LOAD_FAILED[\s\S]*captureRoomPreviewDomState\(\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
+  assert.match(app, /data-preview-retry[\s\S]*captureRoomPreviewDomState\(retry\)[\s\S]*restoreRoomPreviewDomState\(domState\)/);
   assert.match(app, /data-preview-inspect[\s\S]*focus\(\{ preventScroll: true \}\)/);
   assert.match(app, /data\.roomPreviewState|dataset\.roomPreviewState/);
   assert.match(server, /roomPreviewSceneRoute[\s\S]*preview-scene/);
@@ -57,6 +60,12 @@ test('CP4.5 Browser evidence physically opens Preview and proves alpha plus visi
   assert.match(capture, /opaqueOverhangPixelDelta >= 30/);
   assert.match(capture, /nonGetRequests\.length === 0/);
   assert.match(capture, /inspectFocus === 'prop\.preview-overhang'/);
+  assert.match(capture, /loadFocusPreserved === true/);
+  assert.match(capture, /shape\?\.dirty === true/);
+  assert.match(capture, /nonZeroScrollKeys\.length > 0/);
+  assert.match(capture, /responsiveLayout\.columnCount === 2/);
+  assert.match(capture, /responsiveLayout\.columnCount === 1/);
+  assert.match(capture, /errorBannerText\.includes\('exact room v8'\)/);
   assert.match(capture, /editorRoundTrip\.sameScroll === true/);
   assert.match(capture, /editorRoundTrip\.samePage === true/);
   assert.match(capture, /editorRoundTrip\.sameShape === true/);
