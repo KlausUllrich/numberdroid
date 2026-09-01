@@ -1,5 +1,10 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-01 verified execution adjustment
+
+Klaus live-tested VT-001 and VT-011 as REVISE and accepted VT-012. The immediate implementation sequence is: bounded Room Editor functional repair; zoom/pan/placement ghost/direct manipulation/runtime preview in coherent L3 slices; then resume the private A4c Level Candidate path. This sequencing changes no A4c, MCP, remote, repository, materialization, publication or release authority. Evidence: [`../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md`](../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md).
+
+
 Status: **current forward plan — updated 2026-09-01 after Klaus accepted the bounded O1b Backups UI through VT-012; O2a deployment remains pending, and the A4c Application Level Candidate path is next**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.

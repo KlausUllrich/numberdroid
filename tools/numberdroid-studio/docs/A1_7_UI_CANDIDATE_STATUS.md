@@ -1,5 +1,10 @@
 # A1.7 visual review and correction candidate status
 
+## 2026-09-01 live gate: REVISE
+
+Klaus confirmed safe task-local review and Request Changes persistence. Acceptance is blocked because feedback cannot be authored, resume does not start a real agent, and the UI ambiguously mixes old review state with resumed work. The current fixture is a state-machine proof, not live orchestration. See [`LIVE_VERIFICATION_2026_09_01.md`](LIVE_VERIFICATION_2026_09_01.md) and [`FUTURE_HARNESS_ARCHITECTURE_DISCUSSION.md`](FUTURE_HARNESS_ARCHITECTURE_DISCUSSION.md).
+
+
 Status: **IMPLEMENTED CANDIDATE — NOT USER ACCEPTED**
 
 This bounded L3 candidate presents the separately integrated processing-result
