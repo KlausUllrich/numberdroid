@@ -1035,7 +1035,7 @@ try {
           selectedPlacementId: document.querySelector('[data-room-board] [data-placement-id][data-selected="true"]')?.dataset.placementId ?? null,
           selectedFindingCount: document.querySelectorAll('.room-findings [data-selected="true"]').length,
           currentFindingCount: document.querySelectorAll('.room-findings [aria-current="true"]').length,
-          gestureActive: window.__numberdroidStudioVisualTest?.roomPlacementInteractionState()?.gestureActive ?? false,
+          gestureActive: window.__numberdroidStudioVisualTest?.roomDirectManipulationState()?.gestureActive ?? false,
         })`, returnByValue: true,
       }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', {
@@ -1053,7 +1053,7 @@ try {
           selectedPlacementId: document.querySelector('[data-room-board] [data-placement-id][data-selected="true"]')?.dataset.placementId ?? null,
           selectedFindingCount: document.querySelectorAll('.room-findings [data-selected="true"]').length,
           currentFindingCount: document.querySelectorAll('.room-findings [aria-current="true"]').length,
-          gestureActive: window.__numberdroidStudioVisualTest?.roomPlacementInteractionState()?.gestureActive ?? false,
+          gestureActive: window.__numberdroidStudioVisualTest?.roomDirectManipulationState()?.gestureActive ?? false,
         })`, returnByValue: true,
       }, sessionId);
       checkpoint45FindingsNavigation = {
