@@ -5383,7 +5383,7 @@ async function addRoomPlacement(asset, anchor, rotation) {
     && pending.anchor.x === anchor.x && pending.anchor.y === anchor.y
     && pending.rotation === rotation;
   if (pending && !samePendingIntent) {
-    showToast('PLACEMENT_ADD_PENDING: Retry the exact unresolved placement, or press Escape to cancel it before preparing another.');
+    showToast('PLACEMENT_ADD_PENDING: Retry the exact unresolved placement. A changed authoritative room will clear it and require a fresh explicit placement.');
     return false;
   }
   const intent = pending ?? {
