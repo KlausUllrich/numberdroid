@@ -833,7 +833,7 @@ A4 proceeds in bounded dependency order:
    materialization, repository write, publication, or release authority.
 
 **A4c authority decision — 2026-08-31 (implemented in bounded source slices on
-2026-09-01; not user accepted):** every chain remains rooted in a human-created
+2026-09-01; VT-014 user accepted 2026-09-02):** every chain remains rooted in a human-created
 task/grant. The private application scope `level.candidate.create` may authorize
 exactly the task-bound create → validate → compile → preview → diff → submit
 sequence and must stop at `IN_REVIEW` / `OPEN` / all `PENDING` /
@@ -849,7 +849,8 @@ selected 31/6 discovery catalogs do not change. The candidate path comes first;
 derived-child persistence is a separate L3 slice, not a prerequisite.
 
 The authority-neutral A4c Domain DTO foundation is **source-integrated /
-automated green — not user accepted** through PR #186, final head
+automated green; covered only as an internal part of VT-014 acceptance, with no
+separate visible gate** through PR #186, final head
 `c70019e5d510dcc06d2593b0258bd1970a0e2a6d`, Build #2279 / run
 `33365246228`, merge `93187bfd039e00147ce930a937ff0801c09c9784`, and
 post-merge Build #2280 / run `33368143760`. It performs no I/O and does not
@@ -859,7 +860,7 @@ recovery provenance, pins, and next gates are recorded in
 [`A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md`](A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_AUTHORITY.md).
 
 The private immutable Candidate Application is **source-integrated / automated,
-browser and Windows green — not user accepted** through PR #198, final head
+browser and Windows green — VT-014 user accepted 2026-09-02** through PR #198, final head
 `6ea743ff5570677c24a58fae2c5cad210af19d3d`, Build #2344 / run
 `33553937139`, merge `053f9c407f5ecd7c93c1775249aa0630c88b6460`, and
 post-merge Build #2345 / run `33554781224`. It binds the real A4b source,
@@ -868,7 +869,7 @@ submission atomically, then stops at `IN_REVIEW` / `OPEN` / `PENDING` /
 **Waiting for your review** with `main` unchanged.
 
 The separately bounded derived-child slice is likewise **source-integrated /
-automated, browser and Windows green — not user accepted** through PR #199,
+automated, browser and Windows green — VT-014 user accepted 2026-09-02** through PR #199,
 final head `6f7c6bfee89fec2e22200fe66002b3d3c73fb968`, Build #2347 / run
 `33562709548`, merge `122a2533a12abe5e51e6458fa80f2047825240b4`, and
 post-merge Build #2348 / run `33563416584` attempt 2. It derives only a
@@ -899,10 +900,12 @@ honest unprojected-reference gaps are integrated. The fixture is not registered
 as a playable production Floor, so no distinct live `VT-` item is created and
 the slice remains not user accepted. Scope and evidence are recorded in
 [`A4B_REFERENCE_BEHAVIOR_STATUS.md`](A4B_REFERENCE_BEHAVIOR_STATUS.md).
-The currently authorized A4 source sequence is complete in source. VT-014 keeps
-the Candidate/child product and authority decision open for Klaus. Room Editor
-VT-001 remains separately `REVISE`. Neither open gate authorizes A5, A6,
-materialization, repository publication or release.
+The currently authorized A4 source sequence is complete in source. Klaus
+explicitly accepted the bounded Candidate/child product and authority decision
+as VT-014 on 2026-09-02. Room Editor VT-001 remains separately `REVISE` while
+its reported UI defects are repaired. VT-014 acceptance does not accept
+A3a/A4a/A4b or authorize A5, A6, materialization, repository publication or
+release.
 
 ### A5 — Thin portability proof
 
