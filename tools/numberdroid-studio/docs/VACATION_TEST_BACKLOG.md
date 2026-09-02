@@ -1,6 +1,6 @@
 # Numberdroid Studio — Consolidated Return Test Backlog
 
-Status: **current live backlog; Room Editor and bounded A4c source sequences are green; VT-001 live verification and VT-014 review remain with Klaus**
+Status: **current live backlog; VT-014 was explicitly accepted on 2026-09-02; Room Editor VT-001 remains REVISE while its reported defects are repaired**
 
 Source baseline recorded: 2026-09-01 after the A4c derived-child merge at `main`
 `122a2533a12abe5e51e6458fa80f2047825240b4`, tree
@@ -42,7 +42,7 @@ Keep these states distinct:
 | VT-011 | A1.7 processed-asset review UI candidate | REVISE — LIVE TESTED 2026-09-01 | VT-000 and VT-004–VT-010 | Accept/revise the selected-task preview, correction hierarchy, responsive layout, fallback, and return-state continuity |
 | VT-012 | O1b first Backups UI candidate | USER ACCEPTED 2026-09-01 | VT-000 and integrated O0/O1a | Accepted after live Create, Verify, Recovery-test, Restore-as-copy, restart, missing-backup, recovery and responsive checks; low-priority disclosure-state finding retained |
 | VT-013 | O2a private read-only service deployment | NEEDS KLAUS LIVE | integrated O2a and deliberately configured private host | Accept/revise authentication, read-only boundary, restart/session behavior, and operator burden; not O3 mobile UX |
-| VT-014 | A4c immutable Level Candidate and restricted derived child | NEEDS KLAUS REVIEW | VT-000 and source-integrated A3a/A4a/A4b/A4c | Accept/revise private Candidate closure, strict child attenuation and truthful read-only task presentation; no materialization or publication |
+| VT-014 | A4c immutable Level Candidate and restricted derived child | USER ACCEPTED 2026-09-02 | VT-000 and source-integrated A3a/A4a/A4b/A4c | Accepted private Candidate closure, strict child attenuation and truthful read-only task presentation; no materialization or publication |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -69,8 +69,10 @@ parent-derived child-task implementation is a scope decision, not product
 acceptance. The authority-neutral A4c Domain DTO foundation alone has no
 visible/live surface and therefore allocated no `VT-` item. PRs #198 and #199
 implemented the private Candidate closure, restricted child persistence and a
-read-only task projection, so `VT-014` now records the still-open Klaus decision.
-CI and browser evidence do not close it.
+read-only task projection. Klaus explicitly accepted that bounded
+product/contract candidate as `VT-014` on 2026-09-02. The acceptance is the
+user's decision, not an inference from CI or browser evidence, and grants no A5,
+materialization, publication or release authority.
 
 The implementation-grounded A1.7 D0 state contract is frozen in
 [`A1_7_STATE_CONTRACT.md`](A1_7_STATE_CONTRACT.md), and the separately
@@ -1180,10 +1182,10 @@ automation and source integration do not change the `REVISE` live result.
   final head `6f7c6bfee89fec2e22200fe66002b3d3c73fb968`, merge/tested `main`
   `122a2533a12abe5e51e6458fa80f2047825240b4`, tree
   `c14f39c687214434ab7b8850dfc4411bf2fe1a60`.
-- **State:** `NEEDS KLAUS REVIEW`. Source, automated, browser and Windows gates
-  are green; neither the private authority contract nor the read-only product
-  presentation is user accepted. This gate does not accept A3a/A4a/A4b or
-  resolve Room Editor VT-001.
+- **State:** `USER ACCEPTED 2026-09-02`. Klaus explicitly accepted the bounded
+  private authority contract and read-only product presentation. This decision
+  does not accept A3a/A4a/A4b, resolve Room Editor VT-001, or authorize A5,
+  materialization, publication or release.
 - **Safe fixture on Linux/macOS:** from `tools/numberdroid-studio/`, allocate a
   fresh directory with `mktemp -d`, copy its exact absolute path, replace
   `PASTE_ABSOLUTE_A4C_REVIEW_PATH`, then run:

@@ -899,10 +899,12 @@ honest unprojected-reference gaps are integrated. The fixture is not registered
 as a playable production Floor, so no distinct live `VT-` item is created and
 the slice remains not user accepted. Scope and evidence are recorded in
 [`A4B_REFERENCE_BEHAVIOR_STATUS.md`](A4B_REFERENCE_BEHAVIOR_STATUS.md).
-The currently authorized A4 source sequence is complete in source. VT-014 keeps
-the Candidate/child product and authority decision open for Klaus. Room Editor
-VT-001 remains separately `REVISE`. Neither open gate authorizes A5, A6,
-materialization, repository publication or release.
+The currently authorized A4 source sequence is complete in source. Klaus
+explicitly accepted the bounded Candidate/child product and authority decision
+as VT-014 on 2026-09-02. Room Editor VT-001 remains separately `REVISE` while
+its reported UI defects are repaired. VT-014 acceptance does not accept
+A3a/A4a/A4b or authorize A5, A6, materialization, repository publication or
+release.
 
 ### A5 — Thin portability proof
 

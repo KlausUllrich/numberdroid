@@ -1,16 +1,18 @@
 # Numberdroid Studio — A4c Level Candidate and derived child status
 
-Status: **SOURCE-INTEGRATED / AUTOMATED, BROWSER AND WINDOWS GREEN — NOT USER ACCEPTED**
+Status: **SOURCE-INTEGRATED / AUTOMATED, BROWSER AND WINDOWS GREEN — VT-014 USER ACCEPTED 2026-09-02**
 
-Date: 2026-09-01
+Date: 2026-09-02
 
 The complete currently authorized A4c source sequence is integrated on `main`
 at `122a2533a12abe5e51e6458fa80f2047825240b4`, tree
 `c14f39c687214434ab7b8850dfc4411bf2fe1a60`. It contains the authority-neutral
 Domain foundation, one private immutable Level Candidate application closure,
 and the separately bounded trusted-service derivation of one strictly
-attenuated child task. It does not accept A4c, authorize A5, or grant any
-materialization, repository-publication or release authority.
+attenuated child task. Klaus explicitly accepted this bounded Candidate/child
+contract and product presentation as VT-014 on 2026-09-02. That acceptance does
+not authorize A5 or grant any materialization, repository-publication or
+release authority.
 
 ## Integration ledger
 
@@ -111,7 +113,7 @@ security/authority, persistence/idempotency, actual test/CI scope and combined
 cross-domain correctness before fresh exact-head Build #2347 passed Linux,
 browser, Windows, root and final gates.
 
-## Unchanged boundaries and remaining gate
+## Explicit VT-014 acceptance and unchanged boundaries
 
 EngineBridge remains validate-only. Neither A4c slice extends generic Studio
 Preview, runtime preview, MCP/resource discovery or any accepted 19/4, 30/5 or
@@ -120,9 +122,12 @@ HostBinding, public/Funnel, browser-agent, root/grant-management, auto-accept,
 owner review-decision/acceptance operation, merge, `main` append, activation, deletion, cleanup,
 materialization, repository-publication or release authority.
 
-Klaus still owns the product/contract decision recorded as VT-014. Source
-integration, compiler output, screenshots, independent review and CI do not
-close it. Schema v14 and v15 are forward-only for an upgraded real workspace;
+Klaus explicitly accepted the bounded product/contract decision recorded as
+VT-014 on 2026-09-02. This record is based on that user decision; source
+integration, compiler output, screenshots, independent review and CI did not
+infer it. The acceptance does not accept the prerequisite A3a/A4a/A4b slices,
+resolve Room Editor VT-001, or authorize A5/A6. Schema v14 and v15 are
+forward-only for an upgraded real workspace;
 recovery uses a verified pre-upgrade copy or a forward repair, never an
 unsupported downgrade. The currently authorized A4c source sequence is
 complete; A5, A6 or any wider operational work requires a separate explicit

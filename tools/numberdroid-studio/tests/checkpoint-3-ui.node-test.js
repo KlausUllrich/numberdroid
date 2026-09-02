@@ -90,7 +90,7 @@ test('Saved room errors are visible before deep detail and finding navigation ke
   assert.match(app, /remediation\.textContent = `Next: \$\{finding\.remediation\}`/);
   assert.match(app, /finding\.targetKind === 'roomVariant' \? 'Room-wide issue'/);
   assert.match(app, /ROOM_FINDING_STALE/);
-  assert.match(app, /state\.roomUi\.selectedConnectorId = null; state\.roomUi\.selectedFinding = null; state\.roomUi\.selectedPaletteAssetId/);
+  assert.match(app, /state\.roomUi\.selectedConnectorId = null; state\.roomUi\.selectedFinding = null; clearRoomPaletteAsset\(\)/);
   assert.match(app, /\.room-findings \[data-selected="true"\]/);
   assert.match(styles, /\.room-findings \.asset-findings li \{[^}]*font-size: 11px;[^}]*line-height: 1\.45/);
   assert.match(styles, /\.room-error-attention \{[^}]*border-left: 5px solid/);
@@ -134,6 +134,9 @@ test('Checkpoint 3 canvas supports bounded manual zoom and non-mutating middle-b
   assert.match(app, /lostpointercapture', finishRoomCanvasPan/);
   assert.match(app, /Math\.round\(38 \* state\.roomUi\.zoomPercent \/ 100\)/);
   assert.match(app, /availableWidth \/ width, availableHeight \/ height/);
+  assert.match(app, /const declaredMaxHeight = parseFloat\(computed\.maxHeight\)/);
+  assert.match(app, /Math\.min\(380, Math\.floor/);
+  assert.doesNotMatch(app, /Math\.min\(scroll\.clientHeight, window\.innerHeight \* \.68\)/);
   assert.match(app, /requestAnimationFrame\(applyRoomCanvasFit\)/);
 });
 
@@ -172,8 +175,8 @@ test('Room direct manipulation remains transient, revision-pinned, cancellable, 
   assert.match(app, /advancedAuthorityContext/);
   assert.match(app, /project\.revision > pendingAdd\.projectRevision/);
   assert.match(app, /variant\.version > pendingAdd\.roomVersion/);
-  assert.match(app, /PLACEMENT_ADD_RECOVERED/);
-  assert.match(app, /original idempotency key can resolve safely/);
+  assert.match(app, /authoritative reload confirmed the original placement/);
+  assert.match(app, /not yet confirmed/);
   assert.match(app, /gesture\.outsideBoard/);
   assert.match(app, /x: geometry\.left, y: geometry\.top/);
   assert.match(styles, /\.room-placement-ghost\[data-allowed="false"\]/);
@@ -185,7 +188,7 @@ test('CP4.5 presents one persistent canvas, editor tools, truthful cell kinds, a
   const app = await readFile(appUrl, 'utf8');
   const styles = await readFile(stylesUrl, 'utf8');
   assert.match(app, /const ROOM_EDITOR_TOOLS/);
-  assert.match(app, /PAINT_ROOM.*PAINT_VOID.*PAINT_BLOCKED.*ENTRANCE.*SURFACE.*PROP/s);
+  assert.match(app, /PAINT_ROOM.*PAINT_VOID.*PAINT_BLOCKED.*ENTRANCE.*SURFACE.*PROP.*CLEAR/s);
   assert.match(app, /function renderRoomEditorDock/);
   assert.match(app, /shell\.append\(renderRoomToolbox\(variant\), renderRoomCanvas\(variant, snapshot\), renderRoomEditorDock/);
   assert.doesNotMatch(app, /ROOM_WORKFLOW_STEPS|renderRoomWorkflow|workflow-step/);
@@ -216,7 +219,10 @@ test('CP4.5 useful prop preview exposes footprint, anchor, rotation, collision, 
   assert.match(preview, /metadata\.navigation/);
   assert.match(preview, /assetPreviewRotation/);
   assert.match(preview, /preview is unavailable/);
-  assert.match(app, /use\.disabled = variant\.lifecycle !== 'DRAFT' \|\| preview\.dataset\.previewReady !== 'true'/);
+  assert.match(app, /const previewReady = control\.querySelector\('\.asset-preview\.ready'\)\?\.dataset\.previewState === 'READY'/);
+  assert.match(app, /armRoomPaletteAsset\(asset\)/);
+  assert.match(app, /Ready to place · choose one or more free room cells/);
+  assert.doesNotMatch(app, /Use in room|use-preview-asset/);
   assert.match(app, /draft\.disposition === 'ACCEPTED'\) draft\.disposition = 'REJECTED'/);
   assert.match(app, /--preview-unrotated-width/);
   assert.match(app, /--preview-unrotated-height/);
@@ -224,4 +230,30 @@ test('CP4.5 useful prop preview exposes footprint, anchor, rotation, collision, 
   assert.match(styles, /translate\(-50%, -50%\) rotate/);
   assert.doesNotMatch(styles, /preview-rotation-scale/);
   assert.match(styles, /\.room-form\.intent \{[^}]*minmax\(0, 1fr\)[^}]*min-width: 0/);
+});
+
+test('Room repair keeps an exact persistent brush, clear tool, resize guidance, and visible rotation', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const styles = await readFile(stylesUrl, 'utf8');
+  const evidence = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
+  const addStart = app.indexOf('async function addRoomPlacement');
+  const add = app.slice(addStart, app.indexOf("elements['workspace-content'].addEventListener('input'", addStart));
+  assert.ok(add.indexOf('state.roomUi.shapeDraft?.dirty') < add.indexOf('state.roomUi.pendingPlacementAdd = intent'));
+  assert.match(add, /state\.roomUi\.selectedPlacementId = null/);
+  assert.doesNotMatch(add, /clearRoomPaletteAsset\(\)|placementRotation = 0/);
+  assert.match(app, /selectedPaletteAssetPin/);
+  assert.match(app, /asset\.assetVersion === pin\.assetVersion && asset\.metadataVersion === pin\.metadataVersion/);
+  assert.match(app, /state\.roomUi\.activeTool === 'SELECT' && state\.roomUi\.selectedPlacementId/);
+  assert.match(app, /activeTool === 'CLEAR'.*await removeRoomPlacement\(placement\)/s);
+  assert.match(app, /Room size and intent/);
+  assert.match(app, /Save or discard the room-shape changes before resizing/);
+  assert.match(app, /function roomPlacementVisual/);
+  assert.match(app, /--room-placement-visual-rotation/);
+  assert.match(styles, /\.room-placement > \.room-placement-visual \{[^}]*rotate\(var\(--room-placement-visual-rotation\)\)/);
+  assert.match(styles, /\.prop-preview-stage \{[^}]*min-height: 0/);
+  assert.match(evidence, /persistentBrush/);
+  assert.match(evidence, /dirtyGuard\.state\?\.pendingPlacementAdd === null/);
+  assert.match(evidence, /placementVisualRotations\.every/);
+  assert.match(evidence, /clearTool\?\.activeTool === 'CLEAR'/);
+  assert.match(evidence, /pan\.fit\?\.cell === checkpoint45DirectManipulation\.pan\.fit\?\.expected/);
 });

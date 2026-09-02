@@ -172,7 +172,8 @@ test('CP4.5 preview failures revoke acceptance and placement while rotations tra
   assert.match(app, /wrapper\.dataset\.previewReady = 'false'/);
   assert.match(app, /wrapper\.dataset\.previewStatus = canLoad \? 'LOADING' : 'UNAVAILABLE'/);
   assert.match(app, /acceptOption\.disabled = true/);
-  assert.match(app, /use\.disabled = true/);
+  assert.match(app, /Wait for the exact image preview to load, then choose the asset again/);
+  assert.match(app, /const previewReady = control\.querySelector\('\.asset-preview\.ready'\)\?\.dataset\.previewState === 'READY'/);
   assert.match(app, /function rotatedPreviewGeometry/);
   assert.match(app, /span\.height - y - height/);
   assert.match(app, /Occupies \$\{geometry\.width\} × \$\{geometry\.height\} cells/);
@@ -212,4 +213,7 @@ test('CP4.5 room editor keeps paint drafts exclusive, visible, recoverable, and 
   assert.match(app, /focusSelectedControl\(\{ repair: true \}\)/);
   assert.match(app, /renderRoomDockNavigation\(\), renderRoomLayers\(\)/);
   assert.match(app, /variant\.lifecycle !== 'DRAFT'\) \{ showToast\(`\$\{variant\.lifecycle\} room versions are read-only/);
+  assert.match(app, /\['CLEAR', '⌫', 'Clear'/);
+  assert.match(app, /activeTool === 'CLEAR'.*removeRoomPlacement\(placement\)/s);
+  assert.match(app, /state\.roomUi\.shapeDraft\?\.dirty.*Save or discard the room-shape changes before placing assets/s);
 });

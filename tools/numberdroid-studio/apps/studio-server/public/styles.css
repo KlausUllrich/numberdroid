@@ -197,8 +197,8 @@ h2, h3 { margin: 0; }
 .asset-preview { display: grid; place-items: center; width: 100%; aspect-ratio: 1; margin: 0 0 14px; overflow: hidden; border: 1px solid #315046; border-radius: 8px; background-color: #0b1512; background-image: linear-gradient(45deg, #16241f 25%, transparent 25%), linear-gradient(-45deg, #16241f 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #16241f 75%), linear-gradient(-45deg, transparent 75%, #16241f 75%); background-position: 0 0, 0 6px, 6px -6px, -6px 0; background-size: 12px 12px; }
 .asset-preview img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .useful-asset-preview { display: grid; gap: 10px; margin-bottom: 14px; }
-.prop-preview-stage { position: relative; display: grid; place-items: center; min-height: 220px; overflow: hidden; border: 1px solid #466b60; border-radius: 9px; background: #0b1512; }
-.prop-preview-stage > .asset-preview { width: 100%; height: 100%; min-height: 220px; margin: 0; border: 0; border-radius: 0; aspect-ratio: auto; }
+.prop-preview-stage { position: relative; display: grid; place-items: center; min-height: 0; overflow: hidden; border: 1px solid #466b60; border-radius: 9px; background: #0b1512; }
+.prop-preview-stage > .asset-preview { width: 100%; height: 100%; min-height: 0; margin: 0; border: 0; border-radius: 0; aspect-ratio: auto; }
 .prop-preview-stage > .asset-preview img { position: absolute; top: 50%; left: 50%; width: var(--preview-unrotated-width, 100%); height: var(--preview-unrotated-height, 100%); max-width: none; object-fit: contain; transform: translate(-50%, -50%) rotate(var(--preview-rotation, 0deg)); transform-origin: center; }
 .prop-preview-grid { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, transparent calc(100% - 1px), rgba(156, 233, 205, .55) calc(100% - 1px)), linear-gradient(to bottom, transparent calc(100% - 1px), rgba(156, 233, 205, .55) calc(100% - 1px)); background-size: calc(100% / var(--preview-columns)) 100%, 100% calc(100% / var(--preview-rows)); box-shadow: inset 0 0 0 2px rgba(156, 233, 205, .62); }
 .prop-collision-overlay { position: absolute; box-sizing: border-box; border: 2px dashed #ff9b76; background: rgba(207, 76, 48, .22); pointer-events: none; }
@@ -416,9 +416,11 @@ h2, h3 { margin: 0; }
 .room-board[data-asset-placement-editing="true"] .room-placement,
 .room-board[data-asset-placement-editing="true"] .room-connector { opacity: .42; filter: saturate(.45); pointer-events: none; }
 .room-placement { position: absolute; z-index: 2; min-width: 0; min-height: 0; padding: 1px; overflow: hidden; border: 1px solid #a3dccc; border-radius: 2px; background: #173b31dd; color: #effff9; box-shadow: 0 1px 5px #0008; cursor: grab; touch-action: none; }
+.room-board[data-erase-editing="true"] .room-placement { cursor: crosshair; }
 .room-placement.structural_surface { z-index: 1; border-color: #4d8876; background: #23473ddd; }
 .room-placement[data-selected="true"] { z-index: 5; outline: 3px solid #ffe09a; outline-offset: 1px; }
 .room-placement .asset-preview { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; opacity: .86; }
+.room-placement > .room-placement-visual { inset: auto; top: 50%; left: 50%; width: var(--room-placement-visual-width); height: var(--room-placement-visual-height); transform: translate(-50%, -50%) rotate(var(--room-placement-visual-rotation)); transform-origin: center; }
 .room-placement .asset-preview.fallback { display: none; }
 .room-placement > span { position: relative; z-index: 2; display: block; padding: 2px; overflow: hidden; background: #06100dcc; font: clamp(6px, calc(var(--room-cell) * .13), 22px) ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
 .room-placement-ghost { position: absolute; z-index: 7; display: grid; align-content: start; min-width: 0; min-height: 0; padding: 3px; overflow: visible; pointer-events: none; border: 3px dashed #b7f4d4; background: repeating-linear-gradient(135deg, #163c2bb8 0 7px, #07110e99 7px 14px); color: #f4fff9; box-shadow: 0 0 0 2px #06100dcc; }
@@ -457,7 +459,10 @@ h2, h3 { margin: 0; }
 .room-finding-technical code { display: block; margin-top: 5px; overflow-wrap: anywhere; color: #a9c8be; font-size: 9px; }
 .room-authoring, .room-lifecycle { margin-top: 12px; }
 .room-shape-controls { margin-bottom: 12px; }
-.room-shape-tools, .room-preview-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.room-shape-tools, .room-preview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.room-placement-active, .room-resize-guidance { margin: 0; color: #cfe5dd; font-size: 10px; line-height: 1.5; }
+.room-preview-actions .room-placement-active { flex: 1 1 210px; }
+.room-resize-guidance { margin-top: 9px; color: var(--muted); }
 .room-shape-summary { color: #cfe5dd; font-size: 10px; }
 .room-cell-legend { display: flex; flex-wrap: wrap; gap: 7px 10px; margin: 8px 0; color: var(--muted); font-size: 8px; }
 .room-cell-legend > span { display: flex; align-items: center; gap: 4px; }
@@ -468,8 +473,8 @@ h2, h3 { margin: 0; }
 .room-shape-coordinate-editor summary { color: #b7d1c8; cursor: pointer; font-size: 10px; }
 .room-placement-preview { margin-bottom: 12px; }
 .room-placement-preview .useful-asset-preview { grid-template-columns: minmax(280px, 1.2fr) minmax(210px, .8fr); align-items: start; }
-.room-placement-preview .prop-preview-stage { min-height: 260px; grid-row: 1 / span 3; }
-.room-placement-preview .prop-preview-stage > .asset-preview { min-height: 260px; }
+.room-placement-preview .prop-preview-stage { min-height: 0; grid-row: 1 / span 3; }
+.room-placement-preview .prop-preview-stage > .asset-preview { min-height: 0; }
 .room-authoring > .section-heading { margin-top: 0; }
 .room-form.compact { grid-template-columns: repeat(4, minmax(80px, 1fr)) auto; margin: 9px 0; padding-top: 9px; border-top: 1px solid #29483f; }
 .room-form.intent { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; min-width: 0; }
@@ -684,7 +689,7 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .room-header, .room-designer-layout { grid-template-columns: 1fr; }
   .room-focused-layout { grid-template-columns: 1fr; }
   .room-placement-preview .useful-asset-preview { grid-template-columns: 1fr; }
-  .room-placement-preview .prop-preview-stage { grid-row: auto; min-height: 220px; }
+  .room-placement-preview .prop-preview-stage { grid-row: auto; min-height: 0; }
   .room-inspector { grid-column: auto; grid-template-columns: 1fr; }
   .room-inspector > h3 { grid-column: auto; }
   .task-layout, .task-form { grid-template-columns: 1fr; }
