@@ -1,12 +1,12 @@
 # Numberdroid Studio — Consolidated Return Test Backlog
 
-Status: **current live backlog; VT-014 was explicitly accepted on 2026-09-02; Room Editor VT-001 remains REVISE while its reported defects are repaired**
+Status: **current live backlog; VT-014 was explicitly accepted on 2026-09-02; Room Editor VT-001 repairs are integrated and green but remain REVISE pending Klaus's live retest**
 
-Source baseline recorded: 2026-09-01 after the A4c derived-child merge at `main`
-`122a2533a12abe5e51e6458fa80f2047825240b4`, tree
-`c14f39c687214434ab7b8850dfc4411bf2fe1a60`; post-merge Build #2348 / run
-`33563416584` attempt 2 passed. Receivers MUST still replace this with newer
-verified remote `main` truth as work lands.
+Source baseline recorded: 2026-09-02 after the Room Editor repair merge at
+`main` `dbe37634ea13d076cd00647fffb0dde1b2bd0f69`, tree
+`baa89c2548916826b822f59a1c162d6ace38321a`; post-merge Build #2354 / run
+`33630127953` passed. Receivers MUST still replace this with newer verified
+remote `main` truth as work lands.
 
 ## Purpose
 
@@ -85,8 +85,9 @@ accepted** state.
 
 Full 2026-09-01 evidence and prioritized findings: [`LIVE_VERIFICATION_2026_09_01.md`](LIVE_VERIFICATION_2026_09_01.md).
 
-The bounded source response to VT-001 is integrated through PRs #191, #192 and
-#194–#196. Its exact implementation and CI ledger is
+The bounded source response to VT-001 is integrated through PRs #191, #192,
+#194–#196 and the 2026-09-02 live-workflow repair PR #201. Its exact
+implementation and CI ledger is
 [`ROOM_EDITOR_L3_STATUS.md`](ROOM_EDITOR_L3_STATUS.md). PR #191 and PR #192,
 and the later Room Editor slices, remain implemented but not user accepted;
 automation and source integration do not change the `REVISE` live result.
@@ -140,12 +141,27 @@ automation and source integration do not change the `REVISE` live result.
   live-finding response is integrated through PR #191 (functional repairs), PR
   #192 (zoom/pan), PR #194 (placement ghost/direct manipulation), PR #195
   (overview attention/errors and findings navigation), and PR #196 (portable
-  exact read-only Studio Preview). Candidate and completion evidence is pinned
-  in `CHECKPOINT_4_5_STATUS.md` and `ROOM_EDITOR_L3_STATUS.md`.
+  exact read-only Studio Preview). PR #201 repairs the 2026-09-02 live findings:
+  Fit sizing, discoverable resize, direct exact-asset arming, persistent
+  placement brush, safe/plain pending recovery, confirmed Clear and visible
+  cardinal rotation. Candidate and completion evidence is pinned in
+  `CHECKPOINT_4_5_STATUS.md` and `ROOM_EDITOR_L3_STATUS.md`.
 - **State:** source-integrated and exact-head/post-merge Linux, Windows,
   browser-evidence and CI green; **REVISE / NEEDS KLAUS LIVE**. PR #191 and PR
   #192 explicitly remain implemented but not accepted pending Klaus's live
-  regression. The later repairs also require explicit live acceptance.
+  regression. PR #201 exact head
+  `e26f3d707a790a4b4779c9267514a3b8de9f18d0` passed Build #2353 / run
+  `33629339599`; merge `dbe37634ea13d076cd00647fffb0dde1b2bd0f69`
+  passed post-merge Build #2354 / run `33630127953`. These are engineering
+  gates, not acceptance.
+- **Latest Klaus record:** the first 12 steps of the prior walkthrough passed.
+  Fit then collapsed too far; Resize initially appeared unavailable and its
+  saved-shape prerequisite was unclear; placement behaved as single-use and
+  exposed `PLACEMENT_ADD_PENDING`; palette selection required an
+  extra **Use in room** action; removal was unclear; and 90°/180° rotation did
+  not render correctly. Steps 14 onward were not tested. PR #201 is the bounded
+  repair response; every affected behavior and the remaining later steps still
+  need a live retest before VT-001 can change state.
 - **Platform:** desktop Chrome at a useful width; protected automated widths are
   1440×900 and 1060×900.
 - **Safe fixtures:** this gate requires two different freshly allocated
@@ -204,31 +220,46 @@ automation and source integration do not change the `REVISE` live result.
 
 - **Room/preview walkthrough:**
   1. Open **Rooms** and verify that the central canvas remains visible while
-     switching among all seven tools and the Purpose/Check dock panels.
+     switching among all eight tools and the Purpose/Check dock panels.
   2. Paint one cell outside, blocked, then room floor with a pointer. Exactly
      one tool remains active and the three counts always sum to the envelope.
   3. Verify surface, prop, and connector overlays are ghosted and do not capture
      painting; no empty conflict bar is shown.
   4. Verify dirty/save/reload/conflict truth above the canvas; incompatible
      mutation is blocked while dirty; Purpose/Check never replace the canvas.
-  5. Inspect a real prop and judge whether exact image, footprint, anchor,
-     rotation, collision/navigation, and placement readiness are useful before
-     acting.
-  6. At both 1440×900 and 1060×900, exercise Fit and 100–1000% zoom, readable
-     scaled labels and middle-mouse panning. Confirm the controls remain usable,
-     middle-mouse remains camera-only, and the page has no horizontal overflow.
-  7. Place a new Transfer Apparatus as the disposable test object. Inspect
-     valid and invalid rotated ghosts, then directly select, move, rotate and
-     delete that new placement only. Leave the fixture placement
-     `prop.preview-overhang` unchanged for the Preview test. Confirm Escape
-     cancels, keyboard/inspector controls remain equivalent, and each completed
-     gesture produces one semantic edit rather than pixel persistence.
-  8. Return to the Rooms overview and confirm the saved room's persisted error
+  5. Open **Purpose & settings**, change Width/Height, choose **Resize**, and
+     verify a new saved Room version and placeable cells appear. Create a dirty
+     shape change and confirm placement asks you to save or discard it without
+     creating a technical pending-add state; restore the saved shape before
+     continuing.
+  6. Choose a real Surface directly from its palette card—there must be no
+     separate **Use in room** action—and place it on at least two different free
+     cells without reselecting it. Repeat with a Prop or Item and confirm every
+     copy is distinct. If an unknown-result message appears, verify it is plain
+     language, retry only the named original cell, and confirm no duplicate is
+     created.
+  7. At both 1440×900 and 1060×900, exercise Fit and 100–1000% zoom, readable
+     scaled labels and middle-mouse panning. Confirm Fit uses the available
+     viewport instead of the minimum zoom, reports its percentage, the controls
+     remain usable, middle-mouse remains camera-only, and the page has no
+     horizontal overflow.
+  8. Place a new Transfer Apparatus as the disposable test object. Inspect
+     valid and invalid ghosts at 0°, 90°, 180° and 270° and confirm the imagery
+     visibly rotates without being cropped. Its authored logical footprint must
+     be 2×3 at 0°/180° and 3×2 at 90°/270°; image pixels and visual overhang must
+     never enlarge occupancy. Directly select and move it, then choose
+     **Clear** and remove both this disposable Prop and one of the disposable
+     Surfaces from step 6; leave the other Surface as the repeated-brush proof.
+     Leave the fixture placement `prop.preview-overhang` unchanged for the
+     Preview test. Confirm Escape cancels, keyboard/inspector controls remain
+     equivalent, and each completed gesture produces one semantic edit rather
+     than pixel persistence.
+  9. Return to the Rooms overview and confirm the saved room's persisted error
      state is visible before detail. Use its action to open the exact ERROR
      finding, then choose successive findings. Confirm focus enters the finding
      in the Check dock, nonzero dock scroll/context is retained, and the
      remediation remains readable and plain-language.
-  9. Before opening Preview, create one unsaved shape draft, restore the Prop
+  10. Before opening Preview, create one unsaved shape draft, restore the Prop
      tool/focus, and establish nonzero page and canvas scroll. Open **Studio
      Preview** and confirm the visible copy names the exact current saved
      project revision and current saved room version, excludes the unsaved
@@ -237,7 +268,7 @@ automation and source integration do not change the `REVISE` live result.
      transparent layering and the `prop.preview-overhang` pixels outside its
      logical footprint. At 1440×900 the preview is side-by-side; at 1060×900 it
      stacks without page overflow.
-  10. Return to the editor and confirm the unsaved shape draft, Prop tool/focus,
+  11. Return to the editor and confirm the unsaved shape draft, Prop tool/focus,
       page scroll and inner canvas scroll are preserved exactly. Without
       editing, reopen Studio Preview and compare the saved projection, then
       return once more and confirm the same draft/focus/scroll state. Confirm

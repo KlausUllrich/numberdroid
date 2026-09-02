@@ -257,7 +257,7 @@ Exit decision: **accepted by the user on 2026-08-24.** The bounded delegation mo
 
 ## Checkpoint 4.5 — Designer workflow and preview usability
 
-**Status: frozen-contract implementation candidate source-integrated into `main` through PR #137 on 2026-08-25; Linux/Windows CI and Chrome evidence are green, while explicit user acceptance remains pending. The source merge does not accept CP4.5 or CP5.**
+**Status: frozen-contract candidate and bounded Room Editor continuations are source-integrated through PR #201 on 2026-09-02; Linux/Windows CI and Chrome evidence are green, while VT-001 remains REVISE pending Klaus's live retest. Source integration does not accept CP4.5 or CP5.**
 
 **Outcome:** a professional designer can understand the current step, create or review the relevant object, and see a useful preview without needing to understand Studio's internal branch, grant, revision, provenance, or validation vocabulary.
 
@@ -278,7 +278,7 @@ Exit decision: approve the designer-facing task flow, prop preview, guided room 
 
 Candidate implementation: `CHECKPOINT_4_5_CONTRACT.md` freezes the bounded semantics and `CHECKPOINT_4_5_STATUS.md` records the candidate. The implementation adds list/create/detail task views, trusted expiry projection, useful exact-slice previews, one persistent canvas with toolbox/options/dock workflow, owner-only complete shape replacement, schema-v12 normalized shape cells, schema-v2 rectangular parity, and schema-v3 masked-room round trips. It adds no generation, bitmap-job, export, materialization, publication, or wider agent authority.
 
-### Room Editor usability continuation — source-integrated, live acceptance pending
+### Room Editor usability continuation — repaired and source-integrated, live retest pending
 
 Klaus's 2026-09-01 live verification authorized a bounded sequence before A4c
 continues. The complete source sequence is now integrated and automated green;
@@ -300,7 +300,14 @@ none of these merges substitutes for Klaus's later live acceptance:
    Top-down ships first. It preserves positions, rotations, layers, transparency
    and the separation between logical footprint and visual bounds/overhang. It
    explicitly does not claim runtime fidelity — integrated through PR #196;
-6. prepare, but do not require for this usability milestone, a later 2.5D
+6. repair the 2026-09-02 live findings: viewport-aware Fit, discoverable
+   saved-shape resize, direct exact-asset palette arming, a persistent placement
+   brush, plain/safe pending retry, confirmed Clear and visibly correct cardinal
+   rotation — integrated through PR #201, final head
+   `e26f3d707a790a4b4779c9267514a3b8de9f18d0`, merge
+   `dbe37634ea13d076cd00647fffb0dde1b2bd0f69`, exact-head Build #2353 / run
+   `33629339599`, post-merge Build #2354 / run `33630127953`; and
+7. prepare, but do not require for this usability milestone, a later 2.5D
    renderer over the same preview scene. It may use ground-anchor depth sorting,
    elevation, side-facing/billboard sprites and optional segmented occlusion.
 
@@ -350,9 +357,10 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 ## Parallel masterplan track — Operations, Remote Access & Mobile
 
 **Status: O0 frozen; O1, O2a, A3a, A4a, A4b and the complete bounded A4c source
-sequence are source-integrated and automated green; Room Editor L3 is also
-source-integrated and green but not user accepted; O1b is user accepted, O2
-deployment remains open; no A5 source work is authorized by this status.**
+sequence are source-integrated and automated green; VT-014 and O1b are user
+accepted; Room Editor L3 including PR #201 is source-integrated and green but
+VT-001 remains REVISE; O2 deployment remains open; no A5 source work is
+authorized by this status.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -902,8 +910,9 @@ the slice remains not user accepted. Scope and evidence are recorded in
 [`A4B_REFERENCE_BEHAVIOR_STATUS.md`](A4B_REFERENCE_BEHAVIOR_STATUS.md).
 The currently authorized A4 source sequence is complete in source. Klaus
 explicitly accepted the bounded Candidate/child product and authority decision
-as VT-014 on 2026-09-02. Room Editor VT-001 remains separately `REVISE` while
-its reported UI defects are repaired. VT-014 acceptance does not accept
+as VT-014 on 2026-09-02. Room Editor VT-001 remains separately `REVISE`; its
+reported UI defects are repaired and green through PR #201 but await a live
+retest. VT-014 acceptance does not accept
 A3a/A4a/A4b or authorize A5, A6, materialization, repository publication or
 release.
 
