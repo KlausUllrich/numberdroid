@@ -1740,7 +1740,7 @@ try {
           await waitFor(() => !window.__numberdroidStudioVisualTest.roomDirectManipulationState().suppressCanvasClick,
             'canvas click suppression to settle');
           const beforeDirtyAttempt = window.__roomDirectManipulationEvidence.requests.length;
-          document.querySelector('.room-cell[data-x="1"][data-y="0"]')?.click();
+          document.querySelector('.room-cell[data-x="2"][data-y="0"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const dirtyGuard = {
             requestCount: window.__roomDirectManipulationEvidence.requests.length - beforeDirtyAttempt,
@@ -1777,8 +1777,8 @@ try {
         expression: `(() => { const ghost = document.querySelector('.room-placement-ghost'); const rect = ghost?.getBoundingClientRect(); const board = document.querySelector('[data-room-board]')?.getBoundingClientRect(); return {
           allowed: ghost?.dataset.allowed ?? null, cue: ghost?.querySelector('strong')?.textContent ?? null,
           rotation: ghost?.querySelector('span')?.textContent ?? null,
-          cellsWide: rect && board ? Math.round(rect.width / (board.width / 6)) : null,
-          cellsHigh: rect && board ? Math.round(rect.height / (board.height / 3)) : null,
+          cellsWide: rect && board ? Math.round(rect.width / (board.width / Number(document.querySelector('[data-room-board]').style.getPropertyValue('--room-width')))) : null,
+          cellsHigh: rect && board ? Math.round(rect.height / (board.height / Number(document.querySelector('[data-room-board]').style.getPropertyValue('--room-height')))) : null,
           requestCount: window.__roomDirectManipulationEvidence.requests.length,
         }; })()`, returnByValue: true,
       }, sessionId);
@@ -2234,6 +2234,7 @@ try {
         && checkpoint45DirectManipulation.previewFailure.selectedPaletteAssetPin === null
         && checkpoint45DirectManipulation.previewFailure.placementRotation === 0
         && checkpoint45DirectManipulation.previewFailure.boardPlacementEditing === false
+        && checkpoint45DirectManipulation.previewFailure.boardPendingRecovery === true
         && checkpoint45DirectManipulation.previewFailure.ghostAfter === true
         && checkpoint45DirectManipulation.previewFailure.pendingRecoveryGhost === true
         && checkpoint45DirectManipulation.previewFailure.pendingPlacementAdd?.anchor.x === 1

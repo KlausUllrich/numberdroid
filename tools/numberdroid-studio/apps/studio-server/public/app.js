@@ -838,7 +838,9 @@ function markUsefulPreviewUnavailable(wrapper) {
   if (selectedAsset && roomPreviewKey === `room:${selectedAsset.assetId}`) {
     const pendingRecovery = Boolean(state.roomUi.pendingPlacementAdd);
     clearRoomPaletteAsset(); state.roomUi.placementHover = null; state.roomUi.placementRotation = 0;
-    elements['workspace-content'].querySelector('[data-room-board]')?.removeAttribute('data-asset-placement-editing');
+    const board = elements['workspace-content'].querySelector('[data-room-board]');
+    board?.removeAttribute('data-asset-placement-editing');
+    if (pendingRecovery && board) board.dataset.pendingPlacementRecovery = 'true';
     const selectedPalette = elements['workspace-content'].querySelector(`[data-room-control="palette-asset"][data-palette-asset-id="${CSS.escape(selectedAsset.assetId)}"]`);
     if (selectedPalette) selectedPalette.dataset.selected = 'false';
     const active = wrapper.closest('.room-placement-preview')?.querySelector('.room-placement-active');
@@ -2977,6 +2979,7 @@ function renderRoomCanvas(variant, snapshot) {
   const board = document.createElement('div'); board.className = 'room-board'; board.dataset.roomBoard = 'true';
   if (state.roomUi.activeTool.startsWith('PAINT_')) board.dataset.shapeEditing = 'true';
   if (state.roomUi.selectedPaletteAssetId) board.dataset.assetPlacementEditing = 'true';
+  if (state.roomUi.pendingPlacementAdd) board.dataset.pendingPlacementRecovery = 'true';
   if (state.roomUi.activeTool === 'CLEAR') board.dataset.eraseEditing = 'true';
   const cellSize = state.roomUi.zoom === 'fit' ? 28 : Math.round(38 * state.roomUi.zoomPercent / 100);
   board.dataset.zoomMode = state.roomUi.zoom;
@@ -7243,6 +7246,7 @@ if (visualFixture) {
         selectedPaletteAssetPin: state.roomUi.selectedPaletteAssetPin,
         placementRotation: state.roomUi.placementRotation,
         boardPlacementEditing: Boolean(elements['workspace-content'].querySelector('[data-room-board][data-asset-placement-editing]')),
+        boardPendingRecovery: Boolean(elements['workspace-content'].querySelector('[data-room-board][data-pending-placement-recovery]')),
         message: elements.toast.textContent,
       };
     },

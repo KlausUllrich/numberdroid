@@ -176,6 +176,7 @@ test('CP4.5 preview failures revoke acceptance and placement while rotations tra
   assert.match(app, /clearRoomPaletteAsset\(\); state\.roomUi\.placementHover = null/);
   assert.match(app, /exerciseRoomPlacementPreviewFailure\(\)/);
   assert.match(app, /ghost\.dataset\.pendingRecovery = 'true'/);
+  assert.match(app, /board\.dataset\.pendingPlacementRecovery = 'true'/);
   assert.match(app, /Wait for the exact image preview to load, then choose the asset again/);
   assert.match(app, /const previewReady = control\.querySelector\('\.asset-preview\.ready'\)\?\.dataset\.previewState === 'READY'/);
   assert.match(app, /function rotatedPreviewGeometry/);
