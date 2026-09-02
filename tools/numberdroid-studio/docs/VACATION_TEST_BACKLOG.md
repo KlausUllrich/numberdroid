@@ -1279,7 +1279,9 @@ Append one section containing:
 3. New A1 image-to-asset candidates in dependency order, followed by VT-002
    interface review where useful.
 4. Agent/MCP scope, revoke, conflict, review, and **Waiting for your review**.
-5. VT-014 A4c immutable Candidate and restricted-child contract/product review.
+5. VT-014 A4c immutable Candidate and restricted-child contract/product review
+   is complete and user accepted as of 2026-09-02; do not repeat it as a
+   pending decision.
 6. Backup UI and restore-as-copy only after an O1 UI candidate exists.
 7. CP5 candidate review after its prerequisites.
 8. Remote/Android tests only after all O2/O3 predecessor gates are explicitly

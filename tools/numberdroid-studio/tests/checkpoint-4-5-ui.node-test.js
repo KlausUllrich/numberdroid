@@ -172,9 +172,16 @@ test('CP4.5 preview failures revoke acceptance and placement while rotations tra
   assert.match(app, /wrapper\.dataset\.previewReady = 'false'/);
   assert.match(app, /wrapper\.dataset\.previewStatus = canLoad \? 'LOADING' : 'UNAVAILABLE'/);
   assert.match(app, /acceptOption\.disabled = true/);
+  assert.match(app, /Exact image failed to load\. Placement was cancelled safely/);
+  assert.match(app, /clearRoomPaletteAsset\(\); state\.roomUi\.placementHover = null/);
+  assert.match(app, /exerciseRoomPlacementPreviewFailure\(\)/);
+  assert.match(app, /ghost\.dataset\.pendingRecovery = 'true'/);
   assert.match(app, /Wait for the exact image preview to load, then choose the asset again/);
   assert.match(app, /const previewReady = control\.querySelector\('\.asset-preview\.ready'\)\?\.dataset\.previewState === 'READY'/);
   assert.match(app, /function rotatedPreviewGeometry/);
+  assert.match(app, /function exactPendingRoomPlacementAsset/);
+  assert.match(app, /pending\?\.rotation \?\? state\.roomUi\.placementRotation/);
+  assert.match(app, /'placement-select', 'connector-select'/);
   assert.match(app, /span\.height - y - height/);
   assert.match(app, /Occupies \$\{geometry\.width\} × \$\{geometry\.height\} cells/);
   assert.match(app, /onBeforeReload: \(\) => \{ draft\.dirty = false; \}/);

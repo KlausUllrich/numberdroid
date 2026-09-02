@@ -254,7 +254,7 @@ O1b source-integrated and user-accepted through VT-012
 → bounded Room Editor L3 continuation source-integrated through PRs #191, #192, #194, #195 and #196; live acceptance pending
 → A4c task-scoped Application candidate source-integrated; stops at Waiting for your review
 → A4c trusted-service derived child source-integrated; human-rooted, strictly attenuated and depth one
-→ Klaus VT-001 / VT-014 decisions or a new explicit scope decision
+→ VT-014 user accepted 2026-09-02; Klaus live-retests only the bounded VT-001 Room Editor repairs
 → later deliberate O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
 ```
 
@@ -264,8 +264,9 @@ and `tools/numberdroid-studio/docs/A4B_REFERENCE_BEHAVIOR_STATUS.md`. A4c is
 also source-integrated and green through the separate Candidate and child
 slices, with exact evidence in
 `tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md`.
-All remain unaccepted unless explicitly recorded otherwise. No implied next
-slice may add remote backup/MCP authority, deployment, O3/O4/A5/A6,
+A3a, A4a and A4b remain not user accepted. A4c/VT-014 was explicitly user
+accepted on 2026-09-02. No implied next slice may add remote backup/MCP
+authority, deployment, O3/O4/A5/A6,
 materialization, publication, or release.
 
 Klaus's 2026-08-31 scope decision authorized two exact A4c mechanisms without
@@ -273,8 +274,9 @@ accepting them: private `level.candidate.create` for one task-bound immutable
 Create/Validate/Compile/Preview/Diff/Submit closure, and a trusted-service
 operation that derives a same-project/same-actor child task as a strict subset
 of an active human-rooted parent with atomically reserved budget and cascading
-ancestor denial. The private candidate scope changes no MCP discovery count and
-must stop at task/effective `IN_REVIEW`, review `OPEN`, every item `PENDING`,
+ancestor denial. Those mechanisms were subsequently user accepted only as
+VT-014 on 2026-09-02. The private candidate scope changes no MCP discovery
+count and must stop at task/effective `IN_REVIEW`, review `OPEN`, every item `PENDING`,
 `REVIEW_SUBMITTED`, and **Waiting for your review**. Candidate Application work
 was integrated first; child-task persistence remained a separate L3 risk axis.
 Current authority and implementation truth live in

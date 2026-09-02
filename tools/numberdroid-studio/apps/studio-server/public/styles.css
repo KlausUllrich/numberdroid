@@ -415,9 +415,9 @@ h2, h3 { margin: 0; }
 .room-board[data-shape-editing="true"] .room-connector,
 .room-board[data-asset-placement-editing="true"] .room-placement,
 .room-board[data-asset-placement-editing="true"] .room-connector { opacity: .42; filter: saturate(.45); pointer-events: none; }
-.room-placement { position: absolute; z-index: 2; min-width: 0; min-height: 0; padding: 1px; overflow: hidden; border: 1px solid #a3dccc; border-radius: 2px; background: #173b31dd; color: #effff9; box-shadow: 0 1px 5px #0008; cursor: grab; touch-action: none; }
+.room-placement { --room-placement-frame: #a3dccc; position: absolute; z-index: 2; min-width: 0; min-height: 0; padding: 0; overflow: hidden; border: 0; border-radius: 2px; background: #173b31dd; color: #effff9; box-shadow: inset 0 0 0 1px var(--room-placement-frame), 0 1px 5px #0008; cursor: grab; touch-action: none; }
 .room-board[data-erase-editing="true"] .room-placement { cursor: crosshair; }
-.room-placement.structural_surface { z-index: 1; border-color: #4d8876; background: #23473ddd; }
+.room-placement.structural_surface { --room-placement-frame: #4d8876; z-index: 1; background: #23473ddd; }
 .room-placement[data-selected="true"] { z-index: 5; outline: 3px solid #ffe09a; outline-offset: 1px; }
 .room-placement .asset-preview { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; opacity: .86; }
 .room-placement > .room-placement-visual { inset: auto; top: 50%; left: 50%; width: var(--room-placement-visual-width); height: var(--room-placement-visual-height); transform: translate(-50%, -50%) rotate(var(--room-placement-visual-rotation)); transform-origin: center; }

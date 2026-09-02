@@ -747,6 +747,13 @@ function exactSelectedRoomPaletteAsset(snapshot = state.project?.snapshot) {
     && asset.assetVersion === pin.assetVersion && asset.metadataVersion === pin.metadataVersion) ?? null;
 }
 
+function exactPendingRoomPlacementAsset(snapshot = state.project?.snapshot) {
+  const pending = state.roomUi.pendingPlacementAdd;
+  if (!pending) return null;
+  return currentAssetLibrary(snapshot).assets.find((asset) => asset.assetId === pending.assetId
+    && asset.assetVersion === pending.assetVersion && asset.metadataVersion === pending.metadataVersion) ?? null;
+}
+
 function armRoomPaletteAsset(asset) {
   state.roomUi.selectedPaletteAssetId = asset.assetId;
   state.roomUi.selectedPaletteAssetPin = {
@@ -825,6 +832,23 @@ function markUsefulPreviewUnavailable(wrapper) {
   if (disposition?.value === 'ACCEPTED') {
     disposition.value = 'REJECTED';
     disposition.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  const roomPreviewKey = wrapper.closest('.room-placement-preview') ? wrapper.dataset.previewKey : null;
+  const selectedAsset = exactSelectedRoomPaletteAsset();
+  if (selectedAsset && roomPreviewKey === `room:${selectedAsset.assetId}`) {
+    const pendingRecovery = Boolean(state.roomUi.pendingPlacementAdd);
+    clearRoomPaletteAsset(); state.roomUi.placementHover = null; state.roomUi.placementRotation = 0;
+    elements['workspace-content'].querySelector('[data-room-board]')?.removeAttribute('data-asset-placement-editing');
+    const selectedPalette = elements['workspace-content'].querySelector(`[data-room-control="palette-asset"][data-palette-asset-id="${CSS.escape(selectedAsset.assetId)}"]`);
+    if (selectedPalette) selectedPalette.dataset.selected = 'false';
+    const active = wrapper.closest('.room-placement-preview')?.querySelector('.room-placement-active');
+    if (active) active.textContent = pendingRecovery
+      ? 'Exact image failed to load; normal placement is disabled. Choose the original pending cell again to retry safely.'
+      : 'Exact image failed to load; placement is disabled until you reload and choose the asset again.';
+    updateRoomPlacementGhostDom();
+    showToast(pendingRecovery
+      ? 'Exact image failed to load. Normal placement was cancelled; choose the original cell again to resolve the pending placement safely.'
+      : 'Exact image failed to load. Placement was cancelled safely.');
   }
 }
 
@@ -2756,10 +2780,10 @@ function currentRoomPlacementGhost() {
   if (pending) {
     const asset = currentAssetLibrary().assets.find((candidate) => candidate.assetId === pending.assetId
       && candidate.assetVersion === pending.assetVersion && candidate.metadataVersion === pending.metadataVersion) ?? null;
-    return roomPlacementGhostModel({
+    return { ...roomPlacementGhostModel({
       variant, snapshot: state.project.snapshot, asset, anchor: pending.anchor,
       rotation: pending.rotation, layer: pending.layer,
-    });
+    }), pendingRecovery: true };
   }
   const gesture = state.roomUi.placementGesture;
   if (gesture) {
@@ -2785,6 +2809,7 @@ function currentRoomPlacementGhost() {
 function renderRoomPlacementGhost(model) {
   const ghost = document.createElement('div'); ghost.className = 'room-placement-ghost';
   ghost.dataset.allowed = String(model.allowed); ghost.setAttribute('aria-hidden', 'true');
+  if (model.pendingRecovery) ghost.dataset.pendingRecovery = 'true';
   ghost.style.left = `calc(${model.anchor.x} * var(--room-cell))`; ghost.style.top = `calc(${model.anchor.y} * var(--room-cell))`;
   ghost.style.width = `calc(${model.footprint.width} * var(--room-cell))`; ghost.style.height = `calc(${model.footprint.height} * var(--room-cell))`;
   const cue = document.createElement('strong'); cue.textContent = model.allowed ? '✓ placement ghost' : '× blocked placement ghost';
@@ -4961,10 +4986,12 @@ function applyRoomCanvasFit() {
   const computed = getComputedStyle(scroll);
   const horizontalPadding = parseFloat(computed.paddingLeft) + parseFloat(computed.paddingRight);
   const verticalPadding = parseFloat(computed.paddingTop) + parseFloat(computed.paddingBottom);
+  const verticalBorder = parseFloat(computed.borderTopWidth) + parseFloat(computed.borderBottomWidth);
   const availableWidth = Math.max(1, scroll.clientWidth - horizontalPadding);
   const declaredMaxHeight = parseFloat(computed.maxHeight);
-  const heightBudget = Number.isFinite(declaredMaxHeight) ? declaredMaxHeight : window.innerHeight * .68;
-  const availableHeight = Math.max(1, heightBudget - verticalPadding);
+  const availableHeight = Math.max(1, Number.isFinite(declaredMaxHeight)
+    ? declaredMaxHeight - (computed.boxSizing === 'border-box' ? verticalBorder + verticalPadding : 0)
+    : window.innerHeight * .68);
   const cell = Math.max(2, Math.min(380, Math.floor(Math.min(availableWidth / width, availableHeight / height))));
   board.style.setProperty('--room-cell', `${cell}px`);
   const output = elements['workspace-content'].querySelector('[data-room-zoom-value]');
@@ -6311,8 +6338,8 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const action = control.dataset.roomControl;
   if (['palette-search', 'layer', 'room-select', 'proposal-select', 'proposal-disposition', 'proposal-reason'].includes(action)) return;
   if (state.roomUi.pendingPlacementAdd
-      && ['editor-tool', 'palette-asset', 'close-preview-asset'].includes(action)) {
-    showToast('A placement is not yet confirmed. Choose its original cell again before changing placement tools or assets.'); return;
+      && ['editor-tool', 'palette-asset', 'close-preview-asset', 'placement-select', 'connector-select'].includes(action)) {
+    showToast('A placement is not yet confirmed. Choose its original cell again before changing placement tools, assets, or selections.'); return;
   }
   const { variant } = currentRoomVariant();
   if (action === 'show-findings') {
@@ -6344,7 +6371,8 @@ elements['workspace-content'].addEventListener('click', async (event) => {
       renderWorkspace({ preserveRoomDraft: true }); return;
     }
     armRoomPaletteAsset(asset); state.roomUi.previewAssetId = asset.assetId;
-    state.roomUi.placementRotation = state.assetUi.previewRotations[`room:${asset.assetId}`] ?? 0;
+    const previewRotation = state.assetUi.previewRotations[`room:${asset.assetId}`] ?? 0;
+    state.roomUi.placementRotation = asset.metadata?.rotationPolicy === 'cardinal' ? previewRotation : 0;
     state.roomUi.selectedPlacementId = null; state.roomUi.selectedConnectorId = null; renderWorkspace({ preserveRoomDraft: true }); return;
   }
   if (action === 'close-preview-asset') {
@@ -6419,8 +6447,9 @@ elements['workspace-content'].addEventListener('click', async (event) => {
       const placement = variant.placements.find(({ placementId }) => placementId === state.roomUi.selectedPlacementId); if (!placement) return;
       await moveRoomPlacement(placement, anchor, placement.rotation); return;
     }
-    const asset = exactSelectedRoomPaletteAsset(); if (!asset) return;
-    await addRoomPlacement(asset, anchor, state.roomUi.placementRotation);
+    const pending = state.roomUi.pendingPlacementAdd;
+    const asset = exactSelectedRoomPaletteAsset() ?? exactPendingRoomPlacementAsset(); if (!asset) return;
+    await addRoomPlacement(asset, anchor, pending?.rotation ?? state.roomUi.placementRotation);
     return;
   }
   if (['move-placement', 'rotate-placement'].includes(action)) {
@@ -7147,6 +7176,7 @@ if (visualFixture) {
         gestureRotation: state.roomUi.placementGesture?.rotation ?? null,
         pendingPlacementAdd: state.roomUi.pendingPlacementAdd ? structuredClone(state.roomUi.pendingPlacementAdd) : null,
         selectedPlacementId: state.roomUi.selectedPlacementId,
+        selectedConnectorId: state.roomUi.selectedConnectorId,
         selectedPaletteAssetId: state.roomUi.selectedPaletteAssetId,
         selectedPaletteAssetPin: state.roomUi.selectedPaletteAssetPin ? structuredClone(state.roomUi.selectedPaletteAssetPin) : null,
         placementRotation: state.roomUi.placementRotation,
@@ -7160,7 +7190,7 @@ if (visualFixture) {
       if (!asset) return null;
       const results = [];
       const host = document.createElement('div'); host.className = 'room-placement';
-      host.style.cssText = 'position:fixed;left:0;top:0;border:0;padding:0;opacity:0;pointer-events:none;';
+      host.style.cssText = 'position:fixed;left:0;top:0;opacity:0;pointer-events:none;--room-cell:80px;';
       document.body.append(host);
       try {
         for (const rotation of [0, 90, 180, 270]) {
@@ -7178,17 +7208,43 @@ if (visualFixture) {
           }
           await new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
           const hostRect = host.getBoundingClientRect(); const visualRect = visual.getBoundingClientRect();
+          const clip = { left: hostRect.left + host.clientLeft, top: hostRect.top + host.clientTop };
+          clip.right = clip.left + host.clientWidth; clip.bottom = clip.top + host.clientHeight;
           results.push({
             rotation,
             transform: getComputedStyle(visual).transform,
-            contained: visualRect.left >= hostRect.left - 1 && visualRect.top >= hostRect.top - 1
-              && visualRect.right <= hostRect.right + 1 && visualRect.bottom <= hostRect.bottom + 1,
+            contained: visualRect.left >= clip.left - .5 && visualRect.top >= clip.top - .5
+              && visualRect.right <= clip.right + .5 && visualRect.bottom <= clip.bottom + .5,
             host: { width: hostRect.width, height: hostRect.height },
             visual: { width: visualRect.width, height: visualRect.height },
+            clip: { width: host.clientWidth, height: host.clientHeight },
           });
         }
       } finally { host.remove(); }
       return results;
+    },
+    exerciseRoomPlacementPreviewFailure() {
+      const asset = exactSelectedRoomPaletteAsset();
+      if (!asset) return null;
+      state.roomUi.placementHover = { x: 0, y: 0 }; updateRoomPlacementGhostDom();
+      const wrapper = document.createElement('section'); wrapper.className = 'room-placement-preview';
+      wrapper.dataset.previewKey = `room:${asset.assetId}`; elements['workspace-content'].append(wrapper);
+      const armedBefore = exactSelectedRoomPaletteAsset() === asset;
+      const ghostBefore = Boolean(elements['workspace-content'].querySelector('.room-placement-ghost'));
+      markUsefulPreviewUnavailable(wrapper); wrapper.remove();
+      const recoveryGhost = elements['workspace-content'].querySelector('.room-placement-ghost');
+      return {
+        armedBefore,
+        ghostBefore,
+        ghostAfter: Boolean(recoveryGhost),
+        pendingRecoveryGhost: recoveryGhost?.dataset.pendingRecovery === 'true',
+        pendingPlacementAdd: state.roomUi.pendingPlacementAdd ? structuredClone(state.roomUi.pendingPlacementAdd) : null,
+        selectedPaletteAssetId: state.roomUi.selectedPaletteAssetId,
+        selectedPaletteAssetPin: state.roomUi.selectedPaletteAssetPin,
+        placementRotation: state.roomUi.placementRotation,
+        boardPlacementEditing: Boolean(elements['workspace-content'].querySelector('[data-room-board][data-asset-placement-editing]')),
+        message: elements.toast.textContent,
+      };
     },
     exerciseRoomPlacementAddRecovery() {
       const { variant } = currentRoomVariant();

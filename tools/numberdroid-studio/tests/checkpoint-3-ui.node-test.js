@@ -135,6 +135,7 @@ test('Checkpoint 3 canvas supports bounded manual zoom and non-mutating middle-b
   assert.match(app, /Math\.round\(38 \* state\.roomUi\.zoomPercent \/ 100\)/);
   assert.match(app, /availableWidth \/ width, availableHeight \/ height/);
   assert.match(app, /const declaredMaxHeight = parseFloat\(computed\.maxHeight\)/);
+  assert.match(app, /computed\.boxSizing === 'border-box' \? verticalBorder \+ verticalPadding : 0/);
   assert.match(app, /Math\.min\(380, Math\.floor/);
   assert.doesNotMatch(app, /Math\.min\(scroll\.clientHeight, window\.innerHeight \* \.68\)/);
   assert.match(app, /requestAnimationFrame\(applyRoomCanvasFit\)/);
@@ -252,8 +253,15 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(styles, /\.room-placement > \.room-placement-visual \{[^}]*rotate\(var\(--room-placement-visual-rotation\)\)/);
   assert.match(styles, /\.prop-preview-stage \{[^}]*min-height: 0/);
   assert.match(evidence, /persistentBrush/);
+  assert.match(evidence, /surfaceResize/);
+  assert.match(evidence, /layer === 'STRUCTURAL_SURFACE'/);
+  assert.match(evidence, /attempted\?\.join\(','\) === 'placement-select,connector-select'/);
+  assert.match(evidence, /previewFailure\.placementRotation === 0/);
   assert.match(evidence, /dirtyGuard\.state\?\.pendingPlacementAdd === null/);
   assert.match(evidence, /placementVisualRotations\.every/);
+  assert.match(evidence, /new Set\(checkpoint45DirectManipulation\.placementVisualRotations/);
   assert.match(evidence, /clearTool\?\.activeTool === 'CLEAR'/);
   assert.match(evidence, /pan\.fit\?\.cell === checkpoint45DirectManipulation\.pan\.fit\?\.expected/);
+  assert.match(evidence, /pan\.fit\.boardContained === true/);
+  assert.match(evidence, /placementPreview\.stageAspect - 1\.5/);
 });
