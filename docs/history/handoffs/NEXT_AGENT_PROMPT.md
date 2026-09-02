@@ -20,22 +20,25 @@ autorisierten Quell-Slice.
 
 Lies anschließend vollständig als aktuellen Task-Snapshot:
 
-`docs/history/handoffs/HANDOFF_2026-09-01_NUMBERDROID_STUDIO_ROOM_EDITOR_A4C_SOURCE_COMPLETE.md`
+`docs/history/handoffs/HANDOFF_2026-09-02_NUMBERDROID_STUDIO_ROOM_EDITOR_REPAIR_COMPLETE.md`
 
 Lies alle darin verlangten Dokumente vollständig und halte Autoritätsgrenzen,
 Quellpfade, Akzeptanzzustände, Definition of Done und Testanweisungen exakt ein.
 
-Der Room-Editor-L3-Quellstand und die getrennten A4c-Slices für den unveränderlichen
-Level Candidate sowie das strikt abgeschwächte Derived Child sind integriert und
-automatisiert, im Browser und auf Windows grün. Das ist keine Produktakzeptanz.
-VT-001 bleibt `REVISE`; insbesondere PR #191 und #192 bleiben implementiert,
-aber bis Klaus' späterer Live-Verifikation nicht akzeptiert. A4c bleibt als
-VT-014 `NEEDS KLAUS REVIEW`.
+Der Room-Editor-L3-Quellstand einschließlich der Reparaturen aus PR #201 ist
+integriert und automatisiert, im Browser und auf Windows grün. VT-001 bleibt
+dennoch `REVISE`; insbesondere PR #191 und #192 und die späteren Room-Slices
+bleiben bis Klaus' Live-Retest produktseitig nicht akzeptiert. Die getrennten
+A4c-Slices für den unveränderlichen Level Candidate und das strikt abgeschwächte
+Derived Child sind als VT-014 ausdrücklich seit 2026-09-02 user-accepted. Diese
+Akzeptanz gilt nicht für A3a/A4a/A4b und erteilt keine A5-Autorität.
 
-Bereite nur auf konkrete Anforderung den sicheren VT-001- und/oder VT-014-Gate
-mit den exakt im Vacation-Test-Backlog beschriebenen frischen Fixtures vor.
-Akzeptanz darf niemals aus CI, Screenshots, Compiler-Ausgabe, Reviews oder
-Source-Integration abgeleitet werden.
+Bereite nur auf konkrete Anforderung den sicheren VT-001-Retest mit den exakt im
+Vacation-Test-Backlog beschriebenen frischen Fixtures vor. Prüfe zuerst Fit,
+Resize, direkte Palette-Auswahl, wiederholte Platzierung, sicheren Pending-Retry,
+Clear und sichtbare Rotation; setze danach die zuvor ungetesteten späteren
+Schritte fort. Akzeptanz darf niemals aus CI, Screenshots, Compiler-Ausgabe,
+Reviews oder Source-Integration abgeleitet werden.
 
 Beginne ohne neue ausdrückliche Scope-Entscheidung keine A5-/A6-, 2.5D-,
 Remote-Backup-/MCP-/Pairing-/HostBinding-/Funnel-, O3-/O4-, Auto-Accept-,
