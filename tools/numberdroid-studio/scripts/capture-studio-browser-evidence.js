@@ -1800,6 +1800,42 @@ try {
       const invalidScreenshot = await devtools.send('Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId, 30_000);
       const invalidGhostPath = outputPath.replace(/\.png$/i, '-direct-invalid-ghost.png');
       await writeFile(invalidGhostPath, Buffer.from(invalidScreenshot.data, 'base64'));
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.validPoint.x,
+        y: directPoints.result.value.validPoint.y }, sessionId);
+      await delay(50);
+      const scrollbarProbeBefore = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const scroll = document.querySelector('.room-canvas-scroll');
+          const board = document.querySelector('[data-room-board]');
+          const computed = getComputedStyle(scroll);
+          const borderHeight = parseFloat(computed.borderTopWidth) + parseFloat(computed.borderBottomWidth);
+          window.__roomDirectManipulationEvidence.scrollbarProbeStyle = {
+            height: scroll.style.height, maxHeight: scroll.style.maxHeight,
+          };
+          scroll.style.maxHeight = 'none';
+          scroll.style.height = (scroll.scrollHeight + borderHeight) + 'px';
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          return { gutter: getComputedStyle(scroll).scrollbarGutter, clientWidth: scroll.clientWidth,
+            boardLeft: board.getBoundingClientRect().left, overflowY: scroll.scrollHeight > scroll.clientHeight };
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.invalidPoint.x,
+        y: directPoints.result.value.invalidPoint.y }, sessionId);
+      await delay(50);
+      const scrollbarProbeAfter = await devtools.send('Runtime.evaluate', {
+        expression: `(async () => {
+          const scroll = document.querySelector('.room-canvas-scroll');
+          const board = document.querySelector('[data-room-board]');
+          const measurement = { gutter: getComputedStyle(scroll).scrollbarGutter, clientWidth: scroll.clientWidth,
+            boardLeft: board.getBoundingClientRect().left, overflowY: scroll.scrollHeight > scroll.clientHeight };
+          const original = window.__roomDirectManipulationEvidence.scrollbarProbeStyle;
+          scroll.style.height = original.height; scroll.style.maxHeight = original.maxHeight;
+          delete window.__roomDirectManipulationEvidence.scrollbarProbeStyle;
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+          return measurement;
+        })()`, awaitPromise: true, returnByValue: true,
+      }, sessionId, 20_000);
+      const scrollbarStability = { before: scrollbarProbeBefore.result.value, after: scrollbarProbeAfter.result.value };
       await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.outsidePoint.x,
         y: directPoints.result.value.outsidePoint.y }, sessionId);
       await delay(50);
@@ -2128,6 +2164,7 @@ try {
           return { requests, ghostCleared: !document.querySelector('.room-placement-ghost'), clearTool: ${JSON.stringify(clearPoint.result.value)},
             selectedPlacementId: document.querySelector('.room-placement[data-selected="true"]')?.dataset.placementId ?? null,
             panStart: { left: scroll.scrollLeft, top: scroll.scrollTop },
+            scrollRange: { x: scroll.scrollWidth - scroll.clientWidth, y: scroll.scrollHeight - scroll.clientHeight },
             panPoint, panTargetInside: document.elementFromPoint(panPoint.x, panPoint.y)?.closest('.room-canvas-scroll') === scroll };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
@@ -2167,6 +2204,7 @@ try {
       checkpoint45DirectManipulation = {
         setup: directSetup.result.value,
         validGhost: validGhost.result.value, invalidGhost: invalidGhost.result.value,
+        scrollbarStability,
         firstUnknownAdd: firstUnknownAdd.result.value, pendingContextGuard: pendingContextGuard.result.value,
         exactAddRetry: exactAddRetry.result.value,
         pointerExit: pointerExit.result.value, pointerReentry: pointerReentry.result.value,
@@ -2216,6 +2254,14 @@ try {
         && checkpoint45DirectManipulation.invalidGhost?.allowed === 'false'
         && checkpoint45DirectManipulation.invalidGhost.cue?.includes('blocked')
         && checkpoint45DirectManipulation.invalidGhost.reason?.includes('exceeds the room bounds')
+        && checkpoint45DirectManipulation.scrollbarStability?.before?.gutter === 'stable'
+        && checkpoint45DirectManipulation.scrollbarStability.before.overflowY === false
+        && checkpoint45DirectManipulation.scrollbarStability.after.gutter === 'stable'
+        && checkpoint45DirectManipulation.scrollbarStability.after.overflowY === true
+        && checkpoint45DirectManipulation.scrollbarStability.after.clientWidth
+          === checkpoint45DirectManipulation.scrollbarStability.before.clientWidth
+        && Math.abs(checkpoint45DirectManipulation.scrollbarStability.after.boardLeft
+          - checkpoint45DirectManipulation.scrollbarStability.before.boardLeft) <= .5
         && checkpoint45DirectManipulation.pointerExit?.ghostPresent === false
         && checkpoint45DirectManipulation.pointerExit.state?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
         && checkpoint45DirectManipulation.pointerExit.state.selectedPaletteAssetPin?.assetVersion === 1
@@ -2329,6 +2375,8 @@ try {
         && checkpoint45DirectManipulation.afterDrag.clearTool?.activeTool === 'CLEAR'
         && checkpoint45DirectManipulation.afterDrag.ghostCleared === true
         && checkpoint45DirectManipulation.afterDrag.panTargetInside === true
+        && checkpoint45DirectManipulation.afterDrag.scrollRange.x > 0
+        && checkpoint45DirectManipulation.afterDrag.scrollRange.y > 0
         && checkpoint45DirectManipulation.pan?.semanticRequestCount === 4
         && checkpoint45DirectManipulation.pan.panning === null
         && checkpoint45DirectManipulation.pan.fit?.cell === checkpoint45DirectManipulation.pan.fit?.expected

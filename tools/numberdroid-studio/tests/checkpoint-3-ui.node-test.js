@@ -253,6 +253,7 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(app, /--room-placement-visual-rotation/);
   assert.match(styles, /\.room-placement > \.room-placement-visual \{[^}]*rotate\(var\(--room-placement-visual-rotation\)\)/);
   assert.match(styles, /\.prop-preview-stage \{[^}]*min-height: 0/);
+  assert.match(styles, /\.room-canvas-scroll \{[^}]*overflow: auto;[^}]*scrollbar-gutter: stable/);
   assert.match(evidence, /persistentBrush/);
   assert.match(evidence, /surfaceResize/);
   assert.match(evidence, /layer === 'STRUCTURAL_SURFACE'/);
@@ -264,5 +265,7 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(evidence, /clearTool\?\.activeTool === 'CLEAR'/);
   assert.match(evidence, /pan\.fit\?\.cell === checkpoint45DirectManipulation\.pan\.fit\?\.expected/);
   assert.match(evidence, /pan\.fit\.boardContained === true/);
+  assert.match(evidence, /scrollbarStability\.after\.overflowY === true/);
+  assert.match(evidence, /afterDrag\.scrollRange\.x > 0/);
   assert.match(evidence, /placementPreview\.stageAspect - 1\.5/);
 });

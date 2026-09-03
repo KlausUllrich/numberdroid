@@ -398,7 +398,7 @@ h2, h3 { margin: 0; }
 .room-zoom output { min-width: 42px; color: var(--cyan); font: 9px ui-monospace, monospace; text-align: right; }
 .room-layer-controls label { display: flex; align-items: center; gap: 3px; color: var(--muted); font-size: 8px; }
 .room-layer-controls input { width: auto; }
-.room-canvas-scroll { max-width: 100%; max-height: 68vh; padding: 18px; overflow: auto; overscroll-behavior: contain; border: 1px solid #27453c; border-radius: 8px; background-color: #07110e; background-image: radial-gradient(#315046 1px, transparent 1px); background-size: 10px 10px; cursor: default; }
+.room-canvas-scroll { max-width: 100%; max-height: 68vh; padding: 18px; overflow: auto; scrollbar-gutter: stable; overscroll-behavior: contain; border: 1px solid #27453c; border-radius: 8px; background-color: #07110e; background-image: radial-gradient(#315046 1px, transparent 1px); background-size: 10px 10px; cursor: default; }
 .room-canvas-scroll[data-panning="true"] { cursor: grabbing; user-select: none; }
 .room-board { position: relative; width: calc(var(--room-width) * var(--room-cell)); height: calc(var(--room-height) * var(--room-cell)); margin: auto; box-shadow: 0 0 0 3px #6b9b8c; }
 .room-cell-grid { display: grid; grid-template-columns: repeat(var(--room-width), var(--room-cell)); grid-template-rows: repeat(var(--room-height), var(--room-cell)); }
