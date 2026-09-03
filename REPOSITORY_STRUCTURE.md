@@ -15,6 +15,8 @@ This file defines where project information belongs and which directories are au
 ├─ index.html / vite / tsconfig # application tooling
 ├─ zahlenkern-prototyp-meta-v7.html  # frozen prototype reference
 ├─ .github/                     # CI / GitHub automation
+├─ .codex/                      # trusted repository-local Codex config and hooks
+├─ .agent-context/              # ignored per-session agent continuity state
 ├─ src/                         # production application + compiler code
 ├─ public/                      # runtime/deploy assets only
 ├─ scripts/                     # deterministic build, art and validation tooling
@@ -128,6 +130,8 @@ Rules:
 - asset-specific topology/settings remain with `art-source/recipes/`;
 - model calls/prompts belong to methods/skills or recipes, not low-level toolkit modules;
 - repository binary transport must follow the guards under `scripts/repo/` + `docs/agents/BINARY_ASSET_TRANSPORT.md`.
+- repository-local Codex continuity helpers belong under `scripts/repo/`; their
+  per-session path manifests belong only in ignored `.agent-context/` state.
 
 ## `tools/` — extractable authoring applications
 
