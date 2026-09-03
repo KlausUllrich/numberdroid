@@ -1,0 +1,5 @@
+# Numberdroid uses GPT-5.6's extended context window. Keep enough headroom
+# above the automatic-compaction threshold for tool results and completions.
+model_context_window = 872000
+model_auto_compact_token_limit = 750000
+model_auto_compact_token_limit_scope = "body_after_prefix"
