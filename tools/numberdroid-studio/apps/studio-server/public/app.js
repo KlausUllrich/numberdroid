@@ -7192,6 +7192,7 @@ if (visualFixture) {
         selectedPaletteAssetId: state.roomUi.selectedPaletteAssetId,
         selectedPaletteAssetPin: state.roomUi.selectedPaletteAssetPin ? structuredClone(state.roomUi.selectedPaletteAssetPin) : null,
         placementRotation: state.roomUi.placementRotation,
+        placementHover: state.roomUi.placementHover ? { ...state.roomUi.placementHover } : null,
         projectRevision: state.project?.revision ?? null,
         roomVersion: currentRoomVariant().variant?.version ?? null,
         suppressCanvasClick: state.roomUi.suppressCanvasClick,
