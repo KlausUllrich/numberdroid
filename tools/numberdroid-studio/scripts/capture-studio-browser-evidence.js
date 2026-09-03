@@ -1768,7 +1768,10 @@ try {
           board.scrollIntoView({ block: 'center', inline: 'center' });
           const pointFor = (x, y) => { const cell = document.querySelector('.room-cell[data-x="' + x + '"][data-y="' + y + '"]');
             const rect = cell.getBoundingClientRect(); return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; };
-          return { validPoint: pointFor(1, 0), invalidPoint: pointFor(5, 2) };
+          const boardRect = board.getBoundingClientRect();
+          const outsideX = boardRect.left > 12 ? boardRect.left - 8 : boardRect.right + 8;
+          return { validPoint: pointFor(1, 0), invalidPoint: pointFor(5, 2),
+            outsidePoint: { x: outsideX, y: boardRect.top + boardRect.height / 2 } };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
       await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.validPoint.x, y: directPoints.result.value.validPoint.y }, sessionId);
@@ -1797,6 +1800,24 @@ try {
       const invalidScreenshot = await devtools.send('Page.captureScreenshot', { format: 'png', fromSurface: true }, sessionId, 30_000);
       const invalidGhostPath = outputPath.replace(/\.png$/i, '-direct-invalid-ghost.png');
       await writeFile(invalidGhostPath, Buffer.from(invalidScreenshot.data, 'base64'));
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.outsidePoint.x,
+        y: directPoints.result.value.outsidePoint.y }, sessionId);
+      await delay(50);
+      const pointerExit = await devtools.send('Runtime.evaluate', {
+        expression: `(() => ({ ghostPresent: Boolean(document.querySelector('.room-placement-ghost')),
+          state: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
+          placedCount: document.querySelectorAll('.room-placement').length,
+          requestCount: window.__roomDirectManipulationEvidence.requests.length }))()`, returnByValue: true,
+      }, sessionId);
+      await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: directPoints.result.value.validPoint.x,
+        y: directPoints.result.value.validPoint.y }, sessionId);
+      await delay(50);
+      const pointerReentry = await devtools.send('Runtime.evaluate', {
+        expression: `(() => ({ ghostPresent: Boolean(document.querySelector('.room-placement-ghost')),
+          state: window.__numberdroidStudioVisualTest.roomDirectManipulationState(),
+          placedCount: document.querySelectorAll('.room-placement').length,
+          requestCount: window.__roomDirectManipulationEvidence.requests.length }))()`, returnByValue: true,
+      }, sessionId);
       const addRetryStart = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           window.__roomDirectManipulationEvidence.rejectNextAdd = true;
@@ -2148,6 +2169,7 @@ try {
         validGhost: validGhost.result.value, invalidGhost: invalidGhost.result.value,
         firstUnknownAdd: firstUnknownAdd.result.value, pendingContextGuard: pendingContextGuard.result.value,
         exactAddRetry: exactAddRetry.result.value,
+        pointerExit: pointerExit.result.value, pointerReentry: pointerReentry.result.value,
         persistentBrush: persistentBrush.result.value,
         authoritativeAddRecovery: authoritativeAddRecovery.result.value,
         placementVisualRotations: placementVisualRotations.result.value,
@@ -2194,6 +2216,19 @@ try {
         && checkpoint45DirectManipulation.invalidGhost?.allowed === 'false'
         && checkpoint45DirectManipulation.invalidGhost.cue?.includes('blocked')
         && checkpoint45DirectManipulation.invalidGhost.reason?.includes('exceeds the room bounds')
+        && checkpoint45DirectManipulation.pointerExit?.ghostPresent === false
+        && checkpoint45DirectManipulation.pointerExit.state?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
+        && checkpoint45DirectManipulation.pointerExit.state.selectedPaletteAssetPin?.assetVersion === 1
+        && checkpoint45DirectManipulation.pointerExit.state.placementRotation === 90
+        && checkpoint45DirectManipulation.pointerExit.state.placementHover === null
+        && checkpoint45DirectManipulation.pointerExit.state.pendingPlacementAdd === null
+        && checkpoint45DirectManipulation.pointerExit.state.gestureActive === false
+        && checkpoint45DirectManipulation.pointerExit.requestCount === checkpoint45DirectManipulation.invalidGhost.requestCount
+        && checkpoint45DirectManipulation.pointerReentry?.ghostPresent === true
+        && checkpoint45DirectManipulation.pointerReentry.state?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
+        && checkpoint45DirectManipulation.pointerReentry.state.placementRotation === 90
+        && checkpoint45DirectManipulation.pointerReentry.requestCount === checkpoint45DirectManipulation.pointerExit.requestCount
+        && checkpoint45DirectManipulation.pointerReentry.placedCount === checkpoint45DirectManipulation.pointerExit.placedCount
         && checkpoint45DirectManipulation.firstUnknownAdd?.state?.pendingPlacementAdd
         && checkpoint45DirectManipulation.firstUnknownAdd.hint?.includes('not yet confirmed')
         && checkpoint45DirectManipulation.pendingContextGuard?.attempted?.join(',') === 'placement-select,connector-select'

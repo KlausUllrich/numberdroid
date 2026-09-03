@@ -5775,6 +5775,15 @@ elements['workspace-content'].addEventListener('pointermove', (event) => {
   state.roomUi.placementHover = anchor; updateRoomPlacementGhostDom();
 });
 
+elements['workspace-content'].addEventListener('pointerout', (event) => {
+  if (state.workspace !== 'rooms' || !state.roomUi.selectedPaletteAssetId
+      || state.roomUi.placementGesture || state.roomUi.pendingPlacementAdd) return;
+  const board = event.target.closest?.('[data-room-board]');
+  if (!board || (event.relatedTarget instanceof Node && board.contains(event.relatedTarget))) return;
+  state.roomUi.placementHover = null;
+  updateRoomPlacementGhostDom();
+});
+
 elements['workspace-content'].addEventListener('focusin', (event) => {
   if (state.workspace !== 'rooms' || !state.roomUi.selectedPaletteAssetId
       || state.roomUi.placementGesture || state.roomUi.pendingPlacementAdd) return;

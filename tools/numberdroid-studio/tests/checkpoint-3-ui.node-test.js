@@ -246,6 +246,7 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(app, /asset\.assetVersion === pin\.assetVersion && asset\.metadataVersion === pin\.metadataVersion/);
   assert.match(app, /state\.roomUi\.activeTool === 'SELECT' && state\.roomUi\.selectedPlacementId/);
   assert.match(app, /activeTool === 'CLEAR'.*await removeRoomPlacement\(placement\)/s);
+  assert.match(app, /addEventListener\('pointerout'.*selectedPaletteAssetId.*placementGesture.*pendingPlacementAdd.*relatedTarget instanceof Node.*board\.contains\(event\.relatedTarget\).*placementHover = null.*updateRoomPlacementGhostDom\(\)/s);
   assert.match(app, /Room size and intent/);
   assert.match(app, /Save or discard the room-shape changes before resizing/);
   assert.match(app, /function roomPlacementVisual/);
