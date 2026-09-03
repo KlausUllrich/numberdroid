@@ -246,12 +246,14 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(app, /asset\.assetVersion === pin\.assetVersion && asset\.metadataVersion === pin\.metadataVersion/);
   assert.match(app, /state\.roomUi\.activeTool === 'SELECT' && state\.roomUi\.selectedPlacementId/);
   assert.match(app, /activeTool === 'CLEAR'.*await removeRoomPlacement\(placement\)/s);
+  assert.match(app, /addEventListener\('pointerout'.*selectedPaletteAssetId.*placementGesture.*pendingPlacementAdd.*relatedTarget instanceof Node.*board\.contains\(event\.relatedTarget\).*placementHover = null.*updateRoomPlacementGhostDom\(\)/s);
   assert.match(app, /Room size and intent/);
   assert.match(app, /Save or discard the room-shape changes before resizing/);
   assert.match(app, /function roomPlacementVisual/);
   assert.match(app, /--room-placement-visual-rotation/);
   assert.match(styles, /\.room-placement > \.room-placement-visual \{[^}]*rotate\(var\(--room-placement-visual-rotation\)\)/);
   assert.match(styles, /\.prop-preview-stage \{[^}]*min-height: 0/);
+  assert.match(styles, /\.room-canvas-scroll \{[^}]*overflow: auto;[^}]*scrollbar-gutter: stable/);
   assert.match(evidence, /persistentBrush/);
   assert.match(evidence, /surfaceResize/);
   assert.match(evidence, /layer === 'STRUCTURAL_SURFACE'/);
@@ -263,5 +265,7 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(evidence, /clearTool\?\.activeTool === 'CLEAR'/);
   assert.match(evidence, /pan\.fit\?\.cell === checkpoint45DirectManipulation\.pan\.fit\?\.expected/);
   assert.match(evidence, /pan\.fit\.boardContained === true/);
+  assert.match(evidence, /scrollbarStability\.after\.overflowY === true/);
+  assert.match(evidence, /afterDrag\.scrollRange\.x > 0/);
   assert.match(evidence, /placementPreview\.stageAspect - 1\.5/);
 });

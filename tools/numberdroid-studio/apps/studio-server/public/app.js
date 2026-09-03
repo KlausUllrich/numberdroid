@@ -5775,6 +5775,15 @@ elements['workspace-content'].addEventListener('pointermove', (event) => {
   state.roomUi.placementHover = anchor; updateRoomPlacementGhostDom();
 });
 
+elements['workspace-content'].addEventListener('pointerout', (event) => {
+  if (state.workspace !== 'rooms' || !state.roomUi.selectedPaletteAssetId
+      || state.roomUi.placementGesture || state.roomUi.pendingPlacementAdd) return;
+  const board = event.target.closest?.('[data-room-board]');
+  if (!board || (event.relatedTarget instanceof Node && board.contains(event.relatedTarget))) return;
+  state.roomUi.placementHover = null;
+  updateRoomPlacementGhostDom();
+});
+
 elements['workspace-content'].addEventListener('focusin', (event) => {
   if (state.workspace !== 'rooms' || !state.roomUi.selectedPaletteAssetId
       || state.roomUi.placementGesture || state.roomUi.pendingPlacementAdd) return;
@@ -7183,6 +7192,7 @@ if (visualFixture) {
         selectedPaletteAssetId: state.roomUi.selectedPaletteAssetId,
         selectedPaletteAssetPin: state.roomUi.selectedPaletteAssetPin ? structuredClone(state.roomUi.selectedPaletteAssetPin) : null,
         placementRotation: state.roomUi.placementRotation,
+        placementHover: state.roomUi.placementHover ? { ...state.roomUi.placementHover } : null,
         projectRevision: state.project?.revision ?? null,
         roomVersion: currentRoomVariant().variant?.version ?? null,
         suppressCanvasClick: state.roomUi.suppressCanvasClick,
