@@ -1,0 +1,19 @@
+{
+  "description": "Reload the task-selected Numberdroid documentation after Codex compaction.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^compact$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/scripts/repo/codex-context-retention.mjs\" reload",
+            "timeout": 10,
+            "statusMessage": "Restoring task-selected Numberdroid documentation",
+            "additionalContextLimit": 0
+          }
+        ]
+      }
+    ]
+  }
+}
