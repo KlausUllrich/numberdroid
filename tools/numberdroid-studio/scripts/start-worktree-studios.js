@@ -5,7 +5,7 @@ import { createWriteStream } from 'node:fs';
 import { access, lstat, mkdir, mkdtemp, readFile, readlink } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -191,10 +191,15 @@ export function safeLabel(value) {
   return normalized.slice(0, 72) || 'worktree';
 }
 
-export function parseMainRef(value) {
-  const match = /^([0-9a-f]{40})\s+refs\/heads\/main$/m.exec(String(value).trim());
-  if (!match) fail('Git did not return an exact main branch SHA.');
-  return match[1];
+export function parseRemoteHeads(value, { prefix = 'refs/heads/' } = {}) {
+  const heads = new Map();
+  for (const line of String(value).trim().split(/\r?\n/).filter(Boolean)) {
+    const match = /^([0-9a-f]{40})\s+(.+)$/.exec(line);
+    if (!match || !match[2].startsWith(prefix)) continue;
+    const branch = match[2].slice(prefix.length);
+    if (branch && branch !== 'HEAD') heads.set(branch, match[1]);
+  }
+  return heads;
 }
 
 export function describeMainRelationship({ ahead = null, behind = null, head, headTree = null, mainSha, mainTree = null }) {
@@ -213,6 +218,23 @@ export function describeMainRelationship({ ahead = null, behind = null, head, he
     return { kind: 'behind', label: `${behind} commit${behind === 1 ? '' : 's'} behind latest main` };
   }
   return { kind: 'diverged', label: `diverged from latest main (${ahead} ahead, ${behind} behind)` };
+}
+
+export function describeRemoteBranch({ ahead = null, behind = null, branch, head, remoteSha }) {
+  const suffix = (sha) => `…${sha.slice(-5)}`;
+  if (!branch) return { kind: 'detached', label: 'detached snapshot; no branch to pull' };
+  if (!COMMIT_SHA.test(remoteSha ?? '')) return { kind: 'local-only', label: 'no matching GitHub branch' };
+  if (head === remoteSha) return { kind: 'synced', label: `up to date at ${suffix(head)}` };
+  if (ahead === null || behind === null) {
+    return { kind: 'remote-not-local', label: `GitHub commit ${suffix(remoteSha)} is not pulled here` };
+  }
+  if (ahead === 0 && behind > 0) {
+    return { kind: 'remote-ahead', label: `${behind} unpulled commit${behind === 1 ? '' : 's'}; GitHub is ${suffix(remoteSha)}` };
+  }
+  if (behind === 0 && ahead > 0) {
+    return { kind: 'local-ahead', label: `${ahead} local commit${ahead === 1 ? '' : 's'} not on GitHub` };
+  }
+  return { kind: 'diverged', label: `local and GitHub differ (${ahead} local, ${behind} unpulled)` };
 }
 
 export function pathIsWithin(parent, candidate) {
@@ -242,13 +264,16 @@ function tryGit(repositoryRoot, arguments_, options = {}) {
 
 function latestMain(repositoryRoot, { offline = false } = {}) {
   if (offline) {
-    const cached = tryGit(repositoryRoot, ['rev-parse', '--verify', 'refs/remotes/origin/main']);
-    const sha = cached.status === 0 ? cached.stdout.trim() : null;
+    const cached = tryGit(repositoryRoot, [
+      'for-each-ref', '--format=%(objectname)%09%(refname:strip=3)', 'refs/remotes/origin',
+    ]);
+    const heads = cached.status === 0 ? parseRemoteHeads(cached.stdout, { prefix: '' }) : new Map();
+    const sha = heads.get('main') ?? null;
     return COMMIT_SHA.test(sha ?? '')
-      ? { available: true, live: false, sha, summary: `cached origin/main ${sha.slice(0, 12)} (not refreshed)` }
-      : { available: false, live: false, sha: null, summary: 'cached origin/main is unavailable' };
+      ? { available: true, heads, live: false, sha, summary: `cached GitHub branches; main is …${sha.slice(-5)}` }
+      : { available: false, heads, live: false, sha: null, summary: 'cached GitHub branches are unavailable' };
   }
-  const remote = tryGit(repositoryRoot, ['ls-remote', '--exit-code', 'origin', 'refs/heads/main'], {
+  const remote = tryGit(repositoryRoot, ['ls-remote', '--exit-code', '--heads', 'origin'], {
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
     timeout: 5_000,
   });
@@ -256,14 +281,33 @@ function latestMain(repositoryRoot, { offline = false } = {}) {
     const reason = remote.error?.code === 'ETIMEDOUT'
       ? 'check timed out'
       : `check failed (exit ${remote.status ?? 'unknown'})`;
-    return { available: false, live: true, sha: null, summary: `live origin/main ${reason}` };
+    return { available: false, heads: new Map(), live: true, sha: null, summary: `GitHub check ${reason}` };
   }
-  try {
-    const sha = parseMainRef(remote.stdout);
-    return { available: true, live: true, sha, summary: `live origin/main ${sha}` };
-  } catch {
-    return { available: false, live: true, sha: null, summary: 'live origin/main returned an unexpected response' };
+  const heads = parseRemoteHeads(remote.stdout);
+  const sha = heads.get('main') ?? null;
+  return COMMIT_SHA.test(sha ?? '')
+    ? { available: true, heads, live: true, sha, summary: `GitHub checked; main is …${sha.slice(-5)}` }
+    : { available: false, heads, live: true, sha: null, summary: 'GitHub returned no main branch' };
+}
+
+function compareWorktreeWithRemoteBranch(worktree, remote) {
+  const remoteSha = worktree.branch ? remote.heads.get(worktree.branch) ?? null : null;
+  if (!remote.available && remote.heads.size === 0) {
+    return { kind: 'unavailable', label: 'GitHub status unavailable' };
   }
+  if (!worktree.branch || !remoteSha || worktree.head === remoteSha) {
+    return describeRemoteBranch({ branch: worktree.branch, head: worktree.head, remoteSha });
+  }
+  const present = tryGit(worktree.path, ['cat-file', '-e', `${remoteSha}^{commit}`]);
+  if (present.status !== 0) {
+    return describeRemoteBranch({ branch: worktree.branch, head: worktree.head, remoteSha });
+  }
+  const counts = tryGit(worktree.path, ['rev-list', '--left-right', '--count', `${worktree.head}...${remoteSha}`]);
+  if (counts.status !== 0) {
+    return describeRemoteBranch({ branch: worktree.branch, head: worktree.head, remoteSha });
+  }
+  const [ahead, behind] = counts.stdout.trim().split(/\s+/).map(Number);
+  return describeRemoteBranch({ ahead, behind, branch: worktree.branch, head: worktree.head, remoteSha });
 }
 
 function compareWorktreeWithMain(worktree, main) {
@@ -365,42 +409,27 @@ function hasLocalChanges(worktree) {
 }
 
 function friendlyBranchName(worktree) {
-  if (worktree.mainRelationship.kind === 'latest'
-      && worktree.branch === 'main' && !hasLocalChanges(worktree)) {
-    return 'Latest version (recommended)';
-  }
-  if (!worktree.branch) {
-    return /qa/i.test(basename(worktree.path)) ? 'Older QA snapshot' : 'Detached test snapshot';
-  }
-  const normalized = worktree.branch.replace(/^(?:agent|chore|docs|feature|fix)\//, '')
-    .replace(/-local$/, '').replace(/[-_]+/g, ' ').trim();
-  const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
-  return worktree.current ? `Current folder — ${label}` : label;
+  const label = worktree.branch ?? `detached snapshot …${worktree.head.slice(-5)}`;
+  return worktree.current ? `${label} (current folder)` : label;
 }
 
 function friendlyStatus(worktree) {
-  const changes = hasLocalChanges(worktree) ? 'Has local changes' : 'Clean';
-  if (worktree.mainRelationship.kind === 'latest') {
-    return hasLocalChanges(worktree) ? 'Latest commit with local changes' : 'Up to date and clean';
+  let files = 'files clean';
+  if (worktree.dirty.error) files = 'local file status unavailable';
+  else if (hasLocalChanges(worktree)) {
+    const parts = [];
+    if (worktree.dirty.tracked > 0) parts.push(`${worktree.dirty.tracked} modified`);
+    if (worktree.dirty.untracked > 0) parts.push(`${worktree.dirty.untracked} new`);
+    files = `${parts.join(', ')} file${worktree.dirty.tracked + worktree.dirty.untracked === 1 ? '' : 's'}`;
   }
-  if (worktree.mainRelationship.kind === 'same-tree') return `Same committed version as latest; ${changes.toLowerCase()}`;
-  if (worktree.mainRelationship.kind === 'ahead') return `Development version based on latest; ${changes.toLowerCase()}`;
-  if (worktree.mainRelationship.kind === 'behind') return `Older version; ${changes.toLowerCase()}`;
-  if (worktree.mainRelationship.kind === 'diverged') return `Separate development version; ${changes.toLowerCase()}`;
-  if (worktree.mainRelationship.kind === 'fetch-needed') return `Needs a fetch for comparison; ${changes.toLowerCase()}`;
-  return `Latest-version check unavailable; ${changes.toLowerCase()}`;
+  return `commit …${worktree.head.slice(-5)} · ${files}`;
 }
 
 function worktreeRank(worktree) {
-  if (worktree.mainRelationship.kind === 'latest'
-      && worktree.branch === 'main' && !hasLocalChanges(worktree)) return 0;
-  if (worktree.mainRelationship.kind === 'latest' && !hasLocalChanges(worktree)) return 1;
-  if (worktree.current) return 2;
-  if (!hasLocalChanges(worktree)
-      && ['same-tree', 'ahead', 'diverged'].includes(worktree.mainRelationship.kind)) return 3;
-  if (['latest', 'same-tree', 'ahead', 'diverged'].includes(worktree.mainRelationship.kind)) return 4;
-  if (worktree.mainRelationship.kind === 'behind') return 5;
-  return 6;
+  if (worktree.current) return 0;
+  if (worktree.branch === 'main') return 1;
+  if (worktree.branch) return 2;
+  return 3;
 }
 
 export function orderFriendlyWorktrees(worktrees) {
@@ -411,12 +440,15 @@ export function orderFriendlyWorktrees(worktrees) {
     .map(({ worktree }) => worktree);
 }
 
-function printFriendlyWorktrees(worktrees, main, hiddenCount, output = process.stdout) {
-  output.write('\nWhich Numberdroid Studio version do you want to test?\n');
-  output.write(main.available ? 'GitHub check complete.\n\n' : 'GitHub check unavailable; local versions are still shown.\n\n');
+function printFriendlyWorktrees(worktrees, remote, hiddenCount, output = process.stdout) {
+  output.write('\nChoose worktree(s) to start\n');
+  if (remote.available && remote.live) output.write('GitHub status checked.\n\n');
+  else if (remote.available) output.write('Using cached GitHub status; it may be old.\n\n');
+  else output.write('GitHub status unavailable; local worktrees are still shown.\n\n');
   worktrees.forEach((worktree, index) => {
     output.write(`  ${index + 1}. ${friendlyBranchName(worktree)}\n`);
     output.write(`     ${friendlyStatus(worktree)}\n`);
+    output.write(`     GitHub: ${worktree.remoteBranch.label}\n`);
   });
   if (hiddenCount > 0) output.write(`\n${hiddenCount} unavailable worktree${hiddenCount === 1 ? '' : 's'} hidden. Type d for technical details.\n`);
 }
@@ -428,6 +460,7 @@ function printTechnicalWorktrees(worktrees, main, output = process.stdout) {
     const branch = worktree.branch ?? `detached@${worktree.head.slice(0, 12)}`;
     output.write(`  ${index + 1}. ${cleanDisplay(branch)}  ${worktree.head.slice(0, 12)}  [${availabilityText(worktree)}]\n`);
     output.write(`     ${cleanDisplay(worktree.path)}\n`);
+    output.write(`     GitHub branch: ${worktree.remoteBranch.label}\n`);
     output.write(`     Main: ${worktree.mainRelationship.label}\n`);
   });
 }
@@ -442,7 +475,7 @@ function printHelp(output = process.stdout) {
   output.write(`Options:\n`);
   output.write(`  --list                      Print worktrees without starting Studio\n`);
   output.write(`  --json                      Machine-readable output with --list\n`);
-  output.write(`  --offline                   Use cached origin/main instead of a live read-only check\n`);
+  output.write(`  --offline                   Use cached origin branches instead of a live read-only check\n`);
   output.write(`  --verbose                   Show paths, commits, and Git comparison details\n`);
   output.write(`  --select <numbers/ranges>   Select menu indices, for example 1,3-4\n`);
   output.write(`  --all                       Select every eligible worktree\n`);
@@ -689,6 +722,7 @@ function debugSnapshot(running) {
     health: running.health,
     log: running.logFilename,
     mainRelationship: worktree.mainRelationship,
+    remoteBranch: worktree.remoteBranch,
     pid: running.child.pid,
     sourceFingerprint: `sha256:${running.fingerprint.effectiveSha}`,
     studioTree: running.fingerprint.treeSha,
@@ -704,7 +738,7 @@ function printReady(running) {
   process.stdout.write(`  Branch: ${cleanDisplay(snapshot.branch)}\n`);
   process.stdout.write(`  HEAD: ${snapshot.head}\n`);
   process.stdout.write(`  Status: ${availabilityText(running.worktree)}\n`);
-  process.stdout.write(`  Main: ${snapshot.mainRelationship.label}\n`);
+  process.stdout.write(`  GitHub branch: ${snapshot.remoteBranch.label}\n`);
   process.stdout.write(`  Studio tree: ${snapshot.studioTree}\n`);
   process.stdout.write(`  Effective source: ${snapshot.sourceFingerprint.slice(0, 23)}\n`);
   process.stdout.write(`  Fixture: ${snapshot.fixture}\n`);
@@ -726,14 +760,22 @@ export async function main(argv = process.argv.slice(2)) {
   const worktrees = await discoverWorktrees(options.repositoryRoot);
   if (worktrees.length === 0) fail('Git did not report any worktrees.');
   const mainReference = latestMain(options.repositoryRoot, { offline: options.offline });
-  for (const worktree of worktrees) worktree.mainRelationship = compareWorktreeWithMain(worktree, mainReference);
+  for (const worktree of worktrees) {
+    worktree.mainRelationship = compareWorktreeWithMain(worktree, mainReference);
+    worktree.remoteBranch = compareWorktreeWithRemoteBranch(worktree, mainReference);
+  }
   const selectableWorktrees = orderFriendlyWorktrees(worktrees);
   const hiddenCount = worktrees.length - selectableWorktrees.length;
   if (selectableWorktrees.length === 0) fail('No runnable Numberdroid Studio worktree is available.');
   if (options.list) {
     if (options.json) {
       process.stdout.write(`${JSON.stringify({
-        latestMain: mainReference,
+        github: {
+          available: mainReference.available,
+          live: mainReference.live,
+          mainSha: mainReference.sha,
+          summary: mainReference.summary,
+        },
         worktrees: worktrees.map((worktree, index) => ({
           index: index + 1,
           path: worktree.path,
@@ -743,6 +785,7 @@ export async function main(argv = process.argv.slice(2)) {
           eligible: worktree.eligible,
           dirty: worktree.dirty,
           mainRelationship: worktree.mainRelationship,
+          remoteBranch: worktree.remoteBranch,
           unavailableReasons: worktree.unavailableReasons,
         })),
       }, null, 2)}\n`);
@@ -796,19 +839,6 @@ export async function main(argv = process.argv.slice(2)) {
       fail(`--data-root must be outside every selected worktree; ${options.dataRoot} is inside ${containingWorktree.path}.`);
     }
   }
-  for (const worktree of selectedWorktrees) {
-    if (!['behind', 'diverged', 'fetch-needed'].includes(worktree.mainRelationship.kind)) continue;
-    process.stdout.write(`\nUpdate note for ${cleanDisplay(worktree.path)}\n`);
-    process.stdout.write(`  ${worktree.mainRelationship.label}.\n`);
-    if (!worktree.dirty.error && worktree.dirty.tracked + worktree.dirty.untracked > 0) {
-      process.stdout.write('  Keep this worktree as-is; it has local changes. Use a separate clean main worktree for latest-main testing.\n');
-    } else if (worktree.branch === 'main') {
-      process.stdout.write(`  This clean main worktree can be updated with: git -C "${cleanDisplay(worktree.path)}" pull --ff-only origin main\n`);
-    } else {
-      process.stdout.write('  This is not a clean main worktree. Use or create a separate main worktree instead of switching it automatically.\n');
-    }
-    process.stdout.write('  The launcher will still run the exact selected files and will never switch or pull for you.\n');
-  }
   const dataRoot = await reserveDataRoot(options.dataRoot);
   const logsDirectory = join(dataRoot, 'logs');
   await mkdir(logsDirectory);
@@ -817,7 +847,7 @@ export async function main(argv = process.argv.slice(2)) {
   process.stdout.write(`  Repository: ${cleanDisplay(options.repositoryRoot)}\n`);
   process.stdout.write(`  Git: ${cleanDisplay(gitVersion)}\n`);
   process.stdout.write(`  Node: ${process.versions.node}\n`);
-  process.stdout.write(`  Latest main: ${mainReference.summary}\n`);
+  process.stdout.write(`  GitHub: ${mainReference.summary}\n`);
   process.stdout.write(`  Fixture: ${fixture} (${FIXTURE_PROFILES[fixture].label})\n`);
   process.stdout.write(`  Data root: ${cleanDisplay(dataRoot)} (retained after shutdown)\n`);
   const running = [];

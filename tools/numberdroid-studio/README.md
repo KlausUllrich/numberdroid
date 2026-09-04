@@ -133,11 +133,13 @@ npm run dev:worktrees
 cd tools/numberdroid-studio && npm run dev:worktrees
 ```
 
-The normal menu puts a clean latest `main` first, marks it recommended, and uses
-it when Enter is pressed without a number. Other runnable versions use readable
-names and short states such as **Clean**, **Has local changes**, or **Older
-version**. Broken/prunable worktrees are hidden. Type `d` in the prompt or pass
-`--verbose` only when paths, commits, and Git divergence details are useful.
+The normal menu is generated from the worktrees that exist now. It puts the
+current folder first and uses it when Enter is pressed without a number. Every
+entry shows the actual branch name (or detached snapshot), the final five commit
+characters, plain local-file counts, and whether that same branch is current on
+GitHub, has unpulled commits, has local-only commits, differs, or exists only
+locally. Broken/prunable worktrees are hidden. Type `d` in the prompt or pass
+`--verbose` only when full paths, SHAs, trees, and `main` comparisons are useful.
 After version selection, the menu offers `empty`, `vt001-room`, and `vt001-task`
 fixtures.
 For a reproducible non-interactive launch:
@@ -155,10 +157,10 @@ dependencies and prunable worktrees are available only in technical details;
 Git-locked worktrees remain usable. The launcher never runs
 `npm install`, never points at `.numberdroid-studio` or another existing
 workspace, and never opens a browser automatically. It performs one bounded,
-read-only check of GitHub's `main`; technical mode includes exact relationship
-details. Use `--offline` to rely on the cached `origin/main` reference. It never
-switches, pulls, stashes, or overwrites a worktree; dirty/outdated selections
-receive a safe update note.
+read-only check of GitHub branch heads; technical mode includes exact
+relationship details. Use `--offline` to rely on cached `origin/*` references. It never
+switches, pulls, fetches, stashes, or overwrites a worktree: the selected local
+files always start as-is.
 Ctrl+C gracefully stops all
 children. Fresh fixtures and logs are deliberately retained at the printed data
 root until the test result has been recorded; remove only that exact launch root
