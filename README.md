@@ -71,7 +71,8 @@ shows every actual branch name, the final five commit characters, local-file
 state, and matching GitHub-branch status. Broken worktrees are hidden. Type `d`
 only when full paths, commits, source fingerprints, and technical comparison
 details are needed. The launcher never switches, pulls, fetches, stashes, or
-otherwise changes a worktree.
+otherwise changes a worktree. When testing is finished, type `q` and press Enter
+to stop every Studio instance cleanly.
 See `tools/numberdroid-studio/README.md` for fixture profiles and non-interactive
 options.
 

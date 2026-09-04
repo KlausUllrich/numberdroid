@@ -9,6 +9,7 @@ import {
   describeRemoteBranch,
   findAvailablePort,
   fixtureCommands,
+  isStopCommand,
   orderFriendlyWorktrees,
   parseArguments,
   parseRemoteHeads,
@@ -54,6 +55,13 @@ test('multi-selection accepts numbers, ranges, all, defaults, and quit', () => {
   assert.throws(() => parseSelection('3-1', 4), /runs backwards/);
   assert.throws(() => parseSelection('5', 4), /outside 1-4/);
   assert.throws(() => parseSelection('main', 4), /Invalid worktree selection token/);
+});
+
+test('typed stop commands are short, readable, and case-insensitive', () => {
+  for (const command of ['q', 'Q', 'quit', 'stop', 'exit', ' stop ']) {
+    assert.equal(isStopCommand(command), true, command);
+  }
+  for (const command of ['', '1', 'start', 'details']) assert.equal(isStopCommand(command), false, command);
 });
 
 test('arguments keep safe defaults and validate exclusive selection and fixture profiles', () => {

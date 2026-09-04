@@ -161,8 +161,8 @@ read-only check of GitHub branch heads; technical mode includes exact
 relationship details. Use `--offline` to rely on cached `origin/*` references. It never
 switches, pulls, fetches, stashes, or overwrites a worktree: the selected local
 files always start as-is.
-Ctrl+C gracefully stops all
-children. Fresh fixtures and logs are deliberately retained at the printed data
+Type `q` and press Enter to gracefully stop all children; Ctrl+C remains a
+secondary shortcut. Fresh fixtures and logs are deliberately retained at the printed data
 root until the test result has been recorded; remove only that exact launch root
 through normal OS temporary-file cleanup afterwards.
 
