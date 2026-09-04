@@ -5,7 +5,7 @@ import { createWriteStream } from 'node:fs';
 import { access, lstat, mkdir, mkdtemp, readFile, readlink } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -128,6 +128,7 @@ export function parseArguments(argv) {
     repositoryRoot: DEFAULT_REPOSITORY_ROOT,
     select: null,
     startupTimeoutMs: 15_000,
+    verbose: false,
   };
   const takeValue = (argument, index) => {
     if (index + 1 >= argv.length) fail(`${argument} requires a value.`);
@@ -140,6 +141,7 @@ export function parseArguments(argv) {
     else if (argument === '--json') options.json = true;
     else if (argument === '--list') options.list = true;
     else if (argument === '--offline') options.offline = true;
+    else if (argument === '--verbose') options.verbose = true;
     else if (argument === '--base-port') {
       options.basePort = Number(takeValue(argument, index));
       index += 1;
@@ -336,6 +338,7 @@ export async function discoverWorktrees(repositoryRoot = DEFAULT_REPOSITORY_ROOT
     }
     worktrees.push({
       ...record,
+      current: resolve(record.path) === resolve(repositoryRoot),
       dirty,
       eligible: unavailableReasons.length === 0,
       missingDependencies,
@@ -357,8 +360,69 @@ function availabilityText(worktree) {
   return worktree.locked ? `${status}; Git-locked` : status;
 }
 
-function printWorktrees(worktrees, main, output = process.stdout) {
-  output.write('\nAvailable Numberdroid Studio worktrees\n');
+function hasLocalChanges(worktree) {
+  return worktree.dirty.error || worktree.dirty.tracked + worktree.dirty.untracked > 0;
+}
+
+function friendlyBranchName(worktree) {
+  if (worktree.mainRelationship.kind === 'latest'
+      && worktree.branch === 'main' && !hasLocalChanges(worktree)) {
+    return 'Latest version (recommended)';
+  }
+  if (!worktree.branch) {
+    return /qa/i.test(basename(worktree.path)) ? 'Older QA snapshot' : 'Detached test snapshot';
+  }
+  const normalized = worktree.branch.replace(/^(?:agent|chore|docs|feature|fix)\//, '')
+    .replace(/-local$/, '').replace(/[-_]+/g, ' ').trim();
+  const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  return worktree.current ? `Current folder — ${label}` : label;
+}
+
+function friendlyStatus(worktree) {
+  const changes = hasLocalChanges(worktree) ? 'Has local changes' : 'Clean';
+  if (worktree.mainRelationship.kind === 'latest') {
+    return hasLocalChanges(worktree) ? 'Latest commit with local changes' : 'Up to date and clean';
+  }
+  if (worktree.mainRelationship.kind === 'same-tree') return `Same committed version as latest; ${changes.toLowerCase()}`;
+  if (worktree.mainRelationship.kind === 'ahead') return `Development version based on latest; ${changes.toLowerCase()}`;
+  if (worktree.mainRelationship.kind === 'behind') return `Older version; ${changes.toLowerCase()}`;
+  if (worktree.mainRelationship.kind === 'diverged') return `Separate development version; ${changes.toLowerCase()}`;
+  if (worktree.mainRelationship.kind === 'fetch-needed') return `Needs a fetch for comparison; ${changes.toLowerCase()}`;
+  return `Latest-version check unavailable; ${changes.toLowerCase()}`;
+}
+
+function worktreeRank(worktree) {
+  if (worktree.mainRelationship.kind === 'latest'
+      && worktree.branch === 'main' && !hasLocalChanges(worktree)) return 0;
+  if (worktree.mainRelationship.kind === 'latest' && !hasLocalChanges(worktree)) return 1;
+  if (worktree.current) return 2;
+  if (!hasLocalChanges(worktree)
+      && ['same-tree', 'ahead', 'diverged'].includes(worktree.mainRelationship.kind)) return 3;
+  if (['latest', 'same-tree', 'ahead', 'diverged'].includes(worktree.mainRelationship.kind)) return 4;
+  if (worktree.mainRelationship.kind === 'behind') return 5;
+  return 6;
+}
+
+export function orderFriendlyWorktrees(worktrees) {
+  return worktrees.filter((worktree) => worktree.eligible)
+    .map((worktree, originalIndex) => ({ originalIndex, worktree }))
+    .sort((left, right) => worktreeRank(left.worktree) - worktreeRank(right.worktree)
+      || left.originalIndex - right.originalIndex)
+    .map(({ worktree }) => worktree);
+}
+
+function printFriendlyWorktrees(worktrees, main, hiddenCount, output = process.stdout) {
+  output.write('\nWhich Numberdroid Studio version do you want to test?\n');
+  output.write(main.available ? 'GitHub check complete.\n\n' : 'GitHub check unavailable; local versions are still shown.\n\n');
+  worktrees.forEach((worktree, index) => {
+    output.write(`  ${index + 1}. ${friendlyBranchName(worktree)}\n`);
+    output.write(`     ${friendlyStatus(worktree)}\n`);
+  });
+  if (hiddenCount > 0) output.write(`\n${hiddenCount} unavailable worktree${hiddenCount === 1 ? '' : 's'} hidden. Type d for technical details.\n`);
+}
+
+function printTechnicalWorktrees(worktrees, main, output = process.stdout) {
+  output.write('\nTechnical worktree details\n');
   output.write(`Latest check: ${main.summary}\n`);
   worktrees.forEach((worktree, index) => {
     const branch = worktree.branch ?? `detached@${worktree.head.slice(0, 12)}`;
@@ -379,6 +443,7 @@ function printHelp(output = process.stdout) {
   output.write(`  --list                      Print worktrees without starting Studio\n`);
   output.write(`  --json                      Machine-readable output with --list\n`);
   output.write(`  --offline                   Use cached origin/main instead of a live read-only check\n`);
+  output.write(`  --verbose                   Show paths, commits, and Git comparison details\n`);
   output.write(`  --select <numbers/ranges>   Select menu indices, for example 1,3-4\n`);
   output.write(`  --all                       Select every eligible worktree\n`);
   output.write(`  --fixture <profile>         empty, vt001-room, or vt001-task\n`);
@@ -388,19 +453,23 @@ function printHelp(output = process.stdout) {
   output.write(`  --help                      Show this help\n`);
 }
 
-async function chooseInteractively(worktrees) {
+async function chooseInteractively(worktrees, main, hiddenCount) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     fail('Interactive selection needs a terminal; use --select or --all.');
   }
-  const firstEligible = worktrees.findIndex((worktree) => worktree.eligible);
-  if (firstEligible === -1) fail('No eligible Numberdroid Studio worktree is available.');
   const terminal = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    const selectionText = await terminal.question(
-      `Select worktrees (comma/range, a=all, q=quit) [${firstEligible + 1}]: `,
-    );
+    let selectionText;
+    while (true) {
+      selectionText = await terminal.question(
+        'Enter one number, or several like 1,2. Press Enter for 1; d=details; q=quit: ',
+      );
+      if (selectionText.trim().toLowerCase() !== 'd') break;
+      printTechnicalWorktrees(worktrees, main);
+      if (hiddenCount > 0) process.stdout.write(`${hiddenCount} unavailable worktree${hiddenCount === 1 ? '' : 's'} remain hidden from selection.\n\n`);
+    }
     const allRequested = /^(a|all)$/i.test(selectionText.trim());
-    const indices = parseSelection(selectionText, worktrees.length, { defaultIndex: firstEligible + 1 });
+    const indices = parseSelection(selectionText, worktrees.length, { defaultIndex: 1 });
     if (indices === null) return null;
     process.stdout.write('\nFixture profile\n');
     process.stdout.write('  1. Fresh empty workspace\n');
@@ -658,6 +727,9 @@ export async function main(argv = process.argv.slice(2)) {
   if (worktrees.length === 0) fail('Git did not report any worktrees.');
   const mainReference = latestMain(options.repositoryRoot, { offline: options.offline });
   for (const worktree of worktrees) worktree.mainRelationship = compareWorktreeWithMain(worktree, mainReference);
+  const selectableWorktrees = orderFriendlyWorktrees(worktrees);
+  const hiddenCount = worktrees.length - selectableWorktrees.length;
+  if (selectableWorktrees.length === 0) fail('No runnable Numberdroid Studio worktree is available.');
   if (options.list) {
     if (options.json) {
       process.stdout.write(`${JSON.stringify({
@@ -674,20 +746,22 @@ export async function main(argv = process.argv.slice(2)) {
           unavailableReasons: worktree.unavailableReasons,
         })),
       }, null, 2)}\n`);
-    } else printWorktrees(worktrees, mainReference);
+    } else if (options.verbose) printTechnicalWorktrees(worktrees, mainReference);
+    else printFriendlyWorktrees(selectableWorktrees, mainReference, hiddenCount);
     return;
   }
-  printWorktrees(worktrees, mainReference);
+  if (options.verbose) printTechnicalWorktrees(selectableWorktrees, mainReference);
+  else printFriendlyWorktrees(selectableWorktrees, mainReference, hiddenCount);
   let indices;
   let fixture = options.fixture;
   let allRequested = options.all;
-  if (options.all) indices = worktrees.flatMap((worktree, index) => (worktree.eligible ? [index + 1] : []));
+  if (options.all) indices = selectableWorktrees.map((_, index) => index + 1);
   else if (options.select !== null) {
     allRequested = /^(a|all)$/i.test(options.select.trim());
-    indices = parseSelection(options.select, worktrees.length);
+    indices = parseSelection(options.select, selectableWorktrees.length);
   }
   else {
-    const selected = await chooseInteractively(worktrees);
+    const selected = await chooseInteractively(selectableWorktrees, mainReference, hiddenCount);
     if (selected === null) {
       process.stdout.write('No Studio instance started.\n');
       return;
@@ -695,22 +769,7 @@ export async function main(argv = process.argv.slice(2)) {
     ({ allRequested, indices, fixture } = selected);
   }
   if (indices.length === 0) fail('No eligible worktree is available.');
-  let selectedWorktrees = indices.map((index) => worktrees[index - 1]);
-  if (allRequested) {
-    for (const worktree of selectedWorktrees) {
-      if (!worktree.eligible) {
-        process.stdout.write(`Skipping ${cleanDisplay(worktree.path)}: ${worktree.unavailableReasons.join('; ')}\n`);
-      }
-    }
-    selectedWorktrees = selectedWorktrees.filter((worktree) => worktree.eligible);
-    if (selectedWorktrees.length === 0) fail('No eligible worktree is available.');
-  } else {
-    for (const worktree of selectedWorktrees) {
-      if (!worktree.eligible) {
-        fail(`${worktree.path} is unavailable: ${worktree.unavailableReasons.join('; ')}`);
-      }
-    }
-  }
+  let selectedWorktrees = indices.map((index) => selectableWorktrees[index - 1]);
   fixture ??= 'empty';
   const fixtureCompatibility = await Promise.all(selectedWorktrees.map(async (worktree) => ({
     missing: await unsupportedFixtureScripts(worktree, fixture),
