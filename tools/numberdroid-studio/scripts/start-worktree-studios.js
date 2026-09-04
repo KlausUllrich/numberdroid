@@ -115,6 +115,10 @@ export function parseSelection(value, count, { defaultIndex = 1 } = {}) {
   return selected;
 }
 
+export function isStopCommand(value) {
+  return ['q', 'quit', 'stop', 'exit'].includes(String(value).trim().toLowerCase());
+}
+
 export function parseArguments(argv) {
   const options = {
     all: false,
@@ -882,20 +886,32 @@ export async function main(argv = process.argv.slice(2)) {
     process.stderr.write(`Launch root retained for diagnosis: ${dataRoot}\n`);
     throw error;
   }
-  process.stdout.write('\nAll selected Studio instances are ready. Press Ctrl+C to stop them.\n');
   let stopping = false;
   let resolveStopped;
+  let commandInput = null;
   const stopped = new Promise((resolveStop) => { resolveStopped = resolveStop; });
-  const shutdown = async (signal) => {
+  const shutdown = async (reason) => {
     if (stopping) return;
     stopping = true;
-    process.stdout.write(`\n${signal}: stopping ${running.length} Studio instance(s)...\n`);
+    commandInput?.close();
+    process.stdout.write(`\n${reason}: stopping ${running.length} Studio instance(s)...\n`);
     await Promise.allSettled(running.map(stopChild));
     process.stdout.write(`Stopped. Fixtures and logs retained at ${dataRoot}\n`);
     resolveStopped();
   };
-  process.once('SIGINT', () => { void shutdown('SIGINT'); });
+  process.once('SIGINT', () => { void shutdown('Ctrl+C'); });
   process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
+  if (process.stdin.isTTY) {
+    commandInput = createInterface({ input: process.stdin, output: process.stdout });
+    commandInput.on('line', (value) => {
+      if (isStopCommand(value)) void shutdown('Stop requested');
+      else if (value.trim()) process.stdout.write('Type q and press Enter to stop Studio.\n');
+    });
+    commandInput.on('SIGINT', () => { void shutdown('Ctrl+C'); });
+    process.stdout.write('\nAll selected Studio instances are ready. Type q and press Enter to stop them.\n');
+  } else {
+    process.stdout.write('\nAll selected Studio instances are ready. Send SIGINT or SIGTERM to stop them.\n');
+  }
   for (const instance of running) {
     instance.child.once('exit', (code, signal) => {
       if (!stopping) {
