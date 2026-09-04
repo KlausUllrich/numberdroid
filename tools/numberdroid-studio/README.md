@@ -114,6 +114,52 @@ npm run dev
 
 Open `http://127.0.0.1:4317`, choose **Create / load demo**, then use **Sources** for intake/cutting and **Assets** for exact-slice V2 review. In **Rooms**, create an archetype and DRAFT room or hallway, edit intent/connectors, select an exact-version asset, and place it on the coordinate grid. In **Agent tasks**, compose a scoped isolated branch, inspect its scope/budget/timeline, pause/resume/cancel it, and perform semantic review/merge/revert. Validation, warning disposition, finalization, proposal decision/apply, merge, and revert remain explicit owner controls in the currently accepted surface. `Propose in draft` activates only for an actual matching task branch. The default workspace is `.numberdroid-studio/`: `studio.sqlite` is authoritative, `artifacts/` is the CAS, and the private MCP pairing listener is loopback-only. Set `NUMBERDROID_STUDIO_DATA` to select another workspace.
 
+### Launch one or more worktrees for safe comparison
+
+Use the dependency-free worktree launcher when testing one candidate or comparing
+several checked-out branches. It discovers Git worktrees, supports comma/range
+multi-selection, assigns a different free loopback port and fresh data directory
+to each selection, prepares an optional VT-001 fixture, and verifies the served
+HTML before reporting an instance as ready:
+
+```bash
+# From a Numberdroid repository worktree root:
+npm run studio
+
+# Equivalent compatibility alias (including the command suggested by npm):
+npm run dev:worktrees
+
+# From an extracted/standalone tools/numberdroid-studio checkout:
+cd tools/numberdroid-studio && npm run dev:worktrees
+```
+
+The interactive menu offers `empty`, `vt001-room`, and `vt001-task` fixtures.
+For a reproducible non-interactive launch:
+
+```bash
+npm run studio -- --list
+npm run studio -- --select 1,3-4 --fixture vt001-room
+npm run studio -- --all --fixture empty --base-port 4317
+```
+
+Each ready block prints the exact worktree, branch, full HEAD, tracked/untracked
+dirty counts, the complete committed Studio tree and an effective Studio-source
+fingerprint that also includes tracked changes and untracked Studio files,
+fixture profile, HTTP health result, PID,
+URL, data directory, and log path. Missing Studio dependencies and prunable
+worktrees are visible but cannot be selected; Git-locked worktrees remain usable
+and are labelled. The launcher never runs
+`npm install`, never points at `.numberdroid-studio` or another existing
+workspace, and never opens a browser automatically. It performs one bounded,
+read-only check of GitHub's `main` and labels each worktree as latest, ahead,
+behind, diverged, or needing a fetch before comparison. Use `--offline` to rely
+on the cached `origin/main` reference. It never switches, pulls, stashes, or
+overwrites a worktree; dirty/outdated selections receive a safe update note.
+Ctrl+C gracefully stops all
+children. Fresh fixtures and logs are deliberately retained at the printed data
+root until the test result has been recorded; remove only that exact launch root
+through normal OS temporary-file cleanup afterwards.
+
 Checkpoint 2A source intake remains synchronous and bounded to 16 MiB and 4096×4096. It calls no provider and serves the verified original CAS bytes. Checkpoint 2B adds local, deterministic PNG cutting only; WebP remains valid for intake/original preview but cannot be cut by the 2B processor. Provider selection, egress, credentials, cost policy, and reproducibility expectations require a later explicit decision.
 
 The accepted 2A slice remains deliberately single-user and refuses a non-loopback HTTP listener. A future remote/team deployment requires authenticated HTTP/TLS and is a separate adapter, not an environment-variable widening of this local service.

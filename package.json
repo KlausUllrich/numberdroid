@@ -26,6 +26,8 @@
     "repo:docs-check-test": "node scripts/repo/check-markdown-links.selftest.mjs",
     "repo:approved-source-handoff": "node scripts/repo/approved-source-upload-handoff.mjs",
     "repo:approved-source-handoff-test": "node scripts/repo/approved-source-upload-handoff.selftest.mjs",
+    "studio": "node tools/numberdroid-studio/scripts/start-worktree-studios.js",
+    "dev:worktrees": "node tools/numberdroid-studio/scripts/start-worktree-studios.js",
     "predev": "npm run generate:character-grounding && npm run materialize-art && npm run materialize-transfer-apparatus && npm run materialize-yellow-core && npm run materialize-flow-regulator && npm run materialize-family-floor && npm run materialize-transfer-floor && npm run materialize-main-hall-floor && npm run render-walls && npm run render-doors",
     "dev": "vite",
     "test": "vitest run",
