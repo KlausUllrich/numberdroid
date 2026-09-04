@@ -56,6 +56,21 @@ npm run build
 
 Art-related work may require additional scripts from `package.json`, such as seam validation or compositor rendering.
 
+## Numberdroid Studio
+
+From any Numberdroid worktree root, launch one or several checked-out Studio
+versions with fresh isolated test data:
+
+```bash
+npm run studio
+```
+
+The compatibility alias `npm run dev:worktrees` opens the same interactive
+multi-worktree launcher. It reports the exact branch, commit, dirty state,
+source fingerprint, fixture, URL, data directory, and log for every instance.
+See `tools/numberdroid-studio/README.md` for fixture profiles and non-interactive
+options.
+
 ## Public Transfer Hall preview
 
 `https://klausullrich.github.io/numberdroid/?floor=transfer-hall`

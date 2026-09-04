@@ -123,17 +123,23 @@ to each selection, prepares an optional VT-001 fixture, and verifies the served
 HTML before reporting an instance as ready:
 
 ```bash
-cd tools/numberdroid-studio
+# From a Numberdroid repository worktree root:
+npm run studio
+
+# Equivalent compatibility alias (including the command suggested by npm):
 npm run dev:worktrees
+
+# From an extracted/standalone tools/numberdroid-studio checkout:
+cd tools/numberdroid-studio && npm run dev:worktrees
 ```
 
 The interactive menu offers `empty`, `vt001-room`, and `vt001-task` fixtures.
 For a reproducible non-interactive launch:
 
 ```bash
-npm run dev:worktrees -- --list
-npm run dev:worktrees -- --select 1,3-4 --fixture vt001-room
-npm run dev:worktrees -- --all --fixture empty --base-port 4317
+npm run studio -- --list
+npm run studio -- --select 1,3-4 --fixture vt001-room
+npm run studio -- --all --fixture empty --base-port 4317
 ```
 
 Each ready block prints the exact worktree, branch, full HEAD, tracked/untracked
