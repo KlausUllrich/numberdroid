@@ -422,7 +422,9 @@ async function waitForStudio({ child, timeoutMs, url }) {
   const deadline = Date.now() + timeoutMs;
   let lastError = 'no response';
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) fail(`Studio exited before becoming ready (exit ${child.exitCode}).`);
+    if (!childIsRunning(child)) {
+      fail(`Studio exited before becoming ready (${child.signalCode ?? `exit ${child.exitCode}`}).`);
+    }
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(1_500) });
       const body = await response.text();
@@ -436,6 +438,10 @@ async function waitForStudio({ child, timeoutMs, url }) {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
   }
   fail(`Studio readiness timed out after ${timeoutMs} ms (${lastError}).`);
+}
+
+function childIsRunning(child) {
+  return child.exitCode === null && child.signalCode === null;
 }
 
 function studioEnvironment(dataDirectory, port) {
@@ -467,21 +473,32 @@ async function startOne({ dataDirectory, label, logFilename, port, startupTimeou
     const health = await waitForStudio({ child, timeoutMs: startupTimeoutMs, url });
     return { child, dataDirectory, fingerprint, health, label, log, logFilename, port, url, worktree };
   } catch (error) {
-    if (child?.exitCode === null) child.kill('SIGTERM');
+    if (child && childIsRunning(child)) child.kill('SIGTERM');
     log.end();
     throw error;
   }
 }
 
-async function stopChild(running) {
-  if (running.child.exitCode === null) running.child.kill('SIGTERM');
-  if (running.child.exitCode === null) {
+async function waitForChildExit(child, timeoutMs) {
+  if (!childIsRunning(child)) return;
+  let timeout;
+  try {
     await Promise.race([
-      once(running.child, 'exit'),
-      new Promise((resolveDelay) => setTimeout(resolveDelay, 10_000)),
+      once(child, 'exit'),
+      new Promise((resolveDelay) => { timeout = setTimeout(resolveDelay, timeoutMs); }),
     ]);
+  } finally {
+    clearTimeout(timeout);
   }
-  if (running.child.exitCode === null) running.child.kill('SIGKILL');
+}
+
+export async function stopChild(running) {
+  if (childIsRunning(running.child)) running.child.kill('SIGTERM');
+  await waitForChildExit(running.child, 10_000);
+  if (childIsRunning(running.child)) {
+    running.child.kill('SIGKILL');
+    await waitForChildExit(running.child, 2_000);
+  }
   running.log.end();
 }
 
@@ -663,7 +680,7 @@ export async function main(argv = process.argv.slice(2)) {
     instance.child.once('exit', (code, signal) => {
       if (!stopping) {
         process.stderr.write(`[${instance.label}] Studio exited unexpectedly (${signal ?? `exit ${code}`}).\n`);
-        if (running.every(({ child }) => child.exitCode !== null)) void shutdown('all instances exited');
+        if (running.every(({ child }) => !childIsRunning(child))) void shutdown('all instances exited');
       }
     });
   }

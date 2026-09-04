@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { createServer } from 'node:net';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +12,7 @@ import {
   parseWorktreePorcelain,
   pathIsWithin,
   safeLabel,
+  stopChild,
 } from '../scripts/start-worktree-studios.js';
 
 test('worktree parser preserves paths, branches, detached state, and unusable records', () => {
@@ -106,4 +109,22 @@ test('port allocation skips a port already held on loopback', async (context) =>
   if (blockedPort === 65_535) return;
   const available = await findAvailablePort(blockedPort);
   assert.ok(available > blockedPort);
+});
+
+test('launcher shutdown waits for the child and clears its fallback timer', async (context) => {
+  const child = spawn(process.execPath, ['-e', [
+    "process.on('SIGTERM', () => process.exit(0));",
+    "process.stdout.write('ready\\n');",
+    'setInterval(() => {}, 1000);',
+  ].join('')], { stdio: ['ignore', 'pipe', 'ignore'] });
+  context.after(() => {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  });
+  await once(child.stdout, 'data');
+  let logEnded = false;
+  const startedAt = Date.now();
+  await stopChild({ child, log: { end() { logEnded = true; } } });
+  assert.ok(Date.now() - startedAt < 2_000);
+  assert.equal(logEnded, true);
+  assert.ok(child.exitCode !== null || child.signalCode !== null);
 });
