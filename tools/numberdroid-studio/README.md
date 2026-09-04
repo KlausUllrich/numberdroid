@@ -150,7 +150,12 @@ URL, data directory, and log path. Missing Studio dependencies and prunable
 worktrees are visible but cannot be selected; Git-locked worktrees remain usable
 and are labelled. The launcher never runs
 `npm install`, never points at `.numberdroid-studio` or another existing
-workspace, and never opens a browser automatically. Ctrl+C gracefully stops all
+workspace, and never opens a browser automatically. It performs one bounded,
+read-only check of GitHub's `main` and labels each worktree as latest, ahead,
+behind, diverged, or needing a fetch before comparison. Use `--offline` to rely
+on the cached `origin/main` reference. It never switches, pulls, stashes, or
+overwrites a worktree; dirty/outdated selections receive a safe update note.
+Ctrl+C gracefully stops all
 children. Fresh fixtures and logs are deliberately retained at the printed data
 root until the test result has been recorded; remove only that exact launch root
 through normal OS temporary-file cleanup afterwards.

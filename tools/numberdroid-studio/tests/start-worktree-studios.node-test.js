@@ -5,9 +5,11 @@ import { createServer } from 'node:net';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  describeMainRelationship,
   findAvailablePort,
   fixtureCommands,
   parseArguments,
+  parseMainRef,
   parseSelection,
   parseWorktreePorcelain,
   pathIsWithin,
@@ -61,6 +63,7 @@ test('arguments keep safe defaults and validate exclusive selection and fixture 
     help: false,
     json: false,
     list: false,
+    offline: false,
     repositoryRoot: fileURLToPath(new URL('../../..', import.meta.url)).replace(/[\\/]$/, ''),
     select: null,
     startupTimeoutMs: 15_000,
@@ -70,6 +73,25 @@ test('arguments keep safe defaults and validate exclusive selection and fixture 
   assert.throws(() => parseArguments(['--fixture', 'personal']), /Unknown fixture profile/);
   assert.throws(() => parseArguments(['--base-port', '80']), /1024 through 65535/);
   assert.throws(() => parseArguments(['--json']), /only with --list/);
+});
+
+test('latest-main diagnostics parse exact refs and explain branch relationships', () => {
+  const mainSha = 'a'.repeat(40);
+  assert.equal(parseMainRef(`${mainSha}\trefs/heads/main\n`), mainSha);
+  assert.throws(() => parseMainRef(`${mainSha}\trefs/heads/develop\n`), /exact main branch SHA/);
+  assert.deepEqual(describeMainRelationship({ head: mainSha, mainSha }), {
+    kind: 'latest', label: `latest main (${mainSha.slice(0, 12)})`,
+  });
+  assert.deepEqual(describeMainRelationship({
+    head: 'b'.repeat(40), headTree: 'c'.repeat(40), mainSha, mainTree: 'c'.repeat(40),
+  }), {
+    kind: 'same-tree', label: 'same committed files as latest main (commit IDs differ)',
+  });
+  assert.equal(describeMainRelationship({ head: 'b'.repeat(40), mainSha, ahead: 2, behind: 0 }).kind, 'ahead');
+  assert.equal(describeMainRelationship({ head: 'b'.repeat(40), mainSha, ahead: 0, behind: 3 }).kind, 'behind');
+  assert.equal(describeMainRelationship({ head: 'b'.repeat(40), mainSha, ahead: 2, behind: 3 }).kind, 'diverged');
+  assert.equal(describeMainRelationship({ head: 'b'.repeat(40), mainSha }).kind, 'fetch-needed');
+  assert.equal(describeMainRelationship({ head: 'b'.repeat(40), mainSha: '' }).kind, 'unavailable');
 });
 
 test('fixture profiles produce exact fresh-target preparation commands', () => {

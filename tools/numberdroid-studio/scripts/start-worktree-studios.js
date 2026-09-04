@@ -13,6 +13,7 @@ const SCRIPT_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPOSITORY_ROOT = resolve(SCRIPT_DIRECTORY, '../../..');
 const STUDIO_RELATIVE_DIRECTORY = join('tools', 'numberdroid-studio');
 const SERVER_RELATIVE_FILENAME = join('apps', 'studio-server', 'src', 'server.js');
+const COMMIT_SHA = /^[0-9a-f]{40}$/;
 const REQUIRED_DEPENDENCIES = ['better-sqlite3', 'zod'];
 const FIXTURE_PROFILES = Object.freeze({
   empty: Object.freeze({ label: 'Fresh empty workspace', commands: [] }),
@@ -123,6 +124,7 @@ export function parseArguments(argv) {
     help: false,
     json: false,
     list: false,
+    offline: false,
     repositoryRoot: DEFAULT_REPOSITORY_ROOT,
     select: null,
     startupTimeoutMs: 15_000,
@@ -137,6 +139,7 @@ export function parseArguments(argv) {
     else if (argument === '--help' || argument === '-h') options.help = true;
     else if (argument === '--json') options.json = true;
     else if (argument === '--list') options.list = true;
+    else if (argument === '--offline') options.offline = true;
     else if (argument === '--base-port') {
       options.basePort = Number(takeValue(argument, index));
       index += 1;
@@ -186,6 +189,30 @@ export function safeLabel(value) {
   return normalized.slice(0, 72) || 'worktree';
 }
 
+export function parseMainRef(value) {
+  const match = /^([0-9a-f]{40})\s+refs\/heads\/main$/m.exec(String(value).trim());
+  if (!match) fail('Git did not return an exact main branch SHA.');
+  return match[1];
+}
+
+export function describeMainRelationship({ ahead = null, behind = null, head, headTree = null, mainSha, mainTree = null }) {
+  if (!COMMIT_SHA.test(mainSha)) return { kind: 'unavailable', label: 'latest main unavailable' };
+  if (head === mainSha) return { kind: 'latest', label: `latest main (${mainSha.slice(0, 12)})` };
+  if (COMMIT_SHA.test(headTree ?? '') && headTree === mainTree) {
+    return { kind: 'same-tree', label: 'same committed files as latest main (commit IDs differ)' };
+  }
+  if (ahead === null || behind === null) {
+    return { kind: 'fetch-needed', label: `different from latest main ${mainSha.slice(0, 12)}; fetch needed for comparison` };
+  }
+  if (behind === 0 && ahead > 0) {
+    return { kind: 'ahead', label: `based on latest main + ${ahead} commit${ahead === 1 ? '' : 's'}` };
+  }
+  if (ahead === 0 && behind > 0) {
+    return { kind: 'behind', label: `${behind} commit${behind === 1 ? '' : 's'} behind latest main` };
+  }
+  return { kind: 'diverged', label: `diverged from latest main (${ahead} ahead, ${behind} behind)` };
+}
+
 export function pathIsWithin(parent, candidate) {
   const difference = relative(resolve(parent), resolve(candidate));
   return difference === ''
@@ -201,6 +228,65 @@ function git(repositoryRoot, arguments_, options = {}) {
   if (result.error) fail(`Could not run Git: ${result.error.message}`);
   if (result.status !== 0) fail((result.stderr || 'Git command failed.').trim());
   return result.stdout;
+}
+
+function tryGit(repositoryRoot, arguments_, options = {}) {
+  return spawnSync('git', ['-C', repositoryRoot, ...arguments_], {
+    encoding: 'utf8',
+    maxBuffer: 8 * 1024 * 1024,
+    ...options,
+  });
+}
+
+function latestMain(repositoryRoot, { offline = false } = {}) {
+  if (offline) {
+    const cached = tryGit(repositoryRoot, ['rev-parse', '--verify', 'refs/remotes/origin/main']);
+    const sha = cached.status === 0 ? cached.stdout.trim() : null;
+    return COMMIT_SHA.test(sha ?? '')
+      ? { available: true, live: false, sha, summary: `cached origin/main ${sha.slice(0, 12)} (not refreshed)` }
+      : { available: false, live: false, sha: null, summary: 'cached origin/main is unavailable' };
+  }
+  const remote = tryGit(repositoryRoot, ['ls-remote', '--exit-code', 'origin', 'refs/heads/main'], {
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    timeout: 5_000,
+  });
+  if (remote.status !== 0) {
+    const reason = remote.error?.code === 'ETIMEDOUT'
+      ? 'check timed out'
+      : `check failed (exit ${remote.status ?? 'unknown'})`;
+    return { available: false, live: true, sha: null, summary: `live origin/main ${reason}` };
+  }
+  try {
+    const sha = parseMainRef(remote.stdout);
+    return { available: true, live: true, sha, summary: `live origin/main ${sha}` };
+  } catch {
+    return { available: false, live: true, sha: null, summary: 'live origin/main returned an unexpected response' };
+  }
+}
+
+function compareWorktreeWithMain(worktree, main) {
+  if (!main.available) return describeMainRelationship({ head: worktree.head, mainSha: '' });
+  if (worktree.head === main.sha) return describeMainRelationship({ head: worktree.head, mainSha: main.sha });
+  const present = tryGit(worktree.path, ['cat-file', '-e', `${main.sha}^{commit}`]);
+  if (present.status !== 0) return describeMainRelationship({ head: worktree.head, mainSha: main.sha });
+  const mainTree = tryGit(worktree.path, ['rev-parse', `${main.sha}^{tree}`]);
+  const headTree = tryGit(worktree.path, ['rev-parse', `${worktree.head}^{tree}`]);
+  if (mainTree.status === 0 && headTree.status === 0
+      && mainTree.stdout.trim() === headTree.stdout.trim()) {
+    return describeMainRelationship({
+      head: worktree.head,
+      headTree: headTree.stdout.trim(),
+      mainSha: main.sha,
+      mainTree: mainTree.stdout.trim(),
+    });
+  }
+  const counts = tryGit(worktree.path, ['rev-list', '--left-right', '--count', `${worktree.head}...${main.sha}`]);
+  if (counts.status !== 0) return describeMainRelationship({ head: worktree.head, mainSha: main.sha });
+  const [ahead, behind] = counts.stdout.trim().split(/\s+/).map(Number);
+  if (!Number.isInteger(ahead) || !Number.isInteger(behind)) {
+    return describeMainRelationship({ head: worktree.head, mainSha: main.sha });
+  }
+  return describeMainRelationship({ ahead, behind, head: worktree.head, mainSha: main.sha });
 }
 
 async function exists(filename) {
@@ -271,12 +357,14 @@ function availabilityText(worktree) {
   return worktree.locked ? `${status}; Git-locked` : status;
 }
 
-function printWorktrees(worktrees, output = process.stdout) {
+function printWorktrees(worktrees, main, output = process.stdout) {
   output.write('\nAvailable Numberdroid Studio worktrees\n');
+  output.write(`Latest check: ${main.summary}\n`);
   worktrees.forEach((worktree, index) => {
     const branch = worktree.branch ?? `detached@${worktree.head.slice(0, 12)}`;
     output.write(`  ${index + 1}. ${cleanDisplay(branch)}  ${worktree.head.slice(0, 12)}  [${availabilityText(worktree)}]\n`);
     output.write(`     ${cleanDisplay(worktree.path)}\n`);
+    output.write(`     Main: ${worktree.mainRelationship.label}\n`);
   });
 }
 
@@ -290,6 +378,7 @@ function printHelp(output = process.stdout) {
   output.write(`Options:\n`);
   output.write(`  --list                      Print worktrees without starting Studio\n`);
   output.write(`  --json                      Machine-readable output with --list\n`);
+  output.write(`  --offline                   Use cached origin/main instead of a live read-only check\n`);
   output.write(`  --select <numbers/ranges>   Select menu indices, for example 1,3-4\n`);
   output.write(`  --all                       Select every eligible worktree\n`);
   output.write(`  --fixture <profile>         empty, vt001-room, or vt001-task\n`);
@@ -530,6 +619,7 @@ function debugSnapshot(running) {
     head: worktree.head,
     health: running.health,
     log: running.logFilename,
+    mainRelationship: worktree.mainRelationship,
     pid: running.child.pid,
     sourceFingerprint: `sha256:${running.fingerprint.effectiveSha}`,
     studioTree: running.fingerprint.treeSha,
@@ -545,6 +635,7 @@ function printReady(running) {
   process.stdout.write(`  Branch: ${cleanDisplay(snapshot.branch)}\n`);
   process.stdout.write(`  HEAD: ${snapshot.head}\n`);
   process.stdout.write(`  Status: ${availabilityText(running.worktree)}\n`);
+  process.stdout.write(`  Main: ${snapshot.mainRelationship.label}\n`);
   process.stdout.write(`  Studio tree: ${snapshot.studioTree}\n`);
   process.stdout.write(`  Effective source: ${snapshot.sourceFingerprint.slice(0, 23)}\n`);
   process.stdout.write(`  Fixture: ${snapshot.fixture}\n`);
@@ -565,22 +656,28 @@ export async function main(argv = process.argv.slice(2)) {
   if (majorNodeVersion < 22) fail(`Node.js 22 or newer is required; found ${process.versions.node}.`);
   const worktrees = await discoverWorktrees(options.repositoryRoot);
   if (worktrees.length === 0) fail('Git did not report any worktrees.');
+  const mainReference = latestMain(options.repositoryRoot, { offline: options.offline });
+  for (const worktree of worktrees) worktree.mainRelationship = compareWorktreeWithMain(worktree, mainReference);
   if (options.list) {
     if (options.json) {
-      process.stdout.write(`${JSON.stringify(worktrees.map((worktree, index) => ({
-        index: index + 1,
-        path: worktree.path,
-        branch: worktree.branch,
-        detached: worktree.detached,
-        head: worktree.head,
-        eligible: worktree.eligible,
-        dirty: worktree.dirty,
-        unavailableReasons: worktree.unavailableReasons,
-      })), null, 2)}\n`);
-    } else printWorktrees(worktrees);
+      process.stdout.write(`${JSON.stringify({
+        latestMain: mainReference,
+        worktrees: worktrees.map((worktree, index) => ({
+          index: index + 1,
+          path: worktree.path,
+          branch: worktree.branch,
+          detached: worktree.detached,
+          head: worktree.head,
+          eligible: worktree.eligible,
+          dirty: worktree.dirty,
+          mainRelationship: worktree.mainRelationship,
+          unavailableReasons: worktree.unavailableReasons,
+        })),
+      }, null, 2)}\n`);
+    } else printWorktrees(worktrees, mainReference);
     return;
   }
-  printWorktrees(worktrees);
+  printWorktrees(worktrees, mainReference);
   let indices;
   let fixture = options.fixture;
   let allRequested = options.all;
@@ -640,6 +737,19 @@ export async function main(argv = process.argv.slice(2)) {
       fail(`--data-root must be outside every selected worktree; ${options.dataRoot} is inside ${containingWorktree.path}.`);
     }
   }
+  for (const worktree of selectedWorktrees) {
+    if (!['behind', 'diverged', 'fetch-needed'].includes(worktree.mainRelationship.kind)) continue;
+    process.stdout.write(`\nUpdate note for ${cleanDisplay(worktree.path)}\n`);
+    process.stdout.write(`  ${worktree.mainRelationship.label}.\n`);
+    if (!worktree.dirty.error && worktree.dirty.tracked + worktree.dirty.untracked > 0) {
+      process.stdout.write('  Keep this worktree as-is; it has local changes. Use a separate clean main worktree for latest-main testing.\n');
+    } else if (worktree.branch === 'main') {
+      process.stdout.write(`  This clean main worktree can be updated with: git -C "${cleanDisplay(worktree.path)}" pull --ff-only origin main\n`);
+    } else {
+      process.stdout.write('  This is not a clean main worktree. Use or create a separate main worktree instead of switching it automatically.\n');
+    }
+    process.stdout.write('  The launcher will still run the exact selected files and will never switch or pull for you.\n');
+  }
   const dataRoot = await reserveDataRoot(options.dataRoot);
   const logsDirectory = join(dataRoot, 'logs');
   await mkdir(logsDirectory);
@@ -648,6 +758,7 @@ export async function main(argv = process.argv.slice(2)) {
   process.stdout.write(`  Repository: ${cleanDisplay(options.repositoryRoot)}\n`);
   process.stdout.write(`  Git: ${cleanDisplay(gitVersion)}\n`);
   process.stdout.write(`  Node: ${process.versions.node}\n`);
+  process.stdout.write(`  Latest main: ${mainReference.summary}\n`);
   process.stdout.write(`  Fixture: ${fixture} (${FIXTURE_PROFILES[fixture].label})\n`);
   process.stdout.write(`  Data root: ${cleanDisplay(dataRoot)} (retained after shutdown)\n`);
   const running = [];
