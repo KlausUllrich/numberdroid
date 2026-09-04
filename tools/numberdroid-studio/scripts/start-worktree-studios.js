@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { createWriteStream } from 'node:fs';
-import { access, mkdir, mkdtemp, readFile } from 'node:fs/promises';
+import { access, lstat, mkdir, mkdtemp, readFile, readlink } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -14,12 +14,6 @@ const DEFAULT_REPOSITORY_ROOT = resolve(SCRIPT_DIRECTORY, '../../..');
 const STUDIO_RELATIVE_DIRECTORY = join('tools', 'numberdroid-studio');
 const SERVER_RELATIVE_FILENAME = join('apps', 'studio-server', 'src', 'server.js');
 const REQUIRED_DEPENDENCIES = ['better-sqlite3', 'zod'];
-const SOURCE_FINGERPRINT_FILES = [
-  'package.json',
-  SERVER_RELATIVE_FILENAME,
-  join('apps', 'studio-server', 'public', 'app.js'),
-  join('apps', 'studio-server', 'public', 'styles.css'),
-];
 const FIXTURE_PROFILES = Object.freeze({
   empty: Object.freeze({ label: 'Fresh empty workspace', commands: [] }),
   'vt001-room': Object.freeze({
@@ -361,15 +355,39 @@ export async function findAvailablePort(basePort, reserved = new Set()) {
   fail(`No free loopback port is available from ${basePort} through 65535.`);
 }
 
-async function sourceFingerprint(studioDirectory) {
+async function sourceFingerprint(worktree) {
+  const repositoryStudioPath = STUDIO_RELATIVE_DIRECTORY.replaceAll('\\', '/');
+  const treeSha = git(worktree.path, ['rev-parse', `HEAD:${repositoryStudioPath}`]).trim();
+  const trackedDiff = git(worktree.path, [
+    'diff', '--binary', '--no-ext-diff', 'HEAD', '--', repositoryStudioPath,
+  ]);
+  const untracked = git(worktree.path, [
+    'ls-files', '--others', '--exclude-standard', '-z', '--', repositoryStudioPath,
+  ]).split('\0').filter(Boolean).sort();
   const hash = createHash('sha256');
-  for (const relativeFilename of SOURCE_FINGERPRINT_FILES) {
-    hash.update(relativeFilename);
+  hash.update('tree\0');
+  hash.update(treeSha);
+  hash.update('\0tracked-diff\0');
+  hash.update(trackedDiff);
+  for (const repositoryFilename of untracked) {
+    const filename = resolve(worktree.path, repositoryFilename);
+    if (!pathIsWithin(worktree.path, filename)) fail(`Git reported an unsafe source path: ${repositoryFilename}`);
+    const metadata = await lstat(filename);
+    hash.update('\0untracked\0');
+    hash.update(repositoryFilename);
     hash.update('\0');
-    hash.update(await readFile(join(studioDirectory, relativeFilename)));
+    if (metadata.isSymbolicLink()) {
+      hash.update('symlink\0');
+      hash.update(await readlink(filename));
+    } else if (metadata.isFile()) {
+      hash.update('file\0');
+      hash.update(await readFile(filename));
+    } else {
+      fail(`Unsupported untracked Studio source entry: ${repositoryFilename}`);
+    }
     hash.update('\0');
   }
-  return hash.digest('hex');
+  return { effectiveSha: hash.digest('hex'), treeSha };
 }
 
 async function unsupportedFixtureScripts(worktree, fixture) {
@@ -458,7 +476,7 @@ async function startOne({ dataDirectory, label, logFilename, port, startupTimeou
   const log = createWriteStream(logFilename, { flags: 'a' });
   let child = null;
   try {
-    const fingerprint = await sourceFingerprint(worktree.studioDirectory);
+    const fingerprint = await sourceFingerprint(worktree);
     for (const command of fixtureCommands(worktree.fixture, dataDirectory)) {
       await runFixtureCommand({ command, dataDirectory, label, log, studioDirectory: worktree.studioDirectory });
     }
@@ -513,7 +531,8 @@ function debugSnapshot(running) {
     health: running.health,
     log: running.logFilename,
     pid: running.child.pid,
-    sourceFingerprint: `sha256:${running.fingerprint}`,
+    sourceFingerprint: `sha256:${running.fingerprint.effectiveSha}`,
+    studioTree: running.fingerprint.treeSha,
     url: running.url,
     worktree: worktree.path,
   };
@@ -526,7 +545,8 @@ function printReady(running) {
   process.stdout.write(`  Branch: ${cleanDisplay(snapshot.branch)}\n`);
   process.stdout.write(`  HEAD: ${snapshot.head}\n`);
   process.stdout.write(`  Status: ${availabilityText(running.worktree)}\n`);
-  process.stdout.write(`  Source: ${snapshot.sourceFingerprint.slice(0, 23)}\n`);
+  process.stdout.write(`  Studio tree: ${snapshot.studioTree}\n`);
+  process.stdout.write(`  Effective source: ${snapshot.sourceFingerprint.slice(0, 23)}\n`);
   process.stdout.write(`  Fixture: ${snapshot.fixture}\n`);
   process.stdout.write(`  Health: HTTP ${snapshot.health.status}, ${snapshot.health.title}\n`);
   process.stdout.write(`  PID: ${snapshot.pid}\n`);

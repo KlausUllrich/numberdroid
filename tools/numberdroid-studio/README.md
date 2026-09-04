@@ -143,7 +143,9 @@ npm run studio -- --all --fixture empty --base-port 4317
 ```
 
 Each ready block prints the exact worktree, branch, full HEAD, tracked/untracked
-dirty counts, a source fingerprint, fixture profile, HTTP health result, PID,
+dirty counts, the complete committed Studio tree and an effective Studio-source
+fingerprint that also includes tracked changes and untracked Studio files,
+fixture profile, HTTP health result, PID,
 URL, data directory, and log path. Missing Studio dependencies and prunable
 worktrees are visible but cannot be selected; Git-locked worktrees remain usable
 and are labelled. The launcher never runs

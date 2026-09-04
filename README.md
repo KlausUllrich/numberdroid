@@ -67,7 +67,8 @@ npm run studio
 
 The compatibility alias `npm run dev:worktrees` opens the same interactive
 multi-worktree launcher. It reports the exact branch, commit, dirty state,
-source fingerprint, fixture, URL, data directory, and log for every instance.
+complete Studio tree, effective source fingerprint, fixture, URL, data directory,
+and log for every instance.
 See `tools/numberdroid-studio/README.md` for fixture profiles and non-interactive
 options.
 
