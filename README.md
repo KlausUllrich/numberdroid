@@ -66,10 +66,12 @@ npm run studio
 ```
 
 The compatibility alias `npm run dev:worktrees` opens the same interactive
-multi-worktree launcher. Its simple menu recommends a clean latest `main`, hides
-broken worktrees, and describes other versions in plain language. Type `d` only
-when exact paths, commits, source fingerprints, and Git comparison details are
-needed. The launcher refuses to mutate dirty worktrees automatically.
+multi-worktree launcher. Its dynamic menu puts the current folder first and
+shows every actual branch name, the final five commit characters, local-file
+state, and matching GitHub-branch status. Broken worktrees are hidden. Type `d`
+only when full paths, commits, source fingerprints, and technical comparison
+details are needed. The launcher never switches, pulls, fetches, stashes, or
+otherwise changes a worktree.
 See `tools/numberdroid-studio/README.md` for fixture profiles and non-interactive
 options.
 

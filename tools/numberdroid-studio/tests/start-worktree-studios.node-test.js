@@ -6,11 +6,12 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   describeMainRelationship,
+  describeRemoteBranch,
   findAvailablePort,
   fixtureCommands,
   orderFriendlyWorktrees,
   parseArguments,
-  parseMainRef,
+  parseRemoteHeads,
   parseSelection,
   parseWorktreePorcelain,
   pathIsWithin,
@@ -77,7 +78,7 @@ test('arguments keep safe defaults and validate exclusive selection and fixture 
   assert.throws(() => parseArguments(['--json']), /only with --list/);
 });
 
-test('friendly ordering puts latest main first and hides unavailable worktrees', () => {
+test('friendly ordering puts the current folder first, then main, and hides unavailable worktrees', () => {
   const worktree = (id, kind, { current = false, dirty = false, eligible = true } = {}) => ({
     id,
     branch: id === 'latest' ? 'main' : `agent/${id}`,
@@ -95,14 +96,23 @@ test('friendly ordering puts latest main first and hides unavailable worktrees',
     worktree('hidden', 'unavailable', { eligible: false }),
   ]);
   assert.deepEqual(ordered.map(({ id }) => id), [
-    'latest', 'dirty-current', 'clean-candidate', 'dirty-latest', 'old',
+    'dirty-current', 'latest', 'dirty-latest', 'old', 'clean-candidate',
   ]);
 });
 
-test('latest-main diagnostics parse exact refs and explain branch relationships', () => {
+test('GitHub diagnostics parse dynamic branches and explain pull/push state', () => {
   const mainSha = 'a'.repeat(40);
-  assert.equal(parseMainRef(`${mainSha}\trefs/heads/main\n`), mainSha);
-  assert.throws(() => parseMainRef(`${mainSha}\trefs/heads/develop\n`), /exact main branch SHA/);
+  const featureSha = 'b'.repeat(40);
+  const heads = parseRemoteHeads(`${mainSha}\trefs/heads/main\n${featureSha}\trefs/heads/agent/feature\n`);
+  assert.equal(heads.get('main'), mainSha);
+  assert.equal(heads.get('agent/feature'), featureSha);
+  assert.equal(describeRemoteBranch({ branch: 'main', head: mainSha, remoteSha: mainSha }).kind, 'synced');
+  assert.equal(describeRemoteBranch({ branch: 'main', head: featureSha, remoteSha: mainSha }).kind, 'remote-not-local');
+  assert.equal(describeRemoteBranch({ branch: 'main', head: featureSha, remoteSha: mainSha, ahead: 0, behind: 2 }).kind, 'remote-ahead');
+  assert.equal(describeRemoteBranch({ branch: 'main', head: featureSha, remoteSha: mainSha, ahead: 2, behind: 0 }).kind, 'local-ahead');
+  assert.equal(describeRemoteBranch({ branch: 'main', head: featureSha, remoteSha: mainSha, ahead: 2, behind: 1 }).kind, 'diverged');
+  assert.equal(describeRemoteBranch({ branch: 'local-only', head: featureSha, remoteSha: null }).kind, 'local-only');
+  assert.equal(describeRemoteBranch({ branch: null, head: featureSha, remoteSha: null }).kind, 'detached');
   assert.deepEqual(describeMainRelationship({ head: mainSha, mainSha }), {
     kind: 'latest', label: `latest main (${mainSha.slice(0, 12)})`,
   });
