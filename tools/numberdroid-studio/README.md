@@ -133,7 +133,13 @@ npm run dev:worktrees
 cd tools/numberdroid-studio && npm run dev:worktrees
 ```
 
-The interactive menu offers `empty`, `vt001-room`, and `vt001-task` fixtures.
+The normal menu puts a clean latest `main` first, marks it recommended, and uses
+it when Enter is pressed without a number. Other runnable versions use readable
+names and short states such as **Clean**, **Has local changes**, or **Older
+version**. Broken/prunable worktrees are hidden. Type `d` in the prompt or pass
+`--verbose` only when paths, commits, and Git divergence details are useful.
+After version selection, the menu offers `empty`, `vt001-room`, and `vt001-task`
+fixtures.
 For a reproducible non-interactive launch:
 
 ```bash
@@ -142,19 +148,17 @@ npm run studio -- --select 1,3-4 --fixture vt001-room
 npm run studio -- --all --fixture empty --base-port 4317
 ```
 
-Each ready block prints the exact worktree, branch, full HEAD, tracked/untracked
-dirty counts, the complete committed Studio tree and an effective Studio-source
-fingerprint that also includes tracked changes and untracked Studio files,
-fixture profile, HTTP health result, PID,
-URL, data directory, and log path. Missing Studio dependencies and prunable
-worktrees are visible but cannot be selected; Git-locked worktrees remain usable
-and are labelled. The launcher never runs
+Each ready block retains the exact worktree, branch, full HEAD, committed Studio
+tree, effective source fingerprint, fixture profile, HTTP health result, PID,
+URL, data directory, and log path needed to verify a test. Missing Studio
+dependencies and prunable worktrees are available only in technical details;
+Git-locked worktrees remain usable. The launcher never runs
 `npm install`, never points at `.numberdroid-studio` or another existing
 workspace, and never opens a browser automatically. It performs one bounded,
-read-only check of GitHub's `main` and labels each worktree as latest, ahead,
-behind, diverged, or needing a fetch before comparison. Use `--offline` to rely
-on the cached `origin/main` reference. It never switches, pulls, stashes, or
-overwrites a worktree; dirty/outdated selections receive a safe update note.
+read-only check of GitHub's `main`; technical mode includes exact relationship
+details. Use `--offline` to rely on the cached `origin/main` reference. It never
+switches, pulls, stashes, or overwrites a worktree; dirty/outdated selections
+receive a safe update note.
 Ctrl+C gracefully stops all
 children. Fresh fixtures and logs are deliberately retained at the printed data
 root until the test result has been recorded; remove only that exact launch root

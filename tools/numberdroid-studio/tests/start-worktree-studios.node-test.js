@@ -8,6 +8,7 @@ import {
   describeMainRelationship,
   findAvailablePort,
   fixtureCommands,
+  orderFriendlyWorktrees,
   parseArguments,
   parseMainRef,
   parseSelection,
@@ -67,12 +68,35 @@ test('arguments keep safe defaults and validate exclusive selection and fixture 
     repositoryRoot: fileURLToPath(new URL('../../..', import.meta.url)).replace(/[\\/]$/, ''),
     select: null,
     startupTimeoutMs: 15_000,
+    verbose: false,
   });
   assert.equal(parseArguments(['--select', '1,2', '--fixture', 'vt001-room']).fixture, 'vt001-room');
   assert.throws(() => parseArguments(['--all', '--select', '1']), /not both/);
   assert.throws(() => parseArguments(['--fixture', 'personal']), /Unknown fixture profile/);
   assert.throws(() => parseArguments(['--base-port', '80']), /1024 through 65535/);
   assert.throws(() => parseArguments(['--json']), /only with --list/);
+});
+
+test('friendly ordering puts latest main first and hides unavailable worktrees', () => {
+  const worktree = (id, kind, { current = false, dirty = false, eligible = true } = {}) => ({
+    id,
+    branch: id === 'latest' ? 'main' : `agent/${id}`,
+    current,
+    dirty: { error: false, tracked: dirty ? 1 : 0, untracked: 0 },
+    eligible,
+    mainRelationship: { kind, label: kind },
+  });
+  const ordered = orderFriendlyWorktrees([
+    worktree('dirty-latest', 'latest', { dirty: true }),
+    worktree('dirty-current', 'diverged', { current: true, dirty: true }),
+    worktree('old', 'behind'),
+    worktree('latest', 'latest'),
+    worktree('clean-candidate', 'ahead'),
+    worktree('hidden', 'unavailable', { eligible: false }),
+  ]);
+  assert.deepEqual(ordered.map(({ id }) => id), [
+    'latest', 'dirty-current', 'clean-candidate', 'dirty-latest', 'old',
+  ]);
 });
 
 test('latest-main diagnostics parse exact refs and explain branch relationships', () => {
