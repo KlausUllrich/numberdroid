@@ -33,6 +33,7 @@ test('CP4.5 tasks are list-first with one focused create/detail flow and plain n
 test('Task overview exposes persisted conflicts and owner actions without inventing merge authority', async () => {
   const app = await readFile(appUrl, 'utf8');
   const styles = await readFile(stylesUrl, 'utf8');
+  const capture = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
   const attention = app.slice(app.indexOf('function taskAttentionPresentation'), app.indexOf('function processingAttemptCopy'));
   const review = app.slice(app.indexOf('function renderTaskReview'), app.indexOf('function renderTaskList'));
   const timeline = app.slice(app.indexOf("const timelineHeading = document.createElement('h3')"), app.indexOf('function renderTasks'));
@@ -64,6 +65,10 @@ test('Task overview exposes persisted conflicts and owner actions without invent
   assert.doesNotMatch(review, /Technical comparison details/);
   assert.doesNotMatch(review, /review-conflict-|review-item-/);
   assert.doesNotMatch(timeline, /createElement\('details'\)/);
+  assert.match(capture, /statusBadgeText === 'Changes cannot be added'/);
+  assert.match(capture, /conflictActionConsequenceCount === 2/);
+  assert.match(capture, /processingAdoptionSectionCount === 0/);
+  assert.match(capture, /!layout\.taskWorkspace\.controlNames\.includes\('merge'\)/);
 });
 
 test('A4c Level Candidate reviews are visibly read-only and never expose decision or merge controls', async () => {
