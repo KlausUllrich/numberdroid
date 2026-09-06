@@ -4201,10 +4201,16 @@ function renderTaskReview(entry) {
       ? 'You asked for changes. The assigned agent remains blocked until you choose “Let agent continue”.'
       : review.state === 'SUPERSEDED' && effectiveState === 'ACTIVE'
         ? 'This is the previous review and its saved feedback. Further work is allowed; Studio does not start an agent. A new result must be submitted for a new review.'
+      : review.state === 'SUPERSEDED' && effectiveState === 'PAUSED'
+        ? 'This is the previous review and its saved feedback. The task is paused; the assigned agent cannot make changes until you allow it to continue. No new result is waiting for review.'
+      : review.state === 'SUPERSEDED' && effectiveState === 'ANCESTOR_BLOCKED'
+        ? 'This is the previous review and its saved feedback. The parent task blocks further work. No new result is waiting for review.'
       : ['REJECTED', 'CANCELLED'].includes(effectiveState)
         ? 'This task ended without adding more changes. Its review remains available as read-only history.'
         : effectiveState === 'EXPIRED'
           ? 'This task expired. Its review remains available as read-only history, and its agent access cannot resume.'
+      : review.state === 'SUPERSEDED'
+        ? 'This is the previous review and its saved feedback, kept as read-only history. A new result must be submitted for a new review.'
       : levelCandidateReview
         ? 'Waiting for your review. This immutable Candidate is read-only: the A4c create path does not authorize a review decision, merge, materialization, publication, or release.'
         : `Waiting for your review. Only the project owner (${ownerId}) can accept or reject these changes.`;
@@ -4365,6 +4371,10 @@ function renderTaskDetail(selected) {
   const consequence = document.createElement('p'); consequence.textContent = `What happens next: ${presentation.consequence}`; workflow.append(workflowHeading, actor, consequence); detail.append(workflow);
   if (reviewHasConflict) detail.append(renderTaskReview(selected));
   if (taskMayLoadProcessingAdoption(selected)) detail.append(renderProcessingAdoption(selected));
+  const reviewIsCurrent = !reviewHasConflict && presentation.state === 'IN_REVIEW'
+    && selected.review?.state === 'OPEN' && selected.review.kind !== 'studio.level-candidate-review'
+    && selected.task.authority?.origin !== 'TRUSTED_SERVICE_CHILD';
+  if (reviewIsCurrent) detail.append(renderTaskReview(selected));
   const factsSection = document.createElement('section'); factsSection.className = 'task-facts-compact';
   const factsHeading = document.createElement('h3'); factsHeading.textContent = 'Task facts';
   const facts = document.createElement('dl'); facts.className = 'policy-details';
@@ -4426,7 +4436,7 @@ function renderTaskDetail(selected) {
     copy.append(strong, small, technicalEvent); item.append(copy); timeline.append(item);
   }
   detail.append(timelineHeading, timeline);
-  if (!reviewHasConflict) detail.append(renderTaskReview(selected));
+  if (!reviewHasConflict && !reviewIsCurrent) detail.append(renderTaskReview(selected));
   return detail;
 }
 

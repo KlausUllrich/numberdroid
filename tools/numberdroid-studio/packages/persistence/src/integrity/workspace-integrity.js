@@ -937,6 +937,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
         }
       }
       const events = timelineRows.all(row.project_id, row.task_id);
+      const eventsById = new Map();
       let latestEvent = null;
       for (const [index, eventRow] of events.entries()) {
         let event;
@@ -945,6 +946,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
           continue;
         }
         latestEvent = event;
+        eventsById.set(event.eventId, event);
         if (Number(eventRow.sequence) !== index + 1 || event.sequence !== index + 1
           || event.projectId !== row.project_id || event.taskId !== row.task_id
           || event.eventId !== eventRow.event_id || event.occurredAt !== eventRow.occurred_at
@@ -957,6 +959,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
       }
       const reviews = reviewRows.all(row.project_id, row.task_id);
       const nextVersionByReview = new Map();
+      const expectedFeedbackByReview = new Map();
       for (const reviewRowValue of reviews) {
         let review;
         try { review = JSON.parse(reviewRowValue.review_json); } catch {
@@ -971,13 +974,24 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
           || review.branchId !== row.branch_id || review.state !== reviewRowValue.state) {
           taskFindings.push({ projectId: row.project_id, taskId: row.task_id, reviewId: reviewRowValue.review_id, reviewVersion: expectedVersion, code: 'TASK_REVIEW_MISMATCH', message: 'Task review versions or normalized columns disagree.' });
         }
-        if (Object.hasOwn(review, 'feedback')) {
+        const decisionEvent = eventsById.get(`task-event:${row.task_id}:review:${reviewRowValue.review_id}:${expectedVersion}`);
+        if (decisionEvent?.details && Object.hasOwn(decisionEvent.details, 'feedback')) {
+          expectedFeedbackByReview.set(reviewRowValue.review_id, decisionEvent.details.feedback);
+        }
+        // Decision provenance survives later legacy decisions and merge versions.
+        // Its presence, rather than the possibly damaged review field, determines
+        // whether feedback is required. True legacy histories retain no feedback.
+        const expectsFeedback = expectedFeedbackByReview.has(reviewRowValue.review_id);
+        if (expectsFeedback || Object.hasOwn(review, 'feedback')) {
           try {
+            invariant(expectsFeedback && Object.hasOwn(review, 'feedback')
+              && fingerprint(review.feedback) === fingerprint(expectedFeedbackByReview.get(reviewRowValue.review_id)),
+            'TASK_REVIEW_FEEDBACK_MISMATCH', 'Review feedback differs from its immutable decision and timeline basis.');
             const feedback = validateReviewFeedback(review.feedback);
             const basis = reviews.find((entry) => entry.review_id === review.reviewId && Number(entry.review_version) === feedback.basisReviewVersion);
             const originRow = reviews.find((entry) => entry.review_id === review.reviewId && Number(entry.review_version) === feedback.basisReviewVersion + 1);
             const origin = originRow ? JSON.parse(originRow.review_json) : null;
-            const event = events.map((entry) => JSON.parse(entry.event_json)).find((entry) => entry.eventId === `task-event:${row.task_id}:review:${review.reviewId}:${feedback.basisReviewVersion + 1}`);
+            const event = eventsById.get(`task-event:${row.task_id}:review:${review.reviewId}:${feedback.basisReviewVersion + 1}`);
             invariant(review.kind !== 'studio.level-candidate-review' && basis && origin
               && feedback.basisReviewVersion < review.reviewVersion
               && fingerprint(feedback) === fingerprint(review.feedback)

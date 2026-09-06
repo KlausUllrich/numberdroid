@@ -4085,8 +4085,9 @@ try {
   }
 
   let taskFeedbackEvidence = null;
+  let taskFeedbackFormScreenshot = null;
   if (mode === 'review-feedback' && expectedWorkspace === 'tasks') {
-    const result = await devtools.send('Runtime.evaluate', {
+    const resultPromise = devtools.send('Runtime.evaluate', {
       expression: `(async () => {
         const waitFor = async (predicate, message) => {
           const deadline = Date.now() + 5_000;
@@ -4136,6 +4137,10 @@ try {
             && choice().value === 'CHANGES_REQUESTED' && document.activeElement === field()
             && field().selectionStart === 5 && field().selectionEnd === 12
             && scrollX === scrollBefore.x && scrollY === scrollBefore.y;
+          reviewRoot().scrollIntoView({ block: 'start', inline: 'nearest' });
+          await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+          window.__studioFeedbackFormCapture = { ready: true, released: false };
+          await waitFor(() => window.__studioFeedbackFormCapture.released, 'Filled feedback form capture did not complete.');
           await post(base + '/reviews/' + encodeURIComponent(initial.reviewId) + '/decide', {
             decisions: [...document.querySelectorAll('[data-task-review-disposition]')].map((select) => ({ changeId: select.dataset.taskReviewDisposition, disposition: 'USER_REJECTED', reason: 'External review note.' })),
             expectedReviewVersion: initial.reviewVersion, confirm: true,
@@ -4162,11 +4167,42 @@ try {
             && history.textContent.includes('Keep the saved footprint unchanged.')
             && !history.textContent.includes('Waiting for your review')
             && !history.querySelector('[data-task-control="decide"]');
-          return { requiredSummary, sameReviewRetained, newVersionCleared, exactFeedback, resumedHistoryTruth,
+          document.querySelector('[data-task-control="pause"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'PAUSED', 'Pause after continuation did not settle.');
+          const pausedHistory = document.querySelector('.task-review');
+          const pausedHistoryTruth = pausedHistory.querySelector('h3')?.textContent === 'Previous review'
+            && pausedHistory.textContent.includes('The task is paused; the assigned agent cannot make changes')
+            && pausedHistory.textContent.includes('Make the surface boundary easier to read.')
+            && pausedHistory.textContent.includes('Keep the saved footprint unchanged.')
+            && !pausedHistory.textContent.includes('Waiting for your review')
+            && !pausedHistory.querySelector('[data-task-control="decide"]');
+          return { requiredSummary, sameReviewRetained, newVersionCleared, exactFeedback, resumedHistoryTruth, pausedHistoryTruth,
             noOverflow: document.documentElement.scrollWidth <= innerWidth };
-        } finally { window.confirm = originalConfirm; }
+        } finally { window.confirm = originalConfirm; delete window.__studioFeedbackFormCapture; }
       })()`, awaitPromise: true, returnByValue: true,
     }, sessionId, 30_000);
+    // The interaction remains awaited below; mark an early rejection handled while capturing.
+    resultPromise.catch(() => {});
+    const captureReadyDeadline = Date.now() + 10_000;
+    let formReady = false;
+    while (Date.now() < captureReadyDeadline) {
+      const ready = await devtools.send('Runtime.evaluate', {
+        expression: 'window.__studioFeedbackFormCapture?.ready === true', returnByValue: true,
+      }, sessionId);
+      if (ready.result?.value === true) { formReady = true; break; }
+      await delay(50);
+    }
+    assert(formReady, 'The filled feedback form did not become ready for capture.');
+    const formScreenshot = await devtools.send('Page.captureScreenshot', {
+      format: 'png', fromSurface: true, captureBeyondViewport: false,
+    }, sessionId);
+    taskFeedbackFormScreenshot = outputPath.replace(/\.png$/i, '-form.png');
+    await mkdir(dirname(taskFeedbackFormScreenshot), { recursive: true });
+    await writeFile(taskFeedbackFormScreenshot, Buffer.from(formScreenshot.data, 'base64'));
+    await devtools.send('Runtime.evaluate', {
+      expression: 'window.__studioFeedbackFormCapture.released = true', returnByValue: true,
+    }, sessionId);
+    const result = await resultPromise;
     taskFeedbackEvidence = result.result?.value ?? null;
     assert(taskFeedbackEvidence && Object.values(taskFeedbackEvidence).every((value) => value === true),
       `Task feedback did not preserve exact-review drafts and truthful continuation: ${JSON.stringify(taskFeedbackEvidence)} ${JSON.stringify(result.exceptionDetails ?? null)}`);
@@ -4824,6 +4860,7 @@ try {
     checkpoint3RoomContinuity,
     checkpoint4TaskFocus,
     taskFeedbackEvidence,
+    taskFeedbackFormScreenshot,
     checkpoint45RoomFocus,
     checkpoint45PhysicalPaint,
     checkpoint45EditorContinuity,

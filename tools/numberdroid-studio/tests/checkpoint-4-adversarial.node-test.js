@@ -143,11 +143,40 @@ test('review feedback, task transition and timeline roll back together and retai
   assert.throws(() => db.prepare('UPDATE task_reviews SET review_json = ? WHERE review_id = ?').run('{}', review.reviewId), /immutable/);
   // Simulate disk corruption after proving the ordinary immutable write guard.
   db.exec('DROP TRIGGER task_reviews_immutable');
-  const corrupted = taskStore.getReview(PROJECT_ID, taskId);
-  corrupted.feedback.authorId = 'forged.owner';
-  db.prepare('UPDATE task_reviews SET review_json = ? WHERE review_id = ? AND review_version = 2').run(JSON.stringify(corrupted), review.reviewId);
-  const damaged = await verifyWorkspaceIntegrity({ projectStore: store, artifactStore });
-  assert.ok(damaged.tasks.findings.some(({ code }) => code === 'TASK_REVIEW_FEEDBACK_MISMATCH'));
+  const original = taskStore.getReview(PROJECT_ID, taskId);
+  const changedAuthor = structuredClone(original); changedAuthor.feedback.authorId = 'forged.owner';
+  const deletedFeedback = structuredClone(original); delete deletedFeedback.feedback;
+  for (const corrupted of [changedAuthor, deletedFeedback]) {
+    db.prepare('UPDATE task_reviews SET review_json = ? WHERE review_id = ? AND review_version = 2').run(JSON.stringify(corrupted), review.reviewId);
+    const damaged = await verifyWorkspaceIntegrity({ projectStore: store, artifactStore });
+    assert.ok(damaged.tasks.findings.some(({ code, reviewVersion }) => code === 'TASK_REVIEW_FEEDBACK_MISMATCH' && reviewVersion === 2));
+  }
+});
+
+test('feedback provenance requires inherited feedback in later decision and merge review versions', async (context) => {
+  const { store, artifactStore, tasks, taskStore, created, agentContext } = await harness(context);
+  const taskId = created.task.taskId;
+  await tasks.execute(branchSource(2, 'inherited-feedback'), agentContext);
+  const { review } = await tasks.submitReview(PROJECT_ID, taskId, { reviewId: 'review.feedback.inherited', actorId: OWNER.id });
+  const decisions = [{ changeId: review.items[0].changeId, disposition: 'USER_ACCEPTED', reason: 'Reviewed.' }];
+  const first = await tasks.decideReview(PROJECT_ID, taskId, review.reviewId, decisions, { actorId: OWNER.id, expectedReviewVersion: 1, feedbackSummary: 'Retain the approved label.' });
+  const later = await tasks.decideReview(PROJECT_ID, taskId, review.reviewId, decisions, { actorId: OWNER.id });
+  assert.equal(later.review.reviewVersion, 3);
+  assert.deepEqual(later.review.feedback, first.review.feedback);
+  await tasks.mergeReview(PROJECT_ID, taskId, review.reviewId, { mergeId: 'merge.feedback.inherited', actorId: OWNER.id });
+  const merged = taskStore.getReview(PROJECT_ID, taskId);
+  assert.equal(merged.reviewVersion, 4);
+  assert.deepEqual(merged.feedback, first.review.feedback);
+  const valid = await verifyWorkspaceIntegrity({ projectStore: store, artifactStore });
+  assert.equal(valid.tasks.ok, true, JSON.stringify(valid.tasks.findings));
+  const db = store.workspace.database; db.exec('DROP TRIGGER task_reviews_immutable');
+  for (const value of [later.review, merged]) {
+    const corrupted = structuredClone(value); delete corrupted.feedback;
+    db.prepare('UPDATE task_reviews SET review_json = ? WHERE review_id = ? AND review_version = ?').run(JSON.stringify(corrupted), review.reviewId, value.reviewVersion);
+    const damaged = await verifyWorkspaceIntegrity({ projectStore: store, artifactStore });
+    assert.ok(damaged.tasks.findings.some(({ code, reviewVersion }) => code === 'TASK_REVIEW_FEEDBACK_MISMATCH' && reviewVersion === value.reviewVersion));
+    db.prepare('UPDATE task_reviews SET review_json = ? WHERE review_id = ? AND review_version = ?').run(JSON.stringify(value), review.reviewId, value.reviewVersion);
+  }
 });
 
 test('concurrent owner feedback at one review version has exactly one durable winner', async (context) => {

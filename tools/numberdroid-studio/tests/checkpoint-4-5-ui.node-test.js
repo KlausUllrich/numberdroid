@@ -23,7 +23,7 @@ test('CP4.5 tasks are list-first with one focused create/detail flow and plain n
   assert.match(app, /Task IDs and limits/);
   assert.match(app, /Recorded action:/);
   assert.match(app, /work version/);
-  assert.match(app, /reviewHasConflict[\s\S]*renderTaskReview\(selected\)[\s\S]*if \(!reviewHasConflict\)/);
+  assert.match(app, /reviewHasConflict[\s\S]*renderTaskReview\(selected\)[\s\S]*if \(!reviewHasConflict && !reviewIsCurrent\)/);
   assert.match(app, /entry\.task\.effectiveState \?\? entry\.task\.state/);
   assert.match(app, /presentation\.state === 'PAUSED'/);
   assert.match(app, /presentation\.state === 'CHANGES_REQUESTED'/);
@@ -292,4 +292,61 @@ test('active task presentation permits work without claiming an agent process st
   assert.doesNotMatch(active.next, /is working|was started|has resumed/);
   const child = present({ task: { state: 'ACTIVE', authority: { origin: 'TRUSTED_SERVICE_CHILD' } } });
   assert.match(child.consequence, /No review decision, acceptance, merge/);
+});
+
+
+test('superseded review guidance remains history when continued work is paused or blocked', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const start = app.indexOf('  guidance.textContent = recordedConflicts.length && reviewEditable');
+  const source = app.slice(start, app.indexOf('  section.append(guidance);', start));
+  function guidanceFor(effectiveState, reverted = false) {
+    const guidance = {};
+    runInNewContext(source, { guidance, effectiveState, review: { state: 'SUPERSEDED' },
+      recordedConflicts: [], reviewEditable: false, entry: {}, taskWasReverted: () => reverted,
+      levelCandidateReview: false, ownerId: 'owner' });
+    return guidance.textContent;
+  }
+  for (const state of ['PAUSED', 'ANCESTOR_BLOCKED', 'ACTIVE', 'IN_REVIEW']) {
+    const copy = guidanceFor(state);
+    assert.match(copy, /previous review and its saved feedback/);
+    assert.doesNotMatch(copy, /Waiting for your review\. Only the project owner/);
+  }
+  assert.match(guidanceFor('PAUSED'), /task is paused; the assigned agent cannot make changes/);
+  assert.match(guidanceFor('ANCESTOR_BLOCKED'), /parent task blocks further work/);
+  assert.match(guidanceFor('CHANGES_REQUESTED'), /assigned agent remains blocked/);
+  assert.match(guidanceFor('EXPIRED'), /task expired.*agent access cannot resume/);
+  for (const state of ['REJECTED', 'CANCELLED']) assert.match(guidanceFor(state), /task ended.*read-only history/);
+  assert.match(guidanceFor('MERGED'), /Completed\. The accepted changes are now part of the project/);
+  assert.match(guidanceFor('ACTIVE', true), /Changes undone/);
+});
+
+
+test('current editable review follows Current step and preview before facts while history stays later', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function renderTaskDetail('), app.indexOf('function renderTasks('));
+  function element() { return { dataset: {}, children: [], append(...children) { this.children.push(...children); } }; }
+  const render = runInNewContext(`${source}; renderTaskDetail;`, {
+    document: { createElement: element }, state: { project: { projectId: 'project.one' } },
+    taskStateBadge: element, taskWorkflowPresentation: (entry) => ({ state: entry.task.state, actor: 'You', next: 'Review', consequence: 'Nothing enters the project' }),
+    taskMayLoadProcessingAdoption: () => true, renderProcessingAdoption: () => ({ className: 'processed-preview' }),
+    renderTaskReview: () => ({ className: 'current-or-history-review' }), taskHasSavedChanges: () => false,
+    TASK_CAPABILITY_LABELS: {}, TASK_ACTION_LABELS: {}, TASK_EVENT_LABELS: {},
+  });
+  function positions(state, review) {
+    const result = render({ task: { taskId: 'task.one', title: 'Task', objective: 'Review', state,
+      capabilities: [], budget: { maxCommands: 2 }, expiresAt: '2030-01-01T00:00:00Z' }, review, timeline: [] });
+    const index = (name) => result.children.findIndex((child) => child.className === name);
+    return { step: index('task-workflow-state'), preview: index('processed-preview'), review: index('current-or-history-review'), facts: index('task-facts-compact'), timeline: index('task-timeline'), count: result.children.filter((child) => child.className === 'current-or-history-review').length };
+  }
+  const current = positions('IN_REVIEW', { state: 'OPEN', conflicts: [] });
+  assert(current.step < current.preview && current.preview < current.review && current.review < current.facts);
+  assert.equal(current.count, 1);
+  const conflict = positions('IN_REVIEW', { state: 'OPEN', conflicts: [{}] });
+  assert(conflict.step < conflict.review && conflict.review < conflict.preview); assert.equal(conflict.count, 1);
+  for (const state of ['ACTIVE', 'PAUSED', 'CHANGES_REQUESTED']) {
+    const history = positions(state, { state: 'SUPERSEDED', conflicts: [] });
+    assert(history.review > history.timeline); assert.equal(history.count, 1);
+  }
+  const candidate = positions('IN_REVIEW', { state: 'OPEN', kind: 'studio.level-candidate-review', conflicts: [] });
+  assert(candidate.review > candidate.timeline);
 });
