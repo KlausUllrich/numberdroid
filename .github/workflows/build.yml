@@ -577,6 +577,9 @@ jobs:
           wait "$CHECKPOINT_4_PID" 2>/dev/null || true
           CHECKPOINT_4_PID=""
 
+          timeout 420s node tools/numberdroid-studio/scripts/verify-review-feedback-browser.js \
+            "$CHROME" "$CHECKPOINT_4_EVIDENCE/review-feedback"
+
           A1_7_DATA="$(timeout 10s mktemp -d "$RUNNER_TEMP/numberdroid-studio-a1-7-data.XXXXXX")"
           A1_7_EVIDENCE="$GITHUB_WORKSPACE/artifacts/studio-a1-7"
           A1_7_RAW_LOG="$RUNNER_TEMP/numberdroid-studio-a1-7-server.log"
