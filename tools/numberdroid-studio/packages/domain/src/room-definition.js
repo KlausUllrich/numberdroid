@@ -508,7 +508,15 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
         && envelope.x + envelope.width <= usable.x + usable.width
         && envelope.y + envelope.height <= usable.y + usable.height
         && !crossesVoid;
-      if (!insideUsable) add('studio.room.surface.macro_out_of_domain', path, 'A structural surface macro is clipped, partial, or inside an excluded band.', 'Place complete macros wholly inside the usable domain.', 'ERROR', placement.placementId, 'roomPlacement');
+      if (!insideUsable) add(
+        'studio.room.surface.macro_out_of_domain',
+        path,
+        'Part of this Surface placement block falls outside the usable room area.',
+        'A “macro” is a Surface asset placed as one whole grid block, which may cover one or several cells. Select that Surface in the palette and place its complete highlighted footprint inside the usable room area—never across a VOID cell or an excluded structural edge band. Move it farther inward or choose a smaller Surface if the complete block does not fit.',
+        'ERROR',
+        placement.placementId,
+        'roomPlacement',
+      );
       if ((envelope.x - usable.x) % footprint.width !== 0 || (envelope.y - usable.y) % footprint.height !== 0) add('studio.room.surface.macro_misaligned', path, 'A structural surface macro is not aligned to the usable-domain origin.', 'Align from room origin plus structural bands.', 'ERROR', placement.placementId, 'roomPlacement');
       if (insideUsable) {
         for (let y = envelope.y; y < envelope.y + envelope.height; y += 1) {

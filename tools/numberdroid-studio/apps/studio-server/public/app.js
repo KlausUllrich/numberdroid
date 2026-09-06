@@ -487,7 +487,8 @@ function selectedTaskAdoptionProjection(projectId, taskId) {
 }
 
 function taskMayLoadProcessingAdoption(entry) {
-  return entry?.task?.authority?.origin !== 'TRUSTED_SERVICE_CHILD';
+  return entry?.task?.authority?.origin !== 'TRUSTED_SERVICE_CHILD'
+    && entry.task.capabilities?.includes('asset.processing-result.adopt');
 }
 
 async function loadSelectedTaskAdoption({ preserveTaskContext = true } = {}) {
@@ -3828,6 +3829,14 @@ function taskEventActorLabel(entry, event) {
 function taskWorkflowPresentation(entry) {
   const stateValue = taskEffectiveState(entry);
   const levelCandidateReview = entry.review?.kind === 'studio.level-candidate-review';
+  if (stateValue === 'IN_REVIEW' && entry.review?.state === 'OPEN' && entry.review.conflicts?.length) {
+    return {
+      state: stateValue,
+      actor: 'You',
+      next: 'End this task without adding its changes, then start a new task from the current project.',
+      consequence: 'The proposed result stays out of the project, this task remains in history, and the assigned agent can no longer change it.',
+    };
+  }
   const presentations = {
     ACTIVE: { actor: 'Assigned agent', next: taskHasSavedChanges(entry) ? 'The agent can continue, or you can review the current result.' : 'The agent can work within the limits you chose.', consequence: 'Changes stay separate from the project until you review and accept them.' },
     ANCESTOR_BLOCKED: { actor: 'You', next: 'Inspect the parent task. This child cannot continue while its saved ancestor authority is blocked.', consequence: 'The child cannot execute, create a Candidate, or change the project.' },
@@ -4087,7 +4096,10 @@ function taskMergeBlockedReason(review) {
 function taskStateBadge(entry) {
   const presentation = taskWorkflowPresentation(entry);
   const badge = document.createElement('span'); badge.className = 'status-pill';
-  badge.dataset.taskState = presentation.state; badge.textContent = taskStateLabel(presentation.state);
+  const conflict = presentation.state === 'IN_REVIEW' && entry.review?.state === 'OPEN' && entry.review.conflicts?.length;
+  badge.dataset.taskState = presentation.state;
+  if (conflict) badge.dataset.taskAttention = 'CONFLICT';
+  badge.textContent = conflict ? 'Changes cannot be added' : taskStateLabel(presentation.state);
   badge.setAttribute('aria-label', `Task status: ${badge.textContent}`);
   return badge;
 }
@@ -4147,9 +4159,31 @@ function renderTaskReview(entry) {
     const copy = document.createElement('p'); copy.textContent = 'The task is still open. When the work is ready, either the agent or you can send the result to the project owner for review.';
     section.append(copy); return section;
   }
+  const recordedConflicts = Array.isArray(review.conflicts) ? review.conflicts : [];
+  const blockedReason = taskMergeBlockedReason(review);
+  if (recordedConflicts.length) {
+    section.dataset.taskReviewBlocked = 'conflict';
+    const conflict = document.createElement('section'); conflict.className = 'task-conflict-summary';
+    const conflictHeading = document.createElement('h4'); conflictHeading.textContent = 'Changes cannot be added';
+    const explanation = document.createElement('p');
+    explanation.textContent = 'The project changed the same item after this task began. Applying the agent result could overwrite newer work, so Studio has blocked it.';
+    const affected = document.createElement('div'); affected.className = 'task-conflict-items';
+    for (const item of recordedConflicts) {
+      const row = document.createElement('small');
+      const label = item.entityType === 'source' ? 'Affected source' : `Affected ${item.entityType}`;
+      row.textContent = `${label}: ${item.entityId} · Recorded as ${item.code}`; affected.append(row);
+    }
+    const recommendation = document.createElement('p'); recommendation.className = 'task-conflict-recommendation';
+    const recommendationLabel = document.createElement('strong'); recommendationLabel.textContent = 'Recommended: ';
+    recommendation.append(recommendationLabel,
+      'End this task without adding changes, then start a new task from the current project. This task remains available in history.');
+    conflict.append(conflictHeading, explanation, affected, recommendation); section.append(conflict);
+  }
   const ownerId = state.project?.snapshot.project.ownerId ?? 'project owner';
   const guidance = document.createElement('p'); guidance.className = 'task-review-guidance';
-  guidance.textContent = taskWasReverted(entry)
+  guidance.textContent = recordedConflicts.length && reviewEditable
+    ? 'You may still record whether you accept or reject the proposed idea. Saving that decision changes only this review; it cannot apply the conflicting result to the project.'
+    : taskWasReverted(entry)
     ? 'Changes undone. The completed task and its review remain in the history.'
     : effectiveState === 'MERGED'
     ? 'Completed. The accepted changes are now part of the project, and the assigned agent can no longer change this task.'
@@ -4163,41 +4197,16 @@ function renderTaskReview(entry) {
         ? 'Waiting for your review. This immutable Candidate is read-only: the A4c create path does not authorize a review decision, merge, materialization, publication, or release.'
         : `Waiting for your review. Only the project owner (${ownerId}) can accept or reject these changes.`;
   section.append(guidance);
-  const comparison = document.createElement('details'); comparison.className = 'task-technical-details';
-  comparison.dataset.taskDisclosureKey = 'review-comparison';
-  const comparisonSummary = document.createElement('summary'); comparisonSummary.textContent = 'Technical comparison details';
-  comparisonSummary.dataset.taskFocusKey = 'review-comparison-summary';
-  const comparisonCopy = document.createElement('p');
-  comparisonCopy.textContent = `Started from project revision ${review.baseRevision} · agent result revision ${review.branchHeadRevision} · compared with project revision ${review.comparedMainRevision}`;
-  comparison.append(comparisonSummary, comparisonCopy); section.append(comparison);
-  const conflicts = document.createElement('ul'); conflicts.className = 'task-conflicts';
-  for (const [conflictIndex, conflict] of (review.conflicts ?? []).entries()) {
-    const item = document.createElement('li');
-    const message = document.createElement('strong');
-    message.textContent = 'The same project item was changed both in this task and in the project after the task started.';
-    const technical = document.createElement('details'); technical.className = 'task-technical-details';
-    technical.dataset.taskDisclosureKey = `review-conflict-${conflictIndex}`;
-    const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
-    technicalSummary.dataset.taskFocusKey = `review-conflict-${conflictIndex}-summary`;
-    const technicalCode = document.createElement('code'); technicalCode.textContent = `${conflict.code}: ${conflict.entityType}:${conflict.entityId}`;
-    technical.append(technicalSummary, technicalCode);
-    item.append(message, technical); conflicts.append(item);
-  }
-  if (conflicts.children.length) {
-    const conflictHeading = document.createElement('h4'); conflictHeading.textContent = 'Conflict to resolve before completion';
-    section.append(conflictHeading, conflicts);
-  }
+  const comparison = document.createElement('small'); comparison.className = 'task-inline-meta task-review-comparison';
+  comparison.textContent = `Task started at project r${review.baseRevision} · Agent result r${review.branchHeadRevision} · Project when reviewed r${review.comparedMainRevision}`;
+  section.append(comparison);
   const list = document.createElement('ol'); list.className = 'task-review-items';
   for (const item of review.items) {
     const row = document.createElement('li'); row.dataset.changeId = item.changeId;
     const copy = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = item.summary;
-    const technical = document.createElement('details');
-    technical.dataset.taskDisclosureKey = `review-item-${item.changeId}`;
-    const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
-    technicalSummary.dataset.taskFocusKey = `review-item-${item.changeId}-summary`;
-    const code = document.createElement('code'); code.textContent = item.commandType;
-    technical.append(technicalSummary, code); copy.append(strong, technical);
+    const technical = document.createElement('small'); technical.className = 'task-inline-meta';
+    technical.textContent = `Recorded action: ${item.commandType}`; copy.append(strong, technical);
     let disposition;
     if (levelCandidateReview) {
       disposition = document.createElement('span'); disposition.className = 'task-review-disposition-readonly';
@@ -4223,14 +4232,26 @@ function renderTaskReview(entry) {
   section.append(list);
   if (reviewEditable) {
     const decide = document.createElement('button'); decide.type = 'button'; decide.dataset.taskControl = 'decide'; decide.dataset.taskFocusKey = 'review-decide'; decide.textContent = 'Save review decisions';
-    section.append(decide);
-    const blockedReason = taskMergeBlockedReason(review);
-    const merge = document.createElement('button'); merge.type = 'button'; merge.className = 'secondary'; merge.dataset.taskControl = 'merge'; merge.dataset.taskFocusKey = 'review-merge'; merge.textContent = 'Add accepted changes and complete task';
-    merge.disabled = Boolean(blockedReason); merge.title = blockedReason ?? 'Add the accepted changes to the project and complete this task.'; section.append(merge);
-    if (blockedReason) {
-      const note = document.createElement('p'); note.className = 'task-action-note'; note.textContent = blockedReason; section.append(note);
+    const reject = document.createElement('button'); reject.type = 'button'; reject.className = 'secondary'; reject.dataset.taskControl = 'reject'; reject.dataset.taskFocusKey = 'review-reject'; reject.textContent = TASK_ACTION_LABELS.reject;
+    const actions = document.createElement('div'); actions.className = 'task-review-actions';
+    if (recordedConflicts.length) {
+      reject.className = '';
+      const rejectCopy = document.createElement('small'); rejectCopy.className = 'task-action-consequence';
+      rejectCopy.textContent = 'Adds nothing to the project. The task remains in history and the assigned agent can no longer change it.';
+      decide.className = 'secondary';
+      const decideCopy = document.createElement('small'); decideCopy.className = 'task-action-consequence';
+      decideCopy.textContent = 'Saves only your Accept or Reject choices. It does not change the project or unblock completion.';
+      actions.append(reject, rejectCopy, decide, decideCopy);
+    } else {
+      const merge = document.createElement('button'); merge.type = 'button'; merge.className = 'secondary'; merge.dataset.taskControl = 'merge'; merge.dataset.taskFocusKey = 'review-merge'; merge.textContent = 'Add accepted changes and complete task';
+      merge.disabled = Boolean(blockedReason); merge.title = blockedReason ?? 'Add the accepted changes to the project and complete this task.';
+      actions.append(decide, merge);
+      if (blockedReason) {
+        const note = document.createElement('p'); note.className = 'task-action-note'; note.textContent = blockedReason; actions.append(note);
+      }
+      actions.append(reject);
     }
-    const reject = document.createElement('button'); reject.type = 'button'; reject.className = 'secondary'; reject.dataset.taskControl = 'reject'; reject.dataset.taskFocusKey = 'review-reject'; reject.textContent = TASK_ACTION_LABELS.reject; section.append(reject);
+    section.append(actions);
   } else if (effectiveState === 'MERGED' && review.mergeId && !taskWasReverted(entry)) {
     const note = document.createElement('p'); note.className = 'task-action-note';
     note.textContent = 'You can undo the project changes from this task without deleting its task or review history.';
@@ -4294,12 +4315,18 @@ function renderTaskDetail(selected) {
   const back = document.createElement('button'); back.type = 'button'; back.className = 'secondary'; back.dataset.taskControl = 'back-to-list'; back.dataset.taskFocusKey = 'back-to-list'; back.textContent = 'Back to tasks';
   headingActions.append(taskStateBadge(selected), back); heading.append(headCopy, headingActions); detail.append(heading);
   const presentation = taskWorkflowPresentation(selected);
+  const reviewHasConflict = presentation.state === 'IN_REVIEW'
+    && selected.review?.state === 'OPEN' && selected.review.conflicts?.length;
   const workflow = document.createElement('section'); workflow.className = 'task-workflow-state';
+  if (reviewHasConflict) workflow.dataset.taskAttention = 'CONFLICT';
   workflow.dataset.taskSelectionKey = 'current-step';
-  const workflowHeading = document.createElement('h3'); workflowHeading.textContent = 'Current step';
+  const workflowHeading = document.createElement('h3'); workflowHeading.textContent = reviewHasConflict ? 'Decision needed' : 'Current step';
   const actor = document.createElement('p'); actor.className = 'task-next-step'; actor.textContent = `Who acts next: ${presentation.actor}. ${presentation.next}`;
   const consequence = document.createElement('p'); consequence.textContent = `What happens next: ${presentation.consequence}`; workflow.append(workflowHeading, actor, consequence); detail.append(workflow);
+  if (reviewHasConflict) detail.append(renderTaskReview(selected));
   if (taskMayLoadProcessingAdoption(selected)) detail.append(renderProcessingAdoption(selected));
+  const factsSection = document.createElement('section'); factsSection.className = 'task-facts-compact';
+  const factsHeading = document.createElement('h3'); factsHeading.textContent = 'Task facts';
   const facts = document.createElement('dl'); facts.className = 'policy-details';
   facts.dataset.taskSelectionKey = 'task-facts';
   const reservedCommands = selected.task.reservedForChildren?.commands ?? 0;
@@ -4312,7 +4339,7 @@ function renderTaskDetail(selected) {
     ['Agent access ends', new Date(selected.task.expiresAt).toLocaleString()],
     ['Usage', `${usedCommands} used · ${reservedCommands} reserved for child tasks · ${availableCommands} still available`],
   ]) { const term = document.createElement('dt'); term.textContent = label; const desc = document.createElement('dd'); desc.textContent = value; facts.append(term, desc); }
-  detail.append(facts);
+  factsSection.append(factsHeading, facts); detail.append(factsSection);
   const lineage = selected.task.authority?.lineage;
   if (lineage) {
     const authority = document.createElement('section'); authority.className = 'task-workflow-state'; authority.dataset.taskAuthorityLineage = 'read-only';
@@ -4329,7 +4356,7 @@ function renderTaskDetail(selected) {
   }
   const technical = document.createElement('details'); technical.className = 'task-technical-details';
   technical.dataset.taskDisclosureKey = 'task-technical';
-  const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Technical details';
+  const technicalSummary = document.createElement('summary'); technicalSummary.textContent = 'Task IDs and limits';
   technicalSummary.dataset.taskFocusKey = 'task-technical-summary';
   const technicalFacts = document.createElement('dl'); technicalFacts.className = 'policy-details';
   for (const [label, value] of [
@@ -4353,13 +4380,14 @@ function renderTaskDetail(selected) {
     const item = document.createElement('li'); const copy = document.createElement('div');
     const strong = document.createElement('strong'); strong.textContent = TASK_EVENT_LABELS[event.type] ?? 'Task activity updated';
     const small = document.createElement('small'); small.textContent = `${new Date(event.occurredAt).toLocaleTimeString()} · ${taskEventActorLabel(selected, event)}`;
-    const technicalEvent = document.createElement('details'); const summary = document.createElement('summary'); summary.textContent = 'Technical details';
-    technicalEvent.dataset.taskDisclosureKey = `timeline-${eventIndex}-${event.type}`;
-    summary.dataset.taskFocusKey = `timeline-${eventIndex}-${event.type}-summary`;
-    const code = document.createElement('code'); code.textContent = `${event.type} · work version ${event.branchRevision ?? '—'}`; technicalEvent.append(summary, code);
-    copy.append(strong, small); item.append(copy, technicalEvent); timeline.append(item);
+    const technicalEvent = document.createElement('small'); technicalEvent.className = 'task-inline-meta';
+    technicalEvent.dataset.taskEventIndex = String(eventIndex);
+    technicalEvent.textContent = `${event.type} · work version ${event.branchRevision ?? '—'}`;
+    copy.append(strong, small, technicalEvent); item.append(copy); timeline.append(item);
   }
-  detail.append(timelineHeading, timeline, renderTaskReview(selected)); return detail;
+  detail.append(timelineHeading, timeline);
+  if (!reviewHasConflict) detail.append(renderTaskReview(selected));
+  return detail;
 }
 
 function renderTasks() {
@@ -5346,20 +5374,19 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     && taskList.tasks.some((task) => task.taskId === state.taskUi.selectedTaskId)
     ? state.taskUi.selectedTaskId
     : null;
-  const selectedTaskSummary = taskList.tasks.find(({ taskId }) => taskId === selectedTaskId);
   const taskSelectionOwner = {
     generation: taskSelectionGeneration,
     projectId,
     taskId: selectedTaskId,
   };
-  const [taskDetails, selectedAdoption] = await Promise.all([
-    Promise.all(taskList.tasks.map((task) => (
-      api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
-    ))),
-    selectedTaskId && taskMayLoadProcessingAdoption({ task: selectedTaskSummary })
-      ? requestTaskAdoptionProjection(projectId, selectedTaskId)
-      : Promise.resolve(null),
-  ]);
+  const taskDetails = await Promise.all(taskList.tasks.map((task) => (
+    api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
+  )));
+  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  const selectedTaskDetails = taskDetails.find(({ task }) => task.taskId === selectedTaskId);
+  const selectedAdoption = selectedTaskId && taskMayLoadProcessingAdoption(selectedTaskDetails)
+    ? await requestTaskAdoptionProjection(projectId, selectedTaskId)
+    : null;
   if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   if (state.project?.projectId !== projectId) {
     state.sourceDraft = null;
@@ -5773,6 +5800,15 @@ elements['workspace-content'].addEventListener('pointermove', (event) => {
   const anchor = roomCellFromPointer(board, event); if (!anchor) return;
   if (anchor.x === state.roomUi.placementHover?.x && anchor.y === state.roomUi.placementHover?.y) return;
   state.roomUi.placementHover = anchor; updateRoomPlacementGhostDom();
+});
+
+elements['workspace-content'].addEventListener('pointerout', (event) => {
+  if (state.workspace !== 'rooms' || !state.roomUi.selectedPaletteAssetId
+      || state.roomUi.placementGesture || state.roomUi.pendingPlacementAdd) return;
+  const board = event.target.closest?.('[data-room-board]');
+  if (!board || (event.relatedTarget instanceof Node && board.contains(event.relatedTarget))) return;
+  state.roomUi.placementHover = null;
+  updateRoomPlacementGhostDom();
 });
 
 elements['workspace-content'].addEventListener('focusin', (event) => {
@@ -7183,6 +7219,7 @@ if (visualFixture) {
         selectedPaletteAssetId: state.roomUi.selectedPaletteAssetId,
         selectedPaletteAssetPin: state.roomUi.selectedPaletteAssetPin ? structuredClone(state.roomUi.selectedPaletteAssetPin) : null,
         placementRotation: state.roomUi.placementRotation,
+        placementHover: state.roomUi.placementHover ? { ...state.roomUi.placementHover } : null,
         projectRevision: state.project?.revision ?? null,
         roomVersion: currentRoomVariant().variant?.version ?? null,
         suppressCanvasClick: state.roomUi.suppressCanvasClick,

@@ -13,6 +13,18 @@ This checkpoint is bounded to the designer workflow requested by the combined ga
 5. Conflict completion remains visibly disabled. A programmatic click on the disabled action opens no confirmation dialog. Since this checkpoint adds no rebase operation, the truthful recovery is to end the task without applying its changes and create a new task from the current project.
 6. Existing CP4 pause, resume, review, merge, revert, atomicity, grant revocation, and immutable history semantics remain unchanged.
 7. An undo action is offered only until the corresponding merge has been reverted. Real persisted event names are mapped to human language; unknown names remain available under `Technical details`.
+8. A recorded semantic conflict becomes the dominant task-detail state before
+   task facts or history. It names the affected object, explains that applying
+   the result could overwrite newer project work, and recommends ending the
+   task without adding changes before deliberately creating a replacement from
+   the current project. The blocked merge action is not presented as an
+   available choice; ending and saving review intent state their different
+   consequences directly.
+9. One-line comparison, event, command, object, and revision metadata appears
+   as compact secondary text beside the item it explains. A full-width
+   disclosure is reserved for genuinely multi-line identifiers, permissions,
+   payloads, or diagnostics; essential problems, actions, and consequences
+   never depend on opening technical details.
 
 ## 2. Frozen minimum useful prop preview
 

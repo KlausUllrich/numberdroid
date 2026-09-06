@@ -7,7 +7,7 @@ Status: **binding Codex session-continuity procedure**
 Numberdroid onboarding is task-routed. The repository therefore does not keep
 one static list of every document that every agent should carry. Each Codex
 session records the exact role, domain, planning, and handoff documents selected
-for its current task. After automatic compaction, a repository hook restores
+for its current task. After automatic compaction, a trusted, enabled repository hook restores
 those files in full before the model continues.
 
 This mechanism supplements compaction summaries; it does not replace the
@@ -17,7 +17,9 @@ authority or reading routes in `AGENTS.md` and
 ## Session procedure
 
 After the universal bootstrap and task classification are complete, replace the
-session manifest with the exact task-specific documents that were read:
+session manifest with the minimum complete task-specific route that was read.
+Register required current contracts and only explicitly named handoffs; do not
+add unrelated domain documents or old handoffs for reassurance:
 
 ```bash
 node scripts/repo/codex-context-retention.mjs register --replace \
@@ -65,6 +67,18 @@ The settings and hook in `.codex/` apply only when a trusted Codex client loads
 this Numberdroid repository layer. They do not change global Codex defaults and
 do not govern non-Codex providers.
 
-The configured 750,000-token automatic-compaction threshold depends on the
-872,000-token extended context configured for this repository. Do not select a
-model that cannot support that window without first lowering both values.
+This repository sets no model context window, compaction threshold, or
+compaction-counting override. Those choices follow the active client/model
+configuration and are independent of task-document retention.
+
+## Hook activation
+
+The presence of `.codex/hooks.json` does not prove that recovery is active.
+Codex must load the trusted project layer, have hooks enabled, and trust the
+exact hook definition. In an interactive Codex client, review the hook through
+`/hooks` before trusting it. An agent must not claim automatic recovery is
+active merely because registration or the standalone self-test passed.
+
+If the client does not support or activate this hook, keep the selected path
+list in the session checkpoint and reread that route manually after compaction.
+The same current-authority and named-handoff rules still apply.

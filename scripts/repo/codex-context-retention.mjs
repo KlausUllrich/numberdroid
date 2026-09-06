@@ -25,6 +25,7 @@ function repositoryRoot() {
   try {
     return fs.realpathSync(execFileSync('git', ['rev-parse', '--show-toplevel'], {
       encoding: 'utf8',
+      timeout: 5_000,
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim());
   } catch {

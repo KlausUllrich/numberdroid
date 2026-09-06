@@ -74,6 +74,9 @@ jobs:
       - name: Verify classifier policy
         run: node scripts/repo/ci-change-classifier.selftest.mjs
 
+      - name: Verify Codex context retention
+        run: node scripts/repo/codex-context-retention.selftest.mjs
+
       - name: Verify repository documentation links
         run: node scripts/repo/check-markdown-links.mjs
 
@@ -711,6 +714,9 @@ jobs:
       - name: Install Studio dependencies
         working-directory: tools/numberdroid-studio
         run: npm ci --no-audit --no-fund
+
+      - name: Verify Codex context retention on Windows
+        run: node scripts/repo/codex-context-retention.selftest.mjs
 
       - name: Test Studio on Windows
         working-directory: tools/numberdroid-studio

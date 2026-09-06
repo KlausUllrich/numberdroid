@@ -15,6 +15,14 @@ test('CP4.5 tasks are list-first with one focused create/detail flow and plain n
   assert.match(app, /What happens/);
   assert.match(app, /Technical details/);
   assert.match(app, /End task without adding changes/);
+  assert.match(app, /Changes cannot be added/);
+  assert.match(app, /Applying the agent result could overwrite newer work, so Studio has blocked it/);
+  assert.match(app, /Saving that decision changes only this review; it cannot apply the conflicting result/);
+  assert.match(app, /task-review-actions/);
+  assert.match(app, /Task IDs and limits/);
+  assert.match(app, /Recorded action:/);
+  assert.match(app, /work version/);
+  assert.match(app, /reviewHasConflict[\s\S]*renderTaskReview\(selected\)[\s\S]*if \(!reviewHasConflict\)/);
   assert.match(app, /entry\.task\.effectiveState \?\? entry\.task\.state/);
   assert.match(app, /presentation\.state === 'PAUSED'/);
   assert.match(app, /presentation\.state === 'CHANGES_REQUESTED'/);
@@ -25,7 +33,10 @@ test('CP4.5 tasks are list-first with one focused create/detail flow and plain n
 test('Task overview exposes persisted conflicts and owner actions without inventing merge authority', async () => {
   const app = await readFile(appUrl, 'utf8');
   const styles = await readFile(stylesUrl, 'utf8');
+  const capture = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
   const attention = app.slice(app.indexOf('function taskAttentionPresentation'), app.indexOf('function processingAttemptCopy'));
+  const review = app.slice(app.indexOf('function renderTaskReview'), app.indexOf('function renderTaskList'));
+  const timeline = app.slice(app.indexOf("const timelineHeading = document.createElement('h3')"), app.indexOf('function renderTasks'));
   assert.match(attention, /entry\.review\?\.conflicts/);
   assert.match(attention, /taskEffectiveState\(entry\)/);
   assert.match(attention, /stateValue === 'IN_REVIEW' && entry\.review\?\.state === 'OPEN' && conflicts\.length/);
@@ -45,8 +56,19 @@ test('Task overview exposes persisted conflicts and owner actions without invent
   assert.match(app, /will not present it as clear or empty/);
   assert.match(app, /create\.disabled = state\.tasksAvailability !== 'AVAILABLE'/);
   assert.match(styles, /\.status-pill\[data-task-state="IN_REVIEW"\] \{[^}]*var\(--amber\)/);
+  assert.match(styles, /\.status-pill\[data-task-attention="CONFLICT"\] \{[^}]*#ffb39e/);
   assert.match(styles, /\.task-list-item\[data-task-attention="CONFLICT"\] \{[^}]*repeating-linear-gradient/);
   assert.match(styles, /\.task-list-attention strong \{[^}]*font-size: 10px/);
+  assert.match(styles, /\.task-conflict-summary \{[^}]*border-left: 4px solid #ff9a80/);
+  assert.match(styles, /\.task-review-actions \{[^}]*grid-template-columns: max-content minmax\(0, 1fr\)/);
+  assert.match(styles, /\.task-inline-meta \{[^}]*font: 9px\/1\.45 ui-monospace/);
+  assert.doesNotMatch(review, /Technical comparison details/);
+  assert.doesNotMatch(review, /review-conflict-|review-item-/);
+  assert.doesNotMatch(timeline, /createElement\('details'\)/);
+  assert.match(capture, /statusBadgeText === 'Changes cannot be added'/);
+  assert.match(capture, /conflictActionConsequenceCount === 2/);
+  assert.match(capture, /processingAdoptionSectionCount === 0/);
+  assert.match(capture, /!layout\.taskWorkspace\.controlNames\.includes\('merge'\)/);
 });
 
 test('A4c Level Candidate reviews are visibly read-only and never expose decision or merge controls', async () => {
@@ -104,7 +126,7 @@ test('derived Candidate children expose read-only lineage, reservations, and anc
   assert.match(app, /function taskMayLoadProcessingAdoption\(entry\)/);
   assert.match(app, /origin !== 'TRUSTED_SERVICE_CHILD'/);
   assert.match(detail, /if \(taskMayLoadProcessingAdoption\(selected\)\) detail\.append\(renderProcessingAdoption\(selected\)\)/);
-  assert.match(app, /selectedTaskId && taskMayLoadProcessingAdoption\(\{ task: selectedTaskSummary \}\)/);
+  assert.match(app, /selectedTaskId && taskMayLoadProcessingAdoption\(selectedTaskDetails\)/);
   assert.doesNotMatch(detail, /taskControl = 'derive'|data-task-control="derive"/);
   const workflow = app.slice(app.indexOf('function taskWorkflowPresentation'), app.indexOf('function taskAttentionPresentation'));
   assert.match(workflow, /origin === 'TRUSTED_SERVICE_CHILD' && stateValue === 'ACTIVE'/);

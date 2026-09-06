@@ -12,6 +12,7 @@
     "check": "node scripts/check-javascript-syntax.js",
     "check:selftest": "node scripts/check-javascript-syntax.selftest.js",
     "dev": "node apps/studio-server/src/server.js",
+    "dev:worktrees": "node scripts/start-worktree-studios.js",
     "demo:seed": "node apps/studio-server/src/seed-demo.js",
     "evidence:verify": "node scripts/checkpoint-1a-evidence.js",
     "evidence:visual-prepare": "node scripts/prepare-visual-evidence.js",

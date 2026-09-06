@@ -322,6 +322,10 @@ test('structural bands exclude cells before complete macro coverage is evaluated
   assert.ok(rules.includes('studio.room.surface.macro_out_of_domain'));
   assert.ok(rules.includes('studio.room.surface.macro_misaligned'));
   assert.ok(rules.includes('studio.room.surface.coverage_incomplete'));
+  const outsideFinding = broken.findings.find(({ ruleId }) => ruleId === 'studio.room.surface.macro_out_of_domain');
+  assert.equal(outsideFinding.explanation, 'Part of this Surface placement block falls outside the usable room area.');
+  assert.equal(outsideFinding.remediation,
+    'A “macro” is a Surface asset placed as one whole grid block, which may cover one or several cells. Select that Surface in the palette and place its complete highlighted footprint inside the usable room area—never across a VOID cell or an excluded structural edge band. Move it farther inward or choose a smaller Surface if the complete block does not fit.');
 });
 
 test('lifecycle blocks errors, requires warning disposition, and final values fork into a new draft', () => {

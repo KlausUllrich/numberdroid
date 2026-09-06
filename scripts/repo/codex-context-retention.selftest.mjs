@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync as runFileSync, spawnSync as runSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+const execFileSync = (file, args, options) => runFileSync(file, args, { timeout: 10_000, ...options });
+const spawnSync = (file, args, options) => runSync(file, args, { timeout: 10_000, ...options });
 
 const script = fileURLToPath(new URL('./codex-context-retention.mjs', import.meta.url));
 const universal = [
@@ -44,6 +47,26 @@ try {
   });
   assert.match(restored, /ALPHA-CONTENT\n<<< END NUMBERDROID DOCUMENT: docs\/tasks\/alpha\.md >>>/);
   assert.match(restored, /BETA-CONTENT\n\n<<< END NUMBERDROID DOCUMENT: docs\/tasks\/beta\.md >>>/);
+
+  fs.writeFileSync(path.join(root, 'docs', 'tasks', 'alpha.md'), 'UPDATED-CURRENT-CONTENT');
+  const current = execFileSync(process.execPath, [script, 'reload'], {
+    cwd: root, env, input: hookInput, encoding: 'utf8',
+  });
+  assert.match(current, /UPDATED-CURRENT-CONTENT/);
+  assert.doesNotMatch(current, /ALPHA-CONTENT/);
+
+  const otherSession = execFileSync(process.execPath, [script, 'reload'], {
+    cwd: root, env, input: JSON.stringify({ session_id: 'other-session', source: 'compact' }), encoding: 'utf8',
+  });
+  assert.match(otherSession, /No task manifest was registered/);
+  assert.doesNotMatch(otherSession, /UPDATED-CURRENT-CONTENT|BETA-CONTENT/);
+
+  execFileSync(process.execPath, [script, 'register', '--replace', 'docs/tasks/alpha.md'], { cwd: root, env });
+  const replaced = execFileSync(process.execPath, [script, 'reload'], {
+    cwd: root, env, input: hookInput, encoding: 'utf8',
+  });
+  assert.match(replaced, /UPDATED-CURRENT-CONTENT/);
+  assert.doesNotMatch(replaced, /BETA-CONTENT/);
 
   const capped = spawnSync(process.execPath, [script, 'reload'], {
     cwd: root,
