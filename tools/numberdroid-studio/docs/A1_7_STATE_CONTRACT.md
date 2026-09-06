@@ -101,6 +101,13 @@ The bounded hierarchy is:
 5. existing task controls, progress, and review surface;
 6. optional closed **Technical details**.
 
+This hierarchy applies only when the selected task carries the exact private
+`asset.processing-result.adopt` capability. Unrelated source, room, Candidate,
+and ordinary task reviews neither request nor render the processing-adoption
+projection. For a task with that exact capability, every state below—including
+`NO_DRAFT`—remains required and must not be hidden merely because the adoption
+list is empty.
+
 The section sits after **Current step** and before the general task facts. It
 does not create a new workspace, replace the persistent room canvas, turn the
 task detail into a wizard, or add `asset.processing-result.adopt` to the human

@@ -135,7 +135,8 @@ test('A1.7 render remains after Current step, before task facts, and contains no
   const app = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
   const renderer = app.slice(app.indexOf('function renderProcessingAdoption'), app.indexOf('function taskMergeBlockedReason'));
   const taskDetail = app.slice(app.indexOf('function renderTaskDetail'), app.indexOf('function renderTasks'));
-  assert.match(taskDetail, /detail\.append\(workflow\);\s*if \(taskMayLoadProcessingAdoption\(selected\)\) detail\.append\(renderProcessingAdoption\(selected\)\);\s*const facts/);
+  assert.match(taskDetail, /detail\.append\(workflow\);\s*if \(reviewHasConflict\) detail\.append\(renderTaskReview\(selected\)\);\s*if \(taskMayLoadProcessingAdoption\(selected\)\) detail\.append\(renderProcessingAdoption\(selected\)\);\s*const factsSection/);
+  assert.match(app.slice(app.indexOf('function taskMayLoadProcessingAdoption'), app.indexOf('async function loadSelectedTaskAdoption')), /capabilities\?\.includes\('asset\.processing-result\.adopt'\)/);
   assert.match(renderer, /Processed asset draft/);
   assert.match(renderer, /Waiting for your review\./);
   assert.match(renderer, /implemented candidate — not user accepted/);
