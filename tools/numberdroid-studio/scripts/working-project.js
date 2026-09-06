@@ -57,35 +57,44 @@ function within(parent, child) {
   return difference === '' || (difference !== '..' && !difference.startsWith(`..${sep}`) && !isAbsolute(difference));
 }
 
-async function statOrMissing(path) {
-  try { return await lstat(path); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+async function statOrMissing(path, options) {
+  try { return await lstat(path, options); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
 }
 
 export async function inspectDirectoryPath(path, { missingLeaf = false } = {}) {
   if (typeof path !== 'string' || !isAbsolute(path)) fail('Working project directory must be an absolute path.');
   const target = resolve(path);
   let current = parse(target).root;
-  for (const part of relative(current, target).split(sep).filter(Boolean)) {
+  const parts = relative(current, target).split(sep).filter(Boolean);
+  for (const [index, part] of parts.entries()) {
     current = join(current, part);
-    const status = await statOrMissing(current);
-    if (!status && missingLeaf && current === target) return target;
+    const status = await statOrMissing(current, { bigint: true });
+    if (!status && missingLeaf && index === parts.length - 1) return current;
     if (!status || !status.isDirectory() || status.isSymbolicLink()) fail(`Working project path must contain only real directories: ${current}`);
-    // Junctions/reparse redirection must not alias a different coordinate.
+    // Windows 8.3 names may differ from realpath without redirecting anything.
+    // Accept normalization only when both no-follow coordinates still name the
+    // same directory object; junctions/reparse replacements remain forbidden.
     const physical = await realpath(current);
-    const equal = process.platform === 'win32'
-      ? physical.toLowerCase() === current.toLowerCase() : physical === current;
-    if (!equal) fail(`Working project path redirects to another directory: ${current}`);
+    const canonicalStatus = await lstat(physical, { bigint: true });
+    const rechecked = await lstat(current, { bigint: true });
+    const sameDirectory = (candidate) => candidate.isDirectory() && !candidate.isSymbolicLink()
+      && candidate.dev === status.dev && candidate.ino === status.ino
+      && candidate.birthtimeNs === status.birthtimeNs;
+    if (!sameDirectory(canonicalStatus) || !sameDirectory(rechecked)) fail(`Working project path redirects to another directory: ${current}`);
+    current = physical;
     if (await statOrMissing(join(current, QUARANTINE))) fail('RESTORED_COPY_QUARANTINED: Restored copies cannot be opened as working projects.');
     if (await statOrMissing(join(current, BACKUP))) fail('A backup directory cannot be opened as a working project.');
   }
-  return target;
+  return current;
 }
 
 // Production location policy belongs at the CLI boundary. Lower-level helpers
 // can be verified with isolated OS-temporary fixtures without weakening it.
 export async function assertPersistentLocation(path, worktreePaths) {
   const target = await inspectDirectoryPath(path, { missingLeaf: true });
-  const temporaryRoots = new Set([resolve(tmpdir()), ...(process.platform === 'win32' ? [] : ['/tmp', '/var/tmp'])]);
+  const temporaryRoots = new Set(await Promise.all([resolve(tmpdir()), ...(process.platform === 'win32' ? [] : ['/tmp', '/var/tmp'])].map(async (root) => {
+    try { return await realpath(root); } catch (error) { if (error.code === 'ENOENT') return root; throw error; }
+  })));
   if ([...temporaryRoots].some((root) => within(root, target))) fail('Working projects must be outside temporary storage.');
   for (const worktree of worktreePaths) {
     const root = await realpath(worktree);

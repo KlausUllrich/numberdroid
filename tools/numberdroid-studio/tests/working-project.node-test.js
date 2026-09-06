@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { copyFile, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, link, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
-import { assertPersistentLocation, createWorkingProject, inspectWorkingProject, WORKING_PROJECT_MANIFEST } from '../scripts/working-project.js';
+import { assertPersistentLocation, createWorkingProject, inspectDirectoryPath, inspectWorkingProject, WORKING_PROJECT_MANIFEST } from '../scripts/working-project.js';
 import { stopChild } from '../scripts/start-worktree-studios.js';
 import { fileURLToPath } from 'node:url';
 
@@ -111,7 +111,14 @@ test('symlink or junction coordinates do not adopt another directory', async (co
 
 test('production CLI location policy refuses temporary directories and relative paths', async (context) => {
   const root = await fixture(context);
+  // Windows runner tmpdir may contain RUNNER~1 while realpath names runneradmin.
+  // Existing and missing-leaf coordinates must normalize to that same object,
+  // and both spellings must remain excluded by production temporary-path policy.
+  const canonical = await realpath(root);
+  assert.equal(await inspectDirectoryPath(root), canonical);
+  assert.equal(await inspectDirectoryPath(join(root, 'persistent'), { missingLeaf: true }), join(canonical, 'persistent'));
   await assert.rejects(assertPersistentLocation(join(root, 'persistent'), []), /temporary storage/);
+  await assert.rejects(assertPersistentLocation(join(canonical, 'persistent'), []), /temporary storage/);
   await assert.rejects(assertPersistentLocation('relative', []), /absolute path/);
 });
 
