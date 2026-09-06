@@ -1,6 +1,12 @@
 # Numberdroid Studio — Consolidated Return Test Backlog
 
-Status: **current live backlog; VT-014 was explicitly accepted on 2026-09-02; Room Editor VT-001 repairs are integrated and green but remain REVISE pending Klaus's live retest**
+Status: **current live backlog; VT-001 remains REVISE with live checks deferred on 2026-09-06 and nonblocking for authorized development; VT-012 and VT-014 remain accepted**
+
+Klaus requested unattended cleanup and Studio development. The deferral changes
+execution order only; it does not convert pending decisions into acceptance.
+The [Studio task router](START_HERE.md) explains the current development scope.
+Latest Room guidance integration and green evidence are in
+[Room status](ROOM_EDITOR_L3_STATUS.md).
 
 Source baseline recorded: 2026-09-02 after the Room Editor repair merge at
 `main` `dbe37634ea13d076cd00647fffb0dde1b2bd0f69`, tree
@@ -19,6 +25,8 @@ Keep these states distinct:
 - `AUTOMATED GREEN` — implemented and all declared automated gates passed;
 - `NEEDS KLAUS REVIEW` — a non-visual product/contract decision remains;
 - `NEEDS KLAUS LIVE` — visual, workflow, device, or gameplay testing remains;
+- `DEFERRED LIVE — NONBLOCKING FOR AUTHORIZED DEVELOPMENT` — an execution
+  annotation; the recorded acceptance result and separate authority gates remain;
 - `BLOCKED` — a named dependency or authority gate is open;
 - `REJECTED` — a live or contract gate failed and the candidate is superseded.
 
@@ -29,7 +37,7 @@ Keep these states distinct:
 | ID | Candidate | State | Depends on | User gate |
 | --- | --- | --- | --- | --- |
 | VT-000 | Protected Studio baseline and restart | AUTOMATED GREEN | accepted CP1–4 | Quick safety/regression confirmation at session start |
-| VT-001 | CP4.5 designer workflow plus Room Editor L3 repairs | REVISE — SOURCE REPAIRS GREEN / NEEDS KLAUS LIVE | VT-000 | Desktop task attention, direct editing, findings and exact read-only Studio Preview |
+| VT-001 | CP4.5 designer workflow plus Room Editor L3 repairs | REVISE — DEFERRED LIVE / NONBLOCKING FOR AUTHORIZED DEVELOPMENT | VT-000 | Desktop task attention, direct editing, findings and exact read-only Studio Preview |
 | VT-002 | A0.1–A0.4 interface candidates | NEEDS KLAUS REVIEW | VT-000 | Accept/revise bounded capability, candidate, query, and validate-only bridge contracts |
 | VT-003 | CP5 candidate-only adapter/compiler foundation | BLOCKED | VT-001 and later explicit CP5 gate | Candidate fidelity only; no materialization or publication |
 | VT-004 | A1.3 project-bound adoption preflight | NEEDS KLAUS REVIEW | VT-000 and accepted A1.0–A1.2 | Accept/revise the read-only capability/Asset/CAS closure; no live workflow |
@@ -137,6 +145,26 @@ automation and source integration do not change the `REVISE` live result.
 
 ## VT-001 — CP4.5 desktop designer gate
 
+- **2026-09-06 disposition:** REVISE; remaining live checks are deferred and
+  nonblocking for authorized development. This is not ACCEPT.
+- **Already live-passed:** canvas-exit placement-preview cleanup, stable
+  scrollbar gutter, launcher readability and typed `q` shutdown, plain Room
+  macro guidance, and PR #210's conflict-first Task Review page. Preserve these
+  results; repeat them only for a concrete regression or changed risk.
+- **Remaining focused return pass:** on fresh task and Room/Preview profiles,
+  test focused task creation, normal non-conflicting review, truthful next actor
+  and consequences, rejection, adding accepted changes, completion and one-time
+  Undo. Then open the saved Room error from overview, navigate successive
+  findings and confirm readable remediation with retained dock context. Finally
+  create an unsaved shape draft, restore Prop tool/focus and nonzero page/canvas
+  scroll, verify Preview names the exact saved Project revision and Room
+  version, excludes the draft and says read-only / not Numberdroid runtime
+  output. Return twice without mutation and verify draft/tool/focus/both scroll
+  positions and unchanged project, Room, task, review and acceptance state.
+- **Decision:** Klaus records the exact final ACCEPT or REVISE. The detailed
+  walkthrough below retains historical regression criteria and fixture
+  instructions; it is not a requirement to repeat every already-passed step.
+
 - **Implementation:** PR #137 established the original candidate. The bounded
   live-finding response is integrated through PR #191 (functional repairs), PR
   #192 (zoom/pan), PR #194 (placement ghost/direct manipulation), PR #195
@@ -154,7 +182,7 @@ automation and source integration do not change the `REVISE` live result.
   `33629339599`; merge `dbe37634ea13d076cd00647fffb0dde1b2bd0f69`
   passed post-merge Build #2354 / run `33630127953`. These are engineering
   gates, not acceptance.
-- **Latest Klaus record:** the first 12 steps of the prior walkthrough passed.
+- **2026-09-02 historical Klaus record:** the first 12 steps of the prior walkthrough passed.
   Fit then collapsed too far; Resize initially appeared unavailable and its
   saved-shape prerequisite was unclear; placement behaved as single-use and
   exposed `PLACEMENT_ADD_PENDING`; palette selection required an
@@ -1306,7 +1334,8 @@ Append one section containing:
 ## Planned return-session order
 
 1. VT-000 baseline/start/restart.
-2. VT-001 CP4.5 desktop designer flow.
+2. Deferred VT-001 focused remaining pass when Klaus resumes live testing;
+   it does not block the authorized development sequence.
 3. New A1 image-to-asset candidates in dependency order, followed by VT-002
    interface review where useful.
 4. Agent/MCP scope, revoke, conflict, review, and **Waiting for your review**.
