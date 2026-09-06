@@ -1,5 +1,20 @@
 # A1.7 visual review and correction candidate status
 
+## 2026-09-06 generic review repair candidate
+
+The separate [task review feedback candidate](TASK_REVIEW_FEEDBACK.md) repairs
+the inability to author correction instructions in the existing generic owner
+review. It adds an exact-review summary, optional item comments and truthful
+continuation/previous-review presentation. Focused checks and native Chrome
+proof and the full local Studio regression passed. Final CI/source integration
+are recorded in the focused PR; this is not an acceptance claim.
+
+The A1.7 processing panel remains read-only. Resume still starts no real agent;
+no harness, processing correction or compatible Main merge path is added.
+**VT-011 remains REVISE.** The September 1 record below is preserved as the
+original live finding; this bounded generic repair is queued separately as
+VT-016 in the [return backlog](VACATION_TEST_BACKLOG.md).
+
 ## 2026-09-01 live gate: REVISE
 
 Klaus confirmed safe task-local review and Request Changes persistence. Acceptance is blocked because feedback cannot be authored, resume does not start a real agent, and the UI ambiguously mixes old review state with resumed work. The current fixture is a state-machine proof, not live orchestration. See [`LIVE_VERIFICATION_2026_09_01.md`](LIVE_VERIFICATION_2026_09_01.md) and [`FUTURE_HARNESS_ARCHITECTURE_DISCUSSION.md`](FUTURE_HARNESS_ARCHITECTURE_DISCUSSION.md).

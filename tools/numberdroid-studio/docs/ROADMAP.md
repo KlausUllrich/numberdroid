@@ -117,6 +117,17 @@ See the [launcher instructions](../README.md#launch-one-or-more-worktrees-for-sa
 and VT-015 in the [return backlog](VACATION_TEST_BACKLOG.md). Automated
 verification and the deferred live check remain distinct.
 
+## Human review feedback — implemented candidate
+
+The 2026-09-06 [task review feedback candidate](TASK_REVIEW_FEEDBACK.md) adds
+useful correction summaries and item comments to exact-version owner reviews,
+then truthfully distinguishes authorized continuation from a running agent.
+Current editable review precedes facts/progress; prior reviews remain history.
+Focused/native-browser proof and the full local Studio regression passed; final
+CI/source integration are recorded in the focused PR. VT-016
+is deferred and nonblocking for authorized development; VT-011 remains REVISE
+and real harness integration remains a separate gate.
+
 ## Checkpoint 1A — Architecture and observable development shell
 
 **Status: visually accepted by the user on 2026-08-21.** The accepted shell and interaction flow are the protected baseline for 1B. This records visual/workflow acceptance only; JSON persistence and the host-only agent adapter remain development implementations.

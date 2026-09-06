@@ -52,6 +52,7 @@ Keep these states distinct:
 | VT-013 | O2a private read-only service deployment | NEEDS KLAUS LIVE | integrated O2a and deliberately configured private host | Accept/revise authentication, read-only boundary, restart/session behavior, and operator burden; not O3 mobile UX |
 | VT-014 | A4c immutable Level Candidate and restricted derived child | USER ACCEPTED 2026-09-02 | VT-000 and source-integrated A3a/A4a/A4b/A4c | Accepted private Candidate closure, strict child attenuation and truthful read-only task presentation; no materialization or publication |
 | VT-015 | Persistent named working projects | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted project/store and launcher foundations | Create, save, stop and reopen the same working project; keep fixture mode separate |
+| VT-016 | Task review feedback and truthful continuation | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing owner review and task foundations | Required summary, optional item comments, exact-review retention, and continuation/history truth; no real agent starts |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1359,6 +1360,52 @@ automation and source integration do not change the `REVISE` live result.
   verified backup/restore-as-copy workflow.
 - **Decision:** Klaus may accept or revise the create/open experience later;
   source integration and automated checks do not make that decision.
+
+## VT-016 — task review feedback and truthful continuation
+
+- **Implementation:** branch `agent/studio-review-feedback`; exact source and
+  eventual PR/Actions identities stay in its focused PR record. The current
+  [contract](TASK_REVIEW_FEEDBACK.md) is an implemented candidate; source
+  integration is recorded in the PR and user acceptance remains deferred. Live verification is deferred and nonblocking for authorized
+  development under Klaus's 2026-09-06 instruction.
+- **Promise:** existing owner review records a required Request Changes summary
+  and optional item comments against an exact review version. It keeps saved
+  feedback readable and distinguishes permission to continue from a running
+  agent. No new processing or agent-host capability is implied.
+- **Safe fixture:** use the root `npm run studio` launcher, select the reviewed
+  code version, choose **Start a test fixture**, then `review-feedback`. This
+  fourth fresh profile uses `prepare-review-feedback-evidence.js` and its
+  verifier to create project `project.review-feedback` at revision 2 and task
+  `task.review-feedback`, review version 1 with two PENDING items and a fresh
+  24-hour grant. It starts no real agent. Never prepare it in an existing,
+  personal, persistent, backup or restored workspace.
+- **Remaining human steps:** open the task; find the current review before
+  facts/progress; choose Request Changes and confirm a blank summary is refused;
+  enter a summary and optional item comments; refresh and confirm text, focus,
+  selection and scroll remain; save and read the stored feedback; allow
+  continuation and confirm no agent-start claim; pause again and confirm the
+  previous review remains history rather than a new pending review.
+- **Expected:** feedback names the exact reviewed version, saving changes no
+  project content, and new review versions do not inherit stale drafts. A lost
+  response calls for reloading the current review before another write; this
+  path does not promise idempotent decision replay.
+- **Automated evidence:** initial 41 focused checks and later edge-case/UI
+  checks passed. Native Chrome at 1440×900 and 1060×900 passed required-summary,
+  exact-version retention/replacement, persistence, Resume and paused-history
+  assertions. Evidence includes a filled `-form.png` screenshot and final
+  history screenshot. Full local Studio regression passed: 778 tests, four
+  expected platform skips and no failures. Final CI/source integration are
+  recorded in the focused PR.
+- **Limits:** unchanged owner-only decisions, immutable policy dispositions,
+  Candidate/derived-child restrictions and MCP catalogs/scopes. No SQL migration,
+  real agent, harness, source acceptance, A1.7 processing correction/merge,
+  Numberdroid materialization, publishing or release. VT-001/VT-011 remain open.
+- **Recovery:** stop Studio and retain the printed fresh fixture/log directory
+  until evidence is recorded. Preserve any named working project separately.
+  Do not repair task rows, rewrite feedback history, remove quarantine or reuse
+  another workspace as a fixture.
+- **Decision:** Klaus later records ACCEPT or REVISE for this bounded review
+  experience. Automation cannot make the decision or accept the Artist loop.
 
 ## Required record for every new candidate
 
