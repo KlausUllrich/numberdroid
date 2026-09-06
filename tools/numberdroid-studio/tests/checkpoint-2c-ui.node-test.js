@@ -132,7 +132,7 @@ test('saved proposal recovery refuses same identity with different authored sema
     proposalId: 'proposal.test', itemId: 'item.test', assetId: 'asset.test', idempotencyKey: 'key.test' });
   draft.values.name = 'My prop'; draft.values.role = 'furniture'; const request = buildAssetAuthoringRequest(draft);
   const proposal = { proposalId: request.proposalId, submittedRevision: request.expectedRevision + 1, items: structuredClone(request.items) };
-  const authoring = { draft, request }; const state = { assetAuthoring: authoring, assetUi: {} };
+  const authoring = { draft, request }; const state = { project: { projectId: 'project.test' }, assetAuthoring: authoring, assetUi: {} };
   const recover = runInNewContext(`${source}; assetAuthoringSavedProposal;`, { state, currentAssetLibrary: () => ({ proposals: [proposal] }), showToast() {} });
   proposal.items[0].metadata.spanTiles.width = 2;
   assert.equal(recover(authoring), false); assert.equal(state.assetAuthoring, authoring);
@@ -163,4 +163,60 @@ test('saved slices open the human Asset library before a first semantic asset ex
     });
     assert.equal(result, expected);
   }
+});
+
+
+test('an unknown original submission stays locked after retry rejection and failed reconciliation', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('async function submitAssetAuthoring('), app.indexOf("window.addEventListener('beforeunload'"));
+  const draft = createAssetAuthoringDraft({ projectId: 'project.test', projectRevision: 7, sliceId: 'slice.test', sliceVersion: 1,
+    proposalId: 'proposal.test', itemId: 'item.test', assetId: 'asset.test', idempotencyKey: 'key.test' });
+  draft.values.name = 'My prop'; draft.values.role = 'furniture';
+  const authoring = { draft }; const state = { project: { projectId: 'project.test' }, assetAuthoring: authoring, assetMutationPending: false, agentAccessCsrf: 'csrf' };
+  const bodies = []; let attempt = 0;
+  const submit = runInNewContext(`${source}; submitAssetAuthoring;`, { state, AbortSignal,
+    currentAssetAuthoringConflict: () => null, buildAssetAuthoringRequest, renderWorkspace() {},
+    setAssetMutationPending(value) { state.assetMutationPending = value; },
+    async api(_path, options) { bodies.push(options.body); attempt += 1; const error = new Error('Unavailable'); if (attempt > 1) error.status = 403; throw error; },
+    async refreshAssetAuthoringOutcome() { throw new Error('GET failed'); }, assetAuthoringSavedProposal() { throw new Error('must not reconcile failed GET'); },
+  });
+  await submit(); const request = authoring.request; assert.equal(authoring.uncertain, true);
+  await submit({ retry: true });
+  assert.equal(authoring.request, request); assert.equal(bodies[0], bodies[1]);
+  assert.equal(authoring.rejected, false); assert.equal(authoring.uncertain, true); assert.equal(state.assetMutationPending, false);
+});
+
+test('outcome refresh aborts a hanging read and rejects a late result owned by another draft', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('async function refreshAssetAuthoringOutcome('), app.indexOf('async function submitAssetAuthoring('));
+  const authoring = { draft: { context: { projectId: 'project.test' } } };
+  const state = { project: { projectId: 'project.test' }, assetAuthoring: authoring };
+  let signal;
+  const refresh = runInNewContext(`${source}; refreshAssetAuthoringOutcome;`, { state, AbortController, setTimeout, clearTimeout,
+    loadProject(_id, options) { signal = options.signal; return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })); },
+  });
+  await assert.rejects(refresh(authoring, { timeoutMs: 10 }), /aborted/); assert.equal(signal.aborted, true);
+  let complete;
+  const later = runInNewContext(`${source}; refreshAssetAuthoringOutcome;`, { state, AbortController, setTimeout, clearTimeout,
+    loadProject() { return new Promise((resolve) => { complete = resolve; }); },
+  });
+  const pending = later(authoring, { timeoutMs: 100 }); state.assetAuthoring = { draft: 'new draft' }; complete(true);
+  await assert.rejects(pending, /project changed/); assert.equal(state.assetAuthoring.draft, 'new draft');
+});
+
+test('loadProject discards a late aborted project response before applying shared UI state', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('async function loadProject(projectId,'), app.indexOf('async function requestAgentAccess('));
+  const original = { projectId: 'project.test', revision: 7 };
+  const state = { project: original, workspace: 'overview', uiMode: 'local' }; const controller = new AbortController();
+  let resolveProject; const signals = [];
+  const load = runInNewContext(`let projectLoadGeneration = 0; ${source}; loadProject;`, { state,
+    elements: { 'project-select': { value: 'project.test' }, 'workspace-content': { dataset: {} } }, cancelTaskAdoptionLoad() {},
+    api(path, options) { signals.push(options.signal); return path === '/api/projects/project.test'
+      ? new Promise((resolve) => { resolveProject = resolve; }) : Promise.resolve(path.endsWith('/tasks') ? { tasks: [] } : {}); },
+  });
+  const pending = load('project.test', { signal: controller.signal }); controller.abort();
+  resolveProject({ projectId: 'project.test', revision: 8 });
+  assert.equal(await pending, false); assert.equal(state.project, original);
+  assert(signals.length === 5 && signals.every((signal) => signal === controller.signal));
 });

@@ -436,7 +436,7 @@ function cancelTaskAdoptionLoad({ clearState = false, channel = 'all' } = {}) {
   if (clearState) state.taskAdoption = null;
 }
 
-async function requestTaskAdoptionProjection(projectId, taskId, { channel = 'passive' } = {}) {
+async function requestTaskAdoptionProjection(projectId, taskId, { channel = 'passive', signal = null } = {}) {
   cancelTaskAdoptionLoad({ channel });
   const generation = taskAdoptionLoadControllers[channel].generation;
   const context = JSON.stringify([projectId, taskId]);
@@ -447,6 +447,9 @@ async function requestTaskAdoptionProjection(projectId, taskId, { channel = 'pas
     abortController.abort();
   }, 5_000);
   taskAdoptionLoadControllers[channel] = { generation, context, abortController, timer };
+  const abortFromParent = () => abortController.abort();
+  signal?.addEventListener('abort', abortFromParent, { once: true });
+  if (signal?.aborted) abortFromParent();
   const path = `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`
     + '/processing-result-adoptions';
   try {
@@ -469,6 +472,7 @@ async function requestTaskAdoptionProjection(projectId, taskId, { channel = 'pas
       projection: unavailableProcessingAdoptionProjection(projectId, taskId),
     };
   } finally {
+    signal?.removeEventListener('abort', abortFromParent);
     if (taskAdoptionLoadControllers[channel].generation === generation
         && taskAdoptionLoadControllers[channel].context === context) {
       clearTimeout(timer);
@@ -2576,6 +2580,7 @@ function canonicalAssetAuthoringJson(value) {
 }
 
 function assetAuthoringSavedProposal(authoring) {
+  if (state.assetAuthoring !== authoring || state.project?.projectId !== authoring.draft.context.projectId) return false;
   const request = authoring.request;
   const proposal = currentAssetLibrary().proposals.find((entry) => entry.proposalId === request?.proposalId);
   if (!proposal) return false;
@@ -2593,6 +2598,18 @@ function assetAuthoringSavedProposal(authoring) {
   showToast('Your proposal is saved. Review its findings and choices, then apply the accepted item to create the draft Asset.'); return true;
 }
 
+async function refreshAssetAuthoringOutcome(authoring, { timeoutMs = 8_000 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const canApply = () => state.assetAuthoring === authoring && state.project?.projectId === authoring.draft.context.projectId;
+  try {
+    const loaded = await loadProject(authoring.draft.context.projectId, {
+      preserveWorkspaceIfUnchanged: true, signal: controller.signal, canApply,
+    });
+    if (controller.signal.aborted || !canApply() || loaded !== true) throw new Error('The saved outcome check expired or its project changed.');
+  } finally { clearTimeout(timer); }
+}
+
 async function submitAssetAuthoring({ retry = false } = {}) {
   const authoring = state.assetAuthoring;
   if (!authoring || state.assetMutationPending || !state.agentAccessCsrf) return;
@@ -2603,20 +2620,24 @@ async function submitAssetAuthoring({ retry = false } = {}) {
   }
   if (!authoring.request) return;
   const projectId = authoring.draft.context.projectId;
-  authoring.error = null; authoring.rejected = false;
+  const priorUncertain = authoring.uncertain === true || (retry && authoring.rejected !== true);
+  authoring.error = null; authoring.rejected = false; authoring.uncertain = priorUncertain;
   setAssetMutationPending(true); renderWorkspace({ preserveAssetDraft: true });
   try {
     await api(`/api/projects/${encodeURIComponent(projectId)}/asset-proposals`, {
       method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
       body: authoring.serializedRequest, signal: AbortSignal.timeout(15_000),
     });
+    authoring.uncertain = true;
   } catch (error) {
-    authoring.rejected = Number.isInteger(error.status) && error.status >= 400 && error.status < 500 && error.status !== 408;
+    const knownRejection = Number.isInteger(error.status) && error.status >= 400 && error.status < 500 && error.status !== 408;
+    authoring.rejected = !priorUncertain && knownRejection;
+    authoring.uncertain = priorUncertain || !knownRejection;
     authoring.error = authoring.rejected ? `The proposal was not accepted: ${error.message} Recheck the saved context before revising it.`
       : 'The response was not confirmed. Your exact request is retained; check the saved outcome or retry that same request.';
   }
   try {
-    await loadProject(projectId, { preserveWorkspaceIfUnchanged: true });
+    await refreshAssetAuthoringOutcome(authoring);
     if (!assetAuthoringSavedProposal(authoring) && !authoring.error) authoring.error = 'No matching saved proposal is visible. Retry the exact retained request to resolve its outcome.';
   }
   catch { authoring.error = 'The saved outcome could not be checked. Your exact request is retained for retry.'; }
@@ -2651,8 +2672,9 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   if (event.target.closest('[data-asset-authoring-retry]')) { await submitAssetAuthoring({ retry: true }); return; }
   if (event.target.closest('[data-asset-authoring-recheck]') && state.assetAuthoring && !state.assetMutationPending) {
     const authoring = state.assetAuthoring;
+    setAssetMutationPending(true);
     try {
-      await loadProject(authoring.draft.context.projectId, { preserveWorkspaceIfUnchanged: true });
+      await refreshAssetAuthoringOutcome(authoring);
       if (authoring.request && assetAuthoringSavedProposal(authoring)) { renderWorkspace(); return; }
       if (authoring.request && !authoring.rejected) { authoring.error = 'No matching proposal is visible yet. Retry the exact request to resolve its outcome.'; renderWorkspace({ preserveAssetDraft: true }); return; }
       const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === authoring.draft.context.sliceId);
@@ -2661,7 +2683,8 @@ elements['workspace-content'].addEventListener('click', async (event) => {
       const draft = createAssetAuthoringDraft(assetAuthoringContext(pinned.slice)); draft.values = { ...authoring.draft.values };
       state.assetAuthoring = { draft, pinned: structuredClone(pinned), request: null, error: null };
       renderWorkspace({ preserveAssetDraft: true });
-    } catch (error) { authoring.error = `The saved context could not be checked: ${error.message}`; renderWorkspace({ preserveAssetDraft: true }); }
+    } catch (error) { authoring.error = `The saved context could not be checked: ${error.message}`; }
+    finally { setAssetMutationPending(false); renderWorkspace({ preserveAssetDraft: true }); }
   }
 });
 
@@ -5567,8 +5590,8 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
 }
 
 let projectLoadGeneration = 0;
-async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } = {}) {
-  if (!projectId) return;
+async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, signal = null, canApply = null } = {}) {
+  if (!projectId || signal?.aborted || (canApply && !canApply())) return false;
   if (state.project?.projectId && state.project.projectId !== projectId && !mayAbandonAssetAuthoring()) {
     elements['project-select'].value = state.project.projectId; return false;
   }
@@ -5608,17 +5631,17 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
   }
   const [project, activity, agentAccess, sourceIntakes, taskList] = await Promise.all([
-    api(`/api/projects/${encodeURIComponent(projectId)}`),
-    api(`/api/projects/${encodeURIComponent(projectId)}/activity`),
+    api(`/api/projects/${encodeURIComponent(projectId)}`, { signal }),
+    api(`/api/projects/${encodeURIComponent(projectId)}/activity`, { signal }),
     state.uiMode === 'remote'
       ? Promise.resolve(remoteReadOnlyAgentAccess(projectId))
-      : api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`),
-    api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`),
-    api(`/api/projects/${encodeURIComponent(projectId)}/tasks`)
+      : api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`, { signal }),
+    api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`, { signal }),
+    api(`/api/projects/${encodeURIComponent(projectId)}/tasks`, { signal })
       .then((value) => ({ available: true, tasks: value.tasks ?? [] }))
-      .catch(() => ({ available: false, tasks: [] })),
+      .catch((error) => { if (signal?.aborted) throw error; return { available: false, tasks: [] }; }),
   ]);
-  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  if (signal?.aborted || (canApply && !canApply()) || generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   const selectedTaskId = state.workspace === 'tasks'
     && state.taskUi.view === 'detail'
     && taskList.available
@@ -5631,14 +5654,14 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     taskId: selectedTaskId,
   };
   const taskDetails = await Promise.all(taskList.tasks.map((task) => (
-    api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
+    api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`, { signal })
   )));
-  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  if (signal?.aborted || (canApply && !canApply()) || generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   const selectedTaskDetails = taskDetails.find(({ task }) => task.taskId === selectedTaskId);
   const selectedAdoption = selectedTaskId && taskMayLoadProcessingAdoption(selectedTaskDetails)
-    ? await requestTaskAdoptionProjection(projectId, selectedTaskId)
+    ? await requestTaskAdoptionProjection(projectId, selectedTaskId, { signal })
     : null;
-  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  if (signal?.aborted || (canApply && !canApply()) || generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   if (state.project?.projectId !== projectId) {
     state.sourceDraft = null;
     state.resumingIntakeId = null;

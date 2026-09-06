@@ -173,7 +173,7 @@ test('A1.7 passive refresh fingerprints bounded attempts and preserves compatibl
   const taskRestore = app.slice(app.indexOf('function restoreTaskDomState'), app.indexOf('function settleRoomEditorControlFocus'));
   assert.ok(taskRestore.indexOf('restoreTaskTextSelection') < taskRestore.indexOf('taskScrollElements(root)'));
   assert.match(app, /function requestTaskAdoptionProjection[\s\S]*AbortController[\s\S]*5_000/);
-  assert.match(app, /requestTaskAdoptionProjection\(projectId, selectedTaskId\)/);
+  assert.match(app, /requestTaskAdoptionProjection\(projectId, selectedTaskId, \{ signal \}\)/);
   assert.match(app, /const taskDetails = await Promise\.all[\s\S]*const selectedTaskDetails = taskDetails\.find[\s\S]*selectedTaskId && taskMayLoadProcessingAdoption\(selectedTaskDetails\)[\s\S]*await requestTaskAdoptionProjection/);
   const openTaskDetail = app.slice(
     app.indexOf('async function openTaskDetailWithAdoption'),
