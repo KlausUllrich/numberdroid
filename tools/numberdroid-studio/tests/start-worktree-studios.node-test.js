@@ -74,6 +74,9 @@ test('arguments keep safe defaults and validate exclusive selection and fixture 
     json: false,
     list: false,
     offline: false,
+    newProject: null,
+    projectDirectory: null,
+    openProject: null,
     repositoryRoot: fileURLToPath(new URL('../../..', import.meta.url)).replace(/[\\/]$/, ''),
     select: null,
     startupTimeoutMs: 15_000,
@@ -84,6 +87,10 @@ test('arguments keep safe defaults and validate exclusive selection and fixture 
   assert.throws(() => parseArguments(['--fixture', 'personal']), /Unknown fixture profile/);
   assert.throws(() => parseArguments(['--base-port', '80']), /1024 through 65535/);
   assert.throws(() => parseArguments(['--json']), /only with --list/);
+  assert.throws(() => parseArguments(['--new-project', 'Room']), /provided together/);
+  assert.throws(() => parseArguments(['--open-project', '/project', '--fixture', 'empty']), /cannot be combined/);
+  assert.throws(() => parseArguments(['--open-project', 'relative']), /absolute path/);
+  assert.throws(() => parseArguments(['--new-project', 'Room', '--project-directory', '/project', '--open-project', '/other']), /not both/);
 });
 
 test('friendly ordering puts the current folder first, then main, and hides unavailable worktrees', () => {

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { assertPersistentLocation, inspectWorkingProject, validateProjectName } from './working-project.js';
 
 const SCRIPT_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPOSITORY_ROOT = resolve(SCRIPT_DIRECTORY, '../../..');
@@ -129,6 +130,9 @@ export function parseArguments(argv) {
     json: false,
     list: false,
     offline: false,
+    newProject: null,
+    projectDirectory: null,
+    openProject: null,
     repositoryRoot: DEFAULT_REPOSITORY_ROOT,
     select: null,
     startupTimeoutMs: 15_000,
@@ -146,6 +150,10 @@ export function parseArguments(argv) {
     else if (argument === '--list') options.list = true;
     else if (argument === '--offline') options.offline = true;
     else if (argument === '--verbose') options.verbose = true;
+    else if (['--new-project', '--project-directory', '--open-project'].includes(argument)) {
+      const key = { '--new-project': 'newProject', '--project-directory': 'projectDirectory', '--open-project': 'openProject' }[argument];
+      options[key] = takeValue(argument, index); index += 1;
+    }
     else if (argument === '--base-port') {
       options.basePort = Number(takeValue(argument, index));
       index += 1;
@@ -178,6 +186,13 @@ export function parseArguments(argv) {
   }
   if (options.all && options.select !== null) fail('Use --all or --select, not both.');
   if (options.json && !options.list) fail('--json is supported only with --list.');
+  if (options.newProject !== null) options.newProject = validateProjectName(options.newProject);
+  if ((options.newProject !== null) !== (options.projectDirectory !== null)) fail('--new-project and --project-directory must be provided together.');
+  if (options.newProject !== null && options.openProject !== null) fail('Create or open a working project, not both.');
+  if (options.newProject !== null || options.openProject !== null) {
+    if (options.fixture !== null || options.dataRoot !== null || options.all || options.list) fail('Working projects cannot be combined with fixtures, --data-root, --all, or --list.');
+    if (!isAbsolute(options.openProject ?? options.projectDirectory)) fail('Working project directory must be an absolute path.');
+  }
   return options;
 }
 
@@ -486,11 +501,14 @@ function printHelp(output = process.stdout) {
   output.write(`  --fixture <profile>         empty, vt001-room, or vt001-task\n`);
   output.write(`  --base-port <port>          First preferred port (default: 4317)\n`);
   output.write(`  --data-root <new-path>      New retained launch root (default: OS temp)\n`);
+  output.write(`  --new-project <name>       Create one empty named working project\n`);
+  output.write(`  --project-directory <path> New persistent directory for --new-project\n`);
+  output.write(`  --open-project <path>      Reopen a launcher-created working project\n`);
   output.write(`  --startup-timeout-ms <ms>   Per-server readiness deadline (default: 15000)\n`);
   output.write(`  --help                      Show this help\n`);
 }
 
-async function chooseInteractively(worktrees, main, hiddenCount) {
+async function chooseInteractively(worktrees, main, hiddenCount, options) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     fail('Interactive selection needs a terminal; use --select or --all.');
   }
@@ -508,6 +526,21 @@ async function chooseInteractively(worktrees, main, hiddenCount) {
     const allRequested = /^(a|all)$/i.test(selectionText.trim());
     const indices = parseSelection(selectionText, worktrees.length, { defaultIndex: 1 });
     if (indices === null) return null;
+    if (options.newProject !== null || options.openProject !== null || options.fixture !== null) {
+      return { allRequested, indices, fixture: options.fixture };
+    }
+    process.stdout.write('\nWhat would you like to open?\n  1. Create a working project\n  2. Open a working project\n  3. Start a test fixture\n');
+    const mode = (await terminal.question('Choose [3]: ')).trim() || '3';
+    if (mode === '1' || mode === '2') {
+      if (indices.length !== 1 || allRequested) fail('Choose exactly one worktree for a working project.');
+      process.stdout.write('Working projects keep your saved work after Studio stops. Choose a directory outside the repository and temporary storage.\n');
+      if (mode === '1') {
+        options.newProject = validateProjectName(await terminal.question('Project name: '));
+        options.projectDirectory = (await terminal.question('New absolute directory (must not exist): ')).trim();
+      } else options.openProject = (await terminal.question('Existing working-project directory: ')).trim();
+      return { allRequested, indices, fixture: null };
+    }
+    if (mode !== '3') fail('Choose working project creation, opening, or a test fixture.');
     process.stdout.write('\nFixture profile\n');
     process.stdout.write('  1. Fresh empty workspace\n');
     process.stdout.write('  2. VT-001 Room / Preview fixture\n');
@@ -667,12 +700,12 @@ function studioEnvironment(dataDirectory, port) {
   return environment;
 }
 
-async function startOne({ dataDirectory, label, logFilename, port, startupTimeoutMs, worktree }) {
+async function startOne({ dataDirectory, label, logFilename, port, startupTimeoutMs, worktree, workingProject = null }) {
   const log = createWriteStream(logFilename, { flags: 'a' });
   let child = null;
   try {
     const fingerprint = await sourceFingerprint(worktree);
-    for (const command of fixtureCommands(worktree.fixture, dataDirectory)) {
+    for (const command of workingProject ? [] : fixtureCommands(worktree.fixture, dataDirectory)) {
       await runFixtureCommand({ command, dataDirectory, label, log, studioDirectory: worktree.studioDirectory });
     }
     child = spawn(process.execPath, [worktree.serverFilename], {
@@ -684,10 +717,9 @@ async function startOne({ dataDirectory, label, logFilename, port, startupTimeou
     attachOutput(child.stderr, label, log, process.stderr);
     const url = `http://127.0.0.1:${port}`;
     const health = await waitForStudio({ child, timeoutMs: startupTimeoutMs, url });
-    return { child, dataDirectory, fingerprint, health, label, log, logFilename, port, url, worktree };
+    return { child, dataDirectory, fingerprint, health, label, log, logFilename, port, url, worktree, workingProject };
   } catch (error) {
-    if (child && childIsRunning(child)) child.kill('SIGTERM');
-    log.end();
+    if (child) await stopChild({ child, log }); else log.end();
     throw error;
   }
 }
@@ -746,6 +778,7 @@ function printReady(running) {
   process.stdout.write(`  Studio tree: ${snapshot.studioTree}\n`);
   process.stdout.write(`  Effective source: ${snapshot.sourceFingerprint.slice(0, 23)}\n`);
   process.stdout.write(`  Fixture: ${snapshot.fixture}\n`);
+  if (running.workingProject) process.stdout.write(`  Working project: ${cleanDisplay(running.workingProject.name)} (${running.workingProject.projectId})\n`);
   process.stdout.write(`  Health: HTTP ${snapshot.health.status}, ${snapshot.health.title}\n`);
   process.stdout.write(`  PID: ${snapshot.pid}\n`);
   process.stdout.write(`  URL: ${snapshot.url}\n`);
@@ -808,15 +841,34 @@ export async function main(argv = process.argv.slice(2)) {
     indices = parseSelection(options.select, selectableWorktrees.length);
   }
   else {
-    const selected = await chooseInteractively(selectableWorktrees, mainReference, hiddenCount);
+    const selected = await chooseInteractively(selectableWorktrees, mainReference, hiddenCount, options);
     if (selected === null) {
       process.stdout.write('No Studio instance started.\n');
       return;
     }
     ({ allRequested, indices, fixture } = selected);
   }
-  if (indices.length === 0) fail('No eligible worktree is available.');
+  if (!indices || indices.length === 0) fail('No eligible worktree is available.');
   let selectedWorktrees = indices.map((index) => selectableWorktrees[index - 1]);
+  const persistent = options.newProject !== null || options.openProject !== null;
+  if (persistent && (indices.length !== 1 || allRequested || options.dataRoot !== null || fixture !== null)) fail('Working projects require one worktree and cannot use fixture options.');
+  let workingProject = null;
+  if (persistent) {
+    const directory = await assertPersistentLocation(options.openProject ?? options.projectDirectory, worktrees.filter(({ prunable }) => !prunable).map(({ path }) => path));
+    if (options.openProject !== null) workingProject = await inspectWorkingProject(directory);
+    else {
+      if (await exists(directory)) fail(`New working-project directory must not already exist: ${directory}`);
+      const initializer = join(selectedWorktrees[0].studioDirectory, 'scripts/working-project.js');
+      if (!await exists(initializer)) fail('This worktree cannot create working projects. Choose a current Studio worktree.');
+      process.stdout.write(`\nCreating working project ${cleanDisplay(options.newProject)} at ${cleanDisplay(directory)}\n`);
+      const result = spawnSync(process.execPath, [initializer, '--create', directory, options.newProject], {
+        cwd: selectedWorktrees[0].studioDirectory, encoding: 'utf8', timeout: 25_000, maxBuffer: 256 * 1024,
+        env: { ...process.env, NUMBERDROID_STUDIO_OPERATIONS_CONFIG: '' },
+      });
+      if (result.error || result.status !== 0) fail(`Working-project creation stopped; directory retained at ${directory}. ${result.stderr || result.error?.message || `exit ${result.status}`}`);
+      workingProject = await inspectWorkingProject(directory);
+    }
+  }
   fixture ??= 'empty';
   const fixtureCompatibility = await Promise.all(selectedWorktrees.map(async (worktree) => ({
     missing: await unsupportedFixtureScripts(worktree, fixture),
@@ -852,19 +904,19 @@ export async function main(argv = process.argv.slice(2)) {
   process.stdout.write(`  Git: ${cleanDisplay(gitVersion)}\n`);
   process.stdout.write(`  Node: ${process.versions.node}\n`);
   process.stdout.write(`  GitHub: ${mainReference.summary}\n`);
-  process.stdout.write(`  Fixture: ${fixture} (${FIXTURE_PROFILES[fixture].label})\n`);
+  process.stdout.write(workingProject ? `  Working project: ${cleanDisplay(workingProject.name)}\n` : `  Fixture: ${fixture} (${FIXTURE_PROFILES[fixture].label})\n`);
   process.stdout.write(`  Data root: ${cleanDisplay(dataRoot)} (retained after shutdown)\n`);
   const running = [];
   const reservedPorts = new Set();
   try {
     for (let index = 0; index < selectedWorktrees.length; index += 1) {
       const worktree = selectedWorktrees[index];
-      worktree.fixture = fixture;
+      worktree.fixture = workingProject ? 'none (persistent project)' : fixture;
       const branchLabel = worktree.branch ?? `detached-${worktree.head.slice(0, 12)}`;
       const label = `${index + 1}-${safeLabel(branchLabel)}`;
-      const dataDirectory = join(dataRoot, label);
+      const dataDirectory = workingProject?.directory ?? join(dataRoot, label);
       const logFilename = join(logsDirectory, `${label}.log`);
-      if (await exists(dataDirectory)) fail(`Fresh data target already exists: ${dataDirectory}`);
+      if (!workingProject && await exists(dataDirectory)) fail(`Fresh data target already exists: ${dataDirectory}`);
       const port = await findAvailablePort(options.basePort, reservedPorts);
       reservedPorts.add(port);
       if (port !== options.basePort + index) {
@@ -877,6 +929,7 @@ export async function main(argv = process.argv.slice(2)) {
         port,
         startupTimeoutMs: options.startupTimeoutMs,
         worktree,
+        workingProject,
       });
       running.push(instance);
       printReady(instance);
