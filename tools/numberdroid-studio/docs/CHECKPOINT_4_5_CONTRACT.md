@@ -76,6 +76,22 @@ Every cell projects exactly one visible editor class: ordinary room floor, outsi
 
 This projection changes no accepted room command, CAS, immutable-version, proposal, lifecycle, or agent-authority semantic.
 
+### Room creation and current editor context
+
+Creating a Room must immediately align the selector, header, canvas and command
+target with that exact saved Room. After confirmed creation and reload, verify
+the new Room exists, clear the previous Room's interaction context, select the
+new Room and render it without carrying old Room DOM state. A failed creation
+or unavailable exact new head preserves the previous selection; it does not
+select an unseen fallback. Dirty shape/review drafts and unresolved placement
+or gesture state cannot be discarded implicitly by starting another Room.
+
+An empty Rooms workspace explains the two steps in plain language: create a
+reusable **Room template**, then create an editable Room from it. Open the
+template form when no template exists, then the Room form when templates exist
+but no Room does. Creation controls in an existing Room remain compact.
+These UI rules change no Room validation or saved command semantics.
+
 ## 4. Irregular-room semantics
 
 ### 4.1 Versioned value

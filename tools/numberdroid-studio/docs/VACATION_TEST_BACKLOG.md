@@ -54,6 +54,7 @@ Keep these states distinct:
 | VT-015 | Persistent named working projects | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted project/store and launcher foundations | Create, save, stop and reopen the same working project; keep fixture mode separate |
 | VT-016 | Task review feedback and truthful continuation | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing owner review and task foundations | Required summary, optional item comments, exact-review retention, and continuation/history truth; no real agent starts |
 | VT-017 | Human Asset from a saved slice | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted exact slices and Asset proposal core | Author one manual Asset, review/apply it, place it in a draft Room and reopen saved content |
+| VT-018 | Room creation and current editor context | CANDIDATE IN PROGRESS — DEFERRED LIVE / NONBLOCKING | existing Room and working-project foundations | Guided first template/Room; a second Room immediately becomes the displayed and edited Room; prior context is protected |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1466,3 +1467,21 @@ test convenience.
 - **Boundary:** no production source selection, image generation, automatic
   acceptance/finalization, real agent execution, materialization or publication.
   Use only a fresh fixture for automated proof; preserve personal workspaces.
+
+## VT-018 — Room creation and current editor context
+
+- **Implementation:** `agent/studio-room-creation-context`; candidate
+  implementation/verification in progress. Exact source and CI belong in its PR.
+- **Promise:** guide a new project from a Room template to its first editable
+  Room, then display and edit the exact newly created Room without stale state
+  from the previous Room. Room commands and validation remain unchanged.
+- **Remaining human check:** open empty Rooms, create a named template, then
+  create a Room. Create a second differently sized Room and confirm its name,
+  size and canvas immediately match. Edit that Room before manually refreshing;
+  confirm the first Room is unchanged. Reopen the saved project and inspect both.
+- **Preservation check:** unsaved shape/review decisions or an unresolved
+  placement must prevent an implicit switch. Failed creation must preserve the
+  old Room selection. Existing editor creation disclosures remain compact.
+- **Status:** deferred and nonblocking for authorized development. Record a
+  later explicit ACCEPT or REVISE from Klaus. This is separate from VT-001 and
+  grants no finalization, runtime materialization, publication or release.

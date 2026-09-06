@@ -137,6 +137,15 @@ with explicit manual placement metadata and no automatic lifecycle promotion.
 Its automated workflow and deferred VT-017 decision remain separate. Existing
 foundations did not by themselves prove a complete PNG-to-Asset-to-Room UI path.
 
+## Room creation context — candidate implementation
+
+The 2026-09-07 [Room creation candidate](ROOM_EDITOR_L3_STATUS.md) corrects a
+display/command mismatch after creating a second Room and guides an empty
+project through Room template and Room creation. It retains unsaved and
+unresolved context on failure, then opens only the exact confirmed new Room.
+Existing Room commands and validation remain unchanged. VT-018 is deferred;
+automated verification and source integration do not infer user acceptance.
+
 ## Checkpoint 1A — Architecture and observable development shell
 
 **Status: visually accepted by the user on 2026-08-21.** The accepted shell and interaction flow are the protected baseline for 1B. This records visual/workflow acceptance only; JSON persistence and the host-only agent adapter remain development implementations.

@@ -138,6 +138,24 @@ interaction/UX, security/authority, persistence/idempotency, preview/rendering
 and actual test/CI-scope reviews were blocker-free on the unchanged final head.
 Build #2354 repeated the selected gates successfully after merge.
 
+## Room creation context candidate — 2026-09-07
+
+Candidate implementation is in progress on `agent/studio-room-creation-context`.
+The current source can render the previous Room after creation, then change the
+command target to the new Room without rendering again. This candidate aligns
+the exact new saved Room across selector, header, canvas and command context,
+clearing incompatible prior interaction state only after confirmed success.
+Failures and unresolved edits retain their existing context. Empty-project
+guidance uses **Room template** and opens the next required creation form.
+
+Focused proof must create two differently sized Rooms, immediately edit the
+second before passive refresh, and show that the first is unchanged. Fresh
+1440/1060 browser and restart evidence, existing protected checks and
+independent review remain required. Source/CI identities belong in the focused
+PR; the deferred human check is VT-018 in the
+[Vacation Test Backlog](VACATION_TEST_BACKLOG.md). This candidate does not
+change the remaining VT-001 decision or Room validation semantics.
+
 ## Remaining gate and next work
 
 Klaus owns later live acceptance of CP4.5 / VT-001, including PR #191 and PR
