@@ -149,7 +149,7 @@ test('request changes supersedes the review and returns the task to an explicit 
     changeId: submitted.review.items[0].changeId,
     disposition: 'CHANGES_REQUESTED',
     reason: 'Use the approved naming convention.',
-  }], { actorId: OWNER.id });
+  }], { actorId: OWNER.id, expectedReviewVersion: submitted.review.reviewVersion, feedbackSummary: 'Use the approved naming convention before submitting again.' });
   assert.equal(decided.review.state, 'SUPERSEDED');
   assert.equal(taskStore.getTask(PROJECT_ID, created.task.taskId).state, 'CHANGES_REQUESTED');
   await assert.rejects(
@@ -161,6 +161,46 @@ test('request changes supersedes the review and returns the task to an explicit 
   await tasks.execute(sourceCommand(3, 'after-resume', 'source.cp4.after-resume'), agentContext);
   assert.equal((await studio.readProjectTrusted(PROJECT_ID)).revision, 2);
   assert.equal(taskStore.listBranchRevisions(PROJECT_ID, created.task.taskId).length, 2);
+});
+
+test('review feedback is version-bound, owner-attributed and durable without altering legacy review versions', async (context) => {
+  const { store, tasks, taskStore, created, agentContext } = await fixture(context);
+  const taskId = created.task.taskId;
+  await tasks.execute(sourceCommand(2, 'feedback'), agentContext);
+  const submitted = await tasks.submitReview(PROJECT_ID, taskId, { reviewId: 'review.cp4.feedback', actorId: OWNER.id });
+  const reviewId = submitted.review.reviewId;
+  const decisions = [{ changeId: submitted.review.items[0].changeId, disposition: 'USER_ACCEPTED', reason: 'Keep this source.' }];
+  const unchanged = () => ({ review: taskStore.getReview(PROJECT_ID, taskId), task: taskStore.getTask(PROJECT_ID, taskId), timeline: taskStore.listTimeline(PROJECT_ID, taskId) });
+  const before = unchanged();
+  for (const options of [
+    { actorId: OWNER.id, feedbackSummary: 'Useful result.' },
+    { actorId: OWNER.id, expectedReviewVersion: 1, feedbackSummary: '   ' },
+    { actorId: AGENT.id, expectedReviewVersion: 1, feedbackSummary: 'I approve myself.' },
+  ]) {
+    await assert.rejects(tasks.decideReview(PROJECT_ID, taskId, reviewId, decisions, options));
+    assert.deepEqual(unchanged(), before);
+  }
+  const saved = await tasks.decideReview(PROJECT_ID, taskId, reviewId, decisions, { actorId: OWNER.id, expectedReviewVersion: 1, feedbackSummary: 'Useful result.' });
+  assert.equal(saved.review.feedback.authorId, OWNER.id);
+  assert.equal(saved.review.feedback.basisReviewVersion, 1);
+  assert.equal(saved.review.feedback.summary, 'Useful result.');
+  const afterSaved = unchanged();
+  await assert.rejects(tasks.decideReview(PROJECT_ID, taskId, reviewId, decisions, { actorId: OWNER.id, expectedReviewVersion: 1, feedbackSummary: 'Stale replacement.' }), (error) => error.code === 'REVIEW_VERSION_CONFLICT');
+  assert.deepEqual(unchanged(), afterSaved);
+  const corrected = await tasks.decideReview(PROJECT_ID, taskId, reviewId, [{ ...decisions[0], disposition: 'CHANGES_REQUESTED', reason: 'Use the confirmed label.' }], { actorId: OWNER.id, expectedReviewVersion: 2, feedbackSummary: 'Correct the source name, then resubmit.' });
+  assert.equal(corrected.review.state, 'SUPERSEDED');
+  assert.equal(corrected.review.feedback.basisReviewVersion, 2);
+  assert.equal(taskStore.getTask(PROJECT_ID, taskId).stateReason, corrected.review.feedback.summary);
+  assert.deepEqual(taskStore.listTimeline(PROJECT_ID, taskId).at(-1).details.feedback, corrected.review.feedback);
+  const history = store.workspace.database.prepare('SELECT review_json FROM task_reviews WHERE review_id = ? ORDER BY review_version').all(reviewId).map(({ review_json }) => JSON.parse(review_json));
+  assert.equal(history.length, 3);
+  assert.equal(Object.hasOwn(history[0], 'feedback'), false);
+  assert.equal(history[1].feedback.summary, 'Useful result.');
+  const filename = store.workspace.filename; store.close();
+  const reopened = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
+  afterTestCleanup(context, () => reopened.close());
+  const persisted = new SqliteAgentTaskStore({ workspace: reopened.workspace }).getReview(PROJECT_ID, taskId);
+  assert.deepEqual(persisted, corrected.review);
 });
 
 test('review compare records explicit same-object main/branch conflict', async (context) => {

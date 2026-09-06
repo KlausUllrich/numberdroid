@@ -5,8 +5,8 @@ import { dirname, resolve } from 'node:path';
 import { decodeSupportedPng } from '../packages/preview/src/index.js';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5|a1-7 [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7', 'review-feedback'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5|a1-7|review-feedback [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -160,7 +160,11 @@ try {
   ]);
   await devtools.send('Page.navigate', { url: pageUrl }, sessionId);
 
-  const readyExpression = mode === 'candidate'
+  const readyExpression = mode === 'review-feedback'
+    ? `document.getElementById('connection-label')?.textContent === 'Live'
+       && document.getElementById('workspace-content')?.dataset.renderedProjectId === 'project.review-feedback'
+       && document.getElementById('workspace-content')?.dataset.renderedWorkspace === 'tasks'`
+    : mode === 'candidate'
     ? `document.documentElement.dataset.visualEvidenceReady === 'true'
        && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
        && document.documentElement.dataset.visualProjectId === 'numberdroid-studio-demo'
@@ -441,6 +445,17 @@ try {
       })()`, awaitPromise: true, returnByValue: true,
     }, sessionId);
     checkpoint3RoomContinuity = continuity.result?.value ?? null;
+  }
+  if (mode === 'review-feedback') {
+    const selected = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        document.querySelector('[data-task-control="select"][data-task-id="task.review-feedback"]')?.click();
+        const deadline = Date.now() + 5_000;
+        while (!document.querySelector('[data-task-feedback-summary]') && Date.now() < deadline) await new Promise((done) => setTimeout(done, 25));
+        return Boolean(document.querySelector('[data-task-feedback-summary]'));
+      })()`, awaitPromise: true, returnByValue: true,
+    }, sessionId, 10_000);
+    assert(selected.result?.value === true, 'The dedicated review-feedback task did not open.');
   }
   if (mode === 'checkpoint-4' && expectedWorkspace === 'tasks') {
     const focused = await devtools.send('Runtime.evaluate', {
@@ -1039,12 +1054,24 @@ try {
         })()`, returnByValue: true,
       }, sessionId);
       const loadFocusResult = await devtools.send('Runtime.evaluate', {
-        expression: `(() => {
+        expression: `(async () => {
+          // READY DOM/resources may precede the render frame that restores focus.
+          // Observe the settled UI without assigning focus from the capture harness.
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const root = document.querySelector('[data-room-preview]');
-          return Boolean(root && document.activeElement === root);
-        })()`, returnByValue: true,
+          return {
+            rootFocused: Boolean(root && document.activeElement === root),
+            activeTag: document.activeElement?.tagName ?? null,
+            activeId: document.activeElement?.id ?? null,
+            activeClass: document.activeElement?.className ?? null,
+            documentFocused: document.hasFocus(),
+            visibilityState: document.visibilityState,
+            previewState: root?.dataset.roomPreviewState ?? null,
+          };
+        })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
-      assert(loadFocusResult.result?.value === true, 'Async Studio preview load did not preserve focus on the preview root.');
+      assert(loadFocusResult.result?.value?.rootFocused === true,
+        `Async Studio preview load did not preserve focus on the preview root: ${JSON.stringify(loadFocusResult.result?.value)}`);
       const inspectFocused = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const inspect = document.querySelector('[data-preview-inspect="prop.preview-overhang"]');
@@ -1226,7 +1253,7 @@ try {
           && previewActivation.events[1].detail === 0
           && previewActivation.events[2].type === 'keyup'
           && previewActivation.events[2].isTrusted === true,
-        loadFocusPreserved: loadFocusResult.result?.value === true,
+        loadFocusPreserved: loadFocusResult.result?.value?.rootFocused === true,
         transparentPixelDelta: delta(transparentPainted, transparentReference),
         opaqueOverhangPixelDelta: delta(opaquePainted, opaqueReference),
         changedPixelCount,
@@ -4069,6 +4096,131 @@ try {
     }
   }
 
+  let taskFeedbackEvidence = null;
+  let taskFeedbackFormScreenshot = null;
+  if (mode === 'review-feedback' && expectedWorkspace === 'tasks') {
+    const resultPromise = devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const waitFor = async (predicate, message) => {
+          const deadline = Date.now() + 5_000;
+          while (!predicate() && Date.now() < deadline) await new Promise((done) => setTimeout(done, 25));
+          if (!predicate()) throw new Error(message);
+        };
+        const reviewRoot = () => document.querySelector('[data-task-review-context]');
+        const context = () => JSON.parse(reviewRoot().dataset.taskReviewContext);
+        const field = () => document.querySelector('[data-task-feedback-summary]');
+        const comment = () => document.querySelector('[data-task-review-reason]');
+        const choice = () => document.querySelector('[data-task-review-disposition]');
+        const refresh = async () => {
+          const button = document.getElementById('refresh-button'); button.click();
+          await waitFor(() => !button.disabled, 'Feedback refresh did not settle.');
+          await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+        };
+        const projectId = document.getElementById('workspace-content').dataset.renderedProjectId;
+        const taskId = 'task.review-feedback';
+        const base = '/api/projects/' + encodeURIComponent(projectId) + '/tasks/' + encodeURIComponent(taskId);
+        const session = await fetch('/api/ui-session').then((response) => response.json());
+        const post = async (path, body) => {
+          const response = await fetch(path, { method: 'POST', headers: {
+            'content-type': 'application/json', 'x-numberdroid-studio-csrf': session.csrfToken,
+          }, body: JSON.stringify(body) });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error?.message ?? 'Feedback request failed.');
+          return result;
+        };
+        let confirmCalls = 0;
+        const originalConfirm = window.confirm;
+        window.confirm = () => { confirmCalls += 1; return true; };
+        try {
+          const initial = context();
+          for (const select of document.querySelectorAll('[data-task-review-disposition]')) select.value = 'USER_ACCEPTED';
+          choice().value = 'CHANGES_REQUESTED';
+          document.querySelector('[data-task-control="decide"]').click();
+          await new Promise((done) => setTimeout(done, 100));
+          const requiredSummary = confirmCalls === 0 && document.activeElement === field()
+            && context().reviewVersion === initial.reviewVersion;
+          field().value = 'Make the surface boundary easier to read.';
+          comment().value = 'Keep the saved footprint unchanged.';
+          field().focus(); field().setSelectionRange(5, 12);
+          window.scrollBy(0, 80); const scrollBefore = { x: scrollX, y: scrollY };
+          await refresh();
+          const sameReviewRetained = field().value === 'Make the surface boundary easier to read.'
+            && comment().value === 'Keep the saved footprint unchanged.'
+            && choice().value === 'CHANGES_REQUESTED' && document.activeElement === field()
+            && field().selectionStart === 5 && field().selectionEnd === 12
+            && scrollX === scrollBefore.x && scrollY === scrollBefore.y;
+          reviewRoot().scrollIntoView({ block: 'start', inline: 'nearest' });
+          await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+          window.__studioFeedbackFormCapture = { ready: true, released: false };
+          await waitFor(() => window.__studioFeedbackFormCapture.released, 'Filled feedback form capture did not complete.');
+          await post(base + '/reviews/' + encodeURIComponent(initial.reviewId) + '/decide', {
+            decisions: [...document.querySelectorAll('[data-task-review-disposition]')].map((select) => ({ changeId: select.dataset.taskReviewDisposition, disposition: 'USER_REJECTED', reason: 'External review note.' })),
+            expectedReviewVersion: initial.reviewVersion, confirm: true,
+          });
+          await refresh();
+          const newVersionCleared = context().reviewVersion === initial.reviewVersion + 1
+            && field().value === '' && comment().value === 'External review note.'
+            && choice().value === 'USER_REJECTED';
+          choice().value = 'CHANGES_REQUESTED'; field().value = 'Make the surface boundary easier to read.';
+          comment().value = 'Keep the saved footprint unchanged.';
+          document.querySelector('[data-task-control="decide"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'CHANGES_REQUESTED', 'Feedback did not reach changes requested.');
+          const saved = await fetch(base).then((response) => response.json());
+          const exactFeedback = saved.review.feedback?.summary === 'Make the surface boundary easier to read.'
+            && saved.review.feedback.basisReviewVersion === initial.reviewVersion + 1
+            && saved.review.items[0].reason === 'Keep the saved footprint unchanged.';
+          document.querySelector('[data-task-control="resume"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'ACTIVE', 'Continuation authorization did not settle.');
+          const history = document.querySelector('.task-review');
+          const resumedHistoryTruth = document.querySelector('.task-detail [data-task-state]').textContent === 'Agent work allowed'
+            && history.querySelector('h3')?.textContent === 'Previous review'
+            && history.textContent.includes('Studio does not start an agent')
+            && history.textContent.includes('Make the surface boundary easier to read.')
+            && history.textContent.includes('Keep the saved footprint unchanged.')
+            && !history.textContent.includes('Waiting for your review')
+            && !history.querySelector('[data-task-control="decide"]');
+          document.querySelector('[data-task-control="pause"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'PAUSED', 'Pause after continuation did not settle.');
+          const pausedHistory = document.querySelector('.task-review');
+          const pausedHistoryTruth = pausedHistory.querySelector('h3')?.textContent === 'Previous review'
+            && pausedHistory.textContent.includes('The task is paused; the assigned agent cannot make changes')
+            && pausedHistory.textContent.includes('Make the surface boundary easier to read.')
+            && pausedHistory.textContent.includes('Keep the saved footprint unchanged.')
+            && !pausedHistory.textContent.includes('Waiting for your review')
+            && !pausedHistory.querySelector('[data-task-control="decide"]');
+          return { requiredSummary, sameReviewRetained, newVersionCleared, exactFeedback, resumedHistoryTruth, pausedHistoryTruth,
+            noOverflow: document.documentElement.scrollWidth <= innerWidth };
+        } finally { window.confirm = originalConfirm; delete window.__studioFeedbackFormCapture; }
+      })()`, awaitPromise: true, returnByValue: true,
+    }, sessionId, 30_000);
+    // The interaction remains awaited below; mark an early rejection handled while capturing.
+    resultPromise.catch(() => {});
+    const captureReadyDeadline = Date.now() + 10_000;
+    let formReady = false;
+    while (Date.now() < captureReadyDeadline) {
+      const ready = await devtools.send('Runtime.evaluate', {
+        expression: 'window.__studioFeedbackFormCapture?.ready === true', returnByValue: true,
+      }, sessionId);
+      if (ready.result?.value === true) { formReady = true; break; }
+      await delay(50);
+    }
+    assert(formReady, 'The filled feedback form did not become ready for capture.');
+    const formScreenshot = await devtools.send('Page.captureScreenshot', {
+      format: 'png', fromSurface: true, captureBeyondViewport: false,
+    }, sessionId);
+    taskFeedbackFormScreenshot = outputPath.replace(/\.png$/i, '-form.png');
+    await mkdir(dirname(taskFeedbackFormScreenshot), { recursive: true });
+    await writeFile(taskFeedbackFormScreenshot, Buffer.from(formScreenshot.data, 'base64'));
+    await devtools.send('Runtime.evaluate', {
+      expression: 'window.__studioFeedbackFormCapture.released = true', returnByValue: true,
+    }, sessionId);
+    const result = await resultPromise;
+    taskFeedbackEvidence = result.result?.value ?? null;
+    assert(taskFeedbackEvidence && Object.values(taskFeedbackEvidence).every((value) => value === true),
+      `Task feedback did not preserve exact-review drafts and truthful continuation: ${JSON.stringify(taskFeedbackEvidence)} ${JSON.stringify(result.exceptionDetails ?? null)}`);
+    assertNoProtocolErrors('After task feedback interactions');
+  }
+
   checkpoint2aSourceFocusFinal = await focusCheckpoint2aSourceTarget('before-screenshot');
   assertSyntheticProtocolErrorsBounded();
   assertNoProtocolErrors('Before screenshot capture');
@@ -4719,6 +4871,8 @@ try {
     checkpoint2cInteractionEvidence,
     checkpoint3RoomContinuity,
     checkpoint4TaskFocus,
+    taskFeedbackEvidence,
+    taskFeedbackFormScreenshot,
     checkpoint45RoomFocus,
     checkpoint45PhysicalPaint,
     checkpoint45EditorContinuity,

@@ -272,7 +272,7 @@ function updateMutationControls() {
   elements['agent-access-state'].disabled = pending || !state.project || !state.agentAccess
     || state.uiMode === 'remote';
   elements['agent-access-panel'].inert = pending;
-  for (const control of elements['workspace-content'].querySelectorAll('[data-task-control], [data-task-form] input, [data-task-form] textarea, [data-task-form] button')) {
+  for (const control of elements['workspace-content'].querySelectorAll('[data-task-control], [data-task-form] input, [data-task-form] textarea, [data-task-form] button, [data-task-review-disposition], [data-task-review-reason], [data-task-feedback-summary]')) {
     if (state.taskMutationPending) {
       if (!control.disabled) control.dataset.disabledByTaskPending = 'true';
       control.disabled = true;
@@ -1182,6 +1182,8 @@ function captureTaskDomState() {
     disclosures,
     reviewContext: review?.dataset.taskReviewContext ?? 'none',
     reviewDrafts,
+    feedbackSummary: root.querySelector('[data-task-feedback-summary]')?.value ?? '',
+    reviewReasons: Object.fromEntries([...root.querySelectorAll('[data-task-review-reason]')].map((field) => [field.dataset.taskReviewReason, field.value])),
     textSelection: captureTaskTextSelection(root),
     page: { x: window.scrollX, y: window.scrollY },
   };
@@ -1191,6 +1193,8 @@ function restoreTaskDomState() {
   const saved = state.taskDomState;
   const root = elements['workspace-content'].querySelector('[data-task-view="detail"][data-task-context]');
   if (!saved || !root || saved.context !== root.dataset.taskContext) return;
+  const currentReviewContext = root.querySelector('[data-task-review-context]')?.dataset.taskReviewContext ?? 'none';
+  if (currentReviewContext !== saved.reviewContext) return;
   for (const disclosure of root.querySelectorAll('details[data-task-disclosure-key]')) {
     if (Object.hasOwn(saved.disclosures, disclosure.dataset.taskDisclosureKey)) {
       disclosure.open = saved.disclosures[disclosure.dataset.taskDisclosureKey];
@@ -1198,6 +1202,11 @@ function restoreTaskDomState() {
   }
   const review = root.querySelector('[data-task-review-context]');
   if ((review?.dataset.taskReviewContext ?? 'none') === saved.reviewContext) {
+    const summary = root.querySelector('[data-task-feedback-summary]');
+    if (summary) summary.value = saved.feedbackSummary ?? '';
+    for (const field of root.querySelectorAll('[data-task-review-reason]')) {
+      if (Object.hasOwn(saved.reviewReasons ?? {}, field.dataset.taskReviewReason)) field.value = saved.reviewReasons[field.dataset.taskReviewReason];
+    }
     for (const select of root.querySelectorAll('[data-task-review-disposition]')) {
       const value = saved.reviewDrafts[select.dataset.taskReviewDisposition];
       if (!select.disabled && value !== undefined && [...select.options].some((option) => option.value === value)) select.value = value;
@@ -3744,7 +3753,7 @@ function renderRooms(snapshot) {
 }
 
 const TASK_STATE_LABELS = Object.freeze({
-  ACTIVE: 'Agent working',
+  ACTIVE: 'Agent work allowed',
   PAUSED: 'Waiting for you to continue',
   IN_REVIEW: 'Waiting for your review',
   CHANGES_REQUESTED: 'Waiting for you to restart the task',
@@ -3769,7 +3778,7 @@ const TASK_EVENT_LABELS = Object.freeze({
   BRANCH_COMMAND_ACCEPTED: 'Agent change saved',
   BRANCH_COMMAND_COMMITTED: 'Agent change saved',
   TASK_PAUSE: 'Agent work paused',
-  TASK_RESUME: 'Agent work resumed',
+  TASK_RESUME: 'Agent continuation authorized',
   TASK_CANCEL: 'Task ended by its owner',
   TASK_REJECT: 'Task ended without adding changes',
   REVIEW_SUBMITTED: 'Result submitted for review',
@@ -3838,7 +3847,7 @@ function taskWorkflowPresentation(entry) {
     };
   }
   const presentations = {
-    ACTIVE: { actor: 'Assigned agent', next: taskHasSavedChanges(entry) ? 'The agent can continue, or you can review the current result.' : 'The agent can work within the limits you chose.', consequence: 'Changes stay separate from the project until you review and accept them.' },
+    ACTIVE: { actor: 'Assigned agent', next: taskHasSavedChanges(entry) ? 'The agent can continue, or you can review the current result.' : 'The agent can work within the limits you chose.', consequence: 'Studio permits further work but does not start an agent. Changes stay separate until you review and accept them.' },
     ANCESTOR_BLOCKED: { actor: 'You', next: 'Inspect the parent task. This child cannot continue while its saved ancestor authority is blocked.', consequence: 'The child cannot execute, create a Candidate, or change the project.' },
     PAUSED: { actor: 'You', next: 'Choose whether the agent should continue or the task should end.', consequence: 'The assigned agent cannot make changes while this task is paused.' },
     CHANGES_REQUESTED: { actor: 'You', next: 'Let the agent continue when you are ready for the requested changes.', consequence: 'The assigned agent remains blocked until you restart the task.' },
@@ -4143,17 +4152,18 @@ function renderTaskReview(entry) {
   const review = entry.review;
   const effectiveState = taskEffectiveState(entry);
   const levelCandidateReview = review?.kind === 'studio.level-candidate-review';
-  const reviewEditable = review?.state === 'OPEN' && effectiveState === 'IN_REVIEW' && !levelCandidateReview;
+  const reviewEditable = review?.state === 'OPEN' && effectiveState === 'IN_REVIEW' && !levelCandidateReview && entry.task.authority?.origin !== 'TRUSTED_SERVICE_CHILD';
   const section = document.createElement('section'); section.className = 'task-review task-detail-section';
   section.dataset.taskSelectionKey = 'task-review';
   section.dataset.taskReviewContext = review ? JSON.stringify({
     reviewId: review.reviewId,
+    reviewVersion: review.reviewVersion,
     state: review.state,
     branchHeadRevision: review.branchHeadRevision,
     items: review.items.map(({ changeId, disposition }) => [changeId, disposition]),
   }) : 'none';
   const heading = document.createElement('div'); heading.className = 'panel-heading';
-  const title = document.createElement('h3'); title.textContent = 'Review task result';
+  const title = document.createElement('h3'); title.textContent = review?.state === 'SUPERSEDED' ? 'Previous review' : 'Review task result';
   heading.append(title); section.append(heading);
   if (!review) {
     const copy = document.createElement('p'); copy.textContent = 'The task is still open. When the work is ready, either the agent or you can send the result to the project owner for review.';
@@ -4189,10 +4199,18 @@ function renderTaskReview(entry) {
     ? 'Completed. The accepted changes are now part of the project, and the assigned agent can no longer change this task.'
     : effectiveState === 'CHANGES_REQUESTED'
       ? 'You asked for changes. The assigned agent remains blocked until you choose “Let agent continue”.'
+      : review.state === 'SUPERSEDED' && effectiveState === 'ACTIVE'
+        ? 'This is the previous review and its saved feedback. Further work is allowed; Studio does not start an agent. A new result must be submitted for a new review.'
+      : review.state === 'SUPERSEDED' && effectiveState === 'PAUSED'
+        ? 'This is the previous review and its saved feedback. The task is paused; the assigned agent cannot make changes until you allow it to continue. No new result is waiting for review.'
+      : review.state === 'SUPERSEDED' && effectiveState === 'ANCESTOR_BLOCKED'
+        ? 'This is the previous review and its saved feedback. The parent task blocks further work. No new result is waiting for review.'
       : ['REJECTED', 'CANCELLED'].includes(effectiveState)
         ? 'This task ended without adding more changes. Its review remains available as read-only history.'
         : effectiveState === 'EXPIRED'
           ? 'This task expired. Its review remains available as read-only history, and its agent access cannot resume.'
+      : review.state === 'SUPERSEDED'
+        ? 'This is the previous review and its saved feedback, kept as read-only history. A new result must be submitted for a new review.'
       : levelCandidateReview
         ? 'Waiting for your review. This immutable Candidate is read-only: the A4c create path does not authorize a review decision, merge, materialization, publication, or release.'
         : `Waiting for your review. Only the project owner (${ownerId}) can accept or reject these changes.`;
@@ -4227,9 +4245,37 @@ function renderTaskReview(entry) {
         disposition.disabled = !reviewEditable;
       }
     }
+    if (reviewEditable && item.disposition !== 'AUTO_ACCEPTED_BY_POLICY') {
+      const label = document.createElement('label'); label.className = 'task-feedback-field task-item-feedback';
+      label.append('Comment (optional)');
+      const comment = document.createElement('textarea'); comment.rows = 2; comment.maxLength = 2000;
+      comment.dataset.taskReviewReason = item.changeId;
+      comment.dataset.taskFocusKey = `review-comment-${item.changeId}`;
+      comment.value = item.reason ?? ''; label.append(comment); copy.append(label);
+    } else if (item.reason) {
+      const reason = document.createElement('p'); reason.className = 'task-review-reason'; reason.textContent = item.reason;
+      copy.append(reason);
+    }
     row.append(copy, disposition); list.append(row);
   }
   section.append(list);
+  if (reviewEditable) {
+    const label = document.createElement('label'); label.className = 'task-feedback-field';
+    label.append('Feedback summary');
+    const hint = document.createElement('small'); hint.textContent = 'Required when requesting changes. Explain what should be different.';
+    const summary = document.createElement('textarea'); summary.rows = 3; summary.maxLength = 4000;
+    summary.dataset.taskFeedbackSummary = ''; summary.dataset.taskFocusKey = 'review-feedback-summary';
+    summary.setAttribute('aria-label', 'Feedback summary');
+    label.append(hint, summary); section.append(label);
+  }
+  if (review.feedback) {
+    const feedback = document.createElement('section'); feedback.className = 'task-saved-feedback';
+    const heading = document.createElement('h4'); heading.textContent = 'Saved feedback';
+    const summary = document.createElement('p'); summary.textContent = review.feedback.summary;
+    const basis = document.createElement('small'); basis.className = 'task-inline-meta';
+    basis.textContent = `For review version ${review.feedback.basisReviewVersion}`;
+    feedback.append(heading, summary, basis); section.append(feedback);
+  }
   if (reviewEditable) {
     const decide = document.createElement('button'); decide.type = 'button'; decide.dataset.taskControl = 'decide'; decide.dataset.taskFocusKey = 'review-decide'; decide.textContent = 'Save review decisions';
     const reject = document.createElement('button'); reject.type = 'button'; reject.className = 'secondary'; reject.dataset.taskControl = 'reject'; reject.dataset.taskFocusKey = 'review-reject'; reject.textContent = TASK_ACTION_LABELS.reject;
@@ -4325,6 +4371,10 @@ function renderTaskDetail(selected) {
   const consequence = document.createElement('p'); consequence.textContent = `What happens next: ${presentation.consequence}`; workflow.append(workflowHeading, actor, consequence); detail.append(workflow);
   if (reviewHasConflict) detail.append(renderTaskReview(selected));
   if (taskMayLoadProcessingAdoption(selected)) detail.append(renderProcessingAdoption(selected));
+  const reviewIsCurrent = !reviewHasConflict && presentation.state === 'IN_REVIEW'
+    && selected.review?.state === 'OPEN' && selected.review.kind !== 'studio.level-candidate-review'
+    && selected.task.authority?.origin !== 'TRUSTED_SERVICE_CHILD';
+  if (reviewIsCurrent) detail.append(renderTaskReview(selected));
   const factsSection = document.createElement('section'); factsSection.className = 'task-facts-compact';
   const factsHeading = document.createElement('h3'); factsHeading.textContent = 'Task facts';
   const facts = document.createElement('dl'); facts.className = 'policy-details';
@@ -4386,7 +4436,7 @@ function renderTaskDetail(selected) {
     copy.append(strong, small, technicalEvent); item.append(copy); timeline.append(item);
   }
   detail.append(timelineHeading, timeline);
-  if (!reviewHasConflict) detail.append(renderTaskReview(selected));
+  if (!reviewHasConflict && !reviewIsCurrent) detail.append(renderTaskReview(selected));
   return detail;
 }
 
@@ -6606,20 +6656,36 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   if (['pause', 'resume', 'cancel', 'reject'].includes(action)) {
     if (action === 'cancel' && !window.confirm('Cancel this task? The assigned agent will no longer be able to change it, but its previous work and history will remain available.')) return;
     if (action === 'reject' && !window.confirm('End this task without adding its changes? The assigned agent will no longer be able to change it. The task history remains available.')) return;
-    await executeTaskRequest(`${taskBase}/${action}`, { reason: action === 'pause' ? 'Paused from the human task workspace.' : `${action} from the human task workspace.` }, `Task ${action} recorded.`); return;
+    await executeTaskRequest(`${taskBase}/${action}`, { reason: action === 'pause' ? 'Paused from the human task workspace.' : `${action} from the human task workspace.` }, action === 'resume' ? 'Further work is allowed. Studio does not start an agent.' : `Task ${action} recorded.`); return;
   }
   if (action === 'submit-review') {
     await executeTaskRequest(`${taskBase}/submit-review`, { reviewId: `review.${taskId}.${crypto.randomUUID().slice(0, 8)}` }, 'The task result is waiting for review.'); return;
   }
   if (action === 'decide') {
-    const decisions = [...elements['workspace-content'].querySelectorAll('[data-task-review-disposition]')]
+    const reviewRoot = elements['workspace-content'].querySelector('[data-task-review-context]');
+    const renderedReview = JSON.parse(reviewRoot?.dataset.taskReviewContext ?? 'null');
+    if (!renderedReview || renderedReview.reviewId !== entry.review?.reviewId
+        || renderedReview.reviewVersion !== entry.review?.reviewVersion) {
+      showToast('This review changed. Reload it before saving feedback.'); return;
+    }
+    const summaryField = reviewRoot.querySelector('[data-task-feedback-summary]');
+    const feedbackSummary = summaryField?.value.trim() ?? '';
+    const reasons = new Map([...reviewRoot.querySelectorAll('[data-task-review-reason]')]
+      .map((field) => [field.dataset.taskReviewReason, field.value.trim() || null]));
+    const decisions = [...reviewRoot.querySelectorAll('[data-task-review-disposition]')]
       .filter((select) => select.value !== 'AUTO_ACCEPTED_BY_POLICY' && select.value !== 'PENDING')
-      .map((select) => ({ changeId: select.dataset.taskReviewDisposition, disposition: select.value, reason: null }));
+      .map((select) => ({ changeId: select.dataset.taskReviewDisposition, disposition: select.value, reason: reasons.get(select.dataset.taskReviewDisposition) ?? null }));
     const undecided = [...elements['workspace-content'].querySelectorAll('[data-task-review-disposition]')]
       .some((select) => select.value === 'PENDING');
     if (undecided) { showToast('Every non-policy change needs an accept, reject, or request-changes decision.'); return; }
+    if (decisions.some(({ disposition }) => disposition === 'CHANGES_REQUESTED') && !feedbackSummary) {
+      showToast('Explain the changes you want in Feedback summary.'); summaryField?.focus(); return;
+    }
+    if (feedbackSummary.length > 4000 || decisions.some(({ reason }) => (reason?.length ?? 0) > 2000)) {
+      showToast('Use at most 4,000 characters for the summary and 2,000 for each comment.'); return;
+    }
     if (!decisions.length || !window.confirm(`Save your decision for ${decisions.length} proposed change(s)?`)) return;
-    await executeTaskRequest(`${taskBase}/reviews/${encodeURIComponent(entry.review.reviewId)}/decide`, { decisions, confirm: true }, 'Your review decisions were saved.'); return;
+    await executeTaskRequest(`${taskBase}/reviews/${encodeURIComponent(entry.review.reviewId)}/decide`, { decisions, confirm: true, expectedReviewVersion: renderedReview.reviewVersion, ...(feedbackSummary ? { feedbackSummary } : {}) }, 'Your review decisions were saved.'); return;
   }
   if (action === 'merge') {
     const blockedReason = taskMergeBlockedReason(entry.review);

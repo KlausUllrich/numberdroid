@@ -26,6 +26,28 @@ This checkpoint is bounded to the designer workflow requested by the combined ga
    payloads, or diagnostics; essential problems, actions, and consequences
    never depend on opening technical details.
 
+### 1.1 Exact-review feedback candidate — 2026-09-06
+
+The [task review feedback contract](TASK_REVIEW_FEEDBACK.md) extends the existing
+owner review with a required nonblank Request Changes summary (maximum 4,000
+characters), optional per-item reasons (maximum 2,000), and mutation-time review
+version comparison. The UI always pins the rendered review version. Historical
+Accept/Reject payloads without feedback remain compatible; Request Changes or
+new feedback requires the expected version. Trusted service context supplies
+the author and timestamp of immutable `review.feedback`; existing review JSON
+versions require no SQL migration.
+
+Current editable non-conflicting reviews appear after Current step and any
+processed-asset preview, before facts/timeline. Conflict-first placement stays
+intact. Draft text, choices, focus, selection and scroll survive only a
+compatible exact review version. Superseded reviews and saved feedback remain
+read-only history. Resume permits continued work; Studio does not start an
+agent. An unknown response requires reloading and inspecting the current review
+before another write, without claiming idempotent replay. Existing owner,
+policy, Candidate, derived-child and A1.7 read-only restrictions remain binding.
+This extension is an implemented candidate; live acceptance and complete CI
+remain separate.
+
 ## 2. Frozen minimum useful prop preview
 
 The preview is a deterministic browser projection. It creates no bitmap, persistence record, job, provider call, or inferred semantic fact.

@@ -214,6 +214,26 @@ export function applyReviewDecisions(items, decisions, { actorId, now }) {
   return [...byId.values()].sort((left, right) => left.ordinal - right.ordinal);
 }
 
+export function validateReviewFeedback(raw) {
+  const feedback = requireRecord(raw, 'review.feedback');
+  exactKeys(feedback, new Set(['schemaVersion', 'summary', 'basisReviewVersion', 'authorId', 'createdAt']), 'review.feedback');
+  invariant(feedback.schemaVersion === 1, 'VALIDATION_ERROR', 'Unsupported review feedback schema.');
+  return {
+    schemaVersion: 1,
+    summary: requireString(feedback.summary, 'review.feedback.summary', { max: 4000 }),
+    basisReviewVersion: requireInteger(feedback.basisReviewVersion, 'review.feedback.basisReviewVersion', { min: 1 }),
+    authorId: requireId(feedback.authorId, 'review.feedback.authorId'),
+    createdAt: requireIsoDate(feedback.createdAt, 'review.feedback.createdAt'),
+  };
+}
+
+export function createReviewFeedback({ feedbackSummary, expectedReviewVersion, changesRequested, actorId, now }) {
+  if (expectedReviewVersion !== undefined) requireInteger(expectedReviewVersion, 'expectedReviewVersion', { min: 1 });
+  if (!changesRequested && feedbackSummary === undefined) return null;
+  requireInteger(expectedReviewVersion, 'expectedReviewVersion', { min: 1 });
+  return validateReviewFeedback({ schemaVersion: 1, summary: feedbackSummary, basisReviewVersion: expectedReviewVersion, authorId: actorId, createdAt: now });
+}
+
 export function assertReviewMergeable(review) {
   invariant(review?.state === 'OPEN', 'REVIEW_STATE_CONFLICT', 'Only an open review can merge.');
   invariant((review.conflicts ?? []).length === 0, 'SEMANTIC_MERGE_CONFLICT', 'The review contains unresolved semantic conflicts.', { conflicts: review.conflicts });

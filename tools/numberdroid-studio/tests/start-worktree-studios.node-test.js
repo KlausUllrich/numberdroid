@@ -148,6 +148,9 @@ test('fixture profiles produce exact fresh-target preparation commands', () => {
   assert.deepEqual(fixtureCommands('vt001-task', '/tmp/fresh'), [
     ['scripts/prepare-checkpoint-4-visual-evidence.js', '/tmp/fresh'],
   ]);
+  assert.deepEqual(fixtureCommands('review-feedback', '/tmp/fresh'), [
+    ['scripts/prepare-review-feedback-evidence.js', '/tmp/fresh'],
+  ]);
   assert.deepEqual(fixtureCommands('vt001-room', '/tmp/fresh'), [
     ['scripts/prepare-checkpoint-2c-visual-evidence.js', '/tmp/fresh', 'applied'],
     ['scripts/prepare-checkpoint-3-visual-evidence.js', '/tmp/fresh'],

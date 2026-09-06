@@ -148,7 +148,7 @@ locally. Broken/prunable worktrees are hidden. Type `d` in the prompt or pass
 After version selection, choose **Create a working project**, **Open a working
 project**, or **Start a test fixture**. A working project uses one selected
 worktree; fixture comparisons may use several. Test profiles remain `empty`,
-`vt001-room`, and `vt001-task`.
+`vt001-room`, `vt001-task`, and `review-feedback`.
 For a reproducible non-interactive launch:
 
 ```bash
@@ -205,6 +205,18 @@ Checkpoint 2A source intake remains synchronous and bounded to 16 MiB and 4096×
 The accepted 2A slice remains deliberately single-user and refuses a non-loopback HTTP listener. A future remote/team deployment requires authenticated HTTP/TLS and is a separate adapter, not an environment-variable widening of this local service.
 
 The server enforces one authoritative SQLite writer. `NUMBERDROID_STUDIO_STORE=json npm run dev` launches the protected JSON regression adapter explicitly; never run JSON and SQLite as simultaneous writers for the same logical workspace.
+
+## Human task review feedback candidate
+
+[Task review feedback](docs/TASK_REVIEW_FEEDBACK.md) adds a required summary for
+Request Changes, optional item comments and exact-review version checking.
+The current editable review appears before task facts and progress; saved prior
+reviews remain history. **Let agent continue** permits work but starts no agent.
+The fresh `review-feedback` launcher profile is the bounded VT-016 walkthrough.
+Focused/native-browser proof and the full local Studio regression passed.
+Final CI and source integration are recorded in the focused PR; user acceptance
+remains deferred. The processing-adoption panel and separate agent-harness gates
+remain unchanged.
 
 ## Connect a local MCP host
 

@@ -27,13 +27,17 @@ engine-neutral and approximate; it is not Numberdroid runtime output.
 
 Checkpoints 1–4, A1.0–A1.2, VT-012 Backups and bounded VT-014 Candidate/child
 behavior remain accepted. A1.3–A1.6b2b are implemented candidates. A1.7 remains
-REVISE: feedback cannot yet be authored properly and Resume does not start a
-real agent. Do not describe a complete agent-assisted Artist loop.
+REVISE. The [generic task review feedback candidate](TASK_REVIEW_FEEDBACK.md)
+now supports a summary and item comments against an exact review version and
+labels continuation truthfully. Local regression and browser proof passed;
+CI/source integration are recorded in its PR and the live gate remains deferred.
+Resume starts no real agent. Do not describe a complete agent-assisted
+Artist loop.
 
 The root `npm run studio` launcher starts selected local worktrees as-is. Its
 persistent-project candidate creates a named empty working project or reopens
 its verified saved directory; separate test mode offers fresh task and
-Room/Preview fixtures. See the [launcher instructions](../README.md#launch-one-or-more-worktrees-for-safe-comparison)
+Room/Preview fixtures and the separate `review-feedback` fixture. See the [launcher instructions](../README.md#launch-one-or-more-worktrees-for-safe-comparison)
 and VT-015 in the [return backlog](VACATION_TEST_BACKLOG.md).
 Fixture helpers must never target a personal or existing workspace, backup or
 restored copy. Preserve uncertain local data and unrelated dirty worktrees.

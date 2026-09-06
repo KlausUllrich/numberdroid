@@ -1,5 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createReviewFeedback, validateReviewFeedback } from '../packages/domain/src/agent-task.js';
+
+test('review correction feedback requires bounded text and an exact positive review version', () => {
+  const trusted = { actorId: 'human.owner', now: '2026-09-06T12:00:00.000Z', changesRequested: true };
+  for (const raw of [
+    {}, { feedbackSummary: 'Correct the anchor.' },
+    { expectedReviewVersion: 1, feedbackSummary: ' \n ' },
+    { expectedReviewVersion: 0, feedbackSummary: 'Correct the anchor.' },
+    { expectedReviewVersion: 1, feedbackSummary: 'x'.repeat(4001) },
+  ]) assert.throws(() => createReviewFeedback({ ...trusted, ...raw }), (error) => error.code === 'VALIDATION_ERROR');
+  const value = createReviewFeedback({ ...trusted, expectedReviewVersion: 4, feedbackSummary: '  Correct the anchor.  ' });
+  assert.deepEqual(value, { schemaVersion: 1, summary: 'Correct the anchor.', basisReviewVersion: 4, authorId: trusted.actorId, createdAt: trusted.now });
+  assert.deepEqual(validateReviewFeedback(value), value);
+  assert.equal(createReviewFeedback({ ...trusted, changesRequested: false }), null);
+  assert.throws(() => validateReviewFeedback({ ...value, injectedAuthority: true }), (error) => error.code === 'VALIDATION_ERROR');
+});
 import {
   applyReviewDecisions,
   assertReviewMergeable,

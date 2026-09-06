@@ -1,6 +1,7 @@
 import {
   applyReviewDecisions,
   createReviewItems,
+  createReviewFeedback,
   findSemanticConflicts,
   transitionAgentTask,
 } from '../../../domain/src/agent-task.js';
@@ -357,11 +358,15 @@ export class SqliteAgentTaskStore {
     return mapReview(latestReviewRow(this.#workspace.database, projectId, taskId, reviewId));
   }
 
-  decideReview(projectId, taskId, reviewId, decisions, { actorId, now }) {
+  decideReview(projectId, taskId, reviewId, decisions, { actorId, now, expectedReviewVersion, feedbackSummary }) {
     return this.#workspace.transaction((database) => {
       const row = latestReviewRow(database, projectId, taskId, reviewId);
       invariant(row, 'REVIEW_NOT_FOUND', 'The task review does not exist.', { reviewId });
       const review = mapReview(row);
+      if (expectedReviewVersion !== undefined) {
+        invariant(Number.isSafeInteger(expectedReviewVersion) && expectedReviewVersion > 0, 'VALIDATION_ERROR', 'expectedReviewVersion must be a positive integer.');
+        invariant(review.reviewVersion === expectedReviewVersion, 'REVIEW_VERSION_CONFLICT', 'The review changed. Reload it before saving feedback or decisions.', { expectedReviewVersion, actualReviewVersion: review.reviewVersion });
+      }
       invariant(review.state === 'OPEN', 'REVIEW_STATE_CONFLICT', 'Only an open review can receive decisions.');
       assertNoLevelCandidateSource(database, projectId, taskId,
         'LEVEL_CANDIDATE_REVIEW_DECISION_FORBIDDEN',
@@ -374,12 +379,14 @@ export class SqliteAgentTaskStore {
       invariant(task.state === 'IN_REVIEW', 'TASK_STATE_CONFLICT', 'Review decisions require a task in review.', { state: task.state });
       const items = applyReviewDecisions(review.items, decisions, { actorId, now });
       const changesRequested = items.some((item) => item.disposition === 'CHANGES_REQUESTED');
+      const feedback = createReviewFeedback({ feedbackSummary, expectedReviewVersion, changesRequested, actorId, now });
       const next = {
         ...review,
         reviewVersion: review.reviewVersion + 1,
         state: changesRequested ? 'SUPERSEDED' : 'OPEN',
         items,
         updatedAt: now,
+        ...(feedback ? { feedback } : {}),
       };
       database.prepare(`
         INSERT INTO task_reviews(project_id, task_id, review_id, review_version, state, created_at, review_json)
@@ -389,7 +396,7 @@ export class SqliteAgentTaskStore {
       if (changesRequested) {
         const nextTask = transitionAgentTask(task, 'request_changes', {
           now,
-          reason: `Changes requested in review ${reviewId}.`,
+          reason: feedback.summary,
         });
         taskState = nextTask.state;
         database.prepare(`
@@ -404,8 +411,9 @@ export class SqliteAgentTaskStore {
         actorId,
         state: taskState,
         branchRevision: review.branchHeadRevision,
-        details: { reviewId, decisions: clone(decisions) },
+        details: { reviewId, decisions: clone(decisions), ...(feedback ? { feedback: clone(feedback) } : {}) },
       });
+      this.#workspace.fault('after_task_review_decision_timeline');
       return clone(next);
     });
   }
