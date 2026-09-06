@@ -12,8 +12,8 @@ Latest integration: PR [#206](https://github.com/KlausUllrich/numberdroid/pull/2
 was refreshed onto current main and merged unchanged from
 `8d088a58bd21f318d9dc37a34686a5a8f1b8bd96` as
 `034bc4604338e391a2455d42e03a12a5b27d0ed3`, tree
-`6c9d09f9ec537303c15363f8cad86f8c403bfe1b`. Exact-head Build #2379 / run
-[34053108931](https://github.com/KlausUllrich/numberdroid/actions/runs/34053108931)
+`6c9d09f9ec537303c15363f8cad86f8c403bfe1b`. Exact-head Build #2380 / run
+[34053299822](https://github.com/KlausUllrich/numberdroid/actions/runs/34053299822)
 and post-merge Build #2381 / run
 [34053841215](https://github.com/KlausUllrich/numberdroid/actions/runs/34053841215)
 passed. Its two-file change is copy-only; validation semantics are unchanged.
