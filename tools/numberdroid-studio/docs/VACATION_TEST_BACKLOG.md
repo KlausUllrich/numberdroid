@@ -53,6 +53,7 @@ Keep these states distinct:
 | VT-014 | A4c immutable Level Candidate and restricted derived child | USER ACCEPTED 2026-09-02 | VT-000 and source-integrated A3a/A4a/A4b/A4c | Accepted private Candidate closure, strict child attenuation and truthful read-only task presentation; no materialization or publication |
 | VT-015 | Persistent named working projects | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted project/store and launcher foundations | Create, save, stop and reopen the same working project; keep fixture mode separate |
 | VT-016 | Task review feedback and truthful continuation | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing owner review and task foundations | Required summary, optional item comments, exact-review retention, and continuation/history truth; no real agent starts |
+| VT-017 | Human Asset from a saved slice | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted exact slices and Asset proposal core | Author one manual Asset, review/apply it, place it in a draft Room and reopen saved content |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1441,3 +1442,27 @@ Append one section containing:
 Every backup/recovery test targets a new or copied workspace. No active user
 workspace, prior backup, or source backup may be overwritten or cleaned up as a
 test convenience.
+
+## VT-017 — human Asset from a saved slice
+
+- **Implementation:** branch `agent/studio-human-asset-authoring`; candidate
+  local regression, native browser authoring/Room placement/restart and
+  independent reviews passed. Exact source/CI identities stay in the focused PR.
+  No user acceptance is recorded.
+- **Promise:** turn one saved image slice into a human-reviewed DRAFT Asset
+  using explicit placement metadata, then place it in a DRAFT Room. See the
+  [bounded contract](HUMAN_ASSET_AUTHORING.md).
+- **Remaining human check:** choose a saved slice; name its purpose and inspect
+  the exact image, footprint, reference cell and rotation choices. Prepare the
+  proposal, review its findings, explicitly accept or reject, and separately
+  apply accepted content. Confirm the resulting draft Asset can be selected
+  and placed in a Room, then stop/reopen and inspect the saved result.
+- **Recovery check:** retain unfinished choices across compatible refresh;
+  observe explicit conflict if the saved context changes. An uncertain response
+  must retain its exact request for reconciliation/retry without duplicate
+  Assets or a silent newer slice.
+- **Status:** deferred and nonblocking for authorized unattended development.
+  Record Klaus's later explicit ACCEPT or REVISE; automated proof is separate.
+- **Boundary:** no production source selection, image generation, automatic
+  acceptance/finalization, real agent execution, materialization or publication.
+  Use only a fresh fixture for automated proof; preserve personal workspaces.

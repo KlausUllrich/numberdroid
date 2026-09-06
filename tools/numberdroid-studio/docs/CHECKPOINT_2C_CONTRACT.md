@@ -1,10 +1,12 @@
 # Numberdroid Studio — Checkpoint 2C Frozen Contract
 
-Status: **implementation contract; candidate work authorized, not user-accepted**
+Status: **accepted core contract**; see the [acceptance record](CHECKPOINT_2C_STATUS.md).
 
 This contract freezes the Checkpoint 2C internal choices permitted by the
 authorization handoff. The accepted Checkpoint 1, 2A, and 2B contracts remain
-unchanged. PR #135 stays draft and unmerged.
+unchanged. Checkpoint 2C was accepted and PR #135 merged on 2026-08-24.
+The later [human Asset authoring UI candidate](HUMAN_ASSET_AUTHORING.md) reuses
+this core and has its own verification and live decision.
 
 ## 1. Capability surface
 

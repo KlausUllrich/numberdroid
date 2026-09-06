@@ -66,6 +66,7 @@ const staticFiles = new Map([
   ['/o1b-backups-state.js', ['o1b-backups-state.js', 'text/javascript; charset=utf-8']],
   ['/remote-ui-mode.js', ['remote-ui-mode.js', 'text/javascript; charset=utf-8']],
   ['/room-preview-state.js', ['room-preview-state.js', 'text/javascript; charset=utf-8']],
+  ['/asset-authoring-state.js', ['asset-authoring-state.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
 ]);

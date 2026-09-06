@@ -1,3 +1,4 @@
+import { createAssetAuthoringDraft, buildAssetAuthoringRequest, assetAuthoringConflict } from './asset-authoring-state.js';
 import {
   normalizeProcessingAdoptionProjection,
   processingAdoptionPresentation,
@@ -73,6 +74,7 @@ const state = {
   cutterDeferredRender: false,
   cutterPending: false,
   assetMutationPending: false,
+  assetAuthoring: null,
   assetOperationKeys: new Map(),
   assetUi: {
     search: '',
@@ -349,6 +351,7 @@ async function api(path, options = {}) {
   if (!response.ok) {
     const error = new Error(body.error?.message || `Request failed: ${response.status}`);
     error.code = body.error?.code;
+    error.status = response.status;
     throw error;
   }
   return body;
@@ -433,7 +436,7 @@ function cancelTaskAdoptionLoad({ clearState = false, channel = 'all' } = {}) {
   if (clearState) state.taskAdoption = null;
 }
 
-async function requestTaskAdoptionProjection(projectId, taskId, { channel = 'passive' } = {}) {
+async function requestTaskAdoptionProjection(projectId, taskId, { channel = 'passive', signal = null } = {}) {
   cancelTaskAdoptionLoad({ channel });
   const generation = taskAdoptionLoadControllers[channel].generation;
   const context = JSON.stringify([projectId, taskId]);
@@ -444,6 +447,9 @@ async function requestTaskAdoptionProjection(projectId, taskId, { channel = 'pas
     abortController.abort();
   }, 5_000);
   taskAdoptionLoadControllers[channel] = { generation, context, abortController, timer };
+  const abortFromParent = () => abortController.abort();
+  signal?.addEventListener('abort', abortFromParent, { once: true });
+  if (signal?.aborted) abortFromParent();
   const path = `/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}`
     + '/processing-result-adoptions';
   try {
@@ -466,6 +472,7 @@ async function requestTaskAdoptionProjection(projectId, taskId, { channel = 'pas
       projection: unavailableProcessingAdoptionProjection(projectId, taskId),
     };
   } finally {
+    signal?.removeEventListener('abort', abortFromParent);
     if (taskAdoptionLoadControllers[channel].generation === generation
         && taskAdoptionLoadControllers[channel].context === context) {
       clearTimeout(timer);
@@ -928,7 +935,9 @@ function usefulAssetPreview(asset, { previewKey = asset.assetId ?? asset.itemId 
     `Occupies ${geometry.width} × ${geometry.height} cells at ${selectedRotation}°`,
     rotationPolicy === 'cardinal' ? 'Can be rotated in four directions' : 'Uses one fixed direction',
     metadata.navigation?.effect === 'blocked' || collision?.mode && collision.mode !== 'none' ? 'Blocks movement' : 'Can be crossed',
-    metadata.attachment === 'wall' ? 'Designed for wall placement' : metadata.placement?.wallSafe === false ? 'Keep away from room boundaries' : 'Suitable for ground placement',
+    ({ ground: 'Attaches to ground', wall: 'Attaches to a wall', ceiling: 'Attaches to a ceiling', free: 'Free placement' })[metadata.attachment] ?? 'Attachment has not been chosen',
+    metadata.placement?.wallSafe === true ? 'May touch room boundaries'
+      : metadata.placement?.wallSafe === false ? 'Keep away from room boundaries' : 'Boundary suitability has not been chosen',
     `Top-left is □ at 0,0; authored anchor is + at ${anchor.x},${anchor.y}`,
   ];
   for (const value of values) { const item = document.createElement('li'); item.textContent = value; facts.append(item); }
@@ -937,6 +946,8 @@ function usefulAssetPreview(asset, { previewKey = asset.assetId ?? asset.itemId 
     const controls = document.createElement('div'); controls.className = 'prop-preview-rotations'; controls.setAttribute('aria-label', 'Preview rotation');
     for (const rotation of allowedRotations) {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary'; button.dataset.assetPreviewRotation = String(rotation); button.dataset.previewKey = previewKey;
+      button.dataset.assetFocusKey = `preview-rotation-${previewKey}-${rotation}`;
+      button.setAttribute('aria-pressed', String(rotation === selectedRotation));
       button.dataset.selected = String(rotation === selectedRotation); button.textContent = `${rotation}°`; controls.append(button);
     }
     wrapper.append(controls);
@@ -1775,7 +1786,9 @@ function cutterPreviewCard(output, index, projectId) {
   image.loading = visualFixture ? 'eager' : 'lazy'; image.decoding = 'async';
   const caption = document.createElement('figcaption');
   caption.textContent = `${index + 1} · ${output.rectangleId} · ${output.width}×${output.height}`;
-  figure.append(image, caption); return figure;
+  figure.append(image, caption);
+  if (output.sliceId && Number.isInteger(output.version)) figure.append(createAssetFromSliceButton(output));
+  return figure;
 }
 
 function renderCutter(source) {
@@ -2470,9 +2483,219 @@ function renderProposalReview(proposals) {
   section.append(actions); return section;
 }
 
+function createAssetFromSliceButton(slice) {
+  const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary';
+  button.textContent = 'Create asset from this slice'; button.dataset.createAssetSlice = slice.sliceId;
+  button.dataset.sliceVersion = String(slice.version);
+  button.disabled = state.uiMode === 'remote' || state.assetMutationPending || state.cutterPending;
+  return button;
+}
+
+function assetAuthoringContext(slice, project = state.project) {
+  const id = crypto.randomUUID();
+  return { projectId: project.projectId, projectRevision: project.revision, sliceId: slice.sliceId,
+    sliceVersion: slice.version, proposalId: `proposal.human.${id}`, itemId: `item.human.${id}`,
+    assetId: `asset.human.${id}`, idempotencyKey: `asset.authoring.${id}` };
+}
+
+function mayAbandonAssetAuthoring() {
+  const authoring = state.assetAuthoring;
+  if (!authoring) return true;
+  if (state.assetMutationPending || (authoring.request && !authoring.rejected)) {
+    showToast('Check or retry the saved proposal request before leaving this draft. Its outcome is not confirmed.'); return false;
+  }
+  if (!window.confirm('Discard this unfinished asset proposal? Your saved image slice and project stay unchanged.')) return false;
+  state.assetAuthoring = null; return true;
+}
+
+function currentAssetAuthoringConflict() {
+  return state.assetAuthoring ? assetAuthoringConflict(state.assetAuthoring.draft, {
+    projectId: state.project?.projectId, projectRevision: state.project?.revision,
+    slices: currentProjectSlices().map(({ slice }) => ({ sliceId: slice.sliceId, version: slice.version })),
+  }) : null;
+}
+
+function assetAuthoringPreview(authoring) {
+  const { slice, atlas, ordinal } = authoring.pinned;
+  const preview = document.createElement('section'); preview.className = 'asset-authoring-preview'; preview.dataset.assetAuthoringPreview = '';
+  const caption = document.createElement('p'); caption.textContent = `Slice ${ordinal} · ${atlas.name} · saved version ${slice.version}`;
+  const binding = { ...slice, sliceVersion: slice.version, atlasId: atlas.atlasId };
+  try {
+    const item = buildAssetAuthoringRequest(authoring.draft).items[0];
+    preview.append(usefulAssetPreview({ ...item, preview: slice.preview, sliceBinding: binding }, { previewKey: item.assetId }));
+  } catch {
+    preview.append(safeV2Preview({ name: 'Selected saved slice', kind: authoring.draft.values.kind, preview: slice.preview, sliceBinding: binding }));
+    const help = document.createElement('p'); help.textContent = 'Enter a name and valid placement choices to see the footprint preview.'; preview.append(help);
+  }
+  preview.append(caption); return preview;
+}
+
+function renderAssetAuthoring() {
+  const authoring = state.assetAuthoring;
+  const section = document.createElement('section'); section.className = 'asset-authoring surface-card';
+  section.append(sectionHeading('Create an asset from a saved slice', 'Prepare one proposal, then review and apply it. The saved image stays unchanged.'));
+  const conflict = currentAssetAuthoringConflict();
+  if (conflict || authoring.error) {
+    const message = document.createElement('p'); message.className = 'asset-conflict'; message.setAttribute('role', 'alert');
+    message.textContent = authoring.error || `${conflict} Your choices are retained; no newer image was substituted.`; section.append(message);
+  }
+  const layout = document.createElement('div'); layout.className = 'asset-authoring-layout';
+  layout.append(assetAuthoringPreview(authoring));
+  const form = document.createElement('form'); form.dataset.assetAuthoringForm = ''; form.className = 'asset-authoring-form';
+  const field = (name, labelText, options = null, type = 'text') => {
+    const label = document.createElement('label'); label.append(labelText);
+    const input = document.createElement(options ? 'select' : 'input'); input.name = name;
+    input.dataset.assetFocusKey = `authoring-${name}`;
+    if (options) for (const [value, text] of options) { const option = document.createElement('option'); option.value = value; option.textContent = text; input.append(option); }
+    else { input.type = type; input.required = true; if (type === 'number') { input.min = ['anchorX', 'anchorY'].includes(name) ? '0' : '1'; input.max = ['anchorX', 'anchorY'].includes(name) ? '63' : '64'; input.step = '1'; } else input.maxLength = name === 'name' ? 160 : 64; }
+    input.value = authoring.draft.values[name]; input.disabled = Boolean(authoring.request) || state.assetMutationPending;
+    label.append(input); return label;
+  };
+  const group = (title, ...fields) => { const box = document.createElement('fieldset'); const legend = document.createElement('legend'); legend.textContent = title; box.append(legend, ...fields); return box; };
+  form.append(group('1. Name and purpose', field('name', 'Asset name'), field('kind', 'Kind', [['surface', 'Surface'], ['prop', 'Prop'], ['item', 'Item']]), field('role', 'Purpose (for example furniture or floor tile)')),
+    group('2. Footprint and orientation', field('width', 'Width in cells', null, 'number'), field('height', 'Height in cells', null, 'number'),
+      field('anchorX', 'Reference cell X (0 is left)', null, 'number'), field('anchorY', 'Reference cell Y (0 is top)', null, 'number'),
+      field('rotationPolicy', 'Allowed rotations', [['fixed', 'One fixed direction'], ['cardinal', 'Four directions']])));
+  form.append(group('3. Placement choices', field('attachment', 'Attaches to', [['ground', 'Ground'], ['wall', 'Wall'], ['ceiling', 'Ceiling'], ['free', 'Free']]),
+    field('wallSafe', 'Suitable at room boundaries', [['false', 'Keep away from boundaries'], ['true', 'May touch a boundary']]),
+    field('movement', 'Movement', [['blocked', 'Blocks its whole footprint'], ['passable', 'Can be crossed']]),
+    field('visualWeight', 'Visual prominence', [['light', 'Light'], ['medium', 'Medium'], ['heavy', 'Heavy']]),
+    field('runtimeEligible', 'Intended use', [['false', 'Studio-only for now'], ['true', 'Intended for game use — does not publish']])));
+  const limits = document.createElement('p'); limits.className = 'asset-authoring-help';
+  limits.textContent = 'All displayed values are editable proposals. This form supports manual placement, a whole-footprint blocker or no blocker, and no edge connectors. Surfaces attach to ground. The reference cell does not change the saved image pivot.';
+  const actions = document.createElement('div'); actions.className = 'asset-authoring-actions';
+  const submit = document.createElement('button'); submit.type = 'submit'; submit.dataset.assetAuthoringSubmit = ''; submit.textContent = 'Prepare asset for review';
+  submit.disabled = Boolean(authoring.request || conflict || state.assetMutationPending); actions.append(submit);
+  if (authoring.request && !authoring.rejected) {
+    const retry = document.createElement('button'); retry.type = 'button'; retry.dataset.assetAuthoringRetry = ''; retry.textContent = 'Retry exact request'; retry.disabled = state.assetMutationPending; actions.append(retry);
+  }
+  if (conflict || authoring.request) {
+    const recheck = document.createElement('button'); recheck.type = 'button'; recheck.dataset.assetAuthoringRecheck = ''; recheck.className = 'secondary';
+    recheck.textContent = authoring.request && !authoring.rejected ? 'Check saved outcome' : 'Recheck saved slice and project'; recheck.disabled = state.assetMutationPending; actions.append(recheck);
+  }
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.dataset.assetAuthoringCancel = ''; cancel.className = 'secondary'; cancel.textContent = 'Back to asset library'; cancel.disabled = state.assetMutationPending; actions.append(cancel);
+  const consequence = document.createElement('p'); consequence.textContent = 'Saves your proposal. The Asset is added only after you review and apply it.';
+  form.append(limits, actions, consequence); layout.append(form); section.append(layout); return section;
+}
+
+function canonicalAssetAuthoringJson(value) {
+  return JSON.stringify(value, (_key, node) => node && typeof node === 'object' && !Array.isArray(node)
+    ? Object.fromEntries(Object.keys(node).sort().map((key) => [key, node[key]])) : node);
+}
+
+function assetAuthoringSavedProposal(authoring) {
+  if (state.assetAuthoring !== authoring || state.project?.projectId !== authoring.draft.context.projectId) return false;
+  const request = authoring.request;
+  const proposal = currentAssetLibrary().proposals.find((entry) => entry.proposalId === request?.proposalId);
+  if (!proposal) return false;
+  const item = proposal.items?.[0]; const expected = request.items[0];
+  if (proposal.items.length !== 1 || proposal.submittedRevision !== request.expectedRevision + 1
+      || item.operation !== 'create' || item.expectedAssetVersion !== 0 || item.expectedMetadataVersion !== 0
+      || item.itemId !== expected.itemId || item.assetId !== expected.assetId
+      || item.name !== expected.name || item.kind !== expected.kind
+      || (item.sliceBinding?.sliceId ?? item.sliceId) !== expected.sliceId
+      || (item.sliceBinding?.sliceVersion ?? item.expectedSliceVersion) !== expected.expectedSliceVersion
+      || !Object.entries(expected.metadata).every(([key, value]) => canonicalAssetAuthoringJson(item.metadata?.[key]) === canonicalAssetAuthoringJson(value))) {
+    authoring.error = 'A saved proposal has this identity but does not match your request. Keep this draft and inspect the project before continuing.'; return false;
+  }
+  state.assetUi.selectedProposalId = proposal.proposalId; state.assetAuthoring = null;
+  showToast('Your proposal is saved. Review its findings and choices, then apply the accepted item to create the draft Asset.'); return true;
+}
+
+async function refreshAssetAuthoringOutcome(authoring, { timeoutMs = 8_000 } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const canApply = () => state.assetAuthoring === authoring && state.project?.projectId === authoring.draft.context.projectId;
+  try {
+    const loaded = await loadProject(authoring.draft.context.projectId, {
+      preserveWorkspaceIfUnchanged: true, signal: controller.signal, canApply,
+    });
+    if (controller.signal.aborted || !canApply() || loaded !== true) throw new Error('The saved outcome check expired or its project changed.');
+  } finally { clearTimeout(timer); }
+}
+
+async function submitAssetAuthoring({ retry = false } = {}) {
+  const authoring = state.assetAuthoring;
+  if (!authoring || state.assetMutationPending || !state.agentAccessCsrf) return;
+  if (!retry) {
+    if (currentAssetAuthoringConflict()) { renderWorkspace({ preserveAssetDraft: true }); return; }
+    try { authoring.request = buildAssetAuthoringRequest(authoring.draft); authoring.serializedRequest = JSON.stringify(authoring.request); }
+    catch (error) { authoring.error = error.message; renderWorkspace({ preserveAssetDraft: true }); return; }
+  }
+  if (!authoring.request) return;
+  const projectId = authoring.draft.context.projectId;
+  const priorUncertain = authoring.uncertain === true || (retry && authoring.rejected !== true);
+  authoring.error = null; authoring.rejected = false; authoring.uncertain = priorUncertain;
+  setAssetMutationPending(true); renderWorkspace({ preserveAssetDraft: true });
+  try {
+    await api(`/api/projects/${encodeURIComponent(projectId)}/asset-proposals`, {
+      method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
+      body: authoring.serializedRequest, signal: AbortSignal.timeout(15_000),
+    });
+    authoring.uncertain = true;
+  } catch (error) {
+    const knownRejection = Number.isInteger(error.status) && error.status >= 400 && error.status < 500 && error.status !== 408;
+    authoring.rejected = !priorUncertain && knownRejection;
+    authoring.uncertain = priorUncertain || !knownRejection;
+    authoring.error = authoring.rejected ? `The proposal was not accepted: ${error.message} Recheck the saved context before revising it.`
+      : 'The response was not confirmed. Your exact request is retained; check the saved outcome or retry that same request.';
+  }
+  try {
+    await refreshAssetAuthoringOutcome(authoring);
+    if (!assetAuthoringSavedProposal(authoring) && !authoring.error) authoring.error = 'No matching saved proposal is visible. Retry the exact retained request to resolve its outcome.';
+  }
+  catch { authoring.error = 'The saved outcome could not be checked. Your exact request is retained for retry.'; }
+  finally { setAssetMutationPending(false); renderWorkspace({ preserveAssetDraft: true }); }
+}
+
+window.addEventListener('beforeunload', (event) => {
+  if (state.assetAuthoring) { event.preventDefault(); event.returnValue = ''; }
+});
+
+elements['workspace-content'].addEventListener('input', (event) => {
+  const form = event.target.closest('[data-asset-authoring-form]'); const authoring = state.assetAuthoring;
+  if (!form || !authoring || authoring.request || !Object.hasOwn(authoring.draft.values, event.target.name)) return;
+  authoring.draft.values[event.target.name] = event.target.value; authoring.error = null;
+  const preview = elements['workspace-content'].querySelector('[data-asset-authoring-preview]');
+  preview?.replaceWith(assetAuthoringPreview(authoring));
+});
+elements['workspace-content'].addEventListener('submit', (event) => {
+  if (!event.target.matches('[data-asset-authoring-form]')) return;
+  event.preventDefault(); void submitAssetAuthoring();
+});
+elements['workspace-content'].addEventListener('click', async (event) => {
+  const create = event.target.closest('[data-create-asset-slice]');
+  if (create) {
+    if (state.uiMode === 'remote' || state.assetMutationPending || !mayAbandonAssetAuthoring()) return;
+    const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === create.dataset.createAssetSlice && slice.version === Number(create.dataset.sliceVersion));
+    if (!pinned) { showToast('This saved slice changed. Reload and select its current saved version.'); return; }
+    state.assetAuthoring = { draft: createAssetAuthoringDraft(assetAuthoringContext(pinned.slice)), pinned: structuredClone(pinned), request: null, error: null };
+    state.workspace = 'assets'; location.hash = 'assets'; renderWorkspace(); return;
+  }
+  if (event.target.closest('[data-asset-authoring-cancel]')) { if (mayAbandonAssetAuthoring()) renderWorkspace(); return; }
+  if (event.target.closest('[data-asset-authoring-retry]')) { await submitAssetAuthoring({ retry: true }); return; }
+  if (event.target.closest('[data-asset-authoring-recheck]') && state.assetAuthoring && !state.assetMutationPending) {
+    const authoring = state.assetAuthoring;
+    setAssetMutationPending(true);
+    try {
+      await refreshAssetAuthoringOutcome(authoring);
+      if (authoring.request && assetAuthoringSavedProposal(authoring)) { renderWorkspace(); return; }
+      if (authoring.request && !authoring.rejected) { authoring.error = 'No matching proposal is visible yet. Retry the exact request to resolve its outcome.'; renderWorkspace({ preserveAssetDraft: true }); return; }
+      const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === authoring.draft.context.sliceId);
+      if (!pinned) { authoring.error = 'That slice is no longer available. Return to the library and deliberately choose another saved slice.'; renderWorkspace({ preserveAssetDraft: true }); return; }
+      if (!window.confirm(`Keep your choices and use saved slice version ${pinned.slice.version} at current project revision ${state.project.revision}? Review the image again before submitting.`)) return;
+      const draft = createAssetAuthoringDraft(assetAuthoringContext(pinned.slice)); draft.values = { ...authoring.draft.values };
+      state.assetAuthoring = { draft, pinned: structuredClone(pinned), request: null, error: null };
+      renderWorkspace({ preserveAssetDraft: true });
+    } catch (error) { authoring.error = `The saved context could not be checked: ${error.message}`; }
+    finally { setAssetMutationPending(false); renderWorkspace({ preserveAssetDraft: true }); }
+  }
+});
+
 function renderSliceVocabulary() {
   const section = document.createElement('details'); section.className = 'slice-vocabulary';
-  const summary = document.createElement('summary'); summary.textContent = 'Committed slice vocabulary'; section.append(summary);
+  const summary = document.createElement('summary'); summary.textContent = 'Saved slices — create an asset'; section.append(summary);
+  section.open = currentAssetLibrary().assets.length === 0;
   const slices = currentProjectSlices();
   if (!slices.length) {
     section.append(emptyState('No committed slices', 'Approve a source, cut exact rectangles, and commit the preview before proposing V2 assets.'));
@@ -2487,12 +2710,13 @@ function renderSliceVocabulary() {
     const heading = document.createElement('h4'); heading.textContent = `Slice ${ordinal}`;
     const atlasName = document.createElement('p'); atlasName.textContent = atlas.name;
     entry.append(heading, atlasName, copyableCanonical('Canonical slice ID', slice.sliceId, `slice-vocabulary-${slice.sliceId}`));
-    grid.append(entry);
+    entry.append(createAssetFromSliceButton(slice)); grid.append(entry);
   }
   section.append(grid); return section;
 }
 
 function renderAssetLibrary(snapshot) {
+  if (state.assetAuthoring) return renderAssetAuthoring();
   const fragment = document.createDocumentFragment();
   const library = currentAssetLibrary(snapshot);
   const filters = document.createElement('section'); filters.className = 'asset-filters';
@@ -2534,7 +2758,7 @@ function renderAssetLibrary(snapshot) {
     const grid = document.createElement('div'); grid.className = 'card-grid asset-grid asset-inventory-grid';
     grid.dataset.assetScroll = 'asset-inventory'; filtered.forEach((asset) => grid.append(renderV2AssetCard(asset)));
     fragment.append(grid);
-  } else fragment.append(emptyState('No V2 assets match', library.assets.length ? 'Change the current search or filters.' : 'Apply an accepted slice-backed proposal to create the first V2 asset.'));
+  } else fragment.append(emptyState('No V2 assets match', library.assets.length ? 'Change the current search or filters.' : 'Choose a saved slice below to prepare your first asset for review.'));
   fragment.append(renderProposalReview(library.proposals), renderSliceVocabulary());
 
   if (snapshot.assets.length) {
@@ -2935,7 +3159,7 @@ function renderRoomPalette(variant, snapshot, { kinds = null } = {}) {
     metadata.textContent = `${asset.kind} · ${asset.metadata?.spanTiles?.width ?? '?'}×${asset.metadata?.spanTiles?.height ?? '?'} · A${asset.assetVersion}/M${asset.metadataVersion}`;
     copy.append(name, metadata); button.append(preview, copy); list.append(button);
   }
-  if (!assets.length) list.append(emptyState('No placeable assets', 'Finalize V2 asset metadata or change the palette filter.'));
+  if (!assets.length) list.append(emptyState('No placeable assets', 'Create an asset from a saved slice in Assets, review and apply it, then return here. Draft assets can be placed in a draft room.'));
   panel.append(list); return panel;
 }
 
@@ -5026,7 +5250,7 @@ function renderWorkspace({
   let content;
   if (state.workspace === 'overview') content = renderOverview(snapshot);
   else if (state.workspace === 'sources') content = renderSources(snapshot.sources);
-  else if (state.workspace === 'assets') content = snapshot.assetLibrary
+  else if (state.workspace === 'assets') content = state.assetAuthoring || snapshot.assetLibrary || currentProjectSlices(snapshot).length > 0
     ? renderAssetLibrary(snapshot)
     : renderCollection(snapshot.assets, 'assets');
   else if (state.workspace === 'rooms') content = renderRooms(snapshot);
@@ -5158,6 +5382,7 @@ async function publishVisualEvidence() {
 }
 
 function resetAssetUiProjectContext() {
+  state.assetAuthoring = null;
   state.assetUi.selectedProposalId = null;
   state.assetUi.selectedAssetId = null;
   state.assetUi.decisionDrafts = {};
@@ -5369,8 +5594,11 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
 }
 
 let projectLoadGeneration = 0;
-async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } = {}) {
-  if (!projectId) return;
+async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, signal = null, canApply = null } = {}) {
+  if (!projectId || signal?.aborted || (canApply && !canApply())) return false;
+  if (state.project?.projectId && state.project.projectId !== projectId && !mayAbandonAssetAuthoring()) {
+    elements['project-select'].value = state.project.projectId; return false;
+  }
   cancelTaskAdoptionLoad({ channel: 'passive' });
   const generation = ++projectLoadGeneration;
   const mayPreserveWorkspace = preserveWorkspaceIfUnchanged
@@ -5407,17 +5635,17 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
   }
   const [project, activity, agentAccess, sourceIntakes, taskList] = await Promise.all([
-    api(`/api/projects/${encodeURIComponent(projectId)}`),
-    api(`/api/projects/${encodeURIComponent(projectId)}/activity`),
+    api(`/api/projects/${encodeURIComponent(projectId)}`, { signal }),
+    api(`/api/projects/${encodeURIComponent(projectId)}/activity`, { signal }),
     state.uiMode === 'remote'
       ? Promise.resolve(remoteReadOnlyAgentAccess(projectId))
-      : api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`),
-    api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`),
-    api(`/api/projects/${encodeURIComponent(projectId)}/tasks`)
+      : api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`, { signal }),
+    api(`/api/projects/${encodeURIComponent(projectId)}/source-intakes`, { signal }),
+    api(`/api/projects/${encodeURIComponent(projectId)}/tasks`, { signal })
       .then((value) => ({ available: true, tasks: value.tasks ?? [] }))
-      .catch(() => ({ available: false, tasks: [] })),
+      .catch((error) => { if (signal?.aborted) throw error; return { available: false, tasks: [] }; }),
   ]);
-  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  if (signal?.aborted || (canApply && !canApply()) || generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   const selectedTaskId = state.workspace === 'tasks'
     && state.taskUi.view === 'detail'
     && taskList.available
@@ -5430,14 +5658,14 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     taskId: selectedTaskId,
   };
   const taskDetails = await Promise.all(taskList.tasks.map((task) => (
-    api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
+    api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`, { signal })
   )));
-  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  if (signal?.aborted || (canApply && !canApply()) || generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   const selectedTaskDetails = taskDetails.find(({ task }) => task.taskId === selectedTaskId);
   const selectedAdoption = selectedTaskId && taskMayLoadProcessingAdoption(selectedTaskDetails)
-    ? await requestTaskAdoptionProjection(projectId, selectedTaskId)
+    ? await requestTaskAdoptionProjection(projectId, selectedTaskId, { signal })
     : null;
-  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  if (signal?.aborted || (canApply && !canApply()) || generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   if (state.project?.projectId !== projectId) {
     state.sourceDraft = null;
     state.resumingIntakeId = null;
@@ -6095,6 +6323,11 @@ elements['workspace-content'].addEventListener('click', async (event) => {
       state.assetUi.conflict = null;
     }
     await loadProject(operationProjectId, { preserveWorkspaceIfUnchanged: true });
+    if (apply) {
+      const proposal = currentAssetLibrary().proposals.find(({ proposalId }) => proposalId === target);
+      state.assetUi.selectedAssetId = proposal?.items.find((item) => item.decision?.disposition === 'ACCEPTED')?.assetId ?? null;
+      successMessage += ' Draft assets can now be placed in a draft room. Finalization remains a separate decision.';
+    }
     showToast(successMessage);
   } catch (error) {
     showToast(`${error.code || 'ERROR'}: ${error.message}`);
@@ -7762,6 +7995,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   showToast(`${state.labResult.code}: ${state.labResult.message}`);
 });
 elements['demo-button'].addEventListener('click', async () => {
+  if (!mayAbandonAssetAuthoring()) return;
   if (state.cutterPending || state.sourceMutationPending || state.assetMutationPending
       || state.roomMutationPending || state.backupMutationPending) return;
   elements['demo-button'].disabled = true;
