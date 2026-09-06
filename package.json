@@ -24,6 +24,7 @@
     "repo:ci-classifier-test": "node scripts/repo/ci-change-classifier.selftest.mjs",
     "repo:docs-check": "node scripts/repo/check-markdown-links.mjs",
     "repo:docs-check-test": "node scripts/repo/check-markdown-links.selftest.mjs",
+    "repo:codex-context-test": "node scripts/repo/codex-context-retention.selftest.mjs",
     "repo:approved-source-handoff": "node scripts/repo/approved-source-upload-handoff.mjs",
     "repo:approved-source-handoff-test": "node scripts/repo/approved-source-upload-handoff.selftest.mjs",
     "studio": "node tools/numberdroid-studio/scripts/start-worktree-studios.js",

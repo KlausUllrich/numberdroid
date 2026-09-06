@@ -22,6 +22,13 @@ Before changing anything in the repository, read completely in this order:
 
 Then classify the task by **primary role and triggers** and read the required bundle in `ROLE_ENTRYPOINTS.md`.
 
+For Codex sessions, after task classification and the required reading route,
+register the exact task-specific documents that were read by following
+`docs/agents/CODEX_CONTEXT_RETENTION.md`. Replace the manifest when the primary
+task changes; append to it whenever a new role/domain trigger or named handoff
+adds required reading. This keeps compaction recovery task-aware rather than
+turning all repository documentation into a static bootstrap.
+
 If the user/current task explicitly names a handoff, read that handoff **after** the current binding documents for the relevant role. Handoffs are task snapshots, not higher authority than current contracts. Handoff format and cross-role rules are defined in `docs/agents/HANDOFF_PROTOCOL.md`.
 
 ## Role routing is task-based, not identity-based

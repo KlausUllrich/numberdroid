@@ -8,6 +8,7 @@ Read `../REPOSITORY_STRUCTURE.md` first. Agent work additionally follows `agents
 - `agents/HANDOFF_PROTOCOL.md` — binding format for self-explanatory, cross-role handoffs.
 - `agents/REPOSITORY_WORKFLOW.md` — GitHub/branch/PR working rules.
 - `agents/CHANGE_RISK_AND_VERIFICATION.md` — binding adaptive D0/L1/L2/L3 planning, superagent, test, CI and handoff cadence.
+- `agents/CODEX_CONTEXT_RETENTION.md` — task-aware Codex document registration and exact post-compaction reload procedure.
 - `agents/GAMEPLAY_AND_ENGINEERING_RULES.md` — durable gameplay, UX and engineering invariants; mandatory for Engineering and when its triggers apply, not universal background reading for every specialist.
 
 ## Architecture
