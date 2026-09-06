@@ -145,8 +145,10 @@ characters, plain local-file counts, and whether that same branch is current on
 GitHub, has unpulled commits, has local-only commits, differs, or exists only
 locally. Broken/prunable worktrees are hidden. Type `d` in the prompt or pass
 `--verbose` only when full paths, SHAs, trees, and `main` comparisons are useful.
-After version selection, the menu offers `empty`, `vt001-room`, and `vt001-task`
-fixtures.
+After version selection, choose **Create a working project**, **Open a working
+project**, or **Start a test fixture**. A working project uses one selected
+worktree; fixture comparisons may use several. Test profiles remain `empty`,
+`vt001-room`, and `vt001-task`.
 For a reproducible non-interactive launch:
 
 ```bash
@@ -155,13 +157,40 @@ npm run studio -- --select 1,3-4 --fixture vt001-room
 npm run studio -- --all --fixture empty --base-port 4317
 ```
 
+For ongoing authoring, create a named project in a new absolute directory
+outside temporary storage and every repository worktree. Its parent directory
+must already exist. Studio creates an empty project with that name, ready for
+your own sources and rooms. Reopen the same directory to continue saved work:
+
+```bash
+npm run studio -- --select 1 --new-project "Transfer Hall" --project-directory /absolute/new-project
+npm run studio -- --select 1 --open-project /absolute/new-project
+```
+
+Create refuses every existing destination, including an empty directory. Open
+requires the working-project identity written by this launcher, a matching
+saved Studio project, supported schema and safe SQLite/CAS paths. It checks a
+private copy of the database and any WAL before opening the original; that
+inspection is bounded to 512 MiB of database/WAL data and 100,000 filesystem
+entries. Unknown, incomplete, shared/hardlinked, redirected, backup and
+quarantined directories are refused. This mode does not adopt an older unmarked
+workspace or activate a restored copy. Reopening issues no project command.
+
+The saved-project directory and temporary launch logs are reported separately.
+Type `q` and press Enter to stop; your project remains at its selected location.
+Launcher-created current Studio children first drain through private process
+IPC, with bounded termination fallback when shutdown cannot finish. No browser
+or MCP shutdown operation is added. This is an automated implementation
+candidate; its live user check is deferred under VT-015.
+
 Each ready block retains the exact worktree, branch, full HEAD, committed Studio
 tree, effective source fingerprint, fixture profile, HTTP health result, PID,
 URL, data directory, and log path needed to verify a test. Missing Studio
 dependencies and prunable worktrees are available only in technical details;
 Git-locked worktrees remain usable. The launcher never runs
-`npm install`, never points at `.numberdroid-studio` or another existing
-workspace, and never opens a browser automatically. It performs one bounded,
+`npm install` and never opens a browser automatically. Fixture mode always
+creates fresh data; only explicit **Open a working project** reuses a verified
+saved directory. It performs one bounded,
 read-only check of GitHub branch heads; technical mode includes exact
 relationship details. Use `--offline` to rely on cached `origin/*` references. It never
 switches, pulls, fetches, stashes, or overwrites a worktree: the selected local

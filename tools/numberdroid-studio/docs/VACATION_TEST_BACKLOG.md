@@ -51,6 +51,7 @@ Keep these states distinct:
 | VT-012 | O1b first Backups UI candidate | USER ACCEPTED 2026-09-01 | VT-000 and integrated O0/O1a | Accepted after live Create, Verify, Recovery-test, Restore-as-copy, restart, missing-backup, recovery and responsive checks; low-priority disclosure-state finding retained |
 | VT-013 | O2a private read-only service deployment | NEEDS KLAUS LIVE | integrated O2a and deliberately configured private host | Accept/revise authentication, read-only boundary, restart/session behavior, and operator burden; not O3 mobile UX |
 | VT-014 | A4c immutable Level Candidate and restricted derived child | USER ACCEPTED 2026-09-02 | VT-000 and source-integrated A3a/A4a/A4b/A4c | Accepted private Candidate closure, strict child attenuation and truthful read-only task presentation; no materialization or publication |
+| VT-015 | Persistent named working projects | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted project/store and launcher foundations | Create, save, stop and reopen the same working project; keep fixture mode separate |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1315,6 +1316,49 @@ automation and source integration do not change the `REVISE` live result.
   `Remove-Item Env:NUMBERDROID_STUDIO_DATA`. Schema v14/v15 upgrades in a real
   workspace are forward-only: use a verified pre-upgrade copy or a forward
   repair, never an unsupported downgrade or ad-hoc row deletion.
+
+## VT-015 — persistent named working projects
+
+- **Implementation:** branch `agent/studio-persistent-working-projects`; source
+  and integration evidence stays in its focused PR. This is an implemented
+  candidate, not user accepted. Live verification is deferred and nonblocking
+  for authorized development under Klaus's 2026-09-06 instruction.
+- **Promise:** the root launcher creates one named empty Studio project in a
+  new persistent directory, or reopens that exact owned directory without
+  seeding a fixture or issuing a project command. The dynamic code-version menu,
+  actual branch/local-change/unpulled state and typed `q` remain visible.
+- **Automated evidence:** 23 focused launcher/working-project tests, Studio
+  syntax build and a root-launcher create → stop → reopen smoke passed before
+  PR verification. Tests include a saved edit/revision, WAL-only saved state,
+  wrong identity and foreign-database refusal with unchanged source bytes,
+  hardlinks, symlink/quarantine/backup refusal, concurrent-writer exclusion and
+  real-child cooperative-stop acknowledgement followed by reopening. Final
+  Linux/Windows/browser and merge results are recorded in the PR/Actions.
+- **Safe live check:** from a current repository root run `npm run studio`.
+  Select one known code version, choose **Create a working project**, give it a
+  name and a new absolute directory outside the repository and temporary
+  storage. Its parent must exist. Never select an active workspace, backup,
+  restored copy or directory of uncertain contents.
+- **Remaining steps:** confirm the named empty project appears; make one small
+  saved authoring change; note its project revision; type `q` in the launcher;
+  choose **Open a working project** with the same directory; confirm the name,
+  saved change and revision remain. Stop it again and separately start a fresh
+  test fixture; confirm the working-project directory remains unchanged.
+- **Expected:** saved project and temporary log locations are unambiguous;
+  opening neither duplicates the project nor creates a new revision; a second
+  writer fails without taking over; unknown, incomplete, redirected, shared,
+  backup or quarantined data is refused before source mutation.
+- **Limits:** this first mode opens only launcher-owned identities, not legacy
+  unmarked workspaces. Inspection is bounded to 512 MiB database plus WAL and
+  100,000 filesystem entries. It adds no restored-copy activation, fixture
+  adoption, agent host, source approval, Numberdroid materialization or publish.
+- **Recovery:** stop Studio; retain the named project and its printed log
+  location. Failed creation retains its newly allocated directory for
+  diagnosis. Do not delete or manually repair its database/identity to force a
+  retry. Restart using a supported current code version or use the separately
+  verified backup/restore-as-copy workflow.
+- **Decision:** Klaus may accept or revise the create/open experience later;
+  source integration and automated checks do not make that decision.
 
 ## Required record for every new candidate
 

@@ -30,8 +30,11 @@ behavior remain accepted. A1.3–A1.6b2b are implemented candidates. A1.7 remain
 REVISE: feedback cannot yet be authored properly and Resume does not start a
 real agent. Do not describe a complete agent-assisted Artist loop.
 
-The root `npm run studio` launcher starts selected local worktrees as-is and
-offers fresh task and Room/Preview fixtures. See the [launcher instructions](../README.md#launch-one-or-more-worktrees-for-safe-comparison).
+The root `npm run studio` launcher starts selected local worktrees as-is. Its
+persistent-project candidate creates a named empty working project or reopens
+its verified saved directory; separate test mode offers fresh task and
+Room/Preview fixtures. See the [launcher instructions](../README.md#launch-one-or-more-worktrees-for-safe-comparison)
+and VT-015 in the [return backlog](VACATION_TEST_BACKLOG.md).
 Fixture helpers must never target a personal or existing workspace, backup or
 restored copy. Preserve uncertain local data and unrelated dirty worktrees.
 A future real production pilot needs an explicitly selected source and a named

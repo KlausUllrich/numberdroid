@@ -107,6 +107,16 @@ snapshot and copy-paste launch prompt live in
 `docs/history/handoffs/HANDOFF_2026-08-28_NUMBERDROID_STUDIO_AUTONOMOUS_A1_EXECUTION.md`;
 current code and contracts always override that snapshot.
 
+## Persistent working-project usability — implemented candidate
+
+Current usability continuation (2026-09-06): the persistent working-project
+launcher candidate closes create → save → stop → reopen for a named local
+project, with fresh fixtures kept separate. It initializes through the existing
+project command and adds no schema, HTTP/MCP authority or materialization.
+See the [launcher instructions](../README.md#launch-one-or-more-worktrees-for-safe-comparison)
+and VT-015 in the [return backlog](VACATION_TEST_BACKLOG.md). Automated
+verification and the deferred live check remain distinct.
+
 ## Checkpoint 1A — Architecture and observable development shell
 
 **Status: visually accepted by the user on 2026-08-21.** The accepted shell and interaction flow are the protected baseline for 1B. This records visual/workflow acceptance only; JSON persistence and the host-only agent adapter remain development implementations.

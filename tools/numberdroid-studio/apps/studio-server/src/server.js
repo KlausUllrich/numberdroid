@@ -2242,8 +2242,21 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         process.stderr.write('Numberdroid Studio shutdown failed.\n');
         process.exitCode = 1;
       }
+      if (process.connected) {
+        process.send?.({ type: 'numberdroid-studio-launcher-stopped', schemaVersion: 1, ok: !error }, () => {
+          if (process.connected) process.disconnect();
+        });
+      }
     });
   };
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
+  // Private parent-child IPC only; no HTTP, browser, MCP, or operator surface.
+  if (process.send) {
+    process.on('message', (message) => {
+      if (message?.type === 'numberdroid-studio-launcher-stop' && message.schemaVersion === 1
+          && Object.keys(message).length === 2) shutdown();
+    });
+    process.once('disconnect', shutdown);
+  }
 }
