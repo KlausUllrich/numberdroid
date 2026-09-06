@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { lstat, mkdir, open, readFile, readdir, realpath, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -8,6 +8,49 @@ export const WORKING_PROJECT_MANIFEST = '.numberdroid-working-project.json';
 const QUARANTINE = '.numberdroid-restored-copy-quarantine.json';
 const BACKUP = 'workspace-manifest.json';
 const fail = (message) => { throw new Error(message); };
+
+async function verifyDatabaseIdentity(databasePath, manifest) {
+  // SQLite readers of a WAL-mode source may create its -shm/-wal files. Inspect
+  // only a bounded private copy; include WAL so saved crash-recovery data is read.
+  const copies = [];
+  for (const suffix of ['', '-wal']) {
+    const path = `${databasePath}${suffix}`;
+    const status = await statOrMissing(path);
+    if (status) {
+      if (!status.isFile() || status.isSymbolicLink() || status.nlink !== 1) fail('Working project database has an unsafe shared path.');
+      copies.push({ path, suffix, status });
+    }
+  }
+  if (copies.reduce((sum, { status }) => sum + status.size, 0) > 512 * 1024 * 1024) fail('Working project exceeds the bounded database inspection limit.');
+  const scratch = await mkdtemp(join(tmpdir(), 'numberdroid-project-inspect-'));
+  let database;
+  try {
+    for (const { path, suffix } of copies) await copyFile(path, join(scratch, `studio.sqlite${suffix}`));
+    for (const { path, status } of copies) {
+      const after = await lstat(path);
+      if (after.dev !== status.dev || after.ino !== status.ino || after.nlink !== 1
+          || after.size !== status.size || after.mtimeMs !== status.mtimeMs || after.ctimeMs !== status.ctimeMs) fail('Working project changed during inspection. Stop its current Studio process before reopening.');
+    }
+    if (Boolean(await statOrMissing(`${databasePath}-wal`)) !== copies.some(({ suffix }) => suffix === '-wal')) fail('Working project WAL changed during inspection. Stop its current Studio process before reopening.');
+    const { createBetterSqliteDatabase } = await import('../packages/persistence/src/sqlite/sqlite-driver.js');
+    const { SQLITE_MIGRATIONS } = await import('../packages/persistence/src/sqlite/migration-runner.js');
+    database = createBetterSqliteDatabase(join(scratch, 'studio.sqlite'), { readonly: true, fileMustExist: true, timeout: 1000 });
+    const version = database.prepare('PRAGMA user_version').get().user_version;
+    const migrations = database.prepare('SELECT version, name, checksum FROM schema_migrations ORDER BY version').all();
+    if (version < 1 || version > SQLITE_MIGRATIONS.at(-1).version || migrations.length !== version
+        || migrations.some((row, index) => row.version !== index + 1 || row.name !== SQLITE_MIGRATIONS[index]?.name
+          || row.checksum !== SQLITE_MIGRATIONS[index]?.checksum)) fail('Working project has an unsupported or incomplete Studio schema.');
+    const project = database.prepare('SELECT head_revision, head_snapshot_json FROM projects WHERE project_id = ?').get(manifest.projectId);
+    const snapshot = project ? JSON.parse(project.head_snapshot_json) : null;
+    if (!project || snapshot?.project?.name !== manifest.name) fail('Working-project identity does not match its saved Studio project.');
+    const revision = database.prepare('SELECT revision_json FROM revisions WHERE project_id = ? AND revision_number = ?').get(manifest.projectId, project.head_revision);
+    if (!revision || JSON.parse(revision.revision_json)?.snapshot?.project?.name !== manifest.name) fail('Working project has no matching saved head revision.');
+  } catch (error) {
+    throw new Error(`Working project database verification failed. Existing data was left unchanged. ${error.message}`);
+  } finally {
+    try { database?.close(); } finally { await rm(scratch, { recursive: true, force: true }); }
+  }
+}
 
 function within(parent, child) {
   const difference = relative(parent, child);
@@ -81,7 +124,8 @@ export async function inspectWorkingProject(directory) {
       if (++inspected > 100_000) fail('Working project exceeds the bounded path inspection limit.');
       const path = join(parent, entry.name);
       const status = await lstat(path);
-      if (status.isSymbolicLink() || (!status.isDirectory() && !status.isFile())) fail(`Working project contains an unsafe path: ${path}`);
+      if (status.isSymbolicLink() || (!status.isDirectory() && !status.isFile())
+          || (status.isFile() && status.nlink !== 1)) fail(`Working project contains an unsafe or multiply linked path: ${path}`);
       if (status.isDirectory()) pending.push(await inspectDirectoryPath(path));
     }
   }
@@ -90,6 +134,7 @@ export async function inspectWorkingProject(directory) {
     const bytes = Buffer.alloc(16); await handle.read(bytes, 0, 16, 0);
     if (!bytes.equals(Buffer.from('SQLite format 3\0'))) fail('Working project database is not a complete SQLite file.');
   } finally { await handle.close(); }
+  await verifyDatabaseIdentity(database, manifest);
   return { directory: root, ...manifest };
 }
 

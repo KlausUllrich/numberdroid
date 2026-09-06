@@ -711,7 +711,7 @@ async function startOne({ dataDirectory, label, logFilename, port, startupTimeou
     child = spawn(process.execPath, [worktree.serverFilename], {
       cwd: worktree.studioDirectory,
       env: studioEnvironment(dataDirectory, port),
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
     });
     attachOutput(child.stdout, label, log, process.stdout);
     attachOutput(child.stderr, label, log, process.stderr);
@@ -738,9 +738,17 @@ async function waitForChildExit(child, timeoutMs) {
 }
 
 export async function stopChild(running) {
-  if (childIsRunning(running.child)) running.child.kill('SIGTERM');
-  await waitForChildExit(running.child, 10_000);
+  if (childIsRunning(running.child) && running.child.connected) {
+    try { running.child.send({ type: 'numberdroid-studio-launcher-stop', schemaVersion: 1 }, () => {}); } catch {}
+    await waitForChildExit(running.child, 10_000);
+  }
   if (childIsRunning(running.child)) {
+    if (running.child.connected) process.stderr.write('Studio did not finish cooperative shutdown; sending a termination signal.\n');
+    running.child.kill('SIGTERM');
+    await waitForChildExit(running.child, 2_000);
+  }
+  if (childIsRunning(running.child)) {
+    process.stderr.write('Studio is still running after its shutdown deadline; forcing process termination.\n');
     running.child.kill('SIGKILL');
     await waitForChildExit(running.child, 2_000);
   }
@@ -905,7 +913,9 @@ export async function main(argv = process.argv.slice(2)) {
   process.stdout.write(`  Node: ${process.versions.node}\n`);
   process.stdout.write(`  GitHub: ${mainReference.summary}\n`);
   process.stdout.write(workingProject ? `  Working project: ${cleanDisplay(workingProject.name)}\n` : `  Fixture: ${fixture} (${FIXTURE_PROFILES[fixture].label})\n`);
-  process.stdout.write(`  Data root: ${cleanDisplay(dataRoot)} (retained after shutdown)\n`);
+  process.stdout.write(workingProject
+    ? `  Working project directory: ${cleanDisplay(workingProject.directory)} (saved work retained)\n  Launch logs: ${cleanDisplay(logsDirectory)}\n`
+    : `  Data root: ${cleanDisplay(dataRoot)} (retained after shutdown)\n`);
   const running = [];
   const reservedPorts = new Set();
   try {
@@ -949,7 +959,9 @@ export async function main(argv = process.argv.slice(2)) {
     commandInput?.close();
     process.stdout.write(`\n${reason}: stopping ${running.length} Studio instance(s)...\n`);
     await Promise.allSettled(running.map(stopChild));
-    process.stdout.write(`Stopped. Fixtures and logs retained at ${dataRoot}\n`);
+    process.stdout.write(workingProject
+      ? `Stopped. Saved project retained at ${cleanDisplay(workingProject.directory)}\nLaunch logs retained at ${cleanDisplay(logsDirectory)}\n`
+      : `Stopped. Fixtures and logs retained at ${dataRoot}\n`);
     resolveStopped();
   };
   process.once('SIGINT', () => { void shutdown('Ctrl+C'); });

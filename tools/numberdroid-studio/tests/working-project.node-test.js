@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
 import { assertPersistentLocation, createWorkingProject, inspectWorkingProject, WORKING_PROJECT_MANIFEST } from '../scripts/working-project.js';
+import { stopChild } from '../scripts/start-worktree-studios.js';
+import { fileURLToPath } from 'node:url';
 
 const owner = { actor: { id: 'local.designer', kind: 'human', displayName: 'Local designer' }, taskId: null, grantId: null, branchId: 'branch.main' };
 const close = (running) => new Promise((resolve, reject) => running.server.close((error) => error ? reject(error) : resolve()));
@@ -118,4 +122,84 @@ test('second server cannot take over a working project and first writer remains 
     await assert.rejects(start(directory), { code: 'SQLITE_WRITER_LOCKED' });
     assert.equal((await running.studioService.readProjectTrusted(identity.projectId)).revision, 1);
   } finally { await close(running); }
+});
+
+test('wrong project ID, wrong name, and foreign SQLite data are refused without changing the target', { timeout: 20_000 }, async (context) => {
+  const root = await fixture(context); const directory = join(root, 'owned');
+  const identity = await createWorkingProject(directory, 'Original');
+  const manifestPath = join(directory, WORKING_PROJECT_MANIFEST);
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  for (const changed of [{ ...manifest, name: 'Different name' }, { ...manifest, projectId: 'project.working.00000000-0000-0000-0000-000000000000' }]) {
+    await writeFile(manifestPath, JSON.stringify(changed));
+    const before = await fingerprint(directory);
+    await assert.rejects(inspectWorkingProject(directory), /identity does not match/);
+    assert.equal(await fingerprint(directory), before);
+  }
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  const foreign = join(root, 'foreign'); await createWorkingProject(foreign, 'Foreign');
+  await copyFile(join(foreign, 'studio.sqlite'), join(directory, 'studio.sqlite'));
+  const before = await fingerprint(directory);
+  await assert.rejects(inspectWorkingProject(directory), /identity does not match/);
+  assert.equal(await fingerprint(directory), before);
+  assert.notEqual(identity.projectId, (await inspectWorkingProject(foreign)).projectId);
+});
+
+test('hardlinked database and sidecar files are refused without modifying either link', { timeout: 20_000 }, async (context) => {
+  const root = await fixture(context); const directory = join(root, 'owned');
+  await createWorkingProject(directory, 'Original');
+  const database = join(directory, 'studio.sqlite'); const sibling = join(root, 'shared.sqlite');
+  await link(database, sibling);
+  let before = await fingerprint(root);
+  await assert.rejects(inspectWorkingProject(directory), /multiply linked/);
+  assert.equal(await fingerprint(root), before);
+  await rm(sibling);
+  const sidecar = join(directory, 'studio.sqlite-wal'); await writeFile(sidecar, 'sentinel');
+  await link(sidecar, join(root, 'shared-wal'));
+  before = await fingerprint(root);
+  await assert.rejects(inspectWorkingProject(directory), /multiply linked/);
+  assert.equal(await fingerprint(root), before);
+});
+
+test('database inspection includes saved WAL revisions without writing source sidecars', { timeout: 20_000 }, async (context) => {
+  const directory = join(await fixture(context), 'project');
+  const running = await start(directory);
+  const projectId = 'project.working.11111111-1111-1111-1111-111111111111';
+  try {
+    await running.studioService.execute({
+      schemaVersion: 1, commandId: 'create.wal', idempotencyKey: 'create.wal', type: 'project.create', projectId,
+      baseRevision: 0, expectedVersion: 0, dryRun: false,
+      payload: { name: 'Saved in WAL', ownerId: 'local.designer', description: '' },
+    }, owner);
+    await writeFile(join(directory, WORKING_PROJECT_MANIFEST), JSON.stringify({ schemaVersion: 1, kind: 'numberdroid-working-project', projectId, name: 'Saved in WAL' }));
+    assert.ok((await readFile(join(directory, 'studio.sqlite-wal'))).length > 0);
+    const before = await fingerprint(directory);
+    assert.equal((await inspectWorkingProject(directory)).projectId, projectId);
+    assert.equal(await fingerprint(directory), before);
+  } finally { await close(running); }
+});
+
+test('private child IPC drains the real server and releases the writer for reopening', { timeout: 30_000 }, async (context) => {
+  const directory = join(await fixture(context), 'project'); const identity = await createWorkingProject(directory, 'IPC shutdown');
+  const serverPath = fileURLToPath(new URL('../apps/studio-server/src/server.js', import.meta.url));
+  const environment = { ...process.env, NUMBERDROID_STUDIO_DATA: directory, NUMBERDROID_STUDIO_HOST: '127.0.0.1', NUMBERDROID_STUDIO_PORT: '0', NUMBERDROID_STUDIO_STORE: 'sqlite' };
+  delete environment.NUMBERDROID_STUDIO_OPERATIONS_CONFIG;
+  const child = spawn(process.execPath, [serverPath], {
+    env: environment,
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+  let acknowledgement = null; let stderr = '';
+  child.on('message', (message) => { acknowledgement = message; });
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  try {
+    await Promise.race([
+      once(child.stdout, 'data'),
+      once(child, 'exit').then(([code]) => { throw new Error(`Child exited before ready (${code}): ${stderr}`); }),
+    ]);
+    await stopChild({ child, log: { end() {} } });
+    assert.deepEqual(acknowledgement, { type: 'numberdroid-studio-launcher-stopped', schemaVersion: 1, ok: true });
+    assert.equal(child.exitCode, 0);
+  } finally { await stopChild({ child, log: { end() {} } }); }
+  const running = await start(directory);
+  try { assert.equal((await running.studioService.readProjectTrusted(identity.projectId)).revision, 1); }
+  finally { await close(running); }
 });
