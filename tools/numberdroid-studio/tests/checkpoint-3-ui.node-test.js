@@ -144,7 +144,10 @@ test('Checkpoint 3 canvas supports bounded manual zoom and non-mutating middle-b
 test('Room direct manipulation remains transient, revision-pinned, cancellable, and accessible', async () => {
   const app = await readFile(appUrl, 'utf8');
   const styles = await readFile(stylesUrl, 'utf8');
-  const gesture = app.slice(app.indexOf('function roomCellFromPointer'), app.indexOf("elements['workspace-content'].addEventListener('click', async (event) =>"));
+  const gestureStart = app.indexOf('function roomCellFromPointer');
+  const gestureEnd = app.indexOf("elements['workspace-content'].addEventListener('click', async (event) =>", gestureStart);
+  assert.ok(gestureStart >= 0 && gestureEnd > gestureStart, 'The Room gesture source block must be present.');
+  const gesture = app.slice(gestureStart, gestureEnd);
   assert.match(app, /function roomPlacementGhostModel/);
   assert.match(app, /The exact version-pinned asset is unavailable/);
   assert.match(app, /rotated logical footprint exceeds the room bounds/);
