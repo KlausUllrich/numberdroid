@@ -7,6 +7,7 @@ import {
   validateProcessingResultAdoptionCommitResult,
 } from '../../../domain/src/processing-result-adoption-commit.js';
 import { validateTaskCandidateSubmission } from '../../../domain/src/task-candidate.js';
+import { validateReviewFeedback } from '../../../domain/src/agent-task.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { ContentAddressedArtifactStore } from '../artifacts/content-addressed-artifact-store.js';
 import { SQLITE_MIGRATIONS } from '../sqlite/migration-runner.js';
@@ -969,6 +970,27 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
           || review.projectId !== row.project_id || review.taskId !== row.task_id
           || review.branchId !== row.branch_id || review.state !== reviewRowValue.state) {
           taskFindings.push({ projectId: row.project_id, taskId: row.task_id, reviewId: reviewRowValue.review_id, reviewVersion: expectedVersion, code: 'TASK_REVIEW_MISMATCH', message: 'Task review versions or normalized columns disagree.' });
+        }
+        if (Object.hasOwn(review, 'feedback')) {
+          try {
+            const feedback = validateReviewFeedback(review.feedback);
+            const basis = reviews.find((entry) => entry.review_id === review.reviewId && Number(entry.review_version) === feedback.basisReviewVersion);
+            const originRow = reviews.find((entry) => entry.review_id === review.reviewId && Number(entry.review_version) === feedback.basisReviewVersion + 1);
+            const origin = originRow ? JSON.parse(originRow.review_json) : null;
+            const event = events.map((entry) => JSON.parse(entry.event_json)).find((entry) => entry.eventId === `task-event:${row.task_id}:review:${review.reviewId}:${feedback.basisReviewVersion + 1}`);
+            invariant(review.kind !== 'studio.level-candidate-review' && basis && origin
+              && feedback.basisReviewVersion < review.reviewVersion
+              && fingerprint(feedback) === fingerprint(review.feedback)
+              && fingerprint(origin.feedback) === fingerprint(feedback)
+              && origin.updatedAt === feedback.createdAt && originRow.created_at === feedback.createdAt
+              && feedback.authorId === review.createdBy
+              && ['REVIEW_DECIDED', 'REVIEW_CHANGES_REQUESTED'].includes(event?.type)
+              && event.actorId === feedback.authorId && event.occurredAt === feedback.createdAt
+              && fingerprint(event.details?.feedback) === fingerprint(feedback),
+            'TASK_REVIEW_FEEDBACK_MISMATCH', 'Review feedback differs from its immutable decision and timeline basis.');
+          } catch {
+            taskFindings.push({ projectId: row.project_id, taskId: row.task_id, reviewId: review.reviewId, reviewVersion: expectedVersion, code: 'TASK_REVIEW_FEEDBACK_MISMATCH', message: 'Review feedback differs from its immutable decision and timeline basis.' });
+          }
         }
       }
       const merge = mergeRow.get(row.project_id, row.task_id);

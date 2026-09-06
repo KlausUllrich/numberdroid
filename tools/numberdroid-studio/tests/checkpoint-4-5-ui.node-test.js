@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
 const appUrl = new URL('../apps/studio-server/public/app.js', import.meta.url);
@@ -246,4 +247,49 @@ test('CP4.5 room editor keeps paint drafts exclusive, visible, recoverable, and 
   assert.match(app, /\['CLEAR', '⌫', 'Clear'/);
   assert.match(app, /activeTool === 'CLEAR'.*removeRoomPlacement\(placement\)/s);
   assert.match(app, /state\.roomUi\.shapeDraft\?\.dirty.*Save or discard the room-shape changes before placing assets/s);
+});
+
+
+test('review feedback drafts and focus restore only to the exact rendered review version', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function restoreTaskDomState()'), app.indexOf('function settleRoomEditorControlFocus'));
+  function scenario(currentVersion) {
+    let focused = false; let scrolled = false;
+    const summary = { value: '', dataset: { taskFocusKey: 'review-feedback-summary' },
+      focus() { focused = true; }, setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; } };
+    const comment = { value: 'Server comment', dataset: { taskReviewReason: 'change.one' } };
+    const choice = { value: 'USER_REJECTED', disabled: false, dataset: { taskReviewDisposition: 'change.one' }, options: [{ value: 'CHANGES_REQUESTED' }] };
+    const review = { dataset: { taskReviewContext: `review.one:${currentVersion}` } };
+    const root = { dataset: { taskContext: 'task.one' },
+      querySelector(selector) { return selector === '[data-task-review-context]' ? review : summary; },
+      querySelectorAll(selector) { return selector === '[data-task-review-reason]' ? [comment]
+        : selector === '[data-task-review-disposition]' ? [choice] : selector === '[data-task-focus-key]' ? [summary] : []; } };
+    const state = { taskDomState: { context: 'task.one', reviewContext: 'review.one:1',
+      feedbackSummary: 'Keep my draft', reviewReasons: { 'change.one': 'Keep my comment' }, reviewDrafts: { 'change.one': 'CHANGES_REQUESTED' },
+      activeKey: 'review-feedback-summary', selectionStart: 5, selectionEnd: 9, disclosures: {}, scroll: {}, page: { x: 0, y: 70 } } };
+    runInNewContext(`${source}; restoreTaskDomState();`, { state, elements: { 'workspace-content': { querySelector: () => root } },
+      window: { scrollTo() { scrolled = true; } }, taskScrollElements: () => [], restoreTaskTextSelection() {} });
+    return { summary, comment, choice, focused, scrolled };
+  }
+  const same = scenario(1);
+  assert.equal(same.summary.value, 'Keep my draft'); assert.equal(same.comment.value, 'Keep my comment');
+  assert.equal(same.choice.value, 'CHANGES_REQUESTED'); assert.equal(same.focused, true); assert.equal(same.scrolled, true);
+  assert.equal(same.summary.selectionStart, 5); assert.equal(same.summary.selectionEnd, 9);
+  const advanced = scenario(2);
+  assert.equal(advanced.summary.value, ''); assert.equal(advanced.comment.value, 'Server comment');
+  assert.equal(advanced.choice.value, 'USER_REJECTED'); assert.equal(advanced.focused, false); assert.equal(advanced.scrolled, false);
+});
+
+test('active task presentation permits work without claiming an agent process started', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function taskWorkflowPresentation('), app.indexOf('function taskAttentionPresentation('));
+  const present = runInNewContext(`${source}; taskWorkflowPresentation;`, {
+    taskEffectiveState: (entry) => entry.task.state, taskHasSavedChanges: () => true,
+  });
+  const active = present({ task: { state: 'ACTIVE' }, review: { state: 'SUPERSEDED' } });
+  assert.equal(active.actor, 'Assigned agent');
+  assert.match(active.consequence, /does not start an agent/);
+  assert.doesNotMatch(active.next, /is working|was started|has resumed/);
+  const child = present({ task: { state: 'ACTIVE', authority: { origin: 'TRUSTED_SERVICE_CHILD' } } });
+  assert.match(child.consequence, /No review decision, acceptance, merge/);
 });

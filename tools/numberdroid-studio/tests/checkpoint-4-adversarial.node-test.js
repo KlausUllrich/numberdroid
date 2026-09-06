@@ -121,6 +121,51 @@ test('merge revision batch and workflow disposition roll back together on a faul
   assert.equal(integrity.tasks.ok, true, JSON.stringify(integrity.tasks.findings));
 });
 
+test('review feedback, task transition and timeline roll back together and retain integrity', async (context) => {
+  let armed = false;
+  const { store, artifactStore, tasks, taskStore, created, agentContext } = await harness(context, { fault(point) {
+    if (armed && point === 'after_task_review_decision_timeline') throw new Error('feedback transaction fault');
+  } });
+  await tasks.execute(branchSource(2, 'feedback'), agentContext);
+  const taskId = created.task.taskId;
+  const { review } = await tasks.submitReview(PROJECT_ID, taskId, { reviewId: 'review.feedback.atomic', actorId: OWNER.id });
+  const decisions = [{ changeId: review.items[0].changeId, disposition: 'CHANGES_REQUESTED', reason: 'Keep the original provenance.' }];
+  const options = { actorId: OWNER.id, expectedReviewVersion: 1, feedbackSummary: 'Correct the source before resubmission.' };
+  const before = { task: taskStore.getTask(PROJECT_ID, taskId), timeline: taskStore.listTimeline(PROJECT_ID, taskId), review: taskStore.getReview(PROJECT_ID, taskId) };
+  armed = true;
+  await assert.rejects(tasks.decideReview(PROJECT_ID, taskId, review.reviewId, decisions, options), /feedback transaction fault/);
+  assert.deepEqual({ task: taskStore.getTask(PROJECT_ID, taskId), timeline: taskStore.listTimeline(PROJECT_ID, taskId), review: taskStore.getReview(PROJECT_ID, taskId) }, before);
+  armed = false;
+  await tasks.decideReview(PROJECT_ID, taskId, review.reviewId, decisions, options);
+  const integrity = await verifyWorkspaceIntegrity({ projectStore: store, artifactStore });
+  assert.equal(integrity.tasks.ok, true, JSON.stringify(integrity.tasks.findings));
+  const db = store.workspace.database;
+  assert.throws(() => db.prepare('UPDATE task_reviews SET review_json = ? WHERE review_id = ?').run('{}', review.reviewId), /immutable/);
+  // Simulate disk corruption after proving the ordinary immutable write guard.
+  db.exec('DROP TRIGGER task_reviews_immutable');
+  const corrupted = taskStore.getReview(PROJECT_ID, taskId);
+  corrupted.feedback.authorId = 'forged.owner';
+  db.prepare('UPDATE task_reviews SET review_json = ? WHERE review_id = ? AND review_version = 2').run(JSON.stringify(corrupted), review.reviewId);
+  const damaged = await verifyWorkspaceIntegrity({ projectStore: store, artifactStore });
+  assert.ok(damaged.tasks.findings.some(({ code }) => code === 'TASK_REVIEW_FEEDBACK_MISMATCH'));
+});
+
+test('concurrent owner feedback at one review version has exactly one durable winner', async (context) => {
+  const { tasks, taskStore, created, agentContext } = await harness(context);
+  const taskId = created.task.taskId;
+  await tasks.execute(branchSource(2, 'feedback-race'), agentContext);
+  const { review } = await tasks.submitReview(PROJECT_ID, taskId, { reviewId: 'review.feedback.race', actorId: OWNER.id });
+  const decisions = [{ changeId: review.items[0].changeId, disposition: 'USER_ACCEPTED', reason: null }];
+  const beforeCount = taskStore.listTimeline(PROJECT_ID, taskId).length;
+  const outcomes = await Promise.allSettled(['First comment.', 'Second comment.'].map((feedbackSummary) => tasks.decideReview(
+    PROJECT_ID, taskId, review.reviewId, decisions, { actorId: OWNER.id, expectedReviewVersion: 1, feedbackSummary },
+  )));
+  assert.equal(outcomes.filter(({ status }) => status === 'fulfilled').length, 1);
+  assert.equal(outcomes.find(({ status }) => status === 'rejected').reason.code, 'REVIEW_VERSION_CONFLICT');
+  assert.equal(taskStore.getReview(PROJECT_ID, taskId).reviewVersion, 2);
+  assert.equal(taskStore.listTimeline(PROJECT_ID, taskId).length, beforeCount + 1);
+});
+
 test('schema v11 task ledgers are STRICT and immutable history rejects updates', async (context) => {
   const { store, tasks, created, agentContext } = await harness(context);
   await tasks.execute(branchSource(2, 'immutable'), agentContext);

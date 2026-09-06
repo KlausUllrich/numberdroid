@@ -193,6 +193,7 @@ function sendJson(response, status, value, headers = {}) {
 }
 
 function errorStatus(error, pathname = '') {
+  if (error.code === 'REVIEW_VERSION_CONFLICT') return 409;
   if (pathname.startsWith('/api/backups')) {
     if (error.code === 'WORKSPACE_OPERATOR_REQUIRED') return 401;
     if (['WORKSPACE_OPERATOR_FORBIDDEN', 'UI_ORIGIN_REQUIRED', 'UI_ORIGIN_FORBIDDEN', 'CSRF_INVALID'].includes(error.code)) return 403;
@@ -1340,7 +1341,7 @@ export function createStudioHttpServer({
       if (request.method === 'POST' && taskRequest?.action === 'decide') {
         assertHumanUiMutation(request, humanUiCsrfToken);
         const body = await readJsonBody(request, { maxBytes: 256 * 1024 });
-        assertExactKeys(body, new Set(['decisions', 'confirm']), 'Agent task review decision');
+        assertExactKeys(body, new Set(['decisions', 'confirm', 'expectedReviewVersion', 'feedbackSummary']), 'Agent task review decision');
         if (body.confirm !== true) throw new StudioError('FORBIDDEN', 'Task review decisions require explicit human confirmation.');
         const projectView = await studioService.readProjectTrusted(taskRequest.projectId);
         sendJson(response, 200, await agentTaskService.decideReview(
@@ -1348,7 +1349,7 @@ export function createStudioHttpServer({
           taskRequest.taskId,
           taskRequest.reviewId,
           body.decisions,
-          { actorId: projectView.snapshot.project.ownerId },
+          { actorId: projectView.snapshot.project.ownerId, expectedReviewVersion: body.expectedReviewVersion, feedbackSummary: body.feedbackSummary },
         ));
         return;
       }

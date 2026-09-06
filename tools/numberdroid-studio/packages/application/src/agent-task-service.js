@@ -422,12 +422,12 @@ export class AgentTaskService {
     return { schemaVersion: 1, review };
   }
 
-  async decideReview(projectId, taskId, reviewId, decisions, { actorId }) {
+  async decideReview(projectId, taskId, reviewId, decisions, { actorId, expectedReviewVersion, feedbackSummary }) {
     const project = await this.#studioService.readProjectTrusted(projectId);
     invariant(actorId === project.snapshot.project.ownerId, 'FORBIDDEN', 'Only the project owner can decide task changes.');
     return {
       schemaVersion: 1,
-      review: this.#taskStore.decideReview(projectId, taskId, reviewId, decisions, { actorId, now: this.#clock() }),
+      review: this.#taskStore.decideReview(projectId, taskId, reviewId, decisions, { actorId, now: this.#clock(), expectedReviewVersion, feedbackSummary }),
     };
   }
 
