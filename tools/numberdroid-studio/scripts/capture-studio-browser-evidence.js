@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { decodeSupportedPng } from '../packages/preview/src/index.js';
 import { captureHumanAssetAuthoring } from './capture-human-asset-authoring-evidence.js';
+import { closeBrowserAndRemoveProfile, finishCapture, trackProcessClose } from './browser-process-teardown.js';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
 if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7', 'review-feedback', 'human-asset'].includes(mode)) {
@@ -26,6 +27,22 @@ const checkpoint4Focus = new URL(pageUrl).searchParams.get('visualFocus') ?? 'co
 const checkpoint45Focus = new URL(pageUrl).searchParams.get('visualFocus') ?? 'irregular';
 const checkpoint2cPhase = new URL(pageUrl).searchParams.get('visualPhase') ?? 'applied';
 const profileDirectory = await mkdtemp(`${tmpdir()}/numberdroid-studio-chrome-`);
+let cancellationError = null;
+const captureCancellation = new AbortController();
+let devtools;
+const cancelCapture = () => {
+  cancellationError ??= new Error('Browser capture cancelled before completion.');
+  captureCancellation.abort(cancellationError);
+  devtools?.interrupt(cancellationError);
+};
+process.once('SIGTERM', cancelCapture);
+process.once('SIGINT', cancelCapture);
+if (process.send) {
+  process.on('message', (message) => {
+    if (message?.type === 'studio-capture-cancel' && message.schemaVersion === 1) cancelCapture();
+  });
+  process.once('disconnect', cancelCapture);
+}
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -45,10 +62,8 @@ const chrome = spawn(chromePath, [
   `--user-data-dir=${profileDirectory}`,
   'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
-const chromeExited = new Promise((resolveExit) => {
-  if (chrome.exitCode !== null) resolveExit(chrome.exitCode);
-  else chrome.once('exit', resolveExit);
-});
+const chromeClose = trackProcessClose(chrome);
+process.send?.({ type: 'studio-capture-browser-started', pid: chrome.pid, profileDirectory });
 
 let chromeDiagnostics = '';
 chrome.stderr.setEncoding('utf8');
@@ -57,6 +72,8 @@ chrome.stderr.on('data', (chunk) => { chromeDiagnostics += chunk; });
 async function devtoolsUrl() {
   return new Promise((resolveUrl, rejectUrl) => {
     const timeout = setTimeout(() => rejectUrl(new Error(`Chrome DevTools did not start. ${chromeDiagnostics}`)), 10_000);
+    const abort = () => { clearTimeout(timeout); rejectUrl(cancellationError); };
+    if (captureCancellation.signal.aborted) abort(); else captureCancellation.signal.addEventListener('abort', abort, { once: true });
     const inspect = () => {
       const match = /DevTools listening on (ws:\/\/[^\s]+)/.exec(chromeDiagnostics);
       if (!match) return;
@@ -76,13 +93,16 @@ class DevTools {
   #socket;
   #nextId = 1;
   #pending = new Map();
+  #shuttingDown = false;
   events = [];
 
   static async connect(url) {
     const socket = new WebSocket(url);
     await new Promise((resolveOpen, rejectOpen) => {
-      socket.addEventListener('open', resolveOpen, { once: true });
+      socket.addEventListener('open', () => { captureCancellation.signal.removeEventListener('abort', abort); resolveOpen(); }, { once: true });
       socket.addEventListener('error', rejectOpen, { once: true });
+      const abort = () => { rejectOpen(cancellationError); try { socket.close(); } catch {} };
+      if (captureCancellation.signal.aborted) abort(); else captureCancellation.signal.addEventListener('abort', abort, { once: true });
     });
     return new DevTools(socket);
   }
@@ -115,6 +135,7 @@ class DevTools {
   }
 
   send(method, params = {}, sessionId = undefined, timeoutMs = 10_000) {
+    if (cancellationError && !this.#shuttingDown) return Promise.reject(cancellationError);
     const id = this.#nextId++;
     return new Promise((resolveCommand, rejectCommand) => {
       const timeout = setTimeout(() => {
@@ -135,13 +156,26 @@ class DevTools {
   close() {
     this.#socket.close();
   }
+
+  interrupt(error) {
+    if (this.#shuttingDown) return;
+    for (const pending of this.#pending.values()) { clearTimeout(pending.timeout); pending.reject(error); }
+    this.#pending.clear();
+  }
+
+  beginShutdown() { this.#shuttingDown = true; }
 }
 
 function delay(milliseconds) {
-  return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+  if (cancellationError) return Promise.reject(cancellationError);
+  return new Promise((resolveDelay, rejectDelay) => {
+    const abort = () => { clearTimeout(timer); rejectDelay(cancellationError); };
+    const timer = setTimeout(() => { captureCancellation.signal.removeEventListener('abort', abort); resolveDelay(); }, milliseconds);
+    captureCancellation.signal.addEventListener('abort', abort, { once: true });
+  });
 }
 
-let devtools;
+let captureError = null;
 try {
   devtools = await DevTools.connect(await devtoolsUrl());
   const browserVersion = await devtools.send('Browser.getVersion');
@@ -4890,10 +4924,22 @@ try {
   await writeFile(observationPath, `${JSON.stringify(observation, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify({ status: 'CAPTURED', output: outputPath, workspace: expectedWorkspace, width })}\n`);
   }
-  await devtools.send('Browser.close').catch(() => {});
+} catch (error) {
+  captureError = error;
 } finally {
-  devtools?.close();
-  if (chrome.exitCode === null) chrome.kill('SIGKILL');
-  await Promise.race([chromeExited, delay(2_000)]);
-  await rm(profileDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  devtools?.beginShutdown();
+  let profileRemoved = false;
+  await finishCapture(captureError ?? cancellationError, [
+    () => closeBrowserAndRemoveProfile({
+      child: chrome, trackedClose: chromeClose,
+      requestBrowserClose: () => devtools?.send('Browser.close', {}, undefined, 2_000),
+      closeConnection: () => devtools?.close(),
+      removeProfile: async () => { await rm(profileDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); profileRemoved = true; },
+    }),
+    async () => {
+      if (!profileRemoved) process.stderr.write(`Chrome profile retained for diagnosis: ${profileDirectory}\n`);
+      process.removeListener('disconnect', cancelCapture);
+      if (process.connected) await new Promise((resolveSent) => process.send({ type: 'studio-capture-cleanup-complete', ok: chromeClose.closed && profileRemoved }, () => { if (process.connected) process.disconnect(); resolveSent(); }));
+    },
+  ]);
 }

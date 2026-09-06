@@ -128,7 +128,7 @@ CI/source integration are recorded in the focused PR. VT-016
 is deferred and nonblocking for authorized development; VT-011 remains REVISE
 and real harness integration remains a separate gate.
 
-## Human Asset authoring — candidate implementation
+## Human Asset authoring — implemented candidate
 
 The 2026-09-07 [single-slice human authoring candidate](HUMAN_ASSET_AUTHORING.md)
 fills a verified UI gap: saved slices had no human action to prepare an Asset

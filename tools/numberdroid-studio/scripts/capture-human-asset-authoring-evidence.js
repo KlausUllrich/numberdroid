@@ -66,6 +66,7 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
   const reopened = new URL(pageUrl).searchParams.get('authoringPhase') === 'reopen';
   let slice = null;
   let compatibleRefresh = null;
+  const keyboardRotations = [];
   if (!reopened) {
     const initial = await project();
     assert.equal(initial.revision, 7);
@@ -87,6 +88,18 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
     assert.equal(compatibleRefresh.focused, true); assert.equal(compatibleRefresh.selectionStart, 2); assert.equal(compatibleRefresh.selectionEnd, 8);
     assert.equal((await project()).revision, 7);
     await capture('form', 'form[data-asset-authoring-form]');
+    await devtools.send('Page.bringToFront', {}, sessionId);
+    for (const rotation of [90, 0]) {
+      const selector = `[data-asset-authoring-preview] [data-asset-preview-rotation="${rotation}"]`;
+      const focusKey = await evaluate(`(() => { const control = document.querySelector(${JSON.stringify(selector)}); if (!control) throw new Error('Rotation control missing'); control.scrollIntoView({ block: 'center' }); control.focus(); return control.dataset.assetFocusKey; })()`);
+      assert.equal(await evaluate('document.hasFocus()'), true, 'The page must own real keyboard focus');
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
+      await waitFor(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-pressed') === 'true'`, `Keyboard rotation ${rotation}`);
+      const state = await evaluate(`({ focusedKey: document.activeElement?.dataset.assetFocusKey, selected: document.querySelector(${JSON.stringify(selector)})?.dataset.selected })`);
+      assert.equal(state.focusedKey, focusKey); assert.equal(state.selected, 'true');
+      keyboardRotations.push({ rotation, physicalEnter: true, focusRetained: true });
+    }
     await click('[data-asset-authoring-submit]');
     await waitFor("document.querySelector('[data-asset-proposal]')?.dataset.proposalState === 'PENDING'", 'Prepared proposal');
     const pending = await project();
@@ -151,6 +164,6 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
     || (event.method === 'Network.responseReceived' && event.params?.response?.status >= 400));
   assert.equal(errors.length, 0, `Human Asset browser emitted protocol errors: ${JSON.stringify(errors)}`);
   if (domPath) await writeFile(domPath, `${await evaluate('document.documentElement.outerHTML')}\n`);
-  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'human-asset', reopened, browser: browserVersion.product, projectId: PROJECT_ID, revision: saved.revision, assetId: asset.assetId, sliceBinding: asset.sliceBinding, roomVariantId: room.roomVariantId, roomVersion: room.version, placement, compatibleRefresh, explicitOwnerConfirmations: audit.confirmations.length, callerDerivedImageFields: false, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
+  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'human-asset', reopened, browser: browserVersion.product, projectId: PROJECT_ID, revision: saved.revision, assetId: asset.assetId, sliceBinding: asset.sliceBinding, roomVariantId: room.roomVariantId, roomVersion: room.version, placement, compatibleRefresh, keyboardRotations, explicitOwnerConfirmations: audit.confirmations.length, callerDerivedImageFields: false, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify({ status: 'CAPTURED', mode: 'human-asset', reopened, width, screenshotCount: screenshots.length, output: outputPath })}\n`);
 }

@@ -935,7 +935,9 @@ function usefulAssetPreview(asset, { previewKey = asset.assetId ?? asset.itemId 
     `Occupies ${geometry.width} × ${geometry.height} cells at ${selectedRotation}°`,
     rotationPolicy === 'cardinal' ? 'Can be rotated in four directions' : 'Uses one fixed direction',
     metadata.navigation?.effect === 'blocked' || collision?.mode && collision.mode !== 'none' ? 'Blocks movement' : 'Can be crossed',
-    metadata.attachment === 'wall' ? 'Designed for wall placement' : metadata.placement?.wallSafe === false ? 'Keep away from room boundaries' : 'Suitable for ground placement',
+    ({ ground: 'Attaches to ground', wall: 'Attaches to a wall', ceiling: 'Attaches to a ceiling', free: 'Free placement' })[metadata.attachment] ?? 'Attachment has not been chosen',
+    metadata.placement?.wallSafe === true ? 'May touch room boundaries'
+      : metadata.placement?.wallSafe === false ? 'Keep away from room boundaries' : 'Boundary suitability has not been chosen',
     `Top-left is □ at 0,0; authored anchor is + at ${anchor.x},${anchor.y}`,
   ];
   for (const value of values) { const item = document.createElement('li'); item.textContent = value; facts.append(item); }
@@ -944,6 +946,8 @@ function usefulAssetPreview(asset, { previewKey = asset.assetId ?? asset.itemId 
     const controls = document.createElement('div'); controls.className = 'prop-preview-rotations'; controls.setAttribute('aria-label', 'Preview rotation');
     for (const rotation of allowedRotations) {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary'; button.dataset.assetPreviewRotation = String(rotation); button.dataset.previewKey = previewKey;
+      button.dataset.assetFocusKey = `preview-rotation-${previewKey}-${rotation}`;
+      button.setAttribute('aria-pressed', String(rotation === selectedRotation));
       button.dataset.selected = String(rotation === selectedRotation); button.textContent = `${rotation}°`; controls.append(button);
     }
     wrapper.append(controls);

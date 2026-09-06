@@ -1,6 +1,6 @@
 # Human Asset authoring from a saved slice
 
-Status: **IMPLEMENTATION IN PROGRESS — NOT USER ACCEPTED**. Date: 2026-09-07.
+Status: **IMPLEMENTED CANDIDATE — NOT USER ACCEPTED**. Date: 2026-09-07.
 This candidate fills a missing human UI step in the accepted Checkpoint 2C
 proposal workflow. Source integration and verification belong in its focused PR.
 
@@ -47,7 +47,10 @@ Compatible refresh preserves entered choices and editing context. A changed
 project or saved slice blocks automatic submission and keeps the draft visible
 until the designer deliberately rechecks or reselects. A submitted request and
 its idempotency key remain fixed during uncertain delivery. Reconciliation
-checks whether that proposal already exists before creating another request.
+checks whether that exact proposal already exists before creating another request.
+Outcome reads abort after eight seconds, and late or superseded results cannot
+replace the active draft. A later rejected retry does not erase uncertainty
+about an earlier submission.
 
 Preparing a proposal adds no Asset. Review findings remain visible; Accept or
 Reject and Apply keep their existing owner-only confirmation. Applied Assets
@@ -55,11 +58,16 @@ start as DRAFT. Later lifecycle and warning decisions remain separate.
 
 ## Verification and live decision
 
-Required automated proof covers all three metadata kinds against the accepted
+Completed local automated proof covers all three metadata kinds against the accepted
 validators, invalid and stale contexts, immutable request retries, and native
-Chrome at 1440 and 1060 pixels. The browser sequence starts with fresh saved
+Chrome at 1440 and 1060 pixels. The final Studio suite passed 797 tests with
+five expected platform/Chrome skips; the build checked 254 JavaScript files.
+Seven dedicated runner checks also passed, including real Chrome cancellation.
+The browser sequence starts with fresh saved
 slices, prepares and applies a human proposal, places its Asset in a Room, then
-restarts and verifies the same saved semantic content. Existing protected
+restarts and verifies the same saved semantic content. Physical keyboard
+rotation retains focus and pressed state. Independent metadata, authority,
+recovery, usability and evidence reviews cleared their findings. Existing protected
 Studio checks, platform gates and independent actual-diff review still apply.
 
 The live decision remains deferred under Klaus's unattended-development

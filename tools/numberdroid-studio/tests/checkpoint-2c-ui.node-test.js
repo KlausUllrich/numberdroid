@@ -220,3 +220,28 @@ test('loadProject discards a late aborted project response before applying share
   assert.equal(await pending, false); assert.equal(state.project, original);
   assert(signals.length === 5 && signals.every((signal) => signal === controller.signal));
 });
+
+
+test('useful preview states exact attachment independently from boundaries and preserves rotation identity', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function usefulAssetPreview('), app.indexOf('function compactValues('));
+  const element = (tag) => ({ tag, dataset: {}, attributes: {}, children: [], style: { setProperty() {} }, classList: { contains: () => true },
+    append(...nodes) { this.children.push(...nodes); }, setAttribute(name, value) { this.attributes[name] = value; } });
+  const state = { assetUi: { previewRotations: { 'asset.one': 90 } } };
+  const render = runInNewContext(`${source}; usefulAssetPreview;`, { state, document: { createElement: element },
+    safeV2Preview: () => element('img'), rotatedPreviewGeometry: (span) => ({ ...span, rect: (value) => value, point: (value) => value }),
+  });
+  const flatten = (node) => [node, ...(node.children ?? []).flatMap(flatten)];
+  for (const [attachment, expected] of [['ceiling', 'Attaches to a ceiling'], ['free', 'Free placement'], ['wall', 'Attaches to a wall'], ['ground', 'Attaches to ground']]) {
+    const nodes = flatten(render({ assetId: 'asset.one', metadata: { attachment, rotationPolicy: 'cardinal', placement: { wallSafe: true } } }));
+    const facts = nodes.filter(({ tag }) => tag === 'li').map(({ textContent }) => textContent);
+    assert(facts.includes(expected)); assert(facts.includes('May touch room boundaries'));
+    if (attachment !== 'ground') assert(!facts.some((fact) => /ground placement|Attaches to ground/.test(fact)));
+    const buttons = nodes.filter(({ tag }) => tag === 'button');
+    assert.equal(new Set(buttons.map(({ dataset }) => dataset.assetFocusKey)).size, 4);
+    assert.deepEqual(buttons.filter(({ attributes }) => attributes['aria-pressed'] === 'true').map(({ dataset }) => dataset.assetPreviewRotation), ['90']);
+    assert(buttons.every(({ dataset }) => dataset.assetFocusKey === `preview-rotation-asset.one-${dataset.assetPreviewRotation}`));
+    const second = flatten(render({ assetId: 'asset.two', metadata: { attachment, rotationPolicy: 'cardinal' } }));
+    assert(second.filter(({ tag }) => tag === 'button').every(({ dataset }) => !buttons.some((button) => button.dataset.assetFocusKey === dataset.assetFocusKey)));
+  }
+});

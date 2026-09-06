@@ -23,9 +23,9 @@ This is a recorded source baseline, not a permanently current `main` pointer.
 The human-local foundations support PNG intake, deterministic PNG cutting,
 semantic Assets, footprint/anchor/rotations, Room placement, save/restart,
 read-only Studio Preview, integrity and backup/restore-as-copy. The missing
-human UI step from a saved slice to an Asset proposal is being filled by the
-[single-slice authoring candidate](HUMAN_ASSET_AUTHORING.md); do not claim that
-complete UI path until its verification finishes. Preview is engine-neutral
+human UI step from a saved slice to an Asset proposal is now supplied by the
+[single-slice authoring candidate](HUMAN_ASSET_AUTHORING.md), with automated
+authoring, Room placement and restart proof. Its live decision remains deferred. Preview is engine-neutral
 and approximate; it is not Numberdroid runtime output.
 
 Checkpoints 1–4, A1.0–A1.2, VT-012 Backups and bounded VT-014 Candidate/child

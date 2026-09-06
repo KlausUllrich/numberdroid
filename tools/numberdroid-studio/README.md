@@ -212,8 +212,9 @@ The server enforces one authoritative SQLite writer. `NUMBERDROID_STUDIO_STORE=j
 from a saved image slice to an Asset proposal. Its bounded form makes name,
 purpose, footprint, anchor and manual placement choices explicit, then uses
 the existing owner review and Apply flow. A DRAFT Asset can be placed in a
-DRAFT Room; finalization remains separate. Implementation and verification
-are in progress, and the live decision is deferred as VT-017.
+DRAFT Room; finalization remains separate. Local regression, native browser
+authoring/placement/restart and independent reviews passed. Final CI and source
+integration are recorded in its focused PR; the live decision is deferred as VT-017.
 
 ## Human task review feedback candidate
 
