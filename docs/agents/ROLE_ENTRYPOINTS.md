@@ -274,6 +274,8 @@ Use this route when the main job is to combine multiple role outputs or decide s
 
 A Coordinator reads the universal bootstrap plus the **entry documents** for each domain involved, then drills into only the files required to resolve the dependency.
 
+For Numberdroid Studio tasks, start with the [Studio task router](../../tools/numberdroid-studio/docs/START_HERE.md) after this bootstrap. Select the actual task route and expand only when its domain triggers apply. Historical checkpoint records and named handoffs retain their evidence/snapshot role; they do not make the whole Studio corpus mandatory for every task.
+
 Examples:
 
 - Artist discovers a family keepsake needs canonical content → Story trigger, then return to Artist.

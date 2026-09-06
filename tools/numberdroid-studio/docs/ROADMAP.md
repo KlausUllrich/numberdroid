@@ -32,10 +32,15 @@ No checkpoint may claim user approval from silence or from an automated policy r
 
 ## Autonomous candidate cadence while live user testing is unavailable
 
-As of 2026-08-28 Klaus is temporarily unavailable for live or visual gates. The
-engineering loop may continue through small, equally sized implementation
-candidates, but it MUST keep these states separate: implemented, automated
-green, source-integrated, live/visual-tested, and explicitly user-accepted.
+On 2026-09-06 Klaus requested unattended cleanup and development toward a
+Studio usable for Numberdroid authoring, and deferred the remaining live checks
+as nonblocking for authorized development. VT-001 / CP4.5 remains **REVISE**.
+The engineering loop may continue through bounded implementation candidates,
+keeping implemented, automated green, source-integrated, live/visual-tested
+and explicitly user-accepted separate. Use [Start here](START_HERE.md) for
+task-specific reading and the [return backlog](VACATION_TEST_BACKLOG.md) for
+the remaining human checks. This supersedes the earlier live-retest-first
+sequencing, without closing a milestone or granting a separately gated action.
 
 One autonomous block has exactly one testable product promise and at most one
 new high-risk axis. Migration, public MCP/HTTP compatibility,
@@ -257,7 +262,7 @@ Exit decision: **accepted by the user on 2026-08-24.** The bounded delegation mo
 
 ## Checkpoint 4.5 — Designer workflow and preview usability
 
-**Status: frozen-contract candidate and bounded Room Editor continuations are source-integrated through PR #201 on 2026-09-02; Linux/Windows CI and Chrome evidence are green, while VT-001 remains REVISE pending Klaus's live retest. Source integration does not accept CP4.5 or CP5.**
+**Status: source-integrated candidate; latest Room guidance PR #206 is merged and post-merge green. VT-001 remains REVISE, with live checks deferred on 2026-09-06 and nonblocking for authorized development. Source integration does not accept CP4.5 or CP5. Exact evidence: [Room status](ROOM_EDITOR_L3_STATUS.md).**
 
 **Outcome:** a professional designer can understand the current step, create or review the relevant object, and see a useful preview without needing to understand Studio's internal branch, grant, revision, provenance, or validation vocabulary.
 
@@ -359,8 +364,9 @@ and registry/path mismatches fail closed rather than being flattened or inferred
 **Status: O0 frozen; O1, O2a, A3a, A4a, A4b and the complete bounded A4c source
 sequence are source-integrated and automated green; VT-014 and O1b are user
 accepted; Room Editor L3 including PR #201 is source-integrated and green but
-VT-001 remains REVISE; O2 deployment remains open; no A5 source work is
-authorized by this status.**
+VT-001 remains REVISE with live checks deferred and nonblocking for authorized
+development; O2 deployment remains open; no A5 source work is authorized by
+this status.**
 
 This track neither accepts Checkpoint 4.5 nor materializes the Checkpoint 5
 export candidate into Numberdroid runtime/repository output. Its planning and
@@ -911,8 +917,9 @@ the slice remains not user accepted. Scope and evidence are recorded in
 The currently authorized A4 source sequence is complete in source. Klaus
 explicitly accepted the bounded Candidate/child product and authority decision
 as VT-014 on 2026-09-02. Room Editor VT-001 remains separately `REVISE`; its
-reported UI defects are repaired and green through PR #201 but await a live
-retest. VT-014 acceptance does not accept
+reported UI defects and later copy/usability repairs are recorded in
+[Room status](ROOM_EDITOR_L3_STATUS.md). Remaining live checks are deferred and
+nonblocking for authorized development as of 2026-09-06. VT-014 acceptance does not accept
 A3a/A4a/A4b or authorize A5, A6, materialization, repository publication or
 release.
 

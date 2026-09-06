@@ -1,11 +1,26 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-06 authorized continuation
+
+Klaus deferred the remaining live tests as nonblocking and requested unattended
+cleanup and development toward a usable Numberdroid Studio. VT-001 / CP4.5
+remains **REVISE**, with no inferred acceptance. The next sequence is safe
+repository/worktree/document cleanup, then bounded Studio usability development
+with the selected verification gates; the focused human return checks remain
+in the [backlog](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md).
+Use the [Studio task router](../../tools/numberdroid-studio/docs/START_HERE.md)
+for current reading routes. PR #206 is refreshed, merged and post-merge green;
+[Room status](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md) owns
+its exact evidence. This supersedes live-retest-first sequencing only. A5/A6,
+materialization, publication/release, image generation, provider and remote
+actions retain their separate scope and authorization gates.
+
 ## 2026-09-02 acceptance and repair adjustment
 
 Klaus explicitly accepted VT-014 on 2026-09-02. The acceptance covers the bounded private immutable A4c Candidate, strict trusted-service child attenuation and truthful read-only authority presentation integrated through PRs #198 and #199; it does not accept A3a/A4a/A4b or authorize A5, materialization, publication or release. Room Editor VT-001 remains REVISE. Its reported live findings—Fit, discoverable saved-state resize, direct exact-asset selection, persistent placement brush, plain pending guidance, confirmed Clear behavior and correctly rotated asset imagery—are repaired and source-integrated through PR #201, final head `e26f3d707a790a4b4779c9267514a3b8de9f18d0`, merge `dbe37634ea13d076cd00647fffb0dde1b2bd0f69`, exact-head Build #2353 / run `33629339599` and green post-merge Build #2354 / run `33630127953`. This is engineering closure only; Klaus's live retest remains the acceptance gate. The engine-neutral Preview, logical footprint rules and validate-only EngineBridge boundary remain unchanged. Evidence: [`../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md`](../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md), [`../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md`](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md), and [`../../tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md`](../../tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md).
 
 
-Status: **current forward plan — VT-014 accepted; bounded Room Editor VT-001 repairs integrated and green with live retest pending; VT-011/O2a gates remain pending; no A5 source work is authorized**
+Status: **current forward plan — authorized Studio cleanup and bounded usability development; VT-001 REVISE with live checks deferred and nonblocking for that development; VT-014 accepted; VT-011/O2a gates remain pending; no A5 source work is authorized**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 
@@ -254,7 +269,8 @@ O1b source-integrated and user-accepted through VT-012
 → bounded Room Editor L3 continuation and live-workflow repair source-integrated through PRs #191, #192, #194, #195, #196 and #201; live acceptance pending
 → A4c task-scoped Application candidate source-integrated; stops at Waiting for your review
 → A4c trusted-service derived child source-integrated; human-rooted, strictly attenuated and depth one
-→ VT-014 user accepted 2026-09-02; PR #201 repair integrated and post-merge green; Klaus live-retests VT-001
+→ VT-014 user accepted; PR #206 guidance integrated and post-merge green
+→ authorized cleanup and bounded Studio usability development; VT-001 live checks deferred, acceptance remains REVISE
 → later deliberate O2 deployment, O3 phone, and O4 final onboarding gates with Klaus
 ```
 

@@ -1,8 +1,28 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
-Status: **SOURCE-INTEGRATED / AUTOMATED, BROWSER AND WINDOWS GREEN — VT-001 REVISE / NEEDS KLAUS LIVE RETEST**
+Status: **SOURCE-INTEGRATED / AUTOMATED, BROWSER AND WINDOWS GREEN — VT-001 REVISE; LIVE CHECKS DEFERRED, NONBLOCKING FOR AUTHORIZED DEVELOPMENT**
 
-Date: 2026-09-02
+Date: 2026-09-06
+
+Klaus requested unattended cleanup and Studio development on 2026-09-06.
+This changes sequencing, not acceptance. Remaining live checks are recorded in
+the [VT-001 backlog](VACATION_TEST_BACKLOG.md#vt-001--cp45-desktop-designer-gate).
+
+Latest integration: PR [#206](https://github.com/KlausUllrich/numberdroid/pull/206)
+was refreshed onto current main and merged unchanged from
+`8d088a58bd21f318d9dc37a34686a5a8f1b8bd96` as
+`034bc4604338e391a2455d42e03a12a5b27d0ed3`, tree
+`6c9d09f9ec537303c15363f8cad86f8c403bfe1b`. Exact-head Build #2380 / run
+[34053299822](https://github.com/KlausUllrich/numberdroid/actions/runs/34053299822)
+and post-merge Build #2381 / run
+[34053841215](https://github.com/KlausUllrich/numberdroid/actions/runs/34053841215)
+passed. Its two-file change is copy-only; validation semantics are unchanged.
+
+Klaus separately live-passed placement-preview disappearance on canvas exit,
+stable scrollbar gutter, dynamic launcher readability and typed `q` shutdown,
+plain Room macro guidance, and PR #210's conflict-first Task Review page.
+These individual passes do not close VT-001. The September 2 ledger below
+preserves the earlier source and verification baseline.
 
 The bounded Room Editor response to Klaus's 2026-09-01 and 2026-09-02 live
 findings is source-integrated on `main` at
@@ -131,8 +151,10 @@ live retest can accept them. The gate remains `REVISE` until Klaus explicitly
 changes it.
 
 VT-014 was explicitly user accepted on 2026-09-02 under its bounded A4c
-contract; that does not resolve VT-001 or accept A3a/A4a/A4b. No further source
-slice follows automatically. In particular, the current state grants no A5/A6,
+contract; that does not resolve VT-001 or accept A3a/A4a/A4b. Klaus's
+2026-09-06 instruction now authorizes bounded Studio development while the
+remaining live checks are deferred. Use [Start here](START_HERE.md) to select
+the next task route. This instruction grants no automatic A5/A6,
 2.5D renderer, Remote backup/MCP/Pairing/HostBinding/Funnel, browser-agent,
 auto-accept, O3/O4, Numberdroid product materialization, repository publication
 or release authority.
