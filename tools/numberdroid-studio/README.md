@@ -206,6 +206,15 @@ The accepted 2A slice remains deliberately single-user and refuses a non-loopbac
 
 The server enforces one authoritative SQLite writer. `NUMBERDROID_STUDIO_STORE=json npm run dev` launches the protected JSON regression adapter explicitly; never run JSON and SQLite as simultaneous writers for the same logical workspace.
 
+## Human Asset authoring candidate
+
+[Human Asset authoring](docs/HUMAN_ASSET_AUTHORING.md) fills the missing UI step
+from a saved image slice to an Asset proposal. Its bounded form makes name,
+purpose, footprint, anchor and manual placement choices explicit, then uses
+the existing owner review and Apply flow. A DRAFT Asset can be placed in a
+DRAFT Room; finalization remains separate. Implementation and verification
+are in progress, and the live decision is deferred as VT-017.
+
 ## Human task review feedback candidate
 
 [Task review feedback](docs/TASK_REVIEW_FEEDBACK.md) adds a required summary for

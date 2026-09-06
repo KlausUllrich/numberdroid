@@ -735,3 +735,15 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
 .task-saved-feedback { margin-top: 12px; padding: 10px; border-left: 3px solid var(--mint); background: #10251e; }
 .task-saved-feedback h4 { margin: 0 0 6px; font-size: 12px; }
 .task-saved-feedback p, .task-review-reason { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+
+.asset-authoring-layout { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(320px, 1.5fr); gap: 24px; align-items: start; }
+.asset-authoring-preview { min-width: 0; position: sticky; top: 16px; }
+.asset-authoring-preview p, .asset-authoring-help { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.asset-authoring-form { min-width: 0; display: grid; gap: 14px; }
+.asset-authoring-form fieldset { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; border: 1px solid #29483f; border-radius: 8px; padding: 14px; }
+.asset-authoring-form legend { padding: 0 6px; font-size: 13px; font-weight: 700; }
+.asset-authoring-form label { min-width: 0; display: grid; gap: 5px; font-size: 11px; }
+.asset-authoring-form input, .asset-authoring-form select { min-width: 0; width: 100%; font-size: 12px; }
+.asset-authoring-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.asset-authoring-form > p { font-size: 12px; line-height: 1.5; }
+@media (max-width: 1200px) { .asset-authoring-layout { grid-template-columns: 1fr; } .asset-authoring-preview { position: static; max-width: 420px; } }

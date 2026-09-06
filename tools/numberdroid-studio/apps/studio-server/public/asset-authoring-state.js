@@ -70,6 +70,7 @@ export function buildAssetAuthoringRequest(draft) {
   if (kind === 'surface' && attachment !== 'ground') fail('Surface Assets must attach to the ground.');
   const rotationPolicy = choice(values.rotationPolicy, 'a rotation policy', ['fixed', 'cardinal']);
   const wallSafe = choice(values.wallSafe, 'boundary suitability', ['true', 'false']) === 'true';
+  if (attachment === 'wall' && !wallSafe) fail('Wall-attached Assets must be allowed to touch a room boundary. Choose “May touch a boundary” or another attachment.');
   const movement = choice(values.movement, 'movement behavior', ['passable', 'blocked']);
   const visualWeight = choice(values.visualWeight, 'visual weight', ['light', 'medium', 'heavy']);
   const runtimeEligible = choice(values.runtimeEligible, 'runtime eligibility', ['true', 'false']) === 'true';

@@ -3,10 +3,11 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { decodeSupportedPng } from '../packages/preview/src/index.js';
+import { captureHumanAssetAuthoring } from './capture-human-asset-authoring-evidence.js';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7', 'review-feedback'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5|a1-7|review-feedback [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7', 'review-feedback', 'human-asset'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5|a1-7|review-feedback|human-asset [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -160,6 +161,9 @@ try {
   ]);
   await devtools.send('Page.navigate', { url: pageUrl }, sessionId);
 
+  if (mode === 'human-asset') {
+    await captureHumanAssetAuthoring({ devtools, sessionId, width, height, pageUrl, outputPath, domPath, browserVersion });
+  } else {
   const readyExpression = mode === 'review-feedback'
     ? `document.getElementById('connection-label')?.textContent === 'Live'
        && document.getElementById('workspace-content')?.dataset.renderedProjectId === 'project.review-feedback'
@@ -4885,6 +4889,7 @@ try {
   };
   await writeFile(observationPath, `${JSON.stringify(observation, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify({ status: 'CAPTURED', output: outputPath, workspace: expectedWorkspace, width })}\n`);
+  }
   await devtools.send('Browser.close').catch(() => {});
 } finally {
   devtools?.close();

@@ -51,6 +51,18 @@ test('empty, fractional, out-of-range and implicit boolean form values fail befo
   ]) assert.throws(() => buildAssetAuthoringRequest(draft(values)), Error, JSON.stringify(values));
 });
 
+test('wall attachment requires boundary suitability and its supported combination remains valid', () => {
+  assert.throws(() => buildAssetAuthoringRequest(draft({ attachment: 'wall', wallSafe: 'false' })), /Choose “May touch a boundary” or another attachment/);
+  const request = buildAssetAuthoringRequest(draft({ attachment: 'wall', wallSafe: 'true' }));
+  const { idempotencyKey: _key, ...proposal } = request;
+  validateAssetProposal({ projectId: context.projectId, ...proposal });
+  const item = request.items[0];
+  const validated = validateAssetMetadataForVisualFacts({ assetId: item.assetId, kind: item.kind, metadata: item.metadata, pixelSize: { width: 64, height: 64 }, pivot: null });
+  assert.deepEqual(validated.findings, []);
+  assert.equal(validated.metadata.attachment, 'wall');
+  assert.equal(validated.metadata.placement.wallSafe, true);
+});
+
 test('context and slice conflicts reject foreign, stale, absent, and ambiguous saved imagery', () => {
   const value = draft(); const current = { projectId: context.projectId, projectRevision: 7, slices: [{ sliceId: context.sliceId, version: 2 }] };
   assert.equal(assetAuthoringConflict(value, current), null);
