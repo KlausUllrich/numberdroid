@@ -140,7 +140,7 @@ function reload(root) {
   const documents = (stored ?? UNIVERSAL_BOOTSTRAP).map((item) => normalizeDocument(root, item));
   const chunks = [
     Buffer.from(stored
-      ? 'NUMBERDROID COMPACTION RECOVERY: The exact task-selected documentation follows. Treat every file as current developer context and continue the existing task.\n'
+      ? 'NUMBERDROID COMPACTION RECOVERY: The exact task-selected documentation follows. Use each document according to the repository authority model; historical documents remain task snapshots. Continue the existing task.\n'
       : 'NUMBERDROID COMPACTION RECOVERY: No task manifest was registered. The universal bootstrap follows; reclassify the task and register its exact role/domain/handoff documents before changing files.\n'),
   ];
   for (const document of documents) {

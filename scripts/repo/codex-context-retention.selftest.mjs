@@ -47,6 +47,7 @@ try {
   });
   assert.match(restored, /ALPHA-CONTENT\n<<< END NUMBERDROID DOCUMENT: docs\/tasks\/alpha\.md >>>/);
   assert.match(restored, /BETA-CONTENT\n\n<<< END NUMBERDROID DOCUMENT: docs\/tasks\/beta\.md >>>/);
+  assert.match(restored, /Use each document according to the repository authority model; historical documents remain task snapshots\. Continue the existing task\./);
 
   fs.writeFileSync(path.join(root, 'docs', 'tasks', 'alpha.md'), 'UPDATED-CURRENT-CONTENT');
   const current = execFileSync(process.execPath, [script, 'reload'], {
