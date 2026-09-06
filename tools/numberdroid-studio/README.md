@@ -1,5 +1,10 @@
 # Numberdroid Studio
 
+**Continuing Studio work:** use [Start here](docs/START_HERE.md) for the current
+direction, bounded task reading routes and deferred live checks. As of
+2026-09-06, VT-001 remains **REVISE**; its remaining live checks are deferred
+and nonblocking for authorized development.
+
 Numberdroid Studio is the local-first, agent-first authoring and production system for turning visual sources and level requirements into inspectable, validated game-content candidates. Numberdroid is the first complete target; reusable core and authoring modules may later feed other project or engine adapters. The visual application and MCP server execute the same semantic commands through one application core.
 
 The product lives in this self-contained folder so it can be moved into a standalone repository without moving Numberdroid runtime code with it. Numberdroid-specific imports and exports belong only in `packages/numberdroid-adapter`. The binding product direction is [Product Vision](docs/VISION.md); historical checkpoint contracts remain compatibility and regression records, not the final scope ceiling.
@@ -140,8 +145,10 @@ characters, plain local-file counts, and whether that same branch is current on
 GitHub, has unpulled commits, has local-only commits, differs, or exists only
 locally. Broken/prunable worktrees are hidden. Type `d` in the prompt or pass
 `--verbose` only when full paths, SHAs, trees, and `main` comparisons are useful.
-After version selection, the menu offers `empty`, `vt001-room`, and `vt001-task`
-fixtures.
+After version selection, choose **Create a working project**, **Open a working
+project**, or **Start a test fixture**. A working project uses one selected
+worktree; fixture comparisons may use several. Test profiles remain `empty`,
+`vt001-room`, and `vt001-task`.
 For a reproducible non-interactive launch:
 
 ```bash
@@ -150,13 +157,40 @@ npm run studio -- --select 1,3-4 --fixture vt001-room
 npm run studio -- --all --fixture empty --base-port 4317
 ```
 
+For ongoing authoring, create a named project in a new absolute directory
+outside temporary storage and every repository worktree. Its parent directory
+must already exist. Studio creates an empty project with that name, ready for
+your own sources and rooms. Reopen the same directory to continue saved work:
+
+```bash
+npm run studio -- --select 1 --new-project "Transfer Hall" --project-directory /absolute/new-project
+npm run studio -- --select 1 --open-project /absolute/new-project
+```
+
+Create refuses every existing destination, including an empty directory. Open
+requires the working-project identity written by this launcher, a matching
+saved Studio project, supported schema and safe SQLite/CAS paths. It checks a
+private copy of the database and any WAL before opening the original; that
+inspection is bounded to 512 MiB of database/WAL data and 100,000 filesystem
+entries. Unknown, incomplete, shared/hardlinked, redirected, backup and
+quarantined directories are refused. This mode does not adopt an older unmarked
+workspace or activate a restored copy. Reopening issues no project command.
+
+The saved-project directory and temporary launch logs are reported separately.
+Type `q` and press Enter to stop; your project remains at its selected location.
+Launcher-created current Studio children first drain through private process
+IPC, with bounded termination fallback when shutdown cannot finish. No browser
+or MCP shutdown operation is added. This is an automated implementation
+candidate; its live user check is deferred under VT-015.
+
 Each ready block retains the exact worktree, branch, full HEAD, committed Studio
 tree, effective source fingerprint, fixture profile, HTTP health result, PID,
 URL, data directory, and log path needed to verify a test. Missing Studio
 dependencies and prunable worktrees are available only in technical details;
 Git-locked worktrees remain usable. The launcher never runs
-`npm install`, never points at `.numberdroid-studio` or another existing
-workspace, and never opens a browser automatically. It performs one bounded,
+`npm install` and never opens a browser automatically. Fixture mode always
+creates fresh data; only explicit **Open a working project** reuses a verified
+saved directory. It performs one bounded,
 read-only check of GitHub branch heads; technical mode includes exact
 relationship details. Use `--offline` to rely on cached `origin/*` references. It never
 switches, pulls, fetches, stashes, or overwrites a worktree: the selected local
@@ -356,17 +390,20 @@ These current product documents are normative for the Studio implementation. If
 code and documentation disagree, the discrepancy must be resolved explicitly;
 it must not become an accidental new contract.
 
-Current task launch snapshot: [2026-08-31 A4a/A4b integrated, A4c authorized handoff](../../docs/history/handoffs/HANDOFF_2026-08-31_NUMBERDROID_STUDIO_A4A_A4B_INTEGRATED_A4C_AUTHORIZED.md).
-It is a dated execution snapshot, not a product contract, and remains
-subordinate to newer current code and documentation.
+Current task entrypoint: [Start here](docs/START_HERE.md). Read a historical
+handoff when explicitly named or needed for evidence; current code and
+contracts remain authoritative.
 
 ## Safe reset and recovery
 
 Stop the Studio process before moving a data directory. Prefer the verified administration flow above for durable recovery.
 
-1. For a reset, rename `.numberdroid-studio/` to a dated backup such as `.numberdroid-studio.backup-2026-08-21/` instead of deleting it.
-2. Start Studio again; it creates a new empty data directory. Use **Create / load demo** if a test fixture is wanted.
-3. To recover, stop Studio, rename the new data directory out of the way, restore the backup directory to `.numberdroid-studio/`, and restart.
-4. Run `npm run admin -- integrity <restored-directory>`, then confirm the expected project revision, activity count, and Asset previews before continuing work.
+Preserve the existing workspace. Reset experiments use a fresh workspace; they
+do not replace or rename the active one. For recovery, verify a backup and
+restore it only into a new destination using the administration flow above.
+Inspect the copy and its integrity results without replacing or activating the
+current workspace. Restore-as-copy does not authorize activation or cutover;
+that requires its own explicit decision under the
+[backup/recovery contract](docs/O0_BACKUP_RECOVERY_CONTRACT.md).
 
 Never merge data directories, copy only a live SQLite main file, edit ledgers manually, or reuse a restore destination. C1A migration is copy-and-verify into a new SQLite/CAS destination; the original baseline remains untouched as accepted regression and migration evidence even after 1B acceptance. Cutover is explicit, JSON and SQLite are never concurrent authoritative writers, and rollback preserves the failed/new destination plus recovery evidence instead of silently discarding post-cutover work.

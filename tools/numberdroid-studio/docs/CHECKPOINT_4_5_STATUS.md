@@ -1,5 +1,16 @@
 # Numberdroid Studio — Checkpoint 4.5 Candidate Record
 
+## 2026-09-06 current disposition
+
+**Acceptance: REVISE. Live checks: deferred and nonblocking for authorized
+development.** Klaus requested unattended cleanup and Studio development; this
+changes sequencing, not acceptance. PR #206 is refreshed, merged and post-merge
+green; the [Room status](ROOM_EDITOR_L3_STATUS.md) records exact source evidence
+and individual live passes. The [VT-001 backlog](VACATION_TEST_BACKLOG.md#vt-001--cp45-desktop-designer-gate)
+owns the remaining task lifecycle, findings and Preview/return checks. The
+earlier walkthrough below remains historical criteria, not a request to repeat
+every passed step. Only Klaus can close the final live gate.
+
 ## 2026-09-01 live gate: REVISE
 
 Klaus verified the core task/room workflow on Linux Chrome. Persistence, task conflict safety, painting, layers, surfaces and Props work, but acceptance is blocked by Surface-under-Prop click interception, cropped rotated Prop preview, insufficient saved-with-errors/action-required visibility and responsive overflow. The complete prioritized record is [`LIVE_VERIFICATION_2026_09_01.md`](LIVE_VERIFICATION_2026_09_01.md). Larger editor improvements are sequenced after the bounded functional repair.
