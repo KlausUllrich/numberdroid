@@ -7,6 +7,7 @@ import { InMemoryProjectStore } from '../packages/persistence/src/index.js';
 import { BackupOperationsController } from '../apps/studio-server/src/backup-operations-controller.js';
 import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
 import { generateWorkspaceOperatorBootstrapSecret } from '../apps/studio-server/src/workspace-operator-session.js';
+import { closeBrowserAndRemoveProfile, finishCapture, trackProcessClose } from './browser-process-teardown.js';
 
 const [chromePath, outputArgument] = process.argv.slice(2);
 if (!chromePath || !outputArgument) {
@@ -368,23 +369,25 @@ const chrome = spawn(chromePath, [
   '--remote-allow-origins=*', '--no-first-run', '--no-default-browser-check',
   `--user-data-dir=${profileDirectory}`, 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
+const chromeClose = trackProcessClose(chrome);
 let chromeDiagnostics = '';
 chrome.stderr.setEncoding('utf8');
 chrome.stderr.on('data', (chunk) => { chromeDiagnostics += chunk; });
-const chromeExited = new Promise((resolveExit) => chrome.once('exit', resolveExit));
 
 async function devtoolsUrl() {
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
     const match = /DevTools listening on (ws:\/\/[^\s]+)/.exec(chromeDiagnostics);
     if (match) return match[1];
-    if (chrome.exitCode !== null) break;
+    if (chromeClose.spawnError) throw chromeClose.spawnError;
+    if (chromeClose.closed || chrome.exitCode !== null) break;
     await delay(20);
   }
   throw new Error(`Chrome DevTools did not start. ${chromeDiagnostics}`);
 }
 
 let devtools = null;
+let captureError = null;
 const observations = { schemaVersion: 1, candidateStatus: 'implemented candidate — not user accepted', screens: [] };
 try {
   devtools = await DevTools.connect(await devtoolsUrl());
@@ -650,14 +653,21 @@ try {
   assert(!/numberdroid_backup_operator=|databaseSha256|\/tmp\//.test(serialized),
     'Evidence observation contains a token or raw path field.');
   await writeFile(resolve(outputDirectory, 'observation.json'), serialized, 'utf8');
+} catch (error) {
+  captureError = error;
 } finally {
-  try { devtools?.close(); } catch {}
-  if (chrome.exitCode === null) chrome.kill('SIGTERM');
-  await Promise.race([chromeExited, delay(5_000)]);
-  await closeServer(unavailableServer).catch(() => {});
-  await closeServer(server).catch(() => {});
-  await controller.close().catch(() => {});
-  await rm(profileDirectory, { recursive: true, force: true });
+  await finishCapture(captureError, [
+    () => closeBrowserAndRemoveProfile({
+      child: chrome,
+      trackedClose: chromeClose,
+      requestBrowserClose: () => devtools?.send('Browser.close', {}, undefined, 2_000),
+      closeConnection: () => devtools?.close(),
+      removeProfile: () => rm(profileDirectory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }),
+    }),
+    () => closeServer(unavailableServer),
+    () => closeServer(server),
+    () => controller.close(),
+  ]);
 }
 
 assert(harness.closed, 'Visual runtime did not close.');
