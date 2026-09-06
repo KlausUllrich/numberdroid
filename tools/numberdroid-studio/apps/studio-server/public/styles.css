@@ -520,6 +520,7 @@ h2, h3 { margin: 0; }
 .task-list-item small { grid-column: 1 / -1; overflow-wrap: anywhere; color: var(--muted); font: 9px ui-monospace, monospace; }
 .task-list-item[data-selected="true"] { border-color: var(--mint); background: #193128; }
 .status-pill[data-task-state="IN_REVIEW"] { border-color: #9a793e; background: #2b2112; color: var(--amber); }
+.status-pill[data-task-attention="CONFLICT"] { border-color: #9d5e4d; background: #351915; color: #ffb39e; }
 .task-list-item[data-task-attention="ACTION_REQUIRED"] { border-color: #8c713e; border-left: 4px solid var(--amber); background: #241e13; }
 .task-list-item[data-task-attention="CONFLICT"] { border-color: #8a5749; border-left: 4px solid #ff9a80; background-color: #2b1815; background-image: repeating-linear-gradient(135deg, transparent 0 11px, #4b211b44 11px 14px); }
 .task-list-attention { display: grid; grid-column: 1 / -1; gap: 3px; padding: 7px 8px; border: 1px solid #745f37; border-radius: 6px; background: #18140d; color: #d9c28f; font-size: 9px; line-height: 1.45; }
@@ -538,6 +539,8 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
 .task-workflow-state h3, .task-workflow-state p { margin: 0; }
 .task-workflow-state p { margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .task-workflow-state .task-next-step { color: #d7eee6; font-weight: 700; }
+.task-workflow-state[data-task-attention="CONFLICT"] { border-color: #9d5e4d; border-left: 4px solid #ff9a80; background: #2b1815; }
+.task-workflow-state[data-task-attention="CONFLICT"] .task-next-step { color: #ffd1c5; }
 .task-processing-adoption { min-width: 0; margin: 12px 0; padding: 14px; border: 1px solid #3b665a; border-radius: 8px; background: #0d1b17; overflow-wrap: anywhere; }
 .task-processing-adoption h3, .task-processing-adoption h4, .task-processing-adoption h5, .task-processing-adoption p { margin: 0; }
 .task-processing-adoption h4 { margin-top: 13px; color: #e1f3ed; font-size: 15px; }
@@ -563,22 +566,39 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
 .processed-asset-history ol { display: grid; gap: 5px; margin: 8px 0 0; padding-left: 20px; color: var(--muted); font-size: 9px; line-height: 1.45; }
 .processed-asset-technical .policy-details { margin-top: 9px; }
 .task-detail-section { margin-top: 18px; padding-top: 16px; border-top: 1px solid #29483f; }
+.task-facts-compact { margin: 14px 0 10px; }
+.task-facts-compact h3 { margin: 0; font-size: 14px; }
+.task-facts-compact .policy-details { margin: 8px 0 0; }
 .task-technical-details { margin: 10px 0; padding: 9px 11px; border: 1px solid #29483f; border-radius: 7px; background: #0d1916; }
 .task-technical-details summary, .task-review-items summary { color: #b7d1c8; cursor: pointer; font-size: 10px; }
 .task-technical-details > p { margin: 8px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .task-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; }
-.task-timeline, .task-review-items { display: grid; gap: 7px; margin: 10px 0 0; padding: 0; list-style: none; }
+.task-inline-meta { display: block; color: var(--muted); font: 9px/1.45 ui-monospace, monospace; overflow-wrap: anywhere; }
+.task-timeline, .task-review-items { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
 .task-timeline li, .task-review-items li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px; border: 1px solid #29483f; border-radius: 7px; background: #0d1916; }
+.task-timeline li { padding: 7px 9px; }
 .task-timeline strong, .task-timeline small { display: block; }
 .task-timeline small { color: var(--muted); font: 9px ui-monospace, monospace; }
 .task-review { margin-top: 14px; }
 .task-review > p { color: var(--muted); font-size: 11px; }
+.task-review-comparison { margin: 7px 0 10px; }
+.task-conflict-summary { margin: 10px 0 12px; padding: 13px; border: 1px solid #9d5e4d; border-left: 4px solid #ff9a80; border-radius: 7px; background: #2b1815; }
+.task-conflict-summary h4, .task-conflict-summary p { margin: 0; }
+.task-conflict-summary h4 { color: #ffc0af; font-size: 15px; }
+.task-conflict-summary p { margin-top: 7px; color: #e7c0b6; font-size: 11px; line-height: 1.5; }
+.task-conflict-items { display: grid; gap: 2px; margin-top: 7px; }
+.task-conflict-items small { color: #dca497; font: 9px/1.45 ui-monospace, monospace; overflow-wrap: anywhere; }
+.task-conflict-recommendation strong { color: #ffd8cd; }
 .task-review-items li > div { display: grid; gap: 4px; min-width: 0; }
 .task-review-items details { min-width: 0; }
 .task-review-items code { overflow-wrap: anywhere; color: var(--cyan); font-size: 10px; }
 .task-review-items select { min-width: 175px; background: #111f1b; }
 .task-review-disposition-readonly { color: #e5bf6d; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .task-review > button { margin: 12px 8px 0 0; }
+.task-review-actions { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 8px 12px; margin-top: 12px; }
+.task-review-actions button { justify-self: start; margin: 0; }
+.task-action-consequence { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.task-review-actions .task-action-note { grid-column: 1 / -1; }
 .task-action-note { margin: 10px 0 0; color: var(--muted); font-size: 10px; }
 .task-conflicts { padding: 10px 10px 10px 28px; border: 1px solid #805548; border-radius: 7px; background: #2b1815; color: #ffb294; font-size: 11px; }
 .task-conflicts li { display: grid; gap: 5px; }
@@ -698,6 +718,8 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .task-list-header { display: grid; grid-template-columns: 1fr; }
   .task-detail .panel-heading { display: grid; grid-template-columns: 1fr; }
   .task-detail-header-actions { justify-items: start; }
+  .task-review-actions { grid-template-columns: 1fr; }
+  .task-action-consequence { margin-bottom: 6px; }
   .task-form .task-objective, .task-form fieldset { grid-column: auto; }
   .task-form fieldset { grid-template-columns: 1fr; }
   .backup-section-heading, .backup-primary-actions, .backup-restore-action { display: grid; grid-template-columns: 1fr; justify-content: stretch; }

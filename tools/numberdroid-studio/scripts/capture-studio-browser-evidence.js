@@ -643,7 +643,13 @@ try {
           overviewMetrics,
           overviewAttention,
           listContained,
-          conflictCount: document.querySelectorAll('.task-conflicts li').length,
+          conflictCount: document.querySelectorAll('.task-conflict-items small').length,
+          conflictSummaryText: document.querySelector('.task-conflict-summary')?.textContent ?? null,
+          conflictInlineMetaCount: document.querySelectorAll('.task-conflict-items .task-inline-meta, .task-conflict-items small').length,
+          conflictActionConsequenceCount: document.querySelectorAll('.task-review-actions .task-action-consequence').length,
+          timelineTechnicalDisclosureCount: document.querySelectorAll('.task-timeline details').length,
+          reviewTechnicalDisclosureCount: document.querySelectorAll('.task-review-items details').length,
+          statusBadgeText: document.querySelector('.task-detail [data-task-state]')?.textContent ?? null,
           reviewItemCount: document.querySelectorAll('.task-review-items li').length,
           timelineCount: document.querySelectorAll('.task-timeline li').length,
           hasMerge: Boolean(merge),
@@ -2788,6 +2794,8 @@ try {
         const firstSection = document.querySelector('[data-processing-adoption]');
         const firstDetail = document.querySelector('[data-task-view="detail"]');
         const firstImage = firstSection.querySelector('[data-processing-adoption-preview-image]');
+        const currentStep = document.querySelector('[data-task-selection-key="current-step"]');
+        const taskFacts = document.querySelector('[data-task-selection-key="task-facts"]');
         const initial = {
           selectedTaskId: firstDetail?.dataset.taskContext?.split(':').slice(1).join(':') ?? null,
           state: firstSection.dataset.processingAdoptionState,
@@ -2803,9 +2811,10 @@ try {
           correctionCount: firstSection.querySelectorAll('[data-processing-adoption-quality="correction"] li').length,
           warningCount: firstSection.querySelectorAll('[data-processing-adoption-quality="warnings"] li').length,
           mutationControlCount: firstSection.querySelectorAll('button, form, input, select, textarea, a[href], [data-task-control]').length,
-          headingOrder: document.querySelector('.task-workflow-state').compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
-            ? (firstSection.compareDocumentPosition(document.querySelector('.task-detail > .policy-details')) & Node.DOCUMENT_POSITION_FOLLOWING ? 'current-adoption-facts' : 'invalid')
-            : 'invalid',
+          headingOrder: currentStep && taskFacts
+            && (currentStep.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING)
+            && (firstSection.compareDocumentPosition(taskFacts) & Node.DOCUMENT_POSITION_FOLLOWING)
+            ? 'current-adoption-facts' : 'invalid',
         };
         const decodeFailed = new Promise((resolveFailure) => firstImage.addEventListener('error', resolveFailure, { once: true }));
         firstImage.src = 'data:image/png;base64,AAECAw==';
@@ -3123,9 +3132,12 @@ try {
           ?? selectedTask?.querySelector('[data-task-state]')?.dataset.taskState ?? null,
         selectedText: document.querySelector('.task-detail')?.textContent ?? null,
         timelineCount: document.querySelectorAll('.task-timeline li').length,
-        conflictCount: document.querySelectorAll('.task-conflicts li').length,
-        conflictText: document.querySelector('.task-conflicts')?.textContent ?? null,
-        conflictTechnicalOpenCount: document.querySelectorAll('.task-conflicts details[open]').length,
+        conflictCount: document.querySelectorAll('.task-conflict-items small').length,
+        conflictText: document.querySelector('.task-conflict-summary')?.textContent ?? null,
+        conflictInlineMetaCount: document.querySelectorAll('.task-conflict-items small').length,
+        conflictActionConsequenceCount: document.querySelectorAll('.task-review-actions .task-action-consequence').length,
+        timelineTechnicalDisclosureCount: document.querySelectorAll('.task-timeline details').length,
+        reviewTechnicalDisclosureCount: document.querySelectorAll('.task-review-items details').length,
         reviewItemCount: document.querySelectorAll('.task-review-items li').length,
         reviewText: document.querySelector('.task-review')?.textContent ?? null,
         reviewDispositions: [...document.querySelectorAll('[data-task-review-disposition]')]
@@ -3583,16 +3595,30 @@ try {
           && checkpoint4TaskFocus.conflictCount === 1
           && checkpoint4TaskFocus.reviewItemCount === 1
           && checkpoint4TaskFocus.timelineCount === 3
-          && checkpoint4TaskFocus.mergeDisabled === true
+          && checkpoint4TaskFocus.hasMerge === false
+          && checkpoint4TaskFocus.mergeDisabled === null
           && checkpoint4TaskFocus.mergeConfirmCalls === 0
           && checkpoint4TaskFocus.reviewVisible === true
-          && layout.taskWorkspace.conflictText?.includes('SEMANTIC_MERGE_CONFLICT: source:source.checkpoint-4.shared')
-          && layout.taskWorkspace.reviewText?.includes('Waiting for your review')
-          && layout.taskWorkspace.reviewText?.includes('overlaps newer project work')
-          && layout.taskWorkspace.conflictTechnicalOpenCount === 0
+          && checkpoint4TaskFocus.statusBadgeText === 'Changes cannot be added'
+          && checkpoint4TaskFocus.conflictSummaryText?.includes('Applying the agent result could overwrite newer work')
+          && checkpoint4TaskFocus.conflictSummaryText.includes('Affected source: source.checkpoint-4.shared')
+          && checkpoint4TaskFocus.conflictSummaryText.includes('Recorded as SEMANTIC_MERGE_CONFLICT')
+          && checkpoint4TaskFocus.conflictInlineMetaCount === 1
+          && checkpoint4TaskFocus.conflictActionConsequenceCount === 2
+          && checkpoint4TaskFocus.timelineTechnicalDisclosureCount === 0
+          && checkpoint4TaskFocus.reviewTechnicalDisclosureCount === 0
+          && checkpoint4TaskFocus.processingAdoptionSectionCount === 0
+          && layout.taskWorkspace.conflictText?.includes('Recommended: End this task without adding changes')
+          && layout.taskWorkspace.reviewText?.includes('Saving that decision changes only this review')
+          && layout.taskWorkspace.reviewText?.includes('Adds nothing to the project')
+          && layout.taskWorkspace.conflictInlineMetaCount === 1
+          && layout.taskWorkspace.conflictActionConsequenceCount === 2
+          && layout.taskWorkspace.timelineTechnicalDisclosureCount === 0
+          && layout.taskWorkspace.reviewTechnicalDisclosureCount === 0
           && layout.taskWorkspace.controlNames.includes('decide')
-          && layout.taskWorkspace.controlNames.includes('merge'),
-        'Checkpoint 4 conflict review lost its explanation or fail-closed merge control.');
+          && layout.taskWorkspace.controlNames.includes('reject')
+          && !layout.taskWorkspace.controlNames.includes('merge'),
+        'Checkpoint 4 conflict review lost its conflict-first explanation, action consequences, or inline metadata.');
       }
       if (checkpoint4Focus === 'merged') {
         assert(checkpoint4TaskFocus?.selectedState === 'MERGED'

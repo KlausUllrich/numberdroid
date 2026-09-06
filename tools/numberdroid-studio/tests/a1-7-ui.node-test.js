@@ -135,7 +135,8 @@ test('A1.7 render remains after Current step, before task facts, and contains no
   const app = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
   const renderer = app.slice(app.indexOf('function renderProcessingAdoption'), app.indexOf('function taskMergeBlockedReason'));
   const taskDetail = app.slice(app.indexOf('function renderTaskDetail'), app.indexOf('function renderTasks'));
-  assert.match(taskDetail, /detail\.append\(workflow\);\s*if \(taskMayLoadProcessingAdoption\(selected\)\) detail\.append\(renderProcessingAdoption\(selected\)\);\s*const facts/);
+  assert.match(taskDetail, /detail\.append\(workflow\);\s*if \(reviewHasConflict\) detail\.append\(renderTaskReview\(selected\)\);\s*if \(taskMayLoadProcessingAdoption\(selected\)\) detail\.append\(renderProcessingAdoption\(selected\)\);\s*const factsSection/);
+  assert.match(app.slice(app.indexOf('function taskMayLoadProcessingAdoption'), app.indexOf('async function loadSelectedTaskAdoption')), /capabilities\?\.includes\('asset\.processing-result\.adopt'\)/);
   assert.match(renderer, /Processed asset draft/);
   assert.match(renderer, /Waiting for your review\./);
   assert.match(renderer, /implemented candidate — not user accepted/);
@@ -173,6 +174,7 @@ test('A1.7 passive refresh fingerprints bounded attempts and preserves compatibl
   assert.ok(taskRestore.indexOf('restoreTaskTextSelection') < taskRestore.indexOf('taskScrollElements(root)'));
   assert.match(app, /function requestTaskAdoptionProjection[\s\S]*AbortController[\s\S]*5_000/);
   assert.match(app, /requestTaskAdoptionProjection\(projectId, selectedTaskId\)/);
+  assert.match(app, /const taskDetails = await Promise\.all[\s\S]*const selectedTaskDetails = taskDetails\.find[\s\S]*selectedTaskId && taskMayLoadProcessingAdoption\(selectedTaskDetails\)[\s\S]*await requestTaskAdoptionProjection/);
   const openTaskDetail = app.slice(
     app.indexOf('async function openTaskDetailWithAdoption'),
     app.indexOf('async function sha256Hex'),
@@ -247,6 +249,8 @@ test('A1.7 module and evidence wiring are same-origin, real-fixture, two-viewpor
   assert.match(capture, /durableSnapshotUnchanged/);
   assert.match(capture, /accessibilityScope = axRoot \? 'processing-adoption'/);
   assert.match(capture, /sameAdoptionNode/);
+  assert.match(capture, /currentStep = document\.querySelector\('\[data-task-selection-key="current-step"\]'\)/);
+  assert.match(capture, /taskFacts = document\.querySelector\('\[data-task-selection-key="task-facts"\]'\)/);
   assert.match(capture, /Accessibility\.getFullAXTree/);
   assert.match(capture, /const taskDetailDeadline = Date\.now\(\) \+ 6_000;[\s\S]{0,220}\.task-detail \[data-task-state\]/);
   assert.match(styles, /html\[data-visual-task-scroll-probe="true"\] \.task-detail \{ max-height: 420px; overflow: auto; \}/);
