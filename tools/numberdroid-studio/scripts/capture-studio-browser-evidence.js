@@ -2794,6 +2794,8 @@ try {
         const firstSection = document.querySelector('[data-processing-adoption]');
         const firstDetail = document.querySelector('[data-task-view="detail"]');
         const firstImage = firstSection.querySelector('[data-processing-adoption-preview-image]');
+        const currentStep = document.querySelector('[data-task-selection-key="current-step"]');
+        const taskFacts = document.querySelector('[data-task-selection-key="task-facts"]');
         const initial = {
           selectedTaskId: firstDetail?.dataset.taskContext?.split(':').slice(1).join(':') ?? null,
           state: firstSection.dataset.processingAdoptionState,
@@ -2809,9 +2811,10 @@ try {
           correctionCount: firstSection.querySelectorAll('[data-processing-adoption-quality="correction"] li').length,
           warningCount: firstSection.querySelectorAll('[data-processing-adoption-quality="warnings"] li').length,
           mutationControlCount: firstSection.querySelectorAll('button, form, input, select, textarea, a[href], [data-task-control]').length,
-          headingOrder: document.querySelector('.task-workflow-state').compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING
-            ? (firstSection.compareDocumentPosition(document.querySelector('.task-detail > .policy-details')) & Node.DOCUMENT_POSITION_FOLLOWING ? 'current-adoption-facts' : 'invalid')
-            : 'invalid',
+          headingOrder: currentStep && taskFacts
+            && (currentStep.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING)
+            && (firstSection.compareDocumentPosition(taskFacts) & Node.DOCUMENT_POSITION_FOLLOWING)
+            ? 'current-adoption-facts' : 'invalid',
         };
         const decodeFailed = new Promise((resolveFailure) => firstImage.addEventListener('error', resolveFailure, { once: true }));
         firstImage.src = 'data:image/png;base64,AAECAw==';

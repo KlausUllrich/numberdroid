@@ -174,6 +174,7 @@ test('A1.7 passive refresh fingerprints bounded attempts and preserves compatibl
   assert.ok(taskRestore.indexOf('restoreTaskTextSelection') < taskRestore.indexOf('taskScrollElements(root)'));
   assert.match(app, /function requestTaskAdoptionProjection[\s\S]*AbortController[\s\S]*5_000/);
   assert.match(app, /requestTaskAdoptionProjection\(projectId, selectedTaskId\)/);
+  assert.match(app, /const taskDetails = await Promise\.all[\s\S]*const selectedTaskDetails = taskDetails\.find[\s\S]*selectedTaskId && taskMayLoadProcessingAdoption\(selectedTaskDetails\)[\s\S]*await requestTaskAdoptionProjection/);
   const openTaskDetail = app.slice(
     app.indexOf('async function openTaskDetailWithAdoption'),
     app.indexOf('async function sha256Hex'),
@@ -248,6 +249,8 @@ test('A1.7 module and evidence wiring are same-origin, real-fixture, two-viewpor
   assert.match(capture, /durableSnapshotUnchanged/);
   assert.match(capture, /accessibilityScope = axRoot \? 'processing-adoption'/);
   assert.match(capture, /sameAdoptionNode/);
+  assert.match(capture, /currentStep = document\.querySelector\('\[data-task-selection-key="current-step"\]'\)/);
+  assert.match(capture, /taskFacts = document\.querySelector\('\[data-task-selection-key="task-facts"\]'\)/);
   assert.match(capture, /Accessibility\.getFullAXTree/);
   assert.match(capture, /const taskDetailDeadline = Date\.now\(\) \+ 6_000;[\s\S]{0,220}\.task-detail \[data-task-state\]/);
   assert.match(styles, /html\[data-visual-task-scroll-probe="true"\] \.task-detail \{ max-height: 420px; overflow: auto; \}/);

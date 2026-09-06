@@ -5374,20 +5374,19 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false } =
     && taskList.tasks.some((task) => task.taskId === state.taskUi.selectedTaskId)
     ? state.taskUi.selectedTaskId
     : null;
-  const selectedTaskSummary = taskList.tasks.find(({ taskId }) => taskId === selectedTaskId);
   const taskSelectionOwner = {
     generation: taskSelectionGeneration,
     projectId,
     taskId: selectedTaskId,
   };
-  const [taskDetails, selectedAdoption] = await Promise.all([
-    Promise.all(taskList.tasks.map((task) => (
-      api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
-    ))),
-    selectedTaskId && taskMayLoadProcessingAdoption({ task: selectedTaskSummary })
-      ? requestTaskAdoptionProjection(projectId, selectedTaskId)
-      : Promise.resolve(null),
-  ]);
+  const taskDetails = await Promise.all(taskList.tasks.map((task) => (
+    api(`/api/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(task.taskId)}`)
+  )));
+  if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
+  const selectedTaskDetails = taskDetails.find(({ task }) => task.taskId === selectedTaskId);
+  const selectedAdoption = selectedTaskId && taskMayLoadProcessingAdoption(selectedTaskDetails)
+    ? await requestTaskAdoptionProjection(projectId, selectedTaskId)
+    : null;
   if (generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   if (state.project?.projectId !== projectId) {
     state.sourceDraft = null;

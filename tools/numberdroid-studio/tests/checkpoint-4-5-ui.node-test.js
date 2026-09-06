@@ -126,7 +126,7 @@ test('derived Candidate children expose read-only lineage, reservations, and anc
   assert.match(app, /function taskMayLoadProcessingAdoption\(entry\)/);
   assert.match(app, /origin !== 'TRUSTED_SERVICE_CHILD'/);
   assert.match(detail, /if \(taskMayLoadProcessingAdoption\(selected\)\) detail\.append\(renderProcessingAdoption\(selected\)\)/);
-  assert.match(app, /selectedTaskId && taskMayLoadProcessingAdoption\(\{ task: selectedTaskSummary \}\)/);
+  assert.match(app, /selectedTaskId && taskMayLoadProcessingAdoption\(selectedTaskDetails\)/);
   assert.doesNotMatch(detail, /taskControl = 'derive'|data-task-control="derive"/);
   const workflow = app.slice(app.indexOf('function taskWorkflowPresentation'), app.indexOf('function taskAttentionPresentation'));
   assert.match(workflow, /origin === 'TRUSTED_SERVICE_CHILD' && stateValue === 'ACTIVE'/);
