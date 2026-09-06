@@ -1054,12 +1054,24 @@ try {
         })()`, returnByValue: true,
       }, sessionId);
       const loadFocusResult = await devtools.send('Runtime.evaluate', {
-        expression: `(() => {
+        expression: `(async () => {
+          // READY DOM/resources may precede the render frame that restores focus.
+          // Observe the settled UI without assigning focus from the capture harness.
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const root = document.querySelector('[data-room-preview]');
-          return Boolean(root && document.activeElement === root);
-        })()`, returnByValue: true,
+          return {
+            rootFocused: Boolean(root && document.activeElement === root),
+            activeTag: document.activeElement?.tagName ?? null,
+            activeId: document.activeElement?.id ?? null,
+            activeClass: document.activeElement?.className ?? null,
+            documentFocused: document.hasFocus(),
+            visibilityState: document.visibilityState,
+            previewState: root?.dataset.roomPreviewState ?? null,
+          };
+        })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
-      assert(loadFocusResult.result?.value === true, 'Async Studio preview load did not preserve focus on the preview root.');
+      assert(loadFocusResult.result?.value?.rootFocused === true,
+        `Async Studio preview load did not preserve focus on the preview root: ${JSON.stringify(loadFocusResult.result?.value)}`);
       const inspectFocused = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const inspect = document.querySelector('[data-preview-inspect="prop.preview-overhang"]');
@@ -1241,7 +1253,7 @@ try {
           && previewActivation.events[1].detail === 0
           && previewActivation.events[2].type === 'keyup'
           && previewActivation.events[2].isTrusted === true,
-        loadFocusPreserved: loadFocusResult.result?.value === true,
+        loadFocusPreserved: loadFocusResult.result?.value?.rootFocused === true,
         transparentPixelDelta: delta(transparentPainted, transparentReference),
         opaqueOverhangPixelDelta: delta(opaquePainted, opaqueReference),
         changedPixelCount,
