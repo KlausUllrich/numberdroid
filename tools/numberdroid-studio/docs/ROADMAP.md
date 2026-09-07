@@ -26,9 +26,9 @@ Each screen now follows goal/requirements discussion → agreed mockup → ownin
 repository documentation → implementation and selected verification. Prove the
 implemented workflow with a real authorized agent through the semantic interface
 before asking Klaus to verify it; browser scripts alone do not prove agent use.
-The next design proof is selecting two of four source cuts and adjusting a cut,
-then placement/blocking and an assembly example. Existing UI candidates need
-reconciliation with the approved design. Broader game examples check boundaries;
+The [current task router](START_HERE.md) owns the next design block and links
+approved screen contracts, including the passed cutter mockup. Existing UI
+candidates need reconciliation with the approved design. Broader game examples check boundaries;
 they are not parallel implementation projects.
 
 This replaces unattended UI continuation as the immediate sequence. The adaptive

@@ -11,8 +11,8 @@ The working name remains unchanged; other game examples are design checks.
 The current sequence is screen goals/requirements → agreed mockup → owning
 repository documentation → implementation and risk-selected verification.
 Exercise the implemented workflow through a real agent before the user's focused
-verification. The next design proof is cutter selection/manual adjustment, then
-blocking and assembly editing. This supersedes unattended UI continuation and
+verification. The Studio task router below owns the current design sequence and
+approved screen contracts. This supersedes unattended UI continuation and
 requires existing UI candidates to be reconciled with the agreed design.
 VT-001 / CP4.5 and A1.7 remain REVISE; no acceptance, new runtime/media capability,
 materialization, publication or release is implied. The
