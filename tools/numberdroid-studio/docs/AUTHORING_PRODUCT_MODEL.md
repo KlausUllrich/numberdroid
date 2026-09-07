@@ -131,9 +131,14 @@ slider with Fit/100%, and independent edge handles. Its mockup passed; product
 implementation and real-agent verification remain separate.
 
 Placement editing distinguishes logical footprint, ground anchor, visual extent
-and movement blocking. The initial collision foundation supports one or several
-rectangles. Pixels, transparency, shadows and visual overhang cannot silently
-author blocking semantics. The same editor must support later Library revisions.
+and movement blocking. The current collision implementation supports one or
+several rectangles. The user-approved
+[Placement & Blocking Editor Design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md) adds a
+target editor for concave polygons, multiple named regions, rectangles and ovals,
+with Shift constraints for squares/circles. That requires matching geometry and
+integration work; current code must not silently replace those shapes with boxes.
+Pixels, transparency, shadows and visual overhang cannot silently author blocking
+semantics. The same editor must support later Library revisions.
 
 Assembly components need not share image dimensions: a 3 × 3 Prop can contain a
 1 × 1 animation at a relative position and a separately sized shadow. Components
@@ -216,9 +221,10 @@ For each screen, discuss its goal, requirements and behavior; agree on a mockup;
 update the owning repository documentation; then implement and verify. Approved
 product principles can be documented before every screen mockup is complete.
 The initial browsing mockup received positive overall feedback, and Klaus
-explicitly passed the complete cutter v3 mockup. Placement/blocking and assembly
-still need their screen discussions and mockups. Complete agent workflows still
-need implementation and verification. Mockup actions and sample content are not
+explicitly passed the complete cutter v3 mockup and the Placement & blocking
+walkthrough, including the placement v2 Oval / Shift refinements. Assembly still
+needs its screen discussion and mockup. Complete agent workflows still need
+implementation and verification. Mockup actions and sample content are not
 product evidence.
 
 Before requesting user verification of an implemented workflow, exercise it with
