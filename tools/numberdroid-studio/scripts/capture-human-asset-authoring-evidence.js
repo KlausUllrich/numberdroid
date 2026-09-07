@@ -115,6 +115,11 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
     assert.equal((await project()).snapshot.assetLibrary.assets.length, 0, 'Recording a decision applied the Asset automatically');
     await click('[data-proposal-apply]');
     await waitFor("document.querySelectorAll('.asset-v2-card').length === 1", 'Applied DRAFT Asset');
+    const applied = await project();
+    const picker = await evaluate(`({ value: document.getElementById('project-select').value, label: document.getElementById('project-select').selectedOptions[0]?.textContent, header: document.getElementById('revision-label').textContent })`);
+    assert.equal(picker.value, applied.projectId);
+    assert.equal(picker.label, `${applied.snapshot.project.name} · r${applied.revision}`, 'Project picker must show the accepted saved revision immediately after applying the Asset');
+    assert.equal(picker.header, `Revision ${applied.revision}`);
     await capture('asset', '.asset-v2-card');
     await click('[data-workspace="rooms"]');
     await waitFor("Boolean(document.querySelector('[data-room-form=" + JSON.stringify('archetype') + "]'))", 'Room archetype form');

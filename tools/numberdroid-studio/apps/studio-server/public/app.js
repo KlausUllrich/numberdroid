@@ -5593,6 +5593,19 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
   await loadProject(elements['project-select'].value, { preserveWorkspaceIfUnchanged });
 }
 
+function syncCurrentProjectPicker(project) {
+  const select = elements['project-select'];
+  if (select.value !== project.projectId) return;
+  const name = project.snapshot.project.name;
+  const summary = state.projects.find((entry) => entry.projectId === project.projectId);
+  if (summary && (summary.name !== name || summary.revision !== project.revision)) {
+    summary.name = name; summary.revision = project.revision;
+  }
+  const option = [...select.options].find((entry) => entry.value === project.projectId);
+  const label = `${name} · r${project.revision}`;
+  if (option && option.textContent !== label) option.textContent = label;
+}
+
 let projectLoadGeneration = 0;
 async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, signal = null, canApply = null } = {}) {
   if (!projectId || signal?.aborted || (canApply && !canApply())) return false;
@@ -5672,6 +5685,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
     resetSourceIntakeForm();
   }
   state.project = project;
+  syncCurrentProjectPicker(project);
   state.activity = Array.isArray(activity?.events) ? activity.events : [];
   reconcileAssetUi(project, previousAssetContext);
   reconcileRoomUi(project);
