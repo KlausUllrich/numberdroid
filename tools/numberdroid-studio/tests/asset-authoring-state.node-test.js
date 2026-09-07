@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createAssetAuthoringDraft, buildAssetAuthoringRequest, assetAuthoringConflict } from '../apps/studio-server/public/asset-authoring-state.js';
+import { createAssetAuthoringDraft, createAssetMetadataDraft, assetMetadataEditingEligibility, buildAssetAuthoringRequest, assetAuthoringConflict } from '../apps/studio-server/public/asset-authoring-state.js';
 import { validateAssetProposal, validateAssetMetadataForVisualFacts } from '../packages/domain/src/asset-definition.js';
 
 const context = { projectId: 'project.human', projectRevision: 7, sliceId: 'slice.saved', sliceVersion: 2,
@@ -88,4 +88,85 @@ test('a built request is immutable and independent of later edits while drafts r
   assert.equal(updated.items[0].name, 'Another proposed name');
   assert.equal(updated.items[0].metadata.runtimeEligible, true);
   assert.equal(updated.idempotencyKey, request.idempotencyKey); // UI freezes/reconciles the first submitted request.
+});
+
+function savedAsset() {
+  const metadata = structuredClone(buildAssetAuthoringRequest(draft({ width: '2', height: '3', anchorX: '1', anchorY: '2', runtimeEligible: 'true' })).items[0].metadata);
+  Object.assign(metadata, { tags: ['authored', 'keep'], variantGroup: 'furniture-family', compatibilityGroups: ['group.one'],
+    connectors: [{ edge: 'north', offset: 0.5 }], continuityProfile: 'edge.family', continuityTags: ['joined'],
+    selectionPriority: 17, extensions: { 'studio.test.authored': { artist: 'local', nested: ['kept', { weight: 2 }] } } });
+  metadata.placement.tags = ['placement-authored']; metadata.placement.confirmation = 'confirmed';
+  metadata.pixelSize = { width: 128, height: 192 }; metadata.pivot = { x: 10, y: 20 };
+  return { assetId: context.assetId, assetVersion: 3, metadataVersion: 2, name: 'Existing furnishing', kind: 'prop',
+    lifecycle: 'FINAL', metadata, sliceBinding: { sliceId: context.sliceId, sliceVersion: 2, mediaType: 'image/png',
+      sourceId: 'source.original', atlasId: 'atlas.original' } };
+}
+function edit(asset = savedAsset()) {
+  return createAssetMetadataDraft({ projectId: context.projectId, projectRevision: context.projectRevision,
+    asset, proposalId: context.proposalId, itemId: context.itemId, idempotencyKey: context.idempotencyKey });
+}
+
+test('metadata revision preserves every unexposed authored field and the fixed image/kind', () => {
+  const asset = savedAsset(); const before = structuredClone(asset); const value = edit(asset);
+  assert.equal(value.values.name, asset.name); assert.equal(value.values.runtimeEligible, 'true');
+  assert.equal(value.values.width, '2'); assert.equal(value.values.anchorY, '2');
+  Object.assign(value.values, { name: 'Revised furnishing', width: '4', height: '5', anchorX: '2', anchorY: '4', visualWeight: 'heavy' });
+  const request = buildAssetAuthoringRequest(value); const item = request.items[0];
+  assert.equal(item.operation, 'update'); assert.equal(item.expectedAssetVersion, 3); assert.equal(item.expectedMetadataVersion, 2);
+  assert.equal(item.assetId, asset.assetId); assert.equal(item.kind, asset.kind);
+  assert.equal(item.sliceId, asset.sliceBinding.sliceId); assert.equal(item.expectedSliceVersion, 2);
+  for (const key of ['tags', 'variantGroup', 'compatibilityGroups', 'connectors', 'continuityProfile', 'continuityTags', 'selectionPriority', 'extensions']) {
+    assert.deepEqual(item.metadata[key], asset.metadata[key], key);
+  }
+  assert.deepEqual(item.metadata.placement, asset.metadata.placement);
+  assert.deepEqual(item.metadata.collision.bounds, { x: 0, y: 0, width: 4, height: 5 });
+  assert.equal(Object.hasOwn(item.metadata, 'pixelSize'), false); assert.equal(Object.hasOwn(item.metadata, 'pivot'), false);
+  const { idempotencyKey: _key, ...proposal } = request;
+  validateAssetProposal({ ...proposal, projectId: context.projectId });
+  validateAssetMetadataForVisualFacts({ assetId: item.assetId, kind: item.kind, metadata: item.metadata,
+    pixelSize: asset.metadata.pixelSize, pivot: asset.metadata.pivot });
+  assert.deepEqual(asset, before); assert.ok(Object.isFrozen(value.baselineAsset.metadata.extensions));
+  value.values.width = '6'; assert.equal(item.metadata.spanTiles.width, 4);
+  value.values.kind = 'surface'; assert.throws(() => buildAssetAuthoringRequest(value), /identity, kind or image/);
+});
+
+test('a name-only revision preserves the complete typed metadata fingerprint', () => {
+  const asset = savedAsset(); const value = edit(asset); value.values.name = 'Renamed only';
+  const item = buildAssetAuthoringRequest(value).items[0];
+  const original = structuredClone(asset.metadata); delete original.pixelSize; delete original.pivot;
+  assert.deepEqual(item.metadata, original);
+  const validate = (metadata) => validateAssetMetadataForVisualFacts({ assetId: asset.assetId, kind: asset.kind, metadata,
+    pixelSize: asset.metadata.pixelSize, pivot: asset.metadata.pivot });
+  assert.equal(validate(item.metadata).fingerprint, validate(original).fingerprint);
+});
+
+test('metadata editor refuses unsupported profiles instead of flattening their semantics', () => {
+  assert.deepEqual(assetMetadataEditingEligibility(savedAsset()), { eligible: true, reason: null });
+  const cases = [
+    (asset) => { delete asset.sliceBinding; },
+    (asset) => { asset.sliceBinding = { kind: 'processing-result' }; },
+    (asset) => { asset.assetVersion = 0; },
+    (asset) => { asset.metadata.placement.modes.push('automatic'); },
+    (asset) => { asset.metadata.collision = { mode: 'parts', bounds: null, parts: [{ x: 0, y: 0, width: 1, height: 1 }] }; },
+    (asset) => { asset.metadata.collision.bounds.width = 1; },
+    (asset) => { asset.metadata.navigation = { effect: 'cost', cost: 2 }; },
+  ];
+  for (const mutate of cases) {
+    const asset = savedAsset(); mutate(asset); const before = structuredClone(asset);
+    assert.equal(assetMetadataEditingEligibility(asset).eligible, false);
+    assert.throws(() => edit(asset)); assert.deepEqual(asset, before);
+  }
+});
+
+test('metadata revision conflicts with recuts, changed Asset versions and unavailable baselines', () => {
+  const asset = savedAsset(); const value = edit(asset);
+  const current = { projectId: context.projectId, projectRevision: 7, slices: [{ sliceId: context.sliceId, version: 2 }], assets: [asset] };
+  assert.equal(assetAuthoringConflict(value, current), null);
+  for (const altered of [
+    { ...current, projectRevision: 8 }, { ...current, slices: [{ sliceId: context.sliceId, version: 3 }] },
+    { ...current, assets: [] }, { ...current, assets: [asset, asset] },
+    { ...current, assets: [{ ...asset, assetVersion: 4 }] }, { ...current, assets: [{ ...asset, metadataVersion: 3 }] },
+    { ...current, assets: [{ ...asset, kind: 'surface' }] },
+  ]) assert.equal(typeof assetAuthoringConflict(value, altered), 'string');
+  assert.equal(value.context.sliceVersion, 2); assert.equal(value.context.assetVersion, 3);
 });

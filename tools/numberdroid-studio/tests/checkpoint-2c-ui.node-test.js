@@ -111,6 +111,12 @@ test('human Asset form keeps explicit editable choices and locks a submitted req
   assert(inputs.every((input) => input.disabled === true));
   assert(nodes.some((node) => node.dataset.assetAuthoringRetry === ''));
   assert.equal(state.assetAuthoring.request.items[0].metadata.placement.confirmation, 'proposed');
+  state.assetAuthoring.request = null; state.assetAuthoring.draft.mode = 'update';
+  nodes = flatten(render()); inputs = nodes.filter(({ name }) => name);
+  assert.equal(inputs.find(({ name }) => name === 'kind').disabled, true);
+  assert(inputs.filter(({ name }) => name !== 'kind').every((input) => !input.disabled && input.value === draft.values[input.name]));
+  assert(nodes.some((node) => node.dataset.assetAuthoringSubmit === '' && node.textContent === 'Prepare changes for review'));
+  assert(nodes.some((node) => node.textContent?.includes('Existing Room contents remain unchanged')));
 });
 
 test('abandoning an Asset draft asks explicitly while unknown delivery keeps its exact request', async () => {
@@ -244,4 +250,58 @@ test('useful preview states exact attachment independently from boundaries and p
     const second = flatten(render({ assetId: 'asset.two', metadata: { attachment, rotationPolicy: 'cardinal' } }));
     assert(second.filter(({ tag }) => tag === 'button').every(({ dataset }) => !buttons.some((button) => button.dataset.assetFocusKey === dataset.assetFocusKey)));
   }
+});
+
+
+test('metadata editor availability refuses missing or recut imagery without replacing the pin', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function assetMetadataEditorAvailability('), app.indexOf('function prepareAssetMetadataEditor('));
+  const asset = { sliceBinding: { sliceId: 'slice.one', sliceVersion: 1, digest: 'same' } };
+  let slices = [{ slice: { sliceId: 'slice.one', version: 1, digest: 'same' } }];
+  let eligible = true;
+  const availability = runInNewContext(`${source}; assetMetadataEditorAvailability;`, {
+    assetMetadataEditingEligibility: () => ({ eligible, reason: eligible ? null : 'Custom collision requires another editor.' }),
+    currentProjectSlices: () => slices,
+  });
+  assert.equal(availability(asset).eligible, true);
+  slices = [{ slice: { sliceId: 'slice.one', version: 2, digest: 'same' } }];
+  assert.equal(availability(asset).eligible, false); assert.match(availability(asset).reason, /does not replace the image/);
+  eligible = false; assert.match(availability(asset).reason, /Custom collision/);
+});
+
+test('metadata baseline reload replaces stale visible choices only after confirmation and refuses image changes', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function reloadAssetMetadataBaseline('), app.indexOf('function mayAbandonAssetAuthoring('));
+  const original = { assetId: 'asset.one', kind: 'prop', sliceBinding: { sliceId: 'slice.one', sliceVersion: 1, digest: 'same' } };
+  let current = { ...structuredClone(original), name: 'Concurrent saved name', metadata: { tags: ['preserve-current'] } };
+  const authoring = { originalAsset: original, draft: { context: { projectId: 'project.one', assetId: 'asset.one' }, values: { name: 'Stale local edit' } } };
+  const state = { project: { projectId: 'project.one' }, assetAuthoring: authoring }; let confirm = false; let created = 0;
+  const reload = runInNewContext(`${source}; reloadAssetMetadataBaseline;`, { state,
+    currentAssetLibrary: () => ({ assets: [current] }), assetMetadataEditorAvailability: () => ({ eligible: true, pinned: {} }),
+    window: { confirm: () => confirm }, prepareAssetMetadataEditor(asset) { created += 1; return { draft: { values: { name: asset.name } }, preservedMetadata: asset.metadata }; },
+  });
+  assert.equal(reload(authoring), false); assert.equal(state.assetAuthoring, authoring); assert.equal(created, 0);
+  current.sliceBinding.sliceVersion = 2; confirm = true;
+  assert.equal(reload(authoring), false); assert.equal(created, 0); assert.match(authoring.error, /will not substitute/);
+  current.sliceBinding.sliceVersion = 1;
+  assert.equal(reload(authoring), true); assert.equal(created, 1);
+  assert.equal(state.assetAuthoring.draft.values.name, 'Concurrent saved name');
+  assert.deepEqual(state.assetAuthoring.preservedMetadata.tags, ['preserve-current']);
+});
+
+test('update recovery requires captured operation and exact expected Asset and metadata versions', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function canonicalAssetAuthoringJson('), app.indexOf('async function submitAssetAuthoring('));
+  const request = { expectedRevision: 10, proposalId: 'proposal.update', items: [{ operation: 'update', expectedAssetVersion: 4,
+    expectedMetadataVersion: 2, itemId: 'item.update', assetId: 'asset.one', name: 'Updated name', kind: 'prop', sliceId: 'slice.one', expectedSliceVersion: 1,
+    metadata: { tags: ['kept'], extensions: { 'studio.example': { ordinary: true } } } }] };
+  const proposal = { proposalId: request.proposalId, submittedRevision: 11, items: structuredClone(request.items) };
+  const authoring = { draft: { context: { projectId: 'project.one' } }, request };
+  const state = { project: { projectId: 'project.one' }, assetAuthoring: authoring, assetUi: {} };
+  const recover = runInNewContext(`${source}; assetAuthoringSavedProposal;`, { state, currentAssetLibrary: () => ({ proposals: [proposal] }), showToast() {} });
+  proposal.items[0].operation = 'create'; assert.equal(recover(authoring), false);
+  proposal.items[0].operation = 'update'; proposal.items[0].expectedMetadataVersion = 3; assert.equal(recover(authoring), false);
+  proposal.items[0].expectedMetadataVersion = 2; proposal.items[0].expectedAssetVersion = 5; assert.equal(recover(authoring), false);
+  proposal.items[0].expectedAssetVersion = 4; assert.equal(recover(authoring), true);
+  assert.equal(state.assetAuthoring, null); assert.equal(state.assetUi.selectedProposalId, 'proposal.update');
 });

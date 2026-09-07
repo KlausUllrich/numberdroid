@@ -1,4 +1,4 @@
-import { createAssetAuthoringDraft, buildAssetAuthoringRequest, assetAuthoringConflict } from './asset-authoring-state.js';
+import { createAssetAuthoringDraft, createAssetMetadataDraft, assetMetadataEditingEligibility, buildAssetAuthoringRequest, assetAuthoringConflict } from './asset-authoring-state.js';
 import {
   normalizeProcessingAdoptionProjection,
   processingAdoptionPresentation,
@@ -301,7 +301,7 @@ function setAssetMutationPending(pending) {
   for (const control of elements['workspace-content'].querySelectorAll(
     '[data-asset-filter], [data-proposal-select], [data-proposal-decision], '
       + '[data-proposal-apply], [data-asset-lifecycle], [data-proposal-disposition], '
-      + '[data-proposal-reason]',
+      + '[data-proposal-reason], [data-edit-asset-metadata]',
   )) control.disabled = pending;
 }
 
@@ -2262,6 +2262,18 @@ function renderV2AssetCard(asset) {
   inspect.textContent = state.assetUi.selectedAssetId === asset.assetId ? 'Selected' : 'Inspect';
   inspect.dataset.selectAsset = asset.assetId; inspect.dataset.assetFocusKey = `select-asset-${asset.assetId}`;
   actions.append(inspect);
+  const editing = assetMetadataEditorAvailability(asset);
+  const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'secondary';
+  edit.textContent = 'Edit metadata'; edit.dataset.editAssetMetadata = asset.assetId;
+  edit.dataset.assetVersion = String(asset.assetVersion); edit.dataset.metadataVersion = String(asset.metadataVersion);
+  edit.dataset.assetFocusKey = `edit-metadata-${asset.assetId}`;
+  edit.disabled = !editing.eligible || state.uiMode === 'remote' || state.assetMutationPending;
+  actions.append(edit);
+  if (!editing.eligible || state.uiMode === 'remote') {
+    const reason = document.createElement('p'); reason.className = 'asset-metadata-edit-limit';
+    reason.textContent = state.uiMode === 'remote' ? 'Metadata editing is available in the local Studio.' : editing.reason;
+    article.append(reason);
+  }
   const nextLifecycle = {
     DRAFT: 'METADATA_COMPLETE', METADATA_COMPLETE: 'VALIDATED', VALIDATED: 'FINAL',
   }[asset.lifecycle];
@@ -2498,6 +2510,40 @@ function assetAuthoringContext(slice, project = state.project) {
     assetId: `asset.human.${id}`, idempotencyKey: `asset.authoring.${id}` };
 }
 
+function assetMetadataEditorAvailability(asset) {
+  const eligibility = assetMetadataEditingEligibility(asset);
+  if (!eligibility.eligible) return eligibility;
+  const binding = asset.sliceBinding;
+  const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === binding.sliceId
+    && slice.version === binding.sliceVersion && slice.digest === binding.digest);
+  return pinned ? { eligible: true, reason: null, pinned }
+    : { eligible: false, reason: 'The original saved slice changed or is unavailable. This metadata editor does not replace the image.' };
+}
+
+function prepareAssetMetadataEditor(asset, pinned) {
+  const id = crypto.randomUUID();
+  return {
+    draft: createAssetMetadataDraft({ projectId: state.project.projectId, projectRevision: state.project.revision,
+      asset, proposalId: `proposal.human.${id}`, itemId: `item.human.${id}`, idempotencyKey: `asset.authoring.${id}` }),
+    pinned: structuredClone(pinned), originalAsset: structuredClone(asset), request: null, error: null,
+  };
+}
+
+function reloadAssetMetadataBaseline(authoring) {
+  if (state.assetAuthoring !== authoring || state.project?.projectId !== authoring.draft.context.projectId) return false;
+  const asset = currentAssetLibrary().assets.find((candidate) => candidate.assetId === authoring.draft.context.assetId);
+  const original = authoring.originalAsset;
+  if (!asset || asset.kind !== original.kind || asset.sliceBinding?.sliceId !== original.sliceBinding.sliceId
+      || asset.sliceBinding?.sliceVersion !== original.sliceBinding.sliceVersion || asset.sliceBinding?.digest !== original.sliceBinding.digest) {
+    authoring.error = 'The Asset kind or saved image changed. This editor will not substitute another image or transfer these choices to it.'; return false;
+  }
+  const editing = assetMetadataEditorAvailability(asset);
+  if (!editing.eligible) { authoring.error = editing.reason; return false; }
+  if (!window.confirm('Reload the current Asset metadata and discard this unfinished edit? All fields will start from the current saved version; your old choices will not overwrite newer metadata.')) return false;
+  state.assetAuthoring = prepareAssetMetadataEditor(asset, editing.pinned);
+  return true;
+}
+
 function mayAbandonAssetAuthoring() {
   const authoring = state.assetAuthoring;
   if (!authoring) return true;
@@ -2511,6 +2557,7 @@ function mayAbandonAssetAuthoring() {
 function currentAssetAuthoringConflict() {
   return state.assetAuthoring ? assetAuthoringConflict(state.assetAuthoring.draft, {
     projectId: state.project?.projectId, projectRevision: state.project?.revision,
+    assets: currentAssetLibrary().assets,
     slices: currentProjectSlices().map(({ slice }) => ({ sliceId: slice.sliceId, version: slice.version })),
   }) : null;
 }
@@ -2532,8 +2579,12 @@ function assetAuthoringPreview(authoring) {
 
 function renderAssetAuthoring() {
   const authoring = state.assetAuthoring;
+  const updating = authoring.draft.mode === 'update';
   const section = document.createElement('section'); section.className = 'asset-authoring surface-card';
-  section.append(sectionHeading('Create an asset from a saved slice', 'Prepare one proposal, then review and apply it. The saved image stays unchanged.'));
+  section.dataset.assetAuthoringMode = updating ? 'update' : 'create';
+  section.append(sectionHeading(updating ? 'Edit Asset metadata' : 'Create an asset from a saved slice', updating
+    ? 'Prepare a revised draft from this exact Asset version. The image and kind stay fixed; existing Room placements keep their pinned versions.'
+    : 'Prepare one proposal, then review and apply it. The saved image stays unchanged.'));
   const conflict = currentAssetAuthoringConflict();
   if (conflict || authoring.error) {
     const message = document.createElement('p'); message.className = 'asset-conflict'; message.setAttribute('role', 'alert');
@@ -2548,7 +2599,7 @@ function renderAssetAuthoring() {
     input.dataset.assetFocusKey = `authoring-${name}`;
     if (options) for (const [value, text] of options) { const option = document.createElement('option'); option.value = value; option.textContent = text; input.append(option); }
     else { input.type = type; input.required = true; if (type === 'number') { input.min = ['anchorX', 'anchorY'].includes(name) ? '0' : '1'; input.max = ['anchorX', 'anchorY'].includes(name) ? '63' : '64'; input.step = '1'; } else input.maxLength = name === 'name' ? 160 : 64; }
-    input.value = authoring.draft.values[name]; input.disabled = Boolean(authoring.request) || state.assetMutationPending;
+    input.value = authoring.draft.values[name]; input.disabled = Boolean(authoring.request) || state.assetMutationPending || (updating && name === 'kind');
     label.append(input); return label;
   };
   const group = (title, ...fields) => { const box = document.createElement('fieldset'); const legend = document.createElement('legend'); legend.textContent = title; box.append(legend, ...fields); return box; };
@@ -2562,19 +2613,23 @@ function renderAssetAuthoring() {
     field('visualWeight', 'Visual prominence', [['light', 'Light'], ['medium', 'Medium'], ['heavy', 'Heavy']]),
     field('runtimeEligible', 'Intended use', [['false', 'Studio-only for now'], ['true', 'Intended for game use — does not publish']])));
   const limits = document.createElement('p'); limits.className = 'asset-authoring-help';
-  limits.textContent = 'All displayed values are editable proposals. This form supports manual placement, a whole-footprint blocker or no blocker, and no edge connectors. Surfaces attach to ground. The reference cell does not change the saved image pivot.';
+  limits.textContent = updating
+    ? 'Only the displayed editable values change. Existing tags, connections, groups and other advanced metadata are retained. The image and kind stay fixed. This editor supports manual placement with a whole-footprint blocker or no blocker.'
+    : 'All displayed values are editable proposals. This form supports manual placement, a whole-footprint blocker or no blocker, and no edge connectors. Surfaces attach to ground. The reference cell does not change the saved image pivot.';
   const actions = document.createElement('div'); actions.className = 'asset-authoring-actions';
-  const submit = document.createElement('button'); submit.type = 'submit'; submit.dataset.assetAuthoringSubmit = ''; submit.textContent = 'Prepare asset for review';
+  const submit = document.createElement('button'); submit.type = 'submit'; submit.dataset.assetAuthoringSubmit = ''; submit.textContent = updating ? 'Prepare changes for review' : 'Prepare asset for review';
   submit.disabled = Boolean(authoring.request || conflict || state.assetMutationPending); actions.append(submit);
   if (authoring.request && !authoring.rejected) {
     const retry = document.createElement('button'); retry.type = 'button'; retry.dataset.assetAuthoringRetry = ''; retry.textContent = 'Retry exact request'; retry.disabled = state.assetMutationPending; actions.append(retry);
   }
   if (conflict || authoring.request) {
     const recheck = document.createElement('button'); recheck.type = 'button'; recheck.dataset.assetAuthoringRecheck = ''; recheck.className = 'secondary';
-    recheck.textContent = authoring.request && !authoring.rejected ? 'Check saved outcome' : 'Recheck saved slice and project'; recheck.disabled = state.assetMutationPending; actions.append(recheck);
+    recheck.textContent = authoring.request && !authoring.rejected ? 'Check saved outcome' : updating ? 'Reload current Asset' : 'Recheck saved slice and project'; recheck.disabled = state.assetMutationPending; actions.append(recheck);
   }
   const cancel = document.createElement('button'); cancel.type = 'button'; cancel.dataset.assetAuthoringCancel = ''; cancel.className = 'secondary'; cancel.textContent = 'Back to asset library'; cancel.disabled = state.assetMutationPending; actions.append(cancel);
-  const consequence = document.createElement('p'); consequence.textContent = 'Saves your proposal. The Asset is added only after you review and apply it.';
+  const consequence = document.createElement('p'); consequence.textContent = updating
+    ? 'Saves a proposal only. After review and Apply, a new draft Asset version is created. Existing Room contents remain unchanged; any prior warning decisions must be reviewed again.'
+    : 'Saves your proposal. The Asset is added only after you review and apply it.';
   form.append(limits, actions, consequence); layout.append(form); section.append(layout); return section;
 }
 
@@ -2590,7 +2645,7 @@ function assetAuthoringSavedProposal(authoring) {
   if (!proposal) return false;
   const item = proposal.items?.[0]; const expected = request.items[0];
   if (proposal.items.length !== 1 || proposal.submittedRevision !== request.expectedRevision + 1
-      || item.operation !== 'create' || item.expectedAssetVersion !== 0 || item.expectedMetadataVersion !== 0
+      || item.operation !== expected.operation || item.expectedAssetVersion !== expected.expectedAssetVersion || item.expectedMetadataVersion !== expected.expectedMetadataVersion
       || item.itemId !== expected.itemId || item.assetId !== expected.assetId
       || item.name !== expected.name || item.kind !== expected.kind
       || (item.sliceBinding?.sliceId ?? item.sliceId) !== expected.sliceId
@@ -2599,7 +2654,9 @@ function assetAuthoringSavedProposal(authoring) {
     authoring.error = 'A saved proposal has this identity but does not match your request. Keep this draft and inspect the project before continuing.'; return false;
   }
   state.assetUi.selectedProposalId = proposal.proposalId; state.assetAuthoring = null;
-  showToast('Your proposal is saved. Review its findings and choices, then apply the accepted item to create the draft Asset.'); return true;
+  showToast(expected.operation === 'update'
+    ? 'Your metadata proposal is saved. Review and apply it to create a revised draft version; existing Room placements will keep their old version.'
+    : 'Your proposal is saved. Review its findings and choices, then apply the accepted item to create the draft Asset.'); return true;
 }
 
 async function refreshAssetAuthoringOutcome(authoring, { timeoutMs = 8_000 } = {}) {
@@ -2655,6 +2712,7 @@ window.addEventListener('beforeunload', (event) => {
 elements['workspace-content'].addEventListener('input', (event) => {
   const form = event.target.closest('[data-asset-authoring-form]'); const authoring = state.assetAuthoring;
   if (!form || !authoring || authoring.request || !Object.hasOwn(authoring.draft.values, event.target.name)) return;
+  if (authoring.draft.mode === 'update' && event.target.name === 'kind') return;
   authoring.draft.values[event.target.name] = event.target.value; authoring.error = null;
   const preview = elements['workspace-content'].querySelector('[data-asset-authoring-preview]');
   preview?.replaceWith(assetAuthoringPreview(authoring));
@@ -2664,6 +2722,19 @@ elements['workspace-content'].addEventListener('submit', (event) => {
   event.preventDefault(); void submitAssetAuthoring();
 });
 elements['workspace-content'].addEventListener('click', async (event) => {
+  const edit = event.target.closest('[data-edit-asset-metadata]');
+  if (edit) {
+    if (state.uiMode === 'remote' || state.assetMutationPending || !mayAbandonAssetAuthoring()) return;
+    const asset = currentAssetLibrary().assets.find((candidate) => candidate.assetId === edit.dataset.editAssetMetadata);
+    if (!asset || asset.assetVersion !== Number(edit.dataset.assetVersion) || asset.metadataVersion !== Number(edit.dataset.metadataVersion)) {
+      showToast('This Asset version changed. Reload the library before editing metadata.'); return;
+    }
+    const editing = assetMetadataEditorAvailability(asset);
+    if (!editing.eligible) { showToast(editing.reason); return; }
+    try { state.assetAuthoring = prepareAssetMetadataEditor(asset, editing.pinned); }
+    catch (error) { showToast(error.message); return; }
+    renderWorkspace(); return;
+  }
   const create = event.target.closest('[data-create-asset-slice]');
   if (create) {
     if (state.uiMode === 'remote' || state.assetMutationPending || !mayAbandonAssetAuthoring()) return;
@@ -2681,6 +2752,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
       await refreshAssetAuthoringOutcome(authoring);
       if (authoring.request && assetAuthoringSavedProposal(authoring)) { renderWorkspace(); return; }
       if (authoring.request && !authoring.rejected) { authoring.error = 'No matching proposal is visible yet. Retry the exact request to resolve its outcome.'; renderWorkspace({ preserveAssetDraft: true }); return; }
+      if (authoring.draft.mode === 'update') { reloadAssetMetadataBaseline(authoring); return; }
       const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === authoring.draft.context.sliceId);
       if (!pinned) { authoring.error = 'That slice is no longer available. Return to the library and deliberately choose another saved slice.'; renderWorkspace({ preserveAssetDraft: true }); return; }
       if (!window.confirm(`Keep your choices and use saved slice version ${pinned.slice.version} at current project revision ${state.project.revision}? Review the image again before submitting.`)) return;
@@ -6326,7 +6398,9 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     if (apply) {
       const proposal = currentAssetLibrary().proposals.find(({ proposalId }) => proposalId === target);
       state.assetUi.selectedAssetId = proposal?.items.find((item) => item.decision?.disposition === 'ACCEPTED')?.assetId ?? null;
-      successMessage += ' Draft assets can now be placed in a draft room. Finalization remains a separate decision.';
+      successMessage += proposal?.items.some((item) => item.operation === 'update' && item.decision?.disposition === 'ACCEPTED')
+        ? ' Revised draft versions are available for new placements. Existing Room contents keep their pinned versions; finalization is separate.'
+        : ' Draft assets can now be placed in a draft room. Finalization remains a separate decision.';
     }
     showToast(successMessage);
   } catch (error) {

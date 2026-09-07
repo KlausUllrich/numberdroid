@@ -747,3 +747,5 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
 .asset-authoring-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .asset-authoring-form > p { font-size: 12px; line-height: 1.5; }
 @media (max-width: 1200px) { .asset-authoring-layout { grid-template-columns: 1fr; } .asset-authoring-preview { position: static; max-width: 420px; } }
+
+.asset-metadata-edit-limit { color: var(--muted); font-size: 11px; line-height: 1.45; margin: 8px 0; }
