@@ -3099,21 +3099,54 @@ function roomField(labelText, input) {
   text.textContent = labelText; label.append(text, input); return label;
 }
 
+function roomCreationBlockedReason() {
+  if (state.roomUi.pendingPlacementAdd) return 'Resolve the unconfirmed placement before creating a room or template.';
+  if (state.roomUi.placementGesture || state.roomUi.canvasPan) return 'Finish or cancel the current canvas gesture before creating a room or template.';
+  if (state.roomUi.shapeDraft?.dirty) return 'Save or discard the room shape draft before creating a room or template.';
+  if (state.roomUi.dirty) return 'Save or discard the room review choices before creating a room or template.';
+  return null;
+}
+
+function openCreatedRoom(projectId, roomVariantId) {
+  if (state.project?.projectId !== projectId) return false;
+  const entry = currentRoomLibrary().variants.find((candidate) => candidate.roomVariantId === roomVariantId);
+  if (!exactRoomHead(entry)) {
+    showToast('The new room could not be opened from the saved project. Reload before continuing; your previous room remains selected.'); return false;
+  }
+  resetRoomUiProjectContext();
+  state.roomUi.selectedRoomVariantId = roomVariantId;
+  // Selection and its fresh DOM become visible together; old room context is not restored.
+  renderWorkspace();
+  const selector = elements['workspace-content'].querySelector('[data-room-variant-select]');
+  if (selector?.value === roomVariantId) {
+    selector.focus({ preventScroll: true });
+    selector.closest('.room-header')?.scrollIntoView({ block: 'center', inline: 'nearest' });
+  }
+  return true;
+}
+
 function renderRoomCreation(library) {
   const wrapper = document.createElement('div'); wrapper.className = 'room-creation';
-  const archetype = document.createElement('details');
-  const archetypeSummary = document.createElement('summary'); archetypeSummary.textContent = 'New room archetype';
+  const firstRoom = library.variants.length === 0;
+  const blockedReason = roomCreationBlockedReason();
+  const introduction = document.createElement('p'); introduction.className = 'room-selection-summary';
+  introduction.textContent = blockedReason ?? (firstRoom
+    ? library.archetypes.length ? 'Choose a template and name your first room below.' : 'Start with a room template. It saves reusable size and placement defaults; then create your first room from it.'
+    : 'Create another room from a saved template, or add a reusable room template.');
+  wrapper.append(introduction);
+  const archetype = document.createElement('details'); archetype.open = firstRoom && library.archetypes.length === 0;
+  const archetypeSummary = document.createElement('summary'); archetypeSummary.textContent = 'New room template';
   const archetypeForm = document.createElement('form'); archetypeForm.dataset.roomForm = 'archetype'; archetypeForm.className = 'room-form';
   const archetypeName = document.createElement('input'); archetypeName.name = 'displayName'; archetypeName.required = true; archetypeName.maxLength = 160; archetypeName.placeholder = 'Domestic chamber';
   const kind = document.createElement('select'); kind.name = 'kind';
   for (const value of ['room', 'hallway']) { const option = document.createElement('option'); option.value = value; option.textContent = value; kind.append(option); }
   const width = document.createElement('input'); width.type = 'number'; width.name = 'width'; width.min = '3'; width.max = '64'; width.value = '10';
   const height = document.createElement('input'); height.type = 'number'; height.name = 'height'; height.min = '3'; height.max = '64'; height.value = '8';
-  const submitArchetype = document.createElement('button'); submitArchetype.type = 'submit'; submitArchetype.textContent = 'Create archetype';
+  const submitArchetype = document.createElement('button'); submitArchetype.type = 'submit'; submitArchetype.textContent = 'Create template'; submitArchetype.disabled = Boolean(blockedReason);
   archetypeForm.append(roomField('Name', archetypeName), roomField('Kind', kind), roomField('Preferred width', width), roomField('Preferred height', height), submitArchetype);
   archetype.append(archetypeSummary, archetypeForm); wrapper.append(archetype);
 
-  const variant = document.createElement('details');
+  const variant = document.createElement('details'); variant.open = firstRoom && library.archetypes.length > 0;
   const variantSummary = document.createElement('summary'); variantSummary.textContent = 'New room / hallway';
   const variantForm = document.createElement('form'); variantForm.dataset.roomForm = 'variant'; variantForm.className = 'room-form';
   const variantName = document.createElement('input'); variantName.name = 'displayName'; variantName.required = true; variantName.maxLength = 160; variantName.placeholder = 'North chamber';
@@ -3125,8 +3158,8 @@ function renderRoomCreation(library) {
   }
   const variantWidth = document.createElement('input'); variantWidth.type = 'number'; variantWidth.name = 'width'; variantWidth.min = '3'; variantWidth.max = '64'; variantWidth.value = String(library.archetypes[0]?.dimensionPolicy?.width?.preferred ?? 10);
   const variantHeight = document.createElement('input'); variantHeight.type = 'number'; variantHeight.name = 'height'; variantHeight.min = '3'; variantHeight.max = '64'; variantHeight.value = String(library.archetypes[0]?.dimensionPolicy?.height?.preferred ?? 8);
-  const submitVariant = document.createElement('button'); submitVariant.type = 'submit'; submitVariant.textContent = 'Create DRAFT'; submitVariant.disabled = library.archetypes.length === 0;
-  variantForm.append(roomField('Name', variantName), roomField('Archetype', archetypeSelect), roomField('Width', variantWidth), roomField('Height', variantHeight), submitVariant);
+  const submitVariant = document.createElement('button'); submitVariant.type = 'submit'; submitVariant.textContent = 'Create room'; submitVariant.disabled = library.archetypes.length === 0 || Boolean(blockedReason);
+  variantForm.append(roomField('Name', variantName), roomField('Room template', archetypeSelect), roomField('Width', variantWidth), roomField('Height', variantHeight), submitVariant);
   variant.append(variantSummary, variantForm); wrapper.append(variant);
   return wrapper;
 }
@@ -3920,7 +3953,7 @@ function renderRooms(snapshot) {
   const fragment = document.createDocumentFragment(); const library = currentRoomLibrary(snapshot);
   if (!library.variants.length) {
     fragment.append(renderRoomCreation(library));
-    fragment.append(emptyState('No room variants', library.archetypes.length ? 'Create a DRAFT room or hallway from an authored archetype.' : 'Create an archetype first, then create a DRAFT room or hallway.'));
+    fragment.append(emptyState('No rooms yet', 'New rooms are editable drafts. Creating one does not finalize or publish anything.'));
     return fragment;
   }
   if (!library.variants.some(({ roomVariantId }) => roomVariantId === state.roomUi.selectedRoomVariantId)) state.roomUi.selectedRoomVariantId = library.variants[0].roomVariantId;
@@ -6545,6 +6578,10 @@ elements['workspace-content'].addEventListener('change', (event) => {
 elements['workspace-content'].addEventListener('submit', async (event) => {
   const form = event.target.closest('[data-room-form]'); if (!form) return; event.preventDefault();
   if (!state.project || state.roomMutationPending) return;
+  if (['archetype', 'variant'].includes(form.dataset.roomForm)) {
+    const blockedReason = roomCreationBlockedReason();
+    if (blockedReason) { showToast(blockedReason); return; }
+  }
   const data = new FormData(form); const projectId = state.project.projectId; const { variant } = currentRoomVariant();
   if (form.dataset.roomForm === 'archetype') {
     const displayName = String(data.get('displayName')); const kind = String(data.get('kind')); const preferredWidth = Number(data.get('width')); const preferredHeight = Number(data.get('height'));
@@ -6555,7 +6592,7 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
       structuralBands: { left: 0, right: 0, top: 0, bottom: 0 }, orientation: kind === 'hallway' ? 'horizontal' : 'any',
       connectorPolicy: kind === 'hallway' ? { min: 2, max: 32, requiredSides: ['east', 'west'] } : { min: 1, max: 32, requiredSides: [] },
       allowedAssetKinds: ['surface', 'prop', 'item'], allowedTags: [], requiredTags: [], rationality: 'neutral', governingRuleRefs: [],
-    }, successMessage: `${kind} archetype created.` });
+    }, successMessage: 'Room template saved. Choose it and name a room to begin editing.' });
     return;
   }
   if (form.dataset.roomForm === 'variant') {
@@ -6569,8 +6606,8 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
     const intentTrace = ['game_design', 'level_design', 'room_design'].map((layer) => ({ layer, ruleId: `ui:${layer}`, summary: `Owner-authored ${layer.replace('_', ' ')} intent`, disposition: 'governing' }));
     const created = await executeRoomMutation({ operation: 'room-variant-create', target: roomVariantId, path: `/api/projects/${encodeURIComponent(projectId)}/rooms`, body: {
       roomVariantId, roomArchetypeId, archetypeVersion: archetype.version, displayName, width, height, intentTrace, connectors, placements: [],
-    }, successMessage: `${archetype.kind} DRAFT created.` });
-    if (created) state.roomUi.selectedRoomVariantId = roomVariantId; return;
+    }, successMessage: 'Editable room created.' });
+    if (created) openCreatedRoom(projectId, roomVariantId); return;
   }
   if (!variant) return;
   const basePath = `/api/projects/${encodeURIComponent(projectId)}/rooms/${encodeURIComponent(variant.roomVariantId)}`;

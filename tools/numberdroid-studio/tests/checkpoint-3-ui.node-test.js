@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import { runInNewContext } from 'node:vm';
 
 const appUrl = new URL('../apps/studio-server/public/app.js', import.meta.url);
 const stylesUrl = new URL('../apps/studio-server/public/styles.css', import.meta.url);
@@ -8,7 +9,7 @@ const stylesUrl = new URL('../apps/studio-server/public/styles.css', import.meta
 test('Checkpoint 3 exposes a coordinate-visible layered room and hallway designer', async () => {
   const app = await readFile(appUrl, 'utf8');
   const renderer = app.slice(app.indexOf('function currentRoomLibrary'), app.indexOf('function renderCollection'));
-  assert.match(renderer, /New room archetype/);
+  assert.match(renderer, /New room template/);
   assert.match(renderer, /New room \/ hallway/);
   assert.match(renderer, /Origin 0,0/);
   assert.match(renderer, /slider\.min = '100'; slider\.max = '1000'; slider\.step = '25'/);
@@ -271,4 +272,144 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(evidence, /scrollbarStability\.after\.overflowY === true/);
   assert.match(evidence, /afterDrag\.scrollRange\.x > 0/);
   assert.match(evidence, /placementPreview\.stageAspect - 1\.5/);
+});
+
+
+function roomTestElement(tag = 'div') {
+  return { tag, dataset: {}, children: [], append(...children) { this.children.push(...children); } };
+}
+const roomTestNodes = (node) => [node, ...(node.children ?? []).filter((child) => typeof child === 'object').flatMap(roomTestNodes)];
+
+async function roomCreationHarness({ failure = false, omitCreatedHead = false, roomUi = {} } = {}) {
+  const app = await readFile(appUrl, 'utf8');
+  const fragment = (start, end) => app.slice(app.indexOf(start), app.indexOf(end, app.indexOf(start)));
+  const head = { roomVariantId: 'room.first', roomArchetypeId: 'template.one', archetypeVersion: 1,
+    displayName: 'First room', width: 8, height: 6, version: 1, lifecycle: 'DRAFT', placements: [], connectors: [], findings: [] };
+  const library = { archetypes: [{ roomArchetypeId: 'template.one', version: 1, kind: 'room', displayName: 'Template' }],
+    variants: [{ roomVariantId: 'room.first', headVersion: 1, versions: [head] }], proposals: [] };
+  const state = { project: { projectId: 'project.test', revision: 3, snapshot: { roomLibrary: library } }, agentAccessCsrf: 'csrf',
+    roomMutationPending: false, roomUi: { view: 'editor', selectedRoomVariantId: 'room.first', selectedPlacementId: 'placement.old',
+      selectedConnectorId: 'connector.old', activeTool: 'PROP', zoom: '200', layers: { SET_DRESSING: false }, ...roomUi } };
+  const observations = []; const requests = []; const messages = [];
+  const createStart = app.indexOf("  const form = event.target.closest('[data-room-form]');");
+  const createBody = app.slice(createStart, app.indexOf('  if (!variant) return;', createStart));
+  const resizeStart = app.indexOf("  if (form.dataset.roomForm === 'resize') {");
+  const resizeBody = app.slice(resizeStart, app.indexOf("  if (form.dataset.roomForm === 'connector')", resizeStart));
+  const sandbox = { state, elements: { 'workspace-content': { querySelector: () => null } }, document: { createElement: roomTestElement, createDocumentFragment: roomTestElement },
+    currentRoomLibrary: () => library, roomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion),
+    exactRoomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion) ?? null,
+    roomHeadFindingProjection: () => ({ errors: [] }), findingSummary: () => 'No findings',
+    roomStatusPill: roomTestElement, renderRoomErrorAttention: () => null, renderRoomViewSwitch: roomTestElement,
+    renderRoomToolOptions: roomTestElement, renderRoomToolbox: roomTestElement, renderRoomEditorDock: roomTestElement,
+    renderRoomCanvas: (variant) => ({ tag: 'canvas', dataset: { roomId: variant.roomVariantId }, width: variant.width, height: variant.height }),
+    applyRoomShapeDraftLock() {}, cancelRoomPreviewLoad() {}, clearRoomPaletteAsset() { state.roomUi.selectedPaletteAssetId = null; },
+    clearPendingRoomPlacementAdd() { state.roomUi.pendingPlacementAdd = null; },
+    stableUiId: (prefix, name) => `${prefix}.${name.toLowerCase()}`, roomOperationKey: () => 'request.test', clearRoomOperationKey() {},
+    setRoomMutationPending(value) { state.roomMutationPending = value; }, showToast(value) { messages.push(value); },
+    FormData: class { constructor(form) { this.values = form.values; } get(name) { return this.values[name]; } },
+    window: { confirm: () => true },
+    async api(path, { body }) {
+      requests.push({ path, body: JSON.parse(body) }); if (failure) throw new Error('Creation failed');
+      const request = JSON.parse(body);
+      if (path.endsWith('/resize')) {
+        const id = path.split('/').at(-2); const entry = library.variants.find((candidate) => candidate.roomVariantId === id);
+        const next = { ...entry.versions.at(-1), version: entry.headVersion + 1, width: request.width, height: request.height };
+        entry.versions.push(next); entry.headVersion = next.version;
+      } else if (!omitCreatedHead) library.variants.push({ roomVariantId: request.roomVariantId, headVersion: 1,
+        versions: [{ ...head, roomVariantId: request.roomVariantId, displayName: request.displayName, width: request.width, height: request.height }] });
+      state.project.revision += 1; return { projectId: state.project.projectId, revision: state.project.revision };
+    },
+    async loadProject() { sandbox.renderWorkspace(); return true; },
+  };
+  const setup = [fragment('function currentRoomVariant(', 'const ROOM_EDITOR_TOOLS'),
+    fragment('function roomCreationBlockedReason(', 'function renderRoomCreation'),
+    fragment('function resetRoomUiProjectContext(', 'function reconcileRoomUi'),
+    fragment('async function executeRoomMutation(', 'function roomManipulationContext'),
+    fragment('function renderRooms(', 'const TASK_STATE_LABELS')].join('\n');
+  const api = runInNewContext(`${setup}
+({ create: async function(event) { ${createBody} },
+    resize: async function(width, height) { const form = { dataset: { roomForm: 'resize' } }; const data = { get: (key) => ({ width, height })[key] };
+      const { variant } = currentRoomVariant(); const basePath = '/api/projects/project.test/rooms/' + variant.roomVariantId; ${resizeBody} },
+    render: () => renderRooms(state.project.snapshot), selected: () => currentRoomVariant().variant });`, sandbox);
+  sandbox.renderWorkspace = () => {
+    const nodes = roomTestNodes(api.render());
+    observations.push({ header: nodes.find(({ tag }) => tag === 'h2')?.textContent,
+      selector: nodes.find(({ dataset }) => dataset.roomVariantSelect)?.value,
+      canvas: nodes.find(({ tag }) => tag === 'canvas') });
+  };
+  const create = (kind = 'variant') => api.create({ preventDefault() {}, target: { closest: () => ({ dataset: { roomForm: kind },
+    values: { roomArchetypeId: 'template.one', displayName: 'Second', width: '11', height: '7', kind: 'room' } }) } });
+  return { state, library, observations, requests, messages, create, resize: api.resize, selected: api.selected };
+}
+
+test('second Room creation synchronizes visible header/canvas and immediate edit without changing Room one', async () => {
+  const fixture = await roomCreationHarness(); const first = JSON.stringify(fixture.library.variants[0]);
+  await fixture.create();
+  const rendered = fixture.observations.at(-1);
+  assert.equal(rendered.header, 'Second'); assert.equal(rendered.selector, 'room.second');
+  assert.equal(rendered.canvas.dataset.roomId, 'room.second'); assert.deepEqual([rendered.canvas.width, rendered.canvas.height], [11, 7]);
+  assert.equal(fixture.selected().roomVariantId, 'room.second');
+  assert.equal(fixture.state.roomUi.selectedPlacementId, null); assert.equal(fixture.state.roomUi.selectedConnectorId, null);
+  assert.equal(fixture.state.roomUi.activeTool, 'SELECT'); assert.equal(fixture.state.roomUi.zoom, 'fit');
+  assert.equal(fixture.state.roomUi.domState, null);
+  await fixture.resize(12, 7);
+  assert(fixture.requests.at(-1).path.endsWith('/rooms/room.second/resize'));
+  assert.deepEqual([fixture.selected().width, fixture.selected().height], [12, 7]);
+  assert.equal(JSON.stringify(fixture.library.variants[0]), first);
+});
+
+test('failed or unavailable created Room head preserves previous selection and interaction context', async () => {
+  for (const options of [{ failure: true }, { omitCreatedHead: true }]) {
+    const fixture = await roomCreationHarness(options); const before = JSON.stringify(fixture.state.roomUi);
+    await fixture.create(); assert.equal(JSON.stringify(fixture.state.roomUi), before);
+    assert.equal(fixture.observations.at(-1).selector, 'room.first'); assert.equal(fixture.selected().roomVariantId, 'room.first');
+  }
+});
+
+test('Room and template creation preserve unsaved and unresolved prior work without sending a command', async () => {
+  for (const roomUi of [{ shapeDraft: { dirty: true } }, { dirty: true }, { pendingPlacementAdd: { placementId: 'pending' } },
+    { placementGesture: { captured: true } }, { canvasPan: { pointerId: 1 } }]) {
+    for (const kind of ['variant', 'archetype']) {
+      const fixture = await roomCreationHarness({ roomUi }); const before = JSON.stringify(fixture.state.roomUi);
+      await fixture.create(kind); assert.equal(fixture.requests.length, 0); assert.equal(JSON.stringify(fixture.state.roomUi), before);
+      assert.equal(fixture.messages.length, 1);
+    }
+  }
+});
+
+test('empty Rooms open the next creation form while existing Room controls remain compact', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function roomField('), app.indexOf('function renderRoomPalette('));
+  const render = runInNewContext(`${source}; renderRoomCreation;`, { state: { roomUi: {} }, document: { createElement: roomTestElement } });
+  const template = { roomArchetypeId: 'template.one', version: 1, displayName: 'Template', kind: 'room', dimensionPolicy: { width: { preferred: 8 }, height: { preferred: 6 } } };
+  for (const [archetypes, variants, expected] of [[[], [], [true, false]], [[template], [], [false, true]], [[template], [{}], [false, false]]]) {
+    const nodes = roomTestNodes(render({ archetypes, variants }));
+    assert.deepEqual(nodes.filter(({ tag }) => tag === 'details').map(({ open }) => open), expected);
+    assert(nodes.some(({ textContent }) => textContent === 'New room template'));
+    assert(nodes.some(({ textContent }) => textContent === 'Create room'));
+  }
+});
+
+
+test('successful creation lands focus on the exact new Room identity without moving focus on failure', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function openCreatedRoom('), app.indexOf('function renderRoomCreation('));
+  function scenario({ headAvailable = true, selectorMatches = true } = {}) {
+    const calls = []; const state = { project: { projectId: 'project.one' }, roomUi: { selectedRoomVariantId: 'room.old' } };
+    const selector = { value: selectorMatches ? 'room.new' : 'room.old',
+      focus(options) { calls.push(['focus', options.preventScroll]); },
+      closest(name) { assert.equal(name, '.room-header'); return { scrollIntoView(options) { calls.push(['land', options.block, options.inline]); } }; } };
+    const open = runInNewContext(`${source}; openCreatedRoom;`, { state,
+      currentRoomLibrary: () => ({ variants: [{ roomVariantId: 'room.new' }] }), exactRoomHead: () => headAvailable ? {} : null,
+      resetRoomUiProjectContext() { state.roomUi = {}; calls.push(['reset']); },
+      renderWorkspace() { calls.push(['render', state.roomUi.selectedRoomVariantId]); }, showToast() {},
+      elements: { 'workspace-content': { querySelector(query) { assert.equal(query, '[data-room-variant-select]'); return selector; } } },
+    });
+    return { result: open('project.one', 'room.new'), calls, state };
+  }
+  const success = scenario(); assert.equal(success.result, true);
+  assert.deepEqual(success.calls, [['reset'], ['render', 'room.new'], ['focus', true], ['land', 'center', 'nearest']]);
+  const failed = scenario({ headAvailable: false }); assert.equal(failed.result, false); assert.deepEqual(failed.calls, []);
+  assert.equal(failed.state.roomUi.selectedRoomVariantId, 'room.old');
+  const mismatch = scenario({ selectorMatches: false }); assert(!mismatch.calls.some(([action]) => ['focus', 'land'].includes(action)));
 });

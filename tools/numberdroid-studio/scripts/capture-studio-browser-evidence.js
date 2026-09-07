@@ -4,11 +4,12 @@ import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { decodeSupportedPng } from '../packages/preview/src/index.js';
 import { captureHumanAssetAuthoring } from './capture-human-asset-authoring-evidence.js';
+import { captureRoomCreation } from './capture-room-creation-evidence.js';
 import { closeBrowserAndRemoveProfile, finishCapture, trackProcessClose } from './browser-process-teardown.js';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7', 'review-feedback', 'human-asset'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5|a1-7|review-feedback|human-asset [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7', 'review-feedback', 'human-asset', 'room-creation'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5|a1-7|review-feedback|human-asset|room-creation [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -197,6 +198,8 @@ try {
 
   if (mode === 'human-asset') {
     await captureHumanAssetAuthoring({ devtools, sessionId, width, height, pageUrl, outputPath, domPath, browserVersion });
+  } else if (mode === 'room-creation') {
+    await captureRoomCreation({ devtools, sessionId, width, height, pageUrl, outputPath, domPath, browserVersion });
   } else {
   const readyExpression = mode === 'review-feedback'
     ? `document.getElementById('connection-label')?.textContent === 'Live'
