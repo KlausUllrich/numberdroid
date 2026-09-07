@@ -4,6 +4,14 @@ Status: binding product contract aligned with [VISION.md](VISION.md). Accepted
 checkpoint sections remain compatibility requirements for their shipped slices;
 historical V1/V2 labels do not limit the forward product vision.
 
+The [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md) is the approved
+2026-09-07 refinement for the redesigned source/Library/editor/review experience
+and optional project modules. Its target human-save and partial-pending review
+semantics require explicit evolution of the existing 2C contracts; they do not
+silently replace AST-015/AST-016, shipped schemas, lifecycle or owner authority.
+Future assemblies, media and interaction features must not be advertised before
+their supported commands, validation and integration are implemented.
+
 The words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are normative. Requirement identifiers are stable and should be referenced by tests, issues, and design decisions.
 
 ## 1. Problem statement

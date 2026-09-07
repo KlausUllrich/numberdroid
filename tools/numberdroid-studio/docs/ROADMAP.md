@@ -15,6 +15,27 @@ generated/uploaded image → reproducible processing → semantic asset
 level requirements → layout + actors + routes + logic → validated candidate
 ```
 
+## Current sequence — attended design, 2026-09-07
+
+Klaus approved the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md): one
+shared content/agent/review foundation with optional project-specific authoring
+modules, and assets that can remain useful while they evolve. This approves
+product direction, not future schemas, runtime support or workflow acceptance.
+
+Each screen now follows goal/requirements discussion → agreed mockup → owning
+repository documentation → implementation and selected verification. Prove the
+implemented workflow with a real authorized agent through the semantic interface
+before asking Klaus to verify it; browser scripts alone do not prove agent use.
+The next design proof is selecting two of four source cuts and adjusting a cut,
+then placement/blocking and an assembly example. Existing UI candidates need
+reconciliation with the approved design. Broader game examples check boundaries;
+they are not parallel implementation projects.
+
+This replaces unattended UI continuation as the immediate sequence. The adaptive
+risk/CI cadence below still applies within an agreed implementation block.
+VT-001 / CP4.5 and A1.7 remain REVISE; no acceptance or separately gated action
+is granted by the design discussion.
+
 ## Working loop for every checkpoint
 
 This full loop applies to milestone and user-checkpoint closure. Candidate
@@ -30,7 +51,11 @@ implementation blocks follow the adaptive cadence below.
 
 No checkpoint may claim user approval from silence or from an automated policy result.
 
-## Autonomous candidate cadence while live user testing is unavailable
+## Adaptive candidate cadence
+
+The 2026-09-07 attended design sequence above controls entry into implementation.
+The following records the earlier deferral and the retained bounded execution
+rules; it is not permission to skip current screen discussion or mockup agreement.
 
 On 2026-09-06 Klaus requested unattended cleanup and development toward a
 Studio usable for Numberdroid authoring, and deferred the remaining live checks

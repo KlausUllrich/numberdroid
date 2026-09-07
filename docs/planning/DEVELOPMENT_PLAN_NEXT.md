@@ -1,10 +1,29 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-07 attended Studio design
+
+Klaus approved the [Studio Authoring Product Model](../../tools/numberdroid-studio/docs/AUTHORING_PRODUCT_MODEL.md):
+a shared source/content/agent/review foundation, reusable assets and assemblies,
+and optional project-specific authoring tools rather than a mandatory Room/Level
+model for every game. Numberdroid remains the first complete production target.
+The working name remains unchanged; other game examples are design checks.
+
+The current sequence is screen goals/requirements → agreed mockup → owning
+repository documentation → implementation and risk-selected verification.
+Exercise the implemented workflow through a real agent before the user's focused
+verification. The next design proof is cutter selection/manual adjustment, then
+blocking and assembly editing. This supersedes unattended UI continuation and
+requires existing UI candidates to be reconciled with the agreed design.
+VT-001 / CP4.5 and A1.7 remain REVISE; no acceptance, new runtime/media capability,
+materialization, publication or release is implied. The
+[Studio task router](../../tools/numberdroid-studio/docs/START_HERE.md) owns the
+minimum current reading route.
+
 ## 2026-09-06 authorized continuation
 
 Klaus deferred the remaining live tests as nonblocking and requested unattended
 cleanup and development toward a usable Numberdroid Studio. VT-001 / CP4.5
-remains **REVISE**, with no inferred acceptance. The next sequence is safe
+remains **REVISE**, with no inferred acceptance. That earlier sequence was safe
 repository/worktree/document cleanup, then bounded Studio usability development
 with the selected verification gates; the focused human return checks remain
 in the [backlog](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md).
@@ -20,7 +39,7 @@ actions retain their separate scope and authorization gates.
 Klaus explicitly accepted VT-014 on 2026-09-02. The acceptance covers the bounded private immutable A4c Candidate, strict trusted-service child attenuation and truthful read-only authority presentation integrated through PRs #198 and #199; it does not accept A3a/A4a/A4b or authorize A5, materialization, publication or release. Room Editor VT-001 remains REVISE. Its reported live findings—Fit, discoverable saved-state resize, direct exact-asset selection, persistent placement brush, plain pending guidance, confirmed Clear behavior and correctly rotated asset imagery—are repaired and source-integrated through PR #201, final head `e26f3d707a790a4b4779c9267514a3b8de9f18d0`, merge `dbe37634ea13d076cd00647fffb0dde1b2bd0f69`, exact-head Build #2353 / run `33629339599` and green post-merge Build #2354 / run `33630127953`. This is engineering closure only; Klaus's live retest remains the acceptance gate. The engine-neutral Preview, logical footprint rules and validate-only EngineBridge boundary remain unchanged. Evidence: [`../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md`](../../tools/numberdroid-studio/docs/LIVE_VERIFICATION_2026_09_01.md), [`../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md`](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md), and [`../../tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md`](../../tools/numberdroid-studio/docs/A4C_LEVEL_CANDIDATE_AND_CHILD_TASK_STATUS.md).
 
 
-Status: **current forward plan — authorized Studio cleanup and bounded usability development; VT-001 REVISE with live checks deferred and nonblocking for that development; VT-014 accepted; VT-011/O2a gates remain pending; no A5 source work is authorized**
+Status: **current forward plan — attended Studio design before implementation; approved authoring model and optional modules; VT-001 REVISE; VT-014 accepted; VT-011/O2a gates remain pending; no A5 source work is authorized**
 
 This document stays at project/milestone level. Durable gameplay/story/art rules live in domain documents; historical production reasoning lives in `docs/history/`.
 

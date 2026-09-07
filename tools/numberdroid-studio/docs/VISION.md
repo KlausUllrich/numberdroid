@@ -1,16 +1,24 @@
 # Numberdroid Studio — Product Vision
 
-Status: **binding product direction — updated 2026-08-31**
+Status: **binding product direction — updated 2026-09-07**
 
 This document defines the intended product. Accepted checkpoint contracts remain
 binding compatibility and regression records for the slices they accepted, but
 they do not limit the final product to those historical slices.
 
+The [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md) records the approved
+2026-09-07 direction: flexible source-to-asset-to-assembly authoring, concrete
+agent-change review, contextual editors and optional project-specific authoring
+modules. It distinguishes the target model from current implementation. The
+working name and Numberdroid-first production target remain unchanged.
+
 ## Product thesis
 
-Numberdroid Studio is an **agent-first authoring and production system** that
-turns visual source material and level requirements into inspectable, validated,
-versioned game-content candidates.
+Numberdroid Studio is an **agent-first, engine-agnostic game-content authoring
+and management system**. It turns source material and supported project
+requirements into inspectable, validated, versioned content and candidates.
+Numberdroid supplies the first complete production workflow; supported media,
+asset composition and project-specific authoring modules grow from concrete use.
 
 The first complete customer is Numberdroid. The first two concrete problems are:
 
@@ -96,6 +104,9 @@ Studio grows through three layers:
 
 The core MUST NOT import Numberdroid, Godot, or Unreal concepts. A reusable module
 MUST NOT become mandatory for projects whose capability profile does not use it.
+Rooms may remain a Numberdroid workspace; other projects can use Boards, Maps or
+no spatial authoring workspace. Shared identity, composition, review and recovery
+do not require one universal Level gameplay schema or an imported engine model.
 An adapter MUST NOT weaken core provenance, authority, revision, or path-safety
 invariants.
 
@@ -185,11 +196,15 @@ filterable asset palette, inspector, layers, visible lineage, live preview, and
 guided progressive steps. The UI should reveal the next meaningful decision and
 hide implementation vocabulary unless requested.
 
-Detailed polished mockups are **not** the next dependency. Before broad UI work,
-create low-fidelity workflow/state maps for the Artist, Level Designer, review, and
-conflict flows. Produce detailed responsive mockups only after the semantic command
-surface, capability manifest, workspace information architecture, and error states
-are stable enough that a mockup will not freeze accidental architecture.
+For each screen, first discuss its goal, requirements, command/authority boundaries
+and error states with Klaus. Agree on a mockup, update the owning repository
+documentation, then implement and verify. Use low-fidelity workflow maps where
+behavior is unsettled and clickable mockups to assess layout and navigation.
+Mockup approval does not imply that its simulated commands or future capabilities
+exist. Before user verification, prove the implemented workflow through a real
+authorized agent using the semantic interface, including correction and saved
+feedback. The [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md) defines the
+current preparation, composition and review direction.
 
 ## Near-term success
 

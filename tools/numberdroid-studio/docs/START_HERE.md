@@ -1,18 +1,30 @@
 # Numberdroid Studio — Start here
 
-Status date: 2026-09-06. This is the current task router; linked contracts own
+Status date: 2026-09-07. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
 ## Current direction
 
-Klaus requested unattended cleanup and development toward a Studio usable for
-Numberdroid authoring. He deferred the remaining live checks as nonblocking for
-authorized development. **VT-001 / CP4.5 remains REVISE, not user accepted.**
-The next blocks should produce usable, reviewable improvements with focused
-verification. The [return backlog](VACATION_TEST_BACKLOG.md#vt-001--cp45-desktop-designer-gate)
-retains the exact remaining human checks; repeat passed behavior only for a
-concrete regression or changed risk.
+Klaus has returned to attended product/design work. His 2026-09-07 direction
+supersedes unattended UI implementation: discuss each screen's goals and behavior,
+agree on a mockup, update the repository documentation, then implement and verify.
+Read the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md) for the approved
+source/asset/assembly model, flexible agent-change review, contextual editors and
+optional project-specific authoring modules. The immediate next design proof is
+selecting and adjusting cuts; blocking and assembly editors follow.
+
+The primary proof is a real agent using Studio's semantic interface, correcting
+technical findings and reading saved review feedback/decisions before Klaus is
+asked to verify the workflow. Mockup clicks and scripted fixtures alone do not
+prove that loop. Existing unmerged UI candidates must be reconciled with the
+agreed design before integration.
+
+**VT-001 / CP4.5 remains REVISE, not user accepted.** Earlier deferral of remaining
+live checks allowed bounded development; it did not grant acceptance. The
+[return backlog](VACATION_TEST_BACKLOG.md#vt-001--cp45-desktop-designer-gate)
+retains the exact human gates. Repeat passed behavior only for a concrete
+regression or changed risk; apply the binding risk policy to the actual diff.
 
 The [Room status](ROOM_EDITOR_L3_STATUS.md) records PR #206's refreshed,
 unchanged green integration at `034bc4604338e391a2455d42e03a12a5b27d0ed3`.
@@ -60,7 +72,7 @@ after compaction reverify continuity and reload the selected task context.
 | Launcher or working-project usability | [README](../README.md), actual launcher/server scripts and focused tests; [backup/recovery contract](O0_BACKUP_RECOVERY_CONTRACT.md) when existing data, restore or activation is involved. |
 | Room, task or Preview behavior | [CP4.5 contract](CHECKPOINT_4_5_CONTRACT.md), [Room status](ROOM_EDITOR_L3_STATUS.md), the directly affected implementation and tests; add [Architecture](ARCHITECTURE.md) sections for changed seams. |
 | Processing or agent workflow | The exact A1 contract/status linked by [README](../README.md); [A1.7 state contract](A1_7_STATE_CONTRACT.md) for correction/review state; add [MCP contract](MCP_CONTRACT.md) and authority/persistence contracts when those boundaries change. |
-| New product scope | [Vision](VISION.md), relevant [Requirements](REQUIREMENTS.md) sections and owning contract; state the bounded promise before implementing. |
+| Product/design or redesigned authoring | [Vision](VISION.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), relevant [Requirements](REQUIREMENTS.md) sections and owning contract; agree on the screen and state the bounded promise before implementing. |
 | Production art or runtime integration | Activate the full applicable Artist, Technical Artist or Engineering route in the repository role router before the cross-domain decision. |
 
 A named handoff is read after current binding documents as its task snapshot.
