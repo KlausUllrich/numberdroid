@@ -125,6 +125,10 @@ manual rectangles, inclusion/exclusion, drag/resize, exact numeric adjustment,
 zoom and source-pixel coordinates. Preview and saved cutting instructions remain
 non-destructive. A saved cut never silently retargets an existing asset version.
 This carries forward the [accepted cutter requirements](REQUIREMENTS.md#53-atlas-cutter).
+The user-approved [Cutter Editor Design](CUTTER_EDITOR_DESIGN.md) specifies cut
+names, a stable canvas during errors, the tool rail, grid guides/snapping, zoom
+slider with Fit/100%, and independent edge handles. Its mockup passed; product
+implementation and real-agent verification remain separate.
 
 Placement editing distinguishes logical footprint, ground anchor, visual extent
 and movement blocking. The initial collision foundation supports one or several
@@ -211,9 +215,11 @@ not mean every game feature is already representable.
 For each screen, discuss its goal, requirements and behavior; agree on a mockup;
 update the owning repository documentation; then implement and verify. Approved
 product principles can be documented before every screen mockup is complete.
-The initial browsing mockup received positive overall feedback, but cutter,
-blocking, assembly and complete agent workflows still need concrete design and
-verification. Mockup actions and sample content are not product evidence.
+The initial browsing mockup received positive overall feedback, and Klaus
+explicitly passed the complete cutter v3 mockup. Placement/blocking and assembly
+still need their screen discussions and mockups. Complete agent workflows still
+need implementation and verification. Mockup actions and sample content are not
+product evidence.
 
 Before requesting user verification of an implemented workflow, exercise it with
 a real agent through the supported semantic interface, including correction and
@@ -253,7 +259,7 @@ integration must be proven separately. Materialization, publication/release,
 new image generation, provider use, remote/mobile, 2.5D and additional game
 integrations retain their separate scope and authorization boundaries.
 
-The immediate next design proof is the cutter: select two of four source tiles,
-adjust a cut and inspect the outputs. Then address placement/blocking and one
-assembly example. Do not restart framework onboarding or implement all example
-game modules as a prerequisite for making the Numberdroid authoring path usable.
+The [current task router](START_HERE.md) owns the next design block; individual
+screen contracts own their design approvals and outstanding implementation proof.
+Do not restart framework onboarding or implement all example game modules as a
+prerequisite for making the Numberdroid authoring path usable.
