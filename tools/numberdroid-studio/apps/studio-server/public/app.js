@@ -3117,6 +3117,11 @@ function openCreatedRoom(projectId, roomVariantId) {
   state.roomUi.selectedRoomVariantId = roomVariantId;
   // Selection and its fresh DOM become visible together; old room context is not restored.
   renderWorkspace();
+  const selector = elements['workspace-content'].querySelector('[data-room-variant-select]');
+  if (selector?.value === roomVariantId) {
+    selector.focus({ preventScroll: true });
+    selector.closest('.room-header')?.scrollIntoView({ block: 'center', inline: 'nearest' });
+  }
   return true;
 }
 

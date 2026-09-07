@@ -295,7 +295,7 @@ async function roomCreationHarness({ failure = false, omitCreatedHead = false, r
   const createBody = app.slice(createStart, app.indexOf('  if (!variant) return;', createStart));
   const resizeStart = app.indexOf("  if (form.dataset.roomForm === 'resize') {");
   const resizeBody = app.slice(resizeStart, app.indexOf("  if (form.dataset.roomForm === 'connector')", resizeStart));
-  const sandbox = { state, document: { createElement: roomTestElement, createDocumentFragment: roomTestElement },
+  const sandbox = { state, elements: { 'workspace-content': { querySelector: () => null } }, document: { createElement: roomTestElement, createDocumentFragment: roomTestElement },
     currentRoomLibrary: () => library, roomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion),
     exactRoomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion) ?? null,
     roomHeadFindingProjection: () => ({ errors: [] }), findingSummary: () => 'No findings',
@@ -388,4 +388,28 @@ test('empty Rooms open the next creation form while existing Room controls remai
     assert(nodes.some(({ textContent }) => textContent === 'New room template'));
     assert(nodes.some(({ textContent }) => textContent === 'Create room'));
   }
+});
+
+
+test('successful creation lands focus on the exact new Room identity without moving focus on failure', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function openCreatedRoom('), app.indexOf('function renderRoomCreation('));
+  function scenario({ headAvailable = true, selectorMatches = true } = {}) {
+    const calls = []; const state = { project: { projectId: 'project.one' }, roomUi: { selectedRoomVariantId: 'room.old' } };
+    const selector = { value: selectorMatches ? 'room.new' : 'room.old',
+      focus(options) { calls.push(['focus', options.preventScroll]); },
+      closest(name) { assert.equal(name, '.room-header'); return { scrollIntoView(options) { calls.push(['land', options.block, options.inline]); } }; } };
+    const open = runInNewContext(`${source}; openCreatedRoom;`, { state,
+      currentRoomLibrary: () => ({ variants: [{ roomVariantId: 'room.new' }] }), exactRoomHead: () => headAvailable ? {} : null,
+      resetRoomUiProjectContext() { state.roomUi = {}; calls.push(['reset']); },
+      renderWorkspace() { calls.push(['render', state.roomUi.selectedRoomVariantId]); }, showToast() {},
+      elements: { 'workspace-content': { querySelector(query) { assert.equal(query, '[data-room-variant-select]'); return selector; } } },
+    });
+    return { result: open('project.one', 'room.new'), calls, state };
+  }
+  const success = scenario(); assert.equal(success.result, true);
+  assert.deepEqual(success.calls, [['reset'], ['render', 'room.new'], ['focus', true], ['land', 'center', 'nearest']]);
+  const failed = scenario({ headAvailable: false }); assert.equal(failed.result, false); assert.deepEqual(failed.calls, []);
+  assert.equal(failed.state.roomUi.selectedRoomVariantId, 'room.old');
+  const mismatch = scenario({ selectorMatches: false }); assert(!mismatch.calls.some(([action]) => ['focus', 'land'].includes(action)));
 });

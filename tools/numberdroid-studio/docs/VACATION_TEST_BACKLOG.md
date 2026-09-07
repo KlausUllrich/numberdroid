@@ -54,7 +54,7 @@ Keep these states distinct:
 | VT-015 | Persistent named working projects | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted project/store and launcher foundations | Create, save, stop and reopen the same working project; keep fixture mode separate |
 | VT-016 | Task review feedback and truthful continuation | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing owner review and task foundations | Required summary, optional item comments, exact-review retention, and continuation/history truth; no real agent starts |
 | VT-017 | Human Asset from a saved slice | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted exact slices and Asset proposal core | Author one manual Asset, review/apply it, place it in a draft Room and reopen saved content |
-| VT-018 | Room creation and current editor context | CANDIDATE IN PROGRESS — DEFERRED LIVE / NONBLOCKING | existing Room and working-project foundations | Guided first template/Room; a second Room immediately becomes the displayed and edited Room; prior context is protected |
+| VT-018 | Room creation and current editor context | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing Room and working-project foundations | Guided first template/Room; a second Room immediately becomes the displayed and edited Room; prior context is protected |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1471,7 +1471,8 @@ test convenience.
 ## VT-018 — Room creation and current editor context
 
 - **Implementation:** `agent/studio-room-creation-context`; candidate
-  implementation/verification in progress. Exact source and CI belong in its PR.
+  local full/focused checks, native browser/restart proof and independent
+  reviews passed. Exact source and CI belong in its PR.
 - **Promise:** guide a new project from a Room template to its first editable
   Room, then display and edit the exact newly created Room without stale state
   from the previous Room. Room commands and validation remain unchanged.

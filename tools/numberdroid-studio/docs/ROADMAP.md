@@ -137,7 +137,7 @@ with explicit manual placement metadata and no automatic lifecycle promotion.
 Its automated workflow and deferred VT-017 decision remain separate. Existing
 foundations did not by themselves prove a complete PNG-to-Asset-to-Room UI path.
 
-## Room creation context — candidate implementation
+## Room creation context — implemented candidate
 
 The 2026-09-07 [Room creation candidate](ROOM_EDITOR_L3_STATUS.md) corrects a
 display/command mismatch after creating a second Room and guides an empty

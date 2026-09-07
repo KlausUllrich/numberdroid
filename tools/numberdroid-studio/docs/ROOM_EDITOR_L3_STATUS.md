@@ -140,18 +140,21 @@ Build #2354 repeated the selected gates successfully after merge.
 
 ## Room creation context candidate — 2026-09-07
 
-Candidate implementation is in progress on `agent/studio-room-creation-context`.
-The current source can render the previous Room after creation, then change the
+Implemented candidate on `agent/studio-room-creation-context`; not user accepted.
+The prior source could render the previous Room after creation, then change the
 command target to the new Room without rendering again. This candidate aligns
 the exact new saved Room across selector, header, canvas and command context,
 clearing incompatible prior interaction state only after confirmed success.
 Failures and unresolved edits retain their existing context. Empty-project
 guidance uses **Room template** and opens the next required creation form.
 
-Focused proof must create two differently sized Rooms, immediately edit the
-second before passive refresh, and show that the first is unchanged. Fresh
-1440/1060 browser and restart evidence, existing protected checks and
-independent review remain required. Source/CI identities belong in the focused
+Focused proof creates two differently sized Rooms, immediately edits the
+second before passive refresh, and shows that the first is unchanged. Fresh
+1440/1060 browser and restart evidence passed, including selector focus and
+visible new-Room identity before capture scrolling. The full local Studio run
+passed 801 tests with five expected skips; the subsequent landing repair passed
+all 15 affected Room UI checks. The build checked 256 JavaScript files. Five
+targeted independent reviews cleared their findings. Source/CI identities belong in the focused
 PR; the deferred human check is VT-018 in the
 [Vacation Test Backlog](VACATION_TEST_BACKLOG.md). This candidate does not
 change the remaining VT-001 decision or Room validation semantics.

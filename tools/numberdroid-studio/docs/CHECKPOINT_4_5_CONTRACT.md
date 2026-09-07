@@ -81,7 +81,8 @@ This projection changes no accepted room command, CAS, immutable-version, propos
 Creating a Room must immediately align the selector, header, canvas and command
 target with that exact saved Room. After confirmed creation and reload, verify
 the new Room exists, clear the previous Room's interaction context, select the
-new Room and render it without carrying old Room DOM state. A failed creation
+new Room and render it without carrying old Room DOM state. Focus its selector
+and bring the new Room header into view. A failed creation
 or unavailable exact new head preserves the previous selection; it does not
 select an unseen fallback. Dirty shape/review drafts and unresolved placement
 or gesture state cannot be discarded implicitly by starting another Room.
