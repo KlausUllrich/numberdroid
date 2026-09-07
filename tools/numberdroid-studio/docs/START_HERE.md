@@ -13,10 +13,12 @@ Read the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md) for the approved
 source/asset/assembly model, flexible agent-change review, contextual editors and
 optional project-specific authoring modules. Klaus passed the complete cutter v3
 mockup; [Cutter Editor Design](CUTTER_EDITOR_DESIGN.md) owns its approved behavior.
-That is design approval, not implemented-workflow or milestone acceptance. The
-next attended design discussion is **Placement & blocking**, followed by an
-assembly example. Cutter product implementation and real-agent proof remain
-pending.
+Klaus also passed the Placement & blocking walkthrough and the requested Oval /
+Shift refinements; [Placement & Blocking Editor Design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md)
+owns that approved screen. These are design approvals, not implemented-workflow
+or milestone acceptance. The next attended design discussion is **Assembly**,
+including component reuse, variants/states and ownership of blocking geometry.
+Product implementation and real-agent workflow proof remain pending.
 
 The primary proof is a real agent using Studio's semantic interface, correcting
 technical findings and reading saved review feedback/decisions before Klaus is
@@ -75,6 +77,7 @@ after compaction reverify continuity and reload the selected task context.
 | Documentation or integration | This router, directly affected current status/contract, actual diff and selected verification policy. Use [Roadmap](ROADMAP.md) or the [development plan](../../../docs/planning/DEVELOPMENT_PLAN_NEXT.md) only for sequencing decisions. |
 | Launcher or working-project usability | [README](../README.md), actual launcher/server scripts and focused tests; [backup/recovery contract](O0_BACKUP_RECOVERY_CONTRACT.md) when existing data, restore or activation is involved. |
 | Cutter editor | [Cutter Editor Design](CUTTER_EDITOR_DESIGN.md), [accepted cutter requirements](REQUIREMENTS.md#53-atlas-cutter), actual cutter commands/UI/tests; add the asset/persistence/MCP contracts only when those seams change. |
+| Placement / blocking editor | [Placement & Blocking Editor Design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md), [asset contract](CHECKPOINT_2C_CONTRACT.md), actual geometry and consumers; add persistence, MCP and adapter contracts when those boundaries change. |
 | Room, task or Preview behavior | [CP4.5 contract](CHECKPOINT_4_5_CONTRACT.md), [Room status](ROOM_EDITOR_L3_STATUS.md), the directly affected implementation and tests; add [Architecture](ARCHITECTURE.md) sections for changed seams. |
 | Processing or agent workflow | The exact A1 contract/status linked by [README](../README.md); [A1.7 state contract](A1_7_STATE_CONTRACT.md) for correction/review state; add [MCP contract](MCP_CONTRACT.md) and authority/persistence contracts when those boundaries change. |
 | Product/design or redesigned authoring | [Vision](VISION.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), relevant [Requirements](REQUIREMENTS.md) sections and owning contract; agree on the screen and state the bounded promise before implementing. |
