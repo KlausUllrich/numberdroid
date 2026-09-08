@@ -21,12 +21,13 @@ or milestone acceptance. Klaus also passed the five Assembly walkthrough checks;
 variant/state preview and inherited/custom blocking. Klaus has now passed the
 shared Review batch; [Review Changes Design](REVIEW_CHANGES_DESIGN.md) records
 comparison, dependencies, full/partial acceptance, feedback, discard and stale
-proposal handling. All four editor mockups are approved. The next bounded
-implementation block is the existing pinned-Asset read/render fix: a saved Room
-must keep its selected historical Asset versions after Library edits. Recover
-and refresh that candidate onto verified current main before integration, then
-implement the approved authoring path in coherent blocks. Product implementation
-and real-agent workflow proof remain pending.
+proposal handling. All four editor mockups are approved. The exact-version prerequisite is now
+source-integrated: [Pinned Asset reads](ROOM_PINNED_ASSET_READ_CONTRACT.md) preserves
+saved Room images and geometry after Library updates. The current implementation
+block is the approved Cutter editor plus compatible persistent cut names. Its
+[implementation contract](CUTTER_EDITOR_DESIGN.md#bounded-implementation-contract--2026-09-08)
+keeps existing crop identity, job and scoped-command protections. Full product
+implementation and the isolated real-agent review loop remain pending.
 
 The primary proof is a real agent using Studio's semantic interface, correcting
 technical findings and reading saved review feedback/decisions before Klaus is

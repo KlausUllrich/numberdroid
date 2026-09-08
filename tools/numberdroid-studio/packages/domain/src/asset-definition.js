@@ -288,7 +288,7 @@ export function validateExactSliceBinding(candidate) {
   ], 'sliceBinding');
   const rectangle = exactFields(record.rectangle, [
     'x', 'y', 'width', 'height', 'included', 'pivot', 'transparentPaddingPolicy',
-    'replacesSliceId', 'expectedSliceVersion',
+    'replacesSliceId', 'expectedSliceVersion', 'name',
   ], 'sliceBinding.rectangle');
   const width = requireInteger(record.width, 'sliceBinding.width', { min: 1, max: 65535 });
   const height = requireInteger(record.height, 'sliceBinding.height', { min: 1, max: 65535 });
@@ -314,6 +314,9 @@ export function validateExactSliceBinding(candidate) {
     replacesSliceId: rectangle.replacesSliceId === null ? null : requireId(rectangle.replacesSliceId, 'sliceBinding.rectangle.replacesSliceId'),
     expectedSliceVersion: rectangle.expectedSliceVersion === null ? null : requireInteger(rectangle.expectedSliceVersion, 'sliceBinding.rectangle.expectedSliceVersion', { min: 1 }),
   };
+  if (Object.hasOwn(rectangle, 'name')) {
+    normalizedRectangle.name = requireString(rectangle.name, 'sliceBinding.rectangle.name', { max: 160 });
+  }
   invariant(rectangle.included === true, 'ASSET_SLICE_BINDING_INVALID', 'Only an included committed rectangle can back an asset.', { field: 'sliceBinding.rectangle.included' });
   invariant(normalizedRectangle.width === width && normalizedRectangle.height === height, 'ASSET_SLICE_BINDING_INVALID', 'Slice dimensions must match the exact committed rectangle.', { width, height, rectangle: normalizedRectangle });
   const sourceDigest = requireString(record.sourceDigest, 'sliceBinding.sourceDigest', { min: 64, max: 64 });

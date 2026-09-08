@@ -630,7 +630,13 @@ const ROOM_PROPOSAL_KEYS = ['proposalId', 'proposalVersion', 'roomVariantId', 'e
 const ROOM_PROPOSAL_ITEM_KEYS = ['itemId', 'operation', 'placement', 'placementId', 'expectedAssetId', 'anchor', 'rotation', 'ordinal', 'diff', 'decision'];
 
 function validateRectangleSchema(rectangle, label, { binding = false } = {}) {
-  exactKeys(rectangle, binding ? BINDING_RECTANGLE_KEYS : RECTANGLE_KEYS, label);
+  const hasName = rectangle !== null && typeof rectangle === 'object' && Object.hasOwn(rectangle, 'name');
+  exactKeys(rectangle, [...(binding ? BINDING_RECTANGLE_KEYS : RECTANGLE_KEYS), ...(hasName ? ['name'] : [])], label);
+  if (hasName) {
+    invariant(typeof rectangle.name === 'string' && rectangle.name.length > 0
+      && rectangle.name.length <= 160 && rectangle.name.trim() === rectangle.name,
+    'BUNDLE_SCHEMA_INVALID', `${label}.name must contain 1 to 160 trimmed characters.`, { label });
+  }
   if (rectangle.pivot !== null) exactKeys(rectangle.pivot, ['x', 'y'], `${label}.pivot`);
 }
 

@@ -1,6 +1,6 @@
 # Cutter Editor — Approved Design
 
-Status: **DESIGN APPROVED by Klaus, 2026-09-07; product implementation and agent-workflow verification pending**.
+Status: **DESIGN APPROVED by Klaus, 2026-09-07; implemented candidate, 2026-09-08; human product verification pending**.
 
 Klaus's explicit result was: “I tested the mockup: all pass, good work”. This
 accepts the full standalone cutter v3 mockup, including the corrections below.
@@ -103,3 +103,72 @@ explicitly evolve the accepted cutter/asset contracts, persist names through a
 defined compatible model, and expose matching supported semantic tools. Apply
 the actual-diff risk policy; prove the real agent workflow before asking Klaus
 for product verification. Existing VT-001 / CP4.5 acceptance remains open.
+
+## Bounded implementation contract — 2026-09-08
+
+The first production block implements this editor and named image cuts. An
+optional, nonempty `name` belongs to a rectangle's semantic definition. Absent
+names remain absent in normalized legacy data, preserving existing unnamed
+fingerprints and protected fixtures exactly. A present name is validated bounded
+text and participates in immutable definition/input fingerprints. It does not
+change the crop processor, PNG bytes/digests or stable identity derivation.
+Preserve names through saved definitions, job input/output reads, committed slice
+geometry, exact Asset bindings, project/bundle projections and restart. No
+existing source, slice or Asset version is retargeted. Older data stays readable;
+new optional fields need strict compatibility and round-trip tests.
+
+Retain the existing define → preview job → save outputs boundaries. **Save work**
+commits the cutting instructions; **Preview cuts** prepares exact included PNGs;
+**Save cuts** promotes those inspected results once. These are explicit content
+operations, not an additional human review of the owner's own editing. Existing
+job cancellation, retry, discard, stale-version, budget and recovery protections
+remain accessible. History restores local edits without reverting saved project
+history. Preview/details are contextual views; Back restores compatible editing
+and view state. Closing the editor retains the existing explicit saved-versus-
+unsaved distinction and must not silently save or retarget content.
+
+The accepted scoped MCP cutter commands already support source preparation on
+the shared project head. They retain their current names, tool counts, scopes and
+authority checks with a compatible optional rectangle-name field. Isolated CP4
+task branches still reject preview/commit operations over shared job/CAS state;
+this block does not bypass that boundary or claim a complete isolated agent
+review loop. Verify the supported cutter with an actual agent using semantic
+commands in a fresh test-only project: invalid bounds and correction, two of four
+cuts, names, preview, save, identical retry and restart. Test-host provisioning
+of a narrow grant and synthetic approved source is not owner content acceptance.
+Broader task-isolated processing remains a separately scoped integration need.
+
+The implementation must freeze its source-to-screen inverse and guide settings
+at pointerdown, preserve the actual canvas through gesture updates, and reserve
+validation space. Persist semantic cut data through the shared command core;
+selection, tool, guide visibility, zoom, popup and local Undo history remain editor
+state. Keep strict old unnamed fixtures and verify the new visible controls with
+updated browser scenarios rather than retaining obsolete one-handle/zoom-select
+presentation assertions. The actual diff selects L3 UI/protocol/persistence and
+browser/platform gates; unchanged green checks are not repeated for reassurance.
+
+## Implementation candidate verification
+
+The production editor now uses the approved tool rail, selected-cut inspector,
+slider/Fit/100%, optional guides/snapping, eight handles, named cuts and local
+Undo/Redo. Its canvas remains mounted during compatible updates and freezes the
+inverse transform/scale/grid during gestures. Output details and return preserve
+compatible view context; saved results are shown once after their preview job
+is applied. Existing owner/job command boundaries remain unchanged.
+
+Focused name, geometry, HTTP and bundle tests passed, including unchanged legacy
+crop goldens, old Asset pins, rename recut, replay, restart and canonical bundle
+round-trip. The complete local Studio suite passed 828 tests with five expected
+skips. Native Chrome evidence covers both protected desktop widths, including
+real pointer capture, selection/inspector agreement, repeated valid/error drag
+positions, all handles, nonzero scroll retention, distinct grid replacement Undo,
+and close/reopen reset. A separate adaptive agent discovered the official MCP
+schemas, corrected `ATLAS_RECT_OUT_OF_BOUNDS`, authored two named cuts from a
+synthetic four-tile source, saved exactly two outputs, retried without duplication
+and confirmed persistence after restart. That is shared-head preparation proof;
+it does not resolve isolated task processing or the full review loop.
+
+The focused PR owns final source identities, selected CI and integration evidence.
+[VT-019](VACATION_TEST_BACKLOG.md#vt-019--precise-named-cutter-editor) records the
+remaining human product decision. Earlier mockup passes do not make VT-019,
+VT-001 / CP4.5 or A1.7 accepted.

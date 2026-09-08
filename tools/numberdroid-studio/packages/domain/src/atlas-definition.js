@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { invariant } from './errors.js';
+import { requireString } from './validation.js';
 
 export const ATLAS_PROCESSOR_ID = 'numberdroid-studio.exact-png-crop.v1';
 export const MAX_ATLAS_INPUT_BYTES = 16 * 1024 * 1024;
@@ -131,6 +132,11 @@ export function validateAtlasRectangles(rectangles, {
       replacesSliceId,
       expectedSliceVersion,
     };
+    // Omission is intentional: legacy definitions retain their exact shape and
+    // fingerprint. Names describe a cut; they never replace its stable ID.
+    if (Object.hasOwn(candidate, 'name')) {
+      normalizedRectangle.name = requireString(candidate.name, `rectangles[${index}].name`, { max: 160 });
+    }
     if (candidate.included) {
       const geometry = `${x}:${y}:${width}:${height}`;
       invariant(!geometries.has(geometry), 'ATLAS_RECT_DUPLICATE', 'Included rectangles must not duplicate exact geometry.', { rectangleId });

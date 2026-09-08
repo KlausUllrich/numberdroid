@@ -55,6 +55,7 @@ Keep these states distinct:
 | VT-016 | Task review feedback and truthful continuation | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing owner review and task foundations | Required summary, optional item comments, exact-review retention, and continuation/history truth; no real agent starts |
 | VT-017 | Human Asset from a saved slice | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted exact slices and Asset proposal core | Author one manual Asset, review/apply it, place it in a draft Room and reopen saved content |
 | VT-018 | Room creation and current editor context | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing Room and working-project foundations | Guided first template/Room; a second Room immediately becomes the displayed and edited Room; prior context is protected |
+| VT-019 | Precise named Cutter editor | IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE | approved Cutter design and existing exact PNG/job foundations | Named selective cuts, stable tools/grid/drag, output inspection, save/reopen and user-owned editing |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1486,3 +1487,28 @@ test convenience.
 - **Status:** deferred and nonblocking for authorized development. Record a
   later explicit ACCEPT or REVISE from Klaus. This is separate from VT-001 and
   grants no finalization, runtime materialization, publication or release.
+
+
+## VT-019 — precise named Cutter editor
+
+- **Contract:** [Cutter Editor Design](CUTTER_EDITOR_DESIGN.md), including the
+  compatible named-cut model and explicit shared-head agent preparation boundary.
+- **State:** implemented candidate; mockup approved, human implementation decision
+  pending. CI/source integration is recorded in the focused PR, not inferred here.
+- **Automated/agent proof:** complete local Studio suite, old PNG goldens, named
+  persistence/bundle/Asset-binding compatibility, native 1440/1060 browser checks
+  and an adaptive official-MCP cutter run with error correction, exactly two
+  outputs, identical retry and restart passed. No production art was selected.
+- **Safe setup:** choose **VT-019 Cutter editor fixture** (`cutter-editor`) in
+  the root launcher. It creates a new test directory containing one approved
+  Family Hygiene source and no atlas/slice outputs. Existing directories are
+  rejected before opening the writer. Launch the reviewed worktree as-is. Keep its branch/SHA and data path
+  visible; records are test-only.
+- **Klaus batch:** name and include only two of four cuts; use Fit/100%/slider and
+  edge/corner handles; inspect grid guides and optional snap/Alt without canvas
+  movement; test invalid overlap and Undo/Redo; save work, preview and save the
+  named outputs; inspect full images/details and return; stop/reopen to verify
+  saved names/selection/source bounds and no duplicate outputs.
+- **Decision:** record Klaus's explicit ACCEPT or REVISE for this implemented
+  Cutter. A pass does not approve source art, create/review a semantic Asset,
+  resolve VT-001/A1.7 or authorize runtime materialization/publication.
