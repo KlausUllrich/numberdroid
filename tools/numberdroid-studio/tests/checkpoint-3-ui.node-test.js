@@ -292,7 +292,7 @@ async function roomCreationHarness({ failure = false, omitCreatedHead = false, r
       selectedConnectorId: 'connector.old', activeTool: 'PROP', zoom: '200', layers: { SET_DRESSING: false }, ...roomUi } };
   const observations = []; const requests = []; const messages = [];
   const createStart = app.indexOf("  const form = event.target.closest('[data-room-form]');");
-  const createBody = app.slice(createStart, app.indexOf('  if (!variant) return;', createStart));
+  const createBody = app.slice(createStart, app.indexOf('  if (!variant || !roomPinnedAssetsReady(variant)) return;', createStart));
   const resizeStart = app.indexOf("  if (form.dataset.roomForm === 'resize') {");
   const resizeBody = app.slice(resizeStart, app.indexOf("  if (form.dataset.roomForm === 'connector')", resizeStart));
   const sandbox = { state, elements: { 'workspace-content': { querySelector: () => null } }, document: { createElement: roomTestElement, createDocumentFragment: roomTestElement },
@@ -302,6 +302,8 @@ async function roomCreationHarness({ failure = false, omitCreatedHead = false, r
     roomStatusPill: roomTestElement, renderRoomErrorAttention: () => null, renderRoomViewSwitch: roomTestElement,
     renderRoomToolOptions: roomTestElement, renderRoomToolbox: roomTestElement, renderRoomEditorDock: roomTestElement,
     renderRoomCanvas: (variant) => ({ tag: 'canvas', dataset: { roomId: variant.roomVariantId }, width: variant.width, height: variant.height }),
+    roomPinnedAssetsReady: () => true, ensureRoomPinnedAssets() {}, renderRoomPinnedAssetsStatus: roomTestElement,
+    applyRoomPinnedAssetsLock() {}, cancelRoomPinnedAssets() {},
     applyRoomShapeDraftLock() {}, cancelRoomPreviewLoad() {}, clearRoomPaletteAsset() { state.roomUi.selectedPaletteAssetId = null; },
     clearPendingRoomPlacementAdd() { state.roomUi.pendingPlacementAdd = null; },
     stableUiId: (prefix, name) => `${prefix}.${name.toLowerCase()}`, roomOperationKey: () => 'request.test', clearRoomOperationKey() {},
