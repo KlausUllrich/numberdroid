@@ -13,6 +13,8 @@ This is approval of the mockup's design and interaction. It is not acceptance of
 implemented Studio commands, persistence, engine integration or VT-001 / CP4.5.
 The screen specializes the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md)
 and reuses the interaction foundation of the [approved cutter](CUTTER_EDITOR_DESIGN.md).
+The [Asset editor implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md)
+now defines typed geometry, direct owner Save, compatibility and selected proof.
 The [current task router](START_HERE.md) owns the next design block.
 
 ## Goal and geometric meaning

@@ -4,6 +4,11 @@ Status: **IMPLEMENTED CANDIDATE — NOT USER ACCEPTED**. Date: 2026-09-07.
 This candidate fills a missing human UI step in the accepted Checkpoint 2C
 proposal workflow. Source integration and verification belong in its focused PR.
 
+The 2026-09-08 [Asset editor contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md)
+supersedes this candidate's human prepare/review/apply sequence with direct own-work
+Save. The earlier candidate and its evidence below remain historical implementation
+context; agent proposals still require owner review and application.
+
 ## Promise
 
 A designer can choose one exact saved image slice, describe its purpose and

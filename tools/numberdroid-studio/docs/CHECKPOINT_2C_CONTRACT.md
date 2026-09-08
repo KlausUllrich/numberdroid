@@ -7,6 +7,10 @@ authorization handoff. The accepted Checkpoint 1, 2A, and 2B contracts remain
 unchanged. Checkpoint 2C was accepted and PR #135 merged on 2026-08-24.
 The later [human Asset authoring UI candidate](HUMAN_ASSET_AUTHORING.md) reuses
 this core and has its own verification and live decision.
+The explicitly approved 2026-09-08 [Asset editor evolution](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md)
+adds direct owner Save and optional spatial metadata. Its conditional bundle v4
+and internal catalog change supersede only those specific frozen choices below;
+legacy Assets and agent proposal/decision/apply authority remain protected.
 
 ## 1. Capability surface
 
