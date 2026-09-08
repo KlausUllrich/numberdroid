@@ -1,3 +1,4 @@
+import { roomAssetPinKey, roomPinnedAssetsContext, roomPinnedAssetsKey, roomPinnedAssetsPath, normalizeRoomPinnedAssets } from './room-pinned-assets-state.js';
 import { createAssetAuthoringDraft, buildAssetAuthoringRequest, assetAuthoringConflict } from './asset-authoring-state.js';
 import {
   normalizeProcessingAdoptionProjection,
@@ -94,6 +95,7 @@ const state = {
   roomOperationKeys: new Map(),
   roomUi: {
     view: 'editor',
+    pinnedAssets: { key: null, status: 'idle', assets: [] },
     editorDomState: null,
     preview: createRoomPreviewUiState(),
     previewRequestId: 0,
@@ -2670,6 +2672,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === create.dataset.createAssetSlice && slice.version === Number(create.dataset.sliceVersion));
     if (!pinned) { showToast('This saved slice changed. Reload and select its current saved version.'); return; }
     state.assetAuthoring = { draft: createAssetAuthoringDraft(assetAuthoringContext(pinned.slice)), pinned: structuredClone(pinned), request: null, error: null };
+    cancelPinnedAssetsOnWorkspaceExit('assets');
     state.workspace = 'assets'; location.hash = 'assets'; renderWorkspace(); return;
   }
   if (event.target.closest('[data-asset-authoring-cancel]')) { if (mayAbandonAssetAuthoring()) renderWorkspace(); return; }
@@ -2905,16 +2908,107 @@ function renderRoomDockNavigation() {
   return navigation;
 }
 
+let roomPinnedAssetsRequest = { generation: 0, controller: null };
+function cancelRoomPinnedAssets() {
+  roomPinnedAssetsRequest.controller?.abort();
+  roomPinnedAssetsRequest = { generation: roomPinnedAssetsRequest.generation + 1, controller: null };
+  state.roomUi.pinnedAssets = { key: null, status: 'idle', assets: [] };
+}
+function cancelPinnedAssetsOnWorkspaceExit(nextWorkspace) {
+  if (state.workspace === 'rooms' && nextWorkspace !== 'rooms' && state.roomUi.pinnedAssets.status === 'loading') cancelRoomPinnedAssets();
+}
+function selectedRoomPinnedContext() {
+  const { variant } = currentRoomVariant();
+  return state.project && variant ? roomPinnedAssetsContext(state.project.projectId, state.project.revision, variant) : null;
+}
+function roomPinnedAssetsReady(variant, snapshot = state.project?.snapshot) {
+  return !variant || variant.placements.every((placement) => Boolean(roomAssetSpan(exactRoomAsset(placement, snapshot), placement.rotation)));
+}
+function ensureRoomPinnedAssets(variant, snapshot, { retry = false } = {}) {
+  const context = roomPinnedAssetsContext(state.project.projectId, state.project.revision, variant);
+  const key = roomPinnedAssetsKey(context);
+  if (variant.placements.every((placement) => currentAssetLibrary(snapshot).assets.some((asset) => roomAssetPinKey(asset) === roomAssetPinKey(placement)))) {
+    if (state.roomUi.pinnedAssets.key !== null) cancelRoomPinnedAssets();
+    return;
+  }
+  if (!retry && state.roomUi.pinnedAssets.key === key
+      && (state.roomUi.pinnedAssets.status !== 'loading' || roomPinnedAssetsRequest.controller)) return;
+  cancelRoomPinnedAssets();
+  const controller = new AbortController(); const generation = roomPinnedAssetsRequest.generation;
+  roomPinnedAssetsRequest.controller = controller;
+  state.roomUi.pinnedAssets = { key, status: 'loading', assets: [] };
+  const placements = structuredClone(variant.placements);
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  const owns = () => generation === roomPinnedAssetsRequest.generation && state.workspace === 'rooms'
+    && state.roomUi.pinnedAssets.key === key && roomPinnedAssetsKey(selectedRoomPinnedContext() ?? {}) === key;
+  void (async () => {
+    try {
+      const value = await api(roomPinnedAssetsPath(context), { signal: controller.signal });
+      if (!owns()) return;
+      if (controller.signal.aborted) throw new Error('Pinned Asset read expired.');
+      const assets = normalizeRoomPinnedAssets(value, context, placements);
+      state.roomUi.pinnedAssets = { key, status: 'ready', assets };
+    } catch {
+      if (!owns()) return;
+      state.roomUi.pinnedAssets = { key, status: 'unavailable', assets: [] };
+    } finally {
+      clearTimeout(timer);
+      if (generation === roomPinnedAssetsRequest.generation && roomPinnedAssetsRequest.controller === controller) roomPinnedAssetsRequest.controller = null;
+      if (owns()) {
+        const previewDomState = state.roomUi.view === 'preview' ? captureRoomPreviewDomState() : null;
+        renderWorkspace({ preserveRoomDraft: true });
+        restoreRoomPreviewDomState(previewDomState);
+      }
+    }
+  })();
+}
+elements['workspace-content'].addEventListener('click', (event) => {
+  if (!event.target.closest('[data-room-pinned-assets-retry]') || state.workspace !== 'rooms') return;
+  const { variant } = currentRoomVariant(); if (!variant) return;
+  ensureRoomPinnedAssets(variant, state.project.snapshot, { retry: true }); renderWorkspace({ preserveRoomDraft: true });
+});
+
+function renderRoomPinnedAssetsStatus(variant, snapshot) {
+  const ready = roomPinnedAssetsReady(variant, snapshot);
+  const section = document.createElement('section'); section.className = 'room-panel';
+  section.dataset.roomPinnedAssetsState = ready ? 'ready' : state.roomUi.pinnedAssets.status === 'loading' ? 'loading' : 'unavailable';
+  if (ready) { section.hidden = true; return section; }
+  const copy = document.createElement('p'); copy.setAttribute('role', 'status');
+  copy.textContent = section.dataset.roomPinnedAssetsState === 'loading'
+    ? 'Loading the exact Asset versions saved in this Room. Room edits wait until their geometry is available.'
+    : 'The exact saved Asset versions could not be loaded. No replacement geometry is shown. Retry or choose another Room.';
+  section.append(copy);
+  if (section.dataset.roomPinnedAssetsState === 'unavailable') {
+    const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'secondary';
+    retry.dataset.roomPinnedAssetsRetry = ''; retry.textContent = 'Retry saved Assets'; section.append(retry);
+  }
+  return section;
+}
+function applyRoomPinnedAssetsLock(editor, variant, snapshot) {
+  if (roomPinnedAssetsReady(variant, snapshot)) return;
+  editor.dataset.roomPinnedAssetsBlocked = 'true';
+  for (const control of editor.querySelectorAll('button, input, select, textarea')) {
+    if (control.matches('[data-room-zoom-slider], [data-room-layer], [data-room-control="zoom"], [data-room-control="editor-panel"], [data-room-control="finding"]')) continue;
+    control.disabled = true;
+  }
+}
+
 function exactRoomAsset(placement, snapshot = state.project?.snapshot) {
-  return currentAssetLibrary(snapshot).assets.find((asset) => (
+  const current = currentAssetLibrary(snapshot).assets.find((asset) => (
     asset.assetId === placement.assetId
       && asset.assetVersion === placement.assetVersion
       && asset.metadataVersion === placement.metadataVersion
-  )) ?? null;
+  ));
+  if (current) return current;
+  if (snapshot !== state.project?.snapshot) return null;
+  const context = selectedRoomPinnedContext(); const cached = state.roomUi.pinnedAssets;
+  if (!context || cached?.status !== 'ready' || cached.key !== roomPinnedAssetsKey(context)) return null;
+  return cached.assets.find((asset) => roomAssetPinKey(asset) === roomAssetPinKey(placement)) ?? null;
 }
 
 function roomAssetSpan(asset, rotation = 0) {
-  const span = asset?.metadata?.spanTiles ?? { width: 1, height: 1 };
+  const span = asset?.metadata?.spanTiles;
+  if (!Number.isSafeInteger(span?.width) || !Number.isSafeInteger(span?.height) || span.width < 1 || span.height < 1) return null;
   return rotation === 90 || rotation === 270
     ? { width: span.height, height: span.width }
     : span;
@@ -2967,6 +3061,7 @@ function roomPlacementGhostModel({ variant, snapshot, asset, anchor, rotation, l
   if (!span) blockers.push('The asset has no authored logical footprint.');
   if (asset?.metadata?.rotationPolicy === 'fixed' && rotation !== 0) blockers.push('This asset has a fixed orientation.');
   const footprint = roomAssetSpan(asset, rotation);
+  if (!footprint || !roomPinnedAssetsReady(variant, snapshot)) return { anchor, rotation, footprint: null, asset, layer, allowed: false, message: 'Exact saved Asset geometry is unavailable. Wait for it to load or retry before editing this Room.' };
   const envelope = { x: anchor.x, y: anchor.y, width: footprint.width, height: footprint.height };
   const inBounds = anchor.x >= 0 && anchor.y >= 0
     && anchor.x + footprint.width <= variant.width && anchor.y + footprint.height <= variant.height;
@@ -3011,7 +3106,7 @@ function roomPlacementGhostModel({ variant, snapshot, asset, anchor, rotation, l
 
 function currentRoomPlacementGhost() {
   const { variant } = currentRoomVariant();
-  if (!variant) return null;
+  if (!variant || !roomPinnedAssetsReady(variant)) return null;
   const pending = state.roomUi.pendingPlacementAdd;
   if (pending) {
     const asset = currentAssetLibrary().assets.find((candidate) => candidate.assetId === pending.assetId
@@ -3059,7 +3154,7 @@ function updateRoomPlacementGhostDom() {
   const board = elements['workspace-content'].querySelector('[data-room-board]'); if (!board) return;
   board.querySelector('.room-placement-ghost')?.remove();
   const model = currentRoomPlacementGhost();
-  if (model) board.append(renderRoomPlacementGhost(model));
+  if (model?.footprint) board.append(renderRoomPlacementGhost(model));
   const hint = elements['workspace-content'].querySelector('.room-canvas-hint');
   const { variant } = currentRoomVariant();
   if (hint && variant) hint.textContent = roomCanvasHintText(variant, model);
@@ -3282,6 +3377,7 @@ function renderRoomCanvas(variant, snapshot) {
   for (const placement of variant.placements) {
     if (!state.roomUi.layers[placement.layer]) continue;
     const asset = exactRoomAsset(placement, snapshot); const span = roomAssetSpan(asset, placement.rotation);
+    if (!span) continue;
     const placed = document.createElement('button'); placed.type = 'button'; placed.className = `room-placement ${placement.layer.toLowerCase()}`;
     placed.dataset.roomControl = 'placement-select'; placed.dataset.placementId = placement.placementId;
     placed.dataset.roomFocusKey = `room-placement-${placement.placementId}`;
@@ -3293,7 +3389,7 @@ function renderRoomCanvas(variant, snapshot) {
     placed.setAttribute('aria-label', `${label.textContent} at ${placement.anchor.x}, ${placement.anchor.y}, rotation ${placement.rotation}`);
     board.append(placed);
   }
-  const ghost = currentRoomPlacementGhost(); if (ghost) board.append(renderRoomPlacementGhost(ghost));
+  const ghost = roomPinnedAssetsReady(variant, snapshot) ? currentRoomPlacementGhost() : null; if (ghost?.footprint) board.append(renderRoomPlacementGhost(ghost));
   scroll.append(board); panel.append(scroll);
   const hint = document.createElement('p'); hint.className = 'room-canvas-hint'; hint.setAttribute('role', 'status'); hint.setAttribute('aria-live', 'polite');
   hint.textContent = roomCanvasHintText(variant, ghost);
@@ -3996,6 +4092,8 @@ function renderRooms(snapshot) {
     fragment.append(emptyState('Exact room head unavailable', 'Studio will not open a fallback room version as current. Restore the exact referenced head before editing or inspecting current findings.'));
     return fragment;
   }
+  ensureRoomPinnedAssets(variant, snapshot);
+  fragment.append(renderRoomPinnedAssetsStatus(variant, snapshot));
   fragment.append(renderRoomViewSwitch(variant));
   if (state.roomUi.view === 'preview') {
     fragment.append(renderRoomStudioPreview(variant));
@@ -4004,7 +4102,7 @@ function renderRooms(snapshot) {
   const editor = document.createElement('section'); editor.className = 'room-editor'; editor.append(renderRoomToolOptions(variant));
   const shell = document.createElement('div'); shell.className = 'room-editor-shell';
   shell.append(renderRoomToolbox(variant), renderRoomCanvas(variant, snapshot), renderRoomEditorDock(variant, snapshot, library));
-  editor.append(shell); applyRoomShapeDraftLock(editor, variant);
+  editor.append(shell); applyRoomShapeDraftLock(editor, variant); applyRoomPinnedAssetsLock(editor, variant, snapshot);
   fragment.append(editor);
   return fragment;
 }
@@ -5426,6 +5524,7 @@ function resetAssetUiProjectContext() {
 }
 
 function resetRoomUiProjectContext() {
+  cancelRoomPinnedAssets();
   cancelRoomPreviewLoad();
   state.roomUi.view = 'editor';
   state.roomUi.editorDomState = null;
@@ -6067,7 +6166,7 @@ elements['workspace-content'].addEventListener('pointerdown', (event) => {
   if (!target || !target.closest('[data-room-board]')) return;
   const { variant } = currentRoomVariant();
   const placement = variant?.placements.find(({ placementId }) => placementId === target.dataset.placementId);
-  if (!variant || variant.lifecycle !== 'DRAFT' || !placement || state.roomUi.activeTool !== 'SELECT') return;
+  if (!variant || variant.lifecycle !== 'DRAFT' || !placement || state.roomUi.activeTool !== 'SELECT' || !roomPinnedAssetsReady(variant)) return;
   const board = target.closest('[data-room-board]'); const pointerCell = roomCellFromPointer(board, event);
   if (!pointerCell) return;
   state.roomUi.selectedPlacementId = placement.placementId;
@@ -6189,7 +6288,7 @@ document.addEventListener('keydown', async (event) => {
   }
   const placementShortcutSurface = event.target.closest('[data-room-board], .room-inspector, [data-room-control="rotate-placement-ghost"]');
   if (!placementShortcutSurface) return;
-  const { variant } = currentRoomVariant(); if (!variant || variant.lifecycle !== 'DRAFT') return;
+  const { variant } = currentRoomVariant(); if (!variant || variant.lifecycle !== 'DRAFT' || !roomPinnedAssetsReady(variant)) return;
   if ((event.key === 'r' || event.key === 'R') && state.roomUi.selectedPaletteAssetId) {
     event.preventDefault();
     const asset = exactSelectedRoomPaletteAsset();
@@ -6379,6 +6478,9 @@ function stableUiId(prefix, name = '') {
 
 async function executeRoomMutation({ operation, target, path, body, successMessage, onBeforeReload = null }) {
   if (!state.project || !state.agentAccessCsrf || state.roomMutationPending) return false;
+  if (!['room-archetype-create', 'room-variant-create'].includes(operation) && !roomPinnedAssetsReady(currentRoomVariant().variant)) {
+    showToast('Wait for the exact saved Asset versions before editing this Room.'); return false;
+  }
   if (operation !== 'room-shape-set' && state.roomUi.shapeDraft?.dirty) {
     showToast('Save or discard shape changes before changing other room data.'); return false;
   }
@@ -6609,7 +6711,7 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
     }, successMessage: 'Editable room created.' });
     if (created) openCreatedRoom(projectId, roomVariantId); return;
   }
-  if (!variant) return;
+  if (!variant || !roomPinnedAssetsReady(variant)) return;
   const basePath = `/api/projects/${encodeURIComponent(projectId)}/rooms/${encodeURIComponent(variant.roomVariantId)}`;
   if (form.dataset.roomForm === 'shape-coordinates') {
     const parseCells = (value, label) => {
@@ -6768,7 +6870,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     selectRoomFinding(variant, finding);
     renderWorkspace({ preserveRoomDraft: true }); return;
   }
-  if (!variant || !state.project || state.roomMutationPending) return;
+  if (!variant || !state.project || state.roomMutationPending || !roomPinnedAssetsReady(variant)) return;
   const projectId = state.project.projectId; const basePath = `/api/projects/${encodeURIComponent(projectId)}/rooms/${encodeURIComponent(variant.roomVariantId)}`;
   if (action === 'shape-save') {
     const draft = roomShapeDraft(variant); if (!draft?.dirty || state.roomUi.shapeConflict) return;
@@ -6976,6 +7078,7 @@ elements['workspace-content'].addEventListener('click', (event) => {
       || state.taskMutationPending || state.backupMutationPending) return;
   if (open.dataset.overviewOpen === 'tasks') {
     state.taskUi.view = 'list'; state.taskUi.selectedTaskId = null; state.taskAdoption = null;
+    cancelPinnedAssetsOnWorkspaceExit('tasks');
     state.workspace = 'tasks'; location.hash = state.workspace; renderWorkspace(); void publishVisualEvidence(); return;
   }
   if (open.dataset.overviewOpen !== 'room-findings') return;
@@ -7008,6 +7111,7 @@ elements['workspace-nav'].addEventListener('click', (event) => {
     cancelTaskAdoptionLoad({ channel: 'selection' });
   }
   if (state.workspace === 'backups' && link.dataset.workspace !== 'backups') cancelBackupLoad();
+  cancelPinnedAssetsOnWorkspaceExit(link.dataset.workspace);
   state.workspace = link.dataset.workspace; location.hash = state.workspace; renderWorkspace();
   if (state.workspace === 'tasks' && state.taskUi.view === 'detail') void loadSelectedTaskAdoption();
   if (state.workspace === 'backups') void loadBackupOverview();
@@ -8060,6 +8164,7 @@ window.addEventListener('hashchange', () => {
     return;
   }
   if (nextWorkspace === state.workspace) { void publishVisualEvidence(); return; }
+  cancelPinnedAssetsOnWorkspaceExit(nextWorkspace);
   if (state.workspace === 'tasks' && nextWorkspace !== 'tasks') {
     taskSelectionGeneration += 1;
     cancelTaskAdoptionLoad({ channel: 'selection' });

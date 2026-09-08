@@ -20,6 +20,7 @@ import {
   NUMBERDROID_PROJECT_CAPABILITY_MANIFEST,
 } from '../../../packages/numberdroid-adapter/src/index.js';
 import { createRoomPreviewScene } from '../../../packages/preview/src/room-preview-scene.js';
+import { roomPinnedAssetsHttpProjection } from './room-pinned-assets-projection.js';
 import {
   ContentAddressedArtifactStore,
   JsonProjectStore,
@@ -66,6 +67,7 @@ const staticFiles = new Map([
   ['/o1b-backups-state.js', ['o1b-backups-state.js', 'text/javascript; charset=utf-8']],
   ['/remote-ui-mode.js', ['remote-ui-mode.js', 'text/javascript; charset=utf-8']],
   ['/room-preview-state.js', ['room-preview-state.js', 'text/javascript; charset=utf-8']],
+  ['/room-pinned-assets-state.js', ['room-pinned-assets-state.js', 'text/javascript; charset=utf-8']],
   ['/asset-authoring-state.js', ['asset-authoring-state.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
@@ -1484,6 +1486,22 @@ export function createStudioHttpServer({
           humanOwnerContext(projectView),
           { signal: requestAbort.signal },
         ));
+        return;
+      }
+      const pinnedAssetsPath = url.pathname.endsWith('/pinned-assets');
+      const roomPinnedAssetsRequest = pinnedAssetsPath
+        ? roomPreviewSceneRoute(url.pathname.slice(0, -'/pinned-assets'.length) + '/preview-scene') : null;
+      if (roomPinnedAssetsRequest) {
+        if (request.method !== 'GET') {
+          response.setHeader('allow', 'GET');
+          sendJson(response, 405, { schemaVersion: 1, error: { code: 'METHOD_NOT_ALLOWED' } });
+          return;
+        }
+        if (url.search !== '') throw new StudioError('VALIDATION_ERROR', 'Pinned Room Asset reads do not accept query parameters.');
+        const projectView = await studioService.readProjectTrusted(roomPinnedAssetsRequest.projectId);
+        const source = await studioService.queryRoomPreviewSource({ schemaVersion: 1, ...roomPinnedAssetsRequest },
+          humanOwnerContext(projectView), { signal: requestAbort.signal });
+        sendJson(response, 200, roomPinnedAssetsHttpProjection(source, roomPinnedAssetsRequest));
         return;
       }
       const roomPreviewSceneRequest = roomPreviewSceneRoute(url.pathname);

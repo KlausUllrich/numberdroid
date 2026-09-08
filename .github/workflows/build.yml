@@ -586,6 +586,9 @@ jobs:
           timeout 420s node tools/numberdroid-studio/scripts/verify-room-creation-browser.js \
             "$CHROME" "$CHECKPOINT_4_EVIDENCE/room-creation"
 
+          timeout 420s node tools/numberdroid-studio/scripts/verify-room-pinned-assets-browser.js \
+            "$CHROME" "$CHECKPOINT_4_EVIDENCE/room-pinned-assets"
+
           NUMBERDROID_BROWSER_TEST_CHROME="$CHROME" timeout 45s node --test \
             tools/numberdroid-studio/tests/browser-capture-cancellation.node-test.js
 
