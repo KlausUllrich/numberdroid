@@ -1446,6 +1446,7 @@ function applyCommand(command, snapshot, now, {
             sliceId: slice.sliceId,
             version: slice.version,
             rectangleId: slice.rectangleId,
+            ...(Object.hasOwn(slice.rectangle, 'name') ? { name: slice.rectangle.name } : {}),
             artifactUri: slice.artifactUri,
             digest: slice.digest,
             mediaType: slice.mediaType,

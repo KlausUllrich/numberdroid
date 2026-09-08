@@ -43,6 +43,7 @@ const atlasRectangle = {
   ],
   properties: {
     rectangleId: id,
+    name: { type: 'string', minLength: 1, maxLength: 160 },
     x: { type: 'integer', minimum: 0 },
     y: { type: 'integer', minimum: 0 },
     width: { type: 'integer', minimum: 1 },
