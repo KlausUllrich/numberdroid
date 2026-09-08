@@ -4033,7 +4033,7 @@ try {
       let originalSecurity = null;
       for (let attempt = 0; attempt < 30 && !originalSecurity; attempt += 1) {
         const evaluatedOriginal = await devtools.send('Runtime.evaluate', {
-          expression: `document.readyState === 'complete' ? ({
+          expression: `document.readyState === 'complete' && location.href === ${JSON.stringify(approved.linkHref)} ? ({
             url: location.href,
             openerIsNull: window.opener === null,
             referrer: document.referrer,
@@ -4045,7 +4045,7 @@ try {
       }
       assert(originalSecurity?.url === approved.linkHref && originalSecurity.openerIsNull === true
         && originalSecurity.referrer === '',
-      'The keyboard-opened original tab lost its exact URL, null opener, or empty referrer boundary.');
+      `The keyboard-opened original tab lost its exact URL, null opener, or empty referrer boundary: ${JSON.stringify(originalSecurity)}`);
       await devtools.send('Target.closeTarget', { targetId: originalTarget.targetId });
       assert(approved.text.includes('APPROVED_SOURCE') && approved.text.includes('USER_APPROVED')
         && approved.text.includes('human_upload') && approved.text.includes('1254×1254')
