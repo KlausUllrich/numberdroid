@@ -47,6 +47,20 @@ The [Room status](ROOM_EDITOR_L3_STATUS.md) records PR #206's refreshed,
 unchanged green integration at `034bc4604338e391a2455d42e03a12a5b27d0ed3`.
 This is a recorded source baseline, not a permanently current `main` pointer.
 
+## Active implementation sequence — 2026-09-08
+
+First resolve the [bounded CI startup/upload reliability repair](CI_BROWSER_EXECUTION.md).
+The next product block is the approved Placement & blocking Asset editor, with
+shared semantic commands and real-agent verification. Klaus explicitly requested
+removal of the Activity feed sidebar from all workspaces because **Activity**
+already has its own main-navigation page. Keep durable Activity, auditing and
+that page; remove the duplicate sidebar and give the editors its space.
+Record the concrete compatible geometry and owner-save contract before source
+implementation. Existing human proposal/decision/apply semantics must be evolved
+explicitly for direct own-work Save; agents keep isolated proposals and owner
+review. This does not authorize materialization, image generation or runtime
+publication.
+
 ## What can be used
 
 The human-local foundations support PNG intake, deterministic PNG cutting,
