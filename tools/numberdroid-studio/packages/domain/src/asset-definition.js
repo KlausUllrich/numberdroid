@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { invariant } from './errors.js';
 import { requireEnum, requireId, requireInteger, requireRecord, requireString } from './validation.js';
+import { normalizeAssetSpatial, spatialMetadataFindings, validateSpatialAliases } from './asset-spatial-geometry.js';
 
 export const ASSET_VALIDATOR_VERSION = 'numberdroid-studio.asset-validator.v1';
 export const MAX_ASSET_PROPOSAL_ITEMS = 64;
@@ -19,7 +20,7 @@ const METADATA_FIELDS = Object.freeze([
   'role', 'tags', 'variantGroup', 'compatibilityGroups', 'spanTiles', 'anchor',
   'attachment', 'rotationPolicy', 'placement', 'collision', 'navigation',
   'runtimeEligible', 'connectors', 'continuityProfile', 'continuityTags',
-  'selectionPriority', 'visualWeight', 'extensions',
+  'selectionPriority', 'visualWeight', 'extensions', 'spatial',
 ]);
 
 function canonicalize(value) {
@@ -117,10 +118,10 @@ function normalizeRect(value, label, { max = 64 } = {}) {
   };
 }
 
-function normalizeCollision(value) {
+function normalizeCollision(value, { spatial = false } = {}) {
   if (value === null || value === undefined) return null;
   const record = exactFields(value, ['mode', 'bounds', 'parts'], 'metadata.collision');
-  const mode = requireEnum(record.mode, 'metadata.collision.mode', ['none', 'bounds', 'parts']);
+  const mode = requireEnum(record.mode, 'metadata.collision.mode', spatial ? ['spatial'] : ['none', 'bounds', 'parts']);
   const bounds = record.bounds === null || record.bounds === undefined
     ? null
     : normalizeRect(record.bounds, 'metadata.collision.bounds');
@@ -129,6 +130,7 @@ function normalizeCollision(value) {
   invariant(mode !== 'none' || (bounds === null && parts.length === 0), 'VALIDATION_ERROR', 'Collision mode none cannot carry geometry.', { field: 'metadata.collision' });
   invariant(mode !== 'bounds' || (bounds !== null && parts.length === 0), 'VALIDATION_ERROR', 'Collision mode bounds requires exactly one bounds rectangle.', { field: 'metadata.collision' });
   invariant(mode !== 'parts' || (bounds === null && parts.length > 0), 'VALIDATION_ERROR', 'Collision mode parts requires one or more parts.', { field: 'metadata.collision' });
+  invariant(mode !== 'spatial' || (bounds === null && parts.length === 0), 'ASSET_SPATIAL_ALIAS_CONFLICT', 'Spatial collision must use bounds:null and parts:[]; author regions in metadata.spatial.', { field: 'metadata.collision' });
   return { mode, bounds, parts };
 }
 
@@ -204,6 +206,8 @@ function normalizeExtensions(value) {
 function normalizeMetadata(metadata, kind) {
   requireEnum(kind, 'kind', ASSET_KINDS);
   const record = exactFields(metadata, METADATA_FIELDS, 'metadata');
+  const hasSpatial = Object.hasOwn(record, 'spatial');
+  const spatial = hasSpatial ? normalizeAssetSpatial(record.spatial) : null;
   const spanTiles = normalizeSpan(record.spanTiles);
   const normalized = {
     role: nullableString(record.role, 'metadata.role', { max: 64 }),
@@ -219,7 +223,7 @@ function normalizeMetadata(metadata, kind) {
       ? null
       : requireEnum(record.rotationPolicy, 'metadata.rotationPolicy', ['fixed', 'cardinal']),
     placement: normalizePlacement(record.placement),
-    collision: normalizeCollision(record.collision),
+    collision: normalizeCollision(record.collision, { spatial: hasSpatial }),
     navigation: normalizeNavigation(record.navigation),
     runtimeEligible: nullableBoolean(record.runtimeEligible, 'metadata.runtimeEligible'),
     connectors: normalizeConnectors(record.connectors ?? []),
@@ -230,7 +234,9 @@ function normalizeMetadata(metadata, kind) {
       ? null
       : requireEnum(record.visualWeight, 'metadata.visualWeight', ['light', 'medium', 'heavy']),
     extensions: normalizeExtensions(record.extensions),
+    ...(hasSpatial ? { spatial } : {}),
   };
+  if (hasSpatial) validateSpatialAliases(normalized, spatial);
   if (kind === 'surface' && normalized.attachment !== null) {
     invariant(normalized.attachment === 'ground', 'VALIDATION_ERROR', 'Surface assets must attach to ground.', { field: 'metadata.attachment' });
   }
@@ -275,6 +281,11 @@ function metadataFindings(metadata, kind, assetId) {
   }
   if (kind !== 'surface' && metadata.connectors.length > 0) {
     add('studio.asset.connectors.kind_unusual', '/connectors', 'Connectors on a nonsurface asset require explicit review.', 'Confirm the adapter contract before runtime use.', 'WARNING');
+  }
+  if (Object.hasOwn(metadata, 'spatial')) {
+    for (const entry of spatialMetadataFindings(metadata.spatial, { kind, navigation: metadata.navigation, extensions: metadata.extensions })) {
+      add(entry.ruleId, entry.path, entry.explanation, entry.remediation, entry.severity);
+    }
   }
   return findings.sort((left, right) => left.ruleId.localeCompare(right.ruleId) || left.path.localeCompare(right.path));
 }
