@@ -230,8 +230,10 @@ The initial browsing mockup received positive overall feedback, and Klaus
 explicitly passed the complete cutter v3 mockup and the Placement & blocking
 walkthrough, including the placement v2 Oval / Shift refinements. He then passed
 the five Assembly walkthrough checks, including custom blocking independence.
-The shared Review changes screen remains the next design block. Complete agent
-workflows still need implementation and verification. Mockup actions and sample
+He then passed the shared [Review changes](REVIEW_CHANGES_DESIGN.md) batch,
+including dependent and partial acceptance, feedback, discard and stale proposals.
+All four editor mockups are approved. Complete agent workflows still need
+implementation and verification. Mockup actions and sample
 content are not product evidence.
 
 Before requesting user verification of an implemented workflow, exercise it with
@@ -239,7 +241,9 @@ a real agent through the supported semantic interface, including correction and
 reading saved feedback/decisions. Scripts or browser automation alone do not
 prove agent usability. Owner-only test decisions use clearly identified test
 fixtures and do not substitute for the user's content or milestone acceptance.
-Give the user one focused verification step at a time.
+Match the verification format to Klaus's current preference: he requested multiple
+tests together on 2026-09-08. Provide a concise batch of independent scenarios
+with clear starting states; switch to focused steps for a reported defect.
 
 Use the [binding risk policy](../../../docs/agents/CHANGE_RISK_AND_VERIFICATION.md):
 focused falsification during development, required integration checks for the

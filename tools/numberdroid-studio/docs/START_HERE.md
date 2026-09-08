@@ -1,6 +1,6 @@
 # Numberdroid Studio — Start here
 
-Status date: 2026-09-07. This is the current task router; linked contracts own
+Status date: 2026-09-08. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
@@ -18,10 +18,15 @@ Shift refinements; [Placement & Blocking Editor Design](PLACEMENT_BLOCKING_EDITO
 owns that approved screen. These are design approvals, not implemented-workflow
 or milestone acceptance. Klaus also passed the five Assembly walkthrough checks;
 [Assembly Editor Design](ASSEMBLY_EDITOR_DESIGN.md) records component references,
-variant/state preview and inherited/custom blocking. The next screen is the
-shared **Review changes** workflow: understandable comparison, selected-change
-consequences and feedback. Product implementation and real-agent workflow proof
-remain pending.
+variant/state preview and inherited/custom blocking. Klaus has now passed the
+shared Review batch; [Review Changes Design](REVIEW_CHANGES_DESIGN.md) records
+comparison, dependencies, full/partial acceptance, feedback, discard and stale
+proposal handling. All four editor mockups are approved. The next bounded
+implementation block is the existing pinned-Asset read/render fix: a saved Room
+must keep its selected historical Asset versions after Library edits. Recover
+and refresh that candidate onto verified current main before integration, then
+implement the approved authoring path in coherent blocks. Product implementation
+and real-agent workflow proof remain pending.
 
 The primary proof is a real agent using Studio's semantic interface, correcting
 technical findings and reading saved review feedback/decisions before Klaus is
@@ -82,6 +87,7 @@ after compaction reverify continuity and reload the selected task context.
 | Cutter editor | [Cutter Editor Design](CUTTER_EDITOR_DESIGN.md), [accepted cutter requirements](REQUIREMENTS.md#53-atlas-cutter), actual cutter commands/UI/tests; add the asset/persistence/MCP contracts only when those seams change. |
 | Placement / blocking editor | [Placement & Blocking Editor Design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md), [asset contract](CHECKPOINT_2C_CONTRACT.md), actual geometry and consumers; add persistence, MCP and adapter contracts when those boundaries change. |
 | Assembly editor | [Assembly Editor Design](ASSEMBLY_EDITOR_DESIGN.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), directly affected component/geometry consumers; add storage, capability and MCP contracts before changing those seams. |
+| Shared Review changes | [Review Changes Design](REVIEW_CHANGES_DESIGN.md), [2C contract](CHECKPOINT_2C_CONTRACT.md), [task feedback](TASK_REVIEW_FEEDBACK.md), affected task/application commands and tests; add authority, persistence and MCP contracts before evolving those seams. |
 | Room, task or Preview behavior | [CP4.5 contract](CHECKPOINT_4_5_CONTRACT.md), [Room status](ROOM_EDITOR_L3_STATUS.md), the directly affected implementation and tests; add [Architecture](ARCHITECTURE.md) sections for changed seams. |
 | Processing or agent workflow | The exact A1 contract/status linked by [README](../README.md); [A1.7 state contract](A1_7_STATE_CONTRACT.md) for correction/review state; add [MCP contract](MCP_CONTRACT.md) and authority/persistence contracts when those boundaries change. |
 | Product/design or redesigned authoring | [Vision](VISION.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), relevant [Requirements](REQUIREMENTS.md) sections and owning contract; agree on the screen and state the bounded promise before implementing. |
