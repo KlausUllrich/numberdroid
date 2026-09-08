@@ -35,6 +35,8 @@ let fixture = null;
 let client = null;
 let transport = null;
 let closing = false;
+let shutdownPromise = null;
+let activeRequest = null;
 let queue = Promise.resolve();
 let sequence = 0;
 
@@ -53,8 +55,14 @@ async function closeClient() {
   const previousTransport = transport;
   client = null;
   transport = null;
-  if (previousClient) await deadlineCall(previousClient.close(), 10_000, 'MCP_CLOSE_TIMEOUT');
-  if (previousTransport) await deadlineCall(previousTransport.close(), 10_000, 'MCP_TRANSPORT_CLOSE_TIMEOUT');
+  const failures = [];
+  try {
+    if (previousClient) await deadlineCall(previousClient.close(), 10_000, 'MCP_CLOSE_TIMEOUT');
+  } catch (error) { failures.push(error); }
+  try {
+    if (previousTransport) await deadlineCall(previousTransport.close(), 10_000, 'MCP_TRANSPORT_CLOSE_TIMEOUT');
+  } catch (error) { failures.push(error); }
+  if (failures.length) throw failures[0];
 }
 
 async function connectClient() {
@@ -112,19 +120,33 @@ async function connectClient() {
   await deadlineCall(initialRead, 10_000, 'MCP_INITIAL_READ_TIMEOUT');
 }
 
-async function shutdown(reason) {
-  if (closing) return;
+function shutdown(reason) {
+  if (shutdownPromise) return shutdownPromise;
+  // Set this before any await: pending queue entries must never begin after a
+  // deadline/signal, even when the active request is waiting on the MCP child.
   closing = true;
   clearTimeout(sessionTimer);
   process.stdin.pause();
-  try {
-    await closeClient();
-    await deadlineCall(fixture?.close({ retain }) ?? Promise.resolve(), 15_000, 'HOST_CLOSE_TIMEOUT');
-    emit({ event: 'stopped', reason, retainedDirectory: retain ? fixture?.directory : null });
-  } catch (error) {
-    emit({ event: 'stop-failed', code: error.code ?? 'HOST_CLOSE_FAILED', retainedDirectory: fixture?.directory });
-    process.exitCode = 1;
-  }
+  shutdownPromise = (async () => {
+    const failures = [];
+    try { await closeClient(); } catch (error) { failures.push(error); }
+    // Closing the SDK cancels its pending requests; drain the one operation
+    // already admitted, never the remaining request queue.
+    try {
+      if (activeRequest) await deadlineCall(activeRequest.catch(() => {}), 10_000, 'REQUEST_DRAIN_TIMEOUT');
+    } catch (error) { failures.push(error); }
+    const keepData = retain || failures.length > 0;
+    // Always stop the service/workers/database even when client closure failed.
+    // Unknown quiescence retains the exact owned directory for diagnosis.
+    try {
+      await deadlineCall(fixture?.close({ retain: keepData }) ?? Promise.resolve(), 15_000, 'HOST_CLOSE_TIMEOUT');
+    } catch (error) { failures.push(error); }
+    if (failures.length) {
+      emit({ event: 'stop-failed', code: failures[0].code ?? 'HOST_CLOSE_FAILED', retainedDirectory: fixture?.directory });
+      process.exitCode = 1;
+    } else emit({ event: 'stopped', reason, retainedDirectory: keepData ? fixture?.directory : null });
+  })();
+  return shutdownPromise;
 }
 
 async function dispatch(request) {
@@ -136,7 +158,9 @@ async function dispatch(request) {
   if (request.method === 'host/stop') { await shutdown('host'); return { stopped: true }; }
   if (request.method === 'host/restart') {
     await closeClient();
+    if (closing) return { restarted: false };
     await deadlineCall(fixture.restart(), 20_000, 'HOST_RESTART_TIMEOUT');
+    if (closing) return { restarted: false };
     await connectClient();
     return { restarted: true, projectId: fixture.projectId };
   }
@@ -168,9 +192,9 @@ async function dispatch(request) {
   throw Object.assign(new Error('Unsupported bridge method.'), { code: 'BRIDGE_METHOD_NOT_ALLOWED' });
 }
 
-const sessionTimer = setTimeout(() => { queue = queue.then(() => shutdown('deadline')); }, durationSeconds * 1000);
-process.once('SIGINT', () => { queue = queue.then(() => shutdown('SIGINT')); });
-process.once('SIGTERM', () => { queue = queue.then(() => shutdown('SIGTERM')); });
+const sessionTimer = setTimeout(() => { void shutdown('deadline'); }, durationSeconds * 1000);
+process.once('SIGINT', () => { void shutdown('SIGINT'); });
+process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
 
 try {
   fixture = await deadlineCall(createCutterAgentFixture({ expiresAt: deadline }), 20_000, 'FIXTURE_START_TIMEOUT');
@@ -182,10 +206,11 @@ try {
   let buffer = '';
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => {
+    if (closing) return;
     buffer += chunk;
     if (Buffer.byteLength(buffer) > 256 * 1024) {
       emit({ event: 'input-rejected', code: 'BRIDGE_INPUT_TOO_LARGE' });
-      queue = queue.then(() => shutdown('oversized-input'));
+      void shutdown('oversized-input');
       return;
     }
     let newline;
@@ -198,15 +223,18 @@ try {
         let request;
         try {
           request = JSON.parse(line);
-          const result = await deadlineCall(dispatch(request), 45_000, 'BRIDGE_REQUEST_TIMEOUT');
+          // host/stop awaits shutdown itself, so it must not be its own drain.
+          const operation = dispatch(request);
+          if (request.method !== 'host/stop') activeRequest = operation;
+          const result = await deadlineCall(operation, 45_000, 'BRIDGE_REQUEST_TIMEOUT');
           emit({ id: request.id, sequence: ++sequence, result });
         } catch (error) {
           emit({ id: request?.id ?? null, sequence: ++sequence, error: { code: error.code ?? 'BRIDGE_REQUEST_FAILED' } });
-        }
+        } finally { activeRequest = null; }
       });
     }
   });
-  process.stdin.once('end', () => { queue = queue.then(() => shutdown('stdin-closed')); });
+  process.stdin.once('end', () => { void shutdown('stdin-closed'); });
 } catch (error) {
   emit({ event: 'startup-failed', code: error.code ?? 'FIXTURE_START_FAILED' });
   process.exitCode = 1;

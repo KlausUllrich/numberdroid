@@ -118,7 +118,7 @@ export function syncCutterCanvas(section, { cutter, source, atlas, pending, job 
   for (const group of overlay.querySelectorAll('g[data-rectangle-id]')) if (!kept.has(group)) group.remove();
   for (const control of main.querySelectorAll('button,input')) control.disabled = pending;
   const save = section.querySelector('[data-save-atlas]'); if (save) save.disabled = pending || !issues.canPreview || Boolean(unavailable);
-  const info = cutterGridInfo(source, cutter.guide); const summary = section.querySelector('[data-cutter-grid-summary]');
-  if (summary) summary.textContent = !info.valid ? 'Enter positive cell sizes and valid origin/gaps.' : `${info.count} full cuts · unused right ${info.unusedRight}px, bottom ${info.unusedBottom}px. This replaces your current layout; Undo restores it.${info.count > 64 ? ' Too many cuts: the limit is 64.' : ''}`;
-  const create = section.querySelector('[data-cutter-grid-create]'); if (create) create.disabled = pending || !info.valid || info.count < 1 || info.count > 64;
+  const info = cutterGridInfo(source, cutter.guide); const gridIssues = info.valid && info.count > 0 && info.count <= 64 ? cutterEditIssues(info.cells.map((cell, index) => ({ ...cell, rectangleId: `grid-preview.${index}`, included: true, pivot: null })), source) : null; const summary = section.querySelector('[data-cutter-grid-summary]');
+  if (summary) summary.textContent = !info.valid ? 'Enter positive cell sizes and valid origin/gaps.' : `${info.count} full cuts · unused right ${info.unusedRight}px, bottom ${info.unusedBottom}px. This replaces your current layout; Undo restores it.${info.count > 64 ? ' Too many cuts: the limit is 64.' : ''}${gridIssues?.messages.length ? ' ' + gridIssues.messages.join(' ') : ''}`;
+  const create = section.querySelector('[data-cutter-grid-create]'); if (create) create.disabled = pending || !info.valid || info.count < 1 || info.count > 64 || gridIssues?.canPreview === false;
 }

@@ -145,6 +145,7 @@ test('GitHub diagnostics parse dynamic branches and explain pull/push state', ()
 
 test('fixture profiles produce exact fresh-target preparation commands', () => {
   assert.deepEqual(fixtureCommands('empty', '/tmp/fresh'), []);
+  assert.deepEqual(fixtureCommands('cutter-editor', '/tmp/fresh'), [['scripts/prepare-cutter-editor-fixture.js', '/tmp/fresh']]);
   assert.deepEqual(fixtureCommands('vt001-task', '/tmp/fresh'), [
     ['scripts/prepare-checkpoint-4-visual-evidence.js', '/tmp/fresh'],
   ]);

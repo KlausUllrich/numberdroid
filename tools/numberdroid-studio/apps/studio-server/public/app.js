@@ -1541,10 +1541,10 @@ function clearCutterDrag() {
 
 function settleCutterDrag(event = null) {
   if (!cutterDrag || (event?.pointerId !== undefined && event.pointerId !== cutterDrag.pointerId)) return;
-  const drag = cutterDrag; const shouldRender = drag.changed || state.cutterDeferredRender;
+  const drag = cutterDrag; const shouldRender = drag.changed || drag.selectionChanged || state.cutterDeferredRender;
   const cancelled = event?.type === 'pointercancel' || event?.type === 'lostpointercapture' || event?.type === 'cancel';
   if (state.cutter && drag.instanceId === state.cutter.instanceId) {
-    if (cancelled) { state.cutter.rectangles = drag.before; state.cutter.dirty = drag.priorDirty; state.cutter.operations = drag.priorOperations; }
+    if (cancelled) { state.cutter.rectangles = drag.before; state.cutter.selectedIndex = drag.priorSelectedIndex; state.cutter.dirty = drag.priorDirty; state.cutter.operations = drag.priorOperations; }
     else if (drag.changed) state.cutter.history = cutterHistoryPush(state.cutter.history, drag.before, state.cutter.rectangles);
   }
   clearCutterDrag();
@@ -7194,6 +7194,8 @@ elements['workspace-content'].addEventListener('submit', (event) => {
   const info = cutterGridInfo(source, state.cutter.guide);
   if (!info.valid || info.count < 1 || info.count > 64 || info.cells.length !== info.count) { state.cutter.error = 'Choose a grid with 1–64 full cells before replacing cuts.'; syncCurrentCutterCanvas(); return; }
   const rectangles = info.cells.map((cell, index) => ({ rectangleId: `rect.grid.${crypto.randomUUID()}`, x: cell.x, y: cell.y, width: cell.width, height: cell.height, included: true, pivot: null, transparentPaddingPolicy: 'preserve_exact_rect', replacesSliceId: null, expectedSliceVersion: null }));
+  const issues = cutterEditIssues(rectangles, source);
+  if (!issues.canPreview) { state.cutter.error = issues.messages.join(' '); syncCurrentCutterCanvas(); return; }
   state.cutter.gridOpen = false; applyCutterRectangles(rectangles, { selectedIndex: 0 });
 });
 
@@ -7442,12 +7444,13 @@ elements['workspace-content'].addEventListener('pointerdown', event => {
     index = before.length; const original = { rectangleId: `rect.manual.${crypto.randomUUID()}`, x: Math.round(start.x), y: Math.round(start.y), width: 1, height: 1, included: true, pivot: null, transparentPaddingPolicy: 'preserve_exact_rect', replacesSliceId: null, expectedSliceVersion: null };
     state.cutter.rectangles.push(cutterDragRectangle(original, start, start, { mode: 'draw', source }));
   }
+  const priorSelectedIndex = state.cutter.selectedIndex;
   state.cutter.selectedIndex = index; state.cutter.error = null;
   const target = draw ? svg : (resize || move);
   cutterDrag = { index, mode: draw ? 'draw' : resize ? resize.dataset.cutterEdge : 'move', svg, inverse, start,
     original: structuredClone(state.cutter.rectangles[index]), before, priorDirty: state.cutter.dirty, priorOperations: structuredClone(state.cutter.operations),
     source: { width: source.width, height: source.height }, guide: structuredClone(state.cutter.guide), snap: state.cutter.snap,
-    target, pointerId: event.pointerId, changed: draw, instanceId: state.cutter.instanceId };
+    target, pointerId: event.pointerId, changed: draw, priorSelectedIndex, selectionChanged: priorSelectedIndex !== index, instanceId: state.cutter.instanceId };
   state.cutter.frozenScale = Number(svg.closest('.cutter-canvas').dataset.scale);
   if (draw) markCutterDefinitionDirty();
   syncCurrentCutterCanvas(); target.setPointerCapture?.(event.pointerId); target.focus?.({ preventScroll: true }); event.preventDefault();

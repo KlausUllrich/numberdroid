@@ -32,6 +32,10 @@ const FIXTURE_PROFILES = Object.freeze({
       ['scripts/prepare-checkpoint-4-visual-evidence.js', '$DATA'],
     ],
   }),
+  'cutter-editor': Object.freeze({
+    label: 'VT-019 Cutter editor fixture',
+    commands: [['scripts/prepare-cutter-editor-fixture.js', '$DATA']],
+  }),
   'review-feedback': Object.freeze({
     label: 'VT-016 Review feedback fixture',
     commands: [['scripts/prepare-review-feedback-evidence.js', '$DATA']],
@@ -502,7 +506,7 @@ function printHelp(output = process.stdout) {
   output.write(`  --verbose                   Show paths, commits, and Git comparison details\n`);
   output.write(`  --select <numbers/ranges>   Select menu indices, for example 1,3-4\n`);
   output.write(`  --all                       Select every eligible worktree\n`);
-  output.write(`  --fixture <profile>         empty, vt001-room, vt001-task, or review-feedback\n`);
+  output.write(`  --fixture <profile>         empty, vt001-room, vt001-task, review-feedback, or cutter-editor\n`);
   output.write(`  --base-port <port>          First preferred port (default: 4317)\n`);
   output.write(`  --data-root <new-path>      New retained launch root (default: OS temp)\n`);
   output.write(`  --new-project <name>       Create one empty named working project\n`);
@@ -550,8 +554,9 @@ async function chooseInteractively(worktrees, main, hiddenCount, options) {
     process.stdout.write('  2. VT-001 Room / Preview fixture\n');
     process.stdout.write('  3. VT-001 Agent tasks fixture\n');
     process.stdout.write('  4. VT-016 Review feedback fixture\n');
+    process.stdout.write('  5. VT-019 Cutter editor fixture\n');
     const fixtureText = (await terminal.question('Select fixture [1]: ')).trim();
-    const fixture = ({ '': 'empty', 1: 'empty', 2: 'vt001-room', 3: 'vt001-task', 4: 'review-feedback' })[fixtureText];
+    const fixture = ({ '': 'empty', 1: 'empty', 2: 'vt001-room', 3: 'vt001-task', 4: 'review-feedback', 5: 'cutter-editor' })[fixtureText];
     if (!fixture) fail(`Invalid fixture selection: ${fixtureText}`);
     return { allRequested, indices, fixture };
   } finally {

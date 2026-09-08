@@ -1,6 +1,6 @@
 # Cutter Editor — Approved Design
 
-Status: **DESIGN APPROVED by Klaus, 2026-09-07; product implementation and agent-workflow verification pending**.
+Status: **DESIGN APPROVED by Klaus, 2026-09-07; implemented candidate, 2026-09-08; human product verification pending**.
 
 Klaus's explicit result was: “I tested the mockup: all pass, good work”. This
 accepts the full standalone cutter v3 mockup, including the corrections below.
@@ -146,3 +146,29 @@ state. Keep strict old unnamed fixtures and verify the new visible controls with
 updated browser scenarios rather than retaining obsolete one-handle/zoom-select
 presentation assertions. The actual diff selects L3 UI/protocol/persistence and
 browser/platform gates; unchanged green checks are not repeated for reassurance.
+
+## Implementation candidate verification
+
+The production editor now uses the approved tool rail, selected-cut inspector,
+slider/Fit/100%, optional guides/snapping, eight handles, named cuts and local
+Undo/Redo. Its canvas remains mounted during compatible updates and freezes the
+inverse transform/scale/grid during gestures. Output details and return preserve
+compatible view context; saved results are shown once after their preview job
+is applied. Existing owner/job command boundaries remain unchanged.
+
+Focused name, geometry, HTTP and bundle tests passed, including unchanged legacy
+crop goldens, old Asset pins, rename recut, replay, restart and canonical bundle
+round-trip. The complete local Studio suite passed 828 tests with five expected
+skips. Native Chrome evidence covers both protected desktop widths, including
+real pointer capture, selection/inspector agreement, repeated valid/error drag
+positions, all handles, nonzero scroll retention, distinct grid replacement Undo,
+and close/reopen reset. A separate adaptive agent discovered the official MCP
+schemas, corrected `ATLAS_RECT_OUT_OF_BOUNDS`, authored two named cuts from a
+synthetic four-tile source, saved exactly two outputs, retried without duplication
+and confirmed persistence after restart. That is shared-head preparation proof;
+it does not resolve isolated task processing or the full review loop.
+
+The focused PR owns final source identities, selected CI and integration evidence.
+[VT-019](VACATION_TEST_BACKLOG.md#vt-019--precise-named-cutter-editor) records the
+remaining human product decision. Earlier mockup passes do not make VT-019,
+VT-001 / CP4.5 or A1.7 accepted.
