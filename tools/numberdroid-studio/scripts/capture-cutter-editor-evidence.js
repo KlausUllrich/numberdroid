@@ -20,7 +20,7 @@ function driver(devtools, sessionId) {
     }
     throw new Error(`${label} did not settle within five seconds.`);
   };
-  const click = selector => evaluate(`(() => { const n = document.querySelector(${JSON.stringify(selector)}); if (!n || n.disabled) throw new Error('Unavailable cutter control: ' + ${JSON.stringify(selector)}); n.click(); })()`);
+  const click = async selector => { await evaluate(`(() => { const n = document.querySelector(${JSON.stringify(selector)}); if (!n || n.disabled) throw new Error('Unavailable cutter control: ' + ${JSON.stringify(selector)}); n.click(); })()`); await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'); };
   const fill = (selector, value, event = 'change') => evaluate(`(() => { const n = document.querySelector(${JSON.stringify(selector)}); if (!n || n.disabled) throw new Error('Unavailable cutter field'); n.value = ${JSON.stringify(String(value))}; n.dispatchEvent(new Event(${JSON.stringify(event)}, { bubbles: true })); })()`);
   const state = () => evaluate(`(() => {
     const rect = n => { const r = n?.getBoundingClientRect(); return r ? [r.x,r.y,r.width,r.height] : null; };

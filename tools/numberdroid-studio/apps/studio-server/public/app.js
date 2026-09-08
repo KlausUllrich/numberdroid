@@ -1914,6 +1914,7 @@ function setCutterView(view) {
   cutter.viewContexts ??= {};
   cutter.viewContexts[cutter.view] = { x: window.scrollX, y: window.scrollY,
     focus: cutter.view === 'edit' ? cutter.lastEditingFocusKey ?? cutterControlKey(document.activeElement) : cutterControlKey(document.activeElement) };
+  cutter.viewGeneration = (cutter.viewGeneration ?? 0) + 1;
   cutter.view = view; cutter.gridOpen = false; cutter.restoreViewContext = cutter.viewContexts[view] ?? { x: 0, y: 0, focus: null };
 }
 
@@ -5357,7 +5358,17 @@ function renderWorkspace({
   if (preserveRoomDraft) restoreRoomDomState();
   if (preserveTaskContext) restoreTaskDomState();
   if (preserveBackupContext) restoreBackupDomState();
-  if (state.cutter?.restoreViewContext && state.workspace === 'sources') { const saved = state.cutter.restoreViewContext; state.cutter.restoreViewContext = null; requestAnimationFrame(() => { const controls = elements['workspace-content'].querySelectorAll('input,select,button,[data-cutter-move],[data-cutter-resize]'); [...controls].find(control => cutterControlKey(control) === saved.focus)?.focus({ preventScroll: true }); window.scrollTo(saved.x, saved.y); }); }
+  if (state.cutter?.restoreViewContext && state.workspace === 'sources') {
+    const cutter = state.cutter; const saved = cutter.restoreViewContext;
+    const view = cutter.view; const generation = cutter.viewGeneration;
+    cutter.restoreViewContext = null;
+    requestAnimationFrame(() => {
+      if (state.cutter !== cutter || state.workspace !== 'sources' || cutter.view !== view || cutter.viewGeneration !== generation) return;
+      const controls = elements['workspace-content'].querySelectorAll('input,select,button,[data-cutter-move],[data-cutter-resize]');
+      [...controls].find(control => cutterControlKey(control) === saved.focus)?.focus({ preventScroll: true });
+      window.scrollTo(saved.x, saved.y);
+    });
+  }
   if (state.workspace === 'rooms' && state.roomUi.zoom === 'fit') requestAnimationFrame(applyRoomCanvasFit);
 }
 

@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, writeFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 const script = fileURLToPath(new URL('../scripts/cutter-agent-session.js', import.meta.url));
@@ -29,7 +29,7 @@ async function session(context, { seconds = 30, slow = false, failClose = false 
       if (${failClose}) throw Object.assign(new Error('injected close failure'), {code:'TEST_CLIENT_CLOSE_FAILED'});
     };
   `);
-  const child = spawn(process.execPath, ['--import', hook, script, '--timeout-seconds', String(seconds)], {
+  const child = spawn(process.execPath, ['--import', pathToFileURL(hook).href, script, '--timeout-seconds', String(seconds)], {
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let output = '';
