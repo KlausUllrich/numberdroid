@@ -2954,7 +2954,11 @@ function ensureRoomPinnedAssets(variant, snapshot, { retry = false } = {}) {
     } finally {
       clearTimeout(timer);
       if (generation === roomPinnedAssetsRequest.generation && roomPinnedAssetsRequest.controller === controller) roomPinnedAssetsRequest.controller = null;
-      if (owns()) renderWorkspace({ preserveRoomDraft: true });
+      if (owns()) {
+        const previewDomState = state.roomUi.view === 'preview' ? captureRoomPreviewDomState() : null;
+        renderWorkspace({ preserveRoomDraft: true });
+        restoreRoomPreviewDomState(previewDomState);
+      }
     }
   })();
 }

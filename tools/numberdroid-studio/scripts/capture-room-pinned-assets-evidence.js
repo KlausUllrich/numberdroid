@@ -52,9 +52,14 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
     };
   })()`);
   const initial = await read(); assert.equal(initial.snapshot.assetLibrary.assets[0].assetVersion, 2);
+  const latestImage = `/api/projects/${PROJECT}/artifacts/sha256/${initial.snapshot.assetLibrary.assets[0].sliceBinding.digest}`;
+  const oldPin = await evaluate(`fetch('/api/projects/${PROJECT}/revisions/${initial.revision}/room-variants/${OLD_ROOM}/versions/${reopened ? 3 : 1}/pinned-assets').then((response) => response.json())`);
+  const expectedOldImage = oldPin.assets[0].preview.resourceUri;
+  assert.notEqual(expectedOldImage, latestImage, 'Fixture versions must have different image URLs');
   const mixedBefore = structuredClone(initial.snapshot.roomLibrary.variants.find((room) => room.roomVariantId === MIXED_ROOM));
   await selectRoom(OLD_ROOM, 1); const oldVisual = await visual();
   assert.ok(oldVisual[0].width.includes('2 *')); assert.ok(oldVisual[0].height.includes('1 *')); assert.match(oldVisual[0].label, /^Metadata test prop at /); assert.equal(oldVisual[0].ready, 'READY');
+  assert.equal(oldVisual[0].image, expectedOldImage);
   await capture(reopened ? 'reopened-old' : 'historical-old');
   let delayedResponseIgnored = null;
   if (!reopened) {
@@ -70,6 +75,8 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   await selectRoom(MIXED_ROOM, 2); const mixedVisual = await visual();
   assert.ok(mixedVisual.find((item) => item.placementId === 'placement.mixed.old').width.includes('2 *'));
   assert.ok(mixedVisual.find((item) => item.placementId === 'placement.mixed.new').width.includes('3 *'));
+  assert.equal(mixedVisual.find((item) => item.placementId === 'placement.mixed.old').image, expectedOldImage);
+  assert.equal(mixedVisual.find((item) => item.placementId === 'placement.mixed.new').image, latestImage);
   await capture(reopened ? 'reopened-mixed' : 'mixed-versions');
   let workspaceNavigation = null;
   if (!reopened) {
@@ -88,6 +95,30 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
     await selectRoom(OLD_ROOM, 1);
     assert.deepEqual(await visual(), oldVisual, 'Normal workspace return lost the exact old Asset image or footprint');
     workspaceNavigation = { completionWhileAway: completion, usedNormalNavigation: true, readsBeforeReturn, readsAfterReturn: await evaluate('window.__pinnedAudit.oldReads'), freshReadReady: true, oldGeometryPreserved: true };
+  }
+  let previewCompletion = null;
+  if (!reopened) {
+    await selectRoom(MIXED_ROOM, 2);
+    await evaluate(`(() => { window.__pinnedAudit.holdOld = true; window.__pinnedAudit.oldHeld = false; const select = document.querySelector('[data-room-variant-select]'); select.value = '${OLD_ROOM}'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor('window.__pinnedAudit.oldHeld === true', 'Room read held while entering Preview');
+    await click('[data-room-view="preview"]');
+    await waitFor(`document.querySelector('[data-room-preview-state="READY"]') && document.querySelector('[data-preview-inspect]')`, 'Independent Studio Preview scene');
+    // Constrain only this test viewport so both scroll axes are exercised.
+    // The actual helper must restore the new DOM after the late editor read.
+    await evaluate(`(() => { const sheet = [...document.styleSheets].find(sheet => sheet.href?.endsWith('/styles.css')); if (!sheet) throw new Error('Studio stylesheet unavailable'); window.__pinnedPreviewRules = { sheet, start:sheet.cssRules.length }; for (const rule of ['body { min-height:1800px; }', '.room-preview-stage { min-height:260px; max-height:260px; }', '.room-preview-stage svg { min-width:1600px; }']) sheet.insertRule(rule, sheet.cssRules.length); })()`);
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    await evaluate(`(() => { document.querySelector('[data-preview-inspect]').focus({ preventScroll:true }); const stage = document.querySelector('[data-room-scroll="studio-preview"]'); stage.scrollLeft = 53; stage.scrollTop = 41; window.scrollTo(0, 67); })()`);
+    const previewState = () => evaluate(`(() => { const stage = document.querySelector('[data-room-scroll="studio-preview"]'); return { focus:document.activeElement?.dataset.previewInspect, x:stage.scrollLeft, y:stage.scrollTop, page:window.scrollY }; })()`);
+    const before = await previewState(); assert.ok(before.focus && before.x > 0 && before.y > 0 && before.page > 0, JSON.stringify(before));
+    const completion = width === 1440 ? 'fulfilled' : 'rejected';
+    await evaluate(completion === 'fulfilled' ? 'window.__pinnedAudit.releaseOld()' : 'window.__pinnedAudit.rejectOld()');
+    await waitFor(`Boolean(document.querySelector('[data-room-pinned-assets-state="${completion === 'fulfilled' ? 'ready' : 'unavailable'}"]'))`, 'Pinned read completion updates status in Preview');
+    await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    assert.deepEqual(await previewState(), before, 'Late editor read lost Preview focus or scroll');
+    previewCompletion = { completion, constrainedScrollProbe:true, before, after:await previewState() };
+    await evaluate(`(() => { const { sheet, start } = window.__pinnedPreviewRules; while (sheet.cssRules.length > start) sheet.deleteRule(start); delete window.__pinnedPreviewRules; })()`);
+    await click('[data-room-view="editor"]');
+    if (completion === 'rejected') await click('[data-room-pinned-assets-retry]');
   }
   await selectRoom(OLD_ROOM, 1);
   if (!reopened) {
@@ -116,6 +147,6 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   const errors = devtools.events.filter((event) => event.method === 'Runtime.exceptionThrown' || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error') || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error') || event.method === 'Network.loadingFailed' || (event.method === 'Network.responseReceived' && event.params?.response?.status >= 400));
   assert.equal(errors.length, 0, JSON.stringify(errors));
   if (domPath) await writeFile(domPath, `${await evaluate('document.documentElement.outerHTML')}\n`);
-  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'room-pinned-assets', reopened, browser: browserVersion.product, revision: final.revision, roomVersion: oldRoom.headVersion, oldVisual, mixedVisual, finalVisual, delayedResponseIgnored, workspaceNavigation, postCount: posts.length, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
+  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'room-pinned-assets', reopened, browser: browserVersion.product, revision: final.revision, roomVersion: oldRoom.headVersion, oldVisual, mixedVisual, finalVisual, delayedResponseIgnored, workspaceNavigation, previewCompletion, postCount: posts.length, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify({ status: 'CAPTURED', mode: 'room-pinned-assets', width, reopened, screenshotCount: screenshots.length, output: outputPath })}\n`);
 }

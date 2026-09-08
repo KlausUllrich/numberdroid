@@ -48,7 +48,9 @@ unchanged.
 Matching current Asset heads can satisfy a placement without another request.
 Missing historical versions load under a key containing project ID/revision and
 Room ID/version. Cancellation, timeout and stale-response guards prevent a
-late result from entering another editor context. Multiple versions of one
+late result from entering another editor context. If the owner has opened Studio
+Preview meanwhile, completion retains its object/root focus and page/Preview
+scroll while updating the load status. Multiple versions of one
 Asset are distinguished by the full Asset/version/metadata triple.
 
 While records are loading or unavailable, the Room remains identifiable, shows
@@ -59,7 +61,8 @@ a persistence substitute.
 
 ## Required verification
 
-Use fresh fixtures to prove A1 rendering after A2 exists, two versions of one
+Use fresh fixtures with different A1/A2 image bytes to prove A1 rendering after
+A2 exists, two versions of one
 Asset in one Room, exact old-pin move/resize behavior, stale/foreign/missing
 reference rejection, unused-record exclusion and zero read-side writes. Test
 delayed responses during Room/project switching and native 1440/1060 rendering

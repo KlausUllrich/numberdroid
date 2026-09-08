@@ -72,7 +72,7 @@ test('normal navigation cancels a pending pin read and returning Rooms starts a 
       currentAssetLibrary: () => ({ assets: [{ ...asset, assetVersion: 2 }] }),
       elements: { 'workspace-nav': { addEventListener(_type, callback) { navigate = callback; } } }, location: { hash: 'rooms' },
       api(_path, { signal }) { return new Promise((resolve, reject) => requests.push({ resolve, reject, signal })); },
-      publishVisualEvidence() {}, renderWorkspace() {},
+      publishVisualEvidence() {}, renderWorkspace() {}, restoreRoomPreviewDomState() {},
     };
     const ensure = runInNewContext(`${loader}
 ${nav}

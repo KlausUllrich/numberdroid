@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
 import { PROJECT_ID, ASSET_ID, applyProposal, command, closeServer, prepareAssetMetadataFixture, serverOptions } from './asset-metadata-evidence-fixture.js';
 export { PROJECT_ID, ASSET_ID, ROOM_ID, closeServer, serverOptions } from './asset-metadata-evidence-fixture.js';
@@ -8,10 +9,12 @@ export async function prepareRoomPinnedAssetsFixture(directory) {
   const running = await startStudioHttpServer(serverOptions(directory));
   try {
     const oldAsset = initial.snapshot.assetLibrary.assets[0];
+    const newSlice = initial.snapshot.atlases[0].sliceHeads[1];
+    assert.notEqual(newSlice.digest, oldAsset.sliceBinding.digest, 'Fixture versions must use distinct image bytes');
     const metadata = structuredClone(oldAsset.metadata); delete metadata.pixelSize; delete metadata.pivot;
     metadata.spanTiles = { width: 3, height: 2 }; metadata.anchor = { x: 1, y: 1 }; metadata.placement.wallSafe = true;
     metadata.collision.bounds = { x: 0, y: 0, width: 3, height: 2 };
-    await applyProposal(running, { proposalId: 'proposal.pinned.new-head', expectedRevision: 12, items: [{ itemId: 'item.pinned.new-head', operation: 'update', assetId: ASSET_ID, expectedAssetVersion: 1, expectedMetadataVersion: 1, sliceId: oldAsset.sliceBinding.sliceId, expectedSliceVersion: oldAsset.sliceBinding.sliceVersion, name: 'Latest 3×2 Asset', kind: oldAsset.kind, metadata }] });
+    await applyProposal(running, { proposalId: 'proposal.pinned.new-head', expectedRevision: 12, items: [{ itemId: 'item.pinned.new-head', operation: 'update', assetId: ASSET_ID, expectedAssetVersion: 1, expectedMetadataVersion: 1, sliceId: newSlice.sliceId, expectedSliceVersion: newSlice.version, name: 'Latest 3×2 Asset', kind: oldAsset.kind, metadata }] });
     const originalRoom = initial.snapshot.roomLibrary.variants[0].versions[0];
     await command(running, 'room.variant.create', 'mixed-room', {
       roomVariantId: MIXED_ROOM_ID, roomArchetypeId: originalRoom.roomArchetypeId, archetypeVersion: originalRoom.archetypeVersion,
