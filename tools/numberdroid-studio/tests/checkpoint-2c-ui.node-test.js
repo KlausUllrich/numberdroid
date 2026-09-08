@@ -15,7 +15,7 @@ test('2C Asset Library is additive, ordinal-first, filterable, and keeps exact s
   );
   assert.match(assetRenderer, /article\.className = 'card asset-card asset-v2-card'/);
   assert.match(assetRenderer, /article\.dataset\.assetId = asset\.assetId/);
-  assert.match(app, /label: match \? `Slice \$\{match\.ordinal\}` : 'Pinned historical slice'/);
+  assert.match(app, /label: savedSliceLabel\(match\?\.slice \?\? binding, match\?\.ordinal\)/);
   assert.match(assetRenderer, /Canonical slice ID/);
   assert.match(app, /button\.dataset\.copyCanonical = value/);
   assert.match(assetRenderer, /Search name, ID, or tag/);

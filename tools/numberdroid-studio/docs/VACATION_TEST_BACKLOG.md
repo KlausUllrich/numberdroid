@@ -55,7 +55,7 @@ Keep these states distinct:
 | VT-016 | Task review feedback and truthful continuation | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing owner review and task foundations | Required summary, optional item comments, exact-review retention, and continuation/history truth; no real agent starts |
 | VT-017 | Human Asset from a saved slice | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted exact slices and Asset proposal core | Author one manual Asset, review/apply it, place it in a draft Room and reopen saved content |
 | VT-018 | Room creation and current editor context | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing Room and working-project foundations | Guided first template/Room; a second Room immediately becomes the displayed and edited Room; prior context is protected |
-| VT-019 | Precise named Cutter editor | IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE | approved Cutter design and existing exact PNG/job foundations | Named selective cuts, stable tools/grid/drag, output inspection, save/reopen and user-owned editing |
+| VT-019 | Precise named Cutter editor | CUTTER WORKFLOW USER PASSED 2026-09-08 — Library labels follow-up | approved Cutter design and existing exact PNG/job foundations | Named selective cuts, stable tools/grid/drag, output inspection, save/reopen and user-owned editing |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1493,8 +1493,10 @@ test convenience.
 
 - **Contract:** [Cutter Editor Design](CUTTER_EDITOR_DESIGN.md), including the
   compatible named-cut model and explicit shared-head agent preparation boundary.
-- **State:** implemented candidate; mockup approved, human implementation decision
-  pending. CI/source integration is recorded in the focused PR, not inferred here.
+- **State:** Klaus passed the full implemented Cutter batch on 2026-09-08 at
+  main `5da75401c1131c88a87c76551acefc6e202654d7`, saying “all pass!”. The separate
+  Library label finding is a bounded follow-up; names are saved correctly but
+  its cards still use ordinals. Retest only those displayed names after the fix.
 - **Automated/agent proof:** complete local Studio suite, old PNG goldens, named
   persistence/bundle/Asset-binding compatibility, native 1440/1060 browser checks
   and an adaptive official-MCP cutter run with error correction, exactly two
@@ -1509,6 +1511,7 @@ test convenience.
   movement; test invalid overlap and Undo/Redo; save work, preview and save the
   named outputs; inspect full images/details and return; stop/reopen to verify
   saved names/selection/source bounds and no duplicate outputs.
-- **Decision:** record Klaus's explicit ACCEPT or REVISE for this implemented
-  Cutter. A pass does not approve source art, create/review a semantic Asset,
+- **Decision:** the Cutter workflow is user-passed. Confirm the Library uses the
+  saved names after its display fix; do not repeat the passed Cutter batch. This
+  does not approve source art, create/review a semantic Asset,
   resolve VT-001/A1.7 or authorize runtime materialization/publication.

@@ -1,6 +1,6 @@
 # Cutter Editor — Approved Design
 
-Status: **DESIGN APPROVED by Klaus, 2026-09-07; implemented candidate, 2026-09-08; human product verification pending**.
+Status: **DESIGN APPROVED by Klaus, 2026-09-07; Cutter workflow user-passed, 2026-09-08; Library name-label follow-up recorded**.
 
 Klaus's explicit result was: “I tested the mockup: all pass, good work”. This
 accepts the full standalone cutter v3 mockup, including the corrections below.
@@ -170,5 +170,17 @@ it does not resolve isolated task processing or the full review loop.
 
 The focused PR owns final source identities, selected CI and integration evidence.
 [VT-019](VACATION_TEST_BACKLOG.md#vt-019--precise-named-cutter-editor) records the
-remaining human product decision. Earlier mockup passes do not make VT-019,
-VT-001 / CP4.5 or A1.7 accepted.
+Cutter workflow pass and the Library name-label follow-up. VT-001 / CP4.5 and
+A1.7 acceptance remain separate.
+
+## Human Cutter decision — 2026-09-08
+
+Klaus passed the complete implemented Cutter batch at main
+`5da75401c1131c88a87c76551acefc6e202654d7`: “all pass!”. This accepts the tested
+Cutter workflow. He also reported that saved cuts appeared in the Library as
+“Slice 1” and “Slice 2” instead of his stored names. Their names were already
+persisted correctly; the follow-up fixes only display labels in the Library,
+source-binding details and the Asset-creation source caption. Use the exact saved
+slice/binding name, with the existing numbered or historical fallback when no
+name was authored. Do not rename semantic Assets or retarget an old binding to a
+newer slice. This pass does not accept VT-001, A1.7 or the wider authoring redesign.

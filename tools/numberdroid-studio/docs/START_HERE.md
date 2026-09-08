@@ -23,8 +23,10 @@ shared Review batch; [Review Changes Design](REVIEW_CHANGES_DESIGN.md) records
 comparison, dependencies, full/partial acceptance, feedback, discard and stale
 proposal handling. All four editor mockups are approved. The exact-version prerequisite is now
 source-integrated: [Pinned Asset reads](ROOM_PINNED_ASSET_READ_CONTRACT.md) preserves
-saved Room images and geometry after Library updates. The current implementation
-block is the approved Cutter editor plus compatible persistent cut names. Its
+saved Room images and geometry after Library updates. The current
+follow-up is the Library display of saved cut names. Klaus passed the complete
+implemented Cutter batch on 2026-09-08; preserve that pass and verify only this
+reported label defect. The Cutter's
 [implementation contract](CUTTER_EDITOR_DESIGN.md#bounded-implementation-contract--2026-09-08)
 keeps existing crop identity, job and scoped-command protections. Full product
 implementation and the isolated real-agent review loop remain pending.
