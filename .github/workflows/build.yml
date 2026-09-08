@@ -690,7 +690,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Studio A1.7 visual review evidence
-        if: steps.studio_browser.outcome == 'success'
+        if: always() && steps.studio_browser.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: numberdroid-studio-a1-7-evidence
@@ -699,7 +699,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Studio O1b Backups visual review evidence
-        if: steps.studio_browser.outcome == 'success'
+        if: always() && steps.studio_browser.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: numberdroid-studio-o1b-backups-evidence
