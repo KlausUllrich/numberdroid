@@ -147,6 +147,12 @@ fixed base. An assembled object moves as a unit while retaining those local
 relationships. Actual illumination remains a runtime capability; emissive artwork
 does not by itself illuminate nearby actors.
 
+The approved [Assembly Editor Design](ASSEMBLY_EDITOR_DESIGN.md) reuses explicit
+component asset versions. Component blocking is inherited through their transforms
+by default; custom assembly blocking is an explicit independent alternative.
+Inspection-only visibility does not change authored state membership or blocking.
+The sample editor and walkthrough are design evidence, not implemented agent tools.
+
 Whole-assembly variants are appropriate when body, shadow and animation must
 match. Individual components may use compatible variant sets where combinations
 are valid. Weighted placement choices are resolved and saved, not rerolled by
@@ -222,10 +228,11 @@ update the owning repository documentation; then implement and verify. Approved
 product principles can be documented before every screen mockup is complete.
 The initial browsing mockup received positive overall feedback, and Klaus
 explicitly passed the complete cutter v3 mockup and the Placement & blocking
-walkthrough, including the placement v2 Oval / Shift refinements. Assembly still
-needs its screen discussion and mockup. Complete agent workflows still need
-implementation and verification. Mockup actions and sample content are not
-product evidence.
+walkthrough, including the placement v2 Oval / Shift refinements. He then passed
+the five Assembly walkthrough checks, including custom blocking independence.
+The shared Review changes screen remains the next design block. Complete agent
+workflows still need implementation and verification. Mockup actions and sample
+content are not product evidence.
 
 Before requesting user verification of an implemented workflow, exercise it with
 a real agent through the supported semantic interface, including correction and
