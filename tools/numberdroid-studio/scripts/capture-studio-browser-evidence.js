@@ -8,6 +8,7 @@ import { captureRoomCreation } from './capture-room-creation-evidence.js';
 import { captureRoomPinnedAssets } from './capture-room-pinned-assets-evidence.js';
 import { inspectCutterEditor, captureCutterEditor } from './capture-cutter-editor-evidence.js';
 import { closeBrowserAndRemoveProfile, finishCapture, trackProcessClose } from './browser-process-teardown.js';
+import { openDevtoolsSocket, waitForDevtoolsEndpoint } from './browser-devtools-startup.js';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
 if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7', 'review-feedback', 'human-asset', 'room-creation', 'room-pinned-assets'].includes(mode)) {
@@ -62,35 +63,13 @@ const chrome = spawn(chromePath, [
   '--remote-allow-origins=*',
   '--no-first-run',
   '--no-default-browser-check',
+  '--disable-background-networking',
+  '--disable-extensions',
   `--user-data-dir=${profileDirectory}`,
   'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
 const chromeClose = trackProcessClose(chrome);
 process.send?.({ type: 'studio-capture-browser-started', pid: chrome.pid, profileDirectory });
-
-let chromeDiagnostics = '';
-chrome.stderr.setEncoding('utf8');
-chrome.stderr.on('data', (chunk) => { chromeDiagnostics += chunk; });
-
-async function devtoolsUrl() {
-  return new Promise((resolveUrl, rejectUrl) => {
-    const timeout = setTimeout(() => rejectUrl(new Error(`Chrome DevTools did not start. ${chromeDiagnostics}`)), 10_000);
-    const abort = () => { clearTimeout(timeout); rejectUrl(cancellationError); };
-    if (captureCancellation.signal.aborted) abort(); else captureCancellation.signal.addEventListener('abort', abort, { once: true });
-    const inspect = () => {
-      const match = /DevTools listening on (ws:\/\/[^\s]+)/.exec(chromeDiagnostics);
-      if (!match) return;
-      clearTimeout(timeout);
-      resolveUrl(match[1]);
-    };
-    chrome.stderr.on('data', inspect);
-    chrome.once('exit', (code) => {
-      clearTimeout(timeout);
-      rejectUrl(new Error(`Chrome exited before DevTools started (${code}). ${chromeDiagnostics}`));
-    });
-    inspect();
-  });
-}
 
 class DevTools {
   #socket;
@@ -100,13 +79,7 @@ class DevTools {
   events = [];
 
   static async connect(url) {
-    const socket = new WebSocket(url);
-    await new Promise((resolveOpen, rejectOpen) => {
-      socket.addEventListener('open', () => { captureCancellation.signal.removeEventListener('abort', abort); resolveOpen(); }, { once: true });
-      socket.addEventListener('error', rejectOpen, { once: true });
-      const abort = () => { rejectOpen(cancellationError); try { socket.close(); } catch {} };
-      if (captureCancellation.signal.aborted) abort(); else captureCancellation.signal.addEventListener('abort', abort, { once: true });
-    });
+    const socket = await openDevtoolsSocket(url, { signal: captureCancellation.signal });
     return new DevTools(socket);
   }
 
@@ -180,7 +153,9 @@ function delay(milliseconds) {
 
 let captureError = null;
 try {
-  devtools = await DevTools.connect(await devtoolsUrl());
+  const startup = await waitForDevtoolsEndpoint(chrome, { signal: captureCancellation.signal, trackedClose: chromeClose });
+  process.stdout.write(`${JSON.stringify({ status: 'CHROME_READY', elapsedMs: startup.elapsedMs })}\n`);
+  devtools = await DevTools.connect(startup.url);
   const browserVersion = await devtools.send('Browser.getVersion');
   const { targetId } = await devtools.send('Target.createTarget', { url: 'about:blank' });
   const { sessionId } = await devtools.send('Target.attachToTarget', { targetId, flatten: true });
