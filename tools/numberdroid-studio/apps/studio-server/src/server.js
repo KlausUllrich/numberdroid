@@ -68,6 +68,8 @@ const staticFiles = new Map([
   ['/remote-ui-mode.js', ['remote-ui-mode.js', 'text/javascript; charset=utf-8']],
   ['/room-preview-state.js', ['room-preview-state.js', 'text/javascript; charset=utf-8']],
   ['/room-pinned-assets-state.js', ['room-pinned-assets-state.js', 'text/javascript; charset=utf-8']],
+  ['/cutter-editor-state.js', ['cutter-editor-state.js', 'text/javascript; charset=utf-8']],
+  ['/cutter-editor-view.js', ['cutter-editor-view.js', 'text/javascript; charset=utf-8']],
   ['/asset-authoring-state.js', ['asset-authoring-state.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],

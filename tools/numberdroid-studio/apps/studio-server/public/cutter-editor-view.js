@@ -23,7 +23,7 @@ export function renderCutterEditor({ cutter, source, atlas, pending, job }) {
   const title = el('div'); title.append(el('p', 'eyebrow', 'Sources / Preparation'), el('h2', '', cutter.name), el('p', '', 'Choose the image regions to keep. Save work stores your cuts; Preview cuts prepares their exact PNG images.'));
   header.append(title, action('Back to Sources', { closeCutter: '' }, pending)); section.append(header);
   const tabs = el('nav', 'cutter-view-tabs'); tabs.setAttribute('aria-label', 'Cutter views');
-  for (const [view, label] of [['edit', 'Cut image'], ['outputs', 'Output images']]) { const b = action(label, { cutterView: view }, pending); b.setAttribute('aria-pressed', String(cutter.view === view)); tabs.append(b); }
+  for (const [view, label] of [['edit', 'Cut image'], ['outputs', 'Output images']]) { const b = action(label, { cutterView: view }, pending); b.setAttribute('aria-pressed', String(cutter.view === view || (view === 'outputs' && cutter.view === 'detail'))); tabs.append(b); }
   section.append(tabs);
   if (cutter.view !== 'edit') return section;
   const layout = el('div', 'cutter-editor-layout');
@@ -42,7 +42,7 @@ export function renderCutterEditor({ cutter, source, atlas, pending, job }) {
   const label = el('output'); label.dataset.cutterZoomLabel = '';
   zoom.append(fit, range, actual, label); main.append(zoom);
   const status = el('div', 'cutter-validation'); status.dataset.cutterValidation = ''; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); main.append(status);
-  const scroll = el('div', 'cutter-scroll'); scroll.dataset.cutterScrollContext = `${cutter.projectId}:${cutter.sourceId}:${cutter.atlasId}:${cutter.instanceId}`;
+  const scroll = el('div', 'cutter-scroll'); scroll.dataset.cutterScrollContext = JSON.stringify([cutter.projectId, cutter.sourceId, cutter.atlasId, cutter.instanceId, cutter.zoom]);
   const canvas = el('div', 'cutter-canvas'); canvas.dataset.cutterCanvas = '';
   const image = el('img'); image.src = source.preview.resourceUri; image.alt = `${source.name} source image`; image.draggable = false;
   const overlay = svg('svg', { viewBox: `0 0 ${source.width} ${source.height}`, tabindex: 0, 'aria-label': 'Exact source-pixel cutting canvas' }); overlay.dataset.cutterOverlay = '';
@@ -93,7 +93,7 @@ export function syncCutterCanvas(section, { cutter, source, atlas, pending, job 
   const main = section.querySelector('[data-cutter-main]'); if (!main) return;
   const scroll = main.querySelector('.cutter-scroll'); const canvas = main.querySelector('.cutter-canvas'); const overlay = canvas.querySelector('svg');
   const fit = Math.min(1, Math.max(1, scroll.clientWidth - 24) / source.width, Math.max(1, scroll.clientHeight - 24) / source.height);
-  const scale = cutter.zoom === 'fit' ? fit : Number(cutter.zoom);
+  const scale = cutter.frozenScale ?? (cutter.zoom === 'fit' ? fit : Number(cutter.zoom));
   canvas.style.width = `${source.width * scale}px`; canvas.style.height = `${source.height * scale}px`; canvas.dataset.zoom = cutter.zoom; canvas.dataset.scale = String(scale); overlay.dataset.cutterTool = cutter.tool;
   const range = main.querySelector('[data-cutter-zoom]'); if (document.activeElement !== range) range.value = String(Math.round(scale * 100));
   main.querySelector('[data-cutter-zoom-label]').textContent = `${cutter.zoom === 'fit' ? 'Fit · ' : ''}${Math.round(scale * 100)}%`;

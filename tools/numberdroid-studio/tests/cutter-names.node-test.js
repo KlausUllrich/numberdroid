@@ -182,6 +182,12 @@ test('named cuts survive commit, explicit rename recut, pinned Asset, restart an
     assert.deepEqual(importedAsset.assets[0].sliceBinding, pinned);
     assert.equal((await verifyWorkspaceIntegrity({ projectStore: imported,
       artifactStore: new ContentAddressedArtifactStore({ rootDirectory: join(destinationDirectory, 'artifacts') }) })).ok, true);
+    const secondBundle = join(value.root, 'bundle-again');
+    await createSqliteProjectBundle({ destinationDirectory: secondBundle, projectStore: imported,
+      artifactStore: new ContentAddressedArtifactStore({ rootDirectory: join(destinationDirectory, 'artifacts') }),
+      projectId: PROJECT_ID });
+    assert.deepEqual(await readFile(join(secondBundle, 'project.json')), await readFile(join(bundleDirectory, 'project.json')));
+    assert.deepEqual(await readFile(join(secondBundle, 'manifest.json')), await readFile(join(bundleDirectory, 'manifest.json')));
   } finally { imported.close(); }
 });
 

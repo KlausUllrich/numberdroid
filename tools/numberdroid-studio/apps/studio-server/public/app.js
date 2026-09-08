@@ -1,3 +1,5 @@
+import { cutterGridInfo, cutterSnapCoordinate, cutterDragRectangle, cutterEditIssues, cutterHistoryPush, cutterHistoryStep } from './cutter-editor-state.js';
+import { renderCutterEditor, syncCutterCanvas, cutterOutputCard, cutterOutputName } from './cutter-editor-view.js';
 import { roomAssetPinKey, roomPinnedAssetsContext, roomPinnedAssetsKey, roomPinnedAssetsPath, normalizeRoomPinnedAssets } from './room-pinned-assets-state.js';
 import { createAssetAuthoringDraft, buildAssetAuthoringRequest, assetAuthoringConflict } from './asset-authoring-state.js';
 import {
@@ -1530,17 +1532,23 @@ function scheduleCutterJobPoll(binding, delay) {
 function clearCutterDrag() {
   const drag = cutterDrag;
   cutterDrag = null;
+  if (state.cutter) delete state.cutter.frozenScale;
   state.cutterDeferredRender = false;
   if (drag?.target?.hasPointerCapture?.(drag.pointerId)) {
     try { drag.target.releasePointerCapture(drag.pointerId); } catch {}
   }
 }
 
-function settleCutterDrag() {
-  if (!cutterDrag) return;
-  const shouldRender = cutterDrag.changed || state.cutterDeferredRender;
+function settleCutterDrag(event = null) {
+  if (!cutterDrag || (event?.pointerId !== undefined && event.pointerId !== cutterDrag.pointerId)) return;
+  const drag = cutterDrag; const shouldRender = drag.changed || state.cutterDeferredRender;
+  const cancelled = event?.type === 'pointercancel' || event?.type === 'lostpointercapture' || event?.type === 'cancel';
+  if (state.cutter && drag.instanceId === state.cutter.instanceId) {
+    if (cancelled) { state.cutter.rectangles = drag.before; state.cutter.dirty = drag.priorDirty; state.cutter.operations = drag.priorOperations; }
+    else if (drag.changed) state.cutter.history = cutterHistoryPush(state.cutter.history, drag.before, state.cutter.rectangles);
+  }
   clearCutterDrag();
-  if (shouldRender) renderWorkspace();
+  if (shouldRender || cancelled) renderWorkspace();
 }
 
 function resetCutterScroll() {
@@ -1559,15 +1567,23 @@ function captureCutterScroll() {
     context,
     left: scroller.scrollLeft,
     top: scroller.scrollTop,
+    inspectorTop: elements['workspace-content'].querySelector('.rectangle-inspector')?.scrollTop ?? 0,
+    listTop: elements['workspace-content'].querySelector('.cutter-cut-list')?.scrollTop ?? 0,
   };
 }
 
 function cutterControlKey(control) {
+  if (!control?.matches) return null;
+  if (control.hasAttribute('data-cutter-edge')) return `resize:${control.dataset.cutterResize}:${control.dataset.cutterEdge}`;
   if (control.matches('[data-cutter-grid-form] [name]')) return `grid:${control.name}`;
   if (control.hasAttribute('data-rectangle-index') && control.hasAttribute('data-rectangle-field')) {
     return `rectangle:${control.dataset.rectangleIndex}:${control.dataset.rectangleField}`;
   }
   if (control.hasAttribute('data-cutter-zoom')) return 'zoom';
+  if (control.hasAttribute('data-cutter-output')) return `output:${control.dataset.cutterOutputKind}:${control.dataset.cutterOutput}`;
+  if (control.hasAttribute('data-cutter-tool')) return `tool:${control.dataset.cutterTool}`;
+  if (control.hasAttribute('data-cutter-view')) return `view:${control.dataset.cutterView}`;
+  if (control.hasAttribute('data-cutter-zoom-action')) return `zoom-action:${control.dataset.cutterZoomAction}`;
   if (control.hasAttribute('data-cutter-grid-toggle')) return 'grid-toggle';
   if (control.hasAttribute('data-cutter-move')) return `move:${control.dataset.cutterMove}`;
   if (control.hasAttribute('data-cutter-resize')) return `resize:${control.dataset.cutterResize}`;
@@ -1622,6 +1638,8 @@ function restoreCutterScroll() {
   scroller.scrollTop = Math.max(0, Math.min(
     state.cutterScroll.top, scroller.scrollHeight - scroller.clientHeight,
   ));
+  const inspector = elements['workspace-content'].querySelector('.rectangle-inspector'); if (inspector) inspector.scrollTop = state.cutterScroll.inspectorTop ?? 0;
+  const list = elements['workspace-content'].querySelector('.cutter-cut-list'); if (list) list.scrollTop = state.cutterScroll.listTop ?? 0;
 }
 
 function restoreCutterDomDraft() {
@@ -1657,7 +1675,9 @@ function openCutter(source) {
     instanceId: crypto.randomUUID(),
     name: existing?.name ?? `${source.name} cuts`,
     zoom: 'fit',
-    showGrid: true,
+    showGrid: true, snap: false, tool: 'select', selectedIndex: 0, gridOpen: false, view: 'edit', error: null,
+    history: { past: [], future: [] },
+    guide: { width: familyDefaults ? 622 : Math.max(1, Math.floor(source.width / 2)), height: familyDefaults ? 622 : Math.max(1, Math.floor(source.height / 2)), x: familyDefaults ? 3 : 0, y: familyDefaults ? 3 : 0, gapX: familyDefaults ? 4 : 0, gapY: familyDefaults ? 4 : 0 },
     dirty: false,
     syncedVersion: existing?.definitionVersion ?? 0,
     rectangles: structuredClone(existing?.rectangles ?? []),
@@ -1781,143 +1801,28 @@ function markCutterDefinitionDirty() {
 }
 
 function cutterPreviewCard(output, index, projectId) {
-  const figure = document.createElement('figure'); figure.className = 'slice-preview';
-  const image = document.createElement('img');
-  image.src = output.preview?.resourceUri ?? `/api/projects/${encodeURIComponent(projectId)}/artifacts/sha256/${output.digest}`;
-  image.alt = output.preview?.alt ?? `Slice preview ${output.rectangleId}`;
-  image.loading = visualFixture ? 'eager' : 'lazy'; image.decoding = 'async';
-  const caption = document.createElement('figcaption');
-  caption.textContent = `${index + 1} · ${output.rectangleId} · ${output.width}×${output.height}`;
-  figure.append(image, caption);
-  if (output.sliceId && Number.isInteger(output.version)) figure.append(createAssetFromSliceButton(output));
-  return figure;
+  return cutterOutputCard(output, index, projectId);
+}
+
+function cutterOutputs(atlas = currentCutterAtlas()) {
+  const preview = state.cutterJob?.state === 'SUCCEEDED'
+    ? (state.cutterJob.outputs ?? []).map(output => ({ ...output, rectangle: atlas?.rectangles.find(rect => rect.rectangleId === output.rectangleId) })) : [];
+  return { preview, saved: atlas?.sliceHeads ?? [] };
 }
 
 function renderCutter(source) {
-  const cutter = state.cutter;
-  const atlas = currentCutterAtlas();
-  const section = document.createElement('section'); section.className = 'atlas-cutter'; section.dataset.atlasCutter = '';
-  section.dataset.cutterModelFingerprint = cutterModelFingerprint();
-  section.inert = state.sourceMutationPending;
-  const heading = document.createElement('div'); heading.className = 'cutter-heading';
-  const copy = document.createElement('div');
-  const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'Cut image into reusable slices';
-  const title = document.createElement('h2'); title.textContent = cutter.name;
-  const help = document.createElement('p');
-  help.textContent = 'Mark the exact rectangular areas you want to use. Preview creates matching PNG slices without resizing them, changing their edges, deciding their gameplay purpose, or adding them to the Asset Library.';
-  copy.append(eyebrow, title, help);
-  const close = document.createElement('button'); close.type = 'button'; close.className = 'secondary'; close.textContent = 'Close cutter'; close.dataset.closeCutter = '';
-  close.disabled = state.cutterPending;
-  heading.append(copy, close); section.append(heading);
-
-  const gridForm = document.createElement('form'); gridForm.className = 'cutter-grid-form'; gridForm.dataset.cutterGridForm = '';
-  const gridFields = document.createElement('div'); gridFields.className = 'cutter-grid-fields';
-  for (const [name, label, value] of [
-    ['rows', 'Rows', cutter.grid.rows], ['columns', 'Columns', cutter.grid.columns],
-    ['top', 'Top margin', cutter.grid.top], ['right', 'Right margin', cutter.grid.right],
-    ['bottom', 'Bottom margin', cutter.grid.bottom], ['left', 'Left margin', cutter.grid.left],
-    ['gapX', 'X gap', cutter.grid.gapX], ['gapY', 'Y gap', cutter.grid.gapY],
-  ]) {
-    const input = cutterNumber(name, value, { min: name === 'rows' || name === 'columns' ? 1 : 0, max: 4096 });
-    input.disabled = state.cutterPending;
-    gridFields.append(labeledField(label, input));
-  }
-  const propose = document.createElement('button'); propose.type = 'submit'; propose.textContent = 'Propose regular grid'; propose.disabled = state.cutterPending;
-  const proposalNote = document.createElement('p'); proposalNote.className = 'cutter-note';
-  proposalNote.textContent = 'Arithmetic proposal only. Nothing becomes authoritative until you save the explicit rectangle list below.';
-  gridForm.append(gridFields, propose, proposalNote); section.append(gridForm);
-
-  const toolbar = document.createElement('div'); toolbar.className = 'cutter-toolbar';
-  const zoom = document.createElement('select'); zoom.dataset.cutterZoom = '';
-  for (const [value, label] of [['fit', 'Fit'], ['1', '100%'], ['2', '200%']]) {
-    const option = document.createElement('option'); option.value = value; option.textContent = label; zoom.append(option);
-  }
-  zoom.value = cutter.zoom;
-  const gridToggle = document.createElement('input'); gridToggle.type = 'checkbox'; gridToggle.checked = cutter.showGrid; gridToggle.dataset.cutterGridToggle = '';
-  toolbar.append(labeledField('Zoom', zoom), labeledField('Visual grid', gridToggle));
-  const sourceMeta = document.createElement('span'); sourceMeta.textContent = `${source.width}×${source.height} · approved PNG · ${source.artifactUri.slice(-12)}`;
-  toolbar.append(sourceMeta); section.append(toolbar);
-
-  const scroller = document.createElement('div'); scroller.className = 'cutter-scroll';
-  scroller.dataset.cutterScrollContext = cutterScrollContext();
-  const canvas = document.createElement('div'); canvas.className = `cutter-canvas ${cutter.showGrid ? 'show-grid' : ''}`;
-  canvas.dataset.zoom = cutter.zoom;
-  if (cutter.zoom !== 'fit') canvas.style.width = `${source.width * Number(cutter.zoom)}px`;
-  canvas.style.aspectRatio = `${source.width} / ${source.height}`;
-  const image = document.createElement('img'); image.src = source.preview.resourceUri; image.alt = `${source.name} cutter source`; image.draggable = false;
-  const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  overlay.setAttribute('viewBox', `0 0 ${source.width} ${source.height}`); overlay.dataset.cutterOverlay = '';
-  overlay.setAttribute('aria-label', 'Atlas rectangle overlay');
-  for (const [index, rectangle] of cutter.rectangles.entries()) {
-    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    group.dataset.rectangleId = rectangle.rectangleId; group.classList.toggle('excluded', !rectangle.included);
-    const shape = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    for (const [name, value] of Object.entries({ x: rectangle.x, y: rectangle.y, width: rectangle.width, height: rectangle.height })) shape.setAttribute(name, String(value));
-    shape.setAttribute('tabindex', state.cutterPending ? '-1' : '0'); shape.setAttribute('role', 'button');
-    shape.setAttribute('aria-disabled', String(state.cutterPending));
-    shape.setAttribute('aria-label', `${rectangle.rectangleId}: x ${rectangle.x}, y ${rectangle.y}, width ${rectangle.width}, height ${rectangle.height}${rectangle.included ? '' : ', excluded'}`);
-    shape.dataset.cutterMove = String(index);
-    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('x', String(rectangle.x + 10)); label.setAttribute('y', String(rectangle.y + 24)); label.textContent = String(index + 1);
-    const handle = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    handle.setAttribute('x', String(rectangle.x + rectangle.width - 12)); handle.setAttribute('y', String(rectangle.y + rectangle.height - 12));
-    handle.setAttribute('width', '24'); handle.setAttribute('height', '24'); handle.setAttribute('tabindex', state.cutterPending ? '-1' : '0');
-    handle.setAttribute('role', 'button'); handle.setAttribute('aria-label', `Resize ${rectangle.rectangleId} from its bottom-right corner`);
-    handle.setAttribute('aria-disabled', String(state.cutterPending));
-    handle.classList.add('resize-handle'); handle.dataset.cutterResize = String(index);
-    group.append(shape, label, handle); overlay.append(group);
-  }
-  canvas.append(image, overlay); scroller.append(canvas); section.append(scroller);
-
-  const inspector = document.createElement('div'); inspector.className = 'rectangle-inspector';
-  const inspectorHeading = sectionHeading('Exact rectangles', 'Numeric fields are authoritative and keyboard accessible. Drag a rectangle to move it; drag its square handle to resize.');
-  inspector.append(inspectorHeading);
-  if (!cutter.rectangles.length) {
-    inspector.append(emptyState('No rectangles yet', 'Enter grid values above, or add a manual rectangle.'));
-  } else {
-    const table = document.createElement('div'); table.className = 'rectangle-table';
-    for (const [index, rectangle] of cutter.rectangles.entries()) {
-      const row = document.createElement('fieldset'); row.className = 'rectangle-row'; row.dataset.rectangleRow = String(index);
-      const legend = document.createElement('legend'); legend.textContent = `${index + 1} · ${rectangle.rectangleId}`; row.append(legend);
-      for (const field of ['x', 'y', 'width', 'height']) {
-        const input = cutterNumber(field, rectangle[field], { min: field === 'width' || field === 'height' ? 1 : 0, max: field === 'x' || field === 'width' ? source.width : source.height });
-        input.disabled = state.cutterPending;
-        input.dataset.rectangleIndex = String(index); input.dataset.rectangleField = field; row.append(labeledField(field.toUpperCase(), input));
-      }
-      const included = document.createElement('input'); included.type = 'checkbox'; included.checked = rectangle.included;
-      included.disabled = state.cutterPending;
-      included.dataset.rectangleIndex = String(index); included.dataset.rectangleField = 'included';
-      row.append(labeledField('Include', included));
-      const replacement = document.createElement('select');
-      replacement.dataset.rectangleIndex = String(index); replacement.dataset.rectangleField = 'replacesSliceId';
-      const newIdentity = document.createElement('option'); newIdentity.value = ''; newIdentity.textContent = 'Create new slice identity';
-      replacement.append(newIdentity);
-      for (const slice of atlas?.sliceHeads ?? []) {
-        const option = document.createElement('option'); option.value = slice.sliceId;
-        option.textContent = `Replace ${slice.sliceId} v${slice.version}`; replacement.append(option);
-      }
-      replacement.value = rectangle.replacesSliceId ?? '';
-      replacement.disabled = state.cutterPending || !rectangle.included || !(atlas?.sliceHeads.length);
-      row.append(labeledField('Recut identity', replacement));
-      if (rectangle.replacesSliceId) {
-        const mapping = document.createElement('small'); mapping.textContent = `Replaces ${rectangle.replacesSliceId} v${rectangle.expectedSliceVersion}`; row.append(mapping);
-      }
-      table.append(row);
-    }
-    inspector.append(table);
-  }
-  const add = document.createElement('button'); add.type = 'button'; add.className = 'secondary'; add.textContent = 'Add manual rectangle'; add.dataset.addRectangle = '';
-  add.disabled = state.cutterPending; inspector.append(add); section.append(inspector);
-
+  const cutter = state.cutter; const atlas = currentCutterAtlas();
+  const section = renderCutterEditor({ cutter, source, atlas, pending: state.cutterPending || state.sourceMutationPending, job: state.cutterJob });
+  section.dataset.cutterModelFingerprint = cutterModelFingerprint(); section.inert = state.sourceMutationPending;
   const actions = document.createElement('div'); actions.className = 'cutter-actions';
   const unresolvedJob = state.cutterJob && !['APPLIED', 'DISCARDED'].includes(state.cutterJob.state);
-  const save = document.createElement('button'); save.type = 'button'; save.textContent = atlas ? 'Save revised rectangles' : 'Save atlas definition'; save.dataset.saveAtlas = '';
+  const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save work'; save.dataset.saveAtlas = '';
   save.disabled = state.cutterPending || !cutter.rectangles.length || Boolean(unresolvedJob);
   if (unresolvedJob) save.title = 'Commit or discard the current preview job before replacing this atlas definition.';
-  const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'secondary'; preview.textContent = 'Build slice previews'; preview.dataset.previewAtlas = '';
+  const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'secondary'; preview.textContent = 'Preview cuts'; preview.dataset.previewAtlas = '';
   preview.disabled = state.cutterPending || !atlas || cutter.dirty || Boolean(unresolvedJob);
   if (unresolvedJob) preview.title = 'Apply or discard the current preview job before queuing another.';
-  actions.append(save, preview);
+  actions.append(preview);
   if (state.cutterJob && ['QUEUED', 'RUNNING'].includes(state.cutterJob.state) && !state.cutterJob.cancelRequested) {
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary'; cancel.textContent = 'Cancel job'; cancel.dataset.cancelCutterJob = '';
     cancel.disabled = state.cutterPending;
@@ -1929,7 +1834,7 @@ function renderCutter(source) {
     actions.append(retry);
   }
   if (state.cutterJob?.state === 'SUCCEEDED') {
-    const commit = document.createElement('button'); commit.type = 'button'; commit.textContent = 'Commit these slices once'; commit.dataset.commitAtlas = '';
+    const commit = document.createElement('button'); commit.type = 'button'; commit.textContent = `Save these ${state.cutterJob.outputs?.length ?? 0} cuts`; commit.dataset.commitAtlas = '';
     commit.disabled = state.cutterPending;
     actions.append(commit);
   }
@@ -1945,7 +1850,7 @@ function renderCutter(source) {
   const cancellationText = state.cutterJob?.cancelRequested ? ' · cancellation requested' : '';
   const errorText = jobError ? ` · ${jobError.code || 'JOB_FAILED'}: ${jobError.message || 'Preview processing failed.'}` : '';
   status.textContent = state.cutterJob
-    ? `${state.cutterJob.state} · ${state.cutterJob.progress.current}/${state.cutterJob.progress.total} · attempt ${state.cutterJob.attempt}${cancellationText}${errorText}`
+    ? `${({ QUEUED: 'Queued', RUNNING: 'Preparing cuts', SUCCEEDED: 'Previews ready to save', APPLIED: 'Cuts saved', CANCELLED: 'Cancelled', FAILED: 'Preview failed', DISCARDED: 'Previews discarded' })[state.cutterJob.state]} · ${state.cutterJob.progress.current}/${state.cutterJob.progress.total}${cancellationText}${errorText}`
     : (atlas ? `Definition v${atlas.definitionVersion} saved` : 'Unsaved definition');
   actions.append(status); section.append(actions);
 
@@ -1974,29 +1879,64 @@ function renderCutter(source) {
       detail.textContent = `${entry.progress.current}/${entry.progress.total}${entry.safePoint ? ` · ${entry.safePoint}` : ''} · ${entry.occurredAt}`;
       item.append(label, detail); history.append(item);
     }
-    section.append(sectionHeading('Processing history', 'Shows when this preview started, finished, was retried, cancelled, saved, or discarded.'), history);
+    const disclosure = document.createElement('details'); disclosure.className = 'cutter-processing-history'; const summary = document.createElement('summary'); summary.textContent = 'Processing history'; disclosure.append(summary, history); section.append(disclosure);
   }
 
-  const previewOutputs = ['SUCCEEDED', 'APPLIED'].includes(state.cutterJob?.state)
-    ? (state.cutterJob.outputs ?? [])
-    : [];
-  if (previewOutputs.length) {
-    const previews = document.createElement('div'); previews.className = 'slice-preview-grid';
-    previewOutputs.forEach((output, index) => previews.append(cutterPreviewCard(output, index, state.project.projectId)));
-    section.append(sectionHeading('Preview slices', 'These slices are temporary until you save them below.'), previews);
-  }
-  if (atlas?.sliceHeads.length) {
-    const committedGrid = document.createElement('div'); committedGrid.className = 'slice-preview-grid committed';
-    atlas.sliceHeads.forEach((slice, index) => committedGrid.append(cutterPreviewCard({ ...slice, rectangleId: `${slice.rectangleId} · ${slice.sliceId} v${slice.version}` }, index, state.project.projectId)));
-    section.append(sectionHeading('Saved image slices', 'Each slice keeps a stable identity. It is still only an image crop until you define how it can be used as an asset.'), committedGrid);
+
+  const outputs = cutterOutputs(atlas);
+  if (cutter.view === 'outputs') {
+    for (const [kind, title] of [['preview', 'Preview cuts'], ['saved', 'Saved cuts']]) {
+      if (!outputs[kind].length) continue;
+      const grid = document.createElement('div'); grid.className = `slice-preview-grid ${kind === 'saved' ? 'committed' : ''}`;
+      outputs[kind].forEach((output, index) => grid.append(cutterPreviewCard(output, index, state.project.projectId)));
+      section.append(sectionHeading(title, kind === 'preview' ? 'Only included cuts appear here. Images open at full size in a new tab.' : 'Saved image cuts retain their original source and exact coordinates.'), grid);
+    }
+    if (!outputs.preview.length && !outputs.saved.length) section.append(emptyState('No output images yet', 'Save work, then Preview cuts. The preview job produces exact PNG images for the included cuts.'));
+  } else if (cutter.view === 'detail') {
+    const output = outputs[cutter.outputKind]?.[cutter.outputIndex];
+    const back = document.createElement('button'); back.type = 'button'; back.dataset.cutterView = 'outputs'; back.textContent = 'Back to output images'; section.append(back);
+    if (output) {
+      const detail = document.createElement('section'); detail.className = 'cutter-output-detail';
+      detail.append(cutterOutputCard(output, cutter.outputIndex, state.project.projectId)); detail.querySelector('[data-cutter-output]')?.remove();
+      const facts = document.createElement('div'); const h = document.createElement('h3'); h.textContent = cutterOutputName(output, cutter.outputIndex); facts.append(h);
+      const rect = output.rectangle;
+      for (const text of [source.name, rect ? `Left ${rect.x}, top ${rect.y} · ${rect.width} × ${rect.height} source pixels` : `${output.width} × ${output.height} pixels`, output.sliceId ? `Saved cut version ${output.version}` : 'Temporary preview until saved']) { const row = document.createElement('p'); row.textContent = text; facts.append(row); }
+      const link = document.createElement('a'); link.href = source.preview.resourceUri; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Open original source image ↗'; facts.append(link);
+      if (output.sliceId) { const id = document.createElement('small'); id.textContent = output.sliceId; facts.append(id, createAssetFromSliceButton(output)); }
+      detail.append(facts); section.append(detail);
+    } else section.append(emptyState('Output no longer available', 'Return to output images to inspect the current saved or preview results.'));
   }
   return section;
+}
+
+function setCutterView(view) {
+  const cutter = state.cutter; if (!cutter || cutter.view === view) return;
+  cutter.viewContexts ??= {};
+  cutter.viewContexts[cutter.view] = { x: window.scrollX, y: window.scrollY,
+    focus: cutter.view === 'edit' ? cutter.lastEditingFocusKey ?? cutterControlKey(document.activeElement) : cutterControlKey(document.activeElement) };
+  cutter.view = view; cutter.gridOpen = false; cutter.restoreViewContext = cutter.viewContexts[view] ?? { x: 0, y: 0, focus: null };
+}
+
+function syncCurrentCutterCanvas() {
+  if (!state.cutter || state.workspace !== 'sources') return;
+  const section = elements['workspace-content'].querySelector('[data-atlas-cutter]');
+  const source = state.project?.snapshot.sources.find(item => item.id === state.cutter.sourceId);
+  if (!section || !source || state.cutter.view !== 'edit') return;
+  syncCutterCanvas(section, { cutter: state.cutter, source, atlas: currentCutterAtlas(), pending: state.cutterPending || state.sourceMutationPending, job: state.cutterJob });
+  const scroll = section.querySelector('[data-cutter-scroll-context]'); if (scroll) scroll.dataset.cutterScrollContext = cutterScrollContext();
+}
+
+function applyCutterRectangles(rectangles, { selectedIndex = state.cutter?.selectedIndex ?? 0, record = true } = {}) {
+  if (!state.cutter) return;
+  if (record) state.cutter.history = cutterHistoryPush(state.cutter.history, state.cutter.rectangles, rectangles);
+  state.cutter.rectangles = rectangles; state.cutter.selectedIndex = Math.max(0, Math.min(selectedIndex, rectangles.length - 1));
+  state.cutter.error = null; markCutterDefinitionDirty(); renderWorkspace();
 }
 
 function renderSources(items) {
   const fragment = document.createDocumentFragment();
   const cutterSource = state.cutter && items.find((source) => source.id === state.cutter.sourceId);
-  if (cutterSource) fragment.append(renderCutter(cutterSource));
+  if (cutterSource) { fragment.append(renderCutter(cutterSource)); return fragment; }
   fragment.append(sourceIntakePanel());
   const staged = stagedSourceIntakes();
   if (staged) fragment.append(staged);
@@ -5339,6 +5279,9 @@ function renderWorkspace({
     return;
   }
   captureCutterScroll();
+  const retainedCutterMain = state.workspace === 'sources' && state.cutter?.view === 'edit' ? elements['workspace-content'].querySelector('[data-cutter-main]') : null;
+  const cutterFocusKey = state.cutter ? cutterControlKey(document.activeElement) : null;
+  document.body.dataset.cutterOpen = String(state.workspace === 'sources' && Boolean(state.cutter));
   if (preserveAssetDraft) captureAssetDomState();
   if (preserveRoomDraft) captureRoomDomState();
   if (preserveTaskContext) captureTaskDomState();
@@ -5401,15 +5344,20 @@ function renderWorkspace({
       replacementCanvas.replaceWith(retainedRoomCanvas);
     }
   }
+  const replacementCutterMain = content.querySelector?.('[data-cutter-main]');
+  if (retainedCutterMain && replacementCutterMain?.dataset.cutterMain === retainedCutterMain.dataset.cutterMain) replacementCutterMain.replaceWith(retainedCutterMain);
   elements['workspace-content'].replaceChildren(content);
+  syncCurrentCutterCanvas();
   elements['workspace-content'].dataset.renderedProjectId = state.project.projectId;
   elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
   restoreCutterScroll();
   if (preserveCutterDraft) restoreCutterDomDraft();
+  else if (cutterFocusKey && state.cutter) { const controls = elements['workspace-content'].querySelectorAll('input,select,button,[data-cutter-move],[data-cutter-resize]'); [...controls].find(control => cutterControlKey(control) === cutterFocusKey)?.focus({ preventScroll: true }); }
   if (preserveAssetDraft) restoreAssetDomState();
   if (preserveRoomDraft) restoreRoomDomState();
   if (preserveTaskContext) restoreTaskDomState();
   if (preserveBackupContext) restoreBackupDomState();
+  if (state.cutter?.restoreViewContext && state.workspace === 'sources') { const saved = state.cutter.restoreViewContext; state.cutter.restoreViewContext = null; requestAnimationFrame(() => { const controls = elements['workspace-content'].querySelectorAll('input,select,button,[data-cutter-move],[data-cutter-resize]'); [...controls].find(control => cutterControlKey(control) === saved.focus)?.focus({ preventScroll: true }); window.scrollTo(saved.x, saved.y); }); }
   if (state.workspace === 'rooms' && state.roomUi.zoom === 'fit') requestAnimationFrame(applyRoomCanvasFit);
 }
 
@@ -5697,6 +5645,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
   elements['project-select'].replaceChildren();
   if (!state.projects.length) {
     resetSourceIntakeForm();
+    if (state.cutter?.dirty && !window.confirm('Leave the cutter and discard unsaved cut changes? Saved cuts stay available.')) return;
     cancelCutterJobPolling();
     resetCutterScroll();
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
@@ -5762,6 +5711,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
     state.taskDomState = null;
   }
   if (state.cutter?.projectId && state.cutter.projectId !== projectId) {
+    if (state.cutter?.dirty && !window.confirm('Leave the cutter and discard unsaved cut changes? Saved cuts stay available.')) return;
     cancelCutterJobPolling();
     resetCutterScroll();
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = [];
@@ -6462,6 +6412,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     }
     showToast(successMessage);
   } catch (error) {
+    if (operationStillCurrent()) operationCutter.error = `${error.code || 'ERROR'}: ${error.message}`;
     showToast(`${error.code || 'ERROR'}: ${error.message}`);
     if (state.project?.projectId === operationProjectId) {
       await loadProject(operationProjectId, { preserveWorkspaceIfUnchanged: true }).catch(() => {});
@@ -7236,45 +7187,14 @@ elements['agent-launcher-copy'].addEventListener('click', async () => {
     showToast('Clipboard access was denied. Select and copy the configuration manually.');
   }
 });
-elements['workspace-content'].addEventListener('submit', async (event) => {
-  const form = event.target.closest('[data-cutter-grid-form]');
-  if (!form || !state.project || !state.cutter || !state.agentAccessCsrf || state.sourceMutationPending) return;
-  event.preventDefault();
-  if (state.cutterPending) return;
-  const fields = new FormData(form);
-  const number = (name) => Number(fields.get(name));
-  state.cutter.grid = Object.fromEntries(['rows', 'columns', 'top', 'right', 'bottom', 'left', 'gapX', 'gapY'].map((name) => [name, number(name)]));
-  state.cutterPending = true; renderWorkspace();
-  try {
-    const response = await api(`/api/projects/${encodeURIComponent(state.project.projectId)}/atlases/grid-proposal`, {
-      method: 'POST',
-      headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
-      body: JSON.stringify({
-        expectedRevision: state.project.revision,
-        sourceId: state.cutter.sourceId,
-        rows: state.cutter.grid.rows,
-        columns: state.cutter.grid.columns,
-        margins: {
-          top: state.cutter.grid.top, right: state.cutter.grid.right,
-          bottom: state.cutter.grid.bottom, left: state.cutter.grid.left,
-        },
-        gapX: state.cutter.grid.gapX,
-        gapY: state.cutter.grid.gapY,
-        rectangleIdPrefix: `rect.${state.cutter.atlasId}`.slice(0, 122),
-      }),
-    });
-    if (response.proposal.findings.length) {
-      showToast(response.proposal.findings.map((finding) => finding.message).join(' '));
-    } else {
-      state.cutter.rectangles = structuredClone(response.proposal.rectangles);
-      markCutterDefinitionDirty();
-      showToast(`${response.proposal.rectangles.length} source-resolution rectangles proposed.`);
-    }
-  } catch (error) {
-    showToast(`${error.code || 'ERROR'}: ${error.message}`);
-  } finally {
-    state.cutterPending = false; renderWorkspace();
-  }
+elements['workspace-content'].addEventListener('submit', (event) => {
+  const form = event.target.closest('[data-cutter-grid-form]'); if (!form) return; event.preventDefault();
+  if (!state.project || !state.cutter || state.cutterPending || state.sourceMutationPending) return;
+  const source = state.project.snapshot.sources.find(item => item.id === state.cutter.sourceId);
+  const info = cutterGridInfo(source, state.cutter.guide);
+  if (!info.valid || info.count < 1 || info.count > 64 || info.cells.length !== info.count) { state.cutter.error = 'Choose a grid with 1–64 full cells before replacing cuts.'; syncCurrentCutterCanvas(); return; }
+  const rectangles = info.cells.map((cell, index) => ({ rectangleId: `rect.grid.${crypto.randomUUID()}`, x: cell.x, y: cell.y, width: cell.width, height: cell.height, included: true, pivot: null, transparentPaddingPolicy: 'preserve_exact_rect', replacesSliceId: null, expectedSliceVersion: null }));
+  state.cutter.gridOpen = false; applyCutterRectangles(rectangles, { selectedIndex: 0 });
 });
 
 elements['workspace-content'].addEventListener('change', (event) => {
@@ -7289,28 +7209,25 @@ elements['workspace-content'].addEventListener('change', (event) => {
     return;
   }
   if (!state.cutter || state.sourceMutationPending) return;
-  const zoom = event.target.closest('[data-cutter-zoom]');
-  if (zoom) { state.cutter.zoom = zoom.value; renderWorkspace(); return; }
-  const grid = event.target.closest('[data-cutter-grid-toggle]');
-  if (grid) { state.cutter.showGrid = grid.checked; renderWorkspace(); return; }
-  const input = event.target.closest('[data-rectangle-index][data-rectangle-field]');
-  if (!input) return;
-  if (state.cutterPending) return;
-  const rectangle = state.cutter.rectangles[Number(input.dataset.rectangleIndex)];
-  if (!rectangle) return;
+  const guide = event.target.closest('[data-cutter-guide-field]');
+  if (guide) { state.cutter.guide[guide.dataset.cutterGuideField] = Number(guide.value); state.cutter.error = null; syncCurrentCutterCanvas(); return; }
+  const zoom = event.target.closest('[data-cutter-zoom]'); if (zoom) return;
+  const grid = event.target.closest('[data-cutter-grid-toggle]'); if (grid) { state.cutter.showGrid = grid.checked; syncCurrentCutterCanvas(); return; }
+  const snap = event.target.closest('[data-cutter-snap]'); if (snap) { state.cutter.snap = snap.checked; syncCurrentCutterCanvas(); return; }
+  const input = event.target.closest('[data-rectangle-index][data-rectangle-field]'); if (!input || state.cutterPending) return;
+  const rectangles = structuredClone(state.cutter.rectangles); const rectangle = rectangles[Number(input.dataset.rectangleIndex)]; if (!rectangle) return;
   const field = input.dataset.rectangleField;
-  if (field === 'included') {
-    rectangle.included = input.checked;
-    if (!rectangle.included) {
-      rectangle.replacesSliceId = null;
-      rectangle.expectedSliceVersion = null;
-    }
-  } else if (field === 'replacesSliceId') {
-    const slice = currentCutterAtlas()?.sliceHeads.find((candidate) => candidate.sliceId === input.value) ?? null;
-    rectangle.replacesSliceId = slice?.sliceId ?? null;
-    rectangle.expectedSliceVersion = slice?.version ?? null;
-  } else rectangle[field] = Number(input.value);
-  markCutterDefinitionDirty(); renderWorkspace();
+  if (field === 'included') { rectangle.included = input.checked; if (!rectangle.included) { rectangle.replacesSliceId = null; rectangle.expectedSliceVersion = null; } }
+  else if (field === 'name') { const value = input.value.trim(); if (value) rectangle.name = value; else delete rectangle.name; }
+  else if (field === 'replacesSliceId') { const slice = currentCutterAtlas()?.sliceHeads.find(candidate => candidate.sliceId === input.value); rectangle.replacesSliceId = slice?.sliceId ?? null; rectangle.expectedSliceVersion = slice?.version ?? null; }
+  else rectangle[field] = Number(input.value);
+  applyCutterRectangles(rectangles);
+});
+
+elements['workspace-content'].addEventListener('input', event => {
+  if (!state.cutter || state.cutterPending || state.sourceMutationPending || cutterDrag) return;
+  const zoom = event.target.closest('[data-cutter-zoom]'); if (zoom) { state.cutter.zoom = String(Math.max(.1, Math.min(4, Number(zoom.value) / 100))); syncCurrentCutterCanvas(); return; }
+  const guide = event.target.closest('[data-cutter-guide-field]'); if (guide) { state.cutter.guide[guide.dataset.cutterGuideField] = Number(guide.value); state.cutter.error = null; syncCurrentCutterCanvas(); }
 });
 
 elements['workspace-content'].addEventListener('click', (event) => {
@@ -7336,21 +7253,34 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   }
   if (event.target.closest('[data-close-cutter]')) {
     if (state.cutterPending || state.sourceMutationPending) return;
+    if (state.cutter?.dirty && !window.confirm('Leave the cutter and discard unsaved cut changes? Saved cuts stay available.')) return;
     cancelCutterJobPolling();
     resetCutterScroll();
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = []; renderWorkspace(); return;
   }
   if (!state.cutter || !state.project || !state.agentAccessCsrf || state.sourceMutationPending) return;
   if (state.cutterPending) return;
+  const view = event.target.closest('[data-cutter-view]');
+  if (view) { setCutterView(view.dataset.cutterView); renderWorkspace(); return; }
+  const output = event.target.closest('[data-cutter-output]');
+  if (output) { setCutterView('detail'); state.cutter.outputIndex = Number(output.dataset.cutterOutput); state.cutter.outputKind = output.dataset.cutterOutputKind; renderWorkspace(); return; }
+  const selected = event.target.closest('[data-cutter-select]'); if (selected) { state.cutter.selectedIndex = Number(selected.dataset.cutterSelect); renderWorkspace(); return; }
+  if (event.target.closest('[data-cutter-grid-close]')) { state.cutter.gridOpen = false; renderWorkspace(); elements['workspace-content'].querySelector('[data-cutter-tool="grid"]')?.focus({ preventScroll: true }); return; }
+  const zoom = event.target.closest('[data-cutter-zoom-action]'); if (zoom) { state.cutter.zoom = zoom.dataset.cutterZoomAction; syncCurrentCutterCanvas(); return; }
+  const tool = event.target.closest('[data-cutter-tool]');
+  if (tool && tool.tagName === 'BUTTON') {
+    const name = tool.dataset.cutterTool;
+    if (['select', 'draw'].includes(name)) state.cutter.tool = name;
+    else if (name === 'grid') state.cutter.gridOpen = !state.cutter.gridOpen;
+    else if (name === 'remove') { const rows = state.cutter.rectangles.filter((_, index) => index !== state.cutter.selectedIndex); applyCutterRectangles(rows); return; }
+    else if (name === 'undo' || name === 'redo') { const step = cutterHistoryStep(state.cutter.history, state.cutter.rectangles, name); if (step.changed) { state.cutter.history = step.history; applyCutterRectangles(step.rectangles, { record: false }); } return; }
+    renderWorkspace(); return;
+  }
   if (event.target.closest('[data-add-rectangle]')) {
-    const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
-    state.cutter.rectangles.push({
-      rectangleId: `rect.manual.${crypto.randomUUID()}`,
-      x: 0, y: 0, width: Math.min(64, source.width), height: Math.min(64, source.height),
-      included: true, pivot: null, transparentPaddingPolicy: 'preserve_exact_rect',
-      replacesSliceId: null, expectedSliceVersion: null,
-    });
-    markCutterDefinitionDirty(); renderWorkspace(); return;
+    const source = state.project.snapshot.sources.find(candidate => candidate.id === state.cutter.sourceId);
+    if (state.cutter.rectangles.length >= 64) return;
+    const rectangle = { rectangleId: `rect.manual.${crypto.randomUUID()}`, x: 0, y: 0, width: Math.min(64, source.width), height: Math.min(64, source.height), included: true, pivot: null, transparentPaddingPolicy: 'preserve_exact_rect', replacesSliceId: null, expectedSliceVersion: null };
+    applyCutterRectangles([...state.cutter.rectangles, rectangle], { selectedIndex: state.cutter.rectangles.length }); return;
   }
   const atlas = currentCutterAtlas();
   const save = event.target.closest('[data-save-atlas]');
@@ -7425,9 +7355,9 @@ elements['workspace-content'].addEventListener('click', async (event) => {
         throw error;
       }
       operationCutter.operations.preview = null; operationCutter.operations.commit = null;
-      showToast('Durable slice preview queued.');
+      setCutterView('outputs');
+      showToast('Exact cut previews are being prepared.');
     } else if (commit) {
-      if (!window.confirm('Commit exactly these succeeded preview outputs as stable slice heads? This does not create semantic assets.')) return;
       const operation = operationCutter.operations.commit ??= {
         expectedRevision: operationRevision,
         idempotencyKey: `atlas-commit.${crypto.randomUUID()}`,
@@ -7441,6 +7371,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
       });
       if (!operationStillCurrent()) return;
       state.cutterJob = { ...state.cutterJob, state: 'APPLIED', appliedRevision: response.revision };
+      setCutterView('outputs');
       await loadProject(operationProjectId); void loadCutterJob(operationJobId); showToast('Slice heads committed atomically.');
       operationCutter.operations.commit = null;
     } else if (cancel) {
@@ -7481,6 +7412,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
       operationCutter.operations.discard = null; showToast('Temporary slice previews discarded.');
     }
   } catch (error) {
+    if (operationStillCurrent()) operationCutter.error = `${error.code || 'ERROR'}: ${error.message}`;
     showToast(`${error.code || 'ERROR'}: ${error.message}`);
     if (state.project?.projectId === operationProjectId) await loadProject(operationProjectId).catch(() => {});
     const pendingJobId = operationCutter.operations.commit?.jobId ?? operationCutter.operations.preview?.jobId ?? operationJobId;
@@ -7490,95 +7422,73 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   }
 });
 
-function cutterSvgPoint(svg, event) {
+function cutterSvgPoint(svg, event, inverse = null) {
   if (!svg?.isConnected) return null;
-  const screenMatrix = svg.getScreenCTM();
-  if (!screenMatrix) return null;
-  const point = svg.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
-  return point.matrixTransform(screenMatrix.inverse());
+  const matrix = inverse ?? svg.getScreenCTM()?.inverse(); if (!matrix) return null;
+  return new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix);
 }
 
-elements['workspace-content'].addEventListener('pointerdown', (event) => {
-  if (state.cutterPending || state.sourceMutationPending) return;
-  const resize = event.target.closest('[data-cutter-resize]');
-  const move = event.target.closest('[data-cutter-move]');
-  const target = resize || move;
-  if (!target || !state.cutter) return;
-  const index = Number(target.dataset.cutterResize ?? target.dataset.cutterMove);
-  const svg = target.closest('svg'); const point = cutterSvgPoint(svg, event);
-  if (!point) return;
-  cutterDrag = {
-    index, mode: resize ? 'resize' : 'move', svg, start: point,
-    original: { ...state.cutter.rectangles[index] }, target, pointerId: event.pointerId, changed: false,
-  };
-  target.setPointerCapture?.(event.pointerId); event.preventDefault();
+elements['workspace-content'].addEventListener('pointerdown', event => {
+  if (event.button !== 0 || !state.cutter || state.cutter.view !== 'edit' || state.cutterPending || state.sourceMutationPending) return;
+  const svg = event.target.closest('[data-cutter-overlay]'); if (!svg) return;
+  const resize = event.target.closest('[data-cutter-resize]'); const move = event.target.closest('[data-cutter-move]');
+  const draw = state.cutter.tool === 'draw'; if (!draw && !resize && !move) return;
+  const source = state.project.snapshot.sources.find(item => item.id === state.cutter.sourceId);
+  const inverse = svg.getScreenCTM()?.inverse(); const point = cutterSvgPoint(svg, event, inverse); if (!source || !point || !inverse) return;
+  const before = structuredClone(state.cutter.rectangles); let index = Number((resize || move)?.dataset.cutterResize ?? move?.dataset.cutterMove); let start = point;
+  if (draw) {
+    if (before.length >= 64) { state.cutter.error = 'Use at most 64 cuts.'; syncCurrentCutterCanvas(); return; }
+    if (state.cutter.snap && !event.altKey) start = { x: cutterSnapCoordinate(point.x, source, state.cutter.guide, 'x'), y: cutterSnapCoordinate(point.y, source, state.cutter.guide, 'y') };
+    index = before.length; const original = { rectangleId: `rect.manual.${crypto.randomUUID()}`, x: Math.round(start.x), y: Math.round(start.y), width: 1, height: 1, included: true, pivot: null, transparentPaddingPolicy: 'preserve_exact_rect', replacesSliceId: null, expectedSliceVersion: null };
+    state.cutter.rectangles.push(cutterDragRectangle(original, start, start, { mode: 'draw', source }));
+  }
+  state.cutter.selectedIndex = index; state.cutter.error = null;
+  const target = draw ? svg : (resize || move);
+  cutterDrag = { index, mode: draw ? 'draw' : resize ? resize.dataset.cutterEdge : 'move', svg, inverse, start,
+    original: structuredClone(state.cutter.rectangles[index]), before, priorDirty: state.cutter.dirty, priorOperations: structuredClone(state.cutter.operations),
+    source: { width: source.width, height: source.height }, guide: structuredClone(state.cutter.guide), snap: state.cutter.snap,
+    target, pointerId: event.pointerId, changed: draw, instanceId: state.cutter.instanceId };
+  state.cutter.frozenScale = Number(svg.closest('.cutter-canvas').dataset.scale);
+  if (draw) markCutterDefinitionDirty();
+  syncCurrentCutterCanvas(); target.setPointerCapture?.(event.pointerId); target.focus?.({ preventScroll: true }); event.preventDefault();
 });
-elements['workspace-content'].addEventListener('pointermove', (event) => {
-  if (!cutterDrag || !state.cutter || state.cutterPending || state.sourceMutationPending) return;
-  const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
-  if (!source || !cutterDrag.svg.isConnected || !cutterDrag.target.isConnected) {
-    settleCutterDrag();
-    return;
+elements['workspace-content'].addEventListener('pointermove', event => {
+  const drag = cutterDrag; if (!drag || event.pointerId !== drag.pointerId || !state.cutter || state.cutterPending || state.sourceMutationPending) return;
+  if (!drag.svg.isConnected || !drag.target.isConnected || drag.instanceId !== state.cutter.instanceId) { settleCutterDrag({ type: 'cancel' }); return; }
+  const point = cutterSvgPoint(drag.svg, event, drag.inverse); if (!point) return;
+  const rectangle = cutterDragRectangle(drag.original, drag.start, point, { mode: drag.mode, source: drag.source, grid: drag.guide, snap: drag.snap, altKey: event.altKey });
+  state.cutter.rectangles[drag.index] = rectangle;
+  if (['x', 'y', 'width', 'height'].some(key => rectangle[key] !== drag.original[key]) && !drag.changed) { drag.changed = true; markCutterDefinitionDirty(); }
+  syncCurrentCutterCanvas();
+  for (const control of elements['workspace-content'].querySelectorAll(`[data-rectangle-index="${drag.index}"][data-rectangle-field]`)) {
+    const key = control.dataset.rectangleField; if (['x', 'y', 'width', 'height'].includes(key)) control.value = String(rectangle[key]);
   }
-  const point = cutterSvgPoint(cutterDrag.svg, event);
-  if (!point) {
-    settleCutterDrag();
-    return;
-  }
-  const dx = Math.round(point.x - cutterDrag.start.x); const dy = Math.round(point.y - cutterDrag.start.y);
-  const rectangle = state.cutter.rectangles[cutterDrag.index];
-  if (!rectangle) {
-    settleCutterDrag();
-    return;
-  }
-  if (cutterDrag.mode === 'move') {
-    rectangle.x = Math.max(0, Math.min(source.width - rectangle.width, cutterDrag.original.x + dx));
-    rectangle.y = Math.max(0, Math.min(source.height - rectangle.height, cutterDrag.original.y + dy));
-  } else {
-    rectangle.width = Math.max(1, Math.min(source.width - rectangle.x, cutterDrag.original.width + dx));
-    rectangle.height = Math.max(1, Math.min(source.height - rectangle.y, cutterDrag.original.height + dy));
-  }
-  const geometryChanged = ['x', 'y', 'width', 'height']
-    .some((field) => rectangle[field] !== cutterDrag.original[field]);
-  if (geometryChanged && !cutterDrag.changed) {
-    cutterDrag.changed = true;
-    markCutterDefinitionDirty();
-  }
-  const group = cutterDrag.target.closest('g');
-  if (!group || group.children.length < 3) {
-    settleCutterDrag();
-    return;
-  }
-  const [shape, label, handle] = group.children;
-  shape.setAttribute('x', rectangle.x); shape.setAttribute('y', rectangle.y); shape.setAttribute('width', rectangle.width); shape.setAttribute('height', rectangle.height);
-  label.setAttribute('x', rectangle.x + 10); label.setAttribute('y', rectangle.y + 24);
-  handle.setAttribute('x', rectangle.x + rectangle.width - 12); handle.setAttribute('y', rectangle.y + rectangle.height - 12);
 });
 elements['workspace-content'].addEventListener('pointerup', settleCutterDrag);
 elements['workspace-content'].addEventListener('pointercancel', settleCutterDrag);
 elements['workspace-content'].addEventListener('lostpointercapture', settleCutterDrag);
-elements['workspace-content'].addEventListener('keydown', (event) => {
-  const resize = event.target.closest('[data-cutter-resize]');
-  const move = event.target.closest('[data-cutter-move]');
-  if ((!resize && !move) || !state.cutter || state.cutterPending || state.sourceMutationPending
-      || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-  const index = Number((resize || move).dataset.cutterResize ?? (resize || move).dataset.cutterMove);
-  const rectangle = state.cutter.rectangles[index];
-  const source = state.project.snapshot.sources.find((candidate) => candidate.id === state.cutter.sourceId);
-  const step = event.shiftKey ? 10 : 1;
-  const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
-  const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
-  if (resize) {
-    rectangle.width = Math.max(1, Math.min(source.width - rectangle.x, rectangle.width + dx));
-    rectangle.height = Math.max(1, Math.min(source.height - rectangle.y, rectangle.height + dy));
-  } else {
-    rectangle.x = Math.max(0, Math.min(source.width - rectangle.width, rectangle.x + dx));
-    rectangle.y = Math.max(0, Math.min(source.height - rectangle.height, rectangle.y + dy));
+elements['workspace-content'].addEventListener('keydown', event => {
+  if (!state.cutter || state.cutterPending || state.sourceMutationPending) return;
+  if (event.key === 'Escape') {
+    if (cutterDrag) { event.preventDefault(); settleCutterDrag({ type: 'cancel' }); return; }
+    if (state.cutter.gridOpen) { state.cutter.gridOpen = false; renderWorkspace(); elements['workspace-content'].querySelector('[data-cutter-tool="grid"]')?.focus({ preventScroll: true }); return; }
   }
-  markCutterDefinitionDirty(); event.preventDefault(); renderWorkspace();
-  const focusSelector = resize ? `[data-cutter-resize="${index}"]` : `[data-cutter-move="${index}"]`;
-  requestAnimationFrame(() => document.querySelector(focusSelector)?.focus());
+  const editor = event.target.closest('[data-atlas-cutter]'); if (!editor) return;
+  const typing = event.target.matches('input,textarea,select');
+  if (!typing && (event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) {
+    const direction = event.key.toLowerCase() === 'y' || event.shiftKey ? 'redo' : 'undo'; const step = cutterHistoryStep(state.cutter.history, state.cutter.rectangles, direction);
+    event.preventDefault(); if (step.changed) { state.cutter.history = step.history; applyCutterRectangles(step.rectangles, { record: false }); } return;
+  }
+  const resize = event.target.closest('[data-cutter-resize]'); const move = event.target.closest('[data-cutter-move]');
+  if ((!resize && !move) || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  const index = Number((resize || move).dataset.cutterResize ?? move.dataset.cutterMove); const rectangle = state.cutter.rectangles[index];
+  const source = state.project.snapshot.sources.find(item => item.id === state.cutter.sourceId); const step = event.shiftKey ? 10 : 1;
+  const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0; const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
+  const rows = structuredClone(state.cutter.rectangles); rows[index] = cutterDragRectangle(rectangle, { x: 0, y: 0 }, { x: dx, y: dy }, { mode: resize?.dataset.cutterEdge ?? 'move', source });
+  event.preventDefault(); applyCutterRectangles(rows, { selectedIndex: index });
 });
+elements['workspace-content'].addEventListener('focusin', event => { if (state.cutter?.view === 'edit' && event.target.closest('[data-cutter-main],.rectangle-inspector,.cutter-tool-rail')) state.cutter.lastEditingFocusKey = cutterControlKey(event.target); });
+window.addEventListener('resize', () => { if (cutterDrag) state.cutterDeferredRender = true; else syncCurrentCutterCanvas(); });
 
 if (visualFixture) {
   const cutterPointerTrace = [];
