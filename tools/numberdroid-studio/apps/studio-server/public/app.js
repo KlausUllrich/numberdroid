@@ -790,13 +790,19 @@ function currentProjectSlices(snapshot = state.project?.snapshot) {
   return slices;
 }
 
+function savedSliceLabel(slice, ordinal = null) {
+  const name = slice?.rectangle?.name;
+  return typeof name === 'string' && name.trim()
+    ? name.trim() : ordinal ? `Slice ${ordinal}` : 'Pinned historical slice';
+}
+
 function sliceDisplay(binding) {
   const match = currentProjectSlices().find(({ slice }) => (
     slice.sliceId === binding?.sliceId && slice.version === binding?.sliceVersion
   ));
   return {
     ordinal: match?.ordinal ?? null,
-    label: match ? `Slice ${match.ordinal}` : 'Pinned historical slice',
+    label: savedSliceLabel(match?.slice ?? binding, match?.ordinal),
     atlasName: match?.atlas.name ?? binding?.atlasId ?? 'Unknown atlas',
   };
 }
@@ -2461,7 +2467,7 @@ function currentAssetAuthoringConflict() {
 function assetAuthoringPreview(authoring) {
   const { slice, atlas, ordinal } = authoring.pinned;
   const preview = document.createElement('section'); preview.className = 'asset-authoring-preview'; preview.dataset.assetAuthoringPreview = '';
-  const caption = document.createElement('p'); caption.textContent = `Slice ${ordinal} · ${atlas.name} · saved version ${slice.version}`;
+  const caption = document.createElement('p'); caption.textContent = `${savedSliceLabel(slice, ordinal)} · ${atlas.name} · saved version ${slice.version}`;
   const binding = { ...slice, sliceVersion: slice.version, atlasId: atlas.atlasId };
   try {
     const item = buildAssetAuthoringRequest(authoring.draft).items[0];
@@ -2649,9 +2655,9 @@ function renderSliceVocabulary() {
   for (const { atlas, slice, ordinal } of slices) {
     const entry = document.createElement('article'); entry.className = 'slice-vocabulary-card';
     entry.append(safeV2Preview({
-      name: `${atlas.name} Slice ${ordinal}`, kind: 'surface', sliceBinding: slice, preview: slice.preview,
+      name: savedSliceLabel(slice, ordinal), kind: 'surface', sliceBinding: slice, preview: slice.preview,
     }));
-    const heading = document.createElement('h4'); heading.textContent = `Slice ${ordinal}`;
+    const heading = document.createElement('h4'); heading.textContent = savedSliceLabel(slice, ordinal);
     const atlasName = document.createElement('p'); atlasName.textContent = atlas.name;
     entry.append(heading, atlasName, copyableCanonical('Canonical slice ID', slice.sliceId, `slice-vocabulary-${slice.sliceId}`));
     entry.append(createAssetFromSliceButton(slice)); grid.append(entry);
