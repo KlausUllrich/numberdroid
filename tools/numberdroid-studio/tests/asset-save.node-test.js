@@ -119,7 +119,7 @@ test('owner Save versions atomically, retains exact recut imagery, replays and s
 
 test('owner Save rejects foreign/agent authority, exact payload abuse and transaction faults', { timeout: 120_000 }, async context => {
   const f = await fixture(context);
-  assert.equal(COMMAND_DEFINITIONS.length, 34); assert.equal(KNOWN_GRANT_SCOPES.length, 30);
+  assert.equal(COMMAND_DEFINITIONS.length, 37); assert.equal(KNOWN_GRANT_SCOPES.length, 31);
   const tools = createAgentToolCatalog(f.studio, { contextProvider: async () => ({ ...owner, projectId }) });
   assert.equal(tools.length, 19); assert.equal(tools.some(t => t.name === 'studio_asset_save'), false);
   for (const actor of [{ ...owner, actor: { ...owner.actor, id: 'other.human' } }, { ...owner, actor: { id: 'agent.fixture', kind: 'agent' } }]) {

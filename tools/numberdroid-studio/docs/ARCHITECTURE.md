@@ -1,5 +1,7 @@
 # Numberdroid Studio — Architecture
 
+Assembly evolution authorized 2026-09-09: the [Assembly implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md) owns additive schema-v16 composition records, three Assembly commands, conditional bundle v5 and explicitly selected `assembly-v1` MCP tools. Default and existing task/private MCP surfaces remain unchanged; native Asset and Room pins retain their accepted contracts. This scoped implementation is pending verification and user acceptance.
+
 Current scoped evolution (2026-09-08): the [Asset editor implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md) adds owner-only `asset.save`, optional typed spatial metadata and conditional portable bundle v4. Internal catalogs become 34/30 and private-overlay 35/31 definitions/scopes; agent MCP tools/templates remain 19/4 and matching-task 30/5. This does not change review authority, task Resume, or prior acceptance. Earlier counts below describe their named legacy checkpoint.
 
 ## 1. Architectural intent

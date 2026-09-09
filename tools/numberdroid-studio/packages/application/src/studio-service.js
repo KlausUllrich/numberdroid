@@ -1,3 +1,4 @@
+import { applyAssemblyCommand, queryAssemblyDocument } from './assembly-service.js';
 import { COMMAND_DEFINITIONS, KNOWN_GRANT_SCOPES, getCommandDefinition, listCommandDefinitions } from '../../domain/src/command-catalog.js';
 import {
   ATLAS_PROCESSOR_ID,
@@ -810,6 +811,7 @@ function exactRoomAssetVersions(document, placements, { maxProjectRevision = Num
   const assets = new Map();
   for (const placement of placements) {
     const key = `${placement.assetId}:${placement.assetVersion}:${placement.metadataVersion}`;
+    invariant(!document.revisions.at(-1).snapshot.assemblyLibrary?.assets.some(asset => asset.assetId === placement.assetId), 'ASSEMBLY_ROOM_UNSUPPORTED', 'Room placement currently supports leaf Assets. Assembly placement requires a separate supported capability.');
     const coordinate = `${placement.assetId}@${placement.assetVersion}:${placement.metadataVersion}`;
     if (assets.has(coordinate)) continue;
     let resolved = null;
@@ -964,6 +966,8 @@ function applyCommand(command, snapshot, now, {
       },
     };
   }
+
+  if (command.type.startsWith('assembly.')) return applyAssemblyCommand(command, next, projectDocument, now);
 
   switch (command.type) {
     case 'grant.issue': {
@@ -1460,6 +1464,7 @@ function applyCommand(command, snapshot, now, {
       };
     }
     case 'asset.define': {
+      invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === (payload.assetId ?? payload.id)), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
       const assetId = requireId(payload.assetId, 'payload.assetId');
       invariant(!next.assets.some((asset) => asset.id === assetId), 'ENTITY_EXISTS', 'The asset ID already exists.', {
         assetId,
@@ -1494,6 +1499,7 @@ function applyCommand(command, snapshot, now, {
       };
     }
     case 'asset.save': {
+      invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === payload.assetId), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
       assertExactFields(payload, new Set(['assetId', 'operation', 'expectedAssetVersion', 'expectedMetadataVersion', 'name', 'kind', 'metadata', 'image']), 'payload');
       const assetId = requireId(payload.assetId, 'payload.assetId');
       const operation = requireEnum(payload.operation, 'payload.operation', ['create', 'update']);
@@ -1544,6 +1550,7 @@ function applyCommand(command, snapshot, now, {
       const proposalId = preparedAssetProposal.proposalId;
       invariant(!library.proposals.some((proposal) => proposal.proposalId === proposalId), 'ENTITY_EXISTS', 'The proposal ID already exists.', { proposalId });
       const items = preparedAssetProposal.items.map((item) => {
+        invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === item.assetId), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
         const existingAsset = library.assets.find((asset) => asset.assetId === item.assetId);
         invariant(!next.assets.some((asset) => asset.id === item.assetId), 'ENTITY_EXISTS', 'A legacy asset already uses this identity.', { assetId: item.assetId });
         if (item.operation === 'create') {
@@ -2206,7 +2213,7 @@ function createRevision({ command, number, now, commandHash, snapshot, result, s
       ...(isTaskBranch ? { branchId: command.branchId, payload: deepClone(command.payload) } : {}),
       // Direct owner saves retain their strict semantic input for immutable
       // image-retention/version provenance. This carries no supplied authority.
-      ...(!isTaskBranch && command.type === 'asset.save' ? { payload: deepClone(command.payload) } : {}),
+      ...(!isTaskBranch && (command.type === 'asset.save' || command.type.startsWith('assembly.')) ? { payload: deepClone(command.payload) } : {}),
       fingerprint: commandHash,
     },
     snapshot: deepClone(snapshot),
@@ -2290,6 +2297,8 @@ export class StudioService {
     return this.#store.supportsAtomicAssetLibrary === true;
   }
 
+  get durableAssemblyStoreReady() { return this.#store.supportsAtomicAssemblyLibrary === true; }
+
   get durableRoomStoreReady() {
     return this.#store.supportsAtomicRoomDesigner === true;
   }
@@ -2369,6 +2378,9 @@ export class StudioService {
         'ASSET_STORE_DISABLED',
         'V2 asset proposals, decisions, apply, and lifecycle require the authoritative SQLite v9 store.',
       );
+    }
+    if (definition.requiresDurableAssemblyStore) {
+      invariant(this.durableAssemblyStoreReady && this.#store.isTaskBranchStore !== true, 'ASSEMBLY_STORE_DISABLED', 'Assembly authoring requires the shared-head SQLite v16 store.');
     }
     if (definition.requiresDurableRoomStore) {
       invariant(
@@ -2721,6 +2733,21 @@ export class StudioService {
       manifestFingerprint: projectCapabilityManifestSha256(manifest),
       manifest: deepClone(manifest),
     });
+  }
+
+  async queryAssemblies(request, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
+    invariant(this.durableAssemblyStoreReady, 'ASSEMBLY_STORE_DISABLED', 'Assembly reads require the shared-head SQLite v16 store.');
+    const projectId = requireId(request.projectId, 'projectId');
+    const context = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId);
+    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.');
+    assertAuthorized({ ...context, projectId, type: 'project.read', payload: {} }, headRevision(document).snapshot, { ownerOnly: false, requiredScope: 'project.read' }, this.#clock());
+    signal?.throwIfAborted();
+    const result = queryAssemblyDocument(request, document);
+    for (const record of [...result.assets ?? [], ...(result.draft ? [result.draft] : [])]) this.#store.verifyAssemblyContent(projectId, record, record.createdRevision ?? result.revision);
+    for (const proposal of result.proposals ?? []) this.#store.verifyAssemblyContent(projectId, proposal.validated, proposal.createdRevision);
+    return deepFreeze(result);
   }
 
   async queryAssets(rawRequest, trustedExecutionContext, { signal } = {}) {

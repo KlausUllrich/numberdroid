@@ -31,6 +31,9 @@ export function jsonSchemaToZod(schema) {
   const declaredTypes = Array.isArray(schema.type) ? schema.type : [schema.type];
   const nonNullTypes = declaredTypes.filter((candidate) => candidate && candidate !== 'null');
   const nullable = declaredTypes.includes('null');
+  // A null-only alternative is a type, not an unconstrained nullable value.
+  // Keeping it exact also preserves oneOf exclusivity for non-null values.
+  if (nullable && nonNullTypes.length === 0) return z.null();
   if (!schema.enum && nonNullTypes.length > 1) {
     const variants = nonNullTypes.map((type) => jsonSchemaToZod({ ...schema, type }));
     const union = z.union(variants);

@@ -1,7 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as z from 'zod/v4';
 import { jsonSchemaToZod } from '../packages/mcp-server/src/schema-adapter.js';
 import { officialErrorPayload } from '../packages/mcp-server/src/official-server.js';
+
+test('null-only alternatives stay exact through validation and SDK schema conversion', () => {
+  for (const type of ['null', ['null']]) {
+    const schema = jsonSchemaToZod({ type });
+    assert.equal(schema.parse(null), null);
+    for (const value of ['machine', [], {}, 0, false, undefined]) assert.equal(schema.safeParse(value).success, false);
+    assert.equal(z.toJSONSchema(schema).type, 'null');
+  }
+  for (const [branch, value] of [[{ type: 'string', minLength: 1 }, 'machine'], [{ type: 'array', items: { type: 'string' }, uniqueItems: true }, ['idle']]]) {
+    const schema = jsonSchemaToZod({ oneOf: [{ type: 'null' }, branch] });
+    assert.equal(schema.parse(null), null);
+    assert.deepEqual(schema.parse(value), value);
+    assert.equal(schema.safeParse(42).success, false);
+    assert.equal(z.toJSONSchema(schema).anyOf[0].type, 'null');
+  }
+});
 
 test('JSON Schema enums preserve numeric and string literal types', () => {
   const schema = jsonSchemaToZod({

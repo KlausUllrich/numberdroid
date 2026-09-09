@@ -122,9 +122,10 @@ export function buildOfficialMcpServer({
   serverContext,
   requestAbortRegistry = new Map(),
   authoringV2 = null,
+  assemblyV1 = null,
 } = {}) {
   if (!studioGateway) throw new TypeError('studioGateway is required.');
-  const catalog = createAgentToolCatalog(studioGateway, { contextProvider, authoringV2 });
+  const catalog = createAgentToolCatalog(studioGateway, { contextProvider, authoringV2, assemblyV1 });
   const authoringV2Surface = authoringV2 === null || authoringV2 === undefined
     ? null
     : createAuthoringV2McpSurface(studioGateway, authoringV2, {
@@ -300,6 +301,20 @@ export function buildOfficialMcpServer({
       },
     );
   }
+
+  const assemblyQuery = catalog.find(({ name }) => name === 'studio_assembly_query');
+  if (assemblyQuery) server.registerResource('studio-assembly', new ResourceTemplate('studio://projects/{projectId}/assemblies/{assetId}', { list: undefined }),
+    { title: 'Studio Assembly', description: 'Exact saved Assembly, component versions and source lineage.', mimeType: 'application/json' },
+    async (uri, { projectId, assetId }, invocationContext) => {
+      const operation = operationContext(invocationContext, requestAbortRegistry);
+      try {
+        const value = await assemblyQuery.execute({ schemaVersion: 1, projectId, assetId, limit: 1 }, operation.context);
+        return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
+      } catch (error) {
+        if (operation.signal.aborted) throw error;
+        return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(officialErrorPayload(error)) }] };
+      } finally { operation.cleanup(); }
+    });
 
   const taskRead = catalog.find(({ name }) => name === 'studio_task_read');
   if (taskRead) {

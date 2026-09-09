@@ -1,3 +1,4 @@
+import { inspectAssemblyIntegrity } from './assembly-integrity.js';
 import { invariant } from '../../../domain/src/errors.js';
 import { canonicalRgbaPngByteSize } from '../../../domain/src/atlas-definition.js';
 import { validateAssetMetadataForVisualFacts } from '../../../domain/src/asset-definition.js';
@@ -1820,10 +1821,11 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
   } catch (error) {
     bundleImportFindings.push({ projectId: null, jobId: null, code: 'BUNDLE_IMPORT_QUERY_FAILED', message: 'Bundle-import integrity could not be inspected.', cause: error.message });
   }
+  const assemblies = database.userVersion >= 16 ? inspectAssemblyIntegrity(projectStore.workspace.database) : { ok: true, versionCount: 0, proposalVersionCount: 0, findings: [] };
   const bundleImports = { ok: bundleImportFindings.length === 0, appliedJobCount: bundleImportJobCount, findings: bundleImportFindings };
   return {
     schemaVersion: 1,
-    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && tasks.ok && bundleImports.ok,
+    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && tasks.ok && bundleImports.ok && assemblies.ok,
     database,
     artifacts,
     sourceIntakes,
@@ -1833,5 +1835,6 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
     rooms,
     tasks,
     bundleImports,
+    ...(!assemblies.ok || assemblies.versionCount || assemblies.proposalVersionCount ? { assemblies } : {}),
   };
 }

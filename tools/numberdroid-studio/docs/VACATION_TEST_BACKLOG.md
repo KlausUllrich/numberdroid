@@ -57,6 +57,7 @@ Keep these states distinct:
 | VT-018 | Room creation and current editor context | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing Room and working-project foundations | Guided first template/Room; a second Room immediately becomes the displayed and edited Room; prior context is protected |
 | VT-019 | Precise named Cutter editor | CUTTER USER PASSED 2026-09-08 — named-cut path covered by VT-020 | approved Cutter design and existing exact PNG/job foundations | Named selective cuts, stable tools/grid/drag, output inspection, save/reopen and user-owned editing |
 | VT-020 | Asset placement and blocking editor | USER ACCEPTED — PASS 2026-09-09 | approved Placement design and compatible Asset editor contract | Named shapes, direct own-work Save, retained versions and Activity navigation |
+| VT-021 | Assembly editor | IMPLEMENTED CANDIDATE — user acceptance pending | approved Assembly mockup and exact composition contract | Components, state/variant preview, custom blocking, agent correction/review, Save/restart |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1524,3 +1525,25 @@ test convenience.
 - **Decision:** Klaus's **“all pass”** closes VT-020. This does not
   establish VT-001/CP4.5 acceptance, complete agent Resume, production art approval,
   Assembly/shared Review implementation or Numberdroid materialization.
+
+## VT-021 — Assembly editor
+
+- **Status:** implemented candidate, 2026-09-09. Integration, automated evidence
+  and Klaus's explicit implementation decision are separate gates.
+- **Authority:** [Assembly implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md)
+  and the approved [Assembly design](ASSEMBLY_EDITOR_DESIGN.md).
+- **Prerequisite:** real adaptive agent discovery, invalid-reference correction,
+  isolated proposal, owner feedback, revised proposal and accepted exact readback.
+  Synthetic owner actions prove mechanics; they are not Klaus's acceptance.
+- **Human batch:** open or create an Assembly in the Library; add, name, select,
+  move, rotate, scale, reorder and remove exact saved components; use Undo/Redo.
+  Switch preview states/variants and inspect a source, then return with the draft
+  and view retained. Switch inherited/custom blocking, edit shapes, retain an
+  unfinished outline through Back/reopen, complete it, and save. Reopen after
+  restart and confirm the saved composition and pins. Review an agent proposal,
+  send feedback, inspect the revision and accept its resulting Assembly.
+- **Boundaries:** native PNG-backed components only; no nesting, animation
+  timeline, audio, game behavior, Room placement, raster flattening or export.
+  These are separate capabilities, not implicit outcomes of this gate.
+- **Decision:** pending Klaus. Accepted Cutter/VT-020 and the existing open
+  VT-001/CP4.5 and A1.7 gates remain unchanged.

@@ -1,3 +1,4 @@
+import { writeAssemblyRevision, validateStoredAssemblyContent, rebuildAssemblyHeads } from './sqlite-assembly-store.js';
 import { ProjectStore, headRevision, projectSummary } from '../../../application/src/project-store.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
@@ -1455,6 +1456,7 @@ function writeRoomDesignerRevision(database, projectId, revision, fault) {
 }
 
 function writeAssetLibraryRevision(database, projectId, revision, fault) {
+  writeAssemblyRevision(database, projectId, revision, fault);
   writeOwnerAssetVersion(database, projectId, revision, fault);
   writeAssetProposalSubmission(database, projectId, revision, fault);
   writeAssetProposalDecision(database, projectId, revision, fault);
@@ -1741,6 +1743,8 @@ export class SqliteProjectStore extends ProjectStore {
   get supportsAtomicAssetLibrary() { return true; }
   get supportsDurableAssetStore() { return true; }
   get supportsAtomicRoomDesigner() { return true; }
+  verifyAssemblyContent(projectId, record, cutoff) { return validateStoredAssemblyContent(this.#workspace.database, projectId, record, cutoff); }
+  get supportsAtomicAssemblyLibrary() { return Number(this.#workspace.database.prepare('PRAGMA user_version').get().user_version) >= 16; }
 
   async createProject(document, { legacyGrants = false } = {}) {
     invariant(document.revisions.length === 1, 'INVALID_REVISION', 'A new SQLite project needs exactly one revision.');
@@ -2199,6 +2203,7 @@ export class SqliteProjectStore extends ProjectStore {
         now: revision.committedAt,
       });
       rebuildAssetHeads(database, projectId);
+      rebuildAssemblyHeads(database, projectId);
       rebuildRoomHeads(database, projectId);
     });
     return { projectId, revision: revision.number, projectionHash: fingerprint(revision.snapshot) };

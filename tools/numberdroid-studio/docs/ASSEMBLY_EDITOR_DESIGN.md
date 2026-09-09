@@ -13,6 +13,7 @@ The reviewed standalone artifact was `assembly-v1.html`, SHA-256
 This approves the editor design, not implemented Studio behavior, engine output,
 or VT-001 / CP4.5. It specializes the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md)
 and reuses the [Placement & Blocking editor](PLACEMENT_BLOCKING_EDITOR_DESIGN.md).
+The [implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md) now defines the bounded compatible source block.
 The [current task router](START_HERE.md) owns subsequent design/implementation scope.
 
 ## Goal and component references

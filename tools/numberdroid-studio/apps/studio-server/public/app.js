@@ -1,5 +1,8 @@
 import { resolveAssetSpatialGeometry, transformAssetSpatialGeometry, shapeIntersectsRect, classifyBlockingPair } from './asset-spatial-geometry.js';
 import { createAssetEditorController } from './asset-editor-controller.js';
+import { createAssemblyEditorController } from './assembly-editor-controller.js';
+import { renderAssemblyCard } from './assembly-library-view.js';
+import { createAssemblyReviewController } from './assembly-review-view.js';
 import { cutterGridInfo, cutterSnapCoordinate, cutterDragRectangle, cutterEditIssues, cutterHistoryPush, cutterHistoryStep } from './cutter-editor-state.js';
 import { renderCutterEditor, syncCutterCanvas, cutterOutputCard, cutterOutputName } from './cutter-editor-view.js';
 import { roomAssetPinKey, roomPinnedAssetsContext, roomPinnedAssetsKey, roomPinnedAssetsPath, normalizeRoomPinnedAssets } from './room-pinned-assets-state.js';
@@ -58,6 +61,7 @@ const state = {
   agentAccessCsrf: null,
   pendingAgentAccess: null,
   hostBindingSupport: 'SQLITE_REQUIRED',
+  assemblyAuthoringSupport: 'UNAVAILABLE',
   hostBindings: [],
   pendingHosts: [],
   mcpLauncherConfig: null,
@@ -750,6 +754,10 @@ function assetPreview(asset, { onLoadReady = null, onLoadFailure = null } = {}) 
 
 function currentAssetLibrary(snapshot = state.project?.snapshot) {
   return snapshot?.assetLibrary ?? { assets: [], proposals: [] };
+}
+
+function currentAssemblyLibrary(snapshot = state.project?.snapshot) {
+  return snapshot?.assemblyLibrary ?? { assets: [], proposals: [] };
 }
 
 function exactSelectedRoomPaletteAsset(snapshot = state.project?.snapshot) {
@@ -1999,10 +2007,11 @@ function renderOverview(snapshot) {
   const visibleGrant = activeGrants.at(-1) || snapshot.grants.at(-1);
   const metrics = document.createElement('div');
   metrics.className = 'metric-grid';
-  const v2Assets = snapshot.assetLibrary?.assets?.length ?? 0;
+  const v2Assets = (snapshot.assetLibrary?.assets?.length ?? 0) + currentAssemblyLibrary(snapshot).assets.length;
   const roomVariants = snapshot.roomLibrary?.variants?.length ?? snapshot.rooms.length;
   const pendingProposals = (snapshot.assetLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0)
-    + (snapshot.roomLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0);
+    + (snapshot.roomLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0)
+    + currentAssemblyLibrary(snapshot).proposals.filter(proposal => proposal.status === 'PENDING').length;
   const tasksAvailable = state.tasksAvailability === 'AVAILABLE';
   const taskAttention = tasksAvailable
     ? state.tasks.map((entry) => ({ entry, attention: taskAttentionPresentation(entry) })).filter(({ attention }) => attention)
@@ -2443,8 +2452,190 @@ function createAssetFromSliceButton(slice) {
 let activeAssetEditor = null;
 let assetEditorDeferredRender = false;
 let assetEditorReturnContext = null;
+let activeAssemblyEditor = null;
+let activeEmbeddedAssetEditor = null;
+let assemblyEditorReturnContext = null;
+let assemblyOpenGeneration = 0;
+let assemblyDeferredRender = false;
+const assemblyReadCache = new Map();
+const assemblyReviewControllers = new Map();
+const assemblyEmbeddedControllers = new WeakMap();
+
+function assemblySupported() { return state.uiMode === 'local' && state.assemblyAuthoringSupport === 'AVAILABLE'; }
+function assemblyCanMutate() { return assemblySupported() && !state.assetMutationPending && !state.sourceMutationPending && !state.cutterPending && !state.roomMutationPending && !state.taskMutationPending && !state.backupMutationPending; }
+function assemblyCurrentContext(editor) {
+  return { projectId: state.project?.projectId, projectRevision: state.project?.revision,
+    asset: currentAssemblyLibrary().assets.find(asset => asset.assetId === editor?.getState().context.assetId) ?? null };
+}
+function assemblyReadKey(asset) { return `${state.project.projectId}@${state.project.revision}:${asset.assetId}@${asset.assetVersion}:${asset.metadataVersion}`; }
+function readAssemblyDetail(asset, { retry = false } = {}) {
+  if (!assemblySupported()) return Promise.reject(new Error('Assembly authoring requires the local SQLite workspace.'));
+  const projectId = state.project.projectId, revision = state.project.revision, key = assemblyReadKey(asset);
+  const previous = assemblyReadCache.get(key);
+  if (previous && (!retry || previous.status !== 'failed')) return previous.promise;
+  const controller = new AbortController(), entry = { status: 'loading', record: null, controller, promise: null };
+  const timer = setTimeout(() => controller.abort(), 8000);
+  entry.promise = api(`/api/projects/${encodeURIComponent(projectId)}/assemblies/${encodeURIComponent(asset.assetId)}?assetVersion=${asset.assetVersion}`, { signal: controller.signal }).then(response => {
+    const record = response.assets?.[0];
+    if (response.projectId !== projectId || response.revision !== revision || record?.assetId !== asset.assetId || record?.assetVersion !== asset.assetVersion || record?.metadataVersion !== asset.metadataVersion || !Array.isArray(record.leafAssets) || !record.scene) throw new Error('The exact Assembly read changed. Refresh and reopen its saved version.');
+    entry.status = 'ready'; entry.record = record; return record;
+  }).catch(error => { entry.status = 'failed'; entry.error = error.message; throw error; }).finally(() => clearTimeout(timer));
+  assemblyReadCache.set(key, entry);
+  while (assemblyReadCache.size > 64) { const oldest = assemblyReadCache.keys().next().value; assemblyReadCache.get(oldest)?.controller.abort(); assemblyReadCache.delete(oldest); }
+  return entry.promise;
+}
+function assemblyLibraryCard(asset) {
+  const key = assemblyReadKey(asset), cached = assemblyReadCache.get(key);
+  const card = renderAssemblyCard({ asset, scene: cached?.record?.scene, projectId: state.project.projectId });
+  if (assemblySupported() && !cached) {
+    const projectId = state.project.projectId, revision = state.project.revision;
+    queueMicrotask(() => { if (!card.isConnected || state.workspace !== 'assets' || state.project?.projectId !== projectId || state.project?.revision !== revision) return;
+      void readAssemblyDetail(asset).then(record => {
+        if (!card.isConnected || state.workspace !== 'assets' || activeAssemblyEditor || activeAssetEditor || state.project?.projectId !== projectId || state.project?.revision !== revision || !currentAssemblyLibrary().assets.some(current => current.assetId === asset.assetId && current.assetVersion === asset.assetVersion && current.metadataVersion === asset.metadataVersion)) return;
+        if (!card.contains(document.activeElement)) card.replaceWith(renderAssemblyCard({ asset, scene: record.scene, projectId }));
+      }).catch(() => {});
+    });
+  }
+  return card;
+}
+
+function returnFromAssemblyEditor(editor) {
+  if (activeAssemblyEditor !== editor) return;
+  const saved = assemblyEditorReturnContext;
+  assemblyEmbeddedControllers.get(editor)?.dispose(); assemblyEmbeddedControllers.delete(editor);
+  editor.dispose(); activeAssemblyEditor = null; activeEmbeddedAssetEditor = null; assemblyEditorReturnContext = null;
+  document.body.dataset.assemblyEditorOpen = 'false';
+  state.workspace = saved?.workspace ?? 'assets'; history.replaceState(null, '', `#${state.workspace}`);
+  renderWorkspace({ preserveCutterDraft: true, preserveAssetDraft: true });
+  requestAnimationFrame(() => {
+    if (activeAssemblyEditor || activeAssetEditor || state.workspace !== (saved?.workspace ?? 'assets')) return;
+    [...elements['workspace-content'].querySelectorAll('[data-asset-focus-key]')].find(control => control.dataset.assetFocusKey === saved?.focus)?.focus({ preventScroll: true });
+    window.scrollTo(saved?.x ?? 0, saved?.y ?? 0);
+  });
+}
+
+function editAssemblyCustomGeometry(editor, { draft, artwork, title }) {
+  if (activeAssemblyEditor !== editor || !assemblySupported()) return Promise.reject(new Error('Return to the local Assembly editor before editing custom geometry.'));
+  return new Promise(resolve => {
+    const context = editor.getState().context, a = draft.assembly;
+    const previous = assemblyEmbeddedControllers.get(editor);
+    if (previous) { previous.dispose(); assemblyEmbeddedControllers.delete(editor); }
+    let embedded;
+    embedded = createAssetEditorController({
+      initial: { mode: 'assembly-geometry', projectId: context.projectId, projectRevision: context.projectRevision, assetId: context.assetId, title,
+        planeSize: { width: Math.max(1, a.placementBounds.width), height: Math.max(1, a.placementBounds.height) },
+        geometry: { spatial: { schemaVersion: 1, coordinateSpace: 'image-pixels', unitsPerPixel: { x: a.unitsPerPixel, y: a.unitsPerPixel }, placementBounds: structuredClone(a.placementBounds), anchor: structuredClone(a.anchor),
+          blockingRegions: draft.regions.map(({ transform: _transform, ...region }) => structuredClone(region)) },
+          regionTransforms: Object.fromEntries(draft.regions.map(region => [region.regionId, structuredClone(region.transform)])) },
+        artworkScene: artwork, returnLabel: 'Back to Assembly' }, resumeState: draft.session,
+      host: { getContext: () => assemblyCurrentContext(editor), announce: showToast, confirmDiscard: message => window.confirm(message),
+        onGestureSettled: () => { if (assemblyDeferredRender) { assemblyDeferredRender = false; renderWorkspace({ preserveAssetDraft: true }); } },
+        onEmbeddedReturn: result => {
+          if (activeAssemblyEditor !== editor || activeEmbeddedAssetEditor !== embedded) return;
+          activeEmbeddedAssetEditor = null;
+          embedded.dispose(); assemblyEmbeddedControllers.delete(editor);
+          document.body.dataset.assetEditorOpen = 'false';
+          elements['workspace-content'].replaceChildren(editor.element);
+          resolve(result);
+        } },
+    });
+    assemblyEmbeddedControllers.set(editor, embedded); activeEmbeddedAssetEditor = embedded;
+    document.body.dataset.assetEditorOpen = 'true';
+    elements['workspace-content'].replaceChildren(embedded.element); embedded.afterMount();
+  });
+}
+
+async function openAssemblyEditor({ asset = null, trigger = null } = {}) {
+  if (!assemblyCanMutate() || !mayAbandonAssetAuthoring()) return;
+  const generation = ++assemblyOpenGeneration, projectId = state.project.projectId, revision = state.project.revision, workspace = state.workspace;
+  const saved = { workspace, x: window.scrollX, y: window.scrollY, focus: trigger?.dataset.assetFocusKey ?? null };
+  captureAssetDomState();
+  let record = asset;
+  try { if (asset) record = await readAssemblyDetail(asset, { retry: true }); }
+  catch (error) { if (generation === assemblyOpenGeneration && state.project?.projectId === projectId && state.workspace === workspace) showToast(error.message); return; }
+  if (generation !== assemblyOpenGeneration || state.project?.projectId !== projectId || state.project?.revision !== revision || state.workspace !== workspace || !assemblyCanMutate()) return;
+  let editor;
+  const leafMap = new Map([...currentAssetLibrary().assets, ...(record?.leafAssets ?? [])].map(leaf => [`${leaf.assetId}@${leaf.assetVersion}:${leaf.metadataVersion}`, leaf]));
+  editor = createAssemblyEditorController({ initial: { projectId, projectRevision: revision, asset: record, assets: [...leafMap.values()] }, host: {
+    getContext: () => assemblyCurrentContext(editor), getNativeAssets: () => currentAssetLibrary().assets,
+    resolveDraft: async ({ assembly }, { signal } = {}) => {
+      const current = editor.getState(); const expectedRevision = current.context.projectRevision;
+      const response = await api(`/api/projects/${encodeURIComponent(projectId)}/assemblies/resolve-draft`, { method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, signal: AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(8000)]),
+        body: JSON.stringify({ expectedRevision, assetId: current.context.assetId, name: current.model.name.trim() || 'Assembly preview', kind: current.model.kind, metadata: current.model.metadata, assembly, selection: current.preview }) });
+      if (activeAssemblyEditor !== editor || response.projectId !== projectId || response.revision !== expectedRevision || state.project?.revision !== expectedRevision) throw new Error('The project changed during component resolution. Recheck the saved version.');
+      return response.draft.leafAssets;
+    },
+    saveAssembly: (intent, { signal } = {}) => api(`/api/projects/${encodeURIComponent(intent.projectId)}/assemblies/${encodeURIComponent(intent.assetId)}/save`, { method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: intent.serialized ?? JSON.stringify(intent.payload), signal }),
+    setMutationPending: setAssetMutationPending,
+    readSavedOutcome: async (intent, { signal } = {}) => { await loadProject(intent.projectId, { signal, canApply: () => activeAssemblyEditor === editor }); return null; },
+    onSaved: async receipt => {
+      if (activeAssemblyEditor !== editor) return null;
+      await loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => activeAssemblyEditor === editor });
+      return currentAssemblyLibrary().assets.find(current => current.assetId === receipt.value.assetId && current.assetVersion === receipt.value.assetVersion && current.metadataVersion === receipt.value.metadataVersion) ?? null;
+    },
+    editCustomGeometry: options => editAssemblyCustomGeometry(editor, options),
+    onGestureSettled: () => { if (assemblyDeferredRender && activeAssemblyEditor === editor) { assemblyDeferredRender = false; renderWorkspace({ preserveAssetDraft: true }); } },
+    onBack: () => returnFromAssemblyEditor(editor), confirmDiscard: message => window.confirm(message), announce: showToast,
+  } });
+  activeAssemblyEditor = editor; assemblyEditorReturnContext = saved;
+  cancelPinnedAssetsOnWorkspaceExit('assets'); state.workspace = 'assets'; history.replaceState(null, '', '#assets'); renderWorkspace();
+}
+
+function renderAssemblyReviews() {
+  const library = currentAssemblyLibrary(), fragment = document.createDocumentFragment();
+  const pending = library.proposals.filter(proposal => ['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
+  for (const controller of assemblyReviewControllers.values()) {
+    const review = controller.getState();
+    if (review.projectId === state.project.projectId && ['saving', 'uncertain'].includes(review.status) && !pending.some(proposal => proposal.proposalId === review.proposal.proposalId)) pending.push(review.proposal);
+  }
+  if (pending.length) fragment.append(sectionHeading('Assembly proposals', 'Review the complete proposed composition. Acceptance saves one Assembly version; source Assets remain pinned.'));
+  for (const proposal of pending) {
+    const projectId = state.project.projectId, key = `${projectId}:${proposal.proposalId}`;
+    let controller = assemblyReviewControllers.get(key);
+    const getContext = () => {
+      const currentProposal = currentAssemblyLibrary().proposals.find(value => value.proposalId === proposal.proposalId);
+      return { projectId: state.project?.projectId, projectRevision: state.project?.revision, proposal: currentProposal,
+        asset: currentAssemblyLibrary().assets.find(value => value.assetId === (currentProposal?.content.assetId ?? proposal.content.assetId)) ?? null };
+    };
+    const cachedReview = controller?.getState();
+    if (cachedReview && ['idle', 'done'].includes(cachedReview.status) && !cachedReview.intent
+        && proposal.status === 'PENDING' && proposal.proposalVersion > cachedReview.proposal.proposalVersion) {
+      controller.dispose(); assemblyReviewControllers.delete(key); controller = null;
+    }
+    if (!controller) {
+      controller = createAssemblyReviewController({ initial: { projectId, projectRevision: state.project.revision, proposal, currentAsset: getContext().asset }, host: {
+        getContext, canRead: assemblySupported, canMutate: assemblyCanMutate, setMutationPending: setAssetMutationPending, announce: showToast,
+        resolveDraft: async (content, selection, expectedRevision, { signal } = {}) => {
+          const { assetId, name, kind, metadata, assembly } = content;
+          const response = await api(`/api/projects/${encodeURIComponent(projectId)}/assemblies/resolve-draft`, { method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, signal, body: JSON.stringify({ expectedRevision, assetId, name, kind, metadata, assembly, selection }) });
+          if (response.projectId !== projectId || response.revision !== expectedRevision) throw new Error('The project changed while resolving this proposal. Recheck it.'); return response.draft;
+        },
+        resolve: (intent, { signal } = {}) => api(`/api/projects/${encodeURIComponent(intent.projectId)}/assembly-proposals/${encodeURIComponent(intent.proposalId)}/resolve`, { method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, signal, body: intent.serialized }),
+        refresh: () => loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }),
+        onSaved: () => loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }),
+      } });
+      assemblyReviewControllers.set(key, controller);
+    }
+    controller.reconcileContext(); fragment.append(controller.element); queueMicrotask(() => { if (controller.element.isConnected) controller.afterMount(); });
+  }
+  const completed = library.proposals.filter(proposal => !['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
+  if (completed.length) {
+    const history = document.createElement('details'), summary = document.createElement('summary'); summary.textContent = `Completed Assembly reviews (${completed.length})`; history.append(summary);
+    for (const proposal of completed) { const row = document.createElement('p'); row.textContent = `${proposal.content.name} · ${proposal.status} · proposal v${proposal.proposalVersion}${proposal.feedback ? ` · ${proposal.feedback}` : ''}`; history.append(row); }
+    fragment.append(history);
+  }
+  return fragment;
+}
 
 function mayAbandonAssetAuthoring() {
+  assemblyOpenGeneration += 1;
+  for (const controller of assemblyReviewControllers.values()) if (!controller.requestLeave()) return false;
+  if (activeAssemblyEditor) {
+    if (!activeAssemblyEditor.requestLeave()) return false;
+    assemblyEmbeddedControllers.get(activeAssemblyEditor)?.dispose(); assemblyEmbeddedControllers.delete(activeAssemblyEditor);
+    activeAssemblyEditor.dispose(); activeAssemblyEditor = null; activeEmbeddedAssetEditor = null;
+    document.body.dataset.assemblyEditorOpen = 'false';
+  }
   if (!activeAssetEditor) return true;
   if (!activeAssetEditor.requestLeave()) return false;
   activeAssetEditor.dispose(); activeAssetEditor = null;
@@ -2517,9 +2708,16 @@ function openAssetEditor({ asset = null, slice = null, trigger = null }) {
 }
 
 window.addEventListener('beforeunload', (event) => {
-  if (activeAssetEditor) { event.preventDefault(); event.returnValue = ''; }
+  if (activeAssetEditor || activeAssemblyEditor || [...assemblyReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status))) { event.preventDefault(); event.returnValue = ''; }
 });
 elements['workspace-content'].addEventListener('click', (event) => {
+  const assemblyOpen = event.target.closest('[data-assembly-open]'), assemblyCreate = event.target.closest('[data-create-assembly]');
+  if (assemblyOpen || assemblyCreate) {
+    if ((assemblyOpen ?? assemblyCreate).disabled) return;
+    const asset = assemblyOpen ? currentAssemblyLibrary().assets.find(current => current.assetId === assemblyOpen.dataset.assemblyOpen) : null;
+    if (assemblyOpen && !asset) { showToast('The saved Assembly changed. Refresh and choose its current version.'); return; }
+    void openAssemblyEditor({ asset, trigger: assemblyOpen ?? assemblyCreate }); return;
+  }
   const create = event.target.closest('[data-create-asset-slice]');
   if (!create) return;
   const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === create.dataset.createAssetSlice && slice.version === Number(create.dataset.sliceVersion));
@@ -2553,6 +2751,8 @@ function renderSliceVocabulary() {
 function renderAssetLibrary(snapshot) {
   const fragment = document.createDocumentFragment();
   const library = currentAssetLibrary(snapshot);
+  const assemblies = currentAssemblyLibrary(snapshot).assets;
+  const inventory = [...library.assets, ...assemblies];
   const filters = document.createElement('section'); filters.className = 'asset-filters';
   const search = document.createElement('input'); search.type = 'search'; search.value = state.assetUi.search;
   search.placeholder = 'Search name, ID, or tag'; search.dataset.assetFilter = 'search';
@@ -2574,9 +2774,14 @@ function renderAssetLibrary(snapshot) {
     filterSelect('findingSeverity', 'Findings', [['all', 'All findings'], ['clear', 'Clear'], ['ERROR', 'Errors'], ['WARNING', 'Warnings'], ['INFO', 'Info']], state.assetUi.findingSeverity),
   );
   fragment.append(sectionHeading('Asset library', 'Filter reusable assets. Each card shows what the asset is for, whether it is ready, and which exact image slice it uses.'), filters);
+  if (assemblySupported()) {
+    const create = document.createElement('button'); create.type = 'button'; create.className = 'secondary'; create.textContent = 'Create Assembly'; create.dataset.createAssembly = ''; create.dataset.assetFocusKey = 'create-assembly'; create.disabled = !assemblyCanMutate();
+    const notice = document.createElement('p'); notice.className = 'assembly-note'; notice.textContent = 'Assemblies combine exact saved PNG Assets. Room placement for Assemblies is not supported yet.';
+    fragment.append(create, notice);
+  }
 
   const searchText = state.assetUi.search.trim().toLocaleLowerCase('en-US');
-  const filtered = library.assets.filter((asset) => (
+  const filtered = inventory.filter((asset) => (
     (!searchText || [asset.name, asset.assetId, ...(asset.metadata?.tags ?? [])]
       .some((value) => String(value).toLocaleLowerCase('en-US').includes(searchText)))
     && (state.assetUi.kind === 'all' || asset.kind === state.assetUi.kind)
@@ -2586,14 +2791,14 @@ function renderAssetLibrary(snapshot) {
       || (asset.findings ?? []).some(({ severity }) => severity === state.assetUi.findingSeverity))
   ));
   const count = document.createElement('p'); count.className = 'filter-result';
-  count.setAttribute('aria-live', 'polite'); count.textContent = `${filtered.length} of ${library.assets.length} V2 assets`;
+  count.setAttribute('aria-live', 'polite'); count.textContent = `${filtered.length} of ${inventory.length} assets`;
   fragment.append(count);
   if (filtered.length) {
     const grid = document.createElement('div'); grid.className = 'card-grid asset-grid asset-inventory-grid';
-    grid.dataset.assetScroll = 'asset-inventory'; filtered.forEach((asset) => grid.append(renderV2AssetCard(asset)));
+    grid.dataset.assetScroll = 'asset-inventory'; filtered.forEach((asset) => grid.append(asset.contentKind === 'assembly' ? assemblyLibraryCard(asset) : renderV2AssetCard(asset)));
     fragment.append(grid);
-  } else fragment.append(emptyState('No V2 assets match', library.assets.length ? 'Change the current search or filters.' : 'Choose a saved slice below to prepare your first asset for review.'));
-  fragment.append(renderProposalReview(library.proposals), renderSliceVocabulary());
+  } else fragment.append(emptyState('No V2 assets match', inventory.length ? 'Change the current search or filters.' : 'Choose a saved slice below to prepare your first asset for review.'));
+  fragment.append(renderAssemblyReviews(), renderProposalReview(library.proposals), renderSliceVocabulary());
 
   if (snapshot.assets.length) {
     fragment.append(sectionHeading('Legacy asset inventory', 'Checkpoint 1 assets remain unchanged and are not claimed as V2-valid.'));
@@ -5183,6 +5388,7 @@ function renderWorkspace({
   preserveTaskContext = false,
   preserveBackupContext = false,
 } = {}) {
+  if (activeAssemblyEditor?.getState().gesture || activeEmbeddedAssetEditor?.getState().gesture) { assemblyDeferredRender = true; return; }
   if (activeAssetEditor?.getState().gesture) { assetEditorDeferredRender = true; return; }
   if (cutterDrag) {
     state.cutterDeferredRender = true;
@@ -5237,7 +5443,17 @@ function renderWorkspace({
     elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
     return;
   }
-  document.body.dataset.assetEditorOpen = String(state.workspace === 'assets' && Boolean(activeAssetEditor));
+  document.body.dataset.assetEditorOpen = String(state.workspace === 'assets' && Boolean(activeAssetEditor || activeEmbeddedAssetEditor));
+  document.body.dataset.assemblyEditorOpen = String(state.workspace === 'assets' && Boolean(activeAssemblyEditor));
+  if (state.workspace === 'assets' && activeAssemblyEditor) {
+    const editor = activeAssemblyEditor, mounted = activeEmbeddedAssetEditor ?? editor;
+    editor.reconcileContext(assemblyCurrentContext(editor));
+    if (activeEmbeddedAssetEditor) activeEmbeddedAssetEditor.reconcileContext(assemblyCurrentContext(editor));
+    if (!mounted.element.isConnected) { elements['workspace-content'].replaceChildren(mounted.element); mounted.afterMount(); }
+    elements['workspace-content'].dataset.renderedProjectId = state.project.projectId;
+    elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
+    return;
+  }
   if (state.workspace === 'assets' && activeAssetEditor) {
     const editor = activeAssetEditor;
     editor.reconcileContext(assetEditorCurrentContext(editor));
@@ -5250,7 +5466,7 @@ function renderWorkspace({
   let content;
   if (state.workspace === 'overview') content = renderOverview(snapshot);
   else if (state.workspace === 'sources') content = renderSources(snapshot.sources);
-  else if (state.workspace === 'assets') content = snapshot.assetLibrary || currentProjectSlices(snapshot).length > 0
+  else if (state.workspace === 'assets') content = snapshot.assetLibrary || snapshot.assemblyLibrary || assemblySupported() || currentProjectSlices(snapshot).length > 0
     ? renderAssetLibrary(snapshot)
     : renderCollection(snapshot.assets, 'assets');
   else if (state.workspace === 'rooms') content = renderRooms(snapshot);
@@ -5576,7 +5792,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     state.taskDomState = null;
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
-    state.agentAccess = null; setAgentAccessPanel(false);
+    state.agentAccess = null; state.assemblyAuthoringSupport = 'UNAVAILABLE'; setAgentAccessPanel(false);
     renderProject({
       preserveWorkspace: preserveWorkspaceIfUnchanged
         && state.workspace === 'backups'
@@ -5707,6 +5923,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
   }
   state.agentAccess = agentAccess.effectivePolicy; state.agentAccessCsrf = agentAccess.csrfToken;
   state.hostBindingSupport = agentAccess.hostBindingSupport;
+  state.assemblyAuthoringSupport = agentAccess.assemblyAuthoringSupport ?? 'UNAVAILABLE';
   state.hostBindings = agentAccess.hostBindings;
   state.pendingHosts = agentAccess.pendingHosts;
   state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
@@ -5759,6 +5976,7 @@ async function requestAgentAccess(mode, {
     state.agentAccess = response.effectivePolicy;
     state.agentAccessCsrf = response.csrfToken;
     state.hostBindingSupport = response.hostBindingSupport;
+    state.assemblyAuthoringSupport = response.assemblyAuthoringSupport ?? 'UNAVAILABLE';
     state.hostBindings = response.hostBindings;
     state.pendingHosts = response.pendingHosts;
     state.pendingAgentAccess = null;
@@ -6977,6 +7195,7 @@ elements['workspace-nav'].addEventListener('click', (event) => {
   if (!link) return;
   if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending
       || state.taskMutationPending || state.backupMutationPending) { event.preventDefault(); return; }
+  if (link.dataset.workspace !== state.workspace && !mayAbandonAssetAuthoring()) { event.preventDefault(); return; }
   if (state.workspace === 'tasks' && link.dataset.workspace !== 'tasks') {
     taskSelectionGeneration += 1;
     cancelTaskAdoptionLoad({ channel: 'selection' });

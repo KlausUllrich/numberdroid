@@ -1,3 +1,5 @@
+import { portableAssemblyLibrary, validatePortableAssemblies, restoredAssemblySnapshot, importAssemblyLibrary } from './assembly-bundle.js';
+import { inspectAssemblyIntegrity } from '../integrity/assembly-integrity.js';
 import { join } from 'node:path';
 import { invariant } from '../../../domain/src/errors.js';
 import { validateAssetMetadataForVisualFacts } from '../../../domain/src/asset-definition.js';
@@ -644,7 +646,7 @@ function validateRectangleSchema(rectangle, label, { binding = false } = {}) {
 
 function validateMetadataSchema(metadata, label, schemaVersion) {
   const spatial = Object.hasOwn(metadata, 'spatial');
-  invariant(!spatial || schemaVersion === 4, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Spatial Asset metadata requires portable schema v4.', { label });
+  invariant(!spatial || schemaVersion >= 4, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Spatial Asset metadata requires portable schema v4.', { label });
   invariant(metadata.collision?.mode !== 'spatial' || spatial, 'BUNDLE_SCHEMA_INVALID', 'Spatial collision requires its spatial document.', { label });
   exactKeys(metadata, [...METADATA_KEYS, ...(spatial ? ['spatial'] : [])], label);
   if (spatial) {
@@ -778,7 +780,7 @@ function validateNestedSchemas(project) {
     validateMetadataSchema(head.semantic.metadata, `${label}.semantic.metadata`, project.schemaVersion);
     head.semantic.findings.forEach((finding, findingIndex) => validateFindingSchema(finding, `${label}.semantic.findings[${findingIndex}]`));
     validateExactBindingSchema(head.semantic.sliceBinding, `${label}.semantic.sliceBinding`);
-    if (head.semantic.proposal === null) invariant(project.schemaVersion === 4, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Owner-saved Assets require portable schema v4.');
+    if (head.semantic.proposal === null) invariant(project.schemaVersion >= 4, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Owner-saved Assets require portable schema v4.');
     else exactKeys(head.semantic.proposal, PROPOSAL_LINK_KEYS, `${label}.semantic.proposal`);
   });
   project.assetLibrary.findings.forEach((wrapper, index) => {
@@ -821,8 +823,14 @@ function hasNewAssetSemantics(project) {
 
 export function validateSqlitePortableProject(project) {
   validateNestedSchemas(project);
+  if (project.schemaVersion === 5) validatePortableAssemblies(project, restoredAsset, (leaf) => {
+    exactKeys(leaf, Object.hasOwn(leaf, 'lifecycleRevision') ? [...ASSET_KEYS, 'lifecycleRevision'] : ASSET_KEYS, 'Assembly leaf');
+    validateMetadataSchema(leaf.metadata, 'Assembly leaf.metadata', 5);
+    validateExactBindingSchema(leaf.sliceBinding, 'Assembly leaf.sliceBinding');
+    leaf.findings.forEach((finding) => validateFindingSchema(finding, 'Assembly leaf.finding'));
+  });
   const extended = hasNewAssetSemantics(project);
-  invariant(project.schemaVersion === 4 ? extended : !extended, 'BUNDLE_SCHEMA_NONCANONICAL', 'Portable schema v4 is required exactly when owner-saved or spatial Asset semantics are present.');
+  invariant(project.schemaVersion === 5 || (project.schemaVersion === 4 ? extended : !extended), 'BUNDLE_SCHEMA_NONCANONICAL', 'Portable schema v4 is required exactly when owner-saved or spatial Asset semantics are present.');
   requireUnique(project.sources, (source) => source.sourceId, 'sources');
   requireUnique(project.atlases, (atlas) => atlas.atlasId, 'atlases');
   requireUnique(project.legacyAssets, (asset) => asset.assetId, 'legacyAssets');
@@ -861,7 +869,7 @@ export function validateSqlitePortableProject(project) {
     const binding = bindings.get(`${version.sliceId}:${version.sliceVersion}`);
     invariant(binding, 'BUNDLE_SEMANTIC_INVALID', 'An asset version has no exact slice binding.', { assetId: version.assetId });
     invariant(fingerprint({ kind: version.kind, metadata: version.metadata }) === version.metadataFingerprint, 'BUNDLE_SEMANTIC_INVALID', 'An asset metadata fingerprint is invalid.', { assetId: version.assetId, assetVersion: version.assetVersion });
-    if (project.schemaVersion === 4) {
+    if (project.schemaVersion >= 4) {
       const { pixelSize: _pixelSize, pivot: _pivot, ...authored } = version.metadata;
       const validated = validateAssetMetadataForVisualFacts({ assetId: version.assetId, kind: version.kind,
         metadata: authored, pixelSize: { width: binding.width, height: binding.height }, pivot: binding.rectangle.pivot });
@@ -878,7 +886,7 @@ export function validateSqlitePortableProject(project) {
   }
   for (const values of versionsByAsset.values()) {
     invariant(values.every((value, index) => value.assetVersion === index + 1), 'BUNDLE_SEMANTIC_INVALID', 'Asset versions must be consecutive.');
-    if (project.schemaVersion === 4) for (const [index, version] of values.entries()) {
+    if (project.schemaVersion >= 4) for (const [index, version] of values.entries()) {
       const prior = values[index - 1];
       const expectedMetadataVersion = prior ? prior.metadataVersion + (prior.metadataFingerprint === version.metadataFingerprint ? 0 : 1) : 1;
       invariant(version.previousAssetVersion === (prior?.assetVersion ?? null) && version.metadataVersion === expectedMetadataVersion,
@@ -897,7 +905,7 @@ export function validateSqlitePortableProject(project) {
   for (const head of project.assetLibrary.heads) {
     const latest = versionsByAsset.get(head.assetId)?.at(-1);
     invariant(latest && latest.assetVersion === head.assetVersion && latest.metadataVersion === head.metadataVersion, 'BUNDLE_SEMANTIC_INVALID', 'Asset head does not name its latest version.', { assetId: head.assetId });
-    if (project.schemaVersion === 4) {
+    if (project.schemaVersion >= 4) {
       const semantic = head.semantic;
       invariant(['assetId', 'assetVersion', 'metadataVersion', 'name', 'kind', 'lifecycle'].every(key => head[key] === latest[key] && semantic[key] === latest[key])
         && semantic.sliceBinding.sliceId === latest.sliceId && semantic.sliceBinding.sliceVersion === latest.sliceVersion
@@ -1120,12 +1128,17 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
     const hasIrregularRoomShape = (snapshot.roomLibrary?.variants ?? []).some((entry) => entry.versions.some((version) => (
       (version.voidCells?.length ?? 0) > 0 || (version.blockedCells?.length ?? 0) > 0
     )));
+    const assemblyLibrary = schemaVersion >= 16 ? portableAssemblyLibrary(database, projectId, portableAsset) : null;
+    if (assemblyLibrary) {
+      const integrity = inspectAssemblyIntegrity(database);
+      invariant(integrity.ok, 'BUNDLE_SQLITE_CORRUPT', 'Assembly integrity must pass before portable export.', { findings: integrity.findings });
+    }
     const extendedAssets = hasNewAssetSemantics({ assetLibrary: { versions }, proposals });
     const roomSchemaVersion = extendedAssets ? 4 : hasIrregularRoomShape ? 3 : 2;
     const roomLibrary = portableRoomLibrary(snapshot, roomSchemaVersion);
     const hasRoomSemantics = roomLibrary.archetypes.length > 0 || roomLibrary.variants.length > 0 || roomLibrary.proposals.length > 0;
     const project = cleanUndefined({
-      schemaVersion: extendedAssets ? 4 : hasRoomSemantics ? roomSchemaVersion : 1,
+      schemaVersion: assemblyLibrary ? 5 : extendedAssets ? 4 : hasRoomSemantics ? roomSchemaVersion : 1,
       bundleKind: 'numberdroid-studio-project',
       projectHead: {
         projectId,
@@ -1148,7 +1161,8 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
       proposals,
       appliedJobHistory: jobHistory,
       activity: revisions.map(portableActivity),
-      ...(hasRoomSemantics || extendedAssets ? { roomLibrary } : {}),
+      ...(hasRoomSemantics || extendedAssets || assemblyLibrary ? { roomLibrary } : {}),
+      ...(assemblyLibrary ? { assemblyLibrary } : {}),
     });
     validateSqlitePortableProject(project);
     return { project, artifacts };
@@ -1181,6 +1195,18 @@ export async function verifySqliteProjectBundle(bundleDirectory, { limits = PROJ
 }
 
 function importedSnapshot(project, revision = project.projectHead.revision) {
+  const assemblyLibrary = project.schemaVersion === 5 ? restoredAssemblySnapshot(project.assemblyLibrary, revision) : null;
+  let nativeAssets = project.assetLibrary.heads.map((head) => restoredAsset(head.semantic));
+  if (project.schemaVersion === 5) {
+    const versions = new Map(project.assetLibrary.versions.map(version => [`${version.assetId}@${version.assetVersion}:${version.metadataVersion}`, version]));
+    const selected = new Map();
+    for (const asset of [...nativeAssets, ...project.assemblyLibrary.leafAssets.map(restoredAsset)]) {
+      const version = versions.get(`${asset.assetId}@${asset.assetVersion}:${asset.metadataVersion}`);
+      const prior = selected.get(asset.assetId);
+      if (version.createdRevision <= revision && (!prior || prior.assetVersion < asset.assetVersion)) selected.set(asset.assetId, asset);
+    }
+    nativeAssets = [...selected.values()];
+  }
   const atlases = project.atlases.map(restoredAtlas);
   const bindingsByAtlas = new Map();
   for (const binding of project.assetLibrary.sliceBindings) {
@@ -1215,10 +1241,11 @@ function importedSnapshot(project, revision = project.projectHead.revision) {
     atlases,
     assetLibrary: {
       schemaVersion: 1,
-      assets: project.assetLibrary.heads.map((head) => restoredAsset(head.semantic)),
+      assets: nativeAssets,
       proposals: project.proposals.map(restoredProposalSnapshot),
     },
     ...(project.schemaVersion >= 2 ? { roomLibrary: restoredRoomLibrary(project.roomLibrary) } : {}),
+    ...(assemblyLibrary ? { assemblyLibrary } : {}),
   };
 }
 
@@ -1675,6 +1702,7 @@ async function materializeSqliteBundle({
         `).run(project.projectHead.projectId, head.assetId, tag, tagOrder);
       }
 
+      importAssemblyLibrary(database, project);
       materializePortableRoomLibrary(database, project, safeRevision);
 
       database.prepare(`

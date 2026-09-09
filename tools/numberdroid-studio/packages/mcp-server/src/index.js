@@ -1,3 +1,5 @@
+import { ASSEMBLY_QUERY_SCHEMA } from '../../domain/src/assembly-command-catalog.js';
+import { validateAssemblyNegotiation } from './assembly-v1.js';
 import { MAX_ATLAS_JOB_ATTEMPTS, StudioError } from '../../domain/src/index.js';
 import { authorizeAgentProject, createAuthoringV2McpSurface } from './authoring-v2.js';
 
@@ -84,6 +86,7 @@ export function createAgentToolCatalog(studioService, {
   contextProvider,
   agentTaskService = null,
   authoringV2 = null,
+  assemblyV1 = null,
 } = {}) {
   if (!studioService) {
     throw new StudioError('VALIDATION_ERROR', 'A StudioService is required.');
@@ -96,6 +99,11 @@ export function createAgentToolCatalog(studioService, {
     return authorizeAgentProject(contextProvider, invocationContext, requestedProjectId);
   }
 
+  const assemblyReady = assemblyV1 !== null;
+  if (assemblyReady) {
+    validateAssemblyNegotiation(assemblyV1.negotiation, assemblyV1.projectId);
+    if (authoringV2 || studioService.durableAssemblyStoreReady !== true || studioService.taskBranchReady === true || agentTaskService) throw new StudioError('ASSEMBLY_NEGOTIATION_REQUIRED', 'Assembly profile requires an exclusive shared-head service.');
+  }
   const authoringV2Requested = authoringV2 !== null && authoringV2 !== undefined;
   const authoringV2Surface = authoringV2Requested
     ? createAuthoringV2McpSurface(studioService, authoringV2, { authorizeProject: authority })
@@ -114,6 +122,8 @@ export function createAgentToolCatalog(studioService, {
   const agentDefinitions = studioService.commandCatalog.filter(
     (definition) => !definition.ownerOnly
       && definition.type !== 'project.create'
+      && (!definition.requiresAssemblyProfile || assemblyReady)
+      && (!definition.requiresDurableAssemblyStore || (assemblyReady && studioService.durableAssemblyStoreReady === true))
       && (!definition.requiresTaskBranch || agentTaskService || taskBranchReady)
       && (!definition.requiresDurableAgentLedger || agentAttemptAuditReady)
       && (!definition.requiresDurableJobStore || durableJobStoreReady)
@@ -134,6 +144,7 @@ export function createAgentToolCatalog(studioService, {
     },
     execute: async (input, invocationContext) => {
       const context = await authority(invocationContext, input.projectId);
+      if (definition.requiresAssemblyProfile && input.projectId !== assemblyV1.projectId) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Assembly submission must use the negotiated project.');
       const targetService = definition.requiresTaskBranch && agentTaskService ? agentTaskService : studioService;
       return targetService.execute({
         schemaVersion: input.schemaVersion,
@@ -355,6 +366,15 @@ export function createAgentToolCatalog(studioService, {
     ...roomTools,
     ...taskTools,
   ];
+  if (assemblyReady) {
+    if (legacyTools.length !== 20) throw new StudioError('ASSEMBLY_SURFACE_BASELINE_MISMATCH', 'Assembly requires the exact 19-tool baseline plus proposal submission.');
+    return [...legacyTools, { name: 'studio_assembly_query', title: 'Read Assemblies and owner feedback', description: 'Read exact Assembly versions, component closure and proposal feedback.', inputSchema: ASSEMBLY_QUERY_SCHEMA, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      execute: async (input, invocationContext) => {
+        const context = await authority(invocationContext, input.projectId);
+        if (input.projectId !== assemblyV1.projectId) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Assembly query must use the negotiated project.');
+        return studioService.queryAssemblies(input, context, { signal: invocationContext?.mcpReq?.signal });
+      } }];
+  }
   if (!authoringV2Surface) return legacyTools;
   if (legacyTools.length !== 30) {
     throw new StudioError(

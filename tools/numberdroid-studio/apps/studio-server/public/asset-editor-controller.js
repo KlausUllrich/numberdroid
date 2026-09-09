@@ -1,10 +1,18 @@
+import { isEmbeddedGeometry, embeddedGeometryResult, resumeEmbeddedGeometry } from './asset-embedded-geometry.js';
+import { inverseAssemblyPoint } from '../../../packages/domain/src/assembly-geometry.js';
+import { updateAssemblyArtwork } from './assembly-artwork-view.js';
 import { createAssetEditorState, assetEditorSnapshot, assetEditorRemember, assetEditorRestore, assetEditorUndo, assetEditorDirty, assetEditorIssues, assetEditorInvalidNumericField,
   selectedAssetRegion, buildAssetEditorSave, assetEditorContextConflict, assetEditorResizeBox, assetEditorDrawBox, assetEditorNearestEdge, assetEditorSnap } from './asset-editor-state.js';
 import { createAssetEditorView, updateAssetEditorView, syncAssetEditorCanvas, assetEditorFrame } from './asset-editor-view.js';
 
 const clone = value => structuredClone(value);
-export function createAssetEditorController({ initial, host }) {
-  const state = createAssetEditorState(initial); const element = createAssetEditorView(state); const listeners = new AbortController();
+export function createAssetEditorController({ initial, host, resumeState = null }) {
+  const state = createAssetEditorState(initial);
+  if (resumeState && isEmbeddedGeometry(state)) {
+    resumeEmbeddedGeometry(state, initial, resumeState);
+  }
+  const regionLimit = isEmbeddedGeometry(state) ? 512 : 16;
+  const element = createAssetEditorView(state); const listeners = new AbortController();
   let rendering = false;
   let disposed = false, requestController = null, pendingGeneration = 0, fieldBefore = null, deferred = false;
   const currentContext = () => host.getContext(state.context);
@@ -37,7 +45,7 @@ export function createAssetEditorController({ initial, host }) {
   }
   function point(event, gesture = state.gesture) {
     const canvas = element.querySelector('[data-asset-editor-canvas]'); const matrix = gesture?.inverse ?? canvas.getScreenCTM()?.inverse();
-    if (!matrix) return null; const p = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix); return assetEditorSnap(p, gesture?.grid ?? state.grid, event.altKey);
+    if (!matrix) return null; const p = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix); const snapped = assetEditorSnap(p, gesture?.grid ?? state.grid, event.altKey); return gesture?.regionTransform ? inverseAssemblyPoint(snapped, gesture.regionTransform) : snapped;
   }
   function cancelGesture() {
     const gesture = state.gesture; if (!gesture) return false;
@@ -48,7 +56,7 @@ export function createAssetEditorController({ initial, host }) {
   function finishPolygon() {
     if (locked() || !state.model.geometryEnabled) return;
     if (state.polygonDraft.length < 3) { state.error = 'A polygon needs at least three points. Add another point before closing.'; render({ inspector: false }); return; }
-    if (state.model.spatial.blockingRegions.length >= 16) { state.error = 'Use at most 16 blocking regions.'; render({ inspector: false }); return; }
+    if (state.model.spatial.blockingRegions.length >= regionLimit) { state.error = `Use at most ${regionLimit} blocking regions.`; render({ inspector: false }); return; }
     const before = assetEditorSnapshot(state); const region = { regionId: `region.${crypto.randomUUID()}`, name: `Region ${state.model.spatial.blockingRegions.length + 1}`, shape: { kind: 'polygon', points: clone(state.polygonDraft) } };
     state.model.spatial.blockingRegions.push(region); state.selectedRegionId = region.regionId; state.selectedPoint = 0; state.polygonDraft = []; state.cursor = null; state.tool = 'select'; remember(before); render();
   }
@@ -80,14 +88,14 @@ export function createAssetEditorController({ initial, host }) {
       state.cursor = p; remember(before); render({ inspector: false }); return;
     }
     if (state.tool === 'insert' && state.model.geometryEnabled) {
-      const region = selectedAssetRegion(state); const edge = region?.shape.kind === 'polygon' ? assetEditorNearestEdge(region.shape.points, p) : null;
+      const region = selectedAssetRegion(state); const matrix = state.model.regionTransforms?.[region?.regionId]; const editPoint = matrix ? inverseAssemblyPoint(p, matrix) : p; const edge = region?.shape.kind === 'polygon' ? assetEditorNearestEdge(region.shape.points, editPoint) : null;
       if (!edge || edge.distance * state.scale > 15 || edge.t <= .001 || edge.t >= .999) { state.error = 'Click along an edge of the selected polygon, away from its endpoints.'; render({ inspector: false }); return; }
       if (region.shape.points.length >= 64) { state.error = 'Use at most 64 points per polygon.'; render({ inspector: false }); return; }
       region.shape.points.splice(edge.index + 1, 0, edge.point); state.selectedPoint = edge.index + 1; state.tool = 'select'; remember(before); render(); return;
     }
     let mode = 'move', original;
     if (['rectangle', 'oval'].includes(state.tool) && state.model.geometryEnabled) {
-      if (state.model.spatial.blockingRegions.length >= 16) { state.error = 'Use at most 16 blocking regions.'; render({ inspector: false }); return; }
+      if (state.model.spatial.blockingRegions.length >= regionLimit) { state.error = `Use at most ${regionLimit} blocking regions.`; render({ inspector: false }); return; }
       const region = { regionId: `region.${crypto.randomUUID()}`, name: `Region ${state.model.spatial.blockingRegions.length + 1}`, shape: { kind: state.tool, x: p.x, y: p.y, width: .1, height: .1 } };
       state.model.spatial.blockingRegions.push(region); state.selectedRegionId = region.regionId; state.selectedPoint = null; original = clone(region.shape); mode = 'draw';
     } else if ((state.tool === 'anchor' || event.target.closest('[data-asset-editor-anchor]')) && state.model.geometryEnabled) { original = clone(state.model.spatial.anchor); mode = 'anchor'; state.panel = 'placement'; }
@@ -97,7 +105,8 @@ export function createAssetEditorController({ initial, host }) {
       if (!state.model.geometryEnabled) { render(); return; }
       original = clone(selectedAssetRegion(state).shape); mode = state.selectedPoint !== null ? 'point' : node.dataset.assetEditorHandle ?? 'move';
     }
-    state.gesture = { before, original, mode, pointIndex: state.selectedPoint, start: p, inverse: canvas.getScreenCTM().inverse(), scale: state.scale, grid: clone(state.grid), canvas, pointerId: event.pointerId, lastPointer: null };
+    const regionTransform = !['draw', 'anchor'].includes(mode) ? state.model.regionTransforms?.[state.selectedRegionId] ?? null : null;
+    state.gesture = { before, original, mode, pointIndex: state.selectedPoint, start: regionTransform ? inverseAssemblyPoint(p, regionTransform) : p, regionTransform, inverse: canvas.getScreenCTM().inverse(), scale: state.scale, grid: clone(state.grid), canvas, pointerId: event.pointerId, lastPointer: null };
     canvas.setPointerCapture(event.pointerId); render({ inspector: true });
   }
   function pointerMove(event) {
@@ -112,11 +121,11 @@ export function createAssetEditorController({ initial, host }) {
     else if (gesture.mode === 'draw') Object.assign(region.shape, assetEditorDrawBox(gesture.start, p, event.shiftKey));
     else if (gesture.mode === 'move') {
       const origin = original.kind === 'polygon' ? original.points[0] : original;
-      const moved = gesture.grid.snap && !event.altKey ? assetEditorSnap({ x: origin.x + dx, y: origin.y + dy }, gesture.grid) : { x: origin.x + dx, y: origin.y + dy };
+      const moved = gesture.grid.snap && !event.altKey && !gesture.regionTransform ? assetEditorSnap({ x: origin.x + dx, y: origin.y + dy }, gesture.grid) : { x: origin.x + dx, y: origin.y + dy };
       if (original.kind === 'polygon') region.shape.points = original.points.map(q => ({ x: q.x + moved.x - origin.x, y: q.y + moved.y - origin.y })); else Object.assign(region.shape, moved);
     } else {
       let resizeX = dx, resizeY = dy;
-      if (gesture.grid.snap && !event.altKey) {
+      if (gesture.grid.snap && !event.altKey && !gesture.regionTransform) {
         const edgeX = gesture.mode.includes('w') ? original.x : original.x + original.width, edgeY = gesture.mode.includes('n') ? original.y : original.y + original.height;
         const snapped = assetEditorSnap({ x: edgeX + dx, y: edgeY + dy }, gesture.grid);
         if (gesture.mode.includes('w') || gesture.mode.includes('e')) resizeX = snapped.x - edgeX;
@@ -160,6 +169,7 @@ export function createAssetEditorController({ initial, host }) {
     if (numeric) { state.fieldDrafts[path] = field.value; if (!field.value.trim() || !Number.isFinite(Number(field.value))) { render({ inspector: false }); return; } }
     if (path.startsWith('oval.')) { const shape = selectedAssetRegion(state)?.shape; if (shape) { if (path.endsWith('cx')) shape.x = Number(field.value) - shape.width / 2; else shape.y = Number(field.value) - shape.height / 2; } }
     else if (object) { const old = object[key]; object[key] = numeric ? Number(field.value) : typeof old === 'boolean' ? field.value === 'true' : path === 'metadata.role' ? field.value || null : field.value; }
+    if (isEmbeddedGeometry(state) && path === 'scale.x') state.model.spatial.unitsPerPixel.y = state.model.spatial.unitsPerPixel.x;
     if (path === 'metadata.navigation.effect') state.model.metadata.navigation.cost = field.value === 'cost' ? state.model.metadata.navigation.cost ?? 1 : null;
     state.error = null; render({ inspector: false });
   }
@@ -225,10 +235,17 @@ export function createAssetEditorController({ initial, host }) {
   async function click(event) {
     const target = event.target.closest('[data-asset-editor-action]'); if (!target || target.disabled) return; const action = target.dataset.assetEditorAction, value = target.dataset.value;
     if (action === 'retry') { await save(true); return; } if (action === 'check-outcome') { await checkOutcome(); return; } if (action === 'recheck') { await recheck(); return; }
-    if (action === 'back') { if (await requestLeave()) host.onBack(); return; }
+    if (action === 'back') {
+      if (isEmbeddedGeometry(state)) {
+        if (state.gesture) cancelGesture();
+        state.embeddedViewContext = { ...captureView(), focus: state.lastGeometryFocus ?? focusKey() };
+        host.onEmbeddedReturn(embeddedGeometryResult(state));
+      } else if (await requestLeave()) host.onBack();
+      return;
+    }
     if (locked() || state.gesture) return;
     if (!requireCompleteNumericDraft()) return;
-    if (action === 'save') { await save(); return; }
+    if (action === 'save') { if (!isEmbeddedGeometry(state)) await save(); return; }
     if (action === 'view') { setView(value); return; }
     if (action === 'panel') { state.panel = value; render(); return; }
     if (action === 'region') { state.selectedRegionId = value; state.selectedPoint = null; state.tool = 'select'; render(); return; }
@@ -259,19 +276,22 @@ export function createAssetEditorController({ initial, host }) {
     if (event.key === 'Enter' && state.polygonDraft.length) { event.preventDefault(); finishPolygon(); return; }
     if (['Delete', 'Backspace'].includes(event.key)) { event.preventDefault(); remove(); return; }
     const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key]; if (!delta) return;
-    const region = selectedAssetRegion(state); if (!region) return; event.preventDefault(); const before = assetEditorSnapshot(state); const step = event.shiftKey ? 10 : 1, dx = delta[0] * step, dy = delta[1] * step;
+    const region = selectedAssetRegion(state); if (!region) return; event.preventDefault(); const before = assetEditorSnapshot(state); const step = event.shiftKey ? 10 : 1; let dx = delta[0] * step, dy = delta[1] * step;
+    const matrix = state.model.regionTransforms?.[region.regionId];
+    if (matrix) { const zero = inverseAssemblyPoint({ x: 0, y: 0 }, matrix), shifted = inverseAssemblyPoint({ x: dx, y: dy }, matrix); dx = shifted.x - zero.x; dy = shifted.y - zero.y; }
     if (region.shape.kind === 'polygon') { const points = state.selectedPoint === null ? region.shape.points : [region.shape.points[state.selectedPoint]]; for (const p of points) { p.x += dx; p.y += dy; } }
     else { region.shape.x += dx; region.shape.y += dy; } remember(before); render();
   }
   const on = (target, type, fn) => target.addEventListener(type, fn, { signal: listeners.signal });
   on(element, 'click', event => { void click(event); }); on(element, 'input', inputField); on(element, 'change', changedField);
-  on(element, 'focusin', event => { if (event.target.matches('[data-asset-editor-field]')) fieldBefore = assetEditorSnapshot(state); });
+  on(element, 'focusin', event => { if (event.target.matches('[data-asset-editor-field]')) fieldBefore = assetEditorSnapshot(state); if (event.target.matches('[data-asset-editor-field],[data-asset-editor-canvas]')) state.lastGeometryFocus = focusKey(); });
   on(element, 'pointerdown', pointerDown); on(element, 'pointermove', pointerMove); for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) on(element, type, pointerEnd);
   on(element, 'keydown', key); on(element, 'keyup', key);
   on(window, 'beforeunload', event => { if (assetEditorDirty(state) || state.save.intent) { event.preventDefault(); event.returnValue = ''; } });
   const observer = new ResizeObserver(() => { if (state.gesture) deferred = true; else if (!disposed && element.isConnected && state.view === 'edit') syncAssetEditorCanvas(element, state); });
   observer.observe(element.querySelector('[data-asset-editor-scroll="canvas"]'));
-  return { element, afterMount() { if (!disposed) render({ preserve: false }); }, reconcileContext, requestLeave,
+  return { element, afterMount() { if (!disposed) { render({ preserve: false }); if (isEmbeddedGeometry(state)) restoreView(state.embeddedViewContext); } }, reconcileContext, requestLeave,
+    updateEmbeddedArtwork(scene, title = state.model.name) { if (!isEmbeddedGeometry(state)) return; state.initial.artworkScene = clone(scene); state.model.name = title; updateAssemblyArtwork(element.querySelector('[data-asset-editor-artwork]'), scene, { projectId: state.context.projectId }); if (!state.gesture) render({ inspector: false }); },
     dispose() { disposed = true; pendingGeneration += 1; requestController?.abort(); if (state.gesture) { const g = state.gesture; state.gesture = null; if (g.canvas.hasPointerCapture?.(g.pointerId)) g.canvas.releasePointerCapture(g.pointerId); } listeners.abort(); observer.disconnect(); },
     getState() { return clone({ ...state, gesture: state.gesture ? { mode: state.gesture.mode, scale: state.gesture.scale, pointerId: state.gesture.pointerId } : null }); } };
 }
