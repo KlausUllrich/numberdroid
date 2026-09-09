@@ -1,6 +1,6 @@
 # Numberdroid Studio — Start here
 
-Status date: 2026-09-08. This is the current task router; linked contracts own
+Status date: 2026-09-09. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
@@ -15,23 +15,24 @@ optional project-specific authoring modules. Klaus passed the complete cutter v3
 mockup; [Cutter Editor Design](CUTTER_EDITOR_DESIGN.md) owns its approved behavior.
 Klaus also passed the Placement & blocking walkthrough and the requested Oval /
 Shift refinements; [Placement & Blocking Editor Design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md)
-owns that approved screen. These are design approvals, not implemented-workflow
-or milestone acceptance. Klaus also passed the five Assembly walkthrough checks;
+owns that approved screen. Mockup approval alone does not establish
+implemented-workflow or milestone acceptance. Klaus also passed the five Assembly walkthrough checks;
 [Assembly Editor Design](ASSEMBLY_EDITOR_DESIGN.md) records component references,
 variant/state preview and inherited/custom blocking. Klaus has now passed the
 shared Review batch; [Review Changes Design](REVIEW_CHANGES_DESIGN.md) records
 comparison, dependencies, full/partial acceptance, feedback, discard and stale
 proposal handling. All four editor mockups are approved. The exact-version prerequisite is now
 source-integrated: [Pinned Asset reads](ROOM_PINNED_ASSET_READ_CONTRACT.md) preserves
-saved Room images and geometry after Library updates. The current
-block is the implemented Asset placement/blocking editor and removal of the
+saved Room images and geometry after Library updates. The completed
+block is the Asset placement/blocking editor and removal of the
 Activity sidebar. [Its implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md)
 owns direct human Save, compatible spatial geometry and exact version history.
 Klaus passed the implemented Cutter batch on 2026-09-08; saved cut names now carry
 into new Asset drafts. Native editor checks and the real-agent correction/review
-proof passed on 2026-09-09; source/CI integration belongs in the focused PR and
-Klaus's Asset-editor batch remains open as VT-020. Assembly and shared Review
-implementation remain separate next blocks.
+proof passed on 2026-09-09. PR #227 is merged and post-merge green; Klaus then
+reported **“all pass”** on clean main `93652c2`, accepting VT-020. The Asset editor
+and sidebar removal are accepted foundations. Assembly is the next approved
+design block; shared Review implementation follows separately.
 
 The primary proof is a real agent using Studio's semantic interface, correcting
 technical findings and reading saved review feedback/decisions before Klaus is
@@ -49,28 +50,29 @@ The [Room status](ROOM_EDITOR_L3_STATUS.md) records PR #206's refreshed,
 unchanged green integration at `034bc4604338e391a2455d42e03a12a5b27d0ed3`.
 This is a recorded source baseline, not a permanently current `main` pointer.
 
-## Active implementation sequence — 2026-09-08
+## Current implementation sequence — 2026-09-09
 
-The [bounded CI startup/upload reliability repair](CI_BROWSER_EXECUTION.md) is
-source-integrated through PR #226 with its post-merge checks green. The active
-product block is the approved Placement & blocking Asset editor, with
-shared semantic commands and real-agent verification. Klaus explicitly requested
-removal of the Activity feed sidebar from all workspaces because **Activity**
-already has its own main-navigation page. Keep durable Activity, auditing and
-that page; remove the duplicate sidebar and give the editors its space.
-The [implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md) now records
-compatible geometry and direct own-work Save before source implementation.
-Agents keep isolated proposals and owner review. This does not authorize materialization, image generation or runtime
-publication.
+The [CI startup/upload repair](CI_BROWSER_EXECUTION.md) is merged through PR #226.
+The [Asset editor](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md) is merged through
+PR #227, post-merge green, and user accepted as VT-020. Activity is available from
+main navigation; the duplicate sidebar is removed. Preserve accepted Cutter and
+Asset-editor behavior.
+
+Next: the [approved Assembly editor](ASSEMBLY_EDITOR_DESIGN.md). Record its
+concrete compatible component references, transforms, inherited/custom blocking,
+state/variant preview, save and review contract before implementation. Reuse
+exact saved Asset versions and the accepted geometry editor. Keep the same real-agent
+proof before Klaus's next batch. Agent proposals retain owner review; runtime
+materialization, image generation and publication keep their separate gates.
 
 ## What can be used
 
 The human-local foundations support PNG intake, deterministic PNG cutting,
 semantic Assets, footprint/anchor/rotations, Room placement, save/restart,
 read-only Studio Preview, integrity and backup/restore-as-copy. The missing
-human UI step from a saved slice to an Asset proposal is now supplied by the
-[single-slice authoring candidate](HUMAN_ASSET_AUTHORING.md), with automated
-authoring, Room placement and restart proof. Its live decision remains deferred. Preview is engine-neutral
+human path from a saved slice to a directly saved DRAFT Asset is now
+[user accepted](HUMAN_ASSET_AUTHORING.md), with real-agent, Room-pin and restart
+proof. Preview is engine-neutral
 and approximate; it is not Numberdroid runtime output.
 
 Checkpoints 1–4, A1.0–A1.2, VT-012 Backups and bounded VT-014 Candidate/child

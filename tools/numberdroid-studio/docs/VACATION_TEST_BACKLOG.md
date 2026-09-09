@@ -56,7 +56,7 @@ Keep these states distinct:
 | VT-017 | Human Asset from a saved slice | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted exact slices and Asset proposal core | Author one manual Asset, review/apply it, place it in a draft Room and reopen saved content |
 | VT-018 | Room creation and current editor context | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing Room and working-project foundations | Guided first template/Room; a second Room immediately becomes the displayed and edited Room; prior context is protected |
 | VT-019 | Precise named Cutter editor | CUTTER WORKFLOW USER PASSED 2026-09-08 — Library labels follow-up | approved Cutter design and existing exact PNG/job foundations | Named selective cuts, stable tools/grid/drag, output inspection, save/reopen and user-owned editing |
-| VT-020 | Asset placement and blocking editor | IMPLEMENTED CANDIDATE — USER BATCH OPEN | approved Placement design and compatible Asset editor contract | Named shapes, direct own-work Save, retained versions and Activity navigation |
+| VT-020 | Asset placement and blocking editor | USER ACCEPTED — PASS 2026-09-09 | approved Placement design and compatible Asset editor contract | Named shapes, direct own-work Save, retained versions and Activity navigation |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1521,18 +1521,19 @@ test convenience.
 
 - **Contract:** [Asset editor implementation](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md)
   and [approved screen design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md).
-- **State:** native 1440/1060 and real-agent semantic workflow proof passed on
-  2026-09-09; final source/CI identities belong in the focused PR. User acceptance
-  remains open. Preserve prior Cutter passes.
+- **State:** **USER ACCEPTED — PASS 2026-09-09**. Klaus explicitly replied
+  **“all pass”** to the implemented Asset-editor batch on clean main `93652c2`.
+  PR #227 is merged; post-merge Build #2425 / run `34330959284` and native
+  1440/1060 plus real-agent proof passed. Preserve prior Cutter passes.
 - **Safe setup:** use a clean green main instance. Retain Klaus's saved Cutter
   test directory and cuts; do not prepare a fixture over that existing directory.
   All automated and agent fixtures use separate fresh directories.
-- **Human batch:** create from a named saved cut; confirm its initial name; edit
+- **Passed human batch:** create from a named saved cut; confirm its initial name; edit
   Properties; draw/name a concave polygon, rectangle and oval; adjust points and
   eight handles including Shift; change placement bounds and anchor independently;
   check 100%, grid and Undo/Redo; Preview and return to retained context; save
   directly and reopen the Asset; check Activity from main navigation with no sidebar.
-  Report any confusing or missing action before accepting the editor.
-- **Decision:** await Klaus's explicit PASS/REVISE for this editor. This does not
+  Repeat only for a concrete regression.
+- **Decision:** Klaus's **“all pass”** closes VT-020. This does not
   establish VT-001/CP4.5 acceptance, complete agent Resume, production art approval,
   Assembly/shared Review implementation or Numberdroid materialization.

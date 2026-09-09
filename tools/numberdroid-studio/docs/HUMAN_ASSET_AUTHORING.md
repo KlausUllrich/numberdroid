@@ -1,6 +1,6 @@
 # Human Asset authoring
 
-Status: **IMPLEMENTED CANDIDATE — NOT USER ACCEPTED**, 2026-09-09.
+Status: **USER ACCEPTED — VT-020 PASS**, 2026-09-09.
 The [Asset editor implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md)
 owns the current direct-Save and spatial semantics. It evolves the accepted
 [Checkpoint 2C Asset core](CHECKPOINT_2C_CONTRACT.md).
@@ -34,6 +34,7 @@ navigation page.
 Native 1440/1060 workflow, replay, Room-pin and restart checks and a real-agent
 semantic correction/review round have passed. CI/source integration is recorded
 in the focused PR. [VT-020](VACATION_TEST_BACKLOG.md#vt-020--asset-placement-and-blocking-editor)
-remains the user gate. The earlier prepare/review/apply human form is superseded;
+records Klaus's explicit **“all pass”** on clean main `93652c2`. The earlier
+prepare/review/apply human form is superseded;
 its historical implementation remains in Git history. VT-001 and A1.7 are not
-accepted by this candidate's automated results.
+accepted by this bounded Asset-editor decision.

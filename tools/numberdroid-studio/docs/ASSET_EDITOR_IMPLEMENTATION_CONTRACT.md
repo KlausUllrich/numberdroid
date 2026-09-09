@@ -1,6 +1,6 @@
 # Asset editor — compatible implementation contract
 
-Status: implemented candidate, 2026-09-09; approved screen design, product acceptance pending.
+Status: **USER ACCEPTED — VT-020 PASS**, 2026-09-09.
 The [approved Placement & blocking design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md)
 owns interaction. This evolution adds direct human Save and typed spatial metadata
 to the [accepted Asset core](CHECKPOINT_2C_CONTRACT.md); it preserves legacy semantics
@@ -167,8 +167,10 @@ in an isolated fixture are technical proof, not Klaus's acceptance. Native brows
 proof covers stable dragging/errors, numeric and pointer shapes, Shift, Undo/Redo,
 exact Save/retry, Preview return and Activity after sidebar removal.
 
-Klaus then receives a concise batch walkthrough on current green main. His exact
-product decision remains separate from mockup approval, CI and source integration.
+Klaus completed the batch walkthrough on clean main `93652c2` and explicitly
+reported **“all pass”** on 2026-09-09. This accepts the bounded Asset editor and
+Activity sidebar removal; mockup approval, CI and source integration remain
+separate evidence.
 VT-001 / CP4.5 and A1.7 remain REVISE until their separate gates are explicitly met.
 
 ## Implementation verification checkpoint — 2026-09-09
@@ -191,5 +193,20 @@ not CP4 Resume or a complete agent-assisted Artist production loop.
 
 The exact source/CI identities and final selected suite results belong in the
 focused PR. [VT-020](VACATION_TEST_BACKLOG.md#vt-020--asset-placement-and-blocking-editor)
-retains Klaus's human batch gate. Root build verification uses the runtime version
+records Klaus's completed human batch. Root build verification uses the runtime version
 pinned by the current Actions workflow so accepted PNG byte hashes are comparable.
+
+## User acceptance — 2026-09-09
+
+Klaus's exact response to the implemented editor batch was **“all pass”**. The
+accepted scope covers named-cut creation, Asset naming/properties, polygon /
+rectangle / oval editing with Shift and Undo/Redo, independent bounds and anchor,
+Preview/return, direct Save and Inspect, and Activity in main navigation with the
+duplicate sidebar removed. The running source was clean main
+`93652c238b7d6e9b1aa3006bee85731ea1645f00`, integrated through
+[PR #227](https://github.com/KlausUllrich/numberdroid/pull/227); post-merge
+[Build #2425](https://github.com/KlausUllrich/numberdroid/actions/runs/34330959284)
+passed. Preserve this acceptance unless a concrete regression reopens it.
+
+This closes VT-020 only. The next approved design block is the Assembly editor;
+its compatible component/version/geometry contract must precede implementation.
