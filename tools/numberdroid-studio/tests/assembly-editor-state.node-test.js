@@ -86,8 +86,11 @@ test('raw numeric fields, project conflicts and unsupported component media fail
 
 // Exercise production request/session behavior with inert rendering. Native browser
 // integration supplies the separate DOM/drag/appearance evidence.
-async function harness(overrides = {}) {
-  const source = await readFile(new URL('../apps/studio-server/public/assembly-editor-controller.js', import.meta.url), 'utf8');
+async function harness(overrides = {}, lineEnding = null) {
+  const rawSource = await readFile(new URL('../apps/studio-server/public/assembly-editor-controller.js', import.meta.url), 'utf8');
+  // Git may check out controller text as CRLF on Windows. Harness injection
+  // operates on logical lines; production source and behavior are unchanged.
+  const source = (lineEnding ? rawSource.replace(/\r?\n/g, lineEnding) : rawSource).replace(/\r\n?/g, '\n');
   const entry = 'return { element,\n    afterMount()'; assert.equal(source.split(entry).length, 2);
   const executable = source.slice(source.indexOf('const copy =')).replace('export function createAssemblyEditorController', 'function createAssemblyEditorController')
     .replace(entry, 'return { save, checkOutcome, editCustomGeometry, resolveReferences, testState: state, element,\n    afterMount()');
@@ -106,6 +109,17 @@ async function harness(overrides = {}) {
 }
 const receipt = intent => ({ projectId: intent.projectId, revision: intent.payload.expectedRevision + 1,
   value: { assetId: intent.assetId, assetVersion: intent.payload.expectedAssetVersion + 1, metadataVersion: 1 } });
+
+test('controller recovery checks execute with both LF and CRLF source checkouts', async () => {
+  for (const lineEnding of ['\n', '\r\n']) {
+    const h = await harness({}, lineEnding);
+    await h.controller.save();
+    assert.equal(h.requests.length, 1);
+    assert.equal(h.controller.getState().save.status, 'uncertain');
+    assert.equal(h.controller.getState().save.intent.serialized, h.requests[0].serialized);
+    h.controller.dispose();
+  }
+});
 
 test('uncertain Assembly saves retain identical bytes across rejected replay and unconfirmed readback', async () => {
   const requests = []; let attempts = 0;
