@@ -1,5 +1,10 @@
 # Numberdroid Studio — Checkpoint 4.5 Candidate Record
 
+On 2026-09-09 Klaus accepted the separate Asset editor and Activity sidebar
+removal as [VT-020](VACATION_TEST_BACKLOG.md#vt-020--asset-placement-and-blocking-editor),
+replying **“all pass”** on main `93652c2` after PR #227 and green post-merge CI.
+That bounded acceptance does not close **VT-001 / CP4.5**, which remains REVISE.
+
 ## 2026-09-06 current disposition
 
 **Acceptance: REVISE. Live checks: deferred and nonblocking for authorized

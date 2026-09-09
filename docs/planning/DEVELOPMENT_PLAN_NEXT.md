@@ -1,5 +1,16 @@
 # Numberdroid — Current Development Plan
 
+
+## 2026-09-09 Asset editor acceptance
+
+Klaus explicitly reported **“all pass”** for the implemented Asset-editor batch
+on clean main `93652c2` (PR #227; green post-merge Build #2425).
+[VT-020](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#vt-020--asset-placement-and-blocking-editor)
+therefore closes as **PASS**: named-cut creation, shape/properties editing,
+Preview/return, direct own-work Save and Activity sidebar removal are accepted.
+Assembly is the next approved design block, with its implementation contract
+recorded before source work. VT-001 / CP4.5 and A1.7 remain **REVISE**.
+
 ## 2026-09-07 attended Studio design
 
 Klaus approved the [Studio Authoring Product Model](../../tools/numberdroid-studio/docs/AUTHORING_PRODUCT_MODEL.md):

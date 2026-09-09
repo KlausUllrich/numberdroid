@@ -53,10 +53,10 @@ Keep these states distinct:
 | VT-014 | A4c immutable Level Candidate and restricted derived child | USER ACCEPTED 2026-09-02 | VT-000 and source-integrated A3a/A4a/A4b/A4c | Accepted private Candidate closure, strict child attenuation and truthful read-only task presentation; no materialization or publication |
 | VT-015 | Persistent named working projects | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted project/store and launcher foundations | Create, save, stop and reopen the same working project; keep fixture mode separate |
 | VT-016 | Task review feedback and truthful continuation | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing owner review and task foundations | Required summary, optional item comments, exact-review retention, and continuation/history truth; no real agent starts |
-| VT-017 | Human Asset from a saved slice | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | accepted exact slices and Asset proposal core | Author one manual Asset, review/apply it, place it in a draft Room and reopen saved content |
+| VT-017 | Human Asset from a saved slice | SUPERSEDED BY VT-020 — old human proposal form retired | exact slices and protected agent proposal core | Current direct human Save is accepted under VT-020; separate Room gates remain open |
 | VT-018 | Room creation and current editor context | IMPLEMENTED CANDIDATE — DEFERRED LIVE / NONBLOCKING | existing Room and working-project foundations | Guided first template/Room; a second Room immediately becomes the displayed and edited Room; prior context is protected |
-| VT-019 | Precise named Cutter editor | CUTTER WORKFLOW USER PASSED 2026-09-08 — Library labels follow-up | approved Cutter design and existing exact PNG/job foundations | Named selective cuts, stable tools/grid/drag, output inspection, save/reopen and user-owned editing |
-| VT-020 | Asset placement and blocking editor | IMPLEMENTED CANDIDATE — USER BATCH OPEN | approved Placement design and compatible Asset editor contract | Named shapes, direct own-work Save, retained versions and Activity navigation |
+| VT-019 | Precise named Cutter editor | CUTTER USER PASSED 2026-09-08 — named-cut path covered by VT-020 | approved Cutter design and existing exact PNG/job foundations | Named selective cuts, stable tools/grid/drag, output inspection, save/reopen and user-owned editing |
+| VT-020 | Asset placement and blocking editor | USER ACCEPTED — PASS 2026-09-09 | approved Placement design and compatible Asset editor contract | Named shapes, direct own-work Save, retained versions and Activity navigation |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1448,27 +1448,13 @@ test convenience.
 
 ## VT-017 — human Asset from a saved slice
 
-- **Implementation:** branch `agent/studio-human-asset-authoring`; candidate
-  local regression, native browser authoring/Room placement/restart and
-  independent reviews passed. Exact source/CI identities stay in the focused PR.
-  No user acceptance is recorded.
-- **Promise:** turn one saved image slice into a human-reviewed DRAFT Asset
-  using explicit placement metadata, then place it in a DRAFT Room. See the
-  [bounded contract](HUMAN_ASSET_AUTHORING.md).
-- **Remaining human check:** choose a saved slice; name its purpose and inspect
-  the exact image, footprint, reference cell and rotation choices. Prepare the
-  proposal, review its findings, explicitly accept or reject, and separately
-  apply accepted content. Confirm the resulting draft Asset can be selected
-  and placed in a Room, then stop/reopen and inspect the saved result.
-- **Recovery check:** retain unfinished choices across compatible refresh;
-  observe explicit conflict if the saved context changes. An uncertain response
-  must retain its exact request for reconciliation/retry without duplicate
-  Assets or a silent newer slice.
-- **Status:** deferred and nonblocking for authorized unattended development.
-  Record Klaus's later explicit ACCEPT or REVISE; automated proof is separate.
-- **Boundary:** no production source selection, image generation, automatic
-  acceptance/finalization, real agent execution, materialization or publication.
-  Use only a fresh fixture for automated proof; preserve personal workspaces.
+- **Status:** superseded by the accepted [VT-020 Asset editor](#vt-020--asset-placement-and-blocking-editor).
+  The earlier human prepare/review/apply form was replaced by direct own-work Save
+  through PR #227. Klaus's 2026-09-09 **“all pass”** accepts the current editor;
+  there is no reason to retest the retired form.
+- **Preserved boundaries:** agent proposals still require owner review and apply.
+  The separate Room / VT-001 / VT-018 gates are not accepted by this supersession.
+  The historical candidate and its automated evidence remain in Git history.
 
 ## VT-018 — Room creation and current editor context
 
@@ -1496,8 +1482,9 @@ test convenience.
   compatible named-cut model and explicit shared-head agent preparation boundary.
 - **State:** Klaus passed the full implemented Cutter batch on 2026-09-08 at
   main `5da75401c1131c88a87c76551acefc6e202654d7`, saying “all pass!”. The separate
-  Library label finding is a bounded follow-up; names are saved correctly but
-  its cards still use ordinals. Retest only those displayed names after the fix.
+  Library label fix is integrated through PR #225. The named-cut-to-Asset path
+  subsequently passed in VT-020 on 2026-09-09; the old ordinal-only display is
+  no longer the current implementation.
 - **Automated/agent proof:** complete local Studio suite, old PNG goldens, named
   persistence/bundle/Asset-binding compatibility, native 1440/1060 browser checks
   and an adaptive official-MCP cutter run with error correction, exactly two
@@ -1512,27 +1499,28 @@ test convenience.
   movement; test invalid overlap and Undo/Redo; save work, preview and save the
   named outputs; inspect full images/details and return; stop/reopen to verify
   saved names/selection/source bounds and no duplicate outputs.
-- **Decision:** the Cutter workflow is user-passed. Confirm the Library uses the
-  saved names after its display fix; do not repeat the passed Cutter batch. This
-  does not approve source art, create/review a semantic Asset,
+- **Decision:** the Cutter workflow is user-passed; do not repeat its batch.
+  VT-020 separately accepts current named-cut Asset creation. These passes
+  do not approve production source art,
   resolve VT-001/A1.7 or authorize runtime materialization/publication.
 
 ## VT-020 — Asset placement and blocking editor
 
 - **Contract:** [Asset editor implementation](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md)
   and [approved screen design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md).
-- **State:** native 1440/1060 and real-agent semantic workflow proof passed on
-  2026-09-09; final source/CI identities belong in the focused PR. User acceptance
-  remains open. Preserve prior Cutter passes.
+- **State:** **USER ACCEPTED — PASS 2026-09-09**. Klaus explicitly replied
+  **“all pass”** to the implemented Asset-editor batch on clean main `93652c2`.
+  PR #227 is merged; post-merge Build #2425 / run `34330959284` and native
+  1440/1060 plus real-agent proof passed. Preserve prior Cutter passes.
 - **Safe setup:** use a clean green main instance. Retain Klaus's saved Cutter
   test directory and cuts; do not prepare a fixture over that existing directory.
   All automated and agent fixtures use separate fresh directories.
-- **Human batch:** create from a named saved cut; confirm its initial name; edit
+- **Passed human batch:** create from a named saved cut; confirm its initial name; edit
   Properties; draw/name a concave polygon, rectangle and oval; adjust points and
   eight handles including Shift; change placement bounds and anchor independently;
   check 100%, grid and Undo/Redo; Preview and return to retained context; save
   directly and reopen the Asset; check Activity from main navigation with no sidebar.
-  Report any confusing or missing action before accepting the editor.
-- **Decision:** await Klaus's explicit PASS/REVISE for this editor. This does not
+  Repeat only for a concrete regression.
+- **Decision:** Klaus's **“all pass”** closes VT-020. This does not
   establish VT-001/CP4.5 acceptance, complete agent Resume, production art approval,
   Assembly/shared Review implementation or Numberdroid materialization.

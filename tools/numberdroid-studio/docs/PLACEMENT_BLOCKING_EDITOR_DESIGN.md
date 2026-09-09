@@ -1,6 +1,10 @@
 # Placement & Blocking Editor — Approved Design
 
-Status: **DESIGN APPROVED by Klaus, 2026-09-07; product implementation and real-agent verification pending**.
+Status: **DESIGN APPROVED; PRODUCT USER ACCEPTED as VT-020 on 2026-09-09**.
+
+Klaus's implemented-editor batch result was **“all pass”** on clean main
+`93652c2`. The [implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md#user-acceptance--2026-09-09)
+records scope and evidence; the prototype walkthrough below remains design history.
 
 Klaus passed the six focused placement v1 walkthrough checks: inward polygon
 point editing, point insertion, point removal/Undo, independent polygon creation,
@@ -9,8 +13,9 @@ an Oval tool and Shift constraints. His explicit v2 result was: “perfect, pass
 The final standalone artifact was `placement-v2.html`, SHA-256
 `8fb32f7df8e69cfc5428dfb878638afca5208e93ba320544243f2716376132ff`.
 
-This is approval of the mockup's design and interaction. It is not acceptance of
-implemented Studio commands, persistence, engine integration or VT-001 / CP4.5.
+The earlier mockup approval concerned design and interaction. Implemented Asset
+editor acceptance is now recorded separately as VT-020; engine integration and
+VT-001 / CP4.5 retain their own gates.
 The screen specializes the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md)
 and reuses the interaction foundation of the [approved cutter](CUTTER_EDITOR_DESIGN.md).
 The [Asset editor implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md)

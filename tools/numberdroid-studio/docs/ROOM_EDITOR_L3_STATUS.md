@@ -1,5 +1,10 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+On 2026-09-09 Klaus accepted the separate Asset editor and Activity sidebar
+removal as [VT-020](VACATION_TEST_BACKLOG.md#vt-020--asset-placement-and-blocking-editor),
+replying **“all pass”** on main `93652c2` after PR #227 and green post-merge CI.
+That bounded acceptance does not close **VT-001 / CP4.5**, which remains REVISE.
+
 Status: **SOURCE-INTEGRATED / AUTOMATED, BROWSER AND WINDOWS GREEN — VT-001 REVISE; LIVE CHECKS DEFERRED, NONBLOCKING FOR AUTHORIZED DEVELOPMENT**
 
 Date: 2026-09-06
@@ -8,7 +13,7 @@ Klaus requested unattended cleanup and Studio development on 2026-09-06.
 This changes sequencing, not acceptance. Remaining live checks are recorded in
 the [VT-001 backlog](VACATION_TEST_BACKLOG.md#vt-001--cp45-desktop-designer-gate).
 
-Latest integration: PR [#206](https://github.com/KlausUllrich/numberdroid/pull/206)
+Recorded macro-guidance integration: PR [#206](https://github.com/KlausUllrich/numberdroid/pull/206)
 was refreshed onto current main and merged unchanged from
 `8d088a58bd21f318d9dc37a34686a5a8f1b8bd96` as
 `034bc4604338e391a2455d42e03a12a5b27d0ed3`, tree
