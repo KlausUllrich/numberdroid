@@ -165,7 +165,7 @@ test('CP4.5 passive refresh preserves the focused task composer and its live DOM
   assert.match(evidence, /serverStateMatched: concurrentChangeExercised/);
   assert.match(evidence, /concurrentChangeExercised === \(width === 1060\)/);
   assert.match(evidence, /textContent === 'Revision 7'/);
-  assert.match(evidence, /document\.documentElement\.dataset\.visualActivityCount === '7'/);
+  assert.match(evidence, /window\.__numberdroidStudioVisualTest\.currentActivityCount\(\) === 7/);
   assert.match(evidence, /sameComposer: currentComposer === composer/);
   assert.match(evidence, /sameForm: currentForm === form/);
   assert.match(evidence, /sameField: currentObjectiveField === objectiveField/);

@@ -7435,6 +7435,9 @@ if (visualFixture) {
     elements['workspace-content'].addEventListener(type, recordCutterPointerEvent);
   }
   window.__numberdroidStudioVisualTest = Object.freeze({
+    // Live read for refresh probes; published visual datasets intentionally pin
+    // the original fixture observation until publishVisualEvidence runs again.
+    currentActivityCount() { return state.activity.length; },
     resetCutterPointerTrace() {
       cutterPointerTrace.length = 0;
       return cutterPointerTrace.length;
