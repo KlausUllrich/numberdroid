@@ -1972,6 +1972,7 @@ export function createStudioHttpServer({
           schemaVersion: 1,
           effectivePolicy: await humanAgentAccess.read(project.projectId),
           hostBindingSupport: hostBindingStore && pairingBroker ? 'AVAILABLE' : 'SQLITE_REQUIRED',
+          assemblyAuthoringSupport: studioService.durableAssemblyStoreReady === true && studioService.durableAssetStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           hostBindings: await humanAgentAccess.listBindings(project.projectId),
           pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),
           mcpLauncherConfig: mcpLauncherProjection(
@@ -1993,6 +1994,7 @@ export function createStudioHttpServer({
           schemaVersion: 1,
           ...result,
           hostBindingSupport: hostBindingStore && pairingBroker ? 'AVAILABLE' : 'SQLITE_REQUIRED',
+          assemblyAuthoringSupport: studioService.durableAssemblyStoreReady === true && studioService.durableAssetStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           hostBindings: await humanAgentAccess.listBindings(project.projectId),
           pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),
           csrfToken: humanUiCsrfToken,

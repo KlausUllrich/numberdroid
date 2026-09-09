@@ -2,6 +2,26 @@ import { normalizeAssemblyRegions, assemblyShapeContained, assemblyShapeBounds, 
 import { normalizeAssetSpatial } from '../../../packages/domain/src/asset-spatial-geometry.js';
 
 export const isEmbeddedGeometry = state => state.initial?.mode === 'assembly-geometry';
+export function resumeEmbeddedGeometry(state, initial, retained) {
+  if (retained.context?.projectId !== initial.projectId || retained.context?.assetId !== initial.assetId) throw new Error('The retained geometry belongs to another Assembly.');
+  const current = initial.geometry.spatial;
+  const changes = [];
+  for (const property of ['placementBounds', 'anchor', 'unitsPerPixel']) {
+    for (const [axis, value] of Object.entries(current[property])) {
+      if (retained.model.spatial[property][axis] !== value) changes.push({ property, axis, value });
+    }
+  }
+  Object.assign(state, structuredClone(retained), { initial: structuredClone({ ...initial, pixelSize: initial.planeSize }), gesture: null });
+  // The parent may change its placement settings between visits. Rebase those
+  // exact fields throughout retained Undo/Redo so old geometry history cannot
+  // undo a later parent edit. Region edits, unfinished input and view stay local.
+  for (const model of [state.model, state.savedModel, ...state.history.past.map(entry => entry.model), ...state.history.future.map(entry => entry.model)]) {
+    for (const { property, axis, value } of changes) model.spatial[property][axis] = value;
+  }
+  state.model.name = initial.title;
+  state.context.projectRevision = initial.projectRevision;
+  return state;
+}
 export const embeddedRegion = (state, region) => ({ ...region, transform: state.model.regionTransforms?.[region.regionId] ?? [...ASSEMBLY_IDENTITY_MATRIX] });
 export function embeddedRegions(state) { return state.model.spatial.blockingRegions.map(region => embeddedRegion(state, region)); }
 export function embeddedGeometryIssues(state) {

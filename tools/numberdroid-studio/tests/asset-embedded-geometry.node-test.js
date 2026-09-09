@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAssetEditorState, buildAssetEditorSave, assetEditorContextConflict, assetEditorSnapshot, assetEditorRemember, assetEditorUndo } from '../apps/studio-server/public/asset-editor-state.js';
-import { embeddedGeometryIssues, embeddedGeometryResult, embeddedFramePoints } from '../apps/studio-server/public/asset-embedded-geometry.js';
+import { embeddedGeometryIssues, embeddedGeometryResult, embeddedFramePoints, resumeEmbeddedGeometry } from '../apps/studio-server/public/asset-embedded-geometry.js';
 
 function state() {
   return createAssetEditorState({ mode: 'assembly-geometry', projectId: 'project.test', projectRevision: 3, assetId: 'assembly.test', title: 'Machine / Custom blocking',
@@ -39,4 +39,29 @@ test('embedded containment uses transformed shapes and frame includes negative a
   const draft = state(); draft.model.spatial.placementBounds.width = 130;
   assert.ok(embeddedGeometryIssues(draft).some(message => message.includes('Rotated body')));
   assert.ok(embeddedFramePoints(draft).some(point => point.x === -32 && point.y === -16));
+});
+
+test('reopening custom geometry keeps later parent placement edits through Undo and Redo', () => {
+  const draft = state(), before = assetEditorSnapshot(draft);
+  draft.model.spatial.blockingRegions[0].shape.width = 90;
+  draft.polygonDraft = [{ x: 3, y: 4 }, { x: 12, y: 4 }];
+  draft.fieldDrafts['region.width'] = '';
+  assetEditorRemember(draft, before);
+  const returned = embeddedGeometryResult(draft);
+  const initial = structuredClone(draft.initial);
+  Object.assign(initial.geometry.spatial.placementBounds, { width: 300 });
+  initial.geometry.spatial.anchor.x = 140;
+  initial.geometry.spatial.unitsPerPixel = { x: 1 / 32, y: 1 / 32 };
+  const resumed = resumeEmbeddedGeometry(createAssetEditorState(initial), initial, returned.session);
+  assert.deepEqual(resumed.polygonDraft, draft.polygonDraft);
+  assert.deepEqual(resumed.fieldDrafts, draft.fieldDrafts);
+  const expected = { placementBounds: initial.geometry.spatial.placementBounds, anchor: initial.geometry.spatial.anchor, unitsPerPixel: 1 / 32 };
+  assert.deepEqual(embeddedGeometryResult(resumed).assembly, expected);
+  assert.equal(assetEditorUndo(resumed), true);
+  assert.deepEqual(embeddedGeometryResult(resumed).assembly, expected);
+  assert.equal(resumed.model.spatial.blockingRegions[0].shape.width, 80);
+  assert.equal(assetEditorUndo(resumed, true), true);
+  assert.deepEqual(embeddedGeometryResult(resumed).assembly, expected);
+  assert.equal(resumed.model.spatial.blockingRegions[0].shape.width, 90);
+  assert.equal(returned.session.model.spatial.placementBounds.width, 256);
 });

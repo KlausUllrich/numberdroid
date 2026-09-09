@@ -73,6 +73,7 @@ test('normal navigation cancels a pending pin read and returning Rooms starts a 
       elements: { 'workspace-nav': { addEventListener(_type, callback) { navigate = callback; } } }, location: { hash: 'rooms' },
       api(_path, { signal }) { return new Promise((resolve, reject) => requests.push({ resolve, reject, signal })); },
       publishVisualEvidence() {}, renderWorkspace() {}, restoreRoomPreviewDomState() {},
+      mayAbandonAssetAuthoring: () => true,
     };
     const ensure = runInNewContext(`${loader}
 ${nav}

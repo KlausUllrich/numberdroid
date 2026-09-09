@@ -1835,6 +1835,6 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
     rooms,
     tasks,
     bundleImports,
-    ...(database.userVersion >= 16 ? { assemblies } : {}),
+    ...(!assemblies.ok || assemblies.versionCount || assemblies.proposalVersionCount ? { assemblies } : {}),
   };
 }

@@ -21,6 +21,18 @@ test('Assembly inventory is combined only in Library while Room source remains n
   assert.match(app, /if \(link.dataset.workspace !== state.workspace && !mayAbandonAssetAuthoring\(\)\)/);
 });
 
+test('Assembly UI uses its independent trusted store capability and excludes remote or unknown mode', () => {
+  const code = app.slice(app.indexOf('function assemblySupported'), app.indexOf('function assemblyCanMutate'));
+  for (const [uiMode, assemblyAuthoringSupport, hostBindingSupport, expected] of [
+    ['local', 'AVAILABLE', 'SQLITE_REQUIRED', true], ['local', 'SQLITE_REQUIRED', 'AVAILABLE', false],
+    ['local', undefined, 'AVAILABLE', false], ['remote', 'AVAILABLE', 'AVAILABLE', false], ['unknown', 'AVAILABLE', 'AVAILABLE', false],
+  ]) {
+    assert.equal(runInNewContext(`${code}; assemblySupported()`, { state: { uiMode, assemblyAuthoringSupport, hostBindingSupport } }), expected);
+  }
+  assert.match(app, /state\.assemblyAuthoringSupport = agentAccess\.assemblyAuthoringSupport \?\? 'UNAVAILABLE'/);
+  assert.match(app, /state\.assemblyAuthoringSupport = response\.assemblyAuthoringSupport \?\? 'UNAVAILABLE'/);
+});
+
 test('exact Assembly cache refuses stale revision and never substitutes a newer returned pin', async () => {
   const code = app.slice(app.indexOf('function assemblyReadKey'), app.indexOf('function assemblyLibraryCard'));
   const state = { project: { projectId: 'project.a', revision: 7 } }; const cache = new Map(); let requests = 0;
@@ -51,6 +63,29 @@ test('unconfirmed review stays reachable when passive refresh already shows a co
   const render = runInNewContext(`${code}; renderAssemblyReviews`, { state, currentAssemblyLibrary: () => ({ assets: [], proposals: [live] }), document,
     assemblyReviewControllers: new Map([['project.a:proposal.a', controller]]), sectionHeading: () => ({}), queueMicrotask() {} });
   assert.ok(render().children.includes(reviewElement), 'The exact retry remains visible until a receipt resolves delivery.');
+});
+
+test('revised pending proposal replaces a cached changes-requested view without losing an unresolved decision', () => {
+  const code = app.slice(app.indexOf('function renderAssemblyReviews'), app.indexOf('function mayAbandonAssetAuthoring'));
+  for (const [status, intent, shouldReplace] of [['idle', null, true], ['done', null, true], ['saving', { serialized: 'exact request' }, false], ['uncertain', { serialized: 'exact request' }, false], ['idle', { serialized: 'exact request' }, false]]) {
+    const previous = { ...proposal(), status: 'CHANGES_REQUESTED' }, revised = { ...previous, status: 'PENDING', proposalVersion: previous.proposalVersion + 1 };
+    const cachedState = { projectId: 'project.a', status, intent, proposal: previous }; let disposed = 0, created = 0, initial;
+    const oldController = { getState: () => cachedState, dispose() { disposed += 1; }, reconcileContext() {}, element: { cached: true } };
+    const controllers = new Map([['project.a:proposal.a', oldController]]), replacement = { getState: () => ({ projectId: 'project.a', status: 'idle', intent: null, proposal: revised }), reconcileContext() {}, element: { revised: true } };
+    const render = runInNewContext(`${code}; renderAssemblyReviews`, {
+      state: { project: { projectId: 'project.a', revision: 9 } }, currentAssemblyLibrary: () => ({ assets: [], proposals: [revised] }),
+      document: { createDocumentFragment: () => ({ children: [], append(...children) { this.children.push(...children); } }) },
+      assemblyReviewControllers: controllers, sectionHeading: () => ({}), queueMicrotask() {},
+      assemblySupported: () => true, assemblyCanMutate: () => true, setAssetMutationPending() {}, showToast() {},
+      createAssemblyReviewController(options) { created += 1; initial = options.initial; return replacement; },
+    });
+    const result = render();
+    assert.equal(disposed, shouldReplace ? 1 : 0, status); assert.equal(created, shouldReplace ? 1 : 0, status);
+    assert.equal(controllers.get('project.a:proposal.a'), shouldReplace ? replacement : oldController);
+    assert.ok(result.children.includes(shouldReplace ? replacement.element : oldController.element));
+    if (shouldReplace) { assert.equal(initial.proposal.status, 'PENDING'); assert.equal(initial.proposal.proposalVersion, 3); assert.equal(initial.projectRevision, 9); }
+    else assert.equal(oldController.getState().intent, intent, 'The exact pending request object must remain available.');
+  }
 });
 
 class Element {

@@ -23,8 +23,10 @@ on clean main `93652c2` (PR #227; green post-merge Build #2425).
 [VT-020](VACATION_TEST_BACKLOG.md#vt-020--asset-placement-and-blocking-editor)
 therefore closes as **PASS**: named-cut creation, shape/properties editing,
 Preview/return, direct own-work Save and Activity sidebar removal are accepted.
-Assembly is the next approved design block, with its implementation contract
-recorded before source work. VT-001 / CP4.5 and A1.7 remain **REVISE**.
+The approved Assembly editor is implemented as a candidate under its documented
+contract; integration and VT-021 user acceptance remain separate gates. It adds
+exact component composition, state/variant previews and inherited/custom blocking.
+VT-001 / CP4.5 and A1.7 remain **REVISE**.
 
 ## Current sequence — attended design, 2026-09-07
 

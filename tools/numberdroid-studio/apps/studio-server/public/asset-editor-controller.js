@@ -1,4 +1,4 @@
-import { isEmbeddedGeometry, embeddedGeometryResult } from './asset-embedded-geometry.js';
+import { isEmbeddedGeometry, embeddedGeometryResult, resumeEmbeddedGeometry } from './asset-embedded-geometry.js';
 import { inverseAssemblyPoint } from '../../../packages/domain/src/assembly-geometry.js';
 import { updateAssemblyArtwork } from './assembly-artwork-view.js';
 import { createAssetEditorState, assetEditorSnapshot, assetEditorRemember, assetEditorRestore, assetEditorUndo, assetEditorDirty, assetEditorIssues, assetEditorInvalidNumericField,
@@ -9,9 +9,7 @@ const clone = value => structuredClone(value);
 export function createAssetEditorController({ initial, host, resumeState = null }) {
   const state = createAssetEditorState(initial);
   if (resumeState && isEmbeddedGeometry(state)) {
-    if (resumeState.context?.projectId !== initial.projectId || resumeState.context?.assetId !== initial.assetId) throw new Error('The retained geometry belongs to another Assembly.');
-    Object.assign(state, clone(resumeState), { initial: { ...clone(initial), pixelSize: clone(initial.planeSize) }, gesture: null });
-    state.model.name = initial.title;
+    resumeEmbeddedGeometry(state, initial, resumeState);
   }
   const regionLimit = isEmbeddedGeometry(state) ? 512 : 16;
   const element = createAssetEditorView(state); const listeners = new AbortController();

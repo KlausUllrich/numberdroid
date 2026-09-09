@@ -34,7 +34,7 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     try { await pointer('mousePressed', start); await pointer('mouseMoved', end); await settle();
       assert.deepEqual((await inspect()).canvas, positioned.canvas, 'An active drag must keep the canvas transform fixed');
     } finally { await pointer('mouseReleased', end); } await settle();
-    const moved = await inspect(); assert(Math.abs(moved.numeric['position.x'] - 18) < 1e-5); assert(Math.abs(moved.numeric['position.y'] - 12) < 1e-5);
+    const moved = await inspect(); assert(Math.abs(moved.numeric['position.x'] - 18) < 1e-5, JSON.stringify({ start, end, before: positioned, after: moved })); assert(Math.abs(moved.numeric['position.y'] - 12) < 1e-5);
     assert.equal(await evaluate(`window.__assemblyEvidence.images.every(n=>n.isConnected)`), true, 'Moving a component remounted an unchanged image');
     evidence.nativeMove = { before: beforeDrag.numeric, after: moved.numeric, fixedCanvas: true, imageNodesRetained: true }; await click('[data-assembly-action="undo"]');
 

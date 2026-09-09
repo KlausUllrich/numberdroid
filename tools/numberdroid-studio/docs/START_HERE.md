@@ -31,8 +31,9 @@ Klaus passed the implemented Cutter batch on 2026-09-08; saved cut names now car
 into new Asset drafts. Native editor checks and the real-agent correction/review
 proof passed on 2026-09-09. PR #227 is merged and post-merge green; Klaus then
 reported **“all pass”** on clean main `93652c2`, accepting VT-020. The Asset editor
-and sidebar removal are accepted foundations. Assembly is the next approved
-design block; shared Review implementation follows separately.
+and sidebar removal are accepted foundations. Assembly is the active implemented
+candidate ([VT-021](VACATION_TEST_BACKLOG.md#vt-021--assembly-editor)); shared Review
+implementation follows separately.
 
 The primary proof is a real agent using Studio's semantic interface, correcting
 technical findings and reading saved review feedback/decisions before Klaus is

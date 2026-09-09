@@ -61,6 +61,7 @@ const state = {
   agentAccessCsrf: null,
   pendingAgentAccess: null,
   hostBindingSupport: 'SQLITE_REQUIRED',
+  assemblyAuthoringSupport: 'UNAVAILABLE',
   hostBindings: [],
   pendingHosts: [],
   mcpLauncherConfig: null,
@@ -2460,7 +2461,7 @@ const assemblyReadCache = new Map();
 const assemblyReviewControllers = new Map();
 const assemblyEmbeddedControllers = new WeakMap();
 
-function assemblySupported() { return state.uiMode !== 'remote' && state.hostBindingSupport === 'AVAILABLE'; }
+function assemblySupported() { return state.uiMode === 'local' && state.assemblyAuthoringSupport === 'AVAILABLE'; }
 function assemblyCanMutate() { return assemblySupported() && !state.assetMutationPending && !state.sourceMutationPending && !state.cutterPending && !state.roomMutationPending && !state.taskMutationPending && !state.backupMutationPending; }
 function assemblyCurrentContext(editor) {
   return { projectId: state.project?.projectId, projectRevision: state.project?.revision,
@@ -2596,7 +2597,9 @@ function renderAssemblyReviews() {
       return { projectId: state.project?.projectId, projectRevision: state.project?.revision, proposal: currentProposal,
         asset: currentAssemblyLibrary().assets.find(value => value.assetId === (currentProposal?.content.assetId ?? proposal.content.assetId)) ?? null };
     };
-    if (controller?.getState().status === 'done' && proposal.status === 'PENDING' && controller.getState().proposal.proposalVersion !== proposal.proposalVersion) {
+    const cachedReview = controller?.getState();
+    if (cachedReview && ['idle', 'done'].includes(cachedReview.status) && !cachedReview.intent
+        && proposal.status === 'PENDING' && proposal.proposalVersion > cachedReview.proposal.proposalVersion) {
       controller.dispose(); assemblyReviewControllers.delete(key); controller = null;
     }
     if (!controller) {
@@ -5789,7 +5792,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     state.taskDomState = null;
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
-    state.agentAccess = null; setAgentAccessPanel(false);
+    state.agentAccess = null; state.assemblyAuthoringSupport = 'UNAVAILABLE'; setAgentAccessPanel(false);
     renderProject({
       preserveWorkspace: preserveWorkspaceIfUnchanged
         && state.workspace === 'backups'
@@ -5920,6 +5923,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
   }
   state.agentAccess = agentAccess.effectivePolicy; state.agentAccessCsrf = agentAccess.csrfToken;
   state.hostBindingSupport = agentAccess.hostBindingSupport;
+  state.assemblyAuthoringSupport = agentAccess.assemblyAuthoringSupport ?? 'UNAVAILABLE';
   state.hostBindings = agentAccess.hostBindings;
   state.pendingHosts = agentAccess.pendingHosts;
   state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
@@ -5972,6 +5976,7 @@ async function requestAgentAccess(mode, {
     state.agentAccess = response.effectivePolicy;
     state.agentAccessCsrf = response.csrfToken;
     state.hostBindingSupport = response.hostBindingSupport;
+    state.assemblyAuthoringSupport = response.assemblyAuthoringSupport ?? 'UNAVAILABLE';
     state.hostBindings = response.hostBindings;
     state.pendingHosts = response.pendingHosts;
     state.pendingAgentAccess = null;

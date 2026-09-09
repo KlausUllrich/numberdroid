@@ -38,7 +38,7 @@ The versioned assembly declaration uses:
 - components with stable componentId and name, base asset pin `asset`,
   position, rotationDegrees, positive uniform scale, `stateIds` membership and
   `variantOverrides` entries carrying variantId plus an exact `asset` pin;
-- blocking mode "components" or "custom", with retained owned custom regions
+- blocking mode "components" or "custom", with up to 512 retained owned custom regions
   `{regionId,name,shape,transform}`. Transform is a six-number affine matrix;
   custom primitives use a proper rotation/translation after uniform scale is
   absorbed into their assembly-pixel dimensions. Polygon transforms can be baked
@@ -102,6 +102,8 @@ composed artwork; normal leaf editing and asset.save stay unchanged.
 
 Embedded Back retains the full geometry session: unfinished polygon, raw numeric
 fields, history, selection, transform, zoom and scroll. Reopening restores it.
+Later parent placement-bound, anchor or scale edits remain authoritative on
+reopening; retained geometry Undo/Redo cannot revert those intervening edits.
 Assembly Save rejects incomplete/invalid custom drafts instead of silently dropping
 them or claiming usable geometry. Missing optional descriptive polish can remain
 DRAFT work. Technical errors, broken pins and invalid geometry require correction.
