@@ -1416,6 +1416,8 @@ try {
           const board = document.querySelector('[data-room-board]'); const scroller = document.querySelector('.room-canvas-scroll');
           scroller.scrollLeft = scroller.scrollWidth - scroller.clientWidth; scroller.scrollTop = scroller.scrollHeight - scroller.clientHeight;
           const expectedScroll = { left: scroller.scrollLeft, top: scroller.scrollTop };
+          // Deliberate focus handoff must not scroll an off-screen dock into view
+          // before the action whose canvas/page preservation is being measured.
           const baseRect = board.getBoundingClientRect(); const states = [];
           const observe = (kind, value) => {
             const currentBoard = document.querySelector('[data-room-board]'); const currentScroller = document.querySelector('.room-canvas-scroll'); const rect = currentBoard?.getBoundingClientRect();
@@ -1426,22 +1428,22 @@ try {
               focused: document.activeElement?.dataset.roomFocusKey ?? null, scrollLeft: currentScroller?.scrollLeft ?? null, scrollTop: currentScroller?.scrollTop ?? null });
           };
           for (const panel of ['properties', 'check', 'tool']) {
-            const button = document.querySelector('[data-room-control="editor-panel"][data-editor-panel="' + panel + '"]'); button.focus(); button.click();
+            const button = document.querySelector('[data-room-control="editor-panel"][data-editor-panel="' + panel + '"]'); button.focus({ preventScroll: true }); button.click();
             await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame))); observe('panel', panel);
           }
           for (const tool of ['ENTRANCE', 'SURFACE', 'PROP', 'PAINT_ROOM']) {
-            const button = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="' + tool + '"]'); button.focus(); button.click();
+            const button = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="' + tool + '"]'); button.focus({ preventScroll: true }); button.click();
             await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame))); observe('tool', tool);
           }
-          const prop = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]'); prop.focus(); prop.click();
-          const handoffCell = document.querySelector('.room-cell[data-x="0"][data-y="0"]'); handoffCell.focus();
+          const prop = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]'); prop.focus({ preventScroll: true }); prop.click();
+          const handoffCell = document.querySelector('.room-cell[data-x="0"][data-y="0"]'); handoffCell.focus({ preventScroll: true });
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const focusHandoffState = { sameBoard: document.querySelector('[data-room-board]') === board,
             activeTool: document.querySelector('[data-room-control="editor-tool"][data-selected="true"]')?.dataset.editorTool ?? null,
             focused: document.activeElement?.dataset.roomFocusKey ?? null };
-          const paint = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_ROOM"]'); paint.focus(); paint.click();
+          const paint = document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_ROOM"]'); paint.focus({ preventScroll: true }); paint.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-          const layer = document.querySelector('[data-room-layer="SET_DRESSING"]'); layer.focus(); layer.click();
+          const layer = document.querySelector('[data-room-layer="SET_DRESSING"]'); layer.focus({ preventScroll: true }); layer.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const layerState = { boardCount: document.querySelectorAll('[data-room-board]').length, visible: document.querySelector('[data-room-board]')?.getBoundingClientRect().width > 0,
             focused: document.activeElement?.dataset.roomFocusKey ?? null, scrollLeft: document.querySelector('.room-canvas-scroll')?.scrollLeft ?? null,

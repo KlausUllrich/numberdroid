@@ -670,7 +670,7 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .room-editor-shell { grid-template-columns: 82px minmax(300px, 1fr); }
   .room-preview-layout { grid-template-columns: 1fr; }
   .room-preview-objects { max-height: none; }
-  .room-editor-dock { grid-column: 2; max-height: none; overflow: visible; }
+  .room-editor-dock { grid-column: 2; height: 78vh; min-height: 0; max-height: 78vh; overflow: auto; align-content: start; }
   .room-tool-options { grid-template-columns: minmax(170px, 1fr) auto; }
   .room-editor-status { justify-self: end; }
   .room-tool-actions { grid-column: 1 / -1; justify-content: start; }

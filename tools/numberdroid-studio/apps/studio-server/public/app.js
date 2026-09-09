@@ -3441,12 +3441,19 @@ function roomProposalDiffSummary(item) {
   return `Invalid ${item.operation} diff`;
 }
 
-function renderRoomProposalReview(variant, proposals) {
+function resolveRoomProposalSelection(variant, proposals) {
   const relevant = proposals.filter(({ roomVariantId }) => roomVariantId === variant.roomVariantId);
+  if (relevant.length && !relevant.some(({ proposalId }) => proposalId === state.roomUi.selectedProposalId)) {
+    state.roomUi.selectedProposalId = relevant.find(({ state: proposalState }) => proposalState === 'PENDING')?.proposalId ?? relevant.at(-1).proposalId;
+  }
+  return relevant;
+}
+
+function renderRoomProposalReview(variant, proposals) {
+  const relevant = resolveRoomProposalSelection(variant, proposals);
   const section = document.createElement('section'); section.className = 'proposal-review room-proposal-review';
   section.append(sectionHeading('Placement proposal review', 'Agents may submit bounded placement diffs. Only the owner can decide every item and atomically apply the accepted subset.'));
   if (!relevant.length) { section.append(emptyState('No room proposals', 'The canvas remains owner-authored; scoped agent suggestions appear here as complete diffs.')); return section; }
-  if (!relevant.some(({ proposalId }) => proposalId === state.roomUi.selectedProposalId)) state.roomUi.selectedProposalId = relevant.find(({ state: proposalState }) => proposalState === 'PENDING')?.proposalId ?? relevant.at(-1).proposalId;
   const selector = document.createElement('select'); selector.dataset.roomProposalSelect = 'true'; selector.dataset.roomControl = 'proposal-select';
   for (const proposal of relevant) { const option = document.createElement('option'); option.value = proposal.proposalId; option.textContent = `${proposal.proposalId} · ${proposal.state} · v${proposal.proposalVersion}`; selector.append(option); }
   selector.value = state.roomUi.selectedProposalId; section.append(selector);
@@ -5186,6 +5193,13 @@ function renderWorkspace({
   const cutterFocusKey = state.cutter ? cutterControlKey(document.activeElement) : null;
   document.body.dataset.cutterOpen = String(state.workspace === 'sources' && Boolean(state.cutter));
   if (preserveAssetDraft) captureAssetDomState();
+  if (preserveRoomDraft && state.workspace === 'rooms' && state.roomUi.view !== 'preview'
+      && state.roomUi.dockPanel === 'tool' && state.roomUi.activeTool === 'PROP') {
+    // The first Prop dock selects its default proposal. Resolve it before the
+    // UI context is captured, so rendering cannot invalidate scroll restoration.
+    const { variant } = currentRoomVariant();
+    if (variant) resolveRoomProposalSelection(variant, currentRoomLibrary().proposals);
+  }
   if (preserveRoomDraft) captureRoomDomState();
   if (preserveTaskContext) captureTaskDomState();
   if (preserveBackupContext) captureBackupDomState();
