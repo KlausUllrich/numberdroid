@@ -1,3 +1,4 @@
+import { validateAssemblyNegotiation } from '../../../packages/mcp-server/src/assembly-v1.js';
 import { listCommandDefinitions } from '../../../packages/domain/src/index.js';
 import { StudioError } from '../../../packages/domain/src/index.js';
 import {
@@ -69,6 +70,7 @@ export class LocalStudioGateway {
   #taskBranchReady;
 
   #authoringV2Negotiation = null;
+  #assemblyNegotiation = null;
 
   constructor({
     baseUrl,
@@ -99,22 +101,23 @@ export class LocalStudioGateway {
   }
 
   get agentAttemptAuditReady() {
-    return this.#agentAttemptAuditReady;
+    return this.#agentAttemptAuditReady || this.#assemblyNegotiation !== null;
   }
 
   get durableJobStoreReady() {
-    return this.#durableJobStoreReady;
+    return this.#durableJobStoreReady || this.#assemblyNegotiation !== null;
   }
 
   get durableAssetStoreReady() {
-    return this.#durableAssetStoreReady;
+    return this.#durableAssetStoreReady || this.#assemblyNegotiation !== null;
   }
 
   get durableRoomStoreReady() {
-    return this.#durableRoomStoreReady;
+    return this.#durableRoomStoreReady || this.#assemblyNegotiation !== null;
   }
 
-  get taskBranchReady() { return this.#taskBranchReady; }
+  get taskBranchReady() { return this.#assemblyNegotiation ? false : this.#taskBranchReady; }
+  get durableAssemblyStoreReady() { return this.#assemblyNegotiation !== null; }
 
   async #bindingToken({ signal } = {}) {
     if (!signal) return this.#bindingTokenPromise;
@@ -199,6 +202,17 @@ export class LocalStudioGateway {
 
   async execute(commandDto, _opaqueHostContext, options = {}) {
     return this.#request('/internal/mcp/execute', { schemaVersion: 1, command: commandDto }, options);
+  }
+
+  async negotiateAssemblyV1(request, options = {}) {
+    const value = validateAssemblyNegotiation(await this.#request('/internal/mcp/assembly-handshake', request, options), request.projectId);
+    this.#assemblyNegotiation = value;
+    return value;
+  }
+
+  async queryAssemblies(request, _opaqueContext, options = {}) {
+    if (!this.#assemblyNegotiation || request.projectId !== this.#assemblyNegotiation.projectId) throw new StudioError('ASSEMBLY_NEGOTIATION_REQUIRED', 'Assembly profile has not been negotiated for this project.');
+    return this.#request('/internal/mcp/assembly-query', request, options);
   }
 
   async negotiateAuthoringV2(request, options = {}) {

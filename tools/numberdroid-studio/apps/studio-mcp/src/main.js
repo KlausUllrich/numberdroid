@@ -14,7 +14,7 @@ function requiredEnvironment(name) {
 function selectedMcpProfile() {
   const value = process.env.NUMBERDROID_STUDIO_MCP_PROFILE;
   if (value === undefined) return null;
-  if (value !== 'authoring-v2') {
+  if (!['authoring-v2', 'assembly-v1'].includes(value)) {
     throw new Error('NUMBERDROID_STUDIO_MCP_PROFILE is unsupported.');
   }
   return value;
@@ -54,6 +54,8 @@ async function run() {
     })
     : null;
 
+  const assemblyV1 = mcpProfile === 'assembly-v1' ? { projectId, negotiation: await gateway.negotiateAssemblyV1({ schemaVersion: 1, projectId, profile: 'assembly-v1' }) } : null;
+
   return serveOfficialMcpStdio({
     studioGateway: gateway,
     // The bridge knows only the project selected by its launcher and an opaque
@@ -61,6 +63,7 @@ async function run() {
     // authority from the hashed HostBinding on every request.
     contextProvider: async () => ({ projectId }),
     ...(authoringV2 === null ? {} : { authoringV2 }),
+    ...(assemblyV1 === null ? {} : { assemblyV1 }),
   });
 }
 

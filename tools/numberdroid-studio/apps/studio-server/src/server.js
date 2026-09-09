@@ -1,3 +1,4 @@
+import { handleAssemblyHttp } from './assembly-http.js';
 import { readFile } from 'node:fs/promises';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -61,6 +62,14 @@ import {
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = resolve(moduleDirectory, '../public');
 const staticFiles = new Map([
+  ['/assembly-editor-state.js', ['../public/assembly-editor-state.js', 'text/javascript; charset=utf-8']],
+  ['/assembly-editor-view.js', ['../public/assembly-editor-view.js', 'text/javascript; charset=utf-8']],
+  ['/assembly-editor-controller.js', ['../public/assembly-editor-controller.js', 'text/javascript; charset=utf-8']],
+  ['/assembly-artwork-view.js', ['../public/assembly-artwork-view.js', 'text/javascript; charset=utf-8']],
+  ['/assembly-library-view.js', ['../public/assembly-library-view.js', 'text/javascript; charset=utf-8']],
+  ['/assembly-editor.css', ['../public/assembly-editor.css', 'text/css; charset=utf-8']],
+  ['/packages/domain/src/assembly-geometry.js', ['../../../packages/domain/src/assembly-geometry.js', 'text/javascript; charset=utf-8']],
+  ['/packages/domain/src/assembly-geometry-primitives.js', ['../../../packages/domain/src/assembly-geometry-primitives.js', 'text/javascript; charset=utf-8']],
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/a1-7-state.js', ['a1-7-state.js', 'text/javascript; charset=utf-8']],
@@ -1033,6 +1042,21 @@ export function createStudioHttpServer({
         sendJson(response, 200, result);
         return;
       }
+      if (request.method === 'POST' && url.pathname === '/internal/mcp/assembly-handshake') {
+        assertLoopbackServiceRequest(request);
+        if (!hostBindingStore || agentAttemptStore?.isLive !== true || !studioService.durableAssemblyStoreReady
+          || !studioService.durableJobStoreReady || !studioService.durableRoomStoreReady) throw new StudioError('ASSEMBLY_STORE_DISABLED', 'Assembly profile requires the complete SQLite v16 service.');
+        const body = await readJsonBody(request, { maxBytes: 2048 });
+        assertExactKeys(body, new Set(['schemaVersion', 'projectId', 'profile']), 'Assembly negotiation');
+        if (body.schemaVersion !== 1 || body.profile !== 'assembly-v1') throw new StudioError('VALIDATION_ERROR', 'Select the assembly-v1 profile.');
+        const binding = hostBindingStore.resolve(bearerToken(request));
+        if (body.projectId !== binding.projectId) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Assembly negotiation is outside the binding project.');
+        await assertExecutableBindingPolicy(studioService, binding, agentTaskService);
+        if (agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId)) throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly profile requires a shared-head binding.');
+        await studioService.queryAssemblies({ schemaVersion: 1, projectId: binding.projectId, limit: 1 }, bindingExecutionContext(binding), { signal: requestAbort.signal });
+        sendJson(response, 200, { schemaVersion: 1, profile: 'assembly-v1', projectId: binding.projectId, storeSchemaVersion: 16, sharedHead: true, toolCount: 21, resourceTemplateCount: 5 });
+        return;
+      }
       if (request.method === 'POST' && url.pathname === '/internal/mcp/execute') {
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
@@ -1071,6 +1095,7 @@ export function createStudioHttpServer({
           const taskBound = agentTaskService?.hasTask(
             liveBinding.projectId, liveBinding.taskId, liveBinding.branchId,
           ) === true;
+          if (taskBound && body.command.type?.startsWith('assembly.')) throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly authoring currently requires a shared-head binding.');
           result = await (taskBound ? agentTaskService : studioService).execute(
             body.command,
             liveContext,
@@ -1154,6 +1179,7 @@ export function createStudioHttpServer({
         '/internal/mcp/job-retry',
         '/internal/mcp/job-discard',
         '/internal/mcp/asset-query',
+        '/internal/mcp/assembly-query',
         '/internal/mcp/room-query',
       ].includes(url.pathname)) {
         assertLoopbackServiceRequest(request);
@@ -1172,6 +1198,7 @@ export function createStudioHttpServer({
           '/internal/mcp/job-cancel': { operation: 'cancelJob', commandType: 'job.cancel', atomicAudit: true },
           '/internal/mcp/job-retry': { operation: 'retryJob', commandType: 'job.retry', atomicAudit: true },
           '/internal/mcp/job-discard': { operation: 'discardJob', commandType: 'job.discard', atomicAudit: true },
+          '/internal/mcp/assembly-query': { operation: 'queryAssemblies', commandType: 'assembly.query', atomicAudit: false, auditAuthorized: false },
           '/internal/mcp/asset-query': { operation: 'queryAssets', commandType: 'asset.query', atomicAudit: false, auditAuthorized: false },
           '/internal/mcp/room-query': { operation: 'queryRooms', commandType: 'room.query', atomicAudit: false, auditAuthorized: false },
         }[url.pathname];
@@ -1193,7 +1220,7 @@ export function createStudioHttpServer({
           if (agentAttemptStore?.isLive !== true) {
             throw new StudioError('AGENT_ATTEMPT_LEDGER_REQUIRED', 'Specialized MCP operations require a durable attempt ledger.');
           }
-          const body = await readJsonBody(request, { maxBytes: 128 * 1024 });
+          const body = await readJsonBody(request, { maxBytes: definition.commandType === 'assembly.query' ? 256 * 1024 : 128 * 1024 });
           const safeJobId = definition.commandType.startsWith('job.') ? safeAttemptId(body?.jobId) : null;
           if (safeJobId) {
             attempt.targetKind = 'job';
@@ -1211,6 +1238,7 @@ export function createStudioHttpServer({
           const taskBound = agentTaskService?.hasTask(
             liveBinding.projectId, liveBinding.taskId, liveBinding.branchId,
           ) === true;
+          if (taskBound && definition.operation === 'queryAssemblies') throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly reads currently require a shared-head binding.');
           const targetService = taskBound && ['proposeAtlasGrid', 'queryAssets', 'queryRooms'].includes(definition.operation)
             ? agentTaskService
             : studioService;
@@ -1401,6 +1429,9 @@ export function createStudioHttpServer({
         return;
       }
 
+      if (await handleAssemblyHttp({ request, response, url, studioService, humanUiCsrfToken,
+        signal: requestAbort.signal, assertHumanUiMutation, readJsonBody, assertExactKeys,
+        humanOwnerContext, humanCommandDto, sendJson })) return;
       const assetRequest = assetRoute(url.pathname);
       if (assetRequest?.action === 'save') {
         if (request.method !== 'POST') {

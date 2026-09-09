@@ -24,6 +24,7 @@ export const SQLITE_MIGRATIONS = Object.freeze([
   { version: 13, name: 'processing_result_adoptions', file: '0013_processing_result_adoptions.sql', checksum: 'af908897b489d24110dabbd1cad8754bd85959bfc744cf811b81c376b4603043' },
   { version: 14, name: 'level_candidate_submissions', file: '0014_level_candidate_submissions.sql', checksum: '67c8bbfb84cc668fb41d460414436c6b544123a1cbc372c9615d4f2ec13dbd1b' },
   { version: 15, name: 'derived_candidate_child_tasks', file: '0015_derived_candidate_child_tasks.sql', checksum: '12657571e580597ed6ab03459c3e1241c0c94642e32d0e86bef087e232998154' },
+  { version: 16, name: 'assembly_library', file: '0016_assembly_library.sql', checksum: 'e09c42e9380483930f8dbc30dcf88bb3e56904ebe1b6df934072a058f816fe33' },
 ]);
 
 export function migrationChecksum(sql) {
