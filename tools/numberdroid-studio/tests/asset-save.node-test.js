@@ -107,8 +107,14 @@ test('owner Save versions atomically, retains exact recut imagery, replays and s
     await createSqliteProjectBundle({ destinationDirectory: second, projectStore: imported, artifactStore: new ContentAddressedArtifactStore({ rootDirectory: join(importedDirectory, 'artifacts') }), projectId });
     for (const name of ['project.json', 'manifest.json']) assert.deepEqual(await readFile(join(second, name)), await readFile(join(bundleDirectory, name)));
   } finally { imported.close(); }
+  const replaced = await f.execute('asset.save', f.payload({ operation: 'update', expectedAssetVersion: 2,
+    expectedMetadataVersion: 1, image: { mode: 'saved-slice', sliceId: f.slice.sliceId, expectedSliceVersion: 2 } }));
+  assert.equal(replaced.value.assetVersion, 3); assert.equal(replaced.value.metadataVersion, 1);
+  const replacement = (await f.studio.readProjectTrusted(projectId)).snapshot.assetLibrary.assets[0];
+  assert.equal(replacement.sliceBinding.sliceVersion, 2);
+  assert.equal(Number(f.store.workspace.database.prepare('SELECT slice_version FROM asset_versions WHERE project_id = ? AND asset_id = ? AND asset_version = 1').get(projectId, 'asset.fixture').slice_version), 1);
   await f.restart();
-  assert.deepEqual((await f.studio.readProjectTrusted(projectId)).snapshot.assetLibrary.assets[0], current);
+  assert.deepEqual((await f.studio.readProjectTrusted(projectId)).snapshot.assetLibrary.assets[0], replacement);
 });
 
 test('owner Save rejects foreign/agent authority, exact payload abuse and transaction faults', { timeout: 120_000 }, async context => {
@@ -167,15 +173,17 @@ test('spatial command schema is strict and matches owner Save, exact binding and
     const invalid = structuredClone(value.spatial); change(invalid); assert.throws(() => schema.parse(invalid));
   }
   const f = await fixture(context);
-  await f.execute('asset.save', f.payload({ metadata: value }));
+  await f.execute('asset.save', f.payload());
+  await f.execute('asset.save', f.payload({ operation: 'update', expectedAssetVersion: 1, expectedMetadataVersion: 1, image: { mode: 'retain' }, metadata: value }));
   const saved = (await f.studio.readProjectTrusted(projectId)).snapshot.assetLibrary.assets[0];
+  assert.equal(saved.assetVersion, 2); assert.equal(saved.metadataVersion, 2);
   assert.deepEqual(saved.metadata.spatial, value.spatial);
   assert.equal((await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts })).ok, true);
   const portable = projectSqlitePortableDocument({ projectStore: f.store, projectId }).project;
   assert.equal(portable.schemaVersion, 4);
   const forged = structuredClone(portable); forged.assetLibrary.heads[0].semantic.sliceBinding.rectangle.name = 'forged image name';
   assert.throws(() => validateSqlitePortableProject(forged), /binding differs/);
-  const inconsistent = structuredClone(portable); inconsistent.assetLibrary.versions[0].metadata.spatial.unitsPerPixel.x = 2;
+  const inconsistent = structuredClone(portable); inconsistent.assetLibrary.versions[1].metadata.spatial.unitsPerPixel.x = 2;
   assert.throws(() => validateSqlitePortableProject(inconsistent));
   const directory = join(f.root, 'spatial-bundle');
   await createSqliteProjectBundle({ destinationDirectory: directory, projectStore: f.store, artifactStore: f.artifacts, projectId });
@@ -187,5 +195,51 @@ test('spatial command schema is strict and matches owner Save, exact binding and
     await createSqliteProjectBundle({ destinationDirectory: again, projectStore: imported,
       artifactStore: new ContentAddressedArtifactStore({ rootDirectory: join(importedDirectory, 'artifacts') }), projectId });
     for (const name of ['project.json', 'manifest.json']) assert.deepEqual(await readFile(join(again, name)), await readFile(join(directory, name)));
+    const db = imported.workspace.database;
+    const original = db.prepare('SELECT head_snapshot_json FROM projects WHERE project_id = ?').get(projectId).head_snapshot_json;
+    const storeSnapshot = value => db.prepare('UPDATE projects SET head_snapshot_json = ? WHERE project_id = ?').run(value, projectId);
+    const artifacts = new ContentAddressedArtifactStore({ rootDirectory: join(importedDirectory, 'artifacts') });
+    for (const corrupt of [head => { head.proposal = { proposalId: 'forged' }; }, head => { head.sliceBinding.rectangle.name = 'forged'; }, head => { head.findings = [{ findingId: 'forged', severity: 'ERROR' }]; }, head => { head.warningDispositions = ['forged']; }, head => { head.metadataFingerprint = 'f'.repeat(64); }, head => { head.updatedBy = 'forged'; }]) {
+      const document = JSON.parse(original); corrupt(document.assetLibrary.assets[0]); storeSnapshot(JSON.stringify(document));
+      const integrity = await verifyWorkspaceIntegrity({ projectStore: imported, artifactStore: artifacts });
+      assert.equal(integrity.ok, false);
+      assert.ok(integrity.assets.findings.some(f => f.code === 'ASSET_LIBRARY_SNAPSHOT_MISMATCH'), JSON.stringify(integrity.assets));
+      storeSnapshot(original);
+    }
+    assert.equal((await verifyWorkspaceIntegrity({ projectStore: imported, artifactStore: artifacts })).ok, true);
   } finally { imported.close(); }
+});
+
+test('native owner-save integrity rejects forged owner, prior versions, retained binding and resulting snapshot', { timeout: 120_000 }, async context => {
+  const f = await fixture(context);
+  await f.execute('asset.save', f.payload());
+  await f.cut(f.slice);
+  const saved = await f.execute('asset.save', f.payload({ operation: 'update', expectedAssetVersion: 1,
+    expectedMetadataVersion: 1, name: 'Retained machine', image: { mode: 'retain' } }));
+  const db = f.store.workspace.database;
+  const original = db.prepare('SELECT revision_json FROM revisions WHERE project_id = ? AND revision_number = ?').get(projectId, saved.revision).revision_json;
+  const write = value => db.prepare('UPDATE revisions SET revision_json = ? WHERE project_id = ? AND revision_number = ?').run(value, projectId, saved.revision);
+  const corruptions = [
+    revision => { revision.command.actor.id = 'foreign.owner'; },
+    revision => { revision.command.actor.kind = 'agent'; },
+    revision => { revision.command.payload.expectedAssetVersion = 0; },
+    revision => { revision.command.payload.expectedMetadataVersion = 0; },
+    revision => { revision.command.payload.image = { mode: 'saved-slice', sliceId: f.slice.sliceId, expectedSliceVersion: 1 }; },
+    revision => { revision.snapshot.assetLibrary.assets[0].sliceBinding.rectangle.name = 'foreign cut name'; },
+    revision => { revision.snapshot.assetLibrary.assets[0].proposal = { proposalId: 'forged' }; },
+    revision => { revision.snapshot.assetLibrary.assets[0].metadata.tags = ['forged']; },
+    revision => { revision.command.payload.metadata.tags = ['forged']; },
+    revision => { revision.result.assetVersion = 99; },
+    revision => { revision.result.metadataVersion = 99; },
+    revision => { revision.result.lifecycle = 'FINAL'; },
+    revision => { revision.snapshot.assetLibrary.assets[0].lifecycle = 'FINAL'; },
+  ];
+  for (const corrupt of corruptions) {
+    const revision = JSON.parse(original); corrupt(revision); write(JSON.stringify(revision));
+    const result = await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts });
+    assert.equal(result.ok, false);
+    assert.ok(result.assets.findings.some(finding => finding.code === 'ASSET_OWNER_SAVE_PROVENANCE_INVALID'), JSON.stringify(result.assets));
+    write(original);
+  }
+  assert.equal((await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts })).ok, true);
 });

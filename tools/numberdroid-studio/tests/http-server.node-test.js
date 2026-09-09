@@ -38,7 +38,8 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
 
   const page = await fetch(base).then((response) => response.text());
   assert.match(page, /Create \/ load demo/);
-  assert.match(page, /Activity feed/);
+  assert.match(page, /data-workspace="activity"[^>]*><span>07<\/span>Activity/);
+  assert.doesNotMatch(page, /Activity feed|id="activity-feed"/);
   assert.match(page, /Agent access/);
   assert.match(page, /Propose in draft/);
   assert.match(page, /Effective agent policy/);

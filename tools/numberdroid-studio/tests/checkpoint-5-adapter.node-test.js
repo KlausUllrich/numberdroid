@@ -1,3 +1,4 @@
+import { spatialAliases } from '../packages/domain/src/asset-spatial-geometry.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -552,4 +553,16 @@ test('adapter errors expose stable codes without implementation authority', () =
   const error = new NumberdroidAdapterError('EXAMPLE', 'example', { field: 'x' });
   assert.equal(error.code, 'EXAMPLE');
   assert.deepEqual(error.details, { field: 'x' });
+});
+
+
+test('spatial Asset geometry blocks Numberdroid candidate approval without a bounding-box conversion', () => {
+  const input = fixture();
+  const machine = input.projectDocument.revisions[0].snapshot.assetLibrary.assets.find(a => a.assetId === 'asset.table');
+  const spatial = { schemaVersion: 1, coordinateSpace: 'image-pixels', unitsPerPixel: { x: 1 / 64, y: 1 / 64 },
+    placementBounds: { x: 0, y: 0, width: 192, height: 128 }, anchor: { x: 96, y: 96 },
+    blockingRegions: [{ regionId: 'body', name: 'Body', shape: { kind: 'oval', x: 16, y: 16, width: 160, height: 96 } }] };
+  Object.assign(machine.metadata, spatialAliases(spatial), { spatial });
+  const candidate = buildWithCompiler(createNumberdroidExportSnapshot(input));
+  assert.ok(candidate.findings.some(f => f.ruleId === 'numberdroid.adapter.spatial_geometry_unsupported' && f.severity === 'ERROR'));
 });

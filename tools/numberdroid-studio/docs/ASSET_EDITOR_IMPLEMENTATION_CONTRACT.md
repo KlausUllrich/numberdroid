@@ -1,6 +1,6 @@
 # Asset editor — compatible implementation contract
 
-Status: implementation contract, 2026-09-08; approved screen design, product acceptance pending.
+Status: implemented candidate, 2026-09-09; approved screen design, product acceptance pending.
 The [approved Placement & blocking design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md)
 owns interaction. This evolution adds direct human Save and typed spatial metadata
 to the [accepted Asset core](CHECKPOINT_2C_CONTRACT.md); it preserves legacy semantics
@@ -170,3 +170,26 @@ exact Save/retry, Preview return and Activity after sidebar removal.
 Klaus then receives a concise batch walkthrough on current green main. His exact
 product decision remains separate from mockup approval, CI and source integration.
 VT-001 / CP4.5 and A1.7 remain REVISE until their separate gates are explicitly met.
+
+## Implementation verification checkpoint — 2026-09-09
+
+Focused geometry, zero-clearance compatibility, owner Save, denial/replay/fault,
+legacy and spatial bundle round trips, native/imported provenance corruption and
+controller retention tests pass. Native Chrome at 1440 and 1060 pixels verifies
+polygon/oval/rectangle editing, eight handles, live Shift, Undo/Redo, negative
+fractional typing, stable validation, unfinished numeric-field retention,
+read-only Preview return, exact lost-response Save replay, prior Room pins and
+restart. Activity remains in main navigation; its duplicate sidebar is absent.
+
+An actual agent used production MCP discovery and tools on an isolated synthetic
+fixture. Studio reported mismatched revisions and a crossed polygon; the agent
+corrected both without a human review round. It then read a recorded owner
+correction request, revised only the requested polygon coordinates, and read back
+the explicitly applied Asset v1/metadata v1 with its exact slice and findings.
+The host was drained and stopped. This proves a bounded semantic authoring round,
+not CP4 Resume or a complete agent-assisted Artist production loop.
+
+The exact source/CI identities and final selected suite results belong in the
+focused PR. [VT-020](VACATION_TEST_BACKLOG.md#vt-020--asset-placement-and-blocking-editor)
+retains Klaus's human batch gate. Root build verification uses the runtime version
+pinned by the current Actions workflow so accepted PNG byte hashes are comparable.

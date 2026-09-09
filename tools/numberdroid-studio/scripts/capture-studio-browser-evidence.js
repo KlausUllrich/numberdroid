@@ -629,10 +629,10 @@ try {
             serverStateMatched: concurrentChangeExercised
               ? refreshedTaskList.tasks.some((task) => task.taskId === concurrentTaskId)
                 && document.getElementById('revision-label').textContent === 'Revision 7'
-                && document.getElementById('activity-count').textContent === '7'
+                && document.documentElement.dataset.visualActivityCount === '7'
               : refreshedTaskList.tasks.length === 4
                 && document.getElementById('revision-label').textContent === 'Revision 6'
-                && document.getElementById('activity-count').textContent === '6',
+                && document.documentElement.dataset.visualActivityCount === '6',
             sameComposer: currentComposer === composer,
             sameForm: currentForm === form,
             sameField: currentObjectiveField === objectiveField && currentObjectiveField?.isConnected === true,

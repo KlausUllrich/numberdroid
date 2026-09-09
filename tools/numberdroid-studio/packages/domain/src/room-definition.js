@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { invariant } from './errors.js';
+import { resolveAssetSpatialGeometry, transformAssetSpatialGeometry, shapeIntersectsRect, classifyBlockingPair, blockingCells } from './asset-spatial-geometry.js';
 import { requireEnum, requireId, requireInteger, requireRecord, requireString } from './validation.js';
 
 export const ROOM_VALIDATOR_VERSION = 'numberdroid-studio.room-validator.v2';
@@ -474,6 +475,20 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
       continue;
     }
     if (asset.metadata.rotationPolicy === 'fixed' && placement.rotation !== 0) add('studio.room.placement.rotation_forbidden', `${path}/rotation`, 'A fixed-orientation asset cannot be rotated.', 'Use rotation 0 or author a cardinal rotation policy.', 'ERROR', placement.placementId, 'roomPlacement');
+    let spatialGeometry = null;
+    if (Object.hasOwn(asset.metadata, 'spatial')) {
+      try {
+        spatialGeometry = transformAssetSpatialGeometry(resolveAssetSpatialGeometry(asset), { origin: placement.anchor, rotation: placement.rotation });
+        const invalid = spatialGeometry.findings.filter((entry) => entry.severity === 'ERROR');
+        if (invalid.length) {
+          for (const entry of invalid) add('studio.room.placement.spatial_invalid', `${path}/asset${entry.path}`, entry.explanation, entry.remediation, 'ERROR', placement.placementId, 'roomPlacement');
+          continue;
+        }
+      } catch (error) {
+        add('studio.room.placement.spatial_invalid', `${path}/asset/metadata/spatial`, error.message, 'Correct the Asset spatial metadata before placing this version.', 'ERROR', placement.placementId, 'roomPlacement');
+        continue;
+      }
+    }
     const footprint = rotatedSpan(span, placement.rotation);
     const envelope = { x: placement.anchor.x, y: placement.anchor.y, width: footprint.width, height: footprint.height };
     const inRoom = envelope.x >= 0 && envelope.y >= 0 && envelope.x + envelope.width <= width && envelope.y + envelope.height <= height;
@@ -494,13 +509,14 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     }
     const collisionRects = [];
     const collision = asset.metadata.collision;
-    const collisionSources = collision?.mode === 'bounds' ? [collision.bounds] : collision?.mode === 'parts' ? collision.parts : [];
+    const collisionSources = spatialGeometry ? [] : collision?.mode === 'bounds' ? [collision.bounds] : collision?.mode === 'parts' ? collision.parts : [];
     for (const source of collisionSources.filter(Boolean)) {
       const rotated = rotatedLocalRect(source, span, placement.rotation);
       collisionRects.push({ x: envelope.x + rotated.x, y: envelope.y + rotated.y, width: rotated.width, height: rotated.height });
     }
-    if (asset.metadata.navigation?.effect === 'blocked' && collisionRects.length === 0) collisionRects.push(envelope);
-    const resolvedPlacement = { placement, asset, footprint, envelope, collisionRects };
+    if (!spatialGeometry && asset.metadata.navigation?.effect === 'blocked' && collisionRects.length === 0) collisionRects.push(envelope);
+    const collisionShapes = spatialGeometry ? spatialGeometry.regions.map((region) => region.shape) : collisionRects.map((rect) => ({ kind: 'rectangle', ...rect }));
+    const resolvedPlacement = { placement, asset, footprint, envelope, collisionRects, collisionShapes, spatialGeometry };
     resolved.push(resolvedPlacement);
 
     if (asset.kind === 'surface' && inRoom && usable.width > 0 && usable.height > 0) {
@@ -532,11 +548,13 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
   for (const [index, current] of resolved.entries()) {
     for (const prior of resolved.slice(0, index)) {
       if (current.placement.layer === 'SET_DRESSING' && prior.placement.layer === 'SET_DRESSING' && rectIntersects(current.envelope, prior.envelope)) add('studio.room.placement.overlap', `/placements/${index}`, 'Set-dressing placement envelopes overlap.', `Move ${current.placement.placementId} or ${prior.placement.placementId}.`, 'ERROR', current.placement.placementId, 'roomPlacement');
-      if (current.collisionRects.some((left) => prior.collisionRects.some((right) => rectIntersects(left, right)))) add('studio.room.collision.overlap', `/placements/${index}`, 'Physical collision geometry overlaps another placement.', `Move ${current.placement.placementId} or ${prior.placement.placementId}.`, 'ERROR', current.placement.placementId, 'roomPlacement');
+      const pairs = current.collisionShapes.flatMap((left) => prior.collisionShapes.map((right) => classifyBlockingPair(left, right)));
+      if (pairs.includes('INTERSECTS')) add('studio.room.collision.overlap', `/placements/${index}`, 'Physical collision geometry overlaps another placement.', `Move ${current.placement.placementId} or ${prior.placement.placementId}.`, 'ERROR', current.placement.placementId, 'roomPlacement');
+      else if (pairs.includes('UNSUPPORTED') && !(current.placement.layer === 'SET_DRESSING' && prior.placement.layer === 'SET_DRESSING' && rectIntersects(current.envelope, prior.envelope))) add('studio.room.collision.comparison_unsupported', `/placements/${index}`, 'Studio cannot yet verify overlapping nonrectangular blocking across these placement layers.', 'Separate the blocking regions or use a supported rectangle comparison before validating this Room.', 'ERROR', current.placement.placementId, 'roomPlacement');
     }
     for (const connector of connectors) {
       const clearance = connectorInsideRect(connector, width, height);
-      if (current.collisionRects.some((rect) => rectIntersects(rect, clearance))) add('studio.room.connector.clearance_blocked', `/placements/${index}`, `Placement blocks the inside clearance of connector ${connector.connectorId}.`, 'Move the blocking placement away from the connector approach.', 'ERROR', current.placement.placementId, 'roomPlacement');
+      if (current.collisionShapes.some((shape) => shapeIntersectsRect(shape, clearance))) add('studio.room.connector.clearance_blocked', `/placements/${index}`, `Placement blocks the inside clearance of connector ${connector.connectorId}.`, 'Move the blocking placement away from the connector approach.', 'ERROR', current.placement.placementId, 'roomPlacement');
     }
   }
 
@@ -557,6 +575,10 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
 
   const navigationBlockedCells = new Set(explicitBlockedCellKeys);
   for (const entry of resolved) {
+    if (entry.spatialGeometry) {
+      for (const cell of blockingCells(entry.spatialGeometry, { x: 0, y: 0, width, height })) navigationBlockedCells.add(`${cell.x},${cell.y}`);
+      continue;
+    }
     for (const rect of entry.collisionRects) {
       for (let y = Math.floor(rect.y); y < Math.ceil(rect.y + rect.height); y += 1) {
         for (let x = Math.floor(rect.x); x < Math.ceil(rect.x + rect.width); x += 1) {

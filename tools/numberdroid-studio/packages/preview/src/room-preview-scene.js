@@ -1,3 +1,5 @@
+import { resolveAssetSpatialGeometry } from '../../domain/src/asset-spatial-geometry.js';
+
 export const ROOM_PREVIEW_SCENE_SCHEMA_VERSION = 1;
 export const ROOM_PREVIEW_SCENE_KIND = 'studio.room-preview-scene';
 export const ROOM_PREVIEW_PRESENTATION_NAMESPACE = 'studio.preview.presentation';
@@ -414,14 +416,26 @@ function entityFor(placement, placementIndex, asset, projectId) {
   } catch {
     extension = null;
   }
-  const authoredAnchor = authoredGroundAnchor(asset.metadata?.anchor, sourceSpan);
-  const normalized = normalizePresentation(extension, sourceSpan, authoredAnchor.groundAnchor);
+  let authoredAnchor = authoredGroundAnchor(asset.metadata?.anchor, sourceSpan);
+  let normalized;
+  let presentationSpan = sourceSpan;
+  if (Object.hasOwn(asset.metadata, 'spatial')) {
+    const geometry = resolveAssetSpatialGeometry(asset);
+    const errors = geometry.findings.filter((finding) => finding.severity === 'ERROR');
+    assert(errors.length === 0, 'ROOM_PREVIEW_SPATIAL_INVALID', errors[0]?.explanation ?? 'The spatial Asset is invalid.', { assetId: asset.assetId, findings: errors });
+    presentationSpan = { width: geometry.placementBounds.width, height: geometry.placementBounds.height };
+    authoredAnchor = { groundAnchor: geometry.anchor, inferred: false };
+    const presentation = defaultPresentation(presentationSpan, geometry.anchor);
+    presentation.visualBounds = { ...geometry.imageBounds };
+    presentation.segments[0].visualBounds = { ...geometry.imageBounds };
+    normalized = { presentation, invalid: false, usesDefaultGroundAnchor: false };
+  } else normalized = normalizePresentation(extension, sourceSpan, authoredAnchor.groundAnchor);
   const presentation = normalized.presentation;
-  const rotatedGroundAnchor = rotatedPoint(presentation.groundAnchor, sourceSpan, rotation);
+  const rotatedGroundAnchor = rotatedPoint(presentation.groundAnchor, presentationSpan, rotation);
   const groundAnchor = { ...worldPoint(rotatedGroundAnchor, anchor), z: 0 };
   const artifact = exactArtifact(asset, projectId);
   const segments = presentation.segments.map((segment) => {
-    const bounds = worldRect(rotatedRect(segment.visualBounds, sourceSpan, rotation), anchor);
+    const bounds = worldRect(rotatedRect(segment.visualBounds, presentationSpan, rotation), anchor);
     const offset = { ...rotatedVector(segment.visualOffset, rotation), z: 0 };
     return {
       segmentId: segment.segmentId,
@@ -435,7 +449,7 @@ function entityFor(placement, placementIndex, asset, projectId) {
       compositing: { blendMode: ROOM_PREVIEW_BLEND_MODE, sourceAlpha: 'PRESERVE' },
     };
   });
-  const baseBounds = worldRect(rotatedRect(presentation.visualBounds, sourceSpan, rotation), anchor);
+  const baseBounds = worldRect(rotatedRect(presentation.visualBounds, presentationSpan, rotation), anchor);
   const baseOffset = { ...rotatedVector(presentation.visualOffset, rotation), z: 0 };
   const visualExtent = unionExtents(segments.map((segment) => segment.visualExtent));
   return {

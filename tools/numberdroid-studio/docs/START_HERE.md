@@ -24,12 +24,14 @@ comparison, dependencies, full/partial acceptance, feedback, discard and stale
 proposal handling. All four editor mockups are approved. The exact-version prerequisite is now
 source-integrated: [Pinned Asset reads](ROOM_PINNED_ASSET_READ_CONTRACT.md) preserves
 saved Room images and geometry after Library updates. The current
-follow-up is the Library display of saved cut names. Klaus passed the complete
-implemented Cutter batch on 2026-09-08; preserve that pass and verify only this
-reported label defect. The Cutter's
-[implementation contract](CUTTER_EDITOR_DESIGN.md#bounded-implementation-contract--2026-09-08)
-keeps existing crop identity, job and scoped-command protections. Full product
-implementation and the isolated real-agent review loop remain pending.
+block is the implemented Asset placement/blocking editor and removal of the
+Activity sidebar. [Its implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md)
+owns direct human Save, compatible spatial geometry and exact version history.
+Klaus passed the implemented Cutter batch on 2026-09-08; saved cut names now carry
+into new Asset drafts. Native editor checks and the real-agent correction/review
+proof passed on 2026-09-09; source/CI integration belongs in the focused PR and
+Klaus's Asset-editor batch remains open as VT-020. Assembly and shared Review
+implementation remain separate next blocks.
 
 The primary proof is a real agent using Studio's semantic interface, correcting
 technical findings and reading saved review feedback/decisions before Klaus is

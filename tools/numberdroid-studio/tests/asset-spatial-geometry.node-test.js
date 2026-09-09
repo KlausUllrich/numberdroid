@@ -175,3 +175,16 @@ test('legacy blocked fallback remains exclusive to legacy geometry', () => {
   assert.deepEqual(resolveAssetSpatialGeometry(old).regions[0].shape, { kind: 'rectangle', x: 0, y: 0, width: 2, height: 1 });
   assert.equal(Object.hasOwn(old.metadata, 'spatial'), false);
 });
+
+test('explicit legacy conversion does not invent an extra grid cell from ratio roundoff', () => {
+  for (const [width, span] of [[200, 7], [622, 3]]) {
+    const old = { kind: 'surface', metadata: { spanTiles: { width: span, height: span }, anchor: { x: 0, y: 0 }, pixelSize: { width, height: width }, collision: { mode: 'none', bounds: null, parts: [] }, navigation: { effect: 'passable' } } };
+    const s = spatialFromLegacyAsset(old); const aliases = spatialAliases(s);
+    assert.deepEqual(aliases.spanTiles, old.metadata.spanTiles);
+    assert.equal(s.unitsPerPixel.x, span / width, 'stored scale is unchanged');
+    const geometry = resolveAssetSpatialGeometry({ ...old, metadata: { ...old.metadata, spatial: s, ...aliases } });
+    assert.equal(geometry.placementBounds.width, span);
+    assert.equal(geometry.imageBounds.width, span);
+    assert.deepEqual(geometry.findings, []);
+  }
+});

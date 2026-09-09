@@ -451,6 +451,13 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
     const db = projectStore.workspace.database;
     const bindings = db.prepare(`SELECT * FROM asset_slice_bindings ORDER BY project_id, slice_id, slice_version`).all();
     const bindingById = new Map(bindings.map((row) => [`${row.project_id}:${row.slice_id}:${row.slice_version}`, row]));
+    const bindingValue = (binding) => ({ projectId: binding.project_id, sliceId: binding.slice_id, sliceVersion: Number(binding.slice_version),
+            atlasId: binding.atlas_id, sourceId: binding.source_id, sourceDigest: binding.source_digest,
+            definitionVersion: Number(binding.atlas_definition_version), definitionFingerprint: binding.atlas_definition_fingerprint,
+            rectangleId: binding.rectangle_id, rectangle: JSON.parse(binding.rectangle_json), processorId: binding.processor_id,
+            digest: binding.artifact_digest, artifactUri: binding.artifact_uri, mediaType: binding.media_type,
+            byteSize: Number(binding.byte_size), width: Number(binding.width), height: Number(binding.height),
+            priorDigest: binding.prior_digest, committedRevision: Number(binding.committed_revision) });
     const artifact = db.prepare('SELECT * FROM artifacts WHERE digest = ?');
     const reference = db.prepare(`
       SELECT 1 FROM artifact_references
@@ -536,21 +543,16 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
           const exactImage = payload.image.mode === 'retain' ? previous && sameFingerprint(previous.sliceBinding, semantic.sliceBinding)
             : payload.image.mode === 'saved-slice' && selected && selected.version === payload.image.expectedSliceVersion
               && selected.sliceId === version.slice_id && selected.version === Number(version.slice_version) && selected.digest === binding.artifact_digest;
-          const durableBinding = { projectId: binding.project_id, sliceId: binding.slice_id, sliceVersion: Number(binding.slice_version),
-            atlasId: binding.atlas_id, sourceId: binding.source_id, sourceDigest: binding.source_digest,
-            definitionVersion: Number(binding.atlas_definition_version), definitionFingerprint: binding.atlas_definition_fingerprint,
-            rectangleId: binding.rectangle_id, rectangle: JSON.parse(binding.rectangle_json), processorId: binding.processor_id,
-            digest: binding.artifact_digest, artifactUri: binding.artifact_uri, mediaType: binding.media_type,
-            byteSize: Number(binding.byte_size), width: Number(binding.width), height: Number(binding.height),
-            priorDigest: binding.prior_digest, committedRevision: Number(binding.committed_revision) };
+          const durableBinding = bindingValue(binding);
           if (!expectedPrior || !exactImage || revision.command.actor.kind !== 'human' || revision.command.actor.id !== previousRevision.snapshot.project.ownerId
             || payload.assetId !== version.asset_id || version.proposal_id !== null || version.proposal_item_id !== null
-            || version.lifecycle !== 'DRAFT' || semantic.proposal !== null || semantic.warningDispositions.length !== 0
+            || version.lifecycle !== 'DRAFT' || semantic.lifecycle !== 'DRAFT' || semantic.proposal !== null || semantic.warningDispositions.length !== 0
             || payload.name.trim() !== version.name || payload.kind !== version.kind || semantic.name !== version.name || semantic.kind !== version.kind
             || semantic.assetVersion !== Number(version.asset_version) || semantic.metadataVersion !== Number(version.metadata_version)
             || !sameFingerprint(semantic.metadata, metadata) || !sameFingerprint(semantic.findings, findings)
             || !sameFingerprint(semantic.sliceBinding, durableBinding)
             || revision.result.assetId !== version.asset_id || revision.result.assetVersion !== Number(version.asset_version)
+            || revision.result.metadataVersion !== Number(version.metadata_version) || revision.result.lifecycle !== 'DRAFT'
             || semantic.updatedBy !== revision.command.actor.id || version.created_by !== revision.command.actor.id) throw new Error('Owner save provenance mismatch');
           const validated = validateAssetMetadataForVisualFacts({ assetId: version.asset_id, kind: payload.kind, metadata: payload.metadata,
             pixelSize: { width: Number(binding.width), height: Number(binding.height) }, pivot: JSON.parse(binding.rectangle_json).pivot });
@@ -715,7 +717,14 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
       for (const semantic of semanticAssets) {
         const head = projectHeads.find((entry) => entry.asset_id === semantic.assetId);
         const latest = latestByAsset.get(`${project.project_id}:${semantic.assetId}`);
-        if (!head || !latest || Number(latest.asset_version) !== semantic.assetVersion
+        const exactBinding = latest && bindingById.get(`${project.project_id}:${latest.slice_id}:${latest.slice_version}`);
+        const exactOwnerHead = !latest || latest.proposal_id !== null || (semantic.proposal === null && exactBinding
+          && sameFingerprint(semantic.sliceBinding, bindingValue(exactBinding))
+          && fingerprint(semantic.findings) === latest.findings_fingerprint
+          && sameFingerprint(semantic.warningDispositions, JSON.parse(latest.accepted_warning_ids_json))
+          && semantic.metadataFingerprint === latest.metadata_fingerprint
+          && semantic.updatedAt === latest.created_at && semantic.updatedBy === latest.created_by);
+        if (!head || !latest || !exactOwnerHead || Number(latest.asset_version) !== semantic.assetVersion
           || Number(latest.metadata_version) !== semantic.metadataVersion || latest.name !== semantic.name
           || latest.kind !== semantic.kind || latest.lifecycle !== semantic.lifecycle
           || fingerprint(JSON.parse(latest.metadata_json)) !== fingerprint(semantic.metadata)

@@ -1,7 +1,8 @@
+import { resolveAssetSpatialGeometry, transformAssetSpatialGeometry, shapeIntersectsRect, classifyBlockingPair } from './asset-spatial-geometry.js';
+import { createAssetEditorController } from './asset-editor-controller.js';
 import { cutterGridInfo, cutterSnapCoordinate, cutterDragRectangle, cutterEditIssues, cutterHistoryPush, cutterHistoryStep } from './cutter-editor-state.js';
 import { renderCutterEditor, syncCutterCanvas, cutterOutputCard, cutterOutputName } from './cutter-editor-view.js';
 import { roomAssetPinKey, roomPinnedAssetsContext, roomPinnedAssetsKey, roomPinnedAssetsPath, normalizeRoomPinnedAssets } from './room-pinned-assets-state.js';
-import { createAssetAuthoringDraft, buildAssetAuthoringRequest, assetAuthoringConflict } from './asset-authoring-state.js';
 import {
   normalizeProcessingAdoptionProjection,
   processingAdoptionPresentation,
@@ -77,7 +78,6 @@ const state = {
   cutterDeferredRender: false,
   cutterPending: false,
   assetMutationPending: false,
-  assetAuthoring: null,
   assetOperationKeys: new Map(),
   assetUi: {
     search: '',
@@ -258,7 +258,7 @@ const elements = Object.fromEntries(
   [
     'project-select', 'demo-button', 'refresh-button', 'workspace-nav', 'workspace-content',
     'workspace-eyebrow', 'project-name', 'project-description', 'project-status', 'revision-label',
-    'activity-list', 'activity-count', 'connection-dot', 'connection-label', 'toast',
+    'connection-dot', 'connection-label', 'toast',
     'agent-access-select', 'agent-access-state', 'agent-access-panel', 'agent-access-close',
     'agent-access-details', 'agent-access-warnings', 'agent-access-retry',
     'agent-launcher-show', 'agent-binding-support', 'agent-pending-empty', 'agent-pending-list',
@@ -2195,7 +2195,7 @@ function renderV2AssetCard(asset) {
   const proposal = document.createElement('small');
   proposal.textContent = asset.proposal
     ? `Proposal ${asset.proposal.proposalId} / ${asset.proposal.itemId} · decision r${asset.proposal.decisionRevision} · applied r${asset.proposal.appliedRevision}`
-    : 'No proposal lineage recorded.';
+    : 'Saved directly by the project owner.';
   provenance.append(lineage, digest, proposal);
   const provenanceDetails = document.createElement('details'); provenanceDetails.className = 'asset-technical-details';
   const provenanceSummary = document.createElement('summary'); provenanceSummary.textContent = 'Technical details';
@@ -2440,206 +2440,91 @@ function createAssetFromSliceButton(slice) {
   return button;
 }
 
-function assetAuthoringContext(slice, project = state.project) {
-  const id = crypto.randomUUID();
-  return { projectId: project.projectId, projectRevision: project.revision, sliceId: slice.sliceId,
-    sliceVersion: slice.version, proposalId: `proposal.human.${id}`, itemId: `item.human.${id}`,
-    assetId: `asset.human.${id}`, idempotencyKey: `asset.authoring.${id}` };
-}
+let activeAssetEditor = null;
+let assetEditorDeferredRender = false;
+let assetEditorReturnContext = null;
 
 function mayAbandonAssetAuthoring() {
-  const authoring = state.assetAuthoring;
-  if (!authoring) return true;
-  if (state.assetMutationPending || (authoring.request && !authoring.rejected)) {
-    showToast('Check or retry the saved proposal request before leaving this draft. Its outcome is not confirmed.'); return false;
-  }
-  if (!window.confirm('Discard this unfinished asset proposal? Your saved image slice and project stay unchanged.')) return false;
-  state.assetAuthoring = null; return true;
+  if (!activeAssetEditor) return true;
+  if (!activeAssetEditor.requestLeave()) return false;
+  activeAssetEditor.dispose(); activeAssetEditor = null;
+  document.body.dataset.assetEditorOpen = 'false';
+  return true;
 }
 
-function currentAssetAuthoringConflict() {
-  return state.assetAuthoring ? assetAuthoringConflict(state.assetAuthoring.draft, {
-    projectId: state.project?.projectId, projectRevision: state.project?.revision,
-    slices: currentProjectSlices().map(({ slice }) => ({ sliceId: slice.sliceId, version: slice.version })),
-  }) : null;
+function assetEditorCurrentContext(editor) {
+  const context = editor?.getState().context;
+  return { projectId: state.project?.projectId, projectRevision: state.project?.revision,
+    asset: currentAssetLibrary().assets.find((asset) => asset.assetId === context?.assetId) ?? null,
+    slice: currentProjectSlices().find(({ slice }) => slice.sliceId === context?.sliceId)?.slice ?? null };
 }
 
-function assetAuthoringPreview(authoring) {
-  const { slice, atlas, ordinal } = authoring.pinned;
-  const preview = document.createElement('section'); preview.className = 'asset-authoring-preview'; preview.dataset.assetAuthoringPreview = '';
-  const caption = document.createElement('p'); caption.textContent = `${savedSliceLabel(slice, ordinal)} · ${atlas.name} · saved version ${slice.version}`;
-  const binding = { ...slice, sliceVersion: slice.version, atlasId: atlas.atlasId };
-  try {
-    const item = buildAssetAuthoringRequest(authoring.draft).items[0];
-    preview.append(usefulAssetPreview({ ...item, preview: slice.preview, sliceBinding: binding }, { previewKey: item.assetId }));
-  } catch {
-    preview.append(safeV2Preview({ name: 'Selected saved slice', kind: authoring.draft.values.kind, preview: slice.preview, sliceBinding: binding }));
-    const help = document.createElement('p'); help.textContent = 'Enter a name and valid placement choices to see the footprint preview.'; preview.append(help);
-  }
-  preview.append(caption); return preview;
+function returnFromAssetEditor(editor) {
+  if (activeAssetEditor !== editor) return;
+  const saved = assetEditorReturnContext;
+  editor.dispose(); activeAssetEditor = null; assetEditorReturnContext = null;
+  document.body.dataset.assetEditorOpen = 'false';
+  state.workspace = saved?.workspace ?? 'assets'; history.replaceState(null, '', `#${state.workspace}`);
+  renderWorkspace({ preserveCutterDraft: true, preserveAssetDraft: true });
+  requestAnimationFrame(() => {
+    if (activeAssetEditor || state.workspace !== (saved?.workspace ?? 'assets')) return;
+    const controls = [...elements['workspace-content'].querySelectorAll('button,input,select')];
+    const control = controls.find((item) => (saved?.assetFocus && item.dataset.assetFocusKey === saved.assetFocus)
+      || (saved?.cutterFocus && cutterControlKey(item) === saved.cutterFocus)
+      || (saved?.sliceId && item.dataset.createAssetSlice === saved.sliceId));
+    control?.focus({ preventScroll: true }); window.scrollTo(saved?.x ?? 0, saved?.y ?? 0);
+  });
 }
 
-function renderAssetAuthoring() {
-  const authoring = state.assetAuthoring;
-  const section = document.createElement('section'); section.className = 'asset-authoring surface-card';
-  section.append(sectionHeading('Create an asset from a saved slice', 'Prepare one proposal, then review and apply it. The saved image stays unchanged.'));
-  const conflict = currentAssetAuthoringConflict();
-  if (conflict || authoring.error) {
-    const message = document.createElement('p'); message.className = 'asset-conflict'; message.setAttribute('role', 'alert');
-    message.textContent = authoring.error || `${conflict} Your choices are retained; no newer image was substituted.`; section.append(message);
-  }
-  const layout = document.createElement('div'); layout.className = 'asset-authoring-layout';
-  layout.append(assetAuthoringPreview(authoring));
-  const form = document.createElement('form'); form.dataset.assetAuthoringForm = ''; form.className = 'asset-authoring-form';
-  const field = (name, labelText, options = null, type = 'text') => {
-    const label = document.createElement('label'); label.append(labelText);
-    const input = document.createElement(options ? 'select' : 'input'); input.name = name;
-    input.dataset.assetFocusKey = `authoring-${name}`;
-    if (options) for (const [value, text] of options) { const option = document.createElement('option'); option.value = value; option.textContent = text; input.append(option); }
-    else { input.type = type; input.required = true; if (type === 'number') { input.min = ['anchorX', 'anchorY'].includes(name) ? '0' : '1'; input.max = ['anchorX', 'anchorY'].includes(name) ? '63' : '64'; input.step = '1'; } else input.maxLength = name === 'name' ? 160 : 64; }
-    input.value = authoring.draft.values[name]; input.disabled = Boolean(authoring.request) || state.assetMutationPending;
-    label.append(input); return label;
-  };
-  const group = (title, ...fields) => { const box = document.createElement('fieldset'); const legend = document.createElement('legend'); legend.textContent = title; box.append(legend, ...fields); return box; };
-  form.append(group('1. Name and purpose', field('name', 'Asset name'), field('kind', 'Kind', [['surface', 'Surface'], ['prop', 'Prop'], ['item', 'Item']]), field('role', 'Purpose (for example furniture or floor tile)')),
-    group('2. Footprint and orientation', field('width', 'Width in cells', null, 'number'), field('height', 'Height in cells', null, 'number'),
-      field('anchorX', 'Reference cell X (0 is left)', null, 'number'), field('anchorY', 'Reference cell Y (0 is top)', null, 'number'),
-      field('rotationPolicy', 'Allowed rotations', [['fixed', 'One fixed direction'], ['cardinal', 'Four directions']])));
-  form.append(group('3. Placement choices', field('attachment', 'Attaches to', [['ground', 'Ground'], ['wall', 'Wall'], ['ceiling', 'Ceiling'], ['free', 'Free']]),
-    field('wallSafe', 'Suitable at room boundaries', [['false', 'Keep away from boundaries'], ['true', 'May touch a boundary']]),
-    field('movement', 'Movement', [['blocked', 'Blocks its whole footprint'], ['passable', 'Can be crossed']]),
-    field('visualWeight', 'Visual prominence', [['light', 'Light'], ['medium', 'Medium'], ['heavy', 'Heavy']]),
-    field('runtimeEligible', 'Intended use', [['false', 'Studio-only for now'], ['true', 'Intended for game use — does not publish']])));
-  const limits = document.createElement('p'); limits.className = 'asset-authoring-help';
-  limits.textContent = 'All displayed values are editable proposals. This form supports manual placement, a whole-footprint blocker or no blocker, and no edge connectors. Surfaces attach to ground. The reference cell does not change the saved image pivot.';
-  const actions = document.createElement('div'); actions.className = 'asset-authoring-actions';
-  const submit = document.createElement('button'); submit.type = 'submit'; submit.dataset.assetAuthoringSubmit = ''; submit.textContent = 'Prepare asset for review';
-  submit.disabled = Boolean(authoring.request || conflict || state.assetMutationPending); actions.append(submit);
-  if (authoring.request && !authoring.rejected) {
-    const retry = document.createElement('button'); retry.type = 'button'; retry.dataset.assetAuthoringRetry = ''; retry.textContent = 'Retry exact request'; retry.disabled = state.assetMutationPending; actions.append(retry);
-  }
-  if (conflict || authoring.request) {
-    const recheck = document.createElement('button'); recheck.type = 'button'; recheck.dataset.assetAuthoringRecheck = ''; recheck.className = 'secondary';
-    recheck.textContent = authoring.request && !authoring.rejected ? 'Check saved outcome' : 'Recheck saved slice and project'; recheck.disabled = state.assetMutationPending; actions.append(recheck);
-  }
-  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.dataset.assetAuthoringCancel = ''; cancel.className = 'secondary'; cancel.textContent = 'Back to asset library'; cancel.disabled = state.assetMutationPending; actions.append(cancel);
-  const consequence = document.createElement('p'); consequence.textContent = 'Saves your proposal. The Asset is added only after you review and apply it.';
-  form.append(limits, actions, consequence); layout.append(form); section.append(layout); return section;
-}
-
-function canonicalAssetAuthoringJson(value) {
-  return JSON.stringify(value, (_key, node) => node && typeof node === 'object' && !Array.isArray(node)
-    ? Object.fromEntries(Object.keys(node).sort().map((key) => [key, node[key]])) : node);
-}
-
-function assetAuthoringSavedProposal(authoring) {
-  if (state.assetAuthoring !== authoring || state.project?.projectId !== authoring.draft.context.projectId) return false;
-  const request = authoring.request;
-  const proposal = currentAssetLibrary().proposals.find((entry) => entry.proposalId === request?.proposalId);
-  if (!proposal) return false;
-  const item = proposal.items?.[0]; const expected = request.items[0];
-  if (proposal.items.length !== 1 || proposal.submittedRevision !== request.expectedRevision + 1
-      || item.operation !== 'create' || item.expectedAssetVersion !== 0 || item.expectedMetadataVersion !== 0
-      || item.itemId !== expected.itemId || item.assetId !== expected.assetId
-      || item.name !== expected.name || item.kind !== expected.kind
-      || (item.sliceBinding?.sliceId ?? item.sliceId) !== expected.sliceId
-      || (item.sliceBinding?.sliceVersion ?? item.expectedSliceVersion) !== expected.expectedSliceVersion
-      || !Object.entries(expected.metadata).every(([key, value]) => canonicalAssetAuthoringJson(item.metadata?.[key]) === canonicalAssetAuthoringJson(value))) {
-    authoring.error = 'A saved proposal has this identity but does not match your request. Keep this draft and inspect the project before continuing.'; return false;
-  }
-  state.assetUi.selectedProposalId = proposal.proposalId; state.assetAuthoring = null;
-  showToast('Your proposal is saved. Review its findings and choices, then apply the accepted item to create the draft Asset.'); return true;
-}
-
-async function refreshAssetAuthoringOutcome(authoring, { timeoutMs = 8_000 } = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const canApply = () => state.assetAuthoring === authoring && state.project?.projectId === authoring.draft.context.projectId;
-  try {
-    const loaded = await loadProject(authoring.draft.context.projectId, {
-      preserveWorkspaceIfUnchanged: true, signal: controller.signal, canApply,
-    });
-    if (controller.signal.aborted || !canApply() || loaded !== true) throw new Error('The saved outcome check expired or its project changed.');
-  } finally { clearTimeout(timer); }
-}
-
-async function submitAssetAuthoring({ retry = false } = {}) {
-  const authoring = state.assetAuthoring;
-  if (!authoring || state.assetMutationPending || !state.agentAccessCsrf) return;
-  if (!retry) {
-    if (currentAssetAuthoringConflict()) { renderWorkspace({ preserveAssetDraft: true }); return; }
-    try { authoring.request = buildAssetAuthoringRequest(authoring.draft); authoring.serializedRequest = JSON.stringify(authoring.request); }
-    catch (error) { authoring.error = error.message; renderWorkspace({ preserveAssetDraft: true }); return; }
-  }
-  if (!authoring.request) return;
-  const projectId = authoring.draft.context.projectId;
-  const priorUncertain = authoring.uncertain === true || (retry && authoring.rejected !== true);
-  authoring.error = null; authoring.rejected = false; authoring.uncertain = priorUncertain;
-  setAssetMutationPending(true); renderWorkspace({ preserveAssetDraft: true });
-  try {
-    await api(`/api/projects/${encodeURIComponent(projectId)}/asset-proposals`, {
-      method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf },
-      body: authoring.serializedRequest, signal: AbortSignal.timeout(15_000),
-    });
-    authoring.uncertain = true;
-  } catch (error) {
-    const knownRejection = Number.isInteger(error.status) && error.status >= 400 && error.status < 500 && error.status !== 408;
-    authoring.rejected = !priorUncertain && knownRejection;
-    authoring.uncertain = priorUncertain || !knownRejection;
-    authoring.error = authoring.rejected ? `The proposal was not accepted: ${error.message} Recheck the saved context before revising it.`
-      : 'The response was not confirmed. Your exact request is retained; check the saved outcome or retry that same request.';
-  }
-  try {
-    await refreshAssetAuthoringOutcome(authoring);
-    if (!assetAuthoringSavedProposal(authoring) && !authoring.error) authoring.error = 'No matching saved proposal is visible. Retry the exact retained request to resolve its outcome.';
-  }
-  catch { authoring.error = 'The saved outcome could not be checked. Your exact request is retained for retry.'; }
-  finally { setAssetMutationPending(false); renderWorkspace({ preserveAssetDraft: true }); }
+function openAssetEditor({ asset = null, slice = null, trigger = null }) {
+  if (state.uiMode === 'remote' || state.assetMutationPending || !mayAbandonAssetAuthoring()) return;
+  captureCutterScroll(); captureAssetDomState();
+  const binding = asset?.sliceBinding ?? slice;
+  const pixelSize = { width: binding?.width ?? binding?.rectangle?.width, height: binding?.height ?? binding?.rectangle?.height };
+  const digest = binding?.digest;
+  if (!/^[a-f0-9]{64}$/.test(digest ?? '')) { showToast('The exact saved image is unavailable. Reload before opening this Asset.'); return; }
+  assetEditorReturnContext = { workspace: state.workspace, x: window.scrollX, y: window.scrollY,
+    assetFocus: trigger?.dataset.assetFocusKey ?? null, cutterFocus: cutterControlKey(trigger), sliceId: trigger?.dataset.createAssetSlice ?? null };
+  let editor;
+  editor = createAssetEditorController({
+    initial: { projectId: state.project.projectId, projectRevision: state.project.revision, asset, slice,
+      pixelSize, previewUrl: `/api/projects/${encodeURIComponent(state.project.projectId)}/artifacts/sha256/${digest}`,
+      returnLabel: state.workspace === 'sources' ? 'Back to source' : 'Back to Asset library' },
+    host: {
+      getContext: () => assetEditorCurrentContext(editor),
+      saveAsset: (intent, { signal } = {}) => api(`/api/projects/${encodeURIComponent(intent.projectId)}/assets/${encodeURIComponent(intent.assetId)}/save`, {
+        method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: intent.serialized ?? JSON.stringify(intent.payload), signal,
+      }),
+      readSavedOutcome: async (intent, { signal } = {}) => {
+        await loadProject(intent.projectId, { signal, canApply: () => activeAssetEditor === editor });
+        // A matching head cannot prove which idempotency key produced it. Only
+        // the exact Save receipt or identical replay resolves uncertain delivery.
+        return null;
+      },
+      setMutationPending: setAssetMutationPending,
+      onGestureSettled: () => { if (assetEditorDeferredRender && activeAssetEditor === editor) { assetEditorDeferredRender = false; renderProject({ preserveCutterDraft: true }); } },
+      onSaved: async (receipt) => {
+        if (activeAssetEditor !== editor) return null;
+        await loadProject(editor.getState().context.projectId, { signal: AbortSignal.timeout(8_000), canApply: () => activeAssetEditor === editor });
+        return currentAssetLibrary().assets.find((asset) => asset.assetId === receipt.value.assetId
+          && asset.assetVersion === receipt.value.assetVersion && asset.metadataVersion === receipt.value.metadataVersion) ?? null;
+      },
+      onBack: () => returnFromAssetEditor(editor), confirmDiscard: (message) => window.confirm(message), announce: showToast,
+    },
+  });
+  activeAssetEditor = editor;
+  cancelPinnedAssetsOnWorkspaceExit('assets'); state.workspace = 'assets'; history.replaceState(null, '', '#assets'); renderWorkspace();
 }
 
 window.addEventListener('beforeunload', (event) => {
-  if (state.assetAuthoring) { event.preventDefault(); event.returnValue = ''; }
+  if (activeAssetEditor) { event.preventDefault(); event.returnValue = ''; }
 });
-
-elements['workspace-content'].addEventListener('input', (event) => {
-  const form = event.target.closest('[data-asset-authoring-form]'); const authoring = state.assetAuthoring;
-  if (!form || !authoring || authoring.request || !Object.hasOwn(authoring.draft.values, event.target.name)) return;
-  authoring.draft.values[event.target.name] = event.target.value; authoring.error = null;
-  const preview = elements['workspace-content'].querySelector('[data-asset-authoring-preview]');
-  preview?.replaceWith(assetAuthoringPreview(authoring));
-});
-elements['workspace-content'].addEventListener('submit', (event) => {
-  if (!event.target.matches('[data-asset-authoring-form]')) return;
-  event.preventDefault(); void submitAssetAuthoring();
-});
-elements['workspace-content'].addEventListener('click', async (event) => {
+elements['workspace-content'].addEventListener('click', (event) => {
   const create = event.target.closest('[data-create-asset-slice]');
-  if (create) {
-    if (state.uiMode === 'remote' || state.assetMutationPending || !mayAbandonAssetAuthoring()) return;
-    const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === create.dataset.createAssetSlice && slice.version === Number(create.dataset.sliceVersion));
-    if (!pinned) { showToast('This saved slice changed. Reload and select its current saved version.'); return; }
-    state.assetAuthoring = { draft: createAssetAuthoringDraft(assetAuthoringContext(pinned.slice)), pinned: structuredClone(pinned), request: null, error: null };
-    cancelPinnedAssetsOnWorkspaceExit('assets');
-    state.workspace = 'assets'; location.hash = 'assets'; renderWorkspace(); return;
-  }
-  if (event.target.closest('[data-asset-authoring-cancel]')) { if (mayAbandonAssetAuthoring()) renderWorkspace(); return; }
-  if (event.target.closest('[data-asset-authoring-retry]')) { await submitAssetAuthoring({ retry: true }); return; }
-  if (event.target.closest('[data-asset-authoring-recheck]') && state.assetAuthoring && !state.assetMutationPending) {
-    const authoring = state.assetAuthoring;
-    setAssetMutationPending(true);
-    try {
-      await refreshAssetAuthoringOutcome(authoring);
-      if (authoring.request && assetAuthoringSavedProposal(authoring)) { renderWorkspace(); return; }
-      if (authoring.request && !authoring.rejected) { authoring.error = 'No matching proposal is visible yet. Retry the exact request to resolve its outcome.'; renderWorkspace({ preserveAssetDraft: true }); return; }
-      const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === authoring.draft.context.sliceId);
-      if (!pinned) { authoring.error = 'That slice is no longer available. Return to the library and deliberately choose another saved slice.'; renderWorkspace({ preserveAssetDraft: true }); return; }
-      if (!window.confirm(`Keep your choices and use saved slice version ${pinned.slice.version} at current project revision ${state.project.revision}? Review the image again before submitting.`)) return;
-      const draft = createAssetAuthoringDraft(assetAuthoringContext(pinned.slice)); draft.values = { ...authoring.draft.values };
-      state.assetAuthoring = { draft, pinned: structuredClone(pinned), request: null, error: null };
-      renderWorkspace({ preserveAssetDraft: true });
-    } catch (error) { authoring.error = `The saved context could not be checked: ${error.message}`; }
-    finally { setAssetMutationPending(false); renderWorkspace({ preserveAssetDraft: true }); }
-  }
+  if (!create) return;
+  const pinned = currentProjectSlices().find(({ slice }) => slice.sliceId === create.dataset.createAssetSlice && slice.version === Number(create.dataset.sliceVersion));
+  if (!pinned) { showToast('This saved cut changed. Reload and select its current version.'); return; }
+  openAssetEditor({ slice: pinned.slice, trigger: create });
 });
 
 function renderSliceVocabulary() {
@@ -2666,7 +2551,6 @@ function renderSliceVocabulary() {
 }
 
 function renderAssetLibrary(snapshot) {
-  if (state.assetAuthoring) return renderAssetAuthoring();
   const fragment = document.createDocumentFragment();
   const library = currentAssetLibrary(snapshot);
   const filters = document.createElement('section'); filters.className = 'asset-filters';
@@ -2962,6 +2846,20 @@ function roomAssetSpan(asset, rotation = 0) {
 }
 
 function roomPlacementVisual(asset, rotation) {
+  if (Object.hasOwn(asset?.metadata ?? {}, 'spatial')) {
+    try {
+      const geometry = transformAssetSpatialGeometry(resolveAssetSpatialGeometry(asset), { rotation });
+      const invalid = geometry.findings.find((finding) => finding.severity === 'ERROR');
+      if (invalid) throw new Error(invalid.explanation);
+      const pixels = asset.metadata.pixelSize ?? { width: asset.sliceBinding.width, height: asset.sliceBinding.height };
+      const digest = asset.sliceBinding?.digest;
+      if (!/^[a-f0-9]{64}$/.test(digest ?? '')) throw new Error('The exact saved image is unavailable.');
+      const svg = roomPreviewSvgElement('svg', { viewBox: `0 0 ${geometry.occupancy.width} ${geometry.occupancy.height}`, preserveAspectRatio: 'none', 'aria-hidden': 'true', class: 'room-spatial-visual' });
+      const segment = { visualExtent: geometry.imageBounds, sourceRect: { x: 0, y: 0, width: 1, height: 1 }, artifact: { pixelSize: pixels } };
+      const image = roomPreviewSvgElement('image', { href: `/api/projects/${encodeURIComponent(state.project.projectId)}/artifacts/sha256/${digest}`, width: pixels.width, height: pixels.height, transform: `matrix(${roomPreviewImageMatrix(segment, rotation).join(' ')})` });
+      svg.append(image); return svg;
+    } catch (error) { const unavailable = document.createElement('span'); unavailable.textContent = error.message; unavailable.className = 'room-spatial-unavailable'; return unavailable; }
+  }
   const authored = asset?.metadata?.spanTiles ?? { width: 1, height: 1 };
   const rotated = roomAssetSpan(asset, rotation);
   const visual = safeV2Preview(asset); visual.classList.add('room-placement-visual');
@@ -2984,21 +2882,11 @@ function roomRotatedLocalRect(rect, span, rotation) {
   return { x: rect.y, y: span.width - (rect.x + rect.width), width: rect.height, height: rect.width };
 }
 
-function roomPlacementCollisionRects(asset, anchor, rotation) {
-  const span = asset?.metadata?.spanTiles;
-  if (!span) return [];
-  const collision = asset.metadata.collision;
-  const sources = collision?.mode === 'bounds' && collision.bounds ? [collision.bounds]
-    : collision?.mode === 'parts' ? collision.parts ?? [] : [];
-  const rects = sources.map((source) => {
-    const rotated = roomRotatedLocalRect(source, span, rotation);
-    return { x: anchor.x + rotated.x, y: anchor.y + rotated.y, width: rotated.width, height: rotated.height };
-  });
-  if (asset.metadata.navigation?.effect === 'blocked' && rects.length === 0) {
-    const footprint = roomAssetSpan(asset, rotation);
-    rects.push({ x: anchor.x, y: anchor.y, width: footprint.width, height: footprint.height });
-  }
-  return rects;
+function roomPlacementBlockingShapes(asset, anchor, rotation) {
+  const geometry = transformAssetSpatialGeometry(resolveAssetSpatialGeometry(asset), { origin: anchor, rotation });
+  const invalid = geometry.findings.find((finding) => finding.severity === 'ERROR');
+  if (invalid) throw new Error(invalid.explanation);
+  return geometry.regions.map((region) => region.shape);
 }
 
 function roomPlacementGhostModel({ variant, snapshot, asset, anchor, rotation, layer, ignorePlacementId = null }) {
@@ -3021,7 +2909,9 @@ function roomPlacementGhostModel({ variant, snapshot, asset, anchor, rotation, l
     if (cells.includes('VOID')) blockers.push('The logical footprint crosses an outside-room cell.');
     if (layer === 'SET_DRESSING' && cells.includes('BLOCKED')) blockers.push('Set dressing cannot occupy a blocked room cell.');
   }
-  const candidateCollisions = roomPlacementCollisionRects(asset, anchor, rotation);
+  let candidateCollisions;
+  try { candidateCollisions = roomPlacementBlockingShapes(asset, anchor, rotation); }
+  catch (error) { return { anchor, rotation, footprint, asset, layer, allowed: false, message: error.message }; }
   for (const placement of variant.placements.filter(({ placementId }) => placementId !== ignorePlacementId)) {
     const otherAsset = exactRoomAsset(placement, snapshot);
     const otherFootprint = roomAssetSpan(otherAsset, placement.rotation);
@@ -3030,8 +2920,12 @@ function roomPlacementGhostModel({ variant, snapshot, asset, anchor, rotation, l
       blockers.push(`The logical footprint overlaps placement ${placement.placementId}.`);
       break;
     }
-    const otherCollisions = roomPlacementCollisionRects(otherAsset, placement.anchor, placement.rotation);
-    if (candidateCollisions.some((left) => otherCollisions.some((right) => roomRectsIntersect(left, right)))) {
+    let otherCollisions;
+    try { otherCollisions = roomPlacementBlockingShapes(otherAsset, placement.anchor, placement.rotation); }
+    catch (error) { blockers.push(error.message); break; }
+    const pairs = candidateCollisions.flatMap((left) => otherCollisions.map((right) => classifyBlockingPair(left, right)));
+    if (pairs.includes('UNSUPPORTED')) { blockers.push('Studio cannot yet verify overlapping nonrectangular blocking across these placement layers.'); break; }
+    if (pairs.includes('INTERSECTS')) {
       blockers.push(`Authored collision geometry overlaps placement ${placement.placementId}.`);
       break;
     }
@@ -3039,7 +2933,7 @@ function roomPlacementGhostModel({ variant, snapshot, asset, anchor, rotation, l
   for (const connector of variant.connectors) {
     const geometry = connectorGeometry(connector, variant);
     const clearance = { x: geometry.left, y: geometry.top, width: geometry.width, height: geometry.height };
-    if (candidateCollisions.some((rect) => roomRectsIntersect(rect, clearance))) {
+    if (candidateCollisions.some((shape) => shapeIntersectsRect(shape, clearance))) {
       blockers.push(`Authored collision geometry blocks connector ${connector.connectorId}.`);
       break;
     }
@@ -3329,6 +3223,7 @@ function renderRoomCanvas(variant, snapshot) {
     placed.dataset.roomControl = 'placement-select'; placed.dataset.placementId = placement.placementId;
     placed.dataset.roomFocusKey = `room-placement-${placement.placementId}`;
     placed.dataset.selected = String(state.roomUi.selectedPlacementId === placement.placementId);
+    placed.dataset.spatial = String(Boolean(asset?.metadata?.spatial));
     placed.style.left = `calc(${placement.anchor.x} * var(--room-cell))`; placed.style.top = `calc(${placement.anchor.y} * var(--room-cell))`;
     placed.style.width = `calc(${span.width} * var(--room-cell))`; placed.style.height = `calc(${span.height} * var(--room-cell))`;
     if (asset) placed.append(roomPlacementVisual(asset, placement.rotation));
@@ -5281,6 +5176,7 @@ function renderWorkspace({
   preserveTaskContext = false,
   preserveBackupContext = false,
 } = {}) {
+  if (activeAssetEditor?.getState().gesture) { assetEditorDeferredRender = true; return; }
   if (cutterDrag) {
     state.cutterDeferredRender = true;
     return;
@@ -5327,11 +5223,20 @@ function renderWorkspace({
     elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
     return;
   }
+  document.body.dataset.assetEditorOpen = String(state.workspace === 'assets' && Boolean(activeAssetEditor));
+  if (state.workspace === 'assets' && activeAssetEditor) {
+    const editor = activeAssetEditor;
+    editor.reconcileContext(assetEditorCurrentContext(editor));
+    if (!editor.element.isConnected) { elements['workspace-content'].replaceChildren(editor.element); editor.afterMount(); }
+    elements['workspace-content'].dataset.renderedProjectId = state.project.projectId;
+    elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
+    return;
+  }
   const snapshot = state.project.snapshot;
   let content;
   if (state.workspace === 'overview') content = renderOverview(snapshot);
   else if (state.workspace === 'sources') content = renderSources(snapshot.sources);
-  else if (state.workspace === 'assets') content = state.assetAuthoring || snapshot.assetLibrary || currentProjectSlices(snapshot).length > 0
+  else if (state.workspace === 'assets') content = snapshot.assetLibrary || currentProjectSlices(snapshot).length > 0
     ? renderAssetLibrary(snapshot)
     : renderCollection(snapshot.assets, 'assets');
   else if (state.workspace === 'rooms') content = renderRooms(snapshot);
@@ -5399,23 +5304,6 @@ function applyRoomCanvasFit() {
   if (output) { output.value = `Fit · ${Math.round(cell / 38 * 100)}%`; output.textContent = output.value; }
 }
 
-function renderActivity() {
-  elements['activity-count'].textContent = state.activity.length;
-  const items = [...state.activity].reverse().map((event) => {
-    const item = document.createElement('li');
-    item.className = `activity-item ${event.actor.kind}`;
-    const meta = document.createElement('div'); meta.className = 'activity-meta';
-    const actor = document.createElement('span'); actor.className = 'actor-badge'; actor.textContent = event.actor.kind;
-    const revision = document.createElement('span'); revision.textContent = `rev ${event.revision}`;
-    const summary = document.createElement('p'); summary.textContent = event.summary;
-    const detail = document.createElement('small');
-    detail.textContent = `${event.actor.displayName || event.actor.id} · ${event.commandType}${event.taskId ? ` · task ${event.taskId}` : ''}`;
-    meta.append(actor, revision); item.append(meta, summary, detail);
-    return item;
-  });
-  elements['activity-list'].replaceChildren(...items);
-}
-
 function renderProject({
   preserveWorkspace = false,
   preserveCutterDraft = false,
@@ -5423,9 +5311,10 @@ function renderProject({
   preserveRoomDraft = preserveCutterDraft && state.workspace === 'rooms',
   preserveTaskContext = preserveCutterDraft && state.workspace === 'tasks' && state.taskUi.view === 'detail',
 } = {}) {
+  if (activeAssetEditor?.getState().gesture) { assetEditorDeferredRender = true; return; }
   renderWorkspaceHeader();
   if (!preserveWorkspace) renderWorkspace({ preserveCutterDraft, preserveAssetDraft, preserveRoomDraft, preserveTaskContext });
-  renderActivity(); renderAgentAccess();
+  renderAgentAccess();
 }
 
 async function publishVisualEvidence() {
@@ -5478,7 +5367,6 @@ async function publishVisualEvidence() {
 }
 
 function resetAssetUiProjectContext() {
-  state.assetAuthoring = null;
   state.assetUi.selectedProposalId = null;
   state.assetUi.selectedAssetId = null;
   state.assetUi.decisionDrafts = {};
@@ -6303,7 +6191,8 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const selectAsset = event.target.closest('[data-select-asset]');
   if (selectAsset) {
     state.assetUi.selectedAssetId = selectAsset.dataset.selectAsset;
-    renderWorkspace({ preserveAssetDraft: true });
+    const asset = currentAssetLibrary().assets.find((entry) => entry.assetId === selectAsset.dataset.selectAsset);
+    if (asset) openAssetEditor({ asset, trigger: selectAsset });
     return;
   }
   const reset = event.target.closest('[data-reset-proposal-draft]');
@@ -8094,6 +7983,7 @@ window.addEventListener('hashchange', () => {
     return;
   }
   if (nextWorkspace === state.workspace) { void publishVisualEvidence(); return; }
+  if (!mayAbandonAssetAuthoring()) { history.replaceState(null, '', `#${state.workspace}`); return; }
   cancelPinnedAssetsOnWorkspaceExit(nextWorkspace);
   if (state.workspace === 'tasks' && nextWorkspace !== 'tasks') {
     taskSelectionGeneration += 1;

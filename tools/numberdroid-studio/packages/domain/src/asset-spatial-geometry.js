@@ -5,6 +5,13 @@ export const ASSET_SPATIAL_SCHEMA_VERSION = 1;
 export const MAX_BLOCKING_REGIONS = 16;
 export const MAX_POLYGON_POINTS = 64;
 const LIMIT = 65535;
+// A ratio such as 7 / 200 may multiply back to 7.000000000000001.
+// Canonicalize only derived physical dimensions within four floating-point
+// rounding units of an integer; authored coordinates and scale stay exact.
+function physicalDimension(pixels, scale) {
+  const value = pixels * scale; const nearest = Math.round(value);
+  return nearest > 0 && Math.abs(value - nearest) <= 4 * Number.EPSILON * Math.max(1, Math.abs(value)) ? nearest : value;
+}
 const coordinate = { type: 'number', minimum: -LIMIT, maximum: LIMIT };
 const dimension = { type: 'number', exclusiveMinimum: 0, maximum: LIMIT };
 const pointSchema = { type: 'object', additionalProperties: false, required: ['x', 'y'], properties: { x: coordinate, y: coordinate } };
@@ -106,7 +113,7 @@ export function normalizeAssetSpatial(value, { path = 'metadata.spatial' } = {})
   record(s.unitsPerPixel, ['x', 'y'], `${path}.unitsPerPixel`);
   const unitsPerPixel = Object.fromEntries(['x', 'y'].map((axis) => [axis, number(s.unitsPerPixel[axis], `${path}.unitsPerPixel.${axis}`, { min: 0.000001, max: 64 })]));
   const placementBounds = rect(s.placementBounds, `${path}.placementBounds`);
-  for (const [dimensionName, axis] of [['width', 'x'], ['height', 'y']]) fail(placementBounds[dimensionName] * unitsPerPixel[axis] <= 64, `${path}.placementBounds.${dimensionName}`, 'Reduce the placement dimension or explicitly change its scale to stay within 64 project units.');
+  for (const [dimensionName, axis] of [['width', 'x'], ['height', 'y']]) fail(physicalDimension(placementBounds[dimensionName], unitsPerPixel[axis]) <= 64, `${path}.placementBounds.${dimensionName}`, 'Reduce the placement dimension or explicitly change its scale to stay within 64 project units.');
   fail(Array.isArray(s.blockingRegions) && s.blockingRegions.length <= MAX_BLOCKING_REGIONS, `${path}.blockingRegions`, `Use at most ${MAX_BLOCKING_REGIONS} blocking regions.`);
   const seen = new Set();
   const blockingRegions = Array.from(s.blockingRegions, (region, i) => {
@@ -120,7 +127,7 @@ export function normalizeAssetSpatial(value, { path = 'metadata.spatial' } = {})
 
 export function spatialAliases(spatial) {
   const s = normalizeAssetSpatial(spatial);
-  const spanTiles = { width: Math.ceil(s.placementBounds.width * s.unitsPerPixel.x), height: Math.ceil(s.placementBounds.height * s.unitsPerPixel.y) };
+  const spanTiles = { width: Math.ceil(physicalDimension(s.placementBounds.width, s.unitsPerPixel.x)), height: Math.ceil(physicalDimension(s.placementBounds.height, s.unitsPerPixel.y)) };
   const anchor = {
     x: Math.max(0, Math.min(spanTiles.width - 1, Math.floor((s.anchor.x - s.placementBounds.x) * s.unitsPerPixel.x))),
     y: Math.max(0, Math.min(spanTiles.height - 1, Math.floor((s.anchor.y - s.placementBounds.y) * s.unitsPerPixel.y))),
@@ -153,7 +160,7 @@ export function spatialMetadataFindings(spatial, { kind, navigation, extensions 
   s.blockingRegions.forEach((region, i) => {
     if (!containsRect(s.placementBounds, shapeBounds(region.shape))) add('studio.asset.spatial.blocking_out_of_bounds', `/spatial/blockingRegions/${i}/shape`, `Blocking region “${region.name}” exceeds the authored placement bounds.`, 'Enlarge the placement bounds or explicitly edit this region; its shape has been retained.');
   });
-  if (kind === 'surface' && (!Number.isInteger(s.placementBounds.width * s.unitsPerPixel.x) || !Number.isInteger(s.placementBounds.height * s.unitsPerPixel.y))) add('studio.asset.spatial.surface_integral_required', '/spatial/placementBounds', 'A Surface macro requires whole project-unit dimensions.', 'Adjust the placement bounds or explicit scale to make both physical dimensions integral.');
+  if (kind === 'surface' && (!Number.isInteger(physicalDimension(s.placementBounds.width, s.unitsPerPixel.x)) || !Number.isInteger(physicalDimension(s.placementBounds.height, s.unitsPerPixel.y)))) add('studio.asset.spatial.surface_integral_required', '/spatial/placementBounds', 'A Surface macro requires whole project-unit dimensions.', 'Adjust the placement bounds or explicit scale to make both physical dimensions integral.');
   if (navigation?.effect === 'blocked' && s.blockingRegions.length === 0) add('studio.asset.spatial.blocking_required', '/spatial/blockingRegions', 'Blocked navigation has no authored blocking region.', 'Draw the intended blocking region or choose passable navigation; no footprint blocker is inferred.');
   if (extensions && Object.hasOwn(extensions, 'studio.preview.presentation')) add('studio.asset.spatial.presentation_conflict', '/extensions/studio.preview.presentation', 'Legacy preview presentation cannot override the spatial image, anchor or segments.', 'Explicitly resolve or remove the legacy presentation before using this spatial version.');
   return findings;
@@ -199,8 +206,8 @@ export function resolveAssetSpatialGeometry(asset) {
   const mapPoint = (p) => ({ x: (p.x - s.placementBounds.x) * s.unitsPerPixel.x, y: (p.y - s.placementBounds.y) * s.unitsPerPixel.y });
   return {
     spatial: true,
-    placementBounds: { x: 0, y: 0, width: s.placementBounds.width * s.unitsPerPixel.x, height: s.placementBounds.height * s.unitsPerPixel.y },
-    imageBounds: { ...mapPoint({ x: 0, y: 0 }), width: size.width * s.unitsPerPixel.x, height: size.height * s.unitsPerPixel.y },
+    placementBounds: { x: 0, y: 0, width: physicalDimension(s.placementBounds.width, s.unitsPerPixel.x), height: physicalDimension(s.placementBounds.height, s.unitsPerPixel.y) },
+    imageBounds: { ...mapPoint({ x: 0, y: 0 }), width: physicalDimension(size.width, s.unitsPerPixel.x), height: physicalDimension(size.height, s.unitsPerPixel.y) },
     anchor: mapPoint(s.anchor), regions: s.blockingRegions.map((region) => ({ ...region, shape: mapShape(region.shape, mapPoint, s.unitsPerPixel) })),
     occupancy: aliases.spanTiles, findings: spatialMetadataFindings(s, { kind: asset.kind, navigation: metadata.navigation, extensions: metadata.extensions }),
   };
@@ -244,7 +251,8 @@ function clipPolygon(points, axis, boundary, keepGreater) {
 
 export function shapeIntersectsRect(shape, rectangle) {
   for (const field of ['x', 'y', 'width', 'height']) fail(Number.isFinite(rectangle?.[field]), `rectangle.${field}`, 'Use finite rectangle coordinates.');
-  fail(rectangle.width > 0 && rectangle.height > 0, 'rectangle', 'Use positive rectangle dimensions.');
+  fail(rectangle.width >= 0 && rectangle.height >= 0, 'rectangle', 'Use nonnegative query rectangle dimensions.');
+  if (rectangle.width === 0 || rectangle.height === 0) return false;
   const bounds = shapeBounds(shape);
   if (!rectIntersects(bounds, rectangle)) return false;
   if (shape.kind === 'rectangle') return true;
