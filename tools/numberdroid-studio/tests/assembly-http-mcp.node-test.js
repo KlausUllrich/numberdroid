@@ -51,12 +51,15 @@ test('Selected Assembly MCP profile negotiates 21/5, corrects proposals and read
   try {
     assert.equal((await client.listTools()).tools.length,21);assert.equal((await client.listResourceTemplates()).resourceTemplates.length,5);
     const submit=catalog.find(tool=>tool.name==='studio_assembly_proposal_submit');
-    const invalid={...assemblyPayload(),proposalId:'proposal.agent',expectedProposalVersion:0};invalid.assembly.components[0].asset.assetVersion=99;
+    const invalid={...assemblyPayload(),proposalId:'proposal.agent',expectedProposalVersion:0};invalid.assembly.components[0].asset.assetVersion=99;invalid.assembly.components[0].stateIds=['idle'];
     const invalidCommand=await f.request('assembly.proposal.submit',invalid);delete invalidCommand.type;
-    await assert.rejects(submit.execute(invalidCommand));
-    const payload={...assemblyPayload(),proposalId:'proposal.agent',expectedProposalVersion:0};
+    const beforeInvalid=await f.studio.readProjectTrusted(projectId);
+    const rejected=await client.callTool({name:'studio_assembly_proposal_submit',arguments:invalidCommand});
+    assert.equal(rejected.isError,true);assert.equal(rejected.structuredContent.error.code,'ASSEMBLY_ASSET_NOT_FOUND','nonnull role and state membership must pass SDK validation and reach exact pin validation');
+    assert.equal((await f.studio.readProjectTrusted(projectId)).revision,beforeInvalid.revision);
+    const payload={...assemblyPayload(),proposalId:'proposal.agent',expectedProposalVersion:0};payload.assembly.components[0].stateIds=['idle'];
     const request=await f.request('assembly.proposal.submit',payload);delete request.type;
-    const submitted=await submit.execute(request);assert.equal(submitted.value.status,'PENDING');
+    const submitted=await client.callTool({name:'studio_assembly_proposal_submit',arguments:request});assert.notEqual(submitted.isError,true);assert.equal(submitted.structuredContent.value.status,'PENDING');
     const replay=await submit.execute(request);assert.equal(replay.replayed,true);
     assert.equal((await f.studio.readProjectTrusted(projectId)).snapshot.grants[0].usage.commands,1);
     await f.execute('assembly.proposal.resolve',{proposalId:payload.proposalId,expectedProposalVersion:1,decision:'REQUEST_CHANGES',feedback:'Name this Assembly Revised.',confirmed:true});

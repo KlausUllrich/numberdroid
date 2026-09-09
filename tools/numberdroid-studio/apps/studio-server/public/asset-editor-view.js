@@ -72,7 +72,6 @@ function inspectorContent(state) {
   } else {
     const coords = el('div', 'asset-editor-coordinates'); const oval = shape.kind === 'oval';
     coords.append(number(oval ? 'oval.cx' : 'region.x', oval ? shape.x + shape.width / 2 : shape.x, oval ? 'Center X' : 'Left'), number(oval ? 'oval.cy' : 'region.y', oval ? shape.y + shape.height / 2 : shape.y, oval ? 'Center Y' : 'Top'), number('region.width', shape.width, 'Width'), number('region.height', shape.height, 'Height')); box.append(coords, el('p', 'asset-editor-note', 'Edge handles change one axis; corners change both. Shift makes a square or circle.'));
-    if (isEmbeddedGeometry(state)) { const group = svg('g', { transform: `matrix(${embeddedRegion(state, region).transform.join(' ')})` }); group.append(...regionNodes); nodes.push(group); }
   }
   box.append(button('Remove whole region', 'remove-region')); return box;
 }

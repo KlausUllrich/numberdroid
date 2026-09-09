@@ -20,8 +20,27 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
   const project = () => evaluate(`fetch('/api/projects/${projectId}').then(async r=>{if(!r.ok)throw new Error('Project read failed');return r.json()})`);
   const pointer = (type, point) => devtools.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1 }, sessionId);
   await waitFor(`document.getElementById('connection-label')?.textContent==='Live' && Boolean(document.querySelector('[data-assembly-open="${assetId}"]'))`, 'Assembly Library');
+  if (!reopen) {
+    const beforeCreate = await project();
+    await click('[data-create-assembly]');
+    await waitFor(`Boolean(document.querySelector('[data-assembly-canvas]'))`, 'New Assembly editor');
+    await click('[data-assembly-action="panel"][data-value="properties"]');
+    await fill('name', 'Independent Assembly creation');
+    await click('[data-assembly-action="add"]');
+    await click('[data-assembly-action="pick-asset"][data-value="asset.assembly-graphite@2:1"]');
+    await click('[data-assembly-action="save"]');
+    await waitFor(`document.querySelector('[data-assembly-saved-state]')?.textContent.includes('Saved Assembly v1')`, 'Created Assembly Save');
+    const created = await project();
+    assert.equal(created.revision, beforeCreate.revision + 1);
+    const saved = created.snapshot.assemblyLibrary.assets.find(asset => asset.name === 'Independent Assembly creation');
+    assert.equal(saved.assetVersion, 1);
+    assert.deepEqual(saved.assembly.components[0].asset, { assetId: 'asset.assembly-graphite', assetVersion: 2, metadataVersion: 1 });
+    assert.deepEqual(created.snapshot.assetLibrary, beforeCreate.snapshot.assetLibrary);
+    await click('[data-assembly-action="back"]');
+    await waitFor(`Boolean(document.querySelector('[data-assembly-open="${assetId}"]'))`, 'Library after Assembly creation');
+  }
   await click(`[data-assembly-open="${assetId}"]`); await waitFor(`document.querySelectorAll('[data-assembly-canvas] image').length>=2 && !document.querySelector('[data-assembly-status]')?.textContent.includes('Resolving')`, 'Resolved exact Assembly');
-  const evidence = { schemaVersion: 1, projectId, assetId, phase: reopen ? 'reopen' : 'edit', agentReview: 'Separate real-agent semantic proof is required.' };
+  const evidence = { schemaVersion: 1, projectId, assetId, phase: reopen ? 'reopen' : 'edit', ...(reopen ? {} : { independentCreation: true }), agentReview: 'Separate real-agent semantic proof is required.' };
   if (reopen) { evidence.reopened = await inspect(); assert.match(evidence.reopened.saved, /Saved Assembly v2/); assert(evidence.reopened.images.length >= 2); return evidence; }
   const beforeProject = await project(), nativeBefore = JSON.stringify(beforeProject.snapshot.assetLibrary.assets);
   await evaluate(`window.__assemblyEvidence={images:[...document.querySelectorAll('[data-assembly-canvas] image')],originalFetch:window.fetch,requests:[],drop:false};`);
@@ -34,7 +53,14 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     try { await pointer('mousePressed', start); await pointer('mouseMoved', end); await settle();
       assert.deepEqual((await inspect()).canvas, positioned.canvas, 'An active drag must keep the canvas transform fixed');
     } finally { await pointer('mouseReleased', end); } await settle();
-    const moved = await inspect(); assert(Math.abs(moved.numeric['position.x'] - 18) < 1e-5, JSON.stringify({ start, end, before: positioned, after: moved })); assert(Math.abs(moved.numeric['position.y'] - 12) < 1e-5);
+    const moved = await inspect();
+    // Chrome quantizes dispatched pointer coordinates before SVG inversion. Test
+    // the resulting error in CSS pixels, independent of the current fit zoom.
+    // Exact authored numeric values and serialized replay are checked below.
+    const movementError = { x: moved.numeric['position.x'] - positioned.numeric['position.x'] - 18, y: moved.numeric['position.y'] - positioned.numeric['position.y'] - 12 };
+    const [a, b, c, d] = positioned.matrix;
+    const screenError = Math.hypot(a * movementError.x + c * movementError.y, b * movementError.x + d * movementError.y);
+    assert(screenError < 0.001, JSON.stringify({ screenError, start, end, before: positioned, after: moved }));
     assert.equal(await evaluate(`window.__assemblyEvidence.images.every(n=>n.isConnected)`), true, 'Moving a component remounted an unchanged image');
     evidence.nativeMove = { before: beforeDrag.numeric, after: moved.numeric, fixedCanvas: true, imageNodesRetained: true }; await click('[data-assembly-action="undo"]');
 
