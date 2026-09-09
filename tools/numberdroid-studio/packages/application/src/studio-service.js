@@ -1550,6 +1550,7 @@ function applyCommand(command, snapshot, now, {
       const proposalId = preparedAssetProposal.proposalId;
       invariant(!library.proposals.some((proposal) => proposal.proposalId === proposalId), 'ENTITY_EXISTS', 'The proposal ID already exists.', { proposalId });
       const items = preparedAssetProposal.items.map((item) => {
+        invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === item.assetId), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
         const existingAsset = library.assets.find((asset) => asset.assetId === item.assetId);
         invariant(!next.assets.some((asset) => asset.id === item.assetId), 'ENTITY_EXISTS', 'A legacy asset already uses this identity.', { assetId: item.assetId });
         if (item.operation === 'create') {
@@ -2743,7 +2744,10 @@ export class StudioService {
     invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.');
     assertAuthorized({ ...context, projectId, type: 'project.read', payload: {} }, headRevision(document).snapshot, { ownerOnly: false, requiredScope: 'project.read' }, this.#clock());
     signal?.throwIfAborted();
-    return deepFreeze(queryAssemblyDocument(request, document));
+    const result = queryAssemblyDocument(request, document);
+    for (const record of [...result.assets ?? [], ...(result.draft ? [result.draft] : [])]) this.#store.verifyAssemblyContent(projectId, record, record.createdRevision ?? result.revision);
+    for (const proposal of result.proposals ?? []) this.#store.verifyAssemblyContent(projectId, proposal.validated, proposal.createdRevision);
+    return deepFreeze(result);
   }
 
   async queryAssets(rawRequest, trustedExecutionContext, { signal } = {}) {

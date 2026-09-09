@@ -68,8 +68,18 @@ export async function assemblyFixture(context) {
     get studio() { return studio; }, get store() { return store; },
     fault(value) { failPoint = value; },
     async restart() { await close(); await open(); },
-    async http() { server = createStudioHttpServer({ studioService: studio, artifactStore: artifacts });
+    async http(options = {}) { server = createStudioHttpServer({ studioService: studio, artifactStore: artifacts, ...options });
       await new Promise(done => server.listen(0, '127.0.0.1', done)); return `http://127.0.0.1:${server.address().port}`; },
   };
 }
 
+
+export function assemblyPayload(overrides = {}) {
+  return { assetId: 'assembly.fixture', operation: 'create', expectedAssetVersion: 0, expectedMetadataVersion: 0,
+    name: 'Assembled fixture', kind: 'prop', metadata: { role: 'machine', tags: ['fixture'] },
+    assembly: { schemaVersion: 1, coordinateSpace: 'assembly-pixels', unitsPerPixel: 1 / 64,
+      placementBounds: { x: -64, y: -64, width: 128, height: 128 }, anchor: { x: 0, y: 0 },
+      states: [{ stateId: 'idle', name: 'Idle' }], variants: [{ variantId: 'default', name: 'Default' }], defaultStateId: 'idle', defaultVariantId: 'default',
+      components: [{ componentId: 'body', name: 'Body', asset: { assetId: 'asset.fixture', assetVersion: 1, metadataVersion: 1 }, position: { x: 0, y: 0 }, rotationDegrees: 0, scale: 1, stateIds: null, variantOverrides: [] }],
+      blocking: { mode: 'components', regions: [] } }, ...overrides };
+}

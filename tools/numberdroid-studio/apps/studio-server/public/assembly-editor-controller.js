@@ -8,7 +8,7 @@ import { assemblySceneFrame } from './assembly-artwork-view.js';
 const copy = value => structuredClone(value);
 export function createAssemblyEditorController({ initial, host }) {
   const state = createAssemblyEditorState(initial), element = createAssemblyEditorView(state), listeners = new AbortController();
-  let disposed = false, rendering = false, requestController = null, requestGeneration = 0, resolveController = null, resolveGeneration = 0, fieldBefore = null;
+  let disposed = false, rendering = false, requestController = null, requestGeneration = 0, resolveController = null, resolveGeneration = 0, resolveKey = null, fieldBefore = null;
   const context = () => host.getContext(state.context);
   const locked = () => disposed || state.embeddedOpen || ['saving', 'uncertain', 'checking'].includes(state.save.status);
   const nativeAssets = () => host.getNativeAssets?.() ?? [];
@@ -35,6 +35,10 @@ export function createAssemblyEditorController({ initial, host }) {
     if (saved) restoreView(saved);
   }
   function resolveLocal() {
+    const keys = new Set(state.assets.map(assemblyAssetKey));
+    if (state.resolution.status === 'loading' && assemblyEditorPins(state.model.assembly).every(pin => keys.has(assemblyAssetKey(pin)))) {
+      resolveController?.abort(); resolveController = null; resolveKey = null; resolveGeneration += 1; state.resolution.status = 'ready';
+    }
     try { assemblyEditorResolve(state); state.resolution.error = null; if (state.resolution.status !== 'loading') state.resolution.status = 'ready'; }
     catch (error) { state.resolution.error = error.message; }
   }
@@ -42,8 +46,10 @@ export function createAssemblyEditorController({ initial, host }) {
     const pins = assemblyEditorPins(state.model.assembly), available = new Set(state.assets.map(assemblyAssetKey));
     if (pins.every(pin => available.has(assemblyAssetKey(pin)))) { resolveLocal(); render(); return; }
     if (!host.resolveDraft) { state.resolution = { status: 'unavailable', error: 'The exact saved component versions are unavailable. Reopen this Assembly when the connection returns.' }; render(); return; }
-    resolveController?.abort(); const controller = new AbortController(), generation = ++resolveGeneration; resolveController = controller;
-    const pinSignature = JSON.stringify(pins), projectId = state.context.projectId; state.resolution = { status: 'loading', error: null }; render({ inspector: false });
+    const pinSignature = JSON.stringify(pins), projectId = state.context.projectId, key = `${projectId}:${pinSignature}`;
+    if (resolveController && resolveKey === key) return;
+    resolveController?.abort(); const controller = new AbortController(), generation = ++resolveGeneration; resolveController = controller; resolveKey = key;
+    state.resolution = { status: 'loading', error: null }; render({ inspector: false });
     const timer = setTimeout(() => controller.abort(), 10_000);
     try {
       const response = await host.resolveDraft({ assembly: copy(state.model.assembly), pins }, { signal: controller.signal });
@@ -54,9 +60,10 @@ export function createAssemblyEditorController({ initial, host }) {
       if (!pins.every(pin => byPin.has(assemblyAssetKey(pin)))) throw new Error('An exact component version is unavailable. The Assembly will not substitute its latest Library version.');
       state.resolution = { status: 'ready', error: null }; resolveLocal();
     } catch (error) { if (!disposed && generation === resolveGeneration) state.resolution = { status: 'unavailable', error: error.message || 'Exact component versions could not be loaded.' }; }
-    finally { clearTimeout(timer); if (resolveController === controller) resolveController = null; if (!disposed && generation === resolveGeneration) render(); }
+    finally { clearTimeout(timer); if (resolveController === controller) { resolveController = null; resolveKey = null; } if (!disposed && generation === resolveGeneration) render(); }
   }
-  const remember = before => { assemblyEditorRemember(state, before); resolveLocal(); };
+  const remember = before => { assemblyEditorRemember(state, before); resolveLocal();
+    const available = new Set(state.assets.map(assemblyAssetKey)); if (assemblyEditorPins(state.model.assembly).some(pin => !available.has(assemblyAssetKey(pin)))) void resolveReferences(); };
   function reconcileContext(current = context()) { if (disposed) return; state.conflict = assemblyEditorContextConflict(state, current); if (!state.gesture && !state.embeddedOpen) render({ inspector: false }); }
   function requireNumeric() {
     const key = assemblyEditorInvalidNumericField(state); if (!key) return true;
@@ -254,7 +261,7 @@ export function createAssemblyEditorController({ initial, host }) {
     if (locked()) return;
     if (event.key === 'Escape') { if (cancelGesture()) { event.preventDefault(); return; } if (state.pickerOpen || state.gridOpen) { state.pickerOpen = false; state.gridOpen = false; render(); event.preventDefault(); return; } }
     if (state.gesture || state.view !== 'edit' || event.target.matches('input,textarea,select') || !requireNumeric()) return;
-    if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) { event.preventDefault(); assemblyEditorUndo(state, event.shiftKey || event.key.toLowerCase() === 'y'); resolveLocal(); render(); return; }
+    if ((event.ctrlKey || event.metaKey) && ['z', 'y'].includes(event.key.toLowerCase())) { event.preventDefault(); assemblyEditorUndo(state, event.shiftKey || event.key.toLowerCase() === 'y'); resolveLocal(); render(); void resolveReferences(); return; }
     if (!event.target.closest('[data-assembly-canvas]')) return; const c = selectedAssemblyComponent(state); if (!c) return;
     const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
     if (!delta && !['Delete', 'Backspace', 'r', 'R'].includes(event.key)) return; event.preventDefault(); const before = assemblyEditorSnapshot(state);

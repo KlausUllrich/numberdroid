@@ -1,3 +1,4 @@
+import { isEmbeddedGeometry, embeddedGeometryIssues } from './asset-embedded-geometry.js';
 import { normalizeAssetSpatial, spatialAliases, spatialFromLegacyAsset, spatialMetadataFindings } from '../../../packages/domain/src/asset-spatial-geometry.js';
 
 const copy = value => structuredClone(value);
@@ -10,7 +11,8 @@ export function assetEditorDefaultMetadata() {
     connectors: [], continuityProfile: null, continuityTags: [], selectionPriority: 0, visualWeight: 'medium', extensions: {} };
 }
 export function createAssetEditorState(initial) {
-  const size = initial.pixelSize;
+  const embedded = initial.mode === 'assembly-geometry';
+  const size = embedded ? initial.planeSize : initial.pixelSize;
   if (!positive(size?.width) || !positive(size?.height)) throw new Error('The exact image dimensions are unavailable. Reopen the saved image.');
   const asset = initial.asset; const metadata = copy(asset?.metadata ?? assetEditorDefaultMetadata());
   const fallback = { schemaVersion: 1, coordinateSpace: 'image-pixels', unitsPerPixel: { x: 1 / Math.max(size.width, size.height), y: 1 / Math.max(size.width, size.height) },
@@ -18,11 +20,13 @@ export function createAssetEditorState(initial) {
   let spatial = metadata.spatial ? copy(metadata.spatial) : fallback;
   let conversionError = null;
   if (asset && !metadata.spatial) { try { spatial = spatialFromLegacyAsset({ ...asset, sliceBinding: { ...asset.sliceBinding, width: size.width, height: size.height } }); } catch (error) { conversionError = error.message; } }
-  const model = { name: asset?.name ?? initial.slice?.rectangle?.name ?? '', kind: asset?.kind ?? 'prop', metadata, spatial, geometryEnabled: !asset || Boolean(metadata.spatial) };
+  if (embedded) spatial = copy(initial.geometry.spatial);
+  const model = { name: embedded ? initial.title : asset?.name ?? initial.slice?.rectangle?.name ?? '', kind: asset?.kind ?? 'prop', metadata, spatial, geometryEnabled: embedded || !asset || Boolean(metadata.spatial),
+    ...(embedded ? { regionTransforms: copy(initial.geometry.regionTransforms ?? {}) } : {}) };
   return { instanceId: initial.instanceId ?? crypto.randomUUID(), context: copy({ projectId: initial.projectId, projectRevision: initial.projectRevision,
     assetId: asset?.assetId ?? initial.assetId ?? `asset.human.${crypto.randomUUID()}`, assetVersion: asset?.assetVersion ?? 0, metadataVersion: asset?.metadataVersion ?? 0,
     sliceId: initial.slice?.sliceId ?? asset?.sliceBinding?.sliceId, sliceVersion: initial.slice?.version ?? asset?.sliceBinding?.sliceVersion }),
-    initial: copy(initial), model, conversionError, savedModel: copy(model), history: { past: [], future: [] }, polygonDraft: [], selectedRegionId: spatial.blockingRegions[0]?.regionId ?? null, selectedPoint: null,
+    initial: copy({ ...initial, pixelSize: size }), model, conversionError, savedModel: copy(model), history: { past: [], future: [] }, polygonDraft: [], selectedRegionId: spatial.blockingRegions[0]?.regionId ?? null, selectedPoint: null,
     tool: 'select', panel: 'blocking', view: 'edit', viewGeneration: 0, zoom: 'fit', grid: { show: false, snap: false, step: 25 }, visibility: { image: true, bounds: true, anchor: true },
     gridOpen: false, error: null, conflict: null, save: { status: 'idle', intent: null }, gesture: null, fieldDrafts: {}, viewContexts: {} };
 }
@@ -40,6 +44,7 @@ export function assetEditorDirty(state) { return !same(state.model, state.savedM
 export function assetEditorInvalidNumericField(state) { return Object.entries(state.fieldDrafts).find(([, value]) => value.trim() === '' || !Number.isFinite(Number(value)))?.[0] ?? null; }
 export function selectedAssetRegion(state) { return state.model.spatial.blockingRegions.find(r => r.regionId === state.selectedRegionId) ?? null; }
 export function assetEditorIssues(state) {
+  if (isEmbeddedGeometry(state)) return embeddedGeometryIssues(state);
   const messages = [];
   if (typeof state.model.name !== 'string' || !state.model.name.trim() || state.model.name.trim().length > 160) messages.push('Give the Asset a name of 1–160 characters.');
   if (state.polygonDraft.length) messages.push('Close the unfinished polygon, or press Escape to cancel its outline.');
@@ -53,6 +58,7 @@ export function assetEditorIssues(state) {
   return messages;
 }
 export function buildAssetEditorSave(state, idempotencyKey) {
+  if (isEmbeddedGeometry(state)) throw new Error('Return to the Assembly to save; embedded geometry never writes a leaf Asset.');
   const issues = assetEditorIssues(state); if (issues.length) throw new Error(issues.join(' '));
   const c = state.context; const metadata = copy(state.model.metadata);
   delete metadata.pixelSize; delete metadata.pivot;
@@ -64,6 +70,7 @@ export function buildAssetEditorSave(state, idempotencyKey) {
 }
 export function assetEditorContextConflict(state, current) {
   if (current.projectId !== state.context.projectId) return 'The selected project changed. Return to this project before saving.';
+  if (isEmbeddedGeometry(state)) return null;
   if (current.projectRevision !== state.context.projectRevision) return 'The project changed while you were editing. Recheck the saved version; your draft is retained.';
   if (state.context.assetVersion && (!current.asset || current.asset.assetVersion !== state.context.assetVersion || current.asset.metadataVersion !== state.context.metadataVersion)) return 'The Asset changed while you were editing. Recheck its saved version before saving your draft.';
   if (!state.context.assetVersion && (!current.slice || current.slice.sliceId !== state.context.sliceId || current.slice.version !== state.context.sliceVersion)) return 'The saved image cut changed or is unavailable. This draft will not switch image versions.';

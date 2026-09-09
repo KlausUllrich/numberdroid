@@ -142,3 +142,24 @@ test('inherited region identifiers distinguish legal delimiter-containing compon
   const scene = resolve(value, [first, second]);
   assert.equal(new Set(scene.regions.map((region) => region.regionId)).size, 2);
 });
+
+test('tiny negative rotation has one stable canonical value without rounding positive fractions away', () => {
+  for (const [input, expected] of [[-Number.EPSILON, 0], [-Number.MIN_VALUE, 0], [Number.EPSILON, Number.EPSILON], [1.1, 1.1], [-360, 0]]) {
+    const normalized = normalizeAssemblyDeclaration(assembly({ components: [component({ rotationDegrees: input })] }));
+    assert.equal(normalized.components[0].rotationDegrees, expected);
+    assert.deepEqual(normalizeAssemblyDeclaration(normalized), normalized);
+  }
+});
+
+test('baked custom polygon must retain valid topology and normalize identically', () => {
+  const collapsed = [{ regionId: 'tiny', name: 'Tiny triangle', shape: { kind: 'polygon', points: [{ x: 0, y: 0 }, { x: 1e-13, y: 0 }, { x: 0, y: 1e-13 }] }, transform: [1, 0, 0, 1, 65535, 65535] }];
+  const before = structuredClone(collapsed);
+  assert.throws(() => normalizeAssemblyRegions(collapsed), error => error.code === 'ASSEMBLY_INVALID'
+    && error.details.field.startsWith('assembly.blocking.regions[0].shape.points')
+    && /transformed polygon/.test(error.message) && /nearer the origin/.test(error.message));
+  assert.deepEqual(collapsed, before, 'the rejected authored polygon remains available for correction');
+  const valid = [{ ...collapsed[0], shape: { kind: 'polygon', points: [{ x: 0, y: 0 }, { x: 3.25, y: 0 }, { x: 0, y: 2.125 }] }, transform: [0, 1, -1, 0, 123, -456] }];
+  const normalized = normalizeAssemblyRegions(valid);
+  assert.deepEqual(normalized[0].transform, ASSEMBLY_IDENTITY_MATRIX);
+  assert.deepEqual(normalizeAssemblyRegions(normalized), normalized);
+});

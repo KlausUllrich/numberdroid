@@ -1,3 +1,4 @@
+import { isEmbeddedGeometry } from '../apps/studio-server/public/asset-embedded-geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -108,7 +109,7 @@ async function editorHarness(overrides = {}, timerLimit = null) {
     saveAsset: async intent => { requests.push(intent); throw new Error('Connection lost'); },
     readSavedOutcome: async () => null, onSaved: async receipt => saved.push(receipt),
     announce: message => announcements.push(message), confirmDiscard: () => { confirms += 1; return true; }, ...overrides };
-  const create = runInNewContext(`${executable}; createAssetEditorController;`, { ...editorState, structuredClone, crypto, AbortController,
+  const create = runInNewContext(`${executable}; createAssetEditorController;`, { ...editorState, isEmbeddedGeometry, structuredClone, crypto, AbortController,
     setTimeout: timerLimit === null ? setTimeout : (fn, ms) => setTimeout(fn, Math.min(ms, timerLimit)), clearTimeout,
     document: { activeElement: null }, window: { scrollX: 0, scrollY: 0, addEventListener() {} }, requestAnimationFrame() {},
     createAssetEditorView: () => element, updateAssetEditorView() {}, syncAssetEditorCanvas() {},
@@ -172,6 +173,7 @@ test('saved slices open the human Asset library before a first semantic asset ex
   for (const [savedSliceCount, expected] of [[4, 'human-library'], [0, 'legacy-library']]) {
     const result = runInNewContext(`let content; ${selection}; content;`, {
       state: { workspace: 'assets', assetAuthoring: null }, snapshot: { assets: [] },
+      assemblySupported: () => false,
       currentProjectSlices: () => Array.from({ length: savedSliceCount }),
       renderAssetLibrary: () => 'human-library', renderCollection: () => 'legacy-library',
     });

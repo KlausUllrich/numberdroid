@@ -13,7 +13,7 @@ export function sqliteAssemblyLeaves(database, projectId, assembly, cutoff) {
   const assets = new Map();
   for (const pin of declarationPins(assembly)) {
     const row = database.prepare(`SELECT v.*, b.artifact_digest, b.artifact_uri, b.media_type, b.width, b.height,
-      b.byte_size, b.source_digest FROM asset_versions v JOIN asset_slice_bindings b
+      b.byte_size, b.source_digest, b.rectangle_json, b.atlas_id, b.source_id, b.atlas_definition_version, b.atlas_definition_fingerprint, b.rectangle_id, b.processor_id, b.prior_digest, b.committed_revision FROM asset_versions v JOIN asset_slice_bindings b
       ON b.project_id=v.project_id AND b.slice_id=v.slice_id AND b.slice_version=v.slice_version
       WHERE v.project_id=? AND v.asset_id=? AND v.asset_version=?`).get(projectId, pin.assetId, pin.assetVersion);
     invariant(row && row.metadata_version === pin.metadataVersion && row.created_revision <= cutoff,
@@ -25,6 +25,12 @@ export function sqliteAssemblyLeaves(database, projectId, assembly, cutoff) {
     invariant(record.sliceBinding?.digest === row.artifact_digest && record.sliceBinding?.sourceDigest === row.source_digest
       && record.sliceBinding?.width === row.width && record.sliceBinding?.height === row.height,
     'ASSEMBLY_COMPONENT_CORRUPT', 'Component imagery lineage differs from its immutable binding.', { pin });
+    const expectedBinding = { projectId, sliceId: row.slice_id, sliceVersion: row.slice_version, atlasId: row.atlas_id,
+      sourceId: row.source_id, sourceDigest: row.source_digest, definitionVersion: row.atlas_definition_version,
+      definitionFingerprint: row.atlas_definition_fingerprint, rectangleId: row.rectangle_id, rectangle: JSON.parse(row.rectangle_json),
+      processorId: row.processor_id, digest: row.artifact_digest, artifactUri: row.artifact_uri, mediaType: row.media_type,
+      byteSize: row.byte_size, width: row.width, height: row.height, priorDigest: row.prior_digest, committedRevision: row.committed_revision };
+    invariant(fingerprint(record.sliceBinding) === fingerprint(expectedBinding), 'ASSEMBLY_COMPONENT_CORRUPT', 'Component full imagery binding differs from immutable SQLite lineage.', { pin });
     const artifact = database.prepare('SELECT * FROM artifacts WHERE digest=?').get(row.artifact_digest);
     const source = database.prepare('SELECT * FROM artifacts WHERE digest=?').get(row.source_digest);
     invariant(artifact?.state === 'LIVE' && source?.state === 'LIVE' && artifact.byte_size === row.byte_size
@@ -70,7 +76,11 @@ export function writeAssemblyAsset(database, projectId, record, provenance = 'na
   invariant(record.assetVersion === (prior?.asset_version ?? 0) + 1, 'ASSEMBLY_VERSION_CONFLICT', 'Assembly versions must be consecutive.');
   const previous = prior ? JSON.parse(prior.record_json) : null;
   invariant(record.metadataVersion === (previous ? previous.metadataVersion + (previous.metadataFingerprint === record.metadataFingerprint ? 0 : 1) : 1), 'ASSEMBLY_VERSION_CONFLICT', 'Assembly metadata version is inconsistent.');
-  if (!prior) database.prepare('INSERT INTO assembly_identities VALUES (?,?,?)').run(projectId, record.assetId, record.createdRevision);
+  if (!prior) {
+    invariant(!database.prepare('SELECT 1 FROM asset_versions WHERE project_id=? AND asset_id=? UNION SELECT 1 FROM task_branch_processing_result_adoptions WHERE project_id=? AND asset_id=?').get(projectId, record.assetId, projectId, record.assetId),
+      'ASSEMBLY_ID_CONFLICT', 'Choose a new Assembly ID; this ID already belongs to native or processing-result content.', { assetId: record.assetId });
+    database.prepare('INSERT INTO assembly_identities VALUES (?,?,?)').run(projectId, record.assetId, record.createdRevision);
+  }
   fault('after_assembly_identity');
   database.prepare('INSERT INTO assembly_versions VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(projectId, record.assetId,
     record.assetVersion, record.metadataVersion, prior?.asset_version ?? null, record.createdRevision,
@@ -89,7 +99,12 @@ export function writeAssemblyAsset(database, projectId, record, provenance = 'na
 }
 
 export function writeAssemblyRevision(database, projectId, revision, fault) {
-  if (!revision.command.type.startsWith('assembly.')) return;
+  if (!revision.command.type.startsWith('assembly.')) {
+    const prior = database.prepare('SELECT revision_json FROM revisions WHERE project_id=? AND revision_number=?').get(projectId, revision.number - 1);
+    const before = prior ? JSON.parse(prior.revision_json).snapshot.assemblyLibrary ?? null : null;
+    invariant(fingerprint(before) === fingerprint(revision.snapshot.assemblyLibrary ?? null), 'ASSEMBLY_REVISION_UNSUPPORTED', 'This operation would replace Assembly history. Preserve it or use the supported Assembly commands.');
+    return;
+  }
   const library = revision.snapshot.assemblyLibrary;
   invariant(library, 'INVALID_REVISION', 'Assembly revision is missing its Library.');
   if (revision.result.proposalId) {
@@ -103,4 +118,18 @@ export function writeAssemblyRevision(database, projectId, revision, fault) {
     invariant(record && record.assetVersion === revision.result.assetVersion && record.createdRevision === revision.number, 'INVALID_REVISION', 'Assembly save result differs.');
     writeAssemblyAsset(database, projectId, record, 'native_revision', fault);
   }
+}
+
+export function rebuildAssemblyHeads(database, projectId) {
+  if (Number(database.prepare('PRAGMA user_version').get().user_version) < 16) return;
+  database.prepare('DELETE FROM assembly_head_tags WHERE project_id=?').run(projectId);
+  database.prepare('DELETE FROM assembly_heads WHERE project_id=?').run(projectId);
+  database.prepare('DELETE FROM assembly_proposal_heads WHERE project_id=?').run(projectId);
+  const heads = new Map();
+  for (const row of database.prepare('SELECT record_json FROM assembly_versions WHERE project_id=? ORDER BY asset_id,asset_version').all(projectId)) { const record=JSON.parse(row.record_json);heads.set(record.assetId,record); }
+  for (const asset of heads.values()) {
+    database.prepare('INSERT INTO assembly_heads VALUES (?,?,?)').run(projectId,asset.assetId,asset.assetVersion);
+    for (const [order,tag] of asset.metadata.tags.entries()) database.prepare('INSERT INTO assembly_head_tags VALUES (?,?,?,?)').run(projectId,asset.assetId,tag,order);
+  }
+  database.prepare('INSERT INTO assembly_proposal_heads SELECT project_id,proposal_id,max(proposal_version) FROM assembly_proposal_versions WHERE project_id=? GROUP BY project_id,proposal_id').run(projectId);
 }

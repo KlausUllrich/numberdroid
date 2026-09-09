@@ -62,6 +62,8 @@ import {
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = resolve(moduleDirectory, '../public');
 const staticFiles = new Map([
+  ['/assembly-review-view.js', ['../public/assembly-review-view.js', 'text/javascript; charset=utf-8']],
+  ['/asset-embedded-geometry.js', ['../public/asset-embedded-geometry.js', 'text/javascript; charset=utf-8']],
   ['/assembly-editor-state.js', ['../public/assembly-editor-state.js', 'text/javascript; charset=utf-8']],
   ['/assembly-editor-view.js', ['../public/assembly-editor-view.js', 'text/javascript; charset=utf-8']],
   ['/assembly-editor-controller.js', ['../public/assembly-editor-controller.js', 'text/javascript; charset=utf-8']],
@@ -69,7 +71,6 @@ const staticFiles = new Map([
   ['/assembly-library-view.js', ['../public/assembly-library-view.js', 'text/javascript; charset=utf-8']],
   ['/assembly-editor.css', ['../public/assembly-editor.css', 'text/css; charset=utf-8']],
   ['/packages/domain/src/assembly-geometry.js', ['../../../packages/domain/src/assembly-geometry.js', 'text/javascript; charset=utf-8']],
-  ['/packages/domain/src/assembly-geometry-primitives.js', ['../../../packages/domain/src/assembly-geometry-primitives.js', 'text/javascript; charset=utf-8']],
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/a1-7-state.js', ['a1-7-state.js', 'text/javascript; charset=utf-8']],

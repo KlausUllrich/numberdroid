@@ -388,8 +388,8 @@ test('A1.3 produces a deterministic immutable non-authorizing closure receipt', 
   artifactEvidenceByRole.get('selected-output').physical.width = 1;
   assert.equal(canonicalProcessingAdoptionPreflightReceiptJson(receipt), stableReceiptJson);
 
-  assert.equal(listCommandDefinitions().length, 34);
-  assert.equal(implementedCommandTypes().length, 34);
+  assert.equal(listCommandDefinitions().length, 37);
+  assert.equal(implementedCommandTypes().length, 37);
 });
 
 test('current Numberdroid capability profile v1 fails closed before asset or CAS reads', async () => {

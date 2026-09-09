@@ -90,7 +90,7 @@ async function harness(overrides = {}) {
   const source = await readFile(new URL('../apps/studio-server/public/assembly-editor-controller.js', import.meta.url), 'utf8');
   const entry = 'return { element,\n    afterMount()'; assert.equal(source.split(entry).length, 2);
   const executable = source.slice(source.indexOf('const copy =')).replace('export function createAssemblyEditorController', 'function createAssemblyEditorController')
-    .replace(entry, 'return { save, checkOutcome, editCustomGeometry, element,\n    afterMount()');
+    .replace(entry, 'return { save, checkOutcome, editCustomGeometry, resolveReferences, testState: state, element,\n    afterMount()');
   const s = state(), initial = { ...s.context, assets: s.assets, asset: { assetId: s.context.assetId, assetVersion: 0, metadataVersion: 0, ...s.model } };
   const context = { projectId: s.context.projectId, projectRevision: 7 }, pending = [], requests = [], saved = [];
   const host = { getContext: () => context, getNativeAssets: () => s.assets, setMutationPending: value => pending.push(value),
@@ -134,4 +134,14 @@ test('in-flight Assembly save locks edits, rejects wrong receipts and ignores di
   assert.deepEqual(h.controller.getState(), prior); assert.equal(h.saved.length, 0); assert.equal(h.pending.at(-1), false);
   const wrong = await harness({ saveAssembly: async intent => ({ ...receipt(intent), projectId: 'other' }) });
   await wrong.controller.save(); assert.equal(wrong.controller.getState().save.status, 'uncertain'); assert.equal(wrong.controller.getState().context.assetVersion, 0); wrong.controller.dispose();
+});
+
+test('superseding missing pins cancels their request, clears loading, and ignores the late old closure', async () => {
+  let finish, signal, calls = 0;
+  const h = await harness({ resolveDraft: (_draft, options) => { calls += 1; signal = options.signal; return new Promise(resolve => { finish = resolve; }); } });
+  h.controller.testState.assets = []; const resolving = h.controller.resolveReferences(); assert.equal(h.controller.getState().resolution.status, 'loading');
+  await h.controller.resolveReferences(); assert.equal(calls, 1, 'same exact pin request is shared');
+  h.controller.testState.model.assembly.components = []; await h.controller.resolveReferences();
+  assert(signal.aborted); assert.equal(h.controller.getState().resolution.status, 'ready'); assert.equal(h.controller.getState().scene, null);
+  finish([leaf()]); await resolving; assert.equal(h.controller.getState().resolution.status, 'ready'); assert.equal(h.controller.getState().assets.length, 0); h.controller.dispose();
 });

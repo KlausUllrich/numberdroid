@@ -82,7 +82,7 @@ export function applyAssemblyCommand(command, next, document, now) {
     const validated = validateContent(payload, document, command.baseRevision);
     const proposal = {
       schemaVersion: 1, proposalId, proposalVersion: expected + 1, status: 'PENDING',
-      content: Object.fromEntries(CONTENT_FIELDS.map(key => [key, structuredClone(payload[key])])),
+      content: Object.fromEntries(CONTENT_FIELDS.map(key => [key, structuredClone(Object.hasOwn(validated, key) ? validated[key] : payload[key])])),
       validated, proposerActorId: command.actor.id, proposerActorKind: command.actor.kind,
       proposerTaskId: command.taskId, createdRevision: command.baseRevision + 1,
       createdAt: now, updatedBy: command.actor.id, feedback: previous?.feedback ?? null,
@@ -135,6 +135,10 @@ export function queryAssemblyDocument(request, document) {
   exactAssemblyFields(request, ['schemaVersion', 'projectId', 'assetId', 'assetVersion', 'proposalId', 'limit', 'resolveDraft', 'selection', 'expectedRevision'], 'Assembly query');
   invariant(request.schemaVersion === 1, 'SCHEMA_VERSION_UNSUPPORTED', 'Assembly reads require schemaVersion 1.');
   const head = document.revisions.at(-1);
+  if (request.selection !== undefined) {
+    exactAssemblyFields(request.selection, ['stateId', 'variantId'], 'Assembly preview selection');
+    for (const key of ['stateId', 'variantId']) if (request.selection[key] !== undefined) requireId(request.selection[key], `selection.${key}`);
+  }
   if (request.expectedRevision !== undefined) invariant(request.expectedRevision === head.number, 'REVISION_CONFLICT', 'Recheck the current project before resolving the draft.');
   if (request.resolveDraft) {
     exactAssemblyFields(request.resolveDraft, ['assetId', 'name', 'kind', 'metadata', 'assembly'], 'Assembly draft');

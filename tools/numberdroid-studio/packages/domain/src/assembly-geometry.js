@@ -36,7 +36,13 @@ export const ASSEMBLY_DECLARATION_SCHEMA = freeze(objectSchema({
   blocking: objectSchema({ mode: { type: 'string', enum: ['components', 'custom'] }, regions: arraySchema(ASSEMBLY_REGION_SCHEMA, ASSEMBLY_MAX_CUSTOM_REGIONS) }),
 }));
 const clean = (value) => value === 0 ? 0 : value;
-function normalizedRotation(value) { const remainder = value % 360; return clean(remainder < 0 ? remainder + 360 : remainder); }
+function normalizedRotation(value) {
+  const remainder = value % 360;
+  const rotation = remainder < 0 ? remainder + 360 : remainder;
+  // A tiny negative angle can round upward to exactly 360 when translated
+  // into the positive range. Keep the canonical range half-open and stable.
+  return rotation === 360 ? 0 : clean(rotation);
+}
 function fail(condition, field, message, code = 'ASSEMBLY_INVALID') {
   invariant(condition, code, `${field}: ${message}`, { field });
 }
@@ -102,20 +108,22 @@ export function normalizeAssemblyRegions(value, field = 'assembly.blocking.regio
     fail(!seen.has(regionId), `${path}.regionId`, 'Use a unique region identifier.'); seen.add(regionId);
     const name = string(entry.name, `${path}.name`);
     // Reuse the accepted exact topology validator without changing its schema.
-    let spatial;
-    try {
-      spatial = normalizeAssetSpatial({ schemaVersion: 1, coordinateSpace: 'image-pixels', unitsPerPixel: { x: 0.000001, y: 0.000001 }, placementBounds: { x: 0, y: 0, width: 1, height: 1 }, anchor: { x: 0, y: 0 }, blockingRegions: [{ regionId, name, shape: entry.shape }] }, { path });
-    } catch (error) {
-      if (!error.details?.field) throw error;
-      const field = error.details.field.replace(`${path}.blockingRegions[0]`, path);
-      fail(false, field, error.message.replace(`${error.details.field}: `, ''));
-    }
+    const normalizeShape = (candidate, transformed = false) => {
+      try {
+        return normalizeAssetSpatial({ schemaVersion: 1, coordinateSpace: 'image-pixels', unitsPerPixel: { x: 0.000001, y: 0.000001 }, placementBounds: { x: 0, y: 0, width: 1, height: 1 }, anchor: { x: 0, y: 0 }, blockingRegions: [{ regionId, name, shape: candidate }] }, { path }).blockingRegions[0].shape;
+      } catch (error) {
+        if (!error.details?.field) throw error;
+        const field = error.details.field.replace(`${path}.blockingRegions[0]`, path);
+        const correction = transformed ? 'The transformed polygon is invalid at these coordinates. Move it nearer the origin or increase point separation. ' : '';
+        fail(false, field, correction + error.message.replace(`${error.details.field}: `, ''));
+      }
+    };
     const transform = normalizeAssemblyTransform(entry.transform, `${path}.transform`);
-    let shape = spatial.blockingRegions[0].shape;
+    let shape = normalizeShape(entry.shape);
     if (shape.kind === 'polygon') {
-      shape = { kind: 'polygon', points: shape.points.map((p) => {
-        const mapped = transformAssemblyPoint(p, transform); return point(mapped, `${path}.shape.points`);
-      }) };
+      shape = normalizeShape({ kind: 'polygon', points: shape.points.map((p, index) => {
+        const mapped = transformAssemblyPoint(p, transform); return point(mapped, `${path}.shape.points[${index}]`);
+      }) }, true);
       return { regionId, name, shape, transform: [...ASSEMBLY_IDENTITY_MATRIX] };
     }
     return { regionId, name, shape, transform };
