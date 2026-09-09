@@ -133,12 +133,12 @@ slider with Fit/100%, and independent edge handles. Its mockup passed; product
 implementation and real-agent verification remain separate.
 
 Placement editing distinguishes logical footprint, ground anchor, visual extent
-and movement blocking. The current collision implementation supports one or
-several rectangles. The user-approved
+and movement blocking. The accepted Asset editor now supports exact polygons, rectangles and ovals.
+The user-approved
 [Placement & Blocking Editor Design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md) adds a
 target editor for concave polygons, multiple named regions, rectangles and ovals,
-with Shift constraints for squares/circles. That requires matching geometry and
-integration work; current code must not silently replace those shapes with boxes.
+with Shift constraints for squares/circles; VT-020 accepted the matching geometry
+and integration. Code must not silently replace those shapes with boxes.
 Pixels, transparency, shadows and visual overhang cannot silently author blocking
 semantics. The same editor must support later Library revisions.
 
@@ -282,3 +282,5 @@ The [current task router](START_HERE.md) owns the next design block; individual
 screen contracts own their design approvals and outstanding implementation proof.
 Do not restart framework onboarding or implement all example game modules as a
 prerequisite for making the Numberdroid authoring path usable.
+
+The 2026-09-09 [Assembly implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md) explicitly evolves composition storage, owner/agent review and the selected MCP profile while preserving accepted leaf Assets.

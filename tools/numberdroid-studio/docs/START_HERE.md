@@ -58,9 +58,10 @@ PR #227, post-merge green, and user accepted as VT-020. Activity is available fr
 main navigation; the duplicate sidebar is removed. Preserve accepted Cutter and
 Asset-editor behavior.
 
-Next: the [approved Assembly editor](ASSEMBLY_EDITOR_DESIGN.md). Record its
-concrete compatible component references, transforms, inherited/custom blocking,
-state/variant preview, save and review contract before implementation. Reuse
+Active block: the [approved Assembly editor](ASSEMBLY_EDITOR_DESIGN.md), authorized
+by Klaus on 2026-09-09. Its [implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md)
+records exact component references, transforms, inherited/custom blocking,
+state/variant preview, save and review before source work. Reuse
 exact saved Asset versions and the accepted geometry editor. Keep the same real-agent
 proof before Klaus's next batch. Agent proposals retain owner review; runtime
 materialization, image generation and publication keep their separate gates.

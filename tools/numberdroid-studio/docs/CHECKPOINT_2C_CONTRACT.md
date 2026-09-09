@@ -1,5 +1,7 @@
 # Numberdroid Studio — Checkpoint 2C Frozen Contract
 
+Assembly evolution authorized 2026-09-09: the [Assembly implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md) owns additive schema-v16 composition records, three Assembly commands, conditional bundle v5 and explicitly selected `assembly-v1` MCP tools. Default and existing task/private MCP surfaces remain unchanged; native Asset and Room pins retain their accepted contracts. This scoped implementation is pending verification and user acceptance.
+
 Status: **accepted core contract**; see the [acceptance record](CHECKPOINT_2C_STATUS.md).
 
 This contract freezes the Checkpoint 2C internal choices permitted by the
