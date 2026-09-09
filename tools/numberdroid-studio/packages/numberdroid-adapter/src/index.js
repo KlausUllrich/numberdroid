@@ -623,6 +623,15 @@ function adapterFindings(snapshot) {
     }));
   }
   for (const entry of snapshot.assets) {
+    if (Object.hasOwn(entry.asset.metadata ?? {}, 'spatial')) {
+      findings.push(stableFinding({
+        severity: 'ERROR',
+        ruleId: 'numberdroid.adapter.spatial_geometry_unsupported',
+        objectRef: `asset:${assetCoordinate(entry.asset)}`,
+        explanation: 'The Numberdroid adapter cannot yet preserve authored pixel-space placement, anchors and blocking shapes.',
+        remediation: 'Add and review a lossless spatial mapping before approving runtime export; do not replace polygons or ovals with bounding boxes.',
+      }));
+    }
     if (entry.asset.kind === 'item') {
       findings.push(stableFinding({
         severity: 'ERROR',

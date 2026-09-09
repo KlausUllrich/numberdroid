@@ -70,6 +70,14 @@ const staticFiles = new Map([
   ['/room-pinned-assets-state.js', ['room-pinned-assets-state.js', 'text/javascript; charset=utf-8']],
   ['/cutter-editor-state.js', ['cutter-editor-state.js', 'text/javascript; charset=utf-8']],
   ['/cutter-editor-view.js', ['cutter-editor-view.js', 'text/javascript; charset=utf-8']],
+  ['/asset-editor-state.js', ['asset-editor-state.js', 'text/javascript; charset=utf-8']],
+  ['/asset-editor-view.js', ['asset-editor-view.js', 'text/javascript; charset=utf-8']],
+  ['/asset-editor-controller.js', ['asset-editor-controller.js', 'text/javascript; charset=utf-8']],
+  ['/asset-editor.css', ['asset-editor.css', 'text/css; charset=utf-8']],
+  ['/asset-spatial-geometry.js', ['../../../packages/domain/src/asset-spatial-geometry.js', 'text/javascript; charset=utf-8']],
+  ['/errors.js', ['../../../packages/domain/src/errors.js', 'text/javascript; charset=utf-8']],
+  ['/packages/domain/src/asset-spatial-geometry.js', ['../../../packages/domain/src/asset-spatial-geometry.js', 'text/javascript; charset=utf-8']],
+  ['/packages/domain/src/errors.js', ['../../../packages/domain/src/errors.js', 'text/javascript; charset=utf-8']],
   ['/asset-authoring-state.js', ['asset-authoring-state.js', 'text/javascript; charset=utf-8']],
   ['/styles.css', ['styles.css', 'text/css; charset=utf-8']],
   ['/favicon.svg', ['favicon.svg', 'image/svg+xml']],
@@ -198,6 +206,7 @@ function sendJson(response, status, value, headers = {}) {
 }
 
 function errorStatus(error, pathname = '') {
+  if (['ASSET_SPATIAL_INVALID', 'ASSET_SPATIAL_ALIAS_CONFLICT'].includes(error.code)) return 400;
   if (error.code === 'REVIEW_VERSION_CONFLICT') return 409;
   if (pathname.startsWith('/api/backups')) {
     if (error.code === 'WORKSPACE_OPERATOR_REQUIRED') return 401;
@@ -371,6 +380,8 @@ function jobRoute(pathname) {
 }
 
 function assetRoute(pathname) {
+  const save = /^\/api\/projects\/([^/]+)\/assets\/([^/]+)\/save$/.exec(pathname);
+  if (save) return { projectId: decodeURIComponent(save[1]), assetId: decodeURIComponent(save[2]), action: 'save' };
   const lifecycle = /^\/api\/projects\/([^/]+)\/assets\/([^/]+)\/lifecycle$/.exec(pathname);
   if (lifecycle) return {
     projectId: decodeURIComponent(lifecycle[1]),
@@ -1391,6 +1402,24 @@ export function createStudioHttpServer({
       }
 
       const assetRequest = assetRoute(url.pathname);
+      if (assetRequest?.action === 'save') {
+        if (request.method !== 'POST') {
+          response.setHeader('allow', 'POST');
+          sendJson(response, 405, { schemaVersion: 1, error: { code: 'METHOD_NOT_ALLOWED' } });
+          return;
+        }
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        if (url.search) throw new StudioError('VALIDATION_ERROR', 'Asset saves do not accept query parameters.');
+        const body = await readJsonBody(request, { maxBytes: 128 * 1024 });
+        assertExactKeys(body, new Set(['expectedRevision', 'idempotencyKey', 'operation', 'expectedAssetVersion', 'expectedMetadataVersion', 'name', 'kind', 'metadata', 'image']), 'Asset save request');
+        const { expectedRevision: _expectedRevision, idempotencyKey: _idempotencyKey, ...payload } = body;
+        const projectView = await studioService.readProjectTrusted(assetRequest.projectId);
+        sendJson(response, 200, await studioService.execute(
+          humanCommandDto(assetRequest.projectId, body, 'asset.save', { ...payload, assetId: assetRequest.assetId }),
+          humanOwnerContext(projectView), { signal: requestAbort.signal },
+        ));
+        return;
+      }
       if (request.method === 'GET' && assetRequest?.action === 'read') {
         const projectView = await studioService.readProjectTrusted(assetRequest.projectId);
         const result = await studioService.queryAssets(

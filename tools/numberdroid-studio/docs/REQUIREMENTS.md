@@ -1,5 +1,7 @@
 # Numberdroid Studio — Product Requirements
 
+Current scoped evolution (2026-09-08): the [Asset editor implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md) adds owner-only `asset.save`, optional typed spatial metadata and conditional portable bundle v4. Internal catalogs become 34/30 and private-overlay 35/31 definitions/scopes; agent MCP tools/templates remain 19/4 and matching-task 30/5. This does not change review authority, task Resume, or prior acceptance. Earlier counts below describe their named legacy checkpoint.
+
 Status: binding product contract aligned with [VISION.md](VISION.md). Accepted
 checkpoint sections remain compatibility requirements for their shipped slices;
 historical V1/V2 labels do not limit the forward product vision.

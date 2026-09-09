@@ -6,6 +6,7 @@
     <title>Numberdroid Studio</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/asset-editor.css">
   </head>
   <body>
     <div class="app-shell">
@@ -95,13 +96,6 @@
         <section id="workspace-content" class="workspace-content" aria-live="polite"></section>
       </main>
 
-      <aside class="activity-panel">
-        <div class="panel-heading">
-          <div><p class="eyebrow">Agent observable</p><h2>Activity feed</h2></div>
-          <span id="activity-count" class="count">0</span>
-        </div>
-        <ol id="activity-list" class="activity-list"></ol>
-      </aside>
     </div>
     <div id="toast" role="status" aria-live="polite"></div>
     <script type="module" src="/app.js"></script>

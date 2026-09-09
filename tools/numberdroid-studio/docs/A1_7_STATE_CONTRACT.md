@@ -1,5 +1,7 @@
 # A1.7 visual review and correction state contract
 
+Current scoped evolution (2026-09-08): the [Asset editor implementation contract](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md) adds owner-only `asset.save`, optional typed spatial metadata and conditional portable bundle v4. Internal catalogs become 34/30 and private-overlay 35/31 definitions/scopes; agent MCP tools/templates remain 19/4 and matching-task 30/5. This does not change review authority, task Resume, or prior acceptance. Earlier counts below describe their named legacy checkpoint.
+
 Status: **D0 CONTRACT FROZEN — READ PROJECTION AND VISUAL IMPLEMENTED CANDIDATES, NOT USER ACCEPTED**
 
 Implementation state: the separately classified human-safe read projection and

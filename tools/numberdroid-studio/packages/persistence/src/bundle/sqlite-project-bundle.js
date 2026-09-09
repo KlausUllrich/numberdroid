@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 import { invariant } from '../../../domain/src/errors.js';
+import { validateAssetMetadataForVisualFacts } from '../../../domain/src/asset-definition.js';
+import { normalizeAssetSpatial, validateSpatialAliases } from '../../../domain/src/asset-spatial-geometry.js';
 import { validateRoomArchetype, validateRoomVariant } from '../../../domain/src/room-definition.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { ContentAddressedArtifactStore } from '../artifacts/content-addressed-artifact-store.js';
@@ -640,8 +642,16 @@ function validateRectangleSchema(rectangle, label, { binding = false } = {}) {
   if (rectangle.pivot !== null) exactKeys(rectangle.pivot, ['x', 'y'], `${label}.pivot`);
 }
 
-function validateMetadataSchema(metadata, label) {
-  exactKeys(metadata, METADATA_KEYS, label);
+function validateMetadataSchema(metadata, label, schemaVersion) {
+  const spatial = Object.hasOwn(metadata, 'spatial');
+  invariant(!spatial || schemaVersion === 4, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Spatial Asset metadata requires portable schema v4.', { label });
+  invariant(metadata.collision?.mode !== 'spatial' || spatial, 'BUNDLE_SCHEMA_INVALID', 'Spatial collision requires its spatial document.', { label });
+  exactKeys(metadata, [...METADATA_KEYS, ...(spatial ? ['spatial'] : [])], label);
+  if (spatial) {
+    const normalized = normalizeAssetSpatial(metadata.spatial);
+    invariant(fingerprint(normalized) === fingerprint(metadata.spatial), 'BUNDLE_SCHEMA_NONCANONICAL', 'Spatial metadata must be normalized before portable exchange.', { label });
+    validateSpatialAliases(metadata, normalized);
+  }
   if (metadata.spanTiles !== null) exactKeys(metadata.spanTiles, ['width', 'height'], `${label}.spanTiles`);
   if (metadata.anchor !== null) exactKeys(metadata.anchor, ['x', 'y'], `${label}.anchor`);
   exactKeys(metadata.placement, ['modes', 'wallSafe', 'tags', 'confirmation'], `${label}.placement`);
@@ -666,20 +676,20 @@ function validateFindingSchema(finding, label) {
   exactKeys(finding, FINDING_KEYS, label);
 }
 
-function validateProposalItemSchema(item, label) {
+function validateProposalItemSchema(item, label, schemaVersion) {
   exactKeys(item, PROPOSAL_ITEM_KEYS, label);
-  validateMetadataSchema(item.metadata, `${label}.metadata`);
+  validateMetadataSchema(item.metadata, `${label}.metadata`, schemaVersion);
   validateExactBindingSchema(item.sliceBinding, `${label}.sliceBinding`);
   item.findings.forEach((finding, index) => validateFindingSchema(finding, `${label}.findings[${index}]`));
   exactKeys(item.decision, DECISION_KEYS, `${label}.decision`);
   exactKeys(item.diff, DIFF_KEYS, `${label}.diff`);
   if (item.diff.before !== null) {
     exactKeys(item.diff.before, DIFF_BEFORE_KEYS, `${label}.diff.before`);
-    validateMetadataSchema(item.diff.before.metadata, `${label}.diff.before.metadata`);
+    validateMetadataSchema(item.diff.before.metadata, `${label}.diff.before.metadata`, schemaVersion);
     validateExactBindingSchema(item.diff.before.sliceBinding, `${label}.diff.before.sliceBinding`);
   }
   exactKeys(item.diff.after, DIFF_AFTER_KEYS, `${label}.diff.after`);
-  validateMetadataSchema(item.diff.after.metadata, `${label}.diff.after.metadata`);
+  validateMetadataSchema(item.diff.after.metadata, `${label}.diff.after.metadata`, schemaVersion);
   validateExactBindingSchema(item.diff.after.sliceBinding, `${label}.diff.after.sliceBinding`);
 }
 
@@ -702,12 +712,12 @@ function validateRoomLibrarySchemas(roomLibrary, schemaVersion) {
   roomLibrary.variants.forEach((entry, entryIndex) => {
     const entryLabel = `roomLibrary.variants[${entryIndex}]`; exactKeys(entry, ROOM_VARIANT_ENTRY_KEYS, entryLabel);
     entry.versions.forEach((version, versionIndex) => {
-      const label = `${entryLabel}.versions[${versionIndex}]`; exactKeys(version, schemaVersion === 3 ? ROOM_VERSION_KEYS_V3 : ROOM_VERSION_KEYS, label);
+      const label = `${entryLabel}.versions[${versionIndex}]`; exactKeys(version, schemaVersion >= 3 ? ROOM_VERSION_KEYS_V3 : ROOM_VERSION_KEYS, label);
       exactKeys(version.origin, ['x', 'y'], `${label}.origin`);
       version.intentTrace.forEach((intent, intentIndex) => exactKeys(intent, ROOM_INTENT_KEYS, `${label}.intentTrace[${intentIndex}]`));
       version.connectors.forEach((connector, connectorIndex) => exactKeys(connector, ROOM_CONNECTOR_KEYS, `${label}.connectors[${connectorIndex}]`));
       version.placements.forEach((placement, placementIndex) => validateRoomPlacementSchema(placement, `${label}.placements[${placementIndex}]`));
-      if (schemaVersion === 3) {
+      if (schemaVersion >= 3) {
         version.voidCells.forEach((cell, cellIndex) => exactKeys(cell, ['x', 'y'], `${label}.voidCells[${cellIndex}]`));
         version.blockedCells.forEach((cell, cellIndex) => exactKeys(cell, ['x', 'y'], `${label}.blockedCells[${cellIndex}]`));
       }
@@ -758,17 +768,18 @@ function validateNestedSchemas(project) {
   });
   project.assetLibrary.versions.forEach((version, index) => {
     exactKeys(version, VERSION_KEYS, `assetLibrary.versions[${index}]`);
-    validateMetadataSchema(version.metadata, `assetLibrary.versions[${index}].metadata`);
+    validateMetadataSchema(version.metadata, `assetLibrary.versions[${index}].metadata`, project.schemaVersion);
   });
   project.assetLibrary.heads.forEach((head, index) => {
     const label = `assetLibrary.heads[${index}]`;
     exactKeys(head, HEAD_KEYS, label);
     const assetKeys = Object.hasOwn(head.semantic, 'lifecycleRevision') ? [...ASSET_KEYS, 'lifecycleRevision'] : ASSET_KEYS;
     exactKeys(head.semantic, assetKeys, `${label}.semantic`);
-    validateMetadataSchema(head.semantic.metadata, `${label}.semantic.metadata`);
+    validateMetadataSchema(head.semantic.metadata, `${label}.semantic.metadata`, project.schemaVersion);
     head.semantic.findings.forEach((finding, findingIndex) => validateFindingSchema(finding, `${label}.semantic.findings[${findingIndex}]`));
     validateExactBindingSchema(head.semantic.sliceBinding, `${label}.semantic.sliceBinding`);
-    exactKeys(head.semantic.proposal, PROPOSAL_LINK_KEYS, `${label}.semantic.proposal`);
+    if (head.semantic.proposal === null) invariant(project.schemaVersion === 4, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Owner-saved Assets require portable schema v4.');
+    else exactKeys(head.semantic.proposal, PROPOSAL_LINK_KEYS, `${label}.semantic.proposal`);
   });
   project.assetLibrary.findings.forEach((wrapper, index) => {
     exactKeys(wrapper, FINDING_WRAPPER_KEYS, `assetLibrary.findings[${index}]`);
@@ -780,7 +791,7 @@ function validateNestedSchemas(project) {
     exactKeys(proposal.semantic, PROPOSAL_SEMANTIC_KEYS, `${label}.semantic`);
     exactKeys(proposal.semantic.proposer, PROPOSER_KEYS, `${label}.semantic.proposer`);
     exactKeys(proposal.semantic.proposer.actor, ACTOR_KEYS, `${label}.semantic.proposer.actor`);
-    proposal.semantic.items.forEach((item, itemIndex) => validateProposalItemSchema(item, `${label}.semantic.items[${itemIndex}]`));
+    proposal.semantic.items.forEach((item, itemIndex) => validateProposalItemSchema(item, `${label}.semantic.items[${itemIndex}]`, project.schemaVersion));
   });
   project.appliedJobHistory.forEach((job, index) => {
     const label = `appliedJobHistory[${index}]`;
@@ -803,8 +814,15 @@ function validateNestedSchemas(project) {
   if (project.schemaVersion >= 2) validateRoomLibrarySchemas(project.roomLibrary, project.schemaVersion);
 }
 
+function hasNewAssetSemantics(project) {
+  return project.assetLibrary.versions.some(v => v.proposalId === null || Object.hasOwn(v.metadata, 'spatial'))
+    || project.proposals.some(p => p.semantic.items.some(i => [i.metadata, i.diff?.before?.metadata, i.diff?.after?.metadata].some(m => m && Object.hasOwn(m, 'spatial'))));
+}
+
 export function validateSqlitePortableProject(project) {
   validateNestedSchemas(project);
+  const extended = hasNewAssetSemantics(project);
+  invariant(project.schemaVersion === 4 ? extended : !extended, 'BUNDLE_SCHEMA_NONCANONICAL', 'Portable schema v4 is required exactly when owner-saved or spatial Asset semantics are present.');
   requireUnique(project.sources, (source) => source.sourceId, 'sources');
   requireUnique(project.atlases, (atlas) => atlas.atlasId, 'atlases');
   requireUnique(project.legacyAssets, (asset) => asset.assetId, 'legacyAssets');
@@ -843,16 +861,56 @@ export function validateSqlitePortableProject(project) {
     const binding = bindings.get(`${version.sliceId}:${version.sliceVersion}`);
     invariant(binding, 'BUNDLE_SEMANTIC_INVALID', 'An asset version has no exact slice binding.', { assetId: version.assetId });
     invariant(fingerprint({ kind: version.kind, metadata: version.metadata }) === version.metadataFingerprint, 'BUNDLE_SEMANTIC_INVALID', 'An asset metadata fingerprint is invalid.', { assetId: version.assetId, assetVersion: version.assetVersion });
+    if (project.schemaVersion === 4) {
+      const { pixelSize: _pixelSize, pivot: _pivot, ...authored } = version.metadata;
+      const validated = validateAssetMetadataForVisualFacts({ assetId: version.assetId, kind: version.kind,
+        metadata: authored, pixelSize: { width: binding.width, height: binding.height }, pivot: binding.rectangle.pivot });
+      const findings = project.assetLibrary.findings.filter(f => f.assetId === version.assetId && f.assetVersion === version.assetVersion)
+        .sort((a, b) => a.findingOrder - b.findingOrder).map(f => f.finding);
+      invariant(fingerprint(validated.metadata) === fingerprint(version.metadata)
+        && fingerprint(validated.findings) === version.findingsFingerprint && fingerprint(findings) === version.findingsFingerprint,
+      'BUNDLE_SEMANTIC_INVALID', 'Saved Asset metadata or findings disagree with its exact image facts.', { assetId: version.assetId });
+      invariant((version.proposalId === null) === (version.proposalItemId === null), 'BUNDLE_SEMANTIC_INVALID', 'Proposal links must both be present or absent.');
+    }
     const values = versionsByAsset.get(version.assetId) ?? [];
     values.push(version);
     versionsByAsset.set(version.assetId, values);
   }
   for (const values of versionsByAsset.values()) {
     invariant(values.every((value, index) => value.assetVersion === index + 1), 'BUNDLE_SEMANTIC_INVALID', 'Asset versions must be consecutive.');
+    if (project.schemaVersion === 4) for (const [index, version] of values.entries()) {
+      const prior = values[index - 1];
+      const expectedMetadataVersion = prior ? prior.metadataVersion + (prior.metadataFingerprint === version.metadataFingerprint ? 0 : 1) : 1;
+      invariant(version.previousAssetVersion === (prior?.assetVersion ?? null) && version.metadataVersion === expectedMetadataVersion,
+        'BUNDLE_SEMANTIC_INVALID', 'Asset parent and metadata version sequence are inconsistent.');
+      if (version.proposalId === null) {
+        const lifecycleStep = prior && ['DRAFT', 'METADATA_COMPLETE', 'VALIDATED', 'FINAL'].indexOf(version.lifecycle)
+          - ['DRAFT', 'METADATA_COMPLETE', 'VALIDATED', 'FINAL'].indexOf(prior.lifecycle);
+        const ownerDraft = version.lifecycle === 'DRAFT' && version.acceptedWarningIds.length === 0;
+        const ownerPromotion = lifecycleStep === 1 && prior.proposalId === null && version.name === prior.name
+          && version.kind === prior.kind && version.sliceId === prior.sliceId && version.sliceVersion === prior.sliceVersion
+          && version.metadataFingerprint === prior.metadataFingerprint;
+        invariant(ownerDraft || ownerPromotion, 'BUNDLE_SEMANTIC_INVALID', 'An owner-saved version must be a draft or a valid unchanged-content lifecycle promotion.');
+      }
+    }
   }
   for (const head of project.assetLibrary.heads) {
     const latest = versionsByAsset.get(head.assetId)?.at(-1);
     invariant(latest && latest.assetVersion === head.assetVersion && latest.metadataVersion === head.metadataVersion, 'BUNDLE_SEMANTIC_INVALID', 'Asset head does not name its latest version.', { assetId: head.assetId });
+    if (project.schemaVersion === 4) {
+      const semantic = head.semantic;
+      invariant(['assetId', 'assetVersion', 'metadataVersion', 'name', 'kind', 'lifecycle'].every(key => head[key] === latest[key] && semantic[key] === latest[key])
+        && semantic.sliceBinding.sliceId === latest.sliceId && semantic.sliceBinding.sliceVersion === latest.sliceVersion
+        && fingerprint(semantic.metadata) === fingerprint(latest.metadata)
+        && fingerprint(semantic.findings) === latest.findingsFingerprint
+        && fingerprint(semantic.warningDispositions) === fingerprint(latest.acceptedWarningIds)
+        && (latest.proposalId === null ? semantic.proposal === null : semantic.proposal?.proposalId === latest.proposalId && semantic.proposal.itemId === latest.proposalItemId),
+      'BUNDLE_SEMANTIC_INVALID', 'The Asset semantic head differs from its immutable latest version.');
+      const binding = bindings.get(`${latest.sliceId}:${latest.sliceVersion}`);
+      const { boundRevision: _bound, committedAt: _at, committedBy: _by, jobId: _job, ...exact } = binding;
+      invariant(fingerprint(semantic.sliceBinding) === fingerprint({ projectId: project.projectHead.projectId, ...exact }),
+        'BUNDLE_SEMANTIC_INVALID', 'The Asset semantic head binding differs from its immutable image lineage.');
+    }
   }
   for (const proposal of project.proposals) {
     invariant(proposal.status === 'APPLIED' && proposal.semantic.proposalVersion === 3, 'BUNDLE_NOT_QUIESCENT', 'Only applied v9 proposals can be exported.', { proposalId: proposal.proposalId });
@@ -1062,11 +1120,12 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
     const hasIrregularRoomShape = (snapshot.roomLibrary?.variants ?? []).some((entry) => entry.versions.some((version) => (
       (version.voidCells?.length ?? 0) > 0 || (version.blockedCells?.length ?? 0) > 0
     )));
-    const roomSchemaVersion = hasIrregularRoomShape ? 3 : 2;
+    const extendedAssets = hasNewAssetSemantics({ assetLibrary: { versions }, proposals });
+    const roomSchemaVersion = extendedAssets ? 4 : hasIrregularRoomShape ? 3 : 2;
     const roomLibrary = portableRoomLibrary(snapshot, roomSchemaVersion);
     const hasRoomSemantics = roomLibrary.archetypes.length > 0 || roomLibrary.variants.length > 0 || roomLibrary.proposals.length > 0;
     const project = cleanUndefined({
-      schemaVersion: hasRoomSemantics ? roomSchemaVersion : 1,
+      schemaVersion: extendedAssets ? 4 : hasRoomSemantics ? roomSchemaVersion : 1,
       bundleKind: 'numberdroid-studio-project',
       projectHead: {
         projectId,
@@ -1089,7 +1148,7 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
       proposals,
       appliedJobHistory: jobHistory,
       activity: revisions.map(portableActivity),
-      ...(hasRoomSemantics ? { roomLibrary } : {}),
+      ...(hasRoomSemantics || extendedAssets ? { roomLibrary } : {}),
     });
     validateSqlitePortableProject(project);
     return { project, artifacts };

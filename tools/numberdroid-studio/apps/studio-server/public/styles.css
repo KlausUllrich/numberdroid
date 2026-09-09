@@ -27,7 +27,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 button[data-disabled-by-task-pending="true"] { cursor: wait; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
-.app-shell { display: grid; grid-template: 76px 1fr / 220px minmax(560px, 1fr) 340px; min-height: 100vh; }
+.app-shell { display: grid; grid-template: 76px 1fr / 220px minmax(0, 1fr); min-height: 100vh; }
 .topbar { position: relative; z-index: 30; grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; border-bottom: 1px solid var(--line); background: #0c1714eb; backdrop-filter: blur(14px); }
 .brand { display: flex; align-items: center; gap: 11px; color: inherit; text-decoration: none; }
 .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid #4d8c78; border-radius: 10px; background: linear-gradient(135deg, #6ee7ba, #23745c); color: #062119; font-weight: 900; }
@@ -639,27 +639,16 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
 .backup-unlock button { justify-self: start; }
 .backup-form-status { min-height: 18px; margin: 0; color: var(--muted); font-size: 11px; }
 
-.activity-panel { min-width: 0; padding: 23px 18px; border-left: 1px solid var(--line); background: #0d1815; }
 .panel-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
 .panel-heading .eyebrow { margin-left: 0; }
 .panel-heading h2 { font-size: 18px; }
 .count { display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 8px; border-radius: 999px; background: #1a3028; color: var(--mint); font: 11px ui-monospace, monospace; }
-.activity-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.activity-item { position: relative; margin-left: 8px; padding: 0 0 20px 22px; border-left: 1px solid #315046; }
-.activity-item::before { content: ''; position: absolute; left: -5px; top: 3px; width: 8px; height: 8px; border: 1px solid #0d1815; border-radius: 50%; background: var(--cyan); }
-.activity-item.human::before { background: var(--mint); }
-.activity-item:last-child { border-left-color: transparent; }
-.activity-meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font: 10px ui-monospace, monospace; }
-.actor-badge { color: var(--cyan); text-transform: uppercase; }
-.activity-item.human .actor-badge { color: var(--mint); }
-.activity-item p { margin: 6px 0 4px; color: #d9eae4; font-size: 12px; line-height: 1.45; }
-.activity-item small { color: #607d74; font-size: 10px; }
 #toast { position: fixed; right: 20px; bottom: 20px; max-width: 380px; padding: 11px 14px; border: 1px solid #466b60; border-radius: 8px; background: #152a23; color: #eafff7; opacity: 0; transform: translateY(8px); pointer-events: none; transition: .18s ease; }
 #toast.visible { opacity: 1; transform: none; }
 .remote-read-only-badge { padding: 7px 10px; border: 1px solid #376a60; border-radius: 999px; background: #142a25; color: var(--mint); font: 10px ui-monospace, monospace; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
 
 @media (max-width: 1200px) {
-  .app-shell { grid-template-columns: 190px minmax(540px, 1fr) 300px; }
+  .app-shell { grid-template-columns: 190px minmax(0, 1fr); }
   .topbar { padding: 0 14px; }
   .brand { gap: 8px; }
   .brand-mark { width: 32px; height: 32px; }
@@ -681,7 +670,7 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .room-editor-shell { grid-template-columns: 82px minmax(300px, 1fr); }
   .room-preview-layout { grid-template-columns: 1fr; }
   .room-preview-objects { max-height: none; }
-  .room-editor-dock { grid-column: 2; max-height: none; overflow: visible; }
+  .room-editor-dock { grid-column: 2; height: 78vh; min-height: 0; max-height: 78vh; overflow: auto; align-content: start; }
   .room-tool-options { grid-template-columns: minmax(170px, 1fr) auto; }
   .room-editor-status { justify-self: end; }
   .room-tool-actions { grid-column: 1 / -1; justify-content: start; }
@@ -750,7 +739,6 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
 
 /* Approved precise Cutter editor: one stable canvas with bounded adjacent tools. */
 body[data-cutter-open="true"] .app-shell { grid-template-columns: 190px minmax(0,1fr); }
-body[data-cutter-open="true"] .activity-panel { display:none; }
 body[data-cutter-open="true"] main { padding:20px 24px; }
 body[data-cutter-open="true"] .hero { padding-bottom:12px; align-items:center; }
 body[data-cutter-open="true"] .hero h1 { font-size:20px; }
@@ -833,3 +821,15 @@ body[data-cutter-open="true"] .workspace-content { padding-top:16px; }
 
 body[data-cutter-open="true"] .hero .review-state { display:flex; align-items:center; gap:12px; }
 .cutter-editor-layout .cutter-scroll { height:clamp(320px,calc(100vh - 480px),580px); }
+
+/* Exact spatial artwork may overhang its independently authored placement bounds. */
+.room-placement[data-spatial="true"] { overflow:visible; }
+.room-spatial-visual { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+.room-spatial-unavailable { color:#ffd0c2; }
+
+body[data-asset-editor-open="true"] main { padding:20px 24px; }
+body[data-asset-editor-open="true"] .hero { padding-bottom:12px; align-items:center; }
+body[data-asset-editor-open="true"] .hero h1 { font-size:20px; max-width:70vw; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+body[data-asset-editor-open="true"] .hero #project-description,
+body[data-asset-editor-open="true"] .hero .eyebrow { display:none; }
+body[data-asset-editor-open="true"] .workspace-content { padding-top:16px; }

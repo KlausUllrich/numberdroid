@@ -62,10 +62,10 @@ function taskSpec(taskId) {
   };
 }
 
-test('Authoring-v2 registry is a one-command/one-scope overlay while legacy 33/30 stays exact', () => {
+test('Authoring-v2 registry is a one-command/one-scope overlay while owner-save 34/30 stays exact', () => {
   assert.equal(AUTHORING_V2_SCHEMA_VERSION, 2);
   assert.equal(AUTHORING_V2_FEATURE_ID, 'studio.authoring-v2');
-  assert.equal(COMMAND_DEFINITIONS.length, 33);
+  assert.equal(COMMAND_DEFINITIONS.length, 34);
   assert.equal(KNOWN_GRANT_SCOPES.length, 30);
   assert.equal(COMMAND_DEFINITIONS.some(({ type }) => type === PROCESSING_RESULT_ADOPTION_COMMAND_TYPE), false);
   assert.equal(KNOWN_GRANT_SCOPES.includes(PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE), false);
@@ -88,7 +88,7 @@ test('Authoring-v2 registry is a one-command/one-scope overlay while legacy 33/3
       operationVersion: 1,
     },
   });
-  assert.equal(COMMAND_DEFINITIONS.length + AUTHORING_V2_COMMAND_FEATURES.length, 34);
+  assert.equal(COMMAND_DEFINITIONS.length + AUTHORING_V2_COMMAND_FEATURES.length, 35);
   assert.equal(listAuthoringV2GrantScopes().length, 31);
   assert.equal(listAuthoringV2GrantScopes().at(-1), PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE);
 });

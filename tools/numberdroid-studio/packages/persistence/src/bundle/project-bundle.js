@@ -292,7 +292,7 @@ function validateAppliedJobHistory(jobs) {
 }
 
 export function validatePortableProjectDocument(project, { limits = PROJECT_BUNDLE_LIMITS, semanticValidator = null } = {}) {
-  invariant([1, 2, 3].includes(project?.schemaVersion) && project.bundleKind === BUNDLE_KIND, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Unsupported portable project schema.');
+  invariant([1, 2, 3, 4].includes(project?.schemaVersion) && project.bundleKind === BUNDLE_KIND, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Unsupported portable project schema.');
   exactKeys(project, project.schemaVersion >= 2 ? PROJECT_KEYS_V2 : PROJECT_KEYS_V1, 'project.json');
   exactKeys(project.projectHead, PROJECT_HEAD_KEYS, 'projectHead');
   exactKeys(project.assetLibrary, ASSET_LIBRARY_KEYS, 'assetLibrary');

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { createAssetAuthoringDraft, buildAssetAuthoringRequest } from '../apps/studio-server/public/asset-authoring-state.js';
+import * as editorState from '../apps/studio-server/public/asset-editor-state.js';
 
 const appUrl = new URL('../apps/studio-server/public/app.js', import.meta.url);
 const stylesUrl = new URL('../apps/studio-server/public/styles.css', import.meta.url);
@@ -91,65 +91,79 @@ test('2C Asset Library remains usable at the protected 1060px layout', async () 
 );
 
 
-test('human Asset form keeps explicit editable choices and locks a submitted request', async () => {
-  const app = await readFile(appUrl, 'utf8');
-  const source = app.slice(app.indexOf('function renderAssetAuthoring()'), app.indexOf('function assetAuthoringSavedProposal'));
-  const makeElement = (tag = 'section') => ({ tag, dataset: {}, children: [], append(...children) { this.children.push(...children); }, setAttribute(name, value) { this[name] = value; } });
-  const draft = createAssetAuthoringDraft({ projectId: 'project.test', projectRevision: 7, sliceId: 'slice.test', sliceVersion: 1,
-    proposalId: 'proposal.test', itemId: 'item.test', assetId: 'asset.test', idempotencyKey: 'key.test' });
-  draft.values.name = 'My prop'; draft.values.role = 'furniture';
-  const state = { assetAuthoring: { draft, request: null, pinned: {} }, assetMutationPending: false };
-  const render = runInNewContext(`${source}; renderAssetAuthoring;`, { state, document: { createElement: makeElement },
-    sectionHeading: makeElement, currentAssetAuthoringConflict: () => null, assetAuthoringPreview: makeElement });
-  const flatten = (node) => [node, ...(node.children ?? []).filter((child) => typeof child === 'object').flatMap(flatten)];
-  let nodes = flatten(render()); let inputs = nodes.filter(({ name }) => name);
-  assert.deepEqual(inputs.map(({ name }) => name).sort(), Object.keys(draft.values).sort());
-  assert(inputs.every((input) => input.value === draft.values[input.name] && input.disabled === false));
-  assert(nodes.some((node) => node.dataset.assetAuthoringSubmit === '' && node.textContent === 'Prepare asset for review'));
-  state.assetAuthoring.request = buildAssetAuthoringRequest(draft);
-  nodes = flatten(render()); inputs = nodes.filter(({ name }) => name);
-  assert(inputs.every((input) => input.disabled === true));
-  assert(nodes.some((node) => node.dataset.assetAuthoringRetry === ''));
-  assert.equal(state.assetAuthoring.request.items[0].metadata.placement.confirmation, 'proposed');
+// Execute the actual controller with inert rendering and DOM listeners. Expose
+// its private async actions only in this VM so each request can be awaited.
+async function editorHarness(overrides = {}, timerLimit = null) {
+  const source = await readFile(new URL('../apps/studio-server/public/asset-editor-controller.js', import.meta.url), 'utf8');
+  assert.equal(source.split('return { element, afterMount()').length, 2);
+  const executable = source.slice(source.indexOf('const clone ='))
+    .replace('export function createAssetEditorController', 'function createAssetEditorController')
+    .replace('return { element, afterMount()', 'return { save, checkOutcome, recheck, element, afterMount()');
+  const element = { isConnected: false, addEventListener() {}, querySelectorAll: () => [], querySelector: () => ({}) };
+  const initial = { projectId: 'project.test', projectRevision: 7, assetId: 'asset.test',
+    pixelSize: { width: 40, height: 40 }, slice: { sliceId: 'slice.test', version: 1, rectangle: { name: 'My prop' } } };
+  const context = { projectId: initial.projectId, projectRevision: 7, slice: initial.slice };
+  const requests = [], pending = [], announcements = [], saved = []; let confirms = 0;
+  const host = { getContext: () => context, setMutationPending: value => pending.push(value),
+    saveAsset: async intent => { requests.push(intent); throw new Error('Connection lost'); },
+    readSavedOutcome: async () => null, onSaved: async receipt => saved.push(receipt),
+    announce: message => announcements.push(message), confirmDiscard: () => { confirms += 1; return true; }, ...overrides };
+  const create = runInNewContext(`${executable}; createAssetEditorController;`, { ...editorState, structuredClone, crypto, AbortController,
+    setTimeout: timerLimit === null ? setTimeout : (fn, ms) => setTimeout(fn, Math.min(ms, timerLimit)), clearTimeout,
+    document: { activeElement: null }, window: { scrollX: 0, scrollY: 0, addEventListener() {} }, requestAnimationFrame() {},
+    createAssetEditorView: () => element, updateAssetEditorView() {}, syncAssetEditorCanvas() {},
+    ResizeObserver: class { observe() {} disconnect() {} },
+  });
+  return { controller: create({ initial, host }), context, requests, pending, announcements, saved, confirms: () => confirms };
+}
+const receiptFor = intent => ({ projectId: intent.projectId, revision: intent.payload.expectedRevision + 1,
+  value: { assetId: intent.assetId, assetVersion: intent.payload.expectedAssetVersion + 1, metadataVersion: 1 } });
+
+test('direct Asset Save locks an in-flight request and creates one confirmed draft version', async () => {
+  let complete; const requests = [];
+  const h = await editorHarness({ saveAsset: intent => { requests.push(intent); return new Promise(resolve => { complete = resolve; }); } });
+  const saving = h.controller.save();
+  assert.equal(h.controller.getState().save.status, 'saving');
+  assert.equal(h.controller.requestLeave(), false); assert.equal(h.confirms(), 0);
+  await h.controller.save(); await h.controller.save(true); assert.equal(requests.length, 1);
+  const intent = requests[0]; assert.equal(intent.payload.operation, 'create');
+  assert.equal(intent.payload.image.mode, 'saved-slice'); assert.equal(intent.payload.metadata.placement.confirmation, 'confirmed');
+  complete(receiptFor(intent)); await saving;
+  const state = h.controller.getState();
+  assert.equal(state.context.assetVersion, 1); assert.equal(state.context.projectRevision, 8);
+  assert.equal(state.save.status, 'idle'); assert.equal(state.save.intent, null);
+  assert.equal(editorState.assetEditorDirty(state), false); assert.equal(h.saved.length, 1);
+  assert.deepEqual(h.pending, [true, false]); h.controller.dispose();
 });
 
-test('abandoning an Asset draft asks explicitly while unknown delivery keeps its exact request', async () => {
-  const app = await readFile(appUrl, 'utf8');
-  const source = app.slice(app.indexOf('function mayAbandonAssetAuthoring()'), app.indexOf('function currentAssetAuthoringConflict'));
-  let confirms = 0; let message = '';
-  const state = { assetAuthoring: { request: {} }, assetMutationPending: false };
-  const abandon = runInNewContext(`${source}; mayAbandonAssetAuthoring;`, { state,
-    window: { confirm() { confirms += 1; return true; } }, showToast(value) { message = value; } });
-  assert.equal(abandon(), false); assert.equal(confirms, 0); assert.match(message, /outcome is not confirmed/);
-  state.assetAuthoring.request = null;
-  assert.equal(abandon(), true); assert.equal(confirms, 1); assert.equal(state.assetAuthoring, null);
+test('leaving a dirty Asset editor requires confirmation while uncertain Save cannot be abandoned', async () => {
+  const h = await editorHarness();
+  assert.equal(h.controller.requestLeave(), true); assert.equal(h.confirms(), 0);
+  // A failed Save retains its intent even when the original model was clean.
+  await h.controller.save(); const intent = h.controller.getState().save.intent;
+  assert.equal(h.controller.requestLeave(), false); assert.equal(h.confirms(), 0);
+  assert.match(h.announcements.at(-1), /pending save/);
+  assert.deepEqual(h.controller.getState().save.intent, intent); h.controller.dispose();
+  // Isolate the same requestLeave closure with a real dirty editor state.
+  const source = await readFile(new URL('../apps/studio-server/public/asset-editor-controller.js', import.meta.url), 'utf8');
+  const leaveSource = source.slice(source.indexOf('  function requestLeave()'), source.indexOf('  async function click('));
+  const state = editorState.createAssetEditorState({ projectId: 'p', projectRevision: 1, assetId: 'a', pixelSize: { width: 40, height: 40 }, slice: { sliceId: 's', version: 1 } });
+  state.model.name = 'Unsaved purpose'; let accepted = false; let confirmations = 0;
+  const leave = runInNewContext(`${leaveSource}; requestLeave;`, { state, locked: () => false, assetEditorDirty: editorState.assetEditorDirty,
+    host: { confirmDiscard(message) { assert.match(message, /Discard these unsaved Asset edits/); confirmations += 1; return accepted; } } });
+  assert.equal(leave(), false); assert.equal(state.model.name, 'Unsaved purpose');
+  accepted = true; assert.equal(leave(), true); assert.equal(confirmations, 2);
 });
 
-test('saved proposal recovery refuses same identity with different authored semantics', async () => {
-  const app = await readFile(appUrl, 'utf8');
-  const source = app.slice(app.indexOf('function canonicalAssetAuthoringJson('), app.indexOf('async function submitAssetAuthoring('));
-  const draft = createAssetAuthoringDraft({ projectId: 'project.test', projectRevision: 7, sliceId: 'slice.test', sliceVersion: 1,
-    proposalId: 'proposal.test', itemId: 'item.test', assetId: 'asset.test', idempotencyKey: 'key.test' });
-  draft.values.name = 'My prop'; draft.values.role = 'furniture'; const request = buildAssetAuthoringRequest(draft);
-  const proposal = { proposalId: request.proposalId, submittedRevision: request.expectedRevision + 1, items: structuredClone(request.items) };
-  const authoring = { draft, request }; const state = { project: { projectId: 'project.test' }, assetAuthoring: authoring, assetUi: {} };
-  const recover = runInNewContext(`${source}; assetAuthoringSavedProposal;`, { state, currentAssetLibrary: () => ({ proposals: [proposal] }), showToast() {} });
-  proposal.items[0].metadata.spanTiles.width = 2;
-  assert.equal(recover(authoring), false); assert.equal(state.assetAuthoring, authoring);
-  assert.match(authoring.error, /does not match your request/);
-  proposal.items = structuredClone(request.items);
-  proposal.items[0].operation = 'update'; assert.equal(recover(authoring), false);
-  proposal.items[0].operation = 'create'; proposal.items[0].expectedAssetVersion = 1; assert.equal(recover(authoring), false);
-  proposal.items[0].expectedAssetVersion = 0; proposal.submittedRevision += 1; assert.equal(recover(authoring), false);
-  proposal.submittedRevision -= 1;
-  proposal.items[0].metadata.collision.bounds.x = 1; assert.equal(recover(authoring), false);
-  proposal.items[0].metadata.spanTiles = { height: 1, width: 1 };
-  proposal.items[0].metadata.collision = { parts: [], bounds: { height: 1, width: 1, y: 0, x: 0 }, mode: 'bounds' };
-  proposal.items[0].metadata.pixelSize = { width: 40, height: 40 }; proposal.items[0].metadata.pivot = null;
-  assert.equal(recover(authoring), true); assert.equal(state.assetAuthoring, null);
-  assert.equal(state.assetUi.selectedProposalId, request.proposalId);
+test('direct Save refuses receipts with different project, revision, Asset or version identity', async () => {
+  for (const mutate of [r => { r.projectId = 'other'; }, r => { r.revision += 1; }, r => { r.value.assetId = 'other'; },
+    r => { r.value.assetVersion += 1; }, r => { r.value.metadataVersion = 0; }, r => { r.value.metadataVersion = 1.5; }]) {
+    const h = await editorHarness({ saveAsset: async intent => { const receipt = receiptFor(intent); mutate(receipt); return receipt; } });
+    await h.controller.save(); const state = h.controller.getState();
+    assert.equal(state.save.status, 'uncertain'); assert(state.save.intent); assert.equal(state.context.assetVersion, 0);
+    assert.equal(h.saved.length, 0); assert.equal(h.controller.requestLeave(), false); h.controller.dispose();
+  }
 });
-
 
 test('saved slices open the human Asset library before a first semantic asset exists', async () => {
   const app = await readFile(appUrl, 'utf8');
@@ -166,42 +180,48 @@ test('saved slices open the human Asset library before a first semantic asset ex
 });
 
 
-test('an unknown original submission stays locked after retry rejection and failed reconciliation', async () => {
-  const app = await readFile(appUrl, 'utf8');
-  const source = app.slice(app.indexOf('async function submitAssetAuthoring('), app.indexOf("window.addEventListener('beforeunload'"));
-  const draft = createAssetAuthoringDraft({ projectId: 'project.test', projectRevision: 7, sliceId: 'slice.test', sliceVersion: 1,
-    proposalId: 'proposal.test', itemId: 'item.test', assetId: 'asset.test', idempotencyKey: 'key.test' });
-  draft.values.name = 'My prop'; draft.values.role = 'furniture';
-  const authoring = { draft }; const state = { project: { projectId: 'project.test' }, assetAuthoring: authoring, assetMutationPending: false, agentAccessCsrf: 'csrf' };
-  const bodies = []; let attempt = 0;
-  const submit = runInNewContext(`${source}; submitAssetAuthoring;`, { state, AbortSignal,
-    currentAssetAuthoringConflict: () => null, buildAssetAuthoringRequest, renderWorkspace() {},
-    setAssetMutationPending(value) { state.assetMutationPending = value; },
-    async api(_path, options) { bodies.push(options.body); attempt += 1; const error = new Error('Unavailable'); if (attempt > 1) error.status = 403; throw error; },
-    async refreshAssetAuthoringOutcome() { throw new Error('GET failed'); }, assetAuthoringSavedProposal() { throw new Error('must not reconcile failed GET'); },
-  });
-  await submit(); const request = authoring.request; assert.equal(authoring.uncertain, true);
-  await submit({ retry: true });
-  assert.equal(authoring.request, request); assert.equal(bodies[0], bodies[1]);
-  assert.equal(authoring.rejected, false); assert.equal(authoring.uncertain, true); assert.equal(state.assetMutationPending, false);
+test('uncertain direct Save retains identical bytes and key after rejected retry and failed outcome check', async () => {
+  const requests = []; let attempts = 0;
+  const h = await editorHarness({ saveAsset: async intent => { requests.push(intent); attempts += 1;
+    if (attempts === 3) return receiptFor(intent);
+    const error = new Error('Unavailable'); if (attempts === 2) error.status = 403; throw error; },
+    readSavedOutcome: async () => { throw new Error('GET failed'); } });
+  await h.controller.save(); const intent = h.controller.getState().save.intent;
+  await h.controller.save(true); await h.controller.checkOutcome();
+  assert.equal(h.controller.getState().save.status, 'uncertain');
+  assert.deepEqual(h.controller.getState().save.intent, intent); assert.equal(h.controller.requestLeave(), false);
+  assert.equal(requests[0], requests[1]); assert.equal(requests[0].serialized, requests[1].serialized);
+  assert.equal(requests[0].payload.idempotencyKey, requests[1].payload.idempotencyKey);
+  await h.controller.save(true); assert.equal(requests[2], requests[0]);
+  assert.equal(h.controller.getState().save.status, 'idle'); assert.equal(h.controller.getState().context.assetVersion, 1);
+  assert.deepEqual(h.pending, [true, false, true, false, true, false, true, false]); h.controller.dispose();
 });
 
-test('outcome refresh aborts a hanging read and rejects a late result owned by another draft', async () => {
-  const app = await readFile(appUrl, 'utf8');
-  const source = app.slice(app.indexOf('async function refreshAssetAuthoringOutcome('), app.indexOf('async function submitAssetAuthoring('));
-  const authoring = { draft: { context: { projectId: 'project.test' } } };
-  const state = { project: { projectId: 'project.test' }, assetAuthoring: authoring };
+test('outcome checks are bounded and matching visible content never confirms delivery', async () => {
   let signal;
-  const refresh = runInNewContext(`${source}; refreshAssetAuthoringOutcome;`, { state, AbortController, setTimeout, clearTimeout,
-    loadProject(_id, options) { signal = options.signal; return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })); },
-  });
-  await assert.rejects(refresh(authoring, { timeoutMs: 10 }), /aborted/); assert.equal(signal.aborted, true);
-  let complete;
-  const later = runInNewContext(`${source}; refreshAssetAuthoringOutcome;`, { state, AbortController, setTimeout, clearTimeout,
-    loadProject() { return new Promise((resolve) => { complete = resolve; }); },
-  });
-  const pending = later(authoring, { timeoutMs: 100 }); state.assetAuthoring = { draft: 'new draft' }; complete(true);
-  await assert.rejects(pending, /project changed/); assert.equal(state.assetAuthoring.draft, 'new draft');
+  const h = await editorHarness({ readSavedOutcome: (_intent, options) => { signal = options.signal;
+    return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })); } }, 10);
+  await h.controller.save(); const intent = h.controller.getState().save.intent;
+  await h.controller.checkOutcome(); assert.equal(signal.aborted, true);
+  assert.equal(h.controller.getState().save.status, 'uncertain'); assert.deepEqual(h.controller.getState().save.intent, intent);
+  h.controller.dispose();
+  const matching = await editorHarness({ readSavedOutcome: async intent => receiptFor(intent) });
+  await matching.controller.save(); await matching.controller.checkOutcome();
+  assert.equal(matching.controller.getState().save.status, 'uncertain'); assert.equal(matching.saved.length, 0);
+  assert.match(matching.controller.getState().error, /matching visible content alone cannot confirm delivery/); matching.controller.dispose();
+});
+
+test('disposed Asset editors abort requests and ignore late Save and outcome responses', async () => {
+  for (const action of ['save', 'checkOutcome']) {
+    let complete, signal;
+    const deferred = (_intent, options) => { signal = options.signal; return new Promise(resolve => { complete = resolve; }); };
+    const h = await editorHarness(action === 'save' ? { saveAsset: deferred } : { readSavedOutcome: deferred });
+    if (action === 'checkOutcome') await h.controller.save();
+    const pending = h.controller[action](); const state = h.controller.getState(); h.controller.dispose();
+    assert.equal(signal.aborted, true); complete(receiptFor(state.save.intent)); await pending;
+    assert.deepEqual(h.controller.getState(), state); assert.equal(h.saved.length, 0);
+    assert.equal(h.pending.at(-1), false);
+  }
 });
 
 test('loadProject discards a late aborted project response before applying shared UI state', async () => {

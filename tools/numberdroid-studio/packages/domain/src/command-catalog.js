@@ -1,3 +1,5 @@
+import { ASSET_SPATIAL_SCHEMA } from './asset-spatial-geometry.js';
+
 function deepFreeze(value) {
   if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -94,6 +96,7 @@ const assetMetadataV2 = {
   ],
   properties: {
     role: { type: ['string', 'null'], maxLength: 64 },
+    spatial: ASSET_SPATIAL_SCHEMA,
     tags: { type: 'array', maxItems: 32, uniqueItems: true, items: { type: 'string', maxLength: 64 } },
     variantGroup: { type: ['string', 'null'], maxLength: 128 },
     compatibilityGroups: { type: 'array', maxItems: 16, uniqueItems: true, items: { type: 'string', maxLength: 128 } },
@@ -118,7 +121,7 @@ const assetMetadataV2 = {
       type: ['object', 'null'], additionalProperties: false,
       required: ['mode', 'bounds', 'parts'],
       properties: {
-        mode: { type: 'string', enum: ['none', 'bounds', 'parts'] },
+        mode: { type: 'string', enum: ['none', 'bounds', 'parts', 'spatial'] },
         bounds: { ...collisionRect, type: ['object', 'null'] },
         parts: { type: 'array', maxItems: 16, items: collisionRect },
       },
@@ -524,6 +527,31 @@ const definitions = [
         },
         properties: { type: 'object' },
         status: { type: 'string', enum: ['draft', 'in_review'] },
+      },
+    },
+  },
+  {
+    type: 'asset.save',
+    toolName: 'studio_asset_save',
+    description: 'Save one exact image-backed Asset directly as a new owner-authored DRAFT version.',
+    requiredScope: null,
+    ownerOnly: true,
+    requiresDurableAssetStore: true,
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['assetId', 'operation', 'expectedAssetVersion', 'expectedMetadataVersion', 'name', 'kind', 'metadata', 'image'],
+      properties: {
+        assetId: id, operation: { type: 'string', enum: ['create', 'update'] },
+        expectedAssetVersion: { type: 'integer', minimum: 0 },
+        expectedMetadataVersion: { type: 'integer', minimum: 0 },
+        name: { ...nonEmpty, maxLength: 160 }, kind: { type: 'string', enum: ['surface', 'prop', 'item'] },
+        metadata: assetMetadataV2,
+        image: { oneOf: [
+          { type: 'object', additionalProperties: false, required: ['mode'], properties: { mode: { const: 'retain', type: 'string' } } },
+          { type: 'object', additionalProperties: false, required: ['mode', 'sliceId', 'expectedSliceVersion'], properties: {
+            mode: { const: 'saved-slice', type: 'string' }, sliceId: id, expectedSliceVersion: { type: 'integer', minimum: 1 },
+          } },
+        ] },
       },
     },
   },
