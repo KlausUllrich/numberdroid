@@ -1,5 +1,6 @@
 import { invariant } from '../../../domain/src/errors.js';
 import { canonicalRgbaPngByteSize } from '../../../domain/src/atlas-definition.js';
+import { validateAssetMetadataForVisualFacts } from '../../../domain/src/asset-definition.js';
 import { createProcessingResultAdoptionPlan } from '../../../domain/src/processing-result-adoption.js';
 import {
   processingResultAdoptionCommitResultSha256,
@@ -522,6 +523,59 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
         assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_METADATA_VERSION_INVALID', message: 'Metadata version changed without typed metadata, or typed metadata changed without a version increment.' });
       }
       const commandType = revisionType.get(version.project_id, version.created_revision)?.command_type;
+      if (commandType === 'asset.save' && version.provenance === 'native_revision') {
+        try {
+          const revision = JSON.parse(db.prepare('SELECT revision_json FROM revisions WHERE project_id = ? AND revision_number = ?').get(version.project_id, version.created_revision).revision_json);
+          const previousRevision = JSON.parse(db.prepare('SELECT revision_json FROM revisions WHERE project_id = ? AND revision_number = ?').get(version.project_id, Number(version.created_revision) - 1).revision_json);
+          const payload = revision.command.payload;
+          const semantic = revision.snapshot.assetLibrary.assets.find(a => a.assetId === version.asset_id);
+          const previous = previousRevision.snapshot.assetLibrary?.assets?.find(a => a.assetId === version.asset_id) ?? null;
+          const expectedPrior = payload.operation === 'create' ? !prior && !previous && payload.expectedAssetVersion === 0 && payload.expectedMetadataVersion === 0
+            : payload.operation === 'update' && prior && previous && payload.expectedAssetVersion === Number(prior.asset_version) && payload.expectedMetadataVersion === Number(prior.metadata_version);
+          const selected = (previousRevision.snapshot.atlases ?? []).flatMap(a => a.sliceHeads ?? []).find(s => s.sliceId === payload.image.sliceId);
+          const exactImage = payload.image.mode === 'retain' ? previous && sameFingerprint(previous.sliceBinding, semantic.sliceBinding)
+            : payload.image.mode === 'saved-slice' && selected && selected.version === payload.image.expectedSliceVersion
+              && selected.sliceId === version.slice_id && selected.version === Number(version.slice_version) && selected.digest === binding.artifact_digest;
+          const durableBinding = { projectId: binding.project_id, sliceId: binding.slice_id, sliceVersion: Number(binding.slice_version),
+            atlasId: binding.atlas_id, sourceId: binding.source_id, sourceDigest: binding.source_digest,
+            definitionVersion: Number(binding.atlas_definition_version), definitionFingerprint: binding.atlas_definition_fingerprint,
+            rectangleId: binding.rectangle_id, rectangle: JSON.parse(binding.rectangle_json), processorId: binding.processor_id,
+            digest: binding.artifact_digest, artifactUri: binding.artifact_uri, mediaType: binding.media_type,
+            byteSize: Number(binding.byte_size), width: Number(binding.width), height: Number(binding.height),
+            priorDigest: binding.prior_digest, committedRevision: Number(binding.committed_revision) };
+          if (!expectedPrior || !exactImage || revision.command.actor.kind !== 'human' || revision.command.actor.id !== previousRevision.snapshot.project.ownerId
+            || payload.assetId !== version.asset_id || version.proposal_id !== null || version.proposal_item_id !== null
+            || version.lifecycle !== 'DRAFT' || semantic.proposal !== null || semantic.warningDispositions.length !== 0
+            || payload.name.trim() !== version.name || payload.kind !== version.kind || semantic.name !== version.name || semantic.kind !== version.kind
+            || semantic.assetVersion !== Number(version.asset_version) || semantic.metadataVersion !== Number(version.metadata_version)
+            || !sameFingerprint(semantic.metadata, metadata) || !sameFingerprint(semantic.findings, findings)
+            || !sameFingerprint(semantic.sliceBinding, durableBinding)
+            || revision.result.assetId !== version.asset_id || revision.result.assetVersion !== Number(version.asset_version)
+            || semantic.updatedBy !== revision.command.actor.id || version.created_by !== revision.command.actor.id) throw new Error('Owner save provenance mismatch');
+          const validated = validateAssetMetadataForVisualFacts({ assetId: version.asset_id, kind: payload.kind, metadata: payload.metadata,
+            pixelSize: { width: Number(binding.width), height: Number(binding.height) }, pivot: JSON.parse(binding.rectangle_json).pivot });
+          if (!sameFingerprint(validated.metadata, metadata) || !sameFingerprint(validated.findings, findings)) throw new Error('Owner saved metadata mismatch');
+        } catch {
+          assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_OWNER_SAVE_PROVENANCE_INVALID', message: 'Owner Save does not match its exact prior versions, image binding, owner command and immutable result.' });
+        }
+      } else if (version.provenance === 'native_revision' && version.proposal_id === null && commandType !== 'asset.lifecycle.set') {
+        assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_OWNER_SAVE_PROVENANCE_MISSING', message: 'An Asset without proposal links needs an owner Save revision.' });
+      }
+      if (Object.hasOwn(metadata, 'spatial') || version.provenance === 'bundle_import' && version.proposal_id === null) {
+        try {
+          const { pixelSize: _pixelSize, pivot: _pivot, ...authored } = metadata;
+          const validated = validateAssetMetadataForVisualFacts({ assetId: version.asset_id, kind: version.kind, metadata: authored,
+            pixelSize: { width: Number(binding.width), height: Number(binding.height) }, pivot: JSON.parse(binding.rectangle_json).pivot });
+          if (!sameFingerprint(validated.metadata, metadata) || !sameFingerprint(validated.findings, findings)) throw new Error('Saved metadata mismatch');
+          if (version.proposal_id === null && version.lifecycle !== 'DRAFT') {
+            const step = prior && lifecycleOrder.indexOf(version.lifecycle) - lifecycleOrder.indexOf(prior.lifecycle);
+            if (step !== 1 || prior.proposal_id !== null || version.name !== prior.name || version.kind !== prior.kind
+              || version.slice_id !== prior.slice_id || version.slice_version !== prior.slice_version || version.metadata_fingerprint !== prior.metadata_fingerprint) throw new Error('Imported owner lifecycle mismatch');
+          }
+        } catch {
+          assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_SPATIAL_OR_OWNER_SEMANTICS_INVALID', message: 'Spatial or imported owner-saved Asset metadata, image facts, findings or lifecycle are inconsistent.' });
+        }
+      }
       if (commandType === 'asset.lifecycle.set') {
         const lifecycleStep = prior ? lifecycleOrder.indexOf(version.lifecycle) - lifecycleOrder.indexOf(prior.lifecycle) : -1;
         if (!prior || lifecycleStep !== 1 || version.name !== prior.name || version.kind !== prior.kind

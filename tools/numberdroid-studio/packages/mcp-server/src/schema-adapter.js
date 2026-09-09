@@ -22,6 +22,12 @@ function singleType(schema) {
  */
 export function jsonSchemaToZod(schema) {
   if (!schema || typeof schema !== 'object') return z.unknown();
+  if (Object.hasOwn(schema, 'const')) return z.literal(schema.const);
+  if (schema.oneOf) {
+    const alternatives = schema.oneOf.map(jsonSchemaToZod);
+    return z.union(alternatives).refine(value => alternatives.filter(variant => variant.safeParse(value).success).length === 1,
+      { message: 'Value must match exactly one documented shape.' });
+  }
   const declaredTypes = Array.isArray(schema.type) ? schema.type : [schema.type];
   const nonNullTypes = declaredTypes.filter((candidate) => candidate && candidate !== 'null');
   const nullable = declaredTypes.includes('null');
@@ -49,6 +55,8 @@ export function jsonSchemaToZod(schema) {
     result = z.number();
     if (schema.minimum !== undefined) result = result.min(schema.minimum);
     if (schema.maximum !== undefined) result = result.max(schema.maximum);
+    if (schema.exclusiveMinimum !== undefined) result = result.gt(schema.exclusiveMinimum);
+    if (schema.exclusiveMaximum !== undefined) result = result.lt(schema.exclusiveMaximum);
   } else if (type === 'boolean') {
     result = z.boolean();
   } else if (type === 'array') {

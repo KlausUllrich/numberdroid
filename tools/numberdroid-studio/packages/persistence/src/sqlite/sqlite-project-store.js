@@ -1053,6 +1053,28 @@ function writeAssetProposalApplication(database, projectId, revision, fault) {
   fault('after_asset_proposal_application_status');
 }
 
+function writeOwnerAssetVersion(database, projectId, revision, fault) {
+  if (revision.command.type !== 'asset.save') return;
+  const payload = revision.command.payload;
+  const asset = revision.snapshot.assetLibrary?.assets?.find((candidate) => candidate.assetId === payload.assetId);
+  const prior = database.prepare('SELECT * FROM asset_heads WHERE project_id = ? AND asset_id = ?').get(projectId, payload.assetId);
+  invariant(revision.command.actor.kind === 'human' && revision.command.actor.id === revision.snapshot.project.ownerId,
+    'FORBIDDEN', 'Only the project owner may save an Asset directly.');
+  invariant(asset && asset.proposal === null && asset.lifecycle === 'DRAFT'
+    && asset.warningDispositions.length === 0 && asset.assetId === revision.result.assetId
+    && asset.assetVersion === revision.result.assetVersion && asset.metadataVersion === revision.result.metadataVersion,
+  'INVALID_REVISION', 'The owner-save result must match one draft Asset without proposal authority.');
+  invariant(payload.operation === 'create' ? !prior && payload.expectedAssetVersion === 0 && payload.expectedMetadataVersion === 0
+    : payload.operation === 'update' && prior && Number(prior.asset_version) === payload.expectedAssetVersion && Number(prior.metadata_version) === payload.expectedMetadataVersion,
+  'ENTITY_VERSION_CONFLICT', 'The prior Asset head changed before owner Save committed.');
+  const retain = payload.image.mode === 'retain';
+  invariant(retain ? prior && prior.slice_id === asset.sliceBinding.sliceId && Number(prior.slice_version) === asset.sliceBinding.sliceVersion
+    : payload.image.mode === 'saved-slice' && payload.image.sliceId === asset.sliceBinding.sliceId && payload.image.expectedSliceVersion === asset.sliceBinding.sliceVersion,
+  'INVALID_REVISION', 'The saved image must be the exact retained binding or explicitly selected current slice.');
+  writeAssetVersion(database, projectId, revision, asset, fault, { requireCurrentSliceHead: !retain });
+  fault('after_owner_asset_save');
+}
+
 function writeAssetLifecycleVersion(database, projectId, revision, fault) {
   if (revision.command.type !== 'asset.lifecycle.set') return;
   const asset = revision.snapshot.assetLibrary?.assets?.find((candidate) => (
@@ -1433,6 +1455,7 @@ function writeRoomDesignerRevision(database, projectId, revision, fault) {
 }
 
 function writeAssetLibraryRevision(database, projectId, revision, fault) {
+  writeOwnerAssetVersion(database, projectId, revision, fault);
   writeAssetProposalSubmission(database, projectId, revision, fault);
   writeAssetProposalDecision(database, projectId, revision, fault);
   writeAssetProposalApplication(database, projectId, revision, fault);

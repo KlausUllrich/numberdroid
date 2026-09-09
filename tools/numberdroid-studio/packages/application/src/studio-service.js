@@ -1493,6 +1493,51 @@ function applyCommand(command, snapshot, now, {
         changes: [{ entityType: 'asset', entityId: assetId, operation: 'created' }],
       };
     }
+    case 'asset.save': {
+      assertExactFields(payload, new Set(['assetId', 'operation', 'expectedAssetVersion', 'expectedMetadataVersion', 'name', 'kind', 'metadata', 'image']), 'payload');
+      const assetId = requireId(payload.assetId, 'payload.assetId');
+      const operation = requireEnum(payload.operation, 'payload.operation', ['create', 'update']);
+      const expectedAssetVersion = requireInteger(payload.expectedAssetVersion, 'payload.expectedAssetVersion', { min: 0 });
+      const expectedMetadataVersion = requireInteger(payload.expectedMetadataVersion, 'payload.expectedMetadataVersion', { min: 0 });
+      const library = assetLibrary(next);
+      const index = library.assets.findIndex((asset) => asset.assetId === assetId);
+      const current = index < 0 ? null : library.assets[index];
+      if (operation === 'create') {
+        invariant(!current, 'ENTITY_EXISTS', 'This Asset already exists. Reopen its current version before editing.', { assetId });
+        invariant(expectedAssetVersion === 0 && expectedMetadataVersion === 0, 'ENTITY_VERSION_CONFLICT', 'Creating an Asset requires absent Asset and metadata versions.', { assetId });
+      } else {
+        invariant(current, 'ASSET_NOT_FOUND', 'The Asset to update does not exist.', { assetId });
+        invariant(current.assetVersion === expectedAssetVersion && current.metadataVersion === expectedMetadataVersion,
+          'ENTITY_VERSION_CONFLICT', 'The Asset changed. Recheck its current saved version before saving this draft.',
+          { assetId, expectedAssetVersion, expectedMetadataVersion, actualAssetVersion: current.assetVersion, actualMetadataVersion: current.metadataVersion });
+      }
+      const image = requireRecord(payload.image, 'payload.image');
+      const mode = requireEnum(image.mode, 'payload.image.mode', ['retain', 'saved-slice']);
+      assertExactFields(image, new Set(mode === 'retain' ? ['mode'] : ['mode', 'sliceId', 'expectedSliceVersion']), 'payload.image');
+      invariant(mode !== 'retain' || current !== null, 'VALIDATION_ERROR', 'A new Asset needs an exact saved slice.', { field: 'payload.image.mode' });
+      const sliceBinding = mode === 'retain'
+        ? validateExactSliceBinding(current.sliceBinding)
+        : resolveExactSliceBinding(projectDocument, command.projectId, requireId(image.sliceId, 'payload.image.sliceId'), requireInteger(image.expectedSliceVersion, 'payload.image.expectedSliceVersion', { min: 1 }));
+      const name = requireString(payload.name, 'payload.name', { max: 160 });
+      const kind = requireEnum(payload.kind, 'payload.kind', ASSET_KINDS);
+      const validated = validateAssetMetadata({ assetId, kind, metadata: payload.metadata, sliceBinding });
+      const asset = {
+        assetId, assetVersion: (current?.assetVersion ?? 0) + 1,
+        metadataVersion: current === null ? 1 : current.metadataVersion + (current.metadataFingerprint === validated.fingerprint ? 0 : 1),
+        name, kind, lifecycle: 'DRAFT', metadata: deepClone(validated.metadata),
+        metadataFingerprint: validated.fingerprint, findings: deepClone(validated.findings),
+        sliceBinding: deepClone(sliceBinding), warningDispositions: [],
+        createdAt: current?.createdAt ?? now, createdBy: current?.createdBy ?? command.actor.id,
+        updatedAt: now, updatedBy: command.actor.id, proposal: null,
+      };
+      if (index < 0) library.assets.push(asset); else library.assets[index] = asset;
+      return {
+        snapshot: next,
+        result: { assetId, assetVersion: asset.assetVersion, metadataVersion: asset.metadataVersion, lifecycle: asset.lifecycle },
+        summary: `Asset ${name} saved as draft version ${asset.assetVersion}.`,
+        changes: [{ entityType: 'asset_v2', entityId: assetId, operation: current ? 'versioned' : 'created' }],
+      };
+    }
     case 'asset.proposal.submit': {
       invariant(preparedAssetProposal, 'ASSET_PROPOSAL_INVALID', 'A prepared exact-lineage proposal is required.');
       const library = assetLibrary(next);
@@ -2159,6 +2204,9 @@ function createRevision({ command, number, now, commandHash, snapshot, result, s
       taskId: command.taskId,
       grantId: command.grantId,
       ...(isTaskBranch ? { branchId: command.branchId, payload: deepClone(command.payload) } : {}),
+      // Direct owner saves retain their strict semantic input for immutable
+      // image-retention/version provenance. This carries no supplied authority.
+      ...(!isTaskBranch && command.type === 'asset.save' ? { payload: deepClone(command.payload) } : {}),
       fingerprint: commandHash,
     },
     snapshot: deepClone(snapshot),
