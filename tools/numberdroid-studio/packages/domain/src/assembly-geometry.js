@@ -304,7 +304,7 @@ function resolvedClip(pin, assets, projectId, cache) {
     `assets.${key}`, 'Resolve the exact saved Animation version; nesting and latest-version substitution are unsupported.', 'ASSEMBLY_ANIMATION_NOT_FOUND');
   const clip = normalizeClipDeclaration(asset.clip);
   fail(clip.schemaVersion === 1 && clip.coordinateSpace === 'clip-pixels' && ['once', 'loop', 'pingpong'].includes(clip.playbackMode), `assets.${key}.clip`, 'Use a supported saved clip declaration.');
-  const units = numeric(clip.unitsPerPixel, `assets.${key}.clip.unitsPerPixel`, 0.000001, 64, true);
+  const units = clip.unitsPerPixel; // Already validated by the shared Clip normalizer; consumers must not narrow its range.
   numeric(clip.fps, `assets.${key}.clip.fps`, 0.1, 120);
   const anchor = point(clip.anchor, `assets.${key}.clip.anchor`);
   for (const dimension of ['width', 'height']) {

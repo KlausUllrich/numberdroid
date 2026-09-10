@@ -121,3 +121,14 @@ test('Assembly v2 owner acceptance and portable v6 retain old clip/cut closure a
     for(const file of ['manifest.json','project.json'])assert.deepEqual(await readFile(join(second,file)),await readFile(join(bundleDirectory,file)));
   } finally {imported.close();}
 });
+
+
+test('Assembly preserves a saved Clip scale below one millionth without clamping', { timeout: 120000 }, async t => {
+  const f = await assemblyFixture(t); await f.execute('asset.save', f.payload());
+  const payload = clipPayload(f.slice); payload.clip.unitsPerPixel = 1e-7;
+  await f.execute('clip.save', payload); await f.execute('assembly.save', assemblyPayload({ assembly: v2() }));
+  const value = await f.studio.queryAssemblies({ schemaVersion: 1, projectId, assetId: 'assembly.fixture', selection: { stateId: 'brewing', variantId: 'copper' } }, owner);
+  const element = value.assets[0].scene.elements[0];
+  assert.equal(element.contentKind, 'animation');
+  assert.equal(element.clip.frames[0].imageMatrix[0], 1e-7 / (1 / 64));
+});

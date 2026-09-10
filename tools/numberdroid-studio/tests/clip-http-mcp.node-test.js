@@ -12,6 +12,7 @@ import { SqliteHostBindingStore, SqliteAgentAttemptStore, SqliteJobStore, Sqlite
 import { AtlasPreviewWorker } from '../apps/studio-server/src/atlas-preview-worker.js';
 import { LocalStudioGateway } from '../apps/studio-mcp/src/local-studio-gateway.js';
 import { createAgentToolCatalog, buildOfficialMcpServer } from '../packages/mcp-server/src/index.js';
+import { applyClipCommand, queryClipDocument } from '../packages/application/src/clip-service.js';
 
 async function drain(f) {
   const worker = new AtlasPreviewWorker({ jobStore: new SqliteJobStore({ workspace: f.store.workspace }), artifactStore: f.artifacts,
@@ -111,12 +112,27 @@ test('Animation official SDK profile negotiates 25/7 and preserves exact correct
   const defaultServer = buildOfficialMcpServer({ studioGateway: gateway, contextProvider });
   const [defaultClientTransport, defaultServerTransport] = InMemoryTransport.createLinkedPair(); await defaultServer.connect(defaultServerTransport);
   const defaultClient = new Client({ name: 'animation-default-check', version: '1.0.0' }); await defaultClient.connect(defaultClientTransport);
-  try { assert.equal((await defaultClient.listTools()).tools.length, 19); assert.equal((await defaultClient.listResourceTemplates()).resourceTemplates.length, 4); }
+  try {
+    assert.equal((await defaultClient.listTools()).tools.length, 19);
+    assert.equal((await defaultClient.listResourceTemplates()).resourceTemplates.length, 4);
+    const legacy = await defaultClient.readResource({ uri: `studio://projects/${projectId}` });
+    assert.equal(JSON.parse(legacy.contents[0].text).snapshot.clipLibrary, undefined);
+    await f.execute('clip.save', clipPayload(f.slice, { assetId: 'clip.default-profile' }));
+    await assert.rejects(gateway.readProject({ projectId }), { code: 'ANIMATION_NEGOTIATION_REQUIRED' });
+    const unsupportedResource = await defaultClient.readResource({ uri: `studio://projects/${projectId}` });
+    assert.equal(JSON.parse(unsupportedResource.contents[0].text).error.code, 'ANIMATION_NEGOTIATION_REQUIRED');
+    const unsupportedTool = await defaultClient.callTool({ name: 'studio_project_read', arguments: { schemaVersion: 1, projectId } });
+    assert.equal(unsupportedTool.isError, true);
+    assert.equal(unsupportedTool.structuredContent.error.code, 'ANIMATION_NEGOTIATION_REQUIRED');
+  }
   finally { await defaultClient.close(); await defaultServer.close(); }
   await assert.rejects(gateway.queryClips({ schemaVersion: 1, projectId }), { code: 'ANIMATION_NEGOTIATION_REQUIRED' });
   await assert.rejects(gateway.negotiateAnimationV1({ schemaVersion: 1, projectId: 'project.foreign', profile: 'animation-v1' }), { code: 'CONTEXT_PROJECT_MISMATCH' });
   const negotiation = await gateway.negotiateAnimationV1({ schemaVersion: 1, projectId, profile: 'animation-v1' });
   assert.equal(negotiation.storeSchemaVersion, 17);
+  const legacyFacade = createAgentToolCatalog(gateway, { contextProvider });
+  await assert.rejects(legacyFacade.find(tool => tool.name === 'studio_project_read').execute({ schemaVersion: 1, projectId }),
+    { code: 'ANIMATION_NEGOTIATION_REQUIRED' });
   for (const bad of [{ ...negotiation, storeSchemaVersion: 16 }, { ...negotiation, sharedHead: false }, { ...negotiation, toolCount: 24 }]) {
     assert.throws(() => createAgentToolCatalog(gateway, { contextProvider, animationV1: { projectId, negotiation: bad } }), { code: 'ANIMATION_NEGOTIATION_REQUIRED' });
   }
@@ -128,6 +144,8 @@ test('Animation official SDK profile negotiates 25/7 and preserves exact correct
     const result = await client.callTool({ name, arguments: command }); return { command, result }; };
   try {
     const list = (await client.listTools()).tools; assert.equal(list.length, 25); assert.equal((await client.listResourceTemplates()).resourceTemplates.length, 7);
+    const projectResource = await client.readResource({ uri: `studio://projects/${projectId}` });
+    assert.equal(JSON.parse(projectResource.contents[0].text).snapshot.clipLibrary.assets[0].assetId, 'clip.default-profile');
     assert.equal(list.some(tool => ['studio_clip_save', 'studio_clip_proposal_resolve'].includes(tool.name)), false);
     const proposal = { ...clipPayload(f.slice), proposalId: 'proposal.sdk-clip', expectedProposalVersion: 0 };
     const invalid = structuredClone(proposal); invalid.clip.frames[0].slice.sliceVersion = 99;
@@ -168,6 +186,36 @@ test('Animation official SDK profile negotiates 25/7 and preserves exact correct
     hostBindingStore.revoke(issued.binding.bindingId, { revokedBy: owner.actor.id, reason: 'Test complete' });
     await assert.rejects(gateway.queryClips({ schemaVersion: 1, projectId }));
   } finally { await client.close(); await server.close(); }
+});
+
+test('Clip queries bound aggregate bytes and exact identity filters recover large Library reads', { timeout: 30000 }, async t => {
+  const f = await assemblyFixture(t);
+  const document = await f.store.loadProject(projectId);
+  const head = document.revisions.at(-1);
+  const snapshot = structuredClone(head.snapshot);
+  const content = clipPayload(f.slice);
+  content.clip.frames = Array.from({ length: 256 }, (_, index) => ({
+    ...content.clip.frames[0], frameId: `frame.${index}.` + 'x'.repeat(116), name: 'n'.repeat(160),
+  }));
+  // Build query volume through the real content validator without a large SQLite fixture.
+  for (let index = 0; index < 16; index += 1) {
+    const payload = { ...content, assetId: `clip.large.${index}` };
+    applyClipCommand({ type: 'clip.save', payload, baseRevision: head.number, actor: owner.actor, taskId: null }, snapshot, document, '2026-09-10T00:00:00.000Z');
+    applyClipCommand({ type: 'clip.proposal.submit', payload: { ...payload, operation: 'update', expectedAssetVersion: 1,
+      expectedMetadataVersion: 1, proposalId: `proposal.large.${index}`, expectedProposalVersion: 0 },
+    baseRevision: head.number, actor: owner.actor, taskId: null }, snapshot, document, '2026-09-10T00:00:00.000Z');
+  }
+  document.revisions.push({ number: head.number + 1, snapshot });
+  assert.throws(() => queryClipDocument({ schemaVersion: 1, projectId }, document), { code: 'CLIP_RESPONSE_TOO_LARGE' });
+  const limited = queryClipDocument({ schemaVersion: 1, projectId, limit: 1 }, document);
+  assert.equal(limited.assets.length, 1); assert.equal(limited.proposals.length, 1);
+  assert.ok(Buffer.byteLength(JSON.stringify(limited)) < 4 * 1024 * 1024);
+  const exactAsset = queryClipDocument({ schemaVersion: 1, projectId, assetId: 'clip.large.15' }, document);
+  assert.deepEqual(exactAsset.assets.map(asset => asset.assetId), ['clip.large.15']);
+  assert.deepEqual(exactAsset.proposals.map(proposal => proposal.proposalId), ['proposal.large.15']);
+  const exactProposal = queryClipDocument({ schemaVersion: 1, projectId, proposalId: 'proposal.large.15' }, document);
+  assert.deepEqual(exactProposal.assets.map(asset => asset.assetId), ['clip.large.15']);
+  assert.deepEqual(exactProposal.proposals.map(proposal => proposal.proposalId), ['proposal.large.15']);
 });
 
 

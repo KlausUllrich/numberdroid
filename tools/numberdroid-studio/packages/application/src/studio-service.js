@@ -2779,7 +2779,11 @@ export class StudioService {
     const projectId = requireId(request.projectId, 'projectId'), context = validateExecutionContext(trustedExecutionContext);
     const document = await this.#store.loadProject(projectId); invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.');
     assertAuthorized({ ...context, projectId, type: 'project.read', payload: {} }, headRevision(document).snapshot, { ownerOnly: false, requiredScope: 'project.read' }, this.#clock());
-    signal?.throwIfAborted(); return deepFreeze(querySavedSliceDocument(request, document));
+    signal?.throwIfAborted();
+    const result = querySavedSliceDocument(request, document);
+    const persisted = this.#store.verifyHistoricalSliceBinding(projectId, request.sliceId, request.sliceVersion, result.revision);
+    invariant(fingerprint(persisted) === fingerprint(result.binding), 'CLIP_SLICE_CORRUPT', 'The historical cut differs from its persisted exact lineage.');
+    return deepFreeze(result);
   }
 
   async queryAssets(rawRequest, trustedExecutionContext, { signal } = {}) {

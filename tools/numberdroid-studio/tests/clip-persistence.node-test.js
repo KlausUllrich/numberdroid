@@ -37,3 +37,15 @@ test('existing Clip identity rejects legacy and native writes without corrupting
   assert.deepEqual(await f.studio.readProjectTrusted(projectId), before);
   assert.deepEqual(inspectClipIntegrity(f.store.workspace.database).findings, []);
 });
+
+
+test('historical cut reads verify persisted artifact facts before exposing a binding', { timeout: 120000 }, async context => {
+  const f = await assemblyFixture(context), request = { schemaVersion: 1, projectId, sliceId: f.slice.sliceId, sliceVersion: f.slice.version };
+  const original = await f.studio.querySavedSlice(request, owner);
+  const db = f.store.workspace.database; db.exec('BEGIN');
+  try {
+    db.prepare('UPDATE artifacts SET width = width + 1 WHERE digest = ?').run(f.slice.digest);
+    await assert.rejects(f.studio.querySavedSlice(request, owner), { code: 'CLIP_SLICE_CORRUPT' });
+  } finally { db.exec('ROLLBACK'); }
+  assert.deepEqual(await f.studio.querySavedSlice(request, owner), original);
+});

@@ -1,6 +1,6 @@
 # Animation editor — compatible implementation contract
 
-Status: authorized implementation, 2026-09-10; product acceptance pending.
+Status: implemented candidate, 2026-09-10; product acceptance pending.
 The [approved design](ANIMATION_EDITOR_DESIGN.md) owns the experience. This
 contract defines the bounded production block before its source implementation.
 

@@ -23,7 +23,7 @@ async function browserCapture({ width, url, reopen = false }) {
   const profile = await mkdtemp(join(tmpdir(), 'numberdroid-animation-chrome-'));
   const child = spawn(chromePath, ['--headless=new', '--no-sandbox', '--hide-scrollbars', '--lang=en-US', '--force-device-scale-factor=1', `--window-size=${width},900`,
     '--remote-debugging-port=0', '--remote-allow-origins=*', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions', `--user-data-dir=${profile}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
-  const tracked = trackProcessClose(child), pending = new Map(), exceptions = [], networkErrors = []; let nextId = 0, socket, shuttingDown = false, failure = null;
+  const tracked = trackProcessClose(child), pending = new Map(), exceptions = [], networkErrors = [], imageFailures = [], imageRequests = new Map(), servedPngUrls = new Set(); let nextId = 0, socket, shuttingDown = false, failure = null;
   const deadline = setTimeout(() => failPending(new Error('Animation capture exceeded its 180-second deadline.')), 180_000);
   const failPending = error => { failure ??= error; for (const p of pending.values()) { clearTimeout(p.timer); p.reject(error); } pending.clear(); };
   const aborted = () => failPending(cancellation.signal.reason); cancellation.signal.addEventListener('abort', aborted, { once: true });
@@ -40,7 +40,21 @@ async function browserCapture({ width, url, reopen = false }) {
     socket = await openDevtoolsSocket(startup.url, { signal: cancellation.signal });
     socket.addEventListener('message', event => { const message = JSON.parse(String(event.data));
       if (message.id) { const p = pending.get(message.id); if (!p) return; clearTimeout(p.timer); pending.delete(message.id); if (message.error) p.reject(new Error(message.error.message)); else p.done(message.result); }
-      else if (message.method === 'Network.responseReceived' && message.params.response.status >= 400) networkErrors.push({url:message.params.response.url,status:message.params.response.status});
+      else if (message.method === 'Network.requestWillBeSent') {
+        const { requestId, request, type } = message.params;
+        if (type === 'Image' || /\/api\/projects\/[^/]+\/artifacts\/sha256\/[a-f0-9]{64}$/.test(request.url)) imageRequests.set(requestId, request.url);
+      } else if (message.method === 'Network.responseReceived') {
+        const { requestId, response, type } = message.params;
+        if (response.status >= 400) networkErrors.push({ url: response.url, status: response.status });
+        if (type === 'Image' || imageRequests.has(requestId)) {
+          imageRequests.set(requestId, response.url);
+          if (response.status < 200 || (response.status >= 300 && response.status !== 304)) imageFailures.push({ url: response.url, status: response.status });
+          else if (response.mimeType === 'image/png') servedPngUrls.add(response.url);
+          else if (/\/api\/projects\/[^/]+\/artifacts\/sha256\/[a-f0-9]{64}$/.test(response.url)) imageFailures.push({ url: response.url, mimeType: response.mimeType, message: 'Expected a PNG artifact response.' });
+        }
+      } else if (message.method === 'Network.loadingFailed' && (message.params.type === 'Image' || imageRequests.has(message.params.requestId))) {
+        imageFailures.push({ url: imageRequests.get(message.params.requestId) ?? null, error: message.params.errorText, cancelled: message.params.canceled === true });
+      }
       else if (message.method === 'Runtime.exceptionThrown' && exceptions.length < 100) exceptions.push(message.params.exceptionDetails);
     });
     socket.addEventListener('close', () => { if (!shuttingDown) failPending(new Error('Chrome DevTools closed before capture completed.')); });
@@ -55,6 +69,29 @@ async function browserCapture({ width, url, reopen = false }) {
       await writeFile(join(outputDirectory, `animation-${width}-${phase}.png`), Buffer.from(image.data, 'base64'), { flag: 'wx' });
     };
     result = await captureAnimationEditor({ devtools, sessionId, reopen, captureCheckpoint });
+    assert.deepEqual(imageFailures, [], 'A served image had an unexpected HTTP or network failure.');
+    const imageUrls = [...servedPngUrls].sort();
+    assert(imageUrls.length > 0, 'The native capture did not receive any successful PNG responses.');
+    // A changing href is not proof of rendered pixels: decode every exact PNG
+    // observed during this capture, including frames no longer in the live DOM.
+    const decoded = await devtools.send('Runtime.evaluate', {
+      expression: `Promise.allSettled(${JSON.stringify(imageUrls)}.map(url => new Promise((resolve, reject) => {
+        const image = new Image(), timer = setTimeout(() => { image.src = ''; reject(new Error('PNG decode exceeded eight seconds: ' + url)); }, 8000);
+        image.src = url;
+        image.decode().then(() => {
+          if (image.naturalWidth < 1 || image.naturalHeight < 1) throw new Error('Decoded PNG has no pixels: ' + url);
+          resolve({ url, width: image.naturalWidth, height: image.naturalHeight });
+        }).catch(error => reject(new Error('PNG decode failed for ' + url + ': ' + error.message))).finally(() => clearTimeout(timer));
+      }))).then(values => values.map(value => value.status === 'fulfilled' ? { ok: true, ...value.value } : { ok: false, error: String(value.reason) }))`,
+      awaitPromise: true, returnByValue: true,
+    }, sessionId);
+    assert.equal(decoded.exceptionDetails, undefined, JSON.stringify(decoded.exceptionDetails));
+    const decodedImages = decoded.result.value;
+    assert.equal(decodedImages.length, imageUrls.length);
+    assert(decodedImages.every(image => image.ok === true), JSON.stringify(decodedImages.filter(image => !image.ok)));
+    assert.deepEqual(imageFailures, [], 'A PNG decode request had an unexpected HTTP or network failure.');
+    result.imageEvidence = { decodedImageCount: decodedImages.length, imageRequestCount: imageRequests.size,
+      decodedImages: decodedImages.map(({ ok: _ok, ...image }) => image), httpAndNetworkFailures: [] };
     assert.deepEqual(exceptions, [], 'Native browser raised an unhandled runtime error.');
     const screenshot = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
     const dom = await devtools.send('Runtime.evaluate', { expression: 'document.documentElement.outerHTML', returnByValue: true }, sessionId);
@@ -64,7 +101,7 @@ async function browserCapture({ width, url, reopen = false }) {
     await writeFile(join(outputDirectory, `${name}.observation.json`), `${JSON.stringify({ browser, width, ...result }, null, 2)}\n`, { flag: 'wx' });
   } catch (error) {
     captureError = error;
-    process.stderr.write(`${JSON.stringify({ phase: "capture-error", message: error.message.slice(0, 600), networkErrors, exceptions: exceptions.map(value => ({ text: value.text, description: value.exception?.description?.slice(0, 1500), url: value.url, lineNumber: value.lineNumber })) })}\n`);
+    process.stderr.write(`${JSON.stringify({ phase: "capture-error", message: error.message.slice(0, 600), networkErrors, imageFailures, exceptions: exceptions.map(value => ({ text: value.text, description: value.exception?.description?.slice(0, 1500), url: value.url, lineNumber: value.lineNumber })) })}\n`);
     if (captureSessionId && !failure && !cancellation.signal.aborted) {
       try {
         const snapshot = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, captureSessionId);
