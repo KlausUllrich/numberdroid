@@ -28,7 +28,7 @@ test('Assembly owner HTTP enforces CSRF, exact requests, methods and read-only d
 
 test('Selected Assembly MCP profile negotiates 21/5, corrects proposals and reads owner feedback with live authority', { timeout: 120000 }, async context => {
   const f=await assemblyFixture(context);await f.execute('asset.save',f.payload());
-  assert.equal(COMMAND_DEFINITIONS.length,37);assert.equal(KNOWN_GRANT_SCOPES.length,31);
+  assert.equal(COMMAND_DEFINITIONS.length,42);assert.equal(KNOWN_GRANT_SCOPES.length,34);
   await f.execute('grant.issue',{grantId:'grant.assembly',agentId:'agent.assembly',taskId:'task.assembly',branchId:'branch.main',scopes:['project.read','assembly.proposal.submit'],objectScopes:[{kind:'project',id:projectId}],budget:{maxCommands:10,maxJobs:0,maxArtifactBytes:0,maxCostCents:0}});
   const hostBindingStore=new SqliteHostBindingStore({workspace:f.store.workspace});
   const agentAttemptStore=new SqliteAgentAttemptStore({workspace:f.store.workspace});

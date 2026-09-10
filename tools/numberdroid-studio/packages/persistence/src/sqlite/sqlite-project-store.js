@@ -1,3 +1,5 @@
+import { writeClipRevision, rebuildClipHeads, validateStoredClipContent, sqliteHistoricalSliceBinding } from './sqlite-clip-store.js';
+import { validateSliceRevision } from './sqlite-slice-revision.js';
 import { writeAssemblyRevision, validateStoredAssemblyContent, rebuildAssemblyHeads } from './sqlite-assembly-store.js';
 import { ProjectStore, headRevision, projectSummary } from '../../../application/src/project-store.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
@@ -238,7 +240,7 @@ function writeRevision(database, projectId, revision) {
 }
 
 function createAtlasPreviewJob(database, projectId, revision) {
-  if (revision.command.type !== 'atlas.preview.slices') return;
+  if (revision.command.type !== 'atlas.preview.slices' && !(revision.command.type === 'slice.revision.prepare' && revision.result.status === 'ACCEPTED')) return;
   const job = revision.result.job;
   invariant(job?.projectId === projectId && job.requestedRevision === revision.number, 'INVALID_REVISION', 'Atlas preview revision contains an invalid job intent.');
   invariant(fingerprint(job.input) === job.inputFingerprint, 'JOB_INPUT_FINGERPRINT_MISMATCH', 'Atlas preview job intent fingerprint is invalid.');
@@ -311,7 +313,7 @@ function createAtlasPreviewJob(database, projectId, revision) {
 }
 
 function applyAtlasPreviewJob(database, projectId, revision) {
-  if (revision.command.type !== 'atlas.commit.slices') return;
+  if (!['atlas.commit.slices', 'slice.revision.commit'].includes(revision.command.type)) return;
   const { jobId, slices } = revision.result;
   const job = database.prepare(`
     SELECT state, applied_revision, output_json FROM jobs
@@ -402,7 +404,7 @@ function historicalSliceVersion(database, projectId, sliceId, sliceVersion) {
   const rows = database.prepare(`
     SELECT revision_number, revision_json
     FROM revisions
-    WHERE project_id = ? AND command_type = 'atlas.commit.slices'
+    WHERE project_id = ? AND command_type IN ('atlas.commit.slices', 'slice.revision.commit')
     ORDER BY revision_number DESC
   `).all(projectId);
   for (const row of rows) {
@@ -1455,7 +1457,23 @@ function writeRoomDesignerRevision(database, projectId, revision, fault) {
   writeRoomVariantRevision(database, projectId, revision, fault);
 }
 
+function writeSliceRevisionBinding(database, projectId, revision) {
+  if (!['slice.revision.prepare', 'slice.revision.commit'].includes(revision.command.type)) return;
+  const binding = revision.result.sliceBinding ?? revision.result.job.input.revision.sourceBinding;
+  writeAssetSliceBinding(database, projectId, revision, {
+    sliceId: binding.sliceId, sliceVersion: binding.sliceVersion, sliceBinding: binding,
+  }, { requireCurrentHead: revision.command.type === 'slice.revision.commit' });
+}
+
 function writeAssetLibraryRevision(database, projectId, revision, fault) {
+  if (revision.command.type.startsWith('clip.')) {
+    const library = revision.snapshot.clipLibrary;
+    const affected = [...(library?.assets ?? []).filter(asset => asset.createdRevision === revision.number),
+      ...(library?.proposals ?? []).filter(proposal => proposal.createdRevision === revision.number).map(proposal => proposal.validated)];
+    const pins = new Map(affected.flatMap(record => record.clip.frames).map(frame => [`${frame.slice.sliceId}@${frame.slice.sliceVersion}`, frame.slice]));
+    for (const pin of pins.values()) writeAssetSliceBinding(database, projectId, revision, pin, { requireCurrentHead: false });
+  }
+  writeClipRevision(database, projectId, revision, fault);
   writeAssemblyRevision(database, projectId, revision, fault);
   writeOwnerAssetVersion(database, projectId, revision, fault);
   writeAssetProposalSubmission(database, projectId, revision, fault);
@@ -1744,6 +1762,10 @@ export class SqliteProjectStore extends ProjectStore {
   get supportsDurableAssetStore() { return true; }
   get supportsAtomicRoomDesigner() { return true; }
   verifyAssemblyContent(projectId, record, cutoff) { return validateStoredAssemblyContent(this.#workspace.database, projectId, record, cutoff); }
+  verifyClipContent(projectId, record, cutoff) { return validateStoredClipContent(this.#workspace.database, projectId, record, cutoff); }
+  verifyHistoricalSliceBinding(projectId, sliceId, sliceVersion, cutoff) { return sqliteHistoricalSliceBinding(this.#workspace.database, projectId, sliceId, sliceVersion, cutoff); }
+  get schemaVersion() { return Number(this.#workspace.database.prepare('PRAGMA user_version').get().user_version); }
+  get supportsAtomicClipLibrary() { return Number(this.#workspace.database.prepare('PRAGMA user_version').get().user_version) >= 17; }
   get supportsAtomicAssemblyLibrary() { return Number(this.#workspace.database.prepare('PRAGMA user_version').get().user_version) >= 16; }
 
   async createProject(document, { legacyGrants = false } = {}) {
@@ -1839,6 +1861,7 @@ export class SqliteProjectStore extends ProjectStore {
           'The appended revision does not follow the current head.',
         );
         writeRevision(database, projectId, revision);
+        validateSliceRevision(database, projectId, revision);
         this.#workspace.fault('after_revision_insert');
         createAtlasPreviewJob(database, projectId, revision);
         this.#workspace.fault('after_atlas_preview_job_create');
@@ -1855,6 +1878,7 @@ export class SqliteProjectStore extends ProjectStore {
         claimSourceIntake(database, projectId, revision);
         this.#workspace.fault('after_source_intake_claim');
         applyAtlasPreviewJob(database, projectId, revision);
+        writeSliceRevisionBinding(database, projectId, revision);
         this.#workspace.fault('after_atlas_preview_job_apply');
         writeAssetLibraryRevision(database, projectId, revision, (point) => this.#workspace.fault(point));
         this.#workspace.fault('after_asset_library_revision');
@@ -1908,6 +1932,7 @@ export class SqliteProjectStore extends ProjectStore {
             { parentRevision, revision: revision.number },
           );
           writeRevision(database, projectId, revision);
+          validateSliceRevision(database, projectId, revision);
           this.#workspace.fault('after_revision_insert');
           createAtlasPreviewJob(database, projectId, revision);
           this.#workspace.fault('after_atlas_preview_job_create');
@@ -1918,6 +1943,7 @@ export class SqliteProjectStore extends ProjectStore {
           writeCanonicalSourceArtifactReference(database, projectId, revision);
           claimSourceIntake(database, projectId, revision);
           applyAtlasPreviewJob(database, projectId, revision);
+          writeSliceRevisionBinding(database, projectId, revision);
           writeAssetLibraryRevision(database, projectId, revision, (point) => this.#workspace.fault(point));
           writeRoomDesignerRevision(database, projectId, revision, (point) => this.#workspace.fault(point));
           if (revision.command.type === 'task.merge.revert') {
@@ -2204,6 +2230,7 @@ export class SqliteProjectStore extends ProjectStore {
       });
       rebuildAssetHeads(database, projectId);
       rebuildAssemblyHeads(database, projectId);
+      rebuildClipHeads(database, projectId);
       rebuildRoomHeads(database, projectId);
     });
     return { projectId, revision: revision.number, projectionHash: fingerprint(revision.snapshot) };

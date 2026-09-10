@@ -1,3 +1,4 @@
+import { validateSliceRevisionJobInput } from '../../../packages/application/src/slice-revision-service.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { StudioError, invariant } from '../../../packages/domain/src/errors.js';
 import { cropSupportedPng, MAX_ATLAS_OUTPUT_BYTES } from '../../../packages/preview/src/index.js';
@@ -98,6 +99,7 @@ export class AtlasPreviewWorker {
         now: this.#clock(),
       });
       invariant(job.kind === 'ATLAS_PREVIEW', 'JOB_KIND_UNSUPPORTED', 'The atlas worker claimed an unsupported job kind.', { kind: job.kind });
+      if (job.input?.schemaVersion === 2) validateSliceRevisionJobInput(job.input);
       invariant(job.input?.processorId && Array.isArray(job.input.rectangles), 'JOB_INPUT_MISMATCH', 'Atlas preview job input is incomplete.');
       const stream = await this.#artifactStore.createReadStream(job.input.sourceDigest);
       const sourceBytes = await readBounded(stream, SOURCE_LIMIT_BYTES);

@@ -123,9 +123,10 @@ export function buildOfficialMcpServer({
   requestAbortRegistry = new Map(),
   authoringV2 = null,
   assemblyV1 = null,
+  animationV1 = null,
 } = {}) {
   if (!studioGateway) throw new TypeError('studioGateway is required.');
-  const catalog = createAgentToolCatalog(studioGateway, { contextProvider, authoringV2, assemblyV1 });
+  const catalog = createAgentToolCatalog(studioGateway, { contextProvider, authoringV2, assemblyV1, animationV1 });
   const authoringV2Surface = authoringV2 === null || authoringV2 === undefined
     ? null
     : createAuthoringV2McpSurface(studioGateway, authoringV2, {
@@ -315,6 +316,26 @@ export function buildOfficialMcpServer({
         return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(officialErrorPayload(error)) }] };
       } finally { operation.cleanup(); }
     });
+
+  if (animationV1) {
+    for (const entry of [
+      { name: 'studio-clip-version', template: 'studio://projects/{projectId}/clips/{assetId}/versions/{assetVersion}', title: 'Exact Animation version', read: (variables, context, signal) => studioGateway.queryClips({ schemaVersion: 1, projectId: variables.projectId, assetId: variables.assetId, assetVersion: Number(variables.assetVersion), limit: 1 }, context, { signal }) },
+      { name: 'studio-saved-cut-version', template: 'studio://projects/{projectId}/slices/{sliceId}/versions/{sliceVersion}', title: 'Exact saved cut version', read: (variables, context, signal) => studioGateway.querySavedSlice({ schemaVersion: 1, projectId: variables.projectId, sliceId: variables.sliceId, sliceVersion: Number(variables.sliceVersion) }, context, { signal }) },
+    ]) server.registerResource(entry.name, new ResourceTemplate(entry.template, { list: undefined }),
+      { title: entry.title, description: 'Immutable saved content and its exact source lineage.', mimeType: 'application/json' },
+      async (uri, variables, invocationContext) => {
+        const operation = operationContext(invocationContext, requestAbortRegistry);
+        try {
+          const context = await authorizeAgentProject(contextProvider, operation.context, variables.projectId);
+          if (variables.projectId !== animationV1.projectId) throw Object.assign(new Error('The resource is outside the negotiated project.'), { code: 'CONTEXT_PROJECT_MISMATCH' });
+          const value = await entry.read(variables, context, operation.signal);
+          return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
+        } catch (error) {
+          if (operation.signal.aborted) throw error;
+          return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(officialErrorPayload(error)) }] };
+        } finally { operation.cleanup(); }
+      });
+  }
 
   const taskRead = catalog.find(({ name }) => name === 'studio_task_read');
   if (taskRead) {

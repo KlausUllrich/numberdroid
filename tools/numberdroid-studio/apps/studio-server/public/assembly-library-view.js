@@ -15,6 +15,7 @@ export function renderAssemblyCard({ asset, scene = null, projectId }) {
     picture.style.width = '100%'; picture.style.height = '100%'; picture.append(createAssemblyArtwork(scene, { projectId })); preview.append(picture);
   } else preview.append(el('span', 'assembly-note', 'Exact component preview is not available yet. Open the Assembly to resolve its saved versions.'));
   article.append(preview);
+  if (scene?.elements.some(item => item.contentKind === 'animation')) article.append(el('small', 'assembly-note', 'Animation preview paused · open Assembly to play.'));
   const headingRow = el('div', 'asset-card-heading'), heading = el('div'); heading.append(el('span', 'tag', `${asset.kind} · Assembly`), el('h3', '', asset.name));
   headingRow.append(heading, el('span', 'status-pill', asset.lifecycle ?? 'DRAFT')); article.append(headingRow);
   if (asset.metadata?.tags?.length) article.append(el('p', 'asset-tags', asset.metadata.tags.join(' · ')));

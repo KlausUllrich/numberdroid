@@ -18,7 +18,7 @@ const nodes = root => [root, ...(root.children ?? []).flatMap(n => typeof n === 
 function context() {
   const previewInputs = [];
   return { state: { project: { snapshot } }, document: { createElement: element },
-    currentAssetLibrary: () => ({ assets: [] }), safeV2Preview: value => { previewInputs.push(value); return element('preview'); },
+    currentAssetLibrary: () => ({ assets: [] }), animationSupported: () => false, safeV2Preview: value => { previewInputs.push(value); return element('preview'); },
     copyableCanonical: (_label, value) => ({ tag: 'identity', value }),
     createAssetFromSliceButton: slice => ({ tag: 'create', id: slice.sliceId, version: slice.version }), previewInputs };
 }

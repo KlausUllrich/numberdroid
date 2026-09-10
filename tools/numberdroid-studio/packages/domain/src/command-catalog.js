@@ -1,4 +1,6 @@
 import { ASSEMBLY_COMMAND_DEFINITIONS } from './assembly-command-catalog.js';
+import { CLIP_COMMAND_DEFINITIONS } from './clip-command-catalog.js';
+import { SLICE_REVISION_COMMAND_DEFINITIONS } from './slice-revision-command-catalog.js';
 import { ASSET_SPATIAL_SCHEMA } from './asset-spatial-geometry.js';
 
 function deepFreeze(value) {
@@ -891,7 +893,7 @@ const definitions = [
   },
 ];
 
-export const COMMAND_DEFINITIONS = deepFreeze([...definitions, ...ASSEMBLY_COMMAND_DEFINITIONS]);
+export const COMMAND_DEFINITIONS = deepFreeze([...definitions, ...ASSEMBLY_COMMAND_DEFINITIONS, ...CLIP_COMMAND_DEFINITIONS, ...SLICE_REVISION_COMMAND_DEFINITIONS]);
 
 export function getCommandDefinition(type) {
   return COMMAND_DEFINITIONS.find((definition) => definition.type === type) ?? null;

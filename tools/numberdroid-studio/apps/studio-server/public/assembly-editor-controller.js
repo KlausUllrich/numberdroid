@@ -1,17 +1,17 @@
 import { createAssemblyEditorState, assemblyEditorSnapshot, assemblyEditorRemember, assemblyEditorRestore, assemblyEditorUndo, assemblyEditorDirty,
   assemblyEditorPins, assemblyEditorIssues, assemblyEditorResolve, assemblyEditorInvalidNumericField, selectedAssemblyComponent, assemblyEditorPreviewPin,
-  buildAssemblyEditorSave, assemblyEditorContextConflict, assemblyEditorAddComponent, assemblyEditorPin, assemblyEditorMoveOrder, assemblyEditorRemoveComponent, assemblyEditorRemoveChoice } from './assembly-editor-state.js';
+  buildAssemblyEditorSave, assemblyEditorContextConflict, assemblyEditorAddComponent, assemblyEditorPin, assemblyEditorMoveOrder, assemblyEditorRemoveComponent, assemblyEditorRemoveChoice, assemblyEditorSetContent, assemblyEditorContentReady } from './assembly-editor-state.js';
 import { assemblyAssetKey, snapshotAssemblyBlocking } from '../../../packages/domain/src/assembly-geometry.js';
 import { createAssemblyEditorView, updateAssemblyEditorView, syncAssemblyEditorCanvas } from './assembly-editor-view.js';
-import { assemblySceneFrame } from './assembly-artwork-view.js';
+import { assemblySceneFrame, updateAssemblyArtwork } from './assembly-artwork-view.js';
 
 const copy = value => structuredClone(value);
 export function createAssemblyEditorController({ initial, host }) {
   const state = createAssemblyEditorState(initial), element = createAssemblyEditorView(state), listeners = new AbortController();
-  let disposed = false, rendering = false, requestController = null, requestGeneration = 0, resolveController = null, resolveGeneration = 0, resolveKey = null, fieldBefore = null;
+  let disposed = false, rendering = false, requestController = null, requestGeneration = 0, resolveController = null, resolveGeneration = 0, resolveKey = null, fieldBefore = null, playbackFrame = null;
   const context = () => host.getContext(state.context);
   const locked = () => disposed || state.embeddedOpen || ['saving', 'uncertain', 'checking'].includes(state.save.status);
-  const nativeAssets = () => host.getNativeAssets?.() ?? [];
+  const nativeAssets = () => host.getComponentAssets?.() ?? host.getNativeAssets?.() ?? [];
   const captureView = () => ({ focus: document.activeElement?.closest?.('[data-assembly-focus-key]')?.dataset.assemblyFocusKey ?? null,
     page: { x: window.scrollX, y: window.scrollY }, scroll: Object.fromEntries([...element.querySelectorAll('[data-assembly-scroll]')].map(n => [n.dataset.assemblyScroll, { x: n.scrollLeft, y: n.scrollTop }])) });
   function restoreView(saved) {
@@ -33,9 +33,10 @@ export function createAssemblyEditorController({ initial, host }) {
       updateAssemblyEditorView(element, state, { inspector, nativeAssets: nativeAssets(), issues });
     } finally { rendering = false; }
     if (saved) restoreView(saved);
+    if (playbackFrame === null && element.isConnected && state.view === 'edit' && !state.embeddedOpen && state.scene?.elements.some(item => item.contentKind === 'animation')) playbackFrame = requestAnimationFrame(tickPlayback);
   }
   function resolveLocal() {
-    const keys = new Set(state.assets.map(assemblyAssetKey));
+    const keys = new Set(state.assets.filter(assemblyEditorContentReady).map(assemblyAssetKey));
     if (state.resolution.status === 'loading' && assemblyEditorPins(state.model.assembly).every(pin => keys.has(assemblyAssetKey(pin)))) {
       resolveController?.abort(); resolveController = null; resolveKey = null; resolveGeneration += 1; state.resolution.status = 'ready';
     }
@@ -43,7 +44,7 @@ export function createAssemblyEditorController({ initial, host }) {
     catch (error) { state.resolution.error = error.message; }
   }
   async function resolveReferences() {
-    const pins = assemblyEditorPins(state.model.assembly), available = new Set(state.assets.map(assemblyAssetKey));
+    const pins = assemblyEditorPins(state.model.assembly), available = new Set(state.assets.filter(assemblyEditorContentReady).map(assemblyAssetKey));
     if (pins.every(pin => available.has(assemblyAssetKey(pin)))) { resolveLocal(); render(); return; }
     if (!host.resolveDraft) { state.resolution = { status: 'unavailable', error: 'The exact saved component versions are unavailable. Reopen this Assembly when the connection returns.' }; render(); return; }
     const pinSignature = JSON.stringify(pins), projectId = state.context.projectId, key = `${projectId}:${pinSignature}`;
@@ -63,7 +64,7 @@ export function createAssemblyEditorController({ initial, host }) {
     finally { clearTimeout(timer); if (resolveController === controller) { resolveController = null; resolveKey = null; } if (!disposed && generation === resolveGeneration) render(); }
   }
   const remember = before => { assemblyEditorRemember(state, before); resolveLocal();
-    const available = new Set(state.assets.map(assemblyAssetKey)); if (assemblyEditorPins(state.model.assembly).some(pin => !available.has(assemblyAssetKey(pin)))) void resolveReferences(); };
+    const available = new Set(state.assets.filter(assemblyEditorContentReady).map(assemblyAssetKey)); if (assemblyEditorPins(state.model.assembly).some(pin => !available.has(assemblyAssetKey(pin)))) void resolveReferences(); };
   function reconcileContext(current = context()) { if (disposed) return; state.conflict = assemblyEditorContextConflict(state, current); if (!state.gesture && !state.embeddedOpen) render({ inspector: false }); }
   function requireNumeric() {
     const key = assemblyEditorInvalidNumericField(state); if (!key) return true;
@@ -232,28 +233,30 @@ export function createAssemblyEditorController({ initial, host }) {
     try {
       if (action === 'save') { await save(); return; } if (action === 'custom-geometry') { await editCustomGeometry(); return; }
       if (action === 'return-source') { setView('edit'); return; }
-      if (action === 'source') { const c = selectedAssemblyComponent(state), pin = c && assemblyEditorPreviewPin(c, state.preview.variantId), asset = pin && state.assets.find(a => assemblyAssetKey(a) === assemblyAssetKey(pin));
+      if (action === 'source') { const c = selectedAssemblyComponent(state), pin = c && assemblyEditorPreviewPin(c, state.preview.variantId, state.preview.stateId), asset = pin && state.assets.find(a => assemblyAssetKey(a) === assemblyAssetKey(pin));
         if (!asset) throw new Error('The exact component source is unavailable. Its current Library head will not be substituted.'); state.source = { asset: copy(asset), componentId: c.componentId }; setView('source'); return; }
+      if (action === 'playback') { state.previewPlaying = !state.previewPlaying; render({ inspector: false }); return; }
       if (action === 'panel') { state.panel = value; render(); return; }
       if (action === 'component') { state.selectedComponentId = value; render(); return; }
       if (action === 'eye') { state.hidden = state.hidden.includes(value) ? state.hidden.filter(id => id !== value) : [...state.hidden, value]; render(); return; }
       if (action === 'grid' || action === 'close-grid') { state.gridOpen = action === 'grid' ? !state.gridOpen : false; render({ inspector: false }); return; }
       if (action === 'zoom') { state.zoom = value; if (value === 'fit') state.frame = assemblySceneFrame(state.scene, state.model.assembly); syncAssemblyEditorCanvas(element, state); return; }
       if (action === 'select-tool') { element.querySelector('[data-assembly-canvas]').focus({ preventScroll: true }); return; }
-      if (['add', 'replace-base', 'variant-asset'].includes(action)) { state.pickerOpen = true; state.pickerPurpose = action === 'variant-asset' ? `variant:${value}` : action; state.pickerSearch = ''; state.gridOpen = false; render(); element.querySelector('[data-assembly-picker-search]')?.focus({ preventScroll: true }); return; }
+      if (['add', 'replace-base', 'variant-asset', 'state-content'].includes(action)) { state.pickerOpen = true; state.pickerPurpose = action === 'variant-asset' ? `variant:${value}` : action === 'state-content' ? `state:${value}` : action; state.pickerSearch = ''; state.gridOpen = false; render(); element.querySelector('[data-assembly-picker-search]')?.focus({ preventScroll: true }); return; }
       if (action === 'close-picker') { state.pickerOpen = false; render({ inspector: false }); return; }
       if (action === 'undo' || action === 'redo') { assemblyEditorUndo(state, action === 'redo'); resolveLocal(); render(); void resolveReferences(); return; }
       const before = assemblyEditorSnapshot(state), c = selectedAssemblyComponent(state), a = state.model.assembly;
       if (action === 'pick-asset') { const asset = nativeAssets().find(asset => assemblyAssetKey(asset) === value); if (!asset) throw new Error('That Library version changed. Reopen the picker and choose the intended exact version.');
         if (state.pickerPurpose === 'add') assemblyEditorAddComponent(state, asset);
-        else if (c) { if (!state.assets.some(item => assemblyAssetKey(item) === value)) state.assets.push(copy(asset));
-          if (state.pickerPurpose === 'replace-base') c.asset = assemblyEditorPin(asset);
-          else { const variantId = state.pickerPurpose.slice('variant:'.length); c.variantOverrides = c.variantOverrides.filter(v => v.variantId !== variantId); c.variantOverrides.push({ variantId, asset: assemblyEditorPin(asset) }); } }
+        else if (c) { if (assemblyEditorContentReady(asset) && !state.assets.some(item => assemblyAssetKey(item) === value)) state.assets.push(copy(asset));
+          assemblyEditorSetContent(state, c.componentId, state.pickerPurpose, { kind: asset.contentKind === 'animation' ? 'animation' : 'image', asset: assemblyEditorPin(asset) }); }
         state.pickerOpen = false; state.panel = 'component';
       } else if (action === 'rotate' && c) c.rotationDegrees = (c.rotationDegrees + 90) % 360;
       else if (action === 'forward') assemblyEditorMoveOrder(state, -1);
       else if (action === 'backward') assemblyEditorMoveOrder(state, 1);
       else if (action === 'remove') assemblyEditorRemoveComponent(state);
+      else if (action === 'state-none' && c) assemblyEditorSetContent(state, c.componentId, `state:${value}`, { kind: 'none' });
+      else if (action === 'clear-state-content' && c && c.stateOverrides) c.stateOverrides = c.stateOverrides.filter(entry => entry.stateId !== value);
       else if (action === 'clear-variant' && c) c.variantOverrides = c.variantOverrides.filter(v => v.variantId !== value);
       else if (action === 'add-state' && a.states.length < 16) a.states.push({ stateId: `state.${crypto.randomUUID()}`, name: `State ${a.states.length + 1}` });
       else if (action === 'add-variant' && a.variants.length < 16) a.variants.push({ variantId: `variant.${crypto.randomUUID()}`, name: `Variant ${a.variants.length + 1}` });
@@ -274,6 +277,15 @@ export function createAssemblyEditorController({ initial, host }) {
     if (delta) { const step = event.shiftKey ? 10 : 1; c.position.x += delta[0] * step; c.position.y += delta[1] * step; }
     else if (event.key.toLowerCase() === 'r') c.rotationDegrees = (c.rotationDegrees + 90) % 360; else assemblyEditorRemoveComponent(state); remember(before); render();
   }
+  function tickPlayback(now) {
+    playbackFrame = null; if (disposed) return;
+    const artwork = element.querySelector('[data-assembly-artwork]');
+    if (artwork && element.isConnected && state.scene?.elements.some(item => item.contentKind === 'animation')) updateAssemblyArtwork(artwork, state.scene, {
+      projectId: state.context.projectId, hidden: state.hidden, selectedComponentId: state.selectedComponentId, interactive: true,
+      playing: state.previewPlaying && state.view === 'edit' && !state.embeddedOpen, now,
+    });
+    if (element.isConnected && state.previewPlaying && state.view === 'edit' && !state.embeddedOpen && state.scene?.elements.some(item => item.contentKind === 'animation')) playbackFrame = requestAnimationFrame(tickPlayback);
+  }
   const on = (node, name, fn) => node.addEventListener(name, fn, { signal: listeners.signal });
   on(element, 'click', event => { void click(event); }); on(element, 'input', input); on(element, 'change', change);
   on(element, 'focusin', event => { if (event.target.matches('[data-assembly-field]')) fieldBefore = assemblyEditorSnapshot(state); });
@@ -285,7 +297,7 @@ export function createAssemblyEditorController({ initial, host }) {
   return { element,
     afterMount() { if (disposed) return; render({ preserve: false }); restoreView(state.viewContexts[state.view]); void resolveReferences(); },
     reconcileContext, requestLeave,
-    dispose() { disposed = true; requestGeneration += 1; resolveGeneration += 1; requestController?.abort(); resolveController?.abort();
+    dispose() { disposed = true; if (playbackFrame !== null) cancelAnimationFrame(playbackFrame); requestGeneration += 1; resolveGeneration += 1; requestController?.abort(); resolveController?.abort();
       if (state.gesture) { const g = state.gesture; state.gesture = null; if (g.canvas.hasPointerCapture?.(g.pointerId)) g.canvas.releasePointerCapture(g.pointerId); } listeners.abort(); observer.disconnect(); },
     getState() { return copy({ ...state, gesture: state.gesture ? { pointerId: state.gesture.pointerId, scale: state.gesture.scale, componentId: state.gesture.componentId } : null }); },
   };

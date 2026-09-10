@@ -1,3 +1,4 @@
+import { assemblyContentSlots } from '../../../domain/src/assembly-geometry.js';
 import { invariant } from '../../../domain/src/errors.js';
 import { requireId, requireInteger, requireIsoDate, requireEnum } from '../../../domain/src/validation.js';
 import { validateAssemblyDefinition } from '../../../domain/src/assembly-definition.js';
@@ -25,13 +26,13 @@ export function portableAssemblyLibrary(database, projectId, portableAsset) {
   for (const head of proposalHeads) invariant(['ACCEPTED','DISCARDED'].includes(proposals.find(record => record.proposalId === head.proposalId && record.proposalVersion === head.proposalVersion)?.status), 'BUNDLE_NOT_QUIESCENT', 'Resolve Assembly proposals before portable export.');
   const leaves = new Map();
   for (const record of [...versions, ...proposals.map(proposal => ({ ...proposal.validated, createdRevision: proposal.createdRevision }))]) {
-    for (const [key, leaf] of sqliteAssemblyLeaves(database, projectId, record.assembly, record.createdRevision)) leaves.set(key, portableAsset(leaf));
+    for (const [key, leaf] of sqliteAssemblyLeaves(database, projectId, record.assembly, record.createdRevision)) if (leaf.contentKind !== 'animation') leaves.set(key, portableAsset(leaf));
   }
   return { schemaVersion: 1, versions, heads, proposals, proposalHeads,
     leafAssets: ordered([...leaves.values()], 'assetId', 'assetVersion') };
 }
 
-export function validatePortableAssemblies(project, restoreAsset, validateLeafSchema) {
+export function validatePortableAssemblies(project, restoreAsset, validateLeafSchema, resolvePortableClip = null) {
   const library = project.assemblyLibrary;
   exact(library, ['schemaVersion','versions','heads','proposals','proposalHeads','leafAssets'], 'assemblyLibrary');
   invariant(library.schemaVersion === 1, 'BUNDLE_ASSEMBLY_INVALID', 'Unsupported Assembly Library schema.');
@@ -56,7 +57,17 @@ export function validatePortableAssemblies(project, restoreAsset, validateLeafSc
   const validateContent = (content, cutoff) => {
     exact(content, CONTENT_KEYS, 'Assembly content');
     const selectedLeaves = new Map();
-    for (const pin of declarationPins(content.assembly)) {
+    invariant(content.assembly.schemaVersion === 1 || project.schemaVersion === 6, 'BUNDLE_ASSEMBLY_INVALID', 'Assembly v2 requires portable schema v6.');
+    for (const slot of assemblyContentSlots(content.assembly)) {
+      if (slot.content.kind === 'none') continue;
+      const pin = slot.content.asset;
+      if (slot.content.kind === 'animation') {
+        invariant(typeof resolvePortableClip === 'function', 'BUNDLE_ASSEMBLY_INVALID', 'Resolve the complete saved Animation closure.');
+        const clip = resolvePortableClip(pin, cutoff);
+        invariant(clip && clip.createdRevision <= cutoff, 'BUNDLE_ASSEMBLY_INVALID', 'Animation content is missing or newer than its containing record.');
+        selectedLeaves.set(`${pin.assetId}@${pin.assetVersion}:${pin.metadataVersion}`, clip);
+        continue;
+      }
       const key = `${pin.assetId}@${pin.assetVersion}:${pin.metadataVersion}`;
       invariant(leaves.has(key) && leafVersions.get(key).createdRevision <= cutoff, 'BUNDLE_ASSEMBLY_INVALID', 'Assembly component is missing or newer than its containing record.');
       usedLeaves.add(key); selectedLeaves.set(key, leaves.get(key));
@@ -104,7 +115,7 @@ export function validatePortableAssemblies(project, restoreAsset, validateLeafSc
     const prior = assetHeads.get(record.assetId);
     invariant(record.assetVersion === (prior?.assetVersion ?? 0)+1 && record.metadataVersion === (prior ? prior.metadataVersion + (record.metadataFingerprint === prior.metadataFingerprint ? 0 : 1) : 1), 'BUNDLE_ASSEMBLY_INVALID', 'Assembly version lineage is invalid.');
     invariant(!prior || record.createdRevision > prior.createdRevision, 'BUNDLE_ASSEMBLY_INVALID', 'Assembly revision history is not ordered.');
-    invariant(!project.assetLibrary.versions.some(leaf => leaf.assetId === record.assetId) && !project.legacyAssets.some(leaf => leaf.assetId === record.assetId), 'BUNDLE_ASSEMBLY_INVALID', 'Assembly ID collides with native/legacy content.');
+    invariant(!project.assetLibrary.versions.some(leaf => leaf.assetId === record.assetId) && !project.legacyAssets.some(leaf => leaf.assetId === record.assetId) && !(project.clipLibrary?.versions ?? []).some(clip => clip.assetId === record.assetId), 'BUNDLE_ASSEMBLY_INVALID', 'Assembly ID collides with native/legacy content.');
     if (record.proposal !== null) {
       exact(record.proposal, ['proposalId','proposalVersion'], 'Assembly proposal provenance');
       const proposal = library.proposals.find(value => value.proposalId === record.proposal.proposalId && value.proposalVersion === record.proposal.proposalVersion);
@@ -133,7 +144,7 @@ export function restoredAssemblySnapshot(library, revision) {
 }
 
 export function importAssemblyLibrary(database, project) {
-  if (project.schemaVersion !== 5) return;
+  if (![5, 6].includes(project.schemaVersion) || !project.assemblyLibrary) return;
   for (const proposal of project.assemblyLibrary.proposals) writeAssemblyProposal(database, project.projectHead.projectId, proposal, 'bundle_import');
   for (const record of project.assemblyLibrary.versions) writeAssemblyAsset(database, project.projectHead.projectId, record, 'bundle_import');
 }

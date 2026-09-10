@@ -223,7 +223,7 @@ function artifactRelativePath(digest) {
   return join(ARTIFACT_PREFIX, digest.slice(0, 2), digest.slice(2, 4), digest);
 }
 
-function assertNoAuthorityOrMachineState(value, artifactDigests, path = '$', parentKey = '') {
+function assertNoAuthorityOrMachineState(value, artifactDigests, path = '$', parentKey = '', immutableCutUris = new Map()) {
   if (value === null || typeof value === 'number' || typeof value === 'boolean') return;
   if (typeof value === 'string') {
     const normalizedParent = normalizedKey(parentKey);
@@ -243,11 +243,18 @@ function assertNoAuthorityOrMachineState(value, artifactDigests, path = '$', par
   }
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index += 1) {
-      assertNoAuthorityOrMachineState(value[index], artifactDigests, `${path}[${index}]`, parentKey);
+      assertNoAuthorityOrMachineState(value[index], artifactDigests, `${path}[${index}]`, parentKey, immutableCutUris);
     }
     return;
   }
   for (const [key, child] of Object.entries(value)) {
+    const pinnedCutDigest = immutableCutUris.get(`${path}.${key}`);
+    if (pinnedCutDigest !== undefined) {
+      invariant(DIGEST_PATTERN.test(pinnedCutDigest) && artifactDigests.has(pinnedCutDigest)
+        && child === `studio://artifacts/sha256/${pinnedCutDigest}`,
+      'BUNDLE_MACHINE_LOCATION_FORBIDDEN', 'An immutable cut job binding must use its exact manifest-backed canonical CAS URI.', { path: `${path}.${key}` });
+      continue;
+    }
     const normalized = normalizedKey(key);
     const locationKey = normalized !== 'path' && (
       normalized.endsWith('path') || normalized.endsWith('directory') || normalized.endsWith('location')
@@ -260,7 +267,7 @@ function assertNoAuthorityOrMachineState(value, artifactDigests, path = '$', par
       || normalized.endsWith('branchid') || FORBIDDEN_EXACT_KEYS.has(normalized);
     invariant(!locationKey, 'BUNDLE_MACHINE_LOCATION_FORBIDDEN', 'Bundle semantic data contains a machine-location field.', { path: `${path}.${key}`, key });
     invariant(!secretKey && !authorityKey, 'BUNDLE_AUTHORITY_FORBIDDEN', 'Bundle semantic data contains authority, secret, or operational state.', { path: `${path}.${key}`, key });
-    assertNoAuthorityOrMachineState(child, artifactDigests, `${path}.${key}`, key);
+    assertNoAuthorityOrMachineState(child, artifactDigests, `${path}.${key}`, key, immutableCutUris);
   }
 }
 
@@ -292,8 +299,8 @@ function validateAppliedJobHistory(jobs) {
 }
 
 export function validatePortableProjectDocument(project, { limits = PROJECT_BUNDLE_LIMITS, semanticValidator = null } = {}) {
-  invariant([1, 2, 3, 4, 5].includes(project?.schemaVersion) && project.bundleKind === BUNDLE_KIND, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Unsupported portable project schema.');
-  exactKeys(project, project.schemaVersion === 5 ? [...PROJECT_KEYS_V2, 'assemblyLibrary'] : project.schemaVersion >= 2 ? PROJECT_KEYS_V2 : PROJECT_KEYS_V1, 'project.json');
+  invariant([1, 2, 3, 4, 5, 6].includes(project?.schemaVersion) && project.bundleKind === BUNDLE_KIND, 'BUNDLE_SCHEMA_UNSUPPORTED', 'Unsupported portable project schema.');
+  exactKeys(project, project.schemaVersion === 6 ? [...PROJECT_KEYS_V2, 'assemblyLibrary', 'clipLibrary'] : project.schemaVersion === 5 ? [...PROJECT_KEYS_V2, 'assemblyLibrary'] : project.schemaVersion >= 2 ? PROJECT_KEYS_V2 : PROJECT_KEYS_V1, 'project.json');
   exactKeys(project.projectHead, PROJECT_HEAD_KEYS, 'projectHead');
   exactKeys(project.assetLibrary, ASSET_LIBRARY_KEYS, 'assetLibrary');
   const head = project.projectHead;
@@ -335,7 +342,17 @@ export function validatePortableProjectDocument(project, { limits = PROJECT_BUND
   validateAppliedJobHistory(project.appliedJobHistory);
   canonicalBundleJson(project, limits);
   const digestSet = new Set(sortedDigests);
-  assertNoAuthorityOrMachineState(project, digestSet);
+  // Versioned cut job inputs are immutable and fingerprinted in their native
+  // shape. Preserve this one semantic CAS URI; arbitrary paths/URIs stay banned.
+  const immutableCutUris = new Map();
+  if (project.schemaVersion === 6) for (const [index, job] of project.appliedJobHistory.entries()) {
+    const input = job.input;
+    if (job.kind === 'ATLAS_PREVIEW' && input?.schemaVersion === 2 && input.kind === 'ATLAS_PREVIEW'
+      && input.operation === 'slice.revision' && typeof input.revision?.sourceBinding?.digest === 'string') {
+      immutableCutUris.set(`$.appliedJobHistory[${index}].input.revision.sourceBinding.artifactUri`, input.revision.sourceBinding.digest);
+    }
+  }
+  assertNoAuthorityOrMachineState(project, digestSet, '$', '', immutableCutUris);
   semanticValidator?.(structuredClone(project));
   return structuredClone(project);
 }

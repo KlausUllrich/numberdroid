@@ -1,7 +1,8 @@
+import { resolveClipRead } from './clip-service.js';
 import { invariant } from '../../domain/src/errors.js';
 import { requireId, requireInteger, requireRecord, requireString, requireEnum } from '../../domain/src/validation.js';
 import { validateAssemblyDefinition } from '../../domain/src/assembly-definition.js';
-import { assemblyAssetKey, resolveAssemblyScene } from '../../domain/src/assembly-geometry.js';
+import { assemblyAssetKey, assemblyContentSlots, resolveAssemblyScene, normalizeAssemblyDeclaration } from '../../domain/src/assembly-geometry.js';
 import { fingerprint } from './value-utils.js';
 
 const CONTENT_FIELDS = ['assetId', 'operation', 'expectedAssetVersion', 'expectedMetadataVersion', 'name', 'kind', 'metadata', 'assembly'];
@@ -11,20 +12,29 @@ export function exactAssemblyFields(value, fields, label) {
   invariant(new TextEncoder().encode(JSON.stringify(value)).length <= 256 * 1024, 'ASSEMBLY_TOO_LARGE', 'Assembly requests are limited to 256 KiB.');
 }
 
-export function assemblyLeafHistory(document, cutoff = Number.MAX_SAFE_INTEGER) {
+export function assemblyLeafHistory(document, cutoff = Number.MAX_SAFE_INTEGER, assembly = null) {
+  const wanted = assembly ? new Set(assemblyContentSlots(assembly).filter(slot => slot.content.kind !== 'none').map(slot => assemblyAssetKey(slot.content.asset))) : null;
   const assets = new Map();
   for (const revision of document.revisions) {
     if (revision.number > cutoff) continue;
-    for (const asset of revision.snapshot.assetLibrary?.assets ?? []) assets.set(assemblyAssetKey(asset), asset);
+    for (const asset of revision.snapshot.assetLibrary?.assets ?? []) if (!wanted || wanted.has(assemblyAssetKey(asset))) assets.set(assemblyAssetKey(asset), asset);
+  }
+  for (const revision of document.revisions) {
+    if (revision.number > cutoff) continue;
+    for (const asset of revision.snapshot.clipLibrary?.assets ?? []) {
+      const key = assemblyAssetKey(asset);
+      if ((!wanted || wanted.has(key)) && !assets.has(key)) assets.set(key, resolveClipRead(asset, document, Math.min(cutoff, asset.createdRevision)));
+    }
   }
   return assets;
 }
 
 function validateContent(payload, document, cutoff) {
+  const assembly = normalizeAssemblyDeclaration(payload.assembly);
   const validated = validateAssemblyDefinition({
     assetId: requireId(payload.assetId, 'assetId'), name: payload.name, kind: payload.kind,
-    metadata: payload.metadata, assembly: payload.assembly,
-    assets: assemblyLeafHistory(document, cutoff), projectId: document.projectId,
+    metadata: payload.metadata, assembly,
+    assets: assemblyLeafHistory(document, cutoff, assembly), projectId: document.projectId,
   });
   const errors = validated.findings.filter(finding => finding.severity === 'ERROR');
   invariant(errors.length === 0, 'ASSEMBLY_INVALID', 'Correct the Assembly technical findings before saving or submitting.', { findings: errors });
@@ -40,7 +50,8 @@ function expectTarget(payload, snapshot) {
   if (operation === 'create') {
     invariant(av === 0 && mv === 0 && !current, 'ASSEMBLY_VERSION_CONFLICT', 'Create requires an unused Asset ID and versions 0/0.');
     invariant(!(snapshot.assets ?? []).some(asset => (asset.id ?? asset.assetId) === assetId)
-      && !(snapshot.assetLibrary?.assets ?? []).some(asset => asset.assetId === assetId),
+      && !(snapshot.assetLibrary?.assets ?? []).some(asset => asset.assetId === assetId)
+      && !(snapshot.clipLibrary?.assets ?? []).some(asset => asset.assetId === assetId),
     'ASSEMBLY_ID_CONFLICT', 'This ID already belongs to a leaf Asset; choose a new Assembly ID.', { assetId });
   } else invariant(current && current.assetVersion === av && current.metadataVersion === mv,
     'ASSEMBLY_VERSION_CONFLICT', 'The Assembly changed. Recheck its current Asset and metadata versions.', { assetId, expectedAssetVersion: av, expectedMetadataVersion: mv, actualAssetVersion: current?.assetVersion, actualMetadataVersion: current?.metadataVersion });
@@ -119,16 +130,20 @@ export function applyAssemblyCommand(command, next, document, now) {
 }
 
 export function resolveAssemblyRead(record, document, selection = undefined, cutoff = Number.MAX_SAFE_INTEGER) {
-  const available = assemblyLeafHistory(document, cutoff);
-  const pins = [ ...record.assembly.components.flatMap(component => [component.asset, ...component.variantOverrides.map(override => override.asset)]) ];
+  const available = assemblyLeafHistory(document, cutoff, record.assembly);
+  const pins = assemblyContentSlots(record.assembly).filter(slot => slot.content.kind !== 'none').map(slot => slot.content.asset);
   const leafAssets = [...new Set(pins.map(assemblyAssetKey))].map(key => {
     const asset = available.get(key);
     invariant(asset, 'ASSEMBLY_COMPONENT_NOT_FOUND', 'An exact component Asset version is unavailable.', { key });
     return structuredClone(asset);
   });
   const scene = resolveAssemblyScene({ assembly: record.assembly, assets: leafAssets, projectId: document.projectId, selection });
-  for (const element of scene.elements) element.previewUrl = `/api/projects/${encodeURIComponent(document.projectId)}/artifacts/sha256/${element.artifact.digest}`;
-  return { ...structuredClone(record), leafAssets, scene };
+  for (const element of scene.elements) {
+    for (const frame of element.contentKind === 'animation' ? element.clip.frames : [element]) frame.previewUrl = `/api/projects/${encodeURIComponent(document.projectId)}/artifacts/sha256/${frame.artifact.digest}`;
+  }
+  const result = { ...structuredClone(record), leafAssets, scene };
+  if (record.assembly.schemaVersion === 2) invariant(new TextEncoder().encode(JSON.stringify(result)).byteLength <= 16 * 1024 * 1024, 'ASSEMBLY_RESPONSE_LIMIT', 'This resolved Assembly exceeds the 16 MiB response bound. Reduce its referenced content.');
+  return result;
 }
 
 export function queryAssemblyDocument(request, document) {

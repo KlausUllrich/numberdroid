@@ -1,4 +1,7 @@
 import { applyAssemblyCommand, queryAssemblyDocument } from './assembly-service.js';
+import { applyClipCommand, queryClipDocument } from './clip-service.js';
+import { querySavedSliceDocument } from './exact-cut-history.js';
+import { applySliceRevisionCommand } from './slice-revision-service.js';
 import { COMMAND_DEFINITIONS, KNOWN_GRANT_SCOPES, getCommandDefinition, listCommandDefinitions } from '../../domain/src/command-catalog.js';
 import {
   ATLAS_PROCESSOR_ID,
@@ -968,6 +971,8 @@ function applyCommand(command, snapshot, now, {
   }
 
   if (command.type.startsWith('assembly.')) return applyAssemblyCommand(command, next, projectDocument, now);
+  if (command.type.startsWith('clip.')) return applyClipCommand(command, next, projectDocument, now);
+  if (command.type.startsWith('slice.revision.')) return applySliceRevisionCommand(command, next, projectDocument, now, { atlasJob, priorAtlasJob });
 
   switch (command.type) {
     case 'grant.issue': {
@@ -1465,6 +1470,7 @@ function applyCommand(command, snapshot, now, {
     }
     case 'asset.define': {
       invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === (payload.assetId ?? payload.id)), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
+      invariant(!next.clipLibrary?.assets.some(asset => asset.assetId === (payload.assetId ?? payload.id)), 'CLIP_ID_CONFLICT', 'This Asset ID belongs to an Animation.');
       const assetId = requireId(payload.assetId, 'payload.assetId');
       invariant(!next.assets.some((asset) => asset.id === assetId), 'ENTITY_EXISTS', 'The asset ID already exists.', {
         assetId,
@@ -1500,6 +1506,7 @@ function applyCommand(command, snapshot, now, {
     }
     case 'asset.save': {
       invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === payload.assetId), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
+      invariant(!next.clipLibrary?.assets.some(asset => asset.assetId === payload.assetId), 'CLIP_ID_CONFLICT', 'This Asset ID belongs to an Animation.');
       assertExactFields(payload, new Set(['assetId', 'operation', 'expectedAssetVersion', 'expectedMetadataVersion', 'name', 'kind', 'metadata', 'image']), 'payload');
       const assetId = requireId(payload.assetId, 'payload.assetId');
       const operation = requireEnum(payload.operation, 'payload.operation', ['create', 'update']);
@@ -1551,6 +1558,7 @@ function applyCommand(command, snapshot, now, {
       invariant(!library.proposals.some((proposal) => proposal.proposalId === proposalId), 'ENTITY_EXISTS', 'The proposal ID already exists.', { proposalId });
       const items = preparedAssetProposal.items.map((item) => {
         invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === item.assetId), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
+      invariant(!next.clipLibrary?.assets.some(asset => asset.assetId === item.assetId), 'CLIP_ID_CONFLICT', 'This Asset ID belongs to an Animation.');
         const existingAsset = library.assets.find((asset) => asset.assetId === item.assetId);
         invariant(!next.assets.some((asset) => asset.id === item.assetId), 'ENTITY_EXISTS', 'A legacy asset already uses this identity.', { assetId: item.assetId });
         if (item.operation === 'create') {
@@ -2213,7 +2221,7 @@ function createRevision({ command, number, now, commandHash, snapshot, result, s
       ...(isTaskBranch ? { branchId: command.branchId, payload: deepClone(command.payload) } : {}),
       // Direct owner saves retain their strict semantic input for immutable
       // image-retention/version provenance. This carries no supplied authority.
-      ...(!isTaskBranch && (command.type === 'asset.save' || command.type.startsWith('assembly.')) ? { payload: deepClone(command.payload) } : {}),
+      ...(!isTaskBranch && (command.type === 'asset.save' || command.type.startsWith('assembly.') || command.type.startsWith('clip.') || command.type.startsWith('slice.revision.')) ? { payload: deepClone(command.payload) } : {}),
       fingerprint: commandHash,
     },
     snapshot: deepClone(snapshot),
@@ -2298,6 +2306,8 @@ export class StudioService {
   }
 
   get durableAssemblyStoreReady() { return this.#store.supportsAtomicAssemblyLibrary === true; }
+  get durableClipStoreReady() { return this.#store.supportsAtomicClipLibrary === true && this.#store.isTaskBranchStore !== true; }
+  get storeSchemaVersion() { return this.#store.schemaVersion ?? null; }
 
   get durableRoomStoreReady() {
     return this.#store.supportsAtomicRoomDesigner === true;
@@ -2382,6 +2392,8 @@ export class StudioService {
     if (definition.requiresDurableAssemblyStore) {
       invariant(this.durableAssemblyStoreReady && this.#store.isTaskBranchStore !== true, 'ASSEMBLY_STORE_DISABLED', 'Assembly authoring requires the shared-head SQLite v16 store.');
     }
+    if (command.payload?.assembly?.schemaVersion === 2) invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Assembly animation content requires the shared-head SQLite v17 store.');
+    if (definition.requiresDurableClipStore) invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Animation authoring requires the shared-head SQLite v17 store.');
     if (definition.requiresDurableRoomStore) {
       invariant(
         this.durableRoomStoreReady,
@@ -2396,12 +2408,12 @@ export class StudioService {
       actualRevision: head.number,
     });
     assertAuthorized(command, head.snapshot, definition, now);
-    const atlasJob = command.type === 'atlas.commit.slices'
+    const atlasJob = ['atlas.commit.slices', 'slice.revision.commit'].includes(command.type)
       ? this.#jobStore.get(command.projectId, requireId(command.payload.jobId, 'payload.jobId'))
       : null;
     const priorAtlas = ['atlas.define.rects', 'atlas.preview.slices'].includes(command.type)
       ? head.snapshot.atlases?.find((candidate) => candidate.id === command.payload.atlasId)
-      : null;
+      : command.type.startsWith('slice.revision.') ? head.snapshot.atlases?.find(candidate => candidate.sliceHeads?.some(slice => slice.sliceId === command.payload.sliceId)) : null;
     const priorAtlasJob = priorAtlas?.latestPreviewJobId
       ? this.#jobStore.get(command.projectId, priorAtlas.latestPreviewJobId)
       : null;
@@ -2621,13 +2633,14 @@ export class StudioService {
     signal?.throwIfAborted();
     invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId: normalizedRequest.projectId });
     const head = headRevision(document);
+    const job = this.#jobStore.get(normalizedRequest.projectId, normalizedRequest.jobId);
+    const actualScope = requiredScope === 'atlas.write' && job?.input?.schemaVersion === 2 && job.input.operation === 'slice.revision' ? 'slice.revision.prepare' : requiredScope;
     assertAuthorized(
       { ...executionContext, projectId: normalizedRequest.projectId, type: requiredScope === 'project.read' ? 'project.read' : 'job.operation' },
       head.snapshot,
-      { ownerOnly: false, requiredScope },
+      { ownerOnly: false, requiredScope: actualScope },
       this.#clock(),
     );
-    const job = this.#jobStore.get(normalizedRequest.projectId, normalizedRequest.jobId);
     invariant(job, 'JOB_NOT_FOUND', 'The job does not exist.', { projectId: normalizedRequest.projectId, jobId: normalizedRequest.jobId });
     assertJobOriginAuthority(job, executionContext, head.snapshot);
     return { request: normalizedRequest, job, head };
@@ -2747,6 +2760,29 @@ export class StudioService {
     const result = queryAssemblyDocument(request, document);
     for (const record of [...result.assets ?? [], ...(result.draft ? [result.draft] : [])]) this.#store.verifyAssemblyContent(projectId, record, record.createdRevision ?? result.revision);
     for (const proposal of result.proposals ?? []) this.#store.verifyAssemblyContent(projectId, proposal.validated, proposal.createdRevision);
+    return deepFreeze(result);
+  }
+
+  async queryClips(request, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted(); invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Clip reads require the shared-head SQLite v17 store.');
+    const projectId = requireId(request.projectId, 'projectId'), context = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId); invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.');
+    assertAuthorized({ ...context, projectId, type: 'project.read', payload: {} }, headRevision(document).snapshot, { ownerOnly: false, requiredScope: 'project.read' }, this.#clock());
+    signal?.throwIfAborted(); const result = queryClipDocument(request, document);
+    for (const record of [...result.assets ?? [], ...(result.draft ? [result.draft] : [])]) this.#store.verifyClipContent(projectId, record, record.createdRevision ?? result.revision);
+    for (const proposal of result.proposals ?? []) this.#store.verifyClipContent(projectId, proposal.validated, proposal.createdRevision);
+    return deepFreeze(result);
+  }
+
+  async querySavedSlice(request, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted(); invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Historical cut reads require the shared-head SQLite v17 store.');
+    const projectId = requireId(request.projectId, 'projectId'), context = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId); invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.');
+    assertAuthorized({ ...context, projectId, type: 'project.read', payload: {} }, headRevision(document).snapshot, { ownerOnly: false, requiredScope: 'project.read' }, this.#clock());
+    signal?.throwIfAborted();
+    const result = querySavedSliceDocument(request, document);
+    const persisted = this.#store.verifyHistoricalSliceBinding(projectId, request.sliceId, request.sliceVersion, result.revision);
+    invariant(fingerprint(persisted) === fingerprint(result.binding), 'CLIP_SLICE_CORRUPT', 'The historical cut differs from its persisted exact lineage.');
     return deepFreeze(result);
   }
 

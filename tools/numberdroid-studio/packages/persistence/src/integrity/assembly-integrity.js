@@ -1,7 +1,7 @@
 import { invariant } from '../../../domain/src/errors.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { applyAssemblyCommand } from '../../../application/src/assembly-service.js';
-import { declarationPins, validateStoredAssemblyContent } from '../sqlite/sqlite-assembly-store.js';
+import { declarationPins, validateStoredAssemblyContent, storedAssemblyPins, assemblyContentDigests } from '../sqlite/sqlite-assembly-store.js';
 
 const eq = (left, right, message) => invariant(fingerprint(left) === fingerprint(right), 'ASSEMBLY_INTEGRITY_MISMATCH', message);
 export function inspectAssemblyIntegrity(database) {
@@ -44,13 +44,12 @@ export function inspectAssemblyIntegrity(database) {
         const exactLeaves = validateStoredAssemblyContent(database, projectId, record, row.created_revision);
         const created = revisions.find(revision => revision.number === row.created_revision);
         eq(created?.snapshot.assemblyLibrary?.assets.find(asset => asset.assetId === record.assetId && asset.assetVersion === record.assetVersion), record, 'Assembly row differs from its creation snapshot.');
-        const expectedDigests = [...new Set([...exactLeaves.values()].map(leaf => leaf.sliceBinding.digest))].sort();
+        const expectedDigests = assemblyContentDigests(exactLeaves);
         eq(expectedDigests, database.prepare("SELECT digest FROM artifact_references WHERE project_id=? AND owner_kind='assembly_version' AND owner_id=? ORDER BY digest").all(projectId, `${record.assetId}.v${record.assetVersion}`).map(value => value.digest), 'Assembly imagery references differ from component closure.');
         const prior = headAssets.get(record.assetId);
         invariant(record.assetVersion === (prior?.assetVersion ?? 0) + 1
           && record.metadataVersion === (prior ? prior.metadataVersion + (prior.metadataFingerprint === record.metadataFingerprint ? 0 : 1) : 1), 'ASSEMBLY_INTEGRITY_MISMATCH', 'Assembly version sequence mismatch.');
-        const pins = database.prepare('SELECT component_id,variant_id,leaf_asset_id,leaf_asset_version,leaf_metadata_version FROM assembly_component_pins WHERE project_id=? AND asset_id=? AND asset_version=? ORDER BY pin_order').all(projectId, record.assetId, record.assetVersion)
-          .map(pin => ({ componentId: pin.component_id, variantId: pin.variant_id, assetId: pin.leaf_asset_id, assetVersion: pin.leaf_asset_version, metadataVersion: pin.leaf_metadata_version }));
+        const pins = storedAssemblyPins(database, projectId, record.assetId, record.assetVersion, record.assembly);
         eq(pins, declarationPins(record.assembly), 'Assembly pin closure mismatch.');
         const savedFindings = database.prepare('SELECT finding_json FROM assembly_version_findings WHERE project_id=? AND asset_id=? AND asset_version=? ORDER BY finding_order').all(projectId, record.assetId, record.assetVersion).map(value => JSON.parse(value.finding_json));
         eq(savedFindings, record.findings, 'Assembly findings mismatch.');
@@ -81,8 +80,7 @@ export function inspectAssemblyIntegrity(database) {
           if (prior.status === 'PENDING') eq(record.validated, prior.validated, 'Owner resolution modified the proposed content.');
         }
         invariant(record.status !== 'CHANGES_REQUESTED' || typeof record.feedback === 'string' && record.feedback.trim().length > 0, 'ASSEMBLY_INTEGRITY_MISMATCH', 'Changes requested requires feedback.');
-        const pins = database.prepare('SELECT component_id,variant_id,leaf_asset_id,leaf_asset_version,leaf_metadata_version FROM assembly_proposal_component_pins WHERE project_id=? AND proposal_id=? AND proposal_version=? ORDER BY pin_order').all(projectId, record.proposalId, record.proposalVersion)
-          .map(pin => ({ componentId: pin.component_id, variantId: pin.variant_id, assetId: pin.leaf_asset_id, assetVersion: pin.leaf_asset_version, metadataVersion: pin.leaf_metadata_version }));
+        const pins = storedAssemblyPins(database, projectId, record.proposalId, record.proposalVersion, record.validated.assembly, true);
         eq(pins, declarationPins(record.validated.assembly), 'Proposal pin closure mismatch.');
         const applications = versions.filter(version => version.proposal_id === record.proposalId && version.proposal_version === record.proposalVersion);
         invariant(applications.length === (record.status === 'ACCEPTED' ? 1 : 0), 'ASSEMBLY_INTEGRITY_MISMATCH', 'Every accepted Assembly proposal must create exactly one linked Assembly version.');
