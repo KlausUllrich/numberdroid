@@ -1,9 +1,10 @@
 # Numberdroid — Current Development Plan
 
-## 2026-09-10 Animation editor candidate
+## 2026-09-10 Animation editor acceptance
 
-The approved Animation design is implemented as a candidate: exact saved cuts
-become named frame occurrences, with shared alignment, per-frame timing and
+Klaus explicitly reported **“pass”** for the production Animation test batch.
+The accepted implementation turns exact saved cuts into reusable Animation assets:
+named frame occurrences, with shared alignment, per-frame timing and
 once/loop/ping-pong playback. Contextual cut editing retains the parent draft;
 new cut and Clip versions preserve every older saved reference. Assembly v2 can
 bind exact saved Clips to presentation states while cosmetic variants stay
@@ -12,7 +13,9 @@ independent. Agents propose and revise; the owner accepts in Studio.
 The [implementation contract](../../tools/numberdroid-studio/docs/ANIMATION_EDITOR_IMPLEMENTATION_CONTRACT.md)
 owns schema17, portable v6 and the explicit animation-v1 MCP profile.
 [VT-022](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#vt-022--animation-editor-and-contextual-cut-revisions)
-is pending Klaus's production test. CI, merge and live acceptance remain separate.
+is **USER ACCEPTED — PASS** on clean main `f5f8bc2` (PR #233).
+Post-merge Build #2439 passed before the human test; the live result is Klaus's
+separate decision recorded in the backlog.
 VT-001 / CP4.5 and A1.7 remain REVISE; export/materialization remains separately gated.
 
 

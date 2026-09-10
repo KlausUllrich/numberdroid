@@ -1,6 +1,10 @@
 # Animation editor — compatible implementation contract
 
-Status: implemented candidate, 2026-09-10; product acceptance pending.
+Status: **USER ACCEPTED — PASS, 2026-09-10** under
+[VT-022](VACATION_TEST_BACKLOG.md#vt-022--animation-editor-and-contextual-cut-revisions).
+Klaus reported **“pass”** after the production batch on clean main `f5f8bc2`
+(PR #233; post-merge Build #2439 green). The contract below defines that accepted
+bounded implementation; unrelated product gates remain separate.
 The [approved design](ANIMATION_EDITOR_DESIGN.md) owns the experience. This
 contract defines the bounded production block before its source implementation.
 
