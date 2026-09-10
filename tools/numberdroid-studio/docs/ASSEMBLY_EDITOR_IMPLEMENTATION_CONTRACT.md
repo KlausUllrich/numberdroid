@@ -11,6 +11,15 @@ table, custom blocking was hard to discover, and the static Brewing preview
 did not match the animated mockup. He authorized restoring Review and Blocking
 clarity first. Product acceptance remains open.
 
+Klaus's explicit **“pass”** on 2026-09-10 accepts this bounded clarity correction:
+Current/Proposed comparison, the change summary and feedback layout, visible
+blocking choices and Edit custom blocking, and Show blocking/geometry return.
+The tested source is PR #230, main `f7113f29da47fb3976c0af941c028aa834826ce3`;
+PR Build #2432/run `34448270530` and post-merge Build #2433/run `34449073665`
+passed. This records the requested clarity batch, not a broader Assembly,
+animation, shared Review, VT-001/CP4.5 or A1.7 acceptance. Animation clips are the
+next separate design discussion.
+
 This correction reuses the approved Review and Assembly layouts:
 
 - Show a stable Current / Proposed preview with one shared frame and retained

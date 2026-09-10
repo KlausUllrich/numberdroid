@@ -59,12 +59,15 @@ PR #227, post-merge green, and user accepted as VT-020. Activity is available fr
 main navigation; the duplicate sidebar is removed. Preserve accepted Cutter and
 Asset-editor behavior.
 
-Active block: the Assembly Review and Blocking clarity correction authorized by
-Klaus after testing PR #229. The [implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md#clarity-correction--2026-09-10)
-records stable Current / Proposed preview, human-readable changes, clear feedback,
-visible blocking choices and an inspection-only Show blocking toggle. Preserve
-saved work and existing owner/agent decision semantics. VT-021 remains unaccepted.
-Real animation clips are a separate design step; full shared Review semantics,
+The Assembly Review and Blocking clarity correction is merged through PR #230,
+post-merge green, and explicitly **user passed on 2026-09-10**. The
+[implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md#clarity-correction--2026-09-10)
+records the exact bounded acceptance. Preserve this corrected UI and saved work.
+The broader VT-021 decision remains separate.
+
+Next: discuss the smallest usable real animation-clip workflow, then agree on its
+mockup and contract before implementation. Frames/timing/looping, clip editing and
+Assembly state use still need that scoped design. Full shared Review semantics,
 runtime materialization, image generation and publication retain separate gates.
 
 ## What can be used

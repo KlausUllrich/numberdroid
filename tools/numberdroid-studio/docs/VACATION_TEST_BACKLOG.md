@@ -1530,6 +1530,12 @@ test convenience.
 
 - **Status:** implemented candidate, 2026-09-09. Integration, automated evidence
   and Klaus's explicit implementation decision are separate gates.
+- **Clarity batch:** **USER PASSED — 2026-09-10.** Klaus replied **“pass”** to
+  PR #230's focused Current/Proposed, change-summary/feedback, visible custom
+  blocking and Show blocking/return checks on main `f7113f2`. PR and post-merge
+  CI passed. This closes that correction; the broader VT-021 decision below
+  remains separate. Real animation clips proceed to discussion before design
+  approval or implementation.
 - **User feedback:** after PR #229, Klaus requested clearer proposal review and
   discoverable custom blocking, and noted the missing Brewing animation. The
   authorized 2026-09-10 correction restores the approved Review/Blocking layout;
