@@ -58,7 +58,7 @@ Keep these states distinct:
 | VT-019 | Precise named Cutter editor | CUTTER USER PASSED 2026-09-08 — named-cut path covered by VT-020 | approved Cutter design and existing exact PNG/job foundations | Named selective cuts, stable tools/grid/drag, output inspection, save/reopen and user-owned editing |
 | VT-020 | Asset placement and blocking editor | USER ACCEPTED — PASS 2026-09-09 | approved Placement design and compatible Asset editor contract | Named shapes, direct own-work Save, retained versions and Activity navigation |
 | VT-021 | Assembly editor | IMPLEMENTED CANDIDATE — user acceptance pending | approved Assembly mockup and exact composition contract | Components, state/variant preview, custom blocking, agent correction/review, Save/restart |
-| VT-022 | Animation editor and contextual cut revisions | IMPLEMENTED CANDIDATE — user acceptance pending | approved Animation V2 mockup and compatible Clip/Assembly contract | Exact frames, timing/alignment, cut round-trip, immutable versions, agent feedback/review and Assembly playback |
+| VT-022 | Animation editor and contextual cut revisions | USER ACCEPTED — PASS 2026-09-10 | approved Animation V2 mockup and compatible Clip/Assembly contract | Exact frames, timing/alignment, cut round-trip, immutable versions, agent feedback/review and Assembly playback |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1562,29 +1562,40 @@ test convenience.
 
 ## VT-022 — Animation editor and contextual cut revisions
 
-Status: **IMPLEMENTED CANDIDATE — production acceptance pending**.
-Klaus's “all pass” accepted the V2 mockup. This item covers the subsequent real
-implementation under [its contract](ANIMATION_EDITOR_IMPLEMENTATION_CONTRACT.md).
-The focused PR/CI record owns immutable source and automated evidence identities.
+Status: **USER ACCEPTED — PASS, 2026-09-10**.
 
-Use a fresh Animation fixture; never overwrite an existing workspace to reset it.
-A real semantic agent must discover the profile, submit/correct a Clip after owner
-feedback, read the accepted exact version and propose an Assembly state binding
-before Klaus's batch. Synthetic owner decisions are evidence, not Klaus acceptance.
+Klaus explicitly replied **“pass”** to the production batch below after testing
+clean main `f5f8bc28a66bed34e913806d0c64a2e8dd2018ae`, integrated through
+[PR #233](https://github.com/KlausUllrich/numberdroid/pull/233).
+[Post-merge Build #2439](https://github.com/KlausUllrich/numberdroid/actions/runs/34492910394)
+was green before that human test. This decision is separate from the earlier
+V2 mockup “all pass” and the synthetic owner's agent-workflow decisions.
 
-1. From Sources, select named saved cuts and create an Animation; inspect a frame
-   and return with its name, order, timing, alignment and unsaved numeric input retained.
-2. Use once, loop and ping-pong, a held frame, shared canvas/anchor and offsets.
-   Playback and selection do not save work or advance a revision.
-3. Open Edit cut; use 100%, zoom and axis handles. Errors do not move the canvas.
-   Back/reopen retains the cut draft. Use revised cut updates the chosen occurrence
-   or all uses with proper origin compensation; Undo restores older pins without
-   deleting saved history.
-4. Save and restart. The exact Clip and cuts survive; older Assembly pins remain
-   unchanged until explicitly replaced. Uncertain requests retry their retained key.
-5. In an Assembly, preview the saved Brewing Clip, change its independent body
-   variant, pause/resume, and return. Review an agent proposal with readable
-   Current/Proposed previews; request changes with feedback, then accept its correction.
+Test workspace: `project.animation-editor`, served from clean main on port4323,
+data at
+`/home/klaus/.bb/thread-storage/numberdroid-animation-agent-data-3f204256-f062-40ef-981f-27fda5da388f`.
+The batch began at project revision22; readback after Klaus's PASS showed
+revision23 and `clip.brewing-display` Asset v2. The workspace is retained; never
+prepare a fixture over it.
 
-Record Klaus's explicit production decision here as PASS or REVISE, with the
-exact tested source and workspace. No such decision has been inferred.
+Presented production batch:
+
+1. Open **Brewing display → Open Animation**; try playback modes, timing and frame order.
+2. Inspect a frame, return, then edit its cut; check Back/reopen preserves both drafts.
+3. Apply a revised cut to one/all occurrences and try Undo.
+4. Save and refresh; confirm the saved Animation remains correct.
+5. Open the coffee Assembly, preview **Brewing**, switch body variants and inspect
+   the agent's proposal.
+
+The accepted scope is the bounded [Animation implementation](ANIMATION_EDITOR_IMPLEMENTATION_CONTRACT.md).
+Automated/native evidence separately covers source-cut selection, exact saved
+versions, per-frame timing, alignment, draft retention, mixed-version origin
+compensation, uncertain request replay, restart, schema17 backup/restore-as-copy
+and portable-v6 closure. Before the human batch, a real semantic agent corrected
+an invalid pin without mutation, revised its Clip from owner feedback, read the
+accepted exact Clip and proposed an Assembly Brewing binding while preserving
+independent body variants. Those synthetic owner decisions are not user acceptance.
+
+VT-001 / CP4.5, broader VT-021 and A1.7 keep their existing separate decisions.
+This PASS does not authorize runtime export/materialization, new media/provider
+work, image generation or a broader game-behavior editor.

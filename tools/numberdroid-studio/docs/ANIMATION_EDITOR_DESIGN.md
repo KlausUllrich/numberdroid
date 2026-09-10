@@ -1,6 +1,7 @@
 # Animation Clip Editor — Approved Design
 
-Status: **DESIGN APPROVED — 2026-09-10; production implementation and its live gate remain separate.**
+Status: **DESIGN APPROVED — 2026-09-10; production implementation accepted
+separately as VT-022 on 2026-09-10.**
 
 Klaus passed the base animation workflow mockup, then requested contextual cut
 editing and ping-pong playback. After those extensions, his explicit final result
@@ -8,9 +9,10 @@ was **“all pass”**. This document records that complete approved experience.
 
 It specializes the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), reuses
 the [Cutter design](CUTTER_EDITOR_DESIGN.md) and [Assembly design](ASSEMBLY_EDITOR_DESIGN.md),
-and follows the [current task router](START_HERE.md). Existing production source
-supports static PNG-backed components; this design does not claim that animation
-commands, persistence, review or Assembly playback are already implemented.
+and follows the [current task router](START_HERE.md). The subsequent
+[implementation contract](ANIMATION_EDITOR_IMPLEMENTATION_CONTRACT.md) owns the
+production commands, persistence, review and Assembly playback accepted through
+[VT-022](VACATION_TEST_BACKLOG.md#vt-022--animation-editor-and-contextual-cut-revisions).
 
 ## Goal and workflow
 

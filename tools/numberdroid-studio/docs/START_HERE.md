@@ -70,12 +70,13 @@ Klaus passed the base mockup and then said **“all pass”** for V2 with contex
 cut editing and ping-pong. It records nested frames, timing, shared alignment,
 retained drafts and exact saved clip/cut use in Assembly presentations.
 
-Active source block: verify and integrate the implemented Animation candidate under its
-[compatible implementation contract](ANIMATION_EDITOR_IMPLEMENTATION_CONTRACT.md),
-authorized by Klaus on 2026-09-10. It covers exact clip/cut history, transactional
-review, isolated cut revisions and versioned Assembly playback.
-[VT-022](VACATION_TEST_BACKLOG.md#vt-022--animation-editor-and-contextual-cut-revisions)
-tracks its production live gate; mockup approval does not accept the implementation.
+The production Animation implementation is now **user accepted**: Klaus reported
+**“pass”** for the presented batch on clean main `f5f8bc2` (PR #233; post-merge
+Build #2439 green). The [implementation contract](ANIMATION_EDITOR_IMPLEMENTATION_CONTRACT.md)
+covers exact clip/cut history, transactional review, retained cut drafts and
+versioned Assembly playback. [VT-022](VACATION_TEST_BACKLOG.md#vt-022--animation-editor-and-contextual-cut-revisions)
+records the exact production acceptance, separately from the earlier mockup pass.
+Further screen changes follow discussion and mockup agreement before implementation.
 Full shared Review semantics, runtime materialization, image generation and
 publication retain separate gates.
 
