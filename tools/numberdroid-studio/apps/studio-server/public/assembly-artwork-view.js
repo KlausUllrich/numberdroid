@@ -1,3 +1,4 @@
+import { clipFrameAtTime } from '../../../packages/domain/src/clip-playback.js';
 const NS = 'http://www.w3.org/2000/svg';
 export function assemblySvg(tag, attributes = {}) { const node = document.createElementNS(NS, tag); for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, String(value)); return node; }
 export function assemblyArtifactUrl(projectId, digest) {
@@ -14,27 +15,39 @@ export function assemblyRegionNode(region, attributes = {}) {
 export function createAssemblyArtwork(scene, options = {}) {
   const root = assemblySvg('g', { 'data-assembly-artwork': '' }); updateAssemblyArtwork(root, scene, options); return root;
 }
-export function updateAssemblyArtwork(root, scene, { projectId, hidden = [], selectedComponentId = null, interactive = false } = {}) {
+const playbackClocks = new WeakMap();
+export function assemblyArtworkPlayback(root) { return [...(playbackClocks.get(root) ?? new Map()).entries()].map(([key, value]) => ({ key, elapsedMs: value.elapsedMs, frameIndex: value.frameIndex })); }
+export function updateAssemblyArtwork(root, scene, { projectId, hidden = [], selectedComponentId = null, interactive = false, playing = false, now = performance.now() } = {}) {
   const prior = new Map([...root.children].map(node => [node.dataset.assemblyImageKey, node])); const desired = [];
-  // SVG paints later siblings in front. The declaration and component list are front to back.
+  const clocks = playbackClocks.get(root) ?? new Map(); playbackClocks.set(root, clocks); const active = new Set();
+  // SVG paints later siblings in front. The declaration is front to back.
   for (const item of [...(scene?.elements ?? [])].reverse()) {
     const key = `${item.componentId}:${item.asset.assetId}@${item.asset.assetVersion}:${item.asset.metadataVersion}`;
+    let frame = item;
+    if (item.contentKind === 'animation') {
+      active.add(key); const clock = clocks.get(key) ?? { elapsedMs: 0, lastNow: null, frameIndex: 0 };
+      if (playing && clock.lastNow !== null) clock.elapsedMs += Math.max(0, now - clock.lastNow);
+      clock.lastNow = playing ? now : null; clock.frameIndex = clipFrameAtTime(item.clip, clock.elapsedMs).frameIndex;
+      clocks.set(key, clock); frame = item.clip.frames[clock.frameIndex];
+    }
     let group = prior.get(key); prior.delete(key);
     if (!group) {
       group = assemblySvg('g'); group.dataset.assemblyImageKey = key; group.dataset.assemblyComponent = item.componentId;
-      const size = item.artifact.pixelSize;
-      const image = assemblySvg('image', { x: 0, y: 0, width: size.width, height: size.height,
-        href: assemblyArtifactUrl(projectId, item.artifact.digest), preserveAspectRatio: 'none', 'pointer-events': 'none' });
-      image.dataset.assemblyImage = ''; group.append(image);
-      const hit = assemblySvg('rect', { x: 0, y: 0, width: size.width, height: size.height, fill: 'transparent', class: 'assembly-component-hit' });
-      group.append(hit);
+      const image = assemblySvg('image', { x: 0, y: 0, preserveAspectRatio: 'none', 'pointer-events': 'none' }); image.dataset.assemblyImage = ''; group.append(image);
+      group.append(assemblySvg('rect', { x: 0, y: 0, fill: 'transparent', class: 'assembly-component-hit' }));
     }
-    group.setAttribute('transform', `matrix(${item.imageMatrix.join(' ')})`);
+    const image = group.querySelector('image'), hit = group.querySelector('rect'), size = frame.artifact.pixelSize;
+    const href = assemblyArtifactUrl(projectId, frame.artifact.digest);
+    if (image.getAttribute('href') !== href) image.setAttribute('href', href);
+    for (const node of [image, hit]) { node.setAttribute('width', size.width); node.setAttribute('height', size.height); }
+    group.dataset.assemblyContentKind = item.contentKind ?? 'image';
+    if (item.contentKind === 'animation') group.dataset.assemblyFrame = frame.frameId; else delete group.dataset.assemblyFrame;
+    group.setAttribute('transform', `matrix(${frame.imageMatrix.join(' ')})`);
     group.style.display = hidden.includes(item.componentId) ? 'none' : '';
     group.classList.toggle('selected', item.componentId === selectedComponentId);
-    group.style.pointerEvents = interactive ? '' : 'none';
-    group.querySelector('rect').style.pointerEvents = interactive ? 'all' : 'none'; desired.push(group);
+    group.style.pointerEvents = interactive ? '' : 'none'; hit.style.pointerEvents = interactive ? 'all' : 'none'; desired.push(group);
   }
+  for (const key of clocks.keys()) if (!active.has(key)) clocks.delete(key);
   for (const node of prior.values()) node.remove();
   desired.forEach((node, index) => { if (root.children[index] !== node) root.insertBefore(node, root.children[index] ?? null); });
   return root;

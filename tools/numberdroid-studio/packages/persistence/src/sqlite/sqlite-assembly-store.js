@@ -1,8 +1,11 @@
+import { sqliteResolvedClip } from './sqlite-clip-store.js';
+import { assemblyContentSlots } from '../../../domain/src/assembly-geometry.js';
 import { invariant } from '../../../domain/src/errors.js';
 import { validateAssemblyDefinition } from '../../../domain/src/assembly-definition.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 
 export function declarationPins(assembly) {
+  if (assembly.schemaVersion === 2) return assemblyContentSlots(assembly);
   return assembly.components.flatMap(component => [
     { componentId: component.componentId, variantId: null, ...component.asset },
     ...component.variantOverrides.map(override => ({ componentId: component.componentId, variantId: override.variantId, ...override.asset })),
@@ -11,7 +14,14 @@ export function declarationPins(assembly) {
 
 export function sqliteAssemblyLeaves(database, projectId, assembly, cutoff) {
   const assets = new Map();
-  for (const pin of declarationPins(assembly)) {
+  for (const slot of assemblyContentSlots(assembly)) {
+    if (slot.content.kind === 'none') continue;
+    const pin = slot.content.asset;
+    if (slot.content.kind === 'animation') {
+      const clip = sqliteResolvedClip(database, projectId, pin, cutoff);
+      assets.set(`${pin.assetId}@${pin.assetVersion}:${pin.metadataVersion}`, clip);
+      continue;
+    }
     const row = database.prepare(`SELECT v.*, b.artifact_digest, b.artifact_uri, b.media_type, b.width, b.height,
       b.byte_size, b.source_digest, b.rectangle_json, b.atlas_id, b.source_id, b.atlas_definition_version, b.atlas_definition_fingerprint, b.rectangle_id, b.processor_id, b.prior_digest, b.committed_revision FROM asset_versions v JOIN asset_slice_bindings b
       ON b.project_id=v.project_id AND b.slice_id=v.slice_id AND b.slice_version=v.slice_version
@@ -51,11 +61,45 @@ export function validateStoredAssemblyContent(database, projectId, record, cutof
   return assets;
 }
 
+export function assemblyContentDigests(records) {
+  return [...new Set([...records.values()].flatMap(record => record.contentKind === 'animation' ? record.frameBindings.map(frame => frame.sliceBinding.digest) : [record.sliceBinding.digest]))].sort();
+}
+export function storedAssemblyPins(database, projectId, identity, version, assembly, proposal = false) {
+  const prefix = proposal ? 'assembly_proposal' : 'assembly';
+  const idColumn = proposal ? 'proposal_id' : 'asset_id', versionColumn = proposal ? 'proposal_version' : 'asset_version';
+  if (assembly.schemaVersion === 2) {
+    invariant(!database.prepare(`SELECT 1 FROM ${prefix}_component_pins WHERE project_id=? AND ${idColumn}=? AND ${versionColumn}=?`).get(projectId, identity, version), 'ASSEMBLY_RECORD_CORRUPT', 'Assembly v2 cannot also carry legacy pin rows.');
+    return database.prepare(`SELECT * FROM ${prefix}_content_pins WHERE project_id=? AND ${idColumn}=? AND ${versionColumn}=? ORDER BY pin_order`).all(projectId, identity, version).map((row, index) => {
+      invariant(row.pin_order === index, 'ASSEMBLY_RECORD_CORRUPT', 'Assembly content pin order must be contiguous.');
+      return {
+        componentId: row.component_id, slotKind: row.slot_kind, slotId: row.slot_id,
+        content: row.content_kind === 'none' ? { kind: 'none' } : { kind: row.content_kind, asset: {
+          assetId: row.content_kind === 'image' ? row.image_asset_id : row.clip_asset_id,
+          assetVersion: row.content_kind === 'image' ? row.image_asset_version : row.clip_asset_version,
+          metadataVersion: row.target_metadata_version,
+        } },
+      };
+    });
+  }
+  if (Number(database.prepare('PRAGMA user_version').get().user_version) >= 17) invariant(!database.prepare(`SELECT 1 FROM ${prefix}_content_pins WHERE project_id=? AND ${idColumn}=? AND ${versionColumn}=?`).get(projectId, identity, version), 'ASSEMBLY_RECORD_CORRUPT', 'Assembly v1 cannot carry v2 content pin rows.');
+  return database.prepare(`SELECT component_id,variant_id,leaf_asset_id,leaf_asset_version,leaf_metadata_version FROM ${prefix}_component_pins WHERE project_id=? AND ${idColumn}=? AND ${versionColumn}=? ORDER BY pin_order`).all(projectId, identity, version)
+    .map(pin => ({ componentId: pin.component_id, variantId: pin.variant_id, assetId: pin.leaf_asset_id, assetVersion: pin.leaf_asset_version, metadataVersion: pin.leaf_metadata_version }));
+}
 function writePins(database, projectId, record, proposal = false) {
-  const table = proposal ? 'assembly_proposal_component_pins' : 'assembly_component_pins';
+  const prefix = proposal ? 'assembly_proposal' : 'assembly';
   const identity = proposal ? ['proposal_id', 'proposal_version', record.proposalId, record.proposalVersion] : ['asset_id', 'asset_version', record.assetId, record.assetVersion];
   const assembly = proposal ? record.validated.assembly : record.assembly;
-  for (const [order, pin] of declarationPins(assembly).entries()) database.prepare(`INSERT INTO ${table}
+  if (assembly.schemaVersion === 2) {
+    for (const [order, slot] of declarationPins(assembly).entries()) {
+      const content = slot.content, pin = content.asset;
+      database.prepare(`INSERT INTO ${prefix}_content_pins (project_id,${identity[0]},${identity[1]},pin_order,component_id,slot_kind,slot_id,content_kind,image_asset_id,image_asset_version,clip_asset_id,clip_asset_version,target_metadata_version)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(projectId, identity[2], identity[3], order, slot.componentId, slot.slotKind, slot.slotId, content.kind,
+          content.kind === 'image' ? pin.assetId : null, content.kind === 'image' ? pin.assetVersion : null,
+          content.kind === 'animation' ? pin.assetId : null, content.kind === 'animation' ? pin.assetVersion : null, pin?.metadataVersion ?? null);
+    }
+    return;
+  }
+  for (const [order, pin] of declarationPins(assembly).entries()) database.prepare(`INSERT INTO ${prefix}_component_pins
     (project_id,${identity[0]},${identity[1]},pin_order,component_id,variant_id,leaf_asset_id,leaf_asset_version,leaf_metadata_version)
     VALUES (?,?,?,?,?,?,?,?,?)`).run(projectId, identity[2], identity[3], order, pin.componentId, pin.variantId, pin.assetId, pin.assetVersion, pin.metadataVersion);
 }
@@ -90,7 +134,7 @@ export function writeAssemblyAsset(database, projectId, record, provenance = 'na
   fault('after_assembly_pins');
   for (const [order, finding] of record.findings.entries()) database.prepare('INSERT INTO assembly_version_findings VALUES (?,?,?,?,?)').run(projectId, record.assetId, record.assetVersion, order, JSON.stringify(finding));
   fault('after_assembly_findings');
-  for (const leaf of leaves.values()) database.prepare('INSERT OR IGNORE INTO artifact_references(project_id,owner_kind,owner_id,digest,created_revision) VALUES (?,?,?,?,?)').run(projectId, 'assembly_version', `${record.assetId}.v${record.assetVersion}`, leaf.sliceBinding.digest, record.createdRevision);
+  for (const digest of assemblyContentDigests(leaves)) database.prepare('INSERT OR IGNORE INTO artifact_references(project_id,owner_kind,owner_id,digest,created_revision) VALUES (?,?,?,?,?)').run(projectId, 'assembly_version', `${record.assetId}.v${record.assetVersion}`, digest, record.createdRevision);
   fault('after_assembly_references');
   database.prepare('INSERT INTO assembly_heads VALUES (?,?,?) ON CONFLICT(project_id,asset_id) DO UPDATE SET asset_version=excluded.asset_version').run(projectId, record.assetId, record.assetVersion);
   database.prepare('DELETE FROM assembly_head_tags WHERE project_id=? AND asset_id=?').run(projectId, record.assetId);

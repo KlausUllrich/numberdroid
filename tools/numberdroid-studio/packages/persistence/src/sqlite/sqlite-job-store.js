@@ -1,3 +1,4 @@
+import { validateSliceRevisionJobInput } from '../../../application/src/slice-revision-service.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { MAX_ATLAS_JOB_ATTEMPTS, canonicalRgbaPngByteSize } from '../../../domain/src/atlas-definition.js';
 import { StudioError, invariant } from '../../../domain/src/errors.js';
@@ -188,7 +189,9 @@ function executionAuthorityError(database, row, now) {
     || grant.branch_id !== row.creator_branch_id) {
     return new StudioError('JOB_AUTHORITY_MISMATCH', 'The originating job authority no longer matches its immutable binding.');
   }
-  if (!scopes.includes('atlas.write')) return new StudioError('GRANT_SCOPE_MISSING', 'The originating job grant no longer allows atlas work.');
+  let input; try { input = row.input_json ? JSON.parse(row.input_json) : null; } catch { return new StudioError('JOB_INPUT_MISMATCH', 'The originating job input is invalid.'); }
+  const requiredScope = input?.schemaVersion === 2 && input.operation === 'slice.revision' ? 'slice.revision.prepare' : 'atlas.write';
+  if (!scopes.includes(requiredScope)) return new StudioError('GRANT_SCOPE_MISSING', 'The originating job grant no longer allows this exact cut operation.');
   if (!objectScopes.some((scope) => scope.kind === 'project' && scope.id === row.project_id)) {
     return new StudioError('OBJECT_SCOPE_DENIED', 'The originating job grant no longer covers this project.');
   }
@@ -338,6 +341,7 @@ export class SqliteJobStore {
     const normalizedCreator = requireCreator(creator);
     invariant(FINGERPRINT_PATTERN.test(inputFingerprint), 'VALIDATION_ERROR', 'inputFingerprint must be lowercase SHA-256 hex.');
     const inputRecord = requireJsonRecord(input, 'input', MAX_INPUT_BYTES);
+    if (inputRecord.value.schemaVersion === 2) validateSliceRevisionJobInput(inputRecord.value);
     invariant(fingerprint(inputRecord.value) === inputFingerprint, 'JOB_INPUT_FINGERPRINT_MISMATCH', 'The supplied input fingerprint is not canonical for the input.');
     return this.#workspace.transaction((database) => {
       const existing = database.prepare('SELECT * FROM jobs WHERE project_id = ? AND idempotency_key = ?').get(projectId, idempotencyKey);
@@ -374,6 +378,7 @@ export class SqliteJobStore {
           creator_task_id: normalizedCreator.taskId,
           creator_branch_id: normalizedCreator.branchId,
           creator_grant_id: normalizedCreator.grantId,
+          input_json: inputRecord.json,
         };
         assertExecutionAuthority(database, authorityRow, createdAt);
       }

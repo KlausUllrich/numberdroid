@@ -1,3 +1,5 @@
+import { inspectClipIntegrity } from './clip-integrity.js';
+import { inspectSliceRevisionIntegrity } from '../sqlite/sqlite-slice-revision.js';
 import { inspectAssemblyIntegrity } from './assembly-integrity.js';
 import { invariant } from '../../../domain/src/errors.js';
 import { canonicalRgbaPngByteSize } from '../../../domain/src/atlas-definition.js';
@@ -303,7 +305,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
       WHERE project_id = ? AND owner_kind = 'job_output' AND owner_id = ? ORDER BY digest
     `);
     const revisionAt = projectStore.workspace.database.prepare(`
-      SELECT revision_json FROM revisions WHERE project_id = ? AND revision_number = ?
+      SELECT command_type, revision_json FROM revisions WHERE project_id = ? AND revision_number = ?
     `);
     for (const job of jobs) {
       let input;
@@ -326,7 +328,8 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
       const expectedBranch = intentRevision?.command?.actor?.kind === 'agent'
         ? intentRevision.snapshot?.grants?.find((grant) => grant.id === intentRevision.command.grantId)?.branchId
         : 'branch.main';
-      if (intentRevision?.command?.type !== 'atlas.preview.slices'
+      if (intentRevision?.command?.type !== (input.schemaVersion === 2 && input.operation === 'slice.revision' ? 'slice.revision.prepare' : 'atlas.preview.slices')
+        || revisionAt.get(job.project_id, job.input_revision)?.command_type !== intentRevision?.command?.type
         || intent?.jobId !== job.job_id || intent?.kind !== job.job_kind
         || intent?.input?.atlasId !== job.atlas_id || intent?.input?.sourceId !== job.source_id
         || intent?.inputFingerprint !== job.input_fingerprint || fingerprint(intent?.input) !== job.input_fingerprint
@@ -401,7 +404,8 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
       let appliedRevision = null;
       if (job.state === 'APPLIED') {
         try { appliedRevision = JSON.parse(revisionAt.get(job.project_id, job.applied_revision)?.revision_json ?? 'null'); } catch {}
-        if (appliedRevision?.command?.type !== 'atlas.commit.slices'
+        if (appliedRevision?.command?.type !== (input.schemaVersion === 2 && input.operation === 'slice.revision' ? 'slice.revision.commit' : 'atlas.commit.slices')
+          || revisionAt.get(job.project_id, job.applied_revision)?.command_type !== appliedRevision?.command?.type
           || appliedRevision?.result?.jobId !== job.job_id
           || !Array.isArray(appliedRevision?.result?.slices)) {
           jobFindings.push({ projectId: job.project_id, jobId: job.job_id, code: 'JOB_APPLIED_REVISION_MISMATCH', message: 'Applied job does not match its semantic slice commit revision.' });
@@ -1821,16 +1825,19 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
   } catch (error) {
     bundleImportFindings.push({ projectId: null, jobId: null, code: 'BUNDLE_IMPORT_QUERY_FAILED', message: 'Bundle-import integrity could not be inspected.', cause: error.message });
   }
+  const clips = database.userVersion >= 17 ? inspectClipIntegrity(projectStore.workspace.database) : { ok: true, versionCount: 0, proposalVersionCount: 0, findings: [] };
+  const sliceRevisions = database.userVersion >= 17 ? inspectSliceRevisionIntegrity(projectStore.workspace.database) : { ok: true, revisionCount: 0, findings: [] };
   const assemblies = database.userVersion >= 16 ? inspectAssemblyIntegrity(projectStore.workspace.database) : { ok: true, versionCount: 0, proposalVersionCount: 0, findings: [] };
   const bundleImports = { ok: bundleImportFindings.length === 0, appliedJobCount: bundleImportJobCount, findings: bundleImportFindings };
   return {
     schemaVersion: 1,
-    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && tasks.ok && bundleImports.ok && assemblies.ok,
+    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && tasks.ok && bundleImports.ok && assemblies.ok && sliceRevisions.ok && clips.ok,
     database,
     artifacts,
     sourceIntakes,
     agentAttempts,
     jobs,
+    ...(database.userVersion >= 17 ? { sliceRevisions, clips } : {}),
     assets,
     rooms,
     tasks,

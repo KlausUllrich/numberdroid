@@ -1,5 +1,5 @@
 import { assemblyEditorDirty, assemblyEditorIssues, selectedAssemblyComponent, assemblyEditorPreviewPin } from './assembly-editor-state.js';
-import { assemblyAssetKey } from '../../../packages/domain/src/assembly-geometry.js';
+import { assemblyAssetKey, assemblySelectedContent } from '../../../packages/domain/src/assembly-geometry.js';
 import { assemblySvg as svg, createAssemblyArtwork, updateAssemblyArtwork, assemblyRegionNode, assemblySceneFrame, assemblyArtifactUrl } from './assembly-artwork-view.js';
 
 const el = (tag, cls, value) => { const node = document.createElement(tag); if (cls) node.className = cls; if (value !== undefined) node.textContent = value; return node; };
@@ -76,7 +76,7 @@ function inspectorContent(state, nativeAssets) {
       copy.append(el('strong', '', title), el('small', '', explanation)); option.append(input, copy); modes.append(option);
     }
     box.append(modes);
-    if (a.blocking.mode === 'components') box.append(note('Only components used in this state contribute. Hiding artwork or its blocking overlay does not remove blocking.'));
+    if (a.blocking.mode === 'components') box.append(note('Only image components used in this state contribute. Animation clips have no movement-blocking shapes. Hiding artwork or its blocking overlay does not remove blocking.'));
     else {
       box.append(note('Custom shapes apply to every state and variant. Choosing this mode for the first time copies the component blocking.'));
       const edit = button('Edit custom blocking', 'custom-geometry'); edit.classList.add('assembly-custom-edit'); box.append(edit);
@@ -89,19 +89,27 @@ function inspectorContent(state, nativeAssets) {
   box.append(el('h3', '', 'Components'), note('Front to back · each entry is an independent use.'));
   const list = el('div', 'assembly-component-list'); list.dataset.assemblyScroll = 'components';
   for (const c of a.components) { const row = el('div', 'assembly-component-row'); const b = button(c.name, 'component', c.componentId); b.setAttribute('aria-pressed', String(c.componentId === state.selectedComponentId));
-    b.append(el('small', '', `${c.asset.assetId} · v${c.asset.assetVersion}`)); const eye = button(state.hidden.includes(c.componentId) ? 'Show' : 'Hide', 'eye', c.componentId); eye.setAttribute('aria-label', `${state.hidden.includes(c.componentId) ? 'Show' : 'Hide'} ${c.name} for inspection only`); row.append(b, eye); list.append(row); }
+    const content = assemblySelectedContent(c, state.preview); b.append(el('small', '', content.kind === 'none' ? 'No content in this state' : `${content.kind === 'animation' ? 'Animation · ' : ''}${content.asset.assetId} · v${content.asset.assetVersion}`)); const eye = button(state.hidden.includes(c.componentId) ? 'Show' : 'Hide', 'eye', c.componentId); eye.setAttribute('aria-label', `${state.hidden.includes(c.componentId) ? 'Show' : 'Hide'} ${c.name} for inspection only`); row.append(b, eye); list.append(row); }
   box.append(list); if (!a.components.length) box.append(note('Add a saved Asset to begin.'), button('+ Add component', 'add'));
   const c = selectedAssemblyComponent(state); if (!c) return box;
   box.append(el('h3', '', 'Selected component'), field('component.name', c.name, 'Component name'));
   const coordinates = el('div', 'assembly-coordinates'); coordinates.append(number('position.x', c.position.x, 'Anchor X (px)'), number('position.y', c.position.y, 'Anchor Y (px)'), number('rotationDegrees', c.rotationDegrees, 'Rotation (degrees)'), number('scale', c.scale, 'Uniform scale')); box.append(coordinates);
-  const pin = assemblyEditorPreviewPin(c, state.preview.variantId), latest = nativeAssets.find(asset => asset.assetId === pin.assetId);
-  box.append(el('h3', '', 'Exact source'), note(`${pin.assetId} · Asset v${pin.assetVersion} · metadata v${pin.metadataVersion}`));
+  const pin = assemblyEditorPreviewPin(c, state.preview.variantId, state.preview.stateId), latest = pin && nativeAssets.find(asset => asset.assetId === pin.assetId);
+  box.append(el('h3', '', 'Exact presentation'), note(pin ? `${pin.assetId} · Asset v${pin.assetVersion} · metadata v${pin.metadataVersion}` : 'This component has no visual content in the selected state.'));
   if (latest && assemblyAssetKey(latest) !== assemblyAssetKey(pin)) box.append(el('p', 'assembly-warning', `Library now has v${latest.assetVersion}. This component keeps its saved v${pin.assetVersion}.`));
-  box.append(button('Inspect source', 'source', c.componentId), button('Choose base Asset…', 'replace-base'));
+  const inspect = button('Inspect source', 'source', c.componentId); inspect.disabled = !pin;
+  box.append(inspect, button('Choose base content…', 'replace-base'));
+  box.append(el('h3', '', 'Content by state'), note('A state choice takes priority over this component’s variant and base content. Other components keep their own variants.'));
+  for (const stateChoice of a.states) {
+    const override = c.stateOverrides?.find(entry => entry.stateId === stateChoice.stateId), entry = el('div', 'assembly-variant-entry');
+    const content = override?.content;
+    entry.append(el('strong', '', stateChoice.name), note(!content ? 'Uses variant or base content' : content.kind === 'none' ? 'No visual content' : `${content.kind === 'animation' ? 'Animation' : 'Image'} · ${content.asset.assetId} · v${content.asset.assetVersion}`), button('Choose image or Animation…', 'state-content', stateChoice.stateId), button('No content', 'state-none', stateChoice.stateId));
+    if (override) entry.append(button('Use variant / base', 'clear-state-content', stateChoice.stateId)); box.append(entry);
+  }
   box.append(el('h3', '', 'State membership'), checkbox('all-states', c.stateIds === null, 'Use in every state'));
   for (const s of a.states) { const item = checkbox('state-membership', c.stateIds === null || c.stateIds.includes(s.stateId), s.name, s.stateId); item.querySelector('input').disabled = c.stateIds === null; box.append(item); }
   box.append(el('h3', '', 'Variant sources'));
-  for (const v of a.variants) { const override = c.variantOverrides.find(item => item.variantId === v.variantId); const entry = el('div', 'assembly-variant-entry'); entry.append(el('strong', '', v.name), note(override ? `${override.asset.assetId} · v${override.asset.assetVersion}` : 'Uses the base Asset'));
+  for (const v of a.variants) { const override = c.variantOverrides.find(item => item.variantId === v.variantId); const entry = el('div', 'assembly-variant-entry'); entry.append(el('strong', '', v.name), note(override ? (override.content?.kind === 'none' ? 'No content' : `${(override.content?.asset ?? override.asset).assetId} · v${(override.content?.asset ?? override.asset).assetVersion}`) : 'Uses the base content'));
     entry.append(button(override ? 'Replace choice…' : 'Choose Asset…', 'variant-asset', v.variantId)); if (override) entry.append(button('Use base', 'clear-variant', v.variantId)); box.append(entry); }
   return box;
 }
@@ -111,9 +119,10 @@ function updateSelectors(root, state) {
   const signature = JSON.stringify([state.model.assembly.states, state.model.assembly.variants]);
   if (panel.dataset.signature !== signature) {
     const a = state.model.assembly;
-    panel.replaceChildren(choice('preview.variantId', state.preview.variantId, 'Variant preview', a.variants.map(v => [v.variantId, v.name])), choice('preview.stateId', state.preview.stateId, 'State preview', a.states.map(s => [s.stateId, s.name])), note('Preview selection is temporary. Component transforms stay authored.'));
+    panel.replaceChildren(choice('preview.variantId', state.preview.variantId, 'Variant preview', a.variants.map(v => [v.variantId, v.name])), choice('preview.stateId', state.preview.stateId, 'State preview', a.states.map(s => [s.stateId, s.name])), button(state.previewPlaying ? 'Pause animations' : 'Play animations', 'playback'), note('Playback and state selection are inspection only. The game controls behavior.'));
     panel.dataset.signature = signature;
   }
+  const play = panel.querySelector('[data-assembly-action="playback"]'); if (play) play.textContent = state.previewPlaying ? 'Pause animations' : 'Play animations';
   for (const field of panel.querySelectorAll('select')) field.value = state.preview[field.dataset.assemblyField.split('.')[1]];
 }
 export function syncAssemblyEditorCanvas(root, state) {
@@ -124,7 +133,7 @@ export function syncAssemblyEditorCanvas(root, state) {
   canvas.setAttribute('viewBox', `${frame.x} ${frame.y} ${frame.width} ${frame.height}`); canvas.setAttribute('width', String(frame.width * scale)); canvas.setAttribute('height', String(frame.height * scale));
   root.querySelector('[data-assembly-zoom-label]').textContent = `${state.zoom === 'fit' ? 'Fit · ' : ''}${Math.round(scale * 100)}%`;
   const slider = root.querySelector('[data-assembly-zoom]'); if (document.activeElement !== slider) slider.value = String(Math.round(scale * 100));
-  updateAssemblyArtwork(canvas.querySelector('[data-assembly-artwork]'), state.scene, { projectId: state.context.projectId, hidden: state.hidden, selectedComponentId: state.selectedComponentId, interactive: true });
+  updateAssemblyArtwork(canvas.querySelector('[data-assembly-artwork]'), state.scene, { projectId: state.context.projectId, hidden: state.hidden, selectedComponentId: state.selectedComponentId, interactive: true, playing: state.previewPlaying && state.view === 'edit' && !state.embeddedOpen });
   const layer = name => canvas.querySelector(`[data-assembly-layer="${name}"]`);
   layer('blocking').replaceChildren(...(state.showBlocking ? state.scene?.regions ?? [] : []).map(r => assemblyRegionNode(r, { class: 'assembly-blocking-region' })));
   root.querySelector('[data-assembly-option="show-blocking"]').checked = state.showBlocking;
@@ -143,17 +152,28 @@ function renderPicker(root, state, assets) {
   const search = el('input'); search.type = 'search'; search.value = state.pickerSearch; search.placeholder = 'Search saved Assets'; search.dataset.assemblyPickerSearch = ''; search.dataset.assemblyFocusKey = 'picker-search'; search.setAttribute('aria-label', 'Search saved component Assets');
   const list = el('div', 'assembly-picker-list'); list.dataset.assemblyScroll = 'picker';
   for (const asset of assets.filter(a => `${a.name} ${a.assetId}`.toLowerCase().includes(state.pickerSearch.toLowerCase()))) {
-    if (asset.sliceBinding?.mediaType !== 'image/png' || !/^[a-f0-9]{64}$/.test(asset.sliceBinding?.digest ?? '') || asset.assembly) continue;
-    const b = button('', 'pick-asset', assemblyAssetKey(asset)), picture = el('img'); picture.src = assemblyArtifactUrl(state.context.projectId, asset.sliceBinding.digest); picture.alt = ''; picture.loading = 'lazy';
+    if (asset.contentKind !== 'animation' && (asset.sliceBinding?.mediaType !== 'image/png' || !/^[a-f0-9]{64}$/.test(asset.sliceBinding?.digest ?? '') || asset.assembly)) continue;
+    const b = button('', 'pick-asset', assemblyAssetKey(asset));
+    let picture;
+    if (asset.contentKind === 'animation') { picture = el('span', 'assembly-note', `Animation · ${asset.clip.frames.length} frames`); }
+    else { picture = el('img'); picture.src = assemblyArtifactUrl(state.context.projectId, asset.sliceBinding.digest); picture.alt = ''; picture.loading = 'lazy'; }
     const caption = el('span'); caption.append(el('strong', '', asset.name), el('small', '', `${asset.kind} · v${asset.assetVersion} / metadata v${asset.metadataVersion}`)); b.append(picture, caption); list.append(b);
   }
   picker.replaceChildren(el('h3', '', state.pickerPurpose === 'add' ? 'Add a component' : 'Choose an exact saved Asset'), button('Close', 'close-picker'), note('Each choice uses this saved version. The source Asset stays unchanged.'), search, list);
-  if (!list.childElementCount) list.append(note('No matching saved PNG Assets. Create one from a saved cut first.'));
+  if (!list.childElementCount) list.append(note('No matching saved images or Animations. Save one in the Library first.'));
 }
 function renderSource(root, state) {
   const view = root.querySelector('[data-assembly-view="source"]'), source = state.source; if (!source) return;
   const key = assemblyAssetKey(source.asset); if (view.dataset.sourceKey === key) return; view.dataset.sourceKey = key;
-  const asset = source.asset, binding = asset.sliceBinding, figure = el('figure'), image = el('img'); image.src = assemblyArtifactUrl(state.context.projectId, binding.digest); image.alt = asset.name;
+  const asset = source.asset;
+  if (asset.contentKind === 'animation') {
+    const details = el('div'); details.append(el('p', 'eyebrow', 'Animation source · read-only'), el('h3', '', asset.name), note(`Saved v${asset.assetVersion} · ${asset.clip.frames.length} frames · ${asset.clip.playbackMode} · ${asset.clip.fps} FPS`), note('These are the exact saved frames. Newer Animation versions do not replace this component automatically.'), button('Return to Assembly', 'return-source'));
+    const frames = el('div', 'assembly-picker-list');
+    for (const frame of asset.frameBindings ?? []) { const binding = frame.sliceBinding, figure = el('figure'), image = el('img'); image.src = assemblyArtifactUrl(state.context.projectId, binding.digest); image.alt = asset.clip.frames.find(value => value.frameId === frame.frameId)?.name ?? frame.frameId; image.style.maxWidth = '160px'; image.style.maxHeight = '140px'; image.style.objectFit = 'contain';
+      const link = el('a'); link.href = image.src; link.target = '_blank'; link.rel = 'noopener'; link.append(image); figure.append(link, el('figcaption', '', `${image.alt} · ${binding.sliceId} v${binding.sliceVersion}`)); frames.append(figure); }
+    view.replaceChildren(details, frames); return;
+  }
+  const binding = asset.sliceBinding, figure = el('figure'), image = el('img'); image.src = assemblyArtifactUrl(state.context.projectId, binding.digest); image.alt = asset.name;
   const link = el('a'); link.href = image.src; link.target = '_blank'; link.rel = 'noopener'; link.append(image); figure.append(link, el('figcaption', '', `${binding.width} × ${binding.height} px · exact saved component image`));
   const details = el('div'); details.append(el('p', 'eyebrow', 'Source inspection · read-only'), el('h3', '', asset.name), note('This is the exact source used by your component. Inspecting it changes neither the source nor your Assembly.'));
   const facts = el('dl', 'assembly-source-facts'); for (const [name, value] of [['Asset', asset.assetId], ['Version', `v${asset.assetVersion} / metadata v${asset.metadataVersion}`], ['Original source', binding.sourceId], ['Atlas', binding.atlasId], ['Saved cut', `${binding.sliceId} · v${binding.sliceVersion}`], ['Rectangle', binding.rectangleId], ['Image digest', binding.digest]]) facts.append(el('dt', '', name), el('dd', '', value ?? 'Unavailable'));
@@ -171,7 +191,8 @@ export function updateAssemblyEditorView(root, state, { inspector = true, native
   for (const control of root.querySelectorAll('button,input,select')) control.disabled = locked;
   const selected = selectedAssemblyComponent(state), index = state.model.assembly.components.indexOf(selected);
   for (const b of root.querySelectorAll('[data-assembly-action]')) { const action = b.dataset.assemblyAction;
-    if (['rotate', 'forward', 'backward', 'remove', 'replace-base', 'variant-asset'].includes(action)) b.disabled ||= !selected;
+    if (['rotate', 'forward', 'backward', 'remove', 'replace-base', 'variant-asset', 'state-content', 'state-none'].includes(action)) b.disabled ||= !selected;
+    if (action === 'source') b.disabled ||= !selected || !assemblyEditorPreviewPin(selected, state.preview.variantId, state.preview.stateId);
     if (action === 'forward') b.disabled ||= index <= 0; if (action === 'backward') b.disabled ||= index === state.model.assembly.components.length - 1;
     if (action === 'undo') b.disabled ||= !state.history.past.length; if (action === 'redo') b.disabled ||= !state.history.future.length;
     if (action === 'save') b.disabled ||= Boolean(state.gesture || state.conflict || findings.length || state.resolution.status === 'loading');

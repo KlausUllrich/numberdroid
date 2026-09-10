@@ -28,6 +28,8 @@ const stateNames = (ids, assembly) => ids === null ? 'every state' : names(ids.m
 const variantName = (id, assembly) => assembly.variants.find(variant => variant.variantId === id)?.name ?? 'unavailable variant';
 const choiceName = (id, choices, key) => choices.find(choice => choice[key] === id)?.name ?? 'unavailable choice';
 const pinVersion = pin => `Asset v${pin.assetVersion}, metadata v${pin.metadataVersion}`;
+const componentContent = component => component.content ?? { kind: 'image', asset: component.asset };
+const overrideContent = override => override.content ?? { kind: 'image', asset: override.asset };
 const blockingMode = mode => mode === 'custom' ? 'custom shapes' : 'active components';
 
 export function assemblyReviewChanges(proposal, currentAsset) {
@@ -42,11 +44,22 @@ export function assemblyReviewChanges(proposal, currentAsset) {
     if (oldPin.assetId !== newPin.assetId) add(`${label} uses a different source Asset`, `${oldName ?? 'Previous source'} (${pinVersion(oldPin)}) → ${newName ?? 'Replacement source'} (${pinVersion(newPin)}).`);
     else add(`${label} uses a different saved source version`, `${pinVersion(oldPin)} → ${pinVersion(newPin)}.`);
   };
-  const describeComponent = component => `${leafName(component.asset) ?? 'Saved source'} (${pinVersion(component.asset)}); ${position(component.position)}; rotation ${number(component.rotationDegrees)}°; scale ${number(component.scale)}×; used in ${stateNames(component.stateIds, after)}${component.variantOverrides.length ? `; substitutions for ${names(component.variantOverrides.map(value => variantName(value.variantId, after)))}` : ''}.`;
+  const contentLabel = content => content.kind === 'none' ? 'No visual content' : `${content.kind === 'animation' ? 'Animation' : 'Image'}: ${leafName(content.asset) ?? content.asset.assetId} (${pinVersion(content.asset)})`;
+  const contentChange = (label, oldContent, newContent) => {
+    if (same(oldContent, newContent)) return;
+    if (oldContent.kind === 'image' && newContent.kind === 'image') { pinChange(label, oldContent.asset, newContent.asset); return; }
+    add(`${label} presentation changes`, `${contentLabel(oldContent)} → ${contentLabel(newContent)}.`);
+  };
+  const describeComponent = component => `${contentLabel(componentContent(component))}; ${position(component.position)}; rotation ${number(component.rotationDegrees)}°; scale ${number(component.scale)}×; used in ${stateNames(component.stateIds, after)}${component.variantOverrides.length ? `; substitutions for ${names(component.variantOverrides.map(value => variantName(value.variantId, after)))}` : ''}${component.stateOverrides?.length ? `; state content: ${component.stateOverrides.map(entry => `${choiceName(entry.stateId, after.states, 'stateId')}: ${contentLabel(entry.content)}`).join('; ')}` : ''}.`;
+
   if (!currentAsset) {
     const creating = content.operation === 'create';
     add(`${content.kind[0].toUpperCase()}${content.kind.slice(1)} Assembly`, content.metadata.role ? `Role: ${content.metadata.role}.` : undefined);
     add(`${count(after.components.length, 'component')}: ${names(after.components.map(component => component.name))}`);
+    for (const component of after.components) {
+      if (componentContent(component).kind !== 'image') add(`${component.name}: ${contentLabel(componentContent(component))}`);
+      for (const entry of component.stateOverrides ?? []) add(`${component.name} in ${choiceName(entry.stateId, after.states, 'stateId')}`, `${contentLabel(entry.content)}. This state overrides variant and base content.`);
+    }
     add(`States: ${names(after.states.map(state => state.name))}`, `Default: ${choiceName(after.defaultStateId, after.states, 'stateId')}.`);
     add(`Variants: ${names(after.variants.map(variant => variant.name))}`, `Default: ${variantName(after.defaultVariantId, after)}.`);
     add(`Blocking comes from ${blockingMode(after.blocking.mode)}`, after.blocking.mode === 'custom' ? count(after.blocking.regions.length, 'custom region') : undefined);
@@ -72,7 +85,7 @@ export function assemblyReviewChanges(proposal, currentAsset) {
     if (!same(old.position, component.position)) add(`${label} moves ${movement(old.position, component.position)}`, `${position(old.position)} → ${position(component.position)}.`);
     if (old.rotationDegrees !== component.rotationDegrees) add(`${label} rotation changes from ${number(old.rotationDegrees)}° to ${number(component.rotationDegrees)}°`);
     if (old.scale !== component.scale) add(`${label} scale changes from ${number(old.scale)}× to ${number(component.scale)}×`);
-    pinChange(label, old.asset, component.asset);
+    contentChange(label, componentContent(old), componentContent(component));
     if (!same(old.stateIds, component.stateIds)) {
       const members = component.stateIds;
       add(members === null ? `${label} is used in every state` : members.length ? `${label} is used in ${stateNames(members, after)}` : `${label} is unused in every state`, `Previously: ${stateNames(old.stateIds, before)}.`);
@@ -84,9 +97,17 @@ export function assemblyReviewChanges(proposal, currentAsset) {
     }
     for (const override of component.variantOverrides) {
       const previous = oldOverrides.get(override.variantId), choice = variantName(override.variantId, after);
-      if (!previous) add(`${label}: source substitution added for ${choice}`, `${leafName(override.asset) ?? 'Saved source'} (${pinVersion(override.asset)}).`);
-      else pinChange(`${label} in ${choice}`, previous.asset, override.asset);
+      if (!previous) add(`${label}: source substitution added for ${choice}`, `${contentLabel(overrideContent(override))}.`);
+      else contentChange(`${label} in ${choice}`, overrideContent(previous), overrideContent(override));
     }
+    const oldStates = index(old.stateOverrides ?? [], 'stateId'), newStates = index(component.stateOverrides ?? [], 'stateId');
+    for (const entry of old.stateOverrides ?? []) if (!newStates.has(entry.stateId)) add(`${label}: ${choiceName(entry.stateId, before.states, 'stateId')} presentation override removed`, 'This state now uses variant or base content.');
+    for (const entry of component.stateOverrides ?? []) {
+      const previous = oldStates.get(entry.stateId), stateName = choiceName(entry.stateId, after.states, 'stateId');
+      if (!previous) add(`${label}: presentation set for ${stateName}`, `${contentLabel(entry.content)}. Takes priority over this component’s variant and base content.`);
+      else contentChange(`${label} in ${stateName}`, previous.content, entry.content);
+    }
+    if (changedOrder(old.stateOverrides ?? [], component.stateOverrides ?? [], 'stateId')) add(`${label}: state presentations reordered`);
     if (changedOrder(old.variantOverrides, component.variantOverrides, 'variantId')) add(`${label}: variant substitutions reordered`, names(component.variantOverrides.map(value => variantName(value.variantId, after))));
   }
   if (changedOrder(before.components, after.components, 'componentId')) add('Component layer order changes', `Front to back: ${names(after.components.map(component => component.name))}.`);

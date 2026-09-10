@@ -1,4 +1,5 @@
 import { handleAssemblyHttp } from './assembly-http.js';
+import { handleClipHttp } from './clip-http.js';
 import { readFile } from 'node:fs/promises';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -62,6 +63,8 @@ import {
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = resolve(moduleDirectory, '../public');
 const staticFiles = new Map([
+  ['/packages/domain/src/clip-normalization.js', ['../../../packages/domain/src/clip-normalization.js', 'text/javascript; charset=utf-8']],
+  ['/packages/domain/src/clip-playback.js', ['../../../packages/domain/src/clip-playback.js', 'text/javascript; charset=utf-8']],
   ['/assembly-review-view.js', ['../public/assembly-review-view.js', 'text/javascript; charset=utf-8']],
   ['/assembly-review-summary.js', ['../public/assembly-review-summary.js', 'text/javascript; charset=utf-8']],
   ['/assembly-review.css', ['../public/assembly-review.css', 'text/css; charset=utf-8']],
@@ -1057,7 +1060,7 @@ export function createStudioHttpServer({
         await assertExecutableBindingPolicy(studioService, binding, agentTaskService);
         if (agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId)) throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly profile requires a shared-head binding.');
         await studioService.queryAssemblies({ schemaVersion: 1, projectId: binding.projectId, limit: 1 }, bindingExecutionContext(binding), { signal: requestAbort.signal });
-        sendJson(response, 200, { schemaVersion: 1, profile: 'assembly-v1', projectId: binding.projectId, storeSchemaVersion: 16, sharedHead: true, toolCount: 21, resourceTemplateCount: 5 });
+        sendJson(response, 200, { schemaVersion: 1, profile: 'assembly-v1', projectId: binding.projectId, storeSchemaVersion: studioService.storeSchemaVersion, sharedHead: true, toolCount: 21, resourceTemplateCount: 5 });
         return;
       }
       if (request.method === 'POST' && url.pathname === '/internal/mcp/execute') {
@@ -1432,6 +1435,9 @@ export function createStudioHttpServer({
         return;
       }
 
+      if (await handleClipHttp({ request, response, url, studioService, humanUiCsrfToken,
+        signal: requestAbort.signal, assertHumanUiMutation, readJsonBody, assertExactKeys,
+        humanOwnerContext, humanCommandDto, sendJson })) return;
       if (await handleAssemblyHttp({ request, response, url, studioService, humanUiCsrfToken,
         signal: requestAbort.signal, assertHumanUiMutation, readJsonBody, assertExactKeys,
         humanOwnerContext, humanCommandDto, sendJson })) return;
@@ -1974,6 +1980,7 @@ export function createStudioHttpServer({
           schemaVersion: 1,
           effectivePolicy: await humanAgentAccess.read(project.projectId),
           hostBindingSupport: hostBindingStore && pairingBroker ? 'AVAILABLE' : 'SQLITE_REQUIRED',
+          clipAuthoringSupport: studioService.durableClipStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           assemblyAuthoringSupport: studioService.durableAssemblyStoreReady === true && studioService.durableAssetStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           hostBindings: await humanAgentAccess.listBindings(project.projectId),
           pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),
@@ -1996,6 +2003,7 @@ export function createStudioHttpServer({
           schemaVersion: 1,
           ...result,
           hostBindingSupport: hostBindingStore && pairingBroker ? 'AVAILABLE' : 'SQLITE_REQUIRED',
+          clipAuthoringSupport: studioService.durableClipStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           assemblyAuthoringSupport: studioService.durableAssemblyStoreReady === true && studioService.durableAssetStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           hostBindings: await humanAgentAccess.listBindings(project.projectId),
           pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),

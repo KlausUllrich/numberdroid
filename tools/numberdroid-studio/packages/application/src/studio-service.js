@@ -1,4 +1,7 @@
 import { applyAssemblyCommand, queryAssemblyDocument } from './assembly-service.js';
+import { applyClipCommand, queryClipDocument } from './clip-service.js';
+import { querySavedSliceDocument } from './exact-cut-history.js';
+import { applySliceRevisionCommand } from './slice-revision-service.js';
 import { COMMAND_DEFINITIONS, KNOWN_GRANT_SCOPES, getCommandDefinition, listCommandDefinitions } from '../../domain/src/command-catalog.js';
 import {
   ATLAS_PROCESSOR_ID,
@@ -968,6 +971,8 @@ function applyCommand(command, snapshot, now, {
   }
 
   if (command.type.startsWith('assembly.')) return applyAssemblyCommand(command, next, projectDocument, now);
+  if (command.type.startsWith('clip.')) return applyClipCommand(command, next, projectDocument, now);
+  if (command.type.startsWith('slice.revision.')) return applySliceRevisionCommand(command, next, projectDocument, now, { atlasJob, priorAtlasJob });
 
   switch (command.type) {
     case 'grant.issue': {
@@ -2213,7 +2218,7 @@ function createRevision({ command, number, now, commandHash, snapshot, result, s
       ...(isTaskBranch ? { branchId: command.branchId, payload: deepClone(command.payload) } : {}),
       // Direct owner saves retain their strict semantic input for immutable
       // image-retention/version provenance. This carries no supplied authority.
-      ...(!isTaskBranch && (command.type === 'asset.save' || command.type.startsWith('assembly.')) ? { payload: deepClone(command.payload) } : {}),
+      ...(!isTaskBranch && (command.type === 'asset.save' || command.type.startsWith('assembly.') || command.type.startsWith('clip.') || command.type.startsWith('slice.revision.')) ? { payload: deepClone(command.payload) } : {}),
       fingerprint: commandHash,
     },
     snapshot: deepClone(snapshot),
@@ -2298,6 +2303,8 @@ export class StudioService {
   }
 
   get durableAssemblyStoreReady() { return this.#store.supportsAtomicAssemblyLibrary === true; }
+  get durableClipStoreReady() { return this.#store.supportsAtomicClipLibrary === true && this.#store.isTaskBranchStore !== true; }
+  get storeSchemaVersion() { return this.#store.schemaVersion ?? null; }
 
   get durableRoomStoreReady() {
     return this.#store.supportsAtomicRoomDesigner === true;
@@ -2382,6 +2389,7 @@ export class StudioService {
     if (definition.requiresDurableAssemblyStore) {
       invariant(this.durableAssemblyStoreReady && this.#store.isTaskBranchStore !== true, 'ASSEMBLY_STORE_DISABLED', 'Assembly authoring requires the shared-head SQLite v16 store.');
     }
+    if (definition.requiresDurableClipStore) invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Animation authoring requires the shared-head SQLite v17 store.');
     if (definition.requiresDurableRoomStore) {
       invariant(
         this.durableRoomStoreReady,
@@ -2396,12 +2404,12 @@ export class StudioService {
       actualRevision: head.number,
     });
     assertAuthorized(command, head.snapshot, definition, now);
-    const atlasJob = command.type === 'atlas.commit.slices'
+    const atlasJob = ['atlas.commit.slices', 'slice.revision.commit'].includes(command.type)
       ? this.#jobStore.get(command.projectId, requireId(command.payload.jobId, 'payload.jobId'))
       : null;
     const priorAtlas = ['atlas.define.rects', 'atlas.preview.slices'].includes(command.type)
       ? head.snapshot.atlases?.find((candidate) => candidate.id === command.payload.atlasId)
-      : null;
+      : command.type.startsWith('slice.revision.') ? head.snapshot.atlases?.find(candidate => candidate.sliceHeads?.some(slice => slice.sliceId === command.payload.sliceId)) : null;
     const priorAtlasJob = priorAtlas?.latestPreviewJobId
       ? this.#jobStore.get(command.projectId, priorAtlas.latestPreviewJobId)
       : null;
@@ -2748,6 +2756,25 @@ export class StudioService {
     for (const record of [...result.assets ?? [], ...(result.draft ? [result.draft] : [])]) this.#store.verifyAssemblyContent(projectId, record, record.createdRevision ?? result.revision);
     for (const proposal of result.proposals ?? []) this.#store.verifyAssemblyContent(projectId, proposal.validated, proposal.createdRevision);
     return deepFreeze(result);
+  }
+
+  async queryClips(request, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted(); invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Clip reads require the shared-head SQLite v17 store.');
+    const projectId = requireId(request.projectId, 'projectId'), context = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId); invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.');
+    assertAuthorized({ ...context, projectId, type: 'project.read', payload: {} }, headRevision(document).snapshot, { ownerOnly: false, requiredScope: 'project.read' }, this.#clock());
+    signal?.throwIfAborted(); const result = queryClipDocument(request, document);
+    for (const record of [...result.assets ?? [], ...(result.draft ? [result.draft] : [])]) this.#store.verifyClipContent(projectId, record, record.createdRevision ?? result.revision);
+    for (const proposal of result.proposals ?? []) this.#store.verifyClipContent(projectId, proposal.validated, proposal.createdRevision);
+    return deepFreeze(result);
+  }
+
+  async querySavedSlice(request, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted(); invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Historical cut reads require the shared-head SQLite v17 store.');
+    const projectId = requireId(request.projectId, 'projectId'), context = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId); invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.');
+    assertAuthorized({ ...context, projectId, type: 'project.read', payload: {} }, headRevision(document).snapshot, { ownerOnly: false, requiredScope: 'project.read' }, this.#clock());
+    signal?.throwIfAborted(); return deepFreeze(querySavedSliceDocument(request, document));
   }
 
   async queryAssets(rawRequest, trustedExecutionContext, { signal } = {}) {

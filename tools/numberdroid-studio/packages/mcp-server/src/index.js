@@ -1,3 +1,6 @@
+import { CLIP_QUERY_SCHEMA } from '../../domain/src/clip-command-catalog.js';
+import { ASSEMBLY_DECLARATION_SCHEMA, ASSEMBLY_ANY_DECLARATION_SCHEMA } from '../../domain/src/assembly-geometry.js';
+import { validateAnimationNegotiation } from './animation-v1.js';
 import { ASSEMBLY_QUERY_SCHEMA } from '../../domain/src/assembly-command-catalog.js';
 import { validateAssemblyNegotiation } from './assembly-v1.js';
 import { MAX_ATLAS_JOB_ATTEMPTS, StudioError } from '../../domain/src/index.js';
@@ -87,6 +90,7 @@ export function createAgentToolCatalog(studioService, {
   agentTaskService = null,
   authoringV2 = null,
   assemblyV1 = null,
+  animationV1 = null,
 } = {}) {
   if (!studioService) {
     throw new StudioError('VALIDATION_ERROR', 'A StudioService is required.');
@@ -99,8 +103,14 @@ export function createAgentToolCatalog(studioService, {
     return authorizeAgentProject(contextProvider, invocationContext, requestedProjectId);
   }
 
-  const assemblyReady = assemblyV1 !== null;
-  if (assemblyReady) {
+  const animationReady = animationV1 !== null;
+  if (animationReady) {
+    validateAnimationNegotiation(animationV1.negotiation, animationV1.projectId);
+    if (assemblyV1 || authoringV2 || studioService.durableClipStoreReady !== true || studioService.taskBranchReady === true || agentTaskService) throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'Animation profile requires an exclusive shared-head service.');
+  }
+  const surfaceProject = animationReady ? animationV1.projectId : assemblyV1?.projectId;
+  const assemblyReady = assemblyV1 !== null || animationReady;
+  if (assemblyV1 !== null) {
     validateAssemblyNegotiation(assemblyV1.negotiation, assemblyV1.projectId);
     if (authoringV2 || studioService.durableAssemblyStoreReady !== true || studioService.taskBranchReady === true || agentTaskService) throw new StudioError('ASSEMBLY_NEGOTIATION_REQUIRED', 'Assembly profile requires an exclusive shared-head service.');
   }
@@ -123,6 +133,8 @@ export function createAgentToolCatalog(studioService, {
     (definition) => !definition.ownerOnly
       && definition.type !== 'project.create'
       && (!definition.requiresAssemblyProfile || assemblyReady)
+      && (!definition.requiresAnimationProfile || animationReady)
+      && (!definition.requiresDurableClipStore || (animationReady && studioService.durableClipStoreReady === true))
       && (!definition.requiresDurableAssemblyStore || (assemblyReady && studioService.durableAssemblyStoreReady === true))
       && (!definition.requiresTaskBranch || agentTaskService || taskBranchReady)
       && (!definition.requiresDurableAgentLedger || agentAttemptAuditReady)
@@ -131,7 +143,10 @@ export function createAgentToolCatalog(studioService, {
       && (!definition.requiresDurableRoomStore || durableRoomSurfaceReady),
   );
 
-  const commandTools = agentDefinitions.map((definition) => ({
+  const profiledDefinitions = agentDefinitions.map(definition => definition.type.startsWith('assembly.')
+    ? { ...definition, payloadSchema: { ...definition.payloadSchema, properties: { ...definition.payloadSchema.properties, assembly: animationReady ? ASSEMBLY_ANY_DECLARATION_SCHEMA : ASSEMBLY_DECLARATION_SCHEMA } } }
+    : definition);
+  const commandTools = profiledDefinitions.map((definition) => ({
     name: definition.toolName,
     title: definition.type,
     description: definition.description,
@@ -144,7 +159,7 @@ export function createAgentToolCatalog(studioService, {
     },
     execute: async (input, invocationContext) => {
       const context = await authority(invocationContext, input.projectId);
-      if (definition.requiresAssemblyProfile && input.projectId !== assemblyV1.projectId) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Assembly submission must use the negotiated project.');
+      if ((definition.requiresAssemblyProfile || definition.requiresAnimationProfile) && input.projectId !== surfaceProject) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Assembly submission must use the negotiated project.');
       const targetService = definition.requiresTaskBranch && agentTaskService ? agentTaskService : studioService;
       return targetService.execute({
         schemaVersion: input.schemaVersion,
@@ -367,13 +382,18 @@ export function createAgentToolCatalog(studioService, {
     ...taskTools,
   ];
   if (assemblyReady) {
-    if (legacyTools.length !== 20) throw new StudioError('ASSEMBLY_SURFACE_BASELINE_MISMATCH', 'Assembly requires the exact 19-tool baseline plus proposal submission.');
-    return [...legacyTools, { name: 'studio_assembly_query', title: 'Read Assemblies and owner feedback', description: 'Read exact Assembly versions, component closure and proposal feedback.', inputSchema: ASSEMBLY_QUERY_SCHEMA, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    const expected = animationReady ? 23 : 20;
+    if (legacyTools.length !== expected) throw new StudioError('ASSEMBLY_SURFACE_BASELINE_MISMATCH', 'The selected authoring profile does not match its exact tool baseline.', { expected, actual: legacyTools.length });
+    const queryTool = (name, title, inputSchema, operation) => ({ name, title, description: title, inputSchema, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       execute: async (input, invocationContext) => {
         const context = await authority(invocationContext, input.projectId);
-        if (input.projectId !== assemblyV1.projectId) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Assembly query must use the negotiated project.');
-        return studioService.queryAssemblies(input, context, { signal: invocationContext?.mcpReq?.signal });
-      } }];
+        if (input.projectId !== surfaceProject) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Query must use the negotiated project.');
+        const result = await studioService[operation](input, context, { signal: invocationContext?.mcpReq?.signal });
+        if (!animationReady && operation === 'queryAssemblies' && [...result.assets ?? [], ...result.proposals?.map(p=>p.validated) ?? []].some(a=>a.assembly?.schemaVersion===2)) throw new StudioError('ANIMATION_PROFILE_REQUIRED', 'Read extended Assembly content using the animation-v1 profile.');
+        return result;
+      } });
+    return [...legacyTools, queryTool('studio_assembly_query', 'Read Assemblies and owner feedback', ASSEMBLY_QUERY_SCHEMA, 'queryAssemblies'),
+      ...(animationReady ? [queryTool('studio_clip_query', 'Read exact Animation clips and owner feedback', CLIP_QUERY_SCHEMA, 'queryClips')] : [])];
   }
   if (!authoringV2Surface) return legacyTools;
   if (legacyTools.length !== 30) {

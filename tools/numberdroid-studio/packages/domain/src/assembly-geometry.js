@@ -1,3 +1,4 @@
+import { normalizeClipDeclaration } from './clip-normalization.js';
 import { invariant } from './errors.js';
 import { ASSET_SPATIAL_SCHEMA, normalizeAssetSpatial, resolveAssetSpatialGeometry } from './asset-spatial-geometry.js';
 
@@ -35,6 +36,49 @@ export const ASSEMBLY_DECLARATION_SCHEMA = freeze(objectSchema({
   }), ASSEMBLY_MAX_COMPONENTS, 1),
   blocking: objectSchema({ mode: { type: 'string', enum: ['components', 'custom'] }, regions: arraySchema(ASSEMBLY_REGION_SCHEMA, ASSEMBLY_MAX_CUSTOM_REGIONS) }),
 }));
+export const ASSEMBLY_CONTENT_SCHEMA = freeze({ oneOf: [
+  objectSchema({ kind: { type: 'string', const: 'none' } }),
+  objectSchema({ kind: { type: 'string', enum: ['image', 'animation'] }, asset: ASSEMBLY_PIN_SCHEMA }),
+] });
+const v2Schema = structuredClone(ASSEMBLY_DECLARATION_SCHEMA);
+v2Schema.properties.schemaVersion.const = 2;
+const v2Component = v2Schema.properties.components.items;
+delete v2Component.properties.asset;
+v2Component.properties.content = ASSEMBLY_CONTENT_SCHEMA;
+v2Component.properties.stateOverrides = arraySchema(objectSchema({ stateId: idSchema, content: ASSEMBLY_CONTENT_SCHEMA }), 16);
+v2Component.properties.variantOverrides = arraySchema(objectSchema({ variantId: idSchema, content: ASSEMBLY_CONTENT_SCHEMA }), 16);
+v2Component.required = Object.keys(v2Component.properties);
+export const ASSEMBLY_DECLARATION_V2_SCHEMA = freeze(v2Schema);
+export const ASSEMBLY_ANY_DECLARATION_SCHEMA = freeze({ oneOf: [ASSEMBLY_DECLARATION_SCHEMA, ASSEMBLY_DECLARATION_V2_SCHEMA] });
+export function normalizeAssemblyContent(value, field = 'content') {
+  record(value, value?.kind === 'none' ? ['kind'] : ['kind', 'asset'], field);
+  fail(['none', 'image', 'animation'].includes(value.kind), `${field}.kind`, 'Choose an image, saved Animation or no content.');
+  return value.kind === 'none' ? { kind: 'none' } : { kind: value.kind, asset: normalizeAssemblyPin(value.asset, `${field}.asset`) };
+}
+export function assemblyContentSlots(assembly) {
+  return assembly.components.flatMap(component => assembly.schemaVersion === 1 ? [
+    { componentId: component.componentId, slotKind: 'base', slotId: null, content: { kind: 'image', asset: component.asset } },
+    ...component.variantOverrides.map(override => ({ componentId: component.componentId, slotKind: 'variant', slotId: override.variantId, content: { kind: 'image', asset: override.asset } })),
+  ] : [
+    { componentId: component.componentId, slotKind: 'base', slotId: null, content: component.content },
+    ...component.stateOverrides.map(override => ({ componentId: component.componentId, slotKind: 'state', slotId: override.stateId, content: override.content })),
+    ...component.variantOverrides.map(override => ({ componentId: component.componentId, slotKind: 'variant', slotId: override.variantId, content: override.content })),
+  ]);
+}
+export function assemblySelectedContent(component, selection) {
+  if (component.stateIds !== null && !component.stateIds.includes(selection.stateId)) return { kind: 'none' };
+  if (component.content) return component.stateOverrides.find(entry => entry.stateId === selection.stateId)?.content
+    ?? component.variantOverrides.find(entry => entry.variantId === selection.variantId)?.content ?? component.content;
+  return { kind: 'image', asset: component.variantOverrides.find(entry => entry.variantId === selection.variantId)?.asset ?? component.asset };
+}
+export function upgradeAssemblyDeclaration(assembly) {
+  const value = normalizeAssemblyDeclaration(assembly);
+  if (value.schemaVersion === 2) return value;
+  return normalizeAssemblyDeclaration({ ...value, schemaVersion: 2, components: value.components.map(({ asset, variantOverrides, ...component }) => ({
+    ...component, content: { kind: 'image', asset }, stateOverrides: [],
+    variantOverrides: variantOverrides.map(({ variantId, asset }) => ({ variantId, content: { kind: 'image', asset } })),
+  })) });
+}
 const clean = (value) => value === 0 ? 0 : value;
 function normalizedRotation(value) {
   const remainder = value % 360;
@@ -133,7 +177,8 @@ export function normalizeAssemblyRegions(value, field = 'assembly.blocking.regio
 export function normalizeAssemblyDeclaration(value) {
   const field = 'assembly';
   record(value, ['schemaVersion', 'coordinateSpace', 'unitsPerPixel', 'placementBounds', 'anchor', 'states', 'variants', 'defaultStateId', 'defaultVariantId', 'components', 'blocking'], field);
-  fail(value.schemaVersion === 1, `${field}.schemaVersion`, 'Use schema version 1.');
+  fail([1, 2].includes(value.schemaVersion), `${field}.schemaVersion`, 'Use schema version 1 or 2.');
+  const extended = value.schemaVersion === 2;
   fail(value.coordinateSpace === 'assembly-pixels', `${field}.coordinateSpace`, 'Use assembly-pixels coordinates.');
   const unitsPerPixel = numeric(value.unitsPerPixel, `${field}.unitsPerPixel`, 0.000001, 64, true);
   const placementBounds = rectangle(value.placementBounds, `${field}.placementBounds`);
@@ -146,24 +191,31 @@ export function normalizeAssemblyDeclaration(value) {
   const componentIds = new Set();
   const components = list(value.components, `${field}.components`, ASSEMBLY_MAX_COMPONENTS, 1).map((entry, index) => {
     const path = `${field}.components[${index}]`;
-    record(entry, ['componentId', 'name', 'asset', 'position', 'rotationDegrees', 'scale', 'stateIds', 'variantOverrides'], path);
+    record(entry, ['componentId', 'name', ...(extended ? ['content', 'stateOverrides'] : ['asset']), 'position', 'rotationDegrees', 'scale', 'stateIds', 'variantOverrides'], path);
     const componentId = id(entry.componentId, `${path}.componentId`);
     fail(!componentIds.has(componentId), `${path}.componentId`, 'Use a unique component identifier.'); componentIds.add(componentId);
     const memberIds = entry.stateIds === null ? null : list(entry.stateIds, `${path}.stateIds`, 16).map((v, i) => id(v, `${path}.stateIds[${i}]`));
     if (memberIds !== null) fail(new Set(memberIds).size === memberIds.length && memberIds.every((v) => stateIds.has(v)), `${path}.stateIds`, 'Use distinct declared state IDs, null for all states, or an empty array for none.');
     const overrideIds = new Set();
     const variantOverrides = list(entry.variantOverrides, `${path}.variantOverrides`, 16).map((override, i) => {
-      const label = `${path}.variantOverrides[${i}]`; record(override, ['variantId', 'asset'], label);
+      const label = `${path}.variantOverrides[${i}]`; record(override, ['variantId', extended ? 'content' : 'asset'], label);
       const variantId = id(override.variantId, `${label}.variantId`);
       fail(variantIds.has(variantId) && !overrideIds.has(variantId), `${label}.variantId`, 'Use a unique declared variant ID.'); overrideIds.add(variantId);
-      return { variantId, asset: normalizeAssemblyPin(override.asset, `${label}.asset`) };
+      return extended ? { variantId, content: normalizeAssemblyContent(override.content, `${label}.content`) } : { variantId, asset: normalizeAssemblyPin(override.asset, `${label}.asset`) };
     });
+    const stateOverrideIds = new Set();
+    const stateOverrides = extended ? list(entry.stateOverrides, `${path}.stateOverrides`, 16).map((override, i) => {
+      const label = `${path}.stateOverrides[${i}]`; record(override, ['stateId', 'content'], label);
+      const stateId = id(override.stateId, `${label}.stateId`);
+      fail(stateIds.has(stateId) && !stateOverrideIds.has(stateId), `${label}.stateId`, 'Use a unique declared state ID.'); stateOverrideIds.add(stateId);
+      return { stateId, content: normalizeAssemblyContent(override.content, `${label}.content`) };
+    }) : null;
     const rotation = numeric(entry.rotationDegrees, `${path}.rotationDegrees`, -360000, 360000);
-    return { componentId, name: string(entry.name, `${path}.name`), asset: normalizeAssemblyPin(entry.asset, `${path}.asset`), position: point(entry.position, `${path}.position`), rotationDegrees: normalizedRotation(rotation), scale: numeric(entry.scale, `${path}.scale`, 0.001, 1000), stateIds: memberIds, variantOverrides };
+    return { componentId, name: string(entry.name, `${path}.name`), ...(extended ? { content: normalizeAssemblyContent(entry.content, `${path}.content`), stateOverrides } : { asset: normalizeAssemblyPin(entry.asset, `${path}.asset`) }), position: point(entry.position, `${path}.position`), rotationDegrees: normalizedRotation(rotation), scale: numeric(entry.scale, `${path}.scale`, 0.001, 1000), stateIds: memberIds, variantOverrides };
   });
   record(value.blocking, ['mode', 'regions'], `${field}.blocking`);
   fail(['components', 'custom'].includes(value.blocking.mode), `${field}.blocking.mode`, 'Choose components or custom.');
-  const assembly = { schemaVersion: 1, coordinateSpace: 'assembly-pixels', unitsPerPixel, placementBounds, anchor: point(value.anchor, `${field}.anchor`), states, variants, defaultStateId, defaultVariantId, components, blocking: { mode: value.blocking.mode, regions: normalizeAssemblyRegions(value.blocking.regions) } };
+  const assembly = { schemaVersion: value.schemaVersion, coordinateSpace: 'assembly-pixels', unitsPerPixel, placementBounds, anchor: point(value.anchor, `${field}.anchor`), states, variants, defaultStateId, defaultVariantId, components, blocking: { mode: value.blocking.mode, regions: normalizeAssemblyRegions(value.blocking.regions) } };
   fail(new TextEncoder().encode(JSON.stringify(assembly)).byteLength <= ASSEMBLY_MAX_BYTES, field, 'Reduce the declaration to at most 256 KiB.');
   return assembly;
 }
@@ -224,7 +276,7 @@ function unionBounds(bounds) {
 }
 function assetMap(assets) {
   const values = assets instanceof Map ? [...assets.values()] : assets;
-  fail(Array.isArray(values) && values.length <= ASSEMBLY_MAX_COMPONENTS * 17, 'assets', 'Provide the bounded exact native Asset closure.');
+  fail(Array.isArray(values) && values.length <= ASSEMBLY_MAX_COMPONENTS * 33, 'assets', 'Provide the bounded exact image/Animation closure.');
   const result = new Map();
   for (const asset of values) {
     fail(asset && typeof asset === 'object', 'assets', 'Provide exact native Asset records.');
@@ -245,6 +297,45 @@ function resolvedLeaf(pin, assets, projectId, cache) {
   const leaf = { asset, geometry, artifact: { digest: binding.digest, mediaType: binding.mediaType, pixelSize: { width: binding.width, height: binding.height } } };
   cache.set(key, leaf); return leaf;
 }
+function resolvedClip(pin, assets, projectId, cache) {
+  const key = assemblyAssetKey(pin); if (cache.has(key)) return cache.get(key);
+  const asset = assets.get(key);
+  fail(asset?.contentKind === 'animation' && asset.clip && asset.assetId === pin.assetId && asset.assetVersion === pin.assetVersion && asset.metadataVersion === pin.metadataVersion,
+    `assets.${key}`, 'Resolve the exact saved Animation version; nesting and latest-version substitution are unsupported.', 'ASSEMBLY_ANIMATION_NOT_FOUND');
+  const clip = normalizeClipDeclaration(asset.clip);
+  fail(clip.schemaVersion === 1 && clip.coordinateSpace === 'clip-pixels' && ['once', 'loop', 'pingpong'].includes(clip.playbackMode), `assets.${key}.clip`, 'Use a supported saved clip declaration.');
+  const units = numeric(clip.unitsPerPixel, `assets.${key}.clip.unitsPerPixel`, 0.000001, 64, true);
+  numeric(clip.fps, `assets.${key}.clip.fps`, 0.1, 120);
+  const anchor = point(clip.anchor, `assets.${key}.clip.anchor`);
+  for (const dimension of ['width', 'height']) {
+    numeric(clip.canvas?.[dimension], `assets.${key}.clip.canvas.${dimension}`, 1, LIMIT);
+    fail(clip.canvas[dimension] * units <= 64, `assets.${key}.clip.canvas.${dimension}`, 'Keep the clip canvas within 64 project units.');
+  }
+  const frames = list(clip.frames, `assets.${key}.clip.frames`, 256, 1);
+  fail(Array.isArray(asset.frameBindings) && asset.frameBindings.length === frames.length, `assets.${key}.frameBindings`, 'Resolve every exact frame binding.');
+  const frameIds = new Set();
+  const resolvedFrames = frames.map((frame, index) => {
+    fail(!frameIds.has(frame.frameId), `assets.${key}.frames[${index}]`, 'Frame identities must be distinct.'); frameIds.add(frame.frameId);
+    const binding = asset.frameBindings[index]; const slice = binding?.sliceBinding;
+    fail(binding?.frameId === frame.frameId && slice?.projectId === projectId && slice.sliceId === frame.slice.sliceId && slice.sliceVersion === frame.slice.sliceVersion,
+      `assets.${key}.frames[${index}]`, 'Resolve the same-project historical cut pinned by this frame.', 'ASSEMBLY_ANIMATION_FRAME_MISMATCH');
+    fail(slice.mediaType === 'image/png' && /^[a-f0-9]{64}$/.test(slice.digest), `assets.${key}.frames[${index}]`, 'Use an exact saved PNG cut.');
+    for (const dimension of ['width', 'height']) fail(Number.isSafeInteger(slice[dimension]) && slice[dimension] >= 1 && slice[dimension] <= LIMIT, `assets.${key}.frames[${index}].${dimension}`, 'Use bounded exact image dimensions.');
+    if (frame.durationMs !== null) numeric(frame.durationMs, `assets.${key}.frames[${index}].durationMs`, 1, 60000);
+    const offset = point(frame.offset, `assets.${key}.frames[${index}].offset`);
+    return { frameId: frame.frameId, name: frame.name, durationMs: frame.durationMs,
+      artifact: { digest: slice.digest, mediaType: slice.mediaType, pixelSize: { width: slice.width, height: slice.height } },
+      pixelMatrix: [units, 0, 0, units, offset.x * units, offset.y * units] };
+  });
+  const result = { asset, clip, frames: resolvedFrames, geometry: { anchor: { x: anchor.x * units, y: anchor.y * units }, regions: [], findings: [] } };
+  cache.set(key, result); return result;
+}
+function resolvedContent(content, assets, projectId, cache) {
+  if (content.kind === 'none') return null;
+  const asset = assets.get(assemblyAssetKey(content.asset));
+  fail(content.kind === 'animation' ? asset?.contentKind === 'animation' : asset?.contentKind !== 'animation', 'content.kind', 'Content kind must match the exact saved Asset.');
+  return content.kind === 'animation' ? resolvedClip(content.asset, assets, projectId, cache) : resolvedLeaf(content.asset, assets, projectId, cache);
+}
 function finding(ruleId, path, explanation, remediation) { return { severity: 'ERROR', ruleId, path, explanation, remediation }; }
 function sceneFor(assembly, selection, assets, projectId, cache) {
   const stateId = selection?.stateId ?? assembly.defaultStateId; const variantId = selection?.variantId ?? assembly.defaultVariantId;
@@ -253,13 +344,26 @@ function sceneFor(assembly, selection, assets, projectId, cache) {
   const elements = []; const inherited = []; const findings = [];
   for (const component of assembly.components) {
     if (component.stateIds !== null && !component.stateIds.includes(stateId)) continue;
-    const pin = component.variantOverrides.find((v) => v.variantId === variantId)?.asset ?? component.asset;
-    const { geometry, artifact } = resolvedLeaf(pin, assets, projectId, cache);
+    const content = assemblySelectedContent(component, { stateId, variantId });
+    if (content.kind === 'none') continue;
+    const pin = content.asset;
+    const resolved = resolvedContent(content, assets, projectId, cache);
+    const { geometry, artifact } = resolved;
     const matrix = assemblyComponentMatrix(component, geometry.anchor, assembly.unitsPerPixel);
+    if (content.kind === 'animation') {
+      const frames = resolved.frames.map(frame => {
+        const imageMatrix = multiplyAssemblyMatrices(matrix, frame.pixelMatrix);
+        const imageBounds = boundedSceneRect(assemblyShapeBounds({ shape: { kind: 'rectangle', x: 0, y: 0, ...frame.artifact.pixelSize }, transform: imageMatrix }), `components.${component.componentId}.frames.${frame.frameId}`);
+        const { pixelMatrix, ...descriptor } = frame; return { ...descriptor, imageMatrix, imageBounds };
+      });
+      elements.push({ contentKind: 'animation', componentId: component.componentId, name: component.name, asset: { ...pin }, anchor: { ...component.position },
+        imageBounds: unionBounds(frames.map(frame => frame.imageBounds)), clip: { fps: resolved.clip.fps, playbackMode: resolved.clip.playbackMode, frames } });
+      continue;
+    }
     const imagePixelMatrix = [geometry.imageBounds.width / artifact.pixelSize.width, 0, 0, geometry.imageBounds.height / artifact.pixelSize.height, geometry.imageBounds.x, geometry.imageBounds.y];
     const imageMatrix = multiplyAssemblyMatrices(matrix, imagePixelMatrix);
     const imageBounds = boundedSceneRect(assemblyShapeBounds({ shape: { kind: 'rectangle', x: 0, y: 0, width: artifact.pixelSize.width, height: artifact.pixelSize.height }, transform: imageMatrix }), `components.${component.componentId}.imageBounds`);
-    elements.push({ componentId: component.componentId, name: component.name, asset: { ...pin }, imageMatrix, imageBounds, anchor: { ...component.position }, artifact });
+    elements.push({ ...(assembly.schemaVersion === 2 ? { contentKind: 'image' } : {}), componentId: component.componentId, name: component.name, asset: { ...pin }, imageMatrix, imageBounds, anchor: { ...component.position }, artifact });
     for (const region of geometry.regions) inherited.push({ regionId: `${component.componentId.length}:${component.componentId}:${region.regionId}`, name: region.name, shape: structuredClone(region.shape), transform: [...matrix], componentId: component.componentId, asset: { ...pin }, sourceRegionId: region.regionId });
     for (const sourceFinding of geometry.findings) if (sourceFinding.severity === 'ERROR') findings.push(finding('studio.assembly.component.geometry_invalid', `/components/${component.componentId}/asset`, sourceFinding.explanation, `Correct the exact source Asset or explicitly choose a corrected version. ${sourceFinding.remediation}`));
   }
@@ -269,7 +373,7 @@ function sceneFor(assembly, selection, assets, projectId, cache) {
     if (!assemblyShapeContained(region, assembly.placementBounds)) findings.push(finding('studio.assembly.blocking_out_of_bounds', region.componentId ? `/components/${region.componentId}` : `/blocking/regions/${region.regionId}`, `Blocking region “${region.name}” exceeds the assembly placement bounds in ${variantId}/${stateId}.`, 'Enlarge the authored placement bounds or explicitly adjust the component/custom geometry; the shape is retained.'));
   }
   const visualBounds = unionBounds(elements.length ? elements.map((element) => element.imageBounds) : [assembly.placementBounds]);
-  return { schemaVersion: 1, coordinateSpace: 'assembly-pixels', selection: { stateId, variantId }, placementBounds: { ...assembly.placementBounds }, anchor: { ...assembly.anchor }, visualBounds, elements, regions, findings };
+  return { schemaVersion: assembly.schemaVersion, coordinateSpace: 'assembly-pixels', selection: { stateId, variantId }, placementBounds: { ...assembly.placementBounds }, anchor: { ...assembly.anchor }, visualBounds, elements, regions, findings };
 }
 export function resolveAssemblyScene({ assembly, assets, projectId, selection } = {}) {
   const normalized = normalizeAssemblyDeclaration(assembly);
@@ -277,9 +381,16 @@ export function resolveAssemblyScene({ assembly, assets, projectId, selection } 
 }
 export function validateAssemblyGeometry({ assembly, assets, projectId } = {}) {
   const normalized = normalizeAssemblyDeclaration(assembly); const map = assetMap(assets); const cache = new Map(); const pins = new Map();
-  for (const component of normalized.components) for (const pin of [component.asset, ...component.variantOverrides.map((v) => v.asset)]) {
-    pins.set(assemblyAssetKey(pin), { ...pin }); resolvedLeaf(pin, map, projectId, cache);
+  let frameWork = 0;
+  for (const { content } of assemblyContentSlots(normalized)) {
+    if (content.kind === 'none') continue;
+    const pin = content.asset; const key = assemblyAssetKey(pin);
+    const first = !pins.has(key);
+    pins.set(key, { ...pin }); const resolved = resolvedContent(content, map, projectId, cache);
+    if (first) frameWork += resolved.frames?.length ?? 1;
+    fail(frameWork <= 4096, 'assembly.components', 'Use at most 4096 distinct resolved frames across component content.', 'ASSEMBLY_CLOSURE_LIMIT');
   }
+  if (normalized.schemaVersion === 2) fail(new TextEncoder().encode(JSON.stringify([...map.values()])).byteLength <= 8 * 1024 * 1024, 'assets', 'Keep the resolved component closure within 8 MiB.', 'ASSEMBLY_CLOSURE_LIMIT');
   const findings = []; const frames = [normalized.placementBounds];
   // Resolve the bounded all-choice graph at validation time, never inside the
   // active-preview loop. Leaf geometry is cached per exact pin for this pass.

@@ -4,7 +4,7 @@ import { requireEnum, requireId, requireString } from './validation.js';
 import { ASSET_KINDS, validateExactSliceBinding } from './asset-definition.js';
 import { ASSEMBLY_MAX_BYTES, normalizeAssemblyDeclaration, validateAssemblyGeometry } from './assembly-geometry.js';
 
-export { ASSEMBLY_DECLARATION_SCHEMA, ASSEMBLY_PIN_SCHEMA, ASSEMBLY_REGION_SCHEMA, normalizeAssemblyDeclaration, normalizeAssemblyPin } from './assembly-geometry.js';
+export { ASSEMBLY_DECLARATION_SCHEMA, ASSEMBLY_DECLARATION_V2_SCHEMA, ASSEMBLY_ANY_DECLARATION_SCHEMA, ASSEMBLY_PIN_SCHEMA, ASSEMBLY_REGION_SCHEMA, normalizeAssemblyDeclaration, normalizeAssemblyPin } from './assembly-geometry.js';
 export const ASSEMBLY_VALIDATOR_VERSION = 'numberdroid-studio.assembly-validator.v1';
 function freeze(value) { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.values(value).forEach(freeze); Object.freeze(value); } return value; }
 export const ASSEMBLY_METADATA_SCHEMA = freeze({ type: 'object', additionalProperties: false, required: ['role', 'tags'], properties: {
@@ -39,7 +39,8 @@ export function validateAssemblyDefinition({ assetId, name, kind, metadata, asse
   // binding format. The store additionally proves historical/CAS provenance.
   for (const pin of resolved.componentPins) {
     const leaf = records.find((asset) => asset.assetId === pin.assetId && asset.assetVersion === pin.assetVersion && asset.metadataVersion === pin.metadataVersion);
-    validateExactSliceBinding(leaf.sliceBinding);
+    if (leaf.contentKind === 'animation') for (const frame of leaf.frameBindings) validateExactSliceBinding(frame.sliceBinding);
+    else validateExactSliceBinding(leaf.sliceBinding);
   }
   const rawFindings = [...resolved.findings];
   if (normalizedMetadata.role === null) rawFindings.push({ severity: 'WARNING', ruleId: 'studio.assembly.role_missing', path: '/metadata/role', explanation: 'The assembly has no descriptive role yet.', remediation: 'Add an optional role when useful; this does not prevent saving DRAFT work.' });

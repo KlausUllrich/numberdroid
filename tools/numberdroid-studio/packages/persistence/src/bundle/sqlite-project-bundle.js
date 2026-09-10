@@ -1,3 +1,6 @@
+import { validateSliceRevisionJobInput } from '../../../application/src/slice-revision-service.js';
+import { portableClipLibrary, validatePortableClips, restoredClipSnapshot, importClipLibrary, resolvePortableClip } from './clip-bundle.js';
+import { inspectClipIntegrity } from '../integrity/clip-integrity.js';
 import { portableAssemblyLibrary, validatePortableAssemblies, restoredAssemblySnapshot, importAssemblyLibrary } from './assembly-bundle.js';
 import { inspectAssemblyIntegrity } from '../integrity/assembly-integrity.js';
 import { join } from 'node:path';
@@ -798,7 +801,7 @@ function validateNestedSchemas(project) {
   project.appliedJobHistory.forEach((job, index) => {
     const label = `appliedJobHistory[${index}]`;
     exactKeys(job, JOB_KEYS, label);
-    exactKeys(job.input, JOB_INPUT_KEYS, `${label}.input`);
+    if(job.input.schemaVersion===2){invariant(project.schemaVersion===6,'BUNDLE_SCHEMA_UNSUPPORTED','Cut revision jobs require portable v6.');validateSliceRevisionJobInput(job.input);}else exactKeys(job.input, JOB_INPUT_KEYS, `${label}.input`);
     job.input.rectangles.forEach((rectangle, rectangleIndex) => validateRectangleSchema(rectangle, `${label}.input.rectangles[${rectangleIndex}]`));
     job.outputs.forEach((output, outputIndex) => exactKeys(output, OUTPUT_KEYS, `${label}.outputs[${outputIndex}]`));
     exactKeys(job.result, JOB_RESULT_KEYS, `${label}.result`);
@@ -823,14 +826,15 @@ function hasNewAssetSemantics(project) {
 
 export function validateSqlitePortableProject(project) {
   validateNestedSchemas(project);
-  if (project.schemaVersion === 5) validatePortableAssemblies(project, restoredAsset, (leaf) => {
+  if (project.schemaVersion >= 5 && project.assemblyLibrary) validatePortableAssemblies(project, restoredAsset, (leaf) => {
     exactKeys(leaf, Object.hasOwn(leaf, 'lifecycleRevision') ? [...ASSET_KEYS, 'lifecycleRevision'] : ASSET_KEYS, 'Assembly leaf');
     validateMetadataSchema(leaf.metadata, 'Assembly leaf.metadata', 5);
     validateExactBindingSchema(leaf.sliceBinding, 'Assembly leaf.sliceBinding');
     leaf.findings.forEach((finding) => validateFindingSchema(finding, 'Assembly leaf.finding'));
-  });
+  },(pin,cutoff)=>resolvePortableClip(project,pin,cutoff,restoredExactBinding));
+  if(project.schemaVersion===6){if(project.clipLibrary)validatePortableClips(project,restoredExactBinding,binding=>validateExactBindingSchema(binding,'Clip frame binding'));invariant(Boolean(project.clipLibrary)||(project.assemblyLibrary?.versions??[]).some(record=>record.assembly.schemaVersion===2)||(project.assemblyLibrary?.proposals??[]).some(record=>record.validated.assembly.schemaVersion===2)||project.appliedJobHistory.some(job=>job.input.schemaVersion===2),'BUNDLE_SCHEMA_NONCANONICAL','Portable v6 requires clip history or Assembly v2 content.');}
   const extended = hasNewAssetSemantics(project);
-  invariant(project.schemaVersion === 5 || (project.schemaVersion === 4 ? extended : !extended), 'BUNDLE_SCHEMA_NONCANONICAL', 'Portable schema v4 is required exactly when owner-saved or spatial Asset semantics are present.');
+  invariant(project.schemaVersion >= 5 || (project.schemaVersion === 4 ? extended : !extended), 'BUNDLE_SCHEMA_NONCANONICAL', 'Portable schema v4 is required exactly when owner-saved or spatial Asset semantics are present.');
   requireUnique(project.sources, (source) => source.sourceId, 'sources');
   requireUnique(project.atlases, (atlas) => atlas.atlasId, 'atlases');
   requireUnique(project.legacyAssets, (asset) => asset.assetId, 'legacyAssets');
@@ -1129,6 +1133,9 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
       (version.voidCells?.length ?? 0) > 0 || (version.blockedCells?.length ?? 0) > 0
     )));
     const assemblyLibrary = schemaVersion >= 16 ? portableAssemblyLibrary(database, projectId, portableAsset) : null;
+    const clipLibrary = schemaVersion >=17 ? portableClipLibrary(database,projectId,portableExactBinding):null;
+    const animationFormat=Boolean(clipLibrary)||(assemblyLibrary?.versions??[]).some(record=>record.assembly.schemaVersion===2)||(assemblyLibrary?.proposals??[]).some(record=>record.validated.assembly.schemaVersion===2)||jobHistory.some(job=>job.input.schemaVersion===2);
+    if(clipLibrary){const checked=inspectClipIntegrity(database);invariant(checked.ok,'BUNDLE_SQLITE_CORRUPT','Animation integrity must pass before portable export.',{findings:checked.findings});}
     if (assemblyLibrary) {
       const integrity = inspectAssemblyIntegrity(database);
       invariant(integrity.ok, 'BUNDLE_SQLITE_CORRUPT', 'Assembly integrity must pass before portable export.', { findings: integrity.findings });
@@ -1138,7 +1145,7 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
     const roomLibrary = portableRoomLibrary(snapshot, roomSchemaVersion);
     const hasRoomSemantics = roomLibrary.archetypes.length > 0 || roomLibrary.variants.length > 0 || roomLibrary.proposals.length > 0;
     const project = cleanUndefined({
-      schemaVersion: assemblyLibrary ? 5 : extendedAssets ? 4 : hasRoomSemantics ? roomSchemaVersion : 1,
+      schemaVersion: animationFormat ? 6 : assemblyLibrary ? 5 : extendedAssets ? 4 : hasRoomSemantics ? roomSchemaVersion : 1,
       bundleKind: 'numberdroid-studio-project',
       projectHead: {
         projectId,
@@ -1161,8 +1168,8 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
       proposals,
       appliedJobHistory: jobHistory,
       activity: revisions.map(portableActivity),
-      ...(hasRoomSemantics || extendedAssets || assemblyLibrary ? { roomLibrary } : {}),
-      ...(assemblyLibrary ? { assemblyLibrary } : {}),
+      ...(hasRoomSemantics || extendedAssets || assemblyLibrary || animationFormat ? { roomLibrary } : {}),
+      ...(animationFormat ? { assemblyLibrary, clipLibrary } : assemblyLibrary ? {assemblyLibrary} : {}),
     });
     validateSqlitePortableProject(project);
     return { project, artifacts };
@@ -1195,9 +1202,10 @@ export async function verifySqliteProjectBundle(bundleDirectory, { limits = PROJ
 }
 
 function importedSnapshot(project, revision = project.projectHead.revision) {
-  const assemblyLibrary = project.schemaVersion === 5 ? restoredAssemblySnapshot(project.assemblyLibrary, revision) : null;
+  const assemblyLibrary = project.schemaVersion >=5 && project.assemblyLibrary ? restoredAssemblySnapshot(project.assemblyLibrary, revision) : null;
+  const clipLibrary=project.schemaVersion===6 && project.clipLibrary?restoredClipSnapshot(project.clipLibrary,revision):null;
   let nativeAssets = project.assetLibrary.heads.map((head) => restoredAsset(head.semantic));
-  if (project.schemaVersion === 5) {
+  if (project.schemaVersion >=5 && project.assemblyLibrary) {
     const versions = new Map(project.assetLibrary.versions.map(version => [`${version.assetId}@${version.assetVersion}:${version.metadataVersion}`, version]));
     const selected = new Map();
     for (const asset of [...nativeAssets, ...project.assemblyLibrary.leafAssets.map(restoredAsset)]) {
@@ -1246,6 +1254,7 @@ function importedSnapshot(project, revision = project.projectHead.revision) {
     },
     ...(project.schemaVersion >= 2 ? { roomLibrary: restoredRoomLibrary(project.roomLibrary) } : {}),
     ...(assemblyLibrary ? { assemblyLibrary } : {}),
+    ...(clipLibrary ? { clipLibrary } : {}),
   };
 }
 
@@ -1702,6 +1711,7 @@ async function materializeSqliteBundle({
         `).run(project.projectHead.projectId, head.assetId, tag, tagOrder);
       }
 
+      importClipLibrary(database,project);
       importAssemblyLibrary(database, project);
       materializePortableRoomLibrary(database, project, safeRevision);
 

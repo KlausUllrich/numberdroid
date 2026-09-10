@@ -1,4 +1,4 @@
-import { normalizeAssemblyDeclaration, resolveAssemblyScene, validateAssemblyGeometry, assemblyAssetKey } from '../../../packages/domain/src/assembly-geometry.js';
+import { normalizeAssemblyDeclaration, resolveAssemblyScene, validateAssemblyGeometry, assemblyAssetKey, assemblyContentSlots, assemblySelectedContent, upgradeAssemblyDeclaration } from '../../../packages/domain/src/assembly-geometry.js';
 
 const copy = value => structuredClone(value);
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -15,7 +15,7 @@ export function createAssemblyEditorState(initial) {
   return { instanceId: initial.instanceId ?? crypto.randomUUID(), context: { projectId: initial.projectId, projectRevision: initial.projectRevision,
     assetId: asset?.assetId ?? initial.assetId ?? `assembly.${crypto.randomUUID()}`, assetVersion: asset?.assetVersion ?? 0, metadataVersion: asset?.metadataVersion ?? 0 },
     model, savedModel: copy(model), assets: copy(initial.assets ?? []), scene: null, selectedComponentId: model.assembly.components[0]?.componentId ?? null,
-    preview: { stateId: model.assembly.defaultStateId, variantId: model.assembly.defaultVariantId }, hidden: [], showBlocking: true, view: 'edit', panel: 'component',
+    previewPlaying: true, preview: { stateId: model.assembly.defaultStateId, variantId: model.assembly.defaultVariantId }, hidden: [], showBlocking: true, view: 'edit', panel: 'component',
     zoom: 'fit', scale: 1, frame: null, grid: { show: true, snap: false, step: 16 }, gridOpen: false, pickerOpen: false, pickerSearch: '', pickerPurpose: 'add',
     history: { past: [], future: [] }, fieldDrafts: {}, customDraft: null, customInitialized: model.assembly.blocking.mode === 'custom' || model.assembly.blocking.regions.length > 0,
     save: { status: 'idle', intent: null }, resolution: { status: 'idle', error: null }, error: null, conflict: null, gesture: null, viewContexts: {}, viewGeneration: 0, source: null };
@@ -42,9 +42,28 @@ export function assemblyEditorDirty(state) {
 }
 export function selectedAssemblyComponent(state) { return state.model.assembly.components.find(c => c.componentId === state.selectedComponentId) ?? null; }
 export function assemblyEditorPins(assembly) {
-  const pins = new Map(); for (const c of assembly.components) for (const pin of [c.asset, ...c.variantOverrides.map(v => v.asset)]) pins.set(assemblyAssetKey(pin), copy(pin)); return [...pins.values()];
+  const pins = new Map(); for (const { content } of assemblyContentSlots(assembly)) if (content.kind !== 'none') pins.set(assemblyAssetKey(content.asset), copy(content.asset)); return [...pins.values()];
 }
-export function assemblyEditorPreviewPin(component, variantId) { return component.variantOverrides.find(v => v.variantId === variantId)?.asset ?? component.asset; }
+export function assemblyEditorPreviewPin(component, variantId, stateId) { return assemblySelectedContent(component, { variantId, stateId: stateId ?? component.stateIds?.[0] }).asset ?? null; }
+export function assemblyEditorContentReady(asset) { return asset.contentKind !== 'animation' || Array.isArray(asset.frameBindings); }
+export function assemblyEditorUpgrade(state) {
+  if (state.model.assembly.schemaVersion === 2) return;
+  state.model.assembly = state.model.assembly.components.length ? upgradeAssemblyDeclaration(state.model.assembly) : { ...state.model.assembly, schemaVersion: 2 };
+}
+export function assemblyEditorSetContent(state, componentId, purpose, content) {
+  if (purpose.startsWith('state:') || content.kind !== 'image') assemblyEditorUpgrade(state);
+  const component = state.model.assembly.components.find(entry => entry.componentId === componentId);
+  if (!component) throw new Error('Select a component before choosing its presentation.');
+  const extended = state.model.assembly.schemaVersion === 2;
+  if (purpose === 'replace-base') { if (extended) component.content = copy(content); else component.asset = copy(content.asset); }
+  else {
+    const [kind, id] = purpose.split(/:(.*)/s); const key = kind === 'state' ? 'stateId' : 'variantId', collection = kind === 'state' ? 'stateOverrides' : 'variantOverrides';
+    const choices = kind === 'state' ? state.model.assembly.states : state.model.assembly.variants;
+    if (!choices.some(choice => choice[key] === id)) throw new Error('Choose a declared presentation state or variant.');
+    component[collection] = component[collection].filter(entry => entry[key] !== id);
+    component[collection].push({ [key]: id, ...(extended ? { content: copy(content) } : { asset: copy(content.asset) }) });
+  }
+}
 export function assemblyEditorInvalidNumericField(state) { return Object.entries(state.fieldDrafts).find(([, v]) => v.trim() === '' || !Number.isFinite(Number(v)))?.[0] ?? null; }
 export function assemblyEditorIssues(state, { geometry = true } = {}) {
   const issues = [];
@@ -86,10 +105,11 @@ export function assemblyEditorContextConflict(state, context) {
 }
 export function assemblyEditorAddComponent(state, asset, componentId = `component.${crypto.randomUUID()}`) {
   if (state.model.assembly.components.length >= 32) throw new Error('Use at most 32 components.');
-  if (asset?.sliceBinding?.mediaType !== 'image/png' || !/^[a-f0-9]{64}$/.test(asset.sliceBinding.digest ?? '') || asset.assembly) throw new Error('Choose a saved PNG-backed Asset. Nested Assemblies are not supported.');
-  const component = { componentId, name: asset.name, asset: assemblyEditorPin(asset), position: copy(state.model.assembly.anchor), rotationDegrees: 0, scale: 1, stateIds: null, variantOverrides: [] };
+  if (asset?.contentKind !== 'animation' && (asset?.sliceBinding?.mediaType !== 'image/png' || !/^[a-f0-9]{64}$/.test(asset.sliceBinding.digest ?? '') || asset.assembly)) throw new Error('Choose a saved PNG Asset or Animation. Nested Assemblies are not supported.');
+  if (asset.contentKind === 'animation') assemblyEditorUpgrade(state);
+  const component = { componentId, name: asset.name, ...(state.model.assembly.schemaVersion === 2 ? { content: { kind: asset.contentKind === 'animation' ? 'animation' : 'image', asset: assemblyEditorPin(asset) }, stateOverrides: [] } : { asset: assemblyEditorPin(asset) }), position: copy(state.model.assembly.anchor), rotationDegrees: 0, scale: 1, stateIds: null, variantOverrides: [] };
   state.model.assembly.components.unshift(component); state.selectedComponentId = componentId;
-  const key = assemblyAssetKey(asset); if (!state.assets.some(a => assemblyAssetKey(a) === key)) state.assets.push(copy(asset)); return component;
+  const key = assemblyAssetKey(asset); if (assemblyEditorContentReady(asset) && !state.assets.some(a => assemblyAssetKey(a) === key)) state.assets.push(copy(asset)); return component;
 }
 export function assemblyEditorMoveOrder(state, offset) {
   const components = state.model.assembly.components, from = components.findIndex(c => c.componentId === state.selectedComponentId);
@@ -105,7 +125,10 @@ export function assemblyEditorRemoveChoice(state, kind, id) {
   if (list.length <= 1) throw new Error(`Keep at least one ${kind}.`);
   const index = list.findIndex(item => item[key] === id); if (index < 0) return;
   list.splice(index, 1);
-  for (const c of a.components) if (isState && c.stateIds !== null) c.stateIds = c.stateIds.filter(value => value !== id); else if (!isState) c.variantOverrides = c.variantOverrides.filter(value => value.variantId !== id);
+  for (const c of a.components) {
+    if (isState) { if (c.stateIds !== null) c.stateIds = c.stateIds.filter(value => value !== id); if (c.stateOverrides) c.stateOverrides = c.stateOverrides.filter(value => value.stateId !== id); }
+    else c.variantOverrides = c.variantOverrides.filter(value => value.variantId !== id);
+  }
   const defaultKey = isState ? 'defaultStateId' : 'defaultVariantId'; if (a[defaultKey] === id) a[defaultKey] = list[0][key];
   if (state.preview[key] === id) state.preview[key] = a[defaultKey];
 }

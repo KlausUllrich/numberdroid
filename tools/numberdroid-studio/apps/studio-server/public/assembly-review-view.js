@@ -1,4 +1,4 @@
-import { assemblySvg, createAssemblyArtwork, assemblySceneFrame } from './assembly-artwork-view.js';
+import { assemblySvg, createAssemblyArtwork, updateAssemblyArtwork, assemblySceneFrame } from './assembly-artwork-view.js';
 import { assemblyReviewChanges } from './assembly-review-summary.js';
 
 const copy = value => structuredClone(value);
@@ -6,7 +6,8 @@ const node = (tag, text, className = '') => { const n = document.createElement(t
 const statuses = { ACCEPT: 'ACCEPTED', REQUEST_CHANGES: 'CHANGES_REQUESTED', DISCARD: 'DISCARDED' };
 export function assemblyProposalDiffRows(proposal, currentAsset) {
   const content = proposal.content;
-  const describe = component => component ? `${component.name} · ${component.asset.assetId}@${component.asset.assetVersion}:${component.asset.metadataVersion} · (${component.position.x}, ${component.position.y}) · ${component.rotationDegrees}° · scale ${component.scale} · states ${component.stateIds === null ? 'all' : component.stateIds.join(', ') || 'none'} · variants ${component.variantOverrides.map(v => `${v.variantId}: ${v.asset.assetId}@${v.asset.assetVersion}:${v.asset.metadataVersion}`).join(', ') || 'base'}` : 'Absent';
+  const presentation = content => content.kind === 'none' ? 'none' : `${content.kind} ${content.asset.assetId}@${content.asset.assetVersion}:${content.asset.metadataVersion}`;
+  const describe = component => component ? `${component.name} · ${presentation(component.content ?? { kind: 'image', asset: component.asset })} · (${component.position.x}, ${component.position.y}) · ${component.rotationDegrees}° · scale ${component.scale} · states ${component.stateIds === null ? 'all' : component.stateIds.join(', ') || 'none'} · variants ${component.variantOverrides.map(v => `${v.variantId}: ${presentation(v.content ?? { kind: 'image', asset: v.asset })}`).join(', ') || 'base'}${component.stateOverrides?.length ? ` · state content ${component.stateOverrides.map(v => `${v.stateId}: ${presentation(v.content)}`).join(', ')}` : ''}` : 'Absent';
   const before = new Map((currentAsset?.assembly.components ?? []).map(component => [component.componentId, component]));
   const after = new Map(content.assembly.components.map(component => [component.componentId, component]));
   return [
@@ -33,9 +34,10 @@ export function assemblyReviewIntent({ projectId, projectRevision, proposal, dec
 export function createAssemblyReviewController({ initial, host }) {
   const element = node('section', '', 'proposal-review assembly-proposal-review');
   const state = { projectId: initial.projectId, projectRevision: initial.projectRevision, proposal: copy(initial.proposal), currentAsset: copy(initial.currentAsset ?? null),
-    feedback: '', scene: null, currentScene: null, leafAssets: [], currentPreviewMessage: null, previewSide: 'proposed', frame: null, selection: { stateId: initial.proposal.content.assembly.defaultStateId, variantId: initial.proposal.content.assembly.defaultVariantId },
+    previewPlaying: false, feedback: '', scene: null, currentScene: null, leafAssets: [], currentPreviewMessage: null, previewSide: 'proposed', frame: null, selection: { stateId: initial.proposal.content.assembly.defaultStateId, variantId: initial.proposal.content.assembly.defaultVariantId },
     load: 'idle', error: null, status: 'idle', intent: null };
-  let disposed = false, generation = 0, readController = null, mutationController = null;
+  let disposed = false, generation = 0, readController = null, mutationController = null, playbackFrame = null;
+  const artworks = new Map();
   const current = () => host.getContext();
   const conflict = () => {
     const context = current();
@@ -75,7 +77,9 @@ export function createAssemblyReviewController({ initial, host }) {
     const scene = state.previewSide === 'proposed' ? state.scene : state.currentScene;
     if (scene && state.load === 'ready' && state.frame) {
       const frame = state.frame, svg = assemblySvg('svg', { viewBox: `${frame.x} ${frame.y} ${frame.width} ${frame.height}`, role: 'img', 'aria-label': `${state.proposal.content.name} — ${state.previewSide} composition` });
-      svg.dataset.assemblyReviewCanvas = ''; svg.append(createAssemblyArtwork(scene, { projectId: state.projectId })); preview.append(svg);
+      svg.dataset.assemblyReviewCanvas = '';
+      let artwork = artworks.get(state.previewSide); if (!artwork) { artwork = createAssemblyArtwork(null, { projectId: state.projectId }); artworks.set(state.previewSide, artwork); }
+      updateAssemblyArtwork(artwork, scene, { projectId: state.projectId, playing: state.previewPlaying }); svg.append(artwork); preview.append(svg);
     } else {
       const message = state.load === 'loading' ? 'Loading exact saved images…' : state.previewSide === 'current'
         ? state.currentPreviewMessage ?? 'The current preview is unavailable. Recheck to retry.'
@@ -89,6 +93,7 @@ export function createAssemblyReviewController({ initial, host }) {
       for (const choice of choices) { const option = node('option', choice.name); option.value = choice[id]; select.append(option); }
       select.value = state.selection[key]; select.disabled = locked; label.append(select); selectors.append(label);
     }
+    const play = node('button', state.previewPlaying ? 'Pause animations' : 'Play animations', 'secondary'); play.type = 'button'; play.dataset.assemblyReviewAction = 'playback'; play.dataset.assemblyReviewFocus = 'playback'; selectors.append(play);
     visual.append(toolbar, preview, selectors, node('p', 'Preview only · saved content stays unchanged until acceptance.', 'assembly-review-caption'));
     const changePanel = node('aside', '', 'assembly-review-changes'); changePanel.dataset.assemblyReviewChanges = '';
     changePanel.append(node('p', state.proposal.content.operation === 'create' ? 'New Assembly' : 'What changes', 'assembly-review-eyebrow'), node('h4', changes.headline));
@@ -131,6 +136,7 @@ export function createAssemblyReviewController({ initial, host }) {
     for (const row of assemblyProposalDiffRows(state.proposal, state.currentAsset)) { const tr = node('tr'); for (const value of row) tr.append(node('td', value)); table.append(tr); }
     tableScroll.append(table); details.append(tableScroll); nodes.push(details); element.replaceChildren(...nodes);
     for (const [key, top, left] of scroll) { const n = [...element.querySelectorAll('[data-assembly-review-scroll]')].find(n => n.dataset.assemblyReviewScroll === key); if (n) { n.scrollTop = top; n.scrollLeft = left; } }
+    if (playbackFrame === null && element.isConnected && [state.scene, state.currentScene].some(scene => scene?.elements.some(item => item.contentKind === 'animation'))) playbackFrame = requestAnimationFrame(tickPlayback);
     if (focused && element.isConnected) { const control = [...element.querySelectorAll('[data-assembly-review-focus]')].find(item => item.dataset.assemblyReviewFocus === focused); control?.focus({ preventScroll: true }); if (selection) control?.setSelectionRange?.(selection.start, selection.end, selection.direction); }
   }
   async function loadPreview() {
@@ -202,9 +208,16 @@ export function createAssemblyReviewController({ initial, host }) {
   element.addEventListener('click', event => { const side = event.target.closest('[data-assembly-review-side]');
     if (side && !side.disabled && ['current', 'proposed'].includes(side.dataset.assemblyReviewSide)) { state.previewSide = side.dataset.assemblyReviewSide; render(); return; }
     const action = event.target.closest('[data-assembly-review-action]'); if (!action || action.disabled) return;
-    const key = action.dataset.assemblyReviewAction; if (key === 'retry') void decide(null, true); else if (key === 'recheck' || key === 'check') void recheck(key === 'check'); else void decide(key); });
+    const key = action.dataset.assemblyReviewAction; if (key === 'playback') { state.previewPlaying = !state.previewPlaying; render(); } else if (key === 'retry') void decide(null, true); else if (key === 'recheck' || key === 'check') void recheck(key === 'check'); else void decide(key); });
+  function tickPlayback(now) {
+    playbackFrame = null; if (disposed) return;
+    for (const [side, artwork] of artworks) { const scene = side === 'current' ? state.currentScene : state.scene;
+      if (scene) updateAssemblyArtwork(artwork, scene, { projectId: state.projectId, playing: state.previewPlaying && element.isConnected && state.load === 'ready', now });
+    }
+    if (element.isConnected && state.previewPlaying && [state.scene, state.currentScene].some(scene => scene?.elements.some(item => item.contentKind === 'animation'))) playbackFrame = requestAnimationFrame(tickPlayback);
+  }
   render();
-  return { element, getState: () => state, afterMount() { if (state.load === 'idle') void loadPreview(); }, reconcileContext() {
+  return { element, getState: () => state, afterMount() { if (state.load === 'idle') void loadPreview(); else render(); }, reconcileContext() {
     const context = current();
     if (state.status === 'done' && context.projectId === state.projectId && context.proposal && context.proposal.status !== 'PENDING') {
       state.proposal = copy(context.proposal); state.currentAsset = copy(context.asset ?? null); state.projectRevision = context.projectRevision;
@@ -212,5 +225,5 @@ export function createAssemblyReviewController({ initial, host }) {
     render();
   },
     requestLeave() { if (['saving', 'uncertain'].includes(state.status)) { host.announce('Resolve the pending Assembly review request before leaving.'); return false; } return true; },
-    dispose() { disposed = true; generation += 1; readController?.abort(); mutationController?.abort(); } };
+    dispose() { disposed = true; if (playbackFrame !== null) cancelAnimationFrame(playbackFrame); generation += 1; readController?.abort(); mutationController?.abort(); } };
 }
