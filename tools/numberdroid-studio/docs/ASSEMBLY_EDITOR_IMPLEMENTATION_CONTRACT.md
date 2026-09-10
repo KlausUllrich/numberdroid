@@ -4,6 +4,45 @@ Status: implementation contract, 2026-09-09; approved mockup, product acceptance
 The [Assembly design](ASSEMBLY_EDITOR_DESIGN.md) owns the screen and interaction.
 [VT-020](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md) remains accepted.
 
+## Clarity correction — 2026-09-10
+
+After PR #229, Klaus reported that proposal review exposed a dense technical
+table, custom blocking was hard to discover, and the static Brewing preview
+did not match the animated mockup. He authorized restoring Review and Blocking
+clarity first. Product acceptance remains open.
+
+This correction reuses the approved Review and Assembly layouts:
+
+- Show a stable Current / Proposed preview with one shared frame and retained
+  state/variant selection. A new Assembly has an explicit empty Current view.
+  Fit the shared union of visible artwork; empty presentations use declared bounds
+  as a fallback. Invisible placement space must not make the reviewed art tiny.
+  An unavailable side must be labelled; never show the other side's image under
+  the wrong label. Reads retain project/revision/pin and stale-request guards.
+- Lead with the actual changes in human terms, for example “Status display moves
+  4 px upward”. Include every changed supported property, component, state,
+  variant or blocking setting; unchanged raw records do not dominate the review.
+  Keep exact IDs and the full comparison in secondary technical details.
+- Group the preview and change list, provide readable feedback and clear primary
+  actions, and move Discard to secondary actions. This remains a whole-Assembly
+  decision: no new partial acceptance, dependency workflow or authority semantics.
+- Show component/custom blocking as two visible choices with short consequences
+  and a prominent custom-geometry editing action. Restore Show blocking as an
+  inspection-only toggle, retained through embedded editor return. It changes
+  neither saved geometry, findings, component membership nor project revisions.
+- Preserve fixed canvas placement, full unfinished embedded drafts, focus/scroll,
+  exact save/decision retries and the accepted native Asset editor.
+
+Animation clips require a separate design and implementation step. The prototype
+animated its display, whereas this production version has static PNG components.
+Do not imitate animation with fixture-only effects or add animation schemas,
+timelines, media providers or game behavior in this visual correction.
+
+Classify this as L3 visible UI, with focused summary/controller checks, native
+Review/Blocking interaction and the selected Studio/CI gates. Existing persistence
+and protocol proofs remain valid unless their seams change. Use fresh verification
+fixtures and preserve Klaus's existing saved projects.
+
 ## Bounded promise
 
 Create and revise an Assembly as a Library Asset made from exact saved PNG-backed

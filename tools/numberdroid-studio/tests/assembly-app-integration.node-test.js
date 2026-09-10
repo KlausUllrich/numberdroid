@@ -33,6 +33,18 @@ test('Assembly UI uses its independent trusted store capability and excludes rem
   assert.match(app, /state\.assemblyAuthoringSupport = response\.assemblyAuthoringSupport \?\? 'UNAVAILABLE'/);
 });
 
+test('a completed review unlocks Create Assembly without rebuilding its page', () => {
+  const code = app.slice(app.indexOf('function setAssetMutationPending'), app.indexOf('function setRoomMutationPending'));
+  const state = { assetMutationPending: true }, control = { disabled: true }; let supported = true;
+  const setPending = runInNewContext(`${code}; setAssetMutationPending`, { state, updateMutationControls() {},
+    assemblyCanMutate: () => supported && !state.assetMutationPending,
+    elements: { 'workspace-content': { querySelectorAll: selector => selector === '[data-create-assembly]' ? [control] : [] } },
+  });
+  setPending(false); assert.equal(control.disabled, false);
+  setPending(true); assert.equal(control.disabled, true);
+  supported = false; setPending(false); assert.equal(control.disabled, true);
+});
+
 test('exact Assembly cache refuses stale revision and never substitutes a newer returned pin', async () => {
   const code = app.slice(app.indexOf('function assemblyReadKey'), app.indexOf('function assemblyLibraryCard'));
   const state = { project: { projectId: 'project.a', revision: 7 } }; const cache = new Map(); let requests = 0;
@@ -95,6 +107,61 @@ class Element {
   addEventListener(type, fn) { this.listeners[type] = fn; }
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
+function reviewHarness(context, { p = proposal(), saved = null, resolveDraft } = {}) {
+  const prior = globalThis.document;
+  globalThis.document = { createElement: () => new Element(), createElementNS: () => new Element(), activeElement: null };
+  context.after(() => { globalThis.document = prior; });
+  const current = { projectId: 'project.a', projectRevision: 7, proposal: p, asset: saved };
+  const controller = createAssemblyReviewController({ initial: { ...current, currentAsset: saved }, host: {
+    getContext: () => current, canMutate: () => true, canRead: () => true, setMutationPending() {}, announce() {}, resolveDraft,
+  } });
+  context.after(() => controller.dispose());
+  return { controller, current };
+}
+const reviewScene = x => ({ elements: [], visualBounds: { x, y: -20, width: 80, height: 80 }, findings: [] });
+
+test('Current and Proposed retain one comparison frame and feedback without new reads', async context => {
+  const p = proposal(); p.content.operation = 'update'; p.content.expectedAssetVersion = 1; p.content.expectedMetadataVersion = 1;
+  const saved = { ...structuredClone(p.content), assetVersion: 1, metadataVersion: 1, name: 'Saved machine' };
+  const queries = [];
+  const { controller } = reviewHarness(context, { p, saved, resolveDraft: async content => { queries.push(content); return { scene: reviewScene(content.name === 'Saved machine' ? -100 : 400) }; } });
+  controller.afterMount(); await flush();
+  const state = controller.getState(); assert.equal(state.load, 'ready'); assert.equal(queries.length, 2);
+  const frame = structuredClone(state.frame); assert(frame.x <= -100 && frame.x + frame.width >= 480);
+  state.feedback = 'Retain this exact feedback.';
+  for (const side of ['current', 'proposed']) {
+    controller.element.listeners.click({ target: { closest: selector => selector === '[data-assembly-review-side]' ? { disabled: false, dataset: { assemblyReviewSide: side } } : null } });
+    assert.equal(state.previewSide, side); assert.deepEqual(state.frame, frame); assert.equal(state.feedback, 'Retain this exact feedback.');
+  }
+  assert.equal(queries.length, 2); assert.equal(state.currentScene.visualBounds.x, -100); assert.equal(state.scene.visualBounds.x, 400);
+});
+
+test('new Current view stays explicitly empty and a failed comparison never borrows Proposed imagery', async context => {
+  let queries = 0;
+  const first = reviewHarness(context, { resolveDraft: async () => { queries += 1; return { scene: reviewScene(10) }; } });
+  first.controller.afterMount(); await flush();
+  assert.equal(queries, 1); assert.equal(first.controller.getState().currentScene, null);
+  assert.match(first.controller.getState().currentPreviewMessage, /new.*no saved Current/);
+  const p = proposal(); p.content.operation = 'update'; p.content.expectedAssetVersion = 1; p.content.expectedMetadataVersion = 1;
+  const saved = { ...structuredClone(p.content), assetVersion: 1, metadataVersion: 1, name: 'Saved machine' };
+  const second = reviewHarness(context, { p, saved, resolveDraft: async content => { if (content.name === 'Saved machine') throw new Error('Current unavailable'); return { scene: reviewScene(10) }; } });
+  second.controller.afterMount(); await flush();
+  assert.equal(second.controller.getState().load, 'failed'); assert.equal(second.controller.getState().currentScene, null); assert.equal(second.controller.getState().scene, null);
+});
+
+test('late scene reads cannot relabel an earlier presentation as the selected one', async context => {
+  const p = proposal(); p.content.assembly.states.push({ stateId: 'ready', name: 'Ready' });
+  const pending = [];
+  const { controller } = reviewHarness(context, { p, resolveDraft: (_content, selection) => new Promise(resolve => pending.push({ selection, resolve })) });
+  controller.afterMount();
+  controller.element.listeners.change({ target: { dataset: { assemblyReviewSelection: 'stateId' }, value: 'ready' } });
+  assert.equal(pending.length, 2);
+  pending[1].resolve({ scene: reviewScene(200) }); await flush();
+  assert.equal(controller.getState().load, 'ready'); assert.equal(controller.getState().scene.visualBounds.x, 200);
+  pending[0].resolve({ scene: reviewScene(0) }); await flush();
+  assert.equal(controller.getState().selection.stateId, 'ready'); assert.equal(controller.getState().scene.visualBounds.x, 200);
+});
+
 test('uncertain review retains exact payload/key and refresh never claims a matching-content receipt', async context => {
   const prior = globalThis.document;
   globalThis.document = { createElement: () => new Element(), activeElement: null };

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { ASSEMBLY_FIXTURE_PROJECT as projectId, ASSEMBLY_FIXTURE_ASSET as assetId } from './prepare-assembly-editor-fixture.js';
+import { ASSEMBLY_FIXTURE_PROJECT as projectId, ASSEMBLY_FIXTURE_ASSET as assetId, ASSEMBLY_FIXTURE_PROPOSAL as proposalId } from './prepare-assembly-editor-fixture.js';
 
 /** Actual production UI interactions against the fresh deterministic fixture. */
-export async function captureAssemblyEditor({ devtools, sessionId, reopen = false }) {
+export async function captureAssemblyEditor({ devtools, sessionId, reopen = false, captureCheckpoint = async () => {} }) {
   const evaluate = async expression => { const result = await devtools.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId); assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails)); return result.result?.value; };
   const settle = () => evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   const waitFor = async (expression, label) => { const deadline = Date.now() + 10_000; while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise(done => setTimeout(done, 50)); } const diagnostic = await evaluate('document.body.innerText.slice(-12000)'); throw new Error(`${label} did not settle within ten seconds.\n${diagnostic}`); };
@@ -19,8 +19,70 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     focus:document.activeElement?.dataset.assemblyFocusKey,scroll:[...document.querySelectorAll('[data-assembly-scroll]')].map(n=>[n.dataset.assemblyScroll,n.scrollLeft,n.scrollTop]),page:[scrollX,scrollY]}; })()`);
   const project = () => evaluate(`fetch('/api/projects/${projectId}').then(async r=>{if(!r.ok)throw new Error('Project read failed');return r.json()})`);
   const pointer = (type, point) => devtools.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1 }, sessionId);
+  async function captureReview() {
+    const root = `[data-assembly-proposal="${proposalId}"]`;
+    const control = suffix => `${root} ${suffix}`;
+    await waitFor(`Boolean(document.querySelector(${JSON.stringify(control('[data-assembly-review-action="ACCEPT"]'))})) && !document.querySelector(${JSON.stringify(control('[data-assembly-review-action="ACCEPT"]'))})?.disabled`, 'Resolved Assembly proposal');
+    await evaluate(`document.querySelector(${JSON.stringify(root)}).scrollIntoView({block:'start'})`); await settle();
+    const before = await project();
+    const preview = () => evaluate(`(() => {const root=document.querySelector(${JSON.stringify(root)}),canvas=root.querySelector('[data-assembly-review-canvas]'),feedback=root.querySelector('[data-assembly-review-feedback]');const r=n=>{const b=n.getBoundingClientRect();return[b.x,b.y,b.width,b.height]};return{frame:canvas?.getAttribute('viewBox'),bounds:r(root.querySelector('[data-assembly-review-preview]')),images:[...canvas.querySelectorAll('[data-assembly-image-key]')].map(n=>({componentId:n.dataset.assemblyComponent,key:n.dataset.assemblyImageKey,transform:n.getAttribute('transform')})),feedback:feedback.value,feedbackBounds:r(feedback),feedbackFont:parseFloat(getComputedStyle(feedback).fontSize),changes:root.querySelector('[data-assembly-review-changes]').innerText,selection:[...root.querySelectorAll('[data-assembly-review-selection]')].map(n=>[n.dataset.assemblyReviewSelection,n.value]),technicalOpen:root.querySelector('[data-assembly-review-comparison]').open};})()`);
+    const initial = await preview();
+    assert.match(initial.changes, /Status display moves 4 px upward/);
+    assert.equal(initial.technicalOpen, false);
+    assert(!initial.changes.includes('component.display') && !initial.changes.includes('metadataVersion'), 'Human summary must not expose raw metadata');
+    assert(initial.feedbackBounds[2] >= 300 && initial.feedbackBounds[3] >= 80 && initial.feedbackFont >= 14, JSON.stringify(initial));
+    await captureCheckpoint('review-proposed');
+    await click(control('[data-assembly-review-side="current"]'));
+    const current = await preview();
+    assert.equal(current.frame, initial.frame, 'Current and Proposed must share a frame');
+    assert.deepEqual(current.bounds, initial.bounds, 'Comparison toggle must keep the preview fixed');
+    const changed = initial.images.filter(image => image.transform !== current.images.find(other => other.componentId === image.componentId)?.transform);
+    assert.deepEqual(changed.map(image => image.componentId), ['component.display'], 'The comparison must visualize only the authored display movement');
+    await captureCheckpoint('review-current');
+    await click(control('[data-assembly-review-side="proposed"]'));
+    for (const [key, value] of [['variantId', 'variant.copper'], ['stateId', 'state.ready']]) {
+      await evaluate(`(() => {const control=document.querySelector(${JSON.stringify(root)}).querySelector('[data-assembly-review-selection="'+${JSON.stringify(key)}+'"]');control.value=${JSON.stringify(value)};control.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+      await waitFor(`!document.querySelector(${JSON.stringify(control('[data-assembly-review-action="ACCEPT"]'))})?.disabled`, 'Review choice preview');
+    }
+    const selected = await preview();
+    await click(control('[data-assembly-review-side="current"]'));
+    assert.deepEqual((await preview()).selection, selected.selection, 'Current/Proposed must retain state and variant');
+    await click(control('[data-assembly-review-side="proposed"]'));
+    assert.deepEqual((await preview()).selection, selected.selection);
+    await click(control('[data-assembly-review-action="REQUEST_CHANGES"]'));
+    assert.match(await evaluate(`document.querySelector(${JSON.stringify(root)}).textContent`), /Write feedback before requesting changes/);
+    assert.deepEqual((await preview()).bounds, initial.bounds, 'Feedback validation must not move the preview');
+    const feedback = 'Please keep the original display height; it aligns with the body.';
+    await evaluate(`(() => {const field=document.querySelector(${JSON.stringify(control('[data-assembly-review-feedback]'))});field.focus({preventScroll:true});field.value=${JSON.stringify(feedback)};field.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+    await click(control('[data-assembly-review-more] summary'));
+    await click(control('[data-assembly-review-action="recheck"]'));
+    await waitFor(`!document.querySelector(${JSON.stringify(control('[data-assembly-review-action="ACCEPT"]'))})?.disabled`, 'Rechecked Assembly proposal');
+    assert.equal((await preview()).feedback, feedback);
+    assert.deepEqual(await project(), before, 'Review inspection and recheck must not persist changes');
+    await evaluate(`window.__assemblyReviewEvidence={originalFetch:window.fetch,requests:[],drop:true};window.fetch=async function(input,options){const evidence=window.__assemblyReviewEvidence,url=String(input);if((options?.method??'GET').toUpperCase()==='POST'&&url.includes('/assembly-proposals/')&&url.endsWith('/resolve')){evidence.requests.push(String(options.body));const response=await evidence.originalFetch.call(this,input,options);if(evidence.drop&&response.ok){evidence.drop=false;await response.clone().text();throw new TypeError('Synthetic loss after successful Assembly review');}return response;}return evidence.originalFetch.call(this,input,options);};`);
+    try {
+      await click(control('[data-assembly-review-action="REQUEST_CHANGES"]'));
+      await waitFor(`Boolean(document.querySelector(${JSON.stringify(control('[data-assembly-review-action="retry"]'))}))`, 'Unconfirmed Assembly decision');
+      await click(control('[data-assembly-review-action="check"]'));
+      await waitFor(`document.querySelector(${JSON.stringify(root)})?.textContent.includes('Retry the exact decision')`, 'Saved outcome refresh');
+      assert.equal(await evaluate(`document.querySelector(${JSON.stringify(root)}).dataset.assemblyReviewStatus`), 'uncertain');
+      assert.equal(await evaluate(`document.querySelector(${JSON.stringify(control('[data-assembly-review-feedback]'))}).value`), feedback);
+      await click(control('[data-assembly-review-action="retry"]'));
+      await waitFor(`!document.querySelector(${JSON.stringify(control('[data-assembly-review-action="retry"]'))})`, 'Replayed Assembly review');
+      const requests = await evaluate('window.__assemblyReviewEvidence.requests');
+      assert.equal(requests.length, 2); assert.equal(requests[0], requests[1]);
+      const after = await project(), proposal = after.snapshot.assemblyLibrary.proposals.find(item => item.proposalId === proposalId);
+      assert.equal(after.revision, before.revision + 1); assert.equal(proposal.status, 'CHANGES_REQUESTED'); assert.equal(proposal.feedback, feedback);
+      assert.deepEqual(after.snapshot.assemblyLibrary.assets, before.snapshot.assemblyLibrary.assets);
+      assert.deepEqual(after.snapshot.assetLibrary, before.snapshot.assetLibrary);
+      return { changedOnlySummary: initial.changes, sharedFrame: initial.frame, visualizedMovementOnly: true, stablePreviewValidation: true,
+        readableFeedback: true, feedbackSurvivesRecheck: true, sideSelectionRetained: true, requestChanges: true, exactDecisionReplay: true, refreshDoesNotInferDelivery: true, oneRevision: true };
+    } finally { await evaluate('window.fetch=window.__assemblyReviewEvidence.originalFetch;delete window.__assemblyReviewEvidence;'); }
+  }
   await waitFor(`document.getElementById('connection-label')?.textContent==='Live' && Boolean(document.querySelector('[data-assembly-open="${assetId}"]'))`, 'Assembly Library');
+  const reviewEvidence = reopen ? null : await captureReview();
   if (!reopen) {
+    await waitFor(`Boolean(document.querySelector('[data-create-assembly]')) && !document.querySelector('[data-create-assembly]').disabled`, 'Library unlocked after review');
     const beforeCreate = await project();
     await click('[data-create-assembly]');
     await waitFor(`Boolean(document.querySelector('[data-assembly-canvas]'))`, 'New Assembly editor');
@@ -40,7 +102,7 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     await waitFor(`Boolean(document.querySelector('[data-assembly-open="${assetId}"]'))`, 'Library after Assembly creation');
   }
   await click(`[data-assembly-open="${assetId}"]`); await waitFor(`document.querySelectorAll('[data-assembly-canvas] image').length>=2 && !document.querySelector('[data-assembly-status]')?.textContent.includes('Resolving')`, 'Resolved exact Assembly');
-  const evidence = { schemaVersion: 1, projectId, assetId, phase: reopen ? 'reopen' : 'edit', ...(reopen ? {} : { independentCreation: true }), agentReview: 'Separate real-agent semantic proof is required.' };
+  const evidence = { schemaVersion: 1, projectId, assetId, phase: reopen ? 'reopen' : 'edit', ...(reopen ? {} : { independentCreation: true, review: reviewEvidence }), agentReview: 'Separate real-agent semantic proof is required.' };
   if (reopen) { evidence.reopened = await inspect(); assert.match(evidence.reopened.saved, /Saved Assembly v2/); assert(evidence.reopened.images.length >= 2); return evidence; }
   const beforeProject = await project(), nativeBefore = JSON.stringify(beforeProject.snapshot.assetLibrary.assets);
   await evaluate(`window.__assemblyEvidence={images:[...document.querySelectorAll('[data-assembly-canvas] image')],originalFetch:window.fetch,requests:[],drop:false};`);
@@ -81,7 +143,18 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     await click('[data-assembly-action="backward"]'); await click('[data-assembly-action="remove"]'); assert.equal((await inspect()).components.length, 3);
     await click('[data-assembly-action="undo"]'); assert.equal((await inspect()).components.length, 4); await click('[data-assembly-action="remove"]'); evidence.componentAddOrderRemoveUndo = true;
 
-    await click('[data-assembly-action="panel"][data-value="blocking"]'); await fill('blocking-mode', 'custom'); const customBefore = (await inspect()).blocking;
+    await click('[data-assembly-action="panel"][data-value="blocking"]');
+    assert.equal(await evaluate(`document.querySelectorAll('input[type="radio"][data-assembly-field="blocking-mode"]').length`), 2);
+    await click('input[data-assembly-field="blocking-mode"][value="custom"]'); const customBefore = (await inspect()).blocking;
+    const beforeVisibility = await inspect(), visibilityProject = await project();
+    const visibilityHistory = await evaluate(`['undo','redo'].map(a=>document.querySelector('[data-assembly-action="'+a+'"]').disabled)`);
+    await click('input[data-assembly-option="show-blocking"]');
+    assert.deepEqual((await inspect()).blocking, []);
+    assert.deepEqual((await inspect()).images, beforeVisibility.images);
+    assert.deepEqual((await inspect()).canvas, beforeVisibility.canvas, 'Show blocking must not move the canvas');
+    assert.deepEqual(await project(), visibilityProject, 'Show blocking must not persist a project change');
+    assert.deepEqual(await evaluate(`['undo','redo'].map(a=>document.querySelector('[data-assembly-action="'+a+'"]').disabled)`), visibilityHistory);
+    await captureCheckpoint('blocking-choices');
     await click('[data-assembly-action="custom-geometry"]'); await waitFor(`Boolean(document.querySelector('[data-asset-editor-canvas]'))`, 'Embedded custom geometry');
     await click('[data-asset-editor-tool="polygon"]');
     for (const p of [{ x: -80, y: 40 }, { x: -60, y: 50 }]) {
@@ -90,13 +163,17 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     }
     assert.equal(await evaluate(`document.querySelectorAll('[data-asset-editor-draft-point]').length`), 2);
     await click('[data-asset-editor-action="back"]'); await waitFor(`Boolean(document.querySelector('[data-assembly-canvas]'))`, 'Assembly return with unfinished polygon');
+    assert.equal(await evaluate(`document.querySelector('input[data-assembly-option="show-blocking"]').checked`), false, 'Embedded Back must retain Show blocking');
+    assert.deepEqual((await inspect()).blocking, []);
     assert.match((await inspect()).status, /unfinished|polygon/i); assert.equal(await evaluate(`document.querySelector('[data-assembly-action="save"]').disabled`), true);
     await click('[data-assembly-action="custom-geometry"]'); assert.equal(await evaluate(`document.querySelectorAll('[data-asset-editor-draft-point]').length`), 2);
     await evaluate(`document.querySelector('[data-asset-editor-canvas]').focus({preventScroll:true})`);
     await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape' }, sessionId); await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape' }, sessionId);
     await click('[data-asset-editor-action="back"]'); await waitFor(`Boolean(document.querySelector('[data-assembly-canvas]'))`, 'Completed custom geometry return');
+    await click('input[data-assembly-option="show-blocking"]');
+    assert.deepEqual((await inspect()).blocking, customBefore, 'Inspection toggle must restore the exact custom shapes');
     await click('[data-assembly-action="panel"][data-value="component"]'); await click('[data-assembly-action="component"][data-value="component.graphite"]'); await fill('position.x', 31.125);
-    assert.deepEqual((await inspect()).blocking, customBefore); evidence.customBlocking = { unfinishedPolygonRetained: true, incompleteSaveBlocked: true, independentOfComponentMovement: true };
+    assert.deepEqual((await inspect()).blocking, customBefore); evidence.customBlocking = { unfinishedPolygonRetained: true, incompleteSaveBlocked: true, independentOfComponentMovement: true, visibleModeChoices: true, inspectionToggleDoesNotMutate: true, inspectionToggleRetainedOnBack: true };
 
     await evaluate(`(() => {const p=window.__assemblyEvidence;p.drop=true;window.fetch=async function(input,options){const url=String(input);if((options?.method??'GET').toUpperCase()==='POST'&&url.includes('/assemblies/')&&url.endsWith('/save')){p.requests.push(String(options.body));const response=await p.originalFetch.call(this,input,options);if(p.drop&&response.ok){p.drop=false;await response.clone().text();throw new TypeError('Synthetic loss after successful Assembly Save');}return response;}return p.originalFetch.call(this,input,options);};})()`);
     await click('[data-assembly-action="save"]'); await waitFor(`Boolean(document.querySelector('[data-assembly-action="retry"]'))`, 'Uncertain committed Save');

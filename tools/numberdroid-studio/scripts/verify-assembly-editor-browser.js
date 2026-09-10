@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
@@ -33,7 +33,7 @@ async function browserCapture({ width, url, reopen = false }) {
     return new Promise((done, reject) => { const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${method} exceeded its ten-second deadline.`)); }, 10_000);
       pending.set(id, { done, reject, timer }); try { socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })); } catch (error) { clearTimeout(timer); pending.delete(id); reject(error); } });
   } };
-  let captureError = null, result;
+  let captureError = null, result, captureSessionId = null;
   try {
     const startup = await waitForDevtoolsEndpoint(child, { trackedClose: tracked, signal: cancellation.signal, timeoutMs: 30_000 });
     process.stdout.write(`${JSON.stringify({ phase: 'chrome-ready', width, reopen, elapsedMs: startup.elapsedMs })}\n`);
@@ -45,10 +45,15 @@ async function browserCapture({ width, url, reopen = false }) {
     socket.addEventListener('close', () => { if (!shuttingDown) failPending(new Error('Chrome DevTools closed before capture completed.')); });
     socket.addEventListener('error', () => { if (!shuttingDown) failPending(new Error('Chrome DevTools reported a connection error.')); });
     const browser = await devtools.send('Browser.getVersion'), target = await devtools.send('Target.createTarget', { url: 'about:blank' });
-    const { sessionId } = await devtools.send('Target.attachToTarget', { targetId: target.targetId, flatten: true });
+    const { sessionId } = await devtools.send('Target.attachToTarget', { targetId: target.targetId, flatten: true }); captureSessionId = sessionId;
     await Promise.all([devtools.send('Page.enable', {}, sessionId), devtools.send('Runtime.enable', {}, sessionId), devtools.send('Network.enable', {}, sessionId),
       devtools.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId)]);
-    await devtools.send('Page.navigate', { url }, sessionId); result = await captureAssemblyEditor({ devtools, sessionId, reopen });
+    await devtools.send('Page.navigate', { url }, sessionId);
+    const captureCheckpoint = async phase => {
+      const image = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
+      await writeFile(join(outputDirectory, `assembly-${width}-${phase}.png`), Buffer.from(image.data, 'base64'), { flag: 'wx' });
+    };
+    result = await captureAssemblyEditor({ devtools, sessionId, reopen, captureCheckpoint });
     assert.deepEqual(exceptions, [], 'Native browser raised an unhandled runtime error.');
     const screenshot = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
     const dom = await devtools.send('Runtime.evaluate', { expression: 'document.documentElement.outerHTML', returnByValue: true }, sessionId);
@@ -56,7 +61,18 @@ async function browserCapture({ width, url, reopen = false }) {
     await writeFile(join(outputDirectory, `${name}.png`), Buffer.from(screenshot.data, 'base64'), { flag: 'wx' });
     await writeFile(join(outputDirectory, `${name}.dom.html`), dom.result.value, { flag: 'wx' });
     await writeFile(join(outputDirectory, `${name}.observation.json`), `${JSON.stringify({ browser, width, ...result }, null, 2)}\n`, { flag: 'wx' });
-  } catch (error) { captureError = error; }
+  } catch (error) {
+    captureError = error;
+    if (captureSessionId && !failure && !cancellation.signal.aborted) {
+      try {
+        const snapshot = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, captureSessionId);
+        const dom = await devtools.send('Runtime.evaluate', { expression: 'document.documentElement.outerHTML', returnByValue: true }, captureSessionId);
+        const name = `assembly-${width}${reopen ? '-reopened' : ''}-failed`;
+        await writeFile(join(outputDirectory, `${name}.png`), Buffer.from(snapshot.data, 'base64'), { flag: 'wx' });
+        await writeFile(join(outputDirectory, `${name}.dom.html`), dom.result.value, { flag: 'wx' });
+      } catch (diagnosticError) { process.stderr.write(`Failure evidence could not be captured: ${diagnosticError.message}\n`); }
+    }
+  }
   finally {
     clearTimeout(deadline); cancellation.signal.removeEventListener('abort', aborted); shuttingDown = true;
     await finishCapture(captureError, [() => closeBrowserAndRemoveProfile({ child, trackedClose: tracked,
@@ -88,5 +104,9 @@ try {
   complete = true;
 } finally {
   process.removeListener('SIGTERM', cancel); process.removeListener('SIGINT', cancel);
-  if (complete) await rm(dataRoot, { recursive: true, force: true }); else process.stderr.write(`Assembly verification data retained at ${dataRoot}\n`);
+  if (complete) {
+    await rm(dataRoot, { recursive: true, force: true });
+    await assert.rejects(lstat(dataRoot), { code: 'ENOENT' });
+    await writeFile(join(outputDirectory, 'assembly-teardown.json'), `${JSON.stringify({ schemaVersion: 1, browserProfilesClosedBeforeRemoval: 4, serverAndWorkerClosures: 4, temporaryDataRoot: dataRoot, temporaryDataRemovedAfterWritersClosed: true }, null, 2)}\n`, { flag: 'wx' });
+  } else process.stderr.write(`Assembly verification data retained at ${dataRoot}\n`);
 }

@@ -59,13 +59,13 @@ PR #227, post-merge green, and user accepted as VT-020. Activity is available fr
 main navigation; the duplicate sidebar is removed. Preserve accepted Cutter and
 Asset-editor behavior.
 
-Active block: the [approved Assembly editor](ASSEMBLY_EDITOR_DESIGN.md), authorized
-by Klaus on 2026-09-09. Its [implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md)
-records exact component references, transforms, inherited/custom blocking,
-state/variant preview, save and review before source work. Reuse
-exact saved Asset versions and the accepted geometry editor. Keep the same real-agent
-proof before Klaus's next batch. Agent proposals retain owner review; runtime
-materialization, image generation and publication keep their separate gates.
+Active block: the Assembly Review and Blocking clarity correction authorized by
+Klaus after testing PR #229. The [implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md#clarity-correction--2026-09-10)
+records stable Current / Proposed preview, human-readable changes, clear feedback,
+visible blocking choices and an inspection-only Show blocking toggle. Preserve
+saved work and existing owner/agent decision semantics. VT-021 remains unaccepted.
+Real animation clips are a separate design step; full shared Review semantics,
+runtime materialization, image generation and publication retain separate gates.
 
 ## What can be used
 

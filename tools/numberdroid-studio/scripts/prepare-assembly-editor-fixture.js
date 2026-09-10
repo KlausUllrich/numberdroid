@@ -7,6 +7,7 @@ import { spatialAliases } from '../packages/domain/src/asset-spatial-geometry.js
 
 export const ASSEMBLY_FIXTURE_PROJECT = 'project.assembly-editor';
 export const ASSEMBLY_FIXTURE_ASSET = 'assembly.coffee-station';
+export const ASSEMBLY_FIXTURE_PROPOSAL = 'proposal.assembly-display-raised';
 const owner = { actor: { id: 'local.designer', kind: 'human', displayName: 'Local designer' }, taskId: null, grantId: null, branchId: 'branch.main' };
 const cuts = [
   { id: 'graphite', name: 'Graphite body', x: 0, y: 0, width: 64, height: 96, color: [72, 91, 87] },
@@ -72,8 +73,13 @@ export async function prepareAssemblyEditorFixture(directory) {
     const graphite = leafAssets.find(asset => asset.assetId === pin('graphite').assetId);
     await execute('asset.save', { assetId: graphite.assetId, operation: 'update', expectedAssetVersion: graphite.assetVersion, expectedMetadataVersion: graphite.metadataVersion,
       name: 'Graphite body — newer Library head', kind: 'prop', metadata: metadata(cuts[0]), image: { mode: 'retain' } });
+    const proposed = structuredClone(assembly);
+    proposed.components.find(component => component.componentId === 'component.display').position.y -= 4;
+    await execute('assembly.proposal.submit', { proposalId: ASSEMBLY_FIXTURE_PROPOSAL, expectedProposalVersion: 0,
+      assetId: ASSEMBLY_FIXTURE_ASSET, operation: 'update', expectedAssetVersion: 1, expectedMetadataVersion: 1,
+      name: 'Coffee station', kind: 'prop', metadata: { role: 'coffee-machine', tags: ['synthetic-fixture'] }, assembly: proposed });
     const project = await running.studioService.readProjectTrusted(ASSEMBLY_FIXTURE_PROJECT);
-    const result = { schemaVersion: 1, projectId: ASSEMBLY_FIXTURE_PROJECT, assetId: ASSEMBLY_FIXTURE_ASSET, revision: project.revision,
+    const result = { schemaVersion: 1, projectId: ASSEMBLY_FIXTURE_PROJECT, assetId: ASSEMBLY_FIXTURE_ASSET, proposalId: ASSEMBLY_FIXTURE_PROPOSAL, revision: project.revision,
       sourceDigest: artifact.digest, nativeAssets: leafAssets.map(asset => ({ assetId: asset.assetId, assetVersion: asset.assetVersion, metadataVersion: asset.metadataVersion, digest: asset.sliceBinding.digest })), oldComponentPinPreserved: true };
     await writeFile(resolve(dataDirectory, 'assembly-fixture.json'), `${JSON.stringify(result, null, 2)}\n`, { flag: 'wx' }); return result;
   } finally { await new Promise((done, reject) => running.server.close(error => error ? reject(error) : done())); }

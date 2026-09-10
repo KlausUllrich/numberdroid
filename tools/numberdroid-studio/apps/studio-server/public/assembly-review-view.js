@@ -1,4 +1,5 @@
 import { assemblySvg, createAssemblyArtwork, assemblySceneFrame } from './assembly-artwork-view.js';
+import { assemblyReviewChanges } from './assembly-review-summary.js';
 
 const copy = value => structuredClone(value);
 const node = (tag, text, className = '') => { const n = document.createElement(tag); n.textContent = text ?? ''; n.className = className; return n; };
@@ -32,7 +33,7 @@ export function assemblyReviewIntent({ projectId, projectRevision, proposal, dec
 export function createAssemblyReviewController({ initial, host }) {
   const element = node('section', '', 'proposal-review assembly-proposal-review');
   const state = { projectId: initial.projectId, projectRevision: initial.projectRevision, proposal: copy(initial.proposal), currentAsset: copy(initial.currentAsset ?? null),
-    feedback: '', scene: null, selection: { stateId: initial.proposal.content.assembly.defaultStateId, variantId: initial.proposal.content.assembly.defaultVariantId },
+    feedback: '', scene: null, currentScene: null, leafAssets: [], currentPreviewMessage: null, previewSide: 'proposed', frame: null, selection: { stateId: initial.proposal.content.assembly.defaultStateId, variantId: initial.proposal.content.assembly.defaultVariantId },
     load: 'idle', error: null, status: 'idle', intent: null };
   let disposed = false, generation = 0, readController = null, mutationController = null;
   const current = () => host.getContext();
@@ -51,51 +52,114 @@ export function createAssemblyReviewController({ initial, host }) {
     const focused = active?.dataset.assemblyReviewFocus ?? null;
     const selection = active && typeof active.selectionStart === 'number' ? { start: active.selectionStart, end: active.selectionEnd, direction: active.selectionDirection } : null;
     const comparisonOpen = element.querySelector?.('[data-assembly-review-comparison]')?.open ?? false;
-    element.dataset.assemblyProposal = state.proposal.proposalId; element.dataset.assemblyProposalVersion = String(state.proposal.proposalVersion);
+    const moreOpen = element.querySelector?.('[data-assembly-review-more]')?.open ?? false;
+    const scroll = [...element.querySelectorAll('[data-assembly-review-scroll]')].map(n => [n.dataset.assemblyReviewScroll, n.scrollTop, n.scrollLeft]);
+    element.dataset.assemblyProposal = state.proposal.proposalId;
+    element.dataset.assemblyProposalVersion = String(state.proposal.proposalVersion);
     element.dataset.assemblyReviewStatus = state.status;
-    const heading = node('h3', `${state.proposal.content.name} — ${state.proposal.status}`);
-    const identity = node('p', `Proposal ${state.proposal.proposalId} · version ${state.proposal.proposalVersion} · ${state.proposal.content.operation} · target Asset ${state.proposal.content.expectedAssetVersion}/${state.proposal.content.expectedMetadataVersion}`, 'assembly-note');
-    const nodes = [heading, identity];
-    if (state.proposal.feedback) nodes.push(node('p', `Saved feedback: ${state.proposal.feedback}`));
-    const preview = node('div', '', 'assembly-review-preview'); preview.style.maxWidth = '520px'; preview.style.height = '260px';
-    if (state.scene) { const frame = assemblySceneFrame(state.scene, state.proposal.content.assembly), svg = assemblySvg('svg', { viewBox: `${frame.x} ${frame.y} ${frame.width} ${frame.height}`, role: 'img', 'aria-label': `${state.proposal.content.name} proposed composition` });
-      svg.style.width = '100%'; svg.style.height = '100%'; svg.append(createAssemblyArtwork(state.scene, { projectId: state.projectId })); preview.append(svg); }
-    else preview.append(node('p', state.load === 'loading' ? 'Resolving exact component versions…' : 'The proposed preview is unavailable. Recheck to retry.'));
-    nodes.push(preview);
-    const selectors = node('div', '', 'asset-card-actions');
-    for (const [key, choices, id] of [['stateId', state.proposal.content.assembly.states, 'stateId'], ['variantId', state.proposal.content.assembly.variants, 'variantId']]) {
-      const label = node('label', key === 'stateId' ? 'State ' : 'Variant '), select = node('select'); select.dataset.assemblyReviewSelection = key; select.dataset.assemblyReviewFocus = key;
-      for (const choice of choices) { const option = node('option', choice.name); option.value = choice[id]; select.append(option); } select.value = state.selection[key]; select.disabled = state.status === 'saving' || state.status === 'uncertain'; label.append(select); selectors.append(label);
+    const locked = state.status === 'saving' || state.status === 'uncertain';
+    const statusText = { PENDING: 'Needs review', CHANGES_REQUESTED: 'Changes requested', ACCEPTED: 'Accepted', DISCARDED: 'Discarded' }[state.proposal.status];
+    const header = node('header', '', 'assembly-review-header'), heading = node('div');
+    heading.append(node('p', 'Assembly changes', 'assembly-review-eyebrow'), node('h3', state.proposal.content.name));
+    header.append(heading, node('span', statusText, 'assembly-review-badge'));
+    const changes = assemblyReviewChanges({ ...state.proposal, leafAssets: state.leafAssets }, state.currentAsset);
+    const body = node('div', '', 'assembly-review-body'), visual = node('div', '', 'assembly-review-visual');
+    const toolbar = node('div', '', 'assembly-review-toolbar'), sides = node('div', '', 'assembly-review-sides');
+    sides.setAttribute('aria-label', 'Compare saved and proposed content');
+    for (const [side, label] of [['current', 'Current'], ['proposed', 'Proposed']]) {
+      const button = node('button', label); button.type = 'button'; button.dataset.assemblyReviewSide = side;
+      button.dataset.assemblyReviewFocus = `side:${side}`; button.setAttribute('aria-pressed', String(state.previewSide === side)); button.disabled = locked; sides.append(button);
     }
-    nodes.push(selectors);
-    const details = node('details'), summary = node('summary', 'Compare current and proposed components / geometry'), table = node('table', '', 'proposal-diff');
-    details.dataset.assemblyReviewComparison = ''; details.open = comparisonOpen;
-    const header = node('tr'); for (const label of ['Property / component', 'Current', 'Proposed']) header.append(node('th', label)); table.append(header);
-    for (const row of assemblyProposalDiffRows(state.proposal, state.currentAsset)) { const tr = node('tr'); for (const value of row) { const cell = node('td', value); cell.style.overflowWrap = 'anywhere'; tr.append(cell); } table.append(tr); }
-    details.append(summary, table); nodes.push(details);
-    const error = node('p', state.error ?? (state.status === 'done' ? 'Owner decision saved.' : conflict()) ?? '', 'assembly-validation'); error.setAttribute('role', 'status'); nodes.push(error);
+    toolbar.append(sides, node('span', 'Same scale and position', 'assembly-review-caption'));
+    const preview = node('div', '', 'assembly-review-preview'); preview.dataset.assemblyReviewPreview = state.previewSide;
+    const scene = state.previewSide === 'proposed' ? state.scene : state.currentScene;
+    if (scene && state.load === 'ready' && state.frame) {
+      const frame = state.frame, svg = assemblySvg('svg', { viewBox: `${frame.x} ${frame.y} ${frame.width} ${frame.height}`, role: 'img', 'aria-label': `${state.proposal.content.name} — ${state.previewSide} composition` });
+      svg.dataset.assemblyReviewCanvas = ''; svg.append(createAssemblyArtwork(scene, { projectId: state.projectId })); preview.append(svg);
+    } else {
+      const message = state.load === 'loading' ? 'Loading exact saved images…' : state.previewSide === 'current'
+        ? state.currentPreviewMessage ?? 'The current preview is unavailable. Recheck to retry.'
+        : 'The proposed preview is unavailable. Recheck to retry.';
+      preview.append(node('p', message, 'assembly-review-empty'));
+    }
+    const selectors = node('div', '', 'assembly-review-selectors');
+    for (const [key, choices, id] of [['stateId', state.proposal.content.assembly.states, 'stateId'], ['variantId', state.proposal.content.assembly.variants, 'variantId']]) {
+      const label = node('label'), select = node('select'); label.append(node('span', key === 'stateId' ? 'State preview' : 'Variant preview'));
+      select.dataset.assemblyReviewSelection = key; select.dataset.assemblyReviewFocus = key;
+      for (const choice of choices) { const option = node('option', choice.name); option.value = choice[id]; select.append(option); }
+      select.value = state.selection[key]; select.disabled = locked; label.append(select); selectors.append(label);
+    }
+    visual.append(toolbar, preview, selectors, node('p', 'Preview only · saved content stays unchanged until acceptance.', 'assembly-review-caption'));
+    const changePanel = node('aside', '', 'assembly-review-changes'); changePanel.dataset.assemblyReviewChanges = '';
+    changePanel.append(node('p', state.proposal.content.operation === 'create' ? 'New Assembly' : 'What changes', 'assembly-review-eyebrow'), node('h4', changes.headline));
+    const list = node('ul', '', 'assembly-review-change-list'); list.dataset.assemblyReviewScroll = 'changes';
+    for (const change of changes.changes) {
+      const repeatsHeadline = changes.changes.length === 1 && change.label === changes.headline;
+      if (repeatsHeadline && !change.detail) continue;
+      const item = node('li'); if (!repeatsHeadline) item.append(node('strong', change.label));
+      if (change.detail) item.append(node('p', change.detail)); list.append(item);
+    }
+    changePanel.append(list);
+    if (changes.unchanged.length) { const unchanged = node('div', '', 'assembly-review-unchanged'); for (const text of changes.unchanged) unchanged.append(node('p', text)); changePanel.append(unchanged); }
+    body.append(visual, changePanel);
+    const status = node('div', '', 'assembly-review-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+    const message = state.error ?? (state.status === 'done' ? 'Your decision is saved.' : conflict());
+    status.dataset.error = String(Boolean(state.error || conflict()));
+    status.append(node('p', message ?? (state.proposal.status === 'PENDING' ? 'Acceptance saves this complete Assembly update. Component source Assets stay unchanged.' : state.proposal.status === 'CHANGES_REQUESTED' ? 'Feedback is saved for the next agent round. No content was accepted.' : 'This review is complete.')));
+    const nodes = [header, body, status];
+    if (state.proposal.feedback) { const saved = node('div', '', 'assembly-review-saved-feedback'); saved.append(node('strong', 'Saved feedback'), node('p', state.proposal.feedback)); nodes.push(saved); }
+    const button = (action, text, disabled = false) => { const control = node('button', text, action === 'ACCEPT' ? 'primary' : 'secondary'); control.type = 'button'; control.dataset.assemblyReviewAction = action; control.dataset.assemblyReviewFocus = action; control.disabled = disabled; return control; };
     if (state.proposal.status === 'PENDING' && state.status !== 'done') {
-      const label = node('label', 'Feedback to the agent'), feedback = node('textarea'); feedback.rows = 3; feedback.maxLength = 2000; feedback.value = state.feedback; feedback.dataset.assemblyReviewFeedback = ''; feedback.dataset.assemblyReviewFocus = 'feedback'; feedback.disabled = state.status === 'saving' || state.status === 'uncertain' || !host.canMutate(); label.append(feedback); nodes.push(label);
-      const actions = node('div', '', 'asset-card-actions');
-      const button = (action, text, disabled = false) => { const control = node('button', text, action === 'ACCEPT' ? 'primary' : 'secondary'); control.type = 'button'; control.dataset.assemblyReviewAction = action; control.dataset.assemblyReviewFocus = action; control.disabled = disabled; actions.append(control); };
-      const locked = state.status === 'saving' || !host.canMutate();
-      if (state.status === 'uncertain') { button('retry', 'Retry exact decision', locked); button('check', 'Refresh saved outcome', locked); }
-      else { const stale = Boolean(conflict()); button('ACCEPT', 'Accept changes and save Assembly', locked || stale || state.load !== 'ready'); button('REQUEST_CHANGES', 'Request changes', locked || stale); button('DISCARD', 'Discard proposal', locked || stale); button('recheck', 'Recheck current proposal', locked); }
+      const feedbackArea = node('div', '', 'assembly-review-feedback-area'), label = node('label'), feedback = node('textarea');
+      label.append(node('span', 'Feedback to the agent')); feedback.rows = 3; feedback.maxLength = 2000; feedback.value = state.feedback;
+      feedback.placeholder = 'Describe what should change and why.'; feedback.dataset.assemblyReviewFeedback = ''; feedback.dataset.assemblyReviewFocus = 'feedback'; feedback.disabled = locked || !host.canMutate(); label.append(feedback);
+      feedbackArea.append(label, node('p', 'Required when requesting changes. The next agent can read your saved feedback.', 'assembly-review-caption')); nodes.push(feedbackArea);
+      const actions = node('div', '', 'assembly-review-actions'), disabled = state.status === 'saving' || !host.canMutate();
+      if (state.status === 'uncertain') actions.append(button('retry', 'Retry exact decision', disabled), button('check', 'Refresh saved outcome', disabled));
+      else {
+        const stale = Boolean(conflict()); actions.append(button('ACCEPT', 'Accept changes and save Assembly', disabled || stale || state.load !== 'ready'), button('REQUEST_CHANGES', 'Request changes', disabled || stale));
+        const more = node('details', '', 'assembly-review-more'); more.dataset.assemblyReviewMore = ''; more.open = moreOpen;
+        more.append(node('summary', 'More actions'), button('recheck', 'Recheck current proposal', disabled), button('DISCARD', 'Discard proposal', disabled || stale)); actions.append(more);
+      }
       nodes.push(actions);
     }
-    element.replaceChildren(...nodes);
+    const details = node('details', '', 'assembly-review-technical'); details.dataset.assemblyReviewComparison = ''; details.open = comparisonOpen;
+    details.append(node('summary', 'Technical details and full comparison'), node('p', `Proposal ${state.proposal.proposalId} · version ${state.proposal.proposalVersion} · target Asset ${state.proposal.content.expectedAssetVersion}/${state.proposal.content.expectedMetadataVersion}`, 'assembly-review-caption'));
+    const tableScroll = node('div', '', 'assembly-review-table-scroll'), table = node('table', '', 'proposal-diff');
+    tableScroll.dataset.assemblyReviewScroll = 'technical';
+    const tableHeader = node('tr'); for (const label of ['Property / component', 'Current', 'Proposed']) tableHeader.append(node('th', label)); table.append(tableHeader);
+    for (const row of assemblyProposalDiffRows(state.proposal, state.currentAsset)) { const tr = node('tr'); for (const value of row) tr.append(node('td', value)); table.append(tr); }
+    tableScroll.append(table); details.append(tableScroll); nodes.push(details); element.replaceChildren(...nodes);
+    for (const [key, top, left] of scroll) { const n = [...element.querySelectorAll('[data-assembly-review-scroll]')].find(n => n.dataset.assemblyReviewScroll === key); if (n) { n.scrollTop = top; n.scrollLeft = left; } }
     if (focused && element.isConnected) { const control = [...element.querySelectorAll('[data-assembly-review-focus]')].find(item => item.dataset.assemblyReviewFocus === focused); control?.focus({ preventScroll: true }); if (selection) control?.setSelectionRange?.(selection.start, selection.end, selection.direction); }
   }
   async function loadPreview() {
     if (disposed || !host.canRead()) return;
     readController?.abort(); const controller = new AbortController(), own = ++generation; readController = controller;
     const revision = state.projectRevision, version = state.proposal.proposalVersion, selection = JSON.stringify(state.selection);
-    const timer = setTimeout(() => controller.abort(), 8000); state.load = 'loading'; render();
+    const proposed = copy(state.proposal.content), saved = copy(state.currentAsset);
+    const selected = copy(state.selection);
+    const currentExists = Boolean(saved), currentHasSelection = currentExists && saved.assembly.states.some(s => s.stateId === selected.stateId) && saved.assembly.variants.some(v => v.variantId === selected.variantId);
+    state.currentPreviewMessage = !currentExists ? proposed.operation === 'create' ? 'This Assembly is new. There is no saved Current version.' : 'The current Assembly is unavailable.' : !currentHasSelection ? 'This state or variant does not exist in the saved Current version.' : null;
+    const timer = setTimeout(() => controller.abort(), 8000); state.load = 'loading'; state.scene = null; state.currentScene = null; state.leafAssets = []; state.frame = null; render();
     try {
-      const draft = await host.resolveDraft(state.proposal.content, state.selection, revision, { signal: controller.signal });
+      const [draft, previous] = await Promise.all([
+        host.resolveDraft(proposed, selected, revision, { signal: controller.signal }),
+        currentHasSelection ? host.resolveDraft(saved, selected, revision, { signal: controller.signal }) : Promise.resolve(null),
+      ]);
       if (disposed || own !== generation || current().projectId !== state.projectId || current().projectRevision !== revision || state.proposal.proposalVersion !== version || JSON.stringify(state.selection) !== selection) return;
-      state.scene = draft.scene; state.load = 'ready'; state.error = null;
-    } catch (error) { if (!disposed && own === generation) { state.load = 'failed'; state.error = error.message; } }
+      if (!draft?.scene || (currentHasSelection && !previous?.scene)) throw new Error('An exact comparison preview is unavailable. Recheck to retry.');
+      state.scene = draft.scene; state.currentScene = previous?.scene ?? null;
+      state.leafAssets = [...(previous?.leafAssets ?? []), ...(draft.leafAssets ?? [])];
+      // Fit both sides to the same visible artwork extent. Invisible placement
+      // space must not shrink the artwork; empty scenes retain a safe fallback.
+      const frames = [draft.scene.visualBounds, previous?.scene?.visualBounds].filter(f => f && f.width > 0 && f.height > 0);
+      if (!frames.length) frames.push(assemblySceneFrame(draft.scene, proposed.assembly));
+      const x = Math.min(...frames.map(f => f.x)), y = Math.min(...frames.map(f => f.y));
+      const width = Math.max(...frames.map(f => f.x + f.width)) - x, height = Math.max(...frames.map(f => f.y + f.height)) - y, pad = Math.max(width, height) * .08;
+      state.frame = { x: x - pad, y: y - pad, width: width + 2 * pad, height: height + 2 * pad };
+      state.load = 'ready'; state.error = null;
+    } catch (error) { if (!disposed && own === generation) { state.load = 'failed'; state.scene = null; state.currentScene = null; state.error = error.message; } }
     finally { clearTimeout(timer); if (readController === controller) readController = null; if (!disposed && own === generation) render(); }
   }
   async function decide(decision, retry = false) {
@@ -135,7 +199,9 @@ export function createAssemblyReviewController({ initial, host }) {
   }
   element.addEventListener('input', event => { if (event.target.matches('[data-assembly-review-feedback]')) state.feedback = event.target.value; });
   element.addEventListener('change', event => { const key = event.target.dataset.assemblyReviewSelection; if (key) { state.selection[key] = event.target.value; void loadPreview(); } });
-  element.addEventListener('click', event => { const action = event.target.closest('[data-assembly-review-action]'); if (!action || action.disabled) return;
+  element.addEventListener('click', event => { const side = event.target.closest('[data-assembly-review-side]');
+    if (side && !side.disabled && ['current', 'proposed'].includes(side.dataset.assemblyReviewSide)) { state.previewSide = side.dataset.assemblyReviewSide; render(); return; }
+    const action = event.target.closest('[data-assembly-review-action]'); if (!action || action.disabled) return;
     const key = action.dataset.assemblyReviewAction; if (key === 'retry') void decide(null, true); else if (key === 'recheck' || key === 'check') void recheck(key === 'check'); else void decide(key); });
   render();
   return { element, getState: () => state, afterMount() { if (state.load === 'idle') void loadPreview(); }, reconcileContext() {

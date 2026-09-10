@@ -31,7 +31,10 @@ export function createAssemblyEditorView(state) {
   const canvas = svg('svg', { tabindex: 0, role: 'group', 'aria-label': 'Assembly components, inherited or custom blocking, placement bounds and anchor' }); canvas.dataset.assemblyCanvas = ''; canvas.dataset.assemblyFocusKey = 'canvas';
   const grid = svg('g'); grid.dataset.assemblyLayer = 'grid'; canvas.append(grid, createAssemblyArtwork(null, { projectId: state.context.projectId }));
   for (const name of ['blocking', 'placement', 'selection']) { const group = svg('g'); group.dataset.assemblyLayer = name; canvas.append(group); }
-  stage.append(canvas); scroll.append(stage); main.append(scroll, note('Amber: blocking · blue: placement bounds · cyan: assembly anchor. Preview does not run game behavior.'));
+  const caption = el('div', 'assembly-canvas-caption'), blockingVisibility = checkbox('show-blocking', state.showBlocking, 'Show blocking');
+  blockingVisibility.classList.add('assembly-blocking-visibility');
+  caption.append(blockingVisibility, note('Amber: blocking · blue: placement bounds · cyan: anchor. Preview does not run game behavior.'));
+  stage.append(canvas); scroll.append(stage); main.append(scroll, caption);
   const inspector = el('aside', 'assembly-inspector'); inspector.dataset.assemblyScroll = 'inspector'; layout.append(rail, main, inspector); edit.append(layout); root.append(edit);
   const source = el('section', 'assembly-source'); source.dataset.assemblyView = 'source'; root.append(source);
   const picker = el('section', 'assembly-popup assembly-picker'); picker.dataset.assemblyPicker = ''; picker.setAttribute('role', 'dialog'); picker.setAttribute('aria-label', 'Choose a saved component Asset'); root.append(picker);
@@ -61,9 +64,24 @@ function inspectorContent(state, nativeAssets) {
     } return box;
   }
   if (state.panel === 'blocking') {
-    box.append(el('h3', '', 'Assembly blocking'), choice('blocking-mode', a.blocking.mode, 'Geometry source', [['components', 'Use component blocking'], ['custom', 'Custom assembly blocking']]));
-    box.append(note(a.blocking.mode === 'components' ? 'Each active component contributes its exact saved blocking through its position, rotation and scale. Inspection visibility has no effect.' : 'These shapes belong to the Assembly. Moving a component leaves custom blocking fixed across every state and variant.'));
-    if (a.blocking.mode === 'custom') box.append(button('Edit custom blocking', 'custom-geometry'));
+    box.append(el('h3', '', 'Assembly blocking'));
+    const modes = el('fieldset', 'assembly-blocking-modes'); modes.append(el('legend', '', 'Choose where blocking comes from'));
+    for (const [value, title, explanation] of [
+      ['components', 'Use component blocking', 'Reuse each active component’s saved shapes. They follow its position, rotation and scale.'],
+      ['custom', 'Custom assembly blocking', 'Draw shapes for the whole Assembly. They stay fixed when components move.'],
+    ]) {
+      const option = el('label', 'assembly-blocking-mode'), input = el('input'), copy = el('span');
+      input.type = 'radio'; input.name = `assembly-blocking-mode-${state.instanceId}`; input.value = value; input.checked = a.blocking.mode === value;
+      input.dataset.assemblyField = 'blocking-mode'; input.dataset.assemblyFocusKey = `field:blocking-mode:${value}`;
+      copy.append(el('strong', '', title), el('small', '', explanation)); option.append(input, copy); modes.append(option);
+    }
+    box.append(modes);
+    if (a.blocking.mode === 'components') box.append(note('Only components used in this state contribute. Hiding artwork or its blocking overlay does not remove blocking.'));
+    else {
+      box.append(note('Custom shapes apply to every state and variant. Choosing this mode for the first time copies the component blocking.'));
+      const edit = button('Edit custom blocking', 'custom-geometry'); edit.classList.add('assembly-custom-edit'); box.append(edit);
+      box.append(note('Draw or adjust shapes in the geometry editor, then use Back to Assembly. Save the Assembly when your work is ready.'));
+    }
     if (state.customDraft?.issues?.length || state.customDraft?.session?.polygonDraft?.length) box.append(el('p', 'assembly-warning', 'Custom blocking has unfinished work. Reopen it to finish; Save is blocked.'));
     const list = el('div', 'assembly-region-list'); for (const r of state.scene?.regions ?? []) { const entry = el('div'); entry.append(el('strong', '', r.name), note(r.componentId ? `${r.asset?.assetId} · v${r.asset?.assetVersion} / metadata v${r.asset?.metadataVersion}` : 'Owned by this Assembly')); list.append(entry); }
     box.append(list.childElementCount ? list : note('No blocking regions in this preview. Rendered pixels do not automatically block movement.')); return box;
@@ -108,7 +126,8 @@ export function syncAssemblyEditorCanvas(root, state) {
   const slider = root.querySelector('[data-assembly-zoom]'); if (document.activeElement !== slider) slider.value = String(Math.round(scale * 100));
   updateAssemblyArtwork(canvas.querySelector('[data-assembly-artwork]'), state.scene, { projectId: state.context.projectId, hidden: state.hidden, selectedComponentId: state.selectedComponentId, interactive: true });
   const layer = name => canvas.querySelector(`[data-assembly-layer="${name}"]`);
-  layer('blocking').replaceChildren(...(state.scene?.regions ?? []).map(r => assemblyRegionNode(r, { class: 'assembly-blocking-region' })));
+  layer('blocking').replaceChildren(...(state.showBlocking ? state.scene?.regions ?? [] : []).map(r => assemblyRegionNode(r, { class: 'assembly-blocking-region' })));
+  root.querySelector('[data-assembly-option="show-blocking"]').checked = state.showBlocking;
   const a = state.model.assembly, anchor = svg('g', { class: 'assembly-anchor' }); anchor.append(svg('circle', { cx: a.anchor.x, cy: a.anchor.y, r: 5 / scale }), svg('path', { d: `M${a.anchor.x - 10 / scale} ${a.anchor.y}h${20 / scale}M${a.anchor.x} ${a.anchor.y - 10 / scale}v${20 / scale}` }));
   layer('placement').replaceChildren(svg('rect', { ...a.placementBounds, class: 'assembly-placement-bounds' }), anchor);
   const c = selectedAssemblyComponent(state); layer('selection').replaceChildren(...(c ? [svg('circle', { cx: c.position.x, cy: c.position.y, r: 4 / scale, class: 'assembly-component-anchor' })] : []));
