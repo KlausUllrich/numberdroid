@@ -1,6 +1,6 @@
 # Numberdroid Studio — Start here
 
-Status date: 2026-09-09. This is the current task router; linked contracts own
+Status date: 2026-09-10. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
@@ -65,10 +65,16 @@ post-merge green, and explicitly **user passed on 2026-09-10**. The
 records the exact bounded acceptance. Preserve this corrected UI and saved work.
 The broader VT-021 decision remains separate.
 
-Next: discuss the smallest usable real animation-clip workflow, then agree on its
-mockup and contract before implementation. Frames/timing/looping, clip editing and
-Assembly state use still need that scoped design. Full shared Review semantics,
-runtime materialization, image generation and publication retain separate gates.
+The [Animation Clip Editor design](ANIMATION_EDITOR_DESIGN.md) is now approved:
+Klaus passed the base mockup and then said **“all pass”** for V2 with contextual
+cut editing and ping-pong. It records nested frames, timing, shared alignment,
+retained drafts and exact saved clip/cut use in Assembly presentations.
+
+Next source block: define a compatible animation implementation contract before
+production code, then implement and verify the approved workflow through real
+storage and semantic agent operations. No production animation support or live
+acceptance is claimed by the mockup pass. Full shared Review semantics, runtime
+materialization, image generation and publication retain separate gates.
 
 ## What can be used
 
@@ -113,6 +119,7 @@ after compaction reverify continuity and reload the selected task context.
 | Cutter editor | [Cutter Editor Design](CUTTER_EDITOR_DESIGN.md), [accepted cutter requirements](REQUIREMENTS.md#53-atlas-cutter), actual cutter commands/UI/tests; add the asset/persistence/MCP contracts only when those seams change. |
 | Placement / blocking editor | [Placement & Blocking Editor Design](PLACEMENT_BLOCKING_EDITOR_DESIGN.md), [asset contract](CHECKPOINT_2C_CONTRACT.md), actual geometry and consumers; add persistence, MCP and adapter contracts when those boundaries change. |
 | Assembly editor | [Assembly Editor Design](ASSEMBLY_EDITOR_DESIGN.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), directly affected component/geometry consumers; add storage, capability and MCP contracts before changing those seams. |
+| Animation clips | [Animation Clip Editor Design](ANIMATION_EDITOR_DESIGN.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), current exact cut/Asset/Assembly consumers; read their storage, authority, recovery and MCP contracts before evolving clip/frame or state-binding semantics. |
 | Shared Review changes | [Review Changes Design](REVIEW_CHANGES_DESIGN.md), [2C contract](CHECKPOINT_2C_CONTRACT.md), [task feedback](TASK_REVIEW_FEEDBACK.md), affected task/application commands and tests; add authority, persistence and MCP contracts before evolving those seams. |
 | Room, task or Preview behavior | [CP4.5 contract](CHECKPOINT_4_5_CONTRACT.md), [Room status](ROOM_EDITOR_L3_STATUS.md), the directly affected implementation and tests; add [Architecture](ARCHITECTURE.md) sections for changed seams. |
 | Processing or agent workflow | The exact A1 contract/status linked by [README](../README.md); [A1.7 state contract](A1_7_STATE_CONTRACT.md) for correction/review state; add [MCP contract](MCP_CONTRACT.md) and authority/persistence contracts when those boundaries change. |
