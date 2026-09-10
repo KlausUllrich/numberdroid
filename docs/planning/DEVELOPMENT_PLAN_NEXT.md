@@ -1,5 +1,21 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-10 Animation editor candidate
+
+The approved Animation design is implemented as a candidate: exact saved cuts
+become named frame occurrences, with shared alignment, per-frame timing and
+once/loop/ping-pong playback. Contextual cut editing retains the parent draft;
+new cut and Clip versions preserve every older saved reference. Assembly v2 can
+bind exact saved Clips to presentation states while cosmetic variants stay
+independent. Agents propose and revise; the owner accepts in Studio.
+
+The [implementation contract](../../tools/numberdroid-studio/docs/ANIMATION_EDITOR_IMPLEMENTATION_CONTRACT.md)
+owns schema17, portable v6 and the explicit animation-v1 MCP profile.
+[VT-022](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#vt-022--animation-editor-and-contextual-cut-revisions)
+is pending Klaus's production test. CI, merge and live acceptance remain separate.
+VT-001 / CP4.5 and A1.7 remain REVISE; export/materialization remains separately gated.
+
+
 
 ## 2026-09-09 Asset editor acceptance
 

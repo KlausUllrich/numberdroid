@@ -7,7 +7,7 @@ import { cutterDragRectangle } from '../apps/studio-server/public/cutter-editor-
 const copy=value=>structuredClone(value);
 function initial(){const binding={projectId:'project.cut',sliceId:'slice.display',sliceVersion:2,atlasId:'atlas.display',sourceId:'source.display',sourceDigest:'a'.repeat(64),processorId:'processor.fixture',digest:'b'.repeat(64),width:20,height:16,rectangleId:'rect.display',rectangle:{x:10,y:12,width:20,height:16,name:'Display',included:true,pivot:null,transparentPaddingPolicy:'preserve_exact_rect'}};
 return {projectId:binding.projectId,projectRevision:10,frameId:'frame.one',binding,matchingCount:2,sourceContext:{projectId:binding.projectId,revision:10,binding:copy(binding),currentHead:{sliceId:binding.sliceId,sliceVersion:4},atlas:{atlasId:binding.atlasId,definitionVersion:5},source:{sourceId:binding.sourceId,digest:binding.sourceDigest,width:256,height:128}}};}
-function revised(binding,request){return {...copy(binding),sliceVersion:5,width:request.payload.rectangle.width,height:request.payload.rectangle.height,rectangle:{...binding.rectangle,...request.payload.rectangle,name:request.payload.name},digest:'c'.repeat(64)};}
+function revised(binding,request){return {...copy(binding),sliceVersion:5,definitionVersion:6,width:request.payload.rectangle.width,height:request.payload.rectangle.height,rectangle:{...binding.rectangle,...request.payload.rectangle,name:request.payload.name},digest:'c'.repeat(64)};}
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 async function harness(t,overrides={}){
  const raw=await readFile(new URL('../apps/studio-server/public/animation-cut-controller.js',import.meta.url),'utf8');
@@ -44,7 +44,7 @@ test('Each accepted edge handle changes only its axis under source-pixel draggin
 test('Use revised cut waits for its actual job and exact commit receipt before updating the parent',async t=>{
  const h=await harness(t);h.controller.testState.model.rectangle.x=12;h.controller.testState.scope='clip';await h.controller.use();await flush();await flush();
  assert.equal(h.requests.length,2);assert.equal(h.returns.length,1);assert.equal(h.returns[0].applied,true);assert.equal(h.returns[0].projectRevision,12);assert.equal(h.returns[0].scope,'clip');assert.equal(h.returns[0].binding.rectangle.x,12);
- assert.equal(h.requests[0].payload.expectedRevision,10);assert.equal(h.requests[1].payload.expectedRevision,11);assert.equal(h.pending.at(-1),false);
+ assert.equal(h.requests[0].payload.expectedRevision,10);assert.equal(h.requests[1].payload.expectedRevision,11);assert.equal(Object.hasOwn(h.requests[1].payload,'jobId'),false);assert.equal(h.requests[1].jobId,h.requests[0].payload.jobId);assert.equal(h.pending.at(-1),false);
 });
 test('Lost preparation response retains exact bytes/key and blocks Back until receipt replay succeeds',async t=>{
  let lose=true,seen=[];const h=await harness(t,{prepareCut:async intent=>{seen.push(copy(intent));if(lose)throw new Error('response lost');return {projectId:intent.projectId,revision:11,value:{status:'REUSED',sliceBinding:revised(initial().binding,intent),jobId:null}};}});

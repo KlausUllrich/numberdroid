@@ -132,7 +132,8 @@ export function queryClipDocument(request, document) {
   const limit = request.limit === undefined ? 100 : requireInteger(request.limit, 'limit', { min: 1, max: 100 });
   const assetId = request.assetId === undefined ? null : requireId(request.assetId, 'assetId');
   const proposalId = request.proposalId === undefined ? null : requireId(request.proposalId, 'proposalId');
-  let assets = head.snapshot.clipLibrary?.assets ?? [];
+  const proposals = (head.snapshot.clipLibrary?.proposals ?? []).filter(proposal => (!proposalId || proposal.proposalId === proposalId) && (!assetId || proposal.content.assetId === assetId)).slice(0, limit);
+  let assets = (head.snapshot.clipLibrary?.assets ?? []).filter(asset => !proposalId || proposals.some(proposal => proposal.content.assetId === asset.assetId));
   if (request.assetVersion !== undefined) {
     invariant(assetId, 'VALIDATION_ERROR', 'Historical reads require assetId.');
     const version = requireInteger(request.assetVersion, 'assetVersion', { min: 1 });
@@ -141,9 +142,11 @@ export function queryClipDocument(request, document) {
   }
   assets = assets.filter(asset => !assetId || asset.assetId === assetId).sort((a, b) => a.name.localeCompare(b.name) || a.assetId.localeCompare(b.assetId)).slice(0, limit);
   invariant(!assetId || assets.length === 1, 'CLIP_NOT_FOUND', 'The requested Clip version does not exist.');
-  return { schemaVersion: 1, projectId: document.projectId, revision: head.number,
+  const response = { schemaVersion: 1, projectId: document.projectId, revision: head.number,
     assets: assets.map(asset => assetId ? resolveClipRead(asset, document, asset.createdRevision) : structuredClone(asset)),
-    proposals: structuredClone((head.snapshot.clipLibrary?.proposals ?? []).filter(proposal => !proposalId || proposal.proposalId === proposalId).slice(0, limit)) };
+    proposals: structuredClone(proposals) };
+  invariant(Buffer.byteLength(JSON.stringify(response)) <= 4 * 1024 * 1024, 'CLIP_RESPONSE_TOO_LARGE', 'The Animation result exceeds 4 MiB. Query one exact assetId or proposalId, or use a smaller limit.');
+  return response;
 }
 
 export function clipRecordFingerprint(record) { return fingerprint(record); }

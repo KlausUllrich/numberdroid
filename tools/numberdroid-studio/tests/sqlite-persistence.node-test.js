@@ -156,7 +156,7 @@ test('projection rebuild is deterministic and migrations reject checksum/version
   assert.equal(rebuilt.projectionHash, expected);
   assert.equal(store.workspace.database.prepare("SELECT projection_hash FROM projections WHERE projection_type = 'project_head'").get().projection_hash, expected);
   const migrations = await loadMigrationDefinitions();
-  assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  assert.deepEqual(migrations.map(({ version }) => version), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
   store.close();
 
   const raw = nodeSqliteDatabaseFactory(filename);
@@ -218,10 +218,10 @@ test('schema migration faults roll back the individual version and safely resume
 
   const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
   afterTestCleanup(context, () => resumed.close());
-  assert.equal(resumed.integrityCheck().userVersion, 16);
+  assert.equal(resumed.integrityCheck().userVersion, 17);
   assert.deepEqual(
     resumed.workspace.database.prepare('SELECT version FROM schema_migrations ORDER BY version').all().map((row) => row.version),
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
   );
 });
 
@@ -250,7 +250,7 @@ test('migration 0013 rolls back before/after its boundary and resumes with both 
 
       const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
       afterTestCleanup(childContext, () => resumed.close());
-      assert.equal(resumed.integrityCheck().userVersion, 16);
+      assert.equal(resumed.integrityCheck().userVersion, 17);
       const tables = resumed.workspace.database.prepare(`
         SELECT name, strict FROM pragma_table_list
         WHERE name LIKE 'task_branch_processing_result_%'
@@ -285,7 +285,7 @@ test('migration 0014 rolls back before/after its boundary and resumes with the i
 
       const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
       afterTestCleanup(childContext, () => resumed.close());
-      assert.equal(resumed.integrityCheck().userVersion, 16);
+      assert.equal(resumed.integrityCheck().userVersion, 17);
       assert.deepEqual(resumed.workspace.database.prepare(`
         SELECT name, strict FROM pragma_table_list
         WHERE name = 'task_level_candidate_submissions'
@@ -317,7 +317,7 @@ test('migration 0015 rolls back before/after its boundary and resumes with immut
 
       const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
       afterTestCleanup(childContext, () => resumed.close());
-      assert.equal(resumed.integrityCheck().userVersion, 16);
+      assert.equal(resumed.integrityCheck().userVersion, 17);
       assert.deepEqual(resumed.workspace.database.prepare(`
         SELECT name, strict FROM pragma_table_list WHERE name = 'derived_task_relations'
       `).all().map((row) => ({ name: row.name, strict: Number(row.strict) })), [

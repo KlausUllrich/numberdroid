@@ -1470,6 +1470,7 @@ function applyCommand(command, snapshot, now, {
     }
     case 'asset.define': {
       invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === (payload.assetId ?? payload.id)), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
+      invariant(!next.clipLibrary?.assets.some(asset => asset.assetId === (payload.assetId ?? payload.id)), 'CLIP_ID_CONFLICT', 'This Asset ID belongs to an Animation.');
       const assetId = requireId(payload.assetId, 'payload.assetId');
       invariant(!next.assets.some((asset) => asset.id === assetId), 'ENTITY_EXISTS', 'The asset ID already exists.', {
         assetId,
@@ -1505,6 +1506,7 @@ function applyCommand(command, snapshot, now, {
     }
     case 'asset.save': {
       invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === payload.assetId), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
+      invariant(!next.clipLibrary?.assets.some(asset => asset.assetId === payload.assetId), 'CLIP_ID_CONFLICT', 'This Asset ID belongs to an Animation.');
       assertExactFields(payload, new Set(['assetId', 'operation', 'expectedAssetVersion', 'expectedMetadataVersion', 'name', 'kind', 'metadata', 'image']), 'payload');
       const assetId = requireId(payload.assetId, 'payload.assetId');
       const operation = requireEnum(payload.operation, 'payload.operation', ['create', 'update']);
@@ -1556,6 +1558,7 @@ function applyCommand(command, snapshot, now, {
       invariant(!library.proposals.some((proposal) => proposal.proposalId === proposalId), 'ENTITY_EXISTS', 'The proposal ID already exists.', { proposalId });
       const items = preparedAssetProposal.items.map((item) => {
         invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === item.assetId), 'ASSEMBLY_ID_CONFLICT', 'This Asset ID belongs to an Assembly.');
+      invariant(!next.clipLibrary?.assets.some(asset => asset.assetId === item.assetId), 'CLIP_ID_CONFLICT', 'This Asset ID belongs to an Animation.');
         const existingAsset = library.assets.find((asset) => asset.assetId === item.assetId);
         invariant(!next.assets.some((asset) => asset.id === item.assetId), 'ENTITY_EXISTS', 'A legacy asset already uses this identity.', { assetId: item.assetId });
         if (item.operation === 'create') {

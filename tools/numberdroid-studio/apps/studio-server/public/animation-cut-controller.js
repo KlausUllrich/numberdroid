@@ -22,6 +22,8 @@ export function createAnimationCutController({initial,host}) {
     const expected=state.preparedIntent?.payload??intent.payload;
     for(const key of ['x','y','width','height'])if(binding.rectangle?.[key]!==expected.rectangle[key])throw new Error('The saved crop differs from this exact request.');
     if(binding.rectangle.name!==expected.name)throw new Error('The saved cut name differs from this exact request.');
+    if(JSON.stringify(binding.rectangle.pivot)!==JSON.stringify(state.binding.rectangle.pivot)||binding.rectangle.transparentPaddingPolicy!==state.binding.rectangle.transparentPaddingPolicy)throw new Error('The saved cut changed its retained pivot or padding policy.');
+    if(intent.jobId&&(binding.sliceVersion!==intent.payload.expectedSliceVersion+1||binding.definitionVersion!==intent.payload.expectedAtlasVersion+1))throw new Error('The saved cut or atlas version does not match this exact commit.');
   }
   function acceptJob(response,jobId){const job=response?.job??response;
     if((response.projectId!==undefined&&response.projectId!==state.projectId)||job?.jobId!==jobId||job.atlasId!==state.binding.atlasId||job.sourceId!==state.binding.sourceId)

@@ -1,4 +1,4 @@
-import { validateAnimationNegotiation } from '../../../packages/mcp-server/src/animation-v1.js';
+import { validateAnimationNegotiation, assertLegacyProjectContent } from '../../../packages/mcp-server/src/animation-v1.js';
 import { validateAssemblyNegotiation } from '../../../packages/mcp-server/src/assembly-v1.js';
 import { listCommandDefinitions } from '../../../packages/domain/src/index.js';
 import { StudioError } from '../../../packages/domain/src/index.js';
@@ -288,7 +288,8 @@ export class LocalStudioGateway {
   }
 
   async readProject({ projectId }, _opaqueHostContext, options = {}) {
-    return this.#request('/internal/mcp/read-project', { schemaVersion: 1, projectId }, options);
+    const value = await this.#request('/internal/mcp/read-project', { schemaVersion: 1, projectId }, options);
+    return this.#animationNegotiation ? value : assertLegacyProjectContent(value);
   }
 
 

@@ -62,11 +62,11 @@ function taskSpec(taskId) {
   };
 }
 
-test('Authoring-v2 registry is a one-command/one-scope overlay while Assembly 37/31 stays exact', () => {
+test('Authoring-v2 registry is a one-command/one-scope overlay while Animation 42/34 stays exact', () => {
   assert.equal(AUTHORING_V2_SCHEMA_VERSION, 2);
   assert.equal(AUTHORING_V2_FEATURE_ID, 'studio.authoring-v2');
-  assert.equal(COMMAND_DEFINITIONS.length, 37);
-  assert.equal(KNOWN_GRANT_SCOPES.length, 31);
+  assert.equal(COMMAND_DEFINITIONS.length, 42);
+  assert.equal(KNOWN_GRANT_SCOPES.length, 34);
   assert.equal(COMMAND_DEFINITIONS.some(({ type }) => type === PROCESSING_RESULT_ADOPTION_COMMAND_TYPE), false);
   assert.equal(KNOWN_GRANT_SCOPES.includes(PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE), false);
   assert.deepEqual(AUTHORING_V2_PRIVATE_GRANT_SCOPES, [PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE]);
@@ -88,8 +88,8 @@ test('Authoring-v2 registry is a one-command/one-scope overlay while Assembly 37
       operationVersion: 1,
     },
   });
-  assert.equal(COMMAND_DEFINITIONS.length + AUTHORING_V2_COMMAND_FEATURES.length, 38);
-  assert.equal(listAuthoringV2GrantScopes().length, 32);
+  assert.equal(COMMAND_DEFINITIONS.length + AUTHORING_V2_COMMAND_FEATURES.length, 43);
+  assert.equal(listAuthoringV2GrantScopes().length, 35);
   assert.equal(listAuthoringV2GrantScopes().at(-1), PROCESSING_RESULT_ADOPTION_REQUIRED_SCOPE);
 });
 

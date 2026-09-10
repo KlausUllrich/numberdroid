@@ -586,6 +586,9 @@ jobs:
           timeout 600s node tools/numberdroid-studio/scripts/verify-assembly-editor-browser.js \
             "$CHROME" "$CHECKPOINT_4_EVIDENCE/assembly-editor"
 
+          timeout 600s node tools/numberdroid-studio/scripts/verify-animation-editor-browser.js \
+            "$CHROME" "$CHECKPOINT_4_EVIDENCE/animation-editor"
+
           timeout 420s node tools/numberdroid-studio/scripts/verify-room-creation-browser.js \
             "$CHROME" "$CHECKPOINT_4_EVIDENCE/room-creation"
 

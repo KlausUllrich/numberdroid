@@ -10,11 +10,11 @@ function proposal() { return { proposalId: 'proposal.a', proposalVersion: 2, sta
   components: [{ componentId: 'body', name: 'Body', asset: { assetId: 'leaf.a', assetVersion: 1, metadataVersion: 1 }, position: { x: 0, y: 0 }, rotationDegrees: 37, scale: 1, stateIds: null, variantOverrides: [] }],
 } } }; }
 
-test('Assembly inventory is combined only in Library while Room source remains native', () => {
+test('Assembly and Animation inventory is combined only in Library while Room source remains native', () => {
   const currentNative = app.slice(app.indexOf('function currentAssetLibrary'), app.indexOf('function currentAssemblyLibrary'));
-  assert.doesNotMatch(currentNative, /assemblyLibrary/);
+  assert.doesNotMatch(currentNative, /assemblyLibrary|clipLibrary/);
   const library = app.slice(app.indexOf('function renderAssetLibrary'), app.indexOf('function currentRoomLibrary'));
-  assert.match(library, /const inventory = \[\.\.\.library.assets, \.\.\.assemblies\]/);
+  assert.match(library, /const inventory = \[\.\.\.library.assets, \.\.\.assemblies, \.\.\.currentClipLibrary\(snapshot\).assets\]/);
   assert.match(library, /asset.contentKind === 'assembly' \? assemblyLibraryCard/);
   assert.match(library, /Room placement for Assemblies is not supported yet/);
   assert.match(app, /activeAssemblyEditor\?\.getState\(\).gesture \|\| activeEmbeddedAssetEditor\?\.getState\(\).gesture/);

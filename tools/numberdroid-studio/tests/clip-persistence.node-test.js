@@ -25,3 +25,15 @@ test('Clip integrity rejects command masking, corrupt frame projections and acce
  const f=await assemblyFixture(context),payload={...clipPayload(f.slice),proposalId:'proposal.clip',expectedProposalVersion:0};await f.execute('clip.proposal.submit',payload);await f.execute('clip.proposal.resolve',{proposalId:payload.proposalId,expectedProposalVersion:1,decision:'ACCEPT',confirmed:true});const db=f.store.workspace.database;
  for(const tamper of [()=>{const row=db.prepare("SELECT revision_number,revision_json FROM revisions WHERE command_type='clip.proposal.resolve'").get();const record=JSON.parse(row.revision_json);record.command.type='task.create';db.prepare("UPDATE revisions SET command_type='task.create',revision_json=? WHERE project_id=? AND revision_number=?").run(JSON.stringify(record),projectId,row.revision_number);},()=>db.prepare('DELETE FROM clip_frame_pins').run(),()=>db.prepare('DELETE FROM clip_head_tags').run(),()=>{for(const table of ['clip_head_tags','clip_heads','clip_frame_pins','clip_version_findings','clip_versions','clip_identities'])db.prepare(`DELETE FROM ${table}`).run();}]){db.exec('BEGIN');try{tamper();assert.equal(inspectClipIntegrity(db).ok,false);}finally{db.exec('ROLLBACK');}}
 });
+
+
+test('existing Clip identity rejects legacy and native writes without corrupting history', { timeout: 120000 }, async context => {
+  const f = await assemblyFixture(context), payload = clipPayload(f.slice);
+  await f.execute('clip.save', payload);
+  const before = await f.studio.readProjectTrusted(projectId);
+  await assert.rejects(f.execute('asset.define', { assetId: payload.assetId, sourceId: f.slice.sourceId,
+    name: 'Colliding legacy image', kind: 'prop', region: { x: 0, y: 0, width: 16, height: 16 } }), { code: 'CLIP_ID_CONFLICT' });
+  await assert.rejects(f.execute('asset.save', f.payload({ assetId: payload.assetId })), { code: 'CLIP_ID_CONFLICT' });
+  assert.deepEqual(await f.studio.readProjectTrusted(projectId), before);
+  assert.deepEqual(inspectClipIntegrity(f.store.workspace.database).findings, []);
+});

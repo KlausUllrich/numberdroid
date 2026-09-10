@@ -58,6 +58,8 @@ within +/-65,535, and at most 256 KiB canonical declaration. Physical canvas siz
 must remain within 64 project units per axis. Reuse existing PNG/source/job byte
 bounds. Bound unique frame pixels to 256 × 1024 × 1024 and resolved geometry
 coordinates/spans to 1,000,000 pixels; bound response bytes independently of input.
+Clip list, proposal and exact-read responses are bounded to 4 MiB in total;
+request a specific identity or a smaller limit when that bound is exceeded.
 These are resource limits for this implementation, not a universal game model.
 
 Timing is pure and shared by editor, Assembly playback and tests. Default duration

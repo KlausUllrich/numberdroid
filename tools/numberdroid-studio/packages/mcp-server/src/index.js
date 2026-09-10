@@ -1,6 +1,6 @@
 import { CLIP_QUERY_SCHEMA } from '../../domain/src/clip-command-catalog.js';
 import { ASSEMBLY_DECLARATION_SCHEMA, ASSEMBLY_ANY_DECLARATION_SCHEMA } from '../../domain/src/assembly-geometry.js';
-import { validateAnimationNegotiation } from './animation-v1.js';
+import { validateAnimationNegotiation, assertLegacyProjectContent } from './animation-v1.js';
 import { ASSEMBLY_QUERY_SCHEMA } from '../../domain/src/assembly-command-catalog.js';
 import { validateAssemblyNegotiation } from './assembly-v1.js';
 import { MAX_ATLAS_JOB_ATTEMPTS, StudioError } from '../../domain/src/index.js';
@@ -369,11 +369,12 @@ export function createAgentToolCatalog(studioService, {
           });
         }
         const context = await authority(invocationContext, input.projectId);
-        return studioService.readProject(
+        const value = await studioService.readProject(
           { projectId: input.projectId },
           context,
           { signal: invocationContext?.mcpReq?.signal },
         );
+        return animationReady ? value : assertLegacyProjectContent(value);
       },
     },
     ...commandTools,

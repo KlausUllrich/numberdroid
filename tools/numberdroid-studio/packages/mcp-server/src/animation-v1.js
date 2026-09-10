@@ -8,3 +8,14 @@ export function validateAnimationNegotiation(value, projectId) {
   }
   return Object.freeze(structuredClone(value));
 }
+
+
+export function assertLegacyProjectContent(value) {
+  const snapshot = value?.snapshot;
+  if ((snapshot?.clipLibrary?.assets?.length ?? 0) || (snapshot?.clipLibrary?.proposals?.length ?? 0)
+    || snapshot?.assemblyLibrary?.assets?.some(asset => asset.assembly?.schemaVersion === 2)
+    || snapshot?.assemblyLibrary?.proposals?.some(proposal => proposal.content?.assembly?.schemaVersion === 2)) {
+    throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'This project contains Animation content. Select the animation-v1 profile to read its complete snapshot.');
+  }
+  return value;
+}

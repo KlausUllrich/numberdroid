@@ -2016,11 +2016,12 @@ function renderOverview(snapshot) {
   const visibleGrant = activeGrants.at(-1) || snapshot.grants.at(-1);
   const metrics = document.createElement('div');
   metrics.className = 'metric-grid';
-  const v2Assets = (snapshot.assetLibrary?.assets?.length ?? 0) + currentAssemblyLibrary(snapshot).assets.length;
+  const v2Assets = (snapshot.assetLibrary?.assets?.length ?? 0) + currentAssemblyLibrary(snapshot).assets.length + currentClipLibrary(snapshot).assets.length;
   const roomVariants = snapshot.roomLibrary?.variants?.length ?? snapshot.rooms.length;
   const pendingProposals = (snapshot.assetLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0)
     + (snapshot.roomLibrary?.proposals?.filter(({ state: proposalState }) => proposalState === 'PENDING').length ?? 0)
-    + currentAssemblyLibrary(snapshot).proposals.filter(proposal => proposal.status === 'PENDING').length;
+    + currentAssemblyLibrary(snapshot).proposals.filter(proposal => proposal.status === 'PENDING').length
+    + currentClipLibrary(snapshot).proposals.filter(proposal => proposal.status === 'PENDING').length;
   const tasksAvailable = state.tasksAvailability === 'AVAILABLE';
   const taskAttention = tasksAvailable
     ? state.tasks.map((entry) => ({ entry, attention: taskAttentionPresentation(entry) })).filter(({ attention }) => attention)
@@ -2561,7 +2562,7 @@ function renderAnimationReviews() {
     let controller = animationReviewControllers.get(key);
     if (controller && ['idle', 'done'].includes(controller.getState().status) && !controller.getState().intent && proposal.proposalVersion > controller.getState().proposal.proposalVersion) { controller.dispose(); animationReviewControllers.delete(key); controller = null; }
     if (!controller) { controller = createAnimationReviewController({ initial: { projectId, projectRevision: state.project.revision, proposal, currentAsset: getContext().asset }, host: {
-      getContext, resolveCuts: (pins, options) => resolveAnimationCuts(projectId, pins, options),
+      getContext, canRead: animationSupported, canMutate: animationCanMutate, resolveCuts: (pins, options) => resolveAnimationCuts(projectId, pins, options),
       resolveDecision: (intent, options) => animationPost(`${animationPath(projectId)}/clip-proposals/${encodeURIComponent(intent.proposalId)}/resolve`, intent, options),
       refresh: () => loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }),
       onSaved: () => loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }),
@@ -6037,6 +6038,8 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
     resetSourceIntakeForm();
   }
   state.project = project;
+  const selectedProjectOption = [...elements['project-select'].options].find(option => option.value === projectId);
+  if (selectedProjectOption) selectedProjectOption.textContent = `${project.snapshot.project.name} · r${project.revision}`;
   state.activity = Array.isArray(activity?.events) ? activity.events : [];
   reconcileAssetUi(project, previousAssetContext);
   reconcileRoomUi(project);

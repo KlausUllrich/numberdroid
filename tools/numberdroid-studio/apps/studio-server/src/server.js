@@ -63,6 +63,7 @@ import {
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const publicDirectory = resolve(moduleDirectory, '../public');
 const staticFiles = new Map([
+  ['/packages/domain/src/validation.js', ['../../../packages/domain/src/validation.js', 'text/javascript; charset=utf-8']],
   ['/packages/domain/src/clip-normalization.js', ['../../../packages/domain/src/clip-normalization.js', 'text/javascript; charset=utf-8']],
   ['/packages/domain/src/clip-playback.js', ['../../../packages/domain/src/clip-playback.js', 'text/javascript; charset=utf-8']],
   ['/assembly-review-view.js', ['../public/assembly-review-view.js', 'text/javascript; charset=utf-8']],
