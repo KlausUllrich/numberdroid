@@ -15,7 +15,7 @@ export function createAssemblyEditorState(initial) {
   return { instanceId: initial.instanceId ?? crypto.randomUUID(), context: { projectId: initial.projectId, projectRevision: initial.projectRevision,
     assetId: asset?.assetId ?? initial.assetId ?? `assembly.${crypto.randomUUID()}`, assetVersion: asset?.assetVersion ?? 0, metadataVersion: asset?.metadataVersion ?? 0 },
     model, savedModel: copy(model), assets: copy(initial.assets ?? []), scene: null, selectedComponentId: model.assembly.components[0]?.componentId ?? null,
-    preview: { stateId: model.assembly.defaultStateId, variantId: model.assembly.defaultVariantId }, hidden: [], view: 'edit', panel: 'component',
+    preview: { stateId: model.assembly.defaultStateId, variantId: model.assembly.defaultVariantId }, hidden: [], showBlocking: true, view: 'edit', panel: 'component',
     zoom: 'fit', scale: 1, frame: null, grid: { show: true, snap: false, step: 16 }, gridOpen: false, pickerOpen: false, pickerSearch: '', pickerPurpose: 'add',
     history: { past: [], future: [] }, fieldDrafts: {}, customDraft: null, customInitialized: model.assembly.blocking.mode === 'custom' || model.assembly.blocking.regions.length > 0,
     save: { status: 'idle', intent: null }, resolution: { status: 'idle', error: null }, error: null, conflict: null, gesture: null, viewContexts: {}, viewGeneration: 0, source: null };

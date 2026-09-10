@@ -306,6 +306,9 @@ function setBackupMutationPending(pending) {
 function setAssetMutationPending(pending) {
   state.assetMutationPending = pending;
   updateMutationControls();
+  for (const control of elements['workspace-content'].querySelectorAll('[data-create-assembly]')) {
+    control.disabled = !assemblyCanMutate();
+  }
   for (const control of elements['workspace-content'].querySelectorAll(
     '[data-asset-filter], [data-proposal-select], [data-proposal-decision], '
       + '[data-proposal-apply], [data-asset-lifecycle], [data-proposal-disposition], '

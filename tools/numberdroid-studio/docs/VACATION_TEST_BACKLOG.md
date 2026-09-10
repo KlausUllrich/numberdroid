@@ -1530,6 +1530,11 @@ test convenience.
 
 - **Status:** implemented candidate, 2026-09-09. Integration, automated evidence
   and Klaus's explicit implementation decision are separate gates.
+- **User feedback:** after PR #229, Klaus requested clearer proposal review and
+  discoverable custom blocking, and noted the missing Brewing animation. The
+  authorized 2026-09-10 correction restores the approved Review/Blocking layout;
+  animation-clip authoring is a separate design step. Accepting the test proposal
+  in his saved project does not accept this editor gate.
 - **Authority:** [Assembly implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md)
   and the approved [Assembly design](ASSEMBLY_EDITOR_DESIGN.md).
 - **Prerequisite:** real adaptive agent discovery, invalid-reference correction,

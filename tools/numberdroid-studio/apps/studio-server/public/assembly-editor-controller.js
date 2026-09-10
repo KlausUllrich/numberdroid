@@ -145,11 +145,17 @@ export function createAssemblyEditorController({ initial, host }) {
     if (n) {
       const key = n.dataset.assemblyField, row = n.dataset.row ?? '';
       if (key.startsWith('preview.')) { if (!requireNumeric()) { n.value = state.preview[key.split('.')[1]]; return; } state.preview[key.split('.')[1]] = n.value; fieldBefore = null; resolveLocal(); render(); return; }
-      if (key === 'blocking-mode') { if (!requireNumeric()) return; try { changeBlocking(n.value); } catch (error) { state.error = error.message; render(); } return; }
+      if (key === 'blocking-mode') {
+        if (n.type === 'radio' && !n.checked) return;
+        if (!requireNumeric()) { for (const input of element.querySelectorAll('[data-assembly-field="blocking-mode"]')) input.checked = input.value === state.model.assembly.blocking.mode; return; }
+        fieldBefore = null; try { changeBlocking(n.value); } catch (error) { state.error = error.message; render(); } return;
+      }
       input(event); if (n.type !== 'number' || (n.value.trim() && Number.isFinite(Number(n.value)))) delete state.fieldDrafts[`${key}:${row}`];
       if (fieldBefore && !key.startsWith('grid.')) remember(fieldBefore); fieldBefore = null; render({ inspector: !Object.keys(state.fieldDrafts).length }); return;
     }
-    const option = event.target.closest('[data-assembly-option]'); if (!option || !requireNumeric()) return; const key = option.dataset.assemblyOption, c = selectedAssemblyComponent(state);
+    const option = event.target.closest('[data-assembly-option]'); if (!option) return; const key = option.dataset.assemblyOption;
+    if (key === 'show-blocking') { state.showBlocking = option.checked; render({ inspector: false }); return; }
+    if (!requireNumeric()) return; const c = selectedAssemblyComponent(state);
     if (key.startsWith('grid.')) { state.grid[key.split('.')[1]] = option.checked; render({ inspector: false }); return; }
     if (!c) return; const before = assemblyEditorSnapshot(state);
     if (key === 'all-states') c.stateIds = option.checked ? null : state.model.assembly.states.map(s => s.stateId);

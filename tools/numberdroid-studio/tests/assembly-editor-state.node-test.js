@@ -93,7 +93,7 @@ async function harness(overrides = {}, lineEnding = null) {
   const source = (lineEnding ? rawSource.replace(/\r?\n/g, lineEnding) : rawSource).replace(/\r\n?/g, '\n');
   const entry = 'return { element,\n    afterMount()'; assert.equal(source.split(entry).length, 2);
   const executable = source.slice(source.indexOf('const copy =')).replace('export function createAssemblyEditorController', 'function createAssemblyEditorController')
-    .replace(entry, 'return { save, checkOutcome, editCustomGeometry, resolveReferences, testState: state, element,\n    afterMount()');
+    .replace(entry, 'return { save, checkOutcome, editCustomGeometry, resolveReferences, change, click, testState: state, element,\n    afterMount()');
   const s = state(), initial = { ...s.context, assets: s.assets, asset: { assetId: s.context.assetId, assetVersion: 0, metadataVersion: 0, ...s.model } };
   const context = { projectId: s.context.projectId, projectRevision: 7 }, pending = [], requests = [], saved = [];
   const host = { getContext: () => context, getNativeAssets: () => s.assets, setMutationPending: value => pending.push(value),
@@ -109,6 +109,52 @@ async function harness(overrides = {}, lineEnding = null) {
 }
 const receipt = intent => ({ projectId: intent.projectId, revision: intent.payload.expectedRevision + 1,
   value: { assetId: intent.assetId, assetVersion: intent.payload.expectedAssetVersion + 1, metadataVersion: 1 } });
+const blockingVisibilityEvent = checked => {
+  const target = { checked, dataset: { assemblyOption: 'show-blocking' }, closest: selector => selector === '[data-assembly-option]' ? target : null }; return { target };
+};
+const blockingModeEvent = (value, checked = true) => {
+  const target = { value, checked, type: 'radio', dataset: { assemblyField: 'blocking-mode' }, closest: selector => selector === '[data-assembly-field]' ? target : null }; return { target };
+};
+const actionEvent = assemblyAction => {
+  const target = { dataset: { assemblyAction }, closest: selector => selector === '[data-assembly-action]' ? target : null }; return { target };
+};
+
+test('Show blocking is inspection only and survives source and embedded returns without changing history, findings or saved bytes', async () => {
+  const sessions = [], retained = { polygonDraft: [{ x: 3, y: 8 }, { x: 9, y: 12 }], fieldDrafts: { 'region.width': '' }, history: { past: [{ retained: true }], future: [] } };
+  const h = await harness({ editCustomGeometry: async ({ draft }) => { sessions.push(structuredClone(draft)); return { regions: draft.regions, session: retained, issues: ['Close the unfinished polygon.'] }; } });
+  const before = h.controller.getState(), saved = buildAssemblyEditorSave(before, 'save.inspection');
+  assert.equal(before.showBlocking, true);
+  h.controller.change(blockingVisibilityEvent(false)); const hidden = h.controller.getState();
+  assert.equal(hidden.showBlocking, false); assert.deepEqual(hidden.model, before.model); assert.deepEqual(hidden.history, before.history);
+  assert.deepEqual(hidden.scene, before.scene); assert.deepEqual(hidden.context, before.context); assert.equal(assemblyEditorDirty(hidden), false);
+  assert.equal(buildAssemblyEditorSave(hidden, 'save.inspection').serialized, saved.serialized); assert.deepEqual(assemblyEditorIssues(hidden), assemblyEditorIssues(before));
+  await h.controller.click(actionEvent('source')); assert.equal(h.controller.getState().view, 'source');
+  await h.controller.click(actionEvent('return-source')); assert.equal(h.controller.getState().view, 'edit'); assert.equal(h.controller.getState().showBlocking, false);
+  await h.controller.editCustomGeometry(); assert.equal(h.controller.getState().showBlocking, false);
+  const unfinished = h.controller.getState(); h.controller.change(blockingVisibilityEvent(true)); h.controller.change(blockingVisibilityEvent(false));
+  assert.deepEqual(h.controller.getState().customDraft, unfinished.customDraft); assert.deepEqual(h.controller.getState().history, unfinished.history);
+  assert.deepEqual(assemblyEditorIssues(h.controller.getState()), assemblyEditorIssues(unfinished));
+  await h.controller.editCustomGeometry(); assert.deepEqual(sessions[1].session, retained); assert.equal(h.controller.getState().showBlocking, false);
+  h.controller.testState.fieldDrafts['position.x:'] = ''; const raw = h.controller.getState();
+  h.controller.change(blockingVisibilityEvent(true)); assert.equal(h.controller.getState().showBlocking, true);
+  assert.deepEqual(h.controller.getState().fieldDrafts, raw.fieldDrafts); assert.deepEqual(h.controller.getState().history, raw.history);
+  assert.deepEqual(h.controller.getState().model, raw.model); assert.deepEqual(assemblyEditorIssues(h.controller.getState()), assemblyEditorIssues(raw));
+  assert.equal(h.requests.length, 0); assert.deepEqual(h.pending, []); h.controller.dispose();
+});
+
+test('visible blocking radios change only the selected mode and keep custom work when switching back', async () => {
+  const h = await harness(), before = h.controller.getState();
+  h.controller.change(blockingModeEvent('custom', false)); assert.deepEqual(h.controller.getState().model, before.model);
+  h.controller.change(blockingModeEvent('custom')); const custom = h.controller.getState();
+  assert.equal(custom.model.assembly.blocking.mode, 'custom'); assert.equal(custom.model.assembly.blocking.regions.length, before.scene.regions.length);
+  assert.equal(custom.history.past.length, before.history.past.length + 1);
+  h.controller.change(blockingModeEvent('custom')); assert.equal(h.controller.getState().history.past.length, custom.history.past.length);
+  h.controller.testState.customDraft = { session: { polygonDraft: [{ x: 3, y: 8 }, { x: 9, y: 12 }], fieldDrafts: {} }, issues: ['Close the unfinished polygon.'] };
+  const retained = h.controller.getState().customDraft;
+  h.controller.change(blockingModeEvent('components')); h.controller.change(blockingModeEvent('custom'));
+  assert.deepEqual(h.controller.getState().customDraft, retained); assert.deepEqual(h.controller.getState().model.assembly.blocking.regions, custom.model.assembly.blocking.regions);
+  assert.throws(() => buildAssemblyEditorSave(h.controller.getState(), 'save.unfinished'), /unfinished polygon/); assert.equal(h.requests.length, 0); h.controller.dispose();
+});
 
 test('controller recovery checks execute with both LF and CRLF source checkouts', async () => {
   for (const lineEnding of ['\n', '\r\n']) {
