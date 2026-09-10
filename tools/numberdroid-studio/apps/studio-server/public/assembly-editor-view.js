@@ -122,7 +122,7 @@ function updateSelectors(root, state) {
     panel.replaceChildren(choice('preview.variantId', state.preview.variantId, 'Variant preview', a.variants.map(v => [v.variantId, v.name])), choice('preview.stateId', state.preview.stateId, 'State preview', a.states.map(s => [s.stateId, s.name])), button(state.previewPlaying ? 'Pause animations' : 'Play animations', 'playback'), note('Playback and state selection are inspection only. The game controls behavior.'));
     panel.dataset.signature = signature;
   }
-  const play = panel.querySelector('[data-assembly-action="playback"]'); if (play) play.textContent = state.previewPlaying ? 'Pause animations' : 'Play animations';
+  const play = panel.querySelector('[data-assembly-action="playback"]'); if (play) { play.textContent = state.previewPlaying ? 'Pause animations' : 'Play animations'; play.hidden = !state.scene?.elements.some(item => item.contentKind === 'animation'); }
   for (const field of panel.querySelectorAll('select')) field.value = state.preview[field.dataset.assemblyField.split('.')[1]];
 }
 export function syncAssemblyEditorCanvas(root, state) {

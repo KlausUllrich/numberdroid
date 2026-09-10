@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { validatePortableProjectDocument } from '../packages/persistence/src/bundle/project-bundle.js';
+import { nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
 import { assemblyFixture, projectId, owner } from './assembly-test-helpers.js';
-import { SqliteJobStore, SqliteArtifactMetadataStore, verifyWorkspaceIntegrity } from '../packages/persistence/src/index.js';
+import { SqliteJobStore, SqliteArtifactMetadataStore, verifyWorkspaceIntegrity, createSqliteProjectBundle, importSqliteProjectBundle,
+  projectSqlitePortableDocument, SqliteProjectStore, ContentAddressedArtifactStore } from '../packages/persistence/src/index.js';
 import { AtlasPreviewWorker } from '../apps/studio-server/src/atlas-preview-worker.js';
 import { resolveHistoricalSliceBinding } from '../packages/application/src/exact-cut-history.js';
 import { validateSliceRevisionJobInput } from '../packages/application/src/slice-revision-service.js';
@@ -185,4 +190,52 @@ test('invalid crop and exhausted job budget do not save revisions', async t => {
   assert.equal(reuse.value.status, 'REUSED');
   const grant = (await f.studio.readProjectTrusted(projectId)).snapshot.grants[0];
   assert.deepEqual(grant.usage, { commands: 1, jobs: 0, artifactBytes: 0, costCents: 0 });
+});
+
+
+test('cut-only history uses canonical portable v6 without inventing clip or assembly content', async t => {
+  const { f, payload } = await setup(t);
+  await f.execute('slice.revision.prepare', payload); await drain(f);
+  await f.execute('slice.revision.commit', { sliceId: payload.sliceId, expectedSliceVersion: 2, expectedAtlasVersion: 2, jobId: payload.jobId });
+  const portable = projectSqlitePortableDocument({ projectStore: f.store, projectId }).project;
+  assert.equal(portable.schemaVersion, 6); assert.equal(portable.clipLibrary, null); assert.equal(portable.assemblyLibrary, null);
+  for (const uri of ['file:///tmp/pixels.png', 'https://example.com/pixels.png', `studio://artifacts/sha256/${'0'.repeat(64)}`]) {
+    const altered = structuredClone(portable);
+    altered.appliedJobHistory.find(job => job.input.schemaVersion === 2).input.revision.sourceBinding.artifactUri = uri;
+    assert.throws(() => validatePortableProjectDocument(altered), error => error.code === 'BUNDLE_MACHINE_LOCATION_FORBIDDEN');
+  }
+  const hidden = structuredClone(portable); hidden.projectHead.description = 'studio://artifacts/sha256/' + portable.artifactDigests[0];
+  assert.throws(() => validatePortableProjectDocument(hidden), error => error.code === 'BUNDLE_MACHINE_LOCATION_FORBIDDEN');
+  const bundleDirectory = join(f.root, 'cut-bundle'), destinationDirectory = join(f.root, 'cut-import');
+  await createSqliteProjectBundle({ destinationDirectory: bundleDirectory, projectStore: f.store, artifactStore: f.artifacts, projectId });
+  await importSqliteProjectBundle({ bundleDirectory, destinationDirectory, databaseFactory: nodeSqliteDatabaseFactory }).catch(error => { assert.fail(`${error.code}: ${JSON.stringify(error.details)}`); });
+  const imported = await SqliteProjectStore.open({ filename: join(destinationDirectory, 'studio.sqlite'), databaseFactory: nodeSqliteDatabaseFactory });
+  const artifacts = new ContentAddressedArtifactStore({ rootDirectory: join(destinationDirectory, 'artifacts') });
+  try {
+    const integrity = await verifyWorkspaceIntegrity({ projectStore: imported, artifactStore: artifacts });
+    assert.equal(integrity.ok, true, JSON.stringify(integrity));
+    const second = join(f.root, 'cut-reexport');
+    await createSqliteProjectBundle({ destinationDirectory: second, projectStore: imported, artifactStore: artifacts, projectId });
+    for (const name of ['project.json', 'manifest.json']) assert.deepEqual(await readFile(join(second, name)), await readFile(join(bundleDirectory, name)));
+  } finally { imported.close(); }
+});
+
+test('a non-null cut pivot and padding are retained, and incompatible narrowing is rejected', async t => {
+  const { f, payload } = await setup(t);
+  const original = atlas(await f.studio.readProjectTrusted(projectId));
+  const rectangles = original.rectangles.map((rect, index) => index === 0
+    ? { ...rect, name: 'Pivot cut', pivot: { x: 7, y: 7 }, expectedSliceVersion: 2 }
+    : { ...rect, included: false, replacesSliceId: null, expectedSliceVersion: null });
+  const def = await f.execute('atlas.define.rects', { atlasId: original.id, sourceId: original.sourceId, name: original.name, expectedAtlasVersion: 2, rectangles });
+  const ordinary = { atlasId: original.id, expectedAtlasVersion: 3, expectedDefinitionFingerprint: def.value.definitionFingerprint, jobId: 'job.pivot-source' };
+  await f.execute('atlas.preview.slices', ordinary); await drain(f); await f.execute('atlas.commit.slices', ordinary);
+  const before = await f.studio.readProjectTrusted(projectId);
+  const input = { ...payload, sourceSliceVersion: 3, expectedSliceVersion: 3, expectedAtlasVersion: 3, name: 'Pivot retained' };
+  await assert.rejects(f.execute('slice.revision.prepare', input), error => error.code === 'ATLAS_RECT_INVALID');
+  assert.deepEqual(await f.studio.readProjectTrusted(projectId), before);
+  await f.execute('slice.revision.prepare', { ...input, rectangle: { x: 0, y: 0, width: 8, height: 15 } });
+  await drain(f);
+  const committed = await f.execute('slice.revision.commit', { sliceId: payload.sliceId, expectedSliceVersion: 3, expectedAtlasVersion: 3, jobId: payload.jobId });
+  assert.deepEqual(committed.value.sliceBinding.rectangle.pivot, { x: 7, y: 7 });
+  assert.equal(committed.value.sliceBinding.rectangle.transparentPaddingPolicy, 'preserve_exact_rect');
 });

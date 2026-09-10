@@ -160,6 +160,7 @@ export function createAgentToolCatalog(studioService, {
     execute: async (input, invocationContext) => {
       const context = await authority(invocationContext, input.projectId);
       if ((definition.requiresAssemblyProfile || definition.requiresAnimationProfile) && input.projectId !== surfaceProject) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Assembly submission must use the negotiated project.');
+      if (!animationReady && input.payload?.assembly?.schemaVersion === 2) throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'Assembly v2 requires animation-v1.');
       const targetService = definition.requiresTaskBranch && agentTaskService ? agentTaskService : studioService;
       return targetService.execute({
         schemaVersion: input.schemaVersion,

@@ -49,10 +49,17 @@ export function inspectSliceRevisionIntegrity(database) {
   for (const row of database.prepare('SELECT project_id, revision_number, command_type, revision_json FROM revisions ORDER BY project_id, revision_number').all()) {
     let revision;
     try { revision = JSON.parse(row.revision_json); } catch { continue; }
-    if (!isSliceRevisionCommand(row.command_type) && !isSliceRevisionCommand(revision.command?.type)) continue;
+    if (!isSliceRevisionCommand(row.command_type) && !isSliceRevisionCommand(revision?.command?.type)) continue;
     count += 1;
     try {
       invariant(row.command_type === revision.command.type, 'SLICE_REVISION_COMMAND_MISMATCH', 'Cut revision SQL and JSON command types differ.');
+      const imported = revision.command.commandId === `bundle-import.command.${row.revision_number}`
+        && revision.command.fingerprint === fingerprint({ provenance: 'bundle_import', revision: row.revision_number });
+      if (imported) {
+        invariant(database.prepare('SELECT 1 FROM bundle_imports WHERE project_id=? AND imported_revision>=?').get(row.project_id, row.revision_number),
+          'SLICE_REVISION_IMPORT_INVALID', 'Imported cut history lacks its reserved non-authorizing bundle provenance.');
+        continue;
+      }
       validateSliceRevision(database, row.project_id, revision, { integrity: true });
     } catch (error) { findings.push({ projectId: row.project_id, revision: row.revision_number, code: error.code ?? 'SLICE_REVISION_INVALID', message: error.message }); }
   }

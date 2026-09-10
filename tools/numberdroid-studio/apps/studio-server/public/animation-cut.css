@@ -1,0 +1,18 @@
+.animation-cut-editor { border:1px solid #426657; border-radius:14px; background:#172a23; padding:24px; color:#e0eee6; }
+.animation-cut-header,.animation-cut-footer { display:flex; justify-content:space-between; align-items:flex-start; gap:24px; }
+.animation-cut-header h2 { margin:0 0 10px; }.animation-cut-note { font-size:13px; line-height:1.55; color:#b1c5b8; }
+.animation-cut-status { box-sizing:border-box; height:76px; overflow:auto; margin:16px 0; padding:12px; background:#244032; border-left:3px solid #9cccac; }
+.animation-cut-status[data-error="true"] { background:#493e29; border-color:#e6bd78; }.animation-cut-recovery { display:flex; flex-wrap:wrap; gap:8px; min-height:42px; margin-bottom:12px; }
+.animation-cut-layout { display:grid; grid-template-columns:76px minmax(0,1fr) 290px; gap:16px; align-items:start; }.animation-cut-main { min-width:0; }
+.animation-cut-tools { display:flex; flex-direction:column; gap:8px; padding:8px; border:1px solid #426657; border-radius:10px; }.animation-cut-tools button { min-height:44px; padding:8px 3px; }
+.animation-cut-zoom { display:flex; align-items:center; gap:10px; height:40px; margin-bottom:10px; }.animation-cut-zoom input { flex:1; min-width:50px; }.animation-cut-zoom output { min-width:84px; font-size:12px; text-align:right; }
+.animation-cut-viewport { height:clamp(360px,55vh,620px); overflow:auto; scrollbar-gutter:stable both-edges; border:1px solid #426657; border-radius:10px; background:#102019; }
+.animation-cut-stage { display:flex; align-items:center; justify-content:center; min-width:100%; min-height:100%; width:max-content; height:max-content; }.animation-cut-stage svg { display:block; flex:none; touch-action:none; image-rendering:pixelated; }
+.animation-cut-box { fill:#b9cf6222; stroke:#e4e09b; stroke-width:1.5px; vector-effect:non-scaling-stroke; cursor:move; }.animation-cut-handle { fill:#e3edc1; stroke:#254f40; stroke-width:1.5px; vector-effect:non-scaling-stroke; }
+.animation-cut-inspector { border:1px solid #426657; border-radius:10px; padding:16px; max-height:calc(80vh); overflow:auto; scrollbar-gutter:stable; box-sizing:border-box; }.animation-cut-inspector h3 { font-size:16px; margin:8px 0 14px; }
+.animation-cut-field { display:flex; flex-direction:column; gap:7px; margin-bottom:14px; font-size:13px; color:#bed0c3; }.animation-cut-field input,.animation-cut-field select { box-sizing:border-box; min-width:0; width:100%; min-height:38px; border:1px solid #567461; border-radius:7px; color:#e0eee6; background:#14271e; padding:8px; }
+.animation-cut-coordinates { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }.animation-cut-inspector>.primary { width:100%; margin-top:8px; }
+.animation-cut-result { display:flex; align-items:center; gap:18px; min-height:144px; }.animation-cut-result>svg { width:180px; height:140px; flex:none; overflow:hidden; background:#102019; image-rendering:pixelated; border:1px solid #426657; border-radius:8px; }.animation-cut-result h3 { margin:0; font-size:16px; }
+.animation-cut-footer { margin-top:22px; padding-top:18px; border-top:1px solid #426657; align-items:center; }
+@media(max-width:1100px) { .animation-cut-editor { padding:16px; }.animation-cut-layout { grid-template-columns:66px minmax(0,1fr) 250px; gap:12px; }.animation-cut-result>svg { width:130px; } }
+@media(max-width:760px) { .animation-cut-layout { grid-template-columns:56px minmax(0,1fr); }.animation-cut-inspector { grid-column:2; max-height:none; }.animation-cut-header { flex-wrap:wrap; } }

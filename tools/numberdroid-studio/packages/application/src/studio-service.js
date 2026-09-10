@@ -2389,6 +2389,7 @@ export class StudioService {
     if (definition.requiresDurableAssemblyStore) {
       invariant(this.durableAssemblyStoreReady && this.#store.isTaskBranchStore !== true, 'ASSEMBLY_STORE_DISABLED', 'Assembly authoring requires the shared-head SQLite v16 store.');
     }
+    if (command.payload?.assembly?.schemaVersion === 2) invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Assembly animation content requires the shared-head SQLite v17 store.');
     if (definition.requiresDurableClipStore) invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Animation authoring requires the shared-head SQLite v17 store.');
     if (definition.requiresDurableRoomStore) {
       invariant(
@@ -2629,13 +2630,14 @@ export class StudioService {
     signal?.throwIfAborted();
     invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId: normalizedRequest.projectId });
     const head = headRevision(document);
+    const job = this.#jobStore.get(normalizedRequest.projectId, normalizedRequest.jobId);
+    const actualScope = requiredScope === 'atlas.write' && job?.input?.schemaVersion === 2 && job.input.operation === 'slice.revision' ? 'slice.revision.prepare' : requiredScope;
     assertAuthorized(
       { ...executionContext, projectId: normalizedRequest.projectId, type: requiredScope === 'project.read' ? 'project.read' : 'job.operation' },
       head.snapshot,
-      { ownerOnly: false, requiredScope },
+      { ownerOnly: false, requiredScope: actualScope },
       this.#clock(),
     );
-    const job = this.#jobStore.get(normalizedRequest.projectId, normalizedRequest.jobId);
     invariant(job, 'JOB_NOT_FOUND', 'The job does not exist.', { projectId: normalizedRequest.projectId, jobId: normalizedRequest.jobId });
     assertJobOriginAuthority(job, executionContext, head.snapshot);
     return { request: normalizedRequest, job, head };

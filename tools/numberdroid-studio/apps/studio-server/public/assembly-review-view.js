@@ -93,8 +93,8 @@ export function createAssemblyReviewController({ initial, host }) {
       for (const choice of choices) { const option = node('option', choice.name); option.value = choice[id]; select.append(option); }
       select.value = state.selection[key]; select.disabled = locked; label.append(select); selectors.append(label);
     }
-    const play = node('button', state.previewPlaying ? 'Pause animations' : 'Play animations', 'secondary'); play.type = 'button'; play.dataset.assemblyReviewAction = 'playback'; play.dataset.assemblyReviewFocus = 'playback'; selectors.append(play);
-    visual.append(toolbar, preview, selectors, node('p', 'Preview only · saved content stays unchanged until acceptance.', 'assembly-review-caption'));
+    const play = node('button', state.previewPlaying ? 'Pause animations' : 'Play animations', 'secondary'); play.type = 'button'; play.dataset.assemblyReviewAction = 'playback'; play.dataset.assemblyReviewFocus = 'playback'; const hasAnimation = [state.scene, state.currentScene].some(scene => scene?.elements.some(item => item.contentKind === 'animation')); if (hasAnimation) selectors.append(play);
+    visual.append(toolbar, preview, selectors, node('p', hasAnimation ? `${state.previewPlaying ? 'Animation playback' : 'Animations paused'} · read-only preview. Saved content stays unchanged until acceptance.` : 'Preview only · saved content stays unchanged until acceptance.', 'assembly-review-caption'));
     const changePanel = node('aside', '', 'assembly-review-changes'); changePanel.dataset.assemblyReviewChanges = '';
     changePanel.append(node('p', state.proposal.content.operation === 'create' ? 'New Assembly' : 'What changes', 'assembly-review-eyebrow'), node('h4', changes.headline));
     const list = node('ul', '', 'assembly-review-change-list'); list.dataset.assemblyReviewScroll = 'changes';

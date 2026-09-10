@@ -1,3 +1,7 @@
+import { createAnimationEditorController } from './animation-editor-controller.js';
+import { createAnimationCutController } from './animation-cut-controller.js';
+import { renderAnimationCard } from './animation-library-view.js';
+import { createAnimationReviewController } from './animation-review-view.js';
 import { resolveAssetSpatialGeometry, transformAssetSpatialGeometry, shapeIntersectsRect, classifyBlockingPair } from './asset-spatial-geometry.js';
 import { createAssetEditorController } from './asset-editor-controller.js';
 import { createAssemblyEditorController } from './assembly-editor-controller.js';
@@ -62,6 +66,7 @@ const state = {
   pendingAgentAccess: null,
   hostBindingSupport: 'SQLITE_REQUIRED',
   assemblyAuthoringSupport: 'UNAVAILABLE',
+  clipAuthoringSupport: 'UNAVAILABLE',
   hostBindings: [],
   pendingHosts: [],
   mcpLauncherConfig: null,
@@ -1998,6 +2003,7 @@ function renderSources(items) {
     sourceCard.append(actions); grid.append(sourceCard);
   }
   fragment.append(sectionHeading('Source library', 'Original CAS previews are displayed without derivative processing.'), grid);
+  if (animationSupported() && currentProjectSlices().length) fragment.append(renderSliceVocabulary());
   return fragment;
 }
 
@@ -2452,6 +2458,122 @@ function createAssetFromSliceButton(slice) {
   return button;
 }
 
+let activeAnimationEditor = null;
+let activeAnimationCut = null;
+let animationReturnContext = null;
+let animationOpenGeneration = 0;
+const animationReads = new Map();
+const animationReviewControllers = new Map();
+function currentClipLibrary(snapshot = state.project?.snapshot) { return snapshot?.clipLibrary ?? { assets: [], proposals: [] }; }
+function animationSupported() { return state.uiMode === 'local' && state.clipAuthoringSupport === 'AVAILABLE'; }
+function animationCanMutate() { return animationSupported() && assemblyCanMutate(); }
+function animationCurrentContext(editor) { return { projectId: state.project?.projectId, projectRevision: state.project?.revision, asset: currentClipLibrary().assets.find(asset => asset.assetId === editor?.getState().context.assetId) ?? null }; }
+const animationPath = projectId => `/api/projects/${encodeURIComponent(projectId)}`;
+const animationPost = (path, intent, { signal } = {}) => api(path, { method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: intent.serialized ?? JSON.stringify(intent.payload), signal });
+async function readAnimationCut(projectId, pin, { signal } = {}) {
+  const result = await api(`${animationPath(projectId)}/slices/${encodeURIComponent(pin.sliceId)}/versions/${pin.sliceVersion}`, { signal: AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(8000)]) });
+  if (result.projectId !== projectId || result.binding?.projectId !== projectId || result.binding.sliceId !== pin.sliceId || result.binding.sliceVersion !== pin.sliceVersion) throw new Error('The exact saved cut could not be confirmed.');
+  return result;
+}
+async function resolveAnimationCuts(projectId, pins, options = {}) {
+  const result = [];
+  // Bound reads while retaining frame order. Shared references are already deduplicated by the editor.
+  for (let index = 0; index < pins.length; index += 8) result.push(...await Promise.all(pins.slice(index, index + 8).map(pin => readAnimationCut(projectId, pin, options))));
+  return result.map(value => value.binding);
+}
+function readAnimationDetail(asset, { retry = false } = {}) {
+  const projectId = state.project.projectId, revision = state.project.revision, key = `${projectId}@${revision}:${asset.assetId}@${asset.assetVersion}:${asset.metadataVersion}`;
+  const old = animationReads.get(key); if (old && (!retry || old.status !== 'failed')) return old.promise;
+  const controller = new AbortController(), entry = { controller, status: 'loading', record: null, promise: null };
+  entry.promise = api(`${animationPath(projectId)}/clips/${encodeURIComponent(asset.assetId)}?assetVersion=${asset.assetVersion}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]) }).then(value => {
+    const record = value.assets?.[0];
+    if (value.projectId !== projectId || value.revision !== revision || record?.assetId !== asset.assetId || record.assetVersion !== asset.assetVersion || record.metadataVersion !== asset.metadataVersion || !Array.isArray(record.frameBindings)) throw new Error('The saved Animation changed. Refresh and reopen it.');
+    entry.status = 'ready'; entry.record = record; return record;
+  }).catch(error => { entry.status = 'failed'; throw error; });
+  animationReads.set(key, entry);
+  while (animationReads.size > 64) { const first = animationReads.keys().next().value; animationReads.get(first).controller.abort(); animationReads.delete(first); }
+  return entry.promise;
+}
+function animationLibraryCard(asset) {
+  const projectId = state.project.projectId, revision = state.project.revision, card = renderAnimationCard({ asset, projectId });
+  if (animationSupported()) queueMicrotask(() => { if (!card.isConnected) return; void readAnimationDetail(asset).then(record => {
+    if (card.isConnected && !card.contains(document.activeElement) && state.project?.projectId === projectId && state.project.revision === revision) card.replaceWith(renderAnimationCard({ asset: record, projectId }));
+  }).catch(() => {}); });
+  return card;
+}
+function returnFromAnimation(editor) {
+  if (activeAnimationEditor !== editor) return;
+  const saved = animationReturnContext; editor.dispose(); activeAnimationEditor = null; animationReturnContext = null;
+  renderWorkspace(); requestAnimationFrame(() => { if (activeAnimationEditor || state.workspace !== saved?.workspace) return; restoreAssetDomState(); window.scrollTo(saved.x, saved.y); });
+}
+async function editAnimationCut(editor, { frame, binding, session, clip }) {
+  const projectId = editor.getState().context.projectId, revision = editor.getState().context.projectRevision;
+  const sourceContext = await readAnimationCut(projectId, frame.slice);
+  if (activeAnimationEditor !== editor || state.project?.projectId !== projectId || state.project.revision !== revision || sourceContext.revision !== revision) throw new Error('The project changed. Recheck your retained Animation before editing its cut.');
+  return new Promise((resolve) => {
+    let cut;
+    const mutate = async (path, intent, options) => {
+      const receipt = await animationPost(path, intent, options);
+      await loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => activeAnimationEditor === editor });
+      return receipt;
+    };
+    cut = createAnimationCutController({ initial: { projectId, projectRevision: revision, frameId: frame.frameId, binding, sourceContext, matchingCount: clip.frames.filter(value => value.slice.sliceId === frame.slice.sliceId).length, session }, host: {
+      getContext: () => ({ projectId: state.project?.projectId, projectRevision: state.project?.revision }),
+      readCutContext: (pin, options) => readAnimationCut(projectId, pin, options),
+      prepareCut: (intent, options) => mutate(`${animationPath(projectId)}/slices/${encodeURIComponent(intent.sliceId)}/revision-preview`, intent, options),
+      commitCut: (intent, options) => mutate(`${animationPath(projectId)}/slice-revisions/${encodeURIComponent(intent.jobId)}/commit`, intent, options),
+      readJob: (jobId, { signal } = {}) => api(`${animationPath(projectId)}/jobs/${encodeURIComponent(jobId)}`, { signal }),
+      ...Object.fromEntries(['cancel', 'retry', 'discard'].map(action => [`${action}Job`, (intent, options) => animationPost(`${animationPath(projectId)}/jobs/${encodeURIComponent(intent.jobId)}/${action}`, intent, options)])),
+      setMutationPending: setAssetMutationPending, announce: showToast,
+      onBack: result => { if (activeAnimationEditor !== editor || activeAnimationCut !== cut) return; activeAnimationCut = null; cut.dispose(); elements['workspace-content'].replaceChildren(editor.element); resolve(result); },
+    } });
+    activeAnimationCut = cut; elements['workspace-content'].replaceChildren(cut.element); cut.afterMount();
+  });
+}
+async function openAnimationEditor({ asset = null, pins = [], trigger = null } = {}) {
+  if (!animationCanMutate() || !mayAbandonAssetAuthoring()) return;
+  const generation = ++animationOpenGeneration, projectId = state.project.projectId, revision = state.project.revision, workspace = state.workspace;
+  const saved = { workspace, x: window.scrollX, y: window.scrollY, focus: trigger?.dataset.assetFocusKey ?? null }; captureAssetDomState();
+  let record, bindings;
+  try { [record, bindings] = await Promise.all([asset ? readAnimationDetail(asset, { retry: true }) : null, resolveAnimationCuts(projectId, pins)]); }
+  catch (error) { if (generation === animationOpenGeneration) showToast(error.message); return; }
+  if (generation !== animationOpenGeneration || state.project?.projectId !== projectId || state.project.revision !== revision || state.workspace !== workspace) return;
+  let editor;
+  editor = createAnimationEditorController({ initial: { projectId, projectRevision: revision, asset: record, selectedSlices: bindings }, host: {
+    getContext: () => animationCurrentContext(editor), getSavedCuts: () => currentProjectSlices().map(({ slice }) => ({ ...slice, name: savedSliceLabel(slice), sliceVersion: slice.version })),
+    resolveCuts: (cuts, options) => resolveAnimationCuts(projectId, cuts, options),
+    saveClip: (intent, options) => animationPost(`${animationPath(projectId)}/clips/${encodeURIComponent(intent.assetId)}/save`, intent, options),
+    readSavedOutcome: (_intent, { signal } = {}) => loadProject(projectId, { signal, canApply: () => activeAnimationEditor === editor }),
+    onSaved: () => loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => activeAnimationEditor === editor }),
+    editCut: options => editAnimationCut(editor, options), onBack: () => returnFromAnimation(editor),
+    setMutationPending: setAssetMutationPending, announce: showToast, confirmDiscard: message => window.confirm(message),
+  } });
+  activeAnimationEditor = editor; animationReturnContext = saved; elements['workspace-content'].replaceChildren(editor.element); editor.afterMount();
+}
+function renderAnimationReviews() {
+  const fragment = document.createDocumentFragment(), library = currentClipLibrary();
+  const pending = library.proposals.filter(proposal => ['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
+  for (const controller of animationReviewControllers.values()) { const review = controller.getState(); if (review.projectId === state.project.projectId && ['saving', 'uncertain'].includes(review.status) && !pending.some(proposal => proposal.proposalId === review.proposal.proposalId)) pending.push(review.proposal); }
+  if (pending.length) fragment.append(sectionHeading('Animation proposals', 'Compare the saved and proposed frames. Your feedback returns to the agent; acceptance saves the Animation.'));
+  for (const proposal of pending) {
+    const projectId = state.project.projectId, key = `${projectId}:${proposal.proposalId}`;
+    const getContext = () => ({ projectId: state.project?.projectId, projectRevision: state.project?.revision, proposal: currentClipLibrary().proposals.find(value => value.proposalId === proposal.proposalId), asset: currentClipLibrary().assets.find(value => value.assetId === proposal.content.assetId) ?? null });
+    let controller = animationReviewControllers.get(key);
+    if (controller && ['idle', 'done'].includes(controller.getState().status) && !controller.getState().intent && proposal.proposalVersion > controller.getState().proposal.proposalVersion) { controller.dispose(); animationReviewControllers.delete(key); controller = null; }
+    if (!controller) { controller = createAnimationReviewController({ initial: { projectId, projectRevision: state.project.revision, proposal, currentAsset: getContext().asset }, host: {
+      getContext, resolveCuts: (pins, options) => resolveAnimationCuts(projectId, pins, options),
+      resolveDecision: (intent, options) => animationPost(`${animationPath(projectId)}/clip-proposals/${encodeURIComponent(intent.proposalId)}/resolve`, intent, options),
+      refresh: () => loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }),
+      onSaved: () => loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }),
+      setMutationPending: setAssetMutationPending, announce: showToast,
+    } }); animationReviewControllers.set(key, controller); }
+    controller.reconcileContext(); fragment.append(controller.element); queueMicrotask(() => { if (controller.element.isConnected) controller.afterMount(); });
+  }
+  const completed = library.proposals.filter(proposal => !['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
+  if (completed.length) { const history = document.createElement('details'), summary = document.createElement('summary'); summary.textContent = `Completed Animation reviews (${completed.length})`; history.append(summary); for (const proposal of completed) { const row = document.createElement('p'); row.textContent = `${proposal.content.name} · ${proposal.status}`; history.append(row); } fragment.append(history); }
+  return fragment;
+}
+
 let activeAssetEditor = null;
 let assetEditorDeferredRender = false;
 let assetEditorReturnContext = null;
@@ -2560,7 +2682,7 @@ async function openAssemblyEditor({ asset = null, trigger = null } = {}) {
   let editor;
   const leafMap = new Map([...currentAssetLibrary().assets, ...(record?.leafAssets ?? [])].map(leaf => [`${leaf.assetId}@${leaf.assetVersion}:${leaf.metadataVersion}`, leaf]));
   editor = createAssemblyEditorController({ initial: { projectId, projectRevision: revision, asset: record, assets: [...leafMap.values()] }, host: {
-    getContext: () => assemblyCurrentContext(editor), getNativeAssets: () => currentAssetLibrary().assets,
+    getContext: () => assemblyCurrentContext(editor), getNativeAssets: () => currentAssetLibrary().assets, getComponentAssets: () => [...currentAssetLibrary().assets, ...currentClipLibrary().assets],
     resolveDraft: async ({ assembly }, { signal } = {}) => {
       const current = editor.getState(); const expectedRevision = current.context.projectRevision;
       const response = await api(`/api/projects/${encodeURIComponent(projectId)}/assemblies/resolve-draft`, { method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, signal: AbortSignal.any([signal ?? new AbortController().signal, AbortSignal.timeout(8000)]),
@@ -2631,6 +2753,9 @@ function renderAssemblyReviews() {
 }
 
 function mayAbandonAssetAuthoring() {
+  animationOpenGeneration += 1;
+  for (const controller of animationReviewControllers.values()) if (!controller.requestLeave()) return false;
+  if (activeAnimationEditor) { if (activeAnimationCut || !activeAnimationEditor.requestLeave()) return false; activeAnimationEditor.dispose(); activeAnimationEditor = null; }
   assemblyOpenGeneration += 1;
   for (const controller of assemblyReviewControllers.values()) if (!controller.requestLeave()) return false;
   if (activeAssemblyEditor) {
@@ -2711,9 +2836,17 @@ function openAssetEditor({ asset = null, slice = null, trigger = null }) {
 }
 
 window.addEventListener('beforeunload', (event) => {
-  if (activeAssetEditor || activeAssemblyEditor || [...assemblyReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status))) { event.preventDefault(); event.returnValue = ''; }
+  if (activeAnimationEditor || [...animationReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status)) || activeAssetEditor || activeAssemblyEditor || [...assemblyReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status))) { event.preventDefault(); event.returnValue = ''; }
 });
 elements['workspace-content'].addEventListener('click', (event) => {
+  const animationOpen = event.target.closest('[data-animation-open]'), animationCreate = event.target.closest('[data-create-animation]');
+  if (animationOpen || animationCreate) {
+    if ((animationOpen ?? animationCreate).disabled) return;
+    const asset = animationOpen ? currentClipLibrary().assets.find(value => value.assetId === animationOpen.dataset.animationOpen) : null;
+    if (animationOpen && !asset) { showToast('This Animation changed. Refresh and choose its saved version.'); return; }
+    const pins = [...elements['workspace-content'].querySelectorAll('[data-animation-select-cut]:checked')].map(node => ({ sliceId: node.dataset.animationSelectCut, sliceVersion: Number(node.dataset.sliceVersion) }));
+    void openAnimationEditor({ asset, pins, trigger: animationOpen ?? animationCreate }); return;
+  }
   const assemblyOpen = event.target.closest('[data-assembly-open]'), assemblyCreate = event.target.closest('[data-create-assembly]');
   if (assemblyOpen || assemblyCreate) {
     if ((assemblyOpen ?? assemblyCreate).disabled) return;
@@ -2737,6 +2870,7 @@ function renderSliceVocabulary() {
     section.append(emptyState('No committed slices', 'Approve a source, cut exact rectangles, and commit the preview before proposing V2 assets.'));
     return section;
   }
+  if (animationSupported()) { const create = document.createElement('button'); create.type = 'button'; create.dataset.createAnimation = ''; create.textContent = 'Create Animation from selected cuts'; create.disabled = !animationCanMutate(); section.append(create); }
   const grid = document.createElement('div'); grid.className = 'slice-vocabulary-grid'; grid.dataset.assetScroll = 'slice-vocabulary';
   for (const { atlas, slice, ordinal } of slices) {
     const entry = document.createElement('article'); entry.className = 'slice-vocabulary-card';
@@ -2746,6 +2880,7 @@ function renderSliceVocabulary() {
     const heading = document.createElement('h4'); heading.textContent = savedSliceLabel(slice, ordinal);
     const atlasName = document.createElement('p'); atlasName.textContent = atlas.name;
     entry.append(heading, atlasName, copyableCanonical('Canonical slice ID', slice.sliceId, `slice-vocabulary-${slice.sliceId}`));
+    if (animationSupported()) { const label = document.createElement('label'), check = document.createElement('input'); check.type = 'checkbox'; check.dataset.animationSelectCut = slice.sliceId; check.dataset.sliceVersion = slice.version; label.append(check, document.createTextNode('Use in Animation')); entry.append(label); }
     entry.append(createAssetFromSliceButton(slice)); grid.append(entry);
   }
   section.append(grid); return section;
@@ -2755,7 +2890,7 @@ function renderAssetLibrary(snapshot) {
   const fragment = document.createDocumentFragment();
   const library = currentAssetLibrary(snapshot);
   const assemblies = currentAssemblyLibrary(snapshot).assets;
-  const inventory = [...library.assets, ...assemblies];
+  const inventory = [...library.assets, ...assemblies, ...currentClipLibrary(snapshot).assets];
   const filters = document.createElement('section'); filters.className = 'asset-filters';
   const search = document.createElement('input'); search.type = 'search'; search.value = state.assetUi.search;
   search.placeholder = 'Search name, ID, or tag'; search.dataset.assetFilter = 'search';
@@ -2779,7 +2914,7 @@ function renderAssetLibrary(snapshot) {
   fragment.append(sectionHeading('Asset library', 'Filter reusable assets. Each card shows what the asset is for, whether it is ready, and which exact image slice it uses.'), filters);
   if (assemblySupported()) {
     const create = document.createElement('button'); create.type = 'button'; create.className = 'secondary'; create.textContent = 'Create Assembly'; create.dataset.createAssembly = ''; create.dataset.assetFocusKey = 'create-assembly'; create.disabled = !assemblyCanMutate();
-    const notice = document.createElement('p'); notice.className = 'assembly-note'; notice.textContent = 'Assemblies combine exact saved PNG Assets. Room placement for Assemblies is not supported yet.';
+    const notice = document.createElement('p'); notice.className = 'assembly-note'; notice.textContent = 'Assemblies combine exact saved image and Animation Assets. Room placement for Assemblies is not supported yet.';
     fragment.append(create, notice);
   }
 
@@ -2798,10 +2933,10 @@ function renderAssetLibrary(snapshot) {
   fragment.append(count);
   if (filtered.length) {
     const grid = document.createElement('div'); grid.className = 'card-grid asset-grid asset-inventory-grid';
-    grid.dataset.assetScroll = 'asset-inventory'; filtered.forEach((asset) => grid.append(asset.contentKind === 'assembly' ? assemblyLibraryCard(asset) : renderV2AssetCard(asset)));
+    grid.dataset.assetScroll = 'asset-inventory'; filtered.forEach((asset) => grid.append(asset.contentKind === 'assembly' ? assemblyLibraryCard(asset) : asset.contentKind === 'animation' ? animationLibraryCard(asset) : renderV2AssetCard(asset)));
     fragment.append(grid);
   } else fragment.append(emptyState('No V2 assets match', inventory.length ? 'Change the current search or filters.' : 'Choose a saved slice below to prepare your first asset for review.'));
-  fragment.append(renderAssemblyReviews(), renderProposalReview(library.proposals), renderSliceVocabulary());
+  fragment.append(renderAnimationReviews(), renderAssemblyReviews(), renderProposalReview(library.proposals), renderSliceVocabulary());
 
   if (snapshot.assets.length) {
     fragment.append(sectionHeading('Legacy asset inventory', 'Checkpoint 1 assets remain unchanged and are not claimed as V2-valid.'));
@@ -5448,6 +5583,16 @@ function renderWorkspace({
   }
   document.body.dataset.assetEditorOpen = String(state.workspace === 'assets' && Boolean(activeAssetEditor || activeEmbeddedAssetEditor));
   document.body.dataset.assemblyEditorOpen = String(state.workspace === 'assets' && Boolean(activeAssemblyEditor));
+  document.body.dataset.animationEditorOpen = String(Boolean(activeAnimationEditor));
+  if (activeAnimationEditor) {
+    const editor = activeAnimationEditor, mounted = activeAnimationCut ?? editor;
+    editor.reconcileContext(animationCurrentContext(editor));
+    if (activeAnimationCut && !activeAnimationCut.getState().gesture) activeAnimationCut.reconcileContext({ projectId: state.project.projectId, projectRevision: state.project.revision });
+    if (!mounted.element.isConnected) { elements['workspace-content'].replaceChildren(mounted.element); mounted.afterMount(); }
+    elements['workspace-content'].dataset.renderedProjectId = state.project.projectId;
+    elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
+    return;
+  }
   if (state.workspace === 'assets' && activeAssemblyEditor) {
     const editor = activeAssemblyEditor, mounted = activeEmbeddedAssetEditor ?? editor;
     editor.reconcileContext(assemblyCurrentContext(editor));
@@ -5469,7 +5614,7 @@ function renderWorkspace({
   let content;
   if (state.workspace === 'overview') content = renderOverview(snapshot);
   else if (state.workspace === 'sources') content = renderSources(snapshot.sources);
-  else if (state.workspace === 'assets') content = snapshot.assetLibrary || snapshot.assemblyLibrary || assemblySupported() || currentProjectSlices(snapshot).length > 0
+  else if (state.workspace === 'assets') content = snapshot.assetLibrary || snapshot.assemblyLibrary || snapshot.clipLibrary || assemblySupported() || currentProjectSlices(snapshot).length > 0
     ? renderAssetLibrary(snapshot)
     : renderCollection(snapshot.assets, 'assets');
   else if (state.workspace === 'rooms') content = renderRooms(snapshot);
@@ -5795,7 +5940,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     state.taskDomState = null;
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
-    state.agentAccess = null; state.assemblyAuthoringSupport = 'UNAVAILABLE'; setAgentAccessPanel(false);
+    state.agentAccess = null; state.assemblyAuthoringSupport = 'UNAVAILABLE'; state.clipAuthoringSupport = 'UNAVAILABLE'; setAgentAccessPanel(false);
     renderProject({
       preserveWorkspace: preserveWorkspaceIfUnchanged
         && state.workspace === 'backups'
@@ -5927,6 +6072,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
   state.agentAccess = agentAccess.effectivePolicy; state.agentAccessCsrf = agentAccess.csrfToken;
   state.hostBindingSupport = agentAccess.hostBindingSupport;
   state.assemblyAuthoringSupport = agentAccess.assemblyAuthoringSupport ?? 'UNAVAILABLE';
+  state.clipAuthoringSupport = agentAccess.clipAuthoringSupport ?? 'UNAVAILABLE';
   state.hostBindings = agentAccess.hostBindings;
   state.pendingHosts = agentAccess.pendingHosts;
   state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
@@ -5980,6 +6126,7 @@ async function requestAgentAccess(mode, {
     state.agentAccessCsrf = response.csrfToken;
     state.hostBindingSupport = response.hostBindingSupport;
     state.assemblyAuthoringSupport = response.assemblyAuthoringSupport ?? 'UNAVAILABLE';
+    state.clipAuthoringSupport = response.clipAuthoringSupport ?? 'UNAVAILABLE';
     state.hostBindings = response.hostBindings;
     state.pendingHosts = response.pendingHosts;
     state.pendingAgentAccess = null;

@@ -1,3 +1,4 @@
+import { validateSliceRevisionJobInput } from '../../../application/src/slice-revision-service.js';
 import { inspectClipIntegrity } from './clip-integrity.js';
 import { inspectSliceRevisionIntegrity } from '../sqlite/sqlite-slice-revision.js';
 import { inspectAssemblyIntegrity } from './assembly-integrity.js';
@@ -1812,6 +1813,11 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
       }
       if (fingerprint(input) !== job.input_fingerprint || !Array.isArray(outputs) || !Array.isArray(events)) {
         bundleImportFindings.push({ projectId: job.project_id, jobId: job.job_id, code: 'BUNDLE_IMPORT_JOB_SEMANTIC_MISMATCH', message: 'Imported applied-job history differs from its immutable input or output shape.' });
+      }
+      if (input.schemaVersion === 2) {
+        try { validateSliceRevisionJobInput(input); }
+        catch (error) { bundleImportFindings.push({ projectId: job.project_id, jobId: job.job_id,
+          code: 'BUNDLE_IMPORT_CUT_INPUT_INVALID', message: error.message }); }
       }
       for (const output of outputs ?? []) {
         if (!outputReference.get(job.project_id, output.digest)) {

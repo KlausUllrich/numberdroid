@@ -74,6 +74,16 @@ const staticFiles = new Map([
   ['/assembly-editor-controller.js', ['../public/assembly-editor-controller.js', 'text/javascript; charset=utf-8']],
   ['/assembly-artwork-view.js', ['../public/assembly-artwork-view.js', 'text/javascript; charset=utf-8']],
   ['/assembly-library-view.js', ['../public/assembly-library-view.js', 'text/javascript; charset=utf-8']],
+  ['/animation-editor-state.js', ['../public/animation-editor-state.js', 'text/javascript; charset=utf-8']],
+  ['/animation-editor-view.js', ['../public/animation-editor-view.js', 'text/javascript; charset=utf-8']],
+  ['/animation-editor-controller.js', ['../public/animation-editor-controller.js', 'text/javascript; charset=utf-8']],
+  ['/animation-library-view.js', ['../public/animation-library-view.js', 'text/javascript; charset=utf-8']],
+  ['/animation-review-view.js', ['../public/animation-review-view.js', 'text/javascript; charset=utf-8']],
+  ['/animation-cut-state.js', ['../public/animation-cut-state.js', 'text/javascript; charset=utf-8']],
+  ['/animation-cut-view.js', ['../public/animation-cut-view.js', 'text/javascript; charset=utf-8']],
+  ['/animation-cut-controller.js', ['../public/animation-cut-controller.js', 'text/javascript; charset=utf-8']],
+  ['/animation-editor.css', ['../public/animation-editor.css', 'text/css; charset=utf-8']],
+  ['/animation-cut.css', ['../public/animation-cut.css', 'text/css; charset=utf-8']],
   ['/assembly-editor.css', ['../public/assembly-editor.css', 'text/css; charset=utf-8']],
   ['/packages/domain/src/assembly-geometry.js', ['../../../packages/domain/src/assembly-geometry.js', 'text/javascript; charset=utf-8']],
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -1063,6 +1073,21 @@ export function createStudioHttpServer({
         sendJson(response, 200, { schemaVersion: 1, profile: 'assembly-v1', projectId: binding.projectId, storeSchemaVersion: studioService.storeSchemaVersion, sharedHead: true, toolCount: 21, resourceTemplateCount: 5 });
         return;
       }
+      if (request.method === 'POST' && url.pathname === '/internal/mcp/animation-handshake') {
+        assertLoopbackServiceRequest(request);
+        if (!hostBindingStore || agentAttemptStore?.isLive !== true || !studioService.durableClipStoreReady
+          || studioService.storeSchemaVersion !== 17 || !studioService.durableAssetStoreReady || !studioService.durableAssemblyStoreReady || !studioService.durableJobStoreReady || !studioService.durableRoomStoreReady) throw new StudioError('ANIMATION_STORE_DISABLED', 'Animation profile requires the complete SQLite v17 service.');
+        const body = await readJsonBody(request, { maxBytes: 2048 });
+        assertExactKeys(body, new Set(['schemaVersion', 'projectId', 'profile']), 'Animation negotiation');
+        if (body.schemaVersion !== 1 || body.profile !== 'animation-v1') throw new StudioError('VALIDATION_ERROR', 'Select the animation-v1 profile.');
+        const binding = hostBindingStore.resolve(bearerToken(request));
+        if (body.projectId !== binding.projectId) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Animation negotiation is outside the binding project.');
+        await assertExecutableBindingPolicy(studioService, binding, agentTaskService);
+        if (agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId)) throw new StudioError('ANIMATION_TASK_BRANCH_UNSUPPORTED', 'Animation profile requires a shared-head binding.');
+        await studioService.queryClips({ schemaVersion: 1, projectId: binding.projectId, limit: 1 }, bindingExecutionContext(binding), { signal: requestAbort.signal });
+        sendJson(response, 200, { schemaVersion: 1, profile: 'animation-v1', projectId: binding.projectId, storeSchemaVersion: studioService.storeSchemaVersion, sharedHead: true, toolCount: 25, resourceTemplateCount: 7 });
+        return;
+      }
       if (request.method === 'POST' && url.pathname === '/internal/mcp/execute') {
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore) throw new StudioError('HOST_BINDING_DISABLED', 'This Studio service has no HostBinding store.');
@@ -1101,13 +1126,13 @@ export function createStudioHttpServer({
           const taskBound = agentTaskService?.hasTask(
             liveBinding.projectId, liveBinding.taskId, liveBinding.branchId,
           ) === true;
-          if (taskBound && body.command.type?.startsWith('assembly.')) throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly authoring currently requires a shared-head binding.');
+          if (taskBound && ['assembly.', 'clip.', 'slice.revision.'].some(prefix => body.command.type?.startsWith(prefix))) throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly authoring currently requires a shared-head binding.');
           result = await (taskBound ? agentTaskService : studioService).execute(
             body.command,
             liveContext,
             { signal: requestAbort.signal },
           );
-          if (definition?.type === 'atlas.preview.slices') atlasPreviewWorker?.kick();
+          if (['atlas.preview.slices', 'slice.revision.prepare'].includes(definition?.type)) atlasPreviewWorker?.kick();
         } catch (rawError) {
           const error = asStudioError(rawError);
           if (agentAttemptStore?.isLive === true) {
@@ -1186,6 +1211,8 @@ export function createStudioHttpServer({
         '/internal/mcp/job-discard',
         '/internal/mcp/asset-query',
         '/internal/mcp/assembly-query',
+        '/internal/mcp/clip-query',
+        '/internal/mcp/slice-query',
         '/internal/mcp/room-query',
       ].includes(url.pathname)) {
         assertLoopbackServiceRequest(request);
@@ -1204,6 +1231,8 @@ export function createStudioHttpServer({
           '/internal/mcp/job-cancel': { operation: 'cancelJob', commandType: 'job.cancel', atomicAudit: true },
           '/internal/mcp/job-retry': { operation: 'retryJob', commandType: 'job.retry', atomicAudit: true },
           '/internal/mcp/job-discard': { operation: 'discardJob', commandType: 'job.discard', atomicAudit: true },
+          '/internal/mcp/clip-query': { operation: 'queryClips', commandType: 'clip.query', atomicAudit: false, auditAuthorized: false },
+          '/internal/mcp/slice-query': { operation: 'querySavedSlice', commandType: 'slice.query', atomicAudit: false, auditAuthorized: false },
           '/internal/mcp/assembly-query': { operation: 'queryAssemblies', commandType: 'assembly.query', atomicAudit: false, auditAuthorized: false },
           '/internal/mcp/asset-query': { operation: 'queryAssets', commandType: 'asset.query', atomicAudit: false, auditAuthorized: false },
           '/internal/mcp/room-query': { operation: 'queryRooms', commandType: 'room.query', atomicAudit: false, auditAuthorized: false },
@@ -1226,7 +1255,7 @@ export function createStudioHttpServer({
           if (agentAttemptStore?.isLive !== true) {
             throw new StudioError('AGENT_ATTEMPT_LEDGER_REQUIRED', 'Specialized MCP operations require a durable attempt ledger.');
           }
-          const body = await readJsonBody(request, { maxBytes: definition.commandType === 'assembly.query' ? 256 * 1024 : 128 * 1024 });
+          const body = await readJsonBody(request, { maxBytes: ['assembly.query', 'clip.query'].includes(definition.commandType) ? 256 * 1024 : 128 * 1024 });
           const safeJobId = definition.commandType.startsWith('job.') ? safeAttemptId(body?.jobId) : null;
           if (safeJobId) {
             attempt.targetKind = 'job';
@@ -1244,7 +1273,7 @@ export function createStudioHttpServer({
           const taskBound = agentTaskService?.hasTask(
             liveBinding.projectId, liveBinding.taskId, liveBinding.branchId,
           ) === true;
-          if (taskBound && definition.operation === 'queryAssemblies') throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly reads currently require a shared-head binding.');
+          if (taskBound && ['queryAssemblies', 'queryClips', 'querySavedSlice'].includes(definition.operation)) throw new StudioError(definition.operation === 'queryAssemblies' ? 'ASSEMBLY_TASK_BRANCH_UNSUPPORTED' : 'ANIMATION_TASK_BRANCH_UNSUPPORTED', 'These content reads require a shared-head binding.');
           const targetService = taskBound && ['proposeAtlasGrid', 'queryAssets', 'queryRooms'].includes(definition.operation)
             ? agentTaskService
             : studioService;
@@ -1437,7 +1466,7 @@ export function createStudioHttpServer({
 
       if (await handleClipHttp({ request, response, url, studioService, humanUiCsrfToken,
         signal: requestAbort.signal, assertHumanUiMutation, readJsonBody, assertExactKeys,
-        humanOwnerContext, humanCommandDto, sendJson })) return;
+        humanOwnerContext, humanCommandDto, sendJson })) { if (request.method === 'POST' && url.pathname.endsWith('/revision-preview')) atlasPreviewWorker?.kick(); return; }
       if (await handleAssemblyHttp({ request, response, url, studioService, humanUiCsrfToken,
         signal: requestAbort.signal, assertHumanUiMutation, readJsonBody, assertExactKeys,
         humanOwnerContext, humanCommandDto, sendJson })) return;
