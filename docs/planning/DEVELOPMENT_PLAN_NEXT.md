@@ -1,5 +1,19 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-10 Library design approval and next block
+
+Klaus reported **“pass”** for the [Library navigation mockup](../../tools/numberdroid-studio/docs/LIBRARY_NAVIGATION_DESIGN.md):
+Assets/Pending changes, compact whole previews, retained detail return, related
+review groups, partial acceptance and completed reviews in Activity.
+This is design approval; no Library production live gate is closed.
+
+Implement Library navigation and existing detail/editor integration first.
+Then implement the shared Review command/state workflow for dependencies and
+partial pending work under its own bounded contract. Sources navigation follows
+later. Preserve the accepted Cutter/Asset/Animation editors and use a real agent
+before the corresponding production test batch.
+
+
 ## 2026-09-10 Animation editor acceptance
 
 Klaus explicitly reported **“pass”** for the production Animation test batch.
