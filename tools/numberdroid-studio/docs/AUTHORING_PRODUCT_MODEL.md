@@ -90,6 +90,11 @@ runtime atlas production.
 
 ## Sources and Library workspaces
 
+The [Library navigation design](LIBRARY_NAVIGATION_DESIGN.md) specializes this
+workspace model. Klaus passed its five-item browser mockup batch on 2026-09-10;
+production navigation and shared Review integration still require their bounded
+implementation and verification.
+
 Sources is the place to introduce and prepare material. Library is the place
 to see, use and edit saved reusable content. A source is not consumed or removed
 when one of its outputs enters the Library.

@@ -14,6 +14,12 @@ CP4.5. The [current task router](START_HERE.md) owns implementation sequencing.
 
 ## Goal and shared entry points
 
+The subsequently approved [Library navigation design](LIBRARY_NAVIGATION_DESIGN.md)
+records the Library queue and entry/return behavior, including retained filters,
+whole review dependencies, partial groups and completed reviews in Activity.
+Klaus's 2026-09-10 Library mockup PASS confirms that design connection; it does
+not accept a production shared-review implementation.
+
 Help the owner understand an agent's concrete changes, accept useful independent
 results, or return actionable feedback without a separate proposal ceremony.
 Sources → Needs review, Library → Pending changes and Agent tasks open the same
