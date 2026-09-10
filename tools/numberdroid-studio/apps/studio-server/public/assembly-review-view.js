@@ -33,7 +33,7 @@ export function assemblyReviewIntent({ projectId, projectRevision, proposal, dec
 export function createAssemblyReviewController({ initial, host }) {
   const element = node('section', '', 'proposal-review assembly-proposal-review');
   const state = { projectId: initial.projectId, projectRevision: initial.projectRevision, proposal: copy(initial.proposal), currentAsset: copy(initial.currentAsset ?? null),
-    feedback: '', scene: null, currentScene: null, currentPreviewMessage: null, previewSide: 'proposed', frame: null, selection: { stateId: initial.proposal.content.assembly.defaultStateId, variantId: initial.proposal.content.assembly.defaultVariantId },
+    feedback: '', scene: null, currentScene: null, leafAssets: [], currentPreviewMessage: null, previewSide: 'proposed', frame: null, selection: { stateId: initial.proposal.content.assembly.defaultStateId, variantId: initial.proposal.content.assembly.defaultVariantId },
     load: 'idle', error: null, status: 'idle', intent: null };
   let disposed = false, generation = 0, readController = null, mutationController = null;
   const current = () => host.getContext();
@@ -62,7 +62,7 @@ export function createAssemblyReviewController({ initial, host }) {
     const header = node('header', '', 'assembly-review-header'), heading = node('div');
     heading.append(node('p', 'Assembly changes', 'assembly-review-eyebrow'), node('h3', state.proposal.content.name));
     header.append(heading, node('span', statusText, 'assembly-review-badge'));
-    const changes = assemblyReviewChanges(state.proposal, state.currentAsset);
+    const changes = assemblyReviewChanges({ ...state.proposal, leafAssets: state.leafAssets }, state.currentAsset);
     const body = node('div', '', 'assembly-review-body'), visual = node('div', '', 'assembly-review-visual');
     const toolbar = node('div', '', 'assembly-review-toolbar'), sides = node('div', '', 'assembly-review-sides');
     sides.setAttribute('aria-label', 'Compare saved and proposed content');
@@ -93,7 +93,12 @@ export function createAssemblyReviewController({ initial, host }) {
     const changePanel = node('aside', '', 'assembly-review-changes'); changePanel.dataset.assemblyReviewChanges = '';
     changePanel.append(node('p', state.proposal.content.operation === 'create' ? 'New Assembly' : 'What changes', 'assembly-review-eyebrow'), node('h4', changes.headline));
     const list = node('ul', '', 'assembly-review-change-list'); list.dataset.assemblyReviewScroll = 'changes';
-    for (const change of changes.changes) { const item = node('li'); item.append(node('strong', change.label)); if (change.detail) item.append(node('p', change.detail)); list.append(item); }
+    for (const change of changes.changes) {
+      const repeatsHeadline = changes.changes.length === 1 && change.label === changes.headline;
+      if (repeatsHeadline && !change.detail) continue;
+      const item = node('li'); if (!repeatsHeadline) item.append(node('strong', change.label));
+      if (change.detail) item.append(node('p', change.detail)); list.append(item);
+    }
     changePanel.append(list);
     if (changes.unchanged.length) { const unchanged = node('div', '', 'assembly-review-unchanged'); for (const text of changes.unchanged) unchanged.append(node('p', text)); changePanel.append(unchanged); }
     body.append(visual, changePanel);
@@ -121,6 +126,7 @@ export function createAssemblyReviewController({ initial, host }) {
     const details = node('details', '', 'assembly-review-technical'); details.dataset.assemblyReviewComparison = ''; details.open = comparisonOpen;
     details.append(node('summary', 'Technical details and full comparison'), node('p', `Proposal ${state.proposal.proposalId} · version ${state.proposal.proposalVersion} · target Asset ${state.proposal.content.expectedAssetVersion}/${state.proposal.content.expectedMetadataVersion}`, 'assembly-review-caption'));
     const tableScroll = node('div', '', 'assembly-review-table-scroll'), table = node('table', '', 'proposal-diff');
+    tableScroll.dataset.assemblyReviewScroll = 'technical';
     const tableHeader = node('tr'); for (const label of ['Property / component', 'Current', 'Proposed']) tableHeader.append(node('th', label)); table.append(tableHeader);
     for (const row of assemblyProposalDiffRows(state.proposal, state.currentAsset)) { const tr = node('tr'); for (const value of row) tr.append(node('td', value)); table.append(tr); }
     tableScroll.append(table); details.append(tableScroll); nodes.push(details); element.replaceChildren(...nodes);
@@ -135,7 +141,7 @@ export function createAssemblyReviewController({ initial, host }) {
     const selected = copy(state.selection);
     const currentExists = Boolean(saved), currentHasSelection = currentExists && saved.assembly.states.some(s => s.stateId === selected.stateId) && saved.assembly.variants.some(v => v.variantId === selected.variantId);
     state.currentPreviewMessage = !currentExists ? proposed.operation === 'create' ? 'This Assembly is new. There is no saved Current version.' : 'The current Assembly is unavailable.' : !currentHasSelection ? 'This state or variant does not exist in the saved Current version.' : null;
-    const timer = setTimeout(() => controller.abort(), 8000); state.load = 'loading'; state.scene = null; state.currentScene = null; state.frame = null; render();
+    const timer = setTimeout(() => controller.abort(), 8000); state.load = 'loading'; state.scene = null; state.currentScene = null; state.leafAssets = []; state.frame = null; render();
     try {
       const [draft, previous] = await Promise.all([
         host.resolveDraft(proposed, selected, revision, { signal: controller.signal }),
@@ -144,6 +150,7 @@ export function createAssemblyReviewController({ initial, host }) {
       if (disposed || own !== generation || current().projectId !== state.projectId || current().projectRevision !== revision || state.proposal.proposalVersion !== version || JSON.stringify(state.selection) !== selection) return;
       if (!draft?.scene || (currentHasSelection && !previous?.scene)) throw new Error('An exact comparison preview is unavailable. Recheck to retry.');
       state.scene = draft.scene; state.currentScene = previous?.scene ?? null;
+      state.leafAssets = [...(previous?.leafAssets ?? []), ...(draft.leafAssets ?? [])];
       // Fit both sides to the same visible artwork extent. Invisible placement
       // space must not shrink the artwork; empty scenes retain a safe fallback.
       const frames = [draft.scene.visualBounds, previous?.scene?.visualBounds].filter(f => f && f.width > 0 && f.height > 0);
