@@ -77,6 +77,11 @@ original source must remain inspectable. An animation groups ordered frame
 references, timing and alignment. Components are nested by default with an
 explicit way to browse them individually.
 
+The user-approved [Animation Clip Editor Design](ANIMATION_EDITOR_DESIGN.md)
+specifies once/loop/ping-pong playback, shared alignment, contextual cut revision
+with retained animation drafts, and explicit saved-version use in Assembly states.
+Its V2 mockup passed on 2026-09-10; production implementation remains separate.
+
 Input sheets and generated runtime atlases have different purposes. Later
 packing can combine required images/frames for a target runtime without
 changing asset identities or animation meaning. Packing recipes and mappings
