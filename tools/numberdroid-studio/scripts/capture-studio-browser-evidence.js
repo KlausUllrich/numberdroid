@@ -348,37 +348,49 @@ try {
     checkpoint2cRouteEvidence = await captureCheckpoint2cLibraryRoutes({ devtools, sessionId, phase: checkpoint2cPhase, focus: checkpoint2cFocus });
     if (checkpoint2cPhase === 'pending') {
       const setup = await devtools.send('Runtime.evaluate', {
-        expression: `(() => {
+        expression: `(async () => {
           const items = [...document.querySelectorAll('[data-proposal-item]')];
           const item = items.at(-1);
           const disposition = item?.querySelector('[data-proposal-disposition]');
           if (!item || !disposition) return { ready: false };
           disposition.value = 'REJECTED';
           disposition.dispatchEvent(new Event('change', { bubbles: true }));
+          // The change renders the review and queues its Library restoration.
+          // Establish the user scroll/focus only after that render has settled.
+          await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
           const currentItem = [...document.querySelectorAll('[data-proposal-item]')].at(-1);
           const reason = currentItem?.querySelector('[data-proposal-reason]');
           const scroller = document.querySelector('[data-asset-scroll="proposal-items"]');
           if (!reason || !scroller) return { ready: false };
           reason.value = 'Evidence draft retained across passive refresh.';
           reason.dispatchEvent(new Event('input', { bubbles: true }));
+          await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
           scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
           reason.scrollIntoView({ block: 'center' });
           window.scrollBy(0, 120);
-          reason.focus(); reason.setSelectionRange(9, 14);
+          reason.focus({ preventScroll: true }); reason.setSelectionRange(9, 14);
+          await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
           return {
             ready: true,
-            reasonNode: reason,
             value: reason.value,
             selectionStart: reason.selectionStart,
             selectionEnd: reason.selectionEnd,
             localScrollTop: scroller.scrollTop,
             pageScrollY: scrollY,
+            scrollHeight: scroller.scrollHeight,
+            clientHeight: scroller.clientHeight,
+            pageHeight: document.documentElement.scrollHeight,
+            viewportHeight: innerHeight,
             startedAt: performance.now(),
           };
         })()`,
-        returnByValue: false,
+        awaitPromise: true,
+        returnByValue: true,
       }, sessionId);
-      assert(setup.result?.objectId, 'Checkpoint 2C could not prepare the focused dirty decision draft.');
+      process.stdout.write(`${JSON.stringify({ phase: 'checkpoint-2c-scroll-setup', ...setup.result?.value })}\n`);
+      const initialScroll = setup.result?.value;
+      assert(!setup.exceptionDetails && initialScroll?.ready && initialScroll.localScrollTop > 0 && initialScroll.pageScrollY > 0,
+        `Checkpoint 2C must establish real nonzero inner and page scroll before refresh: ${JSON.stringify(initialScroll ?? setup.exceptionDetails)}`);
       await devtools.send('Runtime.evaluate', {
         expression: `document.getElementById('refresh-button')?.click()`, returnByValue: true,
       }, sessionId);
@@ -393,7 +405,7 @@ try {
           const reason = item?.querySelector('[data-proposal-reason]');
           const scroller = document.querySelector('[data-asset-scroll="proposal-items"]');
           return {
-            elapsedMs: performance.now() - ${setup.result.description ? '0' : '0'},
+            elapsedMs: performance.now() - ${initialScroll.startedAt},
             value: reason?.value ?? null,
             rejectionReason: item?.dataset.proposalRejectionReason ?? null,
             focused: document.activeElement === reason,
@@ -409,6 +421,7 @@ try {
         returnByValue: true,
       }, sessionId);
       checkpoint2cInteractionEvidence = retained.result?.value ?? null;
+      if (checkpoint2cInteractionEvidence) checkpoint2cInteractionEvidence.initialScroll = initialScroll;
       assert(checkpoint2cInteractionEvidence?.value === 'Evidence draft retained across passive refresh.'
         && checkpoint2cInteractionEvidence.rejectionReason === checkpoint2cInteractionEvidence.value
         && checkpoint2cInteractionEvidence.focused === true
@@ -416,6 +429,9 @@ try {
         && checkpoint2cInteractionEvidence.selectionEnd === 14
         && checkpoint2cInteractionEvidence.localScrollTop > 0
         && checkpoint2cInteractionEvidence.pageScrollY > 0
+        && checkpoint2cInteractionEvidence.localScrollTop === initialScroll.localScrollTop
+        && checkpoint2cInteractionEvidence.pageScrollY === initialScroll.pageScrollY
+        && checkpoint2cInteractionEvidence.elapsedMs >= 12_500
         && checkpoint2cInteractionEvidence.proposalState === 'PENDING'
         && checkpoint2cInteractionEvidence.revision === '9'
         && checkpoint2cInteractionEvidence.errorCount === 0,
