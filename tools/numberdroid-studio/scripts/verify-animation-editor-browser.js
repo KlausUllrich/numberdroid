@@ -7,6 +7,8 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
 import { prepareAnimationEditorFixture, ANIMATION_FIXTURE_PROJECT } from './prepare-animation-editor-fixture.js';
 import { captureAnimationEditor } from './capture-animation-editor-evidence.js';
+import { captureSharedReviewUi } from './capture-shared-review-ui-evidence.js';
+import { prepareSharedReviewUiFixture, sharedReviewFixtureCommand, SHARED_REVIEW_UI_ACTOR } from './prepare-shared-review-ui-fixture.js';
 import { captureLibraryNavigation } from './capture-library-navigation-evidence.js';
 import { prepareLibraryNavigationFixture } from './prepare-library-navigation-fixture.js';
 import { closeBrowserAndRemoveProfile, finishCapture, trackProcessClose } from './browser-process-teardown.js';
@@ -15,9 +17,10 @@ import { openDevtoolsSocket, waitForDevtoolsEndpoint } from './browser-devtools-
 const [chromePath, output] = process.argv.slice(2);
 if (process.argv.length !== 4 || !isAbsolute(chromePath ?? '') || !isAbsolute(output ?? '')) throw new Error('Usage: verify-animation-editor-browser.js ABSOLUTE_CHROME ABSOLUTE_NEW_OUTPUT');
 const selectedLane = process.env.NUMBERDROID_BROWSER_LANE ?? 'all';
-if (!['all', 'animation', 'library'].includes(selectedLane)) throw new Error('NUMBERDROID_BROWSER_LANE must be all, animation or library.');
-const animationWidths = selectedLane === 'library' ? [] : [1440, 1060];
-const libraryWidths = selectedLane === 'animation' ? [] : [1440, 1060];
+if (!['all', 'animation', 'library', 'review'].includes(selectedLane)) throw new Error('NUMBERDROID_BROWSER_LANE must be all, animation, library or review.');
+const animationWidths = ['all', 'animation'].includes(selectedLane) ? [1440, 1060] : [];
+const libraryWidths = ['all', 'library'].includes(selectedLane) ? [1440, 1060] : [];
+const reviewWidths = ['all', 'review'].includes(selectedLane) ? [1440, 1060] : [];
 const outputDirectory = resolve(output); await mkdir(outputDirectory, { recursive: false });
 const dataRoot = await mkdtemp(join(tmpdir(), 'numberdroid-animation-browser-')), cancellation = new AbortController();
 const cancel = () => cancellation.abort(new Error('Animation browser verification cancelled.'));
@@ -25,8 +28,8 @@ process.once('SIGTERM', cancel); process.once('SIGINT', cancel);
 const fingerprint = view => createHash('sha256').update(JSON.stringify({ revision: view.revision, snapshot: view.snapshot })).digest('hex');
 const closeServer = running => new Promise((done, reject) => running.server.close(error => error ? reject(error) : done()));
 
-async function browserCapture({ width, url, reopen = false, library = false }) {
-  const lane = library ? 'library' : 'animation';
+async function browserCapture({ width, url, reopen = false, library = false, review = false, reviseProposal }) {
+  const lane = review ? 'review' : library ? 'library' : 'animation';
   const profile = await mkdtemp(join(tmpdir(), 'numberdroid-animation-chrome-'));
   const child = spawn(chromePath, ['--headless=new', '--no-sandbox', '--hide-scrollbars', '--lang=en-US', '--force-device-scale-factor=1', `--window-size=${width},900`,
     '--remote-debugging-port=0', '--remote-allow-origins=*', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions', `--user-data-dir=${profile}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -75,7 +78,7 @@ async function browserCapture({ width, url, reopen = false, library = false }) {
       const image = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
       await writeFile(join(outputDirectory, `${lane}-${width}-${phase}.png`), Buffer.from(image.data, 'base64'), { flag: 'wx' });
     };
-    result = library
+    result = review ? await captureSharedReviewUi({ devtools, sessionId, captureCheckpoint, reviseProposal }) : library
       ? await captureLibraryNavigation({ devtools, sessionId, captureCheckpoint })
       : await captureAnimationEditor({ devtools, sessionId, reopen, captureCheckpoint });
     assert.deepEqual(imageFailures, [], 'A served image had an unexpected HTTP or network failure.');
@@ -160,13 +163,26 @@ try {
     try { await browserCapture({ width, url: `http://127.0.0.1:${running.address.port}/#assets`, library: true }); }
     finally { await closeServer(running); }
   }
+  for (const width of reviewWidths) {
+    if (cancellation.signal.aborted) throw cancellation.signal.reason;
+    const dataDirectory = join(dataRoot, `review-fixture-${width}`), fixture = await prepareSharedReviewUiFixture(dataDirectory);
+    process.stdout.write(`${JSON.stringify({ phase: 'review-fixture-ready', width, revision: fixture.revision })}\n`);
+    const running = await startStudioHttpServer({ dataDirectory, host: '127.0.0.1', port: 0, storeMode: 'sqlite', pairingEnabled: false, operationsConfigurationFilename: null });
+    try {
+      await browserCapture({ width, url: `http://127.0.0.1:${running.address.port}/#assets`, review: true, reviseProposal: async expectedReviewVersion => {
+        const payload = structuredClone(fixture.submission); payload.expectedReviewVersion = expectedReviewVersion;
+        payload.items.find(item => item.itemId === 'animation').payload.clip.frames[2].durationMs = 650;
+        return sharedReviewFixtureCommand(running, 'review.proposal.submit', payload, SHARED_REVIEW_UI_ACTOR);
+      } });
+    } finally { await closeServer(running); }
+  }
   complete = true;
 } finally {
   process.removeListener('SIGTERM', cancel); process.removeListener('SIGINT', cancel);
   if (complete) {
     await rm(dataRoot, { recursive: true, force: true });
     await assert.rejects(lstat(dataRoot), { code: 'ENOENT' });
-    const captureCount = animationWidths.length * 2 + libraryWidths.length;
-    await writeFile(join(outputDirectory, selectedLane === 'library' ? 'library-teardown.json' : 'animation-teardown.json'), `${JSON.stringify({ schemaVersion: 1, selectedLane, browserProfilesClosedBeforeRemoval: captureCount, serverAndWorkerClosures: captureCount, temporaryDataRoot: dataRoot, temporaryDataRemovedAfterWritersClosed: true }, null, 2)}\n`, { flag: 'wx' });
+    const captureCount = animationWidths.length * 2 + libraryWidths.length + reviewWidths.length;
+    await writeFile(join(outputDirectory, `${selectedLane === 'all' ? 'animation' : selectedLane}-teardown.json`), `${JSON.stringify({ schemaVersion: 1, selectedLane, browserProfilesClosedBeforeRemoval: captureCount, serverAndWorkerClosures: captureCount, temporaryDataRoot: dataRoot, temporaryDataRemovedAfterWritersClosed: true }, null, 2)}\n`, { flag: 'wx' });
   } else process.stderr.write(`Animation verification data retained at ${dataRoot}\n`);
 }

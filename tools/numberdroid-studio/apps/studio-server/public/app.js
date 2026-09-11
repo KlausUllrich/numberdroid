@@ -2702,6 +2702,8 @@ function libraryNativeLifecycleControls(asset, { canMutate = false } = {}) {
 function libraryBackLabel() {
   const external = libraryExternalOrigins.get(libraryRouteKey(libraryUi.route));
   if (external?.workspace === 'activity') return state.activityUi.eventId ? '← Back to event' : '← Back to Activity';
+  if (external?.workspace === 'sources') return '← Back to Sources';
+  if (external?.workspace === 'tasks') return '← Back to Tasks';
   const previous = libraryUi.returnStack.at(-1);
   return previous?.view === 'review' ? '← Back to review' : previous?.view === 'detail' ? '← Back to details' : '← Back to Library';
 }
@@ -2729,18 +2731,25 @@ async function readSharedReview(request, { signal } = {}) {
   const { schemaVersion: _schema, projectId: _project, reviewId: _review, ...body } = request;
   return api(endpoint, { method: 'POST', signal, headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: JSON.stringify(body) });
 }
+function latestLegacyReviewSource(source) {
+  if (!source) return null;
+  const library = source.contentKind === 'image' ? currentAssetLibrary() : source.contentKind === 'animation' ? currentClipLibrary() : currentAssemblyLibrary();
+  const proposal = library.proposals.find(value => value.proposalId === source.proposalId);
+  return proposal ? { ...source, expectedProposalVersion: proposal.proposalVersion } : null;
+}
 function renderSharedReview(route, legacySource = null) {
   const projectId = state.project.projectId, routeKey = libraryRouteKey(route), key = `${projectId}:${routeKey}`;
   let controller = sharedReviewControllers.get(key);
-  if (!controller && !route.readOnly && route.contentKind === 'review') controller = [...new Set(sharedReviewControllers.values())].find(value => {
-    const current = value.getState(); return current.projectId === projectId && current.reviewId === route.proposalId && !current.readOnly;
+  if (!controller && !route.readOnly) controller = [...new Set(sharedReviewControllers.values())].find(value => {
+    const current = value.getState(); return current.projectId === projectId && !current.readOnly && (route.contentKind === 'review' ? current.reviewId === route.proposalId : current.legacySource?.contentKind === legacySource?.contentKind && current.legacySource?.proposalId === legacySource?.proposalId && current.legacySource?.expectedProposalVersion === legacySource?.expectedProposalVersion);
   });
   if (!controller) {
     controller = createReviewController({ context: { projectId, projectRevision: state.project.revision,
       ...(legacySource ? { legacySource } : { reviewId: route.proposalId, reviewVersion: route.proposalVersion }),
       readOnly: route.readOnly === true, canMutate: route.readOnly !== true && sharedReviewSupported() }, host: {
       context: () => ({ projectId: state.project?.projectId, projectRevision: state.project?.revision,
-        latestGroup: state.project?.snapshot.reviewLibrary?.groups.find(group => group.reviewId === controller?.getState().reviewId),
+        latestGroup: state.project?.snapshot.reviewLibrary?.groups.find(group => group.reviewId === controller?.getState().reviewId || (controller?.getState().legacySource && group.legacySource?.contentKind === controller.getState().legacySource.contentKind && group.legacySource?.proposalId === controller.getState().legacySource.proposalId)),
+        latestLegacySource: latestLegacyReviewSource(controller?.getState().legacySource),
         canMutate: sharedReviewSupported(), readOnly: route.readOnly === true }),
       read: async (request, options) => {
         try { return await readSharedReview(request, options); }

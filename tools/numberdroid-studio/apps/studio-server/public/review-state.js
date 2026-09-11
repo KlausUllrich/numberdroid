@@ -1,5 +1,6 @@
 const copy = value => structuredClone(value);
 export const reviewIsOpen = group => Boolean(group && ['PENDING', 'CHANGES_REQUESTED'].includes(group.status));
+export const sameReviewLegacyIdentity = (a, b) => Boolean(a && b && a.contentKind === b.contentKind && a.proposalId === b.proposalId);
 export const reviewPendingIds = group => (group?.items ?? []).filter(item => item.status === 'PENDING').map(item => item.itemId);
 const commentsMap = comments => Object.fromEntries((comments ?? []).map(comment => [comment.itemId, comment.text]));
 
@@ -7,7 +8,8 @@ export function createReviewUiState(context) {
   const group = context.group ? copy(context.group) : null;
   return {
     projectId: context.projectId, projectRevision: context.projectRevision, reviewId: context.reviewId ?? group?.reviewId ?? null,
-    requestedReviewVersion: context.reviewVersion, legacySource: copy(context.legacySource ?? null),
+    requestedReviewVersion: context.reviewVersion, historicalReviewVersion: context.readOnly ? context.reviewVersion ?? group?.reviewVersion : undefined,
+    legacySource: copy(context.legacySource ?? (group?.reviewVersion === 0 ? group.legacySource : null) ?? null), latestLegacySource: null,
     group, latest: null, selectedItemIds: reviewPendingIds(group), activeItemId: group?.items[0]?.itemId ?? null,
     side: 'proposed', selection: {}, highlight: true, phase: 'idle', load: group ? 'ready' : 'idle', error: null, receipt: null, intent: null,
     readOnly: context.readOnly === true, canMutate: context.canMutate === true,
@@ -16,6 +18,10 @@ export function createReviewUiState(context) {
 }
 
 export function reviewStaleness(state) {
+  const source = state.legacySource, latestSource = state.latestLegacySource;
+  if (source && state.latest?.reviewVersion > 0 && sameReviewLegacyIdentity(source, state.latest.legacySource)) return 'review';
+  if (source && latestSource && source.contentKind === latestSource.contentKind && source.proposalId === latestSource.proposalId
+    && latestSource.expectedProposalVersion > source.expectedProposalVersion) return 'legacy';
   if (!state.group) return null;
   const latestVersion = Math.max(state.group.latestReviewVersion ?? state.group.reviewVersion, state.latest?.reviewVersion ?? 0);
   if (latestVersion <= state.group.reviewVersion) return null;
@@ -46,7 +52,7 @@ export function reviewPresentation(state, current = {}) {
   let message = state.error;
   if (!message && locked) message = state.phase === 'uncertain' ? 'The outcome is unconfirmed. Retry the retained exact request to recover its receipt.' : 'Saving your decision…';
   if (!message && !sameProject) message = 'Return to the original project to continue this review.';
-  if (!message && stale) message = stale === 'content' ? 'The agent submitted newer content. Review the latest version before deciding.' : 'Feedback or the decision changed. Review the latest saved version before deciding.';
+  if (!message && stale) message = stale === 'legacy' ? 'The original proposal changed. Review its latest version before deciding.' : stale === 'content' ? 'The agent submitted newer content. Review the latest version before deciding.' : 'Feedback or the decision changed. Review the latest saved version before deciding.';
   if (!message && !sameRevision) message = 'The project changed. Recheck before deciding; your draft is retained.';
   if (!message && state.readOnly) message = 'This recorded Review version is read-only.';
   if (!message && selectionLoading) message = 'Checking the exact selection and saved target versions…';
@@ -55,7 +61,7 @@ export function reviewPresentation(state, current = {}) {
   if (!message && state.group?.status === 'CHANGES_REQUESTED') message = state.group.nextActor?.kind === 'agent' ? 'Feedback is saved. The agent can read it on its next work round; no agent has been started.' : 'Feedback is saved for the proposer. No background work has been started.';
   return { canAccept, canFeedback: writable && state.feedback.editing && feedbackErrors.length === 0,
     canEditFeedback: writable && !state.feedback.editing, canDiscard: writable && !state.feedback.editing,
-    canInspect: sameProject && !locked && Boolean(state.group), canAdoptLatest: !state.readOnly && !locked && Boolean(stale),
+    canInspect: sameProject && !locked && Boolean(state.group), canAdoptLatest: !state.readOnly && sameProject && !locked && Boolean(stale),
     locked, stale, selectionLoading, message: message ?? '', feedbackErrors };
 }
 
@@ -72,7 +78,8 @@ export function cancelReviewFeedback(state) {
 export function retainReviewDraft(state) {
   if (state.feedback.editing && (state.feedback.draftSummary || Object.values(state.feedback.draftItemComments).some(Boolean))) {
     state.feedback.olderDraft = { summary: state.feedback.draftSummary, itemComments: copy(state.feedback.draftItemComments),
-      reviewVersion: state.group.reviewVersion, contentVersion: state.group.contentVersion };
+      reviewVersion: state.group.reviewVersion, contentVersion: state.group.contentVersion,
+      ...(state.legacySource ? { legacySource: copy(state.legacySource) } : {}) };
   }
   cancelReviewFeedback(state);
 }
@@ -90,7 +97,12 @@ export function adoptReviewGroup(state, group, revision, { preserveSelection = t
   state.selectedItemIds = preserveSelection ? pending.filter(id => oldSelection.includes(id)) : pending;
   if (!group.items.some(item => item.itemId === state.activeItemId)) state.activeItemId = group.items[0]?.itemId ?? null;
   state.requestedReviewVersion = group.reviewVersion; state.load = 'ready'; state.error = null;
-  if (group.reviewVersion > 0) state.legacySource = null;
+  if (group.reviewVersion > 0) { state.legacySource = null; state.latestLegacySource = null; }
+  else if (group.legacySource) {
+    state.legacySource = copy(group.legacySource);
+    if (state.latestLegacySource?.expectedProposalVersion <= group.legacySource.expectedProposalVersion) state.latestLegacySource = null;
+  }
+  if (state.readOnly && state.historicalReviewVersion === undefined) state.historicalReviewVersion = group.reviewVersion;
   if (state.latest?.reviewVersion <= group.reviewVersion) state.latest = null;
 }
 

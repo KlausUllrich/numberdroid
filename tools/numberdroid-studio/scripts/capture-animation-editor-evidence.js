@@ -70,26 +70,29 @@ export async function captureAnimationEditor({ devtools, sessionId, reopen = fal
   result.assembly = await captureAssembly();
   result.sourceMutationsOnlyThroughExplicitCutSave=true;result.savedAssemblyStillPinsClipV1=true;return result;
   async function captureReview() {
-    await navigation.review('animation', proposalId);
-    const selector=`[data-animation-proposal="${proposalId}"]`, control=name=>`${selector} [data-animation-review-action="${name}"]`;
-    await waitFor(`Boolean(document.querySelector(${JSON.stringify(selector)}+' [data-animation-review-canvas]'))`, 'Exact Clip review preview');
     const before=await project();
+    await navigation.review('animation', proposalId);
+    const selector='[data-review-workspace]', control=name=>`${selector} [data-review-action="${name}"]`;
+    await waitFor(`Boolean(document.querySelector('[data-review-canvas] svg')) && !document.querySelector('[data-review-action="accept"]')?.disabled`, 'Exact Clip shared Review preview');
+    assert.deepEqual(await project(),before,'Opening the legacy proposal must not adopt it or save a revision');
     await evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({block:'start'});`);await settle();
-    const bounds=()=>evaluate(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}+' [data-animation-review-canvas]').getBoundingClientRect();return[r.x,r.y,r.width,r.height];})()`);
+    const bounds=()=>evaluate(`(()=>{const r=document.querySelector('[data-review-canvas]').getBoundingClientRect();return[r.x,r.y,r.width,r.height];})()`);
     const first=await bounds();
     assert.match(await evaluate(`document.querySelector(${JSON.stringify(selector)}).textContent`),/750 ms/);
-    await click(control('current'));assert.deepEqual(await bounds(),first);await click(control('proposed'));assert.deepEqual(await bounds(),first);
-    await click(control('REQUEST_CHANGES'));assert.match(await evaluate(`document.querySelector(${JSON.stringify(selector)}).textContent`),/Write feedback before requesting changes/);
-    assert.deepEqual(await bounds(),first,'Review validation must not move the preview');
+    await click('[data-review-focus="side:current"]');assert.deepEqual(await bounds(),first);await click('[data-review-focus="side:proposed"]');assert.deepEqual(await bounds(),first);
+    await click(control('request-changes'));
+    assert.equal(await evaluate(`document.querySelector('[data-review-action="save-feedback"]').disabled`),true,'Blank feedback cannot be submitted');
+    assert.deepEqual(await bounds(),first,'Feedback editing must not move the preview');
     const feedback='Keep the quick brewing rhythm; use a shorter final hold.';
-    await evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)}+' [data-animation-review-feedback]');n.value=${JSON.stringify(feedback)};n.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-    await captureCheckpoint('review');await click(control('REQUEST_CHANGES'));
-    await waitFor(`document.querySelector(${JSON.stringify(selector)})?.textContent.includes('Changes requested')`, 'Recorded owner feedback');
-    const after=await project(),proposal=after.snapshot.clipLibrary.proposals.find(p=>p.proposalId===proposalId);
-    assert.equal(after.revision,before.revision+1);assert.equal(proposal.status,'CHANGES_REQUESTED');assert.equal(proposal.feedback,feedback);
-    assert.deepEqual(after.snapshot.clipLibrary.assets,before.snapshot.clipLibrary.assets);
+    await evaluate(`(()=>{const n=document.querySelector('[data-review-input="summary"]');n.value=${JSON.stringify(feedback)};n.dispatchEvent(new Event('input',{bubbles:true}));})()`);await settle();
+    await captureCheckpoint('review');await click(control('save-feedback'));
+    await waitFor(`document.querySelector('[data-review-status]')?.dataset.reviewStatus==='CHANGES_REQUESTED' && Boolean(document.querySelector('[data-review-receipt]'))`, 'Recorded owner feedback');
+    const after=await project(),review=after.snapshot.reviewLibrary.groups.find(p=>p.legacySource?.proposalId===proposalId);
+    assert.equal(after.revision,before.revision+1);assert.equal(review.status,'CHANGES_REQUESTED');assert.equal(review.feedback.summary,feedback);
+    assert.deepEqual(after.snapshot.clipLibrary,before.snapshot.clipLibrary,'Shared Review adoption preserves the complete legacy Clip library');
+    assert.equal(review.reviewVersion,1);
     await evaluate('window.scrollTo(0,0)');await settle();
-    return {plainTimingChange:true,currentProposedStable:true,feedbackValidationStable:true,requestChangesWithoutApplying:true};
+    return {plainTimingChange:true,currentProposedStable:true,feedbackValidationStable:true,requestChangesWithoutApplying:true,legacyRowsUnchanged:true,firstDecisionAtomic:true};
   }
   async function captureAssembly() {
     const before=await project();await navigation.details('assembly', assemblyId);await click('[data-library-action="edit"]');

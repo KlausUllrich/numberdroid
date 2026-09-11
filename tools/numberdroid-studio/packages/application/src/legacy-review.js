@@ -68,7 +68,9 @@ export function projectLegacyReview(document, requestSource, { applyItem } = {})
       feedback: structuredClone(entry.feedback ?? null), decision: structuredClone(entry.decision ?? null),
     });
   }
-  const feedbackVersion = [...versions.values()].reverse().find(entry => entry.feedback);
+  // Agent resubmissions carry the previous feedback text, but do not author it.
+  const feedbackVersion = [...versions.values()].reverse().find(entry => entry.status === 'CHANGES_REQUESTED'
+    && entry.decision === 'REQUEST_CHANGES' && entry.feedback);
   return { schemaVersion: 1, reviewId, reviewVersion: 0, previousReviewVersion: null, contentVersion: 1,
     title: items.length === 1 ? items[0].payload.name : `${items.length} proposed Assets`, status,
     proposer, items, createdRevision: sourceRevision.number, createdAt: sourceRevision.committedAt, updatedBy: proposal.updatedBy ?? proposer.actor.id,

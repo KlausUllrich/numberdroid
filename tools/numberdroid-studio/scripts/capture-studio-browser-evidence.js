@@ -347,24 +347,23 @@ try {
   if (mode === 'checkpoint-2c' && expectedWorkspace === 'assets') {
     checkpoint2cRouteEvidence = await captureCheckpoint2cLibraryRoutes({ devtools, sessionId, phase: checkpoint2cPhase, focus: checkpoint2cFocus });
     if (checkpoint2cPhase === 'pending') {
+      // A shorter real viewport exercises outer-page restoration even when the
+      // approved compact Review fits fully inside the 900px evidence viewport.
+      await devtools.send('Emulation.setDeviceMetricsOverride', { width, height: 650, deviceScaleFactor: 1, mobile: false }, sessionId);
       const setup = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
-          const items = [...document.querySelectorAll('[data-proposal-item]')];
-          const item = items.at(-1);
-          const disposition = item?.querySelector('[data-proposal-disposition]');
-          if (!item || !disposition) return { ready: false };
-          disposition.value = 'REJECTED';
-          disposition.dispatchEvent(new Event('change', { bubbles: true }));
-          // The change renders the review and queues its Library restoration.
-          // Establish the user scroll/focus only after that render has settled.
+          document.querySelector('[data-review-action="request-changes"]').click();
           await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
-          const currentItem = [...document.querySelectorAll('[data-proposal-item]')].at(-1);
-          const reason = currentItem?.querySelector('[data-proposal-reason]');
-          const scroller = document.querySelector('[data-asset-scroll="proposal-items"]');
+          for(const details of document.querySelectorAll('[data-review-disclosure^="comment:"]')) details.open=true;
+          let reason = [...document.querySelectorAll('[data-review-item-comment]')].at(-1);
+          let scroller = document.querySelector('[data-review-scroll="panel"]');
           if (!reason || !scroller) return { ready: false };
           reason.value = 'Evidence draft retained across passive refresh.';
           reason.dispatchEvent(new Event('input', { bubbles: true }));
           await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+          reason = [...document.querySelectorAll('[data-review-item-comment]')].at(-1);
+          scroller = document.querySelector('[data-review-scroll="panel"]');
+          for(const details of document.querySelectorAll('[data-review-disclosure^="comment:"]')) details.open=true;
           scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
           reason.scrollIntoView({ block: 'center' });
           window.scrollBy(0, 120);
@@ -401,19 +400,17 @@ try {
       await delay(6_250);
       const retained = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
-          const item = [...document.querySelectorAll('[data-proposal-item]')].at(-1);
-          const reason = item?.querySelector('[data-proposal-reason]');
-          const scroller = document.querySelector('[data-asset-scroll="proposal-items"]');
+          const reason = [...document.querySelectorAll('[data-review-item-comment]')].at(-1);
+          const scroller = document.querySelector('[data-review-scroll="panel"]');
           return {
             elapsedMs: performance.now() - ${initialScroll.startedAt},
             value: reason?.value ?? null,
-            rejectionReason: item?.dataset.proposalRejectionReason ?? null,
             focused: document.activeElement === reason,
             selectionStart: reason?.selectionStart ?? null,
             selectionEnd: reason?.selectionEnd ?? null,
             localScrollTop: scroller?.scrollTop ?? null,
             pageScrollY: scrollY,
-            proposalState: document.querySelector('[data-asset-proposal]')?.dataset.proposalState ?? null,
+            proposalState: document.querySelector('[data-review-status]')?.dataset.reviewStatus ?? null,
             revision: document.documentElement.dataset.visualRevision ?? null,
             errorCount: Number(document.documentElement.dataset.visualErrorCount ?? -1),
           };
@@ -423,7 +420,6 @@ try {
       checkpoint2cInteractionEvidence = retained.result?.value ?? null;
       if (checkpoint2cInteractionEvidence) checkpoint2cInteractionEvidence.initialScroll = initialScroll;
       assert(checkpoint2cInteractionEvidence?.value === 'Evidence draft retained across passive refresh.'
-        && checkpoint2cInteractionEvidence.rejectionReason === checkpoint2cInteractionEvidence.value
         && checkpoint2cInteractionEvidence.focused === true
         && checkpoint2cInteractionEvidence.selectionStart === 9
         && checkpoint2cInteractionEvidence.selectionEnd === 14
@@ -436,6 +432,7 @@ try {
         && checkpoint2cInteractionEvidence.revision === '9'
         && checkpoint2cInteractionEvidence.errorCount === 0,
       `Checkpoint 2C dirty decision state did not survive two passive refreshes across 12.5 seconds: ${JSON.stringify(checkpoint2cInteractionEvidence)}`);
+      await devtools.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     } else {
       const focusSelector = checkpoint2cFocus === 'proposal'
         ? '[data-asset-proposal]'
@@ -3367,6 +3364,7 @@ try {
     layout.cards = checkpoint2cRouteEvidence.cards;
     layout.assetLibrary = { ...layout.assetLibrary, ...checkpoint2cRouteEvidence.assetLibrary };
     layout.checkpoint2cInspectedRoutes = checkpoint2cRouteEvidence.inspectedRoutes;
+    if (checkpoint2cRouteEvidence.sharedReview) layout.checkpoint2cSharedReview = checkpoint2cRouteEvidence.sharedReview;
   }
   assert(layout.viewport.width === width && layout.viewport.height === height, 'Chrome viewport differs from the requested evidence size.');
   assert(layout.horizontalOverflow === false, `${mode} ${expectedWorkspace} overflows horizontally at ${width}px.`);
@@ -3522,15 +3520,10 @@ try {
     if (expectedWorkspace === 'assets' && checkpoint2cPhase === 'pending') {
       assert(layout.revision === 9 && layout.activityCount === 9,
         'Checkpoint 2C pending evidence is not bound to the revision-9 proposal fixture.');
-      assert(layout.cards.length === 0
-        && layout.assetLibrary.proposalId === 'proposal.family-hygiene-2c'
-        && layout.assetLibrary.proposalState === 'PENDING'
-        && layout.assetLibrary.proposalItems.length === 4
-        && layout.assetLibrary.decisionControlCount === 4,
-      'Checkpoint 2C pending proposal review is incomplete.');
-      assert(layout.assetLibrary.proposalItems.every(({ previewState, loadedImage, diffRowCount, canonicalIds }) => (
-        previewState === 'READY' && loadedImage && diffRowCount === 10 && canonicalIds.length === 2
-      )), 'Checkpoint 2C pending items lost READY previews, deterministic diffs, or copyable identities.');
+      assert(layout.cards.length === 0 && checkpoint2cRouteEvidence.sharedReview.proposalId === 'proposal.family-hygiene-2c'
+        && checkpoint2cRouteEvidence.sharedReview.items.length === 4 && checkpoint2cRouteEvidence.sharedReview.selectionCount === 4
+        && checkpoint2cRouteEvidence.sharedReview.noWrite === true,
+      'Checkpoint 2C shared pending proposal lost exact inspection, selection or its no-write boundary.');
       assert(checkpoint2cInteractionEvidence?.value === 'Evidence draft retained across passive refresh.',
         'Checkpoint 2C pending evidence omitted the 12.5-second passive-refresh interaction proof.');
     }

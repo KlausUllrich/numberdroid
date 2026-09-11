@@ -9,12 +9,16 @@ retention of older drafts when a newer proposal arrives, Back-left navigation
 and one readable Activity event per row. This is design approval, not production
 acceptance or evidence of a working agent-launch capability.
 
-ND-2 remains the next functional implementation. Start by defining compatible
-commands and saved review records against the current Asset/Clip/Assembly paths;
-then connect the approved UI. Preserve old data, accepted versions, dependencies,
-owner authority, exact retries and recovery. Exercise the resulting workflow with
-a real semantic agent before Klaus's production batch. ND-6 and ND-7 retain their
-separate rollout scopes. No new VT item exists until an implementation is ready.
+The shared Review foundation is integrated through PR #247 at `1b4cbf1`, with
+green pre/post-merge CI and a real semantic-agent feedback/revision/acceptance
+round trip. The [production UI block](../../tools/numberdroid-studio/docs/SHARED_REVIEW_UI_IMPLEMENTATION_CONTRACT.md)
+is implemented and undergoing final integration checks. It connects shared
+Image/Animation/Assembly reviews, explicit first decisions for existing proposals,
+truthful Library badges, editable feedback and exact historical Activity. The
+affected ND-6 Back-left headers and ND-7 Activity rows are included in this block.
+Production acceptance remains pending; exercise owner decisions through the new
+UI with a real agent before Klaus's fresh-fixture batch. Preserve every existing
+acceptance and the separate VT-001/CP4.5 boundary.
 
 ## 2026-09-11 Library production acceptance and follow-ups
 

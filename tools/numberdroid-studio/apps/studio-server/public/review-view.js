@@ -1,6 +1,8 @@
 import { libraryElement as el, libraryPreviewDescriptor } from './library-detail-view.js';
 import { assemblySvg, createAssemblyArtwork, updateAssemblyArtwork } from './assembly-artwork-view.js';
 import { clipFrameAtTime } from '../../../packages/domain/src/clip-playback.js';
+import { assemblyReviewChanges } from './assembly-review-summary.js';
+import { animationReviewChanges } from './animation-review-view.js';
 
 const names = { image: 'Image', animation: 'Animation', assembly: 'Assembly' };
 const playbackByState = new WeakMap();
@@ -15,11 +17,12 @@ export function reviewStatusLabel(group) {
   return { PENDING: 'Needs review', ACCEPTED: 'Accepted', DISCARDED: 'Discarded' }[group?.status] ?? 'Review unavailable';
 }
 
-/** This is the service's selected acceptance result, never a reconstruction of prospective saved content. */
+/** Live review shows the selected acceptance result; event inspection shows its immutable proposed record. */
 export function reviewPreviewRecord(state, side = state.side) {
   const item = state.group?.items?.find(value => value.itemId === state.activeItemId) ?? state.group?.items?.[0];
   if (!item) return { item: null, record: null, message: 'No content is available in this review.' };
   if (side === 'current') return { item, record: item.resolvedCurrent ?? null, message: item.current ? 'The exact current preview is unavailable.' : 'No current content. This change creates it.' };
+  if (state.readOnly) return { item, record: item.resolvedProposed ?? null, message: 'The exact recorded proposal preview is unavailable.' };
   const outcome = state.group.selectionOutcome;
   if (outcome?.state !== 'READY') return { item, record: null, message: 'The selected result is unavailable. Check the selection and its dependencies.' };
   if (JSON.stringify([...(outcome.selectedItemIds ?? [])].sort()) !== JSON.stringify([...(state.selectedItemIds ?? [])].sort())) return { item, record: null, message: 'Checking the selected result…' };
@@ -27,16 +30,39 @@ export function reviewPreviewRecord(state, side = state.side) {
   return { item, record: entry?.resolved ?? null, message: entry?.record ? 'The exact selected preview is unavailable.' : 'This creation is not selected. It contributes nothing to the selected result.' };
 }
 
-function summaryFor(item) {
-  const record = item.proposed ?? item.proposedRecord ?? item.payload, current = item.current;
-  if (!current) return `Add ${names[item.contentKind]?.toLowerCase() ?? 'content'} to the Library.`;
+export function reviewComparisonBounds({ item, record, projectId, descriptor }) {
+  const resolvedRecords = [record, item.resolvedCurrent, item.resolvedProposed].filter(Boolean);
+  let frames = [];
+  if (item.contentKind === 'assembly') {
+    // Compare actual visible artwork. Large invisible placement regions and
+    // distant authoring anchors must not shrink the useful review preview.
+    frames = resolvedRecords.map(value => value.scene?.visualBounds).filter(bounds => bounds
+      && ['x', 'y', 'width', 'height'].every(key => Number.isFinite(bounds[key])) && bounds.width > 0 && bounds.height > 0);
+  }
+  if (!frames.length || item.contentKind !== 'assembly') {
+    frames = [descriptor.bounds];
+    for (const resolved of resolvedRecords) try {
+      frames.push(libraryPreviewDescriptor({ entry: { contentKind: item.contentKind }, record: resolved, projectId, proposed: true }).bounds);
+    } catch { /* The selected exact preview still remains valid. */ }
+  }
+  const x = Math.min(...frames.map(bounds => bounds.x)), y = Math.min(...frames.map(bounds => bounds.y));
+  const width = Math.max(...frames.map(bounds => bounds.x + bounds.width)) - x, height = Math.max(...frames.map(bounds => bounds.y + bounds.height)) - y;
+  const pad = item.contentKind === 'assembly' ? Math.max(width, height) * .08 : 0;
+  return { x: x - pad, y: y - pad, width: width + pad * 2, height: height + pad * 2 };
+}
+
+export function reviewItemChanges(item) {
+  const record = item.proposed ?? item.proposedRecord ?? item.payload;
+  const content = { ...item.payload, ...record };
+  const current = item.current ? { ...item.current, ...(item.resolvedCurrent?.leafAssets ? { leafAssets: item.resolvedCurrent.leafAssets } : {}) } : null;
+  if (item.contentKind === 'assembly') return assemblyReviewChanges({ content, leafAssets: item.resolvedProposed?.leafAssets ?? [] }, current);
+  if (item.contentKind === 'animation') return { changes: animationReviewChanges({ content }, current).map(label => ({ label })), unchanged: [] };
+  if (!current) return { changes: [{ label: 'Add image to the Library.' }], unchanged: [] };
   const changes = [];
-  if (current.name !== record.name) changes.push('Name');
-  if (JSON.stringify(current.metadata) !== JSON.stringify(record.metadata)) changes.push('descriptive properties');
-  if (item.contentKind === 'image' && JSON.stringify(current.sliceBinding) !== JSON.stringify(record.sliceBinding)) changes.push('image source');
-  if (item.contentKind === 'animation' && JSON.stringify(current.clip) !== JSON.stringify(record.clip)) changes.push('animation frames or playback');
-  if (item.contentKind === 'assembly' && JSON.stringify(current.assembly) !== JSON.stringify(record.assembly)) changes.push('components or geometry');
-  return changes.length ? `Update ${changes.join(', ')}.` : 'Save the proposed content version.';
+  if (current.name !== record.name) changes.push({ label: `Rename ${current.name} to ${record.name}.` });
+  if (JSON.stringify(current.metadata) !== JSON.stringify(record.metadata)) changes.push({ label: 'Update descriptive properties.' });
+  if (JSON.stringify(current.sliceBinding) !== JSON.stringify(record.sliceBinding)) changes.push({ label: 'Use a different exact image source.' });
+  return { changes: changes.length ? changes : [{ label: 'Save the proposed content version.' }], unchanged: [] };
 }
 
 function feedbackBlock(feedback, group, className = 'review-saved-feedback') {
@@ -64,11 +90,16 @@ export function renderReviewView({ state, view = {}, onAction = () => {}, onInpu
   };
   const disclose = (id, title) => { const node = el('details', 'review-disclosure'); node.dataset.reviewDisclosure = id; const label = el('summary', '', title); label.dataset.reviewFocus = `disclosure:${id}`; node.append(label); return node; };
   const header = el('header', 'review-header'), title = el('div');
-  title.append(el('p', 'review-eyebrow', state.readOnly ? 'Recorded review · read-only' : 'Review changes'), el('h2', '', group?.title ?? 'Loading review…'), el('p', 'review-meta', 'Compare the selected result, then decide what to keep.'));
-  const headingActions = el('div', 'review-heading-actions'), badge = el('span', `review-badge${group?.status === 'CHANGES_REQUESTED' ? ' awaiting' : ''}`, reviewStatusLabel(group)); badge.dataset.reviewStatus = group?.status ?? 'loading'; headingActions.append(badge);
+  title.append(el('p', 'review-eyebrow', state.readOnly ? 'Recorded review · read-only' : 'Review changes'), el('h2', '', group?.title ?? (state.load === 'unavailable' ? 'Review unavailable' : 'Loading review…')), el('p', 'review-meta', state.readOnly ? 'Inspect the content recorded in this event. This view cannot change a saved decision.' : 'Compare the selected result, then decide what to keep.'));
+  const headingActions = el('div', 'review-heading-actions'), badge = el('span', `review-badge${group?.status === 'CHANGES_REQUESTED' ? ' awaiting' : ''}`, group ? reviewStatusLabel(group) : state.load === 'unavailable' ? 'Unavailable' : 'Loading'); badge.dataset.reviewStatus = group?.status ?? (state.load === 'unavailable' ? 'unavailable' : 'loading'); headingActions.append(badge);
   if (group && !terminal && !state.readOnly) { const more = disclose('more', 'More actions'); more.classList.add('review-more'); more.append(button('discard', 'Discard remaining proposal', !view.canDiscard)); headingActions.append(more); }
   header.append(title, headingActions); root.append(header);
-  if (!group) { root.append(el('p', 'review-message', messageText(state.error) || 'Loading exact saved review…')); return root; }
+  if (!group) {
+    root.append(el('p', 'review-message', messageText(state.error) || (state.load === 'unavailable' ? 'The saved review could not be read. Retry to inspect it.' : 'Loading exact saved review…')));
+    if (state.load === 'unavailable' || state.error) root.append(button('recheck', 'Retry read', state.load === 'loading' || state.phase === 'loading'));
+    if (view.canAdoptLatest) root.append(button('review-latest', view.stale === 'legacy' ? 'Review latest proposal →' : 'Review latest version →', state.load === 'loading' || state.phase === 'loading'));
+    return root;
+  }
   const intent = el('section', 'review-intent'); intent.append(el('div', '', `${pending.length} remaining ${pending.length === 1 ? 'change' : 'changes'} · ${items.filter(item => item.status === 'ACCEPTED').length} already accepted`), el('small', 'review-meta', group.legacySource ? 'Existing proposal · opening this review saves nothing.' : 'Saved content stays unchanged until acceptance.')); root.append(intent);
   const layout = el('div', 'review-layout'), visual = el('div', 'review-visual'), toolbar = el('div', 'review-toolbar'), sides = el('div', 'review-sides');
   for (const side of ['current', 'proposed']) { const b = button('side', side === 'current' ? 'Current' : 'Proposed', false, side); b.setAttribute('aria-pressed', String(state.side === side)); sides.append(b); } toolbar.append(sides);
@@ -90,11 +121,9 @@ export function renderReviewView({ state, view = {}, onAction = () => {}, onInpu
   if (!selection.record) canvas.append(el('p', 'review-preview-empty', selection.message));
   else try {
     const record = selection.record, descriptor = libraryPreviewDescriptor({ entry: { contentKind: active.contentKind }, record, projectId: state.projectId, proposed: true });
-    // Both sides use the same frame so switching does not masquerade as a size change.
-    const frames = [descriptor.bounds];
-    for (const resolved of [active.resolvedCurrent, active.resolvedProposed]) if (resolved) try { frames.push(libraryPreviewDescriptor({ entry: { contentKind: active.contentKind }, record: resolved, projectId: state.projectId, proposed: true }).bounds); } catch { /* The selected exact preview still remains valid. */ }
-    const x = Math.min(...frames.map(b => b.x)), y = Math.min(...frames.map(b => b.y)), width = Math.max(...frames.map(b => b.x + b.width)) - x, height = Math.max(...frames.map(b => b.y + b.height)) - y;
-    const svg = assemblySvg('svg', { viewBox: `${x} ${y} ${width} ${height}`, preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': `${record.name} — ${state.side === 'current' ? 'current content' : 'selected result'}` }); canvas.append(svg); canvas.dataset.reviewPreviewState = 'ready';
+    // The same current/proposed artwork frame applies on both sides.
+    const { x, y, width, height } = reviewComparisonBounds({ item: active, record, projectId: state.projectId, descriptor });
+    const svg = assemblySvg('svg', { viewBox: `${x} ${y} ${width} ${height}`, preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': `${record.name} — ${state.side === 'current' ? state.readOnly ? 'current content at the recorded review' : 'current content' : state.readOnly ? 'recorded proposed content' : 'selected result'}` }); canvas.append(svg); canvas.dataset.reviewPreviewState = 'ready';
     if (active.contentKind === 'assembly') { const artwork = createAssemblyArtwork(record.scene, { projectId: state.projectId, playing, now: 0 }); svg.append(artwork); draw = () => updateAssemblyArtwork(artwork, record.scene, { projectId: state.projectId, playing, now: elapsedMs }); draw(); }
     else if (active.contentKind === 'animation') {
       const image = assemblySvg('image', { preserveAspectRatio: 'none' }); svg.append(image);
@@ -122,8 +151,8 @@ export function renderReviewView({ state, view = {}, onAction = () => {}, onInpu
   } catch (error) { canvas.dataset.reviewPreviewState = 'unavailable'; canvas.replaceChildren(el('p', 'review-preview-empty', error.message)); }
   const panel = el('aside', 'review-panel'); panel.dataset.reviewScroll = 'panel';
   const notice = el('div', `review-message${state.error || view.stale ? ' warning' : ''}`); notice.dataset.reviewMessage = ''; notice.setAttribute('role', 'status'); notice.dataset.reviewScroll = 'message';
-  notice.append(el('p', '', messageText(state.error) || messageText(view.message) || (state.readOnly ? 'This recorded review is read-only. Its feedback and decisions cannot be rewritten.' : state.feedback?.editing ? 'Save or cancel this feedback draft before acceptance. Saving feedback accepts no content.' : group.status === 'CHANGES_REQUESTED' ? 'Your feedback is saved. No agent was started. You may edit the feedback or accept this unchanged, valid proposal.' : 'Select changes to accept. Other changes remain available.')));
-  if (view.canAdoptLatest || view.stale) notice.append(button('review-latest', view.stale === 'content' ? 'Review latest version →' : 'Review latest saved decision →', !view.canAdoptLatest));
+  notice.append(el('p', '', messageText(state.error) || messageText(view.message) || (view.stale === 'legacy' ? 'The original proposal changed. Review its latest version before deciding.' : null) || (state.readOnly ? 'This recorded review is read-only. Its feedback and decisions cannot be rewritten.' : state.feedback?.editing ? 'Save or cancel this feedback draft before acceptance. Saving feedback accepts no content.' : group.status === 'CHANGES_REQUESTED' ? 'Your feedback is saved. No agent was started. You may edit the feedback or accept this unchanged, valid proposal.' : 'Select changes to accept. Other changes remain available.')));
+  if (view.canAdoptLatest || view.stale) notice.append(button('review-latest', view.stale === 'legacy' ? 'Review latest proposal →' : view.stale === 'content' ? 'Review latest version →' : 'Review latest saved decision →', !view.canAdoptLatest));
   panel.append(notice);
   const feedback = state.feedback ?? {};
   if (feedback.editing) {
@@ -137,20 +166,24 @@ export function renderReviewView({ state, view = {}, onAction = () => {}, onInpu
     for (const item of items) {
       const row = el('article', `review-choice${item.itemId === active?.itemId ? ' active' : ''}`); row.dataset.reviewItem = item.itemId;
       const top = el('div', 'review-choice-top'), checkbox = el('input'); checkbox.type = 'checkbox'; checkbox.checked = item.status === 'ACCEPTED' || (state.selectedItemIds ?? []).includes(item.itemId); checkbox.disabled = item.status !== 'PENDING' || Boolean(view.locked) || state.readOnly; checkbox.dataset.reviewFocus = `select:${item.itemId}`; checkbox.dataset.reviewSelect = item.itemId; checkbox.setAttribute('aria-label', `Include ${itemName(item)}`); checkbox.addEventListener('change', () => onSelection(item.itemId, checkbox.checked));
-      const content = el('div'), focus = button('item', itemName(item), false, item.itemId, 'review-item-name'); focus.setAttribute('aria-pressed', String(item.itemId === active?.itemId)); content.append(focus, el('small', 'review-meta', join([names[item.contentKind], item.status === 'ACCEPTED' ? 'Already accepted' : item.status === 'DISCARDED' ? 'Discarded' : item.payload?.operation === 'create' ? 'New' : 'Update']))); top.append(checkbox, content); row.append(top, el('p', 'review-change-summary', summaryFor(item)));
+      const content = el('div'), focus = button('item', itemName(item), false, item.itemId, 'review-item-name'); focus.setAttribute('aria-pressed', String(item.itemId === active?.itemId)); content.append(focus, el('small', 'review-meta', join([names[item.contentKind], item.status === 'ACCEPTED' ? 'Already accepted' : item.status === 'DISCARDED' ? 'Discarded' : item.payload?.operation === 'create' ? 'New' : 'Update']))); top.append(checkbox, content); row.append(top);
+      const changeSummary = reviewItemChanges(item), changeRow = change => { const node = el('div', 'review-change-summary'); node.append(el('strong', '', change.label)); if (change.detail) node.append(el('small', 'review-meta', change.detail)); return node; };
+      for (const change of changeSummary.changes.slice(0, 3)) row.append(changeRow(change));
+      if (changeSummary.changes.length > 3) { const more = disclose(`changes:${item.itemId}`, `More changes (${changeSummary.changes.length - 3})`); for (const change of changeSummary.changes.slice(3)) more.append(changeRow(change)); row.append(more); }
+      if (changeSummary.unchanged?.length) row.append(el('p', 'review-meta', changeSummary.unchanged.join(' · ')));
       for (const dependency of item.dependsOn ?? []) { const target = items.find(value => value.itemId === dependency); row.append(el('p', 'review-dependency', `Needs ${itemName(target)}${target?.status === 'ACCEPTED' ? ' · already accepted' : (state.selectedItemIds ?? []).includes(dependency) ? ' · selected' : ' · select this too, or accept it first'}`)); }
       for (const finding of item.conflicts ?? []) row.append(el('p', 'review-finding', finding.message));
       const inspect = el('div', 'review-item-actions'); for (const side of ['current', 'proposed']) { const b = el('button', 'secondary', `${side === 'current' ? 'Current' : 'Proposed'} details →`); b.type = 'button'; b.disabled = view.canInspect === false || !(side === 'current' ? item.current : item.proposed ?? item.proposedRecord); b.dataset.reviewFocus = `details:${item.itemId}:${side}`; b.dataset.reviewDetails = side; b.dataset.reviewItemId = item.itemId; b.addEventListener('click', () => { if (!b.disabled) onDetails({ itemId: item.itemId, side }); }); inspect.append(b); } row.append(inspect); panel.append(row);
     }
     if (group.feedback) { const saved = feedbackBlock(group.feedback, group); if (!terminal && !state.readOnly) saved.append(button('edit-feedback', 'Edit feedback', !view.canEditFeedback)); panel.append(saved); }
   }
-  if (feedback.olderDraft) { const old = feedback.olderDraft, retained = disclose('older-draft', 'Retained feedback from an older version'); retained.classList.add('review-older-draft'); retained.append(el('p', 'review-meta', `Not sent · Content ${old.contentVersion ?? '?'} · Review ${old.reviewVersion ?? '?'}`), el('p', 'review-feedback-text', old.summary)); for (const [id, text] of Object.entries(old.itemComments ?? {})) if (text) retained.append(el('p', 'review-feedback-text', `${itemName(items.find(item => item.itemId === id))}: ${text}`)); retained.append(button('copy-older-draft', 'Use as a new feedback draft', !view.canEditFeedback)); panel.append(retained); }
+  if (feedback.olderDraft) { const old = feedback.olderDraft, retained = disclose('older-draft', 'Retained feedback from an older version'); retained.classList.add('review-older-draft'); retained.append(el('p', 'review-meta', old.legacySource ? `Not sent · Original proposal version ${old.legacySource.expectedProposalVersion}` : `Not sent · Content ${old.contentVersion ?? '?'} · Review ${old.reviewVersion ?? '?'}`), el('p', 'review-feedback-text', old.summary)); for (const [id, text] of Object.entries(old.itemComments ?? {})) if (text) retained.append(el('p', 'review-feedback-text', `${itemName(items.find(item => item.itemId === id))}: ${text}`)); retained.append(button('copy-older-draft', 'Use as a new feedback draft', !view.canEditFeedback)); panel.append(retained); }
   if (group.history?.length) { const history = disclose('history', 'Saved feedback and decisions'); for (const version of [...group.history].reverse()) { const row = el('section', 'review-history-entry'); row.append(el('strong', '', join([`Review ${version.reviewVersion}`, { PENDING: 'Submitted for review', CHANGES_REQUESTED: 'Changes requested', ACCEPTED: 'Accepted', DISCARDED: 'Discarded' }[version.status]])), el('small', 'review-meta', new Date(version.createdAt).toLocaleString())); if (version.feedback && version.feedback.reviewVersion === version.reviewVersion) row.append(feedbackBlock(version.feedback, group)); if (version.decision?.action === 'ACCEPT') row.append(el('p', 'review-meta', `${version.decision.accepted?.length ?? 0} changes accepted · ${version.decision.remainingItemIds?.length ?? 0} remaining`)); history.append(row); } panel.append(history); }
   layout.append(visual, panel); root.append(layout);
   const footer = el('footer', 'review-footer'), consequence = el('div');
   consequence.append(el('p', '', state.readOnly ? 'Recorded event · inspection only. Open the current review separately to continue outstanding work.' : terminal ? 'This review is complete. Saved decisions and previously accepted content are preserved.' : feedback.editing ? 'Saving feedback accepts no content. The next agent round can read it; this action does not start an agent.' : 'Acceptance saves only the selected valid changes. Other saved uses keep their pinned versions.'), el('small', 'review-meta', join([group.proposer?.actor?.displayName ?? group.proposer?.actor?.id, group.proposer?.taskId, `Content ${group.contentVersion ?? 1}`, group.reviewVersion ? `Review ${group.reviewVersion}` : 'Existing proposal'])));
   const actions = el('div', 'review-actions');
-  if (state.phase === 'uncertain') actions.append(button('check', 'Check saved outcome', false), button('retry', 'Retry exact request', !state.canMutate, undefined, 'primary'));
+  if (state.phase === 'uncertain' && !state.readOnly) actions.append(button('check', 'Check saved outcome', false), button('retry', 'Retry exact request', !state.canMutate, undefined, 'primary'));
   else if (!terminal && !state.readOnly) {
     if (feedback.editing) actions.append(button('cancel-feedback', 'Cancel edit', Boolean(view.locked)), button('save-feedback', group.feedback ? 'Save updated feedback' : 'Request changes', !view.canFeedback, undefined, 'primary'));
     else actions.append(button(group.feedback ? 'edit-feedback' : 'request-changes', group.feedback ? 'Edit feedback' : 'Request changes', !view.canEditFeedback), button('accept', 'Accept selected changes', !view.canAccept, undefined, 'primary'));

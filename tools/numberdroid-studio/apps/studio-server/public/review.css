@@ -54,7 +54,7 @@
 .review-saved-comment { margin-top:12px; font-size:12px; }
 .review-field { display:block; font-size:12px; color:var(--review-muted); margin-top:15px; }
 .review-workspace textarea { display:block; width:100%; max-width:100%; resize:vertical; border:1px solid #53745f; border-radius:7px; padding:10px; margin-top:8px; line-height:1.5; background:#10241a; color:#e3eee6; }
-.review-feedback-main { min-height:118px; font-size:13px!important; }
+.review-feedback-main { min-height:118px; font-size:14px!important; }
 .review-feedback-error { min-height:30px; color:#efb6a9; font-size:12px; margin-top:6px!important; }
 .review-disclosure { margin-top:16px; font-size:12px; color:var(--review-muted); }
 .review-disclosure summary { cursor:pointer; overflow-wrap:anywhere; }
@@ -97,3 +97,5 @@
 
 /* Account for native scrollbar width only in these inspected workspaces. */
 @media (min-width:1060px) { body:has(.review-workspace, .activity-rows) { min-width:0; } }
+
+.review-workspace textarea{font-size:14px}

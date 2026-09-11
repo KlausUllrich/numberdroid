@@ -1,6 +1,6 @@
 # Shared Review V2 — production UI block
 
-Status: scoped for implementation, 2026-09-11. ND-2, with the approved ND-6/ND-7
+Status: implemented candidate under integration verification, 2026-09-11. ND-2, with the approved ND-6/ND-7
 navigation and Activity patterns. The [Review V2 design](REVIEW_CHANGES_DESIGN.md)
 is approved; production acceptance remains separate. The
 [foundation](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md) is integrated through PR247

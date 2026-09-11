@@ -224,3 +224,104 @@ test('cached detached Review navigation checks preserve the Details origin focus
   assert.equal(restoredFocus, focus); assert.deepEqual(restoredSelection, [2, 6, 'forward']);
   controller.dispose();
 });
+
+test('a failed historical initial read can retry without dropping its exact Review version', async () => {
+  let calls = 0;
+  const h = setup({ context: { group: null, reviewId: 'review.demo', reviewVersion: 2, readOnly: true },
+    read: async request => { if (++calls === 1) throw new TypeError('Temporary read failure'); return { projectId: 'project.demo', revision: 10, groups: [group(request.reviewVersion ?? 4)] }; } });
+  await h.controller.dispatch('recheck');
+  assert.equal(h.state.group, null); assert.equal(h.state.load, 'unavailable');
+  await h.controller.dispatch('recheck');
+  assert.equal(h.state.group.reviewVersion, 2); assert.equal(h.state.readOnly, true);
+  await h.controller.dispatch('recheck');
+  assert.deepEqual(h.readCalls.map(request => request.reviewVersion), [2, 2, 2]);
+  assert.equal(h.postCalls.length, 0); h.controller.dispose();
+});
+
+test('a newer original proposal requires explicit adoption and retains an older draft until the read succeeds', async () => {
+  const source = { contentKind: 'animation', proposalId: 'proposal.legacy', expectedProposalVersion: 1 };
+  const latestSource = { ...source, expectedProposalVersion: 2 };
+  const original = group(0, { legacySource: source, isLegacyProjection: true });
+  let failLatest = true;
+  const h = setup({ group: original, read: async request => {
+    if (request.legacySource.expectedProposalVersion === 1) throw Object.assign(new Error('The original proposal changed.'), { status: 409 });
+    if (failLatest) { failLatest = false; throw new TypeError('Temporary read failure'); }
+    return { projectId: 'project.demo', revision: 8, groups: [group(0, { legacySource: latestSource, isLegacyProjection: true, title: 'New original proposal' })] };
+  } });
+  await h.controller.dispatch('request-changes'); h.callbacks().onInput('summary', '  Feedback for the old proposal\n');
+  h.setCurrent({ projectRevision: 8, latestLegacySource: latestSource });
+  assert.equal(h.callbacks().view.stale, 'legacy'); assert.equal(h.callbacks().view.canAdoptLatest, true);
+  assert.equal(h.state.legacySource.expectedProposalVersion, 1);
+  await h.controller.dispatch('recheck');
+  assert.equal(h.readCalls[0].legacySource.expectedProposalVersion, 1);
+  assert.equal(h.state.group.reviewVersion, 0); assert.equal(h.state.legacySource.expectedProposalVersion, 1);
+  await h.controller.dispatch('review-latest');
+  assert.equal(h.state.legacySource.expectedProposalVersion, 1);
+  assert.equal(h.state.feedback.draftSummary, '  Feedback for the old proposal\n'); assert.equal(h.state.feedback.olderDraft, null);
+  await h.controller.dispatch('review-latest');
+  assert.equal(h.state.legacySource.expectedProposalVersion, 2); assert.equal(h.state.group.title, 'New original proposal');
+  assert.equal(h.state.feedback.editing, false); assert.equal(h.state.feedback.draftSummary, '');
+  assert.equal(h.state.feedback.olderDraft.summary, '  Feedback for the old proposal\n');
+  assert.equal(h.state.feedback.olderDraft.legacySource.expectedProposalVersion, 1);
+  assert.equal(h.callbacks().view.stale, null); assert.equal(h.postCalls.length, 0);
+  await h.controller.dispatch('copy-older-draft'); assert.equal(h.state.feedback.draftSummary, '  Feedback for the old proposal\n');
+  h.controller.dispose();
+});
+
+test('a legacy source changed before the first successful read can be adopted explicitly without fabricating an old group', async () => {
+  const source = { contentKind: 'image', proposalId: 'proposal.initial', expectedProposalVersion: 1 }, latestSource = { ...source, expectedProposalVersion: 3 };
+  const h = setup({ context: { group: null, legacySource: source }, read: async request => {
+    if (request.legacySource.expectedProposalVersion !== 3) throw Object.assign(new Error('Original proposal version conflict.'), { status: 409 });
+    return { projectId: 'project.demo', revision: 9, groups: [group(0, { legacySource: latestSource, isLegacyProjection: true })] };
+  } });
+  await h.controller.dispatch('recheck'); assert.equal(h.state.group, null);
+  h.setCurrent({ projectRevision: 9, latestLegacySource: latestSource });
+  assert.equal(h.callbacks().view.stale, 'legacy'); assert.equal(h.callbacks().view.canAdoptLatest, true);
+  await h.controller.dispatch('review-latest');
+  assert.equal(h.state.group.reviewVersion, 0); assert.equal(h.state.legacySource.expectedProposalVersion, 3);
+  assert.equal(h.state.feedback.olderDraft, null); assert.equal(h.postCalls.length, 0); h.controller.dispose();
+});
+
+test('external shared adoption reads the authoritative Review explicitly and preserves the old draft until success', async () => {
+  const source = { contentKind: 'animation', proposalId: 'proposal.converted', expectedProposalVersion: 2 };
+  const adopted = group(1, { legacySource: source, status: 'CHANGES_REQUESTED', feedback: { summary: 'Saved elsewhere', itemComments: [] } });
+  let failShared = true;
+  const h = setup({ group: group(0, { legacySource: source, isLegacyProjection: true }), read: async request => {
+    if (request.legacySource) throw Object.assign(new Error('Continue through the adopted Review.'), { code: 'LEGACY_PROPOSAL_ADOPTED', status: 409 });
+    if (failShared) { failShared = false; throw new TypeError('Temporary shared read failure'); }
+    return { projectId: 'project.demo', revision: 8, groups: [adopted] };
+  } });
+  await h.controller.dispatch('request-changes'); h.callbacks().onInput('summary', '  Original legacy draft\n');
+  h.setCurrent({ projectRevision: 8, latestGroup: adopted });
+  assert.equal(h.callbacks().view.canAdoptLatest, true);
+  await h.controller.dispatch('review-latest');
+  assert.equal(h.readCalls[0].reviewId, adopted.reviewId); assert.equal(h.readCalls[0].reviewVersion, 1); assert.equal(Object.hasOwn(h.readCalls[0], 'legacySource'), false);
+  assert.equal(h.state.group.reviewVersion, 0); assert.deepEqual(h.state.legacySource, source);
+  assert.equal(h.state.feedback.draftSummary, '  Original legacy draft\n'); assert.equal(h.state.feedback.olderDraft, null);
+  await h.controller.dispatch('review-latest');
+  assert.equal(h.state.group.reviewVersion, 1); assert.equal(h.state.legacySource, null);
+  assert.equal(h.state.feedback.editing, false); assert.equal(h.state.feedback.olderDraft.summary, '  Original legacy draft\n');
+  assert.deepEqual(h.state.feedback.olderDraft.legacySource, source); assert.equal(h.postCalls.length, 0); h.controller.dispose();
+});
+
+test('an initial failed legacy read matches external adoption by immutable source identity before its Review ID is known', async () => {
+  const source = { contentKind: 'image', proposalId: 'proposal.newly-adopted', expectedProposalVersion: 1 };
+  const adopted = group(1, { reviewId: 'review.authoritative-adoption', legacySource: source });
+  let failShared = true;
+  const h = setup({ context: { group: null, legacySource: source }, read: async request => {
+    if (request.legacySource) throw Object.assign(new Error('Continue through its adopted Review.'), { code: 'LEGACY_PROPOSAL_ADOPTED', status: 409 });
+    if (failShared) { failShared = false; throw new TypeError('Temporary failure'); }
+    return { projectId: 'project.demo', revision: 9, groups: [adopted] };
+  } });
+  await h.controller.dispatch('recheck'); assert.equal(h.state.reviewId, null); assert.equal(h.state.group, null);
+  h.setCurrent({ projectRevision: 9, latestGroup: { ...adopted, legacySource: { ...source, proposalId: 'proposal.unrelated' } } });
+  assert.equal(h.callbacks().view.canAdoptLatest, false);
+  h.setCurrent({ latestGroup: adopted }); assert.equal(h.callbacks().view.canAdoptLatest, true);
+  await h.controller.dispatch('review-latest');
+  assert.equal(h.state.group, null); assert.equal(h.state.reviewId, null); assert.deepEqual(h.state.legacySource, source);
+  await h.controller.dispatch('review-latest');
+  assert.equal(h.state.reviewId, adopted.reviewId); assert.equal(h.state.group.reviewVersion, 1); assert.equal(h.state.legacySource, null);
+  assert.equal(h.state.feedback.olderDraft, null); assert.equal(h.postCalls.length, 0);
+  assert.ok(h.readCalls.filter(request => request.reviewId).every(request => request.reviewId === adopted.reviewId && request.reviewVersion === 1 && !request.legacySource));
+  h.controller.dispose();
+});

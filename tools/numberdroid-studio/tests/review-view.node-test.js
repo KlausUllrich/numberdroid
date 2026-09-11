@@ -106,3 +106,83 @@ test('Animation playback uses exact frame occurrences and retains elapsed time a
   assert.equal(find(next,'reviewFrame','frame.two').tagName,'svg'); assert.equal(find(next,'reviewPlay','').textContent,'Pause preview');
   next.dispose(); assert.equal(frames.size,0);
 });
+
+test('Shared Assembly review preserves exact human-readable movement and resolved source names', async t => {
+  harness(t); const { reviewItemChanges } = await import('../apps/studio-server/public/review-view.js');
+  const state = source(), base = { assetId:'assembly.station',name:'Coffee station',kind:'prop',metadata:{role:'station',tags:[]},assembly:{schemaVersion:1,coordinateSpace:'assembly-pixels',unitsPerPixel:1/64,placementBounds:{x:0,y:0,width:64,height:128},anchor:{x:0,y:0},states:[{stateId:'idle',name:'Idle'}],variants:[{variantId:'base',name:'Base'}],defaultStateId:'idle',defaultVariantId:'base',blocking:{mode:'components',regions:[]},components:[{componentId:'display',name:'Status display',asset:{assetId:'asset.old',assetVersion:1,metadataVersion:1},position:{x:0,y:-58},rotationDegrees:0,scale:1,stateIds:null,variantOverrides:[]}]} };
+  const next=structuredClone(base);next.assembly.components[0].position.y=-62;
+  const item={...state.group.items[0],contentKind:'assembly',payload:{operation:'update'},current:base,proposed:next,resolvedCurrent:null,resolvedProposed:null};state.group.items=[item];state.group.selectionOutcome.state='UNAVAILABLE';
+  const before=structuredClone(item),summary=reviewItemChanges(item);assert.equal(summary.changes[0].label,'Status display moves 4 px upward');assert.match(summary.changes[0].detail,/Y -58 px → X 0, Y -62 px/);assert.deepEqual(item,before);
+  let root=renderReviewView({state,view:gates});assert.match(strings(root),/Status display moves 4 px upward/);assert.match(strings(root),/Placement area unchanged/);
+  next.assembly.components[0].asset={assetId:'asset.new',assetVersion:2,metadataVersion:1};item.resolvedCurrent={leafAssets:[{assetId:'asset.old',assetVersion:1,metadataVersion:1,name:'Original display'}]};item.resolvedProposed={leafAssets:[{assetId:'asset.new',assetVersion:2,metadataVersion:1,name:'Brighter display'}]};
+  const changed=reviewItemChanges(item).changes.find(change=>change.label.includes('different source'));assert.match(changed.detail,/Original display.*Brighter display/);
+});
+
+test('Shared Animation review shows the named exact timing change, preserving all extra changes in disclosure', t => {
+  harness(t);const state=source(),clip={fps:10,playbackMode:'loop',canvas:{width:32,height:96},anchor:{x:0,y:0},unitsPerPixel:1/64,frames:[{frameId:'crest',name:'Crest hold',slice:{sliceId:'slice.cut',sliceVersion:1},offset:{x:0,y:0},durationMs:300}]};
+  const current={assetId:'clip.brewing',name:'Brewing display',kind:'prop',metadata:{role:'display',tags:[]},clip},next=structuredClone(current);next.clip.frames[0].durationMs=750;
+  const item={...state.group.items[0],contentKind:'animation',payload:{operation:'update'},current,proposed:next,resolvedCurrent:null,resolvedProposed:null};state.group.items=[item];state.group.selectionOutcome.state='UNAVAILABLE';
+  let root=renderReviewView({state,view:gates});assert.match(strings(root),/“Crest hold” duration: 300 ms → 750 ms/);assert.equal(find(root,'reviewDisclosure','changes:item.light'),undefined);
+  next.name='Updated brewing';next.kind='effect';next.clip.fps=20;next.clip.playbackMode='pingpong';
+  root=renderReviewView({state,view:gates});const more=find(root,'reviewDisclosure','changes:item.light');assert.ok(more);assert.match(strings(more),/Ping-pong/);assert.match(strings(more),/300 ms → 750 ms/);assert.equal(more.open,undefined,'The additional multiline differences start collapsed');
+});
+
+test('Assembly review fits the same visible artwork union on both sides instead of invisible placement extents', async () => {
+  const { reviewComparisonBounds } = await import('../apps/studio-server/public/review-view.js');
+  const current={scene:{visualBounds:{x:-32,y:-96,width:64,height:96}}},proposed={scene:{visualBounds:{x:-32,y:-100,width:64,height:100}}};
+  const item={contentKind:'assembly',resolvedCurrent:current,resolvedProposed:proposed},descriptor={bounds:{x:-445,y:-445,width:890,height:890}};
+  const args={item,projectId:'project.review',descriptor};
+  assert.deepEqual(reviewComparisonBounds({...args,record:current}),{x:-40,y:-108,width:80,height:116});
+  assert.deepEqual(reviewComparisonBounds({...args,record:proposed}),reviewComparisonBounds({...args,record:current}));
+  const selectedOutcome={scene:{visualBounds:{x:-60,y:-120,width:130,height:180}}};
+  const bounds=reviewComparisonBounds({...args,record:selectedOutcome});
+  for(const value of[current,proposed,selectedOutcome]){const visible=value.scene.visualBounds;assert.ok(bounds.x<=visible.x&&bounds.y<=visible.y);assert.ok(bounds.x+bounds.width>=visible.x+visible.width&&bounds.y+bounds.height>=visible.y+visible.height);}
+});
+
+test('An Assembly with no visible artwork retains a finite safe frame', async () => {
+  const { reviewComparisonBounds } = await import('../apps/studio-server/public/review-view.js');
+  const record={scene:{visualBounds:null}},bounds=reviewComparisonBounds({item:{contentKind:'assembly'},record,projectId:'project.review',descriptor:{bounds:{x:0,y:0,width:64,height:96}}});
+  assert.ok(Object.values(bounds).every(Number.isFinite));assert.ok(bounds.width>=64&&bounds.height>=96);
+});
+
+test('Historical proposal artwork remains exact after current target changes make acceptance outcome unavailable', t => {
+  harness(t); const state = source(), item = state.group.items[0], original = item.resolvedProposed;
+  const current = {...structuredClone(original),assetVersion:2,name:'Current name',sliceBinding:{...binding,digest:'b'.repeat(64)}};
+  item.currentTarget = current; item.conflicts = [{code:'REVIEW_TARGET_CHANGED',message:'The saved target changed after this proposal was prepared.'}];
+  state.group.isLatest = false; state.group.latestReviewVersion = 5;
+  state.group.selectionOutcome = {basisRevision:12,selectedItemIds:state.selectedItemIds,state:'UNAVAILABLE',items:[],findings:[]};
+  state.group.eligibility = {canAccept:false,findings:[{code:'REVIEW_VERSION_CONFLICT',message:'Review latest.'}]};
+  assert.equal(reviewPreviewRecord(state).record,null,'The live decision view must still respect unavailable acceptance outcome');
+  state.readOnly=true; state.phase='uncertain';
+  const before=structuredClone(state),root=renderReviewView({state,view:{...gates,canAccept:false,canDiscard:false,canEditFeedback:false}});
+  const canvas=find(root,'reviewCanvas','');assert.equal(canvas.dataset.reviewPreviewState,'ready');
+  assert.match(canvas.querySelectorAll('image')[0].getAttribute('href'),new RegExp(binding.digest+'$'));
+  assert.equal(canvas.querySelectorAll('image').some(image=>image.getAttribute('href').includes(current.sliceBinding.digest)),false);
+  assert.match(canvas.querySelectorAll('svg')[0].getAttribute('aria-label'),/recorded proposed content/);
+  for(const action of['accept','save-feedback','request-changes','edit-feedback','discard','retry'])assert.equal(find(root,'reviewAction',action),undefined);
+  assert.match(strings(root),/content recorded in this event/);assert.deepEqual(state,before);
+  item.resolvedProposed=null;assert.equal(reviewPreviewRecord(state).record,null,'Missing historical artwork must not fall back to the current head');
+});
+
+test('An initial read failure offers a safe retry instead of an endless loading state', t => {
+  harness(t); const state=source(),actions=[];state.group=null;state.load='unavailable';state.error='The local service could not be reached.';
+  let root=renderReviewView({state,view:{},onAction:(...args)=>actions.push(args)});
+  assert.match(strings(root),/Review unavailable/);assert.doesNotMatch(strings(root),/Loading review/);
+  const retry=find(root,'reviewAction','recheck');assert.equal(retry.textContent,'Retry read');assert.equal(retry.disabled,false);retry.listeners.click();assert.deepEqual(actions,[['recheck',undefined]]);
+  assert.equal(find(root,'reviewAction','retry'),undefined,'Read recovery cannot retry a mutation');
+  state.load='loading';state.phase='loading';root=renderReviewView({state,view:{}});assert.equal(find(root,'reviewAction','recheck').disabled,true);
+});
+
+test('A changed legacy proposal uses neutral explicit adoption and keeps its original draft version', t => {
+  harness(t);const state=source();state.group.reviewVersion=0;state.group.legacySource={proposalId:'proposal.legacy',expectedProposalVersion:3};state.feedback.olderDraft={summary:'Original draft',itemComments:{},reviewVersion:0,contentVersion:1,legacySource:{proposalId:'proposal.legacy',expectedProposalVersion:2}};
+  const root=renderReviewView({state,view:{...gates,stale:'legacy',canAdoptLatest:true,canAccept:false,canEditFeedback:false}});
+  assert.equal(find(root,'reviewAction','review-latest').textContent,'Review latest proposal →');assert.match(strings(root),/original proposal changed/i);assert.match(strings(root),/Original proposal version 2/);assert.doesNotMatch(strings(root),/Content 1 · Review 0/);assert.doesNotMatch(strings(root),/newer content|new pixels|latest saved decision/i);
+});
+
+
+test('A legacy source changed before the first read has a distinct latest-proposal recovery action', t => {
+  harness(t);const state=source(),actions=[];state.group=null;state.load='unavailable';state.error='The original proposal changed.';
+  const root=renderReviewView({state,view:{stale:'legacy',canAdoptLatest:true},onAction:action=>actions.push(action)});
+  assert.ok(find(root,'reviewAction','recheck'));const latest=find(root,'reviewAction','review-latest');assert.equal(latest.textContent,'Review latest proposal →');latest.listeners.click();assert.deepEqual(actions,['review-latest']);
+  for(const action of['accept','request-changes','save-feedback','retry'])assert.equal(find(root,'reviewAction',action),undefined);
+});

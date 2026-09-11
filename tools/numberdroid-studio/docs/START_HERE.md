@@ -21,9 +21,9 @@ shared Review. Klaus reported **“All pass”** for its
 edits, reconsidered acceptance, truthful next actor and stale-proposal handling.
 Navigation placement (ND-6 / [#243](https://github.com/KlausUllrich/numberdroid/issues/243))
 and Activity readability (ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244))
-remain separate implementation follow-ups. Their demonstrated Back-left and
-Activity-row patterns are approved by the Review V2 PASS; this does not accept
-an application-wide rollout.
+are included for the affected headers and Activity screen in the active UI block.
+Their demonstrated patterns are approved by the Review V2 PASS; production
+acceptance remains pending.
 The [shared Review foundation](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md) is merged
 and pre/post-merge green through PR247 at `1b4cbf1`, with a real semantic-agent
 round trip and restart integrity. The active

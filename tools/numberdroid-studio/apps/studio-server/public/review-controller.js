@@ -1,5 +1,5 @@
 import { renderReviewView } from './review-view.js';
-import { createReviewUiState, reviewPresentation, reviewPendingIds, reviewStaleness, beginReviewFeedback, cancelReviewFeedback,
+import { createReviewUiState, reviewPresentation, reviewPendingIds, reviewStaleness, sameReviewLegacyIdentity, beginReviewFeedback, cancelReviewFeedback,
   retainReviewDraft, reuseReviewDraft, adoptReviewGroup, createReviewIntent } from './review-state.js';
 
 const copy = value => structuredClone(value);
@@ -51,27 +51,30 @@ export function createReviewController({ context: initial, host, renderView = re
     element.dataset.reviewPhase = state.phase;
     if (snapshot) restoreReviewContext(element, snapshot);
   }
-  function requestBody({ latest = false, version } = {}) {
+  function requestBody({ latest = false, version, legacySource, reviewId } = {}) {
+    const source = reviewId ? null : legacySource ?? state.legacySource;
+    const pinnedVersion = state.readOnly ? state.historicalReviewVersion ?? state.group?.reviewVersion ?? state.requestedReviewVersion
+      : version ?? state.group?.reviewVersion ?? state.requestedReviewVersion;
     return { schemaVersion: 1, projectId: state.projectId,
-      ...(state.legacySource ? { legacySource: copy(state.legacySource) } : { reviewId: state.reviewId }),
-      ...(!state.legacySource && !latest && (version ?? state.group?.reviewVersion ?? state.requestedReviewVersion) !== undefined
-        ? { reviewVersion: version ?? state.group?.reviewVersion ?? state.requestedReviewVersion } : {}),
+      ...(source ? { legacySource: copy(source) } : { reviewId: reviewId ?? state.reviewId }),
+      ...(!source && (!latest || state.readOnly) && pinnedVersion !== undefined ? { reviewVersion: pinnedVersion } : {}),
       includeHistory: true,
       ...(state.group ? { selectedItemIds: [...state.selectedItemIds] } : {}),
       ...(Object.keys(state.selection).length ? { selection: copy(state.selection) } : {}) };
   }
-  async function read({ mode = 'refresh', version } = {}) {
+  async function read({ mode = 'refresh', version, legacySource, reviewId } = {}) {
     if (disposed || !activeProject() || state.phase === 'saving') return false;
     readController?.abort(); const controller = new AbortController(), own = ++generation;
     readController = controller;
-    const request = requestBody({ latest: ['latest', 'check'].includes(mode), version });
+    const request = requestBody({ latest: ['latest', 'check'].includes(mode), version, legacySource, reviewId });
     const hadGroup = Boolean(state.group), wasUncertain = state.phase === 'uncertain';
     state.load = 'loading'; if (!wasUncertain) state.phase = 'loading'; render();
     const timer = setTimeout(() => controller.abort(), 10000);
     try {
       const response = await host.read(copy(request), { signal: controller.signal });
       if (disposed || own !== generation || !activeProject()) return false;
-      const group = response?.groups?.find(entry => !state.reviewId || entry.reviewId === state.reviewId);
+      const expectedReviewId = request.reviewId ?? state.reviewId;
+      const group = response?.groups?.find(entry => !expectedReviewId || entry.reviewId === expectedReviewId);
       if (response?.projectId !== state.projectId || !Number.isInteger(response.revision) || !group) throw new Error('The response did not identify this exact Review.');
       if (request.reviewVersion !== undefined && group.reviewVersion !== request.reviewVersion) throw new Error('The response returned a different Review version.');
       if (wasUncertain || mode === 'check') {
@@ -83,7 +86,9 @@ export function createReviewController({ context: initial, host, renderView = re
         state.latest = copy(group); state.load = 'ready'; state.error = null; return true;
       }
       const previousVersion = state.group?.reviewVersion;
-      adoptReviewGroup(state, group, response.revision, { preserveSelection: hadGroup, retainDraft: mode === 'adopt' && group.reviewVersion !== previousVersion });
+      const sourceChanged = Boolean(legacySource && legacySource.expectedProposalVersion !== state.legacySource?.expectedProposalVersion);
+      if (group.isLegacyProjection && request.legacySource && ['contentKind', 'proposalId', 'expectedProposalVersion'].some(key => group.legacySource?.[key] !== request.legacySource[key])) throw new Error('The response returned a different original proposal version.');
+      adoptReviewGroup(state, group, response.revision, { preserveSelection: hadGroup, retainDraft: hadGroup && mode === 'adopt' && (sourceChanged || group.reviewVersion !== previousVersion) });
       if (mode === 'receipt') cancelReviewFeedback(state);
       if (mode === 'adopt') state.latest = null;
       // Selection result is authoritative; no local approximation can enable acceptance.
@@ -187,6 +192,10 @@ export function createReviewController({ context: initial, host, renderView = re
     else if (action === 'copy-older-draft') { if (view.canEditFeedback) { reuseReviewDraft(state); render(); } }
     else if (action === 'review-latest') {
       if (!view.canAdoptLatest) return false;
+      if (state.legacySource && state.latest?.reviewVersion > 0 && sameReviewLegacyIdentity(state.legacySource, state.latest.legacySource)) {
+        return read({ mode: 'adopt', reviewId: state.latest.reviewId, version: state.latest.reviewVersion });
+      }
+      if (view.stale === 'legacy') return read({ mode: 'adopt', legacySource: copy(state.latestLegacySource) });
       const latestVersion = state.latest?.reviewVersion ?? state.group.latestReviewVersion;
       return read({ mode: 'adopt', version: latestVersion });
     } else if (action === 'highlight') { state.highlight = payload === true; render(); }
@@ -215,7 +224,11 @@ export function createReviewController({ context: initial, host, renderView = re
         if (!state.intent && state.load === 'loading') { state.load = 'idle'; state.phase = 'idle'; }
         render(); return;
       }
-      if (latest?.reviewId === state.reviewId && latest.reviewVersion > (state.group?.reviewVersion ?? -1)) state.latest = copy(latest);
+      const legacy = context.latestLegacySource;
+      if (state.legacySource && legacy?.contentKind === state.legacySource.contentKind && legacy.proposalId === state.legacySource.proposalId
+        && Number.isInteger(legacy.expectedProposalVersion) && legacy.expectedProposalVersion > state.legacySource.expectedProposalVersion) state.latestLegacySource = copy(legacy);
+      const latestMatches = latest?.reviewId === state.reviewId || sameReviewLegacyIdentity(state.legacySource, latest?.legacySource);
+      if (latest && latestMatches && latest.reviewVersion > (state.group?.reviewVersion ?? -1)) state.latest = copy(latest);
       render();
       if (!state.intent && (state.load === 'idle' || context.projectRevision !== state.projectRevision) && !reviewStaleness(state) && state.load !== 'loading') void read();
     },

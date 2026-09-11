@@ -57,6 +57,34 @@ test('legacy requested feedback remains historical; amendments and reconsiderati
   current = (await read(f, source)).groups[0]; assert.equal(current.status, 'ACCEPTED'); await check(f);
 });
 
+for (const kind of ['animation', 'assembly']) test(`legacy ${kind}: inherited feedback keeps the owner's decision provenance after agent resubmission`, { timeout: 120000 }, async context => {
+  const f = await assemblyFixture(context), type = kind === 'animation' ? 'clip' : 'assembly';
+  if (kind === 'assembly') await f.execute('asset.save', f.payload());
+  const actor = { actor: { id: `agent.feedback.${kind}`, kind: 'agent' }, taskId: `task.feedback.${kind}`, grantId: `grant.feedback.${kind}`, branchId: 'branch.main' };
+  await f.execute('grant.issue', { grantId: actor.grantId, agentId: actor.actor.id, taskId: actor.taskId, branchId: actor.branchId,
+    scopes: ['project.read', `${type}.proposal.submit`], objectScopes: [{ kind: 'project', id: projectId }],
+    budget: { maxCommands: 10, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 } });
+  const content = kind === 'animation' ? clipPayload(f.slice) : assemblyPayload();
+  const source = { contentKind: kind, proposalId: `proposal.feedback.${kind}`, expectedProposalVersion: 3 };
+  await f.execute(`${type}.proposal.submit`, { ...content, proposalId: source.proposalId, expectedProposalVersion: 0 }, actor);
+  const feedback = 'Please clarify the display name.';
+  await f.execute(`${type}.proposal.resolve`, { proposalId: source.proposalId, expectedProposalVersion: 1, decision: 'REQUEST_CHANGES', feedback, confirmed: true });
+  const ownerSnapshot = await f.studio.readProjectTrusted(projectId);
+  const ownerDecision = ownerSnapshot.snapshot[kind === 'animation' ? 'clipLibrary' : 'assemblyLibrary'].proposals.find(proposal => proposal.proposalId === source.proposalId);
+  await f.execute(`${type}.proposal.submit`, { ...content, name: 'Clarified display', proposalId: source.proposalId, expectedProposalVersion: 2 }, actor);
+  const group = (await read(f, source)).groups[0];
+  const expectedFeedback = { summary: feedback, itemComments: [], reviewVersion: 0, contentVersion: 1,
+    actorId: owner.actor.id, createdAt: ownerDecision.createdAt, revision: ownerSnapshot.revision };
+  assert.equal(group.status, 'PENDING'); assert.equal(group.updatedBy, actor.actor.id);
+  assert.deepEqual(group.feedback, expectedFeedback);
+  await f.execute('review.discard', first(group));
+  const adopted = (await read(f, source)).groups[0];
+  assert.deepEqual(adopted.feedback, expectedFeedback);
+  assert.deepEqual(adopted.history[0].feedback, expectedFeedback);
+  assert.equal(adopted.legacyProvenance.history.find(entry => entry.proposalVersion === 2).updatedBy, owner.actor.id);
+  await check(f);
+});
+
 test('changed targets block acceptance but do not stop feedback or replace original proposed content', { timeout: 120000 }, async context => {
   const f = await assemblyFixture(context), source = await submit(f, 'animation');
   await f.execute('clip.save', { ...clipPayload(f.slice), name: 'A later saved target' });
