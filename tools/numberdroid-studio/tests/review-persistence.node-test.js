@@ -75,12 +75,48 @@ test('partial acceptance survives feedback amendment and accepts exact remaining
   for (const tamper of [
     () => db.prepare('DELETE FROM review_dependencies').run(),
     () => db.prepare('DELETE FROM review_image_acceptances').run(),
-    () => db.prepare("UPDATE review_events SET feedback_json='{}' WHERE review_version=3").run(),
+    () => { db.exec('DROP TRIGGER review_events_immutable'); db.prepare("UPDATE review_events SET feedback_json='{}' WHERE review_version=3").run(); },
+    () => db.prepare("DELETE FROM artifact_references WHERE owner_kind='review_version'").run(),
     () => db.prepare('UPDATE review_heads SET review_version=1').run(),
   ]) {
     db.exec('BEGIN'); try { tamper(); assert.equal(inspectReviewIntegrity(db).ok, false); } finally { db.exec('ROLLBACK'); }
   }
   await assertIntegrity(f);
+});
+
+test('Review SQL history is immutable and per-item agent admission/accounting survive replay', { timeout: 120000 }, async context => {
+  const f = await assemblyFixture(context);
+  const actor = { actor: { id: 'agent.review', kind: 'agent' }, taskId: 'task.review', grantId: 'grant.review', branchId: 'branch.main' };
+  await f.execute('grant.issue', { grantId: actor.grantId, agentId: actor.actor.id, taskId: actor.taskId, branchId: actor.branchId,
+    scopes: ['project.read', 'review.proposal.submit'], objectScopes: [{ kind: 'project', id: projectId }],
+    budget: { maxCommands: 8, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 } });
+  const command = await f.request('review.proposal.submit', group(f));
+  await f.studio.execute(command, actor);
+  assert.equal((await f.studio.execute(command, actor)).replayed, true);
+  let saved = await f.studio.readProjectTrusted(projectId);
+  assert.equal(saved.snapshot.grants.find(grant => grant.id === actor.grantId).usage.commands, 3);
+  await assertIntegrity(f);
+  const db = f.store.workspace.database;
+  db.exec('BEGIN');
+  try {
+    const row = db.prepare("SELECT revision_number,revision_json FROM revisions WHERE command_type='review.proposal.submit'").get();
+    const corrupt = JSON.parse(row.revision_json);
+    corrupt.snapshot.grants.find(grant => grant.id === actor.grantId).usage.commands += 1;
+    db.prepare('UPDATE revisions SET revision_json=? WHERE project_id=? AND revision_number=?').run(JSON.stringify(corrupt), projectId, row.revision_number);
+    assert.equal(inspectReviewIntegrity(db).ok, false, 'Re-signed content does not excuse an incorrect agent command charge.');
+  } finally { db.exec('ROLLBACK'); }
+  await f.execute('review.accept', request(1));
+  for (const table of ['review_versions', 'review_items', 'review_dependencies', 'review_events', 'review_image_acceptances', 'review_animation_acceptances', 'review_assembly_acceptances'])
+    assert.throws(() => db.prepare(`UPDATE ${table} SET review_id=review_id`).run(), /immutable/, table);
+  saved = await f.studio.readProjectTrusted(projectId);
+  assert.equal(saved.snapshot.grants.find(grant => grant.id === actor.grantId).usage.commands, 3);
+  await assertIntegrity(f);
+  const originalHeadJson = db.prepare('SELECT head_snapshot_json FROM projects WHERE project_id=?').get(projectId).head_snapshot_json;
+  try {
+    const corrupt = structuredClone(saved.snapshot); delete corrupt.reviewLibrary;
+    db.prepare('UPDATE projects SET head_snapshot_json=? WHERE project_id=?').run(JSON.stringify(corrupt), projectId);
+    assert.throws(() => projectSqlitePortableDocument({ projectStore: f.store, projectId }), { code: 'REVIEW_BUNDLE_UNSUPPORTED' });
+  } finally { db.prepare('UPDATE projects SET head_snapshot_json=? WHERE project_id=?').run(originalHeadJson, projectId); }
 });
 
 test('Review backup and restore-as-copy preserve feedback history, pending dependencies and accepted provenance', { timeout: 120000 }, async context => {

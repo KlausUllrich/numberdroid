@@ -2246,6 +2246,7 @@ function createRevision({ command, number, now, commandHash, snapshot, result, s
       taskId: command.taskId,
       grantId: command.grantId,
       ...(isTaskBranch ? { branchId: command.branchId, payload: deepClone(command.payload) } : {}),
+      ...(!isTaskBranch && command.type.startsWith('review.') ? { branchId: command.branchId } : {}),
       // Direct owner saves retain their strict semantic input for immutable
       // image-retention/version provenance. This carries no supplied authority.
       ...(!isTaskBranch && (command.type === 'asset.save' || command.type.startsWith('assembly.') || command.type.startsWith('clip.') || command.type.startsWith('slice.revision.') || command.type.startsWith('review.')) ? { payload: deepClone(command.payload) } : {}),

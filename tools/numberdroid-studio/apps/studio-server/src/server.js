@@ -1151,7 +1151,8 @@ export function createStudioHttpServer({
           const taskBound = agentTaskService?.hasTask(
             liveBinding.projectId, liveBinding.taskId, liveBinding.branchId,
           ) === true;
-          if (taskBound && ['review.', 'assembly.', 'clip.', 'slice.revision.'].some(prefix => body.command.type?.startsWith(prefix))) throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly authoring currently requires a shared-head binding.');
+          if (taskBound && body.command.type?.startsWith('review.')) throw new StudioError('REVIEW_TASK_BRANCH_UNSUPPORTED', 'Shared Review authoring requires a shared-head binding.');
+          if (taskBound && ['assembly.', 'clip.', 'slice.revision.'].some(prefix => body.command.type?.startsWith(prefix))) throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly authoring currently requires a shared-head binding.');
           result = await (taskBound ? agentTaskService : studioService).execute(
             body.command,
             liveContext,
@@ -1199,11 +1200,17 @@ export function createStudioHttpServer({
           });
         }
         const taskBound = agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId) === true;
-        sendJson(response, 200, await (taskBound ? agentTaskService : studioService).readProject(
+        const project = await (taskBound ? agentTaskService : studioService).readProject(
           { projectId: body.projectId },
           bindingExecutionContext(binding),
           { signal: requestAbort.signal },
-        ));
+        );
+        if (project.snapshot?.reviewLibrary?.groups?.length) {
+          if (taskBound || studioService.durableReviewStoreReady !== true || studioService.storeSchemaVersion !== 18)
+            throw new StudioError('REVIEW_TASK_BRANCH_UNSUPPORTED', 'Shared Review project content requires the known shared-head Review capability.');
+          if (!reviewBindings.has(binding.bindingId)) throw new StudioError('REVIEW_NEGOTIATION_REQUIRED', 'Negotiate review-v1 before reading shared Review project content.');
+        }
+        sendJson(response, 200, project);
         return;
       }
       if (request.method === 'POST' && ['/internal/mcp/task-read', '/internal/mcp/task-submit-review'].includes(url.pathname)) {

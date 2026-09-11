@@ -100,3 +100,24 @@ CREATE TABLE review_assembly_acceptances (
   FOREIGN KEY (project_id, asset_id, asset_version) REFERENCES assembly_versions(project_id, asset_id, asset_version),
   FOREIGN KEY (project_id, created_revision) REFERENCES revisions(project_id, revision_number)
 ) STRICT;
+
+CREATE TRIGGER review_versions_immutable BEFORE UPDATE ON review_versions
+BEGIN SELECT RAISE(ABORT, 'Review history is immutable'); END;
+
+CREATE TRIGGER review_items_immutable BEFORE UPDATE ON review_items
+BEGIN SELECT RAISE(ABORT, 'Review history is immutable'); END;
+
+CREATE TRIGGER review_dependencies_immutable BEFORE UPDATE ON review_dependencies
+BEGIN SELECT RAISE(ABORT, 'Review history is immutable'); END;
+
+CREATE TRIGGER review_events_immutable BEFORE UPDATE ON review_events
+BEGIN SELECT RAISE(ABORT, 'Review history is immutable'); END;
+
+CREATE TRIGGER review_image_acceptances_immutable BEFORE UPDATE ON review_image_acceptances
+BEGIN SELECT RAISE(ABORT, 'Review history is immutable'); END;
+
+CREATE TRIGGER review_animation_acceptances_immutable BEFORE UPDATE ON review_animation_acceptances
+BEGIN SELECT RAISE(ABORT, 'Review history is immutable'); END;
+
+CREATE TRIGGER review_assembly_acceptances_immutable BEFORE UPDATE ON review_assembly_acceptances
+BEGIN SELECT RAISE(ABORT, 'Review history is immutable'); END;

@@ -1,5 +1,13 @@
 # Assembly editor — implementation contract
 
+Scoped shared Review evolution (2026-09-11): the
+[shared Review foundation contract](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md)
+owns additive schema18, separately granted related-content proposals, immutable
+feedback/acceptance history and an explicit Review MCP profile. Existing typed
+proposal commands and prior accepted versions remain unchanged. Assembly/Animation
+profiles admit known18 without expanding their catalogs. This is an implemented
+foundation candidate; the shared UI and its production acceptance remain pending.
+
 Status: implementation contract, 2026-09-09; approved mockup, product acceptance pending.
 The [Assembly design](ASSEMBLY_EDITOR_DESIGN.md) owns the screen and interaction.
 [VT-020](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md) remains accepted.

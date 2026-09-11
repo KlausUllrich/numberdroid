@@ -1,6 +1,7 @@
 # Shared Review — production implementation contract
 
-Status: scoped for implementation, 2026-09-11. ND-2 / GitHub #237.
+Status: **IMPLEMENTED FOUNDATION CANDIDATE — NOT USER ACCEPTED**, 2026-09-11.
+ND-2 / GitHub #237. Final integration evidence belongs to the focused PR.
 The [approved Review V2 design](REVIEW_CHANGES_DESIGN.md) owns the experience;
 its mockup PASS does not accept this production implementation.
 
@@ -154,3 +155,35 @@ its non-visual boundary. The subsequent UI block must retain the approved draft,
 version, Details/Back and unknown-outcome rules, and exercise a real agent through
 supported semantic tools before Klaus's production test. No automation can infer
 his final acceptance.
+
+## Foundation candidate — implemented boundary
+
+The four commands and exact/history/selection reads are implemented with schema18
+and the explicit `review-v1` profile: 27 tools / 8 resource templates. Internal
+commands/scopes are 46/35; the private overlay is 47/36. Older catalogs remain
+default19/4, Assembly21/5, Animation25/7 and private31/6. Known schema18 admission
+is explicit; shared Review-bearing agent project reads require positive Review
+negotiation even on the raw internal HTTP route.
+
+The read DTO separates full proposed-item inspection from `selectionOutcome`,
+which shows only selected prospective changes plus exact saved/accepted context.
+Unselected creations contribute null. Preview READY means resolvable; only
+`eligibility.canAccept` reports acceptance eligibility.
+
+Review history/projections, typed receipts and semantic revisions are cross-checked
+in both directions. Missing SQL rows or head projections cannot erase surviving
+Review history from integrity. The existing frozen CP1A evidence projects out the
+new integrity section without changing its golden.
+
+**Current exchange boundary:** Review-bearing portable project bundles fail with
+`REVIEW_BUNDLE_UNSUPPORTED`, including when semantic history survives missing
+projections. Verified workspace backups and restore-as-copy preserve this data.
+Unchanged projects retain existing portable formats. Conditional Review bundle
+exchange is not implemented by this foundation.
+
+The production shared Review screen and explicit legacy review adaptation remain
+next-block work. No existing proposal is automatically converted or hidden, no
+existing user's workspace has been migrated for this verification, and no new VT
+acceptance is claimed. Focused mixed/partial/reconsideration, authority/replay,
+projection-loss, migration/rollback and backup tests plus independent domain,
+storage, protocol, recovery and compatibility reviews cover this candidate.

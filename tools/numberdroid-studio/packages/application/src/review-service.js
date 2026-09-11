@@ -186,8 +186,10 @@ export function queryReviewDocument(request, document, { applyItem, resolveItem 
     const selectedItemIds = request.selectedItemIds ?? remaining(group), findings = [];
     if (!isLatest) findings.push({ code: 'REVIEW_VERSION_CONFLICT', message: 'Review the latest proposal before deciding or submitting feedback.' });
     if (!open(group)) findings.push({ code: 'REVIEW_CLOSED', message: 'This Review is complete.' });
+    let selectionSnapshot = null;
     try {
-      const selected = selectionItems(group, selectedItemIds);
+      const selected = selectedItemIds.length ? selectionItems(group, selectedItemIds) : [];
+      if (!selected.length) findings.push({ code: 'REVIEW_SELECTION_EMPTY', message: 'Select at least one remaining item before accepting.' });
       let scratch = structuredClone(head.snapshot);
       for (const item of selected) {
         if (applyItem) {
@@ -198,8 +200,28 @@ export function queryReviewDocument(request, document, { applyItem, resolveItem 
         }
         findings.push(...items.find(entry => entry.itemId === item.itemId).conflicts);
       }
+      selectionSnapshot = scratch;
     } catch (error) { findings.push(conflict(error)); }
+    // Full proposed details remain inspectable, but the acceptance outcome
+    // contains only selected changes. An unselected create contributes nothing.
+    const selectedSet = new Set(selectedItemIds);
+    const outcomeRecords = selectionSnapshot ? items.map(item => ({ item,
+      selected: selectedSet.has(item.itemId),
+      record: structuredClone(selectedSet.has(item.itemId) ? headRecord(selectionSnapshot, item)
+        : item.acceptedRecord ?? item.currentTarget),
+    })) : [];
+    const outcomeAssets = outcomeRecords.map(entry => entry.record).filter(Boolean);
+    const outcomeConflicts = [];
+    const outcomeItems = outcomeRecords.map(({ item, selected, record }) => {
+      let resolved = null;
+      if (record && resolveItem) try { resolved = resolveItem({ item, record, document, prospectiveAssets: outcomeAssets, selection: request.selection }); }
+      catch (error) { outcomeConflicts.push(conflict(error)); }
+      return { itemId: item.itemId, contentKind: item.contentKind, selected, proposedIsSaved: false, record, resolved };
+    });
+    const selectionOutcome = { basisRevision: head.number, selectedItemIds,
+      state: selectionSnapshot && !outcomeConflicts.length ? 'READY' : 'UNAVAILABLE', items: outcomeItems, findings: outcomeConflicts };
     const value = { ...group, items, isLatest, latestReviewVersion: latest.reviewVersion,
+      selectionOutcome,
       nextActor: !open(group) ? null : group.status === 'CHANGES_REQUESTED' ? structuredClone(group.proposer.actor) : { kind: 'human', id: head.snapshot.project.ownerId },
       eligibility: { selectedItemIds, canAccept: findings.length === 0, findings },
       ...(request.includeHistory ? { history: history.slice(-limit).map(version => ({ reviewVersion: version.reviewVersion, contentVersion: version.contentVersion, status: version.status, createdRevision: version.createdRevision, createdAt: version.createdAt, updatedBy: version.updatedBy, feedback: structuredClone(version.feedback), decision: structuredClone(version.decision) })) } : {}) };

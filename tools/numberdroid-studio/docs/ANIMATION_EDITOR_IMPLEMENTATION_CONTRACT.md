@@ -1,5 +1,13 @@
 # Animation editor — compatible implementation contract
 
+Scoped shared Review evolution (2026-09-11): the
+[shared Review foundation contract](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md)
+owns additive schema18, separately granted related-content proposals, immutable
+feedback/acceptance history and an explicit Review MCP profile. Existing typed
+proposal commands and prior accepted versions remain unchanged. Assembly/Animation
+profiles admit known18 without expanding their catalogs. This is an implemented
+foundation candidate; the shared UI and its production acceptance remain pending.
+
 Status: **USER ACCEPTED — PASS, 2026-09-10** under
 [VT-022](VACATION_TEST_BACKLOG.md#vt-022--animation-editor-and-contextual-cut-revisions).
 Klaus reported **“pass”** after the production batch on clean main `f5f8bc2`

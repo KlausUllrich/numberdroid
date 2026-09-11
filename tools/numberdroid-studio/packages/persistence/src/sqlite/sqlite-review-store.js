@@ -9,6 +9,28 @@ import { validateAssetMetadataForVisualFacts } from '../../../domain/src/asset-d
 export const REVIEW_CONTENT_LIBRARIES = Object.freeze({ image: 'assetLibrary', animation: 'clipLibrary', assembly: 'assemblyLibrary' });
 const eq = (a, b, message) => invariant(fingerprint(a) === fingerprint(b), 'REVIEW_REVISION_INVALID', message);
 
+export function assertReviewAuthority(before, after, command, committedAt) {
+  const withoutReadStatus = grants => grants.map(({ authorizationStatus: _status, ...grant }) => grant);
+  const expected = structuredClone(before.grants ?? []);
+  if (command.actor.kind === 'human') {
+    invariant(command.actor.id === before.project.ownerId, 'REVIEW_AUTHORITY_INVALID', 'Review owner action has the wrong actor.');
+  } else {
+    invariant(command.actor.kind === 'agent' && command.type === 'review.proposal.submit' && command.taskId && command.grantId,
+      'REVIEW_AUTHORITY_INVALID', 'Agents may only submit explicitly granted Review work.');
+    const grant = expected.find(grant => grant.id === command.grantId);
+    invariant(grant && grant.agentId === command.actor.id && grant.taskId === command.taskId && grant.branchId === command.branchId
+      && grant.branchId === 'branch.main' && grant.revokedAt === null
+      && (!grant.expiresAt || Date.parse(grant.expiresAt) > Date.parse(committedAt))
+      && grant.scopes.includes('review.proposal.submit') && grant.objectScopes.some(scope => scope.kind === 'project' && scope.id === command.projectId),
+    'REVIEW_AUTHORITY_INVALID', 'Review submission lacks its exact live project, actor, task and branch grant.');
+    const count = command.payload.items?.length;
+    invariant(Number.isInteger(count) && count >= 1 && count <= 64 && Number.isSafeInteger(grant.usage.commands)
+      && grant.usage.commands + count <= grant.budget.maxCommands, 'REVIEW_AUTHORITY_INVALID', 'Review submission exceeds its item command budget.');
+    grant.usage.commands += count;
+  }
+  eq(withoutReadStatus(expected), withoutReadStatus(after.grants ?? []), 'Review must charge each submitted remaining item once and preserve every other grant field.');
+}
+
 export function reviewAcceptanceTable(kind) {
   invariant(Object.hasOwn(REVIEW_CONTENT_LIBRARIES, kind), 'REVIEW_REVISION_INVALID', 'Unknown Review content kind.');
   return `review_${kind}_acceptances`;
@@ -42,6 +64,7 @@ export function writeReviewRevision(database, projectId, revision, fault, { writ
   const oldGroup = previous.reviewLibrary?.groups.find(value => value.reviewId === revision.result.reviewId);
   invariant(group && group.reviewVersion === revision.result.reviewVersion && group.createdRevision === revision.number
     && group.reviewVersion === (oldGroup?.reviewVersion ?? 0) + 1, 'REVIEW_REVISION_INVALID', 'Review result differs from its exact next immutable version.');
+  assertReviewAuthority(previous, revision.snapshot, { ...revision.command, projectId }, revision.committedAt);
   eq(groups.filter(value => value.reviewId !== group.reviewId), (previous.reviewLibrary?.groups ?? []).filter(value => value.reviewId !== group.reviewId), 'Only the addressed Review may change.');
   database.prepare('INSERT INTO review_versions VALUES (?,?,?,?,?,?,?,?,?)').run(projectId, group.reviewId, group.reviewVersion,
     group.previousReviewVersion, group.contentVersion, group.status, revision.number, JSON.stringify(group), fingerprint(group));

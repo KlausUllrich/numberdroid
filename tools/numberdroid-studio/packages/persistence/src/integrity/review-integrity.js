@@ -2,7 +2,7 @@ import { invariant } from '../../../domain/src/errors.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { applyReviewCommand } from '../../../application/src/review-service.js';
 import { applyReviewItem } from '../../../application/src/studio-service.js';
-import { REVIEW_CONTENT_LIBRARIES, reviewAcceptanceTable, assertReviewSavedRecord, verifyReviewContent } from '../sqlite/sqlite-review-store.js';
+import { REVIEW_CONTENT_LIBRARIES, reviewAcceptanceTable, assertReviewSavedRecord, verifyReviewContent, assertReviewAuthority } from '../sqlite/sqlite-review-store.js';
 
 const eq = (a, b, message) => invariant(fingerprint(a) === fingerprint(b), 'REVIEW_INTEGRITY_MISMATCH', message);
 export function inspectReviewIntegrity(database) {
@@ -13,6 +13,14 @@ export function inspectReviewIntegrity(database) {
       const revisions = database.prepare('SELECT command_type,revision_json FROM revisions WHERE project_id=? ORDER BY revision_number').all(projectId)
         .map(row => ({ sqlType: row.command_type, ...JSON.parse(row.revision_json) }));
       const rows = database.prepare('SELECT * FROM review_versions WHERE project_id=? ORDER BY review_id,review_version').all(projectId);
+      const semanticReviews = revisions.filter(value => value.command.type.startsWith('review.') || value.sqlType.startsWith('review.'));
+      invariant(rows.length === semanticReviews.length, 'REVIEW_INTEGRITY_MISMATCH', 'Every semantic Review revision requires its immutable Review record.');
+      for (const revision of semanticReviews) {
+        const group = revision.snapshot.reviewLibrary?.groups.find(value => value.reviewId === revision.command.payload?.reviewId);
+        const row = group && rows.find(value => value.review_id === group.reviewId && value.review_version === group.reviewVersion);
+        invariant(group && row && group.createdRevision === revision.number && row.created_revision === revision.number,
+          'REVIEW_INTEGRITY_MISMATCH', 'A semantic Review version is missing from persisted history.');
+      }
       versionCount += rows.length;
       const heads = new Map();
       for (const row of rows) {
@@ -42,6 +50,7 @@ export function inspectReviewIntegrity(database) {
       }
       const ordered = values => [...values].sort((a, b) => a.reviewId.localeCompare(b.reviewId));
       const snapshot = JSON.parse(project.head_snapshot_json);
+      eq(ordered(heads.values()), ordered(revisions.at(-1)?.snapshot.reviewLibrary?.groups ?? []), 'Review heads differ from the latest immutable semantic snapshot.');
       eq(ordered(heads.values()), ordered(snapshot.reviewLibrary?.groups ?? []), 'Review heads differ from the project snapshot.');
       eq([...heads.values()].map(group => [group.reviewId, group.reviewVersion]), database.prepare('SELECT review_id,review_version FROM review_heads WHERE project_id=? ORDER BY review_id').all(projectId).map(row => [row.review_id, row.review_version]), 'Review head projection differs.');
       for (const [kind, library] of Object.entries(REVIEW_CONTENT_LIBRARIES)) {
@@ -61,6 +70,7 @@ export function inspectReviewIntegrity(database) {
         const prior = revisions.find(value => value.number === revision.number - 1);
         invariant(prior && revision.sqlType === revision.command.type, 'REVIEW_INTEGRITY_MISMATCH', 'Review command lost its exact base or command identity.');
         const command = { ...revision.command, projectId, baseRevision: prior.number };
+        assertReviewAuthority(prior.snapshot, revision.snapshot, command, revision.committedAt);
         if (command.type !== 'review.proposal.submit') invariant(command.actor.kind === 'human' && command.actor.id === prior.snapshot.project.ownerId, 'REVIEW_INTEGRITY_MISMATCH', 'Only the owner may decide Review work.');
         const replay = applyReviewCommand(command, structuredClone(prior.snapshot), { projectId, revisions: revisions.filter(value => value.number <= prior.number) }, revision.committedAt, { applyItem: applyReviewItem });
         for (const key of ['reviewLibrary', ...Object.values(REVIEW_CONTENT_LIBRARIES)]) eq(replay.snapshot[key] ?? null, revision.snapshot[key] ?? null, 'Review command replay differs from saved libraries.');

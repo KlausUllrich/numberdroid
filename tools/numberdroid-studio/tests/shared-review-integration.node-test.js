@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { assemblyFixture, assemblyPayload, owner, projectId } from './assembly-test-helpers.js';
 import { clipPayload } from './clip-test-helpers.js';
-import { verifyWorkspaceIntegrity } from '../packages/persistence/src/index.js';
+import { verifyWorkspaceIntegrity, projectSqlitePortableDocument } from '../packages/persistence/src/index.js';
 
 function group(f, reviewId = 'review.integration') {
   const assembly = assemblyPayload();
@@ -64,4 +64,34 @@ test('shared Review partial acceptance, amended feedback and reconsidered accept
   assert.equal(old.groups[0].contentVersion, 1);
   const integrity = await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts });
   assert.equal(integrity.ok, true, JSON.stringify(integrity));
+});
+
+
+test('selection outcome shows only selected prospective content and preserves saved state', { timeout: 120000 }, async context => {
+  const f = await assemblyFixture(context); await f.execute('review.proposal.submit', group(f));
+  const before = await f.studio.readProjectTrusted(projectId);
+  const read = async selectedItemIds => (await f.studio.queryReviews({ schemaVersion: 1, projectId, reviewId: 'review.integration', selectedItemIds }, owner)).groups[0];
+  const empty = await read([]); assert.equal(empty.eligibility.canAccept, false); assert.ok(empty.selectionOutcome.items.every(item => item.record === null));
+  const leaf = await read(['image']); assert.equal(leaf.eligibility.canAccept, true);
+  assert.equal(leaf.selectionOutcome.items.find(item => item.itemId === 'image').record.assetId, 'asset.fixture');
+  assert.equal(leaf.selectionOutcome.items.find(item => item.itemId === 'assembly').record, null);
+  assert.equal(leaf.selectionOutcome.items.find(item => item.itemId === 'animation').record, null);
+  const full = await read(['image', 'animation', 'assembly']); assert.equal(full.selectionOutcome.state, 'READY');
+  assert.equal(full.selectionOutcome.items.find(item => item.itemId === 'assembly').resolved.scene.elements.length, 2);
+  await f.execute('review.accept', decision(1, ['image', 'animation']));
+  const remaining = await read(['assembly']);
+  assert.equal(remaining.selectionOutcome.items.find(item => item.itemId === 'image').record.review.reviewVersion, 2);
+  assert.equal(remaining.selectionOutcome.items.find(item => item.itemId === 'assembly').selected, true);
+  assert.equal((await f.studio.readProjectTrusted(projectId)).revision, before.revision + 1);
+});
+
+test('lost Review SQL and head projections cannot hide immutable semantic history from integrity or export', { timeout: 120000 }, async context => {
+  const f = await assemblyFixture(context); await f.execute('review.proposal.submit', group(f));
+  const db = f.store.workspace.database;
+  for (const table of ['review_image_acceptances','review_animation_acceptances','review_assembly_acceptances','review_dependencies','review_items','review_events','review_heads','review_versions']) db.prepare(`DELETE FROM ${table} WHERE project_id=?`).run(projectId);
+  const row = db.prepare('SELECT head_snapshot_json FROM projects WHERE project_id=?').get(projectId);
+  const snapshot = JSON.parse(row.head_snapshot_json); delete snapshot.reviewLibrary;
+  db.prepare('UPDATE projects SET head_snapshot_json=? WHERE project_id=?').run(JSON.stringify(snapshot), projectId);
+  assert.equal((await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts })).ok, false);
+  assert.throws(() => projectSqlitePortableDocument({ projectStore: f.store, projectId }), { code: 'REVIEW_BUNDLE_UNSUPPORTED' });
 });
