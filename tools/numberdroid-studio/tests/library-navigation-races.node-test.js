@@ -81,6 +81,7 @@ function cacheHarness(t, extra = {}) {
     state: { project: { projectId, revision: 5 }, workspace: 'assets' }, libraryUi: createLibraryUiState(projectId),
     libraryPreviewRecords: records, libraryRetiredPreviewUrls: retired, libraryDetails: new Map(),
     libraryCardObservers: new Set(), libraryNativeContexts: new Map(), libraryExternalOrigins: new Map(), libraryReadGeneration: 0,
+    sharedReviewControllers: new Map(), legacyReviewFallbacks: new Map(),
     elements: { 'workspace-content': { querySelectorAll: () => links } },
     location: { origin: 'http://127.0.0.1:4321' }, URL, Blob, structuredClone, createLibraryPreviewDocument,
     queueLibraryRender() {}, ...extra,
@@ -134,4 +135,12 @@ test('persistent card observation retries a failed exact read when the same card
   assert.equal(h.records.get(h.key(typed)).status, 'ready');
   assert.match(await (await fetch(currentLink.href)).text(), /Exact saved composition/);
   card.isConnected = false; observer.callback([{ isIntersecting: false }]);
+});
+
+
+test('Library cache cleanup retains an unresolved Review until its controller permits disposal', t => {
+  let reconciled = false; const controllers = new Map([['pending-review', { dispose: () => reconciled }]]);
+  const h = cacheHarness(t, { sharedReviewControllers: controllers });
+  h.clear(); assert.equal(controllers.has('pending-review'), true);
+  reconciled = true; h.clear(); assert.equal(controllers.size, 0);
 });

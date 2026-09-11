@@ -38,14 +38,14 @@ function assertRoute(route) {
 }
 
 function validReview(value) {
-  return CONTENT_KINDS.has(value?.contentKind) && typeof value.proposalId === 'string'
+  return (CONTENT_KINDS.has(value?.contentKind) || value?.contentKind === 'review') && typeof value.proposalId === 'string'
     && value.proposalId.length > 0 && positiveVersion(value.proposalVersion);
 }
 
 export function libraryRouteKey(route) {
   assertRoute(route);
   if (route.view === 'list') return JSON.stringify(['list', route.tab]);
-  if (route.view === 'review') return JSON.stringify(['review', route.contentKind, route.proposalId, route.proposalVersion]);
+  if (route.view === 'review') return JSON.stringify(['review', route.contentKind, route.proposalId, route.proposalVersion, ...(route.readOnly ? ['history'] : [])]);
   const pin = route.pin, proposed = route.proposed;
   return JSON.stringify(['detail', pin?.contentKind ?? proposed?.contentKind, pin?.assetId ?? route.assetId ?? null,
     pin?.assetVersion ?? null, pin?.metadataVersion ?? null,
@@ -87,10 +87,13 @@ function records(snapshot) {
 /** Preserve one row per actual proposal; shared tasks do not imply a shared transaction. */
 export function libraryReviewGroups(snapshot) {
   const groups = [];
+  const shared = snapshot?.reviewLibrary?.groups ?? [];
+  const adopted = new Set(shared.filter(group => group.legacySource).map(group => `${group.legacySource.contentKind}:${group.legacySource.proposalId}`));
   for (const [contentKind, library] of [
     ['image', snapshot?.assetLibrary], ['animation', snapshot?.clipLibrary], ['assembly', snapshot?.assemblyLibrary],
   ]) {
     for (const proposal of library?.proposals ?? []) {
+      if (adopted.has(`${contentKind}:${proposal.proposalId}`)) continue;
       const native = contentKind === 'image', changes = native ? proposal.items ?? [] : [proposal.content].filter(Boolean);
       const status = native ? proposal.state : proposal.status;
       const pending = native ? ['PENDING', 'DECIDED'].includes(status) : ['PENDING', 'CHANGES_REQUESTED'].includes(status);
@@ -105,10 +108,22 @@ export function libraryReviewGroups(snapshot) {
         proposal, status, pending, changeCount: changes.length, title,
         assetIds: [...new Set(changes.map(item => item.assetId).filter(Boolean))],
         useKinds: [...new Set(changes.map(item => item.kind).filter(value => USE_KINDS.has(value)))],
-        actorId, actorName, taskId, revision: native ? proposal.submittedRevision : proposal.createdRevision,
+        actorId, actorName, actorKind: native ? proposal.proposer?.actor?.kind : proposal.proposerActorKind, taskId, revision: native ? proposal.submittedRevision : proposal.createdRevision,
         searchText: textKey([proposal.proposalId, ...names, actorName, actorId, taskId, status].filter(Boolean).join(' ')),
       });
     }
+  }
+  for (const proposal of shared) {
+    const pending = ['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status);
+    const remaining = proposal.items.filter(item => item.status === 'PENDING');
+    const affected = pending ? remaining : proposal.items;
+    groups.push({ key: `review:${proposal.reviewId}`, contentKind: 'review', contentKinds: [...new Set(proposal.items.map(item => item.contentKind))],
+      proposalId: proposal.reviewId, proposalVersion: proposal.reviewVersion, proposal, status: proposal.status, pending,
+      changeCount: affected.length, acceptedCount: proposal.items.filter(item => item.status === 'ACCEPTED').length, title: proposal.title,
+      assetIds: [...new Set(affected.map(item => item.payload.assetId))], useKinds: [...new Set(proposal.items.map(item => item.payload.kind))],
+      actorId: proposal.proposer.actor.id, actorName: proposal.proposer.actor.displayName ?? proposal.proposer.actor.id, actorKind: proposal.proposer.actor.kind,
+      taskId: proposal.proposer.taskId, revision: proposal.createdRevision,
+      searchText: textKey([proposal.title, proposal.reviewId, proposal.status, proposal.proposer.actor.id, proposal.proposer.taskId, ...proposal.items.map(item => item.payload.name)].filter(Boolean).join(' ')) });
   }
   return groups;
 }
@@ -166,7 +181,7 @@ export function libraryInventory(snapshot) {
       key: `${contentKind}:${asset.assetId}`, contentKind, asset,
       pin: libraryAssetPin(asset, contentKind), sourceNames,
       searchText: textKey([asset.name, asset.assetId, ...(asset.metadata?.tags ?? []), ...sourceNames].join(' ')),
-      relatedReviews: groups.filter(group => group.pending && group.contentKind === contentKind && group.assetIds.includes(asset.assetId)),
+      relatedReviews: groups.filter(group => group.pending && (group.contentKind === contentKind || group.contentKinds?.includes(contentKind)) && group.assetIds.includes(asset.assetId)),
     };
   });
 }
@@ -180,6 +195,6 @@ export function findLibraryItem(snapshot, pin) {
 export function filterLibraryItems(items, filters = {}) {
   const search = textKey(filters.search).trim();
   return items.filter(item => (!search || textKey(item.searchText ?? item.title ?? item.asset?.name).includes(search))
-    && (!filters.content || filters.content === 'all' || item.contentKind === filters.content)
+    && (!filters.content || filters.content === 'all' || item.contentKind === filters.content || item.contentKinds?.includes(filters.content))
     && (!filters.use || filters.use === 'all' || (item.asset ? item.asset.kind === filters.use : item.useKinds?.includes(filters.use))));
 }

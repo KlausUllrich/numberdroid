@@ -21,7 +21,7 @@ export function renderCutterEditor({ cutter, source, atlas, pending, job }) {
   const section = el('section', 'atlas-cutter'); section.dataset.atlasCutter = ''; section.dataset.cutterInstance = cutter.instanceId;
   const header = el('div', 'cutter-heading');
   const title = el('div'); title.append(el('p', 'eyebrow', 'Sources / Preparation'), el('h2', '', cutter.name), el('p', '', 'Choose the image regions to keep. Save work stores your cuts; Preview cuts prepares their exact PNG images.'));
-  header.append(title, action('Back to Sources', { closeCutter: '' }, pending)); section.append(header);
+  const back = action('Back to Sources', { closeCutter: '' }, pending); back.classList.add('editor-back-link'); section.append(back); header.append(title); section.append(header);
   const tabs = el('nav', 'cutter-view-tabs'); tabs.setAttribute('aria-label', 'Cutter views');
   for (const [view, label] of [['edit', 'Cut image'], ['outputs', 'Output images']]) { const b = action(label, { cutterView: view }, pending); b.setAttribute('aria-pressed', String(cutter.view === view || (view === 'outputs' && cutter.view === 'detail'))); tabs.append(b); }
   section.append(tabs);

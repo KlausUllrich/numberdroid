@@ -93,3 +93,6 @@ body[data-library-workspace="true"] #workspace > .hero .review-state { gap: 4px;
   .library-detail-body { grid-template-columns: 1fr; }
   .library-detail-preview .library-artwork { height: 350px; }
 }
+
+/* One consistent return direction across contextual authoring views. */
+.editor-back-link{display:block;margin:0 0 16px;padding:0;border:0;background:transparent;color:var(--muted);text-align:left}.editor-back-link::before{content:'← ';}.studio-activity>h2{margin:0 0 8px}.studio-activity>.library-muted{margin-bottom:22px}.activity-legacy-history{margin-top:24px;padding-top:16px;border-top:1px solid var(--line)}.library-detail-toolbar{justify-content:space-between}

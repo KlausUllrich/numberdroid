@@ -1,4 +1,5 @@
 import { invariant } from '../../../domain/src/errors.js';
+import { legacyReviewId, normalizeLegacySource } from '../../../application/src/legacy-review.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { writeClipAsset, validateStoredClipContent, sqliteHistoricalSliceBinding, sqliteResolvedClip } from './sqlite-clip-store.js';
 import { writeAssemblyAsset, sqliteAssemblyLeaves } from './sqlite-assembly-store.js';
@@ -57,6 +58,11 @@ export function writeReviewRevision(database, projectId, revision, fault, { writ
   const previous = previousRow ? JSON.parse(previousRow.revision_json).snapshot : {};
   if (!revision.command.type.startsWith('review.')) {
     eq(previous.reviewLibrary ?? null, revision.snapshot.reviewLibrary ?? null, 'This operation cannot replace Review history.');
+    for (const group of previous.reviewLibrary?.groups ?? []) if (group.legacySource) {
+      const library = REVIEW_CONTENT_LIBRARIES[group.legacySource.contentKind];
+      eq(previous[library]?.proposals.find(proposal => proposal.proposalId === group.legacySource.proposalId),
+        revision.snapshot[library]?.proposals.find(proposal => proposal.proposalId === group.legacySource.proposalId), 'An adopted legacy proposal is immutable.');
+    }
     return false;
   }
   const groups = revision.snapshot.reviewLibrary?.groups;
@@ -65,6 +71,15 @@ export function writeReviewRevision(database, projectId, revision, fault, { writ
   invariant(group && group.reviewVersion === revision.result.reviewVersion && group.createdRevision === revision.number
     && group.reviewVersion === (oldGroup?.reviewVersion ?? 0) + 1, 'REVIEW_REVISION_INVALID', 'Review result differs from its exact next immutable version.');
   assertReviewAuthority(previous, revision.snapshot, { ...revision.command, projectId }, revision.committedAt);
+  if (oldGroup) {
+    eq(group.legacySource ?? null, oldGroup.legacySource ?? null, 'Legacy source identity is immutable.');
+    eq(group.legacyProvenance ?? null, oldGroup.legacyProvenance ?? null, 'Legacy source history is immutable.');
+  }
+  if (group.legacySource) {
+    eq(group.legacySource, normalizeLegacySource(group.legacySource), 'Legacy source must have exact identity fields.');
+    invariant(group.reviewId === legacyReviewId(projectId, group.legacySource), 'REVIEW_REVISION_INVALID', 'Legacy Review identity differs from its source.');
+    invariant(!groups.some(other => other.reviewId !== group.reviewId && other.legacySource?.contentKind === group.legacySource.contentKind && other.legacySource.proposalId === group.legacySource.proposalId), 'REVIEW_REVISION_INVALID', 'A legacy proposal already has an authoritative Review.');
+  }
   eq(groups.filter(value => value.reviewId !== group.reviewId), (previous.reviewLibrary?.groups ?? []).filter(value => value.reviewId !== group.reviewId), 'Only the addressed Review may change.');
   database.prepare('INSERT INTO review_versions VALUES (?,?,?,?,?,?,?,?,?)').run(projectId, group.reviewId, group.reviewVersion,
     group.previousReviewVersion, group.contentVersion, group.status, revision.number, JSON.stringify(group), fingerprint(group));
@@ -127,6 +142,15 @@ export function rebuildReviewHeads(database, projectId) {
 }
 
 export function verifyReviewContent(database, projectId, group) {
+  if (group.legacySource) {
+    const source = normalizeLegacySource(group.legacySource), provenance = group.legacyProvenance;
+    invariant(group.reviewId === legacyReviewId(projectId, source) && provenance, 'REVIEW_RECORD_CORRUPT', 'Legacy Review provenance is missing.');
+    for (const [revisionNumber, expectedFingerprint, expectedVersion] of [[provenance.sourceRevision, provenance.sourceFingerprint, null], [provenance.viewedProposalRevision, provenance.viewedProposalFingerprint, source.expectedProposalVersion]]) {
+      const row = database.prepare('SELECT revision_json FROM revisions WHERE project_id=? AND revision_number=?').get(projectId, revisionNumber);
+      const proposal = row && JSON.parse(row.revision_json).snapshot[REVIEW_CONTENT_LIBRARIES[source.contentKind]]?.proposals.find(value => value.proposalId === source.proposalId);
+      invariant(proposal && fingerprint(proposal) === expectedFingerprint && (expectedVersion === null || proposal.proposalVersion === expectedVersion), 'REVIEW_RECORD_CORRUPT', 'Legacy Review differs from its exact proposal history.');
+    }
+  }
   const stored = database.prepare('SELECT record_json,record_fingerprint FROM review_versions WHERE project_id=? AND review_id=? AND review_version=?').get(projectId, group.reviewId, group.reviewVersion);
   invariant(stored && stored.record_fingerprint === fingerprint(group) && fingerprint(JSON.parse(stored.record_json)) === fingerprint(group),
     'REVIEW_RECORD_CORRUPT', 'Review history differs from its immutable record.');

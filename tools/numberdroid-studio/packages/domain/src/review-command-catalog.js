@@ -13,7 +13,8 @@ const assembly = structuredClone(ASSEMBLY_COMMAND_DEFINITIONS.find(entry => entr
 assembly.properties.assembly = ASSEMBLY_ANY_DECLARATION_SCHEMA;
 const common = { reviewId: id, expectedReviewVersion: { type: 'integer', minimum: 1 } };
 const confirmed = { type: 'boolean', const: true };
-const owner = (type, description, fields) => ({ type, toolName: `studio_${type.replaceAll('.', '_')}`, description, ownerOnly: true, requiredScope: null, requiresDurableReviewStore: true, payloadSchema: object({ ...common, ...fields, confirmed }) });
+const legacySource = object({ contentKind: { type: 'string', enum: ['image', 'animation', 'assembly'] }, proposalId: id, expectedProposalVersion: { type: 'integer', minimum: 1 } });
+const owner = (type, description, fields) => ({ type, toolName: `studio_${type.replaceAll('.', '_')}`, description, ownerOnly: true, requiredScope: null, requiresDurableReviewStore: true, payloadSchema: { ...object({ ...common, ...fields, confirmed }), properties: { ...common, expectedReviewVersion: { type: 'integer', minimum: 0 }, ...fields, confirmed, legacySource } } });
 export const REVIEW_COMMAND_DEFINITIONS = [
   { type: 'review.proposal.submit', toolName: 'studio_review_proposal_submit', description: 'Submit a related Image, Animation and Assembly Review or revise its exact remaining changes-requested content.', ownerOnly: false, requiredScope: 'review.proposal.submit', requiredObjectScope: 'project', requiresDurableAgentLedger: true, requiresDurableReviewStore: true, requiresReviewProfile: true,
     payloadSchema: object({ reviewId: id, expectedReviewVersion: { type: 'integer', minimum: 0 }, title: { type: 'string', minLength: 1, maxLength: 160 }, items: { type: 'array', minItems: 1, maxItems: 64,

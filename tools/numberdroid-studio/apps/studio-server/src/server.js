@@ -1,3 +1,4 @@
+import { presentActivityEvent } from '../../../packages/application/src/activity-presentation.js';
 import { handleReviewHttp } from './review-http.js';
 import { handleAssemblyHttp } from './assembly-http.js';
 import { handleClipHttp } from './clip-http.js';
@@ -90,6 +91,8 @@ const staticFiles = new Map([
   ['/library-view.js', ['../public/library-view.js', 'text/javascript; charset=utf-8']],
   ['/library-detail-view.js', ['../public/library-detail-view.js', 'text/javascript; charset=utf-8']],
   ['/library.css', ['../public/library.css', 'text/css; charset=utf-8']],
+  ...['review-state.js','review-controller.js','review-view.js','activity-view.js'].map(name => ['/'+name, ['../public/'+name, 'text/javascript; charset=utf-8']]),
+  ['/review.css', ['../public/review.css', 'text/css; charset=utf-8']],
   ['/assembly-editor.css', ['../public/assembly-editor.css', 'text/css; charset=utf-8']],
   ['/packages/domain/src/assembly-geometry.js', ['../../../packages/domain/src/assembly-geometry.js', 'text/javascript; charset=utf-8']],
   ['/', ['index.html', 'text/html; charset=utf-8']],
@@ -2031,9 +2034,10 @@ export function createStudioHttpServer({
       }
       if (request.method === 'GET' && project?.resource === 'activity') {
         const afterRevision = Number(url.searchParams.get('afterRevision') ?? 0);
-        const committedEvents = await studioService.listActivityTrusted(project.projectId, { afterRevision });
+        const includePresentation = url.searchParams.get('presentation') === 'true';
+        const committedEvents = await studioService.listActivityTrusted(project.projectId, { afterRevision, includePresentation });
         const attemptEvents = (agentAttemptStore?.listForProject(project.projectId, { afterRevision }) ?? [])
-          .map(attemptActivity);
+          .map(attemptActivity).map(event => includePresentation ? { ...event, presentation: presentActivityEvent(event) } : event);
         sendJson(response, 200, {
           schemaVersion: 1,
           projectId: project.projectId,
@@ -2049,6 +2053,7 @@ export function createStudioHttpServer({
           effectivePolicy: await humanAgentAccess.read(project.projectId),
           hostBindingSupport: hostBindingStore && pairingBroker ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           clipAuthoringSupport: studioService.durableClipStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
+          reviewAuthoringSupport: studioService.durableReviewStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           assemblyAuthoringSupport: studioService.durableAssemblyStoreReady === true && studioService.durableAssetStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           hostBindings: await humanAgentAccess.listBindings(project.projectId),
           pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),
@@ -2072,6 +2077,7 @@ export function createStudioHttpServer({
           ...result,
           hostBindingSupport: hostBindingStore && pairingBroker ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           clipAuthoringSupport: studioService.durableClipStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
+          reviewAuthoringSupport: studioService.durableReviewStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           assemblyAuthoringSupport: studioService.durableAssemblyStoreReady === true && studioService.durableAssetStoreReady === true ? 'AVAILABLE' : 'SQLITE_REQUIRED',
           hostBindings: await humanAgentAccess.listBindings(project.projectId),
           pendingHosts: await humanAgentAccess.listPendingHosts(project.projectId),

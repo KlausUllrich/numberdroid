@@ -17,7 +17,7 @@ export function createAssemblyEditorView(state) {
   const root = el('section', 'assembly-editor'); root.dataset.assemblyEditor = state.instanceId;
   const header = el('header', 'assembly-header'), heading = el('div'); heading.append(el('p', 'eyebrow', 'Library / Assembly'));
   const title = el('h2'); title.dataset.assemblyTitle = ''; heading.append(title, note('One reusable object, made from exact saved components.'));
-  header.append(heading, button('Back to Library', 'back')); root.append(header);
+  const back = button('Back to Library', 'back'); back.classList.add('editor-back-link'); root.append(back); header.append(heading); root.append(header);
   const status = el('div', 'assembly-status'); status.dataset.assemblyStatus = ''; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); root.append(status);
   const recovery = el('div', 'assembly-recovery'); recovery.dataset.assemblyRecovery = ''; root.append(recovery);
   const edit = el('section'); edit.dataset.assemblyView = 'edit';
