@@ -128,3 +128,16 @@ UI before Klaus's production batch. Merge only the exact unchanged green head,
 observe post-merge CI, start clean current-main Studio with fresh fixtures, and
 record Klaus's explicit PASS/REVISE for the implemented block. Mockup approval and
 backend proof do not substitute for that production decision.
+
+
+## Candidate evidence and live gate
+
+The implemented candidate is queued for [VT-024](VACATION_TEST_BACKLOG.md#vt-024--shared-review-feedback-and-activity).
+Full relevant Studio core passed 1,149 tests with five existing skips; affected
+recovery checks and native Chrome workflows passed after their final fixes.
+Independent reviews cover state/recovery, legacy provenance, owner authority and
+persistence, host navigation/history, and presentation. The real semantic-agent
+round trip used actual owner browser controls for partial acceptance, feedback
+amendment and final acceptance; accepted pins and earlier history stayed exact.
+CI and immutable merge identities belong in the source PR record. Production
+acceptance remains pending until Klaus explicitly reports the VT-024 result.

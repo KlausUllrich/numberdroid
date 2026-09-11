@@ -186,3 +186,13 @@ test('A legacy source changed before the first read has a distinct latest-propos
   assert.ok(find(root,'reviewAction','recheck'));const latest=find(root,'reviewAction','review-latest');assert.equal(latest.textContent,'Review latest proposal →');latest.listeners.click();assert.deepEqual(actions,['review-latest']);
   for(const action of['accept','request-changes','save-feedback','retry'])assert.equal(find(root,'reviewAction',action),undefined);
 });
+
+test('An older historical Review is an immutable record, not a stale decision requiring adoption', t => {
+  harness(t);const state=source();state.readOnly=true;state.group.reviewVersion=3;state.group.latestReviewVersion=7;state.group.isLatest=false;
+  const view={...gates,stale:'review',message:'Feedback or the decision changed. Review the latest saved version before deciding.',canAdoptLatest:false};
+  const before=structuredClone(state);let root=renderReviewView({state,view}),notice=find(root,'reviewMessage','');
+  assert.match(strings(notice),/recorded review is read-only/);assert.doesNotMatch(strings(notice),/latest saved version|decision changed/);assert.equal(notice.className.includes('warning'),false);assert.equal(find(root,'reviewAction','review-latest'),undefined);assert.equal(root.dataset.reviewVersion,'3');assert.deepEqual(state,before);
+  state.error='The exact recorded preview could not be read.';root=renderReviewView({state,view});notice=find(root,'reviewMessage','');
+  assert.match(strings(notice),/exact recorded preview could not be read/);assert.equal(notice.className.includes('warning'),true);assert.equal(find(root,'reviewAction','review-latest'),undefined,'Read recovery never replaces the historical pin with latest');
+  state.error=null;state.readOnly=false;root=renderReviewView({state,view:{...view,canAdoptLatest:true}});notice=find(root,'reviewMessage','');assert.equal(notice.className.includes('warning'),true);assert.match(strings(notice),/latest saved version/);assert.ok(find(root,'reviewAction','review-latest'),'Live review still offers explicit latest-version reconciliation');
+});

@@ -113,12 +113,15 @@ export async function captureSharedReviewUi({ devtools, sessionId, captureCheckp
   result.partialAcceptance = { acceptedFirst: ['image', 'animation'], acceptedFinally: ['assembly'], earlierPinsUnchanged: true, oneRevisionPerDecision: true, exactUncertainRetryOnce: true };
 
   await click('[data-workspace="activity"]'); await waitFor("document.querySelectorAll('[data-activity-event]').length>5", 'Readable Activity rows');
+  assert.equal(await evaluate("document.querySelector('#toast')?.classList.contains('visible') && document.querySelector('#toast').textContent.includes('pending request')"), false, 'Resolved pending warning clears immediately after confirmed acceptance');
   const rows = await evaluate("[...document.querySelectorAll('[data-activity-event]')].map(n=>{const r=n.getBoundingClientRect();return{id:n.dataset.activityEvent,x:r.x,y:r.y,width:r.width,height:r.height,title:n.querySelector('h3')?.textContent,text:n.textContent,inspect:n.querySelector('[data-activity-inspect]')?.dataset.activityInspect}})");
   for (let index = 1; index < rows.length; index++) assert(rows[index].y >= rows[index - 1].y + rows[index - 1].height - 1, 'Activity is one full-width row per event');
   const feedbackEvent = rows.find(row => row.text.includes(amended) && row.inspect); assert(feedbackEvent, 'Exact saved feedback is readable in Activity');
   await captureCheckpoint('activity');
   await click(`[data-activity-inspect="${feedbackEvent.inspect}"]`); await version(3);
   assert.match(await evaluate("document.querySelector('[data-review-workspace]').textContent"), /read-only/);
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-review-action=review-latest]'))"), false, 'Historical record never demands adoption of a newer decision');
+  assert.equal(await evaluate("document.querySelector('[data-review-workspace]').textContent.includes('Feedback or the decision changed')"), false);
   await waitFor("document.querySelector('[data-review-canvas]')?.dataset.reviewPreviewState==='ready'", 'Recorded proposed artwork remains available after later content and acceptance');
   assert.deepEqual(await previewPresentation(), originalPresentation, 'Historical Proposed must retain every original exact image digest, scene transform and frame after later content and saved heads advance');
   assert.equal(await evaluate("document.querySelectorAll('[data-review-action=accept]:not(:disabled),[data-review-action=save-feedback]:not(:disabled)').length"), 0);

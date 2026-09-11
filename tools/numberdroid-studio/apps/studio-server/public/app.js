@@ -2546,8 +2546,13 @@ function goLibrary(route, { readonlyDetour = false } = {}) {
   cancelPinnedAssetsOnWorkspaceExit('assets'); state.workspace = 'assets'; history.replaceState(null, '', '#assets');
   renderWorkspace(); libraryRestoreCurrent();
 }
+function clearResolvedLibraryWarning() {
+  if (elements.toast.textContent !== 'Resolve the pending request before leaving.') return;
+  clearTimeout(showToast.timeout); elements.toast.classList.remove('visible'); elements.toast.textContent = '';
+}
 function libraryBackToPrevious() {
   if (!libraryNavigationAllowed()) { showToast('Resolve the pending request before leaving.'); return; }
+  clearResolvedLibraryWarning();
   captureLibraryDom();
   const leaving = libraryUi.route, dom = libraryExternalOrigins.get(libraryRouteKey(leaving));
   libraryExternalOrigins.delete(libraryRouteKey(leaving));
@@ -2763,7 +2768,7 @@ function renderSharedReview(route, legacySource = null) {
       },
       post: (action, intent, { signal } = {}) => api(`/api/projects/${encodeURIComponent(projectId)}/reviews/${encodeURIComponent(intent.reviewId)}/${action}`,
         { method: 'POST', signal, headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: intent.serialized }),
-      onSaved: () => loadProject(projectId, { preserveWorkspaceIfUnchanged: true, signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }),
+      onSaved: () => { clearResolvedLibraryWarning(); return loadProject(projectId, { preserveWorkspaceIfUnchanged: true, signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }); },
       onDetails: detail => {
         const current = controller.getState();
         const original = current.legacySource;

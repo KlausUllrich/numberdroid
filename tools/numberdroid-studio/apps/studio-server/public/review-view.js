@@ -97,7 +97,7 @@ export function renderReviewView({ state, view = {}, onAction = () => {}, onInpu
   if (!group) {
     root.append(el('p', 'review-message', messageText(state.error) || (state.load === 'unavailable' ? 'The saved review could not be read. Retry to inspect it.' : 'Loading exact saved review…')));
     if (state.load === 'unavailable' || state.error) root.append(button('recheck', 'Retry read', state.load === 'loading' || state.phase === 'loading'));
-    if (view.canAdoptLatest) root.append(button('review-latest', view.stale === 'legacy' ? 'Review latest proposal →' : 'Review latest version →', state.load === 'loading' || state.phase === 'loading'));
+    if (view.canAdoptLatest && !state.readOnly) root.append(button('review-latest', view.stale === 'legacy' ? 'Review latest proposal →' : 'Review latest version →', state.load === 'loading' || state.phase === 'loading'));
     return root;
   }
   const intent = el('section', 'review-intent'); intent.append(el('div', '', `${pending.length} remaining ${pending.length === 1 ? 'change' : 'changes'} · ${items.filter(item => item.status === 'ACCEPTED').length} already accepted`), el('small', 'review-meta', group.legacySource ? 'Existing proposal · opening this review saves nothing.' : 'Saved content stays unchanged until acceptance.')); root.append(intent);
@@ -150,9 +150,9 @@ export function renderReviewView({ state, view = {}, onAction = () => {}, onInpu
     }
   } catch (error) { canvas.dataset.reviewPreviewState = 'unavailable'; canvas.replaceChildren(el('p', 'review-preview-empty', error.message)); }
   const panel = el('aside', 'review-panel'); panel.dataset.reviewScroll = 'panel';
-  const notice = el('div', `review-message${state.error || view.stale ? ' warning' : ''}`); notice.dataset.reviewMessage = ''; notice.setAttribute('role', 'status'); notice.dataset.reviewScroll = 'message';
-  notice.append(el('p', '', messageText(state.error) || messageText(view.message) || (view.stale === 'legacy' ? 'The original proposal changed. Review its latest version before deciding.' : null) || (state.readOnly ? 'This recorded review is read-only. Its feedback and decisions cannot be rewritten.' : state.feedback?.editing ? 'Save or cancel this feedback draft before acceptance. Saving feedback accepts no content.' : group.status === 'CHANGES_REQUESTED' ? 'Your feedback is saved. No agent was started. You may edit the feedback or accept this unchanged, valid proposal.' : 'Select changes to accept. Other changes remain available.')));
-  if (view.canAdoptLatest || view.stale) notice.append(button('review-latest', view.stale === 'legacy' ? 'Review latest proposal →' : view.stale === 'content' ? 'Review latest version →' : 'Review latest saved decision →', !view.canAdoptLatest));
+  const notice = el('div', `review-message${state.error || (!state.readOnly && view.stale) ? ' warning' : ''}`); notice.dataset.reviewMessage = ''; notice.setAttribute('role', 'status'); notice.dataset.reviewScroll = 'message';
+  notice.append(el('p', '', messageText(state.error) || (state.readOnly ? 'This recorded review is read-only. Its feedback and decisions cannot be rewritten.' : messageText(view.message) || (view.stale === 'legacy' ? 'The original proposal changed. Review its latest version before deciding.' : null) || (state.feedback?.editing ? 'Save or cancel this feedback draft before acceptance. Saving feedback accepts no content.' : group.status === 'CHANGES_REQUESTED' ? 'Your feedback is saved. No agent was started. You may edit the feedback or accept this unchanged, valid proposal.' : 'Select changes to accept. Other changes remain available.'))));
+  if (!state.readOnly && (view.canAdoptLatest || view.stale)) notice.append(button('review-latest', view.stale === 'legacy' ? 'Review latest proposal →' : view.stale === 'content' ? 'Review latest version →' : 'Review latest saved decision →', !view.canAdoptLatest));
   panel.append(notice);
   const feedback = state.feedback ?? {};
   if (feedback.editing) {

@@ -60,6 +60,7 @@ Keep these states distinct:
 | VT-021 | Assembly editor | IMPLEMENTED CANDIDATE — user acceptance pending | approved Assembly mockup and exact composition contract | Components, state/variant preview, custom blocking, agent correction/review, Save/restart |
 | VT-022 | Animation editor and contextual cut revisions | USER ACCEPTED — PASS 2026-09-10 | approved Animation V2 mockup and compatible Clip/Assembly contract | Exact frames, timing/alignment, cut round-trip, immutable versions, agent feedback/review and Assembly playback |
 | VT-023 | Library navigation and contextual details | USER ACCEPTED — PASS 2026-09-11 | approved Library design, accepted editor/read foundations | Compact saved inventory, filters, full-size/details/editor return, existing review queue and Activity history |
+| VT-024 | Shared Review, feedback and Activity | IMPLEMENTED CANDIDATE — integration gates pending | approved Review V2, durable shared Review foundation | Related changes, partial acceptance, revisable feedback, exact history and contextual return |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1654,3 +1655,49 @@ Presented production checks:
 
 The explicit PASS above closes only VT-023. Other acceptances and the deferred
 VT-001/CP4.5/A1.7 gates stay separate.
+
+
+## VT-024 — Shared Review, feedback and Activity
+
+Status: **IMPLEMENTED CANDIDATE — user verification pending**, 2026-09-11.
+The [bounded UI contract](SHARED_REVIEW_UI_IMPLEMENTATION_CONTRACT.md) owns scope;
+[Review V2](REVIEW_CHANGES_DESIGN.md) is the approved design. ND-2 includes the
+affected ND-6 Back-left headers and ND-7 single-column Activity rows.
+
+Use clean current-main Studio only after unchanged-head green merge and post-merge
+CI. Prepare `scripts/prepare-shared-review-ui-fixture.js` in a **new, nonexistent**
+data directory. Never reseed a workspace, backup or restored copy. The synthetic
+project starts at revision18 with “Coffee station and its components”; its Image,
+Animation and Assembly are three related pending changes. Keep the exact test
+path and source head in the session record.
+
+Before Klaus's batch, a real semantic agent submitted a new Animation plus Assembly
+change through MCP. Invalid binding was rejected without mutation; owner browser
+UI accepted the Animation, requested and amended feedback, and the agent revised
+only the remaining Assembly. Final owner UI acceptance was read back through MCP
+at project34/Review6/content2, preserving the earlier Animation receipt. This is
+agent-workflow evidence, not Klaus's production acceptance.
+
+User batch:
+
+1. Library → Needs review → “Coffee station and its components”. Check the three
+   related items, full previews, readable changes and clear acceptance consequence.
+   Select the Animation and play its actual frames.
+2. Request changes, enter feedback, open Proposed Details and go back. Confirm
+   raw feedback, selection and your place in the screen survive. Save feedback.
+3. Return to Library: the group should say **Awaiting agent**. Reopen it, edit
+   saved feedback, save, then try and cancel another edit. Confirm acceptance is
+   still available if you reconsider.
+4. Accept only the Image and Animation. They should appear in the saved Library;
+   the Assembly remains pending. Accept the remaining Assembly and inspect it.
+5. Activity should show one readable event per row, including your saved feedback.
+   Inspect an earlier event: its recorded content/feedback stays read-only and
+   does not demand a newer version or change the accepted Library.
+6. Back/up controls should be on the left and name the destination. Use Details
+   and an editor, then return to the previous view.
+
+New-content arrival, dependency/stale acceptance, failed-read recovery and exact
+unknown-outcome retry carry automated native-browser and real-agent evidence;
+Klaus need not manually induce network errors for this batch. Report PASS or
+REVISE explicitly. A PASS closes this bounded block only; VT-001/CP4.5, broader
+Assembly acceptance and later Sources design retain their separate status.

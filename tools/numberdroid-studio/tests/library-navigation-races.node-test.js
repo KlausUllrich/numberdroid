@@ -35,7 +35,7 @@ function editorHarness(kind) {
     libraryRestoreCurrent() {}, restoreLibrarySnapshot() {}, cancelPinnedAssetsOnWorkspaceExit() {},
     renderWorkspace: () => renders.push(structuredClone(ui.route)),
     window: { scrollX: 0, scrollY: 100, confirm: () => true }, history: { replaceState() {} },
-    elements: { 'workspace-content': { dataset: { libraryRoute: `${projectId}:${libraryRouteKey(ui.route)}` }, replaceChildren: value => mounted.push(value) } },
+    elements: { toast: { textContent: '', classList: { remove() {} } }, 'workspace-content': { dataset: { libraryRoute: `${projectId}:${libraryRouteKey(ui.route)}` }, replaceChildren: value => mounted.push(value) } },
     animationCanMutate: () => true, assemblyCanMutate: () => true, mayAbandonAssetAuthoring: () => true,
     readAnimationDetail: () => read.promise, readAssemblyDetail: () => read.promise, resolveAnimationCuts: async () => [],
     createAnimationEditorController: ({ initial }) => makeController(initial), createAssemblyEditorController: ({ initial }) => makeController(initial),
