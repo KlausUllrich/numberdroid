@@ -1,5 +1,21 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-11 Review V2 design approval
+
+Klaus explicitly reported **“All pass”** for the [Review V2 mockup](../../tools/numberdroid-studio/docs/REVIEW_CHANGES_DESIGN.md#v2-approval--2026-09-11).
+Its approved rules cover truthful Needs review/Awaiting agent status, editable
+saved feedback with history, reconsidered exact-proposal acceptance, separate
+retention of older drafts when a newer proposal arrives, Back-left navigation
+and one readable Activity event per row. This is design approval, not production
+acceptance or evidence of a working agent-launch capability.
+
+ND-2 remains the next functional implementation. Start by defining compatible
+commands and saved review records against the current Asset/Clip/Assembly paths;
+then connect the approved UI. Preserve old data, accepted versions, dependencies,
+owner authority, exact retries and recovery. Exercise the resulting workflow with
+a real semantic agent before Klaus's production batch. ND-6 and ND-7 retain their
+separate rollout scopes. No new VT item exists until an implementation is ready.
+
 ## 2026-09-11 Library production acceptance and follow-ups
 
 Klaus explicitly reported **“all pass.”** for the production Library batch on
@@ -15,7 +31,8 @@ The PASS retains three design follow-ups: back/deeper navigation placement
 awaiting-agent status and revisable feedback/decisions (ND-2 /
 [#237](https://github.com/KlausUllrich/numberdroid/issues/237)); and one readable
 Activity event per row (ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244)).
-Discuss and mock up these changes before updating their implementation contracts.
+The Review V2 PASS above approves the demonstrated refinements; update the
+corresponding bounded implementation contracts before changing source.
 They do not revoke VT-023 or imply that shared mixed-content/partial acceptance
 already exists. Shared Review remains the next functional block; Sources follows
 later. Preserve the accepted Cutter/Asset/Animation/Library foundations.
