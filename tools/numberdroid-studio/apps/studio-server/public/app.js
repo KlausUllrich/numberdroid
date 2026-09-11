@@ -2471,6 +2471,7 @@ const libraryPreviewRecords = new Map();
 const libraryNativeContexts = new Map();
 const libraryExternalOrigins = new Map();
 const libraryCardObservers = new Set();
+const libraryRetiredPreviewUrls = new Set();
 let libraryReadGeneration = 0;
 let libraryRenderQueued = false;
 
@@ -2517,7 +2518,7 @@ function libraryRestoreOrigin(saved, editorState) {
   if (editorState && libraryUi.route.view === 'detail' && libraryUi.route.pin?.assetId === editorState.context?.assetId) {
     const current = libraryInventory(state.project.snapshot).find(entry => entry.contentKind === libraryUi.route.pin.contentKind && entry.asset.assetId === libraryUi.route.pin.assetId);
     if (current && current.asset.assetVersion === editorState.context.assetVersion && current.asset.metadataVersion === editorState.context.metadataVersion) {
-      libraryUi.route = { view: 'detail', pin: current.pin }; libraryDetails.set(libraryRouteKey(libraryUi.route), { entry: structuredClone(current), record: structuredClone(current.asset) });
+      libraryUi.route = { view: 'detail', pin: current.pin }; librarySetDetail(libraryRouteKey(libraryUi.route), { entry: structuredClone(current), record: structuredClone(current.asset) });
     }
   }
   libraryUi.domSnapshots[libraryRouteKey(libraryUi.route)] = saved.dom;
@@ -2530,7 +2531,8 @@ function libraryNavigationAllowed() {
 function goLibrary(route, { readonlyDetour = false } = {}) {
   if (!state.project || libraryHasEditor() || state.assetMutationPending || (!readonlyDetour && !libraryNavigationAllowed())) { showToast('Finish or reconcile the pending edit before navigating.'); return; }
   const dom = libraryDomSnapshot(), previousWorkspace = state.workspace;
-  captureLibraryDom(); libraryNavigate(libraryUi, route, { domSnapshot: dom });
+  const ownsLibraryDom = previousWorkspace === 'assets' && elements['workspace-content'].dataset.libraryRoute === libraryRouteIdentity();
+  captureLibraryDom(); libraryNavigate(libraryUi, route, { domSnapshot: ownsLibraryDom ? dom : null });
   if (previousWorkspace !== 'assets') libraryExternalOrigins.set(libraryRouteKey(route), dom);
   libraryReadGeneration += 1;
   cancelPinnedAssetsOnWorkspaceExit('assets'); state.workspace = 'assets'; history.replaceState(null, '', '#assets');
@@ -2556,6 +2558,15 @@ function libraryAllGroups() {
   }
   return groups;
 }
+function libraryReleasePreviewUrl(url) {
+  if (!url) return;
+  const mounted = [...elements['workspace-content'].querySelectorAll('a[data-library-preview-link]')].some(link => link.href === url);
+  if (mounted) libraryRetiredPreviewUrls.add(url); else URL.revokeObjectURL(url);
+}
+function libraryCollectPreviewUrls() {
+  const mounted = new Set([...elements['workspace-content'].querySelectorAll('a[data-library-preview-link]')].map(link => link.href));
+  for (const url of libraryRetiredPreviewUrls) if (!mounted.has(url)) { URL.revokeObjectURL(url); libraryRetiredPreviewUrls.delete(url); }
+}
 function libraryPreviewKey(entry) { return `${state.project.projectId}@${state.project.revision}:${entry.contentKind}:${entry.asset.assetId}@${entry.asset.assetVersion}:${entry.asset.metadataVersion}`; }
 function queueLibraryRender() {
   if (libraryRenderQueued) return; libraryRenderQueued = true;
@@ -2574,18 +2585,18 @@ function libraryLoadPreview(entry, { retry = false } = {}) {
   }).catch(error => { result.error = error.message; result.status = 'failed'; }).finally(() => {
     if (state.project?.projectId === projectId && state.project.revision === revision && libraryUi.route.view === 'detail') queueLibraryRender();
   });
-  while (libraryPreviewRecords.size > 80) { const oldest = libraryPreviewRecords.keys().next().value; const old = libraryPreviewRecords.get(oldest); if (old.url) URL.revokeObjectURL(old.url); libraryPreviewRecords.delete(oldest); }
+  while (libraryPreviewRecords.size > 80) { const oldest = libraryPreviewRecords.keys().next().value; const old = libraryPreviewRecords.get(oldest); if (old.url) libraryReleasePreviewUrl(old.url); libraryPreviewRecords.delete(oldest); }
   return result;
 }
-function libraryClearReads() { libraryReadGeneration += 1; for (const record of libraryPreviewRecords.values()) if (record.url) URL.revokeObjectURL(record.url); libraryPreviewRecords.clear(); for (const detail of libraryDetails.values()) if (detail.url) URL.revokeObjectURL(detail.url); libraryDetails.clear(); for (const observer of libraryCardObservers) observer.disconnect(); libraryCardObservers.clear(); libraryNativeContexts.clear(); libraryExternalOrigins.clear(); }
+function libraryClearReads() { libraryReadGeneration += 1; for (const record of libraryPreviewRecords.values()) if (record.url) URL.revokeObjectURL(record.url); libraryPreviewRecords.clear(); for (const url of libraryRetiredPreviewUrls) URL.revokeObjectURL(url); libraryRetiredPreviewUrls.clear(); for (const detail of libraryDetails.values()) if (detail.url) URL.revokeObjectURL(detail.url); libraryDetails.clear(); for (const observer of libraryCardObservers) observer.disconnect(); libraryCardObservers.clear(); libraryNativeContexts.clear(); libraryExternalOrigins.clear(); }
 function libraryCompactCard(entry) {
   const projectId = state.project.projectId, revision = state.project.revision;
   const cached = libraryPreviewRecords.get(libraryPreviewKey(entry));
   const card = renderLibraryCard({ entry, record: cached?.record ?? entry.asset, scene: cached?.record?.scene, projectId, previewUrl: cached?.url });
-  if (!cached || cached.status === 'loading') queueMicrotask(() => {
+  if (cached?.status !== 'ready') queueMicrotask(() => {
     if (!card.isConnected) return;
     const resolve = () => {
-      const preview = libraryLoadPreview(entry);
+      const preview = libraryLoadPreview(entry, { retry: libraryPreviewRecords.get(libraryPreviewKey(entry))?.status === 'failed' });
       void preview.promise?.finally(() => {
         if (!card.isConnected || state.project?.projectId !== projectId || state.project.revision !== revision || preview.status !== 'ready') return;
         const fresh = renderLibraryCard({ entry, record: preview.record, scene: preview.record.scene, projectId, previewUrl: preview.url });
@@ -2595,15 +2606,38 @@ function libraryCompactCard(entry) {
       });
     };
     if (typeof IntersectionObserver !== 'function') { resolve(); return; }
-    const observer = new IntersectionObserver(entries => { if (entries.some(value => value.isIntersecting)) { observer.disconnect(); libraryCardObservers.delete(observer); resolve(); } }, { rootMargin: '180px' });
+    const observer = new IntersectionObserver(entries => {
+      if (!card.isConnected || state.project?.projectId !== projectId || state.project.revision !== revision) { observer.disconnect(); libraryCardObservers.delete(observer); return; }
+      if (!entries.some(value => value.isIntersecting)) return;
+      const anchor = card.querySelector('a[data-library-preview-link]');
+      const live = libraryPreviewRecords.get(libraryPreviewKey(entry));
+      if (anchor?.href && (libraryRetiredPreviewUrls.has(anchor.href) || (live?.status === 'ready' && live.url === anchor.href))) return;
+      resolve();
+    }, { rootMargin: '180px' });
     libraryCardObservers.add(observer); observer.observe(card);
   });
   return card;
 }
+function librarySetDetail(key, value) {
+  const previous = libraryDetails.get(key);
+  if (previous?.url && previous.url !== value.url) libraryReleasePreviewUrl(previous.url);
+  libraryDetails.set(key, value);
+  return value;
+}
+function libraryBoundDetails() {
+  const keep = new Set([libraryRouteKey(libraryUi.route), ...libraryUi.returnStack.map(libraryRouteKey)]);
+  // Preserve the just-opened detail as well as bounded navigation history.
+  keep.add([...libraryDetails.keys()].at(-1));
+  for (const [key, detail] of libraryDetails) {
+    if (libraryDetails.size <= 48) break;
+    if (!keep.has(key)) { if (detail.url) libraryReleasePreviewUrl(detail.url); libraryDetails.delete(key); }
+  }
+}
 function libraryOpenSavedDetail(pin) {
   const entry = findLibraryItem(state.project?.snapshot, pin);
   if (!entry) { showToast('That exact saved version is no longer the Library head. Refresh and choose its current entry.'); return; }
-  const route = { view: 'detail', pin }; libraryDetails.set(libraryRouteKey(route), { entry: structuredClone(entry), record: structuredClone(entry.asset) });
+  const route = { view: 'detail', pin }; librarySetDetail(libraryRouteKey(route), { entry: structuredClone(entry), record: structuredClone(entry.asset) });
+  libraryBoundDetails();
   goLibrary(route);
 }
 function libraryOpenReviewDetail(contentKind, detail) {
@@ -2613,12 +2647,13 @@ function libraryOpenReviewDetail(contentKind, detail) {
   const pin = !proposed ? libraryAssetPin(record, contentKind) : null;
   const route = pin ? { view: 'detail', pin } : { view: 'detail', proposed: { contentKind, proposalId: detail.proposalId, proposalVersion: detail.proposalVersion }, assetId: record.assetId, itemId: detail.itemId ?? null };
   const entry = { contentKind, asset: record, pin, sourceNames: [], relatedReviews: [] };
-  libraryDetails.set(libraryRouteKey(route), { entry, record, proposed: !pin, proposal: { proposalId: detail.proposalId, proposalVersion: detail.proposalVersion }, ready: true });
+  librarySetDetail(libraryRouteKey(route), { entry, record, proposed: !pin, proposal: { proposalId: detail.proposalId, proposalVersion: detail.proposalVersion }, ready: true });
+  libraryBoundDetails();
   goLibrary(route, { readonlyDetour: true });
 }
 function libraryRenderDetail() {
   const route = libraryUi.route, key = libraryRouteKey(route); let selected = libraryDetails.get(key);
-  if (!selected && route.pin) { const entry = findLibraryItem(state.project.snapshot, route.pin); if (entry) { selected = { entry: structuredClone(entry), record: structuredClone(entry.asset) }; libraryDetails.set(key, selected); } }
+  if (!selected && route.pin) { const entry = findLibraryItem(state.project.snapshot, route.pin); if (entry) { selected = { entry: structuredClone(entry), record: structuredClone(entry.asset) }; librarySetDetail(key, selected); } }
   if (!selected) { const root = document.createElement('section'); root.append(libraryBackButton(), emptyState('Exact content unavailable', 'Return to the Library and choose an available saved version.')); return root; }
   const current = route.pin ? findLibraryItem(state.project.snapshot, route.pin) : null;
   const stale = Boolean(route.pin && !current), preview = selected.ready ? null : libraryLoadPreview(selected.entry);
@@ -2636,13 +2671,19 @@ function libraryRenderDetail() {
     const identity = document.createElement('details'); identity.className = 'asset-provenance'; const summary = document.createElement('summary'); summary.textContent = 'Exact image and source';
     const label = document.createElement('p'), display = sliceDisplay(record.sliceBinding); label.textContent = `${display.label} · ${display.atlasName}`;
     identity.append(summary, label, copyableCanonical('Asset ID', record.assetId, `library-asset-${record.assetId}`), copyableCanonical('Canonical slice ID', record.sliceBinding?.sliceId, `library-slice-${record.assetId}`)); controls.append(identity);
-    if (canEdit) controls.append(libraryNativeLifecycleControls(current.asset));
+    controls.append(libraryNativeLifecycleControls(canEdit ? current.asset : record, { canMutate: canEdit }));
   }
   return root;
 }
 function libraryBackButton() { const b = document.createElement('button'); b.type = 'button'; b.className = 'secondary'; b.dataset.libraryAction = 'back'; b.dataset.assetFocusKey = 'library-back'; b.textContent = 'Back'; return b; }
-function libraryNativeLifecycleControls(asset) {
-  const root = document.createElement('details'); root.className = 'library-lifecycle'; const summary = document.createElement('summary'); summary.textContent = `Validation and lifecycle · ${asset.lifecycle}`; root.append(summary, findingsList(asset.findings));
+function libraryNativeLifecycleControls(asset, { canMutate = false } = {}) {
+  const root = document.createElement('details'); root.className = 'library-lifecycle'; const summary = document.createElement('summary'); summary.textContent = `Validation and lifecycle · ${asset.lifecycle ?? 'Proposed'}`; root.append(summary, findingsList(asset.findings));
+  const facts = document.createElement('dl'); facts.className = 'property-list';
+  for (const [name, value] of [['Placement', placementSummary(asset.metadata)], ['Connectivity', connectivitySummary(asset.metadata)], ['Collision', collisionSummary(asset.metadata)], ['Navigation', asset.metadata?.navigation?.effect ?? 'missing'], ['Runtime metadata', asset.metadata?.runtimeEligible === true ? 'eligible' : asset.metadata?.runtimeEligible === false ? 'not eligible' : 'missing']]) {
+    const term = document.createElement('dt'), description = document.createElement('dd'); term.textContent = name; description.textContent = value; facts.append(term, description);
+  }
+  root.append(facts);
+  if (!canMutate) return root;
   const target = { DRAFT: 'METADATA_COMPLETE', METADATA_COMPLETE: 'VALIDATED', VALIDATED: 'FINAL' }[asset.lifecycle]; if (!target) return root;
   if (target === 'FINAL') for (const finding of (asset.findings ?? []).filter(value => value.severity === 'WARNING')) {
     const label = document.createElement('label'), input = document.createElement('input'); input.type = 'checkbox'; input.dataset.warningDisposition = finding.findingId; input.dataset.assetId = asset.assetId; input.checked = asset.warningDispositions?.includes(finding.findingId) ?? false; input.dataset.assetFocusKey = `warning-${asset.assetId}-${finding.findingId}`; label.append(input, document.createTextNode(` Accept ${finding.ruleId}`)); root.append(label);
@@ -2683,7 +2724,7 @@ function libraryRefreshListing() {
   for (const observer of libraryCardObservers) observer.disconnect(); libraryCardObservers.clear();
   const next = renderLibraryNavigation({ ui: libraryUi, items: libraryInventory(state.project.snapshot), groups: libraryAllGroups(), renderCard: libraryCompactCard, canCreateAssembly: assemblyCanMutate() });
   if (fields) next.querySelector('[data-library-filters]')?.replaceWith(fields);
-  old.replaceWith(next);
+  old.replaceWith(next); libraryCollectPreviewUrls();
   if (active?.isConnected) { active.focus({ preventScroll: true }); if (selection && active.setSelectionRange) active.setSelectionRange(...selection); }
   window.scrollTo(position.x, position.y);
 }
@@ -2781,12 +2822,13 @@ async function editAnimationCut(editor, { frame, binding, session, clip }) {
 }
 async function openAnimationEditor({ asset = null, pins = [], trigger = null } = {}) {
   if (!animationCanMutate() || !mayAbandonAssetAuthoring()) return;
+  const libraryGeneration = libraryReadGeneration;
   const generation = ++animationOpenGeneration, projectId = state.project.projectId, revision = state.project.revision, workspace = state.workspace;
   const saved = { workspace, x: window.scrollX, y: window.scrollY, focus: trigger?.dataset.assetFocusKey ?? null, library: libraryOrigin() }; captureAssetDomState();
   let record, bindings;
   try { [record, bindings] = await Promise.all([asset ? readAnimationDetail(asset, { retry: true }) : null, resolveAnimationCuts(projectId, pins)]); }
   catch (error) { if (generation === animationOpenGeneration) showToast(error.message); return; }
-  if (generation !== animationOpenGeneration || state.project?.projectId !== projectId || state.project.revision !== revision || state.workspace !== workspace) return;
+  if (libraryGeneration !== libraryReadGeneration || generation !== animationOpenGeneration || state.project?.projectId !== projectId || state.project.revision !== revision || state.workspace !== workspace) return;
   let editor;
   editor = createAnimationEditorController({ initial: { projectId, projectRevision: revision, asset: record, selectedSlices: bindings }, host: {
     getContext: () => animationCurrentContext(editor), getSavedCuts: () => currentProjectSlices().map(({ slice }) => ({ ...slice, name: savedSliceLabel(slice), sliceVersion: slice.version })),
@@ -2922,13 +2964,14 @@ function editAssemblyCustomGeometry(editor, { draft, artwork, title }) {
 
 async function openAssemblyEditor({ asset = null, trigger = null } = {}) {
   if (!assemblyCanMutate() || !mayAbandonAssetAuthoring()) return;
+  const libraryGeneration = libraryReadGeneration;
   const generation = ++assemblyOpenGeneration, projectId = state.project.projectId, revision = state.project.revision, workspace = state.workspace;
   const saved = { workspace, x: window.scrollX, y: window.scrollY, focus: trigger?.dataset.assetFocusKey ?? null, library: libraryOrigin() };
   captureAssetDomState();
   let record = asset;
   try { if (asset) record = await readAssemblyDetail(asset, { retry: true }); }
   catch (error) { if (generation === assemblyOpenGeneration && state.project?.projectId === projectId && state.workspace === workspace) showToast(error.message); return; }
-  if (generation !== assemblyOpenGeneration || state.project?.projectId !== projectId || state.project?.revision !== revision || state.workspace !== workspace || !assemblyCanMutate()) return;
+  if (libraryGeneration !== libraryReadGeneration || generation !== assemblyOpenGeneration || state.project?.projectId !== projectId || state.project?.revision !== revision || state.workspace !== workspace || !assemblyCanMutate()) return;
   let editor;
   const leafMap = new Map([...currentAssetLibrary().assets, ...(record?.leafAssets ?? [])].map(leaf => [`${leaf.assetId}@${leaf.assetVersion}:${leaf.metadataVersion}`, leaf]));
   editor = createAssemblyEditorController({ initial: { projectId, projectRevision: revision, asset: record, assets: [...leafMap.values()] }, host: {
@@ -5835,6 +5878,7 @@ function renderWorkspace({
   else if (state.workspace === 'tasks') content = renderTasks();
   else if (state.workspace === 'levels') content = renderCollection(snapshot.levels, 'levels');
   else content = renderActivityWorkspace();
+  queueMicrotask(libraryCollectPreviewUrls);
   if (state.workspace === 'assets') elements['workspace-content'].dataset.libraryRoute = libraryRouteIdentity();
   else delete elements['workspace-content'].dataset.libraryRoute;
   if (retainedRoomCanvas) {

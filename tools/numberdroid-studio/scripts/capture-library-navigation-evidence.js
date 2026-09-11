@@ -81,6 +81,15 @@ export async function captureLibraryNavigation({ devtools, sessionId, captureChe
     await waitFor(`Boolean(document.querySelector(${JSON.stringify(selector)})?.href)`, `${kind} full-size preview link`);
     const link = await evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});return{href:n.href,target:n.target,rel:n.rel};})()`);
     assert.equal(link.target, '_blank'); assert(link.rel.split(/\s+/).includes('noopener'));
+    const expectedPresentation = await evaluate(`(()=>{
+      const root=document.querySelector('[data-library-detail]'),art=root.querySelector('[data-library-artwork]'),svg=art.querySelector('svg'),img=art.querySelector('img');
+      const image=n=>({url:new URL(n.getAttribute('href'),location.href).href,x:Number(n.getAttribute('x')??0),y:Number(n.getAttribute('y')??0),width:Number(n.getAttribute('width')),height:Number(n.getAttribute('height')),transform:n.getAttribute('transform')??''});
+      return{kind:root.dataset.libraryKind,name:root.querySelector('h2')?.textContent,svg:Boolean(svg),
+        viewBox:svg?svg.getAttribute('viewBox').trim().split(/\\s+/).map(Number):[0,0,img.naturalWidth,img.naturalHeight],
+        images:svg?[...svg.querySelectorAll('image')].map(image):[{url:img.currentSrc||img.src,x:0,y:0,width:img.naturalWidth,height:img.naturalHeight,transform:''}]};
+    })()`);
+    assert.equal(expectedPresentation.kind, kind);
+    if (kind !== 'image') assert.equal(expectedPresentation.svg, true, `${kind} Details must show the exact composition`);
     const oldTargets = new Set((await devtools.send('Target.getTargets')).targetInfos.map(target => target.targetId));
     const point = await evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});n.scrollIntoView({block:'center'});const r=n.getBoundingClientRect();return{x:Math.max(1,Math.min(innerWidth-1,r.x+r.width/2)),y:Math.max(1,Math.min(innerHeight-1,r.y+r.height/2))};})()`);
     // A real browser input gesture is required for target=_blank; scripted
@@ -102,11 +111,27 @@ export async function captureLibraryNavigation({ devtools, sessionId, captureChe
         if (!loaded) await new Promise(done => setTimeout(done, 50));
       }
       assert(loaded, `${kind} full-size document must finish loading`);
-      const decoded = await devtools.send('Runtime.evaluate', { expression: `Promise.all([...document.querySelectorAll('img,image')].map(async n=>{const url=n.currentSrc||n.src||n.getAttribute('href');const image=new Image();image.src=url;let timer;try{await Promise.race([image.decode(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Full preview decode timed out')),8000);})]);return{width:image.naturalWidth,height:image.naturalHeight};}finally{clearTimeout(timer);}})).then(images=>({images,scripts:document.scripts.length,controls:document.querySelectorAll('button,input,form').length}))`, awaitPromise: true, returnByValue: true }, attached.sessionId);
+      const decoded = await devtools.send('Runtime.evaluate', { expression: `Promise.all([...document.querySelectorAll('img,image')].map(async n=>{const url=n.currentSrc||n.src||n.getAttribute('href');const image=new Image();image.src=url;let timer;try{await Promise.race([image.decode(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Full preview decode timed out')),8000);})]);return{width:image.naturalWidth,height:image.naturalHeight};}finally{clearTimeout(timer);}})).then(images=>{
+        const svg=document.querySelector('svg'),img=document.querySelector('img');
+        const item=n=>({url:new URL(n.getAttribute('href'),location.href).href,x:Number(n.getAttribute('x')??0),y:Number(n.getAttribute('y')??0),width:Number(n.getAttribute('width')),height:Number(n.getAttribute('height')),transform:n.getAttribute('transform')??''});
+        return{images,scripts:document.scripts.length,controls:document.querySelectorAll('button,input,form').length,
+          presentation:{title:document.title,svgCount:document.querySelectorAll('svg').length,
+            viewBox:svg?svg.getAttribute('viewBox').trim().split(/\\s+/).map(Number):img?[0,0,img.naturalWidth,img.naturalHeight]:null,
+            images:svg?[...document.querySelectorAll('image')].map(item):img?[{url:img.currentSrc||img.src,x:0,y:0,width:img.naturalWidth,height:img.naturalHeight,transform:''}]:[]}};
+      })`, awaitPromise: true, returnByValue: true }, attached.sessionId);
       assert.equal(decoded.exceptionDetails, undefined, JSON.stringify(decoded.exceptionDetails));
       assert(decoded.result.value.images.length > 0 && decoded.result.value.images.every(image => image.width > 0 && image.height > 0), `${kind} full-size target must decode real pixels`);
       assert.equal(decoded.result.value.scripts, 0); assert.equal(decoded.result.value.controls, 0);
-      result.fullSizePreviews.push({ kind, ...decoded.result.value });
+      const actualPresentation = decoded.result.value.presentation;
+      if (kind !== 'image') assert.equal(actualPresentation.svgCount, 1, `${kind} full-size must retain its SVG composition rather than a component image`);
+      if (actualPresentation.svgCount) {
+        const label = { image: 'Image', animation: 'Animation', assembly: 'Assembly' }[kind];
+        assert.equal(actualPresentation.title, `${expectedPresentation.name} — Saved ${label}`, 'The opened full-size document must identify this exact saved content kind');
+      }
+      assert.deepEqual(actualPresentation.viewBox, expectedPresentation.viewBox, `${kind} full-size frame must match the selected detail`);
+      assert.deepEqual(actualPresentation.images, expectedPresentation.images, `${kind} full-size must preserve every exact image URL, painter order, dimension, offset and transform`);
+      assert.equal(decoded.result.value.images.length, expectedPresentation.images.length, 'A missing component or unrelated extra image cannot pass full-size evidence');
+      result.fullSizePreviews.push({ kind, exactDetailPresentation: true, ...decoded.result.value });
     } finally { await devtools.send('Target.closeTarget', { targetId: target.targetId }); await devtools.send('Page.bringToFront', {}, sessionId); }
     const edit = '[data-library-action="edit"]';
     await click(edit);

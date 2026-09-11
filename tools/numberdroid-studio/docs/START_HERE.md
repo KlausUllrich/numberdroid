@@ -13,7 +13,9 @@ Use BB Tasks project **Numberdroid Studio (ND)** as the working board, with link
 GitHub issues as repository copies. Klaus removed the Taskboard plugin on 2026-09-11. The next
 implementation task is **ND-1 / [#236](https://github.com/KlausUllrich/numberdroid/issues/236)**.
 Its [bounded implementation contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
-owns the active Library navigation/detail integration block.
+owns the active Library navigation/detail integration block. It is implemented
+as a candidate; [VT-023](VACATION_TEST_BACKLOG.md#vt-023--library-navigation-and-contextual-details)
+tracks the production live gate.
 Read the task and keep meaningful milestone status aligned in both copies; creating
 these records does not start work or change the existing acceptance gates.
 

@@ -59,6 +59,7 @@ Keep these states distinct:
 | VT-020 | Asset placement and blocking editor | USER ACCEPTED — PASS 2026-09-09 | approved Placement design and compatible Asset editor contract | Named shapes, direct own-work Save, retained versions and Activity navigation |
 | VT-021 | Assembly editor | IMPLEMENTED CANDIDATE — user acceptance pending | approved Assembly mockup and exact composition contract | Components, state/variant preview, custom blocking, agent correction/review, Save/restart |
 | VT-022 | Animation editor and contextual cut revisions | USER ACCEPTED — PASS 2026-09-10 | approved Animation V2 mockup and compatible Clip/Assembly contract | Exact frames, timing/alignment, cut round-trip, immutable versions, agent feedback/review and Assembly playback |
+| VT-023 | Library navigation and contextual details | IMPLEMENTED CANDIDATE — production acceptance pending | approved Library design, accepted editor/read foundations | Compact saved inventory, filters, full-size/details/editor return, existing review queue and Activity history |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1599,3 +1600,35 @@ independent body variants. Those synthetic owner decisions are not user acceptan
 VT-001 / CP4.5, broader VT-021 and A1.7 keep their existing separate decisions.
 This PASS does not authorize runtime export/materialization, new media/provider
 work, image generation or a broader game-behavior editor.
+
+## VT-023 — Library navigation and contextual details
+
+Status: **IMPLEMENTED CANDIDATE — production acceptance pending**.
+The [ND-1 implementation contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+owns this first Library block. Klaus approved its design; that approval does not
+accept this production implementation. The focused PR owns source/CI evidence.
+
+Use a fresh Library fixture on clean verified main. Preserve the existing saved
+workspaces and their backups. Before Klaus's batch, a real semantic agent must
+create/correct a proposal and read owner feedback/decisions saved through the
+new Library review entry. Synthetic owner decisions are not Klaus acceptance.
+
+Presented production checks:
+
+1. In Library → Assets, search/filter by Content and Use. Confirm compact cards
+   show whole portraits, names, useful size and saved/pending status.
+2. Open Image, Animation and Assembly pictures at full size in new tabs. Open
+   Details in-app, enter the matching editor and return; retain filters, focus,
+   page/inner scroll and the exact saved or explicitly retained version.
+3. Add from Sources opens existing source/cut work; Create Assembly opens the
+   existing Assembly editor. Saved cuts are accessed in Sources.
+4. Pending changes shows current supported proposals. Open a review, inspect
+   Current/Proposed details and return with feedback/presentation retained.
+   Existing native Image decision/apply steps and whole Clip/Assembly decisions
+   remain unchanged; mixed-content partial acceptance is the later ND-2 block.
+5. Inspect a completed review from Activity. Decisions stay read-only; navigation
+   and preview do not change saved project content. An unresolved save/decision
+   remains reachable for its exact retry instead of being lost during navigation.
+
+Record Klaus's explicit PASS or REVISE with the tested source/workspace. Other
+acceptances and the deferred VT-001/CP4.5/A1.7 gates stay separate.

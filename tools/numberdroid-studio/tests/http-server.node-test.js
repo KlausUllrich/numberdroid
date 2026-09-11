@@ -366,9 +366,10 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(sourcePreviewRenderer, /Open .* original source image in a new tab/);
   assert.match(sourcePreviewRenderer, /caption\.textContent = 'Open original in new tab ↗'/);
   assert.match(sourcePreviewRenderer, /link\.setAttribute\('aria-describedby', caption\.id\)/);
-  const overviewRenderer = clientScript.slice(
-    clientScript.indexOf('function renderOverview'), clientScript.indexOf('function renderCollection'),
-  );
+  const overviewStart = clientScript.indexOf('function renderOverview');
+  const overviewEnd = clientScript.indexOf('\nfunction ', overviewStart + 1);
+  assert(overviewStart >= 0 && overviewEnd > overviewStart, 'The Overview renderer must have a complete isolated function boundary.');
+  const overviewRenderer = clientScript.slice(overviewStart, overviewEnd);
   const collectionRenderer = clientScript.slice(
     clientScript.indexOf('function renderCollection'), clientScript.indexOf('function renderActivityWorkspace'),
   );

@@ -22,7 +22,9 @@ export function createAnimationReviewController({initial,host}){
  function inspect(side){
   if(!canInspect(side))return;
   if(raf!==null){cancelAnimationFrame(raf);raf=null;}state.last=null;
-  host.onDetails(copy({side,projectId:state.projectId,projectRevision:state.projectRevision,proposalId:state.proposal.proposalId,proposalVersion:state.proposal.proposalVersion,record:side==='current'?state.currentAsset:state.proposal.validated??state.proposal.content,frameBindings:state.bindings}));
+  const record=side==='current'?state.currentAsset:state.proposal.validated??state.proposal.content;
+  const frameBindings=record.clip.frames.map(frame=>({frameId:frame.frameId,sliceBinding:state.bindings.find(binding=>binding.projectId===state.projectId&&clipSliceKey(animationPin(binding))===clipSliceKey(frame.slice))??null}));
+  host.onDetails(copy({side,projectId:state.projectId,projectRevision:state.projectRevision,proposalId:state.proposal.proposalId,proposalVersion:state.proposal.proposalVersion,record,frameBindings}));
  }
  function inspectionActions(){
   const actions=el('div','assembly-review-sides');

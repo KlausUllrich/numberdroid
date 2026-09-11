@@ -1,6 +1,6 @@
 # Library navigation — implementation block ND-1
 
-Status: authorized implementation, 2026-09-11; production acceptance pending.
+Status: implemented candidate, 2026-09-11; production acceptance pending.
 The [approved Library design](LIBRARY_NAVIGATION_DESIGN.md) owns the experience.
 This is its first bounded implementation block and BB Tasks ND-1 / GitHub #236.
 
@@ -100,3 +100,21 @@ merely to add duplicate workflows. Drain browser/server/worker/database handles
 before fixture cleanup. Publish coherent checkpoints and merge only an unchanged
 exact green head, then observe post-merge CI. Source integration is not user
 acceptance; record a new VT item only after implementation exists.
+
+## Implementation verification — 2026-09-11
+
+The bounded Library implementation now exists: current-content cards, independent
+tab filters, exact details/full-size inspection, retained editor/review return,
+current per-type proposal queues and Activity history. Native lifecycle/validation
+information stays inspectable in read-only details; writes retain existing gates.
+
+Focused state/review/race tests cover delayed editor opens, external terminal
+review decisions, exact ordered Animation bindings, viewport retry, live preview
+URL ownership and repeated/external return-context cleanup. Native Library and
+adapted Asset/Assembly/Animation lanes pass at 1440/1060, including actual image
+containment and full-size framing, all references/transforms, decoded pixels,
+unknown decision retry and cleanup. The focused PR owns final source/CI identities.
+
+[VT-023](VACATION_TEST_BACKLOG.md#vt-023--library-navigation-and-contextual-details)
+records the separate production live gate. This block does not implement ND-2's
+shared mixed-content acceptance; existing review semantics remain visible.

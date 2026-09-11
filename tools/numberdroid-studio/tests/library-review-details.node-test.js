@@ -3,6 +3,7 @@ import test from 'node:test';
 import { createAssemblyReviewController } from '../apps/studio-server/public/assembly-review-view.js';
 import { createAnimationReviewController } from '../apps/studio-server/public/animation-review-view.js';
 import { assemblyArtworkPlayback } from '../apps/studio-server/public/assembly-artwork-view.js';
+import { libraryPreviewDescriptor } from '../apps/studio-server/public/library-detail-view.js';
 
 // Controller events and mount lifecycle, without a server or persistence fixture.
 class Element {
@@ -25,7 +26,7 @@ class Element {
   setSelectionRange(start, end, direction) { this.selectionStart = start; this.selectionEnd = end; this.selectionDirection = direction; }
 }
 const projectId = 'project.review-details';
-const binding = { projectId, sliceId: 'slice.display', sliceVersion: 1, width: 16, height: 16, digest: 'a'.repeat(64) };
+const binding = { projectId, sliceId: 'slice.display', sliceVersion: 1, width: 16, height: 16, digest: 'a'.repeat(64), mediaType: 'image/png' };
 const clip = { fps: 10, playbackMode: 'pingpong', canvas: { width: 16, height: 16 }, anchor: { x: 8, y: 8 }, unitsPerPixel: 1 / 64, frames: [{ frameId: 'frame.one', name: 'Display', slice: { sliceId: binding.sliceId, sliceVersion: 1 }, durationMs: null, offset: { x: -2, y: 3 } }] };
 const assembly = { unitsPerPixel: 1 / 64, placementBounds: { x: 0, y: 0, width: 64, height: 64 }, anchor: { x: 32, y: 32 }, states: [{ stateId: 'idle', name: 'Idle' }, { stateId: 'ready', name: 'Ready' }], variants: [{ variantId: 'default', name: 'Default' }, { variantId: 'copper', name: 'Copper' }], defaultStateId: 'idle', defaultVariantId: 'default', blocking: { mode: 'components', regions: [] }, components: [] };
 function fixture(kind) {
@@ -150,4 +151,85 @@ test('Assembly inspection preserves animated artwork clocks and selected present
   h.click(h.controller.element.querySelector(h.selector('proposed'))); assert.equal(state.previewPlaying, true); assert.equal(h.frames.size, 0);
   h.returnToReview(); assert.equal(h.controller.element.querySelector('[data-assembly-artwork]'), artwork);
   assert.deepEqual(assemblyArtworkPlayback(artwork), before);
+});
+
+
+test('Animation Details payload feeds the Library descriptor with chosen frame order, repeats and exact pins', t => {
+  const h = harness(t, 'animation'), state = h.controller.getState();
+  const first = structuredClone(clip.frames[0]), repeat = { ...structuredClone(first), frameId: 'frame.repeat', offset: { x: 20, y: -3 } };
+  const second = { ...structuredClone(first), frameId: 'frame.second', slice: { sliceId: binding.sliceId, sliceVersion: 2 } };
+  state.currentAsset.clip.frames = [first, repeat, second];
+  state.proposal.content.clip.frames = [second, repeat, first];
+  const newer = { ...binding, sliceVersion: 2, digest: 'b'.repeat(64) };
+  state.bindings = [{ ...binding, projectId: 'project.foreign', digest: 'f'.repeat(64) }, newer, binding];
+  state.load = 'ready'; h.controller.reconcileContext();
+  for (const side of ['current', 'proposed']) {
+    h.click(h.controller.element.querySelector(h.selector(side)));
+    const payload = h.calls.at(-1), record = { ...payload.record, frameBindings: payload.frameBindings };
+    assert.deepEqual(payload.frameBindings.map(value => value.frameId), record.clip.frames.map(frame => frame.frameId));
+    assert.deepEqual(payload.frameBindings.map(value => value.sliceBinding.sliceVersion), side === 'current' ? [1, 1, 2] : [2, 1, 1]);
+    assert.ok(payload.frameBindings.every(value => value.sliceBinding.projectId === projectId));
+    const descriptor = libraryPreviewDescriptor({ entry: { contentKind: 'animation' }, record, projectId, proposed: side === 'proposed' });
+    assert.equal(descriptor.images[0].href, `/api/projects/${projectId}/artifacts/sha256/${side === 'current' ? binding.digest : newer.digest}`);
+    assert.deepEqual(descriptor.bounds, { x: -2, y: -3, width: 38, height: 22 });
+    h.returnToReview();
+  }
+  assert.equal(h.counts().writes, 0);
+});
+
+test('Animation Details never fills a missing frame with a newer or foreign saved cut', t => {
+  const h = harness(t, 'animation'), state = h.controller.getState();
+  state.bindings = [{ ...binding, sliceVersion: 2 }, { ...binding, projectId: 'project.foreign' }];
+  h.click(h.controller.element.querySelector(h.selector('proposed')));
+  const payload = h.calls.at(-1);
+  assert.deepEqual(payload.frameBindings, [{ frameId: 'frame.one', sliceBinding: null }]);
+  assert.throws(() => libraryPreviewDescriptor({ entry: { contentKind: 'animation' }, record: { ...payload.record, frameBindings: payload.frameBindings }, projectId, proposed: true }), /exact saved Animation frame/);
+  assert.equal(h.counts().writes, 0);
+});
+
+for (const outcome of ['ACCEPTED', 'DISCARDED']) {
+  test(`cached Assembly review adopts external ${outcome} when opened from Activity and retains unsent feedback`, async t => {
+    const h = harness(t, 'assembly'); h.controller.afterMount(); await flush();
+    const state = h.controller.getState(); state.feedback = 'My unfinished review notes.'; state.selection = { stateId: 'ready', variantId: 'copper' }; state.previewSide = 'current';
+    const oldScene = state.currentScene, reads = h.counts().queries;
+    h.current.proposal = { ...structuredClone(h.current.proposal), proposalVersion: 5, status: outcome, feedback: 'Decision from another owner session.' };
+    h.current.projectRevision = 10;
+    if (outcome === 'ACCEPTED') h.current.asset = { ...structuredClone(h.current.asset), name: 'Saved elsewhere', assetVersion: 3 };
+    // Activity and Library remount the same cached controller and reconcile its new context.
+    h.mount.replaceChildren(); h.controller.reconcileContext(); h.returnToReview(); await flush();
+    assert.equal(state.proposal.status, outcome); assert.equal(state.proposal.proposalVersion, 5); assert.equal(state.projectRevision, 10);
+    assert.equal(state.status, 'done'); assert.equal(state.completedElsewhere, true); assert.equal(state.intent, null);
+    assert.equal(state.feedback, 'My unfinished review notes.'); assert.equal(state.previewSide, 'current'); assert.deepEqual(state.selection, { stateId: 'ready', variantId: 'copper' });
+    assert.notEqual(state.currentScene, oldScene); assert.equal(state.load, 'ready'); assert.equal(h.counts().queries, reads + 2);
+    assert.ok(h.controller.element.querySelector('[data-assembly-review-unsent-feedback]'));
+    assert.equal(h.controller.element.querySelector('[data-assembly-review-action="ACCEPT"]'), null);
+    assert.equal(h.controller.element.querySelector('[data-assembly-review-action="REQUEST_CHANGES"]'), null);
+    assert.equal(h.controller.element.querySelector('[data-assembly-review-action="DISCARD"]'), null);
+    assert.equal(h.controller.element.querySelector(h.selector('proposed')).disabled, false);
+    assert.equal(h.counts().writes, 0);
+  });
+}
+
+test('external Assembly completion cannot overwrite saving or uncertain exact decision delivery', async t => {
+  const h = harness(t, 'assembly'), state = h.controller.getState(); state.feedback = 'Unconfirmed feedback';
+  h.click(h.controller.element.querySelector('[data-assembly-review-action="REQUEST_CHANGES"]'));
+  const intent = state.intent;
+  h.current.proposal = { ...structuredClone(h.current.proposal), proposalVersion: 5, status: 'ACCEPTED' }; h.current.projectRevision = 10;
+  h.controller.reconcileContext(); assert.equal(state.status, 'saving'); assert.equal(state.intent, intent); assert.equal(state.proposal.status, 'PENDING');
+  await flush(); h.controller.reconcileContext();
+  assert.equal(state.status, 'uncertain'); assert.equal(state.intent, intent); assert.equal(state.proposal.proposalVersion, 4); assert.equal(state.completedElsewhere, false);
+  assert.equal(h.controller.element.querySelector(h.selector('proposed')).disabled, true);
+  assert.equal(h.controller.requestLeave(), false);
+});
+
+test('Assembly terminal reconciliation rejects foreign identity and leaves no old preview when reads are unavailable', async t => {
+  const h = harness(t, 'assembly'); h.controller.afterMount(); await flush();
+  const state = h.controller.getState();
+  h.current.proposal = { ...structuredClone(h.current.proposal), proposalId: 'proposal.foreign', proposalVersion: 5, status: 'ACCEPTED' };
+  h.controller.reconcileContext(); assert.equal(state.proposal.status, 'PENDING');
+  h.current.proposal.proposalId = state.proposal.proposalId; h.current.projectId = 'project.foreign';
+  h.controller.reconcileContext(); assert.equal(state.proposal.status, 'PENDING');
+  h.current.projectId = projectId; h.setReadable(false); h.controller.reconcileContext();
+  assert.equal(state.proposal.status, 'ACCEPTED'); assert.equal(state.scene, null); assert.equal(state.currentScene, null);
+  assert.equal(h.counts().writes, 0);
 });
