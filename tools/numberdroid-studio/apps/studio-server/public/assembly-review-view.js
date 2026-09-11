@@ -39,6 +39,21 @@ export function createAssemblyReviewController({ initial, host }) {
   let disposed = false, generation = 0, readController = null, mutationController = null, playbackFrame = null;
   const artworks = new Map();
   const current = () => host.getContext();
+  const canInspect = side => !disposed && typeof host.onDetails === 'function'
+    && ['current', 'proposed'].includes(side) && !['saving', 'uncertain'].includes(state.status)
+    && host.canRead() && current().projectId === state.projectId
+    && Boolean(side === 'current' ? state.currentAsset : state.proposal.content);
+  function inspect(side) {
+    if (!canInspect(side)) return;
+    // Keep presentation clocks at their retained phase while the host shows Details.
+    if (playbackFrame !== null) { cancelAnimationFrame(playbackFrame); playbackFrame = null; }
+    for (const [key, artwork] of artworks) updateAssemblyArtwork(artwork, key === 'current' ? state.currentScene : state.scene, { projectId: state.projectId, playing: false });
+    host.onDetails(copy({ side, projectId: state.projectId, projectRevision: state.projectRevision,
+      proposalId: state.proposal.proposalId, proposalVersion: state.proposal.proposalVersion,
+      record: side === 'current' ? state.currentAsset : state.proposal.content,
+      scene: side === 'current' ? state.currentScene : state.scene, leafAssets: state.leafAssets,
+      selection: state.selection }));
+  }
   const conflict = () => {
     const context = current();
     if (context.projectId !== state.projectId) return 'Return to this project to review this proposal.';
@@ -105,6 +120,15 @@ export function createAssemblyReviewController({ initial, host }) {
       if (change.detail) item.append(node('p', change.detail)); list.append(item);
     }
     changePanel.append(list);
+    if (typeof host.onDetails === 'function') {
+      const inspection = node('div', '', 'assembly-review-sides');
+      for (const side of ['current', 'proposed']) {
+        const control = node('button', `Inspect ${side}`, 'secondary'); control.type = 'button';
+        control.dataset.assemblyReviewDetails = side; control.dataset.assemblyReviewFocus = `details:${side}`;
+        control.disabled = !canInspect(side); inspection.append(control);
+      }
+      changePanel.append(inspection);
+    }
     if (changes.unchanged.length) { const unchanged = node('div', '', 'assembly-review-unchanged'); for (const text of changes.unchanged) unchanged.append(node('p', text)); changePanel.append(unchanged); }
     body.append(visual, changePanel);
     const status = node('div', '', 'assembly-review-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
@@ -207,6 +231,8 @@ export function createAssemblyReviewController({ initial, host }) {
   element.addEventListener('change', event => { const key = event.target.dataset.assemblyReviewSelection; if (key) { state.selection[key] = event.target.value; void loadPreview(); } });
   element.addEventListener('click', event => { const side = event.target.closest('[data-assembly-review-side]');
     if (side && !side.disabled && ['current', 'proposed'].includes(side.dataset.assemblyReviewSide)) { state.previewSide = side.dataset.assemblyReviewSide; render(); return; }
+    const details = event.target.closest('[data-assembly-review-details]');
+    if (details?.dataset.assemblyReviewDetails) { if (!details.disabled) inspect(details.dataset.assemblyReviewDetails); return; }
     const action = event.target.closest('[data-assembly-review-action]'); if (!action || action.disabled) return;
     const key = action.dataset.assemblyReviewAction; if (key === 'playback') { state.previewPlaying = !state.previewPlaying; render(); } else if (key === 'retry') void decide(null, true); else if (key === 'recheck' || key === 'check') void recheck(key === 'check'); else void decide(key); });
   function tickPlayback(now) {

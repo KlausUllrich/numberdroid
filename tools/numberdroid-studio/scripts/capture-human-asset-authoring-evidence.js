@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { libraryNavigation } from './library-browser-navigation.js';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
@@ -38,6 +39,7 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
     }
     return true;
   })()`);
+  const navigation = libraryNavigation({ evaluate, click, waitFor });
   const project = () => evaluate(`fetch('/api/projects/${PROJECT_ID}').then((response) => { if (!response.ok) throw new Error('Project read failed'); return response.json(); })`);
   const editorAction = (action, value) => `[data-asset-editor-action="${action}"]${value === undefined ? '' : `[data-value="${value}"]`}`;
   const editorField = async (name, value) => {
@@ -94,6 +96,7 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
   const initial = await project();
   if (!reopened) {
     assert.equal(initial.snapshot.assetLibrary?.assets.length ?? 0, 0);
+    await click('[data-library-action="add-from-sources"]');
     await waitFor("document.querySelectorAll('[data-create-asset-slice]').length === 4", 'Four saved-slice actions');
     slice = await evaluate(`(() => { const action = document.querySelector('[data-create-asset-slice]'); return { sliceId: action.dataset.createAssetSlice, sliceVersion: Number(action.dataset.sliceVersion) }; })()`);
     assert.ok(slice.sliceId); assert.ok(slice.sliceVersion > 0);
@@ -194,7 +197,7 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
     await click(editorAction('retry'));
     await waitFor("document.querySelector('[data-asset-editor-saved-state]')?.textContent.startsWith('Saved Asset v1')",'Identical replay resolves direct owner Save');
     const created=await project(); assert.equal(created.revision,initial.revision+1); assert.equal(created.snapshot.assetLibrary.assets.length,1); assert.equal(created.snapshot.assetLibrary.proposals.length,0);
-    await click(editorAction('back')); await waitFor("document.querySelectorAll('.asset-v2-card').length === 1", 'Saved DRAFT Asset');
+    await click(editorAction('back')); await click('[data-workspace="assets"]'); await navigation.assets(); await waitFor("document.querySelectorAll('.asset-v2-card').length === 1", 'Saved DRAFT Asset');
     await capture('asset', '.asset-v2-card');
     await click('[data-workspace="rooms"]');
     await waitFor("Boolean(document.querySelector('[data-room-form=" + JSON.stringify('archetype') + "]'))", 'Room archetype form');
@@ -210,8 +213,10 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
     await click('[data-room-control="cell"][data-x="2"][data-y="2"]');
     await waitFor("document.querySelectorAll('.room-placement').length === 1", 'Saved interior placement');
     await click('[data-workspace="assets"]');
-    await waitFor("Boolean(document.querySelector('[data-select-asset]'))", 'Library edit action');
-    await click('[data-select-asset]');
+    await navigation.assets();
+    await navigation.details('image', created.snapshot.assetLibrary.assets[0].assetId);
+    await waitFor("Boolean(document.querySelector('[data-library-action=edit]'))", 'Library edit action');
+    await click('[data-library-action="edit"]');
     await waitFor("Boolean(document.querySelector('[data-asset-editor]'))", 'Existing Asset editor');
     await click(editorAction('view','properties')); await editorField('metadata.role','edited-authoring-test');
     const beforeUpdate=(await project()).revision;

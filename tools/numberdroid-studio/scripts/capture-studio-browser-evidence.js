@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { decodeSupportedPng } from '../packages/preview/src/index.js';
+import { captureCheckpoint2cLibraryRoutes } from './capture-checkpoint-2c-library-routes.js';
 import { captureHumanAssetAuthoring } from './capture-human-asset-authoring-evidence.js';
 import { captureRoomCreation } from './capture-room-creation-evidence.js';
 import { captureRoomPinnedAssets } from './capture-room-pinned-assets-evidence.js';
@@ -265,6 +266,7 @@ try {
   let checkpoint2aSourceFocusBeforeLayout = null;
   let checkpoint2aSourceFocusFinal = null;
   let checkpoint2cInteractionEvidence = null;
+  let checkpoint2cRouteEvidence = null;
   let checkpoint3RoomContinuity = null;
   let checkpoint4TaskFocus = null;
   let checkpoint45RoomFocus = null;
@@ -343,6 +345,7 @@ try {
     }, sessionId);
   }
   if (mode === 'checkpoint-2c' && expectedWorkspace === 'assets') {
+    checkpoint2cRouteEvidence = await captureCheckpoint2cLibraryRoutes({ devtools, sessionId, phase: checkpoint2cPhase, focus: checkpoint2cFocus });
     if (checkpoint2cPhase === 'pending') {
       const setup = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
@@ -3344,6 +3347,11 @@ try {
   }, sessionId);
   const layout = evaluated.result?.value;
   assert(layout, 'Chrome did not return a layout observation.');
+  if (checkpoint2cRouteEvidence) {
+    layout.cards = checkpoint2cRouteEvidence.cards;
+    layout.assetLibrary = { ...layout.assetLibrary, ...checkpoint2cRouteEvidence.assetLibrary };
+    layout.checkpoint2cInspectedRoutes = checkpoint2cRouteEvidence.inspectedRoutes;
+  }
   assert(layout.viewport.width === width && layout.viewport.height === height, 'Chrome viewport differs from the requested evidence size.');
   assert(layout.horizontalOverflow === false, `${mode} ${expectedWorkspace} overflows horizontally at ${width}px.`);
   assert(layout.headerOverlapCount === 0, `Header controls overlap at ${width}px.`);
