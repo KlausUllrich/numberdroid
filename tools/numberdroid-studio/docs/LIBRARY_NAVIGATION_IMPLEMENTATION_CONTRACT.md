@@ -1,6 +1,7 @@
 # Library navigation — implementation block ND-1
 
-Status: implemented candidate, 2026-09-11; production acceptance pending.
+Status: **USER ACCEPTED — PASS, 2026-09-11**. Klaus explicitly reported “all pass.”
+on clean main `1c5c587` (PR #242); see VT-023 for the bounded acceptance and follow-ups.
 The [approved Library design](LIBRARY_NAVIGATION_DESIGN.md) owns the experience.
 This is its first bounded implementation block and BB Tasks ND-1 / GitHub #236.
 
