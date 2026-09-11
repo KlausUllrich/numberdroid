@@ -16,10 +16,18 @@ Klaus reported “all pass.” for [VT-023](VACATION_TEST_BACKLOG.md#vt-023--lib
 on clean main `1c5c587`. Its [bounded contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
 records the accepted Library navigation/detail block.
 The next functional task is **ND-2 / [#237](https://github.com/KlausUllrich/numberdroid/issues/237)**,
-shared Review, now including the observed feedback/status/reconsideration gaps.
+shared Review. Klaus reported **“All pass”** for its
+[V2 mockup](REVIEW_CHANGES_DESIGN.md#v2-approval--2026-09-11) on 2026-09-11: feedback
+edits, reconsidered acceptance, truthful next actor and stale-proposal handling.
 Navigation placement (ND-6 / [#243](https://github.com/KlausUllrich/numberdroid/issues/243))
 and Activity readability (ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244))
-are separate design follow-ups. Discuss and mock up these refinements before implementation.
+remain separate implementation follow-ups. Their demonstrated Back-left and
+Activity-row patterns are approved by the Review V2 PASS; this does not accept
+an application-wide rollout.
+The first production block must define compatible shared-review commands and saved
+records from current Asset/Clip/Assembly consumers before connecting the approved UI.
+Keep version/history, partial dependency acceptance, permission, retry and recovery
+proof in that block; do not advertise mixed reviews before the backend supports them.
 Read the task and keep meaningful milestone status aligned in both copies; creating
 these records does not start work or change the existing acceptance gates.
 

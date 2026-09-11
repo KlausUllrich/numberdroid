@@ -1,6 +1,7 @@
 # Review Changes — Approved Design
 
-Status: **DESIGN APPROVED; recorded 2026-09-08. Product implementation and real-agent workflow verification remain pending.**
+Status: **V2 DESIGN APPROVED — PASS, 2026-09-11**. Shared Review production
+implementation and its real-agent/user verification remain pending.
 
 Klaus approved the shared Review mockup with “pass” after requesting a batch of
 checks. The batch covered comparison and detail return, dependencies and full
@@ -11,6 +12,28 @@ proposal. The reviewed artifact was `review-v1.html`, SHA-256
 This approves the design under the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md).
 It does not accept implemented Studio behavior, the real-agent loop or VT-001 /
 CP4.5. The [current task router](START_HERE.md) owns implementation sequencing.
+
+## V2 approval — 2026-09-11
+
+Klaus explicitly reported **“All pass”** after the five-item Review V2 mockup
+batch: request changes and the Library status; saved feedback editing/cancellation
+and history; reconsidered acceptance; a newer proposal while feedback is being
+drafted; and contextual navigation plus readable Activity rows.
+
+Approved artifact: `review-v2.html` in
+`/home/klaus/.bb/thread-storage/numberdroid-design/`, SHA-256
+`fd318a5f13a81940c6253f6ecd1c1a4f51efaaaf63181a6bf7127cd74839bde9`.
+The verified file is attached to BB Tasks ND-2, attachment
+`01M283JQNMXARF95H4XZXKDB4E`. Chrome checks passed at 1440 and 1060 widths
+(28 checks each), followed by four focused presentation checks. The mockup
+uses in-tab sample state; simulated agent and saved-asset changes are test helpers.
+They prove neither production persistence nor an actual agent launch.
+
+This V2 refines the V1 design below. ND-2 / [#237](https://github.com/KlausUllrich/numberdroid/issues/237)
+owns shared Review implementation. The demonstrated navigation and Activity
+patterns also inform ND-6 / [#243](https://github.com/KlausUllrich/numberdroid/issues/243)
+and ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244); their
+application-wide implementation and production acceptance remain separate.
 
 ## Goal and shared entry points
 
@@ -77,6 +100,63 @@ remaining proposed work, preserves changes already accepted, and leaves a receip
 and decision history. It is not a second everyday negative-review action beside
 Request changes. Abandoning work must not delete source material or Library
 content that already exists.
+
+## V2 feedback and reconsideration rules
+
+**Pending changes** remains the queue name. Cards and review views show
+**Needs review** when the owner's decision is needed and **Awaiting agent** after
+feedback is saved for agent-authored work. The displayed saved Asset does not
+change when feedback is submitted. A returned agent revision needs owner review
+again. Use the actual next actor; do not imply a running background job or invent
+an agent recipient for human-authored work.
+
+After Request changes, display the saved summary and applicable item comments
+with **Edit feedback**. Saving an edit appends an attributable feedback revision;
+it must not erase the original message or earlier decisions. Cancelling an edit
+keeps the last saved feedback. Unsaved drafts must be visibly distinct from saved
+instructions and survive supported Details/Back excursions.
+
+The owner may reconsider and **Accept selected changes** from the same unchanged,
+valid proposal after requesting changes. Preserve the earlier feedback/history.
+Acceptance must never silently save a feedback draft: require the owner to save
+or cancel that edit first. Completed acceptance is still immutable; this is not
+permission to rewrite an already accepted decision.
+
+If a newer proposal arrives while an older one is open, keep the viewed proposal
+pinned and block acceptance and feedback submission against that stale view.
+Offer **Review latest version**. Preserve unsent older feedback separately; do not
+silently attach it to changed content. An explicit **Use as a new feedback draft**
+may copy it for editing against the latest version, limited to remaining items.
+A changed saved target still blocks stale acceptance while allowing inspection
+and actionable feedback to request a refreshed proposal.
+
+After partial acceptance, feedback and subsequent decisions cover only remaining
+work. Accepted dependencies remain available and visible. Revised proposals must
+not reopen or overwrite accepted items. Every mutation needs exact-version,
+permission, idempotency and concurrency checks in the production implementation.
+
+## V2 navigation and Activity presentation
+
+Place **Back/up on the left**, labelled with its actual destination, and deeper
+Details/Open/Edit actions on the right. Breadcrumbs may clarify longer paths.
+Restore the originating view, selected changes, presentation, feedback draft,
+open disclosures, focus and both page/panel scroll positions. Reopen disclosures
+before restoring scroll so collapsed content cannot clamp the retained position.
+Status/error messages must not move the preview, and an obsolete status toast
+must not remain visible after the user navigates to a newer decision/result.
+
+Activity uses **one readable event card per row**, newest first. Lead with a
+human-readable action and content name, followed by compact actor/time/outcome
+metadata and useful saved feedback. Preserve technical failure history and explain
+its effect; do not turn a rejected agent command into an owner approval task.
+Raw commands, status codes, identifiers and multi-line diagnostic details remain
+secondary. Keep exact historical references rather than resolving an old event
+against whichever content happens to be current.
+
+**Inspect event** opens the recorded event read-only, with an optional distinct
+**Open current review** link for outstanding work. Historical decisions and
+feedback are not editable from that event view. Completed work leaves the active
+queue, remains available in Activity, and preserves all previously accepted assets.
 
 ## Verification and implementation boundaries
 

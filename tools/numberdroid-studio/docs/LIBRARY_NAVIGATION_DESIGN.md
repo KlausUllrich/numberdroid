@@ -159,3 +159,16 @@ after Klaus reported “all pass.” on clean main `1c5c587`. The live result re
 follow-up design work for navigation direction, feedback/status/reconsideration
 and Activity readability. Shared mixed-content and partial-review behavior remains
 the separate ND-2 implementation; mockup approval is not its production acceptance.
+
+## Review V2 refinement — 2026-09-11
+
+Klaus reported **“All pass”** for the [Review V2 mockup](REVIEW_CHANGES_DESIGN.md#v2-approval--2026-09-11),
+including the Library next-actor badge, contextual Back navigation and Activity rows.
+Pending changes remains the queue; its cards distinguish Needs review from
+Awaiting agent while continuing to show the saved asset. Back/up belongs on the
+left with an actual destination label; deeper Details/Open/Edit actions belong
+on the right. Activity uses one human-readable event per row and read-only
+historical inspection. The Review design owns saved-feedback amendments,
+reconsidered exact-proposal acceptance and newer-proposal draft retention.
+These refinements are design approved; their production rollout remains ND-2,
+ND-6 and ND-7. The earlier VT-023 production acceptance remains intact.
