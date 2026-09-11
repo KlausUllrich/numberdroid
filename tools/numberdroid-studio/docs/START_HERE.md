@@ -5,9 +5,11 @@ semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
 Session restart snapshot (2026-09-11):
-[Library implementation handoff](../../../docs/history/handoffs/HANDOFF_2026-09-11_LIBRARY_IMPLEMENTATION_READY.md).
-Read it after the current binding route when resuming this task. It records the
-approved next block, stopped servers and preserved workspaces; reverify its baseline.
+[Shared Review / VT-024 handoff](../../../docs/history/handoffs/HANDOFF_2026-09-11_SHARED_REVIEW_VT024_READY.md).
+PR248 is merged and pre/post-merge green. Klaus postponed the production batch
+until after a server restart; VT-024 remains pending. Studio is stopped, its share
+removed, and the exact revision18 test workspace is retained. Read the handoff
+after the current binding route and reopen that data without reseeding it.
 
 Use BB Tasks project **Numberdroid Studio (ND)** as the working board, with linked
 GitHub issues as repository copies. Klaus removed the Taskboard plugin on 2026-09-11.
