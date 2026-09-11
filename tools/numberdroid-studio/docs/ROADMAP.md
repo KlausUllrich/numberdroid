@@ -1,21 +1,24 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
-## 2026-09-10 Library design approval and next block
+## 2026-09-11 Library production acceptance and follow-ups
 
-Klaus reported **“pass”** for the [Library navigation mockup](LIBRARY_NAVIGATION_DESIGN.md):
-Assets/Pending changes, compact whole previews, retained detail return, related
-review groups, partial acceptance and completed reviews in Activity.
-This is design approval; no Library production live gate is closed.
+Klaus explicitly reported **“all pass.”** for the production Library batch on
+clean main `1c5c587` (PR #242). [VT-023](VACATION_TEST_BACKLOG.md#vt-023--library-navigation-and-contextual-details)
+is **USER ACCEPTED — PASS**. Its [bounded contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+covers compact saved inventory, filtering, exact full-size/details views,
+editor return, existing review entry points and read-only Activity history.
+The PR and post-merge Build #2449 are green; the real semantic-agent feedback,
+revision and owner-acceptance proof passed before Klaus's batch.
 
-Library navigation and existing detail/editor integration is now an implemented
-candidate under its [bounded contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md).
-[VT-023](VACATION_TEST_BACKLOG.md#vt-023--library-navigation-and-contextual-details)
-tracks production acceptance, separately from the approved mockup.
-Then implement the shared Review command/state workflow for dependencies and
-partial pending work under its own bounded contract. Sources navigation follows
-later. Preserve the accepted Cutter/Asset/Animation editors and use a real agent
-before the corresponding production test batch.
-
+The PASS retains three design follow-ups: back/deeper navigation placement
+(ND-6 / [#243](https://github.com/KlausUllrich/numberdroid/issues/243)); truthful
+awaiting-agent status and revisable feedback/decisions (ND-2 /
+[#237](https://github.com/KlausUllrich/numberdroid/issues/237)); and one readable
+Activity event per row (ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244)).
+Discuss and mock up these changes before updating their implementation contracts.
+They do not revoke VT-023 or imply that shared mixed-content/partial acceptance
+already exists. Shared Review remains the next functional block; Sources follows
+later. Preserve the accepted Cutter/Asset/Animation/Library foundations.
 
 ## 2026-09-10 Animation editor acceptance
 

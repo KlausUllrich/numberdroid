@@ -1,6 +1,6 @@
 # Numberdroid Studio — Start here
 
-Status date: 2026-09-10. This is the current task router; linked contracts own
+Status date: 2026-09-11. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
@@ -10,12 +10,16 @@ Read it after the current binding route when resuming this task. It records the
 approved next block, stopped servers and preserved workspaces; reverify its baseline.
 
 Use BB Tasks project **Numberdroid Studio (ND)** as the working board, with linked
-GitHub issues as repository copies. Klaus removed the Taskboard plugin on 2026-09-11. The next
-implementation task is **ND-1 / [#236](https://github.com/KlausUllrich/numberdroid/issues/236)**.
-Its [bounded implementation contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
-owns the active Library navigation/detail integration block. It is implemented
-as a candidate; [VT-023](VACATION_TEST_BACKLOG.md#vt-023--library-navigation-and-contextual-details)
-tracks the production live gate.
+GitHub issues as repository copies. Klaus removed the Taskboard plugin on 2026-09-11.
+**ND-1 / [#236](https://github.com/KlausUllrich/numberdroid/issues/236) is user accepted**:
+Klaus reported “all pass.” for [VT-023](VACATION_TEST_BACKLOG.md#vt-023--library-navigation-and-contextual-details)
+on clean main `1c5c587`. Its [bounded contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+records the accepted Library navigation/detail block.
+The next functional task is **ND-2 / [#237](https://github.com/KlausUllrich/numberdroid/issues/237)**,
+shared Review, now including the observed feedback/status/reconsideration gaps.
+Navigation placement (ND-6 / [#243](https://github.com/KlausUllrich/numberdroid/issues/243))
+and Activity readability (ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244))
+are separate design follow-ups. Discuss and mock up these refinements before implementation.
 Read the task and keep meaningful milestone status aligned in both copies; creating
 these records does not start work or change the existing acceptance gates.
 
@@ -93,9 +97,9 @@ versioned Assembly playback. [VT-022](VACATION_TEST_BACKLOG.md#vt-022--animation
 records the exact production acceptance, separately from the earlier mockup pass.
 The [Library navigation design](LIBRARY_NAVIGATION_DESIGN.md) is now approved:
 Klaus reported **“pass”** for the Assets/Pending changes, detail return, grouped
-review and Activity-history mockup batch on 2026-09-10. The next bounded source
-block is Library navigation and existing-detail/editor integration; shared Review
-command/state integration follows separately. The mockup's mixed dependencies and
+review and Activity-history mockup batch on 2026-09-10. The bounded production
+Library block is now accepted as VT-023 after the 2026-09-11 “all pass.” result;
+shared Review command/state integration follows separately. The mockup's mixed dependencies and
 partial acceptance do not imply those production capabilities already exist.
 Further screen changes follow discussion and mockup agreement before implementation.
 Full shared Review semantics, runtime materialization, image generation and

@@ -59,7 +59,7 @@ Keep these states distinct:
 | VT-020 | Asset placement and blocking editor | USER ACCEPTED — PASS 2026-09-09 | approved Placement design and compatible Asset editor contract | Named shapes, direct own-work Save, retained versions and Activity navigation |
 | VT-021 | Assembly editor | IMPLEMENTED CANDIDATE — user acceptance pending | approved Assembly mockup and exact composition contract | Components, state/variant preview, custom blocking, agent correction/review, Save/restart |
 | VT-022 | Animation editor and contextual cut revisions | USER ACCEPTED — PASS 2026-09-10 | approved Animation V2 mockup and compatible Clip/Assembly contract | Exact frames, timing/alignment, cut round-trip, immutable versions, agent feedback/review and Assembly playback |
-| VT-023 | Library navigation and contextual details | IMPLEMENTED CANDIDATE — production acceptance pending | approved Library design, accepted editor/read foundations | Compact saved inventory, filters, full-size/details/editor return, existing review queue and Activity history |
+| VT-023 | Library navigation and contextual details | USER ACCEPTED — PASS 2026-09-11 | approved Library design, accepted editor/read foundations | Compact saved inventory, filters, full-size/details/editor return, existing review queue and Activity history |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1603,12 +1603,34 @@ work, image generation or a broader game-behavior editor.
 
 ## VT-023 — Library navigation and contextual details
 
-Status: **IMPLEMENTED CANDIDATE — production acceptance pending**.
-The [ND-1 implementation contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
-owns this first Library block. Klaus approved its design; that approval does not
-accept this production implementation. The focused PR owns source/CI evidence.
+Status: **USER ACCEPTED — PASS, 2026-09-11**. Klaus explicitly reported
+**“all pass.”** for the five-item production batch below. The
+[ND-1 implementation contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+owns this bounded acceptance. Source: clean main `1c5c587008f634665c5bdbf27b3b5133cb5a7024`
+(PR #242); exact PR head `3ce8349`, Build #2448 and post-merge Build #2449 green.
+Workspace: `/home/klaus/.bb/thread-storage/numberdroid-nd1-agent-data-cb520be9-ce75-4b3b-ad46-6e05bfc55654`,
+project `project.animation-editor`, revision 21 at startup. Klaus's feedback was
+saved at revision 22. The real semantic agent proof preceded the human batch.
 
-Use a fresh Library fixture on clean verified main. Preserve the existing saved
+Retained observations, with follow-up design still pending:
+
+- ND-6 / [#243](https://github.com/KlausUllrich/numberdroid/issues/243): Edit/deeper
+  navigation and Back often share the upper-right position. Klaus expects
+  left for up/back and right for deeper navigation.
+- ND-2 / [#237](https://github.com/KlausUllrich/numberdroid/issues/237): Request
+  changes saves `CHANGES_REQUESTED`, but the Library badge remains generic
+  Pending changes. Make the next actor clear; consider an Awaiting agent label,
+  editable saved feedback and accepting an unchanged proposal after reconsidering.
+  These require compatible review semantics and a design discussion, not merely
+  enabling current controls. Request changes does not start an agent.
+- ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244): Activity
+  needs one card per line with readable actions/content names; raw commands,
+  statuses and identifiers currently dominate the display.
+
+These observations do not revoke the explicit PASS. They do not accept the later
+shared mixed-content Review or change VT-001/CP4.5/A1.7 status.
+
+For future regression verification, use a fresh Library fixture on clean verified main. Preserve the existing saved
 workspaces and their backups. Before Klaus's batch, a real semantic agent must
 create/correct a proposal and read owner feedback/decisions saved through the
 new Library review entry. Synthetic owner decisions are not Klaus acceptance.
@@ -1630,5 +1652,5 @@ Presented production checks:
    and preview do not change saved project content. An unresolved save/decision
    remains reachable for its exact retry instead of being lost during navigation.
 
-Record Klaus's explicit PASS or REVISE with the tested source/workspace. Other
-acceptances and the deferred VT-001/CP4.5/A1.7 gates stay separate.
+The explicit PASS above closes only VT-023. Other acceptances and the deferred
+VT-001/CP4.5/A1.7 gates stay separate.

@@ -150,3 +150,12 @@ No Sources redesign, new media, kits/variant-set storage, task Resume repair,
 image generation, materialization/export, release or game-behavior editor is
 started by this design approval. VT-020/VT-022 and prior accepted foundations
 remain protected; VT-001/CP4.5, broader VT-021 and A1.7 keep their separate gates.
+
+## Production acceptance — 2026-09-11
+
+The bounded ND-1 implementation is user accepted as
+[VT-023](VACATION_TEST_BACKLOG.md#vt-023--library-navigation-and-contextual-details)
+after Klaus reported “all pass.” on clean main `1c5c587`. The live result retains
+follow-up design work for navigation direction, feedback/status/reconsideration
+and Activity readability. Shared mixed-content and partial-review behavior remains
+the separate ND-2 implementation; mockup approval is not its production acceptance.
