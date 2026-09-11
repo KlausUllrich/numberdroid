@@ -10,7 +10,8 @@ export async function captureCheckpoint2cLibraryRoutes({ devtools, sessionId, ph
   const waitFor = async (expression, label) => {
     const deadline = Date.now() + 12_000;
     while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise(done => setTimeout(done, 50)); }
-    throw new Error(`${label} did not settle.`);
+    const context = await evaluate(`({workspace:document.querySelector('#workspace-content')?.dataset.renderedWorkspace,libraryRoute:document.querySelector('#workspace-content')?.dataset.libraryRoute,heading:document.querySelector('#workspace-content h2')?.textContent})`);
+    throw new Error(`${label} did not settle: ${JSON.stringify(context)}`);
   };
   const click = async selector => {
     await evaluate(`(()=>{const n=document.querySelector(${JSON.stringify(selector)});if(!n||n.disabled)throw new Error('Missing CP2C route '+${JSON.stringify(selector)});n.click();})()`);
@@ -52,6 +53,13 @@ export async function captureCheckpoint2cLibraryRoutes({ devtools, sessionId, ph
     decisionControlCount:root?.querySelectorAll('[data-proposal-disposition]').length??0,applyControlCount:root?.querySelectorAll('[data-proposal-apply]').length??0,
     canonicalIds:[...document.querySelectorAll('.canonical-copy code')].map(n=>n.textContent),ordinalLabels:[...document.querySelectorAll('.asset-provenance strong, .proposal-identity strong')].map(n=>n.textContent).filter(value=>/Slice [1-4]/.test(value))};})()`);
   review.canonicalIds.push(...metadata.canonicalIds); review.ordinalLabels.push(...metadata.ordinalLabels);
-  if (focus !== 'proposal') { await click('[data-workspace="assets"]'); await navigation.assets(); }
+  if (focus !== 'proposal') {
+    // This review was opened from Activity. Its Back action must restore that
+    // origin before main navigation reopens the retained Library list.
+    await click('[data-library-action="back"]');
+    await waitFor("document.querySelector('#workspace-content')?.dataset.renderedWorkspace==='activity'", 'Completed review returns to Activity');
+    await click('[data-workspace="assets"]');
+    await navigation.assets();
+  }
   return { cards, assetLibrary: review, inspectedRoutes: ['assets', 'image-details', 'activity', 'completed-review'] };
 }
