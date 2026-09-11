@@ -1,5 +1,13 @@
 # Numberdroid Studio — Checkpoint 2C Frozen Contract
 
+Scoped shared Review evolution (2026-09-11): the
+[shared Review foundation contract](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md)
+owns additive schema18, separately granted related-content proposals, immutable
+feedback/acceptance history and an explicit Review MCP profile. Existing typed
+proposal commands and prior accepted versions remain unchanged. Assembly/Animation
+profiles admit known18 without expanding their catalogs. This is an implemented
+foundation candidate; the shared UI and its production acceptance remain pending.
+
 Assembly evolution authorized 2026-09-09: the [Assembly implementation contract](ASSEMBLY_EDITOR_IMPLEMENTATION_CONTRACT.md) owns additive schema-v16 composition records, three Assembly commands, conditional bundle v5 and explicitly selected `assembly-v1` MCP tools. Default and existing task/private MCP surfaces remain unchanged; native Asset and Room pins retain their accepted contracts. This scoped implementation is pending verification and user acceptance.
 
 Status: **accepted core contract**; see the [acceptance record](CHECKPOINT_2C_STATUS.md).

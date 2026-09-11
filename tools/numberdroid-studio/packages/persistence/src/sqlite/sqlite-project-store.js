@@ -1,3 +1,4 @@
+import { writeReviewRevision, rebuildReviewHeads, verifyReviewContent } from './sqlite-review-store.js';
 import { writeClipRevision, rebuildClipHeads, validateStoredClipContent, sqliteHistoricalSliceBinding } from './sqlite-clip-store.js';
 import { validateSliceRevision } from './sqlite-slice-revision.js';
 import { writeAssemblyRevision, validateStoredAssemblyContent, rebuildAssemblyHeads } from './sqlite-assembly-store.js';
@@ -1466,6 +1467,13 @@ function writeSliceRevisionBinding(database, projectId, revision) {
 }
 
 function writeAssetLibraryRevision(database, projectId, revision, fault) {
+  if (writeReviewRevision(database, projectId, revision, fault, {
+    writeImage: asset => writeAssetVersion(database, projectId, revision, asset, fault, { requireCurrentSliceHead: false }),
+    writeBinding: binding => writeAssetSliceBinding(database, projectId, revision, {
+      sliceId: binding.sliceId, sliceVersion: binding.sliceVersion,
+      ...(binding.digest ? { sliceBinding: binding } : {}),
+    }, { requireCurrentHead: false }),
+  })) return;
   if (revision.command.type.startsWith('clip.')) {
     const library = revision.snapshot.clipLibrary;
     const affected = [...(library?.assets ?? []).filter(asset => asset.createdRevision === revision.number),
@@ -1761,10 +1769,12 @@ export class SqliteProjectStore extends ProjectStore {
   get supportsAtomicAssetLibrary() { return true; }
   get supportsDurableAssetStore() { return true; }
   get supportsAtomicRoomDesigner() { return true; }
+  verifyReviewContent(projectId, group) { return verifyReviewContent(this.#workspace.database, projectId, group); }
   verifyAssemblyContent(projectId, record, cutoff) { return validateStoredAssemblyContent(this.#workspace.database, projectId, record, cutoff); }
   verifyClipContent(projectId, record, cutoff) { return validateStoredClipContent(this.#workspace.database, projectId, record, cutoff); }
   verifyHistoricalSliceBinding(projectId, sliceId, sliceVersion, cutoff) { return sqliteHistoricalSliceBinding(this.#workspace.database, projectId, sliceId, sliceVersion, cutoff); }
   get schemaVersion() { return Number(this.#workspace.database.prepare('PRAGMA user_version').get().user_version); }
+  get supportsAuthoritativeReviewStorage() { return this.schemaVersion >= 18; }
   get supportsAtomicClipLibrary() { return Number(this.#workspace.database.prepare('PRAGMA user_version').get().user_version) >= 17; }
   get supportsAtomicAssemblyLibrary() { return Number(this.#workspace.database.prepare('PRAGMA user_version').get().user_version) >= 16; }
 
@@ -2231,6 +2241,7 @@ export class SqliteProjectStore extends ProjectStore {
       rebuildAssetHeads(database, projectId);
       rebuildAssemblyHeads(database, projectId);
       rebuildClipHeads(database, projectId);
+      rebuildReviewHeads(database, projectId);
       rebuildRoomHeads(database, projectId);
     });
     return { projectId, revision: revision.number, projectionHash: fingerprint(revision.snapshot) };

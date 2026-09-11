@@ -29,12 +29,22 @@ export function assemblyLeafHistory(document, cutoff = Number.MAX_SAFE_INTEGER, 
   return assets;
 }
 
-function validateContent(payload, document, cutoff) {
+function availableAssemblyAssets(document, cutoff, assembly, prospectiveAssets = []) {
+  const assets = assemblyLeafHistory(document, cutoff, assembly);
+  const proposed = prospectiveAssets instanceof Map ? prospectiveAssets.values() : prospectiveAssets;
+  for (const asset of proposed) {
+    if (asset.assembly || asset.contentKind === 'assembly') continue;
+    assets.set(assemblyAssetKey(asset), asset.clip ? resolveClipRead(asset, document, cutoff) : structuredClone(asset));
+  }
+  return assets;
+}
+
+function validateContent(payload, document, cutoff, prospectiveAssets = []) {
   const assembly = normalizeAssemblyDeclaration(payload.assembly);
   const validated = validateAssemblyDefinition({
     assetId: requireId(payload.assetId, 'assetId'), name: payload.name, kind: payload.kind,
     metadata: payload.metadata, assembly,
-    assets: assemblyLeafHistory(document, cutoff, assembly), projectId: document.projectId,
+    assets: availableAssemblyAssets(document, cutoff, assembly, prospectiveAssets), projectId: document.projectId,
   });
   const errors = validated.findings.filter(finding => finding.severity === 'ERROR');
   invariant(errors.length === 0, 'ASSEMBLY_INVALID', 'Correct the Assembly technical findings before saving or submitting.', { findings: errors });
@@ -71,14 +81,14 @@ function appendAsset(library, validated, current, command, now, proposal = null)
   return asset;
 }
 
-export function applyAssemblyCommand(command, next, document, now) {
+export function applyAssemblyCommand(command, next, document, now, { prospectiveAssets = [] } = {}) {
   const payload = command.payload;
   const library = next.assemblyLibrary ??= { schemaVersion: 1, assets: [], proposals: [] };
   let result;
   if (command.type === 'assembly.save') {
     exactAssemblyFields(payload, CONTENT_FIELDS, 'Assembly save');
     const current = expectTarget(payload, next);
-    const asset = appendAsset(library, validateContent(payload, document, command.baseRevision), current, command, now);
+    const asset = appendAsset(library, validateContent(payload, document, command.baseRevision, prospectiveAssets), current, command, now);
     result = { assetId: asset.assetId, assetVersion: asset.assetVersion, metadataVersion: asset.metadataVersion, lifecycle: asset.lifecycle };
   } else if (command.type === 'assembly.proposal.submit') {
     exactAssemblyFields(payload, [...CONTENT_FIELDS, 'proposalId', 'expectedProposalVersion'], 'Assembly proposal');
@@ -129,8 +139,8 @@ export function applyAssemblyCommand(command, next, document, now) {
     changes: [{ entityType: 'assembly', entityId: result.assetId ?? result.proposalId, operation: command.type === 'assembly.save' ? 'versioned' : 'updated' }] };
 }
 
-export function resolveAssemblyRead(record, document, selection = undefined, cutoff = Number.MAX_SAFE_INTEGER) {
-  const available = assemblyLeafHistory(document, cutoff, record.assembly);
+export function resolveAssemblyRead(record, document, selection = undefined, cutoff = Number.MAX_SAFE_INTEGER, { prospectiveAssets = [] } = {}) {
+  const available = availableAssemblyAssets(document, cutoff, record.assembly, prospectiveAssets);
   const pins = assemblyContentSlots(record.assembly).filter(slot => slot.content.kind !== 'none').map(slot => slot.content.asset);
   const leafAssets = [...new Set(pins.map(assemblyAssetKey))].map(key => {
     const asset = available.get(key);

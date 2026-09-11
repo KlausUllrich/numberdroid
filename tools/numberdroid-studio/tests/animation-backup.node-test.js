@@ -62,7 +62,7 @@ test('schema17 workspace backup restores revised cuts and clips while Assembly v
   const backupDirectory = join(f.root, 'animation-backup');
   const manifest = await createWorkspaceBackup({ projectStore: f.store, artifactStore: f.artifacts,
     destinationDirectory: backupDirectory, clock: () => '2026-09-10T14:00:00.000Z' });
-  assert.equal(manifest.integrity.database.userVersion, 17);
+  assert.equal(manifest.integrity.database.userVersion, 18);
   assert.equal(manifest.integrity.clips.ok, true);
   assert.equal(manifest.integrity.sliceRevisions.ok, true);
   const digests = new Set(manifest.artifacts.entries.map(entry => entry.digest));

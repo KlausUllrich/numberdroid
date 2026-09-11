@@ -1,3 +1,4 @@
+import { validateReviewNegotiation, assertReviewProjectContent } from '../../../packages/mcp-server/src/review-v1.js';
 import { validateAnimationNegotiation, assertLegacyProjectContent } from '../../../packages/mcp-server/src/animation-v1.js';
 import { validateAssemblyNegotiation } from '../../../packages/mcp-server/src/assembly-v1.js';
 import { listCommandDefinitions } from '../../../packages/domain/src/index.js';
@@ -73,6 +74,7 @@ export class LocalStudioGateway {
   #authoringV2Negotiation = null;
   #assemblyNegotiation = null;
   #animationNegotiation = null;
+  #reviewNegotiation = null;
 
   constructor({
     baseUrl,
@@ -103,25 +105,26 @@ export class LocalStudioGateway {
   }
 
   get agentAttemptAuditReady() {
-    return this.#agentAttemptAuditReady || (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null);
+    return this.#agentAttemptAuditReady || (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null || this.#reviewNegotiation !== null);
   }
 
   get durableJobStoreReady() {
-    return this.#durableJobStoreReady || (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null);
+    return this.#durableJobStoreReady || (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null || this.#reviewNegotiation !== null);
   }
 
   get durableAssetStoreReady() {
-    return this.#durableAssetStoreReady || (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null);
+    return this.#durableAssetStoreReady || (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null || this.#reviewNegotiation !== null);
   }
 
   get durableRoomStoreReady() {
-    return this.#durableRoomStoreReady || (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null);
+    return this.#durableRoomStoreReady || (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null || this.#reviewNegotiation !== null);
   }
 
-  get taskBranchReady() { return (this.#assemblyNegotiation || this.#animationNegotiation) ? false : this.#taskBranchReady; }
-  get durableAssemblyStoreReady() { return (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null); }
+  get taskBranchReady() { return (this.#assemblyNegotiation || this.#animationNegotiation || this.#reviewNegotiation) ? false : this.#taskBranchReady; }
+  get durableAssemblyStoreReady() { return (this.#assemblyNegotiation !== null || this.#animationNegotiation !== null || this.#reviewNegotiation !== null); }
 
-  get durableClipStoreReady() { return this.#animationNegotiation !== null; }
+  get durableClipStoreReady() { return this.#animationNegotiation !== null || this.#reviewNegotiation !== null; }
+  get durableReviewStoreReady() { return this.#reviewNegotiation !== null; }
 
   async #bindingToken({ signal } = {}) {
     if (!signal) return this.#bindingTokenPromise;
@@ -205,8 +208,20 @@ export class LocalStudioGateway {
   }
 
   async execute(commandDto, _opaqueHostContext, options = {}) {
-    if ((commandDto.type?.startsWith('clip.') || commandDto.type?.startsWith('slice.revision.') || commandDto.payload?.assembly?.schemaVersion === 2) && (!this.#animationNegotiation || commandDto.projectId !== this.#animationNegotiation.projectId)) throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'Animation authoring requires the negotiated animation-v1 project.');
+    if (commandDto.type?.startsWith('review.') && (!this.#reviewNegotiation || commandDto.projectId !== this.#reviewNegotiation.projectId)) throw new StudioError('REVIEW_NEGOTIATION_REQUIRED', 'Shared Review submission requires the negotiated review-v1 project.');
+    if ((commandDto.type?.startsWith('clip.') || commandDto.type?.startsWith('slice.revision.') || commandDto.payload?.assembly?.schemaVersion === 2) && (!(this.#reviewNegotiation || this.#animationNegotiation) || commandDto.projectId !== (this.#reviewNegotiation || this.#animationNegotiation).projectId)) throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'Animation authoring requires the negotiated animation-v1 project.');
     return this.#request('/internal/mcp/execute', { schemaVersion: 1, command: commandDto }, options);
+  }
+
+  async negotiateReviewV1(request, options = {}) {
+    const value = validateReviewNegotiation(await this.#request('/internal/mcp/review-handshake', request, options), request.projectId);
+    this.#reviewNegotiation = value;
+    return value;
+  }
+
+  async queryReviews(request, _opaqueContext, options = {}) {
+    if (!this.#reviewNegotiation || request.projectId !== this.#reviewNegotiation.projectId) throw new StudioError('REVIEW_NEGOTIATION_REQUIRED', 'Shared Review profile has not been negotiated for this project.');
+    return this.#request('/internal/mcp/review-query', request, options);
   }
 
   async negotiateAssemblyV1(request, options = {}) {
@@ -216,7 +231,7 @@ export class LocalStudioGateway {
   }
 
   async queryAssemblies(request, _opaqueContext, options = {}) {
-    if (!(this.#animationNegotiation || this.#assemblyNegotiation) || request.projectId !== (this.#animationNegotiation || this.#assemblyNegotiation).projectId) throw new StudioError('ASSEMBLY_NEGOTIATION_REQUIRED', 'Assembly profile has not been negotiated for this project.');
+    if (!(this.#reviewNegotiation || this.#animationNegotiation || this.#assemblyNegotiation) || request.projectId !== (this.#reviewNegotiation || this.#animationNegotiation || this.#assemblyNegotiation).projectId) throw new StudioError('ASSEMBLY_NEGOTIATION_REQUIRED', 'Assembly profile has not been negotiated for this project.');
     return this.#request('/internal/mcp/assembly-query', request, options);
   }
 
@@ -227,12 +242,12 @@ export class LocalStudioGateway {
   }
 
   async queryClips(request, _opaqueContext, options = {}) {
-    if (!this.#animationNegotiation || request.projectId !== this.#animationNegotiation.projectId) throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'Animation profile has not been negotiated for this project.');
+    if (!(this.#reviewNegotiation || this.#animationNegotiation) || request.projectId !== (this.#reviewNegotiation || this.#animationNegotiation).projectId) throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'Animation profile has not been negotiated for this project.');
     return this.#request('/internal/mcp/clip-query', request, options);
   }
 
   async querySavedSlice(request, _opaqueContext, options = {}) {
-    if (!this.#animationNegotiation || request.projectId !== this.#animationNegotiation.projectId) throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'Animation profile has not been negotiated for this project.');
+    if (!(this.#reviewNegotiation || this.#animationNegotiation) || request.projectId !== (this.#reviewNegotiation || this.#animationNegotiation).projectId) throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'Animation profile has not been negotiated for this project.');
     return this.#request('/internal/mcp/slice-query', request, options);
   }
 
@@ -289,7 +304,7 @@ export class LocalStudioGateway {
 
   async readProject({ projectId }, _opaqueHostContext, options = {}) {
     const value = await this.#request('/internal/mcp/read-project', { schemaVersion: 1, projectId }, options);
-    return this.#animationNegotiation ? value : assertLegacyProjectContent(value);
+    return this.#reviewNegotiation ? value : this.#animationNegotiation ? assertReviewProjectContent(value) : assertLegacyProjectContent(value);
   }
 
 

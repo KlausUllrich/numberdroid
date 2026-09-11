@@ -14,7 +14,7 @@ function requiredEnvironment(name) {
 function selectedMcpProfile() {
   const value = process.env.NUMBERDROID_STUDIO_MCP_PROFILE;
   if (value === undefined) return null;
-  if (!['authoring-v2', 'assembly-v1', 'animation-v1'].includes(value)) {
+  if (!['authoring-v2', 'assembly-v1', 'animation-v1', 'review-v1'].includes(value)) {
     throw new Error('NUMBERDROID_STUDIO_MCP_PROFILE is unsupported.');
   }
   return value;
@@ -58,6 +58,8 @@ async function run() {
 
   const animationV1 = mcpProfile === 'animation-v1' ? { projectId, negotiation: await gateway.negotiateAnimationV1({ schemaVersion: 1, projectId, profile: 'animation-v1' }) } : null;
 
+  const reviewV1 = mcpProfile === 'review-v1' ? { projectId, negotiation: await gateway.negotiateReviewV1({ schemaVersion: 1, projectId, profile: 'review-v1' }) } : null;
+
   return serveOfficialMcpStdio({
     studioGateway: gateway,
     // The bridge knows only the project selected by its launcher and an opaque
@@ -67,6 +69,7 @@ async function run() {
     ...(authoringV2 === null ? {} : { authoringV2 }),
     ...(assemblyV1 === null ? {} : { assemblyV1 }),
     ...(animationV1 === null ? {} : { animationV1 }),
+    ...(reviewV1 === null ? {} : { reviewV1 }),
   });
 }
 

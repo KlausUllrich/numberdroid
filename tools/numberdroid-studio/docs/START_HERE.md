@@ -24,10 +24,11 @@ and Activity readability (ND-7 / [#244](https://github.com/KlausUllrich/numberdr
 remain separate implementation follow-ups. Their demonstrated Back-left and
 Activity-row patterns are approved by the Review V2 PASS; this does not accept
 an application-wide rollout.
-The first production block must define compatible shared-review commands and saved
-records from current Asset/Clip/Assembly consumers before connecting the approved UI.
-Keep version/history, partial dependency acceptance, permission, retry and recovery
-proof in that block; do not advertise mixed reviews before the backend supports them.
+The [shared Review foundation contract](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md)
+owns the active production block: compatible commands, schema18, exact dependencies,
+feedback/history, atomic partial acceptance and an explicit agent profile. The
+approved UI follows its verified integration. Preserve version/history, owner
+authority, retries and recovery; existing typed review paths stay compatible.
 Read the task and keep meaningful milestone status aligned in both copies; creating
 these records does not start work or change the existing acceptance gates.
 

@@ -1,3 +1,5 @@
+import { inspectReviewIntegrity } from './review-integrity.js';
+import { assertReviewSavedRecord } from '../sqlite/sqlite-review-store.js';
 import { validateSliceRevisionJobInput } from '../../../application/src/slice-revision-service.js';
 import { inspectClipIntegrity } from './clip-integrity.js';
 import { inspectSliceRevisionIntegrity } from '../sqlite/sqlite-slice-revision.js';
@@ -566,6 +568,16 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
         } catch {
           assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_OWNER_SAVE_PROVENANCE_INVALID', message: 'Owner Save does not match its exact prior versions, image binding, owner command and immutable result.' });
         }
+      } else if (commandType === 'review.accept' && version.provenance === 'native_revision' && version.proposal_id === null) {
+        try {
+          const revision = JSON.parse(db.prepare('SELECT revision_json FROM revisions WHERE project_id=? AND revision_number=?').get(version.project_id, version.created_revision).revision_json);
+          const record = revision.snapshot.assetLibrary?.assets.find(asset => asset.assetId === version.asset_id && asset.assetVersion === version.asset_version);
+          assertReviewSavedRecord(db, version.project_id, 'image', record, version.created_revision);
+          if (record.name !== version.name || record.kind !== version.kind || record.lifecycle !== version.lifecycle
+            || record.metadataVersion !== version.metadata_version || record.proposal !== null || version.proposal_item_id !== null
+            || !sameFingerprint(record.metadata, metadata) || !sameFingerprint(record.findings, findings)
+            || !sameFingerprint(record.sliceBinding, bindingValue(binding))) throw new Error('Review image projection differs.');
+        } catch (error) { assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_REVIEW_PROVENANCE_INVALID', message: error.message }); }
       } else if (version.provenance === 'native_revision' && version.proposal_id === null && commandType !== 'asset.lifecycle.set') {
         assetFindings.push({ projectId: version.project_id, assetId: version.asset_id, code: 'ASSET_OWNER_SAVE_PROVENANCE_MISSING', message: 'An Asset without proposal links needs an owner Save revision.' });
       }
@@ -1831,19 +1843,21 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
   } catch (error) {
     bundleImportFindings.push({ projectId: null, jobId: null, code: 'BUNDLE_IMPORT_QUERY_FAILED', message: 'Bundle-import integrity could not be inspected.', cause: error.message });
   }
+  const reviews = database.userVersion >= 18 ? inspectReviewIntegrity(projectStore.workspace.database) : { ok: true, versionCount: 0, acceptedCount: 0, findings: [] };
   const clips = database.userVersion >= 17 ? inspectClipIntegrity(projectStore.workspace.database) : { ok: true, versionCount: 0, proposalVersionCount: 0, findings: [] };
   const sliceRevisions = database.userVersion >= 17 ? inspectSliceRevisionIntegrity(projectStore.workspace.database) : { ok: true, revisionCount: 0, findings: [] };
   const assemblies = database.userVersion >= 16 ? inspectAssemblyIntegrity(projectStore.workspace.database) : { ok: true, versionCount: 0, proposalVersionCount: 0, findings: [] };
   const bundleImports = { ok: bundleImportFindings.length === 0, appliedJobCount: bundleImportJobCount, findings: bundleImportFindings };
   return {
     schemaVersion: 1,
-    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && tasks.ok && bundleImports.ok && assemblies.ok && sliceRevisions.ok && clips.ok,
+    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && tasks.ok && bundleImports.ok && assemblies.ok && sliceRevisions.ok && clips.ok && reviews.ok,
     database,
     artifacts,
     sourceIntakes,
     agentAttempts,
     jobs,
     ...(database.userVersion >= 17 ? { sliceRevisions, clips } : {}),
+    ...(database.userVersion >= 18 ? { reviews } : {}),
     assets,
     rooms,
     tasks,

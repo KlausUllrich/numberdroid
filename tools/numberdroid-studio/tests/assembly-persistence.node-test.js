@@ -74,7 +74,7 @@ test('Assembly writes reject invalid pins, namespace collisions, authority and r
 
 test('Migration 0016 rolls back before and after DDL, resumes, and preserves all earlier checksums', { timeout: 120000 }, async context => {
   const root=await mkdtemp(join(tmpdir(),'studio-assembly-migration-'));context.after(()=>rm(root,{recursive:true,force:true}));
-  const migrations=await loadMigrationDefinitions();assert.equal(migrations.at(-1).version,17);
+  const migrations=await loadMigrationDefinitions();assert.equal(migrations.at(-1).version,18);
   for(const point of ['before_migration_16','after_migration_16']) {
     const filename=join(root,`${point}.sqlite`);
     await assert.rejects(SqliteProjectStore.open({filename,databaseFactory:nodeSqliteDatabaseFactory,faultInjector(actual){if(actual===point)throw new Error(`fault:${point}`);}}),new RegExp(point));
@@ -83,7 +83,7 @@ test('Migration 0016 rolls back before and after DDL, resumes, and preserves all
       assert.deepEqual(interrupted.prepare('SELECT version,checksum FROM schema_migrations ORDER BY version').all().map(row=>({...row})),SQLITE_MIGRATIONS.slice(0,15).map(({version,checksum})=>({version,checksum})));}
     finally{interrupted.close();}
     const resumed=await SqliteProjectStore.open({filename,databaseFactory:nodeSqliteDatabaseFactory});
-    try{assert.equal(resumed.integrityCheck().userVersion,17);assert.equal(resumed.workspace.database.prepare("SELECT strict FROM pragma_table_list WHERE name='assembly_versions'").get().strict,1);}
+    try{assert.equal(resumed.integrityCheck().userVersion,18);assert.equal(resumed.workspace.database.prepare("SELECT strict FROM pragma_table_list WHERE name='assembly_versions'").get().strict,1);}
     finally{resumed.close();}
   }
 });

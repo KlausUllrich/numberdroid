@@ -1020,7 +1020,7 @@ test('production startup keeps the private v2 runtime hidden, write-free, and ab
   const origin = `http://127.0.0.1:${running.address.port}`;
   const catalogResponse = await fetch(`${origin}/api/catalog`);
   const catalog = await catalogResponse.json();
-  assert.equal(catalog.commands.length, 42);
+  assert.equal(catalog.commands.length, 46);
   assert.equal(catalog.commands.some(({ type }) => type === PROCESSING_RESULT_ADOPTION_COMMAND_TYPE), false);
   const absentRoute = await fetch(`${origin}/internal/authoring-v2/capabilities`);
   assert.equal(absentRoute.status, 404);
