@@ -9,9 +9,11 @@ Session restart snapshot (2026-09-11):
 Read it after the current binding route when resuming this task. It records the
 approved next block, stopped servers and preserved workspaces; reverify its baseline.
 
-Task tracking evaluation: use BB Tasks project **Numberdroid Studio (ND)** as the
-working board, with linked GitHub issues as Taskboard/repository copies. The next
+Use BB Tasks project **Numberdroid Studio (ND)** as the working board, with linked
+GitHub issues as repository copies. Klaus removed the Taskboard plugin on 2026-09-11. The next
 implementation task is **ND-1 / [#236](https://github.com/KlausUllrich/numberdroid/issues/236)**.
+Its [bounded implementation contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+owns the active Library navigation/detail integration block.
 Read the task and keep meaningful milestone status aligned in both copies; creating
 these records does not start work or change the existing acceptance gates.
 
