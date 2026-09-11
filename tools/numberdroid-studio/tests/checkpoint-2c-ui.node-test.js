@@ -4,30 +4,55 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import * as editorState from '../apps/studio-server/public/asset-editor-state.js';
+import { libraryInventory, filterLibraryItems } from '../apps/studio-server/public/library-state.js';
 
 const appUrl = new URL('../apps/studio-server/public/app.js', import.meta.url);
 const stylesUrl = new URL('../apps/studio-server/public/styles.css', import.meta.url);
 
 test('2C Asset Library is additive, ordinal-first, filterable, and keeps exact safe preview provenance', async () => {
-  const app = await readFile(appUrl, 'utf8');
+  const [app, libraryView, detailView] = await Promise.all([
+    readFile(appUrl, 'utf8'),
+    readFile(new URL('../apps/studio-server/public/library-view.js', import.meta.url), 'utf8'),
+    readFile(new URL('../apps/studio-server/public/library-detail-view.js', import.meta.url), 'utf8'),
+  ]);
   const assetRenderer = app.slice(
     app.indexOf('function renderV2AssetCard'),
-    app.indexOf('function renderActivityWorkspace'),
+    app.indexOf('function proposalDiffRows'),
   );
+  const libraryRenderer = app.slice(app.indexOf('function renderLibraryWorkspace'), app.indexOf('function libraryRefreshListing'));
+  const detailRenderer = app.slice(app.indexOf('function libraryRenderDetail'), app.indexOf('function libraryBackButton'));
   assert.match(assetRenderer, /article\.className = 'card asset-card asset-v2-card'/);
   assert.match(assetRenderer, /article\.dataset\.assetId = asset\.assetId/);
   assert.match(app, /label: savedSliceLabel\(match\?\.slice \?\? binding, match\?\.ordinal\)/);
   assert.match(assetRenderer, /Canonical slice ID/);
   assert.match(app, /button\.dataset\.copyCanonical = value/);
-  assert.match(assetRenderer, /Search name, ID, or tag/);
+  assert.match(libraryView, /Names, sources and tags/);
+  assert.match(libraryView, /libraryAction\('details', 'Details'/);
+  assert.match(libraryView, /setLibraryAssetIdentity\(article, entry\)/);
+  assert.match(detailRenderer, /sliceDisplay\(record\.sliceBinding\)/);
+  assert.match(detailRenderer, /copyableCanonical\('Canonical slice ID', record\.sliceBinding\?\.sliceId/);
+  assert.match(detailView, /node\.dataset\.assetId = asset\.assetId/);
   assert.match(assetRenderer, /placementSummary\(asset\.metadata\)/);
   assert.match(assetRenderer, /connectivitySummary\(asset\.metadata\)/);
   assert.match(assetRenderer, /collisionSummary\(asset\.metadata\)/);
   assert.match(assetRenderer, /findingSummary\(asset\.findings\)/);
   assert.match(assetRenderer, /committed r/);
   assert.match(assetRenderer, /sha256:/);
-  assert.match(assetRenderer, /Legacy asset inventory/);
-  assert.match(assetRenderer, /renderCollection\(snapshot\.assets, 'assets'\)/);
+  assert.match(libraryRenderer, /Legacy project assets/);
+  assert.match(libraryRenderer, /renderCollection\(snapshot\.assets, 'assets'\)/);
+  assert.doesNotMatch(libraryRenderer, /renderSliceVocabulary\(/);
+
+  const inventory = libraryInventory({
+    sources: [{ sourceId: 'source.hygiene', name: 'Original floor sheet' }],
+    assetLibrary: { assets: [{ assetId: 'asset.floor-exact', assetVersion: 1, metadataVersion: 1,
+      name: 'Hygiene floor', kind: 'surface', metadata: { tags: ['clean-floor'] }, sliceBinding: { sourceId: 'source.hygiene' } }] },
+  });
+  for (const search of ['Hygiene floor', 'asset.floor-exact', 'clean-floor', 'Original floor sheet']) {
+    assert.equal(filterLibraryItems(inventory, { search, content: 'image', use: 'surface' }).length, 1, search);
+  }
+  assert.equal(filterLibraryItems(inventory, { search: 'missing content' }).length, 0);
+  assert.equal(filterLibraryItems(inventory, { search: 'Hygiene floor', content: 'assembly' }).length, 0);
+  assert.equal(filterLibraryItems(inventory, { search: 'Hygiene floor', use: 'prop' }).length, 0);
 
   const safePreview = app.slice(app.indexOf('function safeV2Preview'), app.indexOf('function compactValues'));
   assert.match(safePreview, /encodeURIComponent\(projectId\)/);

@@ -23,7 +23,7 @@ function context() {
     createAssetFromSliceButton: slice => ({ tag: 'create', id: slice.sliceId, version: slice.version }), previewInputs };
 }
 
-test('Library saved-slice cards display authored names and preserve ordinal fallback and identities', () => {
+test('Sources saved-slice cards display authored names and preserve ordinal fallback and identities', () => {
   const before = JSON.stringify(snapshot); const sandbox = context();
   const render = runInNewContext(`${helpers}\n${fragment('function renderSliceVocabulary(', 'function renderAssetLibrary(')}; renderSliceVocabulary;`, sandbox);
   const output = nodes(render());
@@ -31,6 +31,11 @@ test('Library saved-slice cards display authored names and preserve ordinal fall
   assert.deepEqual(sandbox.previewInputs.map(n => n.name), ['brighter', 'darker', 'Slice 3']);
   assert.deepEqual(output.filter(n => n.tag === 'create').map(n => [n.id, n.version]), [['slice.one', 2], ['slice.two', 1], ['slice.unnamed', 1]]);
   assert.equal(JSON.stringify(snapshot), before);
+});
+
+test('saved-cut authoring stays in Sources while Library browses saved reusable content', () => {
+  assert.match(fragment('function renderSources(', 'function renderOverview('), /renderSliceVocabulary\(\)/);
+  assert.doesNotMatch(fragment('function renderAssetLibrary(', 'function currentRoomLibrary('), /renderSliceVocabulary\(\)/);
 });
 
 test('historical binding labels keep their saved name instead of using a newer head name', () => {

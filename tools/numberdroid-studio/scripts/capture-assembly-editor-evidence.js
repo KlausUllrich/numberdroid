@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { libraryNavigation, libraryDetailsSelector } from './library-browser-navigation.js';
 import { ASSEMBLY_FIXTURE_PROJECT as projectId, ASSEMBLY_FIXTURE_ASSET as assetId, ASSEMBLY_FIXTURE_PROPOSAL as proposalId } from './prepare-assembly-editor-fixture.js';
 
 /** Actual production UI interactions against the fresh deterministic fixture. */
@@ -19,7 +20,9 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     focus:document.activeElement?.dataset.assemblyFocusKey,scroll:[...document.querySelectorAll('[data-assembly-scroll]')].map(n=>[n.dataset.assemblyScroll,n.scrollLeft,n.scrollTop]),page:[scrollX,scrollY]}; })()`);
   const project = () => evaluate(`fetch('/api/projects/${projectId}').then(async r=>{if(!r.ok)throw new Error('Project read failed');return r.json()})`);
   const pointer = (type, point) => devtools.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1 }, sessionId);
+  const navigation = libraryNavigation({ evaluate, click, waitFor });
   async function captureReview() {
+    await navigation.review('assembly', proposalId);
     const root = `[data-assembly-proposal="${proposalId}"]`;
     const control = suffix => `${root} ${suffix}`;
     await waitFor(`Boolean(document.querySelector(${JSON.stringify(control('[data-assembly-review-action="ACCEPT"]'))})) && !document.querySelector(${JSON.stringify(control('[data-assembly-review-action="ACCEPT"]'))})?.disabled`, 'Resolved Assembly proposal');
@@ -79,12 +82,13 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
         readableFeedback: true, feedbackSurvivesRecheck: true, sideSelectionRetained: true, requestChanges: true, exactDecisionReplay: true, refreshDoesNotInferDelivery: true, oneRevision: true };
     } finally { await evaluate('window.fetch=window.__assemblyReviewEvidence.originalFetch;delete window.__assemblyReviewEvidence;'); }
   }
-  await waitFor(`document.getElementById('connection-label')?.textContent==='Live' && Boolean(document.querySelector('[data-assembly-open="${assetId}"]'))`, 'Assembly Library');
+  await waitFor(`document.getElementById('connection-label')?.textContent==='Live' && Boolean(document.querySelector(${JSON.stringify(libraryDetailsSelector('assembly', assetId))}))`, 'Assembly Library');
   const reviewEvidence = reopen ? null : await captureReview();
   if (!reopen) {
-    await waitFor(`Boolean(document.querySelector('[data-create-assembly]')) && !document.querySelector('[data-create-assembly]').disabled`, 'Library unlocked after review');
+    await navigation.assets();
+    await waitFor(`Boolean(document.querySelector('[data-library-action="create-assembly"]')) && !document.querySelector('[data-library-action="create-assembly"]').disabled`, 'Library unlocked after review');
     const beforeCreate = await project();
-    await click('[data-create-assembly]');
+    await click('[data-library-action="create-assembly"]');
     await waitFor(`Boolean(document.querySelector('[data-assembly-canvas]'))`, 'New Assembly editor');
     await click('[data-assembly-action="panel"][data-value="properties"]');
     await fill('name', 'Independent Assembly creation');
@@ -99,9 +103,10 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     assert.deepEqual(saved.assembly.components[0].asset, { assetId: 'asset.assembly-graphite', assetVersion: 2, metadataVersion: 1 });
     assert.deepEqual(created.snapshot.assetLibrary, beforeCreate.snapshot.assetLibrary);
     await click('[data-assembly-action="back"]');
-    await waitFor(`Boolean(document.querySelector('[data-assembly-open="${assetId}"]'))`, 'Library after Assembly creation');
+    await navigation.assets();
   }
-  await click(`[data-assembly-open="${assetId}"]`); await waitFor(`document.querySelectorAll('[data-assembly-canvas] image').length>=2 && !document.querySelector('[data-assembly-status]')?.textContent.includes('Resolving')`, 'Resolved exact Assembly');
+  await navigation.details('assembly', assetId);
+  await click('[data-library-action="edit"]'); await waitFor(`document.querySelectorAll('[data-assembly-canvas] image').length>=2 && !document.querySelector('[data-assembly-status]')?.textContent.includes('Resolving')`, 'Resolved exact Assembly');
   const evidence = { schemaVersion: 1, projectId, assetId, phase: reopen ? 'reopen' : 'edit', ...(reopen ? {} : { independentCreation: true, review: reviewEvidence }), agentReview: 'Separate real-agent semantic proof is required.' };
   if (reopen) { evidence.reopened = await inspect(); assert.match(evidence.reopened.saved, /Saved Assembly v2/); assert(evidence.reopened.images.length >= 2); return evidence; }
   const beforeProject = await project(), nativeBefore = JSON.stringify(beforeProject.snapshot.assetLibrary.assets);

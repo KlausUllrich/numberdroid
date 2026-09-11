@@ -1,3 +1,6 @@
+import { createLibraryUiState, librarySetProject, libraryInventory, libraryReviewGroups, libraryAssetPin, findLibraryItem, libraryRouteKey, libraryNavigate, libraryBack } from './library-state.js';
+import { renderLibraryNavigation, renderLibraryCard, renderLibraryHistory } from './library-view.js';
+import { renderLibraryDetail, createLibraryPreviewDocument } from './library-detail-view.js';
 import { createAnimationEditorController } from './animation-editor-controller.js';
 import { createAnimationCutController } from './animation-cut-controller.js';
 import { renderAnimationCard } from './animation-library-view.js';
@@ -311,7 +314,7 @@ function setBackupMutationPending(pending) {
 function setAssetMutationPending(pending) {
   state.assetMutationPending = pending;
   updateMutationControls();
-  for (const control of elements['workspace-content'].querySelectorAll('[data-create-assembly]')) {
+  for (const control of elements['workspace-content'].querySelectorAll('[data-create-assembly], [data-library-action="create-assembly"]')) {
     control.disabled = !assemblyCanMutate();
   }
   for (const control of elements['workspace-content'].querySelectorAll(
@@ -1056,6 +1059,7 @@ function findingsList(findings = []) {
 
 function captureAssetDomState() {
   if (state.workspace !== 'assets') return;
+  if (libraryUi.projectId === state.project?.projectId) { captureLibraryDom(); return; }
   const active = document.activeElement?.closest?.('[data-asset-focus-key]');
   const scroll = {};
   for (const element of elements['workspace-content'].querySelectorAll('[data-asset-scroll]')) {
@@ -1072,6 +1076,7 @@ function captureAssetDomState() {
 }
 
 function restoreAssetDomState() {
+  if (state.workspace === 'assets' && libraryUi.projectId === state.project?.projectId && !libraryHasEditor()) { libraryRestoreCurrent(); return; }
   const saved = state.assetUi.domState;
   if (!saved || saved.context !== `${state.project?.projectId ?? 'none'}:${state.assetUi.selectedProposalId ?? 'none'}`) return;
   for (const element of elements['workspace-content'].querySelectorAll('[data-asset-scroll]')) {
@@ -2003,7 +2008,7 @@ function renderSources(items) {
     sourceCard.append(actions); grid.append(sourceCard);
   }
   fragment.append(sectionHeading('Source library', 'Original CAS previews are displayed without derivative processing.'), grid);
-  if (animationSupported() && currentProjectSlices().length) fragment.append(renderSliceVocabulary());
+  if (currentProjectSlices().length) fragment.append(renderSliceVocabulary());
   return fragment;
 }
 
@@ -2316,6 +2321,7 @@ function renderProposalItem(proposal, item, index) {
   disposition.textContent = item.decision?.disposition ?? 'PENDING'; headingRow.append(heading, disposition);
   const preview = usefulAssetPreview(item, { previewKey: `${proposal.proposalId}:${item.itemId}` });
   article.append(headingRow, preview);
+  const inspectChange = document.createElement('button'); inspectChange.type = 'button'; inspectChange.className = 'secondary'; inspectChange.textContent = 'Details'; inspectChange.dataset.libraryNativeProposal = proposal.proposalId; inspectChange.dataset.libraryNativeItem = item.itemId; inspectChange.dataset.assetFocusKey = `native-proposal-details-${item.itemId}`; inspectChange.disabled = state.assetMutationPending; article.append(inspectChange);
   const identity = document.createElement('div'); identity.className = 'proposal-identity';
   const primary = document.createElement('strong'); primary.textContent = `${display.label} · ${item.kind}`;
   identity.append(
@@ -2459,6 +2465,289 @@ function createAssetFromSliceButton(slice) {
   return button;
 }
 
+const libraryUi = createLibraryUiState();
+const libraryDetails = new Map();
+const libraryPreviewRecords = new Map();
+const libraryNativeContexts = new Map();
+const libraryExternalOrigins = new Map();
+const libraryCardObservers = new Set();
+const libraryRetiredPreviewUrls = new Set();
+let libraryReadGeneration = 0;
+let libraryRenderQueued = false;
+
+function libraryHasEditor() { return Boolean(activeAssetEditor || activeAssemblyEditor || activeAnimationEditor || activeEmbeddedAssetEditor || activeAnimationCut); }
+function libraryRouteIdentity() { return `${state.project?.projectId ?? ''}:${libraryRouteKey(libraryUi.route)}`; }
+function libraryFocusToken(node) {
+  if (!node) return null;
+  for (const attribute of ['data-asset-focus-key', 'data-library-focus', 'data-assembly-review-focus', 'data-animation-review-focus']) {
+    if (node.hasAttribute?.(attribute)) return { attribute, value: node.getAttribute(attribute) };
+  }
+  return null;
+}
+function libraryDomSnapshot() {
+  const active = document.activeElement;
+  return { projectId: state.project?.projectId, workspace: state.workspace, page: { x: window.scrollX, y: window.scrollY }, focus: libraryFocusToken(active),
+    selection: typeof active?.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null,
+    scroll: [...elements['workspace-content'].querySelectorAll('[data-asset-scroll], [data-library-scroll], [data-assembly-review-scroll], [data-animation-scroll]')].map(node => {
+      const attribute = ['data-asset-scroll', 'data-library-scroll', 'data-assembly-review-scroll', 'data-animation-scroll'].find(name => node.hasAttribute(name));
+      return { attribute, value: node.getAttribute(attribute), left: node.scrollLeft, top: node.scrollTop };
+    }) };
+}
+function captureLibraryDom() {
+  if (state.workspace !== 'assets' || libraryHasEditor() || elements['workspace-content'].dataset.libraryRoute !== libraryRouteIdentity()) return;
+  libraryUi.domSnapshots[libraryRouteKey(libraryUi.route)] = libraryDomSnapshot();
+}
+function restoreLibrarySnapshot(saved, expected = libraryRouteIdentity()) {
+  if (!saved || saved.projectId !== state.project?.projectId) return;
+  requestAnimationFrame(() => {
+    if (libraryHasEditor() || saved.projectId !== state.project?.projectId || (state.workspace === 'assets' && expected !== libraryRouteIdentity())) return;
+    for (const record of saved.scroll ?? []) for (const node of elements['workspace-content'].querySelectorAll(`[${record.attribute}]`)) {
+      if (node.getAttribute(record.attribute) === record.value) { node.scrollLeft = record.left; node.scrollTop = record.top; }
+    }
+    const focus = saved.focus && [...elements['workspace-content'].querySelectorAll(`[${saved.focus.attribute}]`)].find(node => node.getAttribute(saved.focus.attribute) === saved.focus.value);
+    focus?.focus({ preventScroll: true });
+    if (saved.selection && typeof focus?.setSelectionRange === 'function') focus.setSelectionRange(...saved.selection);
+    window.scrollTo(saved.page?.x ?? 0, saved.page?.y ?? 0);
+  });
+}
+function libraryRestoreCurrent() { restoreLibrarySnapshot(libraryUi.domSnapshots[libraryRouteKey(libraryUi.route)]); }
+function libraryOrigin() { captureLibraryDom(); return state.workspace === 'assets' ? { route: structuredClone(libraryUi.route), dom: libraryDomSnapshot() } : null; }
+function libraryRestoreOrigin(saved, editorState) {
+  if (!saved || saved.dom?.projectId !== state.project?.projectId) return false;
+  libraryUi.route = structuredClone(saved.route);
+  if (editorState && libraryUi.route.view === 'detail' && libraryUi.route.pin?.assetId === editorState.context?.assetId) {
+    const current = libraryInventory(state.project.snapshot).find(entry => entry.contentKind === libraryUi.route.pin.contentKind && entry.asset.assetId === libraryUi.route.pin.assetId);
+    if (current && current.asset.assetVersion === editorState.context.assetVersion && current.asset.metadataVersion === editorState.context.metadataVersion) {
+      libraryUi.route = { view: 'detail', pin: current.pin }; librarySetDetail(libraryRouteKey(libraryUi.route), { entry: structuredClone(current), record: structuredClone(current.asset) });
+    }
+  }
+  libraryUi.domSnapshots[libraryRouteKey(libraryUi.route)] = saved.dom;
+  return true;
+}
+function libraryNavigationAllowed() {
+  if (state.assetMutationPending || state.sourceMutationPending || state.cutterPending || libraryHasEditor()) return false;
+  return [...assemblyReviewControllers.values(), ...animationReviewControllers.values()].every(controller => controller.requestLeave());
+}
+function goLibrary(route, { readonlyDetour = false } = {}) {
+  if (!state.project || libraryHasEditor() || state.assetMutationPending || (!readonlyDetour && !libraryNavigationAllowed())) { showToast('Finish or reconcile the pending edit before navigating.'); return; }
+  const dom = libraryDomSnapshot(), previousWorkspace = state.workspace;
+  const ownsLibraryDom = previousWorkspace === 'assets' && elements['workspace-content'].dataset.libraryRoute === libraryRouteIdentity();
+  captureLibraryDom(); libraryNavigate(libraryUi, route, { domSnapshot: ownsLibraryDom ? dom : null });
+  if (previousWorkspace !== 'assets') libraryExternalOrigins.set(libraryRouteKey(route), dom);
+  libraryReadGeneration += 1;
+  cancelPinnedAssetsOnWorkspaceExit('assets'); state.workspace = 'assets'; history.replaceState(null, '', '#assets');
+  renderWorkspace(); libraryRestoreCurrent();
+}
+function libraryBackToPrevious() {
+  if (!libraryNavigationAllowed()) { showToast('Resolve the pending request before leaving.'); return; }
+  captureLibraryDom();
+  const leaving = libraryUi.route, dom = libraryExternalOrigins.get(libraryRouteKey(leaving));
+  libraryExternalOrigins.delete(libraryRouteKey(leaving));
+  const previous = libraryBack(libraryUi);
+  libraryReadGeneration += 1;
+  if (dom?.workspace && dom.workspace !== 'assets') { state.workspace = dom.workspace; history.replaceState(null, '', `#${state.workspace}`); renderWorkspace(); restoreLibrarySnapshot(dom); return; }
+  if (!previous) libraryUi.route = { view: 'list', tab: libraryUi.tab };
+  renderWorkspace(); libraryRestoreCurrent();
+}
+function libraryAllGroups() {
+  const groups = libraryReviewGroups(state.project?.snapshot);
+  for (const [contentKind, controllers] of [['assembly', assemblyReviewControllers], ['animation', animationReviewControllers]]) for (const controller of controllers.values()) {
+    const review = controller.getState(); if (review.projectId !== state.project?.projectId || !['saving', 'uncertain'].includes(review.status)) continue;
+    const existing = groups.find(group => group.contentKind === contentKind && group.proposalId === review.proposal.proposalId);
+    if (existing) { existing.pending = true; existing.status = review.status === 'uncertain' ? 'OUTCOME_UNCONFIRMED' : 'SAVING'; }
+  }
+  return groups;
+}
+function libraryReleasePreviewUrl(url) {
+  if (!url) return;
+  const mounted = [...elements['workspace-content'].querySelectorAll('a[data-library-preview-link]')].some(link => link.href === url);
+  if (mounted) libraryRetiredPreviewUrls.add(url); else URL.revokeObjectURL(url);
+}
+function libraryCollectPreviewUrls() {
+  const mounted = new Set([...elements['workspace-content'].querySelectorAll('a[data-library-preview-link]')].map(link => link.href));
+  for (const url of libraryRetiredPreviewUrls) if (!mounted.has(url)) { URL.revokeObjectURL(url); libraryRetiredPreviewUrls.delete(url); }
+}
+function libraryPreviewKey(entry) { return `${state.project.projectId}@${state.project.revision}:${entry.contentKind}:${entry.asset.assetId}@${entry.asset.assetVersion}:${entry.asset.metadataVersion}`; }
+function queueLibraryRender() {
+  if (libraryRenderQueued) return; libraryRenderQueued = true;
+  requestAnimationFrame(() => { libraryRenderQueued = false; if (state.workspace === 'assets' && !libraryHasEditor()) renderWorkspace({ preserveAssetDraft: true }); });
+}
+function libraryLoadPreview(entry, { retry = false } = {}) {
+  const key = libraryPreviewKey(entry), previous = libraryPreviewRecords.get(key);
+  if (previous && (!retry || previous.status !== 'failed')) return previous;
+  const projectId = state.project.projectId, revision = state.project.revision;
+  const result = { status: 'loading', record: entry.asset, url: null, error: null }; libraryPreviewRecords.set(key, result);
+  const read = entry.contentKind === 'assembly' ? readAssemblyDetail(entry.asset, { retry }) : entry.contentKind === 'animation' ? readAnimationDetail(entry.asset, { retry }) : Promise.resolve(structuredClone(entry.asset));
+  result.promise = read.then(record => {
+    if (state.project?.projectId !== projectId || state.project.revision !== revision || libraryPreviewRecords.get(key) !== result) return;
+    const html = createLibraryPreviewDocument({ entry, record, scene: record.scene, projectId, origin: location.origin });
+    result.url = URL.createObjectURL(new Blob([html], { type: 'text/html' })); result.record = record; result.status = 'ready';
+  }).catch(error => { result.error = error.message; result.status = 'failed'; }).finally(() => {
+    if (state.project?.projectId === projectId && state.project.revision === revision && libraryUi.route.view === 'detail') queueLibraryRender();
+  });
+  while (libraryPreviewRecords.size > 80) { const oldest = libraryPreviewRecords.keys().next().value; const old = libraryPreviewRecords.get(oldest); if (old.url) libraryReleasePreviewUrl(old.url); libraryPreviewRecords.delete(oldest); }
+  return result;
+}
+function libraryClearReads() { libraryReadGeneration += 1; for (const record of libraryPreviewRecords.values()) if (record.url) URL.revokeObjectURL(record.url); libraryPreviewRecords.clear(); for (const url of libraryRetiredPreviewUrls) URL.revokeObjectURL(url); libraryRetiredPreviewUrls.clear(); for (const detail of libraryDetails.values()) if (detail.url) URL.revokeObjectURL(detail.url); libraryDetails.clear(); for (const observer of libraryCardObservers) observer.disconnect(); libraryCardObservers.clear(); libraryNativeContexts.clear(); libraryExternalOrigins.clear(); }
+function libraryCompactCard(entry) {
+  const projectId = state.project.projectId, revision = state.project.revision;
+  const cached = libraryPreviewRecords.get(libraryPreviewKey(entry));
+  const card = renderLibraryCard({ entry, record: cached?.record ?? entry.asset, scene: cached?.record?.scene, projectId, previewUrl: cached?.url });
+  if (cached?.status !== 'ready') queueMicrotask(() => {
+    if (!card.isConnected) return;
+    const resolve = () => {
+      const preview = libraryLoadPreview(entry, { retry: libraryPreviewRecords.get(libraryPreviewKey(entry))?.status === 'failed' });
+      void preview.promise?.finally(() => {
+        if (!card.isConnected || state.project?.projectId !== projectId || state.project.revision !== revision || preview.status !== 'ready') return;
+        const fresh = renderLibraryCard({ entry, record: preview.record, scene: preview.record.scene, projectId, previewUrl: preview.url });
+        const oldLink = card.querySelector('[data-library-preview-link]'), nextLink = fresh.querySelector('[data-library-preview-link]');
+        const focused = oldLink?.contains(document.activeElement) || oldLink === document.activeElement;
+        if (oldLink && nextLink) { oldLink.replaceWith(nextLink); if (focused) nextLink.focus({ preventScroll: true }); }
+      });
+    };
+    if (typeof IntersectionObserver !== 'function') { resolve(); return; }
+    const observer = new IntersectionObserver(entries => {
+      if (!card.isConnected || state.project?.projectId !== projectId || state.project.revision !== revision) { observer.disconnect(); libraryCardObservers.delete(observer); return; }
+      if (!entries.some(value => value.isIntersecting)) return;
+      const anchor = card.querySelector('a[data-library-preview-link]');
+      const live = libraryPreviewRecords.get(libraryPreviewKey(entry));
+      if (anchor?.href && (libraryRetiredPreviewUrls.has(anchor.href) || (live?.status === 'ready' && live.url === anchor.href))) return;
+      resolve();
+    }, { rootMargin: '180px' });
+    libraryCardObservers.add(observer); observer.observe(card);
+  });
+  return card;
+}
+function librarySetDetail(key, value) {
+  const previous = libraryDetails.get(key);
+  if (previous?.url && previous.url !== value.url) libraryReleasePreviewUrl(previous.url);
+  libraryDetails.set(key, value);
+  return value;
+}
+function libraryBoundDetails() {
+  const keep = new Set([libraryRouteKey(libraryUi.route), ...libraryUi.returnStack.map(libraryRouteKey)]);
+  // Preserve the just-opened detail as well as bounded navigation history.
+  keep.add([...libraryDetails.keys()].at(-1));
+  for (const [key, detail] of libraryDetails) {
+    if (libraryDetails.size <= 48) break;
+    if (!keep.has(key)) { if (detail.url) libraryReleasePreviewUrl(detail.url); libraryDetails.delete(key); }
+  }
+}
+function libraryOpenSavedDetail(pin) {
+  const entry = findLibraryItem(state.project?.snapshot, pin);
+  if (!entry) { showToast('That exact saved version is no longer the Library head. Refresh and choose its current entry.'); return; }
+  const route = { view: 'detail', pin }; librarySetDetail(libraryRouteKey(route), { entry: structuredClone(entry), record: structuredClone(entry.asset) });
+  libraryBoundDetails();
+  goLibrary(route);
+}
+function libraryOpenReviewDetail(contentKind, detail) {
+  if (detail.projectId !== state.project?.projectId || !detail.record) return;
+  const record = structuredClone({ ...detail.record, ...(detail.scene ? { scene: detail.scene, leafAssets: detail.leafAssets } : {}), ...(detail.frameBindings ? { frameBindings: detail.frameBindings } : {}) });
+  const proposed = detail.side === 'proposed';
+  const pin = !proposed ? libraryAssetPin(record, contentKind) : null;
+  const route = pin ? { view: 'detail', pin } : { view: 'detail', proposed: { contentKind, proposalId: detail.proposalId, proposalVersion: detail.proposalVersion }, assetId: record.assetId, itemId: detail.itemId ?? null };
+  const entry = { contentKind, asset: record, pin, sourceNames: [], relatedReviews: [] };
+  librarySetDetail(libraryRouteKey(route), { entry, record, proposed: !pin, proposal: { proposalId: detail.proposalId, proposalVersion: detail.proposalVersion }, ready: true });
+  libraryBoundDetails();
+  goLibrary(route, { readonlyDetour: true });
+}
+function libraryRenderDetail() {
+  const route = libraryUi.route, key = libraryRouteKey(route); let selected = libraryDetails.get(key);
+  if (!selected && route.pin) { const entry = findLibraryItem(state.project.snapshot, route.pin); if (entry) { selected = { entry: structuredClone(entry), record: structuredClone(entry.asset) }; librarySetDetail(key, selected); } }
+  if (!selected) { const root = document.createElement('section'); root.append(libraryBackButton(), emptyState('Exact content unavailable', 'Return to the Library and choose an available saved version.')); return root; }
+  const current = route.pin ? findLibraryItem(state.project.snapshot, route.pin) : null;
+  const stale = Boolean(route.pin && !current), preview = selected.ready ? null : libraryLoadPreview(selected.entry);
+  const record = preview?.record ?? selected.record;
+  if (preview?.status === 'ready') selected.record = record;
+  if (selected.ready && !selected.url && !selected.previewError) {
+    try { selected.url = URL.createObjectURL(new Blob([createLibraryPreviewDocument({ entry: selected.entry, record, scene: record.scene, projectId: state.project.projectId, origin: location.origin, proposed: selected.proposed })], { type: 'text/html' })); }
+    catch (error) { selected.previewError = error.message; }
+  }
+  const canEdit = !selected.proposed && !stale && state.uiMode === 'local' && !state.assetMutationPending && (selected.entry.contentKind === 'assembly' ? assemblyCanMutate() : selected.entry.contentKind === 'animation' ? animationCanMutate() : true);
+  const root = renderLibraryDetail({ entry: selected.entry, record, scene: record.scene, projectId: state.project.projectId, previewUrl: preview?.url ?? selected.url, sourceLabels: selected.entry.sourceNames, pendingGroups: current?.relatedReviews ?? [], canEdit, unavailable: preview?.status === 'failed' ? preview.error : selected.previewError ?? null, proposed: selected.proposed, proposal: selected.proposal, stale });
+  root.dataset.libraryDetail = selected.entry.contentKind; root.dataset.assetId = record.assetId;
+  if (selected.entry.contentKind === 'image') {
+    const controls = root.querySelector('[data-library-detail-controls]') ?? root;
+    const identity = document.createElement('details'); identity.className = 'asset-provenance'; const summary = document.createElement('summary'); summary.textContent = 'Exact image and source';
+    const label = document.createElement('p'), display = sliceDisplay(record.sliceBinding); label.textContent = `${display.label} · ${display.atlasName}`;
+    identity.append(summary, label, copyableCanonical('Asset ID', record.assetId, `library-asset-${record.assetId}`), copyableCanonical('Canonical slice ID', record.sliceBinding?.sliceId, `library-slice-${record.assetId}`)); controls.append(identity);
+    controls.append(libraryNativeLifecycleControls(canEdit ? current.asset : record, { canMutate: canEdit }));
+  }
+  return root;
+}
+function libraryBackButton() { const b = document.createElement('button'); b.type = 'button'; b.className = 'secondary'; b.dataset.libraryAction = 'back'; b.dataset.assetFocusKey = 'library-back'; b.textContent = 'Back'; return b; }
+function libraryNativeLifecycleControls(asset, { canMutate = false } = {}) {
+  const root = document.createElement('details'); root.className = 'library-lifecycle'; const summary = document.createElement('summary'); summary.textContent = `Validation and lifecycle · ${asset.lifecycle ?? 'Proposed'}`; root.append(summary, findingsList(asset.findings));
+  const facts = document.createElement('dl'); facts.className = 'property-list';
+  for (const [name, value] of [['Placement', placementSummary(asset.metadata)], ['Connectivity', connectivitySummary(asset.metadata)], ['Collision', collisionSummary(asset.metadata)], ['Navigation', asset.metadata?.navigation?.effect ?? 'missing'], ['Runtime metadata', asset.metadata?.runtimeEligible === true ? 'eligible' : asset.metadata?.runtimeEligible === false ? 'not eligible' : 'missing']]) {
+    const term = document.createElement('dt'), description = document.createElement('dd'); term.textContent = name; description.textContent = value; facts.append(term, description);
+  }
+  root.append(facts);
+  if (!canMutate) return root;
+  const target = { DRAFT: 'METADATA_COMPLETE', METADATA_COMPLETE: 'VALIDATED', VALIDATED: 'FINAL' }[asset.lifecycle]; if (!target) return root;
+  if (target === 'FINAL') for (const finding of (asset.findings ?? []).filter(value => value.severity === 'WARNING')) {
+    const label = document.createElement('label'), input = document.createElement('input'); input.type = 'checkbox'; input.dataset.warningDisposition = finding.findingId; input.dataset.assetId = asset.assetId; input.checked = asset.warningDispositions?.includes(finding.findingId) ?? false; input.dataset.assetFocusKey = `warning-${asset.assetId}-${finding.findingId}`; label.append(input, document.createTextNode(` Accept ${finding.ruleId}`)); root.append(label);
+  }
+  const b = document.createElement('button'); b.type = 'button'; b.dataset.assetLifecycle = asset.assetId; b.dataset.targetLifecycle = target; b.dataset.assetVersion = asset.assetVersion; b.dataset.metadataVersion = asset.metadataVersion; b.dataset.assetFocusKey = `lifecycle-${asset.assetId}`; b.textContent = target === 'FINAL' ? 'Finalize asset' : `Advance to ${target.replace('_', ' ')}`; b.disabled = state.assetMutationPending; root.append(b); return root;
+}
+function libraryRenderReview() {
+  const route = libraryUi.route, fragment = document.createDocumentFragment(); fragment.append(libraryBackButton());
+  if (route.contentKind === 'image') {
+    const proposal = currentAssetLibrary().proposals.find(value => value.proposalId === route.proposalId);
+    if (!proposal) { fragment.append(emptyState('Review unavailable', 'The requested review is no longer available.')); return fragment; }
+    if (state.assetUi.selectedProposalId !== proposal.proposalId) {
+      if (state.assetUi.selectedProposalId) libraryNativeContexts.set(state.assetUi.selectedProposalId, { decisionContext: structuredClone(state.assetUi.decisionContext), dirty: state.assetUi.dirty, conflict: structuredClone(state.assetUi.conflict) });
+      state.assetUi.selectedProposalId = proposal.proposalId;
+      Object.assign(state.assetUi, libraryNativeContexts.get(proposal.proposalId) ?? { decisionContext: null, dirty: false, conflict: null });
+    }
+    fragment.append(renderProposalReview([proposal]));
+  } else if (route.contentKind === 'assembly') fragment.append(renderAssemblyReviews(route.proposalId));
+  else fragment.append(renderAnimationReviews(route.proposalId));
+  return fragment;
+}
+function renderLibraryWorkspace(snapshot) {
+  for (const observer of libraryCardObservers) observer.disconnect(); libraryCardObservers.clear();
+  librarySetProject(libraryUi, state.project.projectId);
+  if (libraryUi.route.view === 'detail') return libraryRenderDetail();
+  if (libraryUi.route.view === 'review') return libraryRenderReview();
+  const fragment = document.createDocumentFragment();
+  fragment.append(renderLibraryNavigation({ ui: libraryUi, items: libraryInventory(snapshot), groups: libraryAllGroups(), renderCard: libraryCompactCard, canCreateAssembly: assemblyCanMutate() }));
+  if (snapshot.assets?.length) { const legacy = document.createElement('details'), title = document.createElement('summary'); title.textContent = 'Legacy project assets'; legacy.append(title, renderCollection(snapshot.assets, 'assets')); fragment.append(legacy); }
+  return fragment;
+}
+function libraryRefreshListing() {
+  if (state.workspace !== 'assets' || libraryHasEditor() || libraryUi.route.view !== 'list') return;
+  const old = elements['workspace-content'].querySelector('[data-library-workspace]');
+  if (!old) { renderWorkspace({ preserveAssetDraft: true }); return; }
+  const active = document.activeElement, selection = typeof active?.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
+  const position = { x: window.scrollX, y: window.scrollY }, fields = old.querySelector('[data-library-filters]');
+  for (const observer of libraryCardObservers) observer.disconnect(); libraryCardObservers.clear();
+  const next = renderLibraryNavigation({ ui: libraryUi, items: libraryInventory(state.project.snapshot), groups: libraryAllGroups(), renderCard: libraryCompactCard, canCreateAssembly: assemblyCanMutate() });
+  if (fields) next.querySelector('[data-library-filters]')?.replaceWith(fields);
+  old.replaceWith(next); libraryCollectPreviewUrls();
+  if (active?.isConnected) { active.focus({ preventScroll: true }); if (selection && active.setSelectionRange) active.setSelectionRange(...selection); }
+  window.scrollTo(position.x, position.y);
+}
+
+function libraryHandleClick(event) {
+  const control = event.target.closest('[data-library-action]'); if (!control || control.disabled) return;
+  const d = control.dataset, action = d.libraryAction;
+  if (action === 'preview') { showToast('The full-size preview is loading or unavailable. Open Details for the exact status.'); return; }
+  if (action === 'tab') goLibrary({ view: 'list', tab: d.libraryTab });
+  else if (action === 'back') libraryBackToPrevious();
+  else if (action === 'details') libraryOpenSavedDetail({ contentKind: d.libraryKind, assetId: d.libraryAssetId, assetVersion: Number(d.libraryAssetVersion), metadataVersion: Number(d.libraryMetadataVersion) });
+  else if (action === 'review') goLibrary({ view: 'review', contentKind: d.libraryKind, proposalId: d.libraryProposalId, proposalVersion: Number(d.libraryProposalVersion) });
+  else if (action === 'edit') {
+    const route = libraryUi.route, entry = route.pin ? findLibraryItem(state.project.snapshot, route.pin) : null;
+    if (!entry || !libraryNavigationAllowed()) return;
+    if (entry.contentKind === 'assembly') void openAssemblyEditor({ asset: entry.asset, trigger: control });
+    else if (entry.contentKind === 'animation') void openAnimationEditor({ asset: entry.asset, trigger: control });
+    else openAssetEditor({ asset: entry.asset, trigger: control });
+  } else if (action === 'add-from-sources') { captureLibraryDom(); elements['workspace-nav'].querySelector('[data-workspace="sources"]')?.click(); }
+  else if (action === 'create-assembly') void openAssemblyEditor({ trigger: control });
+  else if (action === 'clear-filters') { Object.assign(libraryUi.filters[libraryUi.tab], { search: '', content: 'all', use: 'all' }); renderWorkspace(); }
+}
+
 let activeAnimationEditor = null;
 let activeAnimationCut = null;
 let animationReturnContext = null;
@@ -2504,8 +2793,8 @@ function animationLibraryCard(asset) {
 }
 function returnFromAnimation(editor) {
   if (activeAnimationEditor !== editor) return;
-  const saved = animationReturnContext; editor.dispose(); activeAnimationEditor = null; animationReturnContext = null;
-  renderWorkspace(); requestAnimationFrame(() => { if (activeAnimationEditor || state.workspace !== saved?.workspace) return; restoreAssetDomState(); window.scrollTo(saved.x, saved.y); });
+  const saved = animationReturnContext; libraryRestoreOrigin(saved?.library, editor.getState()); editor.dispose(); activeAnimationEditor = null; animationReturnContext = null;
+  renderWorkspace(); requestAnimationFrame(() => { if (activeAnimationEditor || state.workspace !== saved?.workspace) return; restoreAssetDomState(); if (saved?.library) libraryRestoreCurrent(); else window.scrollTo(saved.x, saved.y); });
 }
 async function editAnimationCut(editor, { frame, binding, session, clip }) {
   const projectId = editor.getState().context.projectId, revision = editor.getState().context.projectRevision;
@@ -2533,12 +2822,13 @@ async function editAnimationCut(editor, { frame, binding, session, clip }) {
 }
 async function openAnimationEditor({ asset = null, pins = [], trigger = null } = {}) {
   if (!animationCanMutate() || !mayAbandonAssetAuthoring()) return;
+  const libraryGeneration = libraryReadGeneration;
   const generation = ++animationOpenGeneration, projectId = state.project.projectId, revision = state.project.revision, workspace = state.workspace;
-  const saved = { workspace, x: window.scrollX, y: window.scrollY, focus: trigger?.dataset.assetFocusKey ?? null }; captureAssetDomState();
+  const saved = { workspace, x: window.scrollX, y: window.scrollY, focus: trigger?.dataset.assetFocusKey ?? null, library: libraryOrigin() }; captureAssetDomState();
   let record, bindings;
   try { [record, bindings] = await Promise.all([asset ? readAnimationDetail(asset, { retry: true }) : null, resolveAnimationCuts(projectId, pins)]); }
   catch (error) { if (generation === animationOpenGeneration) showToast(error.message); return; }
-  if (generation !== animationOpenGeneration || state.project?.projectId !== projectId || state.project.revision !== revision || state.workspace !== workspace) return;
+  if (libraryGeneration !== libraryReadGeneration || generation !== animationOpenGeneration || state.project?.projectId !== projectId || state.project.revision !== revision || state.workspace !== workspace) return;
   let editor;
   editor = createAnimationEditorController({ initial: { projectId, projectRevision: revision, asset: record, selectedSlices: bindings }, host: {
     getContext: () => animationCurrentContext(editor), getSavedCuts: () => currentProjectSlices().map(({ slice }) => ({ ...slice, name: savedSliceLabel(slice), sliceVersion: slice.version })),
@@ -2551,18 +2841,18 @@ async function openAnimationEditor({ asset = null, pins = [], trigger = null } =
   } });
   activeAnimationEditor = editor; animationReturnContext = saved; elements['workspace-content'].replaceChildren(editor.element); editor.afterMount();
 }
-function renderAnimationReviews() {
+function renderAnimationReviews(selectedId = null) {
   const fragment = document.createDocumentFragment(), library = currentClipLibrary();
-  const pending = library.proposals.filter(proposal => ['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
+  const pending = library.proposals.filter(proposal => selectedId ? proposal.proposalId === selectedId : ['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
   for (const controller of animationReviewControllers.values()) { const review = controller.getState(); if (review.projectId === state.project.projectId && ['saving', 'uncertain'].includes(review.status) && !pending.some(proposal => proposal.proposalId === review.proposal.proposalId)) pending.push(review.proposal); }
   if (pending.length) fragment.append(sectionHeading('Animation proposals', 'Compare the saved and proposed frames. Your feedback returns to the agent; acceptance saves the Animation.'));
-  for (const proposal of pending) {
+  for (const proposal of pending.filter(value => !selectedId || value.proposalId === selectedId)) {
     const projectId = state.project.projectId, key = `${projectId}:${proposal.proposalId}`;
     const getContext = () => ({ projectId: state.project?.projectId, projectRevision: state.project?.revision, proposal: currentClipLibrary().proposals.find(value => value.proposalId === proposal.proposalId), asset: currentClipLibrary().assets.find(value => value.assetId === proposal.content.assetId) ?? null });
     let controller = animationReviewControllers.get(key);
     if (controller && ['idle', 'done'].includes(controller.getState().status) && !controller.getState().intent && proposal.proposalVersion > controller.getState().proposal.proposalVersion) { controller.dispose(); animationReviewControllers.delete(key); controller = null; }
     if (!controller) { controller = createAnimationReviewController({ initial: { projectId, projectRevision: state.project.revision, proposal, currentAsset: getContext().asset }, host: {
-      getContext, canRead: animationSupported, canMutate: animationCanMutate, resolveCuts: (pins, options) => resolveAnimationCuts(projectId, pins, options),
+      getContext, canRead: animationSupported, canMutate: animationCanMutate, onDetails: detail => libraryOpenReviewDetail('animation', detail), resolveCuts: (pins, options) => resolveAnimationCuts(projectId, pins, options),
       resolveDecision: (intent, options) => animationPost(`${animationPath(projectId)}/clip-proposals/${encodeURIComponent(intent.proposalId)}/resolve`, intent, options),
       refresh: () => loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }),
       onSaved: () => loadProject(projectId, { signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }),
@@ -2570,7 +2860,7 @@ function renderAnimationReviews() {
     } }); animationReviewControllers.set(key, controller); }
     controller.reconcileContext(); fragment.append(controller.element); queueMicrotask(() => { if (controller.element.isConnected) controller.afterMount(); });
   }
-  const completed = library.proposals.filter(proposal => !['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
+  const completed = library.proposals.filter(proposal => !['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status) && (!selectedId || proposal.proposalId === selectedId));
   if (completed.length) { const history = document.createElement('details'), summary = document.createElement('summary'); summary.textContent = `Completed Animation reviews (${completed.length})`; history.append(summary); for (const proposal of completed) { const row = document.createElement('p'); row.textContent = `${proposal.content.name} · ${proposal.status}`; history.append(row); } fragment.append(history); }
   return fragment;
 }
@@ -2628,6 +2918,7 @@ function assemblyLibraryCard(asset) {
 function returnFromAssemblyEditor(editor) {
   if (activeAssemblyEditor !== editor) return;
   const saved = assemblyEditorReturnContext;
+  libraryRestoreOrigin(saved?.library, editor.getState());
   assemblyEmbeddedControllers.get(editor)?.dispose(); assemblyEmbeddedControllers.delete(editor);
   editor.dispose(); activeAssemblyEditor = null; activeEmbeddedAssetEditor = null; assemblyEditorReturnContext = null;
   document.body.dataset.assemblyEditorOpen = 'false';
@@ -2636,7 +2927,7 @@ function returnFromAssemblyEditor(editor) {
   requestAnimationFrame(() => {
     if (activeAssemblyEditor || activeAssetEditor || state.workspace !== (saved?.workspace ?? 'assets')) return;
     [...elements['workspace-content'].querySelectorAll('[data-asset-focus-key]')].find(control => control.dataset.assetFocusKey === saved?.focus)?.focus({ preventScroll: true });
-    window.scrollTo(saved?.x ?? 0, saved?.y ?? 0);
+    if (saved?.library) libraryRestoreCurrent(); else window.scrollTo(saved?.x ?? 0, saved?.y ?? 0);
   });
 }
 
@@ -2673,13 +2964,14 @@ function editAssemblyCustomGeometry(editor, { draft, artwork, title }) {
 
 async function openAssemblyEditor({ asset = null, trigger = null } = {}) {
   if (!assemblyCanMutate() || !mayAbandonAssetAuthoring()) return;
+  const libraryGeneration = libraryReadGeneration;
   const generation = ++assemblyOpenGeneration, projectId = state.project.projectId, revision = state.project.revision, workspace = state.workspace;
-  const saved = { workspace, x: window.scrollX, y: window.scrollY, focus: trigger?.dataset.assetFocusKey ?? null };
+  const saved = { workspace, x: window.scrollX, y: window.scrollY, focus: trigger?.dataset.assetFocusKey ?? null, library: libraryOrigin() };
   captureAssetDomState();
   let record = asset;
   try { if (asset) record = await readAssemblyDetail(asset, { retry: true }); }
   catch (error) { if (generation === assemblyOpenGeneration && state.project?.projectId === projectId && state.workspace === workspace) showToast(error.message); return; }
-  if (generation !== assemblyOpenGeneration || state.project?.projectId !== projectId || state.project?.revision !== revision || state.workspace !== workspace || !assemblyCanMutate()) return;
+  if (libraryGeneration !== libraryReadGeneration || generation !== assemblyOpenGeneration || state.project?.projectId !== projectId || state.project?.revision !== revision || state.workspace !== workspace || !assemblyCanMutate()) return;
   let editor;
   const leafMap = new Map([...currentAssetLibrary().assets, ...(record?.leafAssets ?? [])].map(leaf => [`${leaf.assetId}@${leaf.assetVersion}:${leaf.metadataVersion}`, leaf]));
   editor = createAssemblyEditorController({ initial: { projectId, projectRevision: revision, asset: record, assets: [...leafMap.values()] }, host: {
@@ -2707,15 +2999,15 @@ async function openAssemblyEditor({ asset = null, trigger = null } = {}) {
   cancelPinnedAssetsOnWorkspaceExit('assets'); state.workspace = 'assets'; history.replaceState(null, '', '#assets'); renderWorkspace();
 }
 
-function renderAssemblyReviews() {
+function renderAssemblyReviews(selectedId = null) {
   const library = currentAssemblyLibrary(), fragment = document.createDocumentFragment();
-  const pending = library.proposals.filter(proposal => ['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
+  const pending = library.proposals.filter(proposal => selectedId ? proposal.proposalId === selectedId : ['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
   for (const controller of assemblyReviewControllers.values()) {
     const review = controller.getState();
     if (review.projectId === state.project.projectId && ['saving', 'uncertain'].includes(review.status) && !pending.some(proposal => proposal.proposalId === review.proposal.proposalId)) pending.push(review.proposal);
   }
   if (pending.length) fragment.append(sectionHeading('Assembly proposals', 'Review the complete proposed composition. Acceptance saves one Assembly version; source Assets remain pinned.'));
-  for (const proposal of pending) {
+  for (const proposal of pending.filter(value => !selectedId || value.proposalId === selectedId)) {
     const projectId = state.project.projectId, key = `${projectId}:${proposal.proposalId}`;
     let controller = assemblyReviewControllers.get(key);
     const getContext = () => {
@@ -2730,7 +3022,7 @@ function renderAssemblyReviews() {
     }
     if (!controller) {
       controller = createAssemblyReviewController({ initial: { projectId, projectRevision: state.project.revision, proposal, currentAsset: getContext().asset }, host: {
-        getContext, canRead: assemblySupported, canMutate: assemblyCanMutate, setMutationPending: setAssetMutationPending, announce: showToast,
+        getContext, canRead: assemblySupported, canMutate: assemblyCanMutate, onDetails: detail => libraryOpenReviewDetail('assembly', detail), setMutationPending: setAssetMutationPending, announce: showToast,
         resolveDraft: async (content, selection, expectedRevision, { signal } = {}) => {
           const { assetId, name, kind, metadata, assembly } = content;
           const response = await api(`/api/projects/${encodeURIComponent(projectId)}/assemblies/resolve-draft`, { method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, signal, body: JSON.stringify({ expectedRevision, assetId, name, kind, metadata, assembly, selection }) });
@@ -2744,7 +3036,7 @@ function renderAssemblyReviews() {
     }
     controller.reconcileContext(); fragment.append(controller.element); queueMicrotask(() => { if (controller.element.isConnected) controller.afterMount(); });
   }
-  const completed = library.proposals.filter(proposal => !['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status));
+  const completed = library.proposals.filter(proposal => !['PENDING', 'CHANGES_REQUESTED'].includes(proposal.status) && (!selectedId || proposal.proposalId === selectedId));
   if (completed.length) {
     const history = document.createElement('details'), summary = document.createElement('summary'); summary.textContent = `Completed Assembly reviews (${completed.length})`; history.append(summary);
     for (const proposal of completed) { const row = document.createElement('p'); row.textContent = `${proposal.content.name} · ${proposal.status} · proposal v${proposal.proposalVersion}${proposal.feedback ? ` · ${proposal.feedback}` : ''}`; history.append(row); }
@@ -2782,6 +3074,7 @@ function assetEditorCurrentContext(editor) {
 function returnFromAssetEditor(editor) {
   if (activeAssetEditor !== editor) return;
   const saved = assetEditorReturnContext;
+  libraryRestoreOrigin(saved?.library, editor.getState());
   editor.dispose(); activeAssetEditor = null; assetEditorReturnContext = null;
   document.body.dataset.assetEditorOpen = 'false';
   state.workspace = saved?.workspace ?? 'assets'; history.replaceState(null, '', `#${state.workspace}`);
@@ -2792,7 +3085,7 @@ function returnFromAssetEditor(editor) {
     const control = controls.find((item) => (saved?.assetFocus && item.dataset.assetFocusKey === saved.assetFocus)
       || (saved?.cutterFocus && cutterControlKey(item) === saved.cutterFocus)
       || (saved?.sliceId && item.dataset.createAssetSlice === saved.sliceId));
-    control?.focus({ preventScroll: true }); window.scrollTo(saved?.x ?? 0, saved?.y ?? 0);
+    control?.focus({ preventScroll: true }); if (saved?.library) libraryRestoreCurrent(); else window.scrollTo(saved?.x ?? 0, saved?.y ?? 0);
   });
 }
 
@@ -2803,7 +3096,7 @@ function openAssetEditor({ asset = null, slice = null, trigger = null }) {
   const pixelSize = { width: binding?.width ?? binding?.rectangle?.width, height: binding?.height ?? binding?.rectangle?.height };
   const digest = binding?.digest;
   if (!/^[a-f0-9]{64}$/.test(digest ?? '')) { showToast('The exact saved image is unavailable. Reload before opening this Asset.'); return; }
-  assetEditorReturnContext = { workspace: state.workspace, x: window.scrollX, y: window.scrollY,
+  assetEditorReturnContext = { workspace: state.workspace, x: window.scrollX, y: window.scrollY, library: libraryOrigin(),
     assetFocus: trigger?.dataset.assetFocusKey ?? null, cutterFocus: cutterControlKey(trigger), sliceId: trigger?.dataset.createAssetSlice ?? null };
   let editor;
   editor = createAssetEditorController({
@@ -2838,6 +3131,22 @@ function openAssetEditor({ asset = null, slice = null, trigger = null }) {
 
 window.addEventListener('beforeunload', (event) => {
   if (activeAnimationEditor || [...animationReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status)) || activeAssetEditor || activeAssemblyEditor || [...assemblyReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status))) { event.preventDefault(); event.returnValue = ''; }
+});
+elements['workspace-content'].addEventListener('click', libraryHandleClick);
+elements['workspace-content'].addEventListener('input', event => {
+  if (event.target.dataset.libraryFilter !== 'search') return;
+  captureLibraryDom(); libraryUi.filters[libraryUi.tab].search = event.target.value; libraryRefreshListing();
+});
+elements['workspace-content'].addEventListener('change', event => {
+  const field = event.target.dataset.libraryFilter;
+  if (!['content', 'use'].includes(field)) return;
+  captureLibraryDom(); libraryUi.filters[libraryUi.tab][field] = event.target.value; libraryRefreshListing();
+});
+elements['workspace-content'].addEventListener('click', event => {
+  const control = event.target.closest('[data-library-native-proposal]'); if (!control || control.disabled || state.assetMutationPending) return;
+  const proposal = currentAssetLibrary().proposals.find(value => value.proposalId === control.dataset.libraryNativeProposal);
+  const item = proposal?.items.find(value => value.itemId === control.dataset.libraryNativeItem); if (!item) return;
+  libraryOpenReviewDetail('image', { side: 'proposed', record: item, projectId: state.project.projectId, projectRevision: state.project.revision, proposalId: proposal.proposalId, proposalVersion: proposal.proposalVersion, itemId: item.itemId });
 });
 elements['workspace-content'].addEventListener('click', (event) => {
   const animationOpen = event.target.closest('[data-animation-open]'), animationCreate = event.target.closest('[data-create-animation]');
@@ -2887,64 +3196,7 @@ function renderSliceVocabulary() {
   section.append(grid); return section;
 }
 
-function renderAssetLibrary(snapshot) {
-  const fragment = document.createDocumentFragment();
-  const library = currentAssetLibrary(snapshot);
-  const assemblies = currentAssemblyLibrary(snapshot).assets;
-  const inventory = [...library.assets, ...assemblies, ...currentClipLibrary(snapshot).assets];
-  const filters = document.createElement('section'); filters.className = 'asset-filters';
-  const search = document.createElement('input'); search.type = 'search'; search.value = state.assetUi.search;
-  search.placeholder = 'Search name, ID, or tag'; search.dataset.assetFilter = 'search';
-  search.dataset.assetFocusKey = 'asset-filter-search'; search.setAttribute('aria-label', 'Search V2 assets');
-  const filterSelect = (name, label, values, current) => {
-    const field = document.createElement('label');
-    const copy = document.createElement('span'); copy.textContent = label;
-    const select = document.createElement('select'); select.dataset.assetFilter = name;
-    select.dataset.assetFocusKey = `asset-filter-${name}`;
-    for (const [value, text] of values) {
-      const option = document.createElement('option'); option.value = value; option.textContent = text; select.append(option);
-    }
-    select.value = current; field.append(copy, select); return field;
-  };
-  filters.append(
-    search,
-    filterSelect('kind', 'Kind', [['all', 'All kinds'], ['surface', 'Surface'], ['prop', 'Prop'], ['item', 'Item']], state.assetUi.kind),
-    filterSelect('lifecycle', 'Lifecycle', [['all', 'All lifecycle states'], ...['DRAFT', 'METADATA_COMPLETE', 'VALIDATED', 'FINAL'].map((value) => [value, value.replace('_', ' ')])], state.assetUi.lifecycle),
-    filterSelect('findingSeverity', 'Findings', [['all', 'All findings'], ['clear', 'Clear'], ['ERROR', 'Errors'], ['WARNING', 'Warnings'], ['INFO', 'Info']], state.assetUi.findingSeverity),
-  );
-  fragment.append(sectionHeading('Asset library', 'Filter reusable assets. Each card shows what the asset is for, whether it is ready, and which exact image slice it uses.'), filters);
-  if (assemblySupported()) {
-    const create = document.createElement('button'); create.type = 'button'; create.className = 'secondary'; create.textContent = 'Create Assembly'; create.dataset.createAssembly = ''; create.dataset.assetFocusKey = 'create-assembly'; create.disabled = !assemblyCanMutate();
-    const notice = document.createElement('p'); notice.className = 'assembly-note'; notice.textContent = 'Assemblies combine exact saved image and Animation Assets. Room placement for Assemblies is not supported yet.';
-    fragment.append(create, notice);
-  }
-
-  const searchText = state.assetUi.search.trim().toLocaleLowerCase('en-US');
-  const filtered = inventory.filter((asset) => (
-    (!searchText || [asset.name, asset.assetId, ...(asset.metadata?.tags ?? [])]
-      .some((value) => String(value).toLocaleLowerCase('en-US').includes(searchText)))
-    && (state.assetUi.kind === 'all' || asset.kind === state.assetUi.kind)
-    && (state.assetUi.lifecycle === 'all' || asset.lifecycle === state.assetUi.lifecycle)
-    && (state.assetUi.findingSeverity === 'all'
-      || (state.assetUi.findingSeverity === 'clear' && !(asset.findings ?? []).length)
-      || (asset.findings ?? []).some(({ severity }) => severity === state.assetUi.findingSeverity))
-  ));
-  const count = document.createElement('p'); count.className = 'filter-result';
-  count.setAttribute('aria-live', 'polite'); count.textContent = `${filtered.length} of ${inventory.length} assets`;
-  fragment.append(count);
-  if (filtered.length) {
-    const grid = document.createElement('div'); grid.className = 'card-grid asset-grid asset-inventory-grid';
-    grid.dataset.assetScroll = 'asset-inventory'; filtered.forEach((asset) => grid.append(asset.contentKind === 'assembly' ? assemblyLibraryCard(asset) : asset.contentKind === 'animation' ? animationLibraryCard(asset) : renderV2AssetCard(asset)));
-    fragment.append(grid);
-  } else fragment.append(emptyState('No V2 assets match', inventory.length ? 'Change the current search or filters.' : 'Choose a saved slice below to prepare your first asset for review.'));
-  fragment.append(renderAnimationReviews(), renderAssemblyReviews(), renderProposalReview(library.proposals), renderSliceVocabulary());
-
-  if (snapshot.assets.length) {
-    fragment.append(sectionHeading('Legacy asset inventory', 'Checkpoint 1 assets remain unchanged and are not claimed as V2-valid.'));
-    fragment.append(renderCollection(snapshot.assets, 'assets'));
-  }
-  return fragment;
-}
+function renderAssetLibrary(snapshot) { return renderLibraryWorkspace(snapshot); }
 
 function currentRoomLibrary(snapshot = state.project?.snapshot) {
   return snapshot?.roomLibrary ?? { schemaVersion: 1, archetypes: [], variants: [], proposals: [] };
@@ -5393,15 +5645,15 @@ function renderBackups() {
 }
 
 function renderActivityWorkspace() {
-  if (!state.activity.length) return emptyState('No activity', 'Accepted commands and durable denied or failed agent attempts will appear here.');
-  const grid = document.createElement('div');
-  grid.className = 'card-grid';
-  for (const event of [...state.activity].reverse()) {
-    grid.append(card(event.summary, event.actor.kind, event.commandType, [
-      ['Revision', event.revision], ['Actor', event.actor.displayName || event.actor.id], ['Task', event.taskId], ['Time', new Date(event.occurredAt).toLocaleString()],
-    ]));
-  }
-  return grid;
+  const root = document.createDocumentFragment();
+  const completed = libraryAllGroups().filter(group => !group.pending);
+  if (completed.length) root.append(renderLibraryHistory({ groups: completed }));
+  if (!state.activity.length) { if (!completed.length) root.append(emptyState('No activity', 'Saved decisions and durable activity appear here.')); return root; }
+  const grid = document.createElement('div'); grid.className = 'card-grid';
+  for (const event of [...state.activity].reverse()) grid.append(card(event.summary, event.actor.kind, event.commandType, [
+    ['Revision', event.revision], ['Actor', event.actor.displayName || event.actor.id], ['Task', event.taskId], ['Time', new Date(event.occurredAt).toLocaleString()],
+  ]));
+  root.append(grid); return root;
 }
 
 function workspaceRenderFingerprint() {
@@ -5453,6 +5705,7 @@ function workspaceRenderFingerprint() {
     backupOverview: state.workspace === 'backups' ? state.backupOverview : null,
     backupUi: state.workspace === 'backups' ? state.backupUi : null,
     backupMutationPending: state.workspace === 'backups' ? state.backupMutationPending : false,
+    libraryUi: state.workspace === 'assets' ? { projectId: libraryUi.projectId, route: libraryUi.route, tab: libraryUi.tab, filters: libraryUi.filters } : null,
     assetUi: state.workspace === 'assets' ? {
       search: state.assetUi.search,
       kind: state.assetUi.kind,
@@ -5533,6 +5786,7 @@ function renderWorkspace({
     state.cutterDeferredRender = true;
     return;
   }
+  if (libraryHasEditor()) delete elements['workspace-content'].dataset.libraryRoute;
   captureCutterScroll();
   const retainedCutterMain = state.workspace === 'sources' && state.cutter?.view === 'edit' ? elements['workspace-content'].querySelector('[data-cutter-main]') : null;
   const cutterFocusKey = state.cutter ? cutterControlKey(document.activeElement) : null;
@@ -5562,6 +5816,7 @@ function renderWorkspace({
   }[state.workspace] || 'Project overview';
   elements['workspace-eyebrow'].textContent = title;
   renderWorkspaceHeader();
+  document.body.dataset.libraryWorkspace = String(state.workspace === 'assets' && !libraryHasEditor());
   const selectedSourceFile = sourceIntakeFormCache?.querySelector('[data-source-file]');
   if (state.workspace === 'sources' && sourceIntakeFormCache?.isConnected
       && (state.sourceFileChooserActive || selectedSourceFile?.files?.length > 0)) {
@@ -5612,6 +5867,7 @@ function renderWorkspace({
     return;
   }
   const snapshot = state.project.snapshot;
+  if (state.workspace === 'assets') librarySetProject(libraryUi, state.project.projectId);
   let content;
   if (state.workspace === 'overview') content = renderOverview(snapshot);
   else if (state.workspace === 'sources') content = renderSources(snapshot.sources);
@@ -5622,6 +5878,9 @@ function renderWorkspace({
   else if (state.workspace === 'tasks') content = renderTasks();
   else if (state.workspace === 'levels') content = renderCollection(snapshot.levels, 'levels');
   else content = renderActivityWorkspace();
+  queueMicrotask(libraryCollectPreviewUrls);
+  if (state.workspace === 'assets') elements['workspace-content'].dataset.libraryRoute = libraryRouteIdentity();
+  else delete elements['workspace-content'].dataset.libraryRoute;
   if (retainedRoomCanvas) {
     const replacementCanvas = content.querySelector?.('.room-canvas-panel');
     if (replacementCanvas) {
@@ -6033,6 +6292,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
     : null;
   if (signal?.aborted || (canApply && !canApply()) || generation !== projectLoadGeneration || elements['project-select'].value !== projectId) return false;
   if (state.project?.projectId !== projectId) {
+    libraryClearReads(); librarySetProject(libraryUi, projectId);
     state.sourceDraft = null;
     state.resumingIntakeId = null;
     resetSourceIntakeForm();

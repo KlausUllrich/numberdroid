@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { assemblyReviewIntent, assemblyProposalDiffRows, createAssemblyReviewController } from '../apps/studio-server/public/assembly-review-view.js';
+import { libraryInventory, createLibraryUiState, librarySetProject } from '../apps/studio-server/public/library-state.js';
 
 const app = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
 function proposal() { return { proposalId: 'proposal.a', proposalVersion: 2, status: 'PENDING', feedback: null, content: { assetId: 'assembly.a', operation: 'create', expectedAssetVersion: 0, expectedMetadataVersion: 0, name: 'Machine', kind: 'prop', metadata: { role: null, tags: [] }, assembly: {
@@ -13,10 +14,20 @@ function proposal() { return { proposalId: 'proposal.a', proposalVersion: 2, sta
 test('Assembly and Animation inventory is combined only in Library while Room source remains native', () => {
   const currentNative = app.slice(app.indexOf('function currentAssetLibrary'), app.indexOf('function currentAssemblyLibrary'));
   assert.doesNotMatch(currentNative, /assemblyLibrary|clipLibrary/);
-  const library = app.slice(app.indexOf('function renderAssetLibrary'), app.indexOf('function currentRoomLibrary'));
-  assert.match(library, /const inventory = \[\.\.\.library.assets, \.\.\.assemblies, \.\.\.currentClipLibrary\(snapshot\).assets\]/);
-  assert.match(library, /asset.contentKind === 'assembly' \? assemblyLibraryCard/);
-  assert.match(library, /Room placement for Assemblies is not supported yet/);
+  const asset = (assetId, name) => ({ assetId, name, assetVersion: 1, metadataVersion: 1, kind: 'prop', metadata: { tags: [] } });
+  const snapshot = { assetLibrary: { assets: [asset('image.one', 'Image')] }, clipLibrary: { assets: [asset('clip.one', 'Animation')] }, assemblyLibrary: { assets: [asset('assembly.one', 'Assembly')] } };
+  let navigation;
+  const library = app.slice(app.indexOf('function renderLibraryWorkspace'), app.indexOf('function libraryHandleClick'));
+  const render = runInNewContext(`${library}; renderLibraryWorkspace`, {
+    state: { project: { projectId: 'project.test' } }, libraryUi: createLibraryUiState('project.test'), librarySetProject, libraryInventory,
+    libraryAllGroups: () => [], libraryCompactCard() {}, libraryCardObservers: new Set(), assemblyCanMutate: () => true,
+    document: { createDocumentFragment: () => ({ append() {} }) },
+    renderLibraryNavigation: options => { navigation = options; return {}; },
+  });
+  render(snapshot);
+  assert.deepEqual(navigation.items.map(item => item.contentKind).sort(), ['animation', 'assembly', 'image']);
+  const native = runInNewContext(`${currentNative}; currentAssetLibrary`, { state: { project: { snapshot } } });
+  assert.equal(native(), snapshot.assetLibrary, 'Room/native readers must retain the original native library');
   assert.match(app, /activeAssemblyEditor\?\.getState\(\).gesture \|\| activeEmbeddedAssetEditor\?\.getState\(\).gesture/);
   assert.match(app, /if \(link.dataset.workspace !== state.workspace && !mayAbandonAssetAuthoring\(\)\)/);
 });
@@ -33,16 +44,21 @@ test('Assembly UI uses its independent trusted store capability and excludes rem
   assert.match(app, /state\.assemblyAuthoringSupport = response\.assemblyAuthoringSupport \?\? 'UNAVAILABLE'/);
 });
 
-test('a completed review unlocks Create Assembly without rebuilding its page', () => {
+test('a completed review unlocks both Library and legacy Create Assembly entrances without rebuilding', () => {
   const code = app.slice(app.indexOf('function setAssetMutationPending'), app.indexOf('function setRoomMutationPending'));
-  const state = { assetMutationPending: true }, control = { disabled: true }; let supported = true;
+  const state = { assetMutationPending: true }, controls = [{ disabled: true }, { disabled: true }]; let supported = true;
   const setPending = runInNewContext(`${code}; setAssetMutationPending`, { state, updateMutationControls() {},
     assemblyCanMutate: () => supported && !state.assetMutationPending,
-    elements: { 'workspace-content': { querySelectorAll: selector => selector === '[data-create-assembly]' ? [control] : [] } },
+    elements: { 'workspace-content': { querySelectorAll: selector => {
+      const result = [];
+      if (selector.includes('[data-create-assembly]')) result.push(controls[0]);
+      if (selector.includes('[data-library-action="create-assembly"]')) result.push(controls[1]);
+      return result;
+    } } },
   });
-  setPending(false); assert.equal(control.disabled, false);
-  setPending(true); assert.equal(control.disabled, true);
-  supported = false; setPending(false); assert.equal(control.disabled, true);
+  setPending(false); assert(controls.every(control => control.disabled === false));
+  setPending(true); assert(controls.every(control => control.disabled === true));
+  supported = false; setPending(false); assert(controls.every(control => control.disabled === true));
 });
 
 test('exact Assembly cache refuses stale revision and never substitutes a newer returned pin', async () => {

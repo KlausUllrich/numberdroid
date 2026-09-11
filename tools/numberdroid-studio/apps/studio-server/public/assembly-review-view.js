@@ -35,13 +35,29 @@ export function createAssemblyReviewController({ initial, host }) {
   const element = node('section', '', 'proposal-review assembly-proposal-review');
   const state = { projectId: initial.projectId, projectRevision: initial.projectRevision, proposal: copy(initial.proposal), currentAsset: copy(initial.currentAsset ?? null),
     previewPlaying: false, feedback: '', scene: null, currentScene: null, leafAssets: [], currentPreviewMessage: null, previewSide: 'proposed', frame: null, selection: { stateId: initial.proposal.content.assembly.defaultStateId, variantId: initial.proposal.content.assembly.defaultVariantId },
-    load: 'idle', error: null, status: 'idle', intent: null };
+    load: 'idle', error: null, status: 'idle', intent: null, completedElsewhere: false };
   let disposed = false, generation = 0, readController = null, mutationController = null, playbackFrame = null;
   const artworks = new Map();
   const current = () => host.getContext();
+  const canInspect = side => !disposed && typeof host.onDetails === 'function'
+    && ['current', 'proposed'].includes(side) && !['saving', 'uncertain'].includes(state.status)
+    && host.canRead() && current().projectId === state.projectId
+    && Boolean(side === 'current' ? state.currentAsset : state.proposal.content);
+  function inspect(side) {
+    if (!canInspect(side)) return;
+    // Keep presentation clocks at their retained phase while the host shows Details.
+    if (playbackFrame !== null) { cancelAnimationFrame(playbackFrame); playbackFrame = null; }
+    for (const [key, artwork] of artworks) updateAssemblyArtwork(artwork, key === 'current' ? state.currentScene : state.scene, { projectId: state.projectId, playing: false });
+    host.onDetails(copy({ side, projectId: state.projectId, projectRevision: state.projectRevision,
+      proposalId: state.proposal.proposalId, proposalVersion: state.proposal.proposalVersion,
+      record: side === 'current' ? state.currentAsset : state.proposal.content,
+      scene: side === 'current' ? state.currentScene : state.scene, leafAssets: state.leafAssets,
+      selection: state.selection }));
+  }
   const conflict = () => {
     const context = current();
     if (context.projectId !== state.projectId) return 'Return to this project to review this proposal.';
+    if (['ACCEPTED', 'DISCARDED'].includes(state.proposal.status)) return null;
     if (context.projectRevision !== state.projectRevision || context.proposal?.proposalVersion !== state.proposal.proposalVersion || context.proposal?.status !== state.proposal.status) return 'The project or proposal changed. Recheck it before deciding; your feedback is retained.';
     const content = state.proposal.content;
     if (content.operation === 'update' && (!context.asset || context.asset.assetVersion !== content.expectedAssetVersion || context.asset.metadataVersion !== content.expectedMetadataVersion)) return 'The target Assembly changed. Ask the agent to revise this proposal against its current version.';
@@ -105,14 +121,27 @@ export function createAssemblyReviewController({ initial, host }) {
       if (change.detail) item.append(node('p', change.detail)); list.append(item);
     }
     changePanel.append(list);
+    if (typeof host.onDetails === 'function') {
+      const inspection = node('div', '', 'assembly-review-sides');
+      for (const side of ['current', 'proposed']) {
+        const control = node('button', `Inspect ${side}`, 'secondary'); control.type = 'button';
+        control.dataset.assemblyReviewDetails = side; control.dataset.assemblyReviewFocus = `details:${side}`;
+        control.disabled = !canInspect(side); inspection.append(control);
+      }
+      changePanel.append(inspection);
+    }
     if (changes.unchanged.length) { const unchanged = node('div', '', 'assembly-review-unchanged'); for (const text of changes.unchanged) unchanged.append(node('p', text)); changePanel.append(unchanged); }
     body.append(visual, changePanel);
     const status = node('div', '', 'assembly-review-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-    const message = state.error ?? (state.status === 'done' ? 'Your decision is saved.' : conflict());
+    const message = state.error ?? (state.status === 'done' ? state.completedElsewhere ? 'This review was completed elsewhere.' : 'Your decision is saved.' : conflict());
     status.dataset.error = String(Boolean(state.error || conflict()));
     status.append(node('p', message ?? (state.proposal.status === 'PENDING' ? 'Acceptance saves this complete Assembly update. Component source Assets stay unchanged.' : state.proposal.status === 'CHANGES_REQUESTED' ? 'Feedback is saved for the next agent round. No content was accepted.' : 'This review is complete.')));
     const nodes = [header, body, status];
     if (state.proposal.feedback) { const saved = node('div', '', 'assembly-review-saved-feedback'); saved.append(node('strong', 'Saved feedback'), node('p', state.proposal.feedback)); nodes.push(saved); }
+    if (state.completedElsewhere && state.feedback && state.feedback !== state.proposal.feedback) {
+      const retained = node('div', '', 'assembly-review-saved-feedback'); retained.dataset.assemblyReviewUnsentFeedback = '';
+      retained.append(node('strong', 'Unsent feedback'), node('p', state.feedback), node('small', 'Retained for reference. This completed review cannot receive another decision.')); nodes.push(retained);
+    }
     const button = (action, text, disabled = false) => { const control = node('button', text, action === 'ACCEPT' ? 'primary' : 'secondary'); control.type = 'button'; control.dataset.assemblyReviewAction = action; control.dataset.assemblyReviewFocus = action; control.disabled = disabled; return control; };
     if (state.proposal.status === 'PENDING' && state.status !== 'done') {
       const feedbackArea = node('div', '', 'assembly-review-feedback-area'), label = node('label'), feedback = node('textarea');
@@ -207,6 +236,8 @@ export function createAssemblyReviewController({ initial, host }) {
   element.addEventListener('change', event => { const key = event.target.dataset.assemblyReviewSelection; if (key) { state.selection[key] = event.target.value; void loadPreview(); } });
   element.addEventListener('click', event => { const side = event.target.closest('[data-assembly-review-side]');
     if (side && !side.disabled && ['current', 'proposed'].includes(side.dataset.assemblyReviewSide)) { state.previewSide = side.dataset.assemblyReviewSide; render(); return; }
+    const details = event.target.closest('[data-assembly-review-details]');
+    if (details?.dataset.assemblyReviewDetails) { if (!details.disabled) inspect(details.dataset.assemblyReviewDetails); return; }
     const action = event.target.closest('[data-assembly-review-action]'); if (!action || action.disabled) return;
     const key = action.dataset.assemblyReviewAction; if (key === 'playback') { state.previewPlaying = !state.previewPlaying; render(); } else if (key === 'retry') void decide(null, true); else if (key === 'recheck' || key === 'check') void recheck(key === 'check'); else void decide(key); });
   function tickPlayback(now) {
@@ -219,7 +250,16 @@ export function createAssemblyReviewController({ initial, host }) {
   render();
   return { element, getState: () => state, afterMount() { if (state.load === 'idle') void loadPreview(); else render(); }, reconcileContext() {
     const context = current();
-    if (state.status === 'done' && context.projectId === state.projectId && context.proposal && context.proposal.status !== 'PENDING') {
+    const sameProposal = context.projectId === state.projectId && context.proposal?.proposalId === state.proposal.proposalId;
+    if (sameProposal && ['idle', 'done'].includes(state.status) && !state.intent
+        && ['ACCEPTED', 'DISCARDED'].includes(context.proposal.status) && context.proposal.proposalVersion > state.proposal.proposalVersion) {
+      state.completedElsewhere = state.status === 'idle' || state.completedElsewhere;
+      state.proposal = copy(context.proposal); state.currentAsset = copy(context.asset ?? null); state.projectRevision = context.projectRevision;
+      state.status = 'done'; state.error = null;
+      state.load = 'idle'; state.scene = null; state.currentScene = null; state.frame = null; state.leafAssets = [];
+      void loadPreview(); render(); return;
+    }
+    if (state.status === 'done' && !state.intent && sameProposal && context.proposal.status !== 'PENDING') {
       state.proposal = copy(context.proposal); state.currentAsset = copy(context.asset ?? null); state.projectRevision = context.projectRevision;
     }
     render();

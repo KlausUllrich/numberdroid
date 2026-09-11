@@ -7,7 +7,10 @@ Assets/Pending changes, compact whole previews, retained detail return, related
 review groups, partial acceptance and completed reviews in Activity.
 This is design approval; no Library production live gate is closed.
 
-Implement Library navigation and existing detail/editor integration first.
+Library navigation and existing detail/editor integration is now an implemented
+candidate under its [bounded contract](../../tools/numberdroid-studio/docs/LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md).
+[VT-023](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#vt-023--library-navigation-and-contextual-details)
+tracks production acceptance, separately from the approved mockup.
 Then implement the shared Review command/state workflow for dependencies and
 partial pending work under its own bounded contract. Sources navigation follows
 later. Preserve the accepted Cutter/Asset/Animation editors and use a real agent

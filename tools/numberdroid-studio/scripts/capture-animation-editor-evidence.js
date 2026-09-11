@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { libraryNavigation, libraryDetailsSelector } from './library-browser-navigation.js';
 import { captureAnimationCut } from './capture-animation-cut-evidence.js';
 import { ANIMATION_FIXTURE_PROJECT as projectId, ANIMATION_FIXTURE_CLIP as clipId, ANIMATION_FIXTURE_ASSEMBLY as assemblyId, ANIMATION_FIXTURE_CLIP_PROPOSAL as proposalId } from './prepare-animation-editor-fixture.js';
 
@@ -15,9 +16,12 @@ export async function captureAnimationEditor({ devtools, sessionId, reopen = fal
   const field = async (name, value) => { await evaluate(`(()=>{const n=document.querySelector('[data-animation-field='+CSS.escape(${JSON.stringify(name)})+']');if(!n||n.disabled)throw new Error('Unavailable Animation field');n.focus({preventScroll:true});n.value=${JSON.stringify(String(value))};n.dispatchEvent(new Event('input',{bubbles:true}));n.dispatchEvent(new Event('change',{bubbles:true}));})()`); await settle(); };
   const project = () => evaluate(`fetch('/api/projects/${projectId}').then(r=>r.json())`);
   const view = () => evaluate(`(()=>{const canvas=document.querySelector('[data-animation-canvas]'),r=canvas?.getBoundingClientRect();return{canvas:r?[r.x,r.y,r.width,r.height]:null,image:document.querySelector('[data-animation-image]')?.getAttribute('href'),frames:[...document.querySelectorAll('[data-animation-frame]')].map(n=>n.dataset.animationFrame),status:document.querySelector('[data-animation-status]')?.textContent,fps:document.querySelector('[data-animation-field="fps"]')?.value,mode:document.querySelector('[data-animation-field="playbackMode"]')?.value,source:document.querySelector('.animation-source-reference')?.textContent};})()`);
-  await waitFor(`document.getElementById('connection-label')?.textContent==='Live'&&Boolean(document.querySelector('[data-animation-open="${clipId}"]'))`, 'Animation Library');
+  const navigation = libraryNavigation({ evaluate, click, waitFor });
+  await waitFor(`document.getElementById('connection-label')?.textContent==='Live'&&Boolean(document.querySelector(${JSON.stringify(libraryDetailsSelector('animation', clipId))}))`, 'Animation Library');
   const review = reopen ? null : await captureReview();
-  await click(`[data-animation-open="${clipId}"]`);
+  if (!reopen) await navigation.assets();
+  await navigation.details('animation', clipId);
+  await click('[data-library-action="edit"]');
   await waitFor(`Boolean(document.querySelector('[data-animation-image]')?.getAttribute('href'))&&!document.querySelector('[data-animation-action="save"]')?.disabled`, 'Exact Animation frames');
   const result = { schemaVersion: 1, projectId, clipId, phase: reopen ? 'reopen' : 'edit', review, contextualCut: null };
   if (reopen) { const p = await project(), saved = p.snapshot.clipLibrary.assets.find(asset=>asset.assetId===clipId);
@@ -62,10 +66,11 @@ export async function captureAnimationEditor({ devtools, sessionId, reopen = fal
     assert.deepEqual(after.snapshot.assemblyLibrary.assets,preSave.snapshot.assemblyLibrary.assets,'Saving a Clip must not retarget Assemblies');result.exactSaveReplay=true;
   } finally { await evaluate('window.fetch=window.__animationSaveEvidence.originalFetch;delete window.__animationSaveEvidence;'); }
   await click(action('back'));
-  await waitFor(`Boolean(document.querySelector('[data-assembly-open="${assemblyId}"]'))`, 'Library return');
+  await navigation.assets();
   result.assembly = await captureAssembly();
   result.sourceMutationsOnlyThroughExplicitCutSave=true;result.savedAssemblyStillPinsClipV1=true;return result;
   async function captureReview() {
+    await navigation.review('animation', proposalId);
     const selector=`[data-animation-proposal="${proposalId}"]`, control=name=>`${selector} [data-animation-review-action="${name}"]`;
     await waitFor(`Boolean(document.querySelector(${JSON.stringify(selector)}+' [data-animation-review-canvas]'))`, 'Exact Clip review preview');
     const before=await project();
@@ -87,7 +92,7 @@ export async function captureAnimationEditor({ devtools, sessionId, reopen = fal
     return {plainTimingChange:true,currentProposedStable:true,feedbackValidationStable:true,requestChangesWithoutApplying:true};
   }
   async function captureAssembly() {
-    const before=await project();await click(`[data-assembly-open="${assemblyId}"]`);
+    const before=await project();await navigation.details('assembly', assemblyId);await click('[data-library-action="edit"]');
     const assemblyField=async(name,value)=>{await evaluate(`(()=>{const n=document.querySelector('[data-assembly-field='+CSS.escape(${JSON.stringify(name)})+']');if(!n)throw new Error('Missing Assembly field');n.value=${JSON.stringify(value)};n.dispatchEvent(new Event('change',{bubbles:true}));})()`);await settle();};
     await waitFor(`Boolean(document.querySelector('[data-assembly-canvas]'))`,'Saved Assembly editor');await assemblyField('preview.stateId','state.brewing');
     const group='[data-assembly-component="component.display"][data-assembly-content-kind="animation"]';

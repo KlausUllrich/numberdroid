@@ -7,11 +7,17 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
 import { prepareAnimationEditorFixture, ANIMATION_FIXTURE_PROJECT } from './prepare-animation-editor-fixture.js';
 import { captureAnimationEditor } from './capture-animation-editor-evidence.js';
+import { captureLibraryNavigation } from './capture-library-navigation-evidence.js';
+import { prepareLibraryNavigationFixture } from './prepare-library-navigation-fixture.js';
 import { closeBrowserAndRemoveProfile, finishCapture, trackProcessClose } from './browser-process-teardown.js';
 import { openDevtoolsSocket, waitForDevtoolsEndpoint } from './browser-devtools-startup.js';
 
 const [chromePath, output] = process.argv.slice(2);
 if (process.argv.length !== 4 || !isAbsolute(chromePath ?? '') || !isAbsolute(output ?? '')) throw new Error('Usage: verify-animation-editor-browser.js ABSOLUTE_CHROME ABSOLUTE_NEW_OUTPUT');
+const selectedLane = process.env.NUMBERDROID_BROWSER_LANE ?? 'all';
+if (!['all', 'animation', 'library'].includes(selectedLane)) throw new Error('NUMBERDROID_BROWSER_LANE must be all, animation or library.');
+const animationWidths = selectedLane === 'library' ? [] : [1440, 1060];
+const libraryWidths = selectedLane === 'animation' ? [] : [1440, 1060];
 const outputDirectory = resolve(output); await mkdir(outputDirectory, { recursive: false });
 const dataRoot = await mkdtemp(join(tmpdir(), 'numberdroid-animation-browser-')), cancellation = new AbortController();
 const cancel = () => cancellation.abort(new Error('Animation browser verification cancelled.'));
@@ -19,7 +25,8 @@ process.once('SIGTERM', cancel); process.once('SIGINT', cancel);
 const fingerprint = view => createHash('sha256').update(JSON.stringify({ revision: view.revision, snapshot: view.snapshot })).digest('hex');
 const closeServer = running => new Promise((done, reject) => running.server.close(error => error ? reject(error) : done()));
 
-async function browserCapture({ width, url, reopen = false }) {
+async function browserCapture({ width, url, reopen = false, library = false }) {
+  const lane = library ? 'library' : 'animation';
   const profile = await mkdtemp(join(tmpdir(), 'numberdroid-animation-chrome-'));
   const child = spawn(chromePath, ['--headless=new', '--no-sandbox', '--hide-scrollbars', '--lang=en-US', '--force-device-scale-factor=1', `--window-size=${width},900`,
     '--remote-debugging-port=0', '--remote-allow-origins=*', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-extensions', `--user-data-dir=${profile}`, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
@@ -36,7 +43,7 @@ async function browserCapture({ width, url, reopen = false }) {
   let captureError = null, result, captureSessionId = null;
   try {
     const startup = await waitForDevtoolsEndpoint(child, { trackedClose: tracked, signal: cancellation.signal, timeoutMs: 30_000 });
-    process.stdout.write(`${JSON.stringify({ phase: 'chrome-ready', width, reopen, elapsedMs: startup.elapsedMs })}\n`);
+    process.stdout.write(`${JSON.stringify({ phase: 'chrome-ready', lane, width, reopen, elapsedMs: startup.elapsedMs })}\n`);
     socket = await openDevtoolsSocket(startup.url, { signal: cancellation.signal });
     socket.addEventListener('message', event => { const message = JSON.parse(String(event.data));
       if (message.id) { const p = pending.get(message.id); if (!p) return; clearTimeout(p.timer); pending.delete(message.id); if (message.error) p.reject(new Error(message.error.message)); else p.done(message.result); }
@@ -66,9 +73,11 @@ async function browserCapture({ width, url, reopen = false }) {
     await devtools.send('Page.navigate', { url }, sessionId);
     const captureCheckpoint = async phase => {
       const image = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
-      await writeFile(join(outputDirectory, `animation-${width}-${phase}.png`), Buffer.from(image.data, 'base64'), { flag: 'wx' });
+      await writeFile(join(outputDirectory, `${lane}-${width}-${phase}.png`), Buffer.from(image.data, 'base64'), { flag: 'wx' });
     };
-    result = await captureAnimationEditor({ devtools, sessionId, reopen, captureCheckpoint });
+    result = library
+      ? await captureLibraryNavigation({ devtools, sessionId, captureCheckpoint })
+      : await captureAnimationEditor({ devtools, sessionId, reopen, captureCheckpoint });
     assert.deepEqual(imageFailures, [], 'A served image had an unexpected HTTP or network failure.');
     const imageUrls = [...servedPngUrls].sort();
     assert(imageUrls.length > 0, 'The native capture did not receive any successful PNG responses.');
@@ -95,7 +104,7 @@ async function browserCapture({ width, url, reopen = false }) {
     assert.deepEqual(exceptions, [], 'Native browser raised an unhandled runtime error.');
     const screenshot = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
     const dom = await devtools.send('Runtime.evaluate', { expression: 'document.documentElement.outerHTML', returnByValue: true }, sessionId);
-    const name = `animation-${width}${reopen ? '-reopened' : ''}`;
+    const name = `${lane}-${width}${reopen ? '-reopened' : ''}`;
     await writeFile(join(outputDirectory, `${name}.png`), Buffer.from(screenshot.data, 'base64'), { flag: 'wx' });
     await writeFile(join(outputDirectory, `${name}.dom.html`), dom.result.value, { flag: 'wx' });
     await writeFile(join(outputDirectory, `${name}.observation.json`), `${JSON.stringify({ browser, width, ...result }, null, 2)}\n`, { flag: 'wx' });
@@ -106,7 +115,7 @@ async function browserCapture({ width, url, reopen = false }) {
       try {
         const snapshot = await devtools.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, captureSessionId);
         const dom = await devtools.send('Runtime.evaluate', { expression: 'document.documentElement.outerHTML', returnByValue: true }, captureSessionId);
-        const name = `animation-${width}${reopen ? '-reopened' : ''}-failed`;
+        const name = `${lane}-${width}${reopen ? '-reopened' : ''}-failed`;
         await writeFile(join(outputDirectory, `${name}.png`), Buffer.from(snapshot.data, 'base64'), { flag: 'wx' });
         await writeFile(join(outputDirectory, `${name}.dom.html`), dom.result.value, { flag: 'wx' });
       } catch (diagnosticError) { process.stderr.write(`Failure evidence could not be captured: ${diagnosticError.message}\n`); }
@@ -125,7 +134,7 @@ async function browserCapture({ width, url, reopen = false }) {
 
 let complete = false;
 try {
-  for (const width of [1440, 1060]) {
+  for (const width of animationWidths) {
     if (cancellation.signal.aborted) throw cancellation.signal.reason;
     const dataDirectory = join(dataRoot, `fixture-${width}`), fixture = await prepareAnimationEditorFixture(dataDirectory);
     process.stdout.write(`${JSON.stringify({ phase: 'fixture-ready', width, revision: fixture.revision })}\n`);
@@ -140,12 +149,24 @@ try {
       await writeFile(join(outputDirectory, `animation-${width}-restart.json`), `${JSON.stringify({ schemaVersion: 1, projectId: ANIMATION_FIXTURE_PROJECT, revision: after.revision, semanticFingerprint: fingerprint(after), identicalAfterRestart: true, reopenReadOnly: true }, null, 2)}\n`, { flag: 'wx' });
     } finally { await closeServer(running); }
   }
+  // Independent fresh data prevents Library review decisions from changing the
+  // accepted Animation editor's saved-version and restart proof.
+  for (const width of libraryWidths) {
+    if (cancellation.signal.aborted) throw cancellation.signal.reason;
+    const dataDirectory = join(dataRoot, `library-fixture-${width}`);
+    const fixture = await prepareLibraryNavigationFixture(dataDirectory);
+    process.stdout.write(`${JSON.stringify({ phase: 'library-fixture-ready', width, revision: fixture.revision })}\n`);
+    const running = await startStudioHttpServer({ dataDirectory, host: '127.0.0.1', port: 0, storeMode: 'sqlite', pairingEnabled: false, operationsConfigurationFilename: null });
+    try { await browserCapture({ width, url: `http://127.0.0.1:${running.address.port}/#assets`, library: true }); }
+    finally { await closeServer(running); }
+  }
   complete = true;
 } finally {
   process.removeListener('SIGTERM', cancel); process.removeListener('SIGINT', cancel);
   if (complete) {
     await rm(dataRoot, { recursive: true, force: true });
     await assert.rejects(lstat(dataRoot), { code: 'ENOENT' });
-    await writeFile(join(outputDirectory, 'animation-teardown.json'), `${JSON.stringify({ schemaVersion: 1, browserProfilesClosedBeforeRemoval: 4, serverAndWorkerClosures: 4, temporaryDataRoot: dataRoot, temporaryDataRemovedAfterWritersClosed: true }, null, 2)}\n`, { flag: 'wx' });
+    const captureCount = animationWidths.length * 2 + libraryWidths.length;
+    await writeFile(join(outputDirectory, selectedLane === 'library' ? 'library-teardown.json' : 'animation-teardown.json'), `${JSON.stringify({ schemaVersion: 1, selectedLane, browserProfilesClosedBeforeRemoval: captureCount, serverAndWorkerClosures: captureCount, temporaryDataRoot: dataRoot, temporaryDataRemovedAfterWritersClosed: true }, null, 2)}\n`, { flag: 'wx' });
   } else process.stderr.write(`Animation verification data retained at ${dataRoot}\n`);
 }
