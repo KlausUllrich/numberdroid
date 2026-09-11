@@ -83,6 +83,38 @@ Klaus owns product/design departures, production live acceptance, pilot/source
 selection and separately gated export/release work. Engineering owns compatible
 implementation choices within the approved bounded block.
 
+## Task tracking evaluation — 2026-09-11
+
+Klaus requested BB **Tasks** as the working board and repository copies in
+**Taskboard** for evaluation. He currently finds repository-backed tasks more
+promising, but no permanent tracker migration has been decided. Both plugins are
+installed. Tasks project **Numberdroid Studio**, prefix **ND**, is linked to BB
+project `proj_m7fxp8qv76`. Read the working task and its repository copy before work;
+keep meaningful milestone status, criteria and links aligned manually. No automatic
+bidirectional synchronization is configured, and creating a task starts no agent.
+
+| Working task | Repository copy | Initial state / order |
+| --- | --- | --- |
+| ND-1 — Library navigation and contextual details | [#236](https://github.com/KlausUllrich/numberdroid/issues/236) | High priority, Todo; next implementation block |
+| ND-2 — Shared Review for related content | [#237](https://github.com/KlausUllrich/numberdroid/issues/237) | High priority, backlog; follows ND-1 |
+| ND-3 — Sources navigation/preparation design | [#238](https://github.com/KlausUllrich/numberdroid/issues/238) | Medium priority, backlog; follows ND-2, design discussion first |
+| ND-4 — Deferred VT-001 live checks | [#239](https://github.com/KlausUllrich/numberdroid/issues/239) | Low priority, backlog; human gate, nonblocking for ND-1/ND-2 |
+| ND-5 — Choose persistent authoring pilot | [#240](https://github.com/KlausUllrich/numberdroid/issues/240) | Low priority, backlog; remaining ND-4 gate and Klaus's source/scope choice |
+
+Use the installed Tasks skill/CLI; begin with `timeout 10s bb tasks show ND-1 --json`.
+Tasks is the active board during the evaluation. GitHub issues remain open until
+all their completion criteria, including required user verification, are met.
+Repository contracts and explicit user decisions remain authoritative.
+
+Taskboard is configured for GitHub repository KlausUllrich/numberdroid, but its
+current source view reports a schema integration error: **Unrecognized key: ghState**.
+This is not evidence that GitHub access is unavailable: the connected GitHub
+connector successfully created the linked issues. Recheck plugin status before
+claiming the Taskboard view is working; no credentials or third-party plugin source
+were changed during this task. Creating the repository copies does not fix that
+plugin error. Native task/mirror identities are retained in
+`/home/klaus/.bb/thread-storage/numberdroid-taskboard-evaluation-20260911.json`.
+
 ## Exact next block
 
 Write a bounded Library implementation contract based on the approved design,
