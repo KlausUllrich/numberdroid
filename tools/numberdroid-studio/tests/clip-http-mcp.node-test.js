@@ -129,7 +129,7 @@ test('Animation official SDK profile negotiates 25/7 and preserves exact correct
   await assert.rejects(gateway.queryClips({ schemaVersion: 1, projectId }), { code: 'ANIMATION_NEGOTIATION_REQUIRED' });
   await assert.rejects(gateway.negotiateAnimationV1({ schemaVersion: 1, projectId: 'project.foreign', profile: 'animation-v1' }), { code: 'CONTEXT_PROJECT_MISMATCH' });
   const negotiation = await gateway.negotiateAnimationV1({ schemaVersion: 1, projectId, profile: 'animation-v1' });
-  assert.equal(negotiation.storeSchemaVersion, 17);
+  assert.equal(negotiation.storeSchemaVersion, 18);
   const legacyFacade = createAgentToolCatalog(gateway, { contextProvider });
   await assert.rejects(legacyFacade.find(tool => tool.name === 'studio_project_read').execute({ schemaVersion: 1, projectId }),
     { code: 'ANIMATION_NEGOTIATION_REQUIRED' });

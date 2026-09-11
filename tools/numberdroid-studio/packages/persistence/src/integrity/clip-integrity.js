@@ -1,3 +1,4 @@
+import { assertReviewSavedRecord } from '../sqlite/sqlite-review-store.js';
 import { invariant } from '../../../domain/src/errors.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { applyClipCommand } from '../../../application/src/clip-service.js';
@@ -21,8 +22,9 @@ export function inspectClipIntegrity(database) {
       for (const row of [...versions, ...proposals].filter(value => value.provenance === 'native_revision')) {
         const creation = revisionRows.find(value => value.revision_number === row.created_revision);
         const revision = creation && JSON.parse(creation.revision_json);
+        const isReview = Object.hasOwn(row, 'asset_id') && JSON.parse(row.record_json).review;
         const expectedType = Object.hasOwn(row, 'asset_id')
-          ? row.proposal_id === null ? 'clip.save' : 'clip.proposal.resolve'
+          ? isReview ? 'review.accept' : row.proposal_id === null ? 'clip.save' : 'clip.proposal.resolve'
           : row.status === 'PENDING' ? 'clip.proposal.submit' : 'clip.proposal.resolve';
         invariant(creation && revision.number === creation.revision_number && creation.command_type === expectedType
           && revision.command?.type === creation.command_type, 'CLIP_INTEGRITY_MISMATCH', 'Native Clip row creation requires its matching SQL and JSON command type.');
@@ -41,6 +43,7 @@ export function inspectClipIntegrity(database) {
         invariant(record.schemaVersion === 1 && record.contentKind === 'animation' && record.lifecycle === 'DRAFT'
           && record.assetId === row.asset_id && record.assetVersion === row.asset_version && record.metadataVersion === row.metadata_version
           && record.createdRevision === row.created_revision, 'CLIP_INTEGRITY_MISMATCH', 'Clip version identity mismatch.');
+        if (record.review) assertReviewSavedRecord(database, projectId, 'animation', record, row.created_revision);
         const exactLeaves = validateStoredClipContent(database, projectId, record, row.created_revision);
         const created = revisions.find(revision => revision.number === row.created_revision);
         eq(created?.snapshot.clipLibrary?.assets.find(asset => asset.assetId === record.assetId && asset.assetVersion === record.assetVersion), record, 'Clip row differs from its creation snapshot.');
@@ -102,6 +105,7 @@ export function inspectClipIntegrity(database) {
       for (const revision of revisions.filter(value => nativeCreationRevisions.has(value.number) || value.command.type.startsWith('clip.'))) {
         const persisted = [...versions, ...proposals].filter(row => row.created_revision === revision.number);
         if (persisted.length && persisted.every(row => row.provenance === 'bundle_import')) continue;
+        if (revision.command.type === 'review.accept') continue; // Shared Review integrity replays the complete mixed transaction.
         invariant(persisted.length > 0 && revision.command.payload, 'CLIP_INTEGRITY_MISMATCH', 'Native Clip command lacks exact persisted provenance.');
         const previous = revisions.find(value => value.number === revision.number - 1);
         invariant(previous, 'CLIP_INTEGRITY_MISMATCH', 'Clip command lost its base revision.');

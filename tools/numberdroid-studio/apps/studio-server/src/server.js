@@ -1,3 +1,4 @@
+import { handleReviewHttp } from './review-http.js';
 import { handleAssemblyHttp } from './assembly-http.js';
 import { handleClipHttp } from './clip-http.js';
 import { readFile } from 'node:fs/promises';
@@ -926,6 +927,7 @@ export function createStudioHttpServer({
 }) {
   if (!studioService) throw new TypeError('studioService is required.');
   const humanUiCsrfToken = randomBytes(32).toString('base64url');
+  const reviewBindings = new Set();
   const humanAgentAccess = createHumanAgentAccessController({
     studioService, hostBindingStore, pairingBroker, agentTaskService,
   });
@@ -1081,7 +1083,7 @@ export function createStudioHttpServer({
       if (request.method === 'POST' && url.pathname === '/internal/mcp/animation-handshake') {
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore || agentAttemptStore?.isLive !== true || !studioService.durableClipStoreReady
-          || studioService.storeSchemaVersion !== 17 || !studioService.durableAssetStoreReady || !studioService.durableAssemblyStoreReady || !studioService.durableJobStoreReady || !studioService.durableRoomStoreReady) throw new StudioError('ANIMATION_STORE_DISABLED', 'Animation profile requires the complete SQLite v17 service.');
+          || ![17, 18].includes(studioService.storeSchemaVersion) || !studioService.durableAssetStoreReady || !studioService.durableAssemblyStoreReady || !studioService.durableJobStoreReady || !studioService.durableRoomStoreReady) throw new StudioError('ANIMATION_STORE_DISABLED', 'Animation profile requires the complete SQLite v17/v18 service.');
         const body = await readJsonBody(request, { maxBytes: 2048 });
         assertExactKeys(body, new Set(['schemaVersion', 'projectId', 'profile']), 'Animation negotiation');
         if (body.schemaVersion !== 1 || body.profile !== 'animation-v1') throw new StudioError('VALIDATION_ERROR', 'Select the animation-v1 profile.');
@@ -1091,6 +1093,23 @@ export function createStudioHttpServer({
         if (agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId)) throw new StudioError('ANIMATION_TASK_BRANCH_UNSUPPORTED', 'Animation profile requires a shared-head binding.');
         await studioService.queryClips({ schemaVersion: 1, projectId: binding.projectId, limit: 1 }, bindingExecutionContext(binding), { signal: requestAbort.signal });
         sendJson(response, 200, { schemaVersion: 1, profile: 'animation-v1', projectId: binding.projectId, storeSchemaVersion: studioService.storeSchemaVersion, sharedHead: true, toolCount: 25, resourceTemplateCount: 7 });
+        return;
+      }
+      if (request.method === 'POST' && url.pathname === '/internal/mcp/review-handshake') {
+        assertLoopbackServiceRequest(request);
+        if (!hostBindingStore || agentAttemptStore?.isLive !== true || studioService.durableReviewStoreReady !== true
+          || studioService.storeSchemaVersion !== 18 || !studioService.durableClipStoreReady || !studioService.durableAssetStoreReady
+          || !studioService.durableAssemblyStoreReady || !studioService.durableJobStoreReady || !studioService.durableRoomStoreReady) throw new StudioError('REVIEW_STORE_DISABLED', 'Shared Review requires the complete SQLite v18 service.');
+        const body = await readJsonBody(request, { maxBytes: 2048 });
+        assertExactKeys(body, new Set(['schemaVersion', 'projectId', 'profile']), 'Review negotiation');
+        if (body.schemaVersion !== 1 || body.profile !== 'review-v1') throw new StudioError('VALIDATION_ERROR', 'Select the review-v1 profile.');
+        const binding = hostBindingStore.resolve(bearerToken(request));
+        if (body.projectId !== binding.projectId) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Review negotiation is outside the binding project.');
+        await assertExecutableBindingPolicy(studioService, binding, agentTaskService);
+        if (agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId)) throw new StudioError('REVIEW_TASK_BRANCH_UNSUPPORTED', 'Shared Review requires a shared-head binding.');
+        await studioService.queryReviews({ schemaVersion: 1, projectId: binding.projectId, limit: 1 }, bindingExecutionContext(binding), { signal: requestAbort.signal });
+        reviewBindings.add(binding.bindingId);
+        sendJson(response, 200, { schemaVersion: 1, profile: 'review-v1', projectId: binding.projectId, storeSchemaVersion: 18, sharedHead: true, toolCount: 27, resourceTemplateCount: 8 });
         return;
       }
       if (request.method === 'POST' && url.pathname === '/internal/mcp/execute') {
@@ -1127,11 +1146,12 @@ export function createStudioHttpServer({
             throw new StudioError('AGENT_ATTEMPT_LEDGER_REQUIRED', 'This agent mutation is disabled until a durable attempt ledger is available.');
           }
           await assertExecutableBindingPolicy(studioService, liveBinding, agentTaskService);
+          if (body.command.type?.startsWith('review.') && !reviewBindings.has(liveBinding.bindingId)) throw new StudioError('REVIEW_NEGOTIATION_REQUIRED', 'Negotiate review-v1 before submitting shared Review commands.');
           validateMcpSourceArtifact(body.command, artifactMetadataStore);
           const taskBound = agentTaskService?.hasTask(
             liveBinding.projectId, liveBinding.taskId, liveBinding.branchId,
           ) === true;
-          if (taskBound && ['assembly.', 'clip.', 'slice.revision.'].some(prefix => body.command.type?.startsWith(prefix))) throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly authoring currently requires a shared-head binding.');
+          if (taskBound && ['review.', 'assembly.', 'clip.', 'slice.revision.'].some(prefix => body.command.type?.startsWith(prefix))) throw new StudioError('ASSEMBLY_TASK_BRANCH_UNSUPPORTED', 'Assembly authoring currently requires a shared-head binding.');
           result = await (taskBound ? agentTaskService : studioService).execute(
             body.command,
             liveContext,
@@ -1217,6 +1237,7 @@ export function createStudioHttpServer({
         '/internal/mcp/asset-query',
         '/internal/mcp/assembly-query',
         '/internal/mcp/clip-query',
+        '/internal/mcp/review-query',
         '/internal/mcp/slice-query',
         '/internal/mcp/room-query',
       ].includes(url.pathname)) {
@@ -1236,6 +1257,7 @@ export function createStudioHttpServer({
           '/internal/mcp/job-cancel': { operation: 'cancelJob', commandType: 'job.cancel', atomicAudit: true },
           '/internal/mcp/job-retry': { operation: 'retryJob', commandType: 'job.retry', atomicAudit: true },
           '/internal/mcp/job-discard': { operation: 'discardJob', commandType: 'job.discard', atomicAudit: true },
+          '/internal/mcp/review-query': { operation: 'queryReviews', commandType: 'review.query', atomicAudit: false, auditAuthorized: false },
           '/internal/mcp/clip-query': { operation: 'queryClips', commandType: 'clip.query', atomicAudit: false, auditAuthorized: false },
           '/internal/mcp/slice-query': { operation: 'querySavedSlice', commandType: 'slice.query', atomicAudit: false, auditAuthorized: false },
           '/internal/mcp/assembly-query': { operation: 'queryAssemblies', commandType: 'assembly.query', atomicAudit: false, auditAuthorized: false },
@@ -1260,7 +1282,7 @@ export function createStudioHttpServer({
           if (agentAttemptStore?.isLive !== true) {
             throw new StudioError('AGENT_ATTEMPT_LEDGER_REQUIRED', 'Specialized MCP operations require a durable attempt ledger.');
           }
-          const body = await readJsonBody(request, { maxBytes: ['assembly.query', 'clip.query'].includes(definition.commandType) ? 256 * 1024 : 128 * 1024 });
+          const body = await readJsonBody(request, { maxBytes: definition.commandType === 'review.query' ? 16 * 1024 : ['assembly.query', 'clip.query'].includes(definition.commandType) ? 256 * 1024 : 128 * 1024 });
           const safeJobId = definition.commandType.startsWith('job.') ? safeAttemptId(body?.jobId) : null;
           if (safeJobId) {
             attempt.targetKind = 'job';
@@ -1278,6 +1300,8 @@ export function createStudioHttpServer({
           const taskBound = agentTaskService?.hasTask(
             liveBinding.projectId, liveBinding.taskId, liveBinding.branchId,
           ) === true;
+          if (definition.operation === 'queryReviews' && !reviewBindings.has(liveBinding.bindingId)) throw new StudioError('REVIEW_NEGOTIATION_REQUIRED', 'Negotiate review-v1 before querying shared Review records.');
+          if (taskBound && definition.operation === 'queryReviews') throw new StudioError('REVIEW_TASK_BRANCH_UNSUPPORTED', 'Shared Review reads require a shared-head binding.');
           if (taskBound && ['queryAssemblies', 'queryClips', 'querySavedSlice'].includes(definition.operation)) throw new StudioError(definition.operation === 'queryAssemblies' ? 'ASSEMBLY_TASK_BRANCH_UNSUPPORTED' : 'ANIMATION_TASK_BRANCH_UNSUPPORTED', 'These content reads require a shared-head binding.');
           const targetService = taskBound && ['proposeAtlasGrid', 'queryAssets', 'queryRooms'].includes(definition.operation)
             ? agentTaskService
@@ -1469,6 +1493,9 @@ export function createStudioHttpServer({
         return;
       }
 
+      if (await handleReviewHttp({ request, response, url, studioService, humanUiCsrfToken,
+        signal: requestAbort.signal, assertHumanUiMutation, readJsonBody, assertExactKeys,
+        humanOwnerContext, humanCommandDto, sendJson })) return;
       if (await handleClipHttp({ request, response, url, studioService, humanUiCsrfToken,
         signal: requestAbort.signal, assertHumanUiMutation, readJsonBody, assertExactKeys,
         humanOwnerContext, humanCommandDto, sendJson })) { if (request.method === 'POST' && url.pathname.endsWith('/revision-preview')) atlasPreviewWorker?.kick(); return; }

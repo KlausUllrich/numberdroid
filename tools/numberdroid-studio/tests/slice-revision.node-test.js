@@ -34,7 +34,7 @@ const atlas = project => project.snapshot.atlases[0];
 test('one-cut prepare and commit preserve unrelated definitions and pins; exact replay and restart remain truthful', async t => {
   const { f, payload } = await setup(t);
   const before = await f.studio.readProjectTrusted(projectId);
-  assert.equal(f.store.schemaVersion, 17);
+  assert.equal(f.store.schemaVersion, 18);
   const req = await f.request('slice.revision.prepare', payload);
   const prepared = await f.studio.execute(req, owner);
   assert.equal(prepared.value.status, 'ACCEPTED');

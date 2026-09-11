@@ -124,9 +124,10 @@ export function buildOfficialMcpServer({
   authoringV2 = null,
   assemblyV1 = null,
   animationV1 = null,
+  reviewV1 = null,
 } = {}) {
   if (!studioGateway) throw new TypeError('studioGateway is required.');
-  const catalog = createAgentToolCatalog(studioGateway, { contextProvider, authoringV2, assemblyV1, animationV1 });
+  const catalog = createAgentToolCatalog(studioGateway, { contextProvider, authoringV2, assemblyV1, animationV1, reviewV1 });
   const authoringV2Surface = authoringV2 === null || authoringV2 === undefined
     ? null
     : createAuthoringV2McpSurface(studioGateway, authoringV2, {
@@ -317,7 +318,7 @@ export function buildOfficialMcpServer({
       } finally { operation.cleanup(); }
     });
 
-  if (animationV1) {
+  if (animationV1 || reviewV1) {
     for (const entry of [
       { name: 'studio-clip-version', template: 'studio://projects/{projectId}/clips/{assetId}/versions/{assetVersion}', title: 'Exact Animation version', read: (variables, context, signal) => studioGateway.queryClips({ schemaVersion: 1, projectId: variables.projectId, assetId: variables.assetId, assetVersion: Number(variables.assetVersion), limit: 1 }, context, { signal }) },
       { name: 'studio-saved-cut-version', template: 'studio://projects/{projectId}/slices/{sliceId}/versions/{sliceVersion}', title: 'Exact saved cut version', read: (variables, context, signal) => studioGateway.querySavedSlice({ schemaVersion: 1, projectId: variables.projectId, sliceId: variables.sliceId, sliceVersion: Number(variables.sliceVersion) }, context, { signal }) },
@@ -327,7 +328,7 @@ export function buildOfficialMcpServer({
         const operation = operationContext(invocationContext, requestAbortRegistry);
         try {
           const context = await authorizeAgentProject(contextProvider, operation.context, variables.projectId);
-          if (variables.projectId !== animationV1.projectId) throw Object.assign(new Error('The resource is outside the negotiated project.'), { code: 'CONTEXT_PROJECT_MISMATCH' });
+          if (variables.projectId !== (reviewV1 ?? animationV1).projectId) throw Object.assign(new Error('The resource is outside the negotiated project.'), { code: 'CONTEXT_PROJECT_MISMATCH' });
           const value = await entry.read(variables, context, operation.signal);
           return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
         } catch (error) {
@@ -336,6 +337,21 @@ export function buildOfficialMcpServer({
         } finally { operation.cleanup(); }
       });
   }
+
+  const reviewQuery = catalog.find(({ name }) => name === 'studio_review_query');
+  if (reviewQuery) server.registerResource('studio-review-version', new ResourceTemplate('studio://projects/{projectId}/reviews/{reviewId}/versions/{reviewVersion}', { list: undefined }),
+    { title: 'Exact shared Review version', description: 'Immutable related changes, saved feedback and decisions at the requested Review version.', mimeType: 'application/json' },
+    async (uri, { projectId, reviewId, reviewVersion }, invocationContext) => {
+      const operation = operationContext(invocationContext, requestAbortRegistry);
+      try {
+        if (!/^[1-9][0-9]*$/.test(reviewVersion)) throw Object.assign(new Error('Choose a positive exact Review version.'), { code: 'VALIDATION_ERROR' });
+        const value = await reviewQuery.execute({ schemaVersion: 1, projectId, reviewId, reviewVersion: Number(reviewVersion), limit: 1 }, operation.context);
+        return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value) }] };
+      } catch (error) {
+        if (operation.signal.aborted) throw error;
+        return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(officialErrorPayload(error)) }] };
+      } finally { operation.cleanup(); }
+    });
 
   const taskRead = catalog.find(({ name }) => name === 'studio_task_read');
   if (taskRead) {

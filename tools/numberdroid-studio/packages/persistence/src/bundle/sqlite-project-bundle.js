@@ -1001,6 +1001,7 @@ export function projectSqlitePortableDocument({ projectStore, projectId }) {
     const row = database.prepare('SELECT * FROM projects WHERE project_id = ?').get(projectId);
     invariant(row, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
     const snapshot = parseJson(row.head_snapshot_json, 'projects.head_snapshot_json');
+    invariant(!(snapshot.reviewLibrary?.groups?.length), 'REVIEW_BUNDLE_UNSUPPORTED', 'Portable bundles cannot yet preserve shared Review history. Use a verified workspace backup instead.');
     const headRevision = database.prepare(`
       SELECT revision_id, committed_at FROM revisions
       WHERE project_id = ? AND revision_number = ?

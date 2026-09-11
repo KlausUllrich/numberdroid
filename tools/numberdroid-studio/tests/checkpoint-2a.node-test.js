@@ -809,7 +809,7 @@ test('migration 0006 resumes after a version-boundary fault and backup/restore p
     filename: migrationFilename,
     databaseFactory: nodeSqliteDatabaseFactory,
   });
-  assert.equal(resumed.integrityCheck().userVersion, 17);
+  assert.equal(resumed.integrityCheck().userVersion, 18);
   resumed.close();
 
   const { directory, store, studio, artifact, artifacts } = await fixture(context);

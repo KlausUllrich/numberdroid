@@ -1,5 +1,6 @@
-import { applyAssemblyCommand, queryAssemblyDocument } from './assembly-service.js';
-import { applyClipCommand, queryClipDocument } from './clip-service.js';
+import { applyAssemblyCommand, queryAssemblyDocument, resolveAssemblyRead } from './assembly-service.js';
+import { applyClipCommand, queryClipDocument, resolveClipRead } from './clip-service.js';
+import { applyReviewCommand, queryReviewDocument } from './review-service.js';
 import { querySavedSliceDocument } from './exact-cut-history.js';
 import { applySliceRevisionCommand } from './slice-revision-service.js';
 import { COMMAND_DEFINITIONS, KNOWN_GRANT_SCOPES, getCommandDefinition, listCommandDefinitions } from '../../domain/src/command-catalog.js';
@@ -284,12 +285,12 @@ function previewOutputArtifactBytes(snapshot, atlasId) {
 }
 
 function commandBudgetCharge(command) {
-  if (!['asset.proposal.submit', 'room.placement.proposal.submit'].includes(command.type)) return 1;
+  if (!['asset.proposal.submit', 'room.placement.proposal.submit', 'review.proposal.submit'].includes(command.type)) return 1;
   invariant(
     Array.isArray(command.payload?.items)
       && command.payload.items.length >= 1
       && command.payload.items.length <= 64,
-    command.type === 'asset.proposal.submit' ? 'ASSET_PROPOSAL_LIMIT' : 'ROOM_PROPOSAL_LIMIT',
+    command.type === 'review.proposal.submit' ? 'REVIEW_ITEM_LIMIT' : command.type === 'asset.proposal.submit' ? 'ASSET_PROPOSAL_LIMIT' : 'ROOM_PROPOSAL_LIMIT',
     'Proposals require 1 to 64 items.',
   );
   return command.payload.items.length;
@@ -948,6 +949,29 @@ function prepareRoomPlacementProposal(command, document) {
   return { ...normalized, items, findings: deepClone(validated.findings), fingerprint: proposalFingerprint };
 }
 
+/** Pure typed projection for a shared Review, never a separate authorized write. */
+export function applyReviewItem({ item, command, snapshot, document, now }) {
+  const types = { image: ['asset.save', 'assetLibrary'], animation: ['clip.save', 'clipLibrary'], assembly: ['assembly.save', 'assemblyLibrary'] };
+  const target = types[item.contentKind];
+  invariant(target, 'REVIEW_CONTENT_KIND', 'Review content must be an Image, Animation or Assembly.');
+  const typedCommand = { ...command, type: target[0], payload: deepClone(item.payload) };
+  const prospectiveAssets = [...snapshot.assetLibrary?.assets ?? [], ...snapshot.clipLibrary?.assets ?? []];
+  const applied = applyCommand(typedCommand, snapshot, now, { projectDocument: document, skipGrantCharge: true, prospectiveAssets });
+  const record = applied.snapshot[target[1]].assets.find(asset => asset.assetId === item.payload.assetId);
+  invariant(record, 'REVIEW_ITEM_INVALID', 'The typed authoring operation did not produce the requested Asset.');
+  const errors = record.findings?.filter(finding => finding.severity === 'ERROR') ?? [];
+  invariant(errors.length === 0, 'REVIEW_CONTENT_INVALID', 'Correct technical findings before submitting content for review.', { itemId: item.itemId, findings: errors });
+  record.review = { reviewId: command.payload.reviewId, reviewVersion: command.payload.expectedReviewVersion + 1, itemId: item.itemId };
+  record.proposal = null;
+  return { snapshot: applied.snapshot, record };
+}
+
+export function resolveReviewItem({ item, record, document, prospectiveAssets = [], selection }) {
+  if (item.contentKind === 'assembly') return resolveAssemblyRead(record, document, selection, Number.MAX_SAFE_INTEGER, { prospectiveAssets });
+  if (item.contentKind === 'animation') return resolveClipRead(record, document);
+  return deepClone(record);
+}
+
 function applyCommand(command, snapshot, now, {
   atlasJob = null,
   priorAtlasJob = null,
@@ -955,11 +979,13 @@ function applyCommand(command, snapshot, now, {
   preparedRoomProposal = null,
   projectDocument = null,
   grantScopes = KNOWN_GRANT_SCOPES,
+  skipGrantCharge = false,
+  prospectiveAssets = [],
 } = {}) {
   const payload = command.payload;
   const next = deepClone(snapshot);
   next.project.updatedAt = now;
-  if (command.actor.kind === 'agent') {
+  if (command.actor.kind === 'agent' && !skipGrantCharge) {
     const grantIndex = next.grants.findIndex((grant) => grant.id === command.grantId);
     next.grants[grantIndex] = {
       ...next.grants[grantIndex],
@@ -970,7 +996,8 @@ function applyCommand(command, snapshot, now, {
     };
   }
 
-  if (command.type.startsWith('assembly.')) return applyAssemblyCommand(command, next, projectDocument, now);
+  if (command.type.startsWith('review.')) return applyReviewCommand(command, next, projectDocument, now, { applyItem: applyReviewItem });
+  if (command.type.startsWith('assembly.')) return applyAssemblyCommand(command, next, projectDocument, now, { prospectiveAssets });
   if (command.type.startsWith('clip.')) return applyClipCommand(command, next, projectDocument, now);
   if (command.type.startsWith('slice.revision.')) return applySliceRevisionCommand(command, next, projectDocument, now, { atlasJob, priorAtlasJob });
 
@@ -2221,7 +2248,7 @@ function createRevision({ command, number, now, commandHash, snapshot, result, s
       ...(isTaskBranch ? { branchId: command.branchId, payload: deepClone(command.payload) } : {}),
       // Direct owner saves retain their strict semantic input for immutable
       // image-retention/version provenance. This carries no supplied authority.
-      ...(!isTaskBranch && (command.type === 'asset.save' || command.type.startsWith('assembly.') || command.type.startsWith('clip.') || command.type.startsWith('slice.revision.')) ? { payload: deepClone(command.payload) } : {}),
+      ...(!isTaskBranch && (command.type === 'asset.save' || command.type.startsWith('assembly.') || command.type.startsWith('clip.') || command.type.startsWith('slice.revision.') || command.type.startsWith('review.')) ? { payload: deepClone(command.payload) } : {}),
       fingerprint: commandHash,
     },
     snapshot: deepClone(snapshot),
@@ -2307,6 +2334,7 @@ export class StudioService {
 
   get durableAssemblyStoreReady() { return this.#store.supportsAtomicAssemblyLibrary === true; }
   get durableClipStoreReady() { return this.#store.supportsAtomicClipLibrary === true && this.#store.isTaskBranchStore !== true; }
+  get durableReviewStoreReady() { return this.#store.supportsAuthoritativeReviewStorage === true && this.durableAssetStoreReady && this.durableAssemblyStoreReady && this.durableClipStoreReady && this.#store.isTaskBranchStore !== true; }
   get storeSchemaVersion() { return this.#store.schemaVersion ?? null; }
 
   get durableRoomStoreReady() {
@@ -2394,6 +2422,7 @@ export class StudioService {
     }
     if (command.payload?.assembly?.schemaVersion === 2) invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Assembly animation content requires the shared-head SQLite v17 store.');
     if (definition.requiresDurableClipStore) invariant(this.durableClipStoreReady, 'CLIP_STORE_DISABLED', 'Animation authoring requires the shared-head SQLite v17 store.');
+    if (definition.requiresDurableReviewStore) invariant(this.durableReviewStoreReady, 'REVIEW_STORE_DISABLED', 'Shared Review requires the authoritative shared-head SQLite v18 store.');
     if (definition.requiresDurableRoomStore) {
       invariant(
         this.durableRoomStoreReady,
@@ -2746,6 +2775,31 @@ export class StudioService {
       manifestFingerprint: projectCapabilityManifestSha256(manifest),
       manifest: deepClone(manifest),
     });
+  }
+
+  async queryReviews(request, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
+    invariant(this.durableReviewStoreReady, 'REVIEW_STORE_DISABLED', 'Shared Review reads require the authoritative shared-head SQLite v18 store.');
+    const projectId = requireId(request.projectId, 'projectId');
+    const context = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId);
+    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.');
+    assertAuthorized({ ...context, projectId, type: 'project.read', payload: {} }, headRevision(document).snapshot, { ownerOnly: false, requiredScope: 'project.read' }, this.#clock());
+    signal?.throwIfAborted();
+    const result = queryReviewDocument(request, document, { applyItem: applyReviewItem, resolveItem: resolveReviewItem });
+    // Query DTOs add previews and eligibility; verify their immutable source
+    // versions, including every feedback/decision history version being exposed.
+    const wanted = new Set(result.groups.flatMap(group => [group.reviewVersion, ...(group.history ?? []).map(entry => entry.reviewVersion)]
+      .map(version => `${group.reviewId}@${version}`)));
+    const verified = new Set();
+    for (const revision of document.revisions) for (const group of revision.snapshot.reviewLibrary?.groups ?? []) {
+      const key = `${group.reviewId}@${group.reviewVersion}`;
+      if (!wanted.has(key) || verified.has(key)) continue;
+      this.#store.verifyReviewContent(projectId, group);
+      verified.add(key);
+    }
+    invariant(verified.size === wanted.size, 'REVIEW_RECORD_CORRUPT', 'An exact Review history version is missing.');
+    return deepFreeze(result);
   }
 
   async queryAssemblies(request, trustedExecutionContext, { signal } = {}) {

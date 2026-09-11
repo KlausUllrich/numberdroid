@@ -1,3 +1,4 @@
+import { assertReviewSavedRecord } from '../sqlite/sqlite-review-store.js';
 import { invariant } from '../../../domain/src/errors.js';
 import { fingerprint } from '../../../application/src/value-utils.js';
 import { applyAssemblyCommand } from '../../../application/src/assembly-service.js';
@@ -21,8 +22,9 @@ export function inspectAssemblyIntegrity(database) {
       for (const row of [...versions, ...proposals].filter(value => value.provenance === 'native_revision')) {
         const creation = revisionRows.find(value => value.revision_number === row.created_revision);
         const revision = creation && JSON.parse(creation.revision_json);
+        const isReview = Object.hasOwn(row, 'asset_id') && JSON.parse(row.record_json).review;
         const expectedType = Object.hasOwn(row, 'asset_id')
-          ? row.proposal_id === null ? 'assembly.save' : 'assembly.proposal.resolve'
+          ? isReview ? 'review.accept' : row.proposal_id === null ? 'assembly.save' : 'assembly.proposal.resolve'
           : row.status === 'PENDING' ? 'assembly.proposal.submit' : 'assembly.proposal.resolve';
         invariant(creation && revision.number === creation.revision_number && creation.command_type === expectedType
           && revision.command?.type === creation.command_type, 'ASSEMBLY_INTEGRITY_MISMATCH', 'Native Assembly row creation requires its matching SQL and JSON command type.');
@@ -41,6 +43,7 @@ export function inspectAssemblyIntegrity(database) {
         invariant(record.schemaVersion === 1 && record.contentKind === 'assembly' && record.lifecycle === 'DRAFT'
           && record.assetId === row.asset_id && record.assetVersion === row.asset_version && record.metadataVersion === row.metadata_version
           && record.createdRevision === row.created_revision, 'ASSEMBLY_INTEGRITY_MISMATCH', 'Assembly version identity mismatch.');
+        if (record.review) assertReviewSavedRecord(database, projectId, 'assembly', record, row.created_revision);
         const exactLeaves = validateStoredAssemblyContent(database, projectId, record, row.created_revision);
         const created = revisions.find(revision => revision.number === row.created_revision);
         eq(created?.snapshot.assemblyLibrary?.assets.find(asset => asset.assetId === record.assetId && asset.assetVersion === record.assetVersion), record, 'Assembly row differs from its creation snapshot.');
@@ -102,6 +105,7 @@ export function inspectAssemblyIntegrity(database) {
       for (const revision of revisions.filter(value => nativeCreationRevisions.has(value.number) || value.command.type.startsWith('assembly.'))) {
         const persisted = [...versions, ...proposals].filter(row => row.created_revision === revision.number);
         if (persisted.length && persisted.every(row => row.provenance === 'bundle_import')) continue;
+        if (revision.command.type === 'review.accept') continue; // Shared Review integrity replays the complete mixed transaction.
         invariant(persisted.length > 0 && revision.command.payload, 'ASSEMBLY_INTEGRITY_MISMATCH', 'Native Assembly command lacks exact persisted provenance.');
         const previous = revisions.find(value => value.number === revision.number - 1);
         invariant(previous, 'ASSEMBLY_INTEGRITY_MISMATCH', 'Assembly command lost its base revision.');
