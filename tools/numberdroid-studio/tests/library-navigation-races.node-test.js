@@ -35,7 +35,7 @@ function editorHarness(kind) {
     libraryRestoreCurrent() {}, restoreLibrarySnapshot() {}, cancelPinnedAssetsOnWorkspaceExit() {},
     renderWorkspace: () => renders.push(structuredClone(ui.route)),
     window: { scrollX: 0, scrollY: 100, confirm: () => true }, history: { replaceState() {} },
-    elements: { 'workspace-content': { dataset: { libraryRoute: `${projectId}:${libraryRouteKey(ui.route)}` }, replaceChildren: value => mounted.push(value) } },
+    elements: { toast: { textContent: '', classList: { remove() {} } }, 'workspace-content': { dataset: { libraryRoute: `${projectId}:${libraryRouteKey(ui.route)}` }, replaceChildren: value => mounted.push(value) } },
     animationCanMutate: () => true, assemblyCanMutate: () => true, mayAbandonAssetAuthoring: () => true,
     readAnimationDetail: () => read.promise, readAssemblyDetail: () => read.promise, resolveAnimationCuts: async () => [],
     createAnimationEditorController: ({ initial }) => makeController(initial), createAssemblyEditorController: ({ initial }) => makeController(initial),
@@ -81,6 +81,7 @@ function cacheHarness(t, extra = {}) {
     state: { project: { projectId, revision: 5 }, workspace: 'assets' }, libraryUi: createLibraryUiState(projectId),
     libraryPreviewRecords: records, libraryRetiredPreviewUrls: retired, libraryDetails: new Map(),
     libraryCardObservers: new Set(), libraryNativeContexts: new Map(), libraryExternalOrigins: new Map(), libraryReadGeneration: 0,
+    sharedReviewControllers: new Map(), legacyReviewFallbacks: new Map(),
     elements: { 'workspace-content': { querySelectorAll: () => links } },
     location: { origin: 'http://127.0.0.1:4321' }, URL, Blob, structuredClone, createLibraryPreviewDocument,
     queueLibraryRender() {}, ...extra,
@@ -134,4 +135,12 @@ test('persistent card observation retries a failed exact read when the same card
   assert.equal(h.records.get(h.key(typed)).status, 'ready');
   assert.match(await (await fetch(currentLink.href)).text(), /Exact saved composition/);
   card.isConnected = false; observer.callback([{ isIntersecting: false }]);
+});
+
+
+test('Library cache cleanup retains an unresolved Review until its controller permits disposal', t => {
+  let reconciled = false; const controllers = new Map([['pending-review', { dispose: () => reconciled }]]);
+  const h = cacheHarness(t, { sharedReviewControllers: controllers });
+  h.clear(); assert.equal(controllers.has('pending-review'), true);
+  reconciled = true; h.clear(); assert.equal(controllers.size, 0);
 });

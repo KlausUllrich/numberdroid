@@ -99,7 +99,7 @@ function navigationHarness(workspace = 'activity', matchingMarker = true) {
   ].join('\n'), {
     state, libraryUi: ui, libraryExternalOrigins: origins, libraryReadGeneration: 0,
     libraryRouteKey, libraryNavigate, libraryBack, structuredClone,
-    elements: { 'workspace-content': content }, libraryHasEditor: () => false, libraryNavigationAllowed: () => true,
+    elements: { toast: { textContent: '', classList: { remove() {} } }, 'workspace-content': content }, libraryHasEditor: () => false, libraryNavigationAllowed: () => true,
     libraryDomSnapshot: currentSnapshot, restoreLibrarySnapshot: snapshot => { if (snapshot) restored.push(snapshot); },
     cancelPinnedAssetsOnWorkspaceExit() {}, history: { replaceState() {} },
     renderWorkspace() {

@@ -21,14 +21,15 @@ shared Review. Klaus reported **“All pass”** for its
 edits, reconsidered acceptance, truthful next actor and stale-proposal handling.
 Navigation placement (ND-6 / [#243](https://github.com/KlausUllrich/numberdroid/issues/243))
 and Activity readability (ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244))
-remain separate implementation follow-ups. Their demonstrated Back-left and
-Activity-row patterns are approved by the Review V2 PASS; this does not accept
-an application-wide rollout.
-The [shared Review foundation contract](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md)
-owns the active production block: compatible commands, schema18, exact dependencies,
-feedback/history, atomic partial acceptance and an explicit agent profile. The
-approved UI follows its verified integration. Preserve version/history, owner
-authority, retries and recovery; existing typed review paths stay compatible.
+are included for the affected headers and Activity screen in the active UI block.
+Their demonstrated patterns are approved by the Review V2 PASS; production
+acceptance remains pending.
+The [shared Review foundation](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md) is merged
+and pre/post-merge green through PR247 at `1b4cbf1`, with a real semantic-agent
+round trip and restart integrity. The active
+[production UI block](SHARED_REVIEW_UI_IMPLEMENTATION_CONTRACT.md) connects the
+approved screen, exact legacy-proposal first decisions, truthful badges, Back-left
+navigation and readable Activity. Production UI acceptance remains pending.
 Read the task and keep meaningful milestone status aligned in both copies; creating
 these records does not start work or change the existing acceptance gates.
 

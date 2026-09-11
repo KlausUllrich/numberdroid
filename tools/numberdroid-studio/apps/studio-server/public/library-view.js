@@ -6,8 +6,8 @@ import {
 
 const plural = (count, singular, multiple = `${singular}s`) => `${count} ${count === 1 ? singular : multiple}`;
 const stateLabel = group => ({
-  PENDING: 'Awaiting review', DECIDED: 'Decision recorded · awaiting apply',
-  CHANGES_REQUESTED: 'Changes requested · awaiting revision', ACCEPTED: 'Accepted',
+  PENDING: 'Needs review', DECIDED: 'Decision recorded · awaiting apply',
+  CHANGES_REQUESTED: group.actorKind === 'agent' ? 'Awaiting agent' : 'Awaiting author', ACCEPTED: 'Accepted',
   DISCARDED: 'Discarded', APPLIED: 'Applied',
 })[group.status] ?? group.status ?? 'Unavailable decision state';
 
@@ -67,7 +67,7 @@ export function renderLibraryCard({ entry, projectId, record = entry.asset, scen
   article.append(badges);
   if (pendingGroups.length) {
     const pending = el('div', 'library-card-pending');
-    for (const group of pendingGroups) pending.append(libraryAction('review', `Pending changes · ${plural(group.changeCount, 'change')}`, { group, className: 'library-pending-badge' }));
+    for (const group of pendingGroups) pending.append(libraryAction('review', `${stateLabel(group)} · ${plural(group.changeCount, 'change')}`, { group, className: 'library-pending-badge' }));
     article.append(pending);
   }
   const actions = el('div', 'library-card-actions');
@@ -82,7 +82,7 @@ function reviewRow(group, completed = false) {
   row.dataset.libraryGroupState = group.status;
   setLibraryReviewIdentity(row, group);
   const copy = el('div', 'library-review-copy');
-  copy.append(el('p', 'library-eyebrow', `${libraryContentLabel(group.contentKind)} · ${plural(group.changeCount, 'change')}`),
+  copy.append(el('p', 'library-eyebrow', `${group.contentKind === 'review' ? 'Related content' : libraryContentLabel(group.contentKind)} · ${plural(group.changeCount, 'change')}${group.acceptedCount ? ` · ${group.acceptedCount} accepted` : ''}`),
     el('h3', '', group.title), el('p', 'library-review-state', stateLabel(group)));
   const context = [group.actorName ?? group.actorId, group.taskId ? `Task ${group.taskId}` : null].filter(Boolean);
   if (context.length) copy.append(el('p', 'library-review-context', context.join(' · ')));

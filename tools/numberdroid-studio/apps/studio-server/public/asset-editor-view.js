@@ -23,7 +23,7 @@ export function createAssetEditorView(state) {
   const root = el('section', 'asset-editor'); root.dataset.assetEditor = state.instanceId; const embedded = isEmbeddedGeometry(state);
   const header = el('header', 'asset-editor-header'); const heading = el('div'); heading.append(el('p', 'eyebrow', embedded ? 'Assembly / Custom blocking' : state.context.assetVersion ? 'Library / Edit Asset' : 'Saved image / Create Asset'));
   const title = el('h2'); title.dataset.assetEditorTitle = ''; heading.append(title, el('p', 'asset-editor-intro', embedded ? 'Edit the Assembly’s owned blocking. Return keeps this draft, including an unfinished outline; save from the Assembly.' : 'Define what the image is and the space it uses. Your Save adds a draft Asset directly to the Library.'));
-  header.append(heading, button(state.initial.returnLabel ?? 'Back to Library', 'back')); root.append(header);
+  const back = button(state.initial.returnLabel ?? 'Back to Library', 'back'); back.classList.add('editor-back-link'); root.append(back); header.append(heading); root.append(header);
   const tabs = el('nav', 'asset-editor-tabs'); tabs.setAttribute('aria-label', 'Asset editor views'); tabs.append(button('Placement & blocking', 'view', 'edit'), ...(embedded ? [] : [button('Properties', 'view', 'properties')]), button('Preview shapes', 'view', 'preview')); root.append(tabs);
   const status = el('div', 'asset-editor-status'); status.dataset.assetEditorStatus = ''; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); root.append(status);
   const recovery = el('div', 'asset-editor-recovery'); recovery.dataset.assetEditorRecovery = ''; root.append(recovery);

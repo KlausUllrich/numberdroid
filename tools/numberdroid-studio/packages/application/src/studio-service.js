@@ -1,6 +1,8 @@
 import { applyAssemblyCommand, queryAssemblyDocument, resolveAssemblyRead } from './assembly-service.js';
 import { applyClipCommand, queryClipDocument, resolveClipRead } from './clip-service.js';
-import { applyReviewCommand, queryReviewDocument } from './review-service.js';
+import { assertLegacyProposalWritable } from './legacy-review.js';
+import { presentActivity } from './activity-presentation.js';
+import { applyReviewCommand, queryReviewDocument, queryLegacyReviewDocument } from './review-service.js';
 import { querySavedSliceDocument } from './exact-cut-history.js';
 import { applySliceRevisionCommand } from './slice-revision-service.js';
 import { COMMAND_DEFINITIONS, KNOWN_GRANT_SCOPES, getCommandDefinition, listCommandDefinitions } from '../../domain/src/command-catalog.js';
@@ -996,6 +998,8 @@ function applyCommand(command, snapshot, now, {
     };
   }
 
+  const legacyKind = { asset: 'image', clip: 'animation', assembly: 'assembly' }[command.type.split('.')[0]];
+  if (legacyKind && command.type.includes('.proposal.') && command.payload.proposalId) assertLegacyProposalWritable(next, legacyKind, command.payload.proposalId);
   if (command.type.startsWith('review.')) return applyReviewCommand(command, next, projectDocument, now, { applyItem: applyReviewItem });
   if (command.type.startsWith('assembly.')) return applyAssemblyCommand(command, next, projectDocument, now, { prospectiveAssets });
   if (command.type.startsWith('clip.')) return applyClipCommand(command, next, projectDocument, now);
@@ -2778,6 +2782,26 @@ export class StudioService {
     });
   }
 
+  async queryLegacyReview(request, trustedExecutionContext, { signal } = {}) {
+    signal?.throwIfAborted();
+    invariant(this.durableReviewStoreReady, 'REVIEW_STORE_DISABLED', 'Legacy Review presentation requires the SQLite v18 store.');
+    const projectId = requireId(request.projectId, 'projectId'), context = validateExecutionContext(trustedExecutionContext);
+    const document = await this.#store.loadProject(projectId);
+    invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.');
+    invariant(context.actor.kind === 'human' && context.actor.id === headRevision(document).snapshot.project.ownerId, 'FORBIDDEN', 'Legacy Review presentation is an owner read.');
+    signal?.throwIfAborted();
+    const result = queryLegacyReviewDocument(request, document, { applyItem: applyReviewItem, resolveItem: resolveReviewItem });
+    if (result.groups[0]?.legacyAdopted) {
+      const verified = await this.queryReviews({ schemaVersion: 1, projectId, reviewId: result.groups[0].reviewId,
+        ...(request.selectedItemIds !== undefined ? { selectedItemIds: request.selectedItemIds } : {}),
+        ...(request.selection !== undefined ? { selection: request.selection } : {}),
+        ...(request.includeHistory !== undefined ? { includeHistory: request.includeHistory } : {}),
+        expectedRevision: result.revision }, trustedExecutionContext, { signal });
+      return deepFreeze({ ...verified, groups: verified.groups.map(group => ({ ...group, legacyAdopted: true })) });
+    }
+    return deepFreeze(result);
+  }
+
   async queryReviews(request, trustedExecutionContext, { signal } = {}) {
     signal?.throwIfAborted();
     invariant(this.durableReviewStoreReady, 'REVIEW_STORE_DISABLED', 'Shared Review reads require the authoritative shared-head SQLite v18 store.');
@@ -3081,11 +3105,13 @@ export class StudioService {
     });
   }
 
-  async listActivityTrusted(projectId, { afterRevision = 0 } = {}) {
+  async listActivityTrusted(projectId, { afterRevision = 0, includePresentation = false } = {}) {
     requireId(projectId, 'projectId');
     requireInteger(afterRevision, 'afterRevision', { min: 0 });
     const document = await this.#store.loadProject(projectId);
     invariant(document, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId });
+    invariant(typeof includePresentation === 'boolean', 'VALIDATION_ERROR', 'includePresentation must be boolean.');
+    if (includePresentation) return deepFreeze(presentActivity(document, { afterRevision }));
     return deepFreeze(
       document.revisions
         .filter((revision) => revision.number > afterRevision)

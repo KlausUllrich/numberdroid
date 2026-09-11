@@ -2,6 +2,7 @@ import { invariant } from '../../domain/src/errors.js';
 import { requireId, requireInteger, requireString } from '../../domain/src/validation.js';
 import { exactReviewFields, normalizeReviewItems, normalizeReviewFeedback, reviewIds, reviewTopologicalItems, assertReviewReferenceDependencies } from '../../domain/src/review-definition.js';
 import { fingerprint } from './value-utils.js';
+import { projectLegacyReview, normalizeLegacySource, adoptedLegacyReview } from './legacy-review.js';
 
 const libraries = { image: 'assetLibrary', animation: 'clipLibrary', assembly: 'assemblyLibrary' };
 const open = group => ['PENDING', 'CHANGES_REQUESTED'].includes(group.status);
@@ -54,20 +55,24 @@ export function applyReviewCommand(command, next, document, now, { applyItem } =
   const payload = command.payload, submit = command.type === 'review.proposal.submit';
   const allowed = {
     'review.proposal.submit': ['reviewId', 'expectedReviewVersion', 'title', 'items'],
-    'review.feedback.save': ['reviewId', 'expectedReviewVersion', 'summary', 'itemComments', 'confirmed'],
-    'review.accept': ['reviewId', 'expectedReviewVersion', 'selectedItemIds', 'confirmed'],
-    'review.discard': ['reviewId', 'expectedReviewVersion', 'confirmed'],
+    'review.feedback.save': ['reviewId', 'expectedReviewVersion', 'summary', 'itemComments', 'confirmed', 'legacySource'],
+    'review.accept': ['reviewId', 'expectedReviewVersion', 'selectedItemIds', 'confirmed', 'legacySource'],
+    'review.discard': ['reviewId', 'expectedReviewVersion', 'confirmed', 'legacySource'],
   };
   invariant(allowed[command.type], 'COMMAND_UNSUPPORTED', 'Unknown Review command.');
   exactReviewFields(payload, allowed[command.type]);
   const reviewId = requireId(payload.reviewId, 'reviewId');
-  const expected = requireInteger(payload.expectedReviewVersion, 'expectedReviewVersion', { min: submit ? 0 : 1 });
-  const prior = expected === 0 ? null : groupHead(next, reviewId, expected);
+  const adopting = !submit && payload.legacySource !== undefined;
+  const expected = requireInteger(payload.expectedReviewVersion, 'expectedReviewVersion', { min: submit || adopting ? 0 : 1 });
+  invariant(!adopting || expected === 0, 'LEGACY_PROPOSAL_CONFLICT', 'Legacy provenance is supplied only for the first explicit Review decision.');
+  if (adopting) invariant(command.actor.kind === 'human' && command.actor.id === next.project.ownerId && payload.confirmed === true, 'FORBIDDEN', 'Only the owner may confirm a Review decision.');
+  const prior = adopting ? projectLegacyReview(document, payload.legacySource, { applyItem }) : expected === 0 ? null : groupHead(next, reviewId, expected);
+  invariant(!adopting || (prior.reviewId === reviewId && !next.reviewLibrary?.groups.some(group => group.reviewId === reviewId)), 'LEGACY_PROPOSAL_CONFLICT', 'Use the derived identity for this exact legacy proposal.');
   if (!submit) {
     invariant(command.actor.kind === 'human' && command.actor.id === next.project.ownerId && payload.confirmed === true, 'FORBIDDEN', 'Only the owner may confirm a Review decision.');
     invariant(open(prior), 'REVIEW_CLOSED', 'Completed Review decisions are immutable.');
   }
-  const versionFields = { reviewVersion: expected + 1, previousReviewVersion: prior?.reviewVersion ?? null, createdRevision: command.baseRevision + 1, createdAt: now, updatedBy: command.actor.id };
+  const versionFields = { reviewVersion: expected + 1, previousReviewVersion: prior?.reviewVersion || null, createdRevision: command.baseRevision + 1, createdAt: now, updatedBy: command.actor.id };
   let group, accepted = [];
   if (submit) {
     invariant(!next.reviewLibrary?.groups.some(entry => entry.reviewId === reviewId) || prior, 'REVIEW_EXISTS', 'This Review ID already exists.');
@@ -92,7 +97,7 @@ export function applyReviewCommand(command, next, document, now, { applyItem } =
     group = { schemaVersion: 1, reviewId, ...versionFields, contentVersion: (prior?.contentVersion ?? 0) + 1,
       title: requireString(payload.title, 'title', { max: 160 }), status: 'PENDING',
       proposer: prior?.proposer ?? { actor: structuredClone(command.actor), taskId: command.taskId ?? null },
-      items, feedback: prior?.feedback ? structuredClone(prior.feedback) : null, decision: prior?.decision ? structuredClone(prior.decision) : null };
+      items, ...(prior?.legacySource ? { legacySource: structuredClone(prior.legacySource), legacyProvenance: structuredClone(prior.legacyProvenance) } : {}), feedback: prior?.feedback ? structuredClone(prior.feedback) : null, decision: prior?.decision ? structuredClone(prior.decision) : null };
   } else {
     group = { ...structuredClone(prior), ...versionFields };
     if (command.type === 'review.feedback.save') {
@@ -232,4 +237,24 @@ export function queryReviewDocument(request, document, { applyItem, resolveItem 
   const response = { schemaVersion: 1, projectId: document.projectId, revision: head.number, groups };
   invariant(Buffer.byteLength(JSON.stringify(response)) <= 16 * 1024 * 1024, 'REVIEW_RESPONSE_TOO_LARGE', 'Query one Review or fewer history entries to stay within the 16 MiB response bound.');
   return response;
+}
+
+/** Owner-only legacy presentation. All temporary Review data stays in this cloned read document. */
+export function queryLegacyReviewDocument(request, document, adapters = {}) {
+  exactReviewFields(request, ['schemaVersion', 'projectId', 'legacySource', 'selectedItemIds', 'selection', 'expectedRevision', 'includeHistory'], 'Legacy Review query');
+  invariant(request.schemaVersion === 1 && request.projectId === document.projectId, 'LEGACY_REVIEW_PROJECT_MISMATCH', 'Use the exact project and schema for this legacy Review.');
+  const source = normalizeLegacySource(request.legacySource), head = document.revisions.at(-1);
+  const adopted = adoptedLegacyReview(head.snapshot, source);
+  const { legacySource: _source, ...query } = request;
+  if (adopted) {
+    const result = queryReviewDocument({ ...query, reviewId: adopted.reviewId }, document, adapters);
+    result.groups = result.groups.map(group => ({ ...group, legacyAdopted: true })); return result;
+  }
+  const projected = projectLegacyReview(document, source, adapters);
+  const temporary = structuredClone(document), latest = temporary.revisions.at(-1);
+  latest.snapshot.reviewLibrary ??= { schemaVersion: 1, groups: [] };
+  latest.snapshot.reviewLibrary.groups.push(projected);
+  const result = queryReviewDocument({ ...query, reviewId: projected.reviewId }, temporary, adapters);
+  result.groups = result.groups.map(group => ({ ...group, isLegacyProjection: true }));
+  return result;
 }

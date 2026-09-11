@@ -48,6 +48,12 @@ export function inspectReviewIntegrity(database) {
         verifyReviewContent(database, projectId, group);
         heads.set(group.reviewId, group);
       }
+      const legacyLinks = new Set();
+      for (const group of heads.values()) if (group.legacySource) {
+        const key = JSON.stringify([group.legacySource.contentKind, group.legacySource.proposalId]);
+        invariant(!legacyLinks.has(key), 'REVIEW_INTEGRITY_MISMATCH', 'A legacy proposal has multiple authoritative Reviews.');
+        legacyLinks.add(key);
+      }
       const ordered = values => [...values].sort((a, b) => a.reviewId.localeCompare(b.reviewId));
       const snapshot = JSON.parse(project.head_snapshot_json);
       eq(ordered(heads.values()), ordered(revisions.at(-1)?.snapshot.reviewLibrary?.groups ?? []), 'Review heads differ from the latest immutable semantic snapshot.');
@@ -79,6 +85,11 @@ export function inspectReviewIntegrity(database) {
       for (const revision of revisions.filter(value => !value.command.type.startsWith('review.'))) {
         const prior = revisions.find(value => value.number === revision.number - 1);
         eq(prior?.snapshot.reviewLibrary ?? null, revision.snapshot.reviewLibrary ?? null, 'An unrelated command replaced Review history.');
+        for (const group of prior?.snapshot.reviewLibrary?.groups ?? []) if (group.legacySource) {
+          const library = REVIEW_CONTENT_LIBRARIES[group.legacySource.contentKind];
+          eq(prior.snapshot[library]?.proposals.find(proposal => proposal.proposalId === group.legacySource.proposalId),
+            revision.snapshot[library]?.proposals.find(proposal => proposal.proposalId === group.legacySource.proposalId), 'An unrelated command changed an adopted legacy proposal.');
+        }
       }
     } catch (error) { findings.push({ projectId: project.project_id, code: error.code ?? 'REVIEW_INTEGRITY_FAILED', message: error.message }); }
   }

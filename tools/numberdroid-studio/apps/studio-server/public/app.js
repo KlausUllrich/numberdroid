@@ -1,6 +1,8 @@
 import { createLibraryUiState, librarySetProject, libraryInventory, libraryReviewGroups, libraryAssetPin, findLibraryItem, libraryRouteKey, libraryNavigate, libraryBack } from './library-state.js';
 import { renderLibraryNavigation, renderLibraryCard, renderLibraryHistory } from './library-view.js';
 import { renderLibraryDetail, createLibraryPreviewDocument } from './library-detail-view.js';
+import { createReviewController } from './review-controller.js';
+import { renderActivityRows } from './activity-view.js';
 import { createAnimationEditorController } from './animation-editor-controller.js';
 import { createAnimationCutController } from './animation-cut-controller.js';
 import { renderAnimationCard } from './animation-library-view.js';
@@ -70,6 +72,8 @@ const state = {
   hostBindingSupport: 'SQLITE_REQUIRED',
   assemblyAuthoringSupport: 'UNAVAILABLE',
   clipAuthoringSupport: 'UNAVAILABLE',
+  reviewAuthoringSupport: 'UNAVAILABLE',
+  activityUi: { eventId: null, context: null },
   hostBindings: [],
   pendingHosts: [],
   mcpLauncherConfig: null,
@@ -2472,6 +2476,8 @@ const libraryNativeContexts = new Map();
 const libraryExternalOrigins = new Map();
 const libraryCardObservers = new Set();
 const libraryRetiredPreviewUrls = new Set();
+const sharedReviewControllers = new Map();
+const legacyReviewFallbacks = new Map();
 let libraryReadGeneration = 0;
 let libraryRenderQueued = false;
 
@@ -2479,7 +2485,7 @@ function libraryHasEditor() { return Boolean(activeAssetEditor || activeAssembly
 function libraryRouteIdentity() { return `${state.project?.projectId ?? ''}:${libraryRouteKey(libraryUi.route)}`; }
 function libraryFocusToken(node) {
   if (!node) return null;
-  for (const attribute of ['data-asset-focus-key', 'data-library-focus', 'data-assembly-review-focus', 'data-animation-review-focus']) {
+  for (const attribute of ['data-asset-focus-key', 'data-library-focus', 'data-assembly-review-focus', 'data-animation-review-focus', 'data-review-focus', 'data-activity-inspect', 'data-activity-current-review']) {
     if (node.hasAttribute?.(attribute)) return { attribute, value: node.getAttribute(attribute) };
   }
   return null;
@@ -2488,8 +2494,9 @@ function libraryDomSnapshot() {
   const active = document.activeElement;
   return { projectId: state.project?.projectId, workspace: state.workspace, page: { x: window.scrollX, y: window.scrollY }, focus: libraryFocusToken(active),
     selection: typeof active?.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null,
-    scroll: [...elements['workspace-content'].querySelectorAll('[data-asset-scroll], [data-library-scroll], [data-assembly-review-scroll], [data-animation-scroll]')].map(node => {
-      const attribute = ['data-asset-scroll', 'data-library-scroll', 'data-assembly-review-scroll', 'data-animation-scroll'].find(name => node.hasAttribute(name));
+    disclosures: [...elements['workspace-content'].querySelectorAll('[data-review-disclosure], [data-activity-disclosure], [data-legacy-review-history]')].map(node => { const attribute = ['data-review-disclosure','data-activity-disclosure','data-legacy-review-history'].find(key => node.hasAttribute(key)); return { attribute, value: node.getAttribute(attribute), open: node.open }; }),
+    scroll: [...elements['workspace-content'].querySelectorAll('[data-asset-scroll], [data-library-scroll], [data-assembly-review-scroll], [data-animation-scroll], [data-review-scroll]')].map(node => {
+      const attribute = ['data-asset-scroll', 'data-library-scroll', 'data-assembly-review-scroll', 'data-animation-scroll', 'data-review-scroll'].find(name => node.hasAttribute(name));
       return { attribute, value: node.getAttribute(attribute), left: node.scrollLeft, top: node.scrollTop };
     }) };
 }
@@ -2501,6 +2508,7 @@ function restoreLibrarySnapshot(saved, expected = libraryRouteIdentity()) {
   if (!saved || saved.projectId !== state.project?.projectId) return;
   requestAnimationFrame(() => {
     if (libraryHasEditor() || saved.projectId !== state.project?.projectId || (state.workspace === 'assets' && expected !== libraryRouteIdentity())) return;
+    for (const disclosure of saved.disclosures ?? []) for (const node of elements['workspace-content'].querySelectorAll(`[${disclosure.attribute ?? 'data-review-disclosure'}]`)) if (node.getAttribute(disclosure.attribute ?? 'data-review-disclosure') === (disclosure.value ?? disclosure.key)) node.open = disclosure.open;
     for (const record of saved.scroll ?? []) for (const node of elements['workspace-content'].querySelectorAll(`[${record.attribute}]`)) {
       if (node.getAttribute(record.attribute) === record.value) { node.scrollLeft = record.left; node.scrollTop = record.top; }
     }
@@ -2526,7 +2534,7 @@ function libraryRestoreOrigin(saved, editorState) {
 }
 function libraryNavigationAllowed() {
   if (state.assetMutationPending || state.sourceMutationPending || state.cutterPending || libraryHasEditor()) return false;
-  return [...assemblyReviewControllers.values(), ...animationReviewControllers.values()].every(controller => controller.requestLeave());
+  return [...assemblyReviewControllers.values(), ...animationReviewControllers.values(), ...sharedReviewControllers.values()].every(controller => controller.requestLeave());
 }
 function goLibrary(route, { readonlyDetour = false } = {}) {
   if (!state.project || libraryHasEditor() || state.assetMutationPending || (!readonlyDetour && !libraryNavigationAllowed())) { showToast('Finish or reconcile the pending edit before navigating.'); return; }
@@ -2538,8 +2546,13 @@ function goLibrary(route, { readonlyDetour = false } = {}) {
   cancelPinnedAssetsOnWorkspaceExit('assets'); state.workspace = 'assets'; history.replaceState(null, '', '#assets');
   renderWorkspace(); libraryRestoreCurrent();
 }
+function clearResolvedLibraryWarning() {
+  if (elements.toast.textContent !== 'Resolve the pending request before leaving.') return;
+  clearTimeout(showToast.timeout); elements.toast.classList.remove('visible'); elements.toast.textContent = '';
+}
 function libraryBackToPrevious() {
   if (!libraryNavigationAllowed()) { showToast('Resolve the pending request before leaving.'); return; }
+  clearResolvedLibraryWarning();
   captureLibraryDom();
   const leaving = libraryUi.route, dom = libraryExternalOrigins.get(libraryRouteKey(leaving));
   libraryExternalOrigins.delete(libraryRouteKey(leaving));
@@ -2556,6 +2569,7 @@ function libraryAllGroups() {
     const existing = groups.find(group => group.contentKind === contentKind && group.proposalId === review.proposal.proposalId);
     if (existing) { existing.pending = true; existing.status = review.status === 'uncertain' ? 'OUTCOME_UNCONFIRMED' : 'SAVING'; }
   }
+  for (const controller of new Set(sharedReviewControllers.values())) { const value = controller.getState(); if (value.projectId !== state.project?.projectId || !value.intent) continue; const group = groups.find(group => group.proposalId === value.reviewId || group.proposalId === value.legacySource?.proposalId); if (group) { group.pending = true; group.status = value.phase === 'saving' ? 'SAVING' : 'OUTCOME_UNCONFIRMED'; } }
   return groups;
 }
 function libraryReleasePreviewUrl(url) {
@@ -2588,7 +2602,7 @@ function libraryLoadPreview(entry, { retry = false } = {}) {
   while (libraryPreviewRecords.size > 80) { const oldest = libraryPreviewRecords.keys().next().value; const old = libraryPreviewRecords.get(oldest); if (old.url) libraryReleasePreviewUrl(old.url); libraryPreviewRecords.delete(oldest); }
   return result;
 }
-function libraryClearReads() { libraryReadGeneration += 1; for (const record of libraryPreviewRecords.values()) if (record.url) URL.revokeObjectURL(record.url); libraryPreviewRecords.clear(); for (const url of libraryRetiredPreviewUrls) URL.revokeObjectURL(url); libraryRetiredPreviewUrls.clear(); for (const detail of libraryDetails.values()) if (detail.url) URL.revokeObjectURL(detail.url); libraryDetails.clear(); for (const observer of libraryCardObservers) observer.disconnect(); libraryCardObservers.clear(); libraryNativeContexts.clear(); libraryExternalOrigins.clear(); }
+function libraryClearReads() { for (const [key, controller] of sharedReviewControllers) if (controller.dispose() !== false) sharedReviewControllers.delete(key); legacyReviewFallbacks.clear(); libraryReadGeneration += 1; for (const record of libraryPreviewRecords.values()) if (record.url) URL.revokeObjectURL(record.url); libraryPreviewRecords.clear(); for (const url of libraryRetiredPreviewUrls) URL.revokeObjectURL(url); libraryRetiredPreviewUrls.clear(); for (const detail of libraryDetails.values()) if (detail.url) URL.revokeObjectURL(detail.url); libraryDetails.clear(); for (const observer of libraryCardObservers) observer.disconnect(); libraryCardObservers.clear(); libraryNativeContexts.clear(); libraryExternalOrigins.clear(); }
 function libraryCompactCard(entry) {
   const projectId = state.project.projectId, revision = state.project.revision;
   const cached = libraryPreviewRecords.get(libraryPreviewKey(entry));
@@ -2675,7 +2689,7 @@ function libraryRenderDetail() {
   }
   return root;
 }
-function libraryBackButton() { const b = document.createElement('button'); b.type = 'button'; b.className = 'secondary'; b.dataset.libraryAction = 'back'; b.dataset.assetFocusKey = 'library-back'; b.textContent = 'Back'; return b; }
+function libraryBackButton() { const b = document.createElement('button'); b.type = 'button'; b.className = 'secondary'; b.dataset.libraryAction = 'back'; b.dataset.assetFocusKey = 'library-back'; b.textContent = libraryBackLabel(); return b; }
 function libraryNativeLifecycleControls(asset, { canMutate = false } = {}) {
   const root = document.createElement('details'); root.className = 'library-lifecycle'; const summary = document.createElement('summary'); summary.textContent = `Validation and lifecycle · ${asset.lifecycle ?? 'Proposed'}`; root.append(summary, findingsList(asset.findings));
   const facts = document.createElement('dl'); facts.className = 'property-list';
@@ -2690,8 +2704,95 @@ function libraryNativeLifecycleControls(asset, { canMutate = false } = {}) {
   }
   const b = document.createElement('button'); b.type = 'button'; b.dataset.assetLifecycle = asset.assetId; b.dataset.targetLifecycle = target; b.dataset.assetVersion = asset.assetVersion; b.dataset.metadataVersion = asset.metadataVersion; b.dataset.assetFocusKey = `lifecycle-${asset.assetId}`; b.textContent = target === 'FINAL' ? 'Finalize asset' : `Advance to ${target.replace('_', ' ')}`; b.disabled = state.assetMutationPending; root.append(b); return root;
 }
+function libraryBackLabel() {
+  const external = libraryExternalOrigins.get(libraryRouteKey(libraryUi.route));
+  if (external?.workspace === 'activity') return state.activityUi.eventId ? '← Back to event' : '← Back to Activity';
+  if (external?.workspace === 'sources') return '← Back to Sources';
+  if (external?.workspace === 'tasks') return '← Back to Tasks';
+  const previous = libraryUi.returnStack.at(-1);
+  return previous?.view === 'review' ? '← Back to review' : previous?.view === 'detail' ? '← Back to details' : '← Back to Library';
+}
+function sharedReviewSupported() { return state.uiMode === 'local' && state.reviewAuthoringSupport === 'AVAILABLE'; }
+function sharedLegacySource(route) {
+  if (route.contentKind === 'review' || route.readOnly) return null;
+  const library = route.contentKind === 'image' ? currentAssetLibrary() : route.contentKind === 'animation' ? currentClipLibrary() : currentAssemblyLibrary();
+  const proposal = library.proposals.find(proposal => proposal.proposalId === route.proposalId);
+  if (!proposal) return null;
+  const status = proposal.state ?? proposal.status;
+  if (route.contentKind === 'image' ? status !== 'PENDING' || proposal.items.some(item => item.findings?.some(finding => finding.severity === 'ERROR')) : !['PENDING','CHANGES_REQUESTED'].includes(status)) return null;
+  return { contentKind: route.contentKind, proposalId: proposal.proposalId, expectedProposalVersion: proposal.proposalVersion };
+}
+async function readSharedReview(request, { signal } = {}) {
+  const path = `/api/projects/${encodeURIComponent(request.projectId)}`;
+  if (request.legacySource) {
+    const source = request.legacySource;
+    const endpoint = `${path}/legacy-reviews/${encodeURIComponent(source.contentKind)}/${encodeURIComponent(source.proposalId)}/preview`;
+    const body = { expectedProposalVersion: source.expectedProposalVersion, includeHistory: true,
+      ...(request.selectedItemIds ? { selectedItemIds: request.selectedItemIds } : {}), ...(request.selection ? { selection: request.selection } : {}),
+      ...(request.expectedRevision !== undefined ? { expectedRevision: request.expectedRevision } : {}) };
+    return api(endpoint, { method: 'POST', signal, headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: JSON.stringify(body) });
+  }
+  const endpoint = `${path}/reviews/${encodeURIComponent(request.reviewId)}/preview`;
+  const { schemaVersion: _schema, projectId: _project, reviewId: _review, ...body } = request;
+  return api(endpoint, { method: 'POST', signal, headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: JSON.stringify(body) });
+}
+function latestLegacyReviewSource(source) {
+  if (!source) return null;
+  const library = source.contentKind === 'image' ? currentAssetLibrary() : source.contentKind === 'animation' ? currentClipLibrary() : currentAssemblyLibrary();
+  const proposal = library.proposals.find(value => value.proposalId === source.proposalId);
+  return proposal ? { ...source, expectedProposalVersion: proposal.proposalVersion } : null;
+}
+function renderSharedReview(route, legacySource = null) {
+  const projectId = state.project.projectId, routeKey = libraryRouteKey(route), key = `${projectId}:${routeKey}`;
+  let controller = sharedReviewControllers.get(key);
+  if (!controller && !route.readOnly) controller = [...new Set(sharedReviewControllers.values())].find(value => {
+    const current = value.getState(); return current.projectId === projectId && !current.readOnly && (route.contentKind === 'review' ? current.reviewId === route.proposalId : current.legacySource?.contentKind === legacySource?.contentKind && current.legacySource?.proposalId === legacySource?.proposalId && current.legacySource?.expectedProposalVersion === legacySource?.expectedProposalVersion);
+  });
+  if (!controller) {
+    controller = createReviewController({ context: { projectId, projectRevision: state.project.revision,
+      ...(legacySource ? { legacySource } : { reviewId: route.proposalId, reviewVersion: route.proposalVersion }),
+      readOnly: route.readOnly === true, canMutate: route.readOnly !== true && sharedReviewSupported() }, host: {
+      context: () => ({ projectId: state.project?.projectId, projectRevision: state.project?.revision,
+        latestGroup: state.project?.snapshot.reviewLibrary?.groups.find(group => group.reviewId === controller?.getState().reviewId || (controller?.getState().legacySource && group.legacySource?.contentKind === controller.getState().legacySource.contentKind && group.legacySource?.proposalId === controller.getState().legacySource.proposalId)),
+        latestLegacySource: latestLegacyReviewSource(controller?.getState().legacySource),
+        canMutate: sharedReviewSupported(), readOnly: route.readOnly === true }),
+      read: async (request, options) => {
+        try { return await readSharedReview(request, options); }
+        catch (error) {
+          if (legacySource && ['LEGACY_REVIEW_UNSUPPORTED','LEGACY_REVIEW_CONTENT_INVALID','LEGACY_REVIEW_HISTORY_MISSING'].includes(error.code)) {
+            legacyReviewFallbacks.set(key, error.message);
+            queueMicrotask(() => { if (state.project?.projectId === projectId && libraryRouteKey(libraryUi.route) === routeKey) renderWorkspace(); });
+          }
+          throw error;
+        }
+      },
+      post: (action, intent, { signal } = {}) => api(`/api/projects/${encodeURIComponent(projectId)}/reviews/${encodeURIComponent(intent.reviewId)}/${action}`,
+        { method: 'POST', signal, headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: intent.serialized }),
+      onSaved: () => { clearResolvedLibraryWarning(); return loadProject(projectId, { preserveWorkspaceIfUnchanged: true, signal: AbortSignal.timeout(8000), canApply: () => state.project?.projectId === projectId }); },
+      onDetails: detail => {
+        const current = controller.getState();
+        const original = current.legacySource;
+        libraryOpenReviewDetail(detail.contentKind, { ...detail, record: detail.resolved ?? detail.record,
+          proposalId: detail.reviewVersion > 0 ? detail.reviewId : original?.proposalId,
+          proposalVersion: detail.reviewVersion > 0 ? detail.reviewVersion : original?.expectedProposalVersion });
+      },
+      onBack: libraryBackToPrevious,
+      announce: showToast,
+      setMutationPending: pending => { state.assetMutationPending = pending; },
+    } });
+    sharedReviewControllers.set(key, controller);
+  } else controller.reconcileContext();
+  const fragment = document.createDocumentFragment();
+  fragment.append(libraryBackButton(), controller.element);
+  queueMicrotask(() => { if (controller.element.isConnected) controller.afterMount(); });
+  return fragment;
+}
 function libraryRenderReview() {
-  const route = libraryUi.route, fragment = document.createDocumentFragment(); fragment.append(libraryBackButton());
+  const route = libraryUi.route, source = sharedLegacySource(route);
+  const sharedKey = `${state.project.projectId}:${libraryRouteKey(route)}`;
+  if (sharedReviewSupported() && (route.contentKind === 'review' || source) && !legacyReviewFallbacks.has(sharedKey)) return renderSharedReview(route, source);
+  if (route.contentKind === 'review') { const root = document.createElement('section'); root.append(libraryBackButton(), emptyState('Shared Review unavailable', 'This workspace does not currently provide the local shared Review capability.')); return root; }
+  const fragment = document.createDocumentFragment(); fragment.append(libraryBackButton());
   if (route.contentKind === 'image') {
     const proposal = currentAssetLibrary().proposals.find(value => value.proposalId === route.proposalId);
     if (!proposal) { fragment.append(emptyState('Review unavailable', 'The requested review is no longer available.')); return fragment; }
@@ -3046,6 +3147,7 @@ function renderAssemblyReviews(selectedId = null) {
 }
 
 function mayAbandonAssetAuthoring() {
+  for (const controller of new Set(sharedReviewControllers.values())) if (!controller.requestLeave()) return false;
   animationOpenGeneration += 1;
   for (const controller of animationReviewControllers.values()) if (!controller.requestLeave()) return false;
   if (activeAnimationEditor) { if (activeAnimationCut || !activeAnimationEditor.requestLeave()) return false; activeAnimationEditor.dispose(); activeAnimationEditor = null; }
@@ -5644,16 +5746,42 @@ function renderBackups() {
   return root;
 }
 
+function inspectActivityEvent(event, { current = false } = {}) {
+  const target = current ? event.presentation?.currentReview : event.presentation?.inspect;
+  if (target?.type === 'review' || (current && target?.reviewId)) {
+    goLibrary({ view: 'review', contentKind: 'review', proposalId: target.reviewId, proposalVersion: target.reviewVersion, readOnly: !current });
+    return;
+  }
+  state.activityUi = { eventId: event.id, event: structuredClone(event), context: libraryDomSnapshot() };
+  renderWorkspace(); window.scrollTo(0, 0);
+}
 function renderActivityWorkspace() {
-  const root = document.createDocumentFragment();
-  const completed = libraryAllGroups().filter(group => !group.pending);
-  if (completed.length) root.append(renderLibraryHistory({ groups: completed }));
-  if (!state.activity.length) { if (!completed.length) root.append(emptyState('No activity', 'Saved decisions and durable activity appear here.')); return root; }
-  const grid = document.createElement('div'); grid.className = 'card-grid';
-  for (const event of [...state.activity].reverse()) grid.append(card(event.summary, event.actor.kind, event.commandType, [
-    ['Revision', event.revision], ['Actor', event.actor.displayName || event.actor.id], ['Task', event.taskId], ['Time', new Date(event.occurredAt).toLocaleString()],
-  ]));
-  root.append(grid); return root;
+  const root = document.createElement('section'); root.className = 'studio-activity';
+  const selected = state.activityUi.eventId ? state.activityUi.event : null;
+  if (selected) {
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'editor-back-link'; back.textContent = 'Back to Activity';
+    back.addEventListener('click', () => { const saved = state.activityUi.context; state.activityUi = { eventId: null, context: null }; renderWorkspace(); restoreLibrarySnapshot(saved); });
+    root.append(back);
+    const notice = document.createElement('p'); notice.className = 'review-readonly-notice'; notice.textContent = 'Read-only recorded event. Earlier decisions and feedback are preserved.'; root.append(notice);
+    const event = structuredClone(selected); if (event.presentation) event.presentation.inspect = null;
+    root.append(renderActivityRows({ events: [event], onInspect: inspectActivityEvent }));
+    return root;
+  }
+  const heading = document.createElement('h2'); heading.textContent = 'Activity'; root.append(heading);
+  const explanation = document.createElement('p'); explanation.className = 'library-muted'; explanation.textContent = 'What changed, who acted, and what happened. Newest first.'; root.append(explanation);
+  const events = state.activity.map(event => {
+    const value = structuredClone(event), id = value.presentation?.inspect?.reviewId;
+    const group = state.project?.snapshot.reviewLibrary?.groups.find(group => group.reviewId === id);
+    if (group && ['PENDING','CHANGES_REQUESTED'].includes(group.status)) value.presentation.currentReview = { type: 'review', reviewId: id, reviewVersion: group.reviewVersion };
+    return value;
+  });
+  root.append(renderActivityRows({ events, onInspect: inspectActivityEvent }));
+  const completed = libraryAllGroups().filter(group => !group.pending && group.contentKind !== 'review');
+  if (completed.length) {
+    const earlier = document.createElement('details'); earlier.dataset.legacyReviewHistory = ''; earlier.className = 'activity-legacy-history';
+    const summary = document.createElement('summary'); summary.textContent = 'Earlier completed reviews'; earlier.append(summary, renderLibraryHistory({ groups: completed })); root.append(earlier);
+  }
+  return root;
 }
 
 function workspaceRenderFingerprint() {
@@ -5816,7 +5944,7 @@ function renderWorkspace({
   }[state.workspace] || 'Project overview';
   elements['workspace-eyebrow'].textContent = title;
   renderWorkspaceHeader();
-  document.body.dataset.libraryWorkspace = String(state.workspace === 'assets' && !libraryHasEditor());
+  document.body.dataset.libraryWorkspace = String(['assets', 'activity'].includes(state.workspace) && !libraryHasEditor());
   const selectedSourceFile = sourceIntakeFormCache?.querySelector('[data-source-file]');
   if (state.workspace === 'sources' && sourceIntakeFormCache?.isConnected
       && (state.sourceFileChooserActive || selectedSourceFile?.files?.length > 0)) {
@@ -5878,6 +6006,19 @@ function renderWorkspace({
   else if (state.workspace === 'tasks') content = renderTasks();
   else if (state.workspace === 'levels') content = renderCollection(snapshot.levels, 'levels');
   else content = renderActivityWorkspace();
+  if (['sources', 'tasks'].includes(state.workspace) && sharedReviewSupported() && !state.cutter) {
+    const pending = libraryAllGroups().filter(group => group.pending && (state.workspace !== 'tasks' || state.taskUi.view !== 'detail' || group.taskId === state.taskUi.selectedTaskId));
+    if (pending.length) {
+      const entries = document.createElement('section'); entries.className = 'review-entry-links';
+      const heading = document.createElement('h3'); heading.textContent = 'Submitted content changes'; entries.append(heading);
+      for (const group of pending) {
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'secondary';
+        button.dataset.libraryAction = 'review'; button.dataset.libraryKind = group.contentKind; button.dataset.libraryProposalId = group.proposalId; button.dataset.libraryProposalVersion = String(group.proposalVersion);
+        button.textContent = `${group.title} · ${group.changeCount} changes →`; entries.append(button);
+      }
+      const wrapped = document.createDocumentFragment(); wrapped.append(entries, content); content = wrapped;
+    }
+  }
   queueMicrotask(libraryCollectPreviewUrls);
   if (state.workspace === 'assets') elements['workspace-content'].dataset.libraryRoute = libraryRouteIdentity();
   else delete elements['workspace-content'].dataset.libraryRoute;
@@ -6200,7 +6341,7 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
     state.taskDomState = null;
     const option = document.createElement('option'); option.textContent = 'No projects'; option.value = '';
     elements['project-select'].append(option); state.project = null; state.activity = [];
-    state.agentAccess = null; state.assemblyAuthoringSupport = 'UNAVAILABLE'; state.clipAuthoringSupport = 'UNAVAILABLE'; setAgentAccessPanel(false);
+    state.agentAccess = null; state.assemblyAuthoringSupport = 'UNAVAILABLE'; state.clipAuthoringSupport = 'UNAVAILABLE'; state.reviewAuthoringSupport = 'UNAVAILABLE'; setAgentAccessPanel(false);
     renderProject({
       preserveWorkspace: preserveWorkspaceIfUnchanged
         && state.workspace === 'backups'
@@ -6220,6 +6361,13 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
 let projectLoadGeneration = 0;
 async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, signal = null, canApply = null } = {}) {
   if (!projectId || signal?.aborted || (canApply && !canApply())) return false;
+  if (state.project?.projectId && state.project.projectId !== projectId) {
+    const unsent = [...new Set(sharedReviewControllers.values())].some(controller => {
+      const review = controller.getState(); return review.projectId === state.project.projectId && review.feedback?.editing
+        && (review.feedback.draftSummary.trim() || Object.values(review.feedback.draftItemComments).some(text => text.trim()));
+    });
+    if (unsent && !window.confirm('Switch projects and discard unsent Review feedback? Saved feedback and decisions stay available.')) { elements['project-select'].value = state.project.projectId; return false; }
+  }
   if (state.project?.projectId && state.project.projectId !== projectId && !mayAbandonAssetAuthoring()) {
     elements['project-select'].value = state.project.projectId; return false;
   }
@@ -6243,7 +6391,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
     : null;
   if (state.project?.projectId && state.project.projectId !== projectId) {
     cancelTaskAdoptionLoad();
-    state.showMcpLauncherConfig = false;
+    state.showMcpLauncherConfig = false; state.activityUi = { eventId: null, context: null };
     cancelCutterJobPolling();
     resetCutterScroll();
     resetAssetUiProjectContext();
@@ -6261,7 +6409,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
   }
   const [project, activity, agentAccess, sourceIntakes, taskList] = await Promise.all([
     api(`/api/projects/${encodeURIComponent(projectId)}`, { signal }),
-    api(`/api/projects/${encodeURIComponent(projectId)}/activity`, { signal }),
+    api(`/api/projects/${encodeURIComponent(projectId)}/activity${state.uiMode === 'remote' ? '' : '?presentation=true'}`, { signal }),
     state.uiMode === 'remote'
       ? Promise.resolve(remoteReadOnlyAgentAccess(projectId))
       : api(`/api/projects/${encodeURIComponent(projectId)}/agent-access`, { signal }),
@@ -6336,6 +6484,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
   state.hostBindingSupport = agentAccess.hostBindingSupport;
   state.assemblyAuthoringSupport = agentAccess.assemblyAuthoringSupport ?? 'UNAVAILABLE';
   state.clipAuthoringSupport = agentAccess.clipAuthoringSupport ?? 'UNAVAILABLE';
+  state.reviewAuthoringSupport = agentAccess.reviewAuthoringSupport ?? 'UNAVAILABLE';
   state.hostBindings = agentAccess.hostBindings;
   state.pendingHosts = agentAccess.pendingHosts;
   state.mcpLauncherConfig = agentAccess.mcpLauncherConfig;
@@ -6390,6 +6539,7 @@ async function requestAgentAccess(mode, {
     state.hostBindingSupport = response.hostBindingSupport;
     state.assemblyAuthoringSupport = response.assemblyAuthoringSupport ?? 'UNAVAILABLE';
     state.clipAuthoringSupport = response.clipAuthoringSupport ?? 'UNAVAILABLE';
+    state.reviewAuthoringSupport = response.reviewAuthoringSupport ?? 'UNAVAILABLE';
     state.hostBindings = response.hostBindings;
     state.pendingHosts = response.pendingHosts;
     state.pendingAgentAccess = null;
