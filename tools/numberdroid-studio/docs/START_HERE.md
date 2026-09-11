@@ -4,6 +4,17 @@ Status date: 2026-09-10. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
+Session restart snapshot (2026-09-11):
+[Library implementation handoff](../../../docs/history/handoffs/HANDOFF_2026-09-11_LIBRARY_IMPLEMENTATION_READY.md).
+Read it after the current binding route when resuming this task. It records the
+approved next block, stopped servers and preserved workspaces; reverify its baseline.
+
+Task tracking evaluation: use BB Tasks project **Numberdroid Studio (ND)** as the
+working board, with linked GitHub issues as Taskboard/repository copies. The next
+implementation task is **ND-1 / [#236](https://github.com/KlausUllrich/numberdroid/issues/236)**.
+Read the task and keep meaningful milestone status aligned in both copies; creating
+these records does not start work or change the existing acceptance gates.
+
 ## Current direction
 
 Klaus has returned to attended product/design work. His 2026-09-07 direction
