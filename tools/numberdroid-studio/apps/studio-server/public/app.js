@@ -1,4 +1,4 @@
-import { createLibraryUiState, librarySetProject, libraryInventory, libraryReviewGroups, libraryAssetPin, findLibraryItem, libraryRouteKey, libraryNavigate, libraryBack } from './library-state.js';
+import { createLibraryUiState, librarySetProject, libraryInventory, libraryProposedAdditions, libraryReviewGroups, libraryAssetPin, findLibraryItem, libraryRouteKey, libraryNavigate, libraryBack } from './library-state.js';
 import { renderLibraryNavigation, renderLibraryCard, renderLibraryHistory } from './library-view.js';
 import { renderLibraryDetail, createLibraryPreviewDocument } from './library-detail-view.js';
 import { createReviewController } from './review-controller.js';
@@ -2749,7 +2749,7 @@ function renderSharedReview(route, legacySource = null) {
     const current = value.getState(); return current.projectId === projectId && !current.readOnly && (route.contentKind === 'review' ? current.reviewId === route.proposalId : current.legacySource?.contentKind === legacySource?.contentKind && current.legacySource?.proposalId === legacySource?.proposalId && current.legacySource?.expectedProposalVersion === legacySource?.expectedProposalVersion);
   });
   if (!controller) {
-    controller = createReviewController({ context: { projectId, projectRevision: state.project.revision,
+    controller = createReviewController({ context: { projectId, projectRevision: state.project.revision, activeItemId: route.itemId,
       ...(legacySource ? { legacySource } : { reviewId: route.proposalId, reviewVersion: route.proposalVersion }),
       readOnly: route.readOnly === true, canMutate: route.readOnly !== true && sharedReviewSupported() }, host: {
       context: () => ({ projectId: state.project?.projectId, projectRevision: state.project?.revision,
@@ -2782,6 +2782,8 @@ function renderSharedReview(route, legacySource = null) {
     } });
     sharedReviewControllers.set(key, controller);
   } else controller.reconcileContext();
+  if (route.itemId && controller.getState().group?.items.some(item => item.itemId === route.itemId)) void controller.dispatch('item', route.itemId);
+  delete route.itemId;
   const fragment = document.createDocumentFragment();
   fragment.append(libraryBackButton(), controller.element);
   queueMicrotask(() => { if (controller.element.isConnected) controller.afterMount(); });
@@ -2812,7 +2814,7 @@ function renderLibraryWorkspace(snapshot) {
   if (libraryUi.route.view === 'detail') return libraryRenderDetail();
   if (libraryUi.route.view === 'review') return libraryRenderReview();
   const fragment = document.createDocumentFragment();
-  fragment.append(renderLibraryNavigation({ ui: libraryUi, items: libraryInventory(snapshot), groups: libraryAllGroups(), renderCard: libraryCompactCard, canCreateAssembly: assemblyCanMutate() }));
+  fragment.append(renderLibraryNavigation({ ui: libraryUi, items: libraryInventory(snapshot), proposedAdditions: libraryProposedAdditions(snapshot), groups: libraryAllGroups(), renderCard: libraryCompactCard, canCreateAssembly: assemblyCanMutate() }));
   if (snapshot.assets?.length) { const legacy = document.createElement('details'), title = document.createElement('summary'); title.textContent = 'Legacy project assets'; legacy.append(title, renderCollection(snapshot.assets, 'assets')); fragment.append(legacy); }
   return fragment;
 }
@@ -2823,7 +2825,7 @@ function libraryRefreshListing() {
   const active = document.activeElement, selection = typeof active?.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
   const position = { x: window.scrollX, y: window.scrollY }, fields = old.querySelector('[data-library-filters]');
   for (const observer of libraryCardObservers) observer.disconnect(); libraryCardObservers.clear();
-  const next = renderLibraryNavigation({ ui: libraryUi, items: libraryInventory(state.project.snapshot), groups: libraryAllGroups(), renderCard: libraryCompactCard, canCreateAssembly: assemblyCanMutate() });
+  const next = renderLibraryNavigation({ ui: libraryUi, items: libraryInventory(state.project.snapshot), proposedAdditions: libraryProposedAdditions(state.project.snapshot), groups: libraryAllGroups(), renderCard: libraryCompactCard, canCreateAssembly: assemblyCanMutate() });
   if (fields) next.querySelector('[data-library-filters]')?.replaceWith(fields);
   old.replaceWith(next); libraryCollectPreviewUrls();
   if (active?.isConnected) { active.focus({ preventScroll: true }); if (selection && active.setSelectionRange) active.setSelectionRange(...selection); }
@@ -2837,7 +2839,7 @@ function libraryHandleClick(event) {
   if (action === 'tab') goLibrary({ view: 'list', tab: d.libraryTab });
   else if (action === 'back') libraryBackToPrevious();
   else if (action === 'details') libraryOpenSavedDetail({ contentKind: d.libraryKind, assetId: d.libraryAssetId, assetVersion: Number(d.libraryAssetVersion), metadataVersion: Number(d.libraryMetadataVersion) });
-  else if (action === 'review') goLibrary({ view: 'review', contentKind: d.libraryKind, proposalId: d.libraryProposalId, proposalVersion: Number(d.libraryProposalVersion) });
+  else if (action === 'review') goLibrary({ view: 'review', contentKind: d.libraryKind, proposalId: d.libraryProposalId, proposalVersion: Number(d.libraryProposalVersion), ...(d.libraryItemId ? { itemId: d.libraryItemId } : {}) });
   else if (action === 'edit') {
     const route = libraryUi.route, entry = route.pin ? findLibraryItem(state.project.snapshot, route.pin) : null;
     if (!entry || !libraryNavigationAllowed()) return;

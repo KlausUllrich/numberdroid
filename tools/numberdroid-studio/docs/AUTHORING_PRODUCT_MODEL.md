@@ -112,6 +112,14 @@ operation without being final for every purpose. Required missing properties
 block the affected use; optional future polish does not impose a completion
 ceremony. Existing Room references remain pinned while revisions are prepared.
 
+The Assets view distinguishes saved content from **Proposed additions**. A
+pending creation may be shown there as a clearly provisional card so the user
+can understand why Pending changes contains more content than the saved
+inventory. It has no saved Asset version and no edit/use action. Opening it
+returns to the same shared Review with that item in focus. Acceptance moves the
+new exact version into saved Assets; discard removes the provisional card while
+the immutable decision remains in Activity.
+
 Sources, Library and Agent tasks can open the same review. They must not require
 separate approvals of the same changes. A task may span new and existing content;
 its review preserves that context and the dependencies of selected changes.

@@ -45,6 +45,18 @@ body[data-library-workspace="true"] #workspace > .hero .review-state { gap: 4px;
 .library-card-actions { margin-top: auto; padding-top: 3px; }
 .library-card-actions button { width: 100%; }
 .library-card-pending .library-pending-badge { font-size: 11px; padding: 6px 8px; color: #ead5a1; background: #383522; border: 1px solid #74633b; border-radius: 5px; text-align: left; }
+.library-proposed-additions { margin: 6px 0 26px; padding: 18px; border: 1px dashed #8a7440; border-radius: 11px; background: #24281d; }
+.library-proposed-additions > h3, .library-saved-heading { margin: 0 0 6px; font-size: 17px; }
+.library-proposed-additions > .library-muted { margin-bottom: 15px; line-height: 1.5; }
+.library-proposed-card { border-style: dashed; border-color: #8a7440; background: #20291f; }
+.library-proposed-artwork { height: 190px; display: grid; place-content: center; gap: 7px; text-align: center; border: 1px dashed #6f633e; border-radius: 8px; background: repeating-linear-gradient(135deg, #1a281f, #1a281f 10px, #202d22 10px, #202d22 20px); color: #e6d69e; }
+.library-proposed-kind { font-size: 14px; font-weight: 700; }
+.library-proposed-artwork small, .library-proposed-help { color: #bdc9bf; font-size: 11px; line-height: 1.5; }
+.library-proposed-badge { padding: 4px 7px; border: 1px solid #a98c48; border-radius: 5px; background: #39321d; color: #f1d98e; font-size: 10px; font-weight: 700; }
+.library-proposed-state { color: #d7cda8; font-size: 10px; }
+.library-proposed-help { margin: 0; }
+.library-saved-heading { margin-top: 0; }
+.library-no-saved-match { margin: 12px 0 0; }
 .library-empty { border: 1px dashed #466153; border-radius: 10px; padding: 28px; color: var(--library-muted); }
 .library-empty h3 { margin: 0 0 8px; color: #d5e6db; font-size: 17px; }
 .library-empty p { font-size: 13px; line-height: 1.6; max-width: 65ch; }

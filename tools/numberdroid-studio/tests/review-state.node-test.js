@@ -38,6 +38,15 @@ test('content and feedback changes are distinct, require explicit adoption, and 
   assert.deepEqual(s.feedback.draftItemComments, { 'item.assembly': 'Assembly note' });
 });
 
+test('a Library proposed-addition entry opens the shared Review on that exact item', () => {
+  const s = createReviewUiState({ projectId: 'project.demo', projectRevision: 7, canMutate: true, activeItemId: 'item.assembly' });
+  assert.equal(s.activeItemId, 'item.assembly');
+  adoptReviewGroup(s, group(), 7);
+  assert.equal(s.activeItemId, 'item.assembly');
+  adoptReviewGroup(s, group({ items: [{ itemId: 'item.leaf', status: 'PENDING' }] }), 8);
+  assert.equal(s.activeItemId, 'item.leaf', 'a removed item falls back to an available exact Review item');
+});
+
 test('server eligibility is required independently of a resolvable preview or local selection', () => {
   const s = state({ selectionOutcome: { state: 'READY', items: [] }, eligibility: { canAccept: false, findings: [{ code: 'REVIEW_DEPENDENCY_REQUIRED', message: 'Include its dependency.' }] } });
   assert.equal(reviewPresentation(s, context).canAccept, false);

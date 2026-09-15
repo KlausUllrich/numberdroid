@@ -1,5 +1,16 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-15 VT-024 Library clarity correction
+
+Klaus passed the initial Shared Review explanations and reported one production
+clarity defect: Library → Assets did not account for a new unsaved item visible
+inside Pending changes. The approved bounded correction adds a separate
+**Proposed additions** projection with no saved pin or use/edit authority and
+routes its card to the exact item in the existing Review. It preserves accepted
+Library behavior and all Review persistence/authority semantics. VT-024 remains
+pending until this affected behavior is integrated and live-retested; the
+already-passed explanations need not be repeated.
+
 ## 2026-09-11 Review V2 design approval
 
 Klaus explicitly reported **“All pass”** for the [Review V2 mockup](../../tools/numberdroid-studio/docs/REVIEW_CHANGES_DESIGN.md#v2-approval--2026-09-11).

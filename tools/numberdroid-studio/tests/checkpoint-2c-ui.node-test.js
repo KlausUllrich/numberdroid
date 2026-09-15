@@ -29,6 +29,9 @@ test('2C Asset Library is additive, ordinal-first, filterable, and keeps exact s
   assert.match(libraryView, /Names, sources and tags/);
   assert.match(libraryView, /libraryAction\('details', 'Details'/);
   assert.match(libraryView, /setLibraryAssetIdentity\(article, entry\)/);
+  assert.match(libraryView, /Proposed additions/);
+  assert.match(libraryView, /Not saved or available for use yet/);
+  assert.match(libraryView, /dataset\.libraryItemId = addition\.itemId/);
   assert.match(detailRenderer, /sliceDisplay\(record\.sliceBinding\)/);
   assert.match(detailRenderer, /copyableCanonical\('Canonical slice ID', record\.sliceBinding\?\.sliceId/);
   assert.match(detailView, /node\.dataset\.assetId = asset\.assetId/);

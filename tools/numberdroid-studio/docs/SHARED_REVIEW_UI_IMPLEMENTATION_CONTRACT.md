@@ -93,6 +93,14 @@ assets reflect their own remaining changes, not already accepted dependencies.
 The queue counts groups and shows the remaining/accepted item context. Sources
 and applicable Agent-task entries route to the same supported Review identities.
 
+Pending shared-Review creations also project into Library → Assets under a
+separate **Proposed additions** heading. Each card carries its exact Review/item
+identity, labels itself **Proposed new asset**, explains that it is neither saved
+nor usable, and offers only Review navigation. It must not fabricate a saved pin,
+open a normal content editor, or enter any saved-content consumer. Acceptance
+removes the provisional card and exposes the real saved version; discard removes
+the card without erasing Review or Activity history.
+
 Activity is a single column, newest first, with readable action/content names,
 compact actor/time/outcome metadata and useful saved feedback. Resolve display
 facts and links from the exact semantic event/revision, not current renamed heads.
