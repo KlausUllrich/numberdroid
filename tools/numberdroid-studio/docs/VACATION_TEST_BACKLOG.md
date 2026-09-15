@@ -1678,13 +1678,17 @@ only the remaining Assembly. Final owner UI acceptance was read back through MCP
 at project34/Review6/content2, preserving the earlier Animation receipt. This is
 agent-workflow evidence, not Klaus's production acceptance.
 
-**2026-09-15 live finding:** the first explanation/check batch passed, but the
+**2026-09-15 live finding and correction result:** the first explanation/check batch passed, but the
 Assets view showed only saved cards with **Needs review** while the related
 Review also contained a new Asset. Klaus approved a separate **Proposed
 additions** section: provisional cards must explain that they are not saved or
 usable, open the same Review on the exact item, and disappear or become normal
-saved cards after discard/acceptance. This focused correction does not repeat or
-invalidate the already-passed Review explanations.
+saved cards after discard/acceptance. PR #250 integrated the correction and its
+exact-item delayed-load repair with green corrected-head and post-merge CI.
+Klaus explicitly reported PASS for the affected live check on 2026-09-15. This
+does not close the remaining feedback, partial/final acceptance, Activity/history
+and return-state steps, and those steps must not repeat or invalidate the passed
+Review explanations or proposed-additions check.
 
 User batch:
 

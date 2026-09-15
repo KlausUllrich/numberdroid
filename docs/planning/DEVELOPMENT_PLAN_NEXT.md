@@ -4,12 +4,14 @@
 
 Klaus passed the initial Shared Review explanations and reported one production
 clarity defect: Library → Assets did not account for a new unsaved item visible
-inside Pending changes. The approved bounded correction adds a separate
+inside Pending changes. The approved bounded correction added a separate
 **Proposed additions** projection with no saved pin or use/edit authority and
-routes its card to the exact item in the existing Review. It preserves accepted
-Library behavior and all Review persistence/authority semantics. VT-024 remains
-pending until this affected behavior is integrated and live-retested; the
-already-passed explanations need not be repeated.
+routes its card to the exact item in the existing Review. PR #250 merged at
+`83e3c72`; corrected-head and post-merge CI passed. Klaus explicitly passed the
+affected live retest on 2026-09-15. VT-024 remains pending only for its recorded
+feedback lifecycle, partial/final acceptance, Activity/history and return-state
+batch; the already-passed explanations and proposed-additions check need not be
+repeated.
 
 ## 2026-09-11 Review V2 design approval
 
