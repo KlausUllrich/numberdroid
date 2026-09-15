@@ -10,7 +10,7 @@ export function createReviewUiState(context) {
     projectId: context.projectId, projectRevision: context.projectRevision, reviewId: context.reviewId ?? group?.reviewId ?? null,
     requestedReviewVersion: context.reviewVersion, historicalReviewVersion: context.readOnly ? context.reviewVersion ?? group?.reviewVersion : undefined,
     legacySource: copy(context.legacySource ?? (group?.reviewVersion === 0 ? group.legacySource : null) ?? null), latestLegacySource: null,
-    group, latest: null, selectedItemIds: reviewPendingIds(group), activeItemId: group?.items[0]?.itemId ?? null,
+    group, latest: null, selectedItemIds: reviewPendingIds(group), activeItemId: context.activeItemId ?? group?.items[0]?.itemId ?? null,
     side: 'proposed', selection: {}, highlight: true, phase: 'idle', load: group ? 'ready' : 'idle', error: null, receipt: null, intent: null,
     readOnly: context.readOnly === true, canMutate: context.canMutate === true,
     feedback: { editing: false, draftSummary: '', draftItemComments: {}, olderDraft: null },

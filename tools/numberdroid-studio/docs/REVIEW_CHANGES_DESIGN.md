@@ -49,6 +49,13 @@ Sources → Needs review, Library → Pending changes and Agent tasks open the s
 review and saved decisions. Completed reviews leave the active queue and remain
 available in history. Human edits do not acquire a redundant agent review step.
 
+Library → Assets also shows pending creations in a separate **Proposed
+additions** section. These cards say that the content is not saved or usable
+yet; they never masquerade as saved Asset versions or enter editor, Room or
+Assembly selection. Opening a card focuses that exact item in the same Review.
+Accepted creations move to the saved inventory, while discarded creations
+leave the provisional section and remain traceable in Activity.
+
 Use a large central preview with **Current / Proposed** selection and a compact
 change list. Show what is new, what changes, and what remains unchanged. The
 example adds a Coffee-ready indicator asset and updates a Coffee machine assembly

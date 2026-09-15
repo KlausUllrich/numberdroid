@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { assemblyReviewIntent, assemblyProposalDiffRows, createAssemblyReviewController } from '../apps/studio-server/public/assembly-review-view.js';
-import { libraryInventory, createLibraryUiState, librarySetProject } from '../apps/studio-server/public/library-state.js';
+import { libraryInventory, libraryProposedAdditions, createLibraryUiState, librarySetProject } from '../apps/studio-server/public/library-state.js';
 
 const app = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
 function proposal() { return { proposalId: 'proposal.a', proposalVersion: 2, status: 'PENDING', feedback: null, content: { assetId: 'assembly.a', operation: 'create', expectedAssetVersion: 0, expectedMetadataVersion: 0, name: 'Machine', kind: 'prop', metadata: { role: null, tags: [] }, assembly: {
@@ -19,7 +19,7 @@ test('Assembly and Animation inventory is combined only in Library while Room so
   let navigation;
   const library = app.slice(app.indexOf('function renderLibraryWorkspace'), app.indexOf('function libraryHandleClick'));
   const render = runInNewContext(`${library}; renderLibraryWorkspace`, {
-    state: { project: { projectId: 'project.test' } }, libraryUi: createLibraryUiState('project.test'), librarySetProject, libraryInventory,
+    state: { project: { projectId: 'project.test' } }, libraryUi: createLibraryUiState('project.test'), librarySetProject, libraryInventory, libraryProposedAdditions,
     libraryAllGroups: () => [], libraryCompactCard() {}, libraryCardObservers: new Set(), assemblyCanMutate: () => true,
     document: { createDocumentFragment: () => ({ append() {} }) },
     renderLibraryNavigation: options => { navigation = options; return {}; },

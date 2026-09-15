@@ -1678,11 +1678,22 @@ only the remaining Assembly. Final owner UI acceptance was read back through MCP
 at project34/Review6/content2, preserving the earlier Animation receipt. This is
 agent-workflow evidence, not Klaus's production acceptance.
 
+**2026-09-15 live finding:** the first explanation/check batch passed, but the
+Assets view showed only saved cards with **Needs review** while the related
+Review also contained a new Asset. Klaus approved a separate **Proposed
+additions** section: provisional cards must explain that they are not saved or
+usable, open the same Review on the exact item, and disappear or become normal
+saved cards after discard/acceptance. This focused correction does not repeat or
+invalidate the already-passed Review explanations.
+
 User batch:
 
 1. Library → Needs review → “Coffee station and its components”. Check the three
    related items, full previews, readable changes and clear acceptance consequence.
    Select the Animation and play its actual frames.
+   In Library → Assets, confirm any new unsaved item appears separately under
+   **Proposed additions**, not as a saved Asset. Its card must offer Review rather
+   than edit/use, explain the acceptance consequence, and focus that item when opened.
 2. Request changes, enter feedback, open Proposed Details and go back. Confirm
    raw feedback, selection and your place in the screen survive. Save feedback.
 3. Return to Library: the group should say **Awaiting agent**. Reopen it, edit

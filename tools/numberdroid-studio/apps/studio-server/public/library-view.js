@@ -76,6 +76,37 @@ export function renderLibraryCard({ entry, projectId, record = entry.asset, scen
   return article;
 }
 
+function proposedReviewAction(addition, label, className = 'secondary') {
+  const action = libraryAction('review', label, { group: addition.group, className });
+  action.dataset.libraryItemId = addition.itemId;
+  return action;
+}
+
+export function renderLibraryProposedCard(addition) {
+  const asset = addition.asset;
+  const article = el('article', 'card asset-card asset-v2-card library-card library-proposed-card');
+  article.dataset.libraryCard = addition.key;
+  article.dataset.libraryStatus = 'proposed';
+  article.dataset.libraryItemId = addition.itemId;
+  setLibraryReviewIdentity(article, addition.group);
+  const preview = el('div', 'library-proposed-artwork');
+  preview.append(el('span', 'library-proposed-kind', libraryContentLabel(addition.contentKind)),
+    el('small', '', 'Preview in Review'));
+  article.append(preview);
+  const title = el('h3', 'library-card-title');
+  title.append(proposedReviewAction(addition, asset.name, 'library-name-button'));
+  article.append(title, el('p', 'library-card-summary', `${libraryContentLabel(addition.contentKind)} · ${asset.kind}`));
+  const badges = el('div', 'library-card-badges');
+  badges.append(el('span', 'library-proposed-badge', 'Proposed new asset'),
+    el('span', 'library-proposed-state', stateLabel(addition.group)));
+  article.append(badges,
+    el('p', 'library-proposed-help', 'Not saved or available for use yet. Accept it in Review to add it to the Library.'));
+  const actions = el('div', 'library-card-actions');
+  actions.append(proposedReviewAction(addition, 'Review proposal'));
+  article.append(actions);
+  return article;
+}
+
 function reviewRow(group, completed = false) {
   const row = el('article', 'library-review-row');
   row.dataset.libraryGroup = group.key;
@@ -107,7 +138,7 @@ export function renderLibraryHistory({ groups }) {
   return section;
 }
 
-export function renderLibraryNavigation({ ui, items, groups, renderCard, canCreateAssembly = true, canAddFromSources = true }) {
+export function renderLibraryNavigation({ ui, items, proposedAdditions = [], groups, renderCard, canCreateAssembly = true, canAddFromSources = true }) {
   const page = el('section', 'library-workspace');
   page.dataset.libraryWorkspace = '';
   const tab = ui.tab ?? 'assets', pending = groups.filter(group => group.pending);
@@ -127,10 +158,12 @@ export function renderLibraryNavigation({ ui, items, groups, renderCard, canCrea
   const selected = ui.filters[tab], candidates = tab === 'assets' ? items : pending;
   page.append(filters(tab, selected));
   const visible = filterLibraryItems(candidates, selected);
+  const visibleAdditions = tab === 'assets' ? filterLibraryItems(proposedAdditions, selected) : [];
   const count = el('p', 'library-result-count', tab === 'assets'
-    ? `${visible.length} of ${plural(items.length, 'asset')}` : `${visible.length} of ${plural(pending.length, 'review group')}`);
+    ? `${visible.length} of ${plural(items.length, 'saved asset')} · ${visibleAdditions.length} of ${plural(proposedAdditions.length, 'proposed addition')}`
+    : `${visible.length} of ${plural(pending.length, 'review group')}`);
   count.setAttribute('aria-live', 'polite'); count.dataset.libraryResultCount = ''; page.append(count);
-  if (!visible.length) {
+  if (!visible.length && !visibleAdditions.length) {
     const narrowed = selected.search.trim() || selected.content !== 'all' || selected.use !== 'all';
     const panel = empty(narrowed ? 'No matching results' : tab === 'assets' ? 'Your Library is empty' : 'No pending changes',
       narrowed ? 'Clear the filters to see the other content in this section.' : tab === 'assets'
@@ -139,10 +172,23 @@ export function renderLibraryNavigation({ ui, items, groups, renderCard, canCrea
     if (narrowed) { const clear = libraryAction('clear-filters', 'Clear filters'); clear.dataset.libraryTab = tab; panel.append(clear); }
     page.append(panel);
   } else if (tab === 'assets') {
+    if (proposedAdditions.length) {
+      const proposed = el('section', 'library-proposed-additions'); proposed.dataset.libraryProposedAdditions = '';
+      proposed.append(el('h3', '', `Proposed additions (${visibleAdditions.length}${visibleAdditions.length === proposedAdditions.length ? '' : ` of ${proposedAdditions.length}`})`),
+        el('p', 'library-muted', 'These new assets are part of a proposal. They are not saved or usable until you accept them in Review.'));
+      if (visibleAdditions.length) {
+        const proposedGrid = el('div', 'card-grid asset-grid asset-inventory-grid library-card-grid library-proposed-grid');
+        for (const addition of visibleAdditions) proposedGrid.append(renderLibraryProposedCard(addition));
+        proposed.append(proposedGrid);
+      } else proposed.append(el('p', 'library-muted', 'No proposed additions match the current filters.'));
+      page.append(proposed);
+    }
+    if (proposedAdditions.length) page.append(el('h3', 'library-saved-heading', `Saved assets (${visible.length}${visible.length === items.length ? '' : ` of ${items.length}`})`));
     const grid = el('div', 'card-grid asset-grid asset-inventory-grid library-card-grid');
     grid.dataset.assetScroll = 'library-assets'; grid.dataset.libraryAssetGrid = '';
     for (const entry of visible) grid.append(renderCard(entry));
-    page.append(grid);
+    if (visible.length) page.append(grid);
+    else page.append(el('p', 'library-muted library-no-saved-match', 'No saved assets match the current filters.'));
   } else page.append(renderLibraryPending({ groups: visible }));
   return page;
 }

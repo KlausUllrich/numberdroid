@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createLibraryUiState, librarySetProject, libraryAssetPin, libraryRouteKey, libraryNavigate,
-  libraryBack, libraryInventory, libraryReviewGroups, filterLibraryItems, findLibraryItem,
+  libraryBack, libraryInventory, libraryProposedAdditions, libraryReviewGroups, filterLibraryItems, findLibraryItem,
 } from '../apps/studio-server/public/library-state.js';
 import {
   libraryPreviewDescriptor, createLibraryPreviewDocument, safeLibraryPreviewUrl,
@@ -82,6 +82,37 @@ test('Library combines saved typed heads while proposals, legacy records and exa
   assert.equal(items[0].relatedReviews[0].changeCount, 2);
   assert.equal(items[2].relatedReviews[0].proposalId, 'proposal.assembly');
   assert.equal(JSON.stringify(saved), before);
+});
+
+test('pending shared-Review creations are separate proposed additions without saved pins or consumer eligibility', () => {
+  const saved = snapshot();
+  saved.reviewLibrary = { groups: [{
+    reviewId: 'review.related', reviewVersion: 2, contentVersion: 1, title: 'Coffee package', status: 'PENDING', createdRevision: 8,
+    proposer: { actor: { id: 'agent.one', kind: 'agent', displayName: 'Studio agent' }, taskId: 'task.shared' },
+    items: [
+      { itemId: 'new-image', contentKind: 'image', status: 'PENDING', payload: { operation: 'create', assetId: 'asset.new', name: 'New indicator', kind: 'prop', metadata: { tags: ['light'] } } },
+      { itemId: 'saved-collision', contentKind: 'image', status: 'PENDING', payload: { operation: 'create', assetId: 'asset.body', name: 'Conflicting creation', kind: 'prop' } },
+      { itemId: 'update-animation', contentKind: 'animation', status: 'PENDING', payload: { operation: 'update', assetId: 'clip.glow', name: 'Updated glow', kind: 'prop' } },
+      { itemId: 'accepted-assembly', contentKind: 'assembly', status: 'ACCEPTED', payload: { operation: 'create', assetId: 'assembly.new', name: 'Accepted machine', kind: 'prop' } },
+    ],
+  }] };
+  const before = JSON.stringify(saved), additions = libraryProposedAdditions(saved);
+  assert.equal(additions.length, 1);
+  assert.equal(additions[0].itemId, 'new-image');
+  assert.equal(additions[0].asset.name, 'New indicator');
+  assert.equal(additions[0].pin, undefined);
+  assert.equal(additions[0].group.proposalId, 'review.related');
+  assert.deepEqual(filterLibraryItems(additions, { search: 'coffee', content: 'image', use: 'prop' }), additions);
+  assert.equal(filterLibraryItems(additions, { content: 'assembly' }).length, 0);
+  assert.equal(JSON.stringify(saved), before, 'the projection must never materialize or modify proposed content');
+});
+
+test('proposed-addition Review navigation retains the exact item focus without changing Review identity', () => {
+  const ui = createLibraryUiState(projectId);
+  const route = { view: 'review', contentKind: 'review', proposalId: 'review.related', proposalVersion: 2, itemId: 'new-image' };
+  libraryNavigate(ui, route);
+  assert.equal(ui.route.itemId, 'new-image');
+  assert.equal(libraryRouteKey(route), libraryRouteKey({ ...route, itemId: 'another-item' }));
 });
 
 test('name, tag and exact resolved source relationship searches combine with independent Content and Use filters', () => {

@@ -186,6 +186,32 @@ export function libraryInventory(snapshot) {
   });
 }
 
+/**
+ * Pending shared-Review creations are visible beside the Library inventory, but
+ * remain proposal identities. They deliberately have no saved Asset pin and
+ * cannot enter an editor, Room palette, Assembly picker, or other saved-content
+ * consumer before the owner accepts them.
+ */
+export function libraryProposedAdditions(snapshot) {
+  const saved = new Set(records(snapshot).map(({ contentKind, asset }) => `${contentKind}:${asset.assetId}`));
+  const groups = libraryReviewGroups(snapshot).filter(group => group.contentKind === 'review' && group.pending);
+  const additions = [];
+  for (const group of groups) {
+    for (const item of group.proposal.items ?? []) {
+      const payload = item.payload;
+      if (item.status !== 'PENDING' || payload?.operation !== 'create' || !CONTENT_KINDS.has(item.contentKind)
+          || typeof payload.assetId !== 'string' || !payload.assetId || saved.has(`${item.contentKind}:${payload.assetId}`)) continue;
+      additions.push({
+        key: `proposed:${group.key}:${item.itemId}`, contentKind: item.contentKind, itemId: item.itemId,
+        asset: payload, group,
+        searchText: textKey([payload.name, payload.assetId, payload.kind, group.title, group.actorName, group.actorId,
+          group.taskId, group.status, ...(payload.metadata?.tags ?? [])].filter(Boolean).join(' ')),
+      });
+    }
+  }
+  return additions;
+}
+
 export function findLibraryItem(snapshot, pin) {
   if (!libraryAssetPin(pin, pin?.contentKind)) return null;
   return libraryInventory(snapshot).find(entry => entry.contentKind === pin.contentKind && entry.asset.assetId === pin.assetId
