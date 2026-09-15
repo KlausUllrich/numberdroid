@@ -36,6 +36,7 @@ export function createReviewController({ context: initial, host, renderView = re
   const element = createElement(), state = createReviewUiState(initial);
   element.className = 'shared-review-controller';
   let disposed = false, generation = 0, readController = null, mutationController = null, rendered = null, retainedContext = null;
+  let requestedItemId = null;
   const current = () => host.context?.() ?? { projectId: state.projectId, projectRevision: state.projectRevision };
   const activeProject = () => current()?.projectId === state.projectId;
   const presentation = () => reviewPresentation(state, current());
@@ -89,6 +90,10 @@ export function createReviewController({ context: initial, host, renderView = re
       const sourceChanged = Boolean(legacySource && legacySource.expectedProposalVersion !== state.legacySource?.expectedProposalVersion);
       if (group.isLegacyProjection && request.legacySource && ['contentKind', 'proposalId', 'expectedProposalVersion'].some(key => group.legacySource?.[key] !== request.legacySource[key])) throw new Error('The response returned a different original proposal version.');
       adoptReviewGroup(state, group, response.revision, { preserveSelection: hadGroup, retainDraft: hadGroup && mode === 'adopt' && (sourceChanged || group.reviewVersion !== previousVersion) });
+      if (requestedItemId) {
+        if (group.items.some(item => item.itemId === requestedItemId)) state.activeItemId = requestedItemId;
+        requestedItemId = null;
+      }
       if (mode === 'receipt') cancelReviewFeedback(state);
       if (mode === 'adopt') state.latest = null;
       // Selection result is authoritative; no local approximation can enable acceptance.
@@ -185,6 +190,12 @@ export function createReviewController({ context: initial, host, renderView = re
     if (action === 'recheck') return read({ mode: 'latest' });
     if (action === 'accept' || action === 'discard') return mutate(action);
     if (action === 'save-feedback') return mutate('feedback');
+    if (action === 'item') {
+      if (typeof payload !== 'string' || !payload) return false;
+      if (state.group?.items.some(item => item.itemId === payload)) { state.activeItemId = payload; requestedItemId = null; render(); }
+      else requestedItemId = payload;
+      return true;
+    }
     const view = presentation();
     if (view.locked) return false;
     if (action === 'request-changes' || action === 'edit-feedback') { if (view.canEditFeedback) { beginReviewFeedback(state); state.error = null; render(); } }
@@ -200,7 +211,6 @@ export function createReviewController({ context: initial, host, renderView = re
       return read({ mode: 'adopt', version: latestVersion });
     } else if (action === 'highlight') { state.highlight = payload === true; render(); }
     else if (action === 'side' && ['current', 'proposed'].includes(payload)) { state.side = payload; render(); }
-    else if (action === 'item' && state.group?.items.some(item => item.itemId === payload)) { state.activeItemId = payload; render(); }
     else if (action === 'presentation') { state.selection = Object.fromEntries(['stateId', 'variantId'].filter(key => typeof payload?.[key] === 'string').map(key => [key, payload[key]])); return read(); }
     else if (action === 'details') inspect(payload);
     else if (action === 'back' && requestLeave()) host.onBack?.();

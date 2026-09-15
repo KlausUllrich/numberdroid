@@ -2782,7 +2782,7 @@ function renderSharedReview(route, legacySource = null) {
     } });
     sharedReviewControllers.set(key, controller);
   } else controller.reconcileContext();
-  if (route.itemId && controller.getState().group?.items.some(item => item.itemId === route.itemId)) void controller.dispatch('item', route.itemId);
+  if (route.itemId) void controller.dispatch('item', route.itemId);
   delete route.itemId;
   const fragment = document.createDocumentFragment();
   fragment.append(libraryBackButton(), controller.element);

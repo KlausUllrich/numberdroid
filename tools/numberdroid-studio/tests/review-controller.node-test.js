@@ -238,6 +238,44 @@ test('a failed historical initial read can retry without dropping its exact Revi
   assert.equal(h.postCalls.length, 0); h.controller.dispose();
 });
 
+test('a proposed-addition target survives a delayed first read and invalid targets fall back safely', async () => {
+  const secondItem = { ...group().items[0], itemId: 'item.two', proposed: { ...group().items[0].proposed, assetId: 'asset.two', name: 'Two' },
+    resolvedProposed: { assetId: 'asset.two', name: 'Two' } };
+  const expanded = group(1, { items: [...group().items, secondItem],
+    eligibility: { selectedItemIds: ['item.one', 'item.two'], canAccept: true, findings: [] },
+    selectionOutcome: { state: 'READY', selectedItemIds: ['item.one', 'item.two'], items: [] } });
+  const pending = deferred();
+  const h = setup({ context: { group: null, reviewId: 'review.demo', reviewVersion: 1 }, read: () => pending.promise });
+  h.controller.afterMount();
+  await h.controller.dispatch('item', 'item.two');
+  pending.resolve({ projectId: 'project.demo', revision: 7, groups: [expanded] });
+  for (let i = 0; i < 20 && h.state.load !== 'ready'; i += 1) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.state.activeItemId, 'item.two');
+  h.controller.dispose();
+
+  const invalid = setup({ context: { group: null, reviewId: 'review.demo', reviewVersion: 1 } });
+  await invalid.controller.dispatch('item', 'item.missing');
+  await invalid.controller.dispatch('recheck');
+  assert.equal(invalid.state.activeItemId, 'item.one');
+  invalid.controller.dispose();
+});
+
+test('a cached older Review retains a new proposed-addition target until explicit latest adoption', async () => {
+  const secondItem = { ...group().items[0], itemId: 'item.two', proposed: { ...group().items[0].proposed, assetId: 'asset.two', name: 'Two' },
+    resolvedProposed: { assetId: 'asset.two', name: 'Two' } };
+  const expanded = group(2, { contentVersion: 2, items: [...group().items, secondItem],
+    eligibility: { selectedItemIds: ['item.one', 'item.two'], canAccept: true, findings: [] },
+    selectionOutcome: { state: 'READY', selectedItemIds: ['item.one', 'item.two'], items: [] } });
+  const h = setup({ read: async () => ({ projectId: 'project.demo', revision: 8, groups: [expanded] }) });
+  h.setCurrent({ projectRevision: 8, latestGroup: expanded });
+  assert.equal(h.callbacks().view.stale, 'content');
+  await h.controller.dispatch('item', 'item.two');
+  assert.equal(h.state.activeItemId, 'item.one', 'the unadopted older Review must keep displaying one of its own items');
+  await h.controller.dispatch('review-latest');
+  assert.equal(h.state.activeItemId, 'item.two');
+  h.controller.dispose();
+});
+
 test('a newer original proposal requires explicit adoption and retains an older draft until the read succeeds', async () => {
   const source = { contentKind: 'animation', proposalId: 'proposal.legacy', expectedProposalVersion: 1 };
   const latestSource = { ...source, expectedProposalVersion: 2 };
