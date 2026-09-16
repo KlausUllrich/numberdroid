@@ -43,3 +43,25 @@ test('deferred Cutter view restoration belongs only to the same instance, worksp
     frame(); assert.deepEqual(calls, change === 'none' ? ['focus', [11, 118]] : []);
   }
 });
+
+test('reopening the same Cutter view restores page position after a shorter Workbench list', async () => {
+  const app = (await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
+  const start = app.indexOf('function openCutter('), end = app.indexOf('async function loadCutterJob(', start);
+  for (const mismatch of ['none', 'projectId', 'sourceId', 'atlasId', 'view']) {
+    const closed = { projectId: 'project.test', sourceId: 'source.test', atlasId: 'atlas.test', view: 'edit', x: 0, y: 50 };
+    if (mismatch !== 'none') closed[mismatch] = 'different';
+    const source = { id: 'source.test', name: 'Original', width: 64, height: 64 };
+    const state = { cutterClosedContext: closed, project: { projectId: 'project.test', snapshot: {
+      atlases: [{ id: 'atlas.test', sourceId: source.id, rectangles: [], definitionVersion: 1 }],
+    } } };
+    const open = runInNewContext(`${app.slice(start, end)}; openCutter;`, {
+      state, structuredClone, crypto: { randomUUID: () => 'instance.new' },
+      cancelCutterJobPolling() {}, resetCutterScroll() {}, renderWorkspace() {}, showToast() {},
+    });
+    open(source, { atlasId: 'atlas.test', view: 'edit' });
+    assert.equal(state.cutterClosedContext, null);
+    assert.equal(state.cutter.restoreViewContext?.y, mismatch === 'none' ? 50 : undefined);
+    assert.equal(state.cutter.zoom, 'fit');
+    assert.equal(state.cutter.dirty, false);
+  }
+});

@@ -98,6 +98,7 @@ const state = {
   sourceFileChooserActive: false,
   sourcesUi: createSourcesUiState(),
   cutter: null,
+  cutterClosedContext: null,
   cutterJob: null,
   cutterJobEvents: [],
   cutterScroll: null,
@@ -1713,6 +1714,8 @@ function restoreCutterDomDraft() {
 function openCutter(source, { atlasId = null, view = 'edit' } = {}) {
   const existing = (state.project?.snapshot.atlases ?? []).find((atlas) => atlas.sourceId === source.id && (!atlasId || atlas.id === atlasId)) ?? null;
   if (atlasId && !existing) { showToast('This image work is no longer available. Refresh and choose it again.'); return; }
+  const closedContext = state.cutterClosedContext;
+  state.cutterClosedContext = null;
   const familyDefaults = source.width === 1254 && source.height === 1254;
   cancelCutterJobPolling();
   resetCutterScroll();
@@ -1737,6 +1740,10 @@ function openCutter(source, { atlasId = null, view = 'edit' } = {}) {
     },
     operations: { define: null, preview: null, commit: null, cancel: null, retry: null, discard: null },
   };
+  if (closedContext?.projectId === state.cutter.projectId && closedContext.sourceId === source.id
+      && closedContext.atlasId === state.cutter.atlasId && closedContext.view === state.cutter.view) {
+    state.cutter.restoreViewContext = { x: closedContext.x, y: closedContext.y, focus: null };
+  }
   state.cutterJob = null;
   state.cutterJobEvents = [];
   if (existing?.latestPreviewJobId) void loadCutterJob(existing.latestPreviewJobId);
@@ -8218,6 +8225,10 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   if (event.target.closest('[data-close-cutter]')) {
     if (state.cutterPending || state.sourceMutationPending) return;
     if (state.cutter?.dirty && !window.confirm('Leave the cutter and discard unsaved cut changes? Saved cuts stay available.')) return;
+    if (state.cutter) state.cutterClosedContext = {
+      projectId: state.cutter.projectId, sourceId: state.cutter.sourceId, atlasId: state.cutter.atlasId,
+      view: state.cutter.view, x: window.scrollX, y: window.scrollY,
+    };
     cancelCutterJobPolling();
     resetCutterScroll();
     state.cutter = null; state.cutterJob = null; state.cutterJobEvents = []; renderWorkspace(); return;
