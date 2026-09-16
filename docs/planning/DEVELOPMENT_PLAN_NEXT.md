@@ -1,5 +1,17 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-16 VT-024 feedback PASS and Library status clarity
+
+Klaus explicitly passed the Shared Review feedback lifecycle: request changes,
+retained Details/Back context, truthful Awaiting-agent state, feedback amendment
+and cancellation, and reconsidered acceptance. A bounded presentation follow-up
+renames the Library queue to **Reviews** and uses one semantic amber treatment for
+**Awaiting agent** in both Assets and Reviews, distinct from green **Needs review**.
+The internal route and all review state, authority, persistence and agent-launch
+behavior remain unchanged. After that focused correction is integrated and
+visually confirmed, VT-024 continues at partial/final acceptance, Activity/history
+and contextual return; the passed earlier steps are not repeated.
+
 ## 2026-09-15 VT-024 Library clarity correction
 
 Klaus passed the initial Shared Review explanations and reported one production

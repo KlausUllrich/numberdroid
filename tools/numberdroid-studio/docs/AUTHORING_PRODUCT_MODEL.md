@@ -106,7 +106,7 @@ its specific activity beside the affected work. Passing a check does not submit
 unfinished work automatically; the agent deliberately submits a result for the
 owner's decision after satisfying the applicable checks.
 
-Library provides **Assets** and **Pending changes**, with search and relevant
+Library provides **Assets** and **Reviews**, with search and relevant
 filters. A saved asset may be useful for assembly, placement or another declared
 operation without being final for every purpose. Required missing properties
 block the affected use; optional future polish does not impose a completion
@@ -114,7 +114,7 @@ ceremony. Existing Room references remain pinned while revisions are prepared.
 
 The Assets view distinguishes saved content from **Proposed additions**. A
 pending creation may be shown there as a clearly provisional card so the user
-can understand why Pending changes contains more content than the saved
+can understand why Reviews contains more content than the saved
 inventory. It has no saved Asset version and no edit/use action. Opening it
 returns to the same shared Review with that item in focus. Acceptance moves the
 new exact version into saved Assets; discard removes the provisional card while

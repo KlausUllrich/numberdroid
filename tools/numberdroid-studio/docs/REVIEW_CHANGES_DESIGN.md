@@ -45,7 +45,7 @@ not accept a production shared-review implementation.
 
 Help the owner understand an agent's concrete changes, accept useful independent
 results, or return actionable feedback without a separate proposal ceremony.
-Sources → Needs review, Library → Pending changes and Agent tasks open the same
+Sources → Needs review, Library → Reviews and Agent tasks open the same
 review and saved decisions. Completed reviews leave the active queue and remain
 available in history. Human edits do not acquire a redundant agent review step.
 
@@ -110,12 +110,14 @@ content that already exists.
 
 ## V2 feedback and reconsideration rules
 
-**Pending changes** remains the queue name. Cards and review views show
+**Reviews** is the queue name because the next action is not always human. Cards
+and review views show
 **Needs review** when the owner's decision is needed and **Awaiting agent** after
 feedback is saved for agent-authored work. The displayed saved Asset does not
 change when feedback is submitted. A returned agent revision needs owner review
-again. Use the actual next actor; do not imply a running background job or invent
-an agent recipient for human-authored work.
+again. Use the actual next actor, explicit text and consistent green/amber state
+colors across Assets and Reviews; color is not the only cue. Do not imply a
+running background job or invent an agent recipient for human-authored work.
 
 After Request changes, display the saved summary and applicable item comments
 with **Edit feedback**. Saving an edit appends an attributable feedback revision;

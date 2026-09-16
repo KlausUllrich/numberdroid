@@ -10,6 +10,13 @@ const stateLabel = group => ({
   CHANGES_REQUESTED: group.actorKind === 'agent' ? 'Awaiting agent' : 'Awaiting author', ACCEPTED: 'Accepted',
   DISCARDED: 'Discarded', APPLIED: 'Applied',
 })[group.status] ?? group.status ?? 'Unavailable decision state';
+const reviewTone = group => group.status === 'PENDING' ? 'needs-review'
+  : group.status === 'CHANGES_REQUESTED' ? 'awaiting' : 'neutral';
+
+function setReviewTone(node, group) {
+  node.dataset.libraryReviewTone = reviewTone(group);
+  return node;
+}
 
 function empty(title, message) {
   const panel = el('div', 'library-empty');
@@ -37,7 +44,7 @@ function filters(tab, selected) {
   toolbar.dataset.libraryFilters = tab;
   const search = el('label', 'library-filter library-filter-search');
   search.append(el('span', '', 'Search'));
-  const input = el('input'); input.type = 'search'; input.placeholder = tab === 'assets' ? 'Names, sources and tags' : 'Changes, tasks and agents';
+  const input = el('input'); input.type = 'search'; input.placeholder = tab === 'assets' ? 'Names, sources and tags' : 'Reviews, tasks and agents';
   input.value = selected.search; input.dataset.libraryFilter = 'search'; input.dataset.libraryTab = tab;
   input.dataset.assetFocusKey = `library:${tab}:filter:search`;
   search.append(input);
@@ -67,7 +74,9 @@ export function renderLibraryCard({ entry, projectId, record = entry.asset, scen
   article.append(badges);
   if (pendingGroups.length) {
     const pending = el('div', 'library-card-pending');
-    for (const group of pendingGroups) pending.append(libraryAction('review', `${stateLabel(group)} · ${plural(group.changeCount, 'change')}`, { group, className: 'library-pending-badge' }));
+    for (const group of pendingGroups) pending.append(setReviewTone(
+      libraryAction('review', `${stateLabel(group)} · ${plural(group.changeCount, 'change')}`, { group, className: 'library-pending-badge' }), group,
+    ));
     article.append(pending);
   }
   const actions = el('div', 'library-card-actions');
@@ -98,7 +107,7 @@ export function renderLibraryProposedCard(addition) {
   article.append(title, el('p', 'library-card-summary', `${libraryContentLabel(addition.contentKind)} · ${asset.kind}`));
   const badges = el('div', 'library-card-badges');
   badges.append(el('span', 'library-proposed-badge', 'Proposed new asset'),
-    el('span', 'library-proposed-state', stateLabel(addition.group)));
+    setReviewTone(el('span', 'library-proposed-state', stateLabel(addition.group)), addition.group));
   article.append(badges,
     el('p', 'library-proposed-help', 'Not saved or available for use yet. Accept it in Review to add it to the Library.'));
   const actions = el('div', 'library-card-actions');
@@ -114,7 +123,7 @@ function reviewRow(group, completed = false) {
   setLibraryReviewIdentity(row, group);
   const copy = el('div', 'library-review-copy');
   copy.append(el('p', 'library-eyebrow', `${group.contentKind === 'review' ? 'Related content' : libraryContentLabel(group.contentKind)} · ${plural(group.changeCount, 'change')}${group.acceptedCount ? ` · ${group.acceptedCount} accepted` : ''}`),
-    el('h3', '', group.title), el('p', 'library-review-state', stateLabel(group)));
+    el('h3', '', group.title), setReviewTone(el('p', 'library-review-state', stateLabel(group)), group));
   const context = [group.actorName ?? group.actorId, group.taskId ? `Task ${group.taskId}` : null].filter(Boolean);
   if (context.length) copy.append(el('p', 'library-review-context', context.join(' · ')));
   row.append(copy, libraryAction('review', completed ? 'Inspect review' : 'Review changes', { group }));
@@ -143,13 +152,13 @@ export function renderLibraryNavigation({ ui, items, proposedAdditions = [], gro
   page.dataset.libraryWorkspace = '';
   const tab = ui.tab ?? 'assets', pending = groups.filter(group => group.pending);
   const header = el('header', 'library-header'), title = el('div');
-  title.append(el('h2', '', 'Library'), el('p', 'library-muted', 'Saved reusable content and changes awaiting review.'));
+  title.append(el('h2', '', 'Library'), el('p', 'library-muted', 'Saved reusable content and active reviews.'));
   const actions = el('div', 'library-entry-actions');
   const sources = libraryAction('add-from-sources', 'Add from Sources'); sources.disabled = !canAddFromSources;
   const assembly = libraryAction('create-assembly', 'Create Assembly', { className: 'primary' }); assembly.disabled = !canCreateAssembly;
   actions.append(sources, assembly); header.append(title, actions); page.append(header);
   const tabs = el('nav', 'library-tabs'); tabs.setAttribute('aria-label', 'Library sections');
-  for (const [key, label] of [['assets', 'Assets'], ['pending', `Pending changes (${pending.length})`]]) {
+  for (const [key, label] of [['assets', 'Assets'], ['pending', `Reviews (${pending.length})`]]) {
     const button = libraryAction('tab', label, { className: `library-tab${tab === key ? ' selected' : ''}` });
     button.dataset.libraryTab = key; button.dataset.assetFocusKey = `library:tab:${key}`;
     button.setAttribute('aria-current', tab === key ? 'page' : 'false'); tabs.append(button);
@@ -165,7 +174,7 @@ export function renderLibraryNavigation({ ui, items, proposedAdditions = [], gro
   count.setAttribute('aria-live', 'polite'); count.dataset.libraryResultCount = ''; page.append(count);
   if (!visible.length && !visibleAdditions.length) {
     const narrowed = selected.search.trim() || selected.content !== 'all' || selected.use !== 'all';
-    const panel = empty(narrowed ? 'No matching results' : tab === 'assets' ? 'Your Library is empty' : 'No pending changes',
+    const panel = empty(narrowed ? 'No matching results' : tab === 'assets' ? 'Your Library is empty' : 'No active reviews',
       narrowed ? 'Clear the filters to see the other content in this section.' : tab === 'assets'
         ? 'Add an image or Animation from Sources, or create an Assembly from saved components.'
         : 'New proposals appear here. Completed reviews remain available in Activity.');

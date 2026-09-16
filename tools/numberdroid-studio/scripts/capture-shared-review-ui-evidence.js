@@ -27,6 +27,7 @@ export async function captureSharedReviewUi({ devtools, sessionId, captureCheckp
   await waitFor("document.getElementById('connection-label')?.textContent==='Live'", 'Live owner workspace');
   const before = await project();
   await waitFor("document.querySelectorAll('[data-library-status=proposed]').length===3", 'Proposed additions in Library Assets');
+  assert.match(await evaluate("document.querySelector('[data-library-action=tab][data-library-tab=pending]').textContent"), /^Reviews \(\d+\)$/);
   const proposed = await evaluate(`([...document.querySelectorAll('[data-library-status=proposed]')].map(card=>({itemId:card.dataset.libraryItemId,text:card.textContent,actions:[...card.querySelectorAll('[data-library-action]')].map(node=>node.dataset.libraryAction),savedIdentity:Boolean(card.dataset.assetVersion||card.dataset.metadataVersion)})))`);
   assert.deepEqual(proposed.map(item => item.itemId).sort(), ['animation', 'assembly', 'image']);
   assert(proposed.every(item => item.text.includes('Proposed new asset') && item.text.includes('Not saved or available for use yet.')));
@@ -81,6 +82,20 @@ export async function captureSharedReviewUi({ devtools, sessionId, captureCheckp
   assert.equal((await group()).feedback.summary, draft); assert.equal((await group()).status, 'CHANGES_REQUESTED');
   await click('[data-library-action="back"]'); await waitFor(`Boolean(document.querySelector(${JSON.stringify(groupRoute)}))`, 'Pending group after feedback');
   assert.match(await evaluate(`document.querySelector(${JSON.stringify(groupRoute)}).closest('[data-library-group]').textContent`), /Awaiting agent/);
+  const reviewStatusPresentation = await evaluate(`(()=>{const style=n=>{const s=getComputedStyle(n);return{tone:n.dataset.libraryReviewTone,color:s.color}};const row=document.querySelector(${JSON.stringify(groupRoute)}).closest('[data-library-group]');const needs=[...document.querySelectorAll('[data-library-group-state="PENDING"] .library-review-state')][0];return{awaiting:style(row.querySelector('.library-review-state')),needs:needs?style(needs):null,tab:document.querySelector('[data-library-action=tab][data-library-tab=pending]').textContent}})()`);
+  assert.equal(reviewStatusPresentation.awaiting.tone, 'awaiting');
+  assert.equal(reviewStatusPresentation.needs?.tone, 'needs-review');
+  assert.notEqual(reviewStatusPresentation.awaiting.color, reviewStatusPresentation.needs?.color, 'Awaiting agent must remain visually distinct from Needs review');
+  assert.match(reviewStatusPresentation.tab, /^Reviews \(\d+\)$/);
+  await captureCheckpoint('reviews-awaiting-agent');
+  await click('[data-library-action="tab"][data-library-tab="assets"]');
+  await waitFor(`Boolean(document.querySelector('[data-library-status="proposed"][data-library-proposal-id="${reviewId}"] .library-proposed-state'))`, 'Awaiting agent in Library Assets');
+  const assetAwaiting = await evaluate(`(()=>{const n=document.querySelector('[data-library-status="proposed"][data-library-proposal-id="${reviewId}"] .library-proposed-state'),s=getComputedStyle(n);return{tone:n.dataset.libraryReviewTone,color:s.color,text:n.textContent}})()`);
+  assert.equal(assetAwaiting.text, 'Awaiting agent'); assert.equal(assetAwaiting.tone, 'awaiting');
+  assert.equal(assetAwaiting.color, reviewStatusPresentation.awaiting.color, 'Awaiting agent uses the same semantic color in Assets and Reviews');
+  result.libraryStatusPresentation = { tab: reviewStatusPresentation.tab, awaitingAgentColor: assetAwaiting.color, needsReviewColor: reviewStatusPresentation.needs.color, consistentAcrossTabs: true };
+  await captureCheckpoint('assets-awaiting-agent');
+  await click('[data-library-action="tab"][data-library-tab="pending"]'); await waitFor(`Boolean(document.querySelector(${JSON.stringify(groupRoute)}))`, 'Review group after status comparison');
   await click(groupRoute); await version(2);
   await click(action('edit-feedback')); const amended = 'Keep the compact body. Use a 650 ms brewing crest.'; await summary(amended); await click(action('save-feedback')); await version(3);
   await click(action('edit-feedback')); await summary('Cancelled feedback must never replace the saved request.'); await click(action('cancel-feedback'));

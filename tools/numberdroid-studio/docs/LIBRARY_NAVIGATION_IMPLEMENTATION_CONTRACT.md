@@ -7,7 +7,7 @@ This is its first bounded implementation block and BB Tasks ND-1 / GitHub #236.
 
 ## Promise and exclusions
 
-Provide Assets/Pending changes navigation, compact saved Image/Animation/Assembly
+Provide Assets/Reviews navigation, compact saved Image/Animation/Assembly
 cards, Content/Use/search filters, whole-content full-size inspection, in-app
 details, existing editor entrances, retained return context and review/history
 entry points. Sources keeps its saved cuts; Create Assembly remains in Library.
@@ -28,7 +28,7 @@ Taskboard plugin is not a development dependency; Tasks and GitHub #236 track wo
 ## Transient navigation and data
 
 Use a separate Library UI state with a project identity, current list/detail/review
-route, independent Assets/Pending filter state, return stack and per-route DOM
+route, independent Assets/Reviews filter state, return stack and per-route DOM
 snapshots. A detail identity includes content kind and exact Asset/metadata versions;
 a review identity includes content kind and proposal identity/version. No controller
 or mutable authoring draft is serialized into this navigation state.
