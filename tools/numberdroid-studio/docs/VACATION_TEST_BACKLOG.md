@@ -1735,3 +1735,43 @@ unknown-outcome retry carry automated native-browser and real-agent evidence;
 Klaus need not manually induce network errors for this batch. Report PASS or
 REVISE explicitly. A PASS closes this bounded block only; VT-001/CP4.5, broader
 Assembly acceptance and later Sources design retain their separate status.
+
+## VT-025 — Source Images and Image Workbench
+
+Status: **IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE**.
+
+The approved [Sources design](SOURCES_NAVIGATION_DESIGN.md) and bounded
+[implementation contract](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md) own
+this gate. Use a fresh test fixture containing at least one approved Source
+Image, one saved cut definition and saved cut outputs. Do not reuse or overwrite
+a personal workspace, backup, restored copy or accepted production-art source.
+
+Bundled user batch:
+
+1. Open **Sources**. Confirm there are exactly two content tabs: **Source
+   Images** and **Image Workbench**. There is no Preparation or Needs-review
+   process tab. **Needs review** is available under the Status filter.
+2. In Source Images, inspect an approved original. Confirm the whole image,
+   useful size, **Ready to use** explanation and **Open in Image Workbench** are
+   clear. Open and close **Technical details**; lifecycle/identity remain
+   available without dominating the card.
+3. Choose **Import source image** and confirm the full form appears only then.
+   Close and reopen it. If a staged test intake is provided, confirm its
+   Resume/Discard recovery remains visible independently.
+4. Open the approved original in Image Workbench. Confirm the Cutter says
+   **Sources / Image Workbench** and returns to **Image Workbench** without
+   losing saved work. No accepted Cutter geometry/job behavior needs repeating
+   unless a regression is visible.
+5. In Image Workbench, confirm saved definitions and the exact saved-cut count
+   are understandable. An idle saved item must not claim a job is running;
+   exact active job state belongs inside the opened work item. Search retains
+   focus and the Needs-review filter gives a truthful empty/result state.
+6. If a submitted shared Review is present, use the compact notice/filter and
+   confirm it opens the same complete Review rather than a duplicate approval.
+   Check any disabled Sources action exposes its reason on hover and keyboard
+   focus.
+
+Report **PASS** or **REVISE** explicitly. A PASS accepts only this navigation and
+explanation block. It does not approve a production art source, image generation,
+new processing commands, agent Resume, materialization, runtime publication,
+release, deferred VT-001/CP4.5 or broader VT-021.

@@ -1,5 +1,15 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-16 Sources navigation candidate
+
+The approved [Sources design](../../tools/numberdroid-studio/docs/SOURCES_NAVIGATION_DESIGN.md)
+uses **Source Images** and **Image Workbench** as the two content views and makes
+**Needs review** an attention filter instead of a third process-like tab. The
+bounded [production implementation](../../tools/numberdroid-studio/docs/SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+is a candidate for [VT-025](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench).
+It does not change source review, processing, persistence, authority or Library
+semantics. Klaus's explicit live PASS/REVISE remains required before acceptance.
+
 ## 2026-09-16 VT-024 Shared Review production acceptance
 
 Klaus explicitly reported PASS for the complete VT-024 production walkthrough on

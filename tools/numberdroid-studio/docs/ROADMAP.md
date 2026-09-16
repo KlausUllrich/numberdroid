@@ -1,5 +1,19 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
+## 2026-09-16 Sources navigation candidate
+
+Klaus passed the Sources mockup refinements and selected **Image Workbench** as
+the final name. The approved [design](SOURCES_NAVIGATION_DESIGN.md) uses exactly
+**Source Images** and **Image Workbench** as content views; **Needs review** is a
+status filter and compact attention signal rather than a third process tab.
+
+The bounded [production implementation](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+is a candidate for [VT-025](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench).
+It reorganizes current source/atlas projections and preserves existing source
+review, Cutter jobs, saved cuts, shared Review, authority and persistence. No
+production acceptance, processing expansion, agent launch, materialization,
+publication or release follows from implementation or automation.
+
 ## 2026-09-16 Shared Review production acceptance
 
 Klaus explicitly reported PASS for the complete
