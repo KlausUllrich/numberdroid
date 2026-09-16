@@ -1,8 +1,9 @@
 # Shared Review V2 — production UI block
 
-Status: implemented candidate under integration verification, 2026-09-11. ND-2, with the approved ND-6/ND-7
-navigation and Activity patterns. The [Review V2 design](REVIEW_CHANGES_DESIGN.md)
-is approved; production acceptance remains separate. The
+Status: **USER ACCEPTED THROUGH VT-024, 2026-09-16**. ND-2, with the approved
+ND-6/ND-7 navigation and Activity patterns. The
+[Review V2 design](REVIEW_CHANGES_DESIGN.md) mockup approval remains separate
+from this later production decision. The
 [foundation](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md) is integrated through PR247
 at `1b4cbf1`, with green pre/post-merge CI and a real semantic-agent proof.
 
@@ -140,12 +141,17 @@ backend proof do not substitute for that production decision.
 
 ## Candidate evidence and live gate
 
-The implemented candidate is queued for [VT-024](VACATION_TEST_BACKLOG.md#vt-024--shared-review-feedback-and-activity).
+The implemented block is accepted through [VT-024](VACATION_TEST_BACKLOG.md#vt-024--shared-review-feedback-and-activity).
 Full relevant Studio core passed 1,149 tests with five existing skips; affected
 recovery checks and native Chrome workflows passed after their final fixes.
 Independent reviews cover state/recovery, legacy provenance, owner authority and
 persistence, host navigation/history, and presentation. The real semantic-agent
 round trip used actual owner browser controls for partial acceptance, feedback
 amendment and final acceptance; accepted pins and earlier history stayed exact.
-CI and immutable merge identities belong in the source PR record. Production
-acceptance remains pending until Klaus explicitly reports the VT-024 result.
+CI and immutable merge identities belong in the source PR record. Klaus
+explicitly reported PASS after the full fresh-fixture walkthrough on 2026-09-16,
+including proposed additions, feedback revisions, truthful next-actor states,
+partial/final acceptance, exact read-only Activity history and contextual return.
+The final clarification is merged `main` `419c910` (PR #252), tree `5b5ce09`,
+with green post-merge Build #2468. The fixture ended at project revision 22 with
+the Image and Animation accepted first and the dependent Assembly accepted last.

@@ -60,7 +60,7 @@ Keep these states distinct:
 | VT-021 | Assembly editor | IMPLEMENTED CANDIDATE — user acceptance pending | approved Assembly mockup and exact composition contract | Components, state/variant preview, custom blocking, agent correction/review, Save/restart |
 | VT-022 | Animation editor and contextual cut revisions | USER ACCEPTED — PASS 2026-09-10 | approved Animation V2 mockup and compatible Clip/Assembly contract | Exact frames, timing/alignment, cut round-trip, immutable versions, agent feedback/review and Assembly playback |
 | VT-023 | Library navigation and contextual details | USER ACCEPTED — PASS 2026-09-11 | approved Library design, accepted editor/read foundations | Compact saved inventory, filters, full-size/details/editor return, existing review queue and Activity history |
-| VT-024 | Shared Review, feedback and Activity | IMPLEMENTED CANDIDATE — integration gates pending | approved Review V2, durable shared Review foundation | Related changes, partial acceptance, revisable feedback, exact history and contextual return |
+| VT-024 | Shared Review, feedback and Activity | USER ACCEPTED — PASS 2026-09-16 | approved Review V2, durable shared Review foundation | Related changes, partial acceptance, revisable feedback, exact history and contextual return |
 
 Future A1, MCP, UI, later backup, remote, and mobile blocks MUST append their
 own ID only after implementation exists. Planned work is not a candidate. The
@@ -1659,7 +1659,7 @@ VT-001/CP4.5/A1.7 gates stay separate.
 
 ## VT-024 — Shared Review, feedback and Activity
 
-Status: **IMPLEMENTED CANDIDATE — user verification in progress**, 2026-09-16.
+Status: **USER ACCEPTED — PASS**, 2026-09-16.
 The [bounded UI contract](SHARED_REVIEW_UI_IMPLEMENTATION_CONTRACT.md) owns scope;
 [Review V2](REVIEW_CHANGES_DESIGN.md) is the approved design. ND-2 includes the
 affected ND-6 Back-left headers and ND-7 single-column Activity rows.
@@ -1698,6 +1698,16 @@ Library queue to **Reviews**, because it contains both human and agent next step
 and show **Awaiting agent** with the same amber semantic color in Assets and
 Reviews while keeping **Needs review** visibly distinct. This does not change the
 passed behavior or any review state, authority, persistence or agent launch.
+
+**Final acceptance — 2026-09-16:** Klaus passed the corrected Reviews label and
+cross-tab state colors, then explicitly passed partial Image/Animation
+acceptance with the dependent Assembly left pending, final Assembly acceptance,
+the exact read-only Activity/feedback history, and destination-named contextual
+return through Details and the editor. The fresh fixture progressed from project
+revision 18 to revision 22; exact accepted pins were Image/Animation at revision
+21 and Assembly at revision 22. The final live source was merged `main` `419c910`
+(PR #252), tree `5b5ce09`, with green post-merge Build #2468. This user decision
+is separate from source, automation, screenshots, reviews, merge and CI.
 
 User batch:
 

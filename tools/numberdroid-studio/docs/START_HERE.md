@@ -1,15 +1,17 @@
 # Numberdroid Studio — Start here
 
-Status date: 2026-09-11. This is the current task router; linked contracts own
+Status date: 2026-09-16. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
-Session restart snapshot (2026-09-11):
-[Shared Review / VT-024 handoff](../../../docs/history/handoffs/HANDOFF_2026-09-11_SHARED_REVIEW_VT024_READY.md).
-PR248 is merged and pre/post-merge green. Klaus postponed the production batch
-until after a server restart; VT-024 remains pending. Studio is stopped, its share
-removed, and the exact revision18 test workspace is retained. Read the handoff
-after the current binding route and reopen that data without reseeding it.
+Current milestone result (2026-09-16): Klaus explicitly reported PASS for the
+complete [VT-024](VACATION_TEST_BACKLOG.md#vt-024--shared-review-feedback-and-activity)
+production walkthrough. Shared Review, proposed additions, feedback revisions,
+truthful next-actor states, partial/final acceptance, exact Activity history and
+contextual return are user accepted. The final live baseline is merged `main`
+`419c910` (PR #252), tree `5b5ce09`, with green post-merge Build #2468. The
+retained fixture finished at project revision 22. The older restart handoffs are
+historical evidence, not an active instruction to repeat the accepted batch.
 
 Use BB Tasks project **Numberdroid Studio (ND)** as the working board, with linked
 GitHub issues as repository copies. Klaus removed the Taskboard plugin on 2026-09-11.
@@ -17,28 +19,23 @@ GitHub issues as repository copies. Klaus removed the Taskboard plugin on 2026-0
 Klaus reported “all pass.” for [VT-023](VACATION_TEST_BACKLOG.md#vt-023--library-navigation-and-contextual-details)
 on clean main `1c5c587`. Its [bounded contract](LIBRARY_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
 records the accepted Library navigation/detail block.
-The next functional task is **ND-2 / [#237](https://github.com/KlausUllrich/numberdroid/issues/237)**,
-shared Review. Klaus reported **“All pass”** for its
-[V2 mockup](REVIEW_CHANGES_DESIGN.md#v2-approval--2026-09-11) on 2026-09-11: feedback
-edits, reconsidered acceptance, truthful next actor and stale-proposal handling.
-Navigation placement (ND-6 / [#243](https://github.com/KlausUllrich/numberdroid/issues/243))
-and Activity readability (ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244))
-are included for the affected headers and Activity screen in the active UI block.
-Their demonstrated patterns are approved by the Review V2 PASS; production
-acceptance remains pending.
-The [shared Review foundation](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md) is merged
-and pre/post-merge green through PR247 at `1b4cbf1`, with a real semantic-agent
-round trip and restart integrity. The active
-[production UI block](SHARED_REVIEW_UI_IMPLEMENTATION_CONTRACT.md) connects the
-approved screen, exact legacy-proposal first decisions, truthful badges, Back-left
-navigation and readable Activity. Production UI acceptance remains pending.
+**ND-2 / [#237](https://github.com/KlausUllrich/numberdroid/issues/237) is user
+accepted** through VT-024. Its
+[foundation](SHARED_REVIEW_IMPLEMENTATION_CONTRACT.md) and
+[production UI block](SHARED_REVIEW_UI_IMPLEMENTATION_CONTRACT.md) preserve exact
+legacy-proposal decisions, dependency-valid partial acceptance, revisable
+feedback, truthful badges, Back-left navigation and readable immutable Activity.
+The directly affected ND-6 / [#243](https://github.com/KlausUllrich/numberdroid/issues/243)
+and ND-7 / [#244](https://github.com/KlausUllrich/numberdroid/issues/244) patterns
+are accepted for this bounded workflow. Any broader application-wide scope keeps
+its own gate.
 Read the task and keep meaningful milestone status aligned in both copies; creating
 these records does not start work or change the existing acceptance gates.
 
 ## Current direction
 
-Klaus has returned to attended product/design work. His 2026-09-07 direction
-supersedes unattended UI implementation: discuss each screen's goals and behavior,
+Klaus's 2026-09-07 product/design direction remains binding: discuss each new
+screen's goals and behavior,
 agree on a mockup, update the repository documentation, then implement and verify.
 Read the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md) for the approved
 source/asset/assembly model, flexible agent-change review, contextual editors and
@@ -49,10 +46,11 @@ Shift refinements; [Placement & Blocking Editor Design](PLACEMENT_BLOCKING_EDITO
 owns that approved screen. Mockup approval alone does not establish
 implemented-workflow or milestone acceptance. Klaus also passed the five Assembly walkthrough checks;
 [Assembly Editor Design](ASSEMBLY_EDITOR_DESIGN.md) records component references,
-variant/state preview and inherited/custom blocking. Klaus has now passed the
-shared Review batch; [Review Changes Design](REVIEW_CHANGES_DESIGN.md) records
-comparison, dependencies, full/partial acceptance, feedback, discard and stale
-proposal handling. All four editor mockups are approved. The exact-version prerequisite is now
+variant/state preview and inherited/custom blocking. Klaus passed the shared
+Review mockup and later the complete VT-024 production workflow;
+[Review Changes Design](REVIEW_CHANGES_DESIGN.md) records comparison,
+dependencies, full/partial acceptance, feedback, discard and stale proposal
+handling. All four editor mockups are approved. The exact-version prerequisite is now
 source-integrated: [Pinned Asset reads](ROOM_PINNED_ASSET_READ_CONTRACT.md) preserves
 saved Room images and geometry after Library updates. The completed
 block is the Asset placement/blocking editor and removal of the
@@ -62,9 +60,10 @@ Klaus passed the implemented Cutter batch on 2026-09-08; saved cut names now car
 into new Asset drafts. Native editor checks and the real-agent correction/review
 proof passed on 2026-09-09. PR #227 is merged and post-merge green; Klaus then
 reported **“all pass”** on clean main `93652c2`, accepting VT-020. The Asset editor
-and sidebar removal are accepted foundations. Assembly is the active implemented
-candidate ([VT-021](VACATION_TEST_BACKLOG.md#vt-021--assembly-editor)); shared Review
-implementation follows separately.
+and sidebar removal are accepted foundations. Assembly remains a separate
+implemented candidate
+([VT-021](VACATION_TEST_BACKLOG.md#vt-021--assembly-editor)); its broader product
+decision is not implied by the accepted Assembly use inside Shared Review.
 
 The primary proof is a real agent using Studio's semantic interface, correcting
 technical findings and reading saved review feedback/decisions before Klaus is
@@ -110,12 +109,11 @@ records the exact production acceptance, separately from the earlier mockup pass
 The [Library navigation design](LIBRARY_NAVIGATION_DESIGN.md) is now approved:
 Klaus reported **“pass”** for the Assets/Pending changes, detail return, grouped
 review and Activity-history mockup batch on 2026-09-10. The bounded production
-Library block is now accepted as VT-023 after the 2026-09-11 “all pass.” result;
-shared Review command/state integration follows separately. The mockup's mixed dependencies and
-partial acceptance do not imply those production capabilities already exist.
+Library block is accepted as VT-023 after the 2026-09-11 “all pass.” result.
+Shared Review command/state integration and its mixed-content partial acceptance
+are now separately accepted as VT-024 after the 2026-09-16 PASS.
 Further screen changes follow discussion and mockup agreement before implementation.
-Full shared Review semantics, runtime materialization, image generation and
-publication retain separate gates.
+Runtime materialization, image generation and publication retain separate gates.
 
 ## What can be used
 
