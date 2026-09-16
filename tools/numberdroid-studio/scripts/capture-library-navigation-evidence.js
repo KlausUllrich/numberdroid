@@ -142,7 +142,13 @@ export async function captureLibraryNavigation({ devtools, sessionId, captureChe
   }
   await click('[data-library-action="add-from-sources"]');
   await click('[data-sources-tab="workbench"]');
-  await waitFor("document.getElementById('workspace-content')?.dataset.renderedWorkspace==='sources'&&Boolean(document.querySelector('[data-create-asset-slice]'))", 'Source preparation entry');
+  const outputEntry = '[data-open-atlas="atlas.animation-components"][data-open-cutter-view="outputs"]';
+  await waitFor(`document.getElementById('workspace-content')?.dataset.renderedWorkspace==='sources'&&Boolean(document.querySelector(${JSON.stringify(outputEntry)}))`, 'Image Workbench output entry');
+  assert.equal(await evaluate("document.querySelectorAll('[data-create-asset-slice]').length"), 0, 'Workbench lists image work; Library authoring belongs with its saved output images');
+  await click(outputEntry);
+  await waitFor("Boolean(document.querySelector('.cutter-primary-outputs[data-output-kind=\"saved\"] [data-create-asset-slice]'))", 'Saved output Library-authoring entry');
+  assert.equal(await evaluate("document.querySelectorAll('.cutter-primary-outputs').length"), 1, 'Saved outputs have one primary gallery');
+  await click('[data-close-cutter]');
   await click('[data-workspace="assets"]'); await navigation.assets();
   await click('[data-library-action="create-assembly"]');
   await waitFor("Boolean(document.querySelector('[data-assembly-canvas]'))", 'Library Create Assembly entry');
