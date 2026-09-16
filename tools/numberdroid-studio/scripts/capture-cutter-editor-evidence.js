@@ -245,6 +245,7 @@ export async function captureCutterEditor({ devtools, sessionId }) {
     await evaluate(`window.confirm=()=>false`); await click('[data-close-cutter]'); assert.equal((await state()).name,'Discard this local draft');
     await evaluate(`window.confirm=()=>true`); await click('[data-close-cutter]');
     await click('[data-open-cutter="source.family-hygiene-approved"]');
+    await click('[data-cutter-view="edit"]');
     await waitFor(`Boolean(document.querySelector('[data-job-event-type="APPLIED"]'))`,'Reopened saved cuts');
     const reopened=await state(); assert.deepEqual(reopened.geometry,CANONICAL_RECTS); assert.equal(reopened.name,''); assert.equal(reopened.zoom,'fit'); assert.deepEqual(reopened.scroll,[0,0]);
     assert.deepEqual(reopened.page,closing.page,'Close/reopen changed the retained page position');

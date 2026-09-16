@@ -222,6 +222,7 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .saved-output-library-actions { display: grid; gap: 8px; margin: 10px 0; }
 .saved-output-library-actions button { white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
 .cutter-primary-outputs { margin-bottom: 18px; }
+.slice-preview-grid > [data-create-animation] { grid-column: 1 / -1; justify-self: start; margin: 8px 0; }
 .cutter-job-status { margin-left: auto; color: var(--cyan); font: 10px ui-monospace, monospace; }
 .cutter-job-events { display: grid; gap: 5px; margin: 0 0 18px; padding: 0; list-style: none; }
 .cutter-job-events li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 9px; border: 1px solid #29483f; border-radius: 6px; background: #0e1d19; }

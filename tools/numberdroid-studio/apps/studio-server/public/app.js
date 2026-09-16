@@ -1967,6 +1967,10 @@ function renderCutter(source) {
     const renderOutputs = kind => {
       const grid = document.createElement('div'); grid.className = `slice-preview-grid ${kind === 'saved' ? 'committed' : ''}`;
       outputs[kind].forEach((output, index) => grid.append(cutterPreviewCard(output, index, state.project.projectId)));
+      if (kind === 'saved' && outputs.saved.length && animationSupported()) {
+        const create = document.createElement('button'); create.type = 'button'; create.dataset.createAnimation = '';
+        create.textContent = 'Create Animation from selected saved images'; create.disabled = !animationCanMutate(); grid.append(create);
+      }
       return grid;
     };
     const primary = renderOutputs(presentation.kind); primary.classList.add('cutter-primary-outputs'); primary.dataset.outputKind = presentation.kind;
@@ -1975,10 +1979,6 @@ function renderCutter(source) {
       const comparison = document.createElement('details'); comparison.className = 'cutter-output-comparison';
       const summary = document.createElement('summary'); summary.textContent = 'Compare with saved output images';
       comparison.append(summary, renderOutputs('saved')); section.append(comparison);
-    }
-    if (outputs.saved.length && animationSupported()) {
-      const create = document.createElement('button'); create.type = 'button'; create.dataset.createAnimation = '';
-      create.textContent = 'Create Animation from selected images'; create.disabled = !animationCanMutate(); section.append(create);
     }
   } else if (cutter.view === 'detail') {
     const output = outputs[cutter.outputKind]?.[cutter.outputIndex];

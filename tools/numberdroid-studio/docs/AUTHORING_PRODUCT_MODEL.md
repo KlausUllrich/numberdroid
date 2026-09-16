@@ -118,8 +118,10 @@ background job is running; exact job activity appears only where the current job
 projection is available. Passing a check does not submit unfinished work
 automatically; the agent deliberately submits a result for the owner's decision
 after satisfying the applicable checks. Generated-but-unsaved and saved output
-images share one primary gallery with a clear state and save consequence; an
-older saved version is an optional comparison, not another required approval.
+images share one primary gallery with a clear state and save consequence.
+**Compare with saved output images** optionally exposes existing saved outputs,
+not necessarily a previous version of each generated image and never another
+required approval.
 
 Library provides **Assets** and **Reviews**, with search and relevant
 filters. A saved asset may be useful for assembly, placement or another declared

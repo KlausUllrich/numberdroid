@@ -32,18 +32,21 @@ needs no review; an existing work item is presented as derived work, not a secon
 copy of the original.
 
 Workbench cards are projected only from saved atlas records. A saved definition
-with no outputs says **Saved work · nothing running**; a record with output heads
-reports the exact saved-cut count. The list does not infer active processing from
-`latestPreviewJobId`; the opened Cutter owns exact queued/running/failure state.
+with no outputs says **Cut layout saved**; a record with output heads reports the
+exact **saved output images** count. Neither label claims active or idle job
+state. The list does not infer processing state from `latestPreviewJobId`; the
+opened Cutter owns exact queued/running/failure state.
 Show saved output thumbnails and a smaller source relationship/link on Workbench
 cards. The Back button uses the normal outlined secondary-button treatment.
 
 The Cutter provides one Output images gallery, identifying generated results as
 not saved yet and committed results as saved. **Generate output images** and
 **Save output images** are clearer labels for the existing preview/commit
-operations, not new commands. When a newer generated result exists, expose old
-saved results only through an optional closed comparison disclosure. Preserve
-their exact versions, authoring actions and recovery controls. Saving switches
+operations, not new commands. When generated results exist, expose saved results
+only through the optional closed **Compare with saved output images** disclosure.
+The `sliceHeads` projection accumulates saved output identities; it is not a
+one-to-one previous version of the current generated set. Preserve its exact
+versions, authoring actions and recovery controls. Saving switches
 the primary gallery to the saved state without duplicating the same results.
 
 ## Preserved behavior and boundaries

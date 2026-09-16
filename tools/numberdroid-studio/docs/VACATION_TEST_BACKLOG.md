@@ -1783,8 +1783,10 @@ Bundled corrected user batch:
 5. Inspect **Output images**. The nine saved outputs appear once, with a clear
    saved state and Library-authoring consequence. Creating Library content is
    not a second approval. In this disposable fixture, generate a revised set:
-   it says not saved yet, explains **Save output images**, and keeps older saved
-   outputs in an optional closed comparison. Saving changes the primary
+   it says not saved yet, explains **Save output images**, and keeps existing
+   saved outputs in an optional closed **Compare with saved output images**
+   disclosure. This compares available saved images, not necessarily a previous
+   version of each generated image. Saving changes the primary
    gallery's state without duplicating it or changing existing Library pins.
 6. Search retains focus; the Needs-review filter gives a truthful empty/result
    state. Idle saved work must not claim a running job. Disabled Sources actions

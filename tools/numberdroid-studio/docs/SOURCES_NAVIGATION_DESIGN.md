@@ -65,10 +65,11 @@ Use state-specific guidance and actions on the card instead of a permanent
 paragraph explaining internal storage concepts.
 
 The list must not infer that a background process is running from the mere
-presence of a job identity. With the current projection it can truthfully say
-**Saved work · nothing running** or report the number of saved cuts. Exact queued,
-running, failed and preview-ready state remains inside the opened Cutter, where
-the current job projection is available.
+presence of a job identity. With the current projection it says **Cut layout
+saved** when no outputs exist, or reports the number of **saved output images**.
+Neither label claims a job is running or idle. Exact queued, running, failed and
+preview-ready state remains inside the opened Cutter, where the current job
+projection is available.
 
 Opening an approved original may create or reopen its non-destructive work item.
 The Cutter's return action says **Back to Image Workbench**, using the normal
@@ -91,9 +92,11 @@ state and next action:
 
 These names describe existing define → preview job → commit operations. They
 do not collapse command boundaries or introduce automatic saves. While new
-generated results are being checked, earlier saved results remain protected and
-may be shown under a closed **Compare with saved version** disclosure. Do not
-show two equally prominent galleries called Preview cuts and Saved cuts.
+generated results are being checked, saved output images remain protected and
+may be shown under a closed **Compare with saved output images** disclosure.
+This optional comparison shows the work item's saved output identities; it is
+not a one-to-one previous version of the current generated set. Do not show two
+equally prominent galleries called Preview cuts and Saved cuts.
 After saving, the same output gallery shows its saved state, not another copy.
 
 ## Why a saved cut still needs Library authoring

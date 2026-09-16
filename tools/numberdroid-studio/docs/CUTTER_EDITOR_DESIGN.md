@@ -130,9 +130,11 @@ unsaved distinction and must not silently save or retarget content.
 
 The 2026-09-16 [Sources clarity correction](SOURCES_NAVIGATION_DESIGN.md#one-output-gallery)
 uses one primary Output images gallery labelled generated/not saved or saved.
-When newer generated results coexist with older saved outputs, the older set is
-available through a closed comparison disclosure. Saving changes the gallery's
-state instead of adding a duplicate gallery. Keep exact lineage, existing saved
+When generated results coexist with saved outputs, **Compare with saved output
+images** makes those saved identities available in a closed optional disclosure.
+They are not necessarily one-to-one prior versions of the generated results.
+Saving changes the gallery's state instead of adding a duplicate gallery. Keep
+exact lineage, existing saved
 consumers, job recovery and contextual return intact. The normal outlined
 **Back to Image Workbench** button names the destination and matches comparable
 secondary controls in height and padding. These are presentation corrections;
