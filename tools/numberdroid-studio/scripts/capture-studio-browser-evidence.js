@@ -2737,7 +2737,12 @@ try {
           };
 
           const configureForm = (name) => {
-            const form = document.querySelector('[data-source-intake-form]');
+            let form = document.querySelector('[data-source-intake-form]');
+            if (!form) {
+              document.querySelector('[data-source-import-toggle]')?.click();
+              form = document.querySelector('[data-source-intake-form]');
+            }
+            if (!form) throw new Error('Source import form did not reopen for the next isolation phase.');
             form.querySelector('[name="sourceId"]').value = \`source.\${name}.context-probe\`;
             form.querySelector('[name="name"]').value = \`\${name} context probe\`;
             const file = form.querySelector('[data-source-file]');
@@ -2769,7 +2774,7 @@ try {
             demoDisabled: document.getElementById('demo-button').disabled,
             sourceActionsDisabled: [...document.querySelectorAll(
               '[data-resume-source-intake], [data-discard-source-intake], [data-source-review-propose], '
-                + '[data-source-review-decision], [data-open-cutter]',
+                + '[data-source-review-decision], [data-open-cutter], [data-source-import-toggle]',
             )].every((control) => control.disabled),
           };
           const projectSelect = document.getElementById('project-select');
@@ -2850,6 +2855,8 @@ try {
         awaitPromise: true,
         returnByValue: true,
       }, sessionId);
+      assert(!isolation.exceptionDetails,
+        `Synthetic source-import isolation probe failed before returning evidence: ${JSON.stringify(isolation.exceptionDetails)}`);
       sourceImportOperationIsolation = isolation.result?.value ?? null;
       assert(sourceImportOperationIsolation?.pending?.allFormControlsDisabled === true
         && sourceImportOperationIsolation.pending.liveStatusOutsideInert === true
@@ -2857,7 +2864,7 @@ try {
         && sourceImportOperationIsolation.pending.refreshDisabled === true
         && sourceImportOperationIsolation.pending.demoDisabled === true
         && sourceImportOperationIsolation.pending.sourceActionsDisabled === true,
-      'Source import did not lock every context-changing or mutable form control while preserving its live status.');
+      `Source import did not lock every context-changing or mutable form control while preserving its live status: ${JSON.stringify(sourceImportOperationIsolation?.pending)}`);
       assert(sourceImportOperationIsolation.selectedProjectWhilePending === sourceImportOperationIsolation.operationProjectId
         && sourceImportOperationIsolation.delayedStageCount === 1
         && sourceImportOperationIsolation.delayedCommitCount === 1
@@ -2877,12 +2884,12 @@ try {
         && sourceImportOperationIsolation.commitFailureRecovery.replaced === true
         && sourceImportOperationIsolation.commitFailureRecovery.oldConnected === false
         && sourceImportOperationIsolation.commitFailureRecovery.oldFileCount === 0
-        && sourceImportOperationIsolation.commitFailureRecovery.heading === 'Resume staged source'
+        && sourceImportOperationIsolation.commitFailureRecovery.heading === 'Resume staged source image'
         && sourceImportOperationIsolation.commitFailureRecovery.currentFileCount === 0
         && sourceImportOperationIsolation.commitFailureRecovery.currentFileDisabled === true
         && sourceImportOperationIsolation.commitFailureRecovery.status?.includes('remains staged; retry commits this exact artifact')
         && sourceImportOperationIsolation.commitFailureRecovery.liveStatusOutsideInert === true,
-      'A post-stage commit failure left the old selectable file form visible or hid durable recovery status.');
+      `A post-stage commit failure left the old selectable file form visible or hid durable recovery status: ${JSON.stringify(sourceImportOperationIsolation.commitFailureRecovery)}`);
       const transition = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const original = document.querySelector('[data-source-intake-form] [data-source-file]');
@@ -2917,9 +2924,9 @@ try {
         && sourceFileResumeTransition.oldFileCount === 0
         && sourceFileResumeTransition.currentFileCount === 0
         && sourceFileResumeTransition.currentDisabled === true
-        && sourceFileResumeTransition.heading === 'Resume staged source'
+        && sourceFileResumeTransition.heading === 'Resume staged source image'
         && sourceFileResumeTransition.status?.startsWith('Ready to commit staged intake '),
-      'Resume staged intake did not clear the selected new-source file and replace it with the staged form.');
+      `Resume staged intake did not clear the selected new-source file and replace it with the staged form: ${JSON.stringify(sourceFileResumeTransition)}`);
       await devtools.send('Runtime.evaluate', {
         expression: `Promise.all([...document.querySelectorAll('.source-preview img')].map((image) => {
           if (image.complete) return Promise.resolve();
