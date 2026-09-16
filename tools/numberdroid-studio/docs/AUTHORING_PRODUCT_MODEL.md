@@ -107,13 +107,19 @@ when one of its outputs enters the Library.
 
 The approved [Sources navigation design](SOURCES_NAVIGATION_DESIGN.md) uses two
 content views: **Source Images** and **Image Workbench**. Review is an attention
-state exposed through a **Needs review** filter and compact notice, not a third
-content type or a mandatory workflow stage. Image Workbench contains actual
+state exposed through a **Needs review** filter and a relevant tab count, not a
+third content type or a mandatory workflow stage. Counts belong to the content
+view: Library-only proposals do not create Sources review work. The 2026-09-16
+clarity correction removes redundant notice bars and distinguishes originals
+from their derived outputs through thumbnails and an explicit source link.
+Image Workbench contains actual
 saved work and outputs, including idle unfinished work. It does not mean a
 background job is running; exact job activity appears only where the current job
 projection is available. Passing a check does not submit unfinished work
 automatically; the agent deliberately submits a result for the owner's decision
-after satisfying the applicable checks.
+after satisfying the applicable checks. Generated-but-unsaved and saved output
+images share one primary gallery with a clear state and save consequence; an
+older saved version is an optional comparison, not another required approval.
 
 Library provides **Assets** and **Reviews**, with search and relevant
 filters. A saved asset may be useful for assembly, placement or another declared

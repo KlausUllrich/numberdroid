@@ -1,6 +1,8 @@
 # Sources navigation — Production implementation contract
 
-Status: **IMPLEMENTED CANDIDATE — LIVE ACCEPTANCE PENDING, 2026-09-16**.
+Status: **REVISE — APPROVED CLARITY CORRECTION, 2026-09-16**. The initial
+production screen failed Klaus's clarity review; the correction below is
+authorized, but corrected production behavior is not yet user accepted.
 
 This contract binds the production implementation of the user-approved
 [Sources Navigation Design](SOURCES_NAVIGATION_DESIGN.md). It reorganizes the
@@ -15,20 +17,34 @@ The Sources workspace provides exactly two content views:
 - **Image Workbench** lists actual persisted atlas/cut definitions and saved cut
   outputs.
 
-**Needs review** is a status filter. Existing submitted shared Reviews appear as
-a compact attention notice and open the same Review used by Library and Agent
-tasks. They are not copied into a third process tab.
+**Needs review** is a status filter scoped to the selected content. Each tab may
+show its own nonzero review count in brackets with an explanatory tooltip.
+Remove the separate attention notice and permanent Workbench explanation bar.
+Do not import Library proposal groups into Sources counts or results. Current
+Workbench records have no separate review decision; unsaved work is not review.
 
 Source cards show whole-image preview, useful dimensions, plain-language status
 and the next available action. Technical identity and provenance remain
 available in a closed disclosure. Import is progressive disclosure, while
 staged-intake recovery remains visible. An approved PNG opens the existing
-Cutter under Image Workbench and returns there.
+Cutter under Image Workbench and returns there. An approved original explicitly
+needs no review; an existing work item is presented as derived work, not a second
+copy of the original.
 
 Workbench cards are projected only from saved atlas records. A saved definition
 with no outputs says **Saved work · nothing running**; a record with output heads
 reports the exact saved-cut count. The list does not infer active processing from
 `latestPreviewJobId`; the opened Cutter owns exact queued/running/failure state.
+Show saved output thumbnails and a smaller source relationship/link on Workbench
+cards. The Back button uses the normal outlined secondary-button treatment.
+
+The Cutter provides one Output images gallery, identifying generated results as
+not saved yet and committed results as saved. **Generate output images** and
+**Save output images** are clearer labels for the existing preview/commit
+operations, not new commands. When a newer generated result exists, expose old
+saved results only through an optional closed comparison disclosure. Preserve
+their exact versions, authoring actions and recovery controls. Saving switches
+the primary gallery to the saved state without duplicating the same results.
 
 ## Preserved behavior and boundaries
 
@@ -38,7 +54,8 @@ reports the exact saved-cut count. The list does not infer active processing fro
   unchanged.
 - Saved cuts remain non-semantic outputs. Existing Asset/Animation authoring
   creates Library content from exact cuts and supplies the separate semantic
-  identity and metadata.
+  identity and metadata. Explain that creating Library content is authoring its
+  use/placement, not approving the same output again.
 - Existing shared Review groups remain Image/Animation/Assembly groups. This
   implementation does not invent an atomic source-plus-cut proposal.
 - Disabled Sources actions expose a hover and keyboard-focusable reason when the
@@ -58,7 +75,9 @@ reports the exact saved-cut count. The list does not infer active processing fro
   existing explicit static allowlist;
 - focused state tests and a real-Chrome two-viewport check cover names, filtering,
   focus retention, actual saved atlas/output projection, closed disclosures,
-  absence of a process-like Review tab and horizontal containment.
+  absence of a process-like Review tab, domain-correct counts, one primary output
+  gallery, original/output relationship, Back-button geometry and horizontal
+  containment.
 
 ## Acceptance boundary
 

@@ -20,8 +20,8 @@ export function sourceStatusPresentation(source) {
   if (lifecycle === 'APPROVED_SOURCE' && review === 'USER_APPROVED') {
     return {
       key: 'ready',
-      label: 'Ready to use',
-      explanation: 'This original is saved and approved. Image Workbench keeps it unchanged while you prepare outputs.',
+      label: 'Approved',
+      explanation: 'No review needed. This original stays unchanged when you create output images from it.',
     };
   }
   if (sourceNeedsReview(source)) {
@@ -78,21 +78,51 @@ export function imageWorkbenchEntries(snapshot) {
   }));
 }
 
+// Saved cutting work has no owner-review lifecycle. Library reviews belong in Library.
+export function sourceReviewCounts(snapshot) {
+  return { images: (snapshot?.sources ?? []).filter(sourceNeedsReview).length, workbench: 0 };
+}
+
+export function savedOutputConsumers(snapshot, slice) {
+  const matches = binding => binding?.sliceId === slice.sliceId && binding?.sliceVersion === slice.version;
+  return [
+    ...(snapshot?.assetLibrary?.assets ?? []).filter(asset => matches(asset.sliceBinding))
+      .map(asset => ({ contentKind: 'image', asset })),
+    ...(snapshot?.clipLibrary?.assets ?? []).filter(asset => (asset.clip?.frames ?? []).some(frame => matches(frame.slice)))
+      .map(asset => ({ contentKind: 'animation', asset })),
+  ];
+}
+
+export function cutterOutputPresentation({ job, dirty = false, savedCount = 0 } = {}) {
+  const preview = job?.state === 'SUCCEEDED' && (job.outputs?.length ?? 0) > 0;
+  const description = preview
+    ? 'These generated images are not saved yet. Check them, then save them for use in Library assets. Previously saved images stay available.'
+    : savedCount > 0
+      ? 'These output images are saved. Open their Library links, or create a new asset with its own use, size and placement settings. Creating an asset is not another approval of the image.'
+      : 'Choose the areas to keep in Cut image, save the cut layout, then generate output images.';
+  return {
+    kind: preview ? 'preview' : 'saved',
+    label: preview ? 'Not saved yet' : savedCount > 0 ? 'Saved output images' : 'No output images yet',
+    description: description + (dirty ? ' Your unsaved cut edits are not included in these images.' : ''),
+    compare: preview && savedCount > 0,
+  };
+}
+
 export function workbenchStatusPresentation(entry) {
   const savedCuts = entry?.atlas?.sliceHeads?.length ?? 0;
   const rectangleCount = entry?.atlas?.rectangles?.length ?? 0;
   if (savedCuts > 0) {
     return {
       key: 'saved-outputs',
-      label: `${savedCuts} saved ${savedCuts === 1 ? 'cut' : 'cuts'}`,
-      explanation: 'These outputs remain linked to their original. Create Library content from a saved cut when it has the meaning you need.',
+      label: `${savedCuts} saved output ${savedCuts === 1 ? 'image' : 'images'}`,
+      explanation: 'View the extracted images and their Library uses, or edit the areas cut from the original.',
     };
   }
   return {
     key: 'saved-work',
-    label: 'Saved work · nothing running',
+    label: 'Cut layout saved',
     explanation: rectangleCount > 0
-      ? 'The cut definition is saved. Open it to continue editing or prepare exact output images.'
+      ? 'The selected areas are saved. Open this work to generate output images or continue editing.'
       : 'The work item is saved, but no cuts have been defined yet.',
   };
 }
@@ -106,6 +136,7 @@ export function filterImageWorkbench(entries, { search = '', attention = 'all' }
     entry.atlas?.name,
     entry.source?.id,
     entry.source?.name,
+    ...(entry.atlas?.sliceHeads ?? []).map(slice => slice.rectangle?.name),
     workbenchStatusPresentation(entry).label,
   ].some((value) => text(value).includes(query)));
 }

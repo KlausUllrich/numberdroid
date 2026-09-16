@@ -16,10 +16,12 @@ import { cutterGridInfo, cutterSnapCoordinate, cutterDragRectangle, cutterEditIs
 import { renderCutterEditor, syncCutterCanvas, cutterOutputCard, cutterOutputName } from './cutter-editor-view.js';
 import {
   createSourcesUiState,
+  cutterOutputPresentation,
   filterImageWorkbench,
   filterSourceImages,
   imageWorkbenchEntries,
-  sourceNeedsReview,
+  savedOutputConsumers,
+  sourceReviewCounts,
   sourceStatusPresentation,
   workbenchStatusPresentation,
 } from './sources-navigation-state.js';
@@ -372,7 +374,7 @@ function setSourceMutationPending(pending) {
       + '[data-source-review-decision], [data-open-cutter], [data-close-cutter], [data-add-rectangle], '
       + '[data-save-atlas], [data-preview-atlas], [data-commit-atlas], [data-cancel-cutter-job], '
       + '[data-retry-cutter-job], [data-discard-cutter-job], [data-demo-action], [data-sources-tab], '
-      + '[data-sources-attention], [data-sources-search], [data-source-import-toggle], [data-sources-attention-show]',
+      + '[data-sources-attention], [data-sources-search], [data-source-import-toggle], [data-view-source]',
   )) control.disabled = pending;
 }
 
@@ -1708,8 +1710,9 @@ function restoreCutterDomDraft() {
   state.cutterDomDraft = null;
 }
 
-function openCutter(source) {
-  const existing = (state.project?.snapshot.atlases ?? []).find((atlas) => atlas.sourceId === source.id) ?? null;
+function openCutter(source, { atlasId = null, view = 'edit' } = {}) {
+  const existing = (state.project?.snapshot.atlases ?? []).find((atlas) => atlas.sourceId === source.id && (!atlasId || atlas.id === atlasId)) ?? null;
+  if (atlasId && !existing) { showToast('This image work is no longer available. Refresh and choose it again.'); return; }
   const familyDefaults = source.width === 1254 && source.height === 1254;
   cancelCutterJobPolling();
   resetCutterScroll();
@@ -1720,7 +1723,7 @@ function openCutter(source) {
     instanceId: crypto.randomUUID(),
     name: existing?.name ?? `${source.name} cuts`,
     zoom: 'fit',
-    showGrid: true, snap: false, tool: 'select', selectedIndex: 0, gridOpen: false, view: 'edit', error: null,
+    showGrid: true, snap: false, tool: 'select', selectedIndex: 0, gridOpen: false, view: view === 'outputs' ? 'outputs' : 'edit', error: null,
     history: { past: [], future: [] },
     guide: { width: familyDefaults ? 622 : Math.max(1, Math.floor(source.width / 2)), height: familyDefaults ? 622 : Math.max(1, Math.floor(source.height / 2)), x: familyDefaults ? 3 : 0, y: familyDefaults ? 3 : 0, gapX: familyDefaults ? 4 : 0, gapY: familyDefaults ? 4 : 0 },
     dirty: false,
@@ -1846,7 +1849,32 @@ function markCutterDefinitionDirty() {
 }
 
 function cutterPreviewCard(output, index, projectId) {
-  return cutterOutputCard(output, index, projectId);
+  const card = cutterOutputCard(output, index, projectId);
+  if (output.sliceId) {
+    card.append(savedOutputLibraryActions(output));
+    if (animationSupported()) {
+      const label = document.createElement('label'), check = document.createElement('input');
+      check.type = 'checkbox'; check.dataset.animationSelectCut = output.sliceId; check.dataset.sliceVersion = String(output.version);
+      label.append(check, document.createTextNode('Use in Animation')); card.append(label);
+    }
+  }
+  return card;
+}
+
+function savedOutputLibraryActions(slice) {
+  const actions = document.createElement('div'); actions.className = 'saved-output-library-actions';
+  const consumers = savedOutputConsumers(state.project?.snapshot, slice);
+  for (const { contentKind, asset } of consumers) {
+    const link = document.createElement('button'); link.type = 'button'; link.className = 'secondary';
+    link.textContent = `Open ${asset.name} in Library`;
+    Object.assign(link.dataset, { libraryAction: 'details', libraryKind: contentKind, libraryAssetId: asset.assetId,
+      libraryAssetVersion: String(asset.assetVersion), libraryMetadataVersion: String(asset.metadataVersion) });
+    actions.append(link);
+  }
+  const create = createAssetFromSliceButton(slice);
+  create.textContent = consumers.length ? 'Create another Library asset' : 'Create Library asset';
+  create.title = 'Opens an asset draft to set its use, size and placement. This does not approve or publish anything.';
+  actions.append(create); return actions;
 }
 
 function cutterOutputs(atlas = currentCutterAtlas()) {
@@ -1862,12 +1890,16 @@ function renderCutter(source) {
   const actions = document.createElement('div'); actions.className = 'cutter-actions';
   const unresolvedJob = state.cutterJob && !['APPLIED', 'DISCARDED'].includes(state.cutterJob.state);
   const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save work'; save.dataset.saveAtlas = '';
+  save.textContent = 'Save cut layout';
   save.disabled = state.cutterPending || !cutter.rectangles.length || Boolean(unresolvedJob);
   if (unresolvedJob) save.title = 'Commit or discard the current preview job before replacing this atlas definition.';
-  const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'secondary'; preview.textContent = 'Preview cuts'; preview.dataset.previewAtlas = '';
+  const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'secondary'; preview.textContent = 'Generate output images'; preview.dataset.previewAtlas = '';
   preview.disabled = state.cutterPending || !atlas || cutter.dirty || Boolean(unresolvedJob);
   if (unresolvedJob) preview.title = 'Apply or discard the current preview job before queuing another.';
-  actions.append(preview);
+  const previewReason = state.cutterPending ? 'Another image operation is in progress.'
+    : unresolvedJob ? 'Save or discard the current generated results before generating again.'
+      : !atlas || cutter.dirty ? 'Save the cut layout first. Generating uses the saved areas, not unsaved edits.' : '';
+  actions.append(reasonedDisabledControl(preview, previewReason));
   if (state.cutterJob && ['QUEUED', 'RUNNING'].includes(state.cutterJob.state) && !state.cutterJob.cancelRequested) {
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary'; cancel.textContent = 'Cancel job'; cancel.dataset.cancelCutterJob = '';
     cancel.disabled = state.cutterPending;
@@ -1879,13 +1911,13 @@ function renderCutter(source) {
     actions.append(retry);
   }
   if (state.cutterJob?.state === 'SUCCEEDED') {
-    const commit = document.createElement('button'); commit.type = 'button'; commit.textContent = `Save these ${state.cutterJob.outputs?.length ?? 0} cuts`; commit.dataset.commitAtlas = '';
+    const commit = document.createElement('button'); commit.type = 'button'; commit.textContent = `Save ${state.cutterJob.outputs?.length ?? 0} output images`; commit.dataset.commitAtlas = '';
     commit.disabled = state.cutterPending;
     actions.append(commit);
   }
   if (state.cutterJob && ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(state.cutterJob.state)) {
     const discard = document.createElement('button'); discard.type = 'button'; discard.className = 'secondary';
-    discard.textContent = 'Discard previews'; discard.dataset.discardCutterJob = '';
+    discard.textContent = 'Discard generated results'; discard.dataset.discardCutterJob = '';
     discard.disabled = state.cutterPending;
     actions.append(discard);
   }
@@ -1895,14 +1927,14 @@ function renderCutter(source) {
   const cancellationText = state.cutterJob?.cancelRequested ? ' · cancellation requested' : '';
   const errorText = jobError ? ` · ${jobError.code || 'JOB_FAILED'}: ${jobError.message || 'Preview processing failed.'}` : '';
   status.textContent = state.cutterJob
-    ? `${({ QUEUED: 'Queued', RUNNING: 'Preparing cuts', SUCCEEDED: 'Previews ready to save', APPLIED: 'Cuts saved', CANCELLED: 'Cancelled', FAILED: 'Preview failed', DISCARDED: 'Previews discarded' })[state.cutterJob.state]} · ${state.cutterJob.progress.current}/${state.cutterJob.progress.total}${cancellationText}${errorText}`
-    : (atlas ? `Definition v${atlas.definitionVersion} saved` : 'Unsaved definition');
+    ? `${({ QUEUED: 'Queued', RUNNING: 'Generating output images', SUCCEEDED: 'Generated images ready to save', APPLIED: 'Output images saved', CANCELLED: 'Cancelled', FAILED: 'Image generation failed', DISCARDED: 'Generated results discarded' })[state.cutterJob.state]} · ${state.cutterJob.progress.current}/${state.cutterJob.progress.total}${cancellationText}${errorText}`
+    : (atlas ? 'Cut layout saved' : 'Save the cut layout before generating images');
   actions.append(status); section.append(actions);
 
   if (unresolvedJob && cutter.dirty) {
     const guidance = document.createElement('p'); guidance.className = 'cutter-note';
     guidance.textContent = state.cutterJob.state === 'SUCCEEDED'
-      ? 'These edits are local. Commit or discard the succeeded previews before saving a replacement definition.'
+      ? 'Your unsaved cut edits are not included in the generated images. Save or discard those results before saving the edited layout.'
       : ['FAILED', 'CANCELLED'].includes(state.cutterJob.state)
         ? 'These edits are local. Retry or discard this job before saving a replacement definition.'
         : 'These edits are local. Cancel the running job, wait for cancellation, then discard it before saving a replacement definition.';
@@ -1930,13 +1962,24 @@ function renderCutter(source) {
 
   const outputs = cutterOutputs(atlas);
   if (cutter.view === 'outputs') {
-    for (const [kind, title] of [['preview', 'Preview cuts'], ['saved', 'Saved cuts']]) {
-      if (!outputs[kind].length) continue;
+    const presentation = cutterOutputPresentation({ job: state.cutterJob, dirty: cutter.dirty, savedCount: outputs.saved.length });
+    section.append(sectionHeading(presentation.label, presentation.description));
+    const renderOutputs = kind => {
       const grid = document.createElement('div'); grid.className = `slice-preview-grid ${kind === 'saved' ? 'committed' : ''}`;
       outputs[kind].forEach((output, index) => grid.append(cutterPreviewCard(output, index, state.project.projectId)));
-      section.append(sectionHeading(title, kind === 'preview' ? 'Only included cuts appear here. Images open at full size in a new tab.' : 'Saved image cuts retain their original source and exact coordinates.'), grid);
+      return grid;
+    };
+    const primary = renderOutputs(presentation.kind); primary.classList.add('cutter-primary-outputs'); primary.dataset.outputKind = presentation.kind;
+    section.append(primary);
+    if (presentation.compare) {
+      const comparison = document.createElement('details'); comparison.className = 'cutter-output-comparison';
+      const summary = document.createElement('summary'); summary.textContent = 'Compare with saved output images';
+      comparison.append(summary, renderOutputs('saved')); section.append(comparison);
     }
-    if (!outputs.preview.length && !outputs.saved.length) section.append(emptyState('No output images yet', 'Save work, then Preview cuts. The preview job produces exact PNG images for the included cuts.'));
+    if (outputs.saved.length && animationSupported()) {
+      const create = document.createElement('button'); create.type = 'button'; create.dataset.createAnimation = '';
+      create.textContent = 'Create Animation from selected images'; create.disabled = !animationCanMutate(); section.append(create);
+    }
   } else if (cutter.view === 'detail') {
     const output = outputs[cutter.outputKind]?.[cutter.outputIndex];
     const back = document.createElement('button'); back.type = 'button'; back.dataset.cutterView = 'outputs'; back.textContent = 'Back to output images'; section.append(back);
@@ -1947,7 +1990,7 @@ function renderCutter(source) {
       const rect = output.rectangle;
       for (const text of [source.name, rect ? `Left ${rect.x}, top ${rect.y} · ${rect.width} × ${rect.height} source pixels` : `${output.width} × ${output.height} pixels`, output.sliceId ? `Saved cut version ${output.version}` : 'Temporary preview until saved']) { const row = document.createElement('p'); row.textContent = text; facts.append(row); }
       const link = document.createElement('a'); link.href = source.preview.resourceUri; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Open original source image ↗'; facts.append(link);
-      if (output.sliceId) { const id = document.createElement('small'); id.textContent = output.sliceId; facts.append(id, createAssetFromSliceButton(output)); }
+      if (output.sliceId) { const id = document.createElement('small'); id.textContent = output.sliceId; facts.append(id, savedOutputLibraryActions(output)); }
       detail.append(facts); section.append(detail);
     } else section.append(emptyState('Output no longer available', 'Return to output images to inspect the current saved or preview results.'));
   }
@@ -2013,50 +2056,13 @@ function sourceStatusBadge(presentation) {
   badge.dataset.sourceStatus = presentation.key; badge.textContent = presentation.label; return badge;
 }
 
-function sourceReviewGroups() {
-  return libraryAllGroups().filter(group => group.pending && group.status === 'PENDING');
-}
-
-function renderSourcesReviewAttention(groups) {
-  const section = document.createElement('section'); section.className = 'sources-review-attention';
-  if (state.sourcesUi.attention !== 'needs-review') {
-    const copy = document.createElement('p');
-    copy.textContent = `${groups.length} ${groups.length === 1 ? 'submitted change needs' : 'submitted changes need'} your review.`;
-    const show = document.createElement('button'); show.type = 'button'; show.className = 'secondary';
-    show.dataset.sourcesAttentionShow = 'needs-review'; show.textContent = 'Show needs review';
-    section.append(copy, show); return section;
-  }
-  const heading = sectionHeading('Submitted changes needing review', 'Review is an attention state, not another production step. Each button opens the complete shared Review.');
-  section.append(heading);
-  const list = document.createElement('div'); list.className = 'sources-review-list';
-  const query = state.sourcesUi.search.trim().toLocaleLowerCase();
-  const visible = query ? groups.filter(group => String(group.searchText ?? '').includes(query)) : groups;
-  for (const group of visible) {
-    const row = document.createElement('article'); row.className = 'sources-review-row';
-    const copy = document.createElement('div');
-    const title = document.createElement('strong'); title.textContent = group.title;
-    const context = document.createElement('small');
-    context.textContent = `${group.changeCount} ${group.changeCount === 1 ? 'change' : 'changes'}${group.actorName ? ` · ${group.actorName}` : ''}`;
-    copy.append(title, context);
-    const open = document.createElement('button'); open.type = 'button'; open.className = 'secondary';
-    open.dataset.libraryAction = 'review'; open.dataset.libraryKind = group.contentKind;
-    open.dataset.libraryProposalId = group.proposalId; open.dataset.libraryProposalVersion = String(group.proposalVersion);
-    open.textContent = 'Review changes'; row.append(copy, open); list.append(row);
-  }
-  if (!visible.length) {
-    const empty = document.createElement('p'); empty.className = 'sources-review-empty';
-    empty.textContent = 'No submitted review matches this search.'; list.append(empty);
-  }
-  section.append(list); return section;
-}
-
-function renderSourcesNavigation(reviewCount) {
+function renderSourcesNavigation(reviewCounts) {
   const fragment = document.createDocumentFragment();
   const header = document.createElement('header'); header.className = 'sources-header';
   const copy = document.createElement('div');
   const title = document.createElement('h2'); title.textContent = 'Sources';
   const description = document.createElement('p');
-  description.textContent = 'Keep originals separate from the image work and saved outputs made from them.';
+  description.textContent = 'Keep your original images and create reusable images from them.';
   copy.append(title, description); header.append(copy);
   if (state.sourcesUi.tab === 'images') {
     const importButton = document.createElement('button'); importButton.type = 'button';
@@ -2067,7 +2073,11 @@ function renderSourcesNavigation(reviewCount) {
   const tabs = document.createElement('nav'); tabs.className = 'sources-tabs library-tabs'; tabs.setAttribute('aria-label', 'Source sections');
   for (const [tab, label] of [['images', 'Source Images'], ['workbench', 'Image Workbench']]) {
     const button = document.createElement('button'); button.type = 'button'; button.className = `library-tab${state.sourcesUi.tab === tab ? ' selected' : ''}`;
-    button.dataset.sourcesTab = tab; button.textContent = label; button.setAttribute('aria-current', state.sourcesUi.tab === tab ? 'page' : 'false'); tabs.append(button);
+    const count = reviewCounts[tab];
+    button.dataset.sourcesTab = tab; button.textContent = count ? `${label} (${count})` : label;
+    button.title = count ? `${count} ${count === 1 ? 'item needs' : 'items need'} your review` : 'No items need your review';
+    button.setAttribute('aria-label', `${label}${count ? `, ${count} needing review` : ''}`);
+    button.setAttribute('aria-current', state.sourcesUi.tab === tab ? 'page' : 'false'); tabs.append(button);
   }
   fragment.append(tabs);
   const controls = document.createElement('div'); controls.className = 'sources-filters';
@@ -2079,7 +2089,7 @@ function renderSourcesNavigation(reviewCount) {
   const attentionLabel = document.createElement('label'); attentionLabel.className = 'sources-filter';
   const attentionCopy = document.createElement('span'); attentionCopy.textContent = 'Status';
   const attention = document.createElement('select'); attention.dataset.sourcesAttention = '';
-  for (const [value, label] of [['all', 'All statuses'], ['needs-review', `Needs review (${reviewCount})`]]) {
+  for (const [value, label] of [['all', 'All statuses'], ['needs-review', `Needs review (${reviewCounts[state.sourcesUi.tab]})`]]) {
     const option = document.createElement('option'); option.value = value; option.textContent = label; attention.append(option);
   }
   attention.value = state.sourcesUi.attention; attentionLabel.append(attentionCopy, attention);
@@ -2092,13 +2102,19 @@ function renderSourceImageCard(item) {
   const presentation = sourceStatusPresentation(item);
   const sourceCard = document.createElement('article'); sourceCard.className = 'card source-card'; sourceCard.dataset.sourceId = item.id;
   sourceCard.append(sourcePreview(item));
-  const eyebrow = document.createElement('span'); eyebrow.className = 'tag'; eyebrow.textContent = 'Source image';
+  const eyebrow = document.createElement('span'); eyebrow.className = 'tag'; eyebrow.textContent = 'Original image';
   const title = document.createElement('h3'); title.textContent = item.name;
   const dimensions = document.createElement('p'); dimensions.className = 'source-card-summary';
   dimensions.textContent = `${item.mediaType === 'image/png' ? 'PNG' : item.mediaType}${item.width && item.height ? ` · ${item.width} × ${item.height} px` : ''}`;
   const status = document.createElement('div'); status.className = 'source-card-status';
   const explanation = document.createElement('p'); explanation.textContent = presentation.explanation;
   status.append(sourceStatusBadge(presentation), explanation);
+  const work = imageWorkbenchEntries(state.project?.snapshot).filter(entry => entry.source?.id === item.id);
+  const outputCount = work.reduce((count, entry) => count + (entry.atlas.sliceHeads?.length ?? 0), 0);
+  if (outputCount) {
+    const relationship = document.createElement('p'); relationship.textContent = `Used to create ${outputCount} saved output ${outputCount === 1 ? 'image' : 'images'}.`;
+    status.append(relationship);
+  }
   sourceCard.append(eyebrow, title, dimensions, status);
   const actions = document.createElement('div'); actions.className = 'source-review-actions';
   if (lifecycle === 'REVIEWED' && review === 'PENDING') {
@@ -2119,7 +2135,9 @@ function renderSourceImageCard(item) {
       : 'Submitting a source for review requires a local editable Studio session.'));
   }
   if (lifecycle === 'APPROVED_SOURCE' && review === 'USER_APPROVED' && item.mediaType === 'image/png') {
-    const cutterButton = document.createElement('button'); cutterButton.type = 'button'; cutterButton.textContent = 'Open in Image Workbench';
+    const cutterButton = document.createElement('button'); cutterButton.type = 'button'; cutterButton.textContent = work.length ? 'Open existing image work' : 'Start image work';
+    if (work.length === 1) { cutterButton.dataset.openAtlas = work[0].atlas.id; cutterButton.dataset.openCutterView = outputCount ? 'outputs' : 'edit'; }
+    if (work.length > 1) cutterButton.dataset.showSourceWork = item.id;
     cutterButton.dataset.openCutter = item.id; cutterButton.className = 'secondary';
     cutterButton.disabled = state.cutterPending || state.sourceMutationPending;
     actions.append(reasonedDisabledControl(cutterButton, 'Image work is temporarily unavailable while another source operation finishes.'));
@@ -2148,21 +2166,31 @@ function renderSourceImages(items) {
 function renderWorkbenchCard(entry) {
   const { atlas, source } = entry; const presentation = workbenchStatusPresentation(entry);
   const article = document.createElement('article'); article.className = 'card source-card workbench-card'; article.dataset.atlasId = atlas.id;
-  if (source) article.append(sourcePreview(source));
+  const outputs = atlas.sliceHeads ?? [];
+  const previews = document.createElement('div'); previews.className = 'workbench-output-previews';
+  for (const [index, slice] of outputs.slice(0, 4).entries()) {
+    previews.append(safeV2Preview({ name: savedSliceLabel(slice, index + 1), kind: 'surface', sliceBinding: slice, preview: slice.preview }));
+  }
+  if (!outputs.length) previews.textContent = 'No output images yet';
+  article.append(previews);
   const eyebrow = document.createElement('span'); eyebrow.className = 'tag'; eyebrow.textContent = 'Image work';
   const title = document.createElement('h3'); title.textContent = atlas.name;
   const summary = document.createElement('p'); summary.className = 'source-card-summary';
-  const rectangleCount = atlas.rectangles?.length ?? 0;
-  summary.textContent = `${source?.name ?? atlas.sourceId} · ${rectangleCount} ${rectangleCount === 1 ? 'cut area' : 'cut areas'}`;
+  summary.append(document.createTextNode('Created from: '));
+  const original = document.createElement('button'); original.type = 'button'; original.className = 'source-original-link';
+  original.dataset.viewSource = atlas.sourceId; original.textContent = source?.name ?? atlas.sourceId; original.disabled = !source;
+  summary.append(original);
   const status = document.createElement('div'); status.className = 'source-card-status';
   const explanation = document.createElement('p'); explanation.textContent = presentation.explanation;
   status.append(sourceStatusBadge(presentation), explanation); article.append(eyebrow, title, summary, status);
   const actions = document.createElement('div'); actions.className = 'source-review-actions';
   if (source) {
-    const open = document.createElement('button'); open.type = 'button'; open.className = 'secondary';
-    open.dataset.openCutter = source.id; open.textContent = (atlas.sliceHeads?.length ?? 0) ? 'View and continue work' : 'Continue image work';
-    open.disabled = state.cutterPending || state.sourceMutationPending;
-    actions.append(reasonedDisabledControl(open, 'Image work is temporarily unavailable while another source operation finishes.'));
+    for (const [view, label] of outputs.length ? [['outputs', 'View output images'], ['edit', 'Edit cuts']] : [['edit', 'Continue image work']]) {
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'secondary';
+      Object.assign(open.dataset, { openCutter: source.id, openAtlas: atlas.id, openCutterView: view }); open.textContent = label;
+      open.disabled = state.cutterPending || state.sourceMutationPending;
+      actions.append(reasonedDisabledControl(open, 'Image work is temporarily unavailable while another source operation finishes.'));
+    }
   }
   article.append(actions);
   const details = document.createElement('details'); details.className = 'source-technical-details';
@@ -2177,22 +2205,15 @@ function renderWorkbenchCard(entry) {
 
 function renderImageWorkbench(snapshot) {
   const fragment = document.createDocumentFragment();
-  const intro = document.createElement('p'); intro.className = 'sources-workbench-intro';
-  intro.textContent = 'Drafts, saved cut definitions, and saved image outputs live here. Active processing appears inside the open work item.';
-  fragment.append(intro);
   const entries = imageWorkbenchEntries(snapshot); const visible = filterImageWorkbench(entries, state.sourcesUi);
-  const query = state.sourcesUi.search.trim().toLocaleLowerCase();
-  const visibleSlices = state.sourcesUi.attention === 'needs-review' ? [] : currentProjectSlices(snapshot).filter(({ atlas, slice, ordinal }) => (
-    !query || [atlas.name, atlas.id, slice.sliceId, savedSliceLabel(slice, ordinal)]
-      .some(value => String(value ?? '').toLocaleLowerCase().includes(query))
-  ));
+  const outputCount = visible.reduce((count, entry) => count + (entry.atlas.sliceHeads?.length ?? 0), 0);
   const count = document.createElement('p'); count.className = 'sources-result-count'; count.setAttribute('aria-live', 'polite');
-  count.textContent = `${visible.length} of ${entries.length} image ${entries.length === 1 ? 'work item' : 'work items'} · ${visibleSlices.length} saved ${visibleSlices.length === 1 ? 'cut' : 'cuts'}`; fragment.append(count);
-  if (!visible.length && !visibleSlices.length) {
+  count.textContent = `${visible.length} of ${entries.length} image ${entries.length === 1 ? 'work item' : 'work items'} · ${outputCount} saved output images`; fragment.append(count);
+  if (!visible.length) {
     const filtered = state.sourcesUi.search.trim() || state.sourcesUi.attention !== 'all';
     fragment.append(emptyState(filtered ? 'No matching image work' : 'No image work yet', filtered
       ? (state.sourcesUi.attention === 'needs-review'
-        ? 'No Image Workbench item needs review. Submitted content changes, if any, are listed above.'
+        ? 'No Image Workbench item needs review. Unsaved cutting work is not a review request.'
         : 'Clear the search or status filter to see other image work.')
       : 'Open an approved original from Source Images to begin non-destructive cutting and preparation.'));
     return fragment;
@@ -2201,7 +2222,6 @@ function renderImageWorkbench(snapshot) {
     const grid = document.createElement('div'); grid.className = 'card-grid source-grid workbench-grid';
     for (const entry of visible) grid.append(renderWorkbenchCard(entry)); fragment.append(grid);
   }
-  if (visibleSlices.length) fragment.append(renderSliceVocabulary(visibleSlices));
   return fragment;
 }
 
@@ -2209,10 +2229,8 @@ function renderSources(items) {
   const fragment = document.createDocumentFragment();
   const cutterSource = state.cutter && items.find((source) => source.id === state.cutter.sourceId);
   if (cutterSource) { fragment.append(renderCutter(cutterSource)); return fragment; }
-  const groups = sourceReviewGroups(); const reviewCount = items.filter(sourceNeedsReview).length + groups.length;
   const root = document.createElement('section'); root.className = 'sources-workspace'; root.dataset.sourcesWorkspace = '';
-  root.append(renderSourcesNavigation(reviewCount));
-  if (groups.length) root.append(renderSourcesReviewAttention(groups));
+  root.append(renderSourcesNavigation(sourceReviewCounts(state.project?.snapshot)));
   root.append(state.sourcesUi.tab === 'images' ? renderSourceImages(items) : renderImageWorkbench(state.project?.snapshot));
   fragment.append(root);
   return fragment;
@@ -3490,30 +3508,6 @@ elements['workspace-content'].addEventListener('click', (event) => {
   if (!pinned) { showToast('This saved cut changed. Reload and select its current version.'); return; }
   openAssetEditor({ slice: pinned.slice, trigger: create });
 });
-
-function renderSliceVocabulary(slices = currentProjectSlices()) {
-  const section = document.createElement('details'); section.className = 'slice-vocabulary';
-  const summary = document.createElement('summary'); summary.textContent = 'Saved cuts — create Library content'; section.append(summary);
-  section.open = currentAssetLibrary().assets.length === 0;
-  if (!slices.length) {
-    section.append(emptyState('No committed slices', 'Approve a source, cut exact rectangles, and commit the preview before proposing V2 assets.'));
-    return section;
-  }
-  if (animationSupported()) { const create = document.createElement('button'); create.type = 'button'; create.dataset.createAnimation = ''; create.textContent = 'Create Animation from selected cuts'; create.disabled = !animationCanMutate(); section.append(create); }
-  const grid = document.createElement('div'); grid.className = 'slice-vocabulary-grid'; grid.dataset.assetScroll = 'slice-vocabulary';
-  for (const { atlas, slice, ordinal } of slices) {
-    const entry = document.createElement('article'); entry.className = 'slice-vocabulary-card';
-    entry.append(safeV2Preview({
-      name: savedSliceLabel(slice, ordinal), kind: 'surface', sliceBinding: slice, preview: slice.preview,
-    }));
-    const heading = document.createElement('h4'); heading.textContent = savedSliceLabel(slice, ordinal);
-    const atlasName = document.createElement('p'); atlasName.textContent = atlas.name;
-    entry.append(heading, atlasName, copyableCanonical('Canonical slice ID', slice.sliceId, `slice-vocabulary-${slice.sliceId}`));
-    if (animationSupported()) { const label = document.createElement('label'), check = document.createElement('input'); check.type = 'checkbox'; check.dataset.animationSelectCut = slice.sliceId; check.dataset.sliceVersion = slice.version; label.append(check, document.createTextNode('Use in Animation')); entry.append(label); }
-    entry.append(createAssetFromSliceButton(slice)); grid.append(entry);
-  }
-  section.append(grid); return section;
-}
 
 function renderAssetLibrary(snapshot) { return renderLibraryWorkspace(snapshot); }
 
@@ -8188,6 +8182,12 @@ elements['workspace-content'].addEventListener('change', (event) => {
 });
 
 elements['workspace-content'].addEventListener('click', (event) => {
+  if (state.sourceMutationPending || state.cutterPending) return;
+  const sourceLink = event.target.closest('[data-view-source]');
+  if (sourceLink) {
+    state.sourcesUi.tab = 'images'; state.sourcesUi.attention = 'all'; state.sourcesUi.search = sourceLink.dataset.viewSource;
+    rerenderSourcesWorkspace({ focus: '[data-sources-search]' }); return;
+  }
   const tab = event.target.closest('[data-sources-tab]');
   if (tab) {
     state.sourcesUi.tab = tab.dataset.sourcesTab;
@@ -8200,10 +8200,6 @@ elements['workspace-content'].addEventListener('click', (event) => {
     rerenderSourcesWorkspace({ focus: state.sourcesUi.importOpen ? '[data-source-intake-form] [name="sourceId"]' : '[data-source-import-toggle]' });
     return;
   }
-  if (event.target.closest('[data-sources-attention-show]')) {
-    state.sourcesUi.attention = 'needs-review';
-    rerenderSourcesWorkspace({ focus: '[data-sources-attention]' });
-  }
 });
 
 elements['workspace-content'].addEventListener('click', async (event) => {
@@ -8211,7 +8207,12 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   if (open) {
     if (state.cutterPending || state.sourceMutationPending) return;
     const source = state.project?.snapshot.sources.find((candidate) => candidate.id === open.dataset.openCutter);
-    if (source) { state.sourcesUi.tab = 'workbench'; openCutter(source); }
+    if (source) {
+      state.sourcesUi.tab = 'workbench';
+      if (open.dataset.showSourceWork) {
+        state.sourcesUi.search = source.id; state.sourcesUi.attention = 'all'; rerenderSourcesWorkspace({ focus: '[data-sources-search]' });
+      } else openCutter(source, { atlasId: open.dataset.openAtlas, view: open.dataset.openCutterView });
+    }
     return;
   }
   if (event.target.closest('[data-close-cutter]')) {

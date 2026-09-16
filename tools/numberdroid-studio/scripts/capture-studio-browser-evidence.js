@@ -355,7 +355,7 @@ try {
   };
   if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources') {
     await devtools.send('Runtime.evaluate', {
-      expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click()`,
+      expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click(); document.querySelector('[data-cutter-view="edit"]')?.click()`,
       returnByValue: true,
     }, sessionId);
     let cutterReady = false;
@@ -397,6 +397,8 @@ try {
           activeTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
           importFormPresent: Boolean(document.querySelector('[data-source-intake-form]')),
           sourceCards: document.querySelectorAll('[data-source-id]').length,
+          reviewOption: document.querySelector('[data-sources-attention] option[value="needs-review"]')?.textContent,
+          hasReviewBanner: Boolean(document.querySelector('.sources-review-attention')),
           closedTechnicalDetails: [...document.querySelectorAll('.source-technical-details')].every(node => !node.open),
           hasOldProcessTab: [...document.querySelectorAll('[data-sources-tab]')].some(node => ['Preparation', 'Needs review'].includes(node.textContent.trim())),
         };
@@ -404,7 +406,10 @@ try {
         const workbench = {
           activeTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
           cards: document.querySelectorAll('.workbench-card').length,
-          text: document.querySelector('[data-sources-workspace]')?.textContent ?? '',
+          outputThumbnails: document.querySelectorAll('.workbench-output-previews img').length,
+          hasIntroBanner: Boolean(document.querySelector('.sources-workbench-intro')),
+          reviewOption: document.querySelector('[data-sources-attention] option[value="needs-review"]')?.textContent,
+          text: document.querySelector('#workspace-content')?.textContent ?? '',
           closedTechnicalDetails: [...document.querySelectorAll('.workbench-card .source-technical-details')].every(node => !node.open),
         };
         const search = document.querySelector('[data-sources-search]');
@@ -425,8 +430,35 @@ try {
         };
         const all = document.querySelector('[data-sources-attention]');
         all.value = 'all'; all.dispatchEvent(new Event('change', { bubbles: true })); await settle();
+        const card = document.querySelector('.workbench-card');
+        const atlasId = card?.dataset.atlasId;
+        const openOutputs = card?.querySelector('[data-open-cutter-view="outputs"]');
+        const exactAtlasLink = openOutputs?.dataset.openAtlas === atlasId;
+        openOutputs?.click(); await settle();
+        const back = document.querySelector('.cutter-back-button');
+        const backBounds = back?.getBoundingClientRect();
+        const outputs = {
+          primaryGalleries: document.querySelectorAll('.cutter-primary-outputs').length,
+          outputKind: document.querySelector('.cutter-primary-outputs')?.dataset.outputKind,
+          images: document.querySelectorAll('.cutter-primary-outputs img').length,
+          compare: Boolean(document.querySelector('.cutter-output-comparison')),
+          oldSectionTitles: [...document.querySelectorAll('h2,h3')].some(node => ['Preview cuts', 'Saved cuts'].includes(node.textContent.trim())),
+          backText: back?.textContent,
+          backHeight: backBounds?.height ?? 0,
+          secondaryBack: back?.classList.contains('secondary') ?? false,
+          flatBack: back?.classList.contains('editor-back-link') ?? false,
+        };
+        back?.click(); await settle();
+        const sourceLink = document.querySelector('.workbench-card [data-view-source]');
+        const sourceId = sourceLink?.dataset.viewSource;
+        sourceLink?.click(); await settle();
+        const sourceReturn = {
+          activeTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab,
+          linkedSourceVisible: [...document.querySelectorAll('.source-card[data-source-id]')].some(node => node.dataset.sourceId === sourceId),
+        };
+        document.querySelector('[data-sources-tab="workbench"]')?.click(); await settle();
         return {
-          initial, workbench, searchRetention, needsReview,
+          initial, workbench, searchRetention, needsReview, exactAtlasLink, outputs, sourceReturn,
           finalActiveTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
           horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
             || document.body.scrollWidth > document.body.clientWidth,
@@ -440,15 +472,32 @@ try {
       && sourcesNavigationEvidence.initial.activeTab === 'images'
       && sourcesNavigationEvidence.initial.importFormPresent === false
       && sourcesNavigationEvidence.initial.sourceCards === 1
+      && sourcesNavigationEvidence.initial.reviewOption === 'Needs review (0)'
+      && sourcesNavigationEvidence.initial.hasReviewBanner === false
       && sourcesNavigationEvidence.initial.closedTechnicalDetails === true
       && sourcesNavigationEvidence.initial.hasOldProcessTab === false,
     `Sources landing page did not preserve the approved two-content-view model: ${JSON.stringify(sourcesNavigationEvidence)}`);
     assert(sourcesNavigationEvidence.workbench?.activeTab === 'workbench'
       && sourcesNavigationEvidence.workbench.cards === 1
-      && sourcesNavigationEvidence.workbench.text.includes('4 saved cuts')
-      && sourcesNavigationEvidence.workbench.text.includes('Active processing appears inside the open work item')
+      && sourcesNavigationEvidence.workbench.text.includes('4 saved output images')
+      && sourcesNavigationEvidence.workbench.outputThumbnails === 4
+      && sourcesNavigationEvidence.workbench.hasIntroBanner === false
+      && sourcesNavigationEvidence.workbench.reviewOption === 'Needs review (0)'
       && sourcesNavigationEvidence.workbench.closedTechnicalDetails === true,
     `Image Workbench did not show the truthful saved atlas/output state: ${JSON.stringify(sourcesNavigationEvidence)}`);
+    assert(sourcesNavigationEvidence.exactAtlasLink === true
+      && sourcesNavigationEvidence.outputs?.primaryGalleries === 1
+      && sourcesNavigationEvidence.outputs.outputKind === 'saved'
+      && sourcesNavigationEvidence.outputs.images === 4
+      && sourcesNavigationEvidence.outputs.compare === false
+      && sourcesNavigationEvidence.outputs.oldSectionTitles === false
+      && sourcesNavigationEvidence.outputs.backText === '← Back to Image Workbench'
+      && sourcesNavigationEvidence.outputs.backHeight >= 36
+      && sourcesNavigationEvidence.outputs.secondaryBack === true
+      && sourcesNavigationEvidence.outputs.flatBack === false
+      && sourcesNavigationEvidence.sourceReturn?.activeTab === 'images'
+      && sourcesNavigationEvidence.sourceReturn.linkedSourceVisible === true,
+    `Saved output gallery, exact work link, source return, or back-button sizing failed: ${JSON.stringify(sourcesNavigationEvidence)}`);
     assert(sourcesNavigationEvidence.searchRetention?.value === 'family'
       && sourcesNavigationEvidence.searchRetention.focused === true
       && sourcesNavigationEvidence.searchRetention.visibleCards === 1
@@ -4163,7 +4212,7 @@ try {
         && originalSecurity.referrer === '',
       `The keyboard-opened original tab lost its exact URL, null opener, or empty referrer boundary: ${JSON.stringify(originalSecurity)}`);
       await devtools.send('Target.closeTarget', { targetId: originalTarget.targetId });
-      assert(approved.text.includes('Ready to use') && approved.text.includes('Technical details')
+      assert(approved.text.includes('Approved') && approved.text.includes('Technical details')
         && approved.text.includes('APPROVED_SOURCE') && approved.text.includes('USER_APPROVED')
         && approved.text.includes('human_upload') && approved.text.includes('1254 × 1254 px')
         && approved.text.includes('2720519'), 'The approved source summary or collapsed lifecycle/provenance/identity is missing.');
