@@ -132,7 +132,7 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.doesNotMatch(workspaceRender, /replaceChildren\(\);[\s\S]*append\(content\)/);
   assert.match(workspaceRender, /if \(preserveCutterDraft\) captureCutterDomDraft\(\);[\s\S]*else state\.cutterDomDraft = null/);
   assert.match(workspaceRender, /if \(preserveCutterDraft\) restoreCutterDomDraft\(\)/);
-  assert.match(clientScript, /function openCutter\(source\)[\s\S]*resetCutterScroll\(\);[\s\S]*state\.cutter = \{/);
+  assert.match(clientScript, /function openCutter\(source, \{ atlasId = null, view = 'edit' \} = \{\}\)[\s\S]*resetCutterScroll\(\);[\s\S]*state\.cutter = \{/);
   assert.match(clientScript, /projectId: state\.project\.projectId[\s\S]*instanceId: crypto\.randomUUID\(\)/);
   assert.match(clientScript, /data-close-cutter[\s\S]*resetCutterScroll\(\);[\s\S]*state\.cutter = null/);
   assert.match(clientScript, /state\.project\.projectId !== projectId\)[\s\S]*resetCutterScroll\(\)/);

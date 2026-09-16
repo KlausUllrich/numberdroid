@@ -20,15 +20,15 @@ export function cutterOutputCard(output, index, projectId) {
 export function renderCutterEditor({ cutter, source, atlas, pending, job }) {
   const section = el('section', 'atlas-cutter'); section.dataset.atlasCutter = ''; section.dataset.cutterInstance = cutter.instanceId;
   const header = el('div', 'cutter-heading');
-  const title = el('div'); title.append(el('p', 'eyebrow', 'Sources / Image Workbench'), el('h2', '', cutter.name), el('p', '', 'Choose the image regions to keep. Save work stores your cuts; Preview cuts prepares their exact PNG images.'));
-  const back = action('Back to Image Workbench', { closeCutter: '' }, pending); back.classList.add('editor-back-link'); section.append(back); header.append(title); section.append(header);
+  const title = el('div'); title.append(el('p', 'eyebrow', 'Sources / Image Workbench'), el('h2', '', cutter.name), el('p', '', `Created from: ${source.name}. The original stays unchanged.`));
+  const back = action('← Back to Image Workbench', { closeCutter: '' }, pending); back.classList.add('cutter-back-button'); section.append(back); header.append(title); section.append(header);
   const tabs = el('nav', 'cutter-view-tabs'); tabs.setAttribute('aria-label', 'Cutter views');
-  for (const [view, label] of [['edit', 'Cut image'], ['outputs', 'Output images']]) { const b = action(label, { cutterView: view }, pending); b.setAttribute('aria-pressed', String(cutter.view === view || (view === 'outputs' && cutter.view === 'detail'))); tabs.append(b); }
+  for (const [view, label] of [['edit', 'Cut images'], ['outputs', 'View Output']]) { const b = action(label, { cutterView: view }, pending); b.setAttribute('aria-pressed', String(cutter.view === view || (view === 'outputs' && cutter.view === 'detail'))); tabs.append(b); }
   section.append(tabs);
   if (cutter.view !== 'edit') return section;
   const layout = el('div', 'cutter-editor-layout');
   const rail = el('div', 'cutter-tool-rail'); rail.setAttribute('aria-label', 'Cutting tools');
-  for (const [tool, label] of [['select', 'Select'], ['draw', 'Draw cut'], ['grid', 'Grid'], ['remove', 'Remove'], ['undo', 'Undo'], ['redo', 'Redo'], ['save', 'Save work']]) {
+  for (const [tool, label] of [['select', 'Select'], ['draw', 'Draw cut'], ['grid', 'Grid'], ['remove', 'Remove'], ['undo', 'Undo'], ['redo', 'Redo'], ['save', 'Save cut layout']]) {
     const disabled = pending || (tool === 'remove' && !cutter.rectangles[cutter.selectedIndex]) || (tool === 'undo' && !cutter.history.past.length) || (tool === 'redo' && !cutter.history.future.length);
     const b = action(label, tool === 'save' ? { saveAtlas: '' } : { cutterTool: tool }, disabled);
     if (['select', 'draw'].includes(tool)) b.setAttribute('aria-pressed', String(cutter.tool === tool));

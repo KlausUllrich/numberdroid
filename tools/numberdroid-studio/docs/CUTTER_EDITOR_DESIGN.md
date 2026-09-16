@@ -118,14 +118,27 @@ existing source, slice or Asset version is retargeted. Older data stays readable
 new optional fields need strict compatibility and round-trip tests.
 
 Retain the existing define → preview job → save outputs boundaries. **Save work**
-commits the cutting instructions; **Preview cuts** prepares exact included PNGs;
-**Save cuts** promotes those inspected results once. These are explicit content
+commits the cutting instructions; **Generate output images** (formerly Preview
+cuts) prepares exact included PNGs; **Save output images** (formerly Save cuts)
+promotes those inspected results once. These are explicit content
 operations, not an additional human review of the owner's own editing. Existing
 job cancellation, retry, discard, stale-version, budget and recovery protections
 remain accessible. History restores local edits without reverting saved project
 history. Preview/details are contextual views; Back restores compatible editing
 and view state. Closing the editor retains the existing explicit saved-versus-
 unsaved distinction and must not silently save or retarget content.
+
+The 2026-09-16 [Sources clarity correction](SOURCES_NAVIGATION_DESIGN.md#one-output-gallery)
+uses one primary Output images gallery labelled generated/not saved or saved.
+When generated results coexist with saved outputs, **Compare with saved output
+images** makes those saved identities available in a closed optional disclosure.
+They are not necessarily one-to-one prior versions of the generated results.
+Saving changes the gallery's state instead of adding a duplicate gallery. Keep
+exact lineage, existing saved
+consumers, job recovery and contextual return intact. The normal outlined
+**Back to Image Workbench** button names the destination and matches comparable
+secondary controls in height and padding. These are presentation corrections;
+accepted cutter geometry and command boundaries remain unchanged.
 
 The accepted scoped MCP cutter commands already support source preparation on
 the shared project head. They retain their current names, tool counts, scopes and
