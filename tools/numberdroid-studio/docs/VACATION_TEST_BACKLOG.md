@@ -1659,7 +1659,7 @@ VT-001/CP4.5/A1.7 gates stay separate.
 
 ## VT-024 — Shared Review, feedback and Activity
 
-Status: **IMPLEMENTED CANDIDATE — user verification pending**, 2026-09-11.
+Status: **IMPLEMENTED CANDIDATE — user verification in progress**, 2026-09-16.
 The [bounded UI contract](SHARED_REVIEW_UI_IMPLEMENTATION_CONTRACT.md) owns scope;
 [Review V2](REVIEW_CHANGES_DESIGN.md) is the approved design. ND-2 includes the
 affected ND-6 Back-left headers and ND-7 single-column Activity rows.
@@ -1690,9 +1690,18 @@ does not close the remaining feedback, partial/final acceptance, Activity/histor
 and return-state steps, and those steps must not repeat or invalidate the passed
 Review explanations or proposed-additions check.
 
+**2026-09-16 feedback-lifecycle result and clarity refinement:** Klaus explicitly
+reported PASS for request-changes feedback, Details/Back retention, the truthful
+Awaiting-agent result, saved-feedback editing/cancellation and reconsidered
+acceptance. He then requested a bounded presentation correction: rename the
+Library queue to **Reviews**, because it contains both human and agent next steps,
+and show **Awaiting agent** with the same amber semantic color in Assets and
+Reviews while keeping **Needs review** visibly distinct. This does not change the
+passed behavior or any review state, authority, persistence or agent launch.
+
 User batch:
 
-1. Library → Needs review → “Coffee station and its components”. Check the three
+1. Library → Reviews → “Coffee station and its components”. Check the three
    related items, full previews, readable changes and clear acceptance consequence.
    Select the Animation and play its actual frames.
    In Library → Assets, confirm any new unsaved item appears separately under
@@ -1700,7 +1709,7 @@ User batch:
    than edit/use, explain the acceptance consequence, and focus that item when opened.
 2. Request changes, enter feedback, open Proposed Details and go back. Confirm
    raw feedback, selection and your place in the screen survive. Save feedback.
-3. Return to Library: the group should say **Awaiting agent**. Reopen it, edit
+3. Return to Library → Reviews: the group should say **Awaiting agent**. Reopen it, edit
    saved feedback, save, then try and cancel another edit. Confirm acceptance is
    still available if you reconsider.
 4. Accept only the Image and Animation. They should appear in the saved Library;

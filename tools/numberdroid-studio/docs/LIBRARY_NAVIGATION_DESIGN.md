@@ -19,7 +19,7 @@ saved reusable content, including content that will keep evolving.
 
 ## Library landing page
 
-Use two sub-navigation points: **Assets** and **Pending changes**. Keep the
+Use two sub-navigation points: **Assets** and **Reviews**. Keep the
 project context compact so the useful content starts near the top of the page.
 Activity stays in main navigation; do not restore the removed Activity sidebar.
 
@@ -65,9 +65,9 @@ The isolated mockup links to earlier approved editor mockups in new tabs to
 avoid reproducing their tools. That demonstration shortcut does not change the
 production requirement for contextual editor navigation and return.
 
-## Pending changes and shared Review
+## Reviews and shared Review
 
-Pending changes lists related review groups with a concise intent, affected
+Reviews lists active review groups with a concise intent, affected
 change count, task/agent context, current decision state and **Review changes**.
 The tab badge counts groups; rows state their individual change counts.
 Avoid permanent large proposal previews in the Asset grid. Sources, Library and
@@ -83,7 +83,7 @@ with a concrete explanation in reserved space that does not move the preview.
 Partial acceptance keeps the same review group, with copy such as
 **“1 change left · 1 accepted”**. Reopening it retains the accepted dependency
 context and offers decisions only for remaining work. The receipt links to the
-saved result and the remaining review. A completed group leaves Pending changes
+saved result and the remaining review. A completed group leaves Reviews
 and remains inspectable through Activity. Completed reviews do not offer new
 feedback or discard against already accepted work.
 
@@ -164,11 +164,16 @@ the separate ND-2 implementation; mockup approval is not its production acceptan
 
 Klaus reported **“All pass”** for the [Review V2 mockup](REVIEW_CHANGES_DESIGN.md#v2-approval--2026-09-11),
 including the Library next-actor badge, contextual Back navigation and Activity rows.
-Pending changes remains the queue; its cards distinguish Needs review from
-Awaiting agent while continuing to show the saved asset. Back/up belongs on the
+The queue is now labelled **Reviews** because it includes both owner-action
+**Needs review** and agent-action **Awaiting agent** states. Those states retain
+explicit text and distinct green/amber semantic colors consistently in Assets
+and Reviews. Back/up belongs on the
 left with an actual destination label; deeper Details/Open/Edit actions belong
 on the right. Activity uses one human-readable event per row and read-only
 historical inspection. The Review design owns saved-feedback amendments,
 reconsidered exact-proposal acceptance and newer-proposal draft retention.
 These refinements are design approved; their production rollout remains ND-2,
-ND-6 and ND-7. The earlier VT-023 production acceptance remains intact.
+ND-6 and ND-7. The earlier VT-023 production acceptance remains intact. The
+Reviews label and cross-tab status-color clarification were requested during the
+VT-024 production walkthrough on 2026-09-16 and do not rename the internal route
+or change review state, authority or persistence.

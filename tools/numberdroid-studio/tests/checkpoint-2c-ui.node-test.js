@@ -10,9 +10,10 @@ const appUrl = new URL('../apps/studio-server/public/app.js', import.meta.url);
 const stylesUrl = new URL('../apps/studio-server/public/styles.css', import.meta.url);
 
 test('2C Asset Library is additive, ordinal-first, filterable, and keeps exact safe preview provenance', async () => {
-  const [app, libraryView, detailView] = await Promise.all([
+  const [app, libraryView, libraryStyles, detailView] = await Promise.all([
     readFile(appUrl, 'utf8'),
     readFile(new URL('../apps/studio-server/public/library-view.js', import.meta.url), 'utf8'),
+    readFile(new URL('../apps/studio-server/public/library.css', import.meta.url), 'utf8'),
     readFile(new URL('../apps/studio-server/public/library-detail-view.js', import.meta.url), 'utf8'),
   ]);
   const assetRenderer = app.slice(
@@ -32,6 +33,16 @@ test('2C Asset Library is additive, ordinal-first, filterable, and keeps exact s
   assert.match(libraryView, /Proposed additions/);
   assert.match(libraryView, /Not saved or available for use yet/);
   assert.match(libraryView, /dataset\.libraryItemId = addition\.itemId/);
+  assert.match(libraryView, /`Reviews \(\$\{pending\.length\}\)`/);
+  assert.doesNotMatch(libraryView, /`Pending changes \(\$\{pending\.length\}\)`/);
+  assert.match(libraryView, /Reviews, tasks and agents/);
+  assert.match(libraryView, /No active reviews/);
+  assert.equal((libraryView.match(/setReviewTone\(/g) ?? []).length, 4, 'Every rendered Library review status uses the semantic tone mapper.');
+  assert.match(libraryStyles, /\.library-review-state \{[^}]*var\(--library-review-neutral-color\)/);
+  assert.match(libraryStyles, /\.library-review-state\[data-library-review-tone="needs-review"\][^{]*\{[^}]*var\(--library-review-needs-color\)/);
+  assert.match(libraryStyles, /\.library-review-state\[data-library-review-tone="awaiting"\][^{]*\{[^}]*var\(--library-review-awaiting-color\)/);
+  assert.match(libraryStyles, /\.library-proposed-state\[data-library-review-tone="awaiting"\][^{]*\{[^}]*var\(--library-review-awaiting-color\)/);
+  assert.match(libraryStyles, /\.library-pending-badge\[data-library-review-tone="awaiting"\][^{]*\{[^}]*var\(--library-review-awaiting-color\)/);
   assert.match(detailRenderer, /sliceDisplay\(record\.sliceBinding\)/);
   assert.match(detailRenderer, /copyableCanonical\('Canonical slice ID', record\.sliceBinding\?\.sliceId/);
   assert.match(detailView, /node\.dataset\.assetId = asset\.assetId/);
