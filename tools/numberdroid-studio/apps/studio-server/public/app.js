@@ -2192,7 +2192,7 @@ function renderWorkbenchCard(entry) {
   status.append(sourceStatusBadge(presentation), explanation); article.append(eyebrow, title, summary, status);
   const actions = document.createElement('div'); actions.className = 'source-review-actions';
   if (source) {
-    for (const [view, label] of outputs.length ? [['outputs', 'View output images'], ['edit', 'Edit cuts']] : [['edit', 'Continue image work']]) {
+    for (const [view, label] of outputs.length ? [['edit', 'Cut images'], ['outputs', 'View Output']] : [['edit', 'Cut images']]) {
       const open = document.createElement('button'); open.type = 'button'; open.className = 'secondary';
       Object.assign(open.dataset, { openCutter: source.id, openAtlas: atlas.id, openCutterView: view }); open.textContent = label;
       open.disabled = state.cutterPending || state.sourceMutationPending;

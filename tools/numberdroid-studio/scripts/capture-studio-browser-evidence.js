@@ -56,7 +56,7 @@ function assert(condition, message) {
 const chrome = spawn(chromePath, [
   '--headless=new',
   '--no-sandbox',
-  '--hide-scrollbars',
+  ...(mode === 'sources-navigation' ? [] : ['--hide-scrollbars']),
   '--lang=en-US',
   '--force-device-scale-factor=1',
   `--window-size=${width},${height}`,
@@ -409,10 +409,19 @@ try {
           hasOldProcessTab: [...document.querySelectorAll('[data-sources-tab]')].some(node => ['Preparation', 'Needs review'].includes(node.textContent.trim())),
         };
         document.querySelector('[data-sources-tab="workbench"]')?.click(); await settle();
+        await Promise.all([...document.querySelectorAll('.workbench-output-previews img')].map(image => image.decode()));
         const workbench = {
           activeTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
           cards: document.querySelectorAll('.workbench-card').length,
           outputThumbnails: document.querySelectorAll('.workbench-output-previews img').length,
+          thumbnailsContained: [...document.querySelectorAll('.workbench-output-previews img')].every(image => {
+            const frame = image.parentElement.getBoundingClientRect(), box = image.getBoundingClientRect();
+            const scale = Math.min(box.width / image.naturalWidth, box.height / image.naturalHeight);
+            const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
+            const left = box.left + (box.width - width) / 2, top = box.top + (box.height - height) / 2;
+            return image.naturalWidth > 0 && image.naturalHeight > 0 && getComputedStyle(image).objectFit === 'contain'
+              && left >= frame.left && top >= frame.top && left + width <= frame.right && top + height <= frame.bottom;
+          }),
           hasIntroBanner: Boolean(document.querySelector('.sources-workbench-intro')),
           reviewOption: document.querySelector('[data-sources-attention] option[value="needs-review"]')?.textContent,
           text: document.querySelector('#workspace-content')?.textContent ?? '',
@@ -453,6 +462,7 @@ try {
           backHeight: backBounds?.height ?? 0,
           secondaryBack: back?.classList.contains('secondary') ?? false,
           flatBack: back?.classList.contains('editor-back-link') ?? false,
+          horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         };
         const authoring = {};
         const savedConfirm = window.confirm;
@@ -490,6 +500,7 @@ try {
           authoring.unsavedImages = primary.querySelectorAll('img').length;
           authoring.unsavedAuthoringControls = primary.querySelectorAll('[data-create-asset-slice],[data-create-animation],[data-animation-select-cut]').length;
           authoring.compareInitiallyClosed = compare?.open === false;
+          authoring.unsavedHorizontalOverflow = document.documentElement.scrollWidth > document.documentElement.clientWidth;
           compare?.querySelector('summary')?.click(); await settle();
           authoring.savedComparisonImages = compare?.querySelectorAll('img').length ?? 0;
           authoring.savedComparisonAssetActions = compare?.querySelectorAll('[data-create-asset-slice]').length ?? 0;
@@ -532,6 +543,7 @@ try {
       && sourcesNavigationEvidence.workbench.cards === 1
       && sourcesNavigationEvidence.workbench.text.includes('4 saved output images')
       && sourcesNavigationEvidence.workbench.outputThumbnails === 4
+      && sourcesNavigationEvidence.workbench.thumbnailsContained === true
       && sourcesNavigationEvidence.workbench.hasIntroBanner === false
       && sourcesNavigationEvidence.workbench.reviewOption === 'Needs review (0)'
       && sourcesNavigationEvidence.workbench.closedTechnicalDetails === true,
@@ -546,6 +558,7 @@ try {
       && sourcesNavigationEvidence.outputs.backHeight >= 36
       && sourcesNavigationEvidence.outputs.secondaryBack === true
       && sourcesNavigationEvidence.outputs.flatBack === false
+      && sourcesNavigationEvidence.outputs.horizontalOverflow === false
       && sourcesNavigationEvidence.sourceReturn?.activeTab === 'images'
       && sourcesNavigationEvidence.sourceReturn.linkedSourceVisible === true,
     `Saved output gallery, exact work link, source return, or back-button sizing failed: ${JSON.stringify(sourcesNavigationEvidence)}`);
@@ -557,6 +570,7 @@ try {
       && sourcesNavigationEvidence.authoring.unsavedImages === 4
       && sourcesNavigationEvidence.authoring.unsavedAuthoringControls === 0
       && sourcesNavigationEvidence.authoring.compareInitiallyClosed === true
+      && sourcesNavigationEvidence.authoring.unsavedHorizontalOverflow === false
       && sourcesNavigationEvidence.authoring.savedComparisonImages === 4
       && sourcesNavigationEvidence.authoring.savedComparisonAssetActions === 4
       && sourcesNavigationEvidence.authoring.savedComparisonFrameChoices === 4

@@ -128,6 +128,9 @@ test('production Sources UI uses the approved names and keeps technical facts co
   }
   assert.match(cutter, /Sources \/ Image Workbench/);
   assert.match(cutter, /Back to Image Workbench/);
+  const actions = "[['edit', 'Cut images'], ['outputs', 'View Output']]";
+  assert.ok(app.includes(actions), 'Workbench card actions use the same labels and order as the editor');
+  assert.ok(cutter.includes(actions), 'Editor actions put cutting left and output right');
   assert.doesNotMatch(cutter, /Sources \/ Preparation/);
   assert.match(css, /\.disabled-control-reason:focus-visible/);
 });

@@ -145,6 +145,18 @@ export async function captureLibraryNavigation({ devtools, sessionId, captureChe
   const outputEntry = '[data-open-atlas="atlas.animation-components"][data-open-cutter-view="outputs"]';
   await waitFor(`document.getElementById('workspace-content')?.dataset.renderedWorkspace==='sources'&&Boolean(document.querySelector(${JSON.stringify(outputEntry)}))`, 'Image Workbench output entry');
   assert.equal(await evaluate("document.querySelectorAll('[data-create-asset-slice]').length"), 0, 'Workbench lists image work; Library authoring belongs with its saved output images');
+  await waitFor("[...document.querySelectorAll('.workbench-output-previews img')].every(image=>image.complete&&image.naturalWidth>0)", 'Decoded Workbench thumbnails');
+  const workbenchThumbnails = await evaluate(`([...document.querySelectorAll('.workbench-output-previews img')].map(image=>{
+    const frame=image.parentElement.getBoundingClientRect(),box=image.getBoundingClientRect();
+    const scale=Math.min(box.width/image.naturalWidth,box.height/image.naturalHeight);
+    const width=image.naturalWidth*scale,height=image.naturalHeight*scale;
+    const left=box.left+(box.width-width)/2,top=box.top+(box.height-height)/2;
+    return{portrait:image.naturalHeight>image.naturalWidth,contained:getComputedStyle(image).objectFit==='contain'
+      &&left>=frame.left&&top>=frame.top&&left+width<=frame.right&&top+height<=frame.bottom};
+  }))`);
+  assert(workbenchThumbnails.some(image=>image.portrait), 'Workbench evidence must exercise a tall source-derived image');
+  assert(workbenchThumbnails.every(image=>image.contained), 'Every Workbench thumbnail must show the whole output image');
+  result.workbenchThumbnails = workbenchThumbnails;
   await click(outputEntry);
   await waitFor("Boolean(document.querySelector('.cutter-primary-outputs[data-output-kind=\"saved\"] [data-create-asset-slice]'))", 'Saved output Library-authoring entry');
   assert.equal(await evaluate("document.querySelectorAll('.cutter-primary-outputs').length"), 1, 'Saved outputs have one primary gallery');

@@ -99,7 +99,7 @@ export function cutterOutputPresentation({ job, dirty = false, savedCount = 0 } 
     ? 'These generated images are not saved yet. Check them, then save them for use in Library assets. Previously saved images stay available.'
     : savedCount > 0
       ? 'These output images are saved. Open their Library links, or create a new asset with its own use, size and placement settings. Creating an asset is not another approval of the image.'
-      : 'Choose the areas to keep in Cut image, save the cut layout, then generate output images.';
+      : 'Choose the areas to keep in Cut images, save the cut layout, then generate output images.';
   return {
     kind: preview ? 'preview' : 'saved',
     label: preview ? 'Not saved yet' : savedCount > 0 ? 'Saved output images' : 'No output images yet',

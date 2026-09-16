@@ -64,6 +64,13 @@ work look like duplicate inventory. The original remains in Source Images.
 Use state-specific guidance and actions on the card instead of a permanent
 paragraph explaining internal storage concepts.
 
+Klaus's 2026-09-16 follow-up uses the same action names and order on the work
+card and inside its editor: **Cut images** on the left, **View Output** on the
+right. The card offers View Output when saved outputs exist. Contact-sheet
+thumbnails must contain the whole output, including tall images. At the supported
+desktop widths, Sources and the Cutter must fit the usable viewport even when
+the browser has a non-overlay vertical scrollbar.
+
 The list must not infer that a background process is running from the mere
 presence of a job identity. With the current projection it says **Cut layout
 saved** when no outputs exist, or reports the number of **saved output images**.

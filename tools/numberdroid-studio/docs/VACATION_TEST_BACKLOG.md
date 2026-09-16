@@ -1746,6 +1746,17 @@ unexplained Preview cuts versus Saved cuts, and a flattened Back button. He then
 approved the focused correction and authorized implementation. No production
 PASS is inferred from that approval or from the earlier mockup PASS.
 
+In the follow-up Klaus confirmed the apparent unchanged UI was an old version,
+then called the corrected version much improved. This is not yet a full PASS.
+His requested refinement uses **Cut images** left and **View Output** right on
+both the work card and editor. Automated audit additionally found cropped tall
+thumbnails and desktop scrollbar-width overflow; the bounded correction and
+regression evidence cover both. Explain the actual retained workspace state
+before a bundled retest: generated, unsaved outputs may coexist with its saved
+outputs. The optional comparison is not another approval or a guaranteed
+one-to-one before/after pairing. No saved-output deletion is implemented by this
+navigation block.
+
 The approved [Sources design](SOURCES_NAVIGATION_DESIGN.md) and bounded
 [implementation contract](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md) own
 this gate. Use a fresh test fixture containing at least one approved Source

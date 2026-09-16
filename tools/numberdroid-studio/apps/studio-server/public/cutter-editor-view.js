@@ -23,7 +23,7 @@ export function renderCutterEditor({ cutter, source, atlas, pending, job }) {
   const title = el('div'); title.append(el('p', 'eyebrow', 'Sources / Image Workbench'), el('h2', '', cutter.name), el('p', '', `Created from: ${source.name}. The original stays unchanged.`));
   const back = action('← Back to Image Workbench', { closeCutter: '' }, pending); back.classList.add('cutter-back-button'); section.append(back); header.append(title); section.append(header);
   const tabs = el('nav', 'cutter-view-tabs'); tabs.setAttribute('aria-label', 'Cutter views');
-  for (const [view, label] of [['edit', 'Cut image'], ['outputs', 'Output images']]) { const b = action(label, { cutterView: view }, pending); b.setAttribute('aria-pressed', String(cutter.view === view || (view === 'outputs' && cutter.view === 'detail'))); tabs.append(b); }
+  for (const [view, label] of [['edit', 'Cut images'], ['outputs', 'View Output']]) { const b = action(label, { cutterView: view }, pending); b.setAttribute('aria-pressed', String(cutter.view === view || (view === 'outputs' && cutter.view === 'detail'))); tabs.append(b); }
   section.append(tabs);
   if (cutter.view !== 'edit') return section;
   const layout = el('div', 'cutter-editor-layout');
