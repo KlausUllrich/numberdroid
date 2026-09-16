@@ -141,6 +141,7 @@ export async function captureLibraryNavigation({ devtools, sessionId, captureChe
     await navigation.assets();
   }
   await click('[data-library-action="add-from-sources"]');
+  await click('[data-sources-tab="workbench"]');
   await waitFor("document.getElementById('workspace-content')?.dataset.renderedWorkspace==='sources'&&Boolean(document.querySelector('[data-create-asset-slice]'))", 'Source preparation entry');
   await click('[data-workspace="assets"]'); await navigation.assets();
   await click('[data-library-action="create-assembly"]');

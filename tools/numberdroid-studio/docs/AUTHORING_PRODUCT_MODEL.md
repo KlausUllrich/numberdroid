@@ -105,12 +105,15 @@ Sources is the place to introduce and prepare material. Library is the place
 to see, use and edit saved reusable content. A source is not consumed or removed
 when one of its outputs enters the Library.
 
-The Sources sub-navigation is **Images**, **Preparation**, and **Needs review**
-for the image workflow. Preparation contains working copies, including idle
-unfinished work. It does not mean a background job is running. A real job shows
-its specific activity beside the affected work. Passing a check does not submit
-unfinished work automatically; the agent deliberately submits a result for the
-owner's decision after satisfying the applicable checks.
+The approved [Sources navigation design](SOURCES_NAVIGATION_DESIGN.md) uses two
+content views: **Source Images** and **Image Workbench**. Review is an attention
+state exposed through a **Needs review** filter and compact notice, not a third
+content type or a mandatory workflow stage. Image Workbench contains actual
+saved work and outputs, including idle unfinished work. It does not mean a
+background job is running; exact job activity appears only where the current job
+projection is available. Passing a check does not submit unfinished work
+automatically; the agent deliberately submits a result for the owner's decision
+after satisfying the applicable checks.
 
 Library provides **Assets** and **Reviews**, with search and relevant
 filters. A saved asset may be useful for assembly, placement or another declared

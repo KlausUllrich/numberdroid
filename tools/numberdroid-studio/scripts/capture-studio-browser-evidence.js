@@ -12,8 +12,8 @@ import { closeBrowserAndRemoveProfile, finishCapture, trackProcessClose } from '
 import { openDevtoolsSocket, waitForDevtoolsEndpoint } from './browser-devtools-startup.js';
 
 const [chromePath, widthArgument, outputArgument, pageUrl, mode = 'candidate', domArgument] = process.argv.slice(2);
-if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7', 'review-feedback', 'human-asset', 'room-creation', 'room-pinned-assets'].includes(mode)) {
-  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5|a1-7|review-feedback|human-asset|room-creation|room-pinned-assets [DOM_OUTPUT]');
+if (!chromePath || !widthArgument || !outputArgument || !pageUrl || !['baseline', 'candidate', 'checkpoint-2a', 'checkpoint-2b', 'checkpoint-2c', 'checkpoint-3', 'checkpoint-4', 'checkpoint-4-5', 'a1-7', 'review-feedback', 'human-asset', 'room-creation', 'room-pinned-assets', 'sources-navigation'].includes(mode)) {
+  throw new Error('Usage: capture-studio-browser-evidence.js CHROME WIDTH OUTPUT URL baseline|candidate|checkpoint-2a|checkpoint-2b|checkpoint-2c|checkpoint-3|checkpoint-4|checkpoint-4-5|a1-7|review-feedback|human-asset|room-creation|room-pinned-assets|sources-navigation [DOM_OUTPUT]');
 }
 const width = Number(widthArgument);
 const height = 900;
@@ -185,6 +185,10 @@ try {
     ? `document.getElementById('connection-label')?.textContent === 'Live'
        && document.getElementById('workspace-content')?.dataset.renderedProjectId === 'project.review-feedback'
        && document.getElementById('workspace-content')?.dataset.renderedWorkspace === 'tasks'`
+    : mode === 'sources-navigation'
+    ? `document.getElementById('connection-label')?.textContent === 'Live'
+       && document.getElementById('workspace-content')?.dataset.renderedProjectId === 'numberdroid-studio-checkpoint-2b'
+       && document.getElementById('workspace-content')?.dataset.renderedWorkspace === 'sources'`
     : mode === 'candidate'
     ? `document.documentElement.dataset.visualEvidenceReady === 'true'
        && document.documentElement.dataset.visualWorkspace === ${JSON.stringify(expectedWorkspace)}
@@ -257,7 +261,45 @@ try {
     }
     await delay(100);
   }
-  assert(ready, `${mode} ${expectedWorkspace} did not reach screenshot readiness.`);
+  if (!ready) {
+    const diagnostic = await devtools.send('Runtime.evaluate', {
+      expression: `({
+        connection: document.getElementById('connection-label')?.textContent ?? null,
+        projectId: document.getElementById('workspace-content')?.dataset.renderedProjectId ?? null,
+        workspace: document.getElementById('workspace-content')?.dataset.renderedWorkspace ?? null,
+        project: document.getElementById('project-name')?.textContent ?? null,
+        bodyText: document.body?.innerText?.slice(0, 1200) ?? null,
+        visualErrors: document.documentElement.dataset.visualErrorCount ?? null,
+      })`,
+      returnByValue: true,
+    }, sessionId);
+    const protocolErrors = devtools.events.filter(({ method, params }) => (
+      method === 'Runtime.exceptionThrown'
+      || method === 'Log.entryAdded'
+      || (method === 'Network.loadingFailed' && !params?.canceled)
+    )).slice(-12);
+    throw new Error(`${mode} ${expectedWorkspace} did not reach screenshot readiness: ${JSON.stringify({
+      page: diagnostic.result?.value ?? null,
+      protocolErrors,
+    })}`);
+  }
+  if (mode === 'checkpoint-2a' && expectedWorkspace === 'sources') {
+    await devtools.send('Runtime.evaluate', {
+      expression: `if (!document.querySelector('[data-source-intake-form]')) document.querySelector('[data-source-import-toggle]')?.click()`,
+      returnByValue: true,
+    }, sessionId);
+    const importFormDeadline = Date.now() + 5_000;
+    let importFormReady = false;
+    while (Date.now() < importFormDeadline) {
+      const result = await devtools.send('Runtime.evaluate', {
+        expression: `document.querySelector('[data-source-intake-form] h2')?.textContent === 'Import source image'`,
+        returnByValue: true,
+      }, sessionId);
+      if (result.result?.value === true) { importFormReady = true; break; }
+      await delay(50);
+    }
+    assert(importFormReady, 'Checkpoint 2A could not open the Source Image import form.');
+  }
   let sourceFileRefreshRetention = null;
   let sourceFileResumeTransition = null;
   let sourceImportOperationIsolation = null;
@@ -276,6 +318,7 @@ try {
   let checkpoint45DirectManipulation = null;
   let checkpoint45StudioPreview = null;
   let a17Evidence = null;
+  let sourcesNavigationEvidence = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
     const focus = checkpoint2aFocus ?? 'intake-form';
@@ -343,6 +386,78 @@ try {
       expression: `document.querySelector(${JSON.stringify(focusSelector)})?.scrollIntoView({ block: 'center' })`,
       returnByValue: true,
     }, sessionId);
+  }
+  if (mode === 'sources-navigation' && expectedWorkspace === 'sources') {
+    const result = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const settle = () => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+        const tabLabels = () => [...document.querySelectorAll('[data-sources-tab]')].map(node => node.textContent.trim());
+        const initial = {
+          tabLabels: tabLabels(),
+          activeTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
+          importFormPresent: Boolean(document.querySelector('[data-source-intake-form]')),
+          sourceCards: document.querySelectorAll('[data-source-id]').length,
+          closedTechnicalDetails: [...document.querySelectorAll('.source-technical-details')].every(node => !node.open),
+          hasOldProcessTab: [...document.querySelectorAll('[data-sources-tab]')].some(node => ['Preparation', 'Needs review'].includes(node.textContent.trim())),
+        };
+        document.querySelector('[data-sources-tab="workbench"]')?.click(); await settle();
+        const workbench = {
+          activeTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
+          cards: document.querySelectorAll('.workbench-card').length,
+          text: document.querySelector('[data-sources-workspace]')?.textContent ?? '',
+          closedTechnicalDetails: [...document.querySelectorAll('.workbench-card .source-technical-details')].every(node => !node.open),
+        };
+        const search = document.querySelector('[data-sources-search]');
+        search.value = 'family'; search.dispatchEvent(new Event('input', { bubbles: true })); await settle();
+        const searchRetention = {
+          value: document.querySelector('[data-sources-search]')?.value ?? null,
+          focused: document.activeElement === document.querySelector('[data-sources-search]'),
+          visibleCards: document.querySelectorAll('.workbench-card').length,
+        };
+        const currentSearch = document.querySelector('[data-sources-search]');
+        currentSearch.value = ''; currentSearch.dispatchEvent(new Event('input', { bubbles: true })); await settle();
+        const attention = document.querySelector('[data-sources-attention]');
+        attention.value = 'needs-review'; attention.dispatchEvent(new Event('change', { bubbles: true })); await settle();
+        const needsReview = {
+          selected: document.querySelector('[data-sources-attention]')?.value ?? null,
+          workbenchCards: document.querySelectorAll('.workbench-card').length,
+          emptyText: document.querySelector('.empty')?.textContent ?? null,
+        };
+        const all = document.querySelector('[data-sources-attention]');
+        all.value = 'all'; all.dispatchEvent(new Event('change', { bubbles: true })); await settle();
+        return {
+          initial, workbench, searchRetention, needsReview,
+          finalActiveTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
+          horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
+            || document.body.scrollWidth > document.body.clientWidth,
+        };
+      })()`,
+      awaitPromise: true,
+      returnByValue: true,
+    }, sessionId);
+    sourcesNavigationEvidence = result.result?.value ?? null;
+    assert(JSON.stringify(sourcesNavigationEvidence?.initial?.tabLabels) === JSON.stringify(['Source Images', 'Image Workbench'])
+      && sourcesNavigationEvidence.initial.activeTab === 'images'
+      && sourcesNavigationEvidence.initial.importFormPresent === false
+      && sourcesNavigationEvidence.initial.sourceCards === 1
+      && sourcesNavigationEvidence.initial.closedTechnicalDetails === true
+      && sourcesNavigationEvidence.initial.hasOldProcessTab === false,
+    `Sources landing page did not preserve the approved two-content-view model: ${JSON.stringify(sourcesNavigationEvidence)}`);
+    assert(sourcesNavigationEvidence.workbench?.activeTab === 'workbench'
+      && sourcesNavigationEvidence.workbench.cards === 1
+      && sourcesNavigationEvidence.workbench.text.includes('4 saved cuts')
+      && sourcesNavigationEvidence.workbench.text.includes('Active processing appears inside the open work item')
+      && sourcesNavigationEvidence.workbench.closedTechnicalDetails === true,
+    `Image Workbench did not show the truthful saved atlas/output state: ${JSON.stringify(sourcesNavigationEvidence)}`);
+    assert(sourcesNavigationEvidence.searchRetention?.value === 'family'
+      && sourcesNavigationEvidence.searchRetention.focused === true
+      && sourcesNavigationEvidence.searchRetention.visibleCards === 1
+      && sourcesNavigationEvidence.needsReview?.selected === 'needs-review'
+      && sourcesNavigationEvidence.needsReview.workbenchCards === 0
+      && sourcesNavigationEvidence.needsReview.emptyText?.includes('No Image Workbench item needs review')
+      && sourcesNavigationEvidence.finalActiveTab === 'workbench'
+      && sourcesNavigationEvidence.horizontalOverflow === false,
+    `Sources filters lost focus, truthfulness, or containment: ${JSON.stringify(sourcesNavigationEvidence)}`);
   }
   if (mode === 'checkpoint-2c' && expectedWorkspace === 'assets') {
     checkpoint2cRouteEvidence = await captureCheckpoint2cLibraryRoutes({ devtools, sessionId, phase: checkpoint2cPhase, focus: checkpoint2cFocus });
@@ -2622,7 +2737,12 @@ try {
           };
 
           const configureForm = (name) => {
-            const form = document.querySelector('[data-source-intake-form]');
+            let form = document.querySelector('[data-source-intake-form]');
+            if (!form) {
+              document.querySelector('[data-source-import-toggle]')?.click();
+              form = document.querySelector('[data-source-intake-form]');
+            }
+            if (!form) throw new Error('Source import form did not reopen for the next isolation phase.');
             form.querySelector('[name="sourceId"]').value = \`source.\${name}.context-probe\`;
             form.querySelector('[name="name"]').value = \`\${name} context probe\`;
             const file = form.querySelector('[data-source-file]');
@@ -2654,7 +2774,7 @@ try {
             demoDisabled: document.getElementById('demo-button').disabled,
             sourceActionsDisabled: [...document.querySelectorAll(
               '[data-resume-source-intake], [data-discard-source-intake], [data-source-review-propose], '
-                + '[data-source-review-decision], [data-open-cutter]',
+                + '[data-source-review-decision], [data-open-cutter], [data-source-import-toggle]',
             )].every((control) => control.disabled),
           };
           const projectSelect = document.getElementById('project-select');
@@ -2713,7 +2833,7 @@ try {
           window.fetch = originalFetch;
           document.getElementById('refresh-button').click();
           await waitFor(() => !document.getElementById('refresh-button').disabled
-            && document.querySelector('[data-source-intake-form] h2')?.textContent === 'Import source',
+            && document.querySelector('[data-source-intake-form] h2')?.textContent === 'Import source image',
           'Synthetic failed-commit recovery context did not clear after a trusted refresh.');
           document.getElementById('toast').classList.remove('visible');
           return {
@@ -2735,6 +2855,8 @@ try {
         awaitPromise: true,
         returnByValue: true,
       }, sessionId);
+      assert(!isolation.exceptionDetails,
+        `Synthetic source-import isolation probe failed before returning evidence: ${JSON.stringify(isolation.exceptionDetails)}`);
       sourceImportOperationIsolation = isolation.result?.value ?? null;
       assert(sourceImportOperationIsolation?.pending?.allFormControlsDisabled === true
         && sourceImportOperationIsolation.pending.liveStatusOutsideInert === true
@@ -2742,7 +2864,7 @@ try {
         && sourceImportOperationIsolation.pending.refreshDisabled === true
         && sourceImportOperationIsolation.pending.demoDisabled === true
         && sourceImportOperationIsolation.pending.sourceActionsDisabled === true,
-      'Source import did not lock every context-changing or mutable form control while preserving its live status.');
+      `Source import did not lock every context-changing or mutable form control while preserving its live status: ${JSON.stringify(sourceImportOperationIsolation?.pending)}`);
       assert(sourceImportOperationIsolation.selectedProjectWhilePending === sourceImportOperationIsolation.operationProjectId
         && sourceImportOperationIsolation.delayedStageCount === 1
         && sourceImportOperationIsolation.delayedCommitCount === 1
@@ -2762,12 +2884,12 @@ try {
         && sourceImportOperationIsolation.commitFailureRecovery.replaced === true
         && sourceImportOperationIsolation.commitFailureRecovery.oldConnected === false
         && sourceImportOperationIsolation.commitFailureRecovery.oldFileCount === 0
-        && sourceImportOperationIsolation.commitFailureRecovery.heading === 'Resume staged source'
+        && sourceImportOperationIsolation.commitFailureRecovery.heading === 'Resume staged source image'
         && sourceImportOperationIsolation.commitFailureRecovery.currentFileCount === 0
         && sourceImportOperationIsolation.commitFailureRecovery.currentFileDisabled === true
         && sourceImportOperationIsolation.commitFailureRecovery.status?.includes('remains staged; retry commits this exact artifact')
         && sourceImportOperationIsolation.commitFailureRecovery.liveStatusOutsideInert === true,
-      'A post-stage commit failure left the old selectable file form visible or hid durable recovery status.');
+      `A post-stage commit failure left the old selectable file form visible or hid durable recovery status: ${JSON.stringify(sourceImportOperationIsolation.commitFailureRecovery)}`);
       const transition = await devtools.send('Runtime.evaluate', {
         expression: `(() => {
           const original = document.querySelector('[data-source-intake-form] [data-source-file]');
@@ -2802,9 +2924,9 @@ try {
         && sourceFileResumeTransition.oldFileCount === 0
         && sourceFileResumeTransition.currentFileCount === 0
         && sourceFileResumeTransition.currentDisabled === true
-        && sourceFileResumeTransition.heading === 'Resume staged source'
+        && sourceFileResumeTransition.heading === 'Resume staged source image'
         && sourceFileResumeTransition.status?.startsWith('Ready to commit staged intake '),
-      'Resume staged intake did not clear the selected new-source file and replace it with the staged form.');
+      `Resume staged intake did not clear the selected new-source file and replace it with the staged form: ${JSON.stringify(sourceFileResumeTransition)}`);
       await devtools.send('Runtime.evaluate', {
         expression: `Promise.all([...document.querySelectorAll('.source-preview img')].map((image) => {
           if (image.complete) return Promise.resolve();
@@ -4041,9 +4163,10 @@ try {
         && originalSecurity.referrer === '',
       `The keyboard-opened original tab lost its exact URL, null opener, or empty referrer boundary: ${JSON.stringify(originalSecurity)}`);
       await devtools.send('Target.closeTarget', { targetId: originalTarget.targetId });
-      assert(approved.text.includes('APPROVED_SOURCE') && approved.text.includes('USER_APPROVED')
-        && approved.text.includes('human_upload') && approved.text.includes('1254×1254')
-        && approved.text.includes('2720519'), 'The approved source lifecycle/provenance/identity is not visible.');
+      assert(approved.text.includes('Ready to use') && approved.text.includes('Technical details')
+        && approved.text.includes('APPROVED_SOURCE') && approved.text.includes('USER_APPROVED')
+        && approved.text.includes('human_upload') && approved.text.includes('1254 × 1254 px')
+        && approved.text.includes('2720519'), 'The approved source summary or collapsed lifecycle/provenance/identity is missing.');
       assert(approved.reviewMutationCount === 0, 'An approved source still exposes a review mutation control.');
       assert(layout.stagedIntakes.length === 1 && layout.stagedIntakes[0].hasResume
         && layout.stagedIntakes[0].hasDiscard, 'The durable staged intake lacks Resume or Discard recovery.');
@@ -4272,6 +4395,7 @@ try {
     checkpoint45DirectManipulation,
     checkpoint45StudioPreview,
     a17Evidence,
+    sourcesNavigationEvidence,
     layout,
     interactions: checkpoint2bInteractionEvidence,
   };

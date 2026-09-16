@@ -133,11 +133,11 @@ npm run evidence:verify
 npm run dev
 ```
 
-1. Open `http://127.0.0.1:4317`, choose **Create / load demo**, and open **Sources**.
-2. Import the pinned Family Hygiene PNG as **Human upload** with a stable source ID and name.
-3. Confirm the original preview, `IMPORTED` lifecycle, `PENDING` review, 1254×1254 dimensions, and absence of invented provider metadata.
+1. Open `http://127.0.0.1:4317`, choose **Create / load demo**, open **Sources**, and stay in **Source Images**.
+2. Choose **Import source image** and import the pinned Family Hygiene PNG as **Human upload** with a stable source ID and name.
+3. Confirm the original preview and 1254×1254 dimensions. Open **Technical details** to inspect the `IMPORTED` lifecycle, `PENDING` review and absence of invented provider metadata.
 4. To exercise recovery, interrupt after staging or use a prepared staged fixture, restart, then choose **Resume** or **Discard**. Confirm the intake remains visible until one succeeds.
-5. Choose **Propose for review**, then explicitly approve. Confirm `APPROVED_SOURCE` / `USER_APPROVED`. In a separate intake, reject with a reason and confirm it is terminal.
+5. Choose **Submit for review**, then explicitly approve. Confirm **Ready to use**; open **Technical details** to verify `APPROVED_SOURCE` / `USER_APPROVED`. In a separate intake, reject with a reason and confirm it is terminal.
 6. Open **Activity** and verify true actor/task attribution plus a redacted denied/failed agent entry when that scenario is exercised.
 7. Pair an MCP host under **Scoped run** and confirm seven tools are discovered; verify that owner decision is absent and revoked/over-budget/wrong-scope calls do not mutate the project.
 8. Restart with the same data directory and confirm source identity, preview, review, revision, and Activity remain unchanged.

@@ -33,8 +33,8 @@ test('Sources saved-slice cards display authored names and preserve ordinal fall
   assert.equal(JSON.stringify(snapshot), before);
 });
 
-test('saved-cut authoring stays in Sources while Library browses saved reusable content', () => {
-  assert.match(fragment('function renderSources(', 'function renderOverview('), /renderSliceVocabulary\(\)/);
+test('saved-cut authoring stays in Image Workbench while Library browses saved reusable content', () => {
+  assert.match(fragment('function renderImageWorkbench(', 'function renderSources('), /renderSliceVocabulary\(visibleSlices\)/);
   assert.doesNotMatch(fragment('function renderAssetLibrary(', 'function currentRoomLibrary('), /renderSliceVocabulary\(\)/);
 });
 

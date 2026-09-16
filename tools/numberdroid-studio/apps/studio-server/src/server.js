@@ -104,6 +104,7 @@ const staticFiles = new Map([
   ['/room-pinned-assets-state.js', ['room-pinned-assets-state.js', 'text/javascript; charset=utf-8']],
   ['/cutter-editor-state.js', ['cutter-editor-state.js', 'text/javascript; charset=utf-8']],
   ['/cutter-editor-view.js', ['cutter-editor-view.js', 'text/javascript; charset=utf-8']],
+  ['/sources-navigation-state.js', ['sources-navigation-state.js', 'text/javascript; charset=utf-8']],
   ['/asset-editor-state.js', ['asset-editor-state.js', 'text/javascript; charset=utf-8']],
   ['/asset-editor-view.js', ['asset-editor-view.js', 'text/javascript; charset=utf-8']],
   ['/asset-editor-controller.js', ['asset-editor-controller.js', 'text/javascript; charset=utf-8']],

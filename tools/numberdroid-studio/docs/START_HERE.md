@@ -112,6 +112,13 @@ review and Activity-history mockup batch on 2026-09-10. The bounded production
 Library block is accepted as VT-023 after the 2026-09-11 “all pass.” result.
 Shared Review command/state integration and its mixed-content partial acceptance
 are now separately accepted as VT-024 after the 2026-09-16 PASS.
+The [Sources navigation design](SOURCES_NAVIGATION_DESIGN.md) is now approved:
+Sources uses **Source Images** and **Image Workbench**, while **Needs review** is
+an attention filter rather than a third process-like tab. Klaus passed the
+mockup refinements and selected the final Image Workbench name on 2026-09-16;
+the bounded [production implementation](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+is a candidate and [VT-025](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench)
+remains the separate live acceptance gate.
 Further screen changes follow discussion and mockup agreement before implementation.
 Runtime materialization, image generation and publication retain separate gates.
 
@@ -160,6 +167,7 @@ after compaction reverify continuity and reload the selected task context.
 | Assembly editor | [Assembly Editor Design](ASSEMBLY_EDITOR_DESIGN.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), directly affected component/geometry consumers; add storage, capability and MCP contracts before changing those seams. |
 | Animation clips | [Animation Clip Editor Design](ANIMATION_EDITOR_DESIGN.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), current exact cut/Asset/Assembly consumers; read their storage, authority, recovery and MCP contracts before evolving clip/frame or state-binding semantics. |
 | Library navigation and detail return | [Library Navigation Design](LIBRARY_NAVIGATION_DESIGN.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), existing Asset/Animation/Assembly readers, editors and review routes; add the owning contracts before changing their semantics. |
+| Sources navigation or image-work organization | [Sources Navigation Design](SOURCES_NAVIGATION_DESIGN.md), [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md), accepted [Cutter design](CUTTER_EDITOR_DESIGN.md), actual source/atlas projections and UI tests; add authority, persistence, processing or MCP contracts only when those seams change. |
 | Shared Review changes | [Review Changes Design](REVIEW_CHANGES_DESIGN.md), [2C contract](CHECKPOINT_2C_CONTRACT.md), [task feedback](TASK_REVIEW_FEEDBACK.md), affected task/application commands and tests; add authority, persistence and MCP contracts before evolving those seams. |
 | Room, task or Preview behavior | [CP4.5 contract](CHECKPOINT_4_5_CONTRACT.md), [Room status](ROOM_EDITOR_L3_STATUS.md), the directly affected implementation and tests; add [Architecture](ARCHITECTURE.md) sections for changed seams. |
 | Processing or agent workflow | The exact A1 contract/status linked by [README](../README.md); [A1.7 state contract](A1_7_STATE_CONTRACT.md) for correction/review state; add [MCP contract](MCP_CONTRACT.md) and authority/persistence contracts when those boundaries change. |
