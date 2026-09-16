@@ -1,5 +1,22 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
+## 2026-09-16 Shared Review production acceptance
+
+Klaus explicitly reported PASS for the complete
+[VT-024](VACATION_TEST_BACKLOG.md#vt-024--shared-review-feedback-and-activity)
+production walkthrough. Related Image/Animation/Assembly review, proposed
+additions, revisable feedback, truthful next-actor states, dependency-valid
+partial/final acceptance, exact read-only Activity history and contextual return
+are **USER ACCEPTED**. The final live baseline is merged `main` `419c910` (PR
+#252), tree `5b5ce09`, with green post-merge Build #2468 and a preserved fixture
+ending at project revision 22.
+
+This closes ND-2 and the directly affected ND-6/ND-7 Review/navigation/Activity
+scope; it does not infer acceptance of VT-001/CP4.5, VT-021 or A1.7 and grants no
+materialization, publication, release, remote-service or new-agent authority.
+Further sequencing returns to the current task router; do not begin a later
+roadmap block merely because Shared Review is accepted.
+
 ## 2026-09-11 Review V2 design approval
 
 Klaus explicitly reported **“All pass”** for the [Review V2 mockup](REVIEW_CHANGES_DESIGN.md#v2-approval--2026-09-11).
@@ -9,12 +26,10 @@ retention of older drafts when a newer proposal arrives, Back-left navigation
 and one readable Activity event per row. This is design approval, not production
 acceptance or evidence of a working agent-launch capability.
 
-ND-2 remains the next functional implementation. Start by defining compatible
-commands and saved review records against the current Asset/Clip/Assembly paths;
-then connect the approved UI. Preserve old data, accepted versions, dependencies,
-owner authority, exact retries and recovery. Exercise the resulting workflow with
-a real semantic agent before Klaus's production batch. ND-6 and ND-7 retain their
-separate rollout scopes. No new VT item exists until an implementation is ready.
+This was the design gate for the later ND-2 implementation. The production result
+is now accepted through VT-024 above. Its compatible commands, saved review
+records, exact-version recovery and real semantic-agent proof remain binding;
+the mockup PASS and production PASS remain separate recorded decisions.
 
 ## 2026-09-11 Library production acceptance and follow-ups
 

@@ -4,6 +4,12 @@ Current scoped evolution (2026-09-08): the [Asset editor implementation contract
 
 Status: **user-approved product direction, 2026-09-07; implementation and workflow acceptance remain separate**.
 
+Production status update (2026-09-16): VT-023 accepts the bounded Library
+navigation block and VT-024 accepts the bounded shared Review workflow, including
+related-content partial/final acceptance, revisable feedback, exact Activity
+history and contextual return. Those product decisions do not imply acceptance
+of other described modules or authorize materialization, publication or release.
+
 This document records Klaus's approved authoring model and redesign process. It
 refines [Vision](VISION.md) and owns the target experience described below.
 It is not an executable schema, a migration, a new capability grant, or evidence
@@ -92,8 +98,8 @@ runtime atlas production.
 
 The [Library navigation design](LIBRARY_NAVIGATION_DESIGN.md) specializes this
 workspace model. Klaus passed its five-item browser mockup batch on 2026-09-10;
-production navigation and shared Review integration still require their bounded
-implementation and verification.
+the bounded production navigation and shared Review blocks were subsequently
+accepted through VT-023 and VT-024. Broader modules retain separate gates.
 
 Sources is the place to introduce and prepare material. Library is the place
 to see, use and edit saved reusable content. A source is not consumed or removed

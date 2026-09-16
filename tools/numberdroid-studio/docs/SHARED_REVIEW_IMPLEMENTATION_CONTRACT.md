@@ -1,9 +1,11 @@
 # Shared Review — production implementation contract
 
-Status: **IMPLEMENTED FOUNDATION CANDIDATE — NOT USER ACCEPTED**, 2026-09-11.
-ND-2 / GitHub #237. Final integration evidence belongs to the focused PR.
-The [approved Review V2 design](REVIEW_CHANGES_DESIGN.md) owns the experience;
-its mockup PASS does not accept this production implementation.
+Status: **IMPLEMENTED FOUNDATION — BOUNDED PRODUCT WORKFLOW USER ACCEPTED THROUGH
+VT-024**, 2026-09-16. ND-2 / GitHub #237. Foundation integration evidence belongs
+to its focused PR; the later [VT-024](VACATION_TEST_BACKLOG.md#vt-024--shared-review-feedback-and-activity)
+PASS accepts the user-visible end-to-end behavior built on it. The
+[approved Review V2 design](REVIEW_CHANGES_DESIGN.md) owns the experience; its
+earlier mockup PASS remains separate from production acceptance.
 
 ## First coherent block: durable shared Review foundation
 

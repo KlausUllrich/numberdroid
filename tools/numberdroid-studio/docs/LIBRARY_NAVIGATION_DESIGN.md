@@ -172,8 +172,10 @@ left with an actual destination label; deeper Details/Open/Edit actions belong
 on the right. Activity uses one human-readable event per row and read-only
 historical inspection. The Review design owns saved-feedback amendments,
 reconsidered exact-proposal acceptance and newer-proposal draft retention.
-These refinements are design approved; their production rollout remains ND-2,
-ND-6 and ND-7. The earlier VT-023 production acceptance remains intact. The
+These refinements are design approved and their directly affected production
+scope is user accepted through VT-024. The earlier VT-023 production acceptance
+remains intact. The
 Reviews label and cross-tab status-color clarification were requested during the
 VT-024 production walkthrough on 2026-09-16 and do not rename the internal route
-or change review state, authority or persistence.
+or change review state, authority or persistence. Klaus passed the corrected
+presentation and the remaining Shared Review walkthrough on 2026-09-16.

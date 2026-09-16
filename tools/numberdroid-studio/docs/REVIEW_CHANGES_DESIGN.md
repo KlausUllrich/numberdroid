@@ -1,7 +1,8 @@
 # Review Changes — Approved Design
 
-Status: **V2 DESIGN APPROVED — PASS, 2026-09-11**. Shared Review production
-implementation and its real-agent/user verification remain pending.
+Status: **V2 DESIGN APPROVED — PASS, 2026-09-11; PRODUCTION WORKFLOW USER
+ACCEPTED AS VT-024, 2026-09-16**. The mockup decision and later production
+decision remain separate evidence.
 
 Klaus approved the shared Review mockup with “pass” after requesting a batch of
 checks. The batch covered comparison and detail return, dependencies and full
@@ -9,9 +10,11 @@ acceptance, partial acceptance, feedback/history, discard, and an outdated
 proposal. The reviewed artifact was `review-v1.html`, SHA-256
 `7537b42f30f5d9fd7ae3d144d03781c7465720e7b5515aa314740953453e39df`.
 
-This approves the design under the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md).
-It does not accept implemented Studio behavior, the real-agent loop or VT-001 /
-CP4.5. The [current task router](START_HERE.md) owns implementation sequencing.
+This approved the design under the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md).
+The later [VT-024](VACATION_TEST_BACKLOG.md#vt-024--shared-review-feedback-and-activity)
+PASS accepts its bounded implemented Studio workflow and real-agent review
+boundary. Neither decision accepts VT-001 / CP4.5 or later roadmap scope. The
+[current task router](START_HERE.md) owns sequencing.
 
 ## V2 approval — 2026-09-11
 

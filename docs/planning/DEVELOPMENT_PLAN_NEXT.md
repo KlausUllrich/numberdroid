@@ -1,16 +1,23 @@
 # Numberdroid — Current Development Plan
 
-## 2026-09-16 VT-024 feedback PASS and Library status clarity
+## 2026-09-16 VT-024 Shared Review production acceptance
 
-Klaus explicitly passed the Shared Review feedback lifecycle: request changes,
-retained Details/Back context, truthful Awaiting-agent state, feedback amendment
-and cancellation, and reconsidered acceptance. A bounded presentation follow-up
-renames the Library queue to **Reviews** and uses one semantic amber treatment for
-**Awaiting agent** in both Assets and Reviews, distinct from green **Needs review**.
-The internal route and all review state, authority, persistence and agent-launch
-behavior remain unchanged. After that focused correction is integrated and
-visually confirmed, VT-024 continues at partial/final acceptance, Activity/history
-and contextual return; the passed earlier steps are not repeated.
+Klaus explicitly reported PASS for the complete VT-024 production walkthrough on
+the preserved fresh fixture. The accepted behavior covers related Image,
+Animation and Assembly review; proposed additions; request-changes feedback and
+amendment; truthful Needs-review/Awaiting-agent states; partial then final
+acceptance; immutable readable Activity history; and destination-named contextual
+return through Details and an editor. The final clarification uses **Reviews** as
+the Library queue label and one amber **Awaiting agent** treatment across Assets
+and Reviews, distinct from green **Needs review**.
+
+The final live source was merged `main` `419c910` (PR #252), tree `5b5ce09`, with
+green post-merge Build #2468; the retained fixture finished at project revision
+22 with all three exact proposed assets accepted. Automation, merge and CI remain
+engineering evidence; the PASS is Klaus's separate product decision. VT-024 is
+therefore **USER ACCEPTED — PASS**. This closes only the bounded Shared Review UI
+block. VT-001/CP4.5, VT-021, A1.7, materialization, publication/release, remote
+operation and any later Sources work retain their own gates.
 
 ## 2026-09-15 VT-024 Library clarity correction
 
@@ -20,10 +27,10 @@ inside Pending changes. The approved bounded correction added a separate
 **Proposed additions** projection with no saved pin or use/edit authority and
 routes its card to the exact item in the existing Review. PR #250 merged at
 `83e3c72`; corrected-head and post-merge CI passed. Klaus explicitly passed the
-affected live retest on 2026-09-15. VT-024 remains pending only for its recorded
-feedback lifecycle, partial/final acceptance, Activity/history and return-state
-batch; the already-passed explanations and proposed-additions check need not be
-repeated.
+affected live retest on 2026-09-15. At that checkpoint VT-024 remained pending
+only for its recorded feedback lifecycle, partial/final acceptance,
+Activity/history and return-state batch; the already-passed explanations and
+proposed-additions check did not need to be repeated.
 
 ## 2026-09-11 Review V2 design approval
 
