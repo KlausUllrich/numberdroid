@@ -97,6 +97,7 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
   if (!reopened) {
     assert.equal(initial.snapshot.assetLibrary?.assets.length ?? 0, 0);
     await click('[data-library-action="add-from-sources"]');
+    await click('[data-sources-tab="workbench"]');
     await waitFor("document.querySelectorAll('[data-create-asset-slice]').length === 4", 'Four saved-slice actions');
     slice = await evaluate(`(() => { const action = document.querySelector('[data-create-asset-slice]'); return { sliceId: action.dataset.createAssetSlice, sliceVersion: Number(action.dataset.sliceVersion) }; })()`);
     assert.ok(slice.sliceId); assert.ok(slice.sliceVersion > 0);
