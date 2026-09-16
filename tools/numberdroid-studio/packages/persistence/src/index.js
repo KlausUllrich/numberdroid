@@ -44,6 +44,7 @@ export {
 } from './sqlite/sqlite-processing-result-adoption-store.js';
 export { SqliteProcessingResultAdoptionReader } from './sqlite/sqlite-processing-result-adoption-reader.js';
 export { SqliteSourceIntakeStore } from './sqlite/sqlite-source-intake-store.js';
+export { SourceLibraryOperationStore } from './sqlite/source-library-operation-store.js';
 export { SqliteWorkspace, assertWorkspaceNotQuarantined } from './sqlite/sqlite-workspace.js';
 export {
   SQLITE_MIGRATIONS,

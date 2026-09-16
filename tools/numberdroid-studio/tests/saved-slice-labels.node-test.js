@@ -17,24 +17,27 @@ const nodes = root => [root, ...(root.children ?? []).flatMap(n => typeof n === 
 
 function context() {
   const previewInputs = [];
-  return { state: { project: { snapshot } }, document: { createElement: element },
+  return { state: { project: { snapshot } }, document: { createElement: element, createTextNode: text => text },
+    workbenchStatusPresentation: () => ({ label: 'Saved', explanation: 'Saved output images' }), sourceStatusBadge: () => element('badge'),
+    reasonedDisabledControl: node => node,
     currentAssetLibrary: () => ({ assets: [] }), animationSupported: () => false, safeV2Preview: value => { previewInputs.push(value); return element('preview'); },
     copyableCanonical: (_label, value) => ({ tag: 'identity', value }),
     createAssetFromSliceButton: slice => ({ tag: 'create', id: slice.sliceId, version: slice.version }), previewInputs };
 }
 
-test('Sources saved-slice cards display authored names and preserve ordinal fallback and identities', () => {
+test('Workbench output thumbnails preserve saved names, fallback and exact identities', () => {
   const before = JSON.stringify(snapshot); const sandbox = context();
-  const render = runInNewContext(`${helpers}\n${fragment('function renderSliceVocabulary(', 'function renderAssetLibrary(')}; renderSliceVocabulary;`, sandbox);
-  const output = nodes(render());
-  assert.deepEqual(output.filter(n => n.tag === 'h4').map(n => n.textContent), ['brighter', 'darker', 'Slice 3']);
+  const render = runInNewContext(`${helpers}\n${fragment('function renderWorkbenchCard(', 'function renderImageWorkbench(')}; renderWorkbenchCard;`, sandbox);
+  const output = nodes(render({ atlas: { ...snapshot.atlases[0], id: 'atlas.test' }, source: { id: 'source.test', name: 'Original' } }));
   assert.deepEqual(sandbox.previewInputs.map(n => n.name), ['brighter', 'darker', 'Slice 3']);
-  assert.deepEqual(output.filter(n => n.tag === 'create').map(n => [n.id, n.version]), [['slice.one', 2], ['slice.two', 1], ['slice.unnamed', 1]]);
+  assert.deepEqual(sandbox.previewInputs.map(n => [n.sliceBinding.sliceId, n.sliceBinding.version]), [['slice.one', 2], ['slice.two', 1], ['slice.unnamed', 1]]);
+  assert.deepEqual(output.filter(n => n.dataset?.openCutter).map(n => [n.dataset.openAtlas, n.dataset.openCutterView]), [['atlas.test', 'outputs'], ['atlas.test', 'edit']]);
   assert.equal(JSON.stringify(snapshot), before);
 });
 
 test('saved-cut authoring stays in Image Workbench while Library browses saved reusable content', () => {
-  assert.match(fragment('function renderImageWorkbench(', 'function renderSources('), /renderSliceVocabulary\(visibleSlices\)/);
+  assert.match(fragment('function cutterPreviewCard(', 'function cutterOutputs('), /savedOutputLibraryActions\(output\)/);
+  assert.match(fragment('function savedOutputLibraryActions(', 'function cutterOutputs('), /createAssetFromSliceButton\(slice\)/);
   assert.doesNotMatch(fragment('function renderAssetLibrary(', 'function currentRoomLibrary('), /renderSliceVocabulary\(\)/);
 });
 

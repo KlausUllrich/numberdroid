@@ -1738,7 +1738,24 @@ Assembly acceptance and later Sources design retain their separate status.
 
 ## VT-025 — Source Images and Image Workbench
 
-Status: **IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE**.
+Status: **REVISE — NEEDS CORRECTED KLAUS LIVE RETEST, 2026-09-16**.
+
+Klaus rejected the initial production explanation: redundant notice bars,
+misleading review counts, originals apparently duplicated in Workbench,
+unexplained Preview cuts versus Saved cuts, and a flattened Back button. He then
+approved the focused correction and authorized implementation. No production
+PASS is inferred from that approval or from the earlier mockup PASS.
+
+In the follow-up Klaus confirmed the apparent unchanged UI was an old version,
+then called the corrected version much improved. This is not yet a full PASS.
+His requested refinement uses **Cut images** left and **View Output** right on
+both the work card and editor. Automated audit additionally found cropped tall
+thumbnails and desktop scrollbar-width overflow; the bounded correction and
+regression evidence cover both. Explain the actual retained workspace state
+before a bundled retest: generated, unsaved outputs may coexist with its saved
+outputs. The optional comparison is not another approval or a guaranteed
+one-to-one before/after pairing. No saved-output deletion is implemented by this
+navigation block.
 
 The approved [Sources design](SOURCES_NAVIGATION_DESIGN.md) and bounded
 [implementation contract](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md) own
@@ -1746,30 +1763,51 @@ this gate. Use a fresh test fixture containing at least one approved Source
 Image, one saved cut definition and saved cut outputs. Do not reuse or overwrite
 a personal workspace, backup, restored copy or accepted production-art source.
 
-Bundled user batch:
+Use the animation-editor fixture for an unambiguous baseline: one already
+approved original, nine saved output images and two Library-only pending reviews
+(Animation and Assembly). The original needs no approval, the saved outputs
+need no second acceptance, and those two Library reviews must not appear in
+Sources counts. If testing source-review counts, use a separate explicitly
+submitted test original; do not reset the already-approved original.
+
+Bundled corrected user batch:
 
 1. Open **Sources**. Confirm there are exactly two content tabs: **Source
    Images** and **Image Workbench**. There is no Preparation or Needs-review
-   process tab. **Needs review** is available under the Status filter.
+   process tab or redundant notice bars. **Needs review** is available under
+   the Status filter. A nonzero bracketed tab count means actual reviews for
+   that content, not unsaved work or pending Library changes. In this fixture,
+   neither Sources tab should claim the Library's two reviews.
 2. In Source Images, inspect an approved original. Confirm the whole image,
-   useful size, **Ready to use** explanation and **Open in Image Workbench** are
-   clear. Open and close **Technical details**; lifecycle/identity remain
+   useful size, approved/no-review-needed explanation and existing-work action
+   are clear. Inspect only; do not approve it again. Open and close **Technical
+   details**; lifecycle/identity remain
    available without dominating the card.
 3. Choose **Import source image** and confirm the full form appears only then.
    Close and reopen it. If a staged test intake is provided, confirm its
    Resume/Discard recovery remains visible independently.
 4. Open the approved original in Image Workbench. Confirm the Cutter says
-   **Sources / Image Workbench** and returns to **Image Workbench** without
-   losing saved work. No accepted Cutter geometry/job behavior needs repeating
-   unless a regression is visible.
-5. In Image Workbench, confirm saved definitions and the exact saved-cut count
-   are understandable. An idle saved item must not claim a job is running;
-   exact active job state belongs inside the opened work item. Search retains
-   focus and the Needs-review filter gives a truthful empty/result state.
-6. If a submitted shared Review is present, use the compact notice/filter and
-   confirm it opens the same complete Review rather than a duplicate approval.
-   Check any disabled Sources action exposes its reason on hover and keyboard
-   focus.
+   **Sources / Image Workbench** and uses a normally sized outlined **Back to
+   Image Workbench** button. Return without losing saved work. The Workbench
+   card shows derived-output thumbnails, nine saved outputs and a source link,
+   making it clear this is work from the original rather than a duplicate image.
+5. Inspect **Output images**. The nine saved outputs appear once, with a clear
+   saved state and Library-authoring consequence. Creating Library content is
+   not a second approval. In this disposable fixture, generate a revised set:
+   it says not saved yet, explains **Save output images**, and keeps existing
+   saved outputs in an optional closed **Compare with saved output images**
+   disclosure. This compares available saved images, not necessarily a previous
+   version of each generated image. Saving changes the primary
+   gallery's state without duplicating it or changing existing Library pins.
+6. Search retains focus; the Needs-review filter gives a truthful empty/result
+   state. Idle saved work must not claim a running job. Disabled Sources actions
+   expose a reason on hover and keyboard focus. Check comfortable spacing below
+   search/filter controls at both supported desktop widths.
+
+Accepted Cutter geometry and unrelated shared Review behavior need no repeat
+unless a concrete regression is visible. Exact job/retry/commit and consumer-pin
+protection remain automated verification requirements for the changed output
+presentation; do not ask Klaus to induce network faults.
 
 Report **PASS** or **REVISE** explicitly. A PASS accepts only this navigation and
 explanation block. It does not approve a production art source, image generation,

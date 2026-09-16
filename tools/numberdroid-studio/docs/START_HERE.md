@@ -116,9 +116,13 @@ The [Sources navigation design](SOURCES_NAVIGATION_DESIGN.md) is now approved:
 Sources uses **Source Images** and **Image Workbench**, while **Needs review** is
 an attention filter rather than a third process-like tab. Klaus passed the
 mockup refinements and selected the final Image Workbench name on 2026-09-16;
-the bounded [production implementation](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
-is a candidate and [VT-025](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench)
-remains the separate live acceptance gate.
+the initial [production implementation](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+subsequently received **REVISE** because originals, image work, outputs and
+review counts remained confusing. Klaus approved the bounded clarity correction:
+content-specific review counts, explicit source/output relationships, one output
+gallery and a consistent Back button. [VT-025](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench)
+requires a corrected bundled live retest; that design approval is not production
+acceptance.
 Further screen changes follow discussion and mockup agreement before implementation.
 Runtime materialization, image generation and publication retain separate gates.
 

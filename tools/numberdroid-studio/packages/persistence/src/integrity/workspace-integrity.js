@@ -1,4 +1,5 @@
 import { inspectReviewIntegrity } from './review-integrity.js';
+import { inspectSourceLibraryIntegrity } from './source-library-integrity.js';
 import { assertReviewSavedRecord } from '../sqlite/sqlite-review-store.js';
 import { validateSliceRevisionJobInput } from '../../../application/src/slice-revision-service.js';
 import { inspectClipIntegrity } from './clip-integrity.js';
@@ -1844,13 +1845,14 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
     bundleImportFindings.push({ projectId: null, jobId: null, code: 'BUNDLE_IMPORT_QUERY_FAILED', message: 'Bundle-import integrity could not be inspected.', cause: error.message });
   }
   const reviews = database.userVersion >= 18 ? inspectReviewIntegrity(projectStore.workspace.database) : { ok: true, versionCount: 0, acceptedCount: 0, findings: [] };
+  const sourceLibrary = database.userVersion >= 19 ? inspectSourceLibraryIntegrity(projectStore.workspace.database) : { ok: true, operationCount: 0, findings: [] };
   const clips = database.userVersion >= 17 ? inspectClipIntegrity(projectStore.workspace.database) : { ok: true, versionCount: 0, proposalVersionCount: 0, findings: [] };
   const sliceRevisions = database.userVersion >= 17 ? inspectSliceRevisionIntegrity(projectStore.workspace.database) : { ok: true, revisionCount: 0, findings: [] };
   const assemblies = database.userVersion >= 16 ? inspectAssemblyIntegrity(projectStore.workspace.database) : { ok: true, versionCount: 0, proposalVersionCount: 0, findings: [] };
   const bundleImports = { ok: bundleImportFindings.length === 0, appliedJobCount: bundleImportJobCount, findings: bundleImportFindings };
   return {
     schemaVersion: 1,
-    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && tasks.ok && bundleImports.ok && assemblies.ok && sliceRevisions.ok && clips.ok && reviews.ok,
+    ok: database.ok && artifacts.ok && sourceIntakes.ok && agentAttempts.ok && jobs.ok && assets.ok && rooms.ok && tasks.ok && bundleImports.ok && assemblies.ok && sliceRevisions.ok && clips.ok && reviews.ok && sourceLibrary.ok,
     database,
     artifacts,
     sourceIntakes,
@@ -1858,6 +1860,7 @@ export async function verifyWorkspaceIntegrity({ projectStore, artifactStore }) 
     jobs,
     ...(database.userVersion >= 17 ? { sliceRevisions, clips } : {}),
     ...(database.userVersion >= 18 ? { reviews } : {}),
+    ...(database.userVersion >= 19 ? { sourceLibrary } : {}),
     assets,
     rooms,
     tasks,
