@@ -1549,7 +1549,7 @@ export function createStudioHttpServer({
           if (requestAbort.signal.aborted) throw new StudioError('REQUEST_ABORTED', 'The Library request was cancelled before execution.');
           const project = await studioService.readProjectTrusted(projectId);
           if (requestAbort.signal.aborted) throw new StudioError('REQUEST_ABORTED', 'The Library request was cancelled before execution.');
-          return sourceLibraryService[action]({ ...body, projectId, atlasId }, humanOwnerContext(project));
+          return sourceLibraryService[action]({ ...body, projectId, atlasId }, humanOwnerContext(project), { signal: requestAbort.signal });
         })();
         libraryOperations.add(operation);
         try { sendJson(response, 200, await operation); }

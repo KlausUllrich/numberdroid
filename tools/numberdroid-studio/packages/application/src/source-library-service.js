@@ -127,9 +127,11 @@ export class SourceLibraryService {
     'FORBIDDEN', 'Only the local project owner can add or update Library images directly.');
     return document;
   }
-  async bootstrap(raw, context) {
+  async bootstrap(raw, context, { signal } = {}) {
+    signal?.throwIfAborted();
     fields(raw, ['projectId', 'atlasId']); exactId(raw.atlasId, 'atlasId');
     const document = await this.#owned(raw.projectId, context), head = document.revisions.at(-1);
+    signal?.throwIfAborted();
     const atlas = head.snapshot.atlases?.find(value => value.id === raw.atlasId);
     invariant(atlas, 'ENTITY_NOT_FOUND', 'The cutting work no longer exists.');
     const assets = head.snapshot.assetLibrary?.assets ?? [];
@@ -143,17 +145,23 @@ export class SourceLibraryService {
         && currentOutput(atlas, item.sliceBinding)).map(item => ({ ...structuredClone(item), revision: operation.lastRevision }))),
     };
   }
-  async plan(raw, context) {
+  async plan(raw, context, { signal } = {}) {
+    signal?.throwIfAborted();
     const request = normalizeRequest(raw), document = await this.#owned(request.projectId, context);
-    const prepared = await this.#prepare(request, document, context, 'plan');
+    signal?.throwIfAborted();
+    const prepared = await this.#prepare(request, document, context, 'plan', signal);
+    signal?.throwIfAborted();
     return prepared.view;
   }
-  async save(raw, context) {
+  async save(raw, context, { signal } = {}) {
+    signal?.throwIfAborted();
     const request = normalizeRequest(raw, true), operationKey = raw.idempotencyKey;
     const document = await this.#owned(request.projectId, context);
+    signal?.throwIfAborted();
     const replay = this.#operations.get(request.projectId, operationKey);
     if (replay) return this.#replay(replay, request, context);
-    const prepared = await this.#prepare(request, document, context, operationKey);
+    const prepared = await this.#prepare(request, document, context, operationKey, signal);
+    signal?.throwIfAborted();
     invariant(prepared.view.canSave, prepared.view.code ?? 'SOURCE_LIBRARY_BLOCKED', prepared.view.guidance ?? 'Resolve the Library destinations before saving.', prepared.view.details ?? {});
     const now = this.#clock(), baseRevision = document.revisions.at(-1).number;
     const receipt = { schemaVersion: 1, projectId: request.projectId, atlasId: request.atlasId,
@@ -161,6 +169,9 @@ export class SourceLibraryService {
       summary: prepared.view.summary, items: prepared.view.items, replayed: false };
     const operation = { projectId: request.projectId, operationKey, actorId: context.actor.id, atlasId: request.atlasId, request, receipt,
       firstRevision: prepared.revisions[0]?.number ?? baseRevision, lastRevision: receipt.revision, createdAt: now };
+    // Last cancellable point: each following SQLite transaction is synchronous
+    // and must finish atomically. A committed result remains replayable.
+    signal?.throwIfAborted();
     try {
       if (prepared.revisions.length) await this.#projects.appendRevisionBatch(request.projectId, baseRevision, prepared.revisions,
         { afterAppend: database => this.#operations.recordInTransaction(database, operation) });
@@ -177,7 +188,7 @@ export class SourceLibraryService {
       'IDEMPOTENCY_CONFLICT', 'This save identity already belongs to a different request. Retry the original unchanged save.');
     return { ...structuredClone(operation.receipt), replayed: true };
   }
-  async #prepare(request, document, context, operationKey) {
+  async #prepare(request, document, context, operationKey, signal) {
     const originalHead = document.revisions.at(-1), snapshot = originalHead.snapshot;
     invariant(originalHead.number === request.expectedRevision, 'REVISION_CONFLICT', 'The project changed. Recheck the Library destinations before saving.');
     const atlas = snapshot.atlases?.find(value => value.id === request.atlasId);
@@ -193,7 +204,7 @@ export class SourceLibraryService {
     const execute = async (type, payload) => {
       const revision = simulationStore.document().revisions.at(-1).number;
       return simulation.execute({ schemaVersion: 1, commandId: `${prefix}.${++sequence}`, idempotencyKey: `${prefix}.${sequence}`,
-        type, projectId: request.projectId, baseRevision: revision, expectedVersion: revision, payload }, context);
+        type, projectId: request.projectId, baseRevision: revision, expectedVersion: revision, payload }, context, { signal });
     };
     const block = (code, guidance, details) => ({ revisions: [], view: { schemaVersion: 1, projectId: request.projectId, atlasId: atlas.id,
       revision: originalHead.number, status: 'BLOCKED', canSave: false, code, guidance, details, summary: summary([]), items: [] } });
@@ -226,6 +237,7 @@ export class SourceLibraryService {
     }
     const operations = this.#operations.listForAtlas(request.projectId, atlas.id), items = [];
     for (const item of request.items) {
+      signal?.throwIfAborted();
       const d = item.destination;
       if (d.operation === 'skip') { items.push({ rectangleId: item.rectangleId, status: 'skipped' }); continue; }
       const current = simulationStore.document().revisions.at(-1).snapshot.assetLibrary?.assets.find(asset => asset.assetId === d.assetId);
@@ -250,7 +262,7 @@ export class SourceLibraryService {
         const trial = new StudioService({ store: trialStore, jobStore: this.#jobs, clock: this.#clock });
         const revision = trialStore.document().revisions.at(-1).number;
         await trial.execute({ schemaVersion: 1, commandId: `${prefix}.check.${sequence}`, idempotencyKey: `${prefix}.check.${sequence}`,
-          type: 'asset.save', projectId: request.projectId, baseRevision: revision, expectedVersion: revision, payload }, context);
+          type: 'asset.save', projectId: request.projectId, baseRevision: revision, expectedVersion: revision, payload }, context, { signal });
         const candidate = trialStore.document().revisions.at(-1).snapshot.assetLibrary.assets.find(asset => asset.assetId === current.assetId);
         if (sameAsset(current, candidate)) { items.push(assetResult(item.rectangleId, 'unchanged', current)); continue; }
       }

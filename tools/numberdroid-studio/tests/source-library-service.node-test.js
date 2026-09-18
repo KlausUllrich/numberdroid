@@ -244,3 +244,56 @@ test('ordinary semantic callers cannot forge outer-workflow command identities o
   assert.equal(saved.summary.created, 3);
   assert.equal((await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts })).ok, true);
 });
+
+test('preaborted bootstrap, plan and save never mutate; the original save can retry exactly', { timeout: 60_000 }, async t => {
+  const f = await fixture(t), jobId = await f.preview(), request = await f.request({ jobId });
+  const before = await f.studio.readProjectTrusted(projectId), signal = AbortSignal.abort();
+  const { idempotencyKey: _key, ...plan } = request;
+  await assert.rejects(f.service.bootstrap({ projectId, atlasId: request.atlasId }, owner, { signal }), { name: 'AbortError' });
+  await assert.rejects(f.service.plan(plan, owner, { signal }), { name: 'AbortError' });
+  await assert.rejects(f.service.save(request, owner, { signal }), { name: 'AbortError' });
+  assert.deepEqual(await f.studio.readProjectTrusted(projectId), before);
+  assert.equal(f.jobs.get(projectId, jobId).state, 'SUCCEEDED');
+  assert.equal(f.operations.get(projectId, request.idempotencyKey), null);
+  const saved = await f.service.save(request, owner);
+  await assert.rejects(f.service.save(request, owner, { signal }), { name: 'AbortError' });
+  assert.deepEqual(await f.service.save(request, owner), { ...saved, replayed: true });
+});
+
+test('cancellation during async owner admission stops all workflow entry points', { timeout: 60_000 }, async t => {
+  const f = await fixture(t), request = await f.request({ jobId: await f.preview() });
+  const { idempotencyKey: _key, ...plan } = request;
+  const before = await f.studio.readProjectTrusted(projectId);
+  for (const [method, input] of [['bootstrap', { projectId, atlasId: request.atlasId }], ['plan', plan], ['save', request]]) {
+    const controller = new AbortController();
+    const projectStore = { workspace: f.store.workspace, supportsAtomicAssetLibrary: true,
+      async loadProject(id) { const result = await f.store.loadProject(id); controller.abort(); return result; },
+      appendRevisionBatch: (...args) => f.store.appendRevisionBatch(...args) };
+    const service = new SourceLibraryService({ projectStore, jobStore: f.jobs, operationStore: f.operations });
+    await assert.rejects(service[method](input, owner, { signal: controller.signal }), { name: 'AbortError' });
+  }
+  assert.deepEqual(await f.studio.readProjectTrusted(projectId), before);
+  assert.equal(f.operations.get(projectId, request.idempotencyKey), null);
+});
+
+test('cancellation during command preparation and before an unchanged receipt leaves no partial save', { timeout: 60_000 }, async t => {
+  const f = await fixture(t), jobId = await f.preview(), request = await f.request({ jobId });
+  const before = await f.studio.readProjectTrusted(projectId), controller = new AbortController();
+  const service = new SourceLibraryService({ projectStore: f.store, jobStore: f.jobs, operationStore: f.operations,
+    clock() { controller.abort(); return new Date().toISOString(); } });
+  await assert.rejects(service.save(request, owner, { signal: controller.signal }), { name: 'AbortError' });
+  assert.deepEqual(await f.studio.readProjectTrusted(projectId), before);
+  assert.equal(f.jobs.get(projectId, jobId).state, 'SUCCEEDED');
+  assert.equal(f.operations.get(projectId, request.idempotencyKey), null);
+  await f.service.save(request, owner);
+  const unchangedRequest = await f.request(), afterSave = await f.studio.readProjectTrusted(projectId);
+  const unchangedController = new AbortController();
+  const unchangedService = new SourceLibraryService({ projectStore: f.store, jobStore: f.jobs, operationStore: f.operations,
+    clock() { unchangedController.abort(); return new Date().toISOString(); } });
+  await assert.rejects(unchangedService.save(unchangedRequest, owner, { signal: unchangedController.signal }), { name: 'AbortError' });
+  assert.deepEqual(await f.studio.readProjectTrusted(projectId), afterSave);
+  assert.equal(f.operations.get(projectId, unchangedRequest.idempotencyKey), null);
+  const unchanged = await f.service.save(unchangedRequest, owner);
+  assert.equal(unchanged.status, 'UNCHANGED');
+  assert.deepEqual(await f.service.save(unchangedRequest, owner), { ...unchanged, replayed: true });
+});

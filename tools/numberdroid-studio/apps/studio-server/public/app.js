@@ -1919,6 +1919,7 @@ function renderSourceLibraryWorkflow(atlas) {
           if (pending) { if (!node.hasAttribute('data-library-was-disabled')) node.dataset.libraryWasDisabled = String(node.disabled); node.disabled = true; }
           else if (node.hasAttribute('data-library-was-disabled')) { node.disabled = node.dataset.libraryWasDisabled === 'true'; delete node.dataset.libraryWasDisabled; }
         }
+        if (!pending) renderWorkspace({ preserveCutterDraft: true });
       },
       onOpenAsset: assetId => {
         const asset = state.project?.snapshot.assetLibrary?.assets.find(item => item.assetId === assetId);
@@ -1931,6 +1932,8 @@ function renderSourceLibraryWorkflow(atlas) {
 
 function renderCutter(source) {
   const cutter = state.cutter; const atlas = currentCutterAtlas();
+  const libraryWorkflow = atlas && state.uiMode !== 'remote' ? renderSourceLibraryWorkflow(atlas) : null;
+  if (sourceLibraryController?.hasUncertain()) cutter.view = 'outputs';
   const section = renderCutterEditor({ cutter, source, atlas, pending: state.cutterPending || state.sourceMutationPending, job: state.cutterJob });
   section.dataset.cutterModelFingerprint = cutterModelFingerprint(); section.inert = state.sourceMutationPending;
   const actions = document.createElement('div'); actions.className = 'cutter-actions';
@@ -2003,7 +2006,7 @@ function renderCutter(source) {
 
   const outputs = cutterOutputs(atlas);
   if (cutter.view === 'outputs') {
-    if (atlas && state.uiMode !== 'remote') section.append(renderSourceLibraryWorkflow(atlas));
+    if (libraryWorkflow) section.append(libraryWorkflow);
     else section.append(emptyState('No output images yet', 'Save your cut layout, then generate images from the included areas.'));
     if (animationSupported() && (outputs.saved.length || outputs.preview.length)) {
       const animation = document.createElement('details'); animation.className = 'cutter-animation-outputs';

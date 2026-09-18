@@ -450,13 +450,16 @@ try {
         const openOutputs = card?.querySelector('[data-open-cutter-view="outputs"]');
         const exactAtlasLink = openOutputs?.dataset.openAtlas === atlasId;
         openOutputs?.click(); await settle();
+        await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4
+          && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Library destinations did not load the four saved outputs');
         const back = document.querySelector('.cutter-back-button');
         const backBounds = back?.getBoundingClientRect();
         const outputs = {
-          primaryGalleries: document.querySelectorAll('.cutter-primary-outputs').length,
-          outputKind: document.querySelector('.cutter-primary-outputs')?.dataset.outputKind,
-          images: document.querySelectorAll('.cutter-primary-outputs img').length,
+          workflows: document.querySelectorAll('[data-source-library]').length,
+          destinations: document.querySelectorAll('[data-source-library-field="target"]').length,
+          images: document.querySelectorAll('.source-library-card > .source-library-image img').length,
           compare: Boolean(document.querySelector('.cutter-output-comparison')),
+          animationInitiallyClosed: document.querySelector('.cutter-animation-outputs')?.open === false,
           oldSectionTitles: [...document.querySelectorAll('h2,h3')].some(node => ['Preview cuts', 'Saved cuts'].includes(node.textContent.trim())),
           backText: back?.textContent,
           backHeight: backBounds?.height ?? 0,
@@ -468,19 +471,42 @@ try {
         const savedConfirm = window.confirm;
         window.confirm = () => true;
         try {
-          const assetButton = document.querySelector('.cutter-primary-outputs [data-create-asset-slice]');
-          const savedImage = assetButton?.closest('figure')?.querySelector('img')?.getAttribute('src');
+          const project = async () => (await fetch('/api/projects/numberdroid-studio-checkpoint-2b')).json();
+          const before = await project();
+          authoring.newDestinations = [...document.querySelectorAll('[data-source-library-field="target"]')].filter(node => node.value === 'new').length;
+          document.querySelector('[data-source-library-action="plan"]').click();
+          await waitFor(() => !document.querySelector('[data-source-library-action="save"]')?.disabled, 'Checking saved outputs did not enable Library save');
+          authoring.planDidNotMutate = (await project()).revision === before.revision;
+          document.querySelector('[data-source-library-action="save"]').click();
+          await waitFor(() => document.querySelectorAll('[data-source-library-action="open"]').length === 4
+            && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Library batch did not save all four images');
+          const saved = await project();
+          authoring.addedCount = saved.snapshot.assetLibrary.assets.length - (before.snapshot.assetLibrary?.assets.length ?? 0);
+          const savedPins = saved.snapshot.assetLibrary.assets.map(asset => [asset.assetId, asset.assetVersion, asset.metadataVersion]);
+          document.querySelector('[data-source-library-action="plan"]').click();
+          await waitFor(() => document.querySelectorAll('.source-library-result').length === 4
+            && [...document.querySelectorAll('.source-library-result')].every(node => node.textContent.includes('Already in Library'))
+            && !document.querySelector('[data-source-library-action="save"]')?.disabled, 'Repeated save did not identify unchanged images');
+          document.querySelector('[data-source-library-action="save"]').click();
+          await waitFor(() => document.querySelector('[data-source-library]')?.textContent.includes('0 added, 0 updated, 4 unchanged, 0 skipped.')
+            && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Unchanged confirmation did not finish');
+          const repeated = await project();
+          authoring.repeatUnchanged = repeated.revision === saved.revision
+            && JSON.stringify(repeated.snapshot.assetLibrary.assets.map(asset => [asset.assetId, asset.assetVersion, asset.metadataVersion])) === JSON.stringify(savedPins);
+          const assetButton = document.querySelector('[data-source-library-action="open"]');
+          const savedImage = assetButton?.closest('.source-library-card')?.querySelector('img')?.getAttribute('src');
           assetButton?.click();
-          await waitFor(() => document.querySelector('[data-asset-editor-artwork]'), 'Saved output did not open Asset editor');
-          authoring.assetImageMatches = document.querySelector('[data-asset-editor-artwork]')?.getAttribute('href') === savedImage;
-          document.querySelector('[data-asset-editor-action="back"]')?.click();
-          await waitFor(() => document.querySelector('.cutter-primary-outputs[data-output-kind="saved"]'), 'Asset Back did not restore saved outputs');
+          await waitFor(() => document.querySelector('[data-library-detail="image"] [data-library-artwork] img'), 'Saved output did not open Library detail');
+          authoring.assetImageMatches = new URL(document.querySelector('[data-library-detail="image"] [data-library-artwork] img').getAttribute('src'), location.href).href === new URL(savedImage, location.href).href;
+          document.querySelector('[data-library-action="back"]')?.click();
+          await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4, 'Library Back did not restore image destinations');
           authoring.assetReturned = true;
-          const selected = [...document.querySelectorAll('.cutter-primary-outputs [data-animation-select-cut]')].slice(0, 2);
+          document.querySelector('.cutter-animation-outputs summary')?.click(); await settle();
+          const selected = [...document.querySelectorAll('.cutter-animation-outputs [data-animation-select-cut]')].slice(0, 2);
           const selectedImages = selected.map(node => node.closest('figure')?.querySelector('img')?.getAttribute('src'));
           const selectedPins = selected.map(node => ({ sliceId: node.dataset.animationSelectCut, version: node.dataset.sliceVersion }));
           for (const check of selected) check.checked = true;
-          document.querySelector('.cutter-primary-outputs [data-create-animation]')?.click();
+          document.querySelector('.cutter-animation-outputs [data-create-animation]')?.click();
           await waitFor(() => document.querySelectorAll('[data-animation-frame]').length === 2, 'Saved selections did not open a two-frame Animation');
           authoring.animationImagesMatch = JSON.stringify([...document.querySelectorAll('[data-animation-frame] img')].map(node => node.getAttribute('src'))) === JSON.stringify(selectedImages);
           authoring.animationPinsMatch = true;
@@ -490,25 +516,23 @@ try {
             authoring.animationPinsMatch &&= reference.includes(pin.sliceId) && reference.includes('cut v' + pin.version);
           }
           document.querySelector('[data-animation-action="back"]')?.click();
-          await waitFor(() => document.querySelector('.cutter-primary-outputs[data-output-kind="saved"]'), 'Animation Back did not restore saved outputs');
+          await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4, 'Animation Back did not restore image destinations');
           authoring.animationReturned = true;
           await waitFor(() => document.querySelector('[data-preview-atlas]') && !document.querySelector('[data-preview-atlas]').disabled, 'Output generation did not become available');
           document.querySelector('[data-preview-atlas]').click();
-          await waitFor(() => document.querySelector('.cutter-primary-outputs[data-output-kind="preview"]') && !document.querySelector('[data-discard-cutter-job]')?.disabled, 'Generated outputs did not become ready');
-          const primary = document.querySelector('.cutter-primary-outputs');
-          const compare = document.querySelector('.cutter-output-comparison');
-          authoring.unsavedImages = primary.querySelectorAll('img').length;
-          authoring.unsavedAuthoringControls = primary.querySelectorAll('[data-create-asset-slice],[data-create-animation],[data-animation-select-cut]').length;
-          authoring.compareInitiallyClosed = compare?.open === false;
+          await waitFor(() => document.querySelector('.cutter-job-status')?.textContent.includes('Generated images ready')
+            && document.querySelector('[data-discard-cutter-job]') && !document.querySelector('[data-discard-cutter-job]').disabled
+            && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Generated outputs did not become ready');
+          authoring.unsavedImages = document.querySelectorAll('.source-library-card > .source-library-image img').length;
           authoring.unsavedHorizontalOverflow = document.documentElement.scrollWidth > document.documentElement.clientWidth;
-          compare?.querySelector('summary')?.click(); await settle();
-          authoring.savedComparisonImages = compare?.querySelectorAll('img').length ?? 0;
-          authoring.savedComparisonAssetActions = compare?.querySelectorAll('[data-create-asset-slice]').length ?? 0;
-          authoring.savedComparisonFrameChoices = compare?.querySelectorAll('[data-animation-select-cut]').length ?? 0;
-          authoring.savedComparisonAnimationAction = compare?.querySelector('[data-create-animation]')?.textContent;
+          document.querySelector('[data-source-library-action="plan"]').click();
+          await waitFor(() => document.querySelector('[data-source-library]')?.textContent.includes('No Library image or original is deleted.'), 'Duplicate generation did not explain discard and preserved Library content');
+          authoring.duplicateSaveBlocked = document.querySelector('[data-source-library-action="save"]').disabled;
           document.querySelector('[data-discard-cutter-job]')?.click();
-          await waitFor(() => document.querySelector('.cutter-primary-outputs[data-output-kind="saved"]') && !document.querySelector('.cutter-output-comparison') && !document.querySelector('.cutter-back-button')?.disabled, 'Discard did not restore the unchanged saved gallery');
-          authoring.restoredSavedImages = document.querySelectorAll('.cutter-primary-outputs img').length;
+          await waitFor(() => document.querySelector('.cutter-job-status')?.textContent.includes('Generated results discarded')
+            && !document.querySelector('[data-discard-cutter-job]') && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Discard did not restore existing images');
+          authoring.restoredSavedImages = document.querySelectorAll('.source-library-card > .source-library-image img').length;
+          authoring.discardPreservedLibrary = JSON.stringify((await project()).snapshot.assetLibrary.assets.map(asset => [asset.assetId, asset.assetVersion, asset.metadataVersion])) === JSON.stringify(savedPins);
         } finally { window.confirm = savedConfirm; }
         document.querySelector('.cutter-back-button')?.click(); await settle();
         const sourceLink = document.querySelector('.workbench-card [data-view-source]');
@@ -529,6 +553,7 @@ try {
       awaitPromise: true,
       returnByValue: true,
     }, sessionId);
+    assert(!result.exceptionDetails, `Sources navigation interaction failed: ${JSON.stringify(result.exceptionDetails)}`);
     sourcesNavigationEvidence = result.result?.value ?? null;
     assert(JSON.stringify(sourcesNavigationEvidence?.initial?.tabLabels) === JSON.stringify(['Source Images', 'Image Workbench'])
       && sourcesNavigationEvidence.initial.activeTab === 'images'
@@ -549,10 +574,11 @@ try {
       && sourcesNavigationEvidence.workbench.closedTechnicalDetails === true,
     `Image Workbench did not show the truthful saved atlas/output state: ${JSON.stringify(sourcesNavigationEvidence)}`);
     assert(sourcesNavigationEvidence.exactAtlasLink === true
-      && sourcesNavigationEvidence.outputs?.primaryGalleries === 1
-      && sourcesNavigationEvidence.outputs.outputKind === 'saved'
+      && sourcesNavigationEvidence.outputs?.workflows === 1
+      && sourcesNavigationEvidence.outputs.destinations === 4
       && sourcesNavigationEvidence.outputs.images === 4
       && sourcesNavigationEvidence.outputs.compare === false
+      && sourcesNavigationEvidence.outputs.animationInitiallyClosed === true
       && sourcesNavigationEvidence.outputs.oldSectionTitles === false
       && sourcesNavigationEvidence.outputs.backText === '← Back to Image Workbench'
       && sourcesNavigationEvidence.outputs.backHeight >= 36
@@ -562,19 +588,19 @@ try {
       && sourcesNavigationEvidence.sourceReturn?.activeTab === 'images'
       && sourcesNavigationEvidence.sourceReturn.linkedSourceVisible === true,
     `Saved output gallery, exact work link, source return, or back-button sizing failed: ${JSON.stringify(sourcesNavigationEvidence)}`);
-    assert(sourcesNavigationEvidence.authoring?.assetImageMatches === true
+    assert(sourcesNavigationEvidence.authoring?.planDidNotMutate === true
+      && sourcesNavigationEvidence.authoring.addedCount === sourcesNavigationEvidence.authoring.newDestinations
+      && sourcesNavigationEvidence.authoring.newDestinations === (width === 1440 ? 4 : 0)
+      && sourcesNavigationEvidence.authoring.repeatUnchanged === true
+      && sourcesNavigationEvidence.authoring.assetImageMatches === true
       && sourcesNavigationEvidence.authoring.assetReturned === true
       && sourcesNavigationEvidence.authoring.animationImagesMatch === true
       && sourcesNavigationEvidence.authoring.animationPinsMatch === true
       && sourcesNavigationEvidence.authoring.animationReturned === true
       && sourcesNavigationEvidence.authoring.unsavedImages === 4
-      && sourcesNavigationEvidence.authoring.unsavedAuthoringControls === 0
-      && sourcesNavigationEvidence.authoring.compareInitiallyClosed === true
       && sourcesNavigationEvidence.authoring.unsavedHorizontalOverflow === false
-      && sourcesNavigationEvidence.authoring.savedComparisonImages === 4
-      && sourcesNavigationEvidence.authoring.savedComparisonAssetActions === 4
-      && sourcesNavigationEvidence.authoring.savedComparisonFrameChoices === 4
-      && sourcesNavigationEvidence.authoring.savedComparisonAnimationAction === 'Create Animation from selected saved images'
+      && sourcesNavigationEvidence.authoring.duplicateSaveBlocked === true
+      && sourcesNavigationEvidence.authoring.discardPreservedLibrary === true
       && sourcesNavigationEvidence.authoring.restoredSavedImages === 4,
     `Saved-image authoring routes or unsaved-output isolation failed: ${JSON.stringify(sourcesNavigationEvidence.authoring)}`);
     assert(sourcesNavigationEvidence.searchRetention?.value === 'family'
