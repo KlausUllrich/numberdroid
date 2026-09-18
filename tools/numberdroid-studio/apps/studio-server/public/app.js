@@ -1921,9 +1921,9 @@ function renderSourceLibraryWorkflow(atlas) {
         }
         if (!pending) renderWorkspace({ preserveCutterDraft: true });
       },
-      onOpenAsset: assetId => {
-        const asset = state.project?.snapshot.assetLibrary?.assets.find(item => item.assetId === assetId);
-        if (asset) libraryOpenSavedDetail(libraryAssetPin(asset, 'image'));
+      onOpenAsset: saved => {
+        const pin = libraryAssetPin(saved, 'image');
+        if (pin) libraryOpenSavedDetail(pin);
       },
     });
   } else sourceLibraryController.update(context);

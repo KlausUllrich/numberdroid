@@ -38,12 +38,12 @@ async function harness({ generated = false, storageFailure = false, storage: ret
   const bootstrap = { projectId: context.projectId, atlasId: context.atlas.id, revision: context.revision,
     expectedAtlasVersion: 1, expectedAtlasFingerprint: context.atlas.definitionFingerprint,
     savedInput: { mode: 'saved', slices: [{ rectangleId: 'rect.one', sliceId: 'slice.one', expectedSliceVersion: 1 }] }, targets, priorMappings: [] };
-  const storage = retainedStorage ?? new Map(), calls = [], busyEvents = [], savedEvents = [];
+  const storage = retainedStorage ?? new Map(), calls = [], busyEvents = [], savedEvents = [], openedEvents = [];
   const defaultRequest = async (action, input) => {
     if (action === 'bootstrap') return structuredClone(bootstrap);
     if (action === 'plan') return { canSave: true, status: 'READY', summary: { created: 1, updated: 0, unchanged: 0, skipped: 0 }, items: [] };
     return { projectId: context.projectId, atlasId: context.atlas.id, revision: 8, status: 'SAVED',
-      summary: { created: 1, updated: 0, unchanged: 0, skipped: 0 }, items: [{ rectangleId: 'rect.one', assetId: input.items[0].destination.assetId, assetVersion: 1 }] };
+      summary: { created: 1, updated: 0, unchanged: 0, skipped: 0 }, items: [{ rectangleId: 'rect.one', assetId: input.items[0].destination.assetId, assetVersion: 1, metadataVersion: 1 }] };
   };
   const document = { createElement: tag => new Node(tag, document), activeElement: null };
   const create = runInNewContext(`${executable}; createSourceLibraryController;`, {
@@ -57,9 +57,9 @@ async function harness({ generated = false, storageFailure = false, storage: ret
   const controller = create({ context, request: async (action, input) => {
     calls.push({ action, input: structuredClone(input) });
     return customRequest ? customRequest(action, input, defaultRequest) : defaultRequest(action, input);
-  }, onBusy: value => busyEvents.push(value), onOpenAsset() {}, onSaved: async value => { savedEvents.push(value); await onSaved?.(value); } });
+  }, onBusy: value => busyEvents.push(value), onOpenAsset: value => openedEvents.push(structuredClone(value)), onSaved: async value => { savedEvents.push(value); await onSaved?.(value); } });
   await new Promise(resolve => setImmediate(resolve));
-  return { controller, context, bootstrap, storage, calls, busyEvents, savedEvents, document,
+  return { controller, context, bootstrap, storage, calls, busyEvents, savedEvents, openedEvents, document,
     change(field, value) { const target = controller.element.querySelectorAll('[data-source-library-field]').find(node => node.dataset.sourceLibraryField === field);
       assert.ok(target); target.value = value; controller.element.listeners.change({ target }); },
   };
@@ -211,5 +211,19 @@ test('keyboard action focus survives busy rendering and the checked plan result'
     assert.equal(h.document.activeElement.querySelectorAll('[data-source-library-action]')[0]?.dataset.sourceLibraryAction, 'plan');
     complete({ canSave: true, summary: { created: 1, updated: 0, unchanged: 0, skipped: 0 }, items: [] }); await checking;
     assert.equal(h.document.activeElement.dataset.sourceLibraryAction, 'plan'); assert.equal(h.document.activeElement.disabled, false);
+  } finally { h.controller.dispose(); }
+});
+
+test('Open in Library retains the exact receipt pin when the current project advances', { timeout: 5000 }, async () => {
+  const h = await harness();
+  try {
+    await h.controller.check(); await h.controller.save();
+    h.controller.update({ ...h.context, revision: 20 });
+    const saved = h.savedEvents[0].items[0];
+    const open = h.controller.element.querySelectorAll('[data-source-library-action]').find(node => node.dataset.sourceLibraryAction === 'open');
+    assert.ok(open); h.controller.element.listeners.click({ target: open });
+    assert.deepEqual(h.openedEvents, [{ assetId: saved.assetId, assetVersion: 1, metadataVersion: 1 }]);
+    const app = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
+    assert.match(app, /onOpenAsset: saved => \{\s*const pin = libraryAssetPin\(saved, 'image'\);\s*if \(pin\) libraryOpenSavedDetail\(pin\);/);
   } finally { h.controller.dispose(); }
 });

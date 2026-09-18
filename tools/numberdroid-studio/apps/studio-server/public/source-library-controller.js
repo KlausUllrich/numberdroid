@@ -201,7 +201,10 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
     const node = event.target.closest('[data-source-library-action]'); if (!node || node.disabled) return;
     const action = node.dataset.sourceLibraryAction;
     if (action === 'plan') void check(); else if (action === 'save') void save(); else if (action === 'reload' || action === 'recheck') void refresh({ preserve: action === 'recheck' });
-    else if (action === 'open') onOpenAsset(node.dataset.assetId);
+    else if (action === 'open') {
+      const saved = receipt?.items?.find(item => item.assetId === node.dataset.assetId);
+      if (saved) onOpenAsset({ assetId: saved.assetId, assetVersion: saved.assetVersion, metadataVersion: saved.metadataVersion });
+    }
   });
   function update(next) {
     if (disposed) return; const prior = current; current = next;
