@@ -10,14 +10,19 @@ export function cutterOutputName(output, index) { return cutterDisplayName(outpu
 export function cutterActionState({ cutter, source, atlas, pending, job }) {
   const issues = cutterEditIssues(cutter.rectangles, source);
   const unresolved = job && !['APPLIED', 'DISCARDED'].includes(job.state);
+  const stale = atlas && Number.isSafeInteger(cutter.syncedVersion) && atlas.definitionVersion !== cutter.syncedVersion;
   const jobReason = !unresolved ? '' : ['QUEUED', 'RUNNING'].includes(job.state)
     ? job.cancelRequested ? 'Cancellation is pending. Wait until it finishes, then discard the job.' : 'Images are being generated. Wait for completion, or cancel the job.'
     : ['FAILED', 'CANCELLED'].includes(job.state) ? 'Discard the failed or cancelled job before saving a layout or generating again.'
       : 'Save or discard the current generated results before continuing.';
   const commonReason = pending ? 'Another image operation is in progress.'
+    : stale ? 'The saved layout changed elsewhere. Your local edits are retained. Return to Image Workbench and reopen this work to load the latest layout.'
     : unresolved ? jobReason
       : !issues.canPreview ? issues.messages.join(' ') : '';
-  const saveReason = commonReason || (!cutter.dirty && atlas && !cutter.operations?.define ? 'The cut layout is already saved. There are no changes to save.' : '');
+  // A newer saved version may be our own successful save whose response was
+  // lost. Keep the retained immutable request/key reachable for exact replay.
+  const saveReason = cutter.operations?.define && !pending ? ''
+    : commonReason || (!cutter.dirty && atlas ? 'The cut layout is already saved. There are no changes to save.' : '');
   const generateReason = commonReason || (!atlas || cutter.dirty ? 'Save the changed cut layout first, then generate its output images.' : '');
   return { issues, saveReason, generateReason };
 }

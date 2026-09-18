@@ -4545,7 +4545,7 @@ try {
     })()`);
     assert(ui.saveDisabled && ui.generateEnabled && ui.saveBeforeGenerate, `Clean cutter action readiness/order failed: ${JSON.stringify(ui)}`);
     assert(checkpoint2bSourcesTabStyle, 'Sources tab reference style missing');
-    assert.deepEqual(ui.tabStyle, checkpoint2bSourcesTabStyle, 'Cutter tabs must match Sources tab treatment');
+    assert(JSON.stringify(ui.tabStyle) === JSON.stringify(checkpoint2bSourcesTabStyle), `Cutter tabs must match Sources tab treatment: ${JSON.stringify({cutter:ui.tabStyle,sources:checkpoint2bSourcesTabStyle})}`);
     await evaluate(`(() => { document.querySelector('[data-cutter-select="0"]').click(); const width=document.querySelector('[data-rectangle-field="width"]'); width.value='650'; width.dispatchEvent(new Event('change',{bubbles:true})); })()`); await settle();
     const overlapping = await evaluate(`(() => {
       const handle=document.querySelector('[data-cutter-resize="0"][data-cutter-edge="e"]'); handle.scrollIntoView({block:'center',inline:'center'});
@@ -4556,8 +4556,8 @@ try {
         selection:document.querySelector('[data-rectangle-row]')?.dataset.rectangleRow,geometry:geometry(),
         semanticOrder:[...document.querySelectorAll('[data-cutter-select]')].map(n=>n.dataset.cutterSelect),generateDisabled:document.querySelector('[data-preview-atlas]').disabled};
     })()`);
-    assert.equal(overlapping.hitIndex,'0','Selected low-index resize handle must win real hit-testing over overlapping higher-index cut');
-    assert.equal(overlapping.hitEdge,'e'); assert.equal(overlapping.selection,'0'); assert.equal(overlapping.generateDisabled,true);
+    assert(overlapping.hitIndex==='0' && overlapping.hitEdge==='e','Selected low-index resize handle must win real hit-testing over overlapping higher-index cut');
+    assert(overlapping.selection==='0' && overlapping.generateDisabled===true, `Overlapping cut must retain selection and block generation: ${JSON.stringify(overlapping)}`);
     try {
       await devtools.send('Input.dispatchMouseEvent',{type:'mousePressed',x:overlapping.x,y:overlapping.y,button:'left',buttons:1,clickCount:1},sessionId);
       await devtools.send('Input.dispatchMouseEvent',{type:'mouseMoved',x:overlapping.x+13*overlapping.scale,y:overlapping.y,button:'left',buttons:1},sessionId);
@@ -4566,17 +4566,18 @@ try {
     const resized = await evaluate(`({selection:document.querySelector('[data-rectangle-row]')?.dataset.rectangleRow,
       semanticOrder:[...document.querySelectorAll('[data-cutter-select]')].map(n=>n.dataset.cutterSelect),
       geometry:[...document.querySelectorAll('[data-cutter-move]')].sort((a,b)=>Number(a.dataset.cutterMove)-Number(b.dataset.cutterMove)).map(n=>['x','y','width','height'].map(key=>Number(n.getAttribute(key))))})`);
-    assert.equal(resized.selection,'0'); assert.deepEqual(resized.semanticOrder,overlapping.semanticOrder);
-    assert.deepEqual(resized.geometry[0],[3,3,663,622]); assert.deepEqual(resized.geometry.slice(1),overlapping.geometry.slice(1));
+    assert(resized.selection==='0' && JSON.stringify(resized.semanticOrder)===JSON.stringify(overlapping.semanticOrder), 'Selected cut and authored order must survive an overlapping resize');
+    assert(JSON.stringify(resized.geometry[0])===JSON.stringify([3,3,663,622]), `Selected cut resize geometry differs: ${JSON.stringify(resized.geometry[0])}`);
+    assert(JSON.stringify(resized.geometry.slice(1))===JSON.stringify(overlapping.geometry.slice(1)), 'Overlapping resize must not modify other cuts');
     await evaluate(`document.querySelector('[data-cutter-tool="undo"]').click()`); await settle();
     await evaluate(`document.querySelector('[data-cutter-tool="undo"]').click()`); await settle();
-    assert.equal(await evaluate(`document.querySelector('[data-preview-atlas]').disabled`),false,'Restored valid saved layout must enable generation again');
-    assert.equal(await evaluate(`document.querySelector('.cutter-actions [data-save-atlas]').disabled`),true,'Restored unchanged layout must not enable a redundant Save');
+    assert(await evaluate(`document.querySelector('[data-preview-atlas]').disabled`)===false,'Restored valid saved layout must enable generation again');
+    assert(await evaluate(`document.querySelector('.cutter-actions [data-save-atlas]').disabled`)===true,'Restored unchanged layout must not enable a redundant Save');
     await evaluate(`document.querySelector('[data-cutter-view="outputs"]').click()`); await settle();
     await evaluate(`document.querySelector('.cutter-animation-outputs').open=true`); await settle();
     const animationGap = await evaluate(`(() => {const grid=document.querySelector('.cutter-animation-outputs .slice-preview-grid'),button=document.querySelector('.cutter-animation-outputs [data-create-animation]');return button.getBoundingClientRect().top-grid.getBoundingClientRect().bottom;})()`);
     assert(animationGap>=16,`Animation create action requires at least16px separation, got ${animationGap}`);
-    assert.equal(await evaluate(`fetch('/api/projects/numberdroid-studio-checkpoint-2b').then(r=>r.json()).then(p=>p.revision)`),7);
+    assert(await evaluate(`fetch('/api/projects/numberdroid-studio-checkpoint-2b').then(r=>r.json()).then(p=>p.revision)`)===7, 'Native cutter checks must preserve the saved project revision');
     checkpoint2bInteractionEvidence.cutterFollowup = { cleanActionReadiness:true,saveBeforeGenerate:true,tabsMatchSources:true,
       overlappingSelectedHandle:{before:overlapping,after:resized},generationRestored:true,animationGap,savedRevisionUnchanged:7 };
     assertNoProtocolErrors('After Checkpoint 2B interactions');

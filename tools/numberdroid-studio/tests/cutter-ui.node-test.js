@@ -23,6 +23,17 @@ test('Cutter actions distinguish valid geometry, saved layout, pending work and 
   assert.match(cutterActionState({ ...context, job: { state: 'RUNNING', cancelRequested: true } }).generateReason, /Cancellation is pending/);
   assert.match(cutterActionState({ ...context, pending: true }).generateReason, /in progress/);
   for (const state of ['APPLIED', 'DISCARDED']) assert.equal(cutterActionState({ ...context, job: { state } }).generateReason, '');
+  const staleDraft = { ...cutter, syncedVersion: 1, dirty: false };
+  const newerAtlas = { definitionVersion: 2, rectangles: [{ ...cutter.rectangles[0], x: 50 }] };
+  const stale = cutterActionState({ ...context, cutter: staleDraft, atlas: newerAtlas });
+  assert.match(stale.generateReason, /saved layout changed elsewhere/);
+  assert.match(stale.saveReason, /local edits are retained/);
+  assert.equal(staleDraft.rectangles[0].x, 0, 'stale reconciliation never silently replaces the displayed draft');
+  const uncertain = { ...staleDraft, operations: { define: { idempotencyKey: 'same-original-save', rectangles: structuredClone(cutter.rectangles) } } };
+  assert.equal(cutterActionState({ ...context, cutter: uncertain, atlas: newerAtlas }).saveReason, '', 'a lost Save response leaves exact retry reachable');
+  assert.match(cutterActionState({ ...context, cutter: uncertain, atlas: newerAtlas }).generateReason, /saved layout changed elsewhere/);
+  assert.match(cutterActionState({ ...context, cutter: uncertain, atlas: newerAtlas, pending: true }).saveReason, /in progress/);
+  assert.equal(cutterActionState({ ...context, cutter: { ...cutter, syncedVersion: 2 }, atlas: newerAtlas }).generateReason, '');
 });
 
 test('grid output-budget rejection preserves the previous layout and does not create history or a replacement', async () => {

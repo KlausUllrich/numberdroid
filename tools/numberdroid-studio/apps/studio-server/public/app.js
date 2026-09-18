@@ -1941,6 +1941,7 @@ function renderCutter(source) {
   const actions = document.createElement('div'); actions.className = 'cutter-actions';
   const unresolvedJob = state.cutterJob && !['APPLIED', 'DISCARDED'].includes(state.cutterJob.state);
   const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save cut layout'; save.dataset.saveAtlas = '';
+  if (cutter.operations?.define) save.textContent = 'Retry Save cut layout';
   const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'secondary'; preview.textContent = 'Generate output images'; preview.dataset.previewAtlas = '';
   for (const control of [save, preview]) {
     const wrapper = document.createElement('span'); wrapper.className = 'cutter-action-reason'; wrapper.append(control); actions.append(wrapper);

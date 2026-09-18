@@ -61,7 +61,13 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /operations\.commit \?\?=/);
   assert.match(clientScript, /operations\.discard \?\?=/);
   assert.match(clientScript, /data-discard-cutter-job/);
-  assert.match(clientScript, /Commit or discard the current preview job/);
+  assert.match(clientScript, /syncCutterActions\(section/);
+  const cutterScriptResponse = await fetch(`${base}/cutter-editor-view.js`);
+  assert.equal(cutterScriptResponse.status, 200);
+  const cutterScript = await cutterScriptResponse.text();
+  assert.match(cutterScript, /Save or discard the current generated results/);
+  assert.match(cutterScript, /Wait for completion, or cancel the job/);
+  assert.match(cutterScript, /Save the changed cut layout first/);
   assert.match(clientScript, /aria-live', 'polite/);
   assert.match(clientScript, /response\.projectId !== binding\.projectId \|\| response\.job\?\.atlasId !== binding\.atlasId/);
   assert.match(clientScript, /response\.job\?\.sourceId !== binding\.sourceId/);
