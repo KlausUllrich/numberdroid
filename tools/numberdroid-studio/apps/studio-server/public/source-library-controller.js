@@ -48,13 +48,16 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
         : row.target === 'new' ? { operation: 'create', assetId: row.assetId, name: row.name.trim(), kind: row.kind, metadata: assetEditorDefaultMetadata() }
           : { operation: 'update', assetId: row.target, expectedAssetVersion: row.targetVersion, expectedMetadataVersion: row.targetMetadataVersion, name: row.name.trim() } })) };
   }
-  function initializeRows(preserve) {
+  function initializeRows(preserve, { keepSkipped = false } = {}) {
     const previous = rows;
     const outputs = current.job?.state === 'SUCCEEDED' ? current.job.outputs.map(output => ({ ...output, rectangle: current.atlas.rectangles.find(r => r.rectangleId === output.rectangleId) }))
       : (bootstrap.savedInput?.slices ?? []).map(pin => current.atlas.sliceHeads.find(s => s.sliceId === pin.sliceId && s.version === pin.expectedSliceVersion)).filter(Boolean);
     rows = outputs.map((output, index) => {
       const rectangleId = output.rectangleId ?? output.rectangle?.rectangleId;
-      const old = preserve && previous.find(row => row.rectangleId === rectangleId);
+      const previousRow = previous.find(row => row.rectangleId === rectangleId);
+      const skip = keepSkipped && (previousRow?.target === 'skip'
+        || receipt?.items?.some(item => item.rectangleId === rectangleId && item.status === 'skipped'));
+      const old = (preserve || skip) && previousRow;
       if (old) {
         const target = bootstrap.targets?.find(a => a.assetId === old.target);
         return { ...old, output, targetVersion: target?.assetVersion, targetMetadataVersion: target?.metadataVersion };
@@ -63,7 +66,7 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
       const matches = (bootstrap.targets ?? []).filter(asset => asset.sliceBinding?.sliceId === output.sliceId && asset.sliceBinding?.sliceVersion === output.version);
       const target = bootstrap.targets?.find(a => a.assetId === mapping?.assetId) ?? (matches.length === 1 ? matches[0] : null);
       return { rectangleId, output, name: target?.name ?? output.rectangle?.name ?? `Image ${index + 1}`, kind: target?.kind ?? 'prop',
-        target: target?.assetId ?? 'new', assetId: `asset.image.${crypto.randomUUID()}`, targetVersion: target?.assetVersion, targetMetadataVersion: target?.metadataVersion };
+        target: skip ? 'skip' : target?.assetId ?? 'new', assetId: `asset.image.${crypto.randomUUID()}`, targetVersion: target?.assetVersion, targetMetadataVersion: target?.metadataVersion };
     });
   }
   function validateBootstrap(result) {
@@ -81,7 +84,9 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
       const result = await request('bootstrap', {});
       if (disposed || ticket !== generation) return;
       validateBootstrap(result);
-      bootstrap = result; captured = clone(current); initializeRows(preserve); plan = null; receipt = null; dirty = preserve && dirty; refreshFailed = false;
+      bootstrap = result; captured = clone(current);
+      initializeRows(preserve && !refreshFailed, { keepSkipped: refreshFailed });
+      plan = null; receipt = null; dirty = preserve && dirty; refreshFailed = false;
     } catch (failure) { if (ticket === generation) error = failure.message; }
     finally { if (!disposed && ticket === generation) { busy = false; render(); } }
   }
@@ -178,7 +183,7 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
       receipt = result; uncertain = null; dirty = false; plan = null;
       try { sessionStorage.removeItem(storageKey); } catch { /* Replaying the retained payload is still safe. */ }
       await onSaved(result); captured = clone(current);
-      const refreshed = await request('bootstrap', {}); if (disposed) return; validateBootstrap(refreshed); bootstrap = refreshed; initializeRows(false); refreshFailed = false;
+      const refreshed = await request('bootstrap', {}); if (disposed) return; validateBootstrap(refreshed); bootstrap = refreshed; initializeRows(false, { keepSkipped: true }); refreshFailed = false;
     } catch (failure) {
       error = committed ? `Saved successfully. The view could not refresh: ${failure.message}. Recheck current versions; do not create another copy.` : failure.message;
       if (committed) refreshFailed = true;

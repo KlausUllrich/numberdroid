@@ -473,22 +473,31 @@ try {
         try {
           const project = async () => (await fetch('/api/projects/numberdroid-studio-checkpoint-2b')).json();
           const before = await project();
+          const skippedDestination = [...document.querySelectorAll('[data-source-library-field="target"]')].at(-1);
+          const skippedRectangle = skippedDestination.dataset.rectangleId;
+          const skipRetained = () => [...document.querySelectorAll('[data-source-library-field="target"]')]
+            .find(node => node.dataset.rectangleId === skippedRectangle)?.value === 'skip';
+          skippedDestination.value = 'skip';
+          skippedDestination.dispatchEvent(new Event('change', { bubbles: true })); await settle();
           authoring.newDestinations = [...document.querySelectorAll('[data-source-library-field="target"]')].filter(node => node.value === 'new').length;
           document.querySelector('[data-source-library-action="plan"]').click();
           await waitFor(() => !document.querySelector('[data-source-library-action="save"]')?.disabled, 'Checking saved outputs did not enable Library save');
           authoring.planDidNotMutate = (await project()).revision === before.revision;
           document.querySelector('[data-source-library-action="save"]').click();
-          await waitFor(() => document.querySelectorAll('[data-source-library-action="open"]').length === 4
-            && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Library batch did not save all four images');
+          await waitFor(() => document.querySelectorAll('[data-source-library-action="open"]').length === 3
+            && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Partial Library batch did not save three images and skip one');
+          authoring.skipRetainedAfterSave = skipRetained();
+          if (!authoring.skipRetainedAfterSave) throw new Error('Successful partial save changed the explicit Skip destination');
           const saved = await project();
           authoring.addedCount = saved.snapshot.assetLibrary.assets.length - (before.snapshot.assetLibrary?.assets.length ?? 0);
           const savedPins = saved.snapshot.assetLibrary.assets.map(asset => [asset.assetId, asset.assetVersion, asset.metadataVersion]);
           document.querySelector('[data-source-library-action="plan"]').click();
           await waitFor(() => document.querySelectorAll('.source-library-result').length === 4
-            && [...document.querySelectorAll('.source-library-result')].every(node => node.textContent.includes('Already in Library'))
+            && [...document.querySelectorAll('.source-library-result')].filter(node => node.textContent.includes('Already in Library')).length === 3
+            && [...document.querySelectorAll('.source-library-result')].filter(node => node.textContent === 'Skipped').length === 1
             && !document.querySelector('[data-source-library-action="save"]')?.disabled, 'Repeated save did not identify unchanged images');
           document.querySelector('[data-source-library-action="save"]').click();
-          await waitFor(() => document.querySelector('[data-source-library]')?.textContent.includes('0 added, 0 updated, 4 unchanged, 0 skipped.')
+          await waitFor(() => document.querySelector('[data-source-library]')?.textContent.includes('0 added, 0 updated, 3 unchanged, 1 skipped.')
             && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Unchanged confirmation did not finish');
           const repeated = await project();
           authoring.repeatUnchanged = repeated.revision === saved.revision
@@ -501,6 +510,8 @@ try {
           document.querySelector('[data-library-action="back"]')?.click();
           await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4, 'Library Back did not restore image destinations');
           authoring.assetReturned = true;
+          authoring.skipRetainedAfterLibraryReturn = skipRetained();
+          if (!authoring.skipRetainedAfterLibraryReturn) throw new Error('Library detail return changed the explicit Skip destination');
           document.querySelector('.cutter-animation-outputs summary')?.click(); await settle();
           const selected = [...document.querySelectorAll('.cutter-animation-outputs [data-animation-select-cut]')].slice(0, 2);
           const selectedImages = selected.map(node => node.closest('figure')?.querySelector('img')?.getAttribute('src'));
@@ -590,8 +601,10 @@ try {
     `Saved output gallery, exact work link, source return, or back-button sizing failed: ${JSON.stringify(sourcesNavigationEvidence)}`);
     assert(sourcesNavigationEvidence.authoring?.planDidNotMutate === true
       && sourcesNavigationEvidence.authoring.addedCount === sourcesNavigationEvidence.authoring.newDestinations
-      && sourcesNavigationEvidence.authoring.newDestinations === (width === 1440 ? 4 : 0)
+      && sourcesNavigationEvidence.authoring.newDestinations === (width === 1440 ? 3 : 0)
       && sourcesNavigationEvidence.authoring.repeatUnchanged === true
+      && sourcesNavigationEvidence.authoring.skipRetainedAfterSave === true
+      && sourcesNavigationEvidence.authoring.skipRetainedAfterLibraryReturn === true
       && sourcesNavigationEvidence.authoring.assetImageMatches === true
       && sourcesNavigationEvidence.authoring.assetReturned === true
       && sourcesNavigationEvidence.authoring.animationImagesMatch === true

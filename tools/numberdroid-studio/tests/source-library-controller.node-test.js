@@ -227,3 +227,61 @@ test('Open in Library retains the exact receipt pin when the current project adv
     assert.match(app, /onOpenAsset: saved => \{\s*const pin = libraryAssetPin\(saved, 'image'\);\s*if \(pin\) libraryOpenSavedDetail\(pin\);/);
   } finally { h.controller.dispose(); }
 });
+
+test('a partial successful save retains skipped destinations while newly added images become update targets', { timeout: 5000 }, async () => {
+  const h = await harness();
+  try {
+    const second = { ...structuredClone(h.context.atlas.sliceHeads[0]), rectangleId: 'rect.two',
+      rectangle: { rectangleId: 'rect.two', name: 'Leave this out', included: true }, sliceId: 'slice.two' };
+    h.context.atlas.sliceHeads.push(second); h.context.atlas.rectangles.push(second.rectangle);
+    h.bootstrap.savedInput.slices.push({ rectangleId: 'rect.two', sliceId: 'slice.two', expectedSliceVersion: 1 });
+    await h.controller.refresh();
+    const skip = h.controller.element.querySelectorAll('[data-source-library-field]')
+      .find(node => node.dataset.sourceLibraryField === 'target' && node.dataset.rectangleId === 'rect.two');
+    skip.value = 'skip'; h.controller.element.listeners.change({ target: skip });
+    const added = h.controller.inspect().rows[0];
+    h.bootstrap.targets.push({ assetId: added.assetId, assetVersion: 1, metadataVersion: 1,
+      name: added.name, kind: added.kind, sliceBinding: { sliceId: 'slice.one', sliceVersion: 1, digest: 'a'.repeat(64) } });
+    await h.controller.check(); await h.controller.save();
+    assert.deepEqual(Array.from(h.controller.inspect().rows, row => row.target), [added.assetId, 'skip']);
+    await h.controller.check();
+    assert.deepEqual(h.calls.at(-1).input.items.map(item => item.destination.operation), ['update', 'skip']);
+  } finally { h.controller.dispose(); }
+});
+
+test('recheck after a confirmed save refresh failure resolves the saved destination instead of creating another copy', { timeout: 5000 }, async () => {
+  let bootstraps = 0, failRefresh = true;
+  const h = await harness({ request: async (action, input, normal) => {
+    if (action === 'bootstrap' && ++bootstraps > 1 && failRefresh) throw new Error('Refresh is offline');
+    return normal(action, input);
+  } });
+  try {
+    const added = h.controller.inspect().rows[0];
+    h.bootstrap.targets.push({ assetId: added.assetId, assetVersion: 1, metadataVersion: 1,
+      name: added.name, kind: added.kind, sliceBinding: { sliceId: 'slice.one', sliceVersion: 1, digest: 'a'.repeat(64) } });
+    await h.controller.check(); await h.controller.save();
+    assert.match(h.controller.element.textContent, /Saved successfully/);
+    failRefresh = false; await h.controller.refresh({ preserve: true }); await h.controller.check();
+    assert.equal(h.calls.at(-1).input.items[0].destination.operation, 'update');
+    assert.equal(h.calls.at(-1).input.items[0].destination.assetId, added.assetId);
+  } finally { h.controller.dispose(); }
+});
+
+test('confirmed retry after reload recovers skipped destinations without previous rendered rows', { timeout: 5000 }, async () => {
+  const storage = new Map([['studio.image-library.pending:project.test:atlas.test', JSON.stringify({
+    idempotencyKey: 'save.retained-skip', expectedRevision: 7,
+    items: [{ rectangleId: 'rect.one', destination: { operation: 'skip' } }],
+  })]]);
+  const h = await harness({ storage, request: async (action, input, normal) => action === 'save'
+    ? { projectId: 'project.test', atlasId: 'atlas.test', revision: 7, status: 'UNCHANGED',
+      summary: { created: 0, updated: 0, unchanged: 0, skipped: 1 }, items: [{ rectangleId: 'rect.one', status: 'skipped' }] }
+    : normal(action, input) });
+  try {
+    assert.equal(h.controller.inspect().rows.length, 0);
+    await h.controller.save();
+    assert.equal(h.controller.inspect().rows[0].target, 'skip');
+    await h.controller.check();
+    assert.equal(h.calls.at(-1).input.items[0].destination.operation, 'skip');
+    assert.equal(h.storage.size, 0);
+  } finally { h.controller.dispose(); }
+});
