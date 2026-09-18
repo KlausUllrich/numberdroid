@@ -7,13 +7,23 @@ const imageUri = (projectId, output) => output.preview?.resourceUri ?? `/api/pro
 
 // Browser drafts and recovery payloads are conveniences only. Every request is
 // re-authorized and its exact source/destination coordinates checked by the core.
-export function createSourceLibraryController({ context, request, onSaved, onBusy, onOpenAsset }) {
+export function createSourceLibraryController({ context, request, onSaved, onBusy, onOpenAsset, onRecheck = async () => {} }) {
   const element = el('section', undefined, 'source-library-workflow');
   element.dataset.sourceLibrary = '';
   let current = context, captured = null, bootstrap = null, rows = [], plan = null;
   let error = null, busy = false, dirty = false, uncertain = null, receipt = null, generation = 0, disposed = false;
   const storageKey = `studio.image-library.pending:${context.projectId}:${context.atlas.id}`;
-  try { const saved = sessionStorage.getItem(storageKey); if (saved && saved.length < 262144) uncertain = JSON.parse(saved); } catch { /* A blocked storage API must not invent a successful save. */ }
+  try {
+    const saved = sessionStorage.getItem(storageKey);
+    if (saved) {
+      const value = saved.length < 262144 ? JSON.parse(saved) : null;
+      if (!value || typeof value !== 'object' || typeof value.idempotencyKey !== 'string'
+          || !Array.isArray(value.items) || !value.items.length || !Number.isSafeInteger(value.expectedRevision)) {
+        throw new Error('The retained save request is unreadable. Keep this page open and ask for recovery before starting another save.');
+      }
+      uncertain = value;
+    }
+  } catch (failure) { error = failure.message; }
   const key = c => JSON.stringify([c.projectId, c.atlas.id, c.atlas.definitionVersion, c.atlas.definitionFingerprint, c.job?.jobId, c.job?.state]);
   const locked = () => busy || Boolean(uncertain);
   const stale = () => captured && (captured.revision !== current.revision || key(captured) !== key(current));
@@ -59,8 +69,14 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
     if (busy || uncertain || disposed) return;
     const ticket = ++generation; busy = true; error = null; render();
     try {
+      if (preserve) await onRecheck();
       const result = await request('bootstrap', {});
       if (disposed || ticket !== generation) return;
+      if (result.projectId !== current.projectId || result.atlasId !== current.atlas.id
+          || result.revision !== current.revision || result.expectedAtlasVersion !== current.atlas.definitionVersion
+          || result.expectedAtlasFingerprint !== current.atlas.definitionFingerprint) {
+        throw new Error('The project changed while loading destinations. Recheck current versions to continue.');
+      }
       bootstrap = result; captured = clone(current); initializeRows(preserve); plan = null; receipt = null; dirty = preserve && dirty;
     } catch (failure) { if (ticket === generation) error = failure.message; }
     finally { if (!disposed && ticket === generation) { busy = false; render(); } }
@@ -76,7 +92,7 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
     }
     if (error) { const notice = el('p', error, 'source-library-error'); notice.setAttribute('role', 'alert'); element.append(notice); }
     if (stale() && !uncertain) element.append(el('p', 'The project or generated images changed. Recheck the current versions before saving; your choices are retained.', 'source-library-notice'), button('Recheck current versions', 'recheck', { disabled: busy, reason: 'A check is in progress.' }));
-    if (!bootstrap) { if (!uncertain) element.append(button(busy ? 'Loading Library destinations…' : 'Load Library destinations', 'reload', { disabled: busy, reason: 'Loading the current saved destinations.' })); return; }
+    if (!bootstrap) { if (!uncertain) element.append(button(busy ? 'Loading Library destinations…' : 'Recheck Library destinations', 'recheck', { disabled: busy, reason: 'Loading the current saved destinations.' })); return; }
     const grid = el('div', undefined, 'source-library-grid');
     for (const row of rows) {
       const card = el('article', undefined, 'source-library-card'); card.dataset.sourceLibraryRectangle = row.rectangleId;
@@ -92,7 +108,7 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
       body.append(el('p', row.target === 'skip' ? 'No Library item is added or changed. Existing content is kept.' : target
         ? `Updates only “${target.name}”. Its placement settings stay unchanged; Rooms and Assemblies keep their saved versions.`
         : 'Creates an Image draft in Library. Set placement and blocking there before use.', 'source-library-consequence'));
-      if (target && target.sliceBinding && (target.sliceBinding.digest !== row.output.digest || target.sliceBinding.sourceId !== row.output.sourceId)) {
+      if (target && target.sliceBinding && target.sliceBinding.digest !== row.output.digest) {
         const compare = el('div', undefined, 'source-library-comparison');
         for (const [output, label] of [[target.sliceBinding, `In Library · v${target.assetVersion}`], [row.output, 'Your proposed image']]) { const figure = el('figure'); figure.append(picture(output, label), el('figcaption', label)); compare.append(figure); } body.append(compare);
       }
@@ -112,7 +128,10 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
     const actions = el('div', undefined, 'source-library-actions');
     const blocked = locked() || stale() || !rows.length || rows.some(row => row.target !== 'skip' && !row.name.trim());
     const reason = locked() ? 'Resolve the pending save first.' : stale() ? 'Recheck the current project and destination versions.' : !rows.length ? 'Generate or reopen image outputs first.' : 'Give each included image a name.';
-    actions.append(button('Check changes', 'plan', { disabled: blocked, reason }), button(busy ? 'Saving…' : 'Save to Library', 'save', { disabled: blocked || !plan?.canSave, reason: blocked ? reason : 'Check the proposed changes before saving.', primary: true }));
+    const summary = plan?.summary;
+    const saveLabel = summary ? (summary.updated ? `Save ${summary.updated} updates + ${summary.created} additions`
+      : summary.created ? `Add ${summary.created} images to Library` : 'Confirm unchanged images') : 'Save to Library';
+    actions.append(button('Check changes', 'plan', { disabled: blocked, reason }), button(busy ? 'Working…' : saveLabel, 'save', { disabled: blocked || !plan?.canSave, reason: blocked ? reason : 'Check the proposed changes before saving.', primary: true }));
     element.append(actions);
     if (focus) { const restored = [...element.querySelectorAll('[data-source-library-field]')].find(node => node.dataset.sourceLibraryField === focus && node.dataset.rectangleId === rowKey); restored?.focus({ preventScroll: true }); if (restored?.type === 'text' && Number.isInteger(selection)) restored.setSelectionRange(selection, selection); }
     if (element.isConnected) window.scrollTo(page.x, page.y);
@@ -120,27 +139,40 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
   async function check() {
     if (locked() || stale() || !captured) return;
     busy = true; error = null; render();
-    try { plan = await request('plan', requestInput()); } catch (failure) { error = failure.message; plan = null; }
-    finally { busy = false; render(); }
+    const ticket = ++generation;
+    try { const result = await request('plan', requestInput()); if (!disposed && ticket === generation) plan = result; }
+    catch (failure) { if (!disposed && ticket === generation) { error = failure.message; plan = null; } }
+    finally { if (!disposed && ticket === generation) { busy = false; render(); } }
   }
   async function save() {
     if (busy || (!uncertain && (!plan?.canSave || stale()))) return;
-    if (!uncertain) uncertain = { ...requestInput(), idempotencyKey: `image-library.${crypto.randomUUID()}` };
+    const firstAttempt = !uncertain;
+    if (firstAttempt) uncertain = { ...requestInput(), idempotencyKey: `image-library.${crypto.randomUUID()}` };
     try { sessionStorage.setItem(storageKey, JSON.stringify(uncertain)); }
-    catch { error = 'The browser cannot retain this save for recovery. Enable session storage or keep this page open and retry.'; }
+    catch {
+      error = 'Nothing was sent. The browser cannot retain this save for recovery. Allow session storage before saving.';
+      if (firstAttempt) uncertain = null;
+      render(); return;
+    }
     busy = true; onBusy(true); render();
+    let committed = false;
     try {
       const result = await request('save', clone(uncertain));
+      if (disposed) return;
+      if (result.projectId !== current.projectId || result.atlasId !== current.atlas.id || !Array.isArray(result.items)) throw new Error('The save response could not be verified. Retry the same save.');
+      committed = true;
       receipt = result; uncertain = null; dirty = false; plan = null;
       try { sessionStorage.removeItem(storageKey); } catch { /* Replaying the retained payload is still safe. */ }
       await onSaved(result); captured = clone(current);
-      const refreshed = await request('bootstrap', {}); bootstrap = refreshed; initializeRows(false);
+      const refreshed = await request('bootstrap', {}); if (disposed) return; bootstrap = refreshed; initializeRows(false);
     } catch (failure) {
-      error = failure.message;
+      error = committed ? `Saved successfully. The view could not refresh: ${failure.message}. Recheck current versions; do not create another copy.` : failure.message;
       // A structured application rejection proves that this request did not commit.
       // Network/HTTP ambiguity retains the exact request and all destinations.
-      if (failure.code && failure.status >= 400 && failure.status < 500) { uncertain = null; try { sessionStorage.removeItem(storageKey); } catch {} }
-    } finally { busy = false; onBusy(Boolean(uncertain)); render(); }
+      if (!committed && failure.code && failure.code !== 'IDEMPOTENCY_CONFLICT' && failure.status >= 400 && failure.status < 500 && failure.status !== 429) {
+        uncertain = null; plan = null; try { sessionStorage.removeItem(storageKey); } catch {}
+      }
+    } finally { if (!disposed) { busy = false; onBusy(Boolean(uncertain)); render(); } }
   }
   element.addEventListener('change', event => {
     const node = event.target.closest('[data-source-library-field]'); if (!node || locked()) return;
@@ -159,6 +191,6 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
     if (disposed) return; const prior = current; current = next;
     if (!same(prior, next) && !busy) { if (!uncertain && !dirty && key(prior) !== key(next)) void refresh(); else render(); }
   }
-  render(); if (!uncertain) void refresh(); else onBusy(true);
+  render(); if (!uncertain && !error) void refresh(); else if (uncertain) onBusy(true);
   return { element, update, hasPending: () => locked(), dispose: () => { disposed = true; generation++; } };
 }

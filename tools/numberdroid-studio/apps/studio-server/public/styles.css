@@ -879,3 +879,24 @@ body[data-asset-editor-open="true"] .hero h1 { font-size:20px; max-width:70vw; w
 body[data-asset-editor-open="true"] .hero #project-description,
 body[data-asset-editor-open="true"] .hero .eyebrow { display:none; }
 body[data-asset-editor-open="true"] .workspace-content { padding-top:16px; }
+/* The Library destination is the output action, not a second saved-file shelf. */
+.source-library-workflow { margin-top: 1.25rem; min-width: 0; }
+.source-library-help, .source-library-consequence { color: var(--muted, #a8c0b7); line-height: 1.5; }
+.source-library-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 1rem; margin-block: 1rem; }
+.source-library-card { min-width: 0; border: 1px solid #34574c; border-radius: 10px; padding: 1rem; background: #16251f; }
+.source-library-card-body { display: grid; gap: .65rem; }
+.source-library-card h4, .source-library-card p { margin: 0; }
+.source-library-card label { display: grid; gap: .35rem; }
+.source-library-card input, .source-library-card select { width: 100%; min-width: 0; }
+.source-library-image { display: flex; align-items: center; justify-content: center; height: 160px; margin-bottom: .8rem; background: repeating-conic-gradient(#172920 0% 25%, #1c342b 0% 50%) 50% / 16px 16px; border-radius: 6px; overflow: hidden; }
+.source-library-image img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated; }
+.source-library-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.source-library-comparison figure { margin: 0; min-width: 0; }
+.source-library-comparison .source-library-image { height: 110px; }
+.source-library-comparison figcaption { font-size: .8rem; }
+.source-library-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-block: 1rem; }
+.source-library-notice, .source-library-error { padding: .8rem 1rem; border-left: 3px solid #84d6b3; background: #20372d; line-height: 1.5; }
+.source-library-error { border-color: #f3a47e; background: #3b2620; }
+.source-library-disabled { display: inline-flex; }
+.source-library-disabled:focus-visible { outline: 2px solid #84d6b3; outline-offset: 3px; }
+.cutter-animation-outputs { margin-top: 1.5rem; }

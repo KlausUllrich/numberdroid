@@ -1,6 +1,6 @@
 # Source to Library — live implementation contract
 
-Status: **PAUSED AT KLAUS'S REQUEST; INCOMPLETE CHECKPOINT, NOT MERGE-READY — 2026-09-16**.
+Status: **RESUMED AT KLAUS'S REQUEST; IMPLEMENTATION IN PROGRESS, NOT MERGE-READY — 2026-09-18**.
 
 Klaus approved the [workflow design](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md) and
 requested the live version, explicitly retaining the original image and precise
@@ -86,6 +86,13 @@ Source rollback must account for schema19 before any old reader is restarted;
 do not downgrade SQLite or silently remove user-authored workflow receipts.
 
 ## Shutdown checkpoint — 2026-09-16
+
+Resumed on 2026-09-18 at Klaus's explicit request. Remote main remains
+`d7c1d2a7978c5624baacf243ea9c21d530a9ec6c`; the preserved workspace below
+remains untouched. Backend service/integrity/HTTP focused repairs now pass;
+production UI integration, full gates, independent reviews and acceptance are
+still pending. The shutdown facts below are historical continuity, not a renewed
+instruction to pause.
 
 Klaus requested a pause before further implementation and plans to return in two
 days. Stop here; do not continue implementation, tests, CI watching or merging

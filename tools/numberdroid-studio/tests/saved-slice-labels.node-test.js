@@ -31,7 +31,7 @@ test('Workbench output thumbnails preserve saved names, fallback and exact ident
   const output = nodes(render({ atlas: { ...snapshot.atlases[0], id: 'atlas.test' }, source: { id: 'source.test', name: 'Original' } }));
   assert.deepEqual(sandbox.previewInputs.map(n => n.name), ['brighter', 'darker', 'Slice 3']);
   assert.deepEqual(sandbox.previewInputs.map(n => [n.sliceBinding.sliceId, n.sliceBinding.version]), [['slice.one', 2], ['slice.two', 1], ['slice.unnamed', 1]]);
-  assert.deepEqual(output.filter(n => n.dataset?.openCutter).map(n => [n.dataset.openAtlas, n.dataset.openCutterView]), [['atlas.test', 'outputs'], ['atlas.test', 'edit']]);
+  assert.deepEqual(output.filter(n => n.dataset?.openCutter).map(n => [n.dataset.openAtlas, n.dataset.openCutterView]), [['atlas.test', 'edit'], ['atlas.test', 'outputs']]);
   assert.equal(JSON.stringify(snapshot), before);
 });
 

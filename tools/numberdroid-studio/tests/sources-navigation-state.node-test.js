@@ -123,9 +123,10 @@ test('production Sources UI uses the approved names and keeps technical facts co
   const css = fs.readFileSync(path.join(root, 'apps/studio-server/public/styles.css'), 'utf8');
   assert.ok(/\['images', 'Source Images'\], \['workbench', 'Image Workbench'\]/.test(app), 'two content tabs');
   assert.equal(/sources-review-attention|sources-workbench-intro/.test(app), false, 'redundant Sources banners removed');
-  for (const phrase of ['Technical details', 'Open existing image work', 'workbench-output-previews', 'cutter-primary-outputs', 'cutter-output-comparison']) {
+  for (const phrase of ['Technical details', 'Open existing image work', 'workbench-output-previews', 'renderSourceLibraryWorkflow', 'Use cuts as Animation frames instead']) {
     assert.ok(app.includes(phrase), `Sources presentation includes ${phrase}`);
   }
+  assert.equal(app.includes('Compare with saved output images'), false, 'comparison belongs only to a named Library update');
   assert.match(cutter, /Sources \/ Image Workbench/);
   assert.match(cutter, /Back to Image Workbench/);
   const actions = "[['edit', 'Cut images'], ['outputs', 'View Output']]";

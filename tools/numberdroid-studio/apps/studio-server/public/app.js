@@ -9,6 +9,7 @@ import { renderAnimationCard } from './animation-library-view.js';
 import { createAnimationReviewController } from './animation-review-view.js';
 import { resolveAssetSpatialGeometry, transformAssetSpatialGeometry, shapeIntersectsRect, classifyBlockingPair } from './asset-spatial-geometry.js';
 import { createAssetEditorController } from './asset-editor-controller.js';
+import { createSourceLibraryController } from './source-library-controller.js';
 import { createAssemblyEditorController } from './assembly-editor-controller.js';
 import { renderAssemblyCard } from './assembly-library-view.js';
 import { createAssemblyReviewController } from './assembly-review-view.js';
@@ -1890,6 +1891,44 @@ function cutterOutputs(atlas = currentCutterAtlas()) {
   return { preview, saved: atlas?.sliceHeads ?? [] };
 }
 
+let sourceLibraryController = null;
+let sourceLibraryControllerKey = null;
+
+function renderSourceLibraryWorkflow(atlas) {
+  const projectId = state.project.projectId;
+  const key = `${projectId}:${atlas.id}`;
+  const context = { projectId, revision: state.project.revision, atlas, job: state.cutterJob };
+  if (sourceLibraryControllerKey !== key) {
+    sourceLibraryController?.dispose();
+    sourceLibraryControllerKey = key;
+    sourceLibraryController = createSourceLibraryController({
+      context,
+      request: (action, body) => api(`/api/projects/${encodeURIComponent(projectId)}/atlases/${encodeURIComponent(atlas.id)}/library/${action}`, {
+        method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: JSON.stringify(body),
+      }),
+      onRecheck: () => loadProject(projectId),
+      onSaved: async () => {
+        await loadProject(projectId);
+        const jobId = currentCutterAtlas()?.latestPreviewJobId;
+        if (jobId) await loadCutterJob(jobId, { throwOnError: true });
+      },
+      onBusy: pending => {
+        setCutterPending(pending);
+        for (const node of elements['workspace-content'].querySelectorAll('[data-atlas-cutter] button, [data-atlas-cutter] input, [data-atlas-cutter] select')) {
+          if (node.closest('[data-source-library]')) continue;
+          if (pending) { if (!node.hasAttribute('data-library-was-disabled')) node.dataset.libraryWasDisabled = String(node.disabled); node.disabled = true; }
+          else if (node.hasAttribute('data-library-was-disabled')) { node.disabled = node.dataset.libraryWasDisabled === 'true'; delete node.dataset.libraryWasDisabled; }
+        }
+      },
+      onOpenAsset: assetId => {
+        const asset = state.project?.snapshot.assetLibrary?.assets.find(item => item.assetId === assetId);
+        if (asset) libraryOpenSavedDetail(libraryAssetPin(asset, 'image'));
+      },
+    });
+  } else sourceLibraryController.update(context);
+  return sourceLibraryController.element;
+}
+
 function renderCutter(source) {
   const cutter = state.cutter; const atlas = currentCutterAtlas();
   const section = renderCutterEditor({ cutter, source, atlas, pending: state.cutterPending || state.sourceMutationPending, job: state.cutterJob });
@@ -1916,11 +1955,6 @@ function renderCutter(source) {
     const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'secondary'; retry.textContent = 'Retry job'; retry.dataset.retryCutterJob = '';
     retry.disabled = state.cutterPending;
     actions.append(retry);
-  }
-  if (state.cutterJob?.state === 'SUCCEEDED') {
-    const commit = document.createElement('button'); commit.type = 'button'; commit.textContent = `Save ${state.cutterJob.outputs?.length ?? 0} output images`; commit.dataset.commitAtlas = '';
-    commit.disabled = state.cutterPending;
-    actions.append(commit);
   }
   if (state.cutterJob && ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(state.cutterJob.state)) {
     const discard = document.createElement('button'); discard.type = 'button'; discard.className = 'secondary';
@@ -1969,23 +2003,26 @@ function renderCutter(source) {
 
   const outputs = cutterOutputs(atlas);
   if (cutter.view === 'outputs') {
-    const presentation = cutterOutputPresentation({ job: state.cutterJob, dirty: cutter.dirty, savedCount: outputs.saved.length });
-    section.append(sectionHeading(presentation.label, presentation.description));
-    const renderOutputs = kind => {
-      const grid = document.createElement('div'); grid.className = `slice-preview-grid ${kind === 'saved' ? 'committed' : ''}`;
-      outputs[kind].forEach((output, index) => grid.append(cutterPreviewCard(output, index, state.project.projectId)));
-      if (kind === 'saved' && outputs.saved.length && animationSupported()) {
-        const create = document.createElement('button'); create.type = 'button'; create.dataset.createAnimation = '';
-        create.textContent = 'Create Animation from selected saved images'; create.disabled = !animationCanMutate(); grid.append(create);
+    if (atlas && state.uiMode !== 'remote') section.append(renderSourceLibraryWorkflow(atlas));
+    else section.append(emptyState('No output images yet', 'Save your cut layout, then generate images from the included areas.'));
+    if (animationSupported() && (outputs.saved.length || outputs.preview.length)) {
+      const animation = document.createElement('details'); animation.className = 'cutter-animation-outputs';
+      const heading = document.createElement('summary'); heading.textContent = 'Use cuts as Animation frames instead';
+      const help = document.createElement('p'); help.textContent = 'Frames do not need separate Library image cards. Prepare the exact cuts here, then select the frames for one Animation. Existing saved frames and their versions stay available.';
+      animation.append(heading, help);
+      if (outputs.preview.length) {
+        const commit = document.createElement('button'); commit.type = 'button'; commit.dataset.commitAtlas = '';
+        commit.textContent = `Save ${outputs.preview.length} cuts for Animation`; commit.disabled = state.cutterPending;
+        animation.append(commit);
       }
-      return grid;
-    };
-    const primary = renderOutputs(presentation.kind); primary.classList.add('cutter-primary-outputs'); primary.dataset.outputKind = presentation.kind;
-    section.append(primary);
-    if (presentation.compare) {
-      const comparison = document.createElement('details'); comparison.className = 'cutter-output-comparison';
-      const summary = document.createElement('summary'); summary.textContent = 'Compare with saved output images';
-      comparison.append(summary, renderOutputs('saved')); section.append(comparison);
+      if (outputs.saved.length) {
+        const grid = document.createElement('div'); grid.className = 'slice-preview-grid committed';
+        outputs.saved.forEach((output, index) => grid.append(cutterPreviewCard(output, index, state.project.projectId)));
+        const create = document.createElement('button'); create.type = 'button'; create.dataset.createAnimation = '';
+        create.textContent = 'Create Animation from selected saved images'; create.disabled = !animationCanMutate();
+        animation.append(grid, create);
+      }
+      section.append(animation);
     }
   } else if (cutter.view === 'detail') {
     const output = outputs[cutter.outputKind]?.[cutter.outputIndex];

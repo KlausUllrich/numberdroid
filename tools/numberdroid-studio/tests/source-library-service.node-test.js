@@ -106,11 +106,85 @@ test('mixed update/add/skip from a new immutable original preserves old bindings
   assert.equal(saved.items[0].assetVersion, 2); assert.equal(saved.items[0].name, 'asset.0');
   assert.equal(saved.items[0].sliceBinding.sourceId, 'source.updated'); assert.notDeepEqual(saved.items[0].sliceBinding, old);
   const head = await f.studio.readProjectTrusted(projectId);
-  assert.deepEqual(head.snapshot.assetLibrary.assets.find(asset => asset.assetId === 'asset.0').metadata.extensions, metadata.extensions);
+  const updatedMetadata = head.snapshot.assetLibrary.assets.find(asset => asset.assetId === 'asset.0').metadata;
+  const { pixelSize: _size, pivot: _pivot, ...updatedAuthored } = updatedMetadata;
+  assert.deepEqual(updatedAuthored, metadata);
+  assert.deepEqual(updatedMetadata.pixelSize, { width: 8, height: 8 });
+  assert.equal(updatedMetadata.pivot, null);
   assert.equal(head.snapshot.sources.length, 2); assert.equal(head.snapshot.atlases.length, 2);
   const original = f.store.workspace.database.prepare('SELECT slice_id, slice_version FROM asset_versions WHERE project_id = ? AND asset_id = ? AND asset_version = 1').get(projectId, 'asset.0');
   assert.equal(original.slice_id, old.sliceId); assert.equal(Number(original.slice_version), old.sliceVersion);
   assert.equal((await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts })).ok, true);
+});
+
+test('saved cuts support mixed update/add/skip and unchanged updates remain replayable after a later head and restart', { timeout: 60_000 }, async t => {
+  const f = await fixture(t), jobId = await f.preview();
+  const atlas = (await f.service.bootstrap({ projectId, atlasId: 'atlas.fixture' }, owner));
+  await f.execute('atlas.commit.slices', { atlasId: 'atlas.fixture', expectedAtlasVersion: atlas.expectedAtlasVersion,
+    expectedDefinitionFingerprint: atlas.expectedAtlasFingerprint, jobId });
+  const firstRequest = await f.request({ items: [
+    { rectangleId: 'rect.0', destination: create('asset.saved', 'First name') },
+    { rectangleId: 'rect.1', destination: { operation: 'skip' } },
+    { rectangleId: 'rect.2', destination: { operation: 'skip' } },
+  ] });
+  const first = await f.service.save(firstRequest, owner);
+  assert.deepEqual(first.summary, { created: 1, updated: 0, unchanged: 0, skipped: 2 });
+  const request = await f.request({ items: [
+    { rectangleId: 'rect.0', destination: { operation: 'update', assetId: 'asset.saved', expectedAssetVersion: 1,
+      expectedMetadataVersion: 1, name: 'Renamed image' } },
+    { rectangleId: 'rect.1', destination: create('asset.saved-new') },
+    { rectangleId: 'rect.2', destination: { operation: 'skip' } },
+  ] });
+  const saved = await f.service.save(request, owner);
+  assert.deepEqual(saved.summary, { created: 1, updated: 1, unchanged: 0, skipped: 1 });
+  assert.equal(saved.items[0].metadataVersion, 1);
+  assert.equal(saved.items[0].assetVersion, 2);
+  const unchangedRequest = await f.request({ items: request.items.map(item => item.destination.operation === 'update'
+    ? { ...item, destination: { ...item.destination, expectedAssetVersion: 2 } } : item) });
+  const unchanged = await f.service.save(unchangedRequest, owner);
+  assert.equal(unchanged.status, 'UNCHANGED');
+  assert.equal(unchanged.revision, saved.revision);
+  assert.deepEqual(unchanged.summary, { created: 0, updated: 0, unchanged: 2, skipped: 1 });
+  await f.source('source.advance-head', 64);
+  await f.restart();
+  assert.deepEqual(await f.service.save(unchangedRequest, owner), { ...unchanged, replayed: true });
+  assert.deepEqual(await f.service.save(request, owner), { ...saved, replayed: true });
+  const integrity = await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts });
+  assert.equal(integrity.ok, true, JSON.stringify(integrity));
+});
+
+test('generated all-skipped outputs commit exact cuts only and can later be added from saved outputs', { timeout: 60_000 }, async t => {
+  const f = await fixture(t), jobId = await f.preview(), request = await f.request({ jobId,
+    items: [0, 1, 2].map(i => ({ rectangleId: `rect.${i}`, destination: { operation: 'skip' } })) });
+  const saved = await f.service.save(request, owner);
+  assert.equal(saved.status, 'SAVED');
+  assert.deepEqual(saved.summary, { created: 0, updated: 0, unchanged: 0, skipped: 3 });
+  assert.equal(saved.revision, request.expectedRevision + 1);
+  assert.equal(f.jobs.get(projectId, jobId).state, 'APPLIED');
+  assert.equal(Number(f.store.workspace.database.prepare('SELECT count(*) AS n FROM asset_versions').get().n), 0);
+  assert.deepEqual(await f.service.save(request, owner), { ...saved, replayed: true });
+  const added = await f.service.save(await f.request(), owner);
+  assert.equal(added.summary.created, 3);
+});
+
+test('bootstrap never suggests historical cuts or destinations for a changed layout with reused rectangle IDs', { timeout: 60_000 }, async t => {
+  const f = await fixture(t);
+  await f.service.save(await f.request({ jobId: await f.preview() }), owner);
+  const first = await f.service.bootstrap({ projectId, atlasId: 'atlas.fixture' }, owner);
+  assert.equal(first.savedInput.slices.length, 3);
+  assert.equal(first.priorMappings.length, 3);
+  const atlas = (await f.studio.readProjectTrusted(projectId)).snapshot.atlases[0];
+  await f.execute('atlas.define.rects', { atlasId: atlas.id, sourceId: atlas.sourceId, name: atlas.name,
+    expectedAtlasVersion: atlas.definitionVersion, rectangles: atlas.rectangles.map((rectangle, i) => ({
+      ...rectangle, name: `Revised cut ${i}`, included: i !== 2,
+    })) });
+  const revised = await f.service.bootstrap({ projectId, atlasId: atlas.id }, owner);
+  assert.deepEqual(revised.savedInput, { mode: 'saved', slices: [] });
+  assert.deepEqual(revised.priorMappings, []);
+  // History remains explicitly usable; it is merely not a default for new work.
+  const historical = await f.request({ items: [0, 1, 2].map(i => ({ rectangleId: `rect.${i}`, destination: { operation: 'skip' } })) });
+  historical.input = first.savedInput;
+  assert.equal((await f.service.save(historical, owner)).status, 'UNCHANGED');
 });
 
 test('receipt and Nth asset persistence faults roll back the whole cut/Library/job batch', { timeout: 60_000 }, async t => {
@@ -152,4 +226,21 @@ test('owner-only strict DTO, duplicate targets, version conflicts and changed re
   await assert.rejects(f.service.save(altered, owner), { code: 'IDEMPOTENCY_CONFLICT' });
   const next = await f.request(); next.items[0].destination = { operation: 'update', assetId: 'asset.0', expectedAssetVersion: 9, expectedMetadataVersion: 1 };
   await assert.rejects(f.service.save(next, owner), { code: 'ENTITY_VERSION_CONFLICT' });
+});
+
+test('ordinary semantic callers cannot forge outer-workflow command identities or inject the internal store capability', { timeout: 60_000 }, async t => {
+  const f = await fixture(t), before = await f.studio.readProjectTrusted(projectId);
+  const prefix = `source.library.${'a'.repeat(32)}`, reserved = `${prefix}.1`;
+  const base = { schemaVersion: 1, projectId, type: 'asset.save', baseRevision: before.revision,
+    expectedVersion: before.revision, payload: {}, commandId: reserved, idempotencyKey: reserved };
+  for (const command of [base, { ...base, commandId: 'ordinary.command' }, { ...base, idempotencyKey: 'ordinary.key' },
+    { ...base, sourceLibraryCommandPrefix: prefix }]) {
+    await assert.rejects(f.studio.execute(command, { ...owner, sourceLibraryCommandPrefix: prefix }), { code: 'RESERVED_COMMAND_NAMESPACE' });
+  }
+  assert.deepEqual(await f.studio.readProjectTrusted(projectId), before);
+  assert.equal(Number(f.store.workspace.database.prepare('SELECT count(*) AS n FROM source_library_operations').get().n), 0);
+  // Admission belongs to the private simulation store, not to human identity.
+  const saved = await f.service.save(await f.request({ jobId: await f.preview() }), owner);
+  assert.equal(saved.summary.created, 3);
+  assert.equal((await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts })).ok, true);
 });

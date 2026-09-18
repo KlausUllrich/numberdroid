@@ -61,7 +61,9 @@ class SourceLibrarySimulationStore {
   supportsAtomicAtlasJobs = true;
   supportsAtomicAssetLibrary = true;
   #document;
-  constructor(document) { this.#document = structuredClone(document); }
+  #commandPrefix;
+  constructor(document, commandPrefix) { this.#document = structuredClone(document); this.#commandPrefix = commandPrefix; }
+  get sourceLibraryCommandPrefix() { return this.#commandPrefix; }
   async loadProject(projectId) { return this.#document.projectId === projectId ? this.document() : null; }
   async appendRevision(projectId, expectedRevision, revision) {
     invariant(projectId === this.#document.projectId && this.#document.revisions.at(-1).number === expectedRevision,
@@ -72,9 +74,15 @@ class SourceLibrarySimulationStore {
 }
 
 function sliceChoice(slice) { return { rectangleId: slice.rectangleId, sliceId: slice.sliceId, expectedSliceVersion: slice.version }; }
+function currentOutput(atlas, slice) {
+  return slice?.sourceId === atlas.sourceId && slice.definitionVersion === atlas.definitionVersion
+    && slice.definitionFingerprint === atlas.definitionFingerprint
+    && atlas.rectangles.some(rectangle => rectangle.rectangleId === slice.rectangleId && rectangle.included);
+}
 function savedInput(atlas) {
   const latest = new Map();
   for (const slice of atlas.sliceHeads ?? []) {
+    if (!currentOutput(atlas, slice)) continue;
     const previous = latest.get(slice.rectangleId);
     if (!previous || slice.definitionVersion > previous.definitionVersion
       || (slice.definitionVersion === previous.definitionVersion && slice.version > previous.version)) latest.set(slice.rectangleId, slice);
@@ -92,6 +100,12 @@ function assetResult(rectangleId, status, asset) {
 function sameAsset(a, b) {
   return a.name === b.name && a.kind === b.kind && a.metadataFingerprint === b.metadataFingerprint
     && fingerprint(a.sliceBinding) === fingerprint(b.sliceBinding);
+}
+function authoredMetadata(metadata) {
+  // As in owner Asset Save, visual facts belong to the new exact image binding.
+  // Retain every authored field, including metadata not exposed by this editor.
+  const { pixelSize: _pixelSize, pivot: _pivot, ...authored } = structuredClone(metadata);
+  return authored;
 }
 
 /** Owner-only orchestration. It invokes the existing semantic commands, never an agent authority shortcut. */
@@ -125,7 +139,8 @@ export class SourceLibraryService {
       savedInput: savedInput(atlas),
       targets: assets.map(asset => ({ assetId: asset.assetId, assetVersion: asset.assetVersion, metadataVersion: asset.metadataVersion,
         name: asset.name, kind: asset.kind, lifecycle: asset.lifecycle, metadata: structuredClone(asset.metadata), sliceBinding: structuredClone(asset.sliceBinding) })),
-      priorMappings: operations.flatMap(operation => operation.receipt.items.filter(item => item.status !== 'skipped').map(item => ({ ...structuredClone(item), revision: operation.lastRevision }))),
+      priorMappings: operations.flatMap(operation => operation.receipt.items.filter(item => item.status !== 'skipped'
+        && currentOutput(atlas, item.sliceBinding)).map(item => ({ ...structuredClone(item), revision: operation.lastRevision }))),
     };
   }
   async plan(raw, context) {
@@ -171,9 +186,9 @@ export class SourceLibraryService {
     const source = snapshot.sources.find(value => value.id === atlas.sourceId);
     invariant(source?.lifecycle?.state === 'APPROVED_SOURCE' && source.review?.disposition === 'USER_APPROVED',
       'ATLAS_SOURCE_NOT_APPROVED', 'The original image must be approved before creating Library content.');
-    const simulationStore = new SourceLibrarySimulationStore(document);
-    const simulation = new StudioService({ store: simulationStore, jobStore: this.#jobs, clock: this.#clock });
     const prefix = `source.library.${fingerprint({ projectId: request.projectId, operationKey }).slice(0, 32)}`;
+    const simulationStore = new SourceLibrarySimulationStore(document, prefix);
+    const simulation = new StudioService({ store: simulationStore, jobStore: this.#jobs, clock: this.#clock });
     let sequence = 0;
     const execute = async (type, payload) => {
       const revision = simulationStore.document().revisions.at(-1).number;
@@ -227,11 +242,11 @@ export class SourceLibraryService {
       }
       const payload = { assetId: d.assetId, operation: d.operation, expectedAssetVersion: current?.assetVersion ?? 0,
         expectedMetadataVersion: current?.metadataVersion ?? 0, name: d.name ?? current.name, kind: d.operation === 'create' ? d.kind : current.kind,
-        metadata: structuredClone(d.operation === 'create' ? d.metadata : current.metadata),
+        metadata: d.operation === 'create' ? structuredClone(d.metadata) : authoredMetadata(current.metadata),
         image: { mode: 'saved-slice', sliceId: sliceBinding.sliceId, expectedSliceVersion: sliceBinding.sliceVersion } };
       // Validate an update without adding a redundant version to the real batch.
       if (current) {
-        const trialStore = new SourceLibrarySimulationStore(simulationStore.document());
+        const trialStore = new SourceLibrarySimulationStore(simulationStore.document(), prefix);
         const trial = new StudioService({ store: trialStore, jobStore: this.#jobs, clock: this.#clock });
         const revision = trialStore.document().revisions.at(-1).number;
         await trial.execute({ schemaVersion: 1, commandId: `${prefix}.check.${sequence}`, idempotencyKey: `${prefix}.check.${sequence}`,
