@@ -25,7 +25,7 @@ function driver(devtools, sessionId) {
   const state = () => evaluate(`(() => {
     const rect = n => { const r = n?.getBoundingClientRect(); return r ? [r.x,r.y,r.width,r.height] : null; };
     const canvas = document.querySelector('.cutter-canvas'), scroll = document.querySelector('.cutter-scroll');
-    return { geometry: [...document.querySelectorAll('[data-cutter-move]')].map(n => ['x','y','width','height'].map(k => Number(n.getAttribute(k)))),
+    return { geometry: [...document.querySelectorAll('[data-cutter-move]')].sort((a,b)=>Number(a.dataset.cutterMove)-Number(b.dataset.cutterMove)).map(n => ['x','y','width','height'].map(k => Number(n.getAttribute(k)))),
       names: [...document.querySelectorAll('[data-cutter-select] strong')].map(n => n.textContent),
       included: [...document.querySelectorAll('[data-rectangle-field="included"]')].map(n => n.checked),
       canvas: rect(canvas), scale: Number(canvas?.dataset.scale), zoom: canvas?.dataset.zoom,

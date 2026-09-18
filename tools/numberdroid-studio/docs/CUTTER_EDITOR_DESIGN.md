@@ -22,11 +22,32 @@ also a direct human correction surface.
 
 ## Workspace and tools
 
+### Bounded interaction follow-up — 2026-09-18
+
+After passing the Source-to-Library batch, Klaus reported the selected cut's
+handles being covered by higher-numbered cuts. Paint/hit-test the selected
+visual group above every other cut without reordering semantic rectangles,
+changing IDs or moving the canvas during a captured gesture.
+
+Klaus explicitly chose **Save layout → Generate as separate actions**. Place
+Save cut layout immediately before Generate output images; mute Save when the
+authored definition is unchanged. Dirty state compares against the last
+confirmed saved definition, so Undo or manual restoration becomes clean again.
+An unchanged valid saved layout can generate without another Save. Valid but
+unsaved work must say to Save first; pending/generated/failed jobs explain only
+actions available in their actual state. Geometry validity alone is not job
+readiness. Keep unknown-result retry and source/job version checks intact.
+
+Cut images and View Output use the same tab styling as the Sources content
+tabs, in that order. Add at least16px between saved Animation-frame cards and
+their Create Animation action. These changes need focused live retest; the
+passed Library workflow and existing agent/backend authority remain unchanged.
+
 - Keep one canvas node and a stable source-to-screen transform during a drag.
   Validation messages must not move, resize or rescale the image. Their region
   has reserved height and can scroll internally if needed.
-- Use a left tool rail for Select, Draw cut, Grid, Remove cut, Undo, Redo and
-  Save work. The rail and inspector have bounded dimensions and may scroll
+- Use a left tool rail for Select, Draw cut, Grid, Remove cut, Undo and Redo;
+  Save cut layout is in the paired action row before Generate. The rail and inspector have bounded dimensions and may scroll
   independently; changing their content must not move the canvas.
 - Grid settings open in an overlaid popup, with explicit Close and keyboard
   dismissal. Opening, editing or closing settings must not reflow the canvas.

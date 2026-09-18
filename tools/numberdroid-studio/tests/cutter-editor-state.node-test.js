@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { cutterGridInfo, cutterGridStops, cutterSnapCoordinate, cutterDragRectangle,
-  cutterEditIssues, cutterHistoryPush, cutterHistoryStep, cutterDisplayName,
+  cutterEditIssues, cutterHistoryPush, cutterHistoryStep, cutterDisplayName, cutterDefinitionChanged,
 } from '../apps/studio-server/public/cutter-editor-state.js';
 
 const source = { width: 1254, height: 1254 };
@@ -178,4 +178,61 @@ test('display labels use human names with stable numbered fallbacks and never ch
   assert.equal(cutterDisplayName({ name: '  ' }, 6), 'Cut 7');
   assert.equal(cutterDisplayName({}, 0), 'Cut 1');
   assert.equal(original.name, '  Calm floor  '); assert.equal(original.rectangleId, 'cut.one');
+});
+
+test('definition dirtiness starts clean, ignores editor controls and never mutates saved or local work', () => {
+  const atlas = freeze({ id: 'atlas.saved', sourceId: 'source.original', name: 'Floor cuts', rectangles: [cut()] });
+  const cutter = freeze({ sourceId: atlas.sourceId, name: atlas.name, rectangles: structuredClone(atlas.rectangles),
+    selectedIndex: 2, zoom: '4', showGrid: false, snap: true, gridOpen: true, tool: 'draw',
+    guide: { x: 2, width: 12 }, grid: { rows: 4 }, history: { past: [[cut({ width: NaN })]], future: [] }, dirty: true });
+  const before = structuredClone(cutter);
+  assert.equal(cutterDefinitionChanged(cutter, atlas), false);
+  assert.deepEqual(cutter, before);
+  assert.equal(cutterDefinitionChanged(null, atlas), false);
+  assert.equal(cutterDefinitionChanged({ name: 'New work', sourceId: 'source.new', rectangles: [] }, null), false);
+  assert.equal(cutterDefinitionChanged(cutter, null), true);
+});
+
+test('geometry, invalid drafts, Undo and manual restoration compare against the actual saved definition', () => {
+  const atlas = { sourceId: 'source.original', name: 'Floor cuts', rectangles: [cut()] };
+  const cutter = { ...structuredClone(atlas), rectangles: [cut({ x: 101 })] };
+  assert.equal(cutterDefinitionChanged(cutter, atlas), true);
+  const history = cutterHistoryPush(undefined, atlas.rectangles, cutter.rectangles);
+  cutter.rectangles = cutterHistoryStep(history, cutter.rectangles, 'undo').rectangles;
+  assert.equal(cutterDefinitionChanged(cutter, atlas), false);
+  for (const value of [NaN, null, undefined, Infinity, 1.5, -1, '100']) {
+    cutter.rectangles[0].x = value;
+    assert.equal(cutterDefinitionChanged(cutter, atlas), true, String(value));
+  }
+  const invalidAtlas = { ...atlas, rectangles: [cut({ x: null })] };
+  cutter.rectangles[0].x = NaN;
+  assert.equal(cutterDefinitionChanged(cutter, invalidAtlas), true, 'NaN must not flatten to null');
+  cutter.rectangles[0].x = 100;
+  assert.equal(cutterDefinitionChanged(cutter, atlas), false);
+});
+
+test('definition comparison preserves names, source, ordering, stable identities and hidden replacement metadata', () => {
+  const atlas = { sourceId: 'source.original', name: 'Floor cuts', rectangles: [cut(), cut({ rectangleId: 'cut.two', x: 500 })] };
+  for (const patch of [{ rectangleId: 'cut.other' }, { name: 'Different cut' }, { included: false }, { pivot: null },
+    { pivot: { x: 21, y: 30 } }, { pivot: { x: NaN, y: 30 } }, { replacesSliceId: 'slice.other' },
+    { expectedSliceVersion: 3 }, { expectedSliceVersion: NaN }, { transparentPaddingPolicy: 'different' }]) {
+    const cutter = structuredClone(atlas); Object.assign(cutter.rectangles[0], patch);
+    assert.equal(cutterDefinitionChanged(cutter, atlas), true);
+  }
+  assert.equal(cutterDefinitionChanged({ ...atlas, name: 'Different layout' }, atlas), true);
+  assert.equal(cutterDefinitionChanged({ ...atlas, sourceId: 'source.updated' }, atlas), true);
+  assert.equal(cutterDefinitionChanged({ ...atlas, rectangles: [...atlas.rectangles].reverse() }, atlas), true);
+  assert.equal(cutterDefinitionChanged({ ...atlas, rectangles: atlas.rectangles.slice(0, 1) }, atlas), true);
+});
+
+test('omitted optional rectangle fields match empty editor defaults without normalizing invalid values', () => {
+  const bare = { rectangleId: 'cut.unnamed', x: 0, y: 0, width: 20, height: 30, included: true };
+  const atlas = { sourceId: 'source.original', name: 'Cuts', rectangles: [bare] };
+  const cutter = { ...atlas, name: '  Cuts  ', rectangles: [{ ...bare, name: ' ', pivot: null,
+    replacesSliceId: null, expectedSliceVersion: null, transparentPaddingPolicy: 'preserve_exact_rect' }] };
+  assert.equal(cutterDefinitionChanged(cutter, atlas), false);
+  cutter.rectangles[0].included = undefined;
+  assert.equal(cutterDefinitionChanged(cutter, atlas), true);
+  cutter.rectangles[0].included = true; cutter.rectangles[0].expectedSliceVersion = NaN;
+  assert.equal(cutterDefinitionChanged(cutter, atlas), true);
 });

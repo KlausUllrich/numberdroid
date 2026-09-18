@@ -8,8 +8,9 @@ Keep the precise Cutter; use explicit Add new / Update a named Image / Skip
 destinations and one atomic owner Save into Library. Preserve exact consumer
 pins and the accepted Animation/frame path. This supersedes the earlier
 generic saved-output comparison, not earlier product acceptance.
-Final verification and a bundled Klaus live test remain pending: VT-025 is
-**REVISE**, not accepted. Migration19 supplies recovery receipts; it does not
+Klaus explicitly passed the bundled VT-025 workflow on build `53885f5` on
+2026-09-18; five bounded Cutter findings retain a focused repair/retest gate.
+Build2488 is independently green; no merge is implied. Migration19 supplies recovery receipts; it does not
 authorize new agent tools, deletion, source cleanup, automatic cut-layout copying,
 materialization or publication. Develop and test on fresh fixtures only.
 

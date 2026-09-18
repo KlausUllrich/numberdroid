@@ -319,6 +319,7 @@ try {
   let checkpoint45StudioPreview = null;
   let a17Evidence = null;
   let sourcesNavigationEvidence = null;
+  let checkpoint2bSourcesTabStyle = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
     const focus = checkpoint2aFocus ?? 'intake-form';
@@ -354,6 +355,10 @@ try {
     return observation;
   };
   if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources') {
+    checkpoint2bSourcesTabStyle = (await devtools.send('Runtime.evaluate', {
+      expression: `(() => { const node=document.querySelector('[data-sources-tab][aria-current="page"]'); if(!node) return null; const style=getComputedStyle(node); return Object.fromEntries(['backgroundColor','borderBottomColor','borderBottomWidth','borderRadius','paddingTop','paddingBottom','fontSize'].map(key=>[key,style[key]])); })()`,
+      returnByValue: true,
+    }, sessionId)).result?.value;
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click(); document.querySelector('[data-cutter-view="edit"]')?.click()`,
       returnByValue: true,
@@ -4525,6 +4530,55 @@ try {
   let checkpoint2bInteractionEvidence = null;
   if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources' && checkpoint2bFocus === 'cutter-canvas') {
     checkpoint2bInteractionEvidence = await captureCutterEditor({ devtools, sessionId });
+    const evaluate = async expression => {
+      const result = await devtools.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
+      assert(!result.exceptionDetails, JSON.stringify(result.exceptionDetails)); return result.result?.value;
+    };
+    const settle = () => evaluate('new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done)))');
+    const ui = await evaluate(`(() => {
+      const save=document.querySelector('.cutter-actions [data-save-atlas]'),generate=document.querySelector('[data-preview-atlas]');
+      const style=getComputedStyle(document.querySelector('[data-cutter-view="edit"]'));
+      const a=save?.getBoundingClientRect(),b=generate?.getBoundingClientRect();
+      return { saveDisabled:save?.disabled,generateEnabled:generate?.disabled===false,
+        saveBeforeGenerate:Boolean(a&&b&&a.right<=b.left&&Math.abs(a.top-b.top)<=1),
+        tabStyle:Object.fromEntries(['backgroundColor','borderBottomColor','borderBottomWidth','borderRadius','paddingTop','paddingBottom','fontSize'].map(key=>[key,style[key]])) };
+    })()`);
+    assert(ui.saveDisabled && ui.generateEnabled && ui.saveBeforeGenerate, `Clean cutter action readiness/order failed: ${JSON.stringify(ui)}`);
+    assert(checkpoint2bSourcesTabStyle, 'Sources tab reference style missing');
+    assert.deepEqual(ui.tabStyle, checkpoint2bSourcesTabStyle, 'Cutter tabs must match Sources tab treatment');
+    await evaluate(`(() => { document.querySelector('[data-cutter-select="0"]').click(); const width=document.querySelector('[data-rectangle-field="width"]'); width.value='650'; width.dispatchEvent(new Event('change',{bubbles:true})); })()`); await settle();
+    const overlapping = await evaluate(`(() => {
+      const handle=document.querySelector('[data-cutter-resize="0"][data-cutter-edge="e"]'); handle.scrollIntoView({block:'center',inline:'center'});
+      const box=handle.getBoundingClientRect(),x=box.x+box.width/2,y=box.y+box.height/2;
+      const hit=document.elementFromPoint(x,y)?.closest('[data-cutter-resize]');
+      const geometry=()=>[...document.querySelectorAll('[data-cutter-move]')].sort((a,b)=>Number(a.dataset.cutterMove)-Number(b.dataset.cutterMove)).map(n=>['x','y','width','height'].map(key=>Number(n.getAttribute(key))));
+      return {x,y,scale:Number(document.querySelector('.cutter-canvas').dataset.scale),hitIndex:hit?.dataset.cutterResize,hitEdge:hit?.dataset.cutterEdge,
+        selection:document.querySelector('[data-rectangle-row]')?.dataset.rectangleRow,geometry:geometry(),
+        semanticOrder:[...document.querySelectorAll('[data-cutter-select]')].map(n=>n.dataset.cutterSelect),generateDisabled:document.querySelector('[data-preview-atlas]').disabled};
+    })()`);
+    assert.equal(overlapping.hitIndex,'0','Selected low-index resize handle must win real hit-testing over overlapping higher-index cut');
+    assert.equal(overlapping.hitEdge,'e'); assert.equal(overlapping.selection,'0'); assert.equal(overlapping.generateDisabled,true);
+    try {
+      await devtools.send('Input.dispatchMouseEvent',{type:'mousePressed',x:overlapping.x,y:overlapping.y,button:'left',buttons:1,clickCount:1},sessionId);
+      await devtools.send('Input.dispatchMouseEvent',{type:'mouseMoved',x:overlapping.x+13*overlapping.scale,y:overlapping.y,button:'left',buttons:1},sessionId);
+    } finally { await devtools.send('Input.dispatchMouseEvent',{type:'mouseReleased',x:overlapping.x+13*overlapping.scale,y:overlapping.y,button:'left',buttons:0,clickCount:1},sessionId); }
+    await settle();
+    const resized = await evaluate(`({selection:document.querySelector('[data-rectangle-row]')?.dataset.rectangleRow,
+      semanticOrder:[...document.querySelectorAll('[data-cutter-select]')].map(n=>n.dataset.cutterSelect),
+      geometry:[...document.querySelectorAll('[data-cutter-move]')].sort((a,b)=>Number(a.dataset.cutterMove)-Number(b.dataset.cutterMove)).map(n=>['x','y','width','height'].map(key=>Number(n.getAttribute(key))))})`);
+    assert.equal(resized.selection,'0'); assert.deepEqual(resized.semanticOrder,overlapping.semanticOrder);
+    assert.deepEqual(resized.geometry[0],[3,3,663,622]); assert.deepEqual(resized.geometry.slice(1),overlapping.geometry.slice(1));
+    await evaluate(`document.querySelector('[data-cutter-tool="undo"]').click()`); await settle();
+    await evaluate(`document.querySelector('[data-cutter-tool="undo"]').click()`); await settle();
+    assert.equal(await evaluate(`document.querySelector('[data-preview-atlas]').disabled`),false,'Restored valid saved layout must enable generation again');
+    assert.equal(await evaluate(`document.querySelector('.cutter-actions [data-save-atlas]').disabled`),true,'Restored unchanged layout must not enable a redundant Save');
+    await evaluate(`document.querySelector('[data-cutter-view="outputs"]').click()`); await settle();
+    await evaluate(`document.querySelector('.cutter-animation-outputs').open=true`); await settle();
+    const animationGap = await evaluate(`(() => {const grid=document.querySelector('.cutter-animation-outputs .slice-preview-grid'),button=document.querySelector('.cutter-animation-outputs [data-create-animation]');return button.getBoundingClientRect().top-grid.getBoundingClientRect().bottom;})()`);
+    assert(animationGap>=16,`Animation create action requires at least16px separation, got ${animationGap}`);
+    assert.equal(await evaluate(`fetch('/api/projects/numberdroid-studio-checkpoint-2b').then(r=>r.json()).then(p=>p.revision)`),7);
+    checkpoint2bInteractionEvidence.cutterFollowup = { cleanActionReadiness:true,saveBeforeGenerate:true,tabsMatchSources:true,
+      overlappingSelectedHandle:{before:overlapping,after:resized},generationRestored:true,animationGap,savedRevisionUnchanged:7 };
     assertNoProtocolErrors('After Checkpoint 2B interactions');
   }
   await mkdir(dirname(outputPath), { recursive: true });

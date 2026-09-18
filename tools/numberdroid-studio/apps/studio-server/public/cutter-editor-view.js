@@ -7,6 +7,36 @@ const field = (label, input) => { const n = el('label', 'cutter-field'); n.appen
 const input = (type, value, data) => { const n = el('input'); n.type = type; if (type === 'checkbox') n.checked = value; else n.value = value; Object.assign(n.dataset, data); return n; };
 export function cutterOutputName(output, index) { return cutterDisplayName(output.rectangle ?? output, index); }
 
+export function cutterActionState({ cutter, source, atlas, pending, job }) {
+  const issues = cutterEditIssues(cutter.rectangles, source);
+  const unresolved = job && !['APPLIED', 'DISCARDED'].includes(job.state);
+  const jobReason = !unresolved ? '' : ['QUEUED', 'RUNNING'].includes(job.state)
+    ? job.cancelRequested ? 'Cancellation is pending. Wait until it finishes, then discard the job.' : 'Images are being generated. Wait for completion, or cancel the job.'
+    : ['FAILED', 'CANCELLED'].includes(job.state) ? 'Discard the failed or cancelled job before saving a layout or generating again.'
+      : 'Save or discard the current generated results before continuing.';
+  const commonReason = pending ? 'Another image operation is in progress.'
+    : unresolved ? jobReason
+      : !issues.canPreview ? issues.messages.join(' ') : '';
+  const saveReason = commonReason || (!cutter.dirty && atlas && !cutter.operations?.define ? 'The cut layout is already saved. There are no changes to save.' : '');
+  const generateReason = commonReason || (!atlas || cutter.dirty ? 'Save the changed cut layout first, then generate its output images.' : '');
+  return { issues, saveReason, generateReason };
+}
+
+export function syncCutterActions(section, context) {
+  const availability = cutterActionState(context);
+  for (const [selector, reason] of [['[data-save-atlas]', availability.saveReason], ['[data-preview-atlas]', availability.generateReason]]) {
+    const control = section.querySelector(selector); if (!control) continue;
+    control.disabled = Boolean(reason); control.title = reason;
+    const wrapper = control.parentElement;
+    if (wrapper?.classList.contains('cutter-action-reason')) {
+      wrapper.tabIndex = reason ? 0 : -1; wrapper.title = reason;
+      if (reason) wrapper.setAttribute('aria-label', `${control.textContent}. Unavailable: ${reason}`);
+      else wrapper.removeAttribute('aria-label');
+    }
+  }
+  return availability;
+}
+
 export function cutterOutputCard(output, index, projectId) {
   const card = el('figure', 'slice-preview');
   const uri = output.preview?.resourceUri ?? `/api/projects/${encodeURIComponent(projectId)}/artifacts/sha256/${output.digest}`;
@@ -22,15 +52,19 @@ export function renderCutterEditor({ cutter, source, atlas, pending, job }) {
   const header = el('div', 'cutter-heading');
   const title = el('div'); title.append(el('p', 'eyebrow', 'Sources / Image Workbench'), el('h2', '', cutter.name), el('p', '', `Created from: ${source.name}. The original stays unchanged.`));
   const back = action('← Back to Image Workbench', { closeCutter: '' }, pending); back.classList.add('cutter-back-button'); section.append(back); header.append(title); section.append(header);
-  const tabs = el('nav', 'cutter-view-tabs'); tabs.setAttribute('aria-label', 'Cutter views');
-  for (const [view, label] of [['edit', 'Cut images'], ['outputs', 'View Output']]) { const b = action(label, { cutterView: view }, pending); b.setAttribute('aria-pressed', String(cutter.view === view || (view === 'outputs' && cutter.view === 'detail'))); tabs.append(b); }
+  const tabs = el('nav', 'cutter-view-tabs library-tabs'); tabs.setAttribute('aria-label', 'Cutter views');
+  for (const [view, label] of [['edit', 'Cut images'], ['outputs', 'View Output']]) {
+    const selected = cutter.view === view || (view === 'outputs' && cutter.view === 'detail');
+    const b = action(label, { cutterView: view }, pending); b.className = `library-tab${selected ? ' selected' : ''}`;
+    b.setAttribute('aria-current', selected ? 'page' : 'false'); tabs.append(b);
+  }
   section.append(tabs);
   if (cutter.view !== 'edit') return section;
   const layout = el('div', 'cutter-editor-layout');
   const rail = el('div', 'cutter-tool-rail'); rail.setAttribute('aria-label', 'Cutting tools');
-  for (const [tool, label] of [['select', 'Select'], ['draw', 'Draw cut'], ['grid', 'Grid'], ['remove', 'Remove'], ['undo', 'Undo'], ['redo', 'Redo'], ['save', 'Save cut layout']]) {
+  for (const [tool, label] of [['select', 'Select'], ['draw', 'Draw cut'], ['grid', 'Grid'], ['remove', 'Remove'], ['undo', 'Undo'], ['redo', 'Redo']]) {
     const disabled = pending || (tool === 'remove' && !cutter.rectangles[cutter.selectedIndex]) || (tool === 'undo' && !cutter.history.past.length) || (tool === 'redo' && !cutter.history.future.length);
-    const b = action(label, tool === 'save' ? { saveAtlas: '' } : { cutterTool: tool }, disabled);
+    const b = action(label, { cutterTool: tool }, disabled);
     if (['select', 'draw'].includes(tool)) b.setAttribute('aria-pressed', String(cutter.tool === tool));
     if (tool === 'grid') { b.setAttribute('aria-expanded', String(cutter.gridOpen)); b.setAttribute('aria-controls', 'cutter-grid-popup'); }
     rail.append(b);
@@ -97,8 +131,9 @@ export function syncCutterCanvas(section, { cutter, source, atlas, pending, job 
   canvas.style.width = `${source.width * scale}px`; canvas.style.height = `${source.height * scale}px`; canvas.dataset.zoom = cutter.zoom; canvas.dataset.scale = String(scale); overlay.dataset.cutterTool = cutter.tool;
   const range = main.querySelector('[data-cutter-zoom]'); if (document.activeElement !== range) range.value = String(Math.round(scale * 100));
   main.querySelector('[data-cutter-zoom-label]').textContent = `${cutter.zoom === 'fit' ? 'Fit · ' : ''}${Math.round(scale * 100)}%`;
-  const issues = cutterEditIssues(cutter.rectangles, source); const unavailable = job && !['APPLIED', 'DISCARDED'].includes(job.state);
-  const message = cutter.error || issues.messages.join(' ') || `${cutter.rectangles.filter(r => r.included).length} of ${cutter.rectangles.length} cuts included. ${cutter.snap ? 'Grid snapping on; hold Alt to bypass.' : 'Grid snapping off.'}`;
+  const availability = syncCutterActions(section, { cutter, source, atlas, pending, job });
+  const { issues } = availability;
+  const message = cutter.error || issues.messages.join(' ') || `${cutter.rectangles.filter(r => r.included).length} of ${cutter.rectangles.length} cuts included. ${cutter.snap ? 'Grid snapping on; hold Alt to bypass.' : 'Grid snapping off.'} ${availability.generateReason || 'Ready to generate output images.'}`;
   main.querySelector('[data-cutter-validation]').textContent = message; main.querySelector('[data-cutter-validation]').dataset.invalid = String(Boolean(cutter.error || issues.messages.length));
   main.querySelector('[data-cutter-caption]').textContent = `${source.width} × ${source.height} source pixels · ${cutter.tool === 'draw' ? 'Drag to draw a cut.' : 'Drag a cut or one of its eight edge and corner handles.'}`;
   let grid = overlay.querySelector('[data-cutter-guides]'); if (!grid) { grid = svg('path', { fill: 'none', 'vector-effect': 'non-scaling-stroke' }); grid.dataset.cutterGuides = ''; overlay.prepend(grid); }
@@ -116,8 +151,11 @@ export function syncCutterCanvas(section, { cutter, source, atlas, pending, job 
       h.setAttribute('x', String(x - size / 2)); h.setAttribute('y', String(y - size / 2)); h.setAttribute('width', String(size)); h.setAttribute('height', String(size)); h.dataset.cutterResize = String(index); h.setAttribute('tabindex', pending || index !== cutter.selectedIndex ? '-1' : '0'); h.setAttribute('role', 'button'); h.setAttribute('aria-label', `Resize ${cutterDisplayName(r, index)} ${edge}`); h.style.display = index === cutter.selectedIndex ? '' : 'none'; }
   });
   for (const group of overlay.querySelectorAll('g[data-rectangle-id]')) if (!kept.has(group)) group.remove();
+  // SVG paints/hit-tests in DOM order. Raise only the selected visual group;
+  // authored rectangle order, IDs and output order must never change.
+  const selected = overlay.querySelector('g.selected');
+  if (selected && overlay.lastElementChild !== selected) overlay.append(selected);
   for (const control of main.querySelectorAll('button,input')) control.disabled = pending;
-  const save = section.querySelector('[data-save-atlas]'); if (save) save.disabled = pending || !issues.canPreview || Boolean(unavailable);
   const info = cutterGridInfo(source, cutter.guide); const gridIssues = info.valid && info.count > 0 && info.count <= 64 ? cutterEditIssues(info.cells.map((cell, index) => ({ ...cell, rectangleId: `grid-preview.${index}`, included: true, pivot: null })), source) : null; const summary = section.querySelector('[data-cutter-grid-summary]');
   if (summary) summary.textContent = !info.valid ? 'Enter positive cell sizes and valid origin/gaps.' : `${info.count} full cuts · unused right ${info.unusedRight}px, bottom ${info.unusedBottom}px. This replaces your current layout; Undo restores it.${info.count > 64 ? ' Too many cuts: the limit is 64.' : ''}${gridIssues?.messages.length ? ' ' + gridIssues.messages.join(' ') : ''}`;
   const create = section.querySelector('[data-cutter-grid-create]'); if (create) create.disabled = pending || !info.valid || info.count < 1 || info.count > 64 || gridIssues?.canPreview === false;

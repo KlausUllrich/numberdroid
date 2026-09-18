@@ -1,8 +1,10 @@
 # Sources navigation — Production implementation contract
 
-Status: **REVISE — APPROVED CLARITY CORRECTION, 2026-09-16**. The initial
-production screen failed Klaus's clarity review; the correction below is
-authorized, but corrected production behavior is not yet user accepted.
+Status: **WORKFLOW USER-PASSED 2026-09-18; BOUNDED CUTTER FOLLOW-UP OPEN**.
+The initial production screen failed Klaus's clarity review. Klaus subsequently
+reported “all pass.” for the corrected VT-025 Source-to-Library batch on build
+`53885f5`, while reporting five concrete Cutter follow-ups. Preserve the passed
+workflow; those findings retain their own focused retest. This is not a merge.
 
 **2026-09-18 scope evolution:** the approved
 [Source-to-Library implementation](SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md)

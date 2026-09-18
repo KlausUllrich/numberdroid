@@ -128,8 +128,10 @@ and requested its live version with the precise Cutter retained. Its
 [implementation contract](SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md) now
 owns Add new / Update a named Image / Skip and atomic Save into Library. Generic
 saved-output comparison and a second Image-authoring step are superseded;
-accepted Animation/frame authoring remains intact. VT-025 is still REVISE while
-this candidate completes verification and its bundled live test. No deletion or
+accepted Animation/frame authoring remains intact. Klaus reported “all pass.”
+for the complete VT-025 workflow on build `53885f5` on 2026-09-18. Five bounded
+Cutter follow-ups remain open for focused retest; the candidate is not merged.
+No deletion or
 source cleanup is included; do not open the preserved pre-pause workspace with
 the new schema19 writer.
 Further screen changes follow discussion and mockup agreement before implementation.

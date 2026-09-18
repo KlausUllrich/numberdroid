@@ -8,8 +8,10 @@ and requested its live implementation with the precise Cutter retained. The
 output destinations: Add new, Update a named Library Image, or Skip, followed by
 one atomic owner Save. This supersedes the earlier generic saved-output
 comparison and separate Image-authoring step, not the accepted Animation path.
-The candidate is undergoing final verification; VT-025 remains **REVISE** until
-Klaus's bundled live PASS. Schema19 adds recovery receipts, not agent authority.
+Klaus reported **“all pass.”** for the VT-025 batch on build `53885f5` on
+2026-09-18. Five bounded Cutter interaction/presentation follow-ups remain open;
+the passed Library workflow is not reopened. Build2488 is independently green;
+the candidate remains unmerged. Schema19 adds recovery receipts, not agent authority.
 Deletion, source cleanup, automatic layout copying and runtime/publication work
 are excluded. The preserved pre-pause workspace must remain untouched.
 

@@ -224,6 +224,7 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .saved-output-library-actions button { white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
 .cutter-primary-outputs { margin-bottom: 18px; }
 .slice-preview-grid > [data-create-animation] { grid-column: 1 / -1; justify-self: start; margin: 8px 0; }
+.cutter-animation-outputs > [data-create-animation] { margin-top: 20px; }
 .cutter-job-status { margin-left: auto; color: var(--cyan); font: 10px ui-monospace, monospace; }
 .cutter-job-events { display: grid; gap: 5px; margin: 0 0 18px; padding: 0; list-style: none; }
 .cutter-job-events li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 9px; border: 1px solid #29483f; border-radius: 6px; background: #0e1d19; }
@@ -794,15 +795,13 @@ body[data-cutter-open="true"] .workspace-content { padding-top:16px; }
 .atlas-cutter { position:relative; padding:20px; }
 .cutter-heading { gap:20px; margin-bottom:16px; }
 .cutter-heading > button { flex-shrink:0; font-size:12px; }
-.cutter-view-tabs { display:flex; gap:8px; margin-bottom:18px; border-bottom:1px solid var(--line); padding-bottom:12px; }
-.cutter-view-tabs button { background:transparent; border-color:transparent; font-size:13px; }
-.cutter-view-tabs button[aria-pressed="true"] { border-color:#78bba2; background:#22392f; }
+.cutter-view-tabs { --library-line: var(--line); margin-bottom:20px; }
 .cutter-editor-layout { display:grid; grid-template-columns:76px minmax(0,1fr) 255px; gap:15px; align-items:start; }
 .cutter-tool-rail { display:flex; flex-direction:column; gap:7px; padding:8px; border:1px solid var(--line); border-radius:10px; background:#121f19; max-height:620px; overflow:auto; }
 .cutter-tool-rail button { padding:10px 3px; min-height:43px; font-size:11px; }
 .cutter-tool-rail button[aria-pressed="true"] { border-color:var(--mint); background:#2a503e; }
 .cutter-tool-rail [data-cutter-tool="remove"] { color:#f4b6a7; }
-.cutter-tool-rail [data-cutter-tool="undo"], .cutter-tool-rail [data-save-atlas] { margin-top:12px; }
+.cutter-tool-rail [data-cutter-tool="undo"] { margin-top:12px; }
 .cutter-main { min-width:0; }
 .cutter-zoom-bar { display:flex; align-items:center; gap:8px; height:40px; margin-bottom:8px; }
 .cutter-zoom-bar button { padding:7px 10px; font-size:12px; white-space:nowrap; }

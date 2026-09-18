@@ -13,8 +13,8 @@ import { createSourceLibraryController } from './source-library-controller.js';
 import { createAssemblyEditorController } from './assembly-editor-controller.js';
 import { renderAssemblyCard } from './assembly-library-view.js';
 import { createAssemblyReviewController } from './assembly-review-view.js';
-import { cutterGridInfo, cutterSnapCoordinate, cutterDragRectangle, cutterEditIssues, cutterHistoryPush, cutterHistoryStep } from './cutter-editor-state.js';
-import { renderCutterEditor, syncCutterCanvas, cutterOutputCard, cutterOutputName } from './cutter-editor-view.js';
+import { cutterGridInfo, cutterSnapCoordinate, cutterDragRectangle, cutterEditIssues, cutterHistoryPush, cutterHistoryStep, cutterDefinitionChanged } from './cutter-editor-state.js';
+import { renderCutterEditor, syncCutterCanvas, syncCutterActions, cutterActionState, cutterOutputCard, cutterOutputName } from './cutter-editor-view.js';
 import {
   createSourcesUiState,
   cutterOutputPresentation,
@@ -1732,6 +1732,7 @@ function openCutter(source, { atlasId = null, view = 'edit' } = {}) {
     guide: { width: familyDefaults ? 622 : Math.max(1, Math.floor(source.width / 2)), height: familyDefaults ? 622 : Math.max(1, Math.floor(source.height / 2)), x: familyDefaults ? 3 : 0, y: familyDefaults ? 3 : 0, gapX: familyDefaults ? 4 : 0, gapY: familyDefaults ? 4 : 0 },
     dirty: false,
     syncedVersion: existing?.definitionVersion ?? 0,
+    savedDefinition: existing ? structuredClone({ sourceId: existing.sourceId, name: existing.name, rectangles: existing.rectangles }) : null,
     rectangles: structuredClone(existing?.rectangles ?? []),
     grid: {
       rows: 2, columns: 2,
@@ -1850,7 +1851,7 @@ function invalidateCutterOperations() {
 function markCutterDefinitionDirty() {
   if (!state.cutter) return;
   const { cancel, retry, discard } = state.cutter.operations;
-  state.cutter.dirty = true;
+  state.cutter.dirty = cutterDefinitionChanged(state.cutter, state.cutter.savedDefinition);
   state.cutter.operations = {
     define: null, preview: null, commit: null, cancel, retry, discard,
   };
@@ -1932,23 +1933,18 @@ function renderSourceLibraryWorkflow(atlas) {
 
 function renderCutter(source) {
   const cutter = state.cutter; const atlas = currentCutterAtlas();
+  cutter.dirty = cutterDefinitionChanged(cutter, cutter.savedDefinition);
   const libraryWorkflow = atlas && state.uiMode !== 'remote' ? renderSourceLibraryWorkflow(atlas) : null;
   if (sourceLibraryController?.hasUncertain()) cutter.view = 'outputs';
   const section = renderCutterEditor({ cutter, source, atlas, pending: state.cutterPending || state.sourceMutationPending, job: state.cutterJob });
   section.dataset.cutterModelFingerprint = cutterModelFingerprint(); section.inert = state.sourceMutationPending;
   const actions = document.createElement('div'); actions.className = 'cutter-actions';
   const unresolvedJob = state.cutterJob && !['APPLIED', 'DISCARDED'].includes(state.cutterJob.state);
-  const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save work'; save.dataset.saveAtlas = '';
-  save.textContent = 'Save cut layout';
-  save.disabled = state.cutterPending || !cutter.rectangles.length || Boolean(unresolvedJob);
-  if (unresolvedJob) save.title = 'Commit or discard the current preview job before replacing this atlas definition.';
+  const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save cut layout'; save.dataset.saveAtlas = '';
   const preview = document.createElement('button'); preview.type = 'button'; preview.className = 'secondary'; preview.textContent = 'Generate output images'; preview.dataset.previewAtlas = '';
-  preview.disabled = state.cutterPending || !atlas || cutter.dirty || Boolean(unresolvedJob);
-  if (unresolvedJob) preview.title = 'Apply or discard the current preview job before queuing another.';
-  const previewReason = state.cutterPending ? 'Another image operation is in progress.'
-    : unresolvedJob ? 'Save or discard the current generated results before generating again.'
-      : !atlas || cutter.dirty ? 'Save the cut layout first. Generating uses the saved areas, not unsaved edits.' : '';
-  actions.append(reasonedDisabledControl(preview, previewReason));
+  for (const control of [save, preview]) {
+    const wrapper = document.createElement('span'); wrapper.className = 'cutter-action-reason'; wrapper.append(control); actions.append(wrapper);
+  }
   if (state.cutterJob && ['QUEUED', 'RUNNING'].includes(state.cutterJob.state) && !state.cutterJob.cancelRequested) {
     const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary'; cancel.textContent = 'Cancel job'; cancel.dataset.cancelCutterJob = '';
     cancel.disabled = state.cutterPending;
@@ -1972,8 +1968,9 @@ function renderCutter(source) {
   const errorText = jobError ? ` · ${jobError.code || 'JOB_FAILED'}: ${jobError.message || 'Preview processing failed.'}` : '';
   status.textContent = state.cutterJob
     ? `${({ QUEUED: 'Queued', RUNNING: 'Generating output images', SUCCEEDED: 'Generated images ready to save', APPLIED: 'Output images saved', CANCELLED: 'Cancelled', FAILED: 'Image generation failed', DISCARDED: 'Generated results discarded' })[state.cutterJob.state]} · ${state.cutterJob.progress.current}/${state.cutterJob.progress.total}${cancellationText}${errorText}`
-    : (atlas ? 'Cut layout saved' : 'Save the cut layout before generating images');
+    : (cutter.dirty ? 'Unsaved cut layout changes' : atlas ? 'Cut layout saved' : 'Save the cut layout before generating images');
   actions.append(status); section.append(actions);
+  syncCutterActions(section, { cutter, source, atlas, pending: state.cutterPending || state.sourceMutationPending, job: state.cutterJob });
 
   if (unresolvedJob && cutter.dirty) {
     const guidance = document.createElement('p'); guidance.className = 'cutter-note';
@@ -2055,6 +2052,7 @@ function setCutterView(view) {
 
 function syncCurrentCutterCanvas() {
   if (!state.cutter || state.workspace !== 'sources') return;
+  state.cutter.dirty = cutterDefinitionChanged(state.cutter, state.cutter.savedDefinition);
   const section = elements['workspace-content'].querySelector('[data-atlas-cutter]');
   const source = state.project?.snapshot.sources.find(item => item.id === state.cutter.sourceId);
   if (!section || !source || state.cutter.view !== 'edit') return;
@@ -6729,6 +6727,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
         state.cutter.rectangles = structuredClone(atlas.rectangles);
         state.cutter.name = atlas.name;
         state.cutter.syncedVersion = atlas.definitionVersion;
+        state.cutter.savedDefinition = structuredClone({ sourceId: atlas.sourceId, name: atlas.name, rectangles: atlas.rectangles });
       }
       if (!atlas?.latestPreviewJobId) {
         cancelCutterJobPolling();
@@ -8305,6 +8304,13 @@ elements['workspace-content'].addEventListener('click', async (event) => {
   const retry = event.target.closest('[data-retry-cutter-job]');
   const discard = event.target.closest('[data-discard-cutter-job]');
   if (!save && !preview && !commit && !cancel && !retry && !discard) return;
+  if (save || preview) {
+    state.cutter.dirty = cutterDefinitionChanged(state.cutter, state.cutter.savedDefinition);
+    const source = state.project.snapshot.sources.find(item => item.id === state.cutter.sourceId);
+    const availability = cutterActionState({ cutter: state.cutter, source, atlas, pending: state.cutterPending, job: state.cutterJob });
+    const reason = save ? availability.saveReason : availability.generateReason;
+    if (reason) { showToast(reason); return; }
+  }
   const operationProjectId = state.project.projectId;
   const operationRevision = state.project.revision;
   const operationAtlasId = state.cutter.atlasId;
@@ -8346,6 +8352,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
       });
       if (!operationStillCurrent()) return;
       operationCutter.dirty = false; operationCutter.syncedVersion = response.value.definitionVersion;
+      operationCutter.savedDefinition = structuredClone({ sourceId: operation.sourceId, name: operation.name, rectangles: operation.rectangles });
       state.cutterJob = null; state.cutterJobEvents = [];
       invalidateCutterOperations();
       await loadProject(operationProjectId); showToast(`Atlas definition v${response.value.definitionVersion} saved.`);

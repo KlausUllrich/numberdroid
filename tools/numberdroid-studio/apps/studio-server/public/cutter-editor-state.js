@@ -181,6 +181,29 @@ function sameValue(left, right) {
     && keys.every((key) => Object.hasOwn(right, key) && sameValue(left[key], right[key]));
 }
 
+/** Compare authored work only; viewport/history state never makes a layout dirty. */
+export function cutterDefinitionChanged(cutter, atlas) {
+  if (!cutter) return false;
+  if (!atlas) return Array.isArray(cutter.rectangles) && cutter.rectangles.length > 0;
+  const text = value => typeof value === 'string' ? value.trim() : value;
+  const rectangle = value => {
+    if (!value || typeof value !== 'object') return value;
+    const name = text(value.name);
+    return {
+      rectangleId: value.rectangleId, name: name === '' ? undefined : name,
+      x: value.x, y: value.y, width: value.width, height: value.height,
+      included: value.included,
+      pivot: value.pivot === undefined ? null : value.pivot,
+      transparentPaddingPolicy: value.transparentPaddingPolicy === undefined ? 'preserve_exact_rect' : value.transparentPaddingPolicy,
+      replacesSliceId: value.replacesSliceId === undefined ? null : value.replacesSliceId,
+      expectedSliceVersion: value.expectedSliceVersion === undefined ? null : value.expectedSliceVersion,
+    };
+  };
+  const definition = value => ({ name: text(value.name), sourceId: value.sourceId,
+    rectangles: Array.isArray(value.rectangles) ? value.rectangles.map(rectangle) : value.rectangles ?? [] });
+  return !sameValue(definition(cutter), definition(atlas));
+}
+
 /** Full snapshots include names, inclusion, pivots and explicit replacement maps. */
 export function cutterHistoryPush(history, before, after, { limit = 40 } = {}) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new RangeError('History limit must be an integer from 1 to 1000.');

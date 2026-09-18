@@ -1738,7 +1738,18 @@ Assembly acceptance and later Sources design retain their separate status.
 
 ## VT-025 — Source Images and Image Workbench
 
-Status: **REVISE — LIVE WORKFLOW CANDIDATE; NEEDS BUNDLED KLAUS RETEST, 2026-09-18**.
+Status: **WORKFLOW USER-PASSED 2026-09-18; BOUNDED CUTTER FOLLOW-UP OPEN**.
+
+Klaus explicitly reported “all pass.” for the complete fresh-fixture batch on
+local build `53885f5` (remote candidate `e89e459`, identical tree). Build2488
+also passed independently; neither fact implies merge. He reported follow-ups:
+selected cut handles must remain above overlapping higher-numbered cuts;
+geometry validity and Generate availability must agree/explain saved versus
+unsaved work; use Sources-style tabs; mute unchanged Save and place it before
+Generate; increase spacing before Animation creation. These concrete findings
+reopen only their affected Cutter behavior, not the passed Library workflow.
+Klaus explicitly chose **Save layout → Generate as separate actions**. A valid
+dirty layout explains Save first; an unchanged saved layout needs no extra Save.
 
 Klaus rejected the initial production explanation: redundant notice bars,
 misleading review counts, originals apparently duplicated in Workbench,

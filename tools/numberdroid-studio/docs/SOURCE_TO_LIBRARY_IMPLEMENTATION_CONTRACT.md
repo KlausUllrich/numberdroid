@@ -1,12 +1,15 @@
 # Source to Library — live implementation contract
 
-Status: **LIVE CANDIDATE; FINAL VERIFICATION IN PROGRESS, NOT MERGE-READY OR USER ACCEPTED — 2026-09-18**.
+Status: **WORKFLOW USER-PASSED; CUTTER FOLLOW-UP OPEN; NOT MERGED — 2026-09-18**.
 
 Klaus approved the [workflow design](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md) and
 requested the live version, explicitly retaining the original image and precise
 cutting tools. This L3 block evolves the earlier
 [Sources presentation contract](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md).
-VT-025 remains REVISE until the new production batch is explicitly accepted.
+Klaus reported “all pass.” for the production VT-025 batch on local `53885f5`
+(remote `e89e459`, identical tree). The workflow pass is separate from green
+Build2488 and from merge. His five bounded Cutter interaction/presentation
+findings remain open in the [Backlog](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench).
 
 ## One coherent promise
 
