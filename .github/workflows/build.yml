@@ -723,7 +723,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.studio_windows == 'true'
     runs-on: windows-2022
-    timeout-minutes: 10
+    # Windows cold-start filesystem proofs are expensive; keep the complete
+    # suite bounded without spending its test budget on dependency installation.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -746,8 +748,24 @@ jobs:
         run: node scripts/repo/codex-context-retention.selftest.mjs
 
       - name: Test Studio on Windows
+        id: studio_windows_tests
         working-directory: tools/numberdroid-studio
-        run: npm test
+        timeout-minutes: 15
+        shell: pwsh
+        run: |
+          $studioAvailableCpus = [int](node -p "require('node:os').availableParallelism()")
+          $studioTestConcurrency = [Math]::Max(1, [Math]::Min(2, $studioAvailableCpus - 1))
+          node -e "const os = require('node:os'); console.log(JSON.stringify({ availableParallelism: os.availableParallelism(), cpuCount: os.cpus().length }));"
+          Write-Host "Windows Studio test file concurrency: $studioTestConcurrency"
+          node --test --test-concurrency=$studioTestConcurrency tests/*.node-test.js
+
+      - name: Diagnose failed Windows restore proof in isolation
+        if: failure() && steps.studio_windows_tests.outcome == 'failure'
+        working-directory: tools/numberdroid-studio
+        timeout-minutes: 2
+        # Diagnostic only: a successful isolated check never turns the failed
+        # complete suite green or skips its original safety assertion.
+        run: node --test --test-concurrency=1 --test-name-pattern="admin restore writes and verifies quarantine" tests/admin-cli.node-test.js
 
       - name: Check Studio build on Windows
         working-directory: tools/numberdroid-studio
