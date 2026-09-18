@@ -40,8 +40,12 @@ readiness. Keep unknown-result retry and source/job version checks intact.
 
 Cut images and View Output use the same tab styling as the Sources content
 tabs, in that order. Add at least16px between saved Animation-frame cards and
-their Create Animation action. These changes need focused live retest; the
-passed Library workflow and existing agent/backend authority remain unchanged.
+their Create Animation action (implemented gap:20px). Klaus explicitly reported
+“pass.” for the complete follow-up on build `b1dbff3` on 2026-09-18, after choosing
+**Save layout → Generate as separate actions**. The focused live retest is
+accepted; the passed Library workflow and existing agent/backend authority
+remain unchanged. Remote `9189b795` has the identical tree and green Build2490;
+PR #256 is still unmerged.
 
 - Keep one canvas node and a stable source-to-screen transform during a drag.
   Validation messages must not move, resize or rescale the image. Their region

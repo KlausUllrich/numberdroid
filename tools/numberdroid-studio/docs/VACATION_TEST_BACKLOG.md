@@ -1738,7 +1738,7 @@ Assembly acceptance and later Sources design retain their separate status.
 
 ## VT-025 — Source Images and Image Workbench
 
-Status: **WORKFLOW USER-PASSED 2026-09-18; BOUNDED CUTTER FOLLOW-UP OPEN**.
+Status: **USER ACCEPTED — PASS; NOT MERGED — 2026-09-18**.
 
 Klaus explicitly reported “all pass.” for the complete fresh-fixture batch on
 local build `53885f5` (remote candidate `e89e459`, identical tree). Build2488
@@ -1747,9 +1747,24 @@ selected cut handles must remain above overlapping higher-numbered cuts;
 geometry validity and Generate availability must agree/explain saved versus
 unsaved work; use Sources-style tabs; mute unchanged Save and place it before
 Generate; increase spacing before Animation creation. These concrete findings
-reopen only their affected Cutter behavior, not the passed Library workflow.
+reopened only their affected Cutter behavior, not the passed Library workflow.
 Klaus explicitly chose **Save layout → Generate as separate actions**. A valid
 dirty layout explains Save first; an unchanged saved layout needs no extra Save.
+
+Klaus then explicitly reported **“pass.”** for the complete five-fix retest on
+local `b1dbff3e99ba18d976966e672ebf490f90394169` / remote
+`9189b79571635b0f85bfa3223a456142d006e3fe`, shared tree
+`afbfca5d187309c0b581407c649a6f64bb745caf`. Selected-cut stacking, truthful
+Generate readiness after correction/Undo, separate muted-clean Save before
+Generate, shared tab styling and Animation-action spacing are accepted.
+Final-code Build2490 / run35332417113 is independently green, including Linux
+full browser, Windows and final CI gate. PR #256 remains open/unmerged.
+The user requested a session pause, not another development block. Preserve the
+exact tested workspace at revision27 (last read 2026-09-18); use the
+[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md).
+Do not repeat either accepted batch without a concrete regression or changed risk.
+
+The earlier decisions and completed checklist below explain the acceptance scope.
 
 Klaus rejected the initial production explanation: redundant notice bars,
 misleading review counts, originals apparently duplicated in Workbench,
@@ -1758,7 +1773,8 @@ approved the focused correction and authorized implementation. No production
 PASS is inferred from that approval or from the earlier mockup PASS.
 
 In the follow-up Klaus confirmed the apparent unchanged UI was an old version,
-then called the corrected version much improved. This is not yet a full PASS.
+then called the corrected version much improved. That earlier comment alone was
+not a full PASS; the explicit final decisions above now close the bounded block.
 His requested refinement uses **Cut images** left and **View Output** right on
 both the work card and editor. Klaus then approved the
 [Source-to-Library workflow](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md) and requested
@@ -1837,7 +1853,8 @@ transaction rollback, migration recovery, exact job state and consumer-pin
 protection carry automated native-browser/service evidence; do not ask Klaus to
 induce network faults. Preserve the exact test fixture until his decision.
 
-Report **PASS** or **REVISE** explicitly. A PASS accepts only this navigation and
-and owner Source-to-Library workflow block. It does not approve a production art
+Record **PASS** or **REVISE** explicitly for any new retest. The recorded PASS
+accepts only this navigation, Cutter follow-up and owner Source-to-Library
+workflow block. It does not approve a production art
 source, image generation, new agent authority/Resume, materialization, runtime publication,
 release, deferred VT-001/CP4.5 or broader VT-021.

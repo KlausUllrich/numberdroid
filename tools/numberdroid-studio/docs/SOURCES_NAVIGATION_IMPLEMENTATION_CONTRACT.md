@@ -1,10 +1,11 @@
 # Sources navigation — Production implementation contract
 
-Status: **WORKFLOW USER-PASSED 2026-09-18; BOUNDED CUTTER FOLLOW-UP OPEN**.
+Status: **USER ACCEPTED — PASS; NOT MERGED — 2026-09-18**.
 The initial production screen failed Klaus's clarity review. Klaus subsequently
 reported “all pass.” for the corrected VT-025 Source-to-Library batch on build
-`53885f5`, while reporting five concrete Cutter follow-ups. Preserve the passed
-workflow; those findings retain their own focused retest. This is not a merge.
+`53885f5`, then explicitly passed the five concrete Cutter follow-ups on
+`b1dbff3` (remote `9189b795`, identical tree). Preserve both accepted blocks.
+Final-code Build2490 is green; acceptance and CI do not imply merge.
 
 **2026-09-18 scope evolution:** the approved
 [Source-to-Library implementation](SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md)

@@ -1,15 +1,19 @@
 # Source to Library — live implementation contract
 
-Status: **WORKFLOW USER-PASSED; CUTTER FOLLOW-UP OPEN; NOT MERGED — 2026-09-18**.
+Status: **USER ACCEPTED — PASS; NOT MERGED — 2026-09-18**.
 
 Klaus approved the [workflow design](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md) and
 requested the live version, explicitly retaining the original image and precise
 cutting tools. This L3 block evolves the earlier
 [Sources presentation contract](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md).
 Klaus reported “all pass.” for the production VT-025 batch on local `53885f5`
-(remote `e89e459`, identical tree). The workflow pass is separate from green
-Build2488 and from merge. His five bounded Cutter interaction/presentation
-findings remain open in the [Backlog](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench).
+(remote `e89e459`, identical tree), then explicitly reported “pass.” for all five
+bounded Cutter follow-ups on local `b1dbff3` (remote `9189b795`, identical tree).
+Build2488 and final-code Build2490 passed independently. These human decisions
+accept the bounded VT-025 block, not merge or broader authoring/agent authority.
+The [Backlog](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench)
+records the scope; the [session resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md)
+preserves exact code, CI and tested-workspace identities.
 
 ## One coherent promise
 
@@ -99,18 +103,23 @@ without changing old migration checksums or frozen Checkpoint1A evidence.
 
 Independent review found cancellation and receipt-intent integrity gaps; both
 received focused repairs. Migration19 rollback/resume and true second/third
-asset rollback evidence were added. Final independent reviews, complete selected
-gates, CI and Klaus's new live decision remain separate requirements. Native
-screenshots and automation do not accept VT-025. No live retained data was opened.
+asset rollback evidence were added. Five trigger-relevant independent review
+axes are GO. Final-code Build2490 / run35332417113 passed Linux/full browser,
+Windows, root and final CI gates on `9189b795`; Pages was correctly skipped.
+Linux Studio:1209 total,1204 passed,5 expected skips; Windows:1209 total,1201
+passed,8 expected skips; both zero failures. Build syntax:403 files; frozen
+Checkpoint1A evidence:VERIFIED. Klaus's two live passes are separate acceptance.
+The old pre-pause workspace was not opened; his fresh 2026-09-18 tested workspace
+is now preserved for resumption. A later documentation-only head needs its own
+exact-head CI result before merge; Build2490 does not automatically cover it.
 
 ## Historical shutdown checkpoint — 2026-09-16
 
 Resumed on 2026-09-18 at Klaus's explicit request. Remote main remains
 `d7c1d2a7978c5624baacf243ea9c21d530a9ec6c`; the preserved workspace below
-remains untouched. Backend service/integrity/HTTP focused repairs now pass;
-production UI integration, full gates, independent reviews and acceptance are
-still pending. The shutdown facts below are historical continuity, not a renewed
-instruction to pause.
+remains untouched. The implementation, reviews and acceptance above supersede
+the incomplete checkpoint below. These shutdown facts are historical continuity,
+not the current task state or a renewed instruction to pause.
 
 Klaus requested a pause before further implementation and planned to return in
 two days. Work stopped until his explicit resumption above. The following records
