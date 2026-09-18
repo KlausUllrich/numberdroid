@@ -1,5 +1,18 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-18 Source-to-Library live candidate
+
+The approved [workflow](../../tools/numberdroid-studio/docs/SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md)
+is being implemented under its [L3 contract](../../tools/numberdroid-studio/docs/SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md).
+Keep the precise Cutter; use explicit Add new / Update a named Image / Skip
+destinations and one atomic owner Save into Library. Preserve exact consumer
+pins and the accepted Animation/frame path. This supersedes the earlier
+generic saved-output comparison, not earlier product acceptance.
+Final verification and a bundled Klaus live test remain pending: VT-025 is
+**REVISE**, not accepted. Migration19 supplies recovery receipts; it does not
+authorize new agent tools, deletion, source cleanup, automatic cut-layout copying,
+materialization or publication. Develop and test on fresh fixtures only.
+
 ## 2026-09-16 Sources navigation candidate
 
 The approved [Sources design](../../tools/numberdroid-studio/docs/SOURCES_NAVIGATION_DESIGN.md)

@@ -1,6 +1,6 @@
 # Source to Library — live implementation contract
 
-Status: **RESUMED AT KLAUS'S REQUEST; IMPLEMENTATION IN PROGRESS, NOT MERGE-READY — 2026-09-18**.
+Status: **LIVE CANDIDATE; FINAL VERIFICATION IN PROGRESS, NOT MERGE-READY OR USER ACCEPTED — 2026-09-18**.
 
 Klaus approved the [workflow design](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md) and
 requested the live version, explicitly retaining the original image and precise
@@ -85,7 +85,22 @@ materialization, repository publication/release, remote authority or cleanup.
 Source rollback must account for schema19 before any old reader is restarted;
 do not downgrade SQLite or silently remove user-authored workflow receipts.
 
-## Shutdown checkpoint — 2026-09-16
+## Current implementation evidence — 2026-09-18
+
+The production HTTP routes, controller and app integration now exist. Native
+checks cover Add into Library, repeat without duplication, Library return,
+Animation exact-frame use, lost-response/reload replay and named updates that
+retain old versions and Assembly pins. Focused service, HTTP, integrity and
+controller checks are green. Schema-compatibility regressions were corrected
+without changing old migration checksums or frozen Checkpoint1A evidence.
+
+Independent review found cancellation and receipt-intent integrity gaps; both
+received focused repairs. Migration19 rollback/resume and true second/third
+asset rollback evidence were added. Final independent reviews, complete selected
+gates, CI and Klaus's new live decision remain separate requirements. Native
+screenshots and automation do not accept VT-025. No live retained data was opened.
+
+## Historical shutdown checkpoint — 2026-09-16
 
 Resumed on 2026-09-18 at Klaus's explicit request. Remote main remains
 `d7c1d2a7978c5624baacf243ea9c21d530a9ec6c`; the preserved workspace below
@@ -94,9 +109,9 @@ production UI integration, full gates, independent reviews and acceptance are
 still pending. The shutdown facts below are historical continuity, not a renewed
 instruction to pause.
 
-Klaus requested a pause before further implementation and plans to return in two
-days. Stop here; do not continue implementation, tests, CI watching or merging
-until he resumes. The design above is authorized, not a completed implementation.
+Klaus requested a pause before further implementation and planned to return in
+two days. Work stopped until his explicit resumption above. The following records
+what existed at shutdown, not the current candidate's implementation state.
 
 Canonical remote main was reverified through the connector as
 `d7c1d2a7978c5624baacf243ea9c21d530a9ec6c`, tree

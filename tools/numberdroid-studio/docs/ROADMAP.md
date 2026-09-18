@@ -1,5 +1,18 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
+## 2026-09-18 Source-to-Library live candidate
+
+Klaus approved the [Source-to-Library workflow](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md)
+and requested its live implementation with the precise Cutter retained. The
+[bounded L3 contract](SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md) now owns
+output destinations: Add new, Update a named Library Image, or Skip, followed by
+one atomic owner Save. This supersedes the earlier generic saved-output
+comparison and separate Image-authoring step, not the accepted Animation path.
+The candidate is undergoing final verification; VT-025 remains **REVISE** until
+Klaus's bundled live PASS. Schema19 adds recovery receipts, not agent authority.
+Deletion, source cleanup, automatic layout copying and runtime/publication work
+are excluded. The preserved pre-pause workspace must remain untouched.
+
 ## 2026-09-16 Sources navigation candidate
 
 Klaus passed the Sources mockup refinements and selected **Image Workbench** as

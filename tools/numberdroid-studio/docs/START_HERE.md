@@ -123,6 +123,15 @@ content-specific review counts, explicit source/output relationships, one output
 gallery and a consistent Back button. [VT-025](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench)
 requires a corrected bundled live retest; that design approval is not production
 acceptance.
+Klaus subsequently approved the [Source-to-Library workflow](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md)
+and requested its live version with the precise Cutter retained. Its
+[implementation contract](SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md) now
+owns Add new / Update a named Image / Skip and atomic Save into Library. Generic
+saved-output comparison and a second Image-authoring step are superseded;
+accepted Animation/frame authoring remains intact. VT-025 is still REVISE while
+this candidate completes verification and its bundled live test. No deletion or
+source cleanup is included; do not open the preserved pre-pause workspace with
+the new schema19 writer.
 Further screen changes follow discussion and mockup agreement before implementation.
 Runtime materialization, image generation and publication retain separate gates.
 

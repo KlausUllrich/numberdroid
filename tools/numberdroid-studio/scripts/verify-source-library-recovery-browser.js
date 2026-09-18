@@ -88,7 +88,16 @@ try {
   };
   const click = action => evaluate(`(() => { const node = document.querySelector('[data-source-library-action="${action}"]'); if (!node || node.disabled) throw new Error('Unavailable ${action}'); node.click(); })()`);
   const field = (name, value) => evaluate(`(() => { const node = document.querySelector('[data-source-library-field="${name}"]'); if (!node || node.disabled) throw new Error('Unavailable ${name}'); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('change', { bubbles: true })); })()`);
-  const check = async () => { await click('plan'); await waitFor(`document.querySelector('[data-source-library-action="save"]')?.disabled === false`, 'Checked save'); };
+  const check = async () => {
+    await evaluate(`document.querySelector('[data-source-library-action="plan"]').focus()`);
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
+    await waitFor(`document.querySelector('[data-source-library-action="save"]')?.disabled === false`, 'Checked save');
+    assert.equal(await evaluate('document.activeElement?.dataset.sourceLibraryAction'), 'plan', 'Keyboard Check must retain focus after response');
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+    assert.equal(await evaluate('document.activeElement?.dataset.sourceLibraryAction'), 'save', 'Keyboard Tab must reach the enabled Save');
+  };
   await mount();
   await waitFor('document.querySelector("[data-source-library-field=target]")', 'Destination choices');
   await field('target', 'new'); await field('name', 'Browser recovery machine'); await check();

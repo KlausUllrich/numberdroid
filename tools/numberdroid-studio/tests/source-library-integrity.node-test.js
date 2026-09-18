@@ -28,6 +28,18 @@ async function fixture(context) {
   return { f, receipt, request };
 }
 
+function rejectChangedRequest(db, key, mutate) {
+  db.exec('BEGIN');
+  try {
+    db.exec('DROP TRIGGER source_library_operations_immutable');
+    const row = db.prepare('SELECT request_json, actor_id FROM source_library_operations WHERE operation_key=?').get(key);
+    const request = JSON.parse(row.request_json); mutate(request);
+    db.prepare('UPDATE source_library_operations SET request_json=?,request_fingerprint=? WHERE operation_key=?')
+      .run(canonicalJson(request), fingerprint({ actorId: row.actor_id, request }), key);
+    assert.equal(inspectSourceLibraryIntegrity(db).ok, false, 'Re-signing changed intent must not hide disagreement with semantic history.');
+  } finally { db.exec('ROLLBACK'); }
+}
+
 test('Source Library receipts close exact owner revisions, summaries and immutable image pins', { timeout: 30000 }, async context => {
   const { f } = await fixture(context), db = f.store.workspace.database;
   assert.deepEqual(inspectSourceLibraryIntegrity(db), { ok: true, operationCount: 1, findings: [] });
@@ -111,4 +123,35 @@ test('generated all-skipped work retains its cut commit; saved all-skipped work 
   assert.equal(unchanged.revision, receipt.revision);
   assert.deepEqual(inspectSourceLibraryIntegrity(f.store.workspace.database), { ok: true, operationCount: 3, findings: [] });
   assert.equal((await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts })).ok, true);
+});
+
+test('re-signed Add and Update requests cannot change names, metadata, expected versions or exact cut inputs', { timeout: 30000 }, async context => {
+  const { f, request } = await fixture(context), service = serviceFor(f.store), db = f.store.workspace.database;
+  const nameChange = value => { value.items[0].destination.name = 'Forged name'; };
+  const metadataChange = value => { value.items[0].destination.metadata.extensions['fixture.hidden'].preserved = false; };
+  const pinChanges = [value => { value.expectedAtlasVersion += 1; }, value => { value.expectedAtlasFingerprint = '0'.repeat(64); },
+    value => { value.input.slices[0].expectedSliceVersion += 1; }, value => { value.input.slices[0].sliceId = 'slice.foreign'; },
+    value => { value.input.slices[0].rectangleId = 'rect.foreign'; }];
+  for (const mutate of [nameChange, metadataChange, ...pinChanges]) rejectChangedRequest(db, request.idempotencyKey, mutate);
+  const savedRevision = (await f.studio.readProjectTrusted(projectId)).revision;
+  const unchanged = { ...request, expectedRevision: savedRevision, idempotencyKey: 'create.unchanged' };
+  assert.equal((await service.save(unchanged, owner)).status, 'UNCHANGED');
+  for (const mutate of [nameChange, metadataChange, ...pinChanges, value => { delete value.items[0].destination.name; }]) rejectChangedRequest(db, unchanged.idempotencyKey, mutate);
+  const update = { ...unchanged, idempotencyKey: 'update.changed', items: [{ rectangleId: 'rect.fixture', destination: {
+    operation: 'update', assetId: 'asset.fixture', expectedAssetVersion: 1, expectedMetadataVersion: 1, name: 'Owner renamed machine' } }] };
+  assert.equal((await service.save(update, owner)).status, 'SAVED');
+  for (const mutate of [nameChange, ...pinChanges, value => { value.items[0].destination.expectedAssetVersion = 9; },
+    value => { value.items[0].destination.expectedMetadataVersion = 9; }, value => { value.items[0].destination.metadata = {}; }]) {
+    rejectChangedRequest(db, update.idempotencyKey, mutate);
+  }
+  const updated = await f.studio.readProjectTrusted(projectId), asset = updated.snapshot.assetLibrary.assets[0];
+  const again = { ...update, expectedRevision: updated.revision, idempotencyKey: 'update.unchanged', items: [{ rectangleId: 'rect.fixture', destination: {
+    operation: 'update', assetId: asset.assetId, expectedAssetVersion: asset.assetVersion, expectedMetadataVersion: asset.metadataVersion } }] };
+  assert.equal((await service.save(again, owner)).status, 'UNCHANGED');
+  rejectChangedRequest(db, again.idempotencyKey, nameChange);
+  rejectChangedRequest(db, again.idempotencyKey, value => { value.items[0].destination.expectedAssetVersion += 1; });
+  const normalized = structuredClone(again); normalized.idempotencyKey = 'update.normalized-name';
+  normalized.items[0].destination.name = `  ${asset.name}  `;
+  assert.equal((await service.save(normalized, owner)).status, 'UNCHANGED');
+  assert.deepEqual(inspectSourceLibraryIntegrity(db), { ok: true, operationCount: 5, findings: [] });
 });

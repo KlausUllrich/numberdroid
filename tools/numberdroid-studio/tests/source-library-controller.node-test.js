@@ -7,7 +7,8 @@ import { assetEditorDefaultMetadata } from '../apps/studio-server/public/asset-e
 // Run the real renderer and handlers against a deliberately minimal inert DOM.
 // Exposing async actions in this VM lets tests await completion without polling.
 class Node {
-  constructor(tag) { this.tagName = tag; this.children = []; this.dataset = {}; this.listeners = {}; this.disabled = false; this.isConnected = false; this.text = ''; }
+  constructor(tag, document) { this.tagName = tag; this.document = document; this.children = []; this.dataset = {}; this.listeners = {}; this.disabled = false; this.isConnected = false; this.text = ''; }
+  get parentElement() { return this.parent; }
   set textContent(value) { this.text = value; this.children = []; }
   get textContent() { return this.text + this.children.map(child => child.textContent).join(' '); }
   append(...nodes) { for (const node of nodes) { node.parent = this; this.children.push(node); } }
@@ -18,8 +19,8 @@ class Node {
   matches(selector) { const key = selector.slice(6, -1).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()); return selector.startsWith('[data-') && Object.hasOwn(this.dataset, key); }
   closest(selector) { return this.matches(selector) ? this : this.parent?.closest(selector) ?? null; }
   querySelectorAll(selector) { return this.children.flatMap(child => [...(child.matches(selector) ? [child] : []), ...child.querySelectorAll(selector)]); }
-  focus() {}
-  setSelectionRange() {}
+  focus() { this.document.activeElement = this; }
+  setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
 }
 
 async function harness({ generated = false, storageFailure = false, storage: retainedStorage, targets = [], request: customRequest, onSaved } = {}) {
@@ -44,8 +45,9 @@ async function harness({ generated = false, storageFailure = false, storage: ret
     return { projectId: context.projectId, atlasId: context.atlas.id, revision: 8, status: 'SAVED',
       summary: { created: 1, updated: 0, unchanged: 0, skipped: 0 }, items: [{ rectangleId: 'rect.one', assetId: input.items[0].destination.assetId, assetVersion: 1 }] };
   };
+  const document = { createElement: tag => new Node(tag, document), activeElement: null };
   const create = runInNewContext(`${executable}; createSourceLibraryController;`, {
-    assetEditorDefaultMetadata, structuredClone, crypto, document: { createElement: tag => new Node(tag), activeElement: null },
+    assetEditorDefaultMetadata, structuredClone, crypto, document,
     window: { scrollX: 0, scrollY: 0, scrollTo() {} }, sessionStorage: {
       getItem: key => storage.get(key) ?? null,
       setItem(key, value) { if (storageFailure) throw new Error('Storage unavailable'); storage.set(key, value); },
@@ -57,7 +59,7 @@ async function harness({ generated = false, storageFailure = false, storage: ret
     return customRequest ? customRequest(action, input, defaultRequest) : defaultRequest(action, input);
   }, onBusy: value => busyEvents.push(value), onOpenAsset() {}, onSaved: async value => { savedEvents.push(value); await onSaved?.(value); } });
   await new Promise(resolve => setImmediate(resolve));
-  return { controller, context, bootstrap, storage, calls, busyEvents, savedEvents,
+  return { controller, context, bootstrap, storage, calls, busyEvents, savedEvents, document,
     change(field, value) { const target = controller.element.querySelectorAll('[data-source-library-field]').find(node => node.dataset.sourceLibraryField === field);
       assert.ok(target); target.value = value; controller.element.listeners.change({ target }); },
   };
@@ -125,6 +127,7 @@ test('confirmed save followed by failed refresh remains confirmed, not an unknow
     assert.equal(h.controller.hasPending(), false); assert.equal(h.storage.size, 0);
     assert.equal(h.controller.inspect().receipt.status, 'SAVED');
     assert.match(h.controller.element.textContent, /Saved successfully/);
+    assert.match(h.controller.element.querySelectorAll('[data-source-library-action]').find(node => node.dataset.sourceLibraryAction === 'save').title, /Recheck/);
     assert.ok(h.controller.element.querySelectorAll('[data-source-library-action]').some(node => node.dataset.sourceLibraryAction === 'recheck' && !node.disabled),
       'A confirmed save with a failed refresh must expose the promised recheck action.');
     assert.doesNotMatch(h.controller.element.textContent, /Confirm the previous save before editing/);
@@ -166,5 +169,47 @@ test('an in-flight plan cannot authorize a save after the project context change
     complete({ canSave: true, summary: { created: 1, updated: 0, unchanged: 0, skipped: 0 }, items: [] }); await checking;
     await h.controller.save(); assert.equal(h.calls.filter(call => call.action === 'save').length, 0);
     assert.match(h.controller.element.textContent, /Recheck the current versions/);
+  } finally { h.controller.dispose(); }
+});
+
+test('denied retry after a lost response and reload preserves unresolved exact intent', { timeout: 5000 }, async () => {
+  const h = await harness({ request: (action, input, normal) => action === 'save' ? Promise.reject(new Error('Response lost')) : normal(action, input) });
+  await h.controller.check(); await h.controller.save();
+  const original = h.calls.find(call => call.action === 'save').input;
+  h.controller.dispose();
+  let denied = true;
+  const reopened = await harness({ storage: h.storage, request: (action, input, normal) => {
+    if (action === 'save' && denied) throw Object.assign(new Error('Owner access denied'), { status: 403, code: 'PERMISSION_DENIED' });
+    return normal(action, input);
+  } });
+  try {
+    await reopened.controller.save();
+    assert.equal(reopened.controller.hasPending(), true); assert.equal(reopened.storage.size, 1);
+    assert.deepEqual(reopened.calls.at(-1).input, original);
+    denied = false; await reopened.controller.save();
+    assert.deepEqual(reopened.calls.findLast(call => call.action === 'save').input, original);
+    assert.equal(reopened.controller.hasPending(), false); assert.equal(reopened.storage.size, 0);
+  } finally { reopened.controller.dispose(); }
+});
+
+test('definitive first-attempt rejection clears intent without claiming a save', { timeout: 5000 }, async () => {
+  const h = await harness({ request: (action, input, normal) => action === 'save'
+    ? Promise.reject(Object.assign(new Error('Stale project'), { status: 409, code: 'REVISION_CONFLICT' })) : normal(action, input) });
+  try {
+    await h.controller.check(); await h.controller.save();
+    assert.equal(h.controller.hasPending(), false); assert.equal(h.storage.size, 0); assert.equal(h.savedEvents.length, 0);
+  } finally { h.controller.dispose(); }
+});
+
+test('keyboard action focus survives busy rendering and the checked plan result', { timeout: 5000 }, async () => {
+  let complete;
+  const h = await harness({ request: (action, input, normal) => action === 'plan' ? new Promise(resolve => { complete = resolve; }) : normal(action, input) });
+  try {
+    const button = h.controller.element.querySelectorAll('[data-source-library-action]').find(node => node.dataset.sourceLibraryAction === 'plan'); button.focus();
+    const checking = h.controller.check();
+    assert.equal(h.controller.element.contains(h.document.activeElement), true);
+    assert.equal(h.document.activeElement.querySelectorAll('[data-source-library-action]')[0]?.dataset.sourceLibraryAction, 'plan');
+    complete({ canSave: true, summary: { created: 1, updated: 0, unchanged: 0, skipped: 0 }, items: [] }); await checking;
+    assert.equal(h.document.activeElement.dataset.sourceLibraryAction, 'plan'); assert.equal(h.document.activeElement.disabled, false);
   } finally { h.controller.dispose(); }
 });

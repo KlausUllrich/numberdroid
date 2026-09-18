@@ -342,7 +342,8 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(cutterEvidenceScript, /assert\.deepEqual\(reopened\.scroll,\[0,0\]\)/);
   assert.match(cutterEvidenceScript, /evidence\.closeReopenReset=\{before:closing,after:reopened\}/);
   assert.match(cutterEvidenceScript, /assert\.equal\(final\.revision,7\)/);
-  assert.match(cutterEvidenceScript, /posts\.length'\),0,'Local inspection must not mutate saved fixture state'/);
+  assert.ok(cutterEvidenceScript.includes("const bootstrapPath = '/api/projects/numberdroid-studio-checkpoint-2b/atlases/atlas.family-hygiene-2b/library/bootstrap'"));
+  assert.ok(cutterEvidenceScript.includes('assert(posts.every(path => path === bootstrapPath)'));
   assert.match(clientScript, /response\?\.projectId !== operationProjectId/);
   assert.match(clientScript, /response\.job\?\.jobId !== operationJobId/);
   assert.match(clientScript, /response\.job\?\.sourceId !== operationCutter\.sourceId/);

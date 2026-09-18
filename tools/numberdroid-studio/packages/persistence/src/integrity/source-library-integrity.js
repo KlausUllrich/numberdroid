@@ -1,4 +1,5 @@
 import { invariant } from '../../../domain/src/errors.js';
+import { requireString } from '../../../domain/src/validation.js';
 import { canonicalJson, fingerprint } from '../../../application/src/value-utils.js';
 
 const check = (condition, message) => invariant(condition, 'SOURCE_LIBRARY_INTEGRITY_MISMATCH', message);
@@ -20,6 +21,13 @@ export function inspectSourceLibraryIntegrity(database) {
         check(request.projectId === row.project_id && request.atlasId === row.atlas_id
           && Number.isSafeInteger(request.expectedRevision) && request.expectedRevision > 0,
         'Library request identity or base revision differs.');
+        const baseRow = database.prepare('SELECT revision_json FROM revisions WHERE project_id=? AND revision_number=?')
+          .get(row.project_id, request.expectedRevision);
+        const base = baseRow && JSON.parse(baseRow.revision_json).snapshot;
+        const baseAtlas = base?.atlases?.find(atlas => atlas.id === row.atlas_id);
+        check(baseAtlas && baseAtlas.definitionVersion === request.expectedAtlasVersion
+          && baseAtlas.definitionFingerprint === request.expectedAtlasFingerprint,
+        'Library request cutting identity differs from its exact base revision.');
         check(receipt.schemaVersion === 1 && receipt.projectId === row.project_id && receipt.atlasId === row.atlas_id
           && receipt.revision === row.last_revision && receipt.replayed === false,
         'Library receipt identity or revision differs.');
@@ -54,6 +62,16 @@ export function inspectSourceLibraryIntegrity(database) {
           && committed[0].result.atlasId === row.atlas_id
           && committed[0].result.jobId === request.input.jobId,
         'Generated Library work has no matching cut commit.');
+        const selected = cutCount
+          ? committed[0].result.slices.map(slice => ({ rectangleId: slice.rectangleId, sliceId: slice.sliceId, expectedSliceVersion: slice.version }))
+          : request.input.slices;
+        check(Array.isArray(selected) && selected.length === request.items.length
+          && new Set(selected.map(slice => slice.rectangleId)).size === selected.length,
+        'Library request does not select each exact output once.');
+        const selectedByRectangle = new Map(selected.map(slice => [slice.rectangleId, slice]));
+        if (!cutCount) for (const pin of selected) check(baseAtlas.sliceHeads.some(slice => slice.sliceId === pin.sliceId
+          && slice.version === pin.expectedSliceVersion && slice.rectangleId === pin.rectangleId),
+        'Library request saved output differs from its exact base cut.');
         const assetCommands = committed.slice(cutCount);
         check(assetCommands.every(value => value.command.type === 'asset.save'), 'Library receipt range includes an unrelated mutation.');
         const counts = { created: 0, updated: 0, unchanged: 0, skipped: 0 }, identities = new Set();
@@ -67,6 +85,13 @@ export function inspectSourceLibraryIntegrity(database) {
               ? ['create', 'update'].includes(destination.operation)
               : destination.operation === (item.status === 'created' ? 'create' : 'update'))),
           'Library receipt outcome differs from its requested destination.');
+          const allowedFields = destination.operation === 'create' ? ['operation', 'assetId', 'name', 'kind', 'metadata']
+            : destination.operation === 'update' ? ['operation', 'assetId', 'expectedAssetVersion', 'expectedMetadataVersion', 'name'] : ['operation'];
+          const requiredFields = destination.operation === 'update' ? allowedFields.filter(key => key !== 'name') : allowedFields;
+          check(Object.keys(destination).every(key => allowedFields.includes(key)) && requiredFields.every(key => Object.hasOwn(destination, key)),
+            'Library destination contains unsupported or missing intent fields.');
+          const pin = selectedByRectangle.get(item.rectangleId);
+          check(pin, 'Library receipt contains an unselected cut.');
           if (item.status === 'skipped') continue;
           const saved = database.prepare('SELECT * FROM asset_versions WHERE project_id=? AND asset_id=? AND asset_version=?')
             .get(row.project_id, item.assetId, item.assetVersion);
@@ -79,6 +104,29 @@ export function inspectSourceLibraryIntegrity(database) {
           check(asset && fingerprint(asset.sliceBinding) === fingerprint(item.sliceBinding), 'Library receipt changed its exact saved image binding.');
           check(item.sliceBinding?.atlasId === row.atlas_id && item.sliceBinding?.rectangleId === item.rectangleId,
             'Library receipt image is outside its source cut.');
+          check(item.sliceBinding.sliceId === pin.sliceId && item.sliceBinding.sliceVersion === pin.expectedSliceVersion,
+            'Library receipt image differs from its selected exact output.');
+          const previous = base.assetLibrary?.assets.find(value => value.assetId === item.assetId);
+          if (destination.operation === 'update') check(previous && destination.expectedAssetVersion === previous.assetVersion
+            && destination.expectedMetadataVersion === previous.metadataVersion,
+          'Library request update versions differ from its exact base Asset.');
+          const { pixelSize: _pixels, pivot: _pivot, ...authored } = previous?.metadata ?? {};
+          const expectedPayload = { assetId: destination.assetId, operation: destination.operation,
+            expectedAssetVersion: previous?.assetVersion ?? 0, expectedMetadataVersion: previous?.metadataVersion ?? 0,
+            name: destination.name ?? previous?.name, kind: destination.operation === 'create' ? destination.kind : previous?.kind,
+            metadata: destination.operation === 'create' ? destination.metadata : authored,
+            image: { mode: 'saved-slice', sliceId: pin.sliceId, expectedSliceVersion: pin.expectedSliceVersion } };
+          if (item.status === 'unchanged') {
+            check(previous && previous.assetVersion === item.assetVersion && previous.metadataVersion === item.metadataVersion
+              && (destination.operation === 'update' ? requireString(expectedPayload.name, 'name', { max: 160 }) : expectedPayload.name) === asset.name && expectedPayload.kind === asset.kind
+              && fingerprint(previous.sliceBinding) === fingerprint(asset.sliceBinding),
+            'Unchanged Library intent differs from the existing exact Asset.');
+            if (destination.operation === 'create') check(savedRevision.command.type === 'asset.save'
+              && savedRevision.command.payload.operation === 'create'
+              && fingerprint(savedRevision.command.payload.metadata) === fingerprint(destination.metadata),
+            'Unchanged Add intent differs from its original saved metadata.');
+          } else check(fingerprint(savedRevision.command.payload) === fingerprint(expectedPayload),
+            'Library request intent differs from its immutable owner Save command.');
           if (item.status !== 'unchanged') {
             check(saved.created_revision >= row.first_revision && savedRevision.command.type === 'asset.save'
               && savedRevision.command.actor.kind === 'human' && savedRevision.command.actor.id === row.actor_id,

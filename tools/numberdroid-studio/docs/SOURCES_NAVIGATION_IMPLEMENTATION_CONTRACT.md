@@ -4,6 +4,14 @@ Status: **REVISE — APPROVED CLARITY CORRECTION, 2026-09-16**. The initial
 production screen failed Klaus's clarity review; the correction below is
 authorized, but corrected production behavior is not yet user accepted.
 
+**2026-09-18 scope evolution:** the approved
+[Source-to-Library implementation](SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md)
+supersedes this document's output gallery/Save/comparison and separate Image
+authoring paragraphs. It adds explicit Library destinations and atomic owner
+Save with recovery receipts. This document continues to own the two content
+views, review counts, filtering and navigation; its original no-schema-change
+boundary describes only the earlier presentation slice, not the later L3 block.
+
 This contract binds the production implementation of the user-approved
 [Sources Navigation Design](SOURCES_NAVIGATION_DESIGN.md). It reorganizes the
 existing source and atlas projections without changing their commands, schemas,

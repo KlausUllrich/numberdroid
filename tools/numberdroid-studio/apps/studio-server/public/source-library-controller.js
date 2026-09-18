@@ -87,8 +87,18 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
   }
   function render() {
     if (disposed) return;
-    const active = document.activeElement; const focus = element.contains(active) ? active.dataset.sourceLibraryField : null; const rowKey = active?.dataset.rectangleId;
-    const selection = active?.selectionStart; const page = { x: window.scrollX, y: window.scrollY };
+    const active = document.activeElement; const inside = element.contains(active);
+    const focus = inside ? active.dataset.sourceLibraryField : null; const rowKey = active?.dataset.rectangleId;
+    const actionNode = inside ? (active.dataset.sourceLibraryAction ? active : active.querySelectorAll('[data-source-library-action]')[0]) : null;
+    const actionFocus = actionNode ? { action: actionNode.dataset.sourceLibraryAction, assetId: actionNode.dataset.assetId } : null;
+    const selection = active?.selectionStart; const selectionEnd = active?.selectionEnd; const page = { x: window.scrollX, y: window.scrollY };
+    const restoreFocus = () => {
+      const restored = focus
+        ? [...element.querySelectorAll('[data-source-library-field]')].find(node => node.dataset.sourceLibraryField === focus && node.dataset.rectangleId === rowKey)
+        : actionFocus && [...element.querySelectorAll('[data-source-library-action]')].find(node => node.dataset.sourceLibraryAction === actionFocus.action && node.dataset.assetId === actionFocus.assetId);
+      (restored?.disabled ? restored.parentElement : restored)?.focus({ preventScroll: true });
+      if (restored?.type === 'text' && Number.isInteger(selection)) restored.setSelectionRange(selection, Number.isInteger(selectionEnd) ? selectionEnd : selection);
+    };
     element.replaceChildren(el('h3', 'Choose where these images go'), el('p', 'Add new Library images, update named images, or skip them. Your original and existing saved uses stay unchanged.', 'source-library-help'));
     if (uncertain) {
       const notice = el('div', undefined, 'source-library-notice'); notice.setAttribute('role', 'status');
@@ -96,7 +106,7 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
     }
     if (error) { const notice = el('p', error, 'source-library-error'); notice.setAttribute('role', 'alert'); element.append(notice); }
     if ((stale() || refreshFailed) && !uncertain) element.append(el('p', 'Recheck the current versions of the project and Library before saving again.', 'source-library-notice'), button('Recheck current versions', 'recheck', { disabled: locked(), reason: 'Resolve the pending operation first.' }));
-    if (!bootstrap) { if (!uncertain && !recoveryDamaged) element.append(button(busy ? 'Loading Library destinations…' : 'Recheck Library destinations', 'recheck', { disabled: busy, reason: 'Loading the current saved destinations.' })); return; }
+    if (!bootstrap) { if (!uncertain && !recoveryDamaged) element.append(button(busy ? 'Loading Library destinations…' : 'Recheck Library destinations', 'recheck', { disabled: busy, reason: 'Loading the current saved destinations.' })); restoreFocus(); return; }
     const grid = el('div', undefined, 'source-library-grid');
     for (const row of rows) {
       const card = el('article', undefined, 'source-library-card'); card.dataset.sourceLibraryRectangle = row.rectangleId;
@@ -131,13 +141,13 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
     if (receipt) { const summary = receipt.summary; element.append(el('p', `Saved in Library: ${summary.created} added, ${summary.updated} updated, ${summary.unchanged} unchanged, ${summary.skipped} skipped.`, 'source-library-notice')); }
     const actions = el('div', undefined, 'source-library-actions');
     const blocked = locked() || stale() || refreshFailed || !rows.length || rows.some(row => row.target !== 'skip' && !row.name.trim());
-    const reason = locked() ? 'Resolve the pending save first.' : stale() ? 'Recheck the current project and destination versions.' : !rows.length ? 'Generate or reopen image outputs first.' : 'Give each included image a name.';
+    const reason = locked() ? 'Resolve the pending save first.' : stale() || refreshFailed ? 'Recheck the current project and destination versions.' : !rows.length ? 'Generate or reopen image outputs first.' : 'Give each included image a name.';
     const summary = plan?.summary;
-    const saveLabel = summary ? (summary.updated ? `Save ${summary.updated} updates + ${summary.created} additions`
-      : summary.created ? `Add ${summary.created} images to Library` : 'Confirm unchanged images') : 'Save to Library';
+    const saveLabel = summary ? (summary.updated ? `Save ${summary.updated} update${summary.updated === 1 ? '' : 's'} + ${summary.created} addition${summary.created === 1 ? '' : 's'}`
+      : summary.created ? `Add ${summary.created} image${summary.created === 1 ? '' : 's'} to Library` : 'Confirm unchanged images') : 'Save to Library';
     actions.append(button('Check changes', 'plan', { disabled: blocked, reason }), button(busy ? 'Working…' : saveLabel, 'save', { disabled: blocked || !plan?.canSave, reason: blocked ? reason : 'Check the proposed changes before saving.', primary: true }));
     element.append(actions);
-    if (focus) { const restored = [...element.querySelectorAll('[data-source-library-field]')].find(node => node.dataset.sourceLibraryField === focus && node.dataset.rectangleId === rowKey); restored?.focus({ preventScroll: true }); if (restored?.type === 'text' && Number.isInteger(selection)) restored.setSelectionRange(selection, selection); }
+    restoreFocus();
     if (element.isConnected) window.scrollTo(page.x, page.y);
   }
   async function check() {
@@ -172,9 +182,10 @@ export function createSourceLibraryController({ context, request, onSaved, onBus
     } catch (failure) {
       error = committed ? `Saved successfully. The view could not refresh: ${failure.message}. Recheck current versions; do not create another copy.` : failure.message;
       if (committed) refreshFailed = true;
-      // A structured application rejection proves that this request did not commit.
-      // Network/HTTP ambiguity retains the exact request and all destinations.
-      if (!committed && failure.code && failure.code !== 'IDEMPOTENCY_CONFLICT' && failure.status >= 400 && failure.status < 500 && failure.status !== 429) {
+      // Only a definitive FIRST-attempt rejection proves that no save committed.
+      // A later denial (including lost authority) says nothing about an earlier
+      // ambiguous attempt. Keep its exact request/key, including after reload.
+      if (!committed && firstAttempt && failure.code && failure.code !== 'IDEMPOTENCY_CONFLICT' && failure.status >= 400 && failure.status < 500 && failure.status !== 429) {
         uncertain = null; plan = null; try { sessionStorage.removeItem(storageKey); } catch {}
       }
     } finally { if (!disposed) { busy = false; onBusy(Boolean(uncertain)); render(); } }

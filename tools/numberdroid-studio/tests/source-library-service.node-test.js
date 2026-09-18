@@ -22,9 +22,14 @@ async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'studio-source-library-'));
   const artifacts = new ContentAddressedArtifactStore({ rootDirectory: join(root, 'artifacts') });
   let store, jobs, studio, worker, service, operationStore, sequence = 0, faultPoint = null;
+  let faultOccurrence = 1, faultHits = 0, faultObserve = null;
   const open = async () => {
     store = await SqliteProjectStore.open({ filename: join(root, 'studio.sqlite'), databaseFactory: nodeSqliteDatabaseFactory,
-      faultInjector(point) { if (point === faultPoint) throw new Error(`injected ${point}`); } });
+      faultInjector(point) {
+        if (point === faultPoint && ++faultHits === faultOccurrence) {
+          faultObserve?.(); throw new Error(`injected ${point}`);
+        }
+      } });
     jobs = new SqliteJobStore({ workspace: store.workspace }); operationStore = new SourceLibraryOperationStore({ workspace: store.workspace });
     studio = new StudioService({ store, jobStore: jobs, agentAttemptAuditReady: true });
     service = new SourceLibraryService({ projectStore: store, jobStore: jobs, operationStore });
@@ -73,7 +78,13 @@ async function fixture(t) {
   };
   return { root, artifacts, source, define, execute, preview, request,
     get service() { return service; }, get store() { return store; }, get jobs() { return jobs; }, get studio() { return studio; }, get operations() { return operationStore; },
-    fault(value) { faultPoint = value; }, async restart() { await close(); await open(); } };
+    fault(value, occurrence = 1, observe = null) { faultPoint = value; faultOccurrence = occurrence; faultHits = 0; faultObserve = observe; },
+    get faultHits() { return faultHits; }, async restart() { await close(); await open(); } };
+}
+
+function databaseRows(database) {
+  return Object.fromEntries(database.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+    .all().map(({ name }) => [name, database.prepare(`SELECT * FROM "${name.replaceAll('"', '""')}"`).all().map(row => JSON.stringify(row)).sort()]));
 }
 
 test('one owner batch commits generated cuts and Library destinations atomically, replays and survives restart', { timeout: 60_000 }, async t => {
@@ -187,7 +198,7 @@ test('bootstrap never suggests historical cuts or destinations for a changed lay
   assert.equal((await f.service.save(historical, owner)).status, 'UNCHANGED');
 });
 
-test('receipt and Nth asset persistence faults roll back the whole cut/Library/job batch', { timeout: 60_000 }, async t => {
+test('receipt and first-asset persistence faults roll back the whole cut/Library/job batch', { timeout: 60_000 }, async t => {
   const f = await fixture(t), jobId = await f.preview(), request = await f.request({ jobId });
   const before = await f.studio.readProjectTrusted(projectId);
   for (const point of ['after_asset_version_insert', 'after_asset_version_reference_insert', 'after_source_library_operation_receipt', 'before_transaction_commit']) {
@@ -197,6 +208,35 @@ test('receipt and Nth asset persistence faults roll back the whole cut/Library/j
     assert.equal(Number(f.store.workspace.database.prepare('SELECT count(*) AS n FROM asset_versions').get().n), 0);
   }
   assert.equal((await f.service.save(request, owner)).summary.created, 3);
+});
+
+test('second and third asset faults roll back earlier cut, asset, reference and Activity writes before exact retry', { timeout: 60_000 }, async t => {
+  const f = await fixture(t), jobId = await f.preview(), request = await f.request({ jobId });
+  const database = f.store.workspace.database, before = databaseRows(database);
+  for (const point of ['after_asset_version_insert', 'after_asset_version_reference_insert']) {
+    for (const occurrence of [2, 3]) {
+      let reached = false;
+      f.fault(point, occurrence, () => {
+        reached = true;
+        assert.equal(Number(database.prepare('SELECT count(*) AS n FROM asset_versions').get().n), occurrence);
+        assert.equal(Number(database.prepare("SELECT count(*) AS n FROM artifact_references WHERE owner_kind='asset_version'").get().n),
+          point === 'after_asset_version_reference_insert' ? occurrence : occurrence - 1);
+        assert.equal(f.jobs.get(projectId, jobId).state, 'APPLIED');
+        assert.ok(database.prepare('SELECT count(*) AS n FROM activity_events').get().n > before.activity_events.length);
+      });
+      await assert.rejects(f.service.save(request, owner), new RegExp(`injected ${point}`));
+      assert.equal(reached, true); assert.equal(f.faultHits, occurrence); f.fault(null);
+      // Every table, including revisions/head, cuts, jobs/events, references,
+      // Activity, Asset heads/findings and outer receipts, must be identical.
+      assert.deepEqual(databaseRows(database), before);
+      assert.equal(f.jobs.get(projectId, jobId).state, 'SUCCEEDED');
+      assert.equal(f.operations.get(projectId, request.idempotencyKey), null);
+    }
+  }
+  const saved = await f.service.save(request, owner);
+  assert.equal(saved.summary.created, 3);
+  assert.deepEqual(await f.service.save(request, owner), { ...saved, replayed: true });
+  assert.equal((await verifyWorkspaceIntegrity({ projectStore: f.store, artifactStore: f.artifacts })).ok, true);
 });
 
 test('unchanged regenerated output requires explicit durable discard instead of ENTITY_EXISTS or fake apply', { timeout: 60_000 }, async t => {
