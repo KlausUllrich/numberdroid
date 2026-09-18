@@ -2349,6 +2349,16 @@ export class StudioService {
   async execute(rawCommand, trustedExecutionContext, { signal } = {}) {
     signal?.throwIfAborted();
     const command = validateEnvelope(rawCommand, trustedExecutionContext);
+    if (command.commandId.startsWith('source.library.') || command.idempotencyKey.startsWith('source.library.')) {
+      // These revision IDs participate in outer-receipt integrity closure. Only
+      // the private in-memory composition store may prepare them; an ordinary
+      // HTTP/MCP command or trusted execution context cannot reserve this name.
+      const prefix = this.#store.sourceLibraryCommandPrefix;
+      invariant(typeof prefix === 'string' && /^source\.library\.[a-f0-9]{32}$/.test(prefix)
+        && command.commandId.startsWith(`${prefix}.`) && command.commandId === command.idempotencyKey
+        && ['atlas.commit.slices', 'asset.save'].includes(command.type),
+      'RESERVED_COMMAND_NAMESPACE', 'Source to Library command identities are reserved for the atomic Library workflow. Choose a different command identity.');
+    }
     const definition = getCommandDefinition(command.type);
     const commandHash = commandFingerprint(command);
     const existing = await this.#store.loadProject(command.projectId);

@@ -142,7 +142,55 @@ export async function captureLibraryNavigation({ devtools, sessionId, captureChe
   }
   await click('[data-library-action="add-from-sources"]');
   await click('[data-sources-tab="workbench"]');
-  await waitFor("document.getElementById('workspace-content')?.dataset.renderedWorkspace==='sources'&&Boolean(document.querySelector('[data-create-asset-slice]'))", 'Source preparation entry');
+  const outputEntry = '[data-open-atlas="atlas.animation-components"][data-open-cutter-view="outputs"]';
+  await waitFor(`document.getElementById('workspace-content')?.dataset.renderedWorkspace==='sources'&&Boolean(document.querySelector(${JSON.stringify(outputEntry)}))`, 'Image Workbench output entry');
+  assert.equal(await evaluate("document.querySelectorAll('[data-create-asset-slice]').length"), 0, 'Workbench lists image work; Library authoring belongs with its saved output images');
+  await waitFor("[...document.querySelectorAll('.workbench-output-previews img')].every(image=>image.complete&&image.naturalWidth>0)", 'Decoded Workbench thumbnails');
+  const workbenchThumbnails = await evaluate(`([...document.querySelectorAll('.workbench-output-previews img')].map(image=>{
+    const frame=image.parentElement.getBoundingClientRect(),box=image.getBoundingClientRect();
+    const scale=Math.min(box.width/image.naturalWidth,box.height/image.naturalHeight);
+    const width=image.naturalWidth*scale,height=image.naturalHeight*scale;
+    const left=box.left+(box.width-width)/2,top=box.top+(box.height-height)/2;
+    return{portrait:image.naturalHeight>image.naturalWidth,contained:getComputedStyle(image).objectFit==='contain'
+      &&left>=frame.left&&top>=frame.top&&left+width<=frame.right&&top+height<=frame.bottom};
+  }))`);
+  assert(workbenchThumbnails.some(image=>image.portrait), 'Workbench evidence must exercise a tall source-derived image');
+  assert(workbenchThumbnails.every(image=>image.contained), 'Every Workbench thumbnail must show the whole output image');
+  result.workbenchThumbnails = workbenchThumbnails;
+  await click(outputEntry);
+  await waitFor("document.querySelectorAll('[data-source-library-rectangle]').length===9 && document.querySelector('[data-source-library-action=\"plan\"]')?.disabled===false", 'Saved output Library destinations');
+  const destinations = await evaluate(`({
+    workflows:document.querySelectorAll('[data-source-library]').length,
+    rows:[...document.querySelectorAll('[data-source-library-rectangle]')].map(card=>({
+      rectangleId:card.dataset.sourceLibraryRectangle,
+      options:[...card.querySelector('[data-source-library-field="target"]').options].map(option=>({value:option.value,label:option.textContent})),
+      image:card.querySelector('.source-library-image img')?.getAttribute('src'),
+    })),
+    saveDisabled:document.querySelector('[data-source-library-action="save"]').disabled,
+    oldGallery:document.querySelectorAll('.cutter-primary-outputs').length,
+  })`);
+  assert.equal(destinations.workflows,1,'One explicit destination workflow replaces the duplicate saved-cut gallery');
+  assert.equal(destinations.oldGallery,0);
+  assert.equal(destinations.saveDisabled,true,'Saving must wait for an explicit valid destination check');
+  const exactCuts=before.snapshot.atlases.find(atlas=>atlas.id==='atlas.animation-components').sliceHeads;
+  assert.equal(destinations.rows.length,9); assert.equal(new Set(destinations.rows.map(row=>row.rectangleId)).size,9);
+  for(const row of destinations.rows){
+    const exact=exactCuts.find(cut=>cut.rectangleId===row.rectangleId); assert(exact,'Each destination must identify a current exact saved output');
+    assert.equal(row.image.split('/').at(-1),exact.digest,'Destination previews must retain exact saved imagery');
+    assert(row.options.some(option=>option.value==='new'&&option.label==='Add as new Library image'));
+    assert(row.options.some(option=>option.value==='skip'&&option.label==='Skip this image'));
+    assert(row.options.some(option=>before.snapshot.assetLibrary.assets.some(asset=>asset.assetId===option.value)
+      && option.label.startsWith('Update “')),'Existing named Library Images must be explicit update destinations');
+  }
+  await click('[data-source-library-action="plan"]');
+  await waitFor("document.querySelectorAll('.source-library-result').length===9 && document.querySelector('[data-source-library-action=\"save\"]')?.disabled===false",'Checked Library destinations');
+  assert.deepEqual(await project(),before,'Checking destinations must not save images or advance project state');
+  await evaluate(`(()=>{const select=document.querySelector('[data-source-library-field="target"]');select.value='skip';select.dispatchEvent(new Event('change',{bubbles:true}));})()`); await settle();
+  assert.equal(await evaluate("document.querySelector('[data-source-library-action=\"save\"]').disabled"),true,'Changing a destination invalidates the previous check');
+  await click('[data-source-library-action="plan"]');
+  await waitFor("document.querySelector('.source-library-result')?.textContent==='Skipped' && document.querySelector('[data-source-library-action=\"save\"]')?.disabled===false",'Explicit Skip destination check');
+  result.sourceLibraryEntrance={exactSavedOutputs:9,addUpdateSkip:true,explicitCheckBeforeSave:true,changedDestinationRechecked:true,readOnly:true};
+  await click('[data-close-cutter]');
   await click('[data-workspace="assets"]'); await navigation.assets();
   await click('[data-library-action="create-assembly"]');
   await waitFor("Boolean(document.querySelector('[data-assembly-canvas]'))", 'Library Create Assembly entry');

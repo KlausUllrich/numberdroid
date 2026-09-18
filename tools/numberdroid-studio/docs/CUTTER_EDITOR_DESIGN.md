@@ -22,11 +22,36 @@ also a direct human correction surface.
 
 ## Workspace and tools
 
+### Bounded interaction follow-up — 2026-09-18
+
+After passing the Source-to-Library batch, Klaus reported the selected cut's
+handles being covered by higher-numbered cuts. Paint/hit-test the selected
+visual group above every other cut without reordering semantic rectangles,
+changing IDs or moving the canvas during a captured gesture.
+
+Klaus explicitly chose **Save layout → Generate as separate actions**. Place
+Save cut layout immediately before Generate output images; mute Save when the
+authored definition is unchanged. Dirty state compares against the last
+confirmed saved definition, so Undo or manual restoration becomes clean again.
+An unchanged valid saved layout can generate without another Save. Valid but
+unsaved work must say to Save first; pending/generated/failed jobs explain only
+actions available in their actual state. Geometry validity alone is not job
+readiness. Keep unknown-result retry and source/job version checks intact.
+
+Cut images and View Output use the same tab styling as the Sources content
+tabs, in that order. Add at least16px between saved Animation-frame cards and
+their Create Animation action (implemented gap:20px). Klaus explicitly reported
+“pass.” for the complete follow-up on build `b1dbff3` on 2026-09-18, after choosing
+**Save layout → Generate as separate actions**. The focused live retest is
+accepted; the passed Library workflow and existing agent/backend authority
+remain unchanged. Remote `9189b795` has the identical tree and green Build2490;
+PR #256 is still unmerged.
+
 - Keep one canvas node and a stable source-to-screen transform during a drag.
   Validation messages must not move, resize or rescale the image. Their region
   has reserved height and can scroll internally if needed.
-- Use a left tool rail for Select, Draw cut, Grid, Remove cut, Undo, Redo and
-  Save work. The rail and inspector have bounded dimensions and may scroll
+- Use a left tool rail for Select, Draw cut, Grid, Remove cut, Undo and Redo;
+  Save cut layout is in the paired action row before Generate. The rail and inspector have bounded dimensions and may scroll
   independently; changing their content must not move the canvas.
 - Grid settings open in an overlaid popup, with explicit Close and keyboard
   dismissal. Opening, editing or closing settings must not reflow the canvas.
@@ -118,14 +143,27 @@ existing source, slice or Asset version is retargeted. Older data stays readable
 new optional fields need strict compatibility and round-trip tests.
 
 Retain the existing define → preview job → save outputs boundaries. **Save work**
-commits the cutting instructions; **Preview cuts** prepares exact included PNGs;
-**Save cuts** promotes those inspected results once. These are explicit content
+commits the cutting instructions; **Generate output images** (formerly Preview
+cuts) prepares exact included PNGs; **Save output images** (formerly Save cuts)
+promotes those inspected results once. These are explicit content
 operations, not an additional human review of the owner's own editing. Existing
 job cancellation, retry, discard, stale-version, budget and recovery protections
 remain accessible. History restores local edits without reverting saved project
 history. Preview/details are contextual views; Back restores compatible editing
 and view state. Closing the editor retains the existing explicit saved-versus-
 unsaved distinction and must not silently save or retarget content.
+
+The 2026-09-16 [Sources clarity correction](SOURCES_NAVIGATION_DESIGN.md#one-output-gallery)
+uses one primary Output images gallery labelled generated/not saved or saved.
+When generated results coexist with saved outputs, **Compare with saved output
+images** makes those saved identities available in a closed optional disclosure.
+They are not necessarily one-to-one prior versions of the generated results.
+Saving changes the gallery's state instead of adding a duplicate gallery. Keep
+exact lineage, existing saved
+consumers, job recovery and contextual return intact. The normal outlined
+**Back to Image Workbench** button names the destination and matches comparable
+secondary controls in height and padding. These are presentation corrections;
+accepted cutter geometry and command boundaries remain unchanged.
 
 The accepted scoped MCP cutter commands already support source preparation on
 the shared project head. They retain their current names, tool counts, scopes and

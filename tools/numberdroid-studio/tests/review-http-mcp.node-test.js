@@ -57,7 +57,7 @@ test('Shared Review official MCP negotiates27/8, revises feedback and rechecks H
   assert.equal((await rawSubmit.json()).error.code, 'REVIEW_NEGOTIATION_REQUIRED');
   assert.deepEqual(await f.studio.readProjectTrusted(projectId), beforeHandshake);
   await assert.rejects(gateway.negotiateReviewV1({ schemaVersion: 1, projectId: 'foreign', profile: 'review-v1' }), { code: 'CONTEXT_PROJECT_MISMATCH' });
-  const negotiation = await gateway.negotiateReviewV1({ schemaVersion: 1, projectId, profile: 'review-v1' }); assert.equal(negotiation.storeSchemaVersion, 18);
+  const negotiation = await gateway.negotiateReviewV1({ schemaVersion: 1, projectId, profile: 'review-v1' }); assert.equal(negotiation.storeSchemaVersion, 19);
   await f.execute('grant.issue', { grantId: 'grant.legacy-scopes', agentId: 'agent.legacy-scopes', taskId: 'task.legacy-scopes', branchId: 'branch.main', scopes: ['project.read', 'clip.proposal.submit', 'assembly.proposal.submit'], objectScopes: [{ kind: 'project', id: projectId }], budget: { maxCommands: 20, maxJobs: 0, maxArtifactBytes: 0, maxCostCents: 0 } });
   const legacyBinding = hostBindingStore.issue({ projectId, grantId: 'grant.legacy-scopes', agentId: 'agent.legacy-scopes', taskId: 'task.legacy-scopes', branchId: 'branch.main', issuedBy: owner.actor.id });
   const legacyGateway = new LocalStudioGateway({ baseUrl: base, bindingToken: legacyBinding.token });
