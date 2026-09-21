@@ -56,7 +56,7 @@ function assert(condition, message) {
 const chrome = spawn(chromePath, [
   '--headless=new',
   '--no-sandbox',
-  '--hide-scrollbars',
+  ...(mode === 'sources-navigation' ? [] : ['--hide-scrollbars']),
   '--lang=en-US',
   '--force-device-scale-factor=1',
   `--window-size=${width},${height}`,
@@ -319,6 +319,7 @@ try {
   let checkpoint45StudioPreview = null;
   let a17Evidence = null;
   let sourcesNavigationEvidence = null;
+  let checkpoint2bSourcesTabStyle = null;
   const focusCheckpoint2aSourceTarget = async (phase) => {
     if (mode !== 'checkpoint-2a' || expectedWorkspace !== 'sources') return null;
     const focus = checkpoint2aFocus ?? 'intake-form';
@@ -354,8 +355,12 @@ try {
     return observation;
   };
   if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources') {
+    checkpoint2bSourcesTabStyle = (await devtools.send('Runtime.evaluate', {
+      expression: `(() => { const node=document.querySelector('[data-sources-tab][aria-current="page"]'); if(!node) return null; const style=getComputedStyle(node); return Object.fromEntries(['backgroundColor','borderBottomColor','borderBottomWidth','borderRadius','paddingTop','paddingBottom','fontSize'].map(key=>[key,style[key]])); })()`,
+      returnByValue: true,
+    }, sessionId)).result?.value;
     await devtools.send('Runtime.evaluate', {
-      expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click()`,
+      expression: `document.querySelector('[data-open-cutter="source.family-hygiene-approved"]')?.click(); document.querySelector('[data-cutter-view="edit"]')?.click()`,
       returnByValue: true,
     }, sessionId);
     let cutterReady = false;
@@ -391,20 +396,40 @@ try {
     const result = await devtools.send('Runtime.evaluate', {
       expression: `(async () => {
         const settle = () => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+        const waitFor = async (predicate, message) => {
+          const deadline = Date.now() + 15000;
+          while (!predicate() && Date.now() < deadline) await new Promise(done => setTimeout(done, 40));
+          if (!predicate()) throw new Error(message);
+          await settle();
+        };
         const tabLabels = () => [...document.querySelectorAll('[data-sources-tab]')].map(node => node.textContent.trim());
         const initial = {
           tabLabels: tabLabels(),
           activeTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
           importFormPresent: Boolean(document.querySelector('[data-source-intake-form]')),
           sourceCards: document.querySelectorAll('[data-source-id]').length,
+          reviewOption: document.querySelector('[data-sources-attention] option[value="needs-review"]')?.textContent,
+          hasReviewBanner: Boolean(document.querySelector('.sources-review-attention')),
           closedTechnicalDetails: [...document.querySelectorAll('.source-technical-details')].every(node => !node.open),
           hasOldProcessTab: [...document.querySelectorAll('[data-sources-tab]')].some(node => ['Preparation', 'Needs review'].includes(node.textContent.trim())),
         };
         document.querySelector('[data-sources-tab="workbench"]')?.click(); await settle();
+        await Promise.all([...document.querySelectorAll('.workbench-output-previews img')].map(image => image.decode()));
         const workbench = {
           activeTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
           cards: document.querySelectorAll('.workbench-card').length,
-          text: document.querySelector('[data-sources-workspace]')?.textContent ?? '',
+          outputThumbnails: document.querySelectorAll('.workbench-output-previews img').length,
+          thumbnailsContained: [...document.querySelectorAll('.workbench-output-previews img')].every(image => {
+            const frame = image.parentElement.getBoundingClientRect(), box = image.getBoundingClientRect();
+            const scale = Math.min(box.width / image.naturalWidth, box.height / image.naturalHeight);
+            const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
+            const left = box.left + (box.width - width) / 2, top = box.top + (box.height - height) / 2;
+            return image.naturalWidth > 0 && image.naturalHeight > 0 && getComputedStyle(image).objectFit === 'contain'
+              && left >= frame.left && top >= frame.top && left + width <= frame.right && top + height <= frame.bottom;
+          }),
+          hasIntroBanner: Boolean(document.querySelector('.sources-workbench-intro')),
+          reviewOption: document.querySelector('[data-sources-attention] option[value="needs-review"]')?.textContent,
+          text: document.querySelector('#workspace-content')?.textContent ?? '',
           closedTechnicalDetails: [...document.querySelectorAll('.workbench-card .source-technical-details')].every(node => !node.open),
         };
         const search = document.querySelector('[data-sources-search]');
@@ -425,8 +450,117 @@ try {
         };
         const all = document.querySelector('[data-sources-attention]');
         all.value = 'all'; all.dispatchEvent(new Event('change', { bubbles: true })); await settle();
+        const card = document.querySelector('.workbench-card');
+        const atlasId = card?.dataset.atlasId;
+        const openOutputs = card?.querySelector('[data-open-cutter-view="outputs"]');
+        const exactAtlasLink = openOutputs?.dataset.openAtlas === atlasId;
+        openOutputs?.click(); await settle();
+        await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4
+          && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Library destinations did not load the four saved outputs');
+        const back = document.querySelector('.cutter-back-button');
+        const backBounds = back?.getBoundingClientRect();
+        const outputs = {
+          workflows: document.querySelectorAll('[data-source-library]').length,
+          destinations: document.querySelectorAll('[data-source-library-field="target"]').length,
+          images: document.querySelectorAll('.source-library-card > .source-library-image img').length,
+          compare: Boolean(document.querySelector('.cutter-output-comparison')),
+          animationInitiallyClosed: document.querySelector('.cutter-animation-outputs')?.open === false,
+          oldSectionTitles: [...document.querySelectorAll('h2,h3')].some(node => ['Preview cuts', 'Saved cuts'].includes(node.textContent.trim())),
+          backText: back?.textContent,
+          backHeight: backBounds?.height ?? 0,
+          secondaryBack: back?.classList.contains('secondary') ?? false,
+          flatBack: back?.classList.contains('editor-back-link') ?? false,
+          horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        };
+        const authoring = {};
+        const savedConfirm = window.confirm;
+        window.confirm = () => true;
+        try {
+          const project = async () => (await fetch('/api/projects/numberdroid-studio-checkpoint-2b')).json();
+          const before = await project();
+          const skippedDestination = [...document.querySelectorAll('[data-source-library-field="target"]')].at(-1);
+          const skippedRectangle = skippedDestination.dataset.rectangleId;
+          const skipRetained = () => [...document.querySelectorAll('[data-source-library-field="target"]')]
+            .find(node => node.dataset.rectangleId === skippedRectangle)?.value === 'skip';
+          skippedDestination.value = 'skip';
+          skippedDestination.dispatchEvent(new Event('change', { bubbles: true })); await settle();
+          authoring.newDestinations = [...document.querySelectorAll('[data-source-library-field="target"]')].filter(node => node.value === 'new').length;
+          document.querySelector('[data-source-library-action="plan"]').click();
+          await waitFor(() => !document.querySelector('[data-source-library-action="save"]')?.disabled, 'Checking saved outputs did not enable Library save');
+          authoring.planDidNotMutate = (await project()).revision === before.revision;
+          document.querySelector('[data-source-library-action="save"]').click();
+          await waitFor(() => document.querySelectorAll('[data-source-library-action="open"]').length === 3
+            && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Partial Library batch did not save three images and skip one');
+          authoring.skipRetainedAfterSave = skipRetained();
+          if (!authoring.skipRetainedAfterSave) throw new Error('Successful partial save changed the explicit Skip destination');
+          const saved = await project();
+          authoring.addedCount = saved.snapshot.assetLibrary.assets.length - (before.snapshot.assetLibrary?.assets.length ?? 0);
+          const savedPins = saved.snapshot.assetLibrary.assets.map(asset => [asset.assetId, asset.assetVersion, asset.metadataVersion]);
+          document.querySelector('[data-source-library-action="plan"]').click();
+          await waitFor(() => document.querySelectorAll('.source-library-result').length === 4
+            && [...document.querySelectorAll('.source-library-result')].filter(node => node.textContent.includes('Already in Library')).length === 3
+            && [...document.querySelectorAll('.source-library-result')].filter(node => node.textContent === 'Skipped').length === 1
+            && !document.querySelector('[data-source-library-action="save"]')?.disabled, 'Repeated save did not identify unchanged images');
+          document.querySelector('[data-source-library-action="save"]').click();
+          await waitFor(() => document.querySelector('[data-source-library]')?.textContent.includes('0 added, 0 updated, 3 unchanged, 1 skipped.')
+            && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Unchanged confirmation did not finish');
+          const repeated = await project();
+          authoring.repeatUnchanged = repeated.revision === saved.revision
+            && JSON.stringify(repeated.snapshot.assetLibrary.assets.map(asset => [asset.assetId, asset.assetVersion, asset.metadataVersion])) === JSON.stringify(savedPins);
+          const assetButton = document.querySelector('[data-source-library-action="open"]');
+          const savedImage = assetButton?.closest('.source-library-card')?.querySelector('img')?.getAttribute('src');
+          assetButton?.click();
+          await waitFor(() => document.querySelector('[data-library-detail="image"] [data-library-artwork] img'), 'Saved output did not open Library detail');
+          authoring.assetImageMatches = new URL(document.querySelector('[data-library-detail="image"] [data-library-artwork] img').getAttribute('src'), location.href).href === new URL(savedImage, location.href).href;
+          document.querySelector('[data-library-action="back"]')?.click();
+          await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4, 'Library Back did not restore image destinations');
+          authoring.assetReturned = true;
+          authoring.skipRetainedAfterLibraryReturn = skipRetained();
+          if (!authoring.skipRetainedAfterLibraryReturn) throw new Error('Library detail return changed the explicit Skip destination');
+          document.querySelector('.cutter-animation-outputs summary')?.click(); await settle();
+          const selected = [...document.querySelectorAll('.cutter-animation-outputs [data-animation-select-cut]')].slice(0, 2);
+          const selectedImages = selected.map(node => node.closest('figure')?.querySelector('img')?.getAttribute('src'));
+          const selectedPins = selected.map(node => ({ sliceId: node.dataset.animationSelectCut, version: node.dataset.sliceVersion }));
+          for (const check of selected) check.checked = true;
+          document.querySelector('.cutter-animation-outputs [data-create-animation]')?.click();
+          await waitFor(() => document.querySelectorAll('[data-animation-frame]').length === 2, 'Saved selections did not open a two-frame Animation');
+          authoring.animationImagesMatch = JSON.stringify([...document.querySelectorAll('[data-animation-frame] img')].map(node => node.getAttribute('src'))) === JSON.stringify(selectedImages);
+          authoring.animationPinsMatch = true;
+          for (const [index, pin] of selectedPins.entries()) {
+            document.querySelectorAll('[data-animation-frame]')[index].click(); await settle();
+            const reference = document.querySelector('.animation-source-reference')?.textContent ?? '';
+            authoring.animationPinsMatch &&= reference.includes(pin.sliceId) && reference.includes('cut v' + pin.version);
+          }
+          document.querySelector('[data-animation-action="back"]')?.click();
+          await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4, 'Animation Back did not restore image destinations');
+          authoring.animationReturned = true;
+          await waitFor(() => document.querySelector('[data-preview-atlas]') && !document.querySelector('[data-preview-atlas]').disabled, 'Output generation did not become available');
+          document.querySelector('[data-preview-atlas]').click();
+          await waitFor(() => document.querySelector('.cutter-job-status')?.textContent.includes('Generated images ready')
+            && document.querySelector('[data-discard-cutter-job]') && !document.querySelector('[data-discard-cutter-job]').disabled
+            && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Generated outputs did not become ready');
+          authoring.unsavedImages = document.querySelectorAll('.source-library-card > .source-library-image img').length;
+          authoring.unsavedHorizontalOverflow = document.documentElement.scrollWidth > document.documentElement.clientWidth;
+          document.querySelector('[data-source-library-action="plan"]').click();
+          await waitFor(() => document.querySelector('[data-source-library]')?.textContent.includes('No Library image or original is deleted.'), 'Duplicate generation did not explain discard and preserved Library content');
+          authoring.duplicateSaveBlocked = document.querySelector('[data-source-library-action="save"]').disabled;
+          document.querySelector('[data-discard-cutter-job]')?.click();
+          await waitFor(() => document.querySelector('.cutter-job-status')?.textContent.includes('Generated results discarded')
+            && !document.querySelector('[data-discard-cutter-job]') && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Discard did not restore existing images');
+          authoring.restoredSavedImages = document.querySelectorAll('.source-library-card > .source-library-image img').length;
+          authoring.discardPreservedLibrary = JSON.stringify((await project()).snapshot.assetLibrary.assets.map(asset => [asset.assetId, asset.assetVersion, asset.metadataVersion])) === JSON.stringify(savedPins);
+        } finally { window.confirm = savedConfirm; }
+        document.querySelector('.cutter-back-button')?.click(); await settle();
+        const sourceLink = document.querySelector('.workbench-card [data-view-source]');
+        const sourceId = sourceLink?.dataset.viewSource;
+        sourceLink?.click(); await settle();
+        const sourceReturn = {
+          activeTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab,
+          linkedSourceVisible: [...document.querySelectorAll('.source-card[data-source-id]')].some(node => node.dataset.sourceId === sourceId),
+        };
+        document.querySelector('[data-sources-tab="workbench"]')?.click(); await settle();
         return {
-          initial, workbench, searchRetention, needsReview,
+          initial, workbench, searchRetention, needsReview, exactAtlasLink, outputs, sourceReturn, authoring,
           finalActiveTab: document.querySelector('[data-sources-tab][aria-current="page"]')?.dataset.sourcesTab ?? null,
           horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
             || document.body.scrollWidth > document.body.clientWidth,
@@ -435,20 +569,58 @@ try {
       awaitPromise: true,
       returnByValue: true,
     }, sessionId);
+    assert(!result.exceptionDetails, `Sources navigation interaction failed: ${JSON.stringify(result.exceptionDetails)}`);
     sourcesNavigationEvidence = result.result?.value ?? null;
     assert(JSON.stringify(sourcesNavigationEvidence?.initial?.tabLabels) === JSON.stringify(['Source Images', 'Image Workbench'])
       && sourcesNavigationEvidence.initial.activeTab === 'images'
       && sourcesNavigationEvidence.initial.importFormPresent === false
       && sourcesNavigationEvidence.initial.sourceCards === 1
+      && sourcesNavigationEvidence.initial.reviewOption === 'Needs review (0)'
+      && sourcesNavigationEvidence.initial.hasReviewBanner === false
       && sourcesNavigationEvidence.initial.closedTechnicalDetails === true
       && sourcesNavigationEvidence.initial.hasOldProcessTab === false,
     `Sources landing page did not preserve the approved two-content-view model: ${JSON.stringify(sourcesNavigationEvidence)}`);
     assert(sourcesNavigationEvidence.workbench?.activeTab === 'workbench'
       && sourcesNavigationEvidence.workbench.cards === 1
-      && sourcesNavigationEvidence.workbench.text.includes('4 saved cuts')
-      && sourcesNavigationEvidence.workbench.text.includes('Active processing appears inside the open work item')
+      && sourcesNavigationEvidence.workbench.text.includes('4 saved output images')
+      && sourcesNavigationEvidence.workbench.outputThumbnails === 4
+      && sourcesNavigationEvidence.workbench.thumbnailsContained === true
+      && sourcesNavigationEvidence.workbench.hasIntroBanner === false
+      && sourcesNavigationEvidence.workbench.reviewOption === 'Needs review (0)'
       && sourcesNavigationEvidence.workbench.closedTechnicalDetails === true,
     `Image Workbench did not show the truthful saved atlas/output state: ${JSON.stringify(sourcesNavigationEvidence)}`);
+    assert(sourcesNavigationEvidence.exactAtlasLink === true
+      && sourcesNavigationEvidence.outputs?.workflows === 1
+      && sourcesNavigationEvidence.outputs.destinations === 4
+      && sourcesNavigationEvidence.outputs.images === 4
+      && sourcesNavigationEvidence.outputs.compare === false
+      && sourcesNavigationEvidence.outputs.animationInitiallyClosed === true
+      && sourcesNavigationEvidence.outputs.oldSectionTitles === false
+      && sourcesNavigationEvidence.outputs.backText === '← Back to Image Workbench'
+      && sourcesNavigationEvidence.outputs.backHeight >= 36
+      && sourcesNavigationEvidence.outputs.secondaryBack === true
+      && sourcesNavigationEvidence.outputs.flatBack === false
+      && sourcesNavigationEvidence.outputs.horizontalOverflow === false
+      && sourcesNavigationEvidence.sourceReturn?.activeTab === 'images'
+      && sourcesNavigationEvidence.sourceReturn.linkedSourceVisible === true,
+    `Saved output gallery, exact work link, source return, or back-button sizing failed: ${JSON.stringify(sourcesNavigationEvidence)}`);
+    assert(sourcesNavigationEvidence.authoring?.planDidNotMutate === true
+      && sourcesNavigationEvidence.authoring.addedCount === sourcesNavigationEvidence.authoring.newDestinations
+      && sourcesNavigationEvidence.authoring.newDestinations === (width === 1440 ? 3 : 0)
+      && sourcesNavigationEvidence.authoring.repeatUnchanged === true
+      && sourcesNavigationEvidence.authoring.skipRetainedAfterSave === true
+      && sourcesNavigationEvidence.authoring.skipRetainedAfterLibraryReturn === true
+      && sourcesNavigationEvidence.authoring.assetImageMatches === true
+      && sourcesNavigationEvidence.authoring.assetReturned === true
+      && sourcesNavigationEvidence.authoring.animationImagesMatch === true
+      && sourcesNavigationEvidence.authoring.animationPinsMatch === true
+      && sourcesNavigationEvidence.authoring.animationReturned === true
+      && sourcesNavigationEvidence.authoring.unsavedImages === 4
+      && sourcesNavigationEvidence.authoring.unsavedHorizontalOverflow === false
+      && sourcesNavigationEvidence.authoring.duplicateSaveBlocked === true
+      && sourcesNavigationEvidence.authoring.discardPreservedLibrary === true
+      && sourcesNavigationEvidence.authoring.restoredSavedImages === 4,
+    `Saved-image authoring routes or unsaved-output isolation failed: ${JSON.stringify(sourcesNavigationEvidence.authoring)}`);
     assert(sourcesNavigationEvidence.searchRetention?.value === 'family'
       && sourcesNavigationEvidence.searchRetention.focused === true
       && sourcesNavigationEvidence.searchRetention.visibleCards === 1
@@ -4163,7 +4335,7 @@ try {
         && originalSecurity.referrer === '',
       `The keyboard-opened original tab lost its exact URL, null opener, or empty referrer boundary: ${JSON.stringify(originalSecurity)}`);
       await devtools.send('Target.closeTarget', { targetId: originalTarget.targetId });
-      assert(approved.text.includes('Ready to use') && approved.text.includes('Technical details')
+      assert(approved.text.includes('Approved') && approved.text.includes('Technical details')
         && approved.text.includes('APPROVED_SOURCE') && approved.text.includes('USER_APPROVED')
         && approved.text.includes('human_upload') && approved.text.includes('1254 × 1254 px')
         && approved.text.includes('2720519'), 'The approved source summary or collapsed lifecycle/provenance/identity is missing.');
@@ -4358,6 +4530,56 @@ try {
   let checkpoint2bInteractionEvidence = null;
   if (mode === 'checkpoint-2b' && expectedWorkspace === 'sources' && checkpoint2bFocus === 'cutter-canvas') {
     checkpoint2bInteractionEvidence = await captureCutterEditor({ devtools, sessionId });
+    const evaluate = async expression => {
+      const result = await devtools.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId);
+      assert(!result.exceptionDetails, JSON.stringify(result.exceptionDetails)); return result.result?.value;
+    };
+    const settle = () => evaluate('new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done)))');
+    const ui = await evaluate(`(() => {
+      const save=document.querySelector('.cutter-actions [data-save-atlas]'),generate=document.querySelector('[data-preview-atlas]');
+      const style=getComputedStyle(document.querySelector('[data-cutter-view="edit"]'));
+      const a=save?.getBoundingClientRect(),b=generate?.getBoundingClientRect();
+      return { saveDisabled:save?.disabled,generateEnabled:generate?.disabled===false,
+        saveBeforeGenerate:Boolean(a&&b&&a.right<=b.left&&Math.abs(a.top-b.top)<=1),
+        tabStyle:Object.fromEntries(['backgroundColor','borderBottomColor','borderBottomWidth','borderRadius','paddingTop','paddingBottom','fontSize'].map(key=>[key,style[key]])) };
+    })()`);
+    assert(ui.saveDisabled && ui.generateEnabled && ui.saveBeforeGenerate, `Clean cutter action readiness/order failed: ${JSON.stringify(ui)}`);
+    assert(checkpoint2bSourcesTabStyle, 'Sources tab reference style missing');
+    assert(JSON.stringify(ui.tabStyle) === JSON.stringify(checkpoint2bSourcesTabStyle), `Cutter tabs must match Sources tab treatment: ${JSON.stringify({cutter:ui.tabStyle,sources:checkpoint2bSourcesTabStyle})}`);
+    await evaluate(`(() => { document.querySelector('[data-cutter-select="0"]').click(); const width=document.querySelector('[data-rectangle-field="width"]'); width.value='650'; width.dispatchEvent(new Event('change',{bubbles:true})); })()`); await settle();
+    const overlapping = await evaluate(`(() => {
+      const handle=document.querySelector('[data-cutter-resize="0"][data-cutter-edge="e"]'); handle.scrollIntoView({block:'center',inline:'center'});
+      const box=handle.getBoundingClientRect(),x=box.x+box.width/2,y=box.y+box.height/2;
+      const hit=document.elementFromPoint(x,y)?.closest('[data-cutter-resize]');
+      const geometry=()=>[...document.querySelectorAll('[data-cutter-move]')].sort((a,b)=>Number(a.dataset.cutterMove)-Number(b.dataset.cutterMove)).map(n=>['x','y','width','height'].map(key=>Number(n.getAttribute(key))));
+      return {x,y,scale:Number(document.querySelector('.cutter-canvas').dataset.scale),hitIndex:hit?.dataset.cutterResize,hitEdge:hit?.dataset.cutterEdge,
+        selection:document.querySelector('[data-rectangle-row]')?.dataset.rectangleRow,geometry:geometry(),
+        semanticOrder:[...document.querySelectorAll('[data-cutter-select]')].map(n=>n.dataset.cutterSelect),generateDisabled:document.querySelector('[data-preview-atlas]').disabled};
+    })()`);
+    assert(overlapping.hitIndex==='0' && overlapping.hitEdge==='e','Selected low-index resize handle must win real hit-testing over overlapping higher-index cut');
+    assert(overlapping.selection==='0' && overlapping.generateDisabled===true, `Overlapping cut must retain selection and block generation: ${JSON.stringify(overlapping)}`);
+    try {
+      await devtools.send('Input.dispatchMouseEvent',{type:'mousePressed',x:overlapping.x,y:overlapping.y,button:'left',buttons:1,clickCount:1},sessionId);
+      await devtools.send('Input.dispatchMouseEvent',{type:'mouseMoved',x:overlapping.x+13*overlapping.scale,y:overlapping.y,button:'left',buttons:1},sessionId);
+    } finally { await devtools.send('Input.dispatchMouseEvent',{type:'mouseReleased',x:overlapping.x+13*overlapping.scale,y:overlapping.y,button:'left',buttons:0,clickCount:1},sessionId); }
+    await settle();
+    const resized = await evaluate(`({selection:document.querySelector('[data-rectangle-row]')?.dataset.rectangleRow,
+      semanticOrder:[...document.querySelectorAll('[data-cutter-select]')].map(n=>n.dataset.cutterSelect),
+      geometry:[...document.querySelectorAll('[data-cutter-move]')].sort((a,b)=>Number(a.dataset.cutterMove)-Number(b.dataset.cutterMove)).map(n=>['x','y','width','height'].map(key=>Number(n.getAttribute(key))))})`);
+    assert(resized.selection==='0' && JSON.stringify(resized.semanticOrder)===JSON.stringify(overlapping.semanticOrder), 'Selected cut and authored order must survive an overlapping resize');
+    assert(JSON.stringify(resized.geometry[0])===JSON.stringify([3,3,663,622]), `Selected cut resize geometry differs: ${JSON.stringify(resized.geometry[0])}`);
+    assert(JSON.stringify(resized.geometry.slice(1))===JSON.stringify(overlapping.geometry.slice(1)), 'Overlapping resize must not modify other cuts');
+    await evaluate(`document.querySelector('[data-cutter-tool="undo"]').click()`); await settle();
+    await evaluate(`document.querySelector('[data-cutter-tool="undo"]').click()`); await settle();
+    assert(await evaluate(`document.querySelector('[data-preview-atlas]').disabled`)===false,'Restored valid saved layout must enable generation again');
+    assert(await evaluate(`document.querySelector('.cutter-actions [data-save-atlas]').disabled`)===true,'Restored unchanged layout must not enable a redundant Save');
+    await evaluate(`document.querySelector('[data-cutter-view="outputs"]').click()`); await settle();
+    await evaluate(`document.querySelector('.cutter-animation-outputs').open=true`); await settle();
+    const animationGap = await evaluate(`(() => {const grid=document.querySelector('.cutter-animation-outputs .slice-preview-grid'),button=document.querySelector('.cutter-animation-outputs [data-create-animation]');return button.getBoundingClientRect().top-grid.getBoundingClientRect().bottom;})()`);
+    assert(animationGap>=16,`Animation create action requires at least16px separation, got ${animationGap}`);
+    assert(await evaluate(`fetch('/api/projects/numberdroid-studio-checkpoint-2b').then(r=>r.json()).then(p=>p.revision)`)===7, 'Native cutter checks must preserve the saved project revision');
+    checkpoint2bInteractionEvidence.cutterFollowup = { cleanActionReadiness:true,saveBeforeGenerate:true,tabsMatchSources:true,
+      overlappingSelectedHandle:{before:overlapping,after:resized},generationRestored:true,animationGap,savedRevisionUnchanged:7 };
     assertNoProtocolErrors('After Checkpoint 2B interactions');
   }
   await mkdir(dirname(outputPath), { recursive: true });

@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import { startStudioHttpServer } from '../apps/studio-server/src/server.js';
+import { runBrowserCapture } from './browser-capture-runner.js';
 
 const [chrome, output] = process.argv.slice(2);
 if (process.argv.length !== 4 || !isAbsolute(chrome ?? '') || !isAbsolute(output ?? '')) {
@@ -21,20 +22,25 @@ const capture = fileURLToPath(new URL('./capture-studio-browser-evidence.js', im
 const run = promisify(execFile);
 let complete = false;
 let running = null;
+const cancellation = new AbortController();
+process.once('SIGTERM', () => cancellation.abort(new Error('Sources navigation browser verification cancelled.')));
+process.once('SIGINT', () => cancellation.abort(new Error('Sources navigation browser verification cancelled.')));
 try {
   await run(process.execPath, [prepare, dataDirectory], { timeout: 120_000, maxBuffer: 2 * 1024 * 1024 });
+  cancellation.signal.throwIfAborted();
   running = await startStudioHttpServer({
     dataDirectory, host: '127.0.0.1', port: 0, storeMode: 'sqlite',
     pairingEnabled: false, operationsConfigurationFilename: null,
   });
   const address = `http://127.0.0.1:${running.address.port}/?visualFixture=checkpoint-2b#sources`;
   for (const width of [1440, 1060]) {
-    const result = await run(process.execPath, [
+    cancellation.signal.throwIfAborted();
+    const result = await runBrowserCapture(process.execPath, [
       capture, chrome, String(width),
       join(outputDirectory, `sources-image-workbench-${width}.png`),
       address, 'sources-navigation',
       join(outputDirectory, `sources-image-workbench-${width}.dom.html`),
-    ], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
+    ], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024, signal: cancellation.signal });
     process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
   }

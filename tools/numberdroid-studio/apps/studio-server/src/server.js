@@ -17,6 +17,7 @@ import {
   ProcessingResultAdoptionReadService,
   ProcessingResultAdoptionPlanningService,
   StudioService,
+  SourceLibraryService,
 } from '../../../packages/application/src/index.js';
 import { StudioError, asStudioError } from '../../../packages/domain/src/index.js';
 import {
@@ -39,6 +40,7 @@ import {
   SqliteProcessingResultAdoptionReader,
   SqliteProcessingResultAdoptionStore,
   SqliteSourceIntakeStore,
+  SourceLibraryOperationStore,
   TaskBranchProjectStore,
   assertWorkspaceNotQuarantined,
 } from '../../../packages/persistence/src/index.js';
@@ -105,6 +107,7 @@ const staticFiles = new Map([
   ['/cutter-editor-state.js', ['cutter-editor-state.js', 'text/javascript; charset=utf-8']],
   ['/cutter-editor-view.js', ['cutter-editor-view.js', 'text/javascript; charset=utf-8']],
   ['/sources-navigation-state.js', ['sources-navigation-state.js', 'text/javascript; charset=utf-8']],
+  ['/source-library-controller.js', ['source-library-controller.js', 'text/javascript; charset=utf-8']],
   ['/asset-editor-state.js', ['asset-editor-state.js', 'text/javascript; charset=utf-8']],
   ['/asset-editor-view.js', ['asset-editor-view.js', 'text/javascript; charset=utf-8']],
   ['/asset-editor-controller.js', ['asset-editor-controller.js', 'text/javascript; charset=utf-8']],
@@ -127,6 +130,7 @@ const SOURCE_INTAKE_LIMITS = {
   maxHeight: 4096,
 };
 const privateAuthoringV2RuntimeByServer = new WeakMap();
+const sourceLibraryHttpRuntimeByServer = new WeakMap();
 
 function createPrivateAuthoringV2Runtime({
   workspace,
@@ -241,6 +245,13 @@ function sendJson(response, status, value, headers = {}) {
 }
 
 function errorStatus(error, pathname = '') {
+  if (/\/atlases\/[^/]+\/library\//.test(pathname)) {
+    if (['SOURCE_LIBRARY_UNAVAILABLE', 'SOURCE_LIBRARY_CLOSED'].includes(error.code)) return 503;
+    if (error.code === 'ENTITY_NOT_FOUND') return 404;
+    if (['SOURCE_LIBRARY_DUPLICATE_TARGET', 'SOURCE_LIBRARY_SELECTION_MISMATCH'].includes(error.code)) return 400;
+    if (['SOURCE_LIBRARY_BLOCKED', 'SOURCE_LIBRARY_USE_SAVED_OUTPUTS', 'REDUNDANT_OUTPUTS_DISCARD_REQUIRED', 'ATLAS_SOURCE_NOT_APPROVED'].includes(error.code)) return 409;
+    if (error.code === 'REQUEST_ABORTED') return 409;
+  }
   if (['ASSET_SPATIAL_INVALID', 'ASSET_SPATIAL_ALIAS_CONFLICT'].includes(error.code)) return 400;
   if (error.code === 'REVIEW_VERSION_CONFLICT') return 409;
   if (pathname.startsWith('/api/backups')) {
@@ -916,6 +927,7 @@ function mcpLauncherProjection(
 
 export function createStudioHttpServer({
   studioService,
+  sourceLibraryService = null,
   agentTaskService = null,
   processingResultAdoptionReadService = null,
   hostBindingStore = null,
@@ -932,6 +944,8 @@ export function createStudioHttpServer({
   if (!studioService) throw new TypeError('studioService is required.');
   const humanUiCsrfToken = randomBytes(32).toString('base64url');
   const reviewBindings = new Set();
+  const libraryOperations = new Set();
+  let libraryClosing = false;
   const humanAgentAccess = createHumanAgentAccessController({
     studioService, hostBindingStore, pairingBroker, agentTaskService,
   });
@@ -1087,7 +1101,7 @@ export function createStudioHttpServer({
       if (request.method === 'POST' && url.pathname === '/internal/mcp/animation-handshake') {
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore || agentAttemptStore?.isLive !== true || !studioService.durableClipStoreReady
-          || ![17, 18].includes(studioService.storeSchemaVersion) || !studioService.durableAssetStoreReady || !studioService.durableAssemblyStoreReady || !studioService.durableJobStoreReady || !studioService.durableRoomStoreReady) throw new StudioError('ANIMATION_STORE_DISABLED', 'Animation profile requires the complete SQLite v17/v18 service.');
+          || ![17, 18, 19].includes(studioService.storeSchemaVersion) || !studioService.durableAssetStoreReady || !studioService.durableAssemblyStoreReady || !studioService.durableJobStoreReady || !studioService.durableRoomStoreReady) throw new StudioError('ANIMATION_STORE_DISABLED', 'Animation profile requires the complete SQLite v17/v18/v19 service.');
         const body = await readJsonBody(request, { maxBytes: 2048 });
         assertExactKeys(body, new Set(['schemaVersion', 'projectId', 'profile']), 'Animation negotiation');
         if (body.schemaVersion !== 1 || body.profile !== 'animation-v1') throw new StudioError('VALIDATION_ERROR', 'Select the animation-v1 profile.');
@@ -1102,7 +1116,7 @@ export function createStudioHttpServer({
       if (request.method === 'POST' && url.pathname === '/internal/mcp/review-handshake') {
         assertLoopbackServiceRequest(request);
         if (!hostBindingStore || agentAttemptStore?.isLive !== true || studioService.durableReviewStoreReady !== true
-          || studioService.storeSchemaVersion !== 18 || !studioService.durableClipStoreReady || !studioService.durableAssetStoreReady
+          || ![18, 19].includes(studioService.storeSchemaVersion) || !studioService.durableClipStoreReady || !studioService.durableAssetStoreReady
           || !studioService.durableAssemblyStoreReady || !studioService.durableJobStoreReady || !studioService.durableRoomStoreReady) throw new StudioError('REVIEW_STORE_DISABLED', 'Shared Review requires the complete SQLite v18 service.');
         const body = await readJsonBody(request, { maxBytes: 2048 });
         assertExactKeys(body, new Set(['schemaVersion', 'projectId', 'profile']), 'Review negotiation');
@@ -1113,7 +1127,7 @@ export function createStudioHttpServer({
         if (agentTaskService?.hasTask(binding.projectId, binding.taskId, binding.branchId)) throw new StudioError('REVIEW_TASK_BRANCH_UNSUPPORTED', 'Shared Review requires a shared-head binding.');
         await studioService.queryReviews({ schemaVersion: 1, projectId: binding.projectId, limit: 1 }, bindingExecutionContext(binding), { signal: requestAbort.signal });
         reviewBindings.add(binding.bindingId);
-        sendJson(response, 200, { schemaVersion: 1, profile: 'review-v1', projectId: binding.projectId, storeSchemaVersion: 18, sharedHead: true, toolCount: 27, resourceTemplateCount: 8 });
+        sendJson(response, 200, { schemaVersion: 1, profile: 'review-v1', projectId: binding.projectId, storeSchemaVersion: studioService.storeSchemaVersion, sharedHead: true, toolCount: 27, resourceTemplateCount: 8 });
         return;
       }
       if (request.method === 'POST' && url.pathname === '/internal/mcp/execute') {
@@ -1210,7 +1224,7 @@ export function createStudioHttpServer({
           { signal: requestAbort.signal },
         );
         if (project.snapshot?.reviewLibrary?.groups?.length) {
-          if (taskBound || studioService.durableReviewStoreReady !== true || studioService.storeSchemaVersion !== 18)
+          if (taskBound || studioService.durableReviewStoreReady !== true || ![18, 19].includes(studioService.storeSchemaVersion))
             throw new StudioError('REVIEW_TASK_BRANCH_UNSUPPORTED', 'Shared Review project content requires the known shared-head Review capability.');
           if (!reviewBindings.has(binding.bindingId)) throw new StudioError('REVIEW_NEGOTIATION_REQUIRED', 'Negotiate review-v1 before reading shared Review project content.');
         }
@@ -1513,6 +1527,35 @@ export function createStudioHttpServer({
       if (await handleAssemblyHttp({ request, response, url, studioService, humanUiCsrfToken,
         signal: requestAbort.signal, assertHumanUiMutation, readJsonBody, assertExactKeys,
         humanOwnerContext, humanCommandDto, sendJson })) return;
+      const libraryRequest = /^\/api\/projects\/([^/]+)\/atlases\/([^/]+)\/library\/(bootstrap|plan|save)$/.exec(url.pathname);
+      if (libraryRequest) {
+        if (request.method !== 'POST') {
+          response.setHeader('allow', 'POST');
+          sendJson(response, 405, { schemaVersion: 1, error: { code: 'METHOD_NOT_ALLOWED' } });
+          return;
+        }
+        assertHumanUiMutation(request, humanUiCsrfToken);
+        if (request.headers.authorization) throw new StudioError('FORBIDDEN', 'Library saves are available only through the local human editor.');
+        if (url.search) throw new StudioError('VALIDATION_ERROR', 'Library requests do not accept query parameters.');
+        if (!sourceLibraryService) throw new StudioError('SOURCE_LIBRARY_UNAVAILABLE', 'Source to Library requires SQLite.');
+        if (libraryClosing) throw new StudioError('SOURCE_LIBRARY_CLOSED', 'Studio is shutting down. Retry this exact save after restart.');
+        const operation = (async () => {
+          const projectId = decodeURIComponent(libraryRequest[1]), atlasId = decodeURIComponent(libraryRequest[2]), action = libraryRequest[3];
+          const body = await readJsonBody(request, { maxBytes: 256 * 1024 });
+          assertExactKeys(body, new Set(action === 'bootstrap' ? [] : [
+            'expectedRevision', 'expectedAtlasVersion', 'expectedAtlasFingerprint', 'input', 'items',
+            ...(action === 'save' ? ['idempotencyKey'] : []),
+          ]), 'Source to Library request');
+          if (requestAbort.signal.aborted) throw new StudioError('REQUEST_ABORTED', 'The Library request was cancelled before execution.');
+          const project = await studioService.readProjectTrusted(projectId);
+          if (requestAbort.signal.aborted) throw new StudioError('REQUEST_ABORTED', 'The Library request was cancelled before execution.');
+          return sourceLibraryService[action]({ ...body, projectId, atlasId }, humanOwnerContext(project), { signal: requestAbort.signal });
+        })();
+        libraryOperations.add(operation);
+        try { sendJson(response, 200, await operation); }
+        finally { libraryOperations.delete(operation); }
+        return;
+      }
       const assetRequest = assetRoute(url.pathname);
       if (assetRequest?.action === 'save') {
         if (request.method !== 'POST') {
@@ -2114,7 +2157,7 @@ export function createStudioHttpServer({
       const error = asStudioError(rawError);
       const projected = url.pathname.startsWith('/api/backups')
         ? { code: error.code, message: error.message }
-        : url.pathname.startsWith('/internal/mcp/')
+        : url.pathname.startsWith('/internal/mcp/') || /\/atlases\/[^/]+\/library\//.test(url.pathname)
         ? internalMcpErrorProjection(error)
         : url.pathname.includes('/processing-result-adoptions')
           ? { code: error.code, message: error.message }
@@ -2124,6 +2167,12 @@ export function createStudioHttpServer({
         error: projected,
       });
     }
+  });
+  sourceLibraryHttpRuntimeByServer.set(server, {
+    async close() {
+      libraryClosing = true;
+      await Promise.allSettled([...libraryOperations]);
+    },
   });
   return server;
 }
@@ -2209,6 +2258,10 @@ export async function startStudioHttpServer({
     capabilityProvider,
     grantScopes: agentTaskGrantScopes,
   });
+  const sourceLibraryService = storeMode === 'sqlite'
+    ? new SourceLibraryService({ projectStore: store, jobStore,
+        operationStore: new SourceLibraryOperationStore({ workspace: store.workspace }), clock })
+    : null;
   const hostBindingStore = storeMode === 'sqlite'
     ? new SqliteHostBindingStore({ workspace: store.workspace, clock })
     : null;
@@ -2310,6 +2363,7 @@ export async function startStudioHttpServer({
     : null;
   server = createStudioHttpServer({
     studioService,
+    sourceLibraryService,
     agentTaskService,
     processingResultAdoptionReadService,
     hostBindingStore,
@@ -2332,6 +2386,7 @@ export async function startStudioHttpServer({
   server.close = (callback) => {
     if (!shutdownPromise) {
       shutdownPromise = Promise.allSettled([
+        sourceLibraryHttpRuntimeByServer.get(server).close(),
         Promise.resolve().then(() => atlasPreviewWorker?.stop()),
         Promise.resolve().then(() => privateAuthoringV2Runtime?.close()),
         Promise.resolve().then(() => backupOperationsController?.close()),
@@ -2341,6 +2396,7 @@ export async function startStudioHttpServer({
         Promise.resolve().then(() => pairing?.close()),
       ]).then((results) => {
         privateAuthoringV2RuntimeByServer.delete(server);
+        sourceLibraryHttpRuntimeByServer.delete(server);
         let storeFailure = null;
         try { if (typeof store.close === 'function') store.close(); } catch (error) { storeFailure = error; }
         const stopFailure = results.find(({ status }) => status === 'rejected');
@@ -2386,6 +2442,7 @@ export async function startStudioHttpServer({
       ? new Promise((resolveClose) => closeComposedHttpServer(() => resolveClose()))
       : Promise.resolve();
     await Promise.allSettled([
+      sourceLibraryHttpRuntimeByServer.get(server)?.close() ?? Promise.resolve(),
       atlasPreviewWorker?.stop() ?? Promise.resolve(),
       privateAuthoringV2Runtime?.close() ?? Promise.resolve(),
       backupOperationsController?.close() ?? Promise.resolve(),

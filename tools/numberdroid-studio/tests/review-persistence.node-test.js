@@ -127,7 +127,7 @@ test('Review backup and restore-as-copy preserve feedback history, pending depen
   const before = await f.studio.readProjectTrusted(projectId);
   const backupDirectory = join(f.root, 'review-backup');
   const manifest = await createWorkspaceBackup({ projectStore: f.store, artifactStore: f.artifacts, destinationDirectory: backupDirectory });
-  assert.equal(manifest.integrity.database.userVersion, 18);
+  assert.equal(manifest.integrity.database.userVersion, 19);
   assert.equal(manifest.integrity.reviews.ok, true);
   assert.equal((await verifyWorkspaceBackup(backupDirectory)).ok, true);
   const destination = join(f.root, 'review-restored-copy');
@@ -150,7 +150,7 @@ test('migration18 rollback preserves existing schema17 history and frozen migrat
   await f.execute('asset.save', f.payload());
   await f.execute('clip.save', clipPayload(f.slice));
   const definitions = await loadMigrationDefinitions();
-  assert.equal(definitions.at(-1).version, 18);
+  assert.equal(definitions.at(-1).version, 19);
   const history = f.store.workspace.database.prepare('SELECT revision_json FROM revisions ORDER BY revision_number').all().map(row => row.revision_json);
   for (const point of ['before_migration_18', 'after_migration_18']) {
     const filename = join(f.root, `${point}.sqlite`);
@@ -158,7 +158,7 @@ test('migration18 rollback preserves existing schema17 history and frozen migrat
     const legacy = nodeSqliteDatabaseFactory(filename);
     try {
       for (const table of ['review_image_acceptances', 'review_animation_acceptances', 'review_assembly_acceptances', 'review_events', 'review_dependencies', 'review_items', 'review_heads', 'review_versions']) legacy.exec(`DROP TABLE ${table}`);
-      legacy.exec('DELETE FROM schema_migrations WHERE version=18; PRAGMA user_version=17');
+      legacy.exec('DROP TABLE source_library_operations; DELETE FROM schema_migrations WHERE version>=18; PRAGMA user_version=17');
     } finally { legacy.close(); }
     await assert.rejects(SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory, faultInjector(actual) { if (actual === point) throw new Error(point); } }), new RegExp(point));
     const failed = nodeSqliteDatabaseFactory(filename);
@@ -170,7 +170,7 @@ test('migration18 rollback preserves existing schema17 history and frozen migrat
     } finally { failed.close(); }
     const resumed = await SqliteProjectStore.open({ filename, databaseFactory: nodeSqliteDatabaseFactory });
     try {
-      assert.equal(resumed.schemaVersion, 18);
+      assert.equal(resumed.schemaVersion, 19);
       assert.deepEqual(resumed.workspace.database.prepare('SELECT revision_json FROM revisions ORDER BY revision_number').all().map(row => row.revision_json), history);
       assert.equal(resumed.workspace.database.prepare("SELECT strict FROM pragma_table_list WHERE name='review_versions'").get().strict, 1);
     } finally { resumed.close(); }

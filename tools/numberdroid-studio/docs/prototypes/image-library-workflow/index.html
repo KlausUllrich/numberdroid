@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image → Library · Design prototype</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="prototype"><strong>DESIGN PROTOTYPE</strong><span>Sample data only · no Studio files are changed · refresh resets the sample</span><button data-action="reset">Reset example</button></header>
+  <div class="shell">
+    <aside><div class="brand"><b>N</b><span>Numberdroid<br><small>STUDIO</small></span></div><nav aria-label="Workspaces"><button data-action="sources">Sources</button><button data-action="workbench">Image Workbench</button><button data-action="library">Library</button></nav><p>Workflow proposal<br>Not production Studio</p></aside>
+    <main>
+      <section class="examples" aria-label="Independent sample scenarios"><label>Try an example<select id="scenario"><option value="new">1 · New source → Library</option><option value="update">2 · Updated source → existing items</option><option value="unlinked">3 · Unrelated source → choose destinations</option><option value="cleanup">4 · Archive and safe deletion</option></select></label><p>Each example has its own sample data. No real upload or deletion.</p></section>
+      <div id="view"></div>
+    </main>
+  </div>
+  <dialog id="confirmation" aria-labelledby="dialog-title"></dialog>
+  <div id="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

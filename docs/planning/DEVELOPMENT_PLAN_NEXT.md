@@ -1,14 +1,34 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-18 Source-to-Library and Cutter user acceptance
+
+The approved [workflow](../../tools/numberdroid-studio/docs/SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md)
+is implemented under its [L3 contract](../../tools/numberdroid-studio/docs/SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md).
+Keep the precise Cutter; use explicit Add new / Update a named Image / Skip
+destinations and one atomic owner Save into Library. Preserve exact consumer
+pins and the accepted Animation/frame path. This supersedes the earlier
+generic saved-output comparison, not earlier product acceptance.
+Klaus explicitly passed the bundled VT-025 workflow on build `53885f5` on
+2026-09-18, then passed all five bounded Cutter repairs on `b1dbff3` (remote
+`9189b795`, identical tree). VT-025 is **USER ACCEPTED — PASS**; keep Save layout
+and Generate separate. Builds2488 and2490 are independently green; PR #256 is
+not merged. Pause here at Klaus's request and resume from the
+[tested workspace and integration handoff](../history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md).
+Reconcile current PR/CI state before selecting any next block; do not repeat the
+accepted batches without a concrete regression. Migration19 supplies recovery receipts; it does not
+authorize new agent tools, deletion, source cleanup, automatic cut-layout copying,
+materialization or publication. Develop and test on fresh fixtures only.
+
 ## 2026-09-16 Sources navigation candidate
 
 The approved [Sources design](../../tools/numberdroid-studio/docs/SOURCES_NAVIGATION_DESIGN.md)
 uses **Source Images** and **Image Workbench** as the two content views and makes
 **Needs review** an attention filter instead of a third process-like tab. The
 bounded [production implementation](../../tools/numberdroid-studio/docs/SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
-is a candidate for [VT-025](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench).
+was the initial candidate for [VT-025](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench).
 It does not change source review, processing, persistence, authority or Library
-semantics. Klaus's explicit live PASS/REVISE remains required before acceptance.
+semantics. The corrected block's explicit live PASS is recorded above; design
+approval or automation alone was never its acceptance evidence.
 
 ## 2026-09-16 VT-024 Shared Review production acceptance
 

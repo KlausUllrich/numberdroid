@@ -25,7 +25,7 @@ function driver(devtools, sessionId) {
   const state = () => evaluate(`(() => {
     const rect = n => { const r = n?.getBoundingClientRect(); return r ? [r.x,r.y,r.width,r.height] : null; };
     const canvas = document.querySelector('.cutter-canvas'), scroll = document.querySelector('.cutter-scroll');
-    return { geometry: [...document.querySelectorAll('[data-cutter-move]')].map(n => ['x','y','width','height'].map(k => Number(n.getAttribute(k)))),
+    return { geometry: [...document.querySelectorAll('[data-cutter-move]')].sort((a,b)=>Number(a.dataset.cutterMove)-Number(b.dataset.cutterMove)).map(n => ['x','y','width','height'].map(k => Number(n.getAttribute(k)))),
       names: [...document.querySelectorAll('[data-cutter-select] strong')].map(n => n.textContent),
       included: [...document.querySelectorAll('[data-rectangle-field="included"]')].map(n => n.checked),
       canvas: rect(canvas), scale: Number(canvas?.dataset.scale), zoom: canvas?.dataset.zoom,
@@ -64,6 +64,7 @@ export async function inspectCutterEditor({ devtools, sessionId, focus }) {
   assert.doesNotMatch(controls.historyText, /operationIdempotencyKey|grantId|lease|workerId|token|\/workspace|file:/i, 'Visible processing history exposes internal fields');
   assert.deepEqual(controls.events, [[1,'QUEUED'],[2,'RUNNING'],[3,'PROGRESS'],[4,'PROGRESS'],[5,'PROGRESS'],[6,'PROGRESS'],[7,'SUCCEEDED'],[8,'APPLIED']]);
   await click('[data-cutter-view="outputs"]');
+  await click('.cutter-animation-outputs summary');
   await waitFor(`document.querySelectorAll('.committed .slice-preview img').length === 4 && [...document.querySelectorAll('.committed .slice-preview img')].every(n => n.complete && n.naturalWidth > 0)`, 'Saved cut images');
   const outputs = await evaluate(`[...document.querySelectorAll('.committed .slice-preview')].map(n=>{ const img=n.querySelector('img'),link=n.querySelector('a'); return { width:img.naturalWidth,height:img.naturalHeight,fit:getComputedStyle(img).objectFit,digest:new URL(img.src).pathname.split('/').at(-1),target:link.target,noopener:link.relList.contains('noopener'),name:n.querySelector('strong')?.textContent }; })`);
   assert.deepEqual(outputs.map(n=>n.digest), DIGESTS);
@@ -172,7 +173,9 @@ export async function captureCutterEditor({ devtools, sessionId }) {
     await undo(); await click('[data-cutter-tool="redo"]'); assert.equal((await state()).name,'North floor');
     await fill('[data-cutter-zoom]', 100, 'input');
     const beforeOutputs = await state();
-    await click('[data-cutter-view="outputs"]'); await click('[data-cutter-output-kind="saved"][data-cutter-output="0"]');
+    await click('[data-cutter-view="outputs"]');
+    if (!await evaluate(`document.querySelector('.cutter-animation-outputs')?.open`)) await click('.cutter-animation-outputs summary');
+    await click('[data-cutter-output-kind="saved"][data-cutter-output="0"]');
     assert.match(await evaluate(`document.querySelector('.cutter-output-detail')?.textContent`), /Left 3, top 3 · 622 × 622 source pixels/);
     await click('[data-cutter-view="outputs"]'); await click('[data-cutter-view="edit"]');
     const returned = await state(); assert.deepEqual(returned.geometry,beforeOutputs.geometry); assert.deepEqual(returned.names,beforeOutputs.names);
@@ -244,13 +247,19 @@ export async function captureCutterEditor({ devtools, sessionId }) {
     const closing=await state(); assert(closing.scroll.every(n=>n>0),'Close/reopen must begin with both scroll axes nonzero');
     await evaluate(`window.confirm=()=>false`); await click('[data-close-cutter]'); assert.equal((await state()).name,'Discard this local draft');
     await evaluate(`window.confirm=()=>true`); await click('[data-close-cutter]');
-    await click('[data-open-cutter="source.family-hygiene-approved"]');
+    await click('[data-open-cutter="source.family-hygiene-approved"][data-open-cutter-view="edit"]');
     await waitFor(`Boolean(document.querySelector('[data-job-event-type="APPLIED"]'))`,'Reopened saved cuts');
     const reopened=await state(); assert.deepEqual(reopened.geometry,CANONICAL_RECTS); assert.equal(reopened.name,''); assert.equal(reopened.zoom,'fit'); assert.deepEqual(reopened.scroll,[0,0]);
     assert.deepEqual(reopened.page,closing.page,'Close/reopen changed the retained page position');
     evidence.closeReopenReset={before:closing,after:reopened};
     const final=await evaluate(`fetch('/api/projects/numberdroid-studio-checkpoint-2b').then(r=>r.json())`);
-    assert.equal(final.revision,7); assert.equal(await evaluate('window.__cutterEvidence.posts.length'),0,'Local inspection must not mutate saved fixture state');
+    assert.equal(final.revision,7);
+    const posts = await evaluate('window.__cutterEvidence.posts');
+    // Destination bootstrap is an owner-authorized read carried over POST; no
+    // semantic mutation endpoint is permitted during these local draft checks.
+    const bootstrapPath = '/api/projects/numberdroid-studio-checkpoint-2b/atlases/atlas.family-hygiene-2b/library/bootstrap';
+    assert(posts.every(path => path === bootstrapPath), `Local inspection sent a mutation request: ${JSON.stringify(posts)}`);
+    evidence.readonlyDestinationBootstraps = posts.length;
     assert.equal(await evaluate('Number(document.documentElement.dataset.visualErrorCount)'),0);
     evidence.savedRevisionUnchanged=7; evidence.postInteractionRuntimeNetworkErrors=0;
     return evidence;

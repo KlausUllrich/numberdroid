@@ -24,22 +24,30 @@ function facade() {
   return { service, calls };
 }
 
-test('Review negotiation requires exact known18 profile and preserves older catalogs', { timeout: 10000 }, () => {
-  assert.deepEqual(validateReviewNegotiation(negotiation, projectId), negotiation);
-  for (const patch of [{ storeSchemaVersion: 17 }, { storeSchemaVersion: 19 }, { sharedHead: false }, { toolCount: 26 }, { resourceTemplateCount: 7 }, { profile: 'animation-v1' }, { extra: true }]) assert.throws(() => validateReviewNegotiation({ ...negotiation, ...patch }, projectId), { code: 'REVIEW_NEGOTIATION_REQUIRED' });
+test('Review negotiation requires exact known18/19 profile and preserves older catalogs', { timeout: 10000 }, () => {
+  for (const storeSchemaVersion of [18, 19]) {
+    const value = { ...negotiation, storeSchemaVersion };
+    assert.deepEqual(validateReviewNegotiation(value, projectId), value);
+    assert.equal(createAgentToolCatalog(facade().service, { contextProvider, reviewV1: { projectId, negotiation: value } }).length, 27);
+  }
+  for (const patch of [{ storeSchemaVersion: 17 }, { storeSchemaVersion: 20 }, { storeSchemaVersion: 999 }, { sharedHead: false }, { toolCount: 26 }, { resourceTemplateCount: 7 }, { profile: 'animation-v1' }, { extra: true }]) assert.throws(() => validateReviewNegotiation({ ...negotiation, ...patch }, projectId), { code: 'REVIEW_NEGOTIATION_REQUIRED' });
   const { service } = facade();
   assert.equal(createAgentToolCatalog(service, { contextProvider }).length, 19);
-  for (const version of [16, 17, 18]) {
+  for (const version of [16, 17, 18, 19]) {
     const value = { ...negotiation, profile: 'assembly-v1', toolCount: 21, resourceTemplateCount: 5, storeSchemaVersion: version };
     validateAssemblyNegotiation(value, projectId);
     assert.equal(createAgentToolCatalog(service, { contextProvider, assemblyV1: { projectId, negotiation: value } }).length, 21);
   }
-  for (const version of [17, 18]) {
+  for (const version of [17, 18, 19]) {
     const value = { ...negotiation, profile: 'animation-v1', toolCount: 25, resourceTemplateCount: 7, storeSchemaVersion: version };
     validateAnimationNegotiation(value, projectId);
     assert.equal(createAgentToolCatalog(service, { contextProvider, animationV1: { projectId, negotiation: value } }).length, 25);
   }
-  assert.throws(() => validateAnimationNegotiation({ ...negotiation, profile: 'animation-v1', toolCount: 25, resourceTemplateCount: 7, storeSchemaVersion: 19 }, projectId), { code: 'ANIMATION_NEGOTIATION_REQUIRED' });
+  for (const storeSchemaVersion of [20, 999, '19']) {
+    assert.throws(() => validateAnimationNegotiation({ ...negotiation, profile: 'animation-v1', toolCount: 25, resourceTemplateCount: 7, storeSchemaVersion }, projectId), { code: 'ANIMATION_NEGOTIATION_REQUIRED' });
+    assert.throws(() => validateAssemblyNegotiation({ ...negotiation, profile: 'assembly-v1', toolCount: 21, resourceTemplateCount: 5, storeSchemaVersion }, projectId), { code: 'ASSEMBLY_NEGOTIATION_REQUIRED' });
+    assert.throws(() => validateReviewNegotiation({ ...negotiation, storeSchemaVersion }, projectId), { code: 'REVIEW_NEGOTIATION_REQUIRED' });
+  }
   assert.throws(() => createAgentToolCatalog({ ...service, durableReviewStoreReady: false }, { contextProvider, reviewV1: selected }), { code: 'REVIEW_NEGOTIATION_REQUIRED' });
 });
 

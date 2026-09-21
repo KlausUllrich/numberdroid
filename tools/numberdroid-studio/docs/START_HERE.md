@@ -1,10 +1,19 @@
 # Numberdroid Studio — Start here
 
-Status date: 2026-09-16. This is the current task router; linked contracts own
+Status date: 2026-09-18. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
-Current milestone result (2026-09-16): Klaus explicitly reported PASS for the
+Current pause point (2026-09-18): **VT-025 USER ACCEPTED — PASS**. Klaus passed
+the Source-to-Library batch on `53885f5`, then the five Cutter follow-ups on
+`b1dbff3` (remote `9189b795`, identical tree; Build2490 green). PR #256 is still
+unmerged. Keep **Save layout → Generate** as separate actions. Resume with the
+[accepted-workspace handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md):
+reverify integration state and reopen the exact retained workspace, without
+recreating its fixture or repeating accepted tests. No further development was
+authorized by the end-of-day pause request.
+
+Previous milestone result (2026-09-16): Klaus explicitly reported PASS for the
 complete [VT-024](VACATION_TEST_BACKLOG.md#vt-024--shared-review-feedback-and-activity)
 production walkthrough. Shared Review, proposed additions, feedback revisions,
 truthful next-actor states, partial/final acceptance, exact Activity history and
@@ -116,9 +125,25 @@ The [Sources navigation design](SOURCES_NAVIGATION_DESIGN.md) is now approved:
 Sources uses **Source Images** and **Image Workbench**, while **Needs review** is
 an attention filter rather than a third process-like tab. Klaus passed the
 mockup refinements and selected the final Image Workbench name on 2026-09-16;
-the bounded [production implementation](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
-is a candidate and [VT-025](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench)
-remains the separate live acceptance gate.
+the initial [production implementation](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
+subsequently received **REVISE** because originals, image work, outputs and
+review counts remained confusing. Klaus approved the bounded clarity correction:
+content-specific review counts, explicit source/output relationships, one output
+gallery and a consistent Back button. [VT-025](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench)
+required a corrected bundled live retest; that design approval alone was not
+production acceptance.
+Klaus subsequently approved the [Source-to-Library workflow](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md)
+and requested its live version with the precise Cutter retained. Its
+[implementation contract](SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md) now
+owns Add new / Update a named Image / Skip and atomic Save into Library. Generic
+saved-output comparison and a second Image-authoring step are superseded;
+accepted Animation/frame authoring remains intact. Klaus reported “all pass.”
+for the complete VT-025 workflow on build `53885f5` on 2026-09-18, then “pass.”
+for all five Cutter follow-ups on `b1dbff3`. Both bounded blocks are accepted;
+the candidate is not merged.
+No deletion or
+source cleanup is included; do not open the preserved pre-pause workspace with
+the new schema19 writer.
 Further screen changes follow discussion and mockup agreement before implementation.
 Runtime materialization, image generation and publication retain separate gates.
 

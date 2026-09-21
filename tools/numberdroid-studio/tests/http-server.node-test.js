@@ -61,7 +61,13 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(clientScript, /operations\.commit \?\?=/);
   assert.match(clientScript, /operations\.discard \?\?=/);
   assert.match(clientScript, /data-discard-cutter-job/);
-  assert.match(clientScript, /Commit or discard the current preview job/);
+  assert.match(clientScript, /syncCutterActions\(section/);
+  const cutterScriptResponse = await fetch(`${base}/cutter-editor-view.js`);
+  assert.equal(cutterScriptResponse.status, 200);
+  const cutterScript = await cutterScriptResponse.text();
+  assert.match(cutterScript, /Save or discard the current generated results/);
+  assert.match(cutterScript, /Wait for completion, or cancel the job/);
+  assert.match(cutterScript, /Save the changed cut layout first/);
   assert.match(clientScript, /aria-live', 'polite/);
   assert.match(clientScript, /response\.projectId !== binding\.projectId \|\| response\.job\?\.atlasId !== binding\.atlasId/);
   assert.match(clientScript, /response\.job\?\.sourceId !== binding\.sourceId/);
@@ -132,7 +138,7 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.doesNotMatch(workspaceRender, /replaceChildren\(\);[\s\S]*append\(content\)/);
   assert.match(workspaceRender, /if \(preserveCutterDraft\) captureCutterDomDraft\(\);[\s\S]*else state\.cutterDomDraft = null/);
   assert.match(workspaceRender, /if \(preserveCutterDraft\) restoreCutterDomDraft\(\)/);
-  assert.match(clientScript, /function openCutter\(source\)[\s\S]*resetCutterScroll\(\);[\s\S]*state\.cutter = \{/);
+  assert.match(clientScript, /function openCutter\(source, \{ atlasId = null, view = 'edit' \} = \{\}\)[\s\S]*resetCutterScroll\(\);[\s\S]*state\.cutter = \{/);
   assert.match(clientScript, /projectId: state\.project\.projectId[\s\S]*instanceId: crypto\.randomUUID\(\)/);
   assert.match(clientScript, /data-close-cutter[\s\S]*resetCutterScroll\(\);[\s\S]*state\.cutter = null/);
   assert.match(clientScript, /state\.project\.projectId !== projectId\)[\s\S]*resetCutterScroll\(\)/);
@@ -342,7 +348,8 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.match(cutterEvidenceScript, /assert\.deepEqual\(reopened\.scroll,\[0,0\]\)/);
   assert.match(cutterEvidenceScript, /evidence\.closeReopenReset=\{before:closing,after:reopened\}/);
   assert.match(cutterEvidenceScript, /assert\.equal\(final\.revision,7\)/);
-  assert.match(cutterEvidenceScript, /posts\.length'\),0,'Local inspection must not mutate saved fixture state'/);
+  assert.ok(cutterEvidenceScript.includes("const bootstrapPath = '/api/projects/numberdroid-studio-checkpoint-2b/atlases/atlas.family-hygiene-2b/library/bootstrap'"));
+  assert.ok(cutterEvidenceScript.includes('assert(posts.every(path => path === bootstrapPath)'));
   assert.match(clientScript, /response\?\.projectId !== operationProjectId/);
   assert.match(clientScript, /response\.job\?\.jobId !== operationJobId/);
   assert.match(clientScript, /response\.job\?\.sourceId !== operationCutter\.sourceId/);

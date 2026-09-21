@@ -61,6 +61,7 @@ function normalizeParityReport(report, workspaceIntegrity, casManifest) {
     clips: _clips,
     sliceRevisions: _sliceRevisions,
     reviews: _reviews,
+    sourceLibrary: _sourceLibrary,
     ...checkpointWorkspaceIntegrity
   } = workspaceIntegrity;
   const checkpointIntegrity = { ...report.integrity, userVersion: 5 };

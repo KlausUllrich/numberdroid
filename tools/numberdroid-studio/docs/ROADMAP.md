@@ -1,5 +1,23 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
+## 2026-09-18 Source-to-Library and Cutter user acceptance
+
+Klaus approved the [Source-to-Library workflow](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md)
+and requested its live implementation with the precise Cutter retained. The
+[bounded L3 contract](SOURCE_TO_LIBRARY_IMPLEMENTATION_CONTRACT.md) now owns
+output destinations: Add new, Update a named Library Image, or Skip, followed by
+one atomic owner Save. This supersedes the earlier generic saved-output
+comparison and separate Image-authoring step, not the accepted Animation path.
+Klaus reported **“all pass.”** for the VT-025 batch on build `53885f5` on
+2026-09-18, then **“pass.”** for all five Cutter follow-ups on build `b1dbff3`
+(remote `9189b795`, identical tree). VT-025 is **USER ACCEPTED — PASS**.
+Save layout → Generate remain separate actions. Builds2488 and2490 passed
+independently; PR #256 remains unmerged. The user requested a session pause;
+follow the [resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md)
+and preserve the tested workspace. Schema19 adds recovery receipts, not agent authority.
+Deletion, source cleanup, automatic layout copying and runtime/publication work
+are excluded. The preserved pre-pause workspace must remain untouched.
+
 ## 2026-09-16 Sources navigation candidate
 
 Klaus passed the Sources mockup refinements and selected **Image Workbench** as
@@ -8,7 +26,8 @@ the final name. The approved [design](SOURCES_NAVIGATION_DESIGN.md) uses exactly
 status filter and compact attention signal rather than a third process tab.
 
 The bounded [production implementation](SOURCES_NAVIGATION_IMPLEMENTATION_CONTRACT.md)
-is a candidate for [VT-025](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench).
+was the initial candidate for [VT-025](VACATION_TEST_BACKLOG.md#vt-025--source-images-and-image-workbench);
+its corrected workflow is now accepted as recorded above.
 It reorganizes current source/atlas projections and preserves existing source
 review, Cutter jobs, saved cuts, shared Review, authority and persistence. No
 production acceptance, processing expansion, agent launch, materialization,
