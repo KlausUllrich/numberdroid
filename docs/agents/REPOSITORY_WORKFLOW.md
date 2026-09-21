@@ -132,19 +132,28 @@ The Build workflow implements a fail-closed lower bound:
 - explicitly allow-listed portable, headless Studio A0/A1 Domain/Application
   contracts run the Linux Studio core without automatic browser or Windows
   evidence; portable Preview changes still add Linux browser evidence;
-- persistence, filesystem, server/CLI/MCP, dependency, script, test, packaging,
-  and unclassified Studio paths add Windows;
+- Windows is never added by paths, risk tier, full-CI markers, or fallback
+  classification. Klaus must explicitly request Windows testing, locally or in
+  CI (owner decision 2026-09-21); this supersedes older task/handoff requirements;
 - visible Studio/server/preview/evidence-fixture paths add browser evidence;
 - Numberdroid adapter changes also add the root integration gate;
 - approved root art inputs consumed directly by Studio fixtures add Studio
-  Linux, browser, and Windows gates as well as the root gates;
+  Linux and browser gates as well as the root gates;
 - root product changes run root test/build; root tests and repository helpers
   skip grounding-browser evidence, and Pages deploys on `main` only when
   deployable inputs changed;
 - GitHub automation/classifier changes, line-ending policy, unresolved diffs, a manual
   Build-workflow run, the PR label `ci-full`, and the exact PR-title marker
-  `[ci-full]` select the complete matrix; adding the label or marker starts a
-  fresh classification run.
+  `[ci-full]` select the complete non-Windows matrix; adding the label or marker
+  starts a fresh classification run.
+
+For an explicitly requested Windows run, use the Build workflow's manual
+`workflow_dispatch` with boolean input `windows: true` on the intended exact
+revision. The default is `false`; ordinary PR/push events and manual/full runs
+leave Windows skipped. Do not carry the request into later runs. A selected
+Windows job must still pass the final gate; an unrequested skipped job is not
+Windows verification. Keep cross-platform compatibility/cleanup design checks
+without automatically executing Windows tests.
 
 The always-present `CI gate` job fails unless every selected job succeeded.
 Automated path selection is a lower bound: the coordinator or a reviewer MUST

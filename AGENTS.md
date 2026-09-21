@@ -106,6 +106,14 @@ For Level Compiler / procedural level-authoring tasks, read `docs/game-design/LE
   suites unless they affect generated output, CI, configuration, fixtures, or
   executable examples.
 - `CI green`, `merged`, and `visually accepted` are different states.
+- **Windows tests are opt-in only on Klaus's explicit request** (owner decision
+  2026-09-21), both locally and in CI. Changed paths, L3 risk, `ci-full`, and
+  ordinary manual/full CI runs do not authorize Windows execution. Use the
+  Build workflow's `windows` input only for that request; do not carry consent
+  into later runs. This overrides older automatic Windows requirements in
+  task documents and handoffs. Keep compatibility/cleanup design checks and
+  all other selected gates; report unrequested Windows testing as not run,
+  never as passed.
 - Update the relevant current contract/recipe when a durable decision or accepted asset changes.
 
 ## Bounded execution and responsiveness — hard rules

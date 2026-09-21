@@ -14,6 +14,12 @@ on:
       - labeled
       - edited
   workflow_dispatch:
+    inputs:
+      windows:
+        description: 'Run Windows tests (only when explicitly requested by Klaus)'
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: build-${{ github.event.pull_request.number || github.ref }}
@@ -69,7 +75,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           FORCE_FULL: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci-full') || contains(github.event.pull_request.title, '[ci-full]') }}
           USE_MERGE_BASE: ${{ github.event_name == 'pull_request' }}
-        run: node scripts/repo/ci-change-classifier.mjs "$BASE_SHA" "$HEAD_SHA" "$FORCE_FULL" "$USE_MERGE_BASE" >> "$GITHUB_OUTPUT"
+          WINDOWS_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.windows }}
+        run: node scripts/repo/ci-change-classifier.mjs "$BASE_SHA" "$HEAD_SHA" "$FORCE_FULL" "$USE_MERGE_BASE" "$WINDOWS_REQUESTED" >> "$GITHUB_OUTPUT"
 
       - name: Verify classifier policy
         run: node scripts/repo/ci-change-classifier.selftest.mjs

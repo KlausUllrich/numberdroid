@@ -9,34 +9,6 @@ const STUDIO_FIXTURE_ART = new Set([
   'art-source/approved/area-01-transfer-ship/floor-treatment/source/family-hygiene-floor-2x2__source-approved__2026-08-21.png',
   'art-source/approved/area-01-transfer-ship/transfer-system/source/transfer-apparatus__approved-original__2026-08-17.png',
 ]);
-const STUDIO_PORTABLE_SOURCE_PATHS = new Set([
-  'tools/numberdroid-studio/packages/domain/src/index.js',
-  'tools/numberdroid-studio/packages/domain/src/atlas-definition.js',
-  'tools/numberdroid-studio/packages/domain/src/processing-recipe.js',
-  'tools/numberdroid-studio/packages/domain/src/processing-result.js',
-  'tools/numberdroid-studio/packages/domain/src/processing-adoption-preflight.js',
-  'tools/numberdroid-studio/packages/domain/src/backup-operation.js',
-  'tools/numberdroid-studio/packages/domain/src/asset-input-selection.js',
-  'tools/numberdroid-studio/packages/domain/src/asset-definition.js',
-  'tools/numberdroid-studio/packages/domain/src/room-definition.js',
-  'tools/numberdroid-studio/packages/domain/src/agent-task.js',
-  'tools/numberdroid-studio/packages/domain/src/project-capability-manifest.js',
-  'tools/numberdroid-studio/packages/domain/src/candidate-manifest.js',
-  'tools/numberdroid-studio/packages/domain/src/command-catalog.js',
-  'tools/numberdroid-studio/packages/domain/src/validation.js',
-  'tools/numberdroid-studio/packages/domain/src/errors.js',
-  'tools/numberdroid-studio/packages/application/src/index.js',
-  'tools/numberdroid-studio/packages/application/src/engine-bridge.js',
-  'tools/numberdroid-studio/packages/application/src/project-capability-provider.js',
-  'tools/numberdroid-studio/packages/application/src/processing-adoption-preflight.js',
-  'tools/numberdroid-studio/packages/application/src/backup-operation-service.js',
-  'tools/numberdroid-studio/packages/application/src/backup-operation-worker.js',
-  'tools/numberdroid-studio/packages/application/src/studio-service.js',
-  'tools/numberdroid-studio/packages/application/src/agent-task-service.js',
-  'tools/numberdroid-studio/packages/application/src/project-store.js',
-  'tools/numberdroid-studio/packages/application/src/value-utils.js',
-  'tools/numberdroid-studio/packages/preview/src/index.js',
-]);
 
 function normalizePaths(paths) {
   return [...new Set(paths)]
@@ -104,15 +76,6 @@ function isStudioVisualPath(path) {
     || /^tools\/numberdroid-studio\/scripts\/(?:capture-|assert-studio-|prepare-(?:visual|checkpoint-)|finalize-checkpoint-|verify-checkpoint-)/.test(path);
 }
 
-function isStudioWindowsPath(path) {
-  const portableHeadlessTest = /^tools\/numberdroid-studio\/tests\/(?:[^/]+\.portable|processing-(?:recipe|result|adoption-preflight)|asset-input-selection|candidate-manifest|project-capability-(?:manifest|query)|package-boundaries|engine-bridge|agent-contract|schema-adapter|checkpoint-(?:2c|3|4)-domain)\.node-test\.js$/.test(path);
-  const portableHeadlessPath = STUDIO_PORTABLE_SOURCE_PATHS.has(path) || portableHeadlessTest;
-
-  // New or unclassified Studio locations fail closed to Windows. Only the
-  // deliberately portable, headless package owners above use the fast lane.
-  return !portableHeadlessPath || /\.(?:cmd|ps1|bat)$/i.test(path);
-}
-
 function isRootTestPath(path) {
   return /(?:^|\/)[^/]+\.(?:test|spec)\.[cm]?[jt]sx?$/.test(path);
 }
@@ -148,7 +111,7 @@ function isCriticalClassifierPath(path) {
     || path === 'zahlenkern-prototyp-meta-v7.html';
 }
 
-export function classifyChangedPaths(inputPaths, { forceFull = false } = {}) {
+export function classifyChangedPaths(inputPaths, { forceFull = false, windowsRequested = false } = {}) {
   const paths = normalizePaths(inputPaths);
   const unsafePath = paths.some((path) => path.includes('\\') || /[\u0000-\u001f\u007f]/.test(path));
   const unknownPath = paths.some((path) => !isDocumentationOnlyPath(path)
@@ -175,7 +138,8 @@ export function classifyChangedPaths(inputPaths, { forceFull = false } = {}) {
     root_visual: rootPaths.some(isRootDeployablePath),
     studio: studioPaths.length > 0 || crossBoundaryStudioFixture,
     studio_visual: crossBoundaryStudioFixture || studioPaths.some(isStudioVisualPath),
-    studio_windows: crossBoundaryStudioFixture || studioPaths.some(isStudioWindowsPath),
+    // Owner policy: Windows is opt-in, independent of paths and full CI.
+    studio_windows: windowsRequested === true,
     pages: rootPaths.some(isRootDeployablePath),
     full: failClosed,
   };
@@ -187,7 +151,6 @@ export function classifyChangedPaths(inputPaths, { forceFull = false } = {}) {
     result.root_visual = true;
     result.studio = true;
     result.studio_visual = true;
-    result.studio_windows = true;
     result.pages = true;
   }
 
@@ -233,7 +196,7 @@ function printGithubOutputs(classification) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  const [baseSha, headSha, forceFullValue = 'false', useMergeBaseValue = 'false'] = process.argv.slice(2);
+  const [baseSha, headSha, forceFullValue = 'false', useMergeBaseValue = 'false', windowsRequestedValue = 'false'] = process.argv.slice(2);
   let paths = [];
   let forceFull = forceFullValue === 'true';
 
@@ -247,7 +210,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
     process.stderr.write(`[ci-change-classifier] diff failed; selecting full CI: ${error.message}\n`);
   }
 
-  const classification = classifyChangedPaths(paths, { forceFull });
+  const classification = classifyChangedPaths(paths, { forceFull, windowsRequested: windowsRequestedValue === 'true' });
   process.stderr.write(`[ci-change-classifier] ${JSON.stringify(classification)}\n`);
   printGithubOutputs(classification);
 }
