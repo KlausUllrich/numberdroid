@@ -111,6 +111,8 @@ resumed verified session from an assumed continuation.
 “Targeted” is binding: use only roles triggered by the change. Every specialist
 reads the universal bootstrap, its role bundle, the directly affected authority,
 and the actual diff. Do not make every reviewer reread the whole repository.
+Platform execution at every tier remains subject to the Windows opt-in policy
+below; an L3 classification is not permission to run Windows tests.
 
 ## Planning and review cadence
 
@@ -186,11 +188,14 @@ Otherwise split them. L2 and L3 work is never disguised as an L1 batch.
 - The complete Linux Studio core suite is the default CI floor for Studio code.
   Browser evidence runs only for visible/server/preview/evidence-fixture changes
   or an explicit higher-risk trigger.
-- Windows runs for persistence, filesystem, server/CLI/MCP, packaging,
-  dependency, script, test, or otherwise unclassified Studio paths. Only the
-  classifier's explicit portable Domain/Application contracts and tests use the
-  headless Linux-only fast lane; portable Preview work still carries its Linux
-  browser trigger.
+- Windows tests run **only on Klaus's explicit request**, locally and in CI
+  (owner decision 2026-09-21). No changed path, risk tier, full-CI marker, or
+  fallback classification enables them. For a requested run, manually dispatch
+  Build with the boolean `windows` input set to `true`; its default is `false`.
+  Consent is for that requested run, not subsequent PR/push or manual runs.
+  Preserve compatibility and resource-cleanup design checks, but report Windows
+  as not run when unrequested. This policy supersedes older automatic Windows
+  gates in task-specific documents and handoffs.
 - Portable test modules use the explicit `*.portable.node-test.js` convention
   when they are not already named by the classifier's protected A0/A1 contract
   family. The suffix is a reviewable portability claim, not authority to hide an
@@ -198,15 +203,16 @@ Otherwise split them. L2 and L3 work is never disguised as an L1 batch.
 - Numberdroid adapter changes also run the root integration gate because the
   game compiler consumes that package.
 - Approved root art bytes consumed directly by protected Studio tests or browser
-  fixtures run both root and Studio visual/platform gates; these cross-boundary
+  fixtures run both root and Studio visual gates; these cross-boundary
   fixture paths are explicit classifier entries.
 - Root runtime/build/art changes run the root suite and build. Pages deploys
   only when deployable root inputs changed on `main`. Root test-only and
   repository-helper changes skip grounding-browser evidence and Pages.
 - GitHub automation/classifier changes, line-ending policy, an empty/unresolvable diff,
   a manual Build-workflow run, the PR label `ci-full`, and the exact PR-title
-  marker `[ci-full]` fail closed to the complete matrix. Adding the label or
-  marker starts a fresh classification run.
+  marker `[ci-full]` fail closed to the complete non-Windows matrix. Adding the
+  label or marker starts a fresh classification run. Windows remains a separate
+  explicit opt-in even when the diff is unknown or a workflow changes.
 - Path automation is a lower bound, not permission to under-test. Apply the
   `ci-full` label or `[ci-full]` title marker whenever semantic risk is higher
   than the inferred path risk.

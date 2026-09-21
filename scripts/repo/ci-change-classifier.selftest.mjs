@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { changedPathsBetween, classifyChangedPaths } from './ci-change-classifier.mjs';
 
 function expect(paths, expected, options) {
@@ -63,12 +64,12 @@ expect(
     'tools/numberdroid-studio/packages/persistence/src/operations/safe-filesystem.js',
     'tools/numberdroid-studio/tests/backup-operations-domain.node-test.js',
   ],
-  { docs: false, root: false, studio: true, studio_visual: false, studio_windows: true, pages: false, full: false },
+  { docs: false, root: false, studio: true, studio_visual: false, studio_windows: false, pages: false, full: false },
 );
 
 expect(
   ['tools/numberdroid-studio/packages/application/src/backup-operation-http.js'],
-  { docs: false, root: false, studio: true, studio_visual: true, studio_windows: true, pages: false, full: false },
+  { docs: false, root: false, studio: true, studio_visual: true, studio_windows: false, pages: false, full: false },
 );
 
 expect(
@@ -76,7 +77,7 @@ expect(
     'tools/numberdroid-studio/packages/persistence/src/operations/windows-root-inspect.ps1',
     'tools/numberdroid-studio/tests/backup-operations-filesystem.node-test.js',
   ],
-  { docs: false, root: false, studio: true, studio_visual: false, studio_windows: true, pages: false, full: false },
+  { docs: false, root: false, studio: true, studio_visual: false, studio_windows: false, pages: false, full: false },
 );
 
 expect(
@@ -91,42 +92,42 @@ expect(
 
 expect(
   ['tools/numberdroid-studio/packages/domain/package-lock.json'],
-  { root: false, studio: true, studio_visual: true, studio_windows: true, pages: false, full: false },
+  { root: false, studio: true, studio_visual: true, studio_windows: false, pages: false, full: false },
 );
 
 expect(
   ['tools/numberdroid-studio/packages/application/src/windows-path.js'],
-  { root: false, studio: true, studio_visual: true, studio_windows: true, pages: false, full: false },
+  { root: false, studio: true, studio_visual: true, studio_windows: false, pages: false, full: false },
 );
 
 expect(
   ['tools/numberdroid-studio/packages/preview/native-addon.node'],
-  { root: false, studio: true, studio_visual: true, studio_windows: true, pages: false, full: false },
+  { root: false, studio: true, studio_visual: true, studio_windows: false, pages: false, full: false },
 );
 
 expect(
   ['tools/numberdroid-studio/packages/persistence/src/sqlite/sqlite-project-store.js'],
-  { root: false, studio: true, studio_visual: false, studio_windows: true, pages: false, full: false },
+  { root: false, studio: true, studio_visual: false, studio_windows: false, pages: false, full: false },
 );
 
 expect(
   ['tools/numberdroid-studio/packages/numberdroid-adapter/src/index.js'],
-  { root: true, studio: true, studio_visual: false, studio_windows: true, pages: false, full: false },
+  { root: true, studio: true, studio_visual: false, studio_windows: false, pages: false, full: false },
 );
 
 expect(
   ['tools/numberdroid-studio/apps/studio-server/public/app.js'],
-  { root: false, studio: true, studio_visual: true, studio_windows: true, pages: false, full: false },
+  { root: false, studio: true, studio_visual: true, studio_windows: false, pages: false, full: false },
 );
 
 expect(
   ['tools/numberdroid-studio/scripts/finalize-checkpoint-2c-evidence.js'],
-  { root: false, studio: true, studio_visual: true, studio_windows: true, pages: false, full: false },
+  { root: false, studio: true, studio_visual: true, studio_windows: false, pages: false, full: false },
 );
 
 expect(
   ['tools/numberdroid-studio/scripts/verify-checkpoint-2c-bundle-roundtrip.js'],
-  { root: false, studio: true, studio_visual: true, studio_windows: true, pages: false, full: false },
+  { root: false, studio: true, studio_visual: true, studio_windows: false, pages: false, full: false },
 );
 
 expect(
@@ -151,47 +152,47 @@ expect(
 
 expect(
   ['art-source/approved/area-01-transfer-ship/floor-treatment/source/family-hygiene-floor-2x2__source-approved__2026-08-21.png'],
-  { root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: false },
+  { root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: false },
 );
 
 expect(
   ['art-source/approved/area-01-transfer-ship/transfer-system/source/transfer-apparatus__approved-original__2026-08-17.png'],
-  { root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: false },
+  { root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: false },
 );
 
 expect(
   ['tools/numberdroid-studio/package-lock.json'],
-  { root: false, studio: true, studio_visual: true, studio_windows: true, pages: false, full: false },
+  { root: false, studio: true, studio_visual: true, studio_windows: false, pages: false, full: false },
 );
 
 expect(
   ['.github/workflows/build.yml'],
-  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: true },
+  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: true },
 );
 
 expect(
   ['.github/dependabot.yml'],
-  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: true },
+  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: true },
 );
 
 expect(
   ['.gitattributes'],
-  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: true },
+  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: true },
 );
 
 expect(
   ['docs/NONCANONICAL.MD'],
-  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: true },
+  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: true },
 );
 
 expect(
   ['docs\\AGENTS.md'],
-  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: true },
+  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: true },
 );
 
 expect(
   ['docs/injected\nname.md'],
-  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: true },
+  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: true },
 );
 
 expect(
@@ -201,19 +202,56 @@ expect(
 
 expect(
   ['tools/numberdroid-studio/packages/domain/src/processing-result.js'],
-  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: true },
+  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: true },
   { forceFull: true },
 );
 
 expect(
   [],
-  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: true },
+  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: true },
 );
 
 expect(
   ['unclassified/control-plane.toml'],
-  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: true, pages: true, full: true },
+  { docs: true, root: true, root_visual: true, studio: true, studio_visual: true, studio_windows: false, pages: true, full: true },
 );
+
+// Windows requires an explicit request, never a path, broad-risk fallback,
+// ci-full classification or merely truthy API option. Other gates are unchanged.
+for (const paths of [
+  ['README.md'],
+  ['tools/numberdroid-studio/packages/domain/src/processing-result.js'],
+  ['tools/numberdroid-studio/apps/studio-server/public/app.js'],
+  ['tools/numberdroid-studio/packages/persistence/src/sqlite/sqlite-project-store.js'],
+  ['tools/numberdroid-studio/packages/persistence/src/operations/windows-root-inspect.ps1'],
+  ['.github/workflows/build.yml'],
+  ['unclassified/control-plane.toml'],
+  [],
+]) {
+  for (const forceFull of [false, true]) {
+    const baseline = classifyChangedPaths(paths, { forceFull });
+    assert.equal(baseline.studio_windows, false);
+    assert.deepEqual(classifyChangedPaths(paths, { forceFull, windowsRequested: true }),
+      { ...baseline, studio_windows: true });
+    for (const windowsRequested of [undefined, null, false, 0, 1, 'true', 'false', 'TRUE', {}, []]) {
+      assert.deepEqual(classifyChangedPaths(paths, { forceFull, windowsRequested }), baseline,
+        `Only boolean true may request Windows, not ${JSON.stringify(windowsRequested)}`);
+    }
+  }
+}
+
+const classifierScript = fileURLToPath(new URL('./ci-change-classifier.mjs', import.meta.url));
+function classifyCli(repository, ...args) {
+  const output = execFileSync(process.execPath, [classifierScript, ...args], {
+    cwd: repository, encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const entries = output.trim().split('\n').map(line => {
+    const [key, value] = line.split('=');
+    assert.ok(value === 'true' || value === 'false', `Unexpected classifier CLI output: ${line}`);
+    return [key, value === 'true'];
+  });
+  return Object.fromEntries(entries);
+}
 
 {
   const originalCwd = process.cwd();
@@ -242,6 +280,26 @@ expect(
 
     process.chdir(repository);
     assert.deepEqual(changedPathsBetween(renameHead, deleteHead), ['docs/runtime.md']);
+
+    const cliDefault = classifyCli(repository, renameHead, deleteHead);
+    assert.equal(cliDefault.docs_only, true);
+    assert.equal(cliDefault.studio_windows, false);
+    assert.deepEqual(classifyCli(repository, renameHead, deleteHead, 'false', 'false', 'true'),
+      { ...cliDefault, studio_windows: true });
+    for (const value of ['', 'false', 'TRUE', 'True', '1', 'yes', ' true', 'true ']) {
+      assert.deepEqual(classifyCli(repository, renameHead, deleteHead, 'false', 'false', value), cliDefault);
+    }
+    const cliFull = classifyCli(repository, renameHead, deleteHead, 'true', 'false');
+    assert.equal(cliFull.full, true);
+    assert.equal(cliFull.root, true);
+    assert.equal(cliFull.studio_visual, true);
+    assert.equal(cliFull.studio_windows, false, 'Full CI does not request Windows');
+    assert.deepEqual(classifyCli(repository, renameHead, deleteHead, 'true', 'false', 'true'),
+      { ...cliFull, studio_windows: true });
+    assert.deepEqual(classifyCli(repository, 'invalid-base', deleteHead), cliFull,
+      'An unresolved diff selects the full non-Windows gate set');
+    assert.deepEqual(classifyCli(repository, 'invalid-base', deleteHead, 'false', 'false', 'true'),
+      { ...cliFull, studio_windows: true });
 
     git('checkout', '--quiet', 'main');
     fs.mkdirSync(path.join(repository, 'docs'), { recursive: true });
@@ -292,6 +350,23 @@ expect(
     process.chdir(originalCwd);
     fs.rmSync(repository, { recursive: true, force: true });
   }
+}
+
+{
+  const workflow = fs.readFileSync(new URL('../../.github/workflows/build.yml', import.meta.url), 'utf8');
+  const dispatch = workflow.match(/^  workflow_dispatch:\n([\s\S]*?)(?=^\S)/m)?.[1];
+  const windowsInput = dispatch?.match(/^      windows:\n((?:        .*\n)+)/m)?.[1];
+  assert.ok(windowsInput, 'Manual Build dispatch must expose the Windows request');
+  assert.match(windowsInput, /^        type: boolean$/m);
+  assert.match(windowsInput, /^        default: false$/m, 'Windows must be unchecked by default');
+  const windowsRequest = workflow.match(/^          WINDOWS_REQUESTED: (.+)$/m)?.[1];
+  assert.match(windowsRequest ?? '', /^\$\{\{ github\.event_name == 'workflow_dispatch' && inputs\.windows(?: == true)? \}\}$/,
+    'Only an explicit manual Windows input may request that job; full-CI labels and titles may not');
+  assert.match(workflow,
+    /node scripts\/repo\/ci-change-classifier\.mjs "\$BASE_SHA" "\$HEAD_SHA" "\$FORCE_FULL" "\$USE_MERGE_BASE" "\$WINDOWS_REQUESTED"/,
+    'The manual request must be passed as the optional fifth classifier argument');
+  const windowsJob = workflow.match(/^  studio-windows:\n([\s\S]*?)(?=^  [\w-]+:|$(?![\s\S]))/m)?.[1];
+  assert.match(windowsJob ?? '', /needs\.changes\.outputs\.studio_windows == 'true'/);
 }
 
 console.log('CI change classifier self-test passed.');
