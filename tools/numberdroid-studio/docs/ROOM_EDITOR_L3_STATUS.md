@@ -1,5 +1,23 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+## Permanent Family room pilot — 2026-09-21
+
+Klaus explicitly reported **“Final room preview: pass”** after creating a real
+persistent project from the approved Family Hygiene floor source. Read-only
+saved-state verification found **Family room 01**, Room v17 / project r34,
+4×4 cells, 16 placements and zero saved ERROR findings. Preserve that project;
+it is not a disposable fixture. This bounded pass does not close VT-001 or the
+separate second-Room/reopen checks in VT-018.
+
+He reported cramped, side-by-side template/Room creation forms and tiny field
+text. The bounded presentation repair stacks both creation disclosures at full
+width, puts the explanation above them, preserves a closed disclosure's natural
+height, and uses readable labels, entered values and unwrapped Create actions.
+Narrow views and the existing editor dock use two field columns. Commands,
+selection guards and saved data are unchanged. The layout repair's human check
+remains pending; source, automated verification and human acceptance are
+separate. Windows testing is not requested for this repair.
+
 ## Bounded return batch — 2026-09-21
 
 Klaus explicitly passed the exact saved Preview / editor-return walkthrough:

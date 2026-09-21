@@ -338,13 +338,19 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .slice-vocabulary-card h4 { margin: 7px 0 3px; font-size: 12px; }
 .slice-vocabulary-card p { margin: 0 0 7px; color: var(--muted); font-size: 9px; }
 .slice-vocabulary-card .asset-preview { margin-bottom: 5px; }
-.room-creation { display: flex; flex-wrap: wrap; gap: 9px; margin-bottom: 14px; }
-.room-creation details { flex: 1 1 280px; padding: 10px 12px; border: 1px solid #29483f; border-radius: 9px; background: #0d1916; }
-.room-creation summary { color: var(--cyan); cursor: pointer; font-size: 11px; font-weight: 750; }
+.room-creation { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 12px; min-width: 0; margin-bottom: 14px; }
+.room-creation > .room-selection-summary { font-size: 14px; }
+.room-creation > details { min-width: 0; padding: 12px; border: 1px solid #29483f; border-radius: 9px; background: #0d1916; }
+.room-creation summary { color: var(--cyan); cursor: pointer; font-size: 14px; line-height: 20px; font-weight: 750; }
 .room-form { display: grid; grid-template-columns: repeat(4, minmax(90px, 1fr)); gap: 8px; margin-top: 11px; }
 .room-form label { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 9px; font-weight: 750; text-transform: capitalize; }
 .room-form input, .room-form select, .room-form textarea { width: 100%; min-width: 0; }
 .room-form button { align-self: end; }
+.room-creation .room-form { grid-template-columns: minmax(0, 2fr) minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); gap: 12px; }
+.room-creation .room-form label { font-size: 13px; }
+.room-creation .room-form input, .room-creation .room-form select { min-height: 40px; font-size: 16px; line-height: 20px; font-weight: 400; }
+.room-creation .room-form button { grid-column: 1 / -1; justify-self: start; min-height: 40px; font-size: 16px; line-height: 20px; white-space: nowrap; }
+.room-editor-dock .room-creation .room-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .room-header { display: grid; grid-template-columns: minmax(170px, .7fr) minmax(250px, 1.4fr) auto; align-items: center; gap: 16px; margin-bottom: 12px; padding: 13px 15px; border: 1px solid #365a4f; border-radius: 10px; background: #0d1916; }
 .room-header label { display: grid; gap: 4px; color: var(--muted); font-size: 9px; font-weight: 750; }
 .room-header select { min-width: 0; }
@@ -743,6 +749,7 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .room-inspector { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .room-inspector > h3 { grid-column: 1 / -1; }
   .room-form, .room-form.compact, .room-form.intent { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .room-creation .room-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .task-form fieldset { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .task-list-item { grid-template-columns: minmax(0, 1fr); }
   .task-list-item .status-pill { grid-column: 1; justify-self: start; }

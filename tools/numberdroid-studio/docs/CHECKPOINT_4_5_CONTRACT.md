@@ -91,6 +91,12 @@ An empty Rooms workspace explains the two steps in plain language: create a
 reusable **Room template**, then create an editable Room from it. Open the
 template form when no template exists, then the Room form when templates exist
 but no Room does. Creation controls in an existing Room remain compact.
+The explanation occupies its own row above the two full-width, vertically
+stacked creation disclosures. A closed disclosure keeps its natural height;
+it must not stretch beside the open form. Creation labels are at least 13px,
+entered text and numbers are 16px, and the Create action has its own row without
+wrapping its label. Narrow views and the existing Room dock use two field
+columns while keeping both creation disclosures full-width.
 These UI rules change no Room validation or saved command semantics.
 
 ## 4. Irregular-room semantics

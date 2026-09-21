@@ -20,6 +20,48 @@ export async function captureRoomCreation({ devtools, sessionId, width, height, 
   const read = () => evaluate(`fetch('/api/projects/${projectId}').then((response) => { if (!response.ok) throw new Error('Project read failed'); return response.json(); })`);
   const screenshots = [];
   const creationLandings = [];
+  const creationLayouts = [];
+  const captureCreationLayout = async (stage) => {
+    const layout = await evaluate(`(() => {
+      const root = document.querySelector('.room-creation');
+      const bounds = node => { const rect = node.getBoundingClientRect(); return { left:rect.left, top:rect.top, right:rect.right, bottom:rect.bottom, width:rect.width, height:rect.height }; };
+      const contained = (node, parent) => { const a = bounds(node); const b = bounds(parent); return a.left >= b.left - 1 && a.right <= b.right + 1; };
+      const number = value => Number.parseFloat(value) || 0;
+      const cards = [...root.querySelectorAll(':scope > details')].map(card => {
+        const style = getComputedStyle(card); const summary = card.querySelector('summary');
+        const form = card.querySelector('form'); const submit = form.querySelector('button[type="submit"]');
+        const range = document.createRange(); range.selectNodeContents(submit);
+        return { open:card.open, bounds:bounds(card), summaryHeight:bounds(summary).height,
+          collapsedHeight:bounds(summary).height + number(style.paddingTop) + number(style.paddingBottom) + number(style.borderTopWidth) + number(style.borderBottomWidth),
+          form:card.open ? {
+            contained:contained(form, card),
+            fields:[...form.querySelectorAll('input, select')].map(node => ({ tag:node.tagName, name:node.name, font:number(getComputedStyle(node).fontSize), height:bounds(node).height, contained:contained(node, form) })),
+            labels:[...form.querySelectorAll('label > span')].map(node => ({ text:node.textContent, font:number(getComputedStyle(node).fontSize) })),
+            button:{ label:submit.textContent, font:number(getComputedStyle(submit).fontSize), height:bounds(submit).height, textLines:range.getClientRects().length, contained:contained(submit, form), textFits:submit.scrollWidth <= submit.clientWidth + 1 }
+          } : null };
+      });
+      return { width:innerWidth, inDock:Boolean(root.closest('.room-editor-dock')), root:bounds(root), introduction:bounds(root.querySelector(':scope > .room-selection-summary')), cards,
+        overflow:document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth };
+    })()`);
+    assert.equal(layout.cards.length, 2);
+    assert.equal(layout.overflow, false, `${stage} must not overflow the page`);
+    assert.ok(Math.abs(layout.introduction.width - layout.root.width) < 2, `${stage} introduction must use the full row, not a narrow column`);
+    assert.ok(layout.introduction.bottom <= layout.cards[0].bounds.top, `${stage} introduction must sit above the cards`);
+    assert.ok(layout.cards[0].bounds.bottom <= layout.cards[1].bounds.top, `${stage} creation cards must be stacked`);
+    for (const card of layout.cards) {
+      assert.ok(Math.abs(card.bounds.width - layout.root.width) < 2, `${stage} creation cards must use the available width`);
+      if (!card.open) assert.ok(Math.abs(card.bounds.height - card.collapsedHeight) < 2, `${stage} collapsed card must not stretch into blank space`);
+      if (!card.form) continue;
+      assert.equal(card.form.contained, true);
+      assert.equal(card.form.fields.length, 4);
+      assert.equal(card.form.labels.length, 4);
+      for (const field of card.form.fields) assert.ok(field.font >= 16 && field.height >= 40 && field.contained, `${stage} field is unreadable or clipped: ${JSON.stringify(field)}`);
+      for (const label of card.form.labels) assert.ok(label.font >= 13, `${stage} label is too small: ${JSON.stringify(label)}`);
+      assert.ok(card.form.button.font >= 16 && card.form.button.height >= 40 && card.form.button.contained && card.form.button.textFits, `${stage} Create action must remain normally sized and contained`);
+      assert.equal(card.form.button.textLines, 1, `${stage} Create action must not wrap`);
+    }
+    creationLayouts.push({ stage, ...layout });
+  };
   const captureCreationLanding = async (stage, room) => {
     // Observe the product's own landing before capture() can scroll anything.
     const landing = await evaluate(`(() => {
@@ -60,12 +102,15 @@ export async function captureRoomCreation({ devtools, sessionId, width, height, 
   if (!reopened) {
     assert.equal((await read()).revision, 1);
     assert.equal(await evaluate(`document.querySelector('[data-room-form="archetype"]')?.closest('details')?.open`), true, 'First Room template must be open');
+    await captureCreationLayout('empty-project-template');
     await capture('first-template', '[data-room-form="archetype"]');
     await fill('archetype', { displayName: 'Browser Room template', kind: 'room', width: '8', height: '6' });
     await click('[data-room-form="archetype"] button[type="submit"]');
     await waitFor(`document.querySelector('[data-room-form="variant"] [name="roomArchetypeId"]')?.options.length === 1`, 'Saved first template');
     assert.equal((await read()).revision, 2);
     assert.equal(await evaluate(`document.querySelector('[data-room-form="variant"]')?.closest('details')?.open`), true, 'First Room form must open after template creation');
+    await captureCreationLayout('template-saved-first-room');
+    await capture('first-room-form', '.room-creation');
     await fill('variant', { displayName: 'First browser Room', width: '8', height: '6' });
     await click('[data-room-form="variant"] button[type="submit"]');
     await waitFor(`document.querySelectorAll('.room-cell').length === 48`, 'First saved Room');
@@ -78,6 +123,9 @@ export async function captureRoomCreation({ devtools, sessionId, width, height, 
     await evaluate(`(() => { const zoom = document.querySelector('[data-room-zoom-slider]'); zoom.value = '200'; zoom.dispatchEvent(new Event('input', { bubbles: true })); })()`);
     await click('[data-room-control="connector-select"]');
     await click('[data-room-control="editor-panel"][data-editor-panel="properties"]');
+    await evaluate(`document.querySelectorAll('.room-creation > details').forEach(card => { card.open = true; })`);
+    await captureCreationLayout('existing-room-dock');
+    await capture('existing-room-creation', '.room-creation');
     await fill('variant', { displayName: 'Second browser Room', width: '11', height: '7' });
     await click('[data-room-form="variant"] button[type="submit"]');
     // Wait for command completion, never for a passive refresh to repair context.
@@ -123,6 +171,6 @@ export async function captureRoomCreation({ devtools, sessionId, width, height, 
   const errors = devtools.events.filter((event) => event.method === 'Runtime.exceptionThrown' || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error') || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error') || event.method === 'Network.loadingFailed' || (event.method === 'Network.responseReceived' && event.params?.response?.status >= 400));
   assert.equal(errors.length, 0, JSON.stringify(errors));
   if (domPath) await writeFile(domPath, `${await evaluate('document.documentElement.outerHTML')}\n`);
-  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'room-creation', projectId, reopened, browser: browserVersion.product, revision: saved.revision, immediateSecondContext, creationLandings, dirtyGuard, firstRoomUnchanged: !reopened, secondRoomId: second.roomVariantId, secondRoomVersion: second.version, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
+  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'room-creation', projectId, reopened, browser: browserVersion.product, revision: saved.revision, immediateSecondContext, creationLandings, creationLayouts, dirtyGuard, firstRoomUnchanged: !reopened, secondRoomId: second.roomVariantId, secondRoomVersion: second.version, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify({ status: 'CAPTURED', mode: 'room-creation', width, reopened, screenshotCount: screenshots.length, output: outputPath })}\n`);
 }
