@@ -12,7 +12,7 @@ export function assemblyEditorDefaultDeclaration() {
 export function createAssemblyEditorState(initial) {
   const asset = initial.asset;
   const model = { name: asset?.name ?? '', kind: asset?.kind ?? 'prop', metadata: copy(asset?.metadata ?? { role: null, tags: [] }), assembly: copy(asset?.assembly ?? assemblyEditorDefaultDeclaration()) };
-  return { instanceId: initial.instanceId ?? crypto.randomUUID(), context: { projectId: initial.projectId, projectRevision: initial.projectRevision,
+  return { returnLabel: initial.returnLabel ?? 'Back to Library', instanceId: initial.instanceId ?? crypto.randomUUID(), context: { projectId: initial.projectId, projectRevision: initial.projectRevision,
     assetId: asset?.assetId ?? initial.assetId ?? `assembly.${crypto.randomUUID()}`, assetVersion: asset?.assetVersion ?? 0, metadataVersion: asset?.metadataVersion ?? 0 },
     model, savedModel: copy(model), assets: copy(initial.assets ?? []), scene: null, selectedComponentId: model.assembly.components[0]?.componentId ?? null,
     previewPlaying: true, preview: { stateId: model.assembly.defaultStateId, variantId: model.assembly.defaultVariantId }, hidden: [], showBlocking: true, view: 'edit', panel: 'component',

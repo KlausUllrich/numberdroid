@@ -5,11 +5,12 @@ export const animationCutBinding=value=>value?.sliceBinding??value?.binding??val
 export const animationPin=value=>{const b=animationCutBinding(value);return {sliceId:b.sliceId,sliceVersion:b.sliceVersion??b.version};};
 export function animationDefaultClip(){return {schemaVersion:1,coordinateSpace:'clip-pixels',fps:10,playbackMode:'loop',unitsPerPixel:1/64,canvas:{width:64,height:64},anchor:{x:32,y:32},frames:[]};}
 export function createAnimationEditorState(initial){
+ const returnLabel=initial.returnLabel??'Back to Library';
  const asset=initial.asset,model={name:asset?.name??'',kind:asset?.kind??'prop',metadata:copy(asset?.metadata??{role:null,tags:[]}),clip:copy(asset?.clip??animationDefaultClip())};
  const bindings=new Map([...initial.bindings??[],...asset?.frameBindings??[],...initial.selectedSlices??[]].map(animationCutBinding).filter(b=>b?.digest).map(b=>[clipSliceKey(animationPin(b)),copy(b)]));
  const state={instanceId:initial.instanceId??crypto.randomUUID(),context:{projectId:initial.projectId,projectRevision:initial.projectRevision,assetId:asset?.assetId??initial.assetId??`clip.${crypto.randomUUID()}`,assetVersion:asset?.assetVersion??0,metadataVersion:asset?.metadataVersion??0},model,savedModel:copy(model),bindings:[...bindings.values()],selectedFrameId:model.clip.frames[0]?.frameId??null,history:{past:[],future:[]},fieldDrafts:{},panel:'timing',view:'edit',viewContexts:{},viewGeneration:0,zoom:'fit',scale:1,showBounds:true,showAnchor:true,pickerOpen:false,pickerSelection:[],source:null,cutSessions:{},embeddedOpen:false,playback:{playing:false,elapsedMs:0,last:null,frameIndex:0},save:{status:'idle',intent:null},resolution:{status:'idle',error:null},conflict:null,error:null};
  if(!asset&&initial.selectedSlices?.length){for(const cut of initial.selectedSlices)animationAddFrame(state,cut);const sizes=state.bindings;model.clip.canvas={width:Math.max(1,...sizes.map(b=>b.width??64)),height:Math.max(1,...sizes.map(b=>b.height??64))};model.clip.anchor={x:model.clip.canvas.width/2,y:model.clip.canvas.height/2};model.clip.unitsPerPixel=Math.min(1/64,64/Math.max(model.clip.canvas.width,model.clip.canvas.height));state.savedModel=copy({...model,clip:{...model.clip,frames:[]}});}
- return state;
+ state.returnLabel=returnLabel;return state;
 }
 export function selectedAnimationFrame(state){return state.model.clip.frames.find(f=>f.frameId===state.selectedFrameId)??null;}
 export function animationFrameBinding(state,frame=selectedAnimationFrame(state)){return frame?state.bindings.find(b=>clipSliceKey(animationPin(b))===clipSliceKey(frame.slice))??null:null;}

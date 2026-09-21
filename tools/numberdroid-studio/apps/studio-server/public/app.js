@@ -2027,7 +2027,9 @@ function renderCutter(source) {
     }
   } else if (cutter.view === 'detail') {
     const output = outputs[cutter.outputKind]?.[cutter.outputIndex];
-    const back = document.createElement('button'); back.type = 'button'; back.dataset.cutterView = 'outputs'; back.textContent = 'Back to output images'; section.append(back);
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'studio-back-button secondary'; back.dataset.cutterView = 'outputs'; back.textContent = 'Back to View Output';
+    back.disabled = state.cutterPending || state.sourceMutationPending;
+    section.querySelector('[data-close-cutter]')?.remove(); section.prepend(back);
     if (output) {
       const detail = document.createElement('section'); detail.className = 'cutter-output-detail';
       detail.append(cutterOutputCard(output, cutter.outputIndex, state.project.projectId)); detail.querySelector('[data-cutter-output]')?.remove();
@@ -2800,6 +2802,13 @@ function restoreLibrarySnapshot(saved, expected = libraryRouteIdentity()) {
 }
 function libraryRestoreCurrent() { restoreLibrarySnapshot(libraryUi.domSnapshots[libraryRouteKey(libraryUi.route)]); }
 function libraryOrigin() { captureLibraryDom(); return state.workspace === 'assets' ? { route: structuredClone(libraryUi.route), dom: libraryDomSnapshot() } : null; }
+function editorReturnLabel() {
+  if (state.workspace === 'sources') {
+    if (state.cutter) return state.cutter.view === 'outputs' ? 'Back to View Output' : state.cutter.view === 'detail' ? 'Back to output image' : 'Back to Cut images';
+    return state.sourcesUi.tab === 'workbench' ? 'Back to Image Workbench' : 'Back to Source Images';
+  }
+  return libraryUi.route.view === 'detail' ? 'Back to details' : 'Back to Library';
+}
 function libraryRestoreOrigin(saved, editorState) {
   if (!saved || saved.dom?.projectId !== state.project?.projectId) return false;
   libraryUi.route = structuredClone(saved.route);
@@ -2958,7 +2967,7 @@ function libraryRenderDetail() {
     catch (error) { selected.previewError = error.message; }
   }
   const canEdit = !selected.proposed && !stale && state.uiMode === 'local' && !state.assetMutationPending && (selected.entry.contentKind === 'assembly' ? assemblyCanMutate() : selected.entry.contentKind === 'animation' ? animationCanMutate() : true);
-  const root = renderLibraryDetail({ entry: selected.entry, record, scene: record.scene, projectId: state.project.projectId, previewUrl: preview?.url ?? selected.url, sourceLabels: selected.entry.sourceNames, pendingGroups: current?.relatedReviews ?? [], canEdit, unavailable: preview?.status === 'failed' ? preview.error : selected.previewError ?? null, proposed: selected.proposed, proposal: selected.proposal, stale });
+  const root = renderLibraryDetail({ entry: selected.entry, record, scene: record.scene, projectId: state.project.projectId, previewUrl: preview?.url ?? selected.url, sourceLabels: selected.entry.sourceNames, pendingGroups: current?.relatedReviews ?? [], canEdit, unavailable: preview?.status === 'failed' ? preview.error : selected.previewError ?? null, proposed: selected.proposed, proposal: selected.proposal, stale, backLabel: libraryBackLabel() });
   root.dataset.libraryDetail = selected.entry.contentKind; root.dataset.assetId = record.assetId;
   if (selected.entry.contentKind === 'image') {
     const controls = root.querySelector('[data-library-detail-controls]') ?? root;
@@ -2969,7 +2978,7 @@ function libraryRenderDetail() {
   }
   return root;
 }
-function libraryBackButton() { const b = document.createElement('button'); b.type = 'button'; b.className = 'secondary'; b.dataset.libraryAction = 'back'; b.dataset.assetFocusKey = 'library-back'; b.textContent = libraryBackLabel(); return b; }
+function libraryBackButton() { const b = document.createElement('button'); b.type = 'button'; b.className = 'studio-back-button secondary'; b.dataset.libraryAction = 'back'; b.dataset.assetFocusKey = 'library-back'; b.textContent = libraryBackLabel(); return b; }
 function libraryNativeLifecycleControls(asset, { canMutate = false } = {}) {
   const root = document.createElement('details'); root.className = 'library-lifecycle'; const summary = document.createElement('summary'); summary.textContent = `Validation and lifecycle · ${asset.lifecycle ?? 'Proposed'}`; root.append(summary, findingsList(asset.findings));
   const facts = document.createElement('dl'); facts.className = 'property-list';
@@ -2986,11 +2995,11 @@ function libraryNativeLifecycleControls(asset, { canMutate = false } = {}) {
 }
 function libraryBackLabel() {
   const external = libraryExternalOrigins.get(libraryRouteKey(libraryUi.route));
-  if (external?.workspace === 'activity') return state.activityUi.eventId ? '← Back to event' : '← Back to Activity';
-  if (external?.workspace === 'sources') return '← Back to Sources';
-  if (external?.workspace === 'tasks') return '← Back to Tasks';
+  if (external?.workspace === 'activity') return state.activityUi.eventId ? 'Back to event' : 'Back to Activity';
+  if (external?.workspace === 'sources') return 'Back to Sources';
+  if (external?.workspace === 'tasks') return 'Back to Agent tasks';
   const previous = libraryUi.returnStack.at(-1);
-  return previous?.view === 'review' ? '← Back to review' : previous?.view === 'detail' ? '← Back to details' : '← Back to Library';
+  return previous?.view === 'review' ? 'Back to review' : previous?.view === 'detail' ? 'Back to details' : 'Back to Library';
 }
 function sharedReviewSupported() { return state.uiMode === 'local' && state.reviewAuthoringSupport === 'AVAILABLE'; }
 function sharedLegacySource(route) {
@@ -3213,7 +3222,7 @@ async function openAnimationEditor({ asset = null, pins = [], trigger = null } =
   catch (error) { if (generation === animationOpenGeneration) showToast(error.message); return; }
   if (libraryGeneration !== libraryReadGeneration || generation !== animationOpenGeneration || state.project?.projectId !== projectId || state.project.revision !== revision || state.workspace !== workspace) return;
   let editor;
-  editor = createAnimationEditorController({ initial: { projectId, projectRevision: revision, asset: record, selectedSlices: bindings }, host: {
+  editor = createAnimationEditorController({ initial: { projectId, projectRevision: revision, asset: record, selectedSlices: bindings, returnLabel: editorReturnLabel() }, host: {
     getContext: () => animationCurrentContext(editor), getSavedCuts: () => currentProjectSlices().map(({ slice }) => ({ ...slice, name: savedSliceLabel(slice), sliceVersion: slice.version })),
     resolveCuts: (cuts, options) => resolveAnimationCuts(projectId, cuts, options),
     saveClip: (intent, options) => animationPost(`${animationPath(projectId)}/clips/${encodeURIComponent(intent.assetId)}/save`, intent, options),
@@ -3357,7 +3366,7 @@ async function openAssemblyEditor({ asset = null, trigger = null } = {}) {
   if (libraryGeneration !== libraryReadGeneration || generation !== assemblyOpenGeneration || state.project?.projectId !== projectId || state.project?.revision !== revision || state.workspace !== workspace || !assemblyCanMutate()) return;
   let editor;
   const leafMap = new Map([...currentAssetLibrary().assets, ...(record?.leafAssets ?? [])].map(leaf => [`${leaf.assetId}@${leaf.assetVersion}:${leaf.metadataVersion}`, leaf]));
-  editor = createAssemblyEditorController({ initial: { projectId, projectRevision: revision, asset: record, assets: [...leafMap.values()] }, host: {
+  editor = createAssemblyEditorController({ initial: { projectId, projectRevision: revision, asset: record, assets: [...leafMap.values()], returnLabel: editorReturnLabel() }, host: {
     getContext: () => assemblyCurrentContext(editor), getNativeAssets: () => currentAssetLibrary().assets, getComponentAssets: () => [...currentAssetLibrary().assets, ...currentClipLibrary().assets],
     resolveDraft: async ({ assembly }, { signal } = {}) => {
       const current = editor.getState(); const expectedRevision = current.context.projectRevision;
@@ -3486,7 +3495,7 @@ function openAssetEditor({ asset = null, slice = null, trigger = null }) {
   editor = createAssetEditorController({
     initial: { projectId: state.project.projectId, projectRevision: state.project.revision, asset, slice,
       pixelSize, previewUrl: `/api/projects/${encodeURIComponent(state.project.projectId)}/artifacts/sha256/${digest}`,
-      returnLabel: state.workspace === 'sources' ? 'Back to source' : 'Back to Asset library' },
+      returnLabel: editorReturnLabel() },
     host: {
       getContext: () => assetEditorCurrentContext(editor),
       saveAsset: (intent, { signal } = {}) => api(`/api/projects/${encodeURIComponent(intent.projectId)}/assets/${encodeURIComponent(intent.assetId)}/save`, {
@@ -3610,10 +3619,10 @@ function currentRoomVariant(snapshot = state.project?.snapshot) {
 }
 
 const ROOM_EDITOR_TOOLS = Object.freeze([
-  ['SELECT', '↖', 'Select', 'Select a placement or entrance on the canvas.'],
-  ['PAINT_ROOM', '■', 'Room floor', 'Paint an ordinary room-floor cell.'],
-  ['PAINT_VOID', '▧', 'Outside room', 'Exclude a cell from the room.'],
-  ['PAINT_BLOCKED', '⊠', 'Blocked in room', 'Keep a cell in the room but make it impassable.'],
+  ['SELECT', '↖', 'Select', 'Click an asset or entrance to inspect it. To change a cell, choose Room floor, Outside room or Blocked in room on the left, then click the cell.'],
+  ['PAINT_ROOM', '■', 'Room floor', 'Click a cell to make it usable room floor. This edits the shape draft; choose Save shape to keep it.'],
+  ['PAINT_VOID', '▧', 'Outside room', 'Click a cell to exclude it from the room. This edits the shape draft; choose Save shape to keep it.'],
+  ['PAINT_BLOCKED', '⊠', 'Blocked in room', 'Click a cell to keep it inside the room but block passage. This edits the shape draft; choose Save shape to keep it.'],
   ['ENTRANCE', '⇥', 'Entrance', 'Add and inspect openings on the room edge.'],
   ['SURFACE', '▦', 'Surface', 'Choose a structural surface and place it on the canvas.'],
   ['PROP', '◆', 'Prop', 'Choose a prop or item and place copies on the canvas.'],
@@ -3677,7 +3686,7 @@ function renderRoomToolOptions(variant) {
   else status.textContent = `Saved · room version ${variant.version}`;
   status.dataset.dirty = String(draft.dirty); status.dataset.conflict = String(Boolean(state.roomUi.shapeConflict));
   const actions = document.createElement('div'); actions.className = 'room-tool-actions';
-  const save = roomControl('Save shape', 'shape-save'); save.disabled = !draft.dirty || Boolean(state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT';
+  const save = roomControl('Save shape', 'shape-save'); save.classList.remove('secondary'); save.disabled = !draft.dirty || Boolean(state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT';
   const reset = roomControl(draft.dirty || state.roomUi.shapeConflict ? 'Discard / reload' : 'Reload shape', 'shape-reset');
   reset.disabled = (!draft.dirty && !state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT'; actions.append(save, reset);
   const lastEdit = document.createElement('span'); lastEdit.className = 'room-last-edit'; lastEdit.textContent = state.roomUi.lastShapeEdit ?? '';
@@ -3958,7 +3967,7 @@ function updateRoomPlacementGhostDom() {
 
 function roomCanvasHintText(variant, ghost = currentRoomPlacementGhost()) {
   if (variant.lifecycle !== 'DRAFT') return `${variant.lifecycle} versions are read-only. Fork a FINAL version to continue authoring.`;
-  if (state.roomUi.activeTool.startsWith('PAINT_')) return 'Click a cell, or focus it and press Enter/Space, to paint the active class. Existing content is ghosted while painting.';
+  if (state.roomUi.activeTool.startsWith('PAINT_')) return 'Click a cell, or focus it and press Enter/Space, to paint the active class. Save shape keeps these edits; Discard / reload restores the saved shape. Artwork is dimmed while painting, not removed.';
   if (state.roomUi.pendingPlacementAdd) return `Placement at ${state.roomUi.pendingPlacementAdd.anchor.x},${state.roomUi.pendingPlacementAdd.anchor.y} is not yet confirmed. Choose that same cell again to retry safely; Studio will not create a duplicate.`;
   if (state.roomUi.placementGesture) return `${ghost?.allowed ? '✓' : '×'} ${ghost?.message ?? 'Drag the placement to a snapped cell.'} Server validation remains authoritative.`;
   if (state.roomUi.selectedPlacementId) return 'Drag the selected placement, use the arrow keys, press R to rotate, or Delete to remove it. Inspector controls remain available.';
@@ -3969,7 +3978,7 @@ function roomCanvasHintText(variant, ghost = currentRoomPlacementGhost()) {
   if (state.roomUi.activeTool === 'SURFACE') return 'Choose an exact-version surface in the tool options, then place it on as many free canvas cells as needed.';
   if (state.roomUi.activeTool === 'PROP') return 'Choose a prop or item in the tool options to arm it immediately, then place copies on free canvas cells.';
   if (state.roomUi.activeTool === 'CLEAR') return 'Choose a prop or surface on the canvas to remove it. Studio asks for confirmation before changing the room.';
-  return 'Select a placement or entrance on the canvas, or choose another tool from the left toolbar.';
+  return 'To change a cell: choose Room floor, Outside room or Blocked in room on the left, then click the cell. To move an asset: choose Select, then drag it. Hover or select an asset or entrance to see its label.';
 }
 
 function roomControl(label, value, dataset = {}) {
@@ -4166,7 +4175,9 @@ function renderRoomCanvas(variant, snapshot) {
       clearance.dataset.selected = String(state.roomUi.selectedConnectorId === connector.connectorId);
       clearance.style.left = `calc(${geometry.left} * var(--room-cell))`; clearance.style.top = `calc(${geometry.top} * var(--room-cell))`;
       clearance.style.width = `calc(${geometry.width} * var(--room-cell))`; clearance.style.height = `calc(${geometry.height} * var(--room-cell))`;
-      clearance.textContent = connector.connectorId; clearance.setAttribute('aria-label', `${connector.side} connector ${connector.connectorId}, clearance ${connector.clearanceInside} cells`);
+      const label = document.createElement('span'); label.className = 'room-connector-label'; label.textContent = `${connector.side} entrance`;
+      clearance.append(label); clearance.title = `${connector.side} entrance · ${connector.connectorId}`;
+      clearance.setAttribute('aria-label', `${connector.side} connector ${connector.connectorId}, clearance ${connector.clearanceInside} cells`);
       board.append(clearance);
     }
   }
@@ -4182,7 +4193,8 @@ function renderRoomCanvas(variant, snapshot) {
     placed.style.left = `calc(${placement.anchor.x} * var(--room-cell))`; placed.style.top = `calc(${placement.anchor.y} * var(--room-cell))`;
     placed.style.width = `calc(${span.width} * var(--room-cell))`; placed.style.height = `calc(${span.height} * var(--room-cell))`;
     if (asset) placed.append(roomPlacementVisual(asset, placement.rotation));
-    const label = document.createElement('span'); label.textContent = asset?.name ?? placement.assetId; placed.append(label);
+    const label = document.createElement('span'); label.className = 'room-placement-label'; label.textContent = asset?.name ?? placement.assetId; placed.append(label);
+    placed.title = `${label.textContent} · ${span.width}×${span.height} occupied cells · ${placement.rotation}°`;
     placed.setAttribute('aria-label', `${label.textContent} at ${placement.anchor.x}, ${placement.anchor.y}, rotation ${placement.rotation}`);
     board.append(placed);
   }
@@ -4258,6 +4270,14 @@ function renderRoomInspector(variant, snapshot) {
       const dt = document.createElement('dt'); dt.textContent = key; const dd = document.createElement('dd'); dd.textContent = value; summary.append(dt, dd);
     }
     panel.append(summary);
+    const footprint = roomAssetSpan(asset, selected.rotation);
+    const visualHint = document.createElement('p'); visualHint.className = 'room-selection-summary';
+    visualHint.textContent = footprint
+      ? `Occupies ${footprint.width}×${footprint.height} cells. This is one placement, not a separate copy in each cell.`
+      : 'The exact saved footprint is unavailable; no replacement geometry is used.';
+    if (asset?.metadata?.spatial) visualHint.textContent += ' Artwork can extend beyond the occupied cells; its visible size does not enlarge the footprint.';
+    else if (asset?.metadata?.extensions?.['studio.preview.presentation']) visualHint.textContent += ' Here the image is fitted inside its footprint. Studio preview also shows its authored overhang and elevation, so it may look larger there without occupying more cells.';
+    panel.append(visualHint);
     const movement = document.createElement('div'); movement.className = 'room-move-controls';
     for (const [label, dx, dy] of [['←', -1, 0], ['↑', 0, -1], ['↓', 0, 1], ['→', 1, 0]]) movement.append(roomControl(label, 'move-placement', { dx: String(dx), dy: String(dy), placementId: selected.placementId }));
     movement.append(roomControl('Rotate', 'rotate-placement', { placementId: selected.placementId }), roomControl('Remove', 'remove-placement', { placementId: selected.placementId }));
@@ -5278,8 +5298,8 @@ function renderTaskComposer() {
   const title = document.createElement('div');
   const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'You stay in control';
   const name = document.createElement('h2'); name.textContent = 'Create a task for an agent';
-  const back = document.createElement('button'); back.type = 'button'; back.className = 'secondary'; back.dataset.taskControl = 'back-to-list'; back.textContent = 'Back to tasks';
-  title.append(eyebrow, name); heading.append(title, back); section.append(heading);
+  const back = document.createElement('button'); back.type = 'button'; back.className = 'studio-back-button secondary'; back.dataset.taskControl = 'back-to-list'; back.dataset.taskFocusKey = 'back-to-list'; back.textContent = 'Back to Agent tasks';
+  title.append(eyebrow, name); heading.append(title); section.append(back, heading);
   const help = document.createElement('p'); help.className = 'task-help';
   help.textContent = 'Choose what the agent may change and for how long. Its work stays separate from the project until you review and accept it.';
   section.append(help);
@@ -5381,13 +5401,37 @@ function renderTaskReview(entry) {
   for (const item of review.items) {
     const row = document.createElement('li'); row.dataset.changeId = item.changeId;
     const copy = document.createElement('div');
-    const strong = document.createElement('strong'); strong.textContent = item.summary;
+    const roomTemplate = item.commandType === 'room.archetype.create'
+      ? item.changes?.find((change) => change.entityType === 'room_archetype' && change.operation === 'created')
+      : null;
+    const strong = document.createElement('strong');
+    // Legacy review items retain the exact ID, not the template's display name.
+    // Never substitute today's project name for the item reviewed in this task.
+    strong.textContent = roomTemplate ? `Add room template: ${roomTemplate.entityId}` : item.summary;
     const technical = document.createElement('small'); technical.className = 'task-inline-meta';
-    technical.textContent = `Recorded action: ${item.commandType}`; copy.append(strong, technical);
+    technical.textContent = `Recorded action: ${item.commandType}`;
+    copy.append(strong);
+    if (roomTemplate) {
+      const explanation = document.createElement('p'); explanation.className = 'task-review-description';
+      explanation.textContent = !reviewEditable
+        ? 'A reusable starting point for new rooms, not a finished room. The badge records your saved decision.'
+        : recordedConflicts.length
+          ? 'A reusable starting point for new rooms, not a finished room. You can record a decision, but this conflicting result cannot be added.'
+          : 'A reusable starting point for new rooms, not a finished room. Accept selects this task proposal; completing the task adds it to the project.';
+      copy.append(explanation);
+    }
+    copy.append(technical);
     let disposition;
     if (levelCandidateReview) {
       disposition = document.createElement('span'); disposition.className = 'task-review-disposition-readonly';
       disposition.textContent = item.disposition === 'PENDING' ? 'Pending · read-only' : item.disposition.replaceAll('_', ' ').toLowerCase();
+    } else if (!reviewEditable || item.disposition === 'AUTO_ACCEPTED_BY_POLICY') {
+      disposition = document.createElement('span'); disposition.className = 'task-review-disposition-readonly';
+      disposition.dataset.disposition = item.disposition;
+      disposition.textContent = {
+        PENDING: 'Not reviewed', USER_ACCEPTED: 'Accepted', USER_REJECTED: 'Rejected',
+        CHANGES_REQUESTED: 'Changes requested', AUTO_ACCEPTED_BY_POLICY: 'Accepted automatically under your task settings',
+      }[item.disposition] ?? item.disposition.replaceAll('_', ' ').toLowerCase();
     } else {
       disposition = document.createElement('select'); disposition.dataset.taskReviewDisposition = item.changeId;
       disposition.dataset.taskFocusKey = `review-disposition-${item.changeId}`;
@@ -5396,13 +5440,7 @@ function renderTaskReview(entry) {
       ]) {
         const option = document.createElement('option'); option.value = value; option.textContent = label; disposition.append(option);
       }
-      if (item.disposition === 'AUTO_ACCEPTED_BY_POLICY') {
-        disposition.replaceChildren();
-        const option = document.createElement('option'); option.value = item.disposition; option.textContent = 'Accepted automatically under your task settings'; disposition.append(option); disposition.disabled = true;
-      } else {
-        disposition.value = item.disposition;
-        disposition.disabled = !reviewEditable;
-      }
+      disposition.value = item.disposition;
     }
     if (reviewEditable && item.disposition !== 'AUTO_ACCEPTED_BY_POLICY') {
       const label = document.createElement('label'); label.className = 'task-feedback-field task-item-feedback';
@@ -5517,8 +5555,8 @@ function renderTaskDetail(selected) {
   const taskTitle = document.createElement('h2'); taskTitle.textContent = selected.task.title;
   const objective = document.createElement('p'); objective.textContent = selected.task.objective; headCopy.append(selectedEyebrow, taskTitle, objective);
   const headingActions = document.createElement('div'); headingActions.className = 'task-detail-header-actions';
-  const back = document.createElement('button'); back.type = 'button'; back.className = 'secondary'; back.dataset.taskControl = 'back-to-list'; back.dataset.taskFocusKey = 'back-to-list'; back.textContent = 'Back to tasks';
-  headingActions.append(taskStateBadge(selected), back); heading.append(headCopy, headingActions); detail.append(heading);
+  const back = document.createElement('button'); back.type = 'button'; back.className = 'studio-back-button secondary'; back.dataset.taskControl = 'back-to-list'; back.dataset.taskFocusKey = 'back-to-list'; back.textContent = 'Back to Agent tasks';
+  headingActions.append(taskStateBadge(selected)); heading.append(headCopy, headingActions); detail.append(back, heading);
   const presentation = taskWorkflowPresentation(selected);
   const reviewHasConflict = presentation.state === 'IN_REVIEW'
     && selected.review?.state === 'OPEN' && selected.review.conflicts?.length;
@@ -5879,13 +5917,13 @@ function renderBackupDetail(backup) {
     backupNode('p', '', presentation.consequence),
     backupNode('span', 'status-pill', presentation.label),
   );
-  const back = backupNode('button', 'secondary', 'Back to backup list');
+  const back = backupNode('button', 'studio-back-button secondary', 'Back to Backups');
   back.type = 'button';
   back.dataset.backupControl = 'true';
   back.dataset.backupAllowed = 'true';
   back.dataset.backupBack = 'true';
   back.dataset.backupFocusKey = 'back-to-backups';
-  heading.append(copy, back);
+  heading.append(copy);
 
   const allowed = backupAllowedActions(backup);
   const actions = backupNode('div', 'backup-detail-actions');
@@ -5940,7 +5978,7 @@ function renderBackupDetail(backup) {
     ['Last verified', formatBackupDate(backup.lastVerifiedAt)],
     ['Last recovery test', formatBackupDate(backup.lastRecoveryTestedAt)],
   ]));
-  section.append(heading, actions, technical);
+  section.append(back, heading, actions, technical);
   return section;
 }
 
@@ -6016,7 +6054,7 @@ function renderActivityWorkspace() {
   const root = document.createElement('section'); root.className = 'studio-activity';
   const selected = state.activityUi.eventId ? state.activityUi.event : null;
   if (selected) {
-    const back = document.createElement('button'); back.type = 'button'; back.className = 'editor-back-link'; back.textContent = 'Back to Activity';
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'studio-back-button secondary'; back.textContent = 'Back to Activity';
     back.addEventListener('click', () => { const saved = state.activityUi.context; state.activityUi = { eventId: null, context: null }; renderWorkspace(); restoreLibrarySnapshot(saved); });
     root.append(back);
     const notice = document.createElement('p'); notice.className = 'review-readonly-notice'; notice.textContent = 'Read-only recorded event. Earlier decisions and feedback are preserved.'; root.append(notice);

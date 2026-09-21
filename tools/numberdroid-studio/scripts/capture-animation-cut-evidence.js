@@ -22,6 +22,10 @@ export async function captureAnimationCut({ evaluate, settle, waitFor, click, ac
   await click(action('frame', duplicate));
   const originalBefore = await inspectFrame(original), duplicateBefore = await inspectFrame(duplicate), before = await project();
   await open();const first = await cutView();
+  const navigation = await evaluate(`(()=>{const root=document.querySelector('[data-animation-cut-editor]'),returns=[...root.querySelectorAll('[data-animation-cut-action="back"]')],back=returns[0],box=back.getBoundingClientRect(),heading=root.querySelector('header').getBoundingClientRect();return{
+    count:returns.length,label:back.textContent,shared:back.classList.contains('studio-back-button')&&back.classList.contains('secondary'),first:root.firstElementChild===back,
+    topLeft:Math.abs(box.left-heading.left)<=1&&box.bottom<=heading.top+1&&box.height>=40};})()`);
+  assert.deepEqual(navigation,{count:1,label:'Back to animation',shared:true,first:true,topLeft:true},'Contextual cut has one consistent upper-left return, without a duplicate footer action.');
   const handle = await evaluate(`(()=>{const n=document.querySelector('[data-animation-cut-handle="w"]');n.scrollIntoView({block:'nearest',inline:'nearest'});const r=n.getBoundingClientRect(),m=document.querySelector('[data-animation-cut-canvas]').getScreenCTM();return{x:r.x+r.width/2,y:r.y+r.height/2,scale:m.a};})()`);
   const gestureFrame = await cutView(), end = { x: handle.x + handle.scale, y: handle.y };
   const pointer = (type, point) => devtools.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button:'left', buttons:type==='mouseReleased'?0:1, ...(type==='mousePressed'?{clickCount:1}:{}) }, sessionId);

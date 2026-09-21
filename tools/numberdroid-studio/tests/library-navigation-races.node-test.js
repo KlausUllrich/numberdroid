@@ -45,7 +45,8 @@ function editorHarness(kind) {
   const openCode = kind === 'animation'
     ? section('async function openAnimationEditor(', 'function renderAnimationReviews(')
     : section('async function openAssemblyEditor(', 'function renderAssemblyReviews(');
-  const navigation = section('function goLibrary(', 'function libraryAllGroups(');
+  const navigation = section('function goLibrary(', 'function libraryAllGroups(')
+    + section('function editorReturnLabel(', 'function libraryRestoreOrigin(');
   const actions = runInNewContext(`${navigation}\n${openCode}\n({open: ${kind === 'animation' ? 'openAnimationEditor' : 'openAssemblyEditor'}, back: libraryBackToPrevious, navigate: goLibrary})`, context);
   return { ...actions, context, ui, saved, read, opens, renders, mounted };
 }
@@ -66,6 +67,7 @@ for (const kind of ['assembly', 'animation']) {
       if (navigation === 'unchanged') {
         assert.deepEqual(h.ui.route, original);
         assert.equal(h.opens[0].initial.asset, h.saved);
+        assert.equal(h.opens[0].initial.returnLabel, 'Back to details');
         h.opens[0].controller.dispose();
       } else {
         assert.equal(h.mounted.length, 0);

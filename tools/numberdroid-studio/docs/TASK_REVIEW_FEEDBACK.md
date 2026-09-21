@@ -5,6 +5,28 @@ Focused checks, native Chrome evidence and the full local Studio regression
 have passed. Final CI/source integration are recorded in the focused PR; this
 record does not claim user acceptance.
 
+## Review readability repair — 2026-09-21
+
+Klaus reported that completed/undone decisions looked like editable dropdowns,
+and raw room-archetype command summaries did not explain what he was reviewing.
+The bounded UI repair uses read-only Accepted / Rejected / Changes requested
+badges for locked history, retaining actual dropdowns only where review is
+editable. Undo does not reopen a saved decision. Policy and Candidate/child
+restrictions remain unchanged.
+
+Room-template creation is described as adding a reusable starting point, not a
+finished Room. Accepting a choice records the review; completing the task adds
+the accepted changes, unless a conflict blocks application. The existing
+immutable review projection contains the template ID but not its display name:
+the UI retains that exact ID rather than substituting a current project name or
+inventing a historical one. A name-bearing historical read projection is a
+remaining clarity improvement, not implemented by this presentation repair.
+Klaus subsequently passed the focused read-only decision badges, Changes undone
+history, and reusable-template explanation checks on 2026-09-21. This records
+the bounded readability acceptance, not the remaining historical display-name
+projection or overall VT-001/VT-016 acceptance. Source integration remains a
+separate gate.
+
 ## Product promise
 
 The existing human-owner review can record useful correction instructions for

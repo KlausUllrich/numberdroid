@@ -148,6 +148,47 @@ in-app detail view. Returning restores section, filter, selection, compatible
 drafts, focus and scroll. Completed reviews belong in history rather than
 permanently occupying the browsing workspace.
 
+## Consistent navigation and actions
+
+**Binding Studio-wide design requirement, reaffirmed by Klaus on 2026-09-21.**
+Navigation is one shared interaction language, not a separate convention for
+each workspace. This applies to Sources, Library, editors, Agent tasks, Activity
+and Backups, including nested inspection views.
+
+- A detail or editor view has one primary **← Back to [destination]** button at
+  the upper left, before its heading. Use the real destination name, such as
+  **Back to Agent tasks**, **Back to Image Workbench**, or **Back to Assembly**;
+  never a bare **Back**, **Return**, or an unrelated workspace name.
+- All primary returns use the shared `studio-back-button` secondary-button
+  treatment: visible outline, normal padding, at least 40 px height, readable
+  text and keyboard focus. Do not add screen-specific flat-link or header-right
+  variants. A toolbar may pair Back on the left with deeper Edit/Open on the
+  right; status and primary save actions must not displace Back.
+- Nested inspection returns to the closest originating view. It must not show
+  competing outer and inner Back buttons. Existing compatible drafts, selection,
+  filters, focus and scroll remain governed by their return contracts.
+- Back is navigation, not Save, Accept, Apply, Undo or Delete. Keep existing
+  pending/unknown-result locks and recovery reachable; navigation must not
+  silently apply or discard work. A consequence-bearing action keeps its own
+  explicit label and confirmation. **Send back** changes component order and
+  **Close** dismisses a dialog; neither is primary return navigation.
+- Related actions use the same names and order on cards and detail screens.
+  Tool tabs, ordinary buttons, review decisions and read-only status badges
+  retain distinct, consistent meanings. New screens must reuse these patterns.
+- Save and other ordinary actions retain standard readable text and at least
+  40 px height, including inside editor toolbars and right-hand panels. The
+  primary Save action uses the filled treatment; Discard remains secondary.
+  Panel tabs use the Source Images / Image Workbench selected-underline pattern
+  with readable text and wrapping when needed, not miniature pill buttons.
+  Compact technical metadata must not determine action-button sizing.
+
+The [Library navigation design](LIBRARY_NAVIGATION_DESIGN.md) and
+[Sources navigation design](SOURCES_NAVIGATION_DESIGN.md) specialize this rule;
+they do not define competing button styles. Browser verification checks actual
+placement and focus at the supported 1440 px and 1060 px desktop widths, as well
+as the unchanged return destination and draft behavior. Engineering evidence is
+separate from Klaus's live acceptance.
+
 ## One contextual asset editor
 
 The shared editor has a central preview, a compact output/component list and

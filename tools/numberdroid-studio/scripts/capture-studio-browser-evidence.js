@@ -311,6 +311,7 @@ try {
   let checkpoint2cRouteEvidence = null;
   let checkpoint3RoomContinuity = null;
   let checkpoint4TaskFocus = null;
+  let taskNavigationEvidence = null;
   let checkpoint45RoomFocus = null;
   let checkpoint45PhysicalPaint = null;
   let checkpoint45EditorContinuity = null;
@@ -457,7 +458,7 @@ try {
         openOutputs?.click(); await settle();
         await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4
           && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Library destinations did not load the four saved outputs');
-        const back = document.querySelector('.cutter-back-button');
+        const back = document.querySelector('.studio-back-button[data-close-cutter]');
         const backBounds = back?.getBoundingClientRect();
         const outputs = {
           workflows: document.querySelectorAll('[data-source-library]').length,
@@ -469,6 +470,8 @@ try {
           backText: back?.textContent,
           backHeight: backBounds?.height ?? 0,
           secondaryBack: back?.classList.contains('secondary') ?? false,
+          sharedBack: back?.classList.contains('studio-back-button') ?? false,
+          backArrow: back ? getComputedStyle(back, '::before').content.includes('←') : false,
           flatBack: back?.classList.contains('editor-back-link') ?? false,
           horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         };
@@ -512,6 +515,7 @@ try {
           assetButton?.click();
           await waitFor(() => document.querySelector('[data-library-detail="image"] [data-library-artwork] img'), 'Saved output did not open Library detail');
           authoring.assetImageMatches = new URL(document.querySelector('[data-library-detail="image"] [data-library-artwork] img').getAttribute('src'), location.href).href === new URL(savedImage, location.href).href;
+          authoring.assetReturnLabel = document.querySelector('[data-library-action="back"]')?.textContent === 'Back to Sources';
           document.querySelector('[data-library-action="back"]')?.click();
           await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4, 'Library Back did not restore image destinations');
           authoring.assetReturned = true;
@@ -524,6 +528,14 @@ try {
           for (const check of selected) check.checked = true;
           document.querySelector('.cutter-animation-outputs [data-create-animation]')?.click();
           await waitFor(() => document.querySelectorAll('[data-animation-frame]').length === 2, 'Saved selections did not open a two-frame Animation');
+          const animationBack = document.querySelector('[data-animation-action="back"]');
+          const animationBackBox = animationBack?.getBoundingClientRect();
+          const animationHeadingBox = document.querySelector('[data-animation-editor] > header')?.getBoundingClientRect();
+          authoring.animationReturnLabel = animationBack?.textContent === 'Back to View Output';
+          authoring.animationReturnPlacement = animationBack?.classList.contains('studio-back-button')
+            && animationBack.classList.contains('secondary') && animationBackBox.height >= 40
+            && Math.abs(animationBackBox.left - animationHeadingBox.left) <= 1
+            && animationBackBox.bottom <= animationHeadingBox.top + 1;
           authoring.animationImagesMatch = JSON.stringify([...document.querySelectorAll('[data-animation-frame] img')].map(node => node.getAttribute('src'))) === JSON.stringify(selectedImages);
           authoring.animationPinsMatch = true;
           for (const [index, pin] of selectedPins.entries()) {
@@ -550,7 +562,7 @@ try {
           authoring.restoredSavedImages = document.querySelectorAll('.source-library-card > .source-library-image img').length;
           authoring.discardPreservedLibrary = JSON.stringify((await project()).snapshot.assetLibrary.assets.map(asset => [asset.assetId, asset.assetVersion, asset.metadataVersion])) === JSON.stringify(savedPins);
         } finally { window.confirm = savedConfirm; }
-        document.querySelector('.cutter-back-button')?.click(); await settle();
+        document.querySelector('.studio-back-button[data-close-cutter]')?.click(); await settle();
         const sourceLink = document.querySelector('.workbench-card [data-view-source]');
         const sourceId = sourceLink?.dataset.viewSource;
         sourceLink?.click(); await settle();
@@ -596,9 +608,11 @@ try {
       && sourcesNavigationEvidence.outputs.compare === false
       && sourcesNavigationEvidence.outputs.animationInitiallyClosed === true
       && sourcesNavigationEvidence.outputs.oldSectionTitles === false
-      && sourcesNavigationEvidence.outputs.backText === '← Back to Image Workbench'
-      && sourcesNavigationEvidence.outputs.backHeight >= 36
+      && sourcesNavigationEvidence.outputs.backText === 'Back to Image Workbench'
+      && sourcesNavigationEvidence.outputs.backHeight >= 40
       && sourcesNavigationEvidence.outputs.secondaryBack === true
+      && sourcesNavigationEvidence.outputs.sharedBack === true
+      && sourcesNavigationEvidence.outputs.backArrow === true
       && sourcesNavigationEvidence.outputs.flatBack === false
       && sourcesNavigationEvidence.outputs.horizontalOverflow === false
       && sourcesNavigationEvidence.sourceReturn?.activeTab === 'images'
@@ -611,8 +625,11 @@ try {
       && sourcesNavigationEvidence.authoring.skipRetainedAfterSave === true
       && sourcesNavigationEvidence.authoring.skipRetainedAfterLibraryReturn === true
       && sourcesNavigationEvidence.authoring.assetImageMatches === true
+      && sourcesNavigationEvidence.authoring.assetReturnLabel === true
       && sourcesNavigationEvidence.authoring.assetReturned === true
       && sourcesNavigationEvidence.authoring.animationImagesMatch === true
+      && sourcesNavigationEvidence.authoring.animationReturnLabel === true
+      && sourcesNavigationEvidence.authoring.animationReturnPlacement === true
       && sourcesNavigationEvidence.authoring.animationPinsMatch === true
       && sourcesNavigationEvidence.authoring.animationReturned === true
       && sourcesNavigationEvidence.authoring.unsavedImages === 4
@@ -776,6 +793,63 @@ try {
       })()`, awaitPromise: true, returnByValue: true,
     }, sessionId, 10_000);
     assert(selected.result?.value === true, 'The dedicated review-feedback task did not open.');
+    // Establish real keyboard modality before inspecting focus-visible styling.
+    await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+    await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+    const navigation = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const waitFor = async (predicate) => {
+          const deadline = Date.now() + 4_000;
+          while (!predicate() && Date.now() < deadline) await new Promise(done => setTimeout(done, 25));
+          if (!predicate()) throw new Error('Task return navigation did not settle.');
+          await new Promise(done => requestAnimationFrame(done));
+        };
+        const projectId = document.getElementById('workspace-content').dataset.renderedProjectId;
+        const taskPath = '/api/projects/' + encodeURIComponent(projectId) + '/tasks/task.review-feedback';
+        const originalFetch = window.fetch;
+        const before = JSON.stringify(await originalFetch(taskPath).then(response => response.json()));
+        const revisionBefore = document.getElementById('revision-label').textContent;
+        let writes = 0;
+        window.fetch = (input, init) => {
+          const method = String(init?.method ?? input?.method ?? 'GET').toUpperCase();
+          if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) writes += 1;
+          return originalFetch(input, init);
+        };
+        const inspect = selector => {
+          const root = document.querySelector(selector);
+          const back = root.querySelector('[data-task-control="back-to-list"]');
+          back.focus();
+          const box = back.getBoundingClientRect();
+          const heading = root.querySelector('.panel-heading').getBoundingClientRect();
+          const css = getComputedStyle(back);
+          return root.firstElementChild === back && back.textContent === 'Back to Agent tasks'
+            && back.classList.contains('studio-back-button') && back.classList.contains('secondary')
+            && back.type === 'button' && !back.disabled && box.height >= 40
+            && Math.abs(box.left - heading.left) <= 1 && box.bottom <= heading.top + 1
+            && css.borderTopStyle === 'solid' && parseFloat(css.borderTopWidth) >= 1
+            && back.matches(':focus-visible') && css.outlineStyle !== 'none' && parseFloat(css.outlineWidth) >= 2;
+        };
+        try {
+          const detail = inspect('.task-detail');
+          document.querySelector('[data-task-control="back-to-list"]').click();
+          await waitFor(() => document.querySelector('.task-list'));
+          document.querySelector('[data-task-control="open-create"]').click();
+          await waitFor(() => document.querySelector('.task-composer'));
+          const composer = inspect('.task-composer');
+          document.querySelector('[data-task-control="back-to-list"]').click();
+          await waitFor(() => document.querySelector('.task-list'));
+          document.querySelector('[data-task-control="select"][data-task-id="task.review-feedback"]').click();
+          await waitFor(() => document.querySelector('[data-task-feedback-summary]'));
+          const after = JSON.stringify(await originalFetch(taskPath).then(response => response.json()));
+          return { detail, composer, noWrites: writes === 0, exactTaskUnchanged: before === after,
+            projectRevisionUnchanged: revisionBefore === document.getElementById('revision-label').textContent,
+            noOverflow: document.documentElement.scrollWidth <= innerWidth };
+        } finally { window.fetch = originalFetch; }
+      })()`, awaitPromise: true, returnByValue: true,
+    }, sessionId, 20_000);
+    taskNavigationEvidence = navigation.result?.value ?? null;
+    assert(taskNavigationEvidence && Object.values(taskNavigationEvidence).every(value => value === true),
+      `Task return navigation must be upper-left, consistent, keyboard-visible, and read-only: ${JSON.stringify(taskNavigationEvidence)} ${JSON.stringify(navigation.exceptionDetails ?? null)}`);
   }
   if (mode === 'checkpoint-4' && expectedWorkspace === 'tasks') {
     const focused = await devtools.send('Runtime.evaluate', {
@@ -3496,8 +3570,10 @@ try {
         reviewTechnicalDisclosureCount: document.querySelectorAll('.task-review-items details').length,
         reviewItemCount: document.querySelectorAll('.task-review-items li').length,
         reviewText: document.querySelector('.task-review')?.textContent ?? null,
-        reviewDispositions: [...document.querySelectorAll('[data-task-review-disposition]')]
-          .map((control) => control.value),
+        reviewDispositions: [...document.querySelectorAll('[data-task-review-disposition], .task-review-disposition-readonly[data-disposition]')]
+          .map((control) => control.dataset.disposition ?? control.value),
+        reviewDispositionSelectCount: document.querySelectorAll('[data-task-review-disposition]').length,
+        reviewDispositionBadges: [...document.querySelectorAll('.task-review-disposition-readonly')].map((badge) => badge.textContent),
         controlNames: [...document.querySelectorAll('.task-composer [data-task-control], .task-detail [data-task-control], .task-review [data-task-control]')]
           .map((control) => control.dataset.taskControl),
       };
@@ -3983,6 +4059,8 @@ try {
           && checkpoint4TaskFocus.hasRevert === true
           && checkpoint4TaskFocus.detailVisible === true
           && layout.taskWorkspace.reviewDispositions.includes('USER_ACCEPTED')
+          && layout.taskWorkspace.reviewDispositionSelectCount === 0
+          && layout.taskWorkspace.reviewDispositionBadges.includes('Accepted')
           && layout.taskWorkspace.controlNames.includes('revert'),
         'Checkpoint 4 merged lineage, human disposition, timeline, or compensating-revert control is not visibly inspectable.');
       }
@@ -4418,6 +4496,12 @@ try {
         window.confirm = () => { confirmCalls += 1; return true; };
         try {
           const initial = context();
+          const proposalRows = [...reviewRoot().querySelectorAll('.task-review-items > li')];
+          const templateProposalClarity = proposalRows.length === 2
+            && ['archetype.feedback.gathering', 'archetype.feedback.workshop'].every((id, index) =>
+              proposalRows[index].querySelector('strong')?.textContent === 'Add room template: ' + id
+              && proposalRows[index].textContent.includes('A reusable starting point for new rooms, not a finished room.')
+              && proposalRows[index].textContent.includes('Accept selects this task proposal; completing the task adds it to the project.'));
           for (const select of document.querySelectorAll('[data-task-review-disposition]')) select.value = 'USER_ACCEPTED';
           choice().value = 'CHANGES_REQUESTED';
           document.querySelector('[data-task-control="decide"]').click();
@@ -4473,7 +4557,46 @@ try {
             && pausedHistory.textContent.includes('Keep the saved footprint unchanged.')
             && !pausedHistory.textContent.includes('Waiting for your review')
             && !pausedHistory.querySelector('[data-task-control="decide"]');
+          document.querySelector('[data-task-control="resume"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'ACTIVE', 'Second continuation authorization did not settle.');
+          document.querySelector('[data-task-control="submit-review"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'IN_REVIEW'
+            && document.querySelectorAll('[data-task-review-disposition]').length === 2, 'The new result did not open an editable review.');
+          const submitted = context();
+          const choices = [...document.querySelectorAll('[data-task-review-disposition]')];
+          choices[0].value = 'USER_ACCEPTED'; choices[1].value = 'USER_REJECTED';
+          const reasons = [...document.querySelectorAll('[data-task-review-reason]')];
+          reasons[1].value = 'Keep only the gathering template in this test.';
+          document.querySelector('[data-task-control="decide"]').click();
+          await waitFor(() => context().reviewVersion === submitted.reviewVersion + 1
+            && !document.querySelector('[data-task-control="merge"]')?.disabled, 'The accepted/rejected review decisions did not save.');
+          document.querySelector('[data-task-control="merge"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'MERGED'
+            && Boolean(document.querySelector('[data-task-control="revert"]')), 'The accepted subset did not complete the task.');
+          const readonlyDecisions = () => {
+            const rows = [...reviewRoot().querySelectorAll('.task-review-items > li')];
+            return rows.length === 2 && reviewRoot().querySelectorAll('select').length === 0
+              && rows[0].querySelector('.task-review-disposition-readonly[data-disposition="USER_ACCEPTED"]')?.textContent === 'Accepted'
+              && rows[1].querySelector('.task-review-disposition-readonly[data-disposition="USER_REJECTED"]')?.textContent === 'Rejected'
+              && rows[1].textContent.includes('Keep only the gathering template in this test.')
+              && !reviewRoot().querySelector('[data-task-control="decide"]')
+              && !reviewRoot().querySelector('[data-task-control="merge"]');
+          };
+          const completedReadonlyDecisions = readonlyDecisions();
+          const completed = await fetch(base).then((response) => response.json());
+          const savedDecisions = JSON.stringify(completed.review.items);
+          document.querySelector('[data-task-control="revert"]').click();
+          await waitFor(() => reviewRoot().textContent.includes('Changes undone.')
+            && !document.querySelector('[data-task-control="revert"]'), 'Undo did not show retained read-only review history.');
+          const undoneReadonlyDecisions = readonlyDecisions();
+          const undone = await fetch(base).then((response) => response.json());
+          const undoRetainsHistory = JSON.stringify(undone.review.items) === savedDecisions
+            && undone.review.reviewVersion === completed.review.reviewVersion
+            && undone.timeline.some((event) => event.type === 'TASK_MERGED')
+            && undone.timeline.some((event) => event.type === 'MERGE_REVERTED');
+          reviewRoot().scrollIntoView({ block: 'start', inline: 'nearest' });
           return { requiredSummary, sameReviewRetained, newVersionCleared, exactFeedback, resumedHistoryTruth, pausedHistoryTruth,
+            templateProposalClarity, completedReadonlyDecisions, undoneReadonlyDecisions, undoRetainsHistory,
             noOverflow: document.documentElement.scrollWidth <= innerWidth };
         } finally { window.confirm = originalConfirm; delete window.__studioFeedbackFormCapture; }
       })()`, awaitPromise: true, returnByValue: true,
@@ -4608,6 +4731,7 @@ try {
     checkpoint2cInteractionEvidence,
     checkpoint3RoomContinuity,
     checkpoint4TaskFocus,
+    taskNavigationEvidence,
     taskFeedbackEvidence,
     taskFeedbackFormScreenshot,
     checkpoint45RoomFocus,

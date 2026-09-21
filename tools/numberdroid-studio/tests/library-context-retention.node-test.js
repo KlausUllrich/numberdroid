@@ -25,10 +25,11 @@ function detailHarness() {
   const functions = runInNewContext([
     section('libraryReleasePreviewUrl', 'libraryPreviewKey'),
     section('librarySetDetail', 'libraryNativeLifecycleControls'),
+    section('libraryBackLabel', 'sharedReviewSupported'),
     '; ({ libraryOpenReviewDetail, libraryOpenSavedDetail, libraryRenderDetail, libraryCollectPreviewUrls })',
   ].join('\n'), {
     state: { project: { projectId, revision: 7, snapshot: {} }, uiMode: 'local', assetMutationPending: false },
-    libraryUi: ui, libraryDetails: details, libraryRetiredPreviewUrls: retired,
+    libraryUi: ui, libraryDetails: details, libraryRetiredPreviewUrls: retired, libraryExternalOrigins: new Map(),
     libraryAssetPin, libraryRouteKey, structuredClone, Blob, location: { origin: 'http://127.0.0.1:3000' },
     elements: { 'workspace-content': { querySelectorAll: () => mounted } },
     URL: {

@@ -55,7 +55,7 @@ function harness(t, mode) {
   const entry = { contentKind: 'image', asset: record, pin, sourceNames: [], relatedReviews: [] };
   const selected = { entry, record, proposed, ready: true, url: `/api/projects/${projectId}/artifacts/sha256/${'a'.repeat(64)}` };
   const context = {
-    document, structuredClone, libraryUi: { route }, libraryRouteKey, findLibraryItem, renderLibraryDetail,
+    document, structuredClone, libraryUi: { route, returnStack: [] }, libraryExternalOrigins: new Map(), libraryRouteKey, findLibraryItem, renderLibraryDetail,
     libraryDetails: new Map([[libraryRouteKey(route), selected]]),
     state: { project: { projectId, revision: 2, snapshot }, uiMode: ['remote', 'unknown'].includes(mode) ? mode : 'local', assetMutationPending: mode === 'pending' },
     sliceDisplay: () => ({ label: 'Pinned cut', atlasName: 'Original atlas' }),
@@ -68,6 +68,7 @@ function harness(t, mode) {
 for (const mode of ['stale', 'remote', 'unknown', 'proposed', 'pending', 'mutable']) {
   test(`native ${mode} detail preserves exact findings and only current local heads expose lifecycle controls`, t => {
     const root = harness(t, mode), validation = root.querySelector('.library-lifecycle');
+    assert.equal(root.querySelector('[data-library-action="back"]').textContent, 'Back to Library');
     assert(validation, 'Read-only inspection must retain the native validation section');
     assert.match(validation.textContent, /Retained warning explanation/);
     assert.match(validation.textContent, /Inspect the pinned placement/);

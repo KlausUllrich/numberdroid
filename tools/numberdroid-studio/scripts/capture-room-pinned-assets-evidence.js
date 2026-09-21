@@ -5,11 +5,97 @@ const PROJECT = 'numberdroid-studio-checkpoint-2b';
 const OLD_ROOM = 'room.metadata.pinned';
 const MIXED_ROOM = 'room.pinned.mixed';
 
+export async function captureRoomLabelSeparation({ evaluate, devtools, sessionId }) {
+  // Page-local geometry probe: clone actual rendered controls under the actual
+  // stylesheet. No original inline attributes, editor state or fixture changes.
+  await evaluate(`(() => {
+    const placement = document.querySelector('.room-placement').cloneNode(true);
+    const entrance = document.querySelector('.room-connector').cloneNode(true);
+    const board = document.createElement('div'); board.className = 'room-board';
+    board.dataset.roomLabelGeometryProbe = 'true';
+    board.style.cssText = 'position:fixed;left:20px;top:20px;--room-width:1;--room-height:1;z-index:99999';
+    placement.style.cssText = entrance.style.cssText = 'left:0;top:0;width:var(--room-cell);height:var(--room-cell)';
+    placement.dataset.selected = 'false'; entrance.dataset.selected = 'true';
+    board.append(placement, entrance);
+    window.__roomLabelGeometryProbe = { board, active:document.activeElement, scrollX, scrollY };
+    document.body.append(board);
+  })()`);
+  const observations = [];
+  try {
+    for (const cell of [38, 28, 12]) {
+      await evaluate(`(() => {
+        const board = window.__roomLabelGeometryProbe.board;
+        board.style.setProperty('--room-cell', '${cell}px');
+        board.querySelector('.room-connector').focus({ preventScroll:true });
+      })()`);
+      // Shift+Tab from the following entrance reaches the underlying placement
+      // without activating it or clearing the independently selected entrance.
+      await devtools.send('Input.dispatchKeyEvent', { type:'keyDown', key:'Tab', code:'Tab', windowsVirtualKeyCode:9, modifiers:8 }, sessionId);
+      await devtools.send('Input.dispatchKeyEvent', { type:'keyUp', key:'Tab', code:'Tab', windowsVirtualKeyCode:9, modifiers:8 }, sessionId);
+      const observation = await evaluate(`(() => {
+        const board = window.__roomLabelGeometryProbe.board;
+        const placement = board.querySelector('.room-placement');
+        const a = placement.querySelector('.room-placement-label');
+        const b = board.querySelector('.room-connector-label');
+        const x = a.getBoundingClientRect(); const y = b.getBoundingClientRect();
+        return { cell:${cell}, keyboardFocused:document.activeElement === placement && placement.matches(':focus-visible'),
+          placementOpacity:getComputedStyle(a).opacity, entranceOpacity:getComputedStyle(b).opacity,
+          placementHeight:x.height, entranceHeight:y.height,
+          overlap:Math.max(0, Math.min(x.bottom,y.bottom) - Math.max(x.top,y.top)),
+          placementTitle:placement.title, placementAria:placement.getAttribute('aria-label') };
+      })()`);
+      assert.equal(observation.keyboardFocused, true);
+      assert.equal(observation.placementOpacity, '1'); assert.equal(observation.entranceOpacity, '1');
+      assert.equal(observation.overlap, 0, 'Same-cell entrance and placement labels overlap at ' + cell + 'px');
+      assert.ok(observation.placementTitle && observation.placementAria, 'Clipped labels retain complete accessible and tooltip text');
+      observations.push(observation);
+    }
+  } finally {
+    await evaluate(`(() => {
+      const saved = window.__roomLabelGeometryProbe; saved.board.remove();
+      if (saved.active?.isConnected) saved.active.focus({ preventScroll:true });
+      window.scrollTo(saved.scrollX, saved.scrollY); delete window.__roomLabelGeometryProbe;
+    })()`);
+  }
+  assert.equal(await evaluate('document.querySelector("[data-room-label-geometry-probe]") === null && window.__roomLabelGeometryProbe === undefined'), true);
+  return { pageLocalClonedGeometry:true, restored:true, observations };
+}
+
 export async function captureRoomPinnedAssets({ devtools, sessionId, width, height, pageUrl, outputPath, domPath, browserVersion }) {
   const reopened = new URL(pageUrl).searchParams.get('pinnedPhase') === 'reopen';
   const evaluate = async (expression) => { const value = await devtools.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId); assert.equal(value.exceptionDetails, undefined, JSON.stringify(value.exceptionDetails)); return value.result?.value; };
   const waitFor = async (expression, label) => { const deadline = Date.now() + 12_000; while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((done) => setTimeout(done, 50)); } throw new Error(`${label} did not become ready.`); };
   const click = (selector) => evaluate(`(() => { const target = document.querySelector(${JSON.stringify(selector)}); if (!target || target.disabled) throw new Error('Unavailable ' + ${JSON.stringify(selector)}); target.scrollIntoView({ block: 'center' }); target.click(); })()`);
+  const nativePoint = async (selector) => evaluate(`(async () => {
+    let target = document.querySelector(${JSON.stringify(selector)}); if (!target || target.disabled) throw new Error('Unavailable native target ' + ${JSON.stringify(selector)});
+    target.scrollIntoView({ block: 'center', inline: 'nearest' });
+    const initialRect = target.getBoundingClientRect();
+    // Flush scroll/paint before native hit testing: an immediate CDP click can
+    // still hit the previously painted canvas despite an updated DOM rect.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    target = document.querySelector(${JSON.stringify(selector)}); const rect = target.getBoundingClientRect();
+    if (window.__pinnedAudit) (window.__pinnedAudit.nativeTargetGeometry ??= []).push({ selector:${JSON.stringify(selector)},
+      before:{ x:initialRect.left + initialRect.width / 2, y:initialRect.top + initialRect.height / 2 },
+      settled:{ x:rect.left + rect.width / 2, y:rect.top + rect.height / 2 } });
+    const x = rect.left + rect.width / 2; const y = rect.top + rect.height / 2;
+    if (!target.contains(document.elementFromPoint(x, y))) throw new Error('Native target is obscured: ' + ${JSON.stringify(selector)});
+    return { x, y };
+  })()`);
+  const nativeClick = async (selector, confirm = false) => {
+    const point = await nativePoint(selector);
+    await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point }, sessionId);
+    await devtools.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point }, sessionId);
+    const start = devtools.events.length;
+    const released = devtools.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point }, sessionId);
+    if (confirm) {
+      const deadline = Date.now() + 2_000;
+      while (!devtools.events.slice(start).some((event) => event.method === 'Page.javascriptDialogOpening') && Date.now() < deadline) await new Promise((done) => setTimeout(done, 20));
+      const dialog = devtools.events.slice(start).find((event) => event.method === 'Page.javascriptDialogOpening');
+      assert.match(dialog?.params?.message ?? '', /Discard the unsaved shape changes/);
+      await devtools.send('Page.handleJavaScriptDialog', { accept: true }, sessionId);
+    }
+    await released;
+  };
   const read = () => evaluate(`fetch('/api/projects/${PROJECT}').then((response) => response.json())`);
   const selectRoom = async (roomId, count) => {
     await evaluate(`(() => { const select = document.querySelector('[data-room-variant-select]'); if (select.value !== ${JSON.stringify(roomId)}) { select.value = ${JSON.stringify(roomId)}; select.dispatchEvent(new Event('change', { bubbles: true })); } })()`);
@@ -77,6 +163,106 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   assert.ok(mixedVisual.find((item) => item.placementId === 'placement.mixed.new').width.includes('3 *'));
   assert.equal(mixedVisual.find((item) => item.placementId === 'placement.mixed.old').image, expectedOldImage);
   assert.equal(mixedVisual.find((item) => item.placementId === 'placement.mixed.new').image, latestImage);
+  const readabilityBefore = await read(); const postsBeforeReadability = await evaluate('window.__pinnedAudit.posts.length');
+  const actionReadability = () => evaluate(`(() => {
+    const measure = (node) => {
+      const rect = node.getBoundingClientRect(); const style = getComputedStyle(node);
+      const parent = node.parentElement.getBoundingClientRect();
+      return { label:node.textContent, height:rect.height, font:Number.parseFloat(style.fontSize),
+        disabled:node.disabled, background:style.backgroundColor, selected:node.dataset.selected,
+        textFits:node.scrollWidth <= node.clientWidth + 1 && node.scrollHeight <= node.clientHeight + 1,
+        contained:rect.left >= parent.left - 1 && rect.right <= parent.right + 1,
+        borderBottom:style.borderBottomWidth, borderRadius:style.borderRadius };
+    };
+    return { save:measure(document.querySelector('[data-room-control="shape-save"]')),
+      discard:measure(document.querySelector('[data-room-control="shape-reset"]')),
+      tabs:[...document.querySelectorAll('.room-dock-navigation button')].map(measure),
+      dockActions:[...document.querySelectorAll('.room-move-controls button, .room-lifecycle-actions button')].map(measure),
+      overflow:document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth };
+  })()`);
+  const assertReadableActions = (observation, dirty) => {
+    assert.equal(observation.save.disabled, !dirty, 'Save shape must reflect the actual shape draft');
+    assert.equal(observation.discard.disabled, !dirty);
+    for (const control of [observation.save, observation.discard, ...observation.tabs, ...observation.dockActions]) {
+      assert.ok(control.height >= 40 && control.font >= 14, `Room control is too small: ${JSON.stringify(control)}`);
+      assert.equal(control.textFits, true, `Room control text is clipped: ${control.label}`);
+      assert.equal(control.contained, true, `Room control escaped its container: ${control.label}`);
+    }
+    assert.notEqual(observation.save.background, observation.discard.background, 'Save must have primary emphasis, distinct from Discard');
+    assert.equal(observation.tabs.length, 3);
+    assert.equal(observation.tabs.filter(tab => tab.selected === 'true').length, 1);
+    assert.equal(observation.overflow, false);
+  };
+  const savedActions = await actionReadability(); assertReadableActions(savedActions, false);
+  await nativeClick('[data-room-control="editor-tool"][data-editor-tool="SELECT"]');
+  await nativeClick('[data-room-control="zoom"][data-room-zoom="fit"]');
+  await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  const multiCellSelector = '.room-placement[data-placement-id="placement.mixed.new"]';
+  await nativeClick(multiCellSelector);
+  const selectedActions = await actionReadability(); assertReadableActions(selectedActions, false);
+  assert.ok(selectedActions.dockActions.length > 0, 'Selected placement must exercise ordinary move controls');
+  const placementReadability = await evaluate(`(() => {
+    const node = document.querySelector(${JSON.stringify(multiCellSelector)}); const rect = node.getBoundingClientRect();
+    const visual = node.querySelector('.room-placement-visual'); const image = node.querySelector('img'); const art = visual.getBoundingClientRect();
+    const label = node.querySelector('.room-placement-label'); const labelRect = label.getBoundingClientRect();
+    const cell = Number.parseFloat(getComputedStyle(document.querySelector('[data-room-board]')).getPropertyValue('--room-cell'));
+    const rail = document.querySelector('.room-toolbox');
+    return { imageCount: node.querySelectorAll('img').length, imageLoaded: image.complete && image.naturalWidth > 0,
+      cell, width: rect.width, height: rect.height, artWidth: art.width, artHeight: art.height,
+      imageFit: getComputedStyle(image).objectFit, labelBottomGap: rect.bottom - labelRect.bottom,
+      labelOpacity: getComputedStyle(label).opacity, labelFont: Number.parseFloat(getComputedStyle(label).fontSize),
+      railWidth: rail.getBoundingClientRect().width, toolTextFits: [...rail.querySelectorAll('.room-tool > span:last-child')].every(text => text.scrollWidth <= text.clientWidth + 1),
+      overflow: document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth,
+      labelRect: { left: labelRect.left, right: labelRect.right, top: labelRect.top, bottom: labelRect.bottom } };
+  })()`);
+  assert.equal(placementReadability.imageCount, 1, 'A multi-cell Asset must be one continuous image, not repeated cell thumbnails');
+  assert.equal(placementReadability.imageLoaded, true);
+  assert.ok(Math.abs(placementReadability.width - 3 * placementReadability.cell) < 1);
+  assert.ok(Math.abs(placementReadability.height - 2 * placementReadability.cell) < 1);
+  assert.ok(Math.abs(placementReadability.artWidth - placementReadability.width) < 1 && Math.abs(placementReadability.artHeight - placementReadability.height) < 1, 'One image frame must span the complete 3×2 logical footprint');
+  assert.equal(placementReadability.imageFit, 'contain'); assert.ok(Math.abs(placementReadability.labelBottomGap) < 1);
+  assert.equal(placementReadability.labelOpacity, '1'); assert.ok(placementReadability.labelFont <= 12);
+  assert.ok(placementReadability.railWidth >= 116); assert.equal(placementReadability.toolTextFits, true); assert.equal(placementReadability.overflow, false);
+  const entrancePoint = await nativePoint('.room-connector');
+  await devtools.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...entrancePoint }, sessionId);
+  const entranceReadability = await evaluate(`(() => {
+    const node = document.querySelector('.room-connector'); const label = node.querySelector('.room-connector-label');
+    const rect = node.getBoundingClientRect(); const text = label.getBoundingClientRect();
+    const placed = document.querySelector(${JSON.stringify(multiCellSelector)}).querySelector('.room-placement-label').getBoundingClientRect();
+    return { opacity: getComputedStyle(label).opacity, topGap: text.top - rect.top,
+      labelsIntersect: text.left < placed.right && text.right > placed.left && text.top < placed.bottom && text.bottom > placed.top };
+  })()`);
+  assert.equal(entranceReadability.opacity, '1'); assert.ok(entranceReadability.topGap >= 0 && entranceReadability.topGap <= 5);
+  assert.equal(entranceReadability.labelsIntersect, false);
+  const sameCellLabels = await captureRoomLabelSeparation({ evaluate, devtools, sessionId });
+  await nativeClick('[data-room-control="editor-tool"][data-editor-tool="PAINT_BLOCKED"]');
+  await nativeClick('[data-room-control="cell"][data-x="5"][data-y="2"]');
+  await waitFor(`document.querySelector('[data-room-control="cell"][data-x="5"][data-y="2"]')?.dataset.cellKind === 'BLOCKED' && document.querySelector('.room-editor-status')?.dataset.dirty === 'true'`, 'Native painting through the middle of the multi-cell Asset');
+  const dirtyActions = await actionReadability(); assertReadableActions(dirtyActions, true);
+  const dirtyDockNavigation = [];
+  for (const panel of ['properties', 'check', 'tool']) {
+    await evaluate(`(() => { window.__pinnedAudit.lastPanelClick = null; document.addEventListener('click', event => {
+      window.__pinnedAudit.lastPanelClick = event.target.closest('[data-room-control]')?.dataset.editorPanel ?? null;
+    }, { once:true, capture:true }); })()`);
+    await nativeClick(`[data-room-control="editor-panel"][data-editor-panel="${panel}"]`);
+    assert.equal(await evaluate('window.__pinnedAudit.lastPanelClick'), panel, 'Native pointer must actually hit the named dock tab');
+    await waitFor(`document.querySelector('[data-room-control="editor-panel"][data-editor-panel="${panel}"]')?.dataset.selected === 'true'`, `Native ${panel} panel selection with unsaved shape`);
+    const controls = await actionReadability(); assertReadableActions(controls, true);
+    if (panel === 'check') assert.ok(controls.dockActions.length > 0, 'Check panel must exercise ordinary lifecycle controls');
+    assert.equal(controls.tabs.find(tab => tab.selected === 'true')?.label,
+      { properties:'Purpose & settings', check:'Check room', tool:'Tool options' }[panel]);
+    dirtyDockNavigation.push({ panel, controls });
+  }
+  await capture(reopened ? 'reopened-dirty-shape-controls' : 'dirty-shape-controls');
+  assert.equal(await evaluate('window.__pinnedAudit.posts.length'), postsBeforeReadability, 'Painting must not save a Room or place an Asset');
+  assert.deepEqual(await read(), readabilityBefore, 'A painted shape draft changed persisted project data');
+  await nativeClick('[data-room-control="shape-reset"]', true);
+  await waitFor(`document.querySelector('[data-room-control="cell"][data-x="5"][data-y="2"]')?.dataset.cellKind === 'ROOM' && document.querySelector('.room-editor-status')?.dataset.dirty === 'false'`, 'Discard restores the exact saved cell');
+  const restoredActions = await actionReadability(); assertReadableActions(restoredActions, false);
+  await nativeClick('[data-room-control="editor-tool"][data-editor-tool="SELECT"]');
+  assert.equal(await evaluate('window.__pinnedAudit.posts.length'), postsBeforeReadability);
+  assert.deepEqual(await read(), readabilityBefore, 'Discarding a shape draft changed persisted project data');
+  const roomReadability = { placement: placementReadability, entrance: entranceReadability, sameCellLabels, actions: { saved:savedActions, selected:selectedActions, dirty:dirtyActions, restored:restoredActions, dirtyDockNavigation }, nativeTargetGeometry: await evaluate('window.__pinnedAudit.nativeTargetGeometry'), nativePaintThroughMultiCell: true, discardConfirmed: true, addedPosts: 0, revisionUnchanged: true };
   await capture(reopened ? 'reopened-mixed' : 'mixed-versions');
   let workspaceNavigation = null;
   if (!reopened) {
@@ -147,6 +333,6 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   const errors = devtools.events.filter((event) => event.method === 'Runtime.exceptionThrown' || (event.method === 'Log.entryAdded' && event.params?.entry?.level === 'error') || (event.method === 'Runtime.consoleAPICalled' && event.params?.type === 'error') || event.method === 'Network.loadingFailed' || (event.method === 'Network.responseReceived' && event.params?.response?.status >= 400));
   assert.equal(errors.length, 0, JSON.stringify(errors));
   if (domPath) await writeFile(domPath, `${await evaluate('document.documentElement.outerHTML')}\n`);
-  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'room-pinned-assets', reopened, browser: browserVersion.product, revision: final.revision, roomVersion: oldRoom.headVersion, oldVisual, mixedVisual, finalVisual, delayedResponseIgnored, workspaceNavigation, previewCompletion, postCount: posts.length, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
+  await writeFile(outputPath.replace(/\.png$/, '.observation.json'), `${JSON.stringify({ schemaVersion: 1, mode: 'room-pinned-assets', reopened, browser: browserVersion.product, revision: final.revision, roomVersion: oldRoom.headVersion, oldVisual, mixedVisual, finalVisual, roomReadability, delayedResponseIgnored, workspaceNavigation, previewCompletion, postCount: posts.length, runtimeNetworkErrors: errors.length, screenshots }, null, 2)}\n`);
   process.stdout.write(`${JSON.stringify({ status: 'CAPTURED', mode: 'room-pinned-assets', width, reopened, screenshotCount: screenshots.length, output: outputPath })}\n`);
 }

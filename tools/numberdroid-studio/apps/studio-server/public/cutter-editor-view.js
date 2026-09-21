@@ -56,7 +56,7 @@ export function renderCutterEditor({ cutter, source, atlas, pending, job }) {
   const section = el('section', 'atlas-cutter'); section.dataset.atlasCutter = ''; section.dataset.cutterInstance = cutter.instanceId;
   const header = el('div', 'cutter-heading');
   const title = el('div'); title.append(el('p', 'eyebrow', 'Sources / Image Workbench'), el('h2', '', cutter.name), el('p', '', `Created from: ${source.name}. The original stays unchanged.`));
-  const back = action('← Back to Image Workbench', { closeCutter: '' }, pending); back.classList.add('cutter-back-button'); section.append(back); header.append(title); section.append(header);
+  const back = action('Back to Image Workbench', { closeCutter: '' }, pending); back.className = 'studio-back-button secondary'; section.append(back); header.append(title); section.append(header);
   const tabs = el('nav', 'cutter-view-tabs library-tabs'); tabs.setAttribute('aria-label', 'Cutter views');
   for (const [view, label] of [['edit', 'Cut images'], ['outputs', 'View Output']]) {
     const selected = cutter.view === view || (view === 'outputs' && cutter.view === 'detail');

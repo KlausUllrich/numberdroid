@@ -1,5 +1,36 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+## Bounded return batch — 2026-09-21
+
+Klaus explicitly passed the exact saved Preview / editor-return walkthrough:
+saved project r37 / Room v8 remained read-only, and the unsaved shape draft and
+Prop tool returned without unexpected jumps. This does not close VT-001.
+
+His remaining label/tool readability findings have a bounded UI repair:
+compact placement labels appear at the bottom on hover/focus/selection; entrance
+labels appear at the top; the wider rail and visible guidance identify the
+cell-painting tools and Save shape / Discard consequences. One existing image
+continues across a placement's entire rotated logical footprint; images are not
+duplicated per cell. Native 1440/1060 checks prove a real 3×2 image frame,
+readability, painting through it without saving, discard and exact restart.
+
+Klaus subsequently passed the wider toolbar and non-overlapping labels, then
+the temporary bottom-row third-cell paint check: **BLOCKED**, **Unsaved shape
+changes**, and enabled **Save shape**. He reported the Save/Discard and right-hand
+controls were too small. The bounded follow-up uses standard-size actions,
+primary Save emphasis, and readable Source-style panel tabs. Klaus then replied
+**“new buttons: pass”**, closing that bounded sizing retest. No live fixture was
+saved or reset by the agent. These bounded passes do not close VT-001.
+
+The large `prop.preview-overhang` fixture is intentional: legacy Preview-only
+presentation metadata gives its artwork a larger extent than its occupied cells.
+The Inspector explains this difference; no fixture, footprint, collision, pin,
+Preview geometry or persistence contract changed. Full legacy-editor/Preview
+visual parity is not implemented by this readability repair. Repair CI/source
+integration and Klaus's focused retest remain separate gates.
+
+## Earlier integration and acceptance ledger
+
 On 2026-09-09 Klaus accepted the separate Asset editor and Activity sidebar
 removal as [VT-020](VACATION_TEST_BACKLOG.md#vt-020--asset-placement-and-blocking-editor),
 replying **“all pass”** on main `93652c2` after PR #227 and green post-merge CI.

@@ -17,13 +17,15 @@ export function createAssemblyEditorView(state) {
   const root = el('section', 'assembly-editor'); root.dataset.assemblyEditor = state.instanceId;
   const header = el('header', 'assembly-header'), heading = el('div'); heading.append(el('p', 'eyebrow', 'Library / Assembly'));
   const title = el('h2'); title.dataset.assemblyTitle = ''; heading.append(title, note('One reusable object, made from exact saved components.'));
-  const back = button('Back to Library', 'back'); back.classList.add('editor-back-link'); root.append(back); header.append(heading); root.append(header);
+  const back = button(state.returnLabel ?? 'Back to Library', 'back'); back.className = 'studio-back-button secondary';
+  const sourceBack = button('Back to Assembly', 'return-source'); sourceBack.className = 'studio-back-button secondary'; sourceBack.hidden = true;
+  root.append(back, sourceBack); header.append(heading); root.append(header);
   const status = el('div', 'assembly-status'); status.dataset.assemblyStatus = ''; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); root.append(status);
   const recovery = el('div', 'assembly-recovery'); recovery.dataset.assemblyRecovery = ''; root.append(recovery);
   const edit = el('section'); edit.dataset.assemblyView = 'edit';
   const preview = el('div', 'assembly-preview-selectors'); preview.dataset.assemblySelectors = ''; edit.append(preview);
   const layout = el('div', 'assembly-layout'), rail = el('nav', 'assembly-tools'); rail.setAttribute('aria-label', 'Assembly tools');
-  for (const [action, title] of [['select-tool', 'Select'], ['add', '+ Add'], ['rotate', 'Rotate 90°'], ['forward', 'Forward'], ['backward', 'Back'], ['remove', 'Remove'], ['grid', 'Grid'], ['undo', 'Undo'], ['redo', 'Redo'], ['save', 'Save work']]) rail.append(button(title, action));
+  for (const [action, title] of [['select-tool', 'Select'], ['add', 'Add component'], ['rotate', 'Rotate 90°'], ['forward', 'Send forward'], ['backward', 'Send back'], ['remove', 'Remove component'], ['grid', 'Grid'], ['undo', 'Undo'], ['redo', 'Redo'], ['save', 'Save work']]) rail.append(button(title, action));
   const main = el('div', 'assembly-main'), zoom = el('div', 'assembly-zoom'); zoom.append(button('Fit', 'zoom', 'fit'), button('100%', 'zoom', '1'));
   const slider = el('input'); slider.type = 'range'; slider.min = '10'; slider.max = '400'; slider.step = '1'; slider.dataset.assemblyZoom = ''; slider.dataset.assemblyFocusKey = 'zoom'; slider.setAttribute('aria-label', 'Assembly canvas zoom percent');
   const output = el('output'); output.dataset.assemblyZoomLabel = ''; zoom.append(slider, output); main.append(zoom);
@@ -90,7 +92,7 @@ function inspectorContent(state, nativeAssets) {
   const list = el('div', 'assembly-component-list'); list.dataset.assemblyScroll = 'components';
   for (const c of a.components) { const row = el('div', 'assembly-component-row'); const b = button(c.name, 'component', c.componentId); b.setAttribute('aria-pressed', String(c.componentId === state.selectedComponentId));
     const content = assemblySelectedContent(c, state.preview); b.append(el('small', '', content.kind === 'none' ? 'No content in this state' : `${content.kind === 'animation' ? 'Animation · ' : ''}${content.asset.assetId} · v${content.asset.assetVersion}`)); const eye = button(state.hidden.includes(c.componentId) ? 'Show' : 'Hide', 'eye', c.componentId); eye.setAttribute('aria-label', `${state.hidden.includes(c.componentId) ? 'Show' : 'Hide'} ${c.name} for inspection only`); row.append(b, eye); list.append(row); }
-  box.append(list); if (!a.components.length) box.append(note('Add a saved Asset to begin.'), button('+ Add component', 'add'));
+  box.append(list); if (!a.components.length) box.append(note('Add a saved Asset to begin.'), button('Add component', 'add'));
   const c = selectedAssemblyComponent(state); if (!c) return box;
   box.append(el('h3', '', 'Selected component'), field('component.name', c.name, 'Component name'));
   const coordinates = el('div', 'assembly-coordinates'); coordinates.append(number('position.x', c.position.x, 'Anchor X (px)'), number('position.y', c.position.y, 'Anchor Y (px)'), number('rotationDegrees', c.rotationDegrees, 'Rotation (degrees)'), number('scale', c.scale, 'Uniform scale')); box.append(coordinates);
@@ -167,7 +169,7 @@ function renderSource(root, state) {
   const key = assemblyAssetKey(source.asset); if (view.dataset.sourceKey === key) return; view.dataset.sourceKey = key;
   const asset = source.asset;
   if (asset.contentKind === 'animation') {
-    const details = el('div'); details.append(el('p', 'eyebrow', 'Animation source · read-only'), el('h3', '', asset.name), note(`Saved v${asset.assetVersion} · ${asset.clip.frames.length} frames · ${asset.clip.playbackMode} · ${asset.clip.fps} FPS`), note('These are the exact saved frames. Newer Animation versions do not replace this component automatically.'), button('Return to Assembly', 'return-source'));
+    const details = el('div'); details.append(el('p', 'eyebrow', 'Animation source · read-only'), el('h3', '', asset.name), note(`Saved v${asset.assetVersion} · ${asset.clip.frames.length} frames · ${asset.clip.playbackMode} · ${asset.clip.fps} FPS`), note('These are the exact saved frames. Newer Animation versions do not replace this component automatically.'));
     const frames = el('div', 'assembly-picker-list');
     for (const frame of asset.frameBindings ?? []) { const binding = frame.sliceBinding, figure = el('figure'), image = el('img'); image.src = assemblyArtifactUrl(state.context.projectId, binding.digest); image.alt = asset.clip.frames.find(value => value.frameId === frame.frameId)?.name ?? frame.frameId; image.style.maxWidth = '160px'; image.style.maxHeight = '140px'; image.style.objectFit = 'contain';
       const link = el('a'); link.href = image.src; link.target = '_blank'; link.rel = 'noopener'; link.append(image); figure.append(link, el('figcaption', '', `${image.alt} · ${binding.sliceId} v${binding.sliceVersion}`)); frames.append(figure); }
@@ -177,11 +179,13 @@ function renderSource(root, state) {
   const link = el('a'); link.href = image.src; link.target = '_blank'; link.rel = 'noopener'; link.append(image); figure.append(link, el('figcaption', '', `${binding.width} × ${binding.height} px · exact saved component image`));
   const details = el('div'); details.append(el('p', 'eyebrow', 'Source inspection · read-only'), el('h3', '', asset.name), note('This is the exact source used by your component. Inspecting it changes neither the source nor your Assembly.'));
   const facts = el('dl', 'assembly-source-facts'); for (const [name, value] of [['Asset', asset.assetId], ['Version', `v${asset.assetVersion} / metadata v${asset.metadataVersion}`], ['Original source', binding.sourceId], ['Atlas', binding.atlasId], ['Saved cut', `${binding.sliceId} · v${binding.sliceVersion}`], ['Rectangle', binding.rectangleId], ['Image digest', binding.digest]]) facts.append(el('dt', '', name), el('dd', '', value ?? 'Unavailable'));
-  details.append(facts, button('Return to Assembly', 'return-source')); view.replaceChildren(figure, details);
+  details.append(facts); view.replaceChildren(figure, details);
 }
 export function updateAssemblyEditorView(root, state, { inspector = true, nativeAssets = [], issues = null } = {}) {
   const locked = ['saving', 'uncertain', 'checking'].includes(state.save.status) || state.embeddedOpen;
   root.querySelector('[data-assembly-title]').textContent = state.model.name || 'New Assembly';
+  root.querySelector('[data-assembly-action="back"]').hidden = state.view === 'source';
+  root.querySelector('[data-assembly-action="return-source"]').hidden = state.view !== 'source';
   for (const view of root.querySelectorAll('[data-assembly-view]')) view.hidden = view.dataset.assemblyView !== state.view;
   updateSelectors(root, state); const findings = issues ?? assemblyEditorIssues(state, { geometry: false }), status = root.querySelector('[data-assembly-status]');
   status.textContent = state.error || state.conflict || (state.save.status === 'saving' ? 'Saving this exact Assembly version…' : state.save.status === 'checking' ? 'Checking the saved outcome…' : state.resolution.status === 'loading' ? 'Resolving exact saved component versions…' : findings[0] || `${state.model.assembly.components.length} independent components. ${state.model.assembly.blocking.mode === 'components' ? 'Blocking follows active components.' : 'Custom blocking remains fixed.'}`);
@@ -205,7 +209,15 @@ export function updateAssemblyEditorView(root, state, { inspector = true, native
     if (action === 'default-variant') b.disabled ||= state.model.assembly.defaultVariantId === b.dataset.value;
   }
   for (const checkbox of root.querySelectorAll('[data-assembly-option="state-membership"]')) checkbox.disabled ||= selected?.stateIds === null;
-  for (const input of root.querySelectorAll('[data-assembly-field]')) { const key = `${input.dataset.assemblyField}:${input.dataset.row ?? ''}`; if (state.fieldDrafts[key] !== undefined) input.value = state.fieldDrafts[key]; }
+  for (const input of root.querySelectorAll('[data-assembly-field]')) {
+    // The browser owns the focused field's raw text and caret while typing.
+    // Number inputs expose "0." as "0" and "-" as "" through .value;
+    // assigning that normalized value back destroys an unfinished decimal/sign.
+    // Newly mounted controls still receive retained drafts on context return.
+    if (input === document.activeElement) continue;
+    const key = `${input.dataset.assemblyField}:${input.dataset.row ?? ''}`;
+    if (state.fieldDrafts[key] !== undefined) input.value = state.fieldDrafts[key];
+  }
   const recovery = root.querySelector('[data-assembly-recovery]'); recovery.replaceChildren();
   if (state.save.status === 'uncertain') recovery.append(button('Check saved outcome', 'check-outcome'), button('Retry exact Save', 'retry'));
   else if (state.conflict) recovery.append(button('Recheck saved version', 'recheck'));

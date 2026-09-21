@@ -155,6 +155,17 @@ automation and source integration do not change the `REVISE` live result.
 
 ## VT-001 — CP4.5 desktop designer gate
 
+- **2026-09-21 return:** Klaus passed the saved Preview / editor-return checks
+  (project r37 / Room v8, retained unsaved shape draft and Prop tool, no jumps).
+  He subsequently passed Task decision badges/template explanations, Room
+  labels/wider toolbar, and the temporary cell-paint check with unsaved status
+  and enabled Save. He reported tiny Save/Discard and right-hand controls, then
+  explicitly accepted their standard-size/primary-Save correction with
+  **“new buttons: pass”**. Do not repeat these checks or reset live fixtures.
+  Historical Task display names and full legacy overhang parity are not supplied
+  by this presentation-only repair. Do not repeat the passed return checks or
+  infer overall acceptance. See [Room status](ROOM_EDITOR_L3_STATUS.md) and
+  [Task feedback](TASK_REVIEW_FEEDBACK.md).
 - **2026-09-06 disposition:** REVISE; remaining live checks are deferred and
   nonblocking for authorized development. This is not ACCEPT.
 - **Already live-passed:** canvas-exit placement-preview cleanup, stable
@@ -1531,6 +1542,20 @@ test convenience.
 
 ## VT-021 — Assembly editor
 
+- **2026-09-21 guided return:** composition/source-return/custom-blocking and
+  save/restart checks passed explicitly. Klaus confirmed Cup X72 / rotation15,
+  Graphite X20, Custom blocking and Test Triangle after reopening Coffee station
+  v3. The extra Test cup is expected, not a save defect. Decimal typing failed
+  and component action labels were unclear; Klaus subsequently replied **pass**
+  to native `0.9` scale entry and **pass** to Add component / Send forward /
+  Send back / Remove component. These close those bounded repair retests. Preserve
+  the saved project and passed checks; no overall VT-021 acceptance is inferred.
+- **2026-09-21 navigation follow-up:** Klaus reported inconsistent Back controls,
+  specifically in Agent tasks. The shared upper-left, destination-labelled
+  secondary button from the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md#consistent-navigation-and-actions)
+  is implemented, and Klaus passed its focused live return check. Preserve this
+  bounded pass alongside the explicit Assembly persistence, scale and
+  component-label passes; no overall VT-021 acceptance is inferred.
 - **Status:** implemented candidate, 2026-09-09. Integration, automated evidence
   and Klaus's explicit implementation decision are separate gates.
 - **Clarity batch:** **USER PASSED — 2026-09-10.** Klaus replied **“pass”** to
