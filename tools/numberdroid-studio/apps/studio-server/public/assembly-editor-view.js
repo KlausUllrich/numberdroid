@@ -17,7 +17,9 @@ export function createAssemblyEditorView(state) {
   const root = el('section', 'assembly-editor'); root.dataset.assemblyEditor = state.instanceId;
   const header = el('header', 'assembly-header'), heading = el('div'); heading.append(el('p', 'eyebrow', 'Library / Assembly'));
   const title = el('h2'); title.dataset.assemblyTitle = ''; heading.append(title, note('One reusable object, made from exact saved components.'));
-  const back = button('Back to Library', 'back'); back.classList.add('editor-back-link'); root.append(back); header.append(heading); root.append(header);
+  const back = button('Back to Library', 'back'); back.className = 'studio-back-button secondary';
+  const sourceBack = button('Back to Assembly', 'return-source'); sourceBack.className = 'studio-back-button secondary'; sourceBack.hidden = true;
+  root.append(back, sourceBack); header.append(heading); root.append(header);
   const status = el('div', 'assembly-status'); status.dataset.assemblyStatus = ''; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); root.append(status);
   const recovery = el('div', 'assembly-recovery'); recovery.dataset.assemblyRecovery = ''; root.append(recovery);
   const edit = el('section'); edit.dataset.assemblyView = 'edit';
@@ -167,7 +169,7 @@ function renderSource(root, state) {
   const key = assemblyAssetKey(source.asset); if (view.dataset.sourceKey === key) return; view.dataset.sourceKey = key;
   const asset = source.asset;
   if (asset.contentKind === 'animation') {
-    const details = el('div'); details.append(el('p', 'eyebrow', 'Animation source · read-only'), el('h3', '', asset.name), note(`Saved v${asset.assetVersion} · ${asset.clip.frames.length} frames · ${asset.clip.playbackMode} · ${asset.clip.fps} FPS`), note('These are the exact saved frames. Newer Animation versions do not replace this component automatically.'), button('Return to Assembly', 'return-source'));
+    const details = el('div'); details.append(el('p', 'eyebrow', 'Animation source · read-only'), el('h3', '', asset.name), note(`Saved v${asset.assetVersion} · ${asset.clip.frames.length} frames · ${asset.clip.playbackMode} · ${asset.clip.fps} FPS`), note('These are the exact saved frames. Newer Animation versions do not replace this component automatically.'));
     const frames = el('div', 'assembly-picker-list');
     for (const frame of asset.frameBindings ?? []) { const binding = frame.sliceBinding, figure = el('figure'), image = el('img'); image.src = assemblyArtifactUrl(state.context.projectId, binding.digest); image.alt = asset.clip.frames.find(value => value.frameId === frame.frameId)?.name ?? frame.frameId; image.style.maxWidth = '160px'; image.style.maxHeight = '140px'; image.style.objectFit = 'contain';
       const link = el('a'); link.href = image.src; link.target = '_blank'; link.rel = 'noopener'; link.append(image); figure.append(link, el('figcaption', '', `${image.alt} · ${binding.sliceId} v${binding.sliceVersion}`)); frames.append(figure); }
@@ -177,11 +179,13 @@ function renderSource(root, state) {
   const link = el('a'); link.href = image.src; link.target = '_blank'; link.rel = 'noopener'; link.append(image); figure.append(link, el('figcaption', '', `${binding.width} × ${binding.height} px · exact saved component image`));
   const details = el('div'); details.append(el('p', 'eyebrow', 'Source inspection · read-only'), el('h3', '', asset.name), note('This is the exact source used by your component. Inspecting it changes neither the source nor your Assembly.'));
   const facts = el('dl', 'assembly-source-facts'); for (const [name, value] of [['Asset', asset.assetId], ['Version', `v${asset.assetVersion} / metadata v${asset.metadataVersion}`], ['Original source', binding.sourceId], ['Atlas', binding.atlasId], ['Saved cut', `${binding.sliceId} · v${binding.sliceVersion}`], ['Rectangle', binding.rectangleId], ['Image digest', binding.digest]]) facts.append(el('dt', '', name), el('dd', '', value ?? 'Unavailable'));
-  details.append(facts, button('Return to Assembly', 'return-source')); view.replaceChildren(figure, details);
+  details.append(facts); view.replaceChildren(figure, details);
 }
 export function updateAssemblyEditorView(root, state, { inspector = true, nativeAssets = [], issues = null } = {}) {
   const locked = ['saving', 'uncertain', 'checking'].includes(state.save.status) || state.embeddedOpen;
   root.querySelector('[data-assembly-title]').textContent = state.model.name || 'New Assembly';
+  root.querySelector('[data-assembly-action="back"]').hidden = state.view === 'source';
+  root.querySelector('[data-assembly-action="return-source"]').hidden = state.view !== 'source';
   for (const view of root.querySelectorAll('[data-assembly-view]')) view.hidden = view.dataset.assemblyView !== state.view;
   updateSelectors(root, state); const findings = issues ?? assemblyEditorIssues(state, { geometry: false }), status = root.querySelector('[data-assembly-status]');
   status.textContent = state.error || state.conflict || (state.save.status === 'saving' ? 'Saving this exact Assembly version…' : state.save.status === 'checking' ? 'Checking the saved outcome…' : state.resolution.status === 'loading' ? 'Resolving exact saved component versions…' : findings[0] || `${state.model.assembly.components.length} independent components. ${state.model.assembly.blocking.mode === 'components' ? 'Blocking follows active components.' : 'Custom blocking remains fixed.'}`);

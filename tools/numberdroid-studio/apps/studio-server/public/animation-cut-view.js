@@ -9,7 +9,7 @@ export function animationCutArtifactUrl(projectId,digest){if(!projectId||!/^[a-f
 export function createAnimationCutView(state){
   const root=el('section','animation-cut-editor');root.dataset.animationCutEditor='';
   const header=el('header','animation-cut-header'),heading=el('div');heading.append(el('p','eyebrow','Animation / Source cut'),el('h2','','Edit source cut'),note('Adjust this cut in its original sheet. Your animation draft stays open, including timing, alignment and Undo.'));
-  header.append(heading,button('Back to animation','back'));root.append(header);
+  const back=button('Back to animation','back');back.className='studio-back-button secondary';root.append(back);header.append(heading);root.append(header);
   const status=el('div','animation-cut-status');status.dataset.animationCutStatus='';status.setAttribute('role','status');status.setAttribute('aria-live','polite');root.append(status);
   const recovery=el('div','animation-cut-recovery');recovery.dataset.animationCutRecovery='';root.append(recovery);
   const layout=el('div','animation-cut-layout'),rail=el('nav','animation-cut-tools');rail.setAttribute('aria-label','Source cut tools');
@@ -32,7 +32,7 @@ export function createAnimationCutView(state){
   inspector.append(note('Trimming keeps artwork aligned by adjusting each affected frame’s offset. Frame names and timing stay as authored.'),note('Other saved animations keep their exact cut versions.'));
   const apply=button('Use revised cut','use');apply.classList.add('primary');inspector.append(apply,note('Saves a cut revision, then updates your animation draft. Save the animation separately when ready.'));
   layout.append(rail,main,inspector);root.append(layout);
-  const footer=el('footer','animation-cut-footer');footer.append(note('Animation edits retained · source image unchanged'),button('Back without applying','back'));root.append(footer);return root;
+  const footer=el('footer','animation-cut-footer');footer.append(note('Back to animation keeps your unfinished cut draft without applying it. Animation edits are retained and the source image stays unchanged.'));root.append(footer);return root;
 }
 export function syncAnimationCutCanvas(root,state){
   const canvas=root.querySelector('[data-animation-cut-canvas]'),viewport=root.querySelector('[data-animation-cut-scroll="canvas"]'),source=state.sourceContext.source,pad=12;

@@ -23,6 +23,18 @@ input, textarea { background: #0d1916; cursor: text; }
 textarea { resize: vertical; }
 button:hover, button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { border-color: var(--mint); outline: 2px solid #6ee7ba44; outline-offset: 2px; }
 button.secondary { background: #182a25; }
+/* Shared return navigation. Position this before the current view's heading. */
+button.studio-back-button {
+  display: flex; align-items: center; gap: 8px; width: fit-content; max-width: 100%;
+  min-height: 40px; margin: 0 0 16px; padding: 9px 13px;
+  border: 1px solid #41675b; border-radius: 8px; background: #182a25;
+  color: #f5fffb; font-size: 14px; line-height: 20px; text-align: left;
+  align-self: start; justify-self: start;
+}
+button.studio-back-button::before { content: '←'; }
+button.studio-back-button[hidden] { display: none; }
+button.studio-back-button:hover, button.studio-back-button:focus-visible { border-color: var(--mint); }
+.library-detail-toolbar > button.studio-back-button { margin-bottom: 0; align-self: center; }
 button:disabled { opacity: .55; cursor: not-allowed; }
 button[data-disabled-by-task-pending="true"] { cursor: wait; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
@@ -216,7 +228,6 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .rectangle-row small { grid-column: 1 / -1; align-self: center; overflow-wrap: anywhere; color: var(--amber); font: 9px ui-monospace, monospace; }
 .rectangle-inspector > button { margin-top: 9px; }
 .cutter-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
-.cutter-back-button { min-height: 40px; margin-bottom: 16px; padding: 9px 14px; }
 .cutter-output-comparison { margin: 20px 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
 .cutter-output-comparison > summary { cursor: pointer; color: var(--muted); }
 .cutter-output-comparison[open] > summary { margin-bottom: 14px; }

@@ -2027,7 +2027,8 @@ function renderCutter(source) {
     }
   } else if (cutter.view === 'detail') {
     const output = outputs[cutter.outputKind]?.[cutter.outputIndex];
-    const back = document.createElement('button'); back.type = 'button'; back.dataset.cutterView = 'outputs'; back.textContent = 'Back to output images'; section.append(back);
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'studio-back-button secondary'; back.dataset.cutterView = 'outputs'; back.textContent = 'Back to View Output';
+    section.querySelector('[data-close-cutter]')?.remove(); section.prepend(back);
     if (output) {
       const detail = document.createElement('section'); detail.className = 'cutter-output-detail';
       detail.append(cutterOutputCard(output, cutter.outputIndex, state.project.projectId)); detail.querySelector('[data-cutter-output]')?.remove();
@@ -2958,7 +2959,7 @@ function libraryRenderDetail() {
     catch (error) { selected.previewError = error.message; }
   }
   const canEdit = !selected.proposed && !stale && state.uiMode === 'local' && !state.assetMutationPending && (selected.entry.contentKind === 'assembly' ? assemblyCanMutate() : selected.entry.contentKind === 'animation' ? animationCanMutate() : true);
-  const root = renderLibraryDetail({ entry: selected.entry, record, scene: record.scene, projectId: state.project.projectId, previewUrl: preview?.url ?? selected.url, sourceLabels: selected.entry.sourceNames, pendingGroups: current?.relatedReviews ?? [], canEdit, unavailable: preview?.status === 'failed' ? preview.error : selected.previewError ?? null, proposed: selected.proposed, proposal: selected.proposal, stale });
+  const root = renderLibraryDetail({ entry: selected.entry, record, scene: record.scene, projectId: state.project.projectId, previewUrl: preview?.url ?? selected.url, sourceLabels: selected.entry.sourceNames, pendingGroups: current?.relatedReviews ?? [], canEdit, unavailable: preview?.status === 'failed' ? preview.error : selected.previewError ?? null, proposed: selected.proposed, proposal: selected.proposal, stale, backLabel: libraryBackLabel() });
   root.dataset.libraryDetail = selected.entry.contentKind; root.dataset.assetId = record.assetId;
   if (selected.entry.contentKind === 'image') {
     const controls = root.querySelector('[data-library-detail-controls]') ?? root;
@@ -2969,7 +2970,7 @@ function libraryRenderDetail() {
   }
   return root;
 }
-function libraryBackButton() { const b = document.createElement('button'); b.type = 'button'; b.className = 'secondary'; b.dataset.libraryAction = 'back'; b.dataset.assetFocusKey = 'library-back'; b.textContent = libraryBackLabel(); return b; }
+function libraryBackButton() { const b = document.createElement('button'); b.type = 'button'; b.className = 'studio-back-button secondary'; b.dataset.libraryAction = 'back'; b.dataset.assetFocusKey = 'library-back'; b.textContent = libraryBackLabel(); return b; }
 function libraryNativeLifecycleControls(asset, { canMutate = false } = {}) {
   const root = document.createElement('details'); root.className = 'library-lifecycle'; const summary = document.createElement('summary'); summary.textContent = `Validation and lifecycle · ${asset.lifecycle ?? 'Proposed'}`; root.append(summary, findingsList(asset.findings));
   const facts = document.createElement('dl'); facts.className = 'property-list';
@@ -2986,11 +2987,11 @@ function libraryNativeLifecycleControls(asset, { canMutate = false } = {}) {
 }
 function libraryBackLabel() {
   const external = libraryExternalOrigins.get(libraryRouteKey(libraryUi.route));
-  if (external?.workspace === 'activity') return state.activityUi.eventId ? '← Back to event' : '← Back to Activity';
-  if (external?.workspace === 'sources') return '← Back to Sources';
-  if (external?.workspace === 'tasks') return '← Back to Tasks';
+  if (external?.workspace === 'activity') return state.activityUi.eventId ? 'Back to event' : 'Back to Activity';
+  if (external?.workspace === 'sources') return 'Back to Sources';
+  if (external?.workspace === 'tasks') return 'Back to Agent tasks';
   const previous = libraryUi.returnStack.at(-1);
-  return previous?.view === 'review' ? '← Back to review' : previous?.view === 'detail' ? '← Back to details' : '← Back to Library';
+  return previous?.view === 'review' ? 'Back to review' : previous?.view === 'detail' ? 'Back to details' : 'Back to Library';
 }
 function sharedReviewSupported() { return state.uiMode === 'local' && state.reviewAuthoringSupport === 'AVAILABLE'; }
 function sharedLegacySource(route) {
@@ -3486,7 +3487,7 @@ function openAssetEditor({ asset = null, slice = null, trigger = null }) {
   editor = createAssetEditorController({
     initial: { projectId: state.project.projectId, projectRevision: state.project.revision, asset, slice,
       pixelSize, previewUrl: `/api/projects/${encodeURIComponent(state.project.projectId)}/artifacts/sha256/${digest}`,
-      returnLabel: state.workspace === 'sources' ? 'Back to source' : 'Back to Asset library' },
+      returnLabel: state.workspace === 'sources' ? 'Back to Sources' : 'Back to Library' },
     host: {
       getContext: () => assetEditorCurrentContext(editor),
       saveAsset: (intent, { signal } = {}) => api(`/api/projects/${encodeURIComponent(intent.projectId)}/assets/${encodeURIComponent(intent.assetId)}/save`, {
@@ -5289,8 +5290,8 @@ function renderTaskComposer() {
   const title = document.createElement('div');
   const eyebrow = document.createElement('p'); eyebrow.className = 'eyebrow'; eyebrow.textContent = 'You stay in control';
   const name = document.createElement('h2'); name.textContent = 'Create a task for an agent';
-  const back = document.createElement('button'); back.type = 'button'; back.className = 'secondary'; back.dataset.taskControl = 'back-to-list'; back.textContent = 'Back to tasks';
-  title.append(eyebrow, name); heading.append(title, back); section.append(heading);
+  const back = document.createElement('button'); back.type = 'button'; back.className = 'studio-back-button secondary'; back.dataset.taskControl = 'back-to-list'; back.dataset.taskFocusKey = 'back-to-list'; back.textContent = 'Back to Agent tasks';
+  title.append(eyebrow, name); heading.append(title); section.append(back, heading);
   const help = document.createElement('p'); help.className = 'task-help';
   help.textContent = 'Choose what the agent may change and for how long. Its work stays separate from the project until you review and accept it.';
   section.append(help);
@@ -5546,8 +5547,8 @@ function renderTaskDetail(selected) {
   const taskTitle = document.createElement('h2'); taskTitle.textContent = selected.task.title;
   const objective = document.createElement('p'); objective.textContent = selected.task.objective; headCopy.append(selectedEyebrow, taskTitle, objective);
   const headingActions = document.createElement('div'); headingActions.className = 'task-detail-header-actions';
-  const back = document.createElement('button'); back.type = 'button'; back.className = 'secondary'; back.dataset.taskControl = 'back-to-list'; back.dataset.taskFocusKey = 'back-to-list'; back.textContent = 'Back to tasks';
-  headingActions.append(taskStateBadge(selected), back); heading.append(headCopy, headingActions); detail.append(heading);
+  const back = document.createElement('button'); back.type = 'button'; back.className = 'studio-back-button secondary'; back.dataset.taskControl = 'back-to-list'; back.dataset.taskFocusKey = 'back-to-list'; back.textContent = 'Back to Agent tasks';
+  headingActions.append(taskStateBadge(selected)); heading.append(headCopy, headingActions); detail.append(back, heading);
   const presentation = taskWorkflowPresentation(selected);
   const reviewHasConflict = presentation.state === 'IN_REVIEW'
     && selected.review?.state === 'OPEN' && selected.review.conflicts?.length;
@@ -5908,13 +5909,13 @@ function renderBackupDetail(backup) {
     backupNode('p', '', presentation.consequence),
     backupNode('span', 'status-pill', presentation.label),
   );
-  const back = backupNode('button', 'secondary', 'Back to backup list');
+  const back = backupNode('button', 'studio-back-button secondary', 'Back to Backups');
   back.type = 'button';
   back.dataset.backupControl = 'true';
   back.dataset.backupAllowed = 'true';
   back.dataset.backupBack = 'true';
   back.dataset.backupFocusKey = 'back-to-backups';
-  heading.append(copy, back);
+  heading.append(copy);
 
   const allowed = backupAllowedActions(backup);
   const actions = backupNode('div', 'backup-detail-actions');
@@ -5969,7 +5970,7 @@ function renderBackupDetail(backup) {
     ['Last verified', formatBackupDate(backup.lastVerifiedAt)],
     ['Last recovery test', formatBackupDate(backup.lastRecoveryTestedAt)],
   ]));
-  section.append(heading, actions, technical);
+  section.append(back, heading, actions, technical);
   return section;
 }
 
@@ -6045,7 +6046,7 @@ function renderActivityWorkspace() {
   const root = document.createElement('section'); root.className = 'studio-activity';
   const selected = state.activityUi.eventId ? state.activityUi.event : null;
   if (selected) {
-    const back = document.createElement('button'); back.type = 'button'; back.className = 'editor-back-link'; back.textContent = 'Back to Activity';
+    const back = document.createElement('button'); back.type = 'button'; back.className = 'studio-back-button secondary'; back.textContent = 'Back to Activity';
     back.addEventListener('click', () => { const saved = state.activityUi.context; state.activityUi = { eventId: null, context: null }; renderWorkspace(); restoreLibrarySnapshot(saved); });
     root.append(back);
     const notice = document.createElement('p'); notice.className = 'review-readonly-notice'; notice.textContent = 'Read-only recorded event. Earlier decisions and feedback are preserved.'; root.append(notice);

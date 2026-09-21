@@ -1543,9 +1543,16 @@ test convenience.
   save/restart checks passed explicitly. Klaus confirmed Cup X72 / rotation15,
   Graphite X20, Custom blocking and Test Triangle after reopening Coffee station
   v3. The extra Test cup is expected, not a save defect. Decimal typing failed
-  and component action labels were unclear; their implemented repair has focused
-  and native browser evidence but still needs Klaus's focused retest. Preserve
+  and component action labels were unclear; Klaus subsequently replied **pass**
+  to native `0.9` scale entry and **pass** to Add component / Send forward /
+  Send back / Remove component. These close those bounded repair retests. Preserve
   the saved project and passed checks; no overall VT-021 acceptance is inferred.
+- **2026-09-21 navigation follow-up:** Klaus reported inconsistent Back controls,
+  specifically in Agent tasks. Apply the shared upper-left, destination-labelled
+  secondary button from the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md#consistent-navigation-and-actions).
+  Check the return to Agent tasks and the matching editor/inspection pattern as
+  one focused live batch. This finding is not a Task review pass and does not
+  reopen the explicit Assembly persistence, scale or component-label passes.
 - **Status:** implemented candidate, 2026-09-09. Integration, automated evidence
   and Klaus's explicit implementation decision are separate gates.
 - **Clarity batch:** **USER PASSED — 2026-09-10.** Klaus replied **“pass”** to

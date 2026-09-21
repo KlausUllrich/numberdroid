@@ -311,6 +311,7 @@ try {
   let checkpoint2cRouteEvidence = null;
   let checkpoint3RoomContinuity = null;
   let checkpoint4TaskFocus = null;
+  let taskNavigationEvidence = null;
   let checkpoint45RoomFocus = null;
   let checkpoint45PhysicalPaint = null;
   let checkpoint45EditorContinuity = null;
@@ -457,7 +458,7 @@ try {
         openOutputs?.click(); await settle();
         await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4
           && !document.querySelector('[data-source-library-action="plan"]')?.disabled, 'Library destinations did not load the four saved outputs');
-        const back = document.querySelector('.cutter-back-button');
+        const back = document.querySelector('.studio-back-button[data-close-cutter]');
         const backBounds = back?.getBoundingClientRect();
         const outputs = {
           workflows: document.querySelectorAll('[data-source-library]').length,
@@ -550,7 +551,7 @@ try {
           authoring.restoredSavedImages = document.querySelectorAll('.source-library-card > .source-library-image img').length;
           authoring.discardPreservedLibrary = JSON.stringify((await project()).snapshot.assetLibrary.assets.map(asset => [asset.assetId, asset.assetVersion, asset.metadataVersion])) === JSON.stringify(savedPins);
         } finally { window.confirm = savedConfirm; }
-        document.querySelector('.cutter-back-button')?.click(); await settle();
+        document.querySelector('.studio-back-button[data-close-cutter]')?.click(); await settle();
         const sourceLink = document.querySelector('.workbench-card [data-view-source]');
         const sourceId = sourceLink?.dataset.viewSource;
         sourceLink?.click(); await settle();
@@ -776,6 +777,63 @@ try {
       })()`, awaitPromise: true, returnByValue: true,
     }, sessionId, 10_000);
     assert(selected.result?.value === true, 'The dedicated review-feedback task did not open.');
+    // Establish real keyboard modality before inspecting focus-visible styling.
+    await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+    await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId);
+    const navigation = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const waitFor = async (predicate) => {
+          const deadline = Date.now() + 4_000;
+          while (!predicate() && Date.now() < deadline) await new Promise(done => setTimeout(done, 25));
+          if (!predicate()) throw new Error('Task return navigation did not settle.');
+          await new Promise(done => requestAnimationFrame(done));
+        };
+        const projectId = document.getElementById('workspace-content').dataset.renderedProjectId;
+        const taskPath = '/api/projects/' + encodeURIComponent(projectId) + '/tasks/task.review-feedback';
+        const originalFetch = window.fetch;
+        const before = JSON.stringify(await originalFetch(taskPath).then(response => response.json()));
+        const revisionBefore = document.getElementById('revision-label').textContent;
+        let writes = 0;
+        window.fetch = (input, init) => {
+          const method = String(init?.method ?? input?.method ?? 'GET').toUpperCase();
+          if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) writes += 1;
+          return originalFetch(input, init);
+        };
+        const inspect = selector => {
+          const root = document.querySelector(selector);
+          const back = root.querySelector('[data-task-control="back-to-list"]');
+          back.focus();
+          const box = back.getBoundingClientRect();
+          const heading = root.querySelector('.panel-heading').getBoundingClientRect();
+          const css = getComputedStyle(back);
+          return root.firstElementChild === back && back.textContent === 'Back to Agent tasks'
+            && back.classList.contains('studio-back-button') && back.classList.contains('secondary')
+            && back.type === 'button' && !back.disabled && box.height >= 40
+            && Math.abs(box.left - heading.left) <= 1 && box.bottom <= heading.top + 1
+            && css.borderTopStyle === 'solid' && parseFloat(css.borderTopWidth) >= 1
+            && back.matches(':focus-visible') && css.outlineStyle !== 'none' && parseFloat(css.outlineWidth) >= 2;
+        };
+        try {
+          const detail = inspect('.task-detail');
+          document.querySelector('[data-task-control="back-to-list"]').click();
+          await waitFor(() => document.querySelector('.task-list'));
+          document.querySelector('[data-task-control="open-create"]').click();
+          await waitFor(() => document.querySelector('.task-composer'));
+          const composer = inspect('.task-composer');
+          document.querySelector('[data-task-control="back-to-list"]').click();
+          await waitFor(() => document.querySelector('.task-list'));
+          document.querySelector('[data-task-control="select"][data-task-id="task.review-feedback"]').click();
+          await waitFor(() => document.querySelector('[data-task-feedback-summary]'));
+          const after = JSON.stringify(await originalFetch(taskPath).then(response => response.json()));
+          return { detail, composer, noWrites: writes === 0, exactTaskUnchanged: before === after,
+            projectRevisionUnchanged: revisionBefore === document.getElementById('revision-label').textContent,
+            noOverflow: document.documentElement.scrollWidth <= innerWidth };
+        } finally { window.fetch = originalFetch; }
+      })()`, awaitPromise: true, returnByValue: true,
+    }, sessionId, 20_000);
+    taskNavigationEvidence = navigation.result?.value ?? null;
+    assert(taskNavigationEvidence && Object.values(taskNavigationEvidence).every(value => value === true),
+      `Task return navigation must be upper-left, consistent, keyboard-visible, and read-only: ${JSON.stringify(taskNavigationEvidence)} ${JSON.stringify(navigation.exceptionDetails ?? null)}`);
   }
   if (mode === 'checkpoint-4' && expectedWorkspace === 'tasks') {
     const focused = await devtools.send('Runtime.evaluate', {
@@ -4657,6 +4715,7 @@ try {
     checkpoint2cInteractionEvidence,
     checkpoint3RoomContinuity,
     checkpoint4TaskFocus,
+    taskNavigationEvidence,
     taskFeedbackEvidence,
     taskFeedbackFormScreenshot,
     checkpoint45RoomFocus,

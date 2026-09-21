@@ -227,14 +227,15 @@ export function libraryContentSummary(asset, contentKind = asset?.contentKind ??
 
 export function renderLibraryDetail({ entry, record = entry?.asset, scene = record?.scene, projectId,
   previewUrl = null, sourceLabels = null, pendingGroups = entry?.relatedReviews ?? [], canEdit = false,
-  unavailable = null, proposed = false, proposal = null, stale = false } = {}) {
+  unavailable = null, proposed = false, proposal = null, stale = false,
+  backLabel = proposed ? 'Back to review' : 'Back to Library' } = {}) {
   const page = libraryElement('section', 'library-detail');
   page.dataset.libraryDetail = '';
   setLibraryAssetIdentity(page, entry);
   if (proposal) setLibraryReviewIdentity(page, { contentKind: entry.contentKind, ...proposal });
   if (proposed) page.dataset.libraryProposed = 'true';
   const top = libraryElement('div', 'library-detail-toolbar');
-  top.append(libraryAction('back', proposed ? 'Back to review' : 'Back', { entry }));
+  top.append(libraryAction('back', backLabel, { entry, className: 'studio-back-button secondary' }));
   if (!proposed) {
     const edit = libraryAction('edit', `Edit ${libraryContentLabel(entry?.contentKind)}`, { entry, className: 'primary' });
     edit.disabled = !canEdit || Boolean(stale) || !record || Boolean(unavailable);
