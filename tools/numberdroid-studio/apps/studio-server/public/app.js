@@ -2028,6 +2028,7 @@ function renderCutter(source) {
   } else if (cutter.view === 'detail') {
     const output = outputs[cutter.outputKind]?.[cutter.outputIndex];
     const back = document.createElement('button'); back.type = 'button'; back.className = 'studio-back-button secondary'; back.dataset.cutterView = 'outputs'; back.textContent = 'Back to View Output';
+    back.disabled = state.cutterPending || state.sourceMutationPending;
     section.querySelector('[data-close-cutter]')?.remove(); section.prepend(back);
     if (output) {
       const detail = document.createElement('section'); detail.className = 'cutter-output-detail';
@@ -2801,6 +2802,13 @@ function restoreLibrarySnapshot(saved, expected = libraryRouteIdentity()) {
 }
 function libraryRestoreCurrent() { restoreLibrarySnapshot(libraryUi.domSnapshots[libraryRouteKey(libraryUi.route)]); }
 function libraryOrigin() { captureLibraryDom(); return state.workspace === 'assets' ? { route: structuredClone(libraryUi.route), dom: libraryDomSnapshot() } : null; }
+function editorReturnLabel() {
+  if (state.workspace === 'sources') {
+    if (state.cutter) return state.cutter.view === 'outputs' ? 'Back to View Output' : state.cutter.view === 'detail' ? 'Back to output image' : 'Back to Cut images';
+    return state.sourcesUi.tab === 'workbench' ? 'Back to Image Workbench' : 'Back to Source Images';
+  }
+  return libraryUi.route.view === 'detail' ? 'Back to details' : 'Back to Library';
+}
 function libraryRestoreOrigin(saved, editorState) {
   if (!saved || saved.dom?.projectId !== state.project?.projectId) return false;
   libraryUi.route = structuredClone(saved.route);
@@ -3214,7 +3222,7 @@ async function openAnimationEditor({ asset = null, pins = [], trigger = null } =
   catch (error) { if (generation === animationOpenGeneration) showToast(error.message); return; }
   if (libraryGeneration !== libraryReadGeneration || generation !== animationOpenGeneration || state.project?.projectId !== projectId || state.project.revision !== revision || state.workspace !== workspace) return;
   let editor;
-  editor = createAnimationEditorController({ initial: { projectId, projectRevision: revision, asset: record, selectedSlices: bindings }, host: {
+  editor = createAnimationEditorController({ initial: { projectId, projectRevision: revision, asset: record, selectedSlices: bindings, returnLabel: editorReturnLabel() }, host: {
     getContext: () => animationCurrentContext(editor), getSavedCuts: () => currentProjectSlices().map(({ slice }) => ({ ...slice, name: savedSliceLabel(slice), sliceVersion: slice.version })),
     resolveCuts: (cuts, options) => resolveAnimationCuts(projectId, cuts, options),
     saveClip: (intent, options) => animationPost(`${animationPath(projectId)}/clips/${encodeURIComponent(intent.assetId)}/save`, intent, options),
@@ -3358,7 +3366,7 @@ async function openAssemblyEditor({ asset = null, trigger = null } = {}) {
   if (libraryGeneration !== libraryReadGeneration || generation !== assemblyOpenGeneration || state.project?.projectId !== projectId || state.project?.revision !== revision || state.workspace !== workspace || !assemblyCanMutate()) return;
   let editor;
   const leafMap = new Map([...currentAssetLibrary().assets, ...(record?.leafAssets ?? [])].map(leaf => [`${leaf.assetId}@${leaf.assetVersion}:${leaf.metadataVersion}`, leaf]));
-  editor = createAssemblyEditorController({ initial: { projectId, projectRevision: revision, asset: record, assets: [...leafMap.values()] }, host: {
+  editor = createAssemblyEditorController({ initial: { projectId, projectRevision: revision, asset: record, assets: [...leafMap.values()], returnLabel: editorReturnLabel() }, host: {
     getContext: () => assemblyCurrentContext(editor), getNativeAssets: () => currentAssetLibrary().assets, getComponentAssets: () => [...currentAssetLibrary().assets, ...currentClipLibrary().assets],
     resolveDraft: async ({ assembly }, { signal } = {}) => {
       const current = editor.getState(); const expectedRevision = current.context.projectRevision;
@@ -3487,7 +3495,7 @@ function openAssetEditor({ asset = null, slice = null, trigger = null }) {
   editor = createAssetEditorController({
     initial: { projectId: state.project.projectId, projectRevision: state.project.revision, asset, slice,
       pixelSize, previewUrl: `/api/projects/${encodeURIComponent(state.project.projectId)}/artifacts/sha256/${digest}`,
-      returnLabel: state.workspace === 'sources' ? 'Back to Sources' : 'Back to Library' },
+      returnLabel: editorReturnLabel() },
     host: {
       getContext: () => assetEditorCurrentContext(editor),
       saveAsset: (intent, { signal } = {}) => api(`/api/projects/${encodeURIComponent(intent.projectId)}/assets/${encodeURIComponent(intent.assetId)}/save`, {

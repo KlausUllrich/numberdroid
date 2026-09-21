@@ -470,6 +470,8 @@ try {
           backText: back?.textContent,
           backHeight: backBounds?.height ?? 0,
           secondaryBack: back?.classList.contains('secondary') ?? false,
+          sharedBack: back?.classList.contains('studio-back-button') ?? false,
+          backArrow: back ? getComputedStyle(back, '::before').content.includes('←') : false,
           flatBack: back?.classList.contains('editor-back-link') ?? false,
           horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         };
@@ -513,6 +515,7 @@ try {
           assetButton?.click();
           await waitFor(() => document.querySelector('[data-library-detail="image"] [data-library-artwork] img'), 'Saved output did not open Library detail');
           authoring.assetImageMatches = new URL(document.querySelector('[data-library-detail="image"] [data-library-artwork] img').getAttribute('src'), location.href).href === new URL(savedImage, location.href).href;
+          authoring.assetReturnLabel = document.querySelector('[data-library-action="back"]')?.textContent === 'Back to Sources';
           document.querySelector('[data-library-action="back"]')?.click();
           await waitFor(() => document.querySelectorAll('[data-source-library-rectangle]').length === 4, 'Library Back did not restore image destinations');
           authoring.assetReturned = true;
@@ -525,6 +528,14 @@ try {
           for (const check of selected) check.checked = true;
           document.querySelector('.cutter-animation-outputs [data-create-animation]')?.click();
           await waitFor(() => document.querySelectorAll('[data-animation-frame]').length === 2, 'Saved selections did not open a two-frame Animation');
+          const animationBack = document.querySelector('[data-animation-action="back"]');
+          const animationBackBox = animationBack?.getBoundingClientRect();
+          const animationHeadingBox = document.querySelector('[data-animation-editor] > header')?.getBoundingClientRect();
+          authoring.animationReturnLabel = animationBack?.textContent === 'Back to View Output';
+          authoring.animationReturnPlacement = animationBack?.classList.contains('studio-back-button')
+            && animationBack.classList.contains('secondary') && animationBackBox.height >= 40
+            && Math.abs(animationBackBox.left - animationHeadingBox.left) <= 1
+            && animationBackBox.bottom <= animationHeadingBox.top + 1;
           authoring.animationImagesMatch = JSON.stringify([...document.querySelectorAll('[data-animation-frame] img')].map(node => node.getAttribute('src'))) === JSON.stringify(selectedImages);
           authoring.animationPinsMatch = true;
           for (const [index, pin] of selectedPins.entries()) {
@@ -597,9 +608,11 @@ try {
       && sourcesNavigationEvidence.outputs.compare === false
       && sourcesNavigationEvidence.outputs.animationInitiallyClosed === true
       && sourcesNavigationEvidence.outputs.oldSectionTitles === false
-      && sourcesNavigationEvidence.outputs.backText === '← Back to Image Workbench'
-      && sourcesNavigationEvidence.outputs.backHeight >= 36
+      && sourcesNavigationEvidence.outputs.backText === 'Back to Image Workbench'
+      && sourcesNavigationEvidence.outputs.backHeight >= 40
       && sourcesNavigationEvidence.outputs.secondaryBack === true
+      && sourcesNavigationEvidence.outputs.sharedBack === true
+      && sourcesNavigationEvidence.outputs.backArrow === true
       && sourcesNavigationEvidence.outputs.flatBack === false
       && sourcesNavigationEvidence.outputs.horizontalOverflow === false
       && sourcesNavigationEvidence.sourceReturn?.activeTab === 'images'
@@ -612,8 +625,11 @@ try {
       && sourcesNavigationEvidence.authoring.skipRetainedAfterSave === true
       && sourcesNavigationEvidence.authoring.skipRetainedAfterLibraryReturn === true
       && sourcesNavigationEvidence.authoring.assetImageMatches === true
+      && sourcesNavigationEvidence.authoring.assetReturnLabel === true
       && sourcesNavigationEvidence.authoring.assetReturned === true
       && sourcesNavigationEvidence.authoring.animationImagesMatch === true
+      && sourcesNavigationEvidence.authoring.animationReturnLabel === true
+      && sourcesNavigationEvidence.authoring.animationReturnPlacement === true
       && sourcesNavigationEvidence.authoring.animationPinsMatch === true
       && sourcesNavigationEvidence.authoring.animationReturned === true
       && sourcesNavigationEvidence.authoring.unsavedImages === 4

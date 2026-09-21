@@ -74,3 +74,21 @@ test('Library return labels name the real parent while preserving contextual rou
     assert.equal(JSON.stringify({ libraryUi, state }), before);
   }
 });
+
+test('editor return labels name the actual Sources or Library origin without mutating it', () => {
+  for (const [workspace, cutterView, tab, libraryView, expected] of [
+    ['sources', 'outputs', 'workbench', 'detail', 'Back to View Output'],
+    ['sources', 'detail', 'workbench', 'detail', 'Back to output image'],
+    ['sources', 'edit', 'workbench', 'detail', 'Back to Cut images'],
+    ['sources', null, 'workbench', 'detail', 'Back to Image Workbench'],
+    ['sources', null, 'images', 'detail', 'Back to Source Images'],
+    ['assets', null, 'workbench', 'detail', 'Back to details'],
+    ['assets', null, 'images', 'browse', 'Back to Library'],
+  ]) {
+    const state = { workspace, cutter: cutterView ? { view: cutterView } : null, sourcesUi: { tab } };
+    const libraryUi = { route: { view: libraryView } }; const before = JSON.stringify({ state, libraryUi });
+    const label = runInNewContext(`${functionSource('editorReturnLabel', 'libraryRestoreOrigin')}; editorReturnLabel`, { state, libraryUi });
+    assert.equal(label(), expected);
+    assert.equal(JSON.stringify({ state, libraryUi }), before);
+  }
+});

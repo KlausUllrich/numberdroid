@@ -34,6 +34,13 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     saved:document.querySelector('[data-assembly-saved-state]')?.textContent,status:document.querySelector('[data-assembly-status]')?.textContent,
     focus:document.activeElement?.dataset.assemblyFocusKey,scroll:[...document.querySelectorAll('[data-assembly-scroll]')].map(n=>[n.dataset.assemblyScroll,n.scrollLeft,n.scrollTop]),page:[scrollX,scrollY]}; })()`);
   const project = () => evaluate(`fetch('/api/projects/${projectId}').then(async r=>{if(!r.ok)throw new Error('Project read failed');return r.json()})`);
+  const assertReturn = async (selector, label) => {
+    const found = await evaluate(`(() => {const root=document.querySelector(${JSON.stringify(selector)}),visible=n=>n.getBoundingClientRect().width>0&&n.getBoundingClientRect().height>0;
+      const controls=[...root.querySelectorAll('[data-assembly-action="back"],[data-assembly-action="return-source"],[data-asset-editor-action="back"]')].filter(visible),back=controls[0],heading=root.querySelector('header'),box=back?.getBoundingClientRect(),head=heading?.getBoundingClientRect();
+      return {count:controls.length,label:back?.textContent,shared:back?.classList.contains('studio-back-button')&&back.classList.contains('secondary'),first:[...root.children].filter(visible)[0]===back,
+        topLeft:Boolean(box&&head&&Math.abs(box.left-head.left)<=1&&box.bottom<=head.top+1&&box.height>=40)};})()`);
+    assert.deepEqual(found, {count:1,label,shared:true,first:true,topLeft:true}, 'Assembly and embedded geometry use one consistent upper-left return.');
+  };
   const pointer = (type, point) => devtools.send('Input.dispatchMouseEvent', { type, x: point.x, y: point.y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1 }, sessionId);
   const navigation = libraryNavigation({ evaluate, click, waitFor });
   async function captureReview() {
@@ -133,7 +140,8 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     assert.match(await evaluate(`document.querySelector('.assembly-inspector').textContent`), /Library now has v2/);
     const labels = await evaluate(`Object.fromEntries([...document.querySelectorAll('.assembly-tools [data-assembly-action]')].map(n=>[n.dataset.assemblyAction,n.textContent]))`);
     assert.deepEqual([labels.add, labels.forward, labels.backward, labels.remove], ['Add component', 'Send forward', 'Send back', 'Remove component']);
-    assert.equal(await evaluate(`document.querySelector('[data-assembly-action="back"]').textContent`), 'Back to Library');
+    assert.equal(await evaluate(`document.querySelector('[data-assembly-action="back"]').textContent`), 'Back to details');
+    await assertReturn('[data-assembly-editor]', 'Back to details');
     const layout = await evaluate(`({overflow:document.documentElement.scrollWidth>innerWidth,buttons:[...document.querySelectorAll('.assembly-tools button')].map(n=>({label:n.textContent,clipped:n.scrollWidth>n.clientWidth}))})`);
     assert.equal(layout.overflow, false, 'The wider tool rail must not overflow the page');
     assert(layout.buttons.every(button=>!button.clipped), JSON.stringify(layout));
@@ -174,6 +182,7 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     await fill('position.x', 15.125); await fill('rotationDegrees', 27.5);
     await evaluate(`(() => {const n=document.querySelector('[data-assembly-field="position.x"]');n.focus({preventScroll:true});const s=document.querySelector('.assembly-inspector');s.scrollTop=110;})()`); const beforeSource = await inspect();
     await click('[data-assembly-action="source"]'); assert.match(await evaluate(`document.querySelector('[data-assembly-view="source"]').textContent`), /Source inspection|source.assembly-sheet/);
+    await assertReturn('[data-assembly-editor]', 'Back to Assembly');
     await click('[data-assembly-action="return-source"]'); const returned = await inspect(); assert.deepEqual(returned.selection, beforeSource.selection); assert.deepEqual(returned.images, beforeSource.images); assert.equal(returned.numeric['position.x'], 15.125);
     assert.deepEqual(returned.scroll, beforeSource.scroll); evidence.readOnlySourceReturn = true;
 
@@ -195,6 +204,7 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     assert.deepEqual(await evaluate(`['undo','redo'].map(a=>document.querySelector('[data-assembly-action="'+a+'"]').disabled)`), visibilityHistory);
     await captureCheckpoint('blocking-choices');
     await click('[data-assembly-action="custom-geometry"]'); await waitFor(`Boolean(document.querySelector('[data-asset-editor-canvas]'))`, 'Embedded custom geometry');
+    await assertReturn('[data-asset-editor]', 'Back to Assembly');
     await click('[data-asset-editor-tool="polygon"]');
     for (const p of [{ x: -80, y: 40 }, { x: -60, y: 50 }]) {
       const screen = await evaluate(`(() => {const c=document.querySelector('[data-asset-editor-canvas]');c.scrollIntoView({block:'center'});const p=new DOMPoint(${p.x},${p.y}).matrixTransform(c.getScreenCTM());return{x:p.x,y:p.y};})()`);

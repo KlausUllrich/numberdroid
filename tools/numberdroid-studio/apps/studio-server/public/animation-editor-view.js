@@ -14,7 +14,7 @@ const pair=(...fields)=>{const n=el('div','animation-coordinates');n.append(...f
 export function createAnimationEditorView(state){
  const root=el('section','animation-editor');root.dataset.animationEditor=state.instanceId;
  const header=el('header','animation-heading'),title=el('div');title.append(el('p','eyebrow','Library / Animation'),el('h2','',state.model.name||'New animation'),el('p','animation-subtitle','One reusable clip, made from exact saved cuts. Timing and alignment stay together.'));
- const back=animationAction('back','Back to Library');back.className='studio-back-button secondary';
+ const back=animationAction('back',state.returnLabel??'Back to Library');back.className='studio-back-button secondary';
  const sourceBack=animationAction('return-source','Back to animation');sourceBack.className='studio-back-button secondary';sourceBack.hidden=true;
  root.append(back,sourceBack);header.append(title);root.append(header);
  const status=el('div','animation-notice');status.dataset.animationStatus='';status.setAttribute('role','status');root.append(status);

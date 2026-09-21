@@ -15,6 +15,13 @@ export async function captureAnimationEditor({ devtools, sessionId, reopen = fal
   const action = (name, value) => `[data-animation-action="${name}"]${value === undefined ? '' : `[data-value="${value}"]`}`;
   const field = async (name, value) => { await evaluate(`(()=>{const n=document.querySelector('[data-animation-field='+CSS.escape(${JSON.stringify(name)})+']');if(!n||n.disabled)throw new Error('Unavailable Animation field');n.focus({preventScroll:true});n.value=${JSON.stringify(String(value))};n.dispatchEvent(new Event('input',{bubbles:true}));n.dispatchEvent(new Event('change',{bubbles:true}));})()`); await settle(); };
   const project = () => evaluate(`fetch('/api/projects/${projectId}').then(r=>r.json())`);
+  const assertReturn = async label => {
+    const found = await evaluate(`(()=>{const root=document.querySelector('[data-animation-editor]'),visible=n=>n.getBoundingClientRect().width>0&&n.getBoundingClientRect().height>0;
+      const returns=[...root.querySelectorAll('[data-animation-action="back"],[data-animation-action="return-source"]')].filter(visible),back=returns[0],box=back?.getBoundingClientRect(),heading=root.querySelector('header').getBoundingClientRect();
+      return {count:returns.length,label:back?.textContent,shared:back?.classList.contains('studio-back-button')&&back.classList.contains('secondary'),first:[...root.children].filter(visible)[0]===back,
+        topLeft:Boolean(box&&Math.abs(box.left-heading.left)<=1&&box.bottom<=heading.top+1&&box.height>=40)};})()`);
+    assert.deepEqual(found,{count:1,label,shared:true,first:true,topLeft:true},'Animation has one consistent upper-left return to the nearest parent.');
+  };
   const view = () => evaluate(`(()=>{const canvas=document.querySelector('[data-animation-canvas]'),r=canvas?.getBoundingClientRect();return{canvas:r?[r.x,r.y,r.width,r.height]:null,image:document.querySelector('[data-animation-image]')?.getAttribute('href'),frames:[...document.querySelectorAll('[data-animation-frame]')].map(n=>n.dataset.animationFrame),status:document.querySelector('[data-animation-status]')?.textContent,fps:document.querySelector('[data-animation-field="fps"]')?.value,mode:document.querySelector('[data-animation-field="playbackMode"]')?.value,source:document.querySelector('.animation-source-reference')?.textContent};})()`);
   const navigation = libraryNavigation({ evaluate, click, waitFor });
   await waitFor(`document.getElementById('connection-label')?.textContent==='Live'&&Boolean(document.querySelector(${JSON.stringify(libraryDetailsSelector('animation', clipId))}))`, 'Animation Library');
@@ -27,6 +34,7 @@ export async function captureAnimationEditor({ devtools, sessionId, reopen = fal
   if (reopen) { const p = await project(), saved = p.snapshot.clipLibrary.assets.find(asset=>asset.assetId===clipId);
     assert.equal(saved.assetVersion, 2); assert.equal(saved.clip.fps, 9); assert.equal((await view()).frames.length, 5); result.exactReopen=true; return result; }
   const before = await project(), initial = await view();
+  await assertReturn('Back to details');
   assert.equal(initial.frames.length, 4); assert.equal(initial.mode, 'pingpong');
   await click(action('play'));
   await waitFor(`document.querySelector('[data-animation-image]')?.getAttribute('href')!==${JSON.stringify(initial.image)}`, 'Actual PNG playback');
@@ -40,6 +48,7 @@ export async function captureAnimationEditor({ devtools, sessionId, reopen = fal
   assert.equal((await view()).frames[2], duplicate);
   await click(action('frame', duplicate));
   await click(action('inspect')); await waitFor(`!document.querySelector('[data-animation-source]')?.hidden`, 'Source inspection');
+  await assertReturn('Back to animation');
   await click(action('return-source')); assert.equal((await view()).fps, '9'); assert.equal((await view()).frames[2], duplicate);
   result.inspectRetainsDraft = true;
   await click(action('panel', 'alignment')); await field('offset.x', 1); await field('offset.y', 2);
