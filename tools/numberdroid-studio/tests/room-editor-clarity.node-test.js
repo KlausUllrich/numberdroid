@@ -23,6 +23,9 @@ test('Room labels occupy separate edges and leave continuous multi-cell images u
   assert.match(css, /\.room-placement > \.room-placement-label \{[^}]*bottom: 0[^}]*font: 11px[^}]*opacity: 0/);
   assert.match(css, /\.room-connector-label \{[^}]*top: 0[^}]*font: 11px[^}]*opacity: 0/);
   for (const kind of ['placement', 'connector']) {
+    const labelRule = css.match(new RegExp(`\\.room-${kind}-label \\{([^}]+)`))?.[1];
+    assert.match(labelRule, /max-height: max\(0px, calc\(var\(--room-cell\) \* \.5 - 5px\)\)/);
+    assert.match(labelRule, /padding: 0 4px/);
     assert.match(css, new RegExp(`\\.room-${kind}:focus-visible > \\.room-${kind}-label`));
     assert.match(css, new RegExp(`\\.room-${kind}\\[data-selected="true"\\] > \\.room-${kind}-label`));
   }

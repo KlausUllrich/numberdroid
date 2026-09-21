@@ -12,6 +12,27 @@ Status: implementation contract, 2026-09-09; approved mockup, product acceptance
 The [Assembly design](ASSEMBLY_EDITOR_DESIGN.md) owns the screen and interaction.
 [VT-020](ASSET_EDITOR_IMPLEMENTATION_CONTRACT.md) remains accepted.
 
+## Guided return and input repair — 2026-09-21
+
+Klaus passed the guided composition, source-return and custom-blocking checks,
+then saved Coffee station v3. After restart he confirmed “values match” for
+Cup X72 / rotation15 and “all retained” for Graphite X20, Custom blocking and
+Test Triangle. The additional Test cup remains intentionally saved, following
+his clarification that he had not removed it. These are bounded human passes,
+not overall VT-021 acceptance.
+
+The authorized repair preserves native in-progress numeric input and its caret
+instead of rewriting the focused field during each render. Decimal scale entry
+must work character by character; supplying a complete value is insufficient
+regression proof. Invalid/unfinished numeric drafts retain the existing action
+guards. Component actions read **Add component**, **Send forward**, **Send back**
+and **Remove component**, distinct from navigation out of the editor.
+
+Focused state/controller tests and native 1440/1060 browser checks passed,
+including decimal/sign/caret editing, Undo/Redo and exact save/restart. The
+repair's CI/integration evidence belongs in its PR; Klaus's repair retest remains
+pending. No composition, storage, grant or command contract changes.
+
 ## Clarity correction — 2026-09-10
 
 After PR #229, Klaus reported that proposal review exposed a dense technical

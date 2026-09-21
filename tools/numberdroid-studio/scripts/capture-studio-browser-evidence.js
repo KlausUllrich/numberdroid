@@ -3496,8 +3496,10 @@ try {
         reviewTechnicalDisclosureCount: document.querySelectorAll('.task-review-items details').length,
         reviewItemCount: document.querySelectorAll('.task-review-items li').length,
         reviewText: document.querySelector('.task-review')?.textContent ?? null,
-        reviewDispositions: [...document.querySelectorAll('[data-task-review-disposition]')]
-          .map((control) => control.value),
+        reviewDispositions: [...document.querySelectorAll('[data-task-review-disposition], .task-review-disposition-readonly[data-disposition]')]
+          .map((control) => control.dataset.disposition ?? control.value),
+        reviewDispositionSelectCount: document.querySelectorAll('[data-task-review-disposition]').length,
+        reviewDispositionBadges: [...document.querySelectorAll('.task-review-disposition-readonly')].map((badge) => badge.textContent),
         controlNames: [...document.querySelectorAll('.task-composer [data-task-control], .task-detail [data-task-control], .task-review [data-task-control]')]
           .map((control) => control.dataset.taskControl),
       };
@@ -3983,6 +3985,8 @@ try {
           && checkpoint4TaskFocus.hasRevert === true
           && checkpoint4TaskFocus.detailVisible === true
           && layout.taskWorkspace.reviewDispositions.includes('USER_ACCEPTED')
+          && layout.taskWorkspace.reviewDispositionSelectCount === 0
+          && layout.taskWorkspace.reviewDispositionBadges.includes('Accepted')
           && layout.taskWorkspace.controlNames.includes('revert'),
         'Checkpoint 4 merged lineage, human disposition, timeline, or compensating-revert control is not visibly inspectable.');
       }
@@ -4418,6 +4422,12 @@ try {
         window.confirm = () => { confirmCalls += 1; return true; };
         try {
           const initial = context();
+          const proposalRows = [...reviewRoot().querySelectorAll('.task-review-items > li')];
+          const templateProposalClarity = proposalRows.length === 2
+            && ['archetype.feedback.gathering', 'archetype.feedback.workshop'].every((id, index) =>
+              proposalRows[index].querySelector('strong')?.textContent === 'Add room template: ' + id
+              && proposalRows[index].textContent.includes('A reusable starting point for new rooms, not a finished room.')
+              && proposalRows[index].textContent.includes('Accept selects this task proposal; completing the task adds it to the project.'));
           for (const select of document.querySelectorAll('[data-task-review-disposition]')) select.value = 'USER_ACCEPTED';
           choice().value = 'CHANGES_REQUESTED';
           document.querySelector('[data-task-control="decide"]').click();
@@ -4473,7 +4483,46 @@ try {
             && pausedHistory.textContent.includes('Keep the saved footprint unchanged.')
             && !pausedHistory.textContent.includes('Waiting for your review')
             && !pausedHistory.querySelector('[data-task-control="decide"]');
+          document.querySelector('[data-task-control="resume"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'ACTIVE', 'Second continuation authorization did not settle.');
+          document.querySelector('[data-task-control="submit-review"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'IN_REVIEW'
+            && document.querySelectorAll('[data-task-review-disposition]').length === 2, 'The new result did not open an editable review.');
+          const submitted = context();
+          const choices = [...document.querySelectorAll('[data-task-review-disposition]')];
+          choices[0].value = 'USER_ACCEPTED'; choices[1].value = 'USER_REJECTED';
+          const reasons = [...document.querySelectorAll('[data-task-review-reason]')];
+          reasons[1].value = 'Keep only the gathering template in this test.';
+          document.querySelector('[data-task-control="decide"]').click();
+          await waitFor(() => context().reviewVersion === submitted.reviewVersion + 1
+            && !document.querySelector('[data-task-control="merge"]')?.disabled, 'The accepted/rejected review decisions did not save.');
+          document.querySelector('[data-task-control="merge"]').click();
+          await waitFor(() => document.querySelector('.task-detail [data-task-state]')?.dataset.taskState === 'MERGED'
+            && Boolean(document.querySelector('[data-task-control="revert"]')), 'The accepted subset did not complete the task.');
+          const readonlyDecisions = () => {
+            const rows = [...reviewRoot().querySelectorAll('.task-review-items > li')];
+            return rows.length === 2 && reviewRoot().querySelectorAll('select').length === 0
+              && rows[0].querySelector('.task-review-disposition-readonly[data-disposition="USER_ACCEPTED"]')?.textContent === 'Accepted'
+              && rows[1].querySelector('.task-review-disposition-readonly[data-disposition="USER_REJECTED"]')?.textContent === 'Rejected'
+              && rows[1].textContent.includes('Keep only the gathering template in this test.')
+              && !reviewRoot().querySelector('[data-task-control="decide"]')
+              && !reviewRoot().querySelector('[data-task-control="merge"]');
+          };
+          const completedReadonlyDecisions = readonlyDecisions();
+          const completed = await fetch(base).then((response) => response.json());
+          const savedDecisions = JSON.stringify(completed.review.items);
+          document.querySelector('[data-task-control="revert"]').click();
+          await waitFor(() => reviewRoot().textContent.includes('Changes undone.')
+            && !document.querySelector('[data-task-control="revert"]'), 'Undo did not show retained read-only review history.');
+          const undoneReadonlyDecisions = readonlyDecisions();
+          const undone = await fetch(base).then((response) => response.json());
+          const undoRetainsHistory = JSON.stringify(undone.review.items) === savedDecisions
+            && undone.review.reviewVersion === completed.review.reviewVersion
+            && undone.timeline.some((event) => event.type === 'TASK_MERGED')
+            && undone.timeline.some((event) => event.type === 'MERGE_REVERTED');
+          reviewRoot().scrollIntoView({ block: 'start', inline: 'nearest' });
           return { requiredSummary, sameReviewRetained, newVersionCleared, exactFeedback, resumedHistoryTruth, pausedHistoryTruth,
+            templateProposalClarity, completedReadonlyDecisions, undoneReadonlyDecisions, undoRetainsHistory,
             noOverflow: document.documentElement.scrollWidth <= innerWidth };
         } finally { window.confirm = originalConfirm; delete window.__studioFeedbackFormCapture; }
       })()`, awaitPromise: true, returnByValue: true,
