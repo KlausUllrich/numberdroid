@@ -159,9 +159,9 @@ automation and source integration do not change the `REVISE` live result.
   (project r37 / Room v8, retained unsaved shape draft and Prop tool, no jumps).
   He subsequently passed Task decision badges/template explanations, Room
   labels/wider toolbar, and the temporary cell-paint check with unsaved status
-  and enabled Save. The new finding is tiny Save/Discard and right-hand controls;
-  their standard-size/primary-Save correction needs a visual check. Discard the
-  temporary cell edit before refreshing; do not save it or reset live fixtures.
+  and enabled Save. He reported tiny Save/Discard and right-hand controls, then
+  explicitly accepted their standard-size/primary-Save correction with
+  **“new buttons: pass”**. Do not repeat these checks or reset live fixtures.
   Historical Task display names and full legacy overhang parity are not supplied
   by this presentation-only repair. Do not repeat the passed return checks or
   infer overall acceptance. See [Room status](ROOM_EDITOR_L3_STATUS.md) and

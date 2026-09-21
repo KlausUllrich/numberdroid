@@ -18,10 +18,9 @@ Klaus subsequently passed the wider toolbar and non-overlapping labels, then
 the temporary bottom-row third-cell paint check: **BLOCKED**, **Unsaved shape
 changes**, and enabled **Save shape**. He reported the Save/Discard and right-hand
 controls were too small. The bounded follow-up uses standard-size actions,
-primary Save emphasis, and readable Source-style panel tabs. That sizing change
-still needs his visual check; the temporary live draft must be discarded by
-Klaus before refreshing, not saved or reset remotely. These bounded passes do
-not close VT-001.
+primary Save emphasis, and readable Source-style panel tabs. Klaus then replied
+**“new buttons: pass”**, closing that bounded sizing retest. No live fixture was
+saved or reset by the agent. These bounded passes do not close VT-001.
 
 The large `prop.preview-overhang` fixture is intentional: legacy Preview-only
 presentation metadata gives its artwork a larger extent than its occupied cells.

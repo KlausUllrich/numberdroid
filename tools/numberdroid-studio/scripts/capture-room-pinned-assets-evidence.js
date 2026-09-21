@@ -66,9 +66,17 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   const evaluate = async (expression) => { const value = await devtools.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }, sessionId); assert.equal(value.exceptionDetails, undefined, JSON.stringify(value.exceptionDetails)); return value.result?.value; };
   const waitFor = async (expression, label) => { const deadline = Date.now() + 12_000; while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise((done) => setTimeout(done, 50)); } throw new Error(`${label} did not become ready.`); };
   const click = (selector) => evaluate(`(() => { const target = document.querySelector(${JSON.stringify(selector)}); if (!target || target.disabled) throw new Error('Unavailable ' + ${JSON.stringify(selector)}); target.scrollIntoView({ block: 'center' }); target.click(); })()`);
-  const nativePoint = async (selector) => evaluate(`(() => {
-    const target = document.querySelector(${JSON.stringify(selector)}); if (!target || target.disabled) throw new Error('Unavailable native target ' + ${JSON.stringify(selector)});
-    target.scrollIntoView({ block: 'center', inline: 'nearest' }); const rect = target.getBoundingClientRect();
+  const nativePoint = async (selector) => evaluate(`(async () => {
+    let target = document.querySelector(${JSON.stringify(selector)}); if (!target || target.disabled) throw new Error('Unavailable native target ' + ${JSON.stringify(selector)});
+    target.scrollIntoView({ block: 'center', inline: 'nearest' });
+    const initialRect = target.getBoundingClientRect();
+    // Flush scroll/paint before native hit testing: an immediate CDP click can
+    // still hit the previously painted canvas despite an updated DOM rect.
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    target = document.querySelector(${JSON.stringify(selector)}); const rect = target.getBoundingClientRect();
+    if (window.__pinnedAudit) (window.__pinnedAudit.nativeTargetGeometry ??= []).push({ selector:${JSON.stringify(selector)},
+      before:{ x:initialRect.left + initialRect.width / 2, y:initialRect.top + initialRect.height / 2 },
+      settled:{ x:rect.left + rect.width / 2, y:rect.top + rect.height / 2 } });
     const x = rect.left + rect.width / 2; const y = rect.top + rect.height / 2;
     if (!target.contains(document.elementFromPoint(x, y))) throw new Error('Native target is obscured: ' + ${JSON.stringify(selector)});
     return { x, y };
@@ -156,11 +164,43 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   assert.equal(mixedVisual.find((item) => item.placementId === 'placement.mixed.old').image, expectedOldImage);
   assert.equal(mixedVisual.find((item) => item.placementId === 'placement.mixed.new').image, latestImage);
   const readabilityBefore = await read(); const postsBeforeReadability = await evaluate('window.__pinnedAudit.posts.length');
+  const actionReadability = () => evaluate(`(() => {
+    const measure = (node) => {
+      const rect = node.getBoundingClientRect(); const style = getComputedStyle(node);
+      const parent = node.parentElement.getBoundingClientRect();
+      return { label:node.textContent, height:rect.height, font:Number.parseFloat(style.fontSize),
+        disabled:node.disabled, background:style.backgroundColor, selected:node.dataset.selected,
+        textFits:node.scrollWidth <= node.clientWidth + 1 && node.scrollHeight <= node.clientHeight + 1,
+        contained:rect.left >= parent.left - 1 && rect.right <= parent.right + 1,
+        borderBottom:style.borderBottomWidth, borderRadius:style.borderRadius };
+    };
+    return { save:measure(document.querySelector('[data-room-control="shape-save"]')),
+      discard:measure(document.querySelector('[data-room-control="shape-reset"]')),
+      tabs:[...document.querySelectorAll('.room-dock-navigation button')].map(measure),
+      dockActions:[...document.querySelectorAll('.room-move-controls button, .room-lifecycle-actions button')].map(measure),
+      overflow:document.documentElement.scrollWidth > innerWidth || document.body.scrollWidth > innerWidth };
+  })()`);
+  const assertReadableActions = (observation, dirty) => {
+    assert.equal(observation.save.disabled, !dirty, 'Save shape must reflect the actual shape draft');
+    assert.equal(observation.discard.disabled, !dirty);
+    for (const control of [observation.save, observation.discard, ...observation.tabs, ...observation.dockActions]) {
+      assert.ok(control.height >= 40 && control.font >= 14, `Room control is too small: ${JSON.stringify(control)}`);
+      assert.equal(control.textFits, true, `Room control text is clipped: ${control.label}`);
+      assert.equal(control.contained, true, `Room control escaped its container: ${control.label}`);
+    }
+    assert.notEqual(observation.save.background, observation.discard.background, 'Save must have primary emphasis, distinct from Discard');
+    assert.equal(observation.tabs.length, 3);
+    assert.equal(observation.tabs.filter(tab => tab.selected === 'true').length, 1);
+    assert.equal(observation.overflow, false);
+  };
+  const savedActions = await actionReadability(); assertReadableActions(savedActions, false);
   await nativeClick('[data-room-control="editor-tool"][data-editor-tool="SELECT"]');
   await nativeClick('[data-room-control="zoom"][data-room-zoom="fit"]');
   await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
   const multiCellSelector = '.room-placement[data-placement-id="placement.mixed.new"]';
   await nativeClick(multiCellSelector);
+  const selectedActions = await actionReadability(); assertReadableActions(selectedActions, false);
+  assert.ok(selectedActions.dockActions.length > 0, 'Selected placement must exercise ordinary move controls');
   const placementReadability = await evaluate(`(() => {
     const node = document.querySelector(${JSON.stringify(multiCellSelector)}); const rect = node.getBoundingClientRect();
     const visual = node.querySelector('.room-placement-visual'); const image = node.querySelector('img'); const art = visual.getBoundingClientRect();
@@ -198,14 +238,31 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   await nativeClick('[data-room-control="editor-tool"][data-editor-tool="PAINT_BLOCKED"]');
   await nativeClick('[data-room-control="cell"][data-x="5"][data-y="2"]');
   await waitFor(`document.querySelector('[data-room-control="cell"][data-x="5"][data-y="2"]')?.dataset.cellKind === 'BLOCKED' && document.querySelector('.room-editor-status')?.dataset.dirty === 'true'`, 'Native painting through the middle of the multi-cell Asset');
+  const dirtyActions = await actionReadability(); assertReadableActions(dirtyActions, true);
+  const dirtyDockNavigation = [];
+  for (const panel of ['properties', 'check', 'tool']) {
+    await evaluate(`(() => { window.__pinnedAudit.lastPanelClick = null; document.addEventListener('click', event => {
+      window.__pinnedAudit.lastPanelClick = event.target.closest('[data-room-control]')?.dataset.editorPanel ?? null;
+    }, { once:true, capture:true }); })()`);
+    await nativeClick(`[data-room-control="editor-panel"][data-editor-panel="${panel}"]`);
+    assert.equal(await evaluate('window.__pinnedAudit.lastPanelClick'), panel, 'Native pointer must actually hit the named dock tab');
+    await waitFor(`document.querySelector('[data-room-control="editor-panel"][data-editor-panel="${panel}"]')?.dataset.selected === 'true'`, `Native ${panel} panel selection with unsaved shape`);
+    const controls = await actionReadability(); assertReadableActions(controls, true);
+    if (panel === 'check') assert.ok(controls.dockActions.length > 0, 'Check panel must exercise ordinary lifecycle controls');
+    assert.equal(controls.tabs.find(tab => tab.selected === 'true')?.label,
+      { properties:'Purpose & settings', check:'Check room', tool:'Tool options' }[panel]);
+    dirtyDockNavigation.push({ panel, controls });
+  }
+  await capture(reopened ? 'reopened-dirty-shape-controls' : 'dirty-shape-controls');
   assert.equal(await evaluate('window.__pinnedAudit.posts.length'), postsBeforeReadability, 'Painting must not save a Room or place an Asset');
   assert.deepEqual(await read(), readabilityBefore, 'A painted shape draft changed persisted project data');
   await nativeClick('[data-room-control="shape-reset"]', true);
   await waitFor(`document.querySelector('[data-room-control="cell"][data-x="5"][data-y="2"]')?.dataset.cellKind === 'ROOM' && document.querySelector('.room-editor-status')?.dataset.dirty === 'false'`, 'Discard restores the exact saved cell');
+  const restoredActions = await actionReadability(); assertReadableActions(restoredActions, false);
   await nativeClick('[data-room-control="editor-tool"][data-editor-tool="SELECT"]');
   assert.equal(await evaluate('window.__pinnedAudit.posts.length'), postsBeforeReadability);
   assert.deepEqual(await read(), readabilityBefore, 'Discarding a shape draft changed persisted project data');
-  const roomReadability = { placement: placementReadability, entrance: entranceReadability, sameCellLabels, nativePaintThroughMultiCell: true, discardConfirmed: true, addedPosts: 0, revisionUnchanged: true };
+  const roomReadability = { placement: placementReadability, entrance: entranceReadability, sameCellLabels, actions: { saved:savedActions, selected:selectedActions, dirty:dirtyActions, restored:restoredActions, dirtyDockNavigation }, nativeTargetGeometry: await evaluate('window.__pinnedAudit.nativeTargetGeometry'), nativePaintThroughMultiCell: true, discardConfirmed: true, addedPosts: 0, revisionUnchanged: true };
   await capture(reopened ? 'reopened-mixed' : 'mixed-versions');
   let workspaceNavigation = null;
   if (!reopened) {

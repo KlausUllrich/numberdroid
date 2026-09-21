@@ -46,3 +46,23 @@ test('Room Inspector distinguishes footprint, modern image overhang and legacy P
   assert.match(inspector, /else if \(asset\?\.metadata\?\.extensions\?\.\['studio\.preview\.presentation'\]\)/);
   assert.match(inspector, /may look larger there without occupying more cells/);
 });
+
+test('Room save/discard and dock controls retain readable action sizing without weakening draft guards', () => {
+  const options = app.slice(app.indexOf('function renderRoomToolOptions'), app.indexOf('function renderRoomDockNavigation'));
+  assert.match(options, /save\.disabled = !draft\.dirty \|\| Boolean\(state\.roomUi\.shapeConflict\) \|\| variant\.lifecycle !== 'DRAFT'/);
+  assert.match(options, /reset\.disabled = \(!draft\.dirty && !state\.roomUi\.shapeConflict\) \|\| variant\.lifecycle !== 'DRAFT'/);
+  assert.match(options, /actions\.append\(save, reset\)/);
+  assert.match(options, /save\.classList\.remove\('secondary'\)/);
+  const actionRule = css.match(/\.room-tool-actions button \{([^}]+)\}/)?.[1];
+  assert.match(actionRule, /min-height: 4[0-9]px/);
+  assert.match(actionRule, /font-size: 1[4-9]px/);
+  assert.doesNotMatch(css, /\.room-dock-navigation button \{[^}]*font-size: [789]px/);
+  const dockRule = css.match(/\.room-dock-navigation button \{([^}]+)\}/)?.[1];
+  assert.match(dockRule, /min-height: 4[0-9]px/);
+  assert.match(dockRule, /font-size: 1[4-9]px/);
+  assert.match(dockRule, /white-space: normal/);
+  assert.match(dockRule, /border-radius: 0/);
+  const ordinaryDockActions = css.match(/\.room-move-controls button, \.room-lifecycle-actions button \{([^}]+)\}/)?.[1];
+  assert.match(ordinaryDockActions, /min-height: 4[0-9]px/);
+  assert.match(ordinaryDockActions, /font-size: 1[4-9]px/);
+});
