@@ -9,6 +9,21 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
   const waitFor = async (expression, label) => { const deadline = Date.now() + 10_000; while (Date.now() < deadline) { if (await evaluate(expression)) return; await new Promise(done => setTimeout(done, 50)); } const diagnostic = await evaluate('document.body.innerText.slice(-12000)'); throw new Error(`${label} did not settle within ten seconds.\n${diagnostic}`); };
   const click = async selector => { await evaluate(`(() => { const n=document.querySelector(${JSON.stringify(selector)}); if(!n||n.disabled)throw new Error('Unavailable Assembly control: '+${JSON.stringify(selector)}); n.click(); })()`); await settle(); };
   const fill = async (key, value) => { await evaluate(`(() => { const n=document.querySelector('[data-assembly-field='+CSS.escape(${JSON.stringify(key)})+']'); if(!n||n.disabled)throw new Error('Unavailable Assembly field'); n.focus({preventScroll:true}); n.value=${JSON.stringify(String(value))}; n.dispatchEvent(new Event('input',{bubbles:true})); n.dispatchEvent(new Event('change',{bubbles:true})); })()`); await settle(); };
+  const keypress = async key => { const keyCode = { Backspace: 8, Home: 36, ArrowRight: 39 }[key]; for (const type of ['keyDown', 'keyUp']) await devtools.send('Input.dispatchKeyEvent', { type, key, code: key, windowsVirtualKeyCode: keyCode, nativeVirtualKeyCode: keyCode }, sessionId); await settle(); };
+  // Do not use .value/fill for this regression: a complete decimal bypasses
+  // the browser's intermediate "0." and "-" number-input editing states.
+  const typeNumber = async (key, value, { blur = true } = {}) => {
+    await evaluate(`(() => {const n=document.querySelector('[data-assembly-field='+CSS.escape(${JSON.stringify(key)})+']');n.focus({preventScroll:true});n.select();})()`);
+    await keypress('Backspace');
+    assert.equal(await evaluate(`document.querySelector('[data-assembly-field='+CSS.escape(${JSON.stringify(key)})+']').value`), '', 'Native Backspace must clear the selected field');
+    assert.equal(await evaluate(`document.querySelector('[data-assembly-action="save"]').disabled`), true, 'An unfinished numeric entry still blocks Save');
+    for (const [index, text] of [...String(value)].entries()) {
+      await devtools.send('Input.insertText', { text }, sessionId); await settle();
+      if (index === 0 && text === '-') assert.equal(await evaluate(`document.querySelector('[data-assembly-action="save"]').disabled`), true, 'An unfinished sign still blocks Save');
+    }
+    assert.equal(await evaluate(`document.querySelector('[data-assembly-field='+CSS.escape(${JSON.stringify(key)})+']').value`), String(value), 'Native typing must preserve decimal/sign and caret');
+    if (blur) { await evaluate('document.activeElement.blur()'); await settle(); }
+  };
   const inspect = () => evaluate(`(() => { const r=n=>{const b=n?.getBoundingClientRect();return b?[b.x,b.y,b.width,b.height]:null}; const canvas=document.querySelector('[data-assembly-canvas]');return {
     canvas:r(canvas), matrix:canvas?Array.from(['a','b','c','d','e','f'],k=>canvas.getScreenCTM()[k]):null,
     components:[...document.querySelectorAll('[data-assembly-action="component"]')].map(n=>({id:n.dataset.value,selected:n.getAttribute('aria-pressed')==='true'})),
@@ -108,12 +123,31 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
   await navigation.details('assembly', assetId);
   await click('[data-library-action="edit"]'); await waitFor(`document.querySelectorAll('[data-assembly-canvas] image').length>=2 && !document.querySelector('[data-assembly-status]')?.textContent.includes('Resolving')`, 'Resolved exact Assembly');
   const evidence = { schemaVersion: 1, projectId, assetId, phase: reopen ? 'reopen' : 'edit', ...(reopen ? {} : { independentCreation: true, review: reviewEvidence }), agentReview: 'Separate real-agent semantic proof is required.' };
-  if (reopen) { evidence.reopened = await inspect(); assert.match(evidence.reopened.saved, /Saved Assembly v2/); assert(evidence.reopened.images.length >= 2); return evidence; }
+  if (reopen) { evidence.reopened = await inspect(); assert.match(evidence.reopened.saved, /Saved Assembly v2/); assert(evidence.reopened.images.length >= 2);
+    const reopenedAsset = (await project()).snapshot.assemblyLibrary.assets.find(asset => asset.assetId === assetId);
+    assert.equal(reopenedAsset.assembly.components.find(component => component.componentId === 'component.graphite').scale, .9, 'Restart retains the natively typed decimal scale'); return evidence; }
   const beforeProject = await project(), nativeBefore = JSON.stringify(beforeProject.snapshot.assetLibrary.assets);
   await evaluate(`window.__assemblyEvidence={images:[...document.querySelectorAll('[data-assembly-canvas] image')],originalFetch:window.fetch,requests:[],drop:false};`);
   try {
     await click('[data-assembly-action="component"][data-value="component.graphite"]');
     assert.match(await evaluate(`document.querySelector('.assembly-inspector').textContent`), /Library now has v2/);
+    const labels = await evaluate(`Object.fromEntries([...document.querySelectorAll('.assembly-tools [data-assembly-action]')].map(n=>[n.dataset.assemblyAction,n.textContent]))`);
+    assert.deepEqual([labels.add, labels.forward, labels.backward, labels.remove], ['Add component', 'Send forward', 'Send back', 'Remove component']);
+    assert.equal(await evaluate(`document.querySelector('[data-assembly-action="back"]').textContent`), 'Back to Library');
+    const layout = await evaluate(`({overflow:document.documentElement.scrollWidth>innerWidth,buttons:[...document.querySelectorAll('.assembly-tools button')].map(n=>({label:n.textContent,clipped:n.scrollWidth>n.clientWidth}))})`);
+    assert.equal(layout.overflow, false, 'The wider tool rail must not overflow the page');
+    assert(layout.buttons.every(button=>!button.clipped), JSON.stringify(layout));
+    await typeNumber('scale', '0.9');
+    await click('[data-assembly-action="undo"]'); assert.equal((await inspect()).numeric.scale, 1);
+    await click('[data-assembly-action="redo"]'); assert.equal((await inspect()).numeric.scale, .9);
+    await typeNumber('position.x', '-15.125', { blur: false });
+    assert.equal((await inspect()).numeric['position.x'], -15.125);
+    await keypress('Home'); await keypress('ArrowRight');
+    for (const text of ['2', '3']) { await devtools.send('Input.insertText', { text }, sessionId); await settle(); }
+    assert.equal((await inspect()).numeric['position.x'], -2315.125, 'Typing in the middle retains the native caret across renders');
+    await evaluate('document.activeElement.blur()'); await settle();
+    await click('[data-assembly-action="undo"]'); assert.equal((await inspect()).numeric['position.x'], 0);
+    evidence.nativeNumericTyping = { decimalScale: .9, negativePosition: -15.125, middleCaretRetained: true, unfinishedSaveBlocked: true, undoRedo: true, readableComponentLabels: true };
     const beforeDrag = await inspect();
     const start = await evaluate(`(() => {const n=document.querySelector('[data-assembly-component="component.graphite"] image');n.scrollIntoView({block:'center',inline:'center'});const r=n.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2};})()`);
     const positioned = await inspect(), end = { x: start.x + 18 * positioned.matrix[0], y: start.y + 12 * positioned.matrix[3] };
@@ -137,7 +171,7 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     const blocking = ready.blocking; await click('[data-assembly-action="eye"][data-value="component.graphite"]'); assert.deepEqual((await inspect()).blocking, blocking); await click('[data-assembly-action="eye"][data-value="component.graphite"]');
     evidence.previewAndEye = { stateRetainsVariant: true, cupMembership: true, inspectionDoesNotRemoveBlocking: true };
 
-    await fill('position.x', 15.125); await fill('rotationDegrees', 27.5); await fill('scale', 1.1);
+    await fill('position.x', 15.125); await fill('rotationDegrees', 27.5);
     await evaluate(`(() => {const n=document.querySelector('[data-assembly-field="position.x"]');n.focus({preventScroll:true});const s=document.querySelector('.assembly-inspector');s.scrollTop=110;})()`); const beforeSource = await inspect();
     await click('[data-assembly-action="source"]'); assert.match(await evaluate(`document.querySelector('[data-assembly-view="source"]').textContent`), /Source inspection|source.assembly-sheet/);
     await click('[data-assembly-action="return-source"]'); const returned = await inspect(); assert.deepEqual(returned.selection, beforeSource.selection); assert.deepEqual(returned.images, beforeSource.images); assert.equal(returned.numeric['position.x'], 15.125);
@@ -185,6 +219,7 @@ export async function captureAssemblyEditor({ devtools, sessionId, reopen = fals
     await click('[data-assembly-action="retry"]'); await waitFor(`document.querySelector('[data-assembly-saved-state]')?.textContent.includes('Saved Assembly v2')`, 'Idempotent Assembly replay');
     const requests = await evaluate(`window.__assemblyEvidence.requests`); assert.equal(requests.length, 2); assert.equal(requests[0], requests[1]);
     const afterProject = await project(); assert.equal(afterProject.revision, beforeProject.revision + 1); assert.equal(JSON.stringify(afterProject.snapshot.assetLibrary.assets), nativeBefore);
+    assert.equal(afterProject.snapshot.assemblyLibrary.assets.find(asset => asset.assetId === assetId).assembly.components.find(component => component.componentId === 'component.graphite').scale, .9, 'The saved declaration retains the exact typed decimal');
     evidence.ownerSave = { identicalReplay: true, oneRevision: true, nativeSourcesUnchanged: true, revision: afterProject.revision }; evidence.final = await inspect(); return evidence;
   } finally { await evaluate(`(() => {if(window.__assemblyEvidence){window.fetch=window.__assemblyEvidence.originalFetch;delete window.__assemblyEvidence;}})()`); }
 }

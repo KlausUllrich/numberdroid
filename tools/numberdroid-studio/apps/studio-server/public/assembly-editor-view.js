@@ -23,7 +23,7 @@ export function createAssemblyEditorView(state) {
   const edit = el('section'); edit.dataset.assemblyView = 'edit';
   const preview = el('div', 'assembly-preview-selectors'); preview.dataset.assemblySelectors = ''; edit.append(preview);
   const layout = el('div', 'assembly-layout'), rail = el('nav', 'assembly-tools'); rail.setAttribute('aria-label', 'Assembly tools');
-  for (const [action, title] of [['select-tool', 'Select'], ['add', '+ Add'], ['rotate', 'Rotate 90°'], ['forward', 'Forward'], ['backward', 'Back'], ['remove', 'Remove'], ['grid', 'Grid'], ['undo', 'Undo'], ['redo', 'Redo'], ['save', 'Save work']]) rail.append(button(title, action));
+  for (const [action, title] of [['select-tool', 'Select'], ['add', 'Add component'], ['rotate', 'Rotate 90°'], ['forward', 'Send forward'], ['backward', 'Send back'], ['remove', 'Remove component'], ['grid', 'Grid'], ['undo', 'Undo'], ['redo', 'Redo'], ['save', 'Save work']]) rail.append(button(title, action));
   const main = el('div', 'assembly-main'), zoom = el('div', 'assembly-zoom'); zoom.append(button('Fit', 'zoom', 'fit'), button('100%', 'zoom', '1'));
   const slider = el('input'); slider.type = 'range'; slider.min = '10'; slider.max = '400'; slider.step = '1'; slider.dataset.assemblyZoom = ''; slider.dataset.assemblyFocusKey = 'zoom'; slider.setAttribute('aria-label', 'Assembly canvas zoom percent');
   const output = el('output'); output.dataset.assemblyZoomLabel = ''; zoom.append(slider, output); main.append(zoom);
@@ -90,7 +90,7 @@ function inspectorContent(state, nativeAssets) {
   const list = el('div', 'assembly-component-list'); list.dataset.assemblyScroll = 'components';
   for (const c of a.components) { const row = el('div', 'assembly-component-row'); const b = button(c.name, 'component', c.componentId); b.setAttribute('aria-pressed', String(c.componentId === state.selectedComponentId));
     const content = assemblySelectedContent(c, state.preview); b.append(el('small', '', content.kind === 'none' ? 'No content in this state' : `${content.kind === 'animation' ? 'Animation · ' : ''}${content.asset.assetId} · v${content.asset.assetVersion}`)); const eye = button(state.hidden.includes(c.componentId) ? 'Show' : 'Hide', 'eye', c.componentId); eye.setAttribute('aria-label', `${state.hidden.includes(c.componentId) ? 'Show' : 'Hide'} ${c.name} for inspection only`); row.append(b, eye); list.append(row); }
-  box.append(list); if (!a.components.length) box.append(note('Add a saved Asset to begin.'), button('+ Add component', 'add'));
+  box.append(list); if (!a.components.length) box.append(note('Add a saved Asset to begin.'), button('Add component', 'add'));
   const c = selectedAssemblyComponent(state); if (!c) return box;
   box.append(el('h3', '', 'Selected component'), field('component.name', c.name, 'Component name'));
   const coordinates = el('div', 'assembly-coordinates'); coordinates.append(number('position.x', c.position.x, 'Anchor X (px)'), number('position.y', c.position.y, 'Anchor Y (px)'), number('rotationDegrees', c.rotationDegrees, 'Rotation (degrees)'), number('scale', c.scale, 'Uniform scale')); box.append(coordinates);
@@ -205,7 +205,15 @@ export function updateAssemblyEditorView(root, state, { inspector = true, native
     if (action === 'default-variant') b.disabled ||= state.model.assembly.defaultVariantId === b.dataset.value;
   }
   for (const checkbox of root.querySelectorAll('[data-assembly-option="state-membership"]')) checkbox.disabled ||= selected?.stateIds === null;
-  for (const input of root.querySelectorAll('[data-assembly-field]')) { const key = `${input.dataset.assemblyField}:${input.dataset.row ?? ''}`; if (state.fieldDrafts[key] !== undefined) input.value = state.fieldDrafts[key]; }
+  for (const input of root.querySelectorAll('[data-assembly-field]')) {
+    // The browser owns the focused field's raw text and caret while typing.
+    // Number inputs expose "0." as "0" and "-" as "" through .value;
+    // assigning that normalized value back destroys an unfinished decimal/sign.
+    // Newly mounted controls still receive retained drafts on context return.
+    if (input === document.activeElement) continue;
+    const key = `${input.dataset.assemblyField}:${input.dataset.row ?? ''}`;
+    if (state.fieldDrafts[key] !== undefined) input.value = state.fieldDrafts[key];
+  }
   const recovery = root.querySelector('[data-assembly-recovery]'); recovery.replaceChildren();
   if (state.save.status === 'uncertain') recovery.append(button('Check saved outcome', 'check-outcome'), button('Retry exact Save', 'retry'));
   else if (state.conflict) recovery.append(button('Recheck saved version', 'recheck'));

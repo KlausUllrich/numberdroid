@@ -3610,10 +3610,10 @@ function currentRoomVariant(snapshot = state.project?.snapshot) {
 }
 
 const ROOM_EDITOR_TOOLS = Object.freeze([
-  ['SELECT', '↖', 'Select', 'Select a placement or entrance on the canvas.'],
-  ['PAINT_ROOM', '■', 'Room floor', 'Paint an ordinary room-floor cell.'],
-  ['PAINT_VOID', '▧', 'Outside room', 'Exclude a cell from the room.'],
-  ['PAINT_BLOCKED', '⊠', 'Blocked in room', 'Keep a cell in the room but make it impassable.'],
+  ['SELECT', '↖', 'Select', 'Click an asset or entrance to inspect it. To change a cell, choose Room floor, Outside room or Blocked in room on the left, then click the cell.'],
+  ['PAINT_ROOM', '■', 'Room floor', 'Click a cell to make it usable room floor. This edits the shape draft; choose Save shape to keep it.'],
+  ['PAINT_VOID', '▧', 'Outside room', 'Click a cell to exclude it from the room. This edits the shape draft; choose Save shape to keep it.'],
+  ['PAINT_BLOCKED', '⊠', 'Blocked in room', 'Click a cell to keep it inside the room but block passage. This edits the shape draft; choose Save shape to keep it.'],
   ['ENTRANCE', '⇥', 'Entrance', 'Add and inspect openings on the room edge.'],
   ['SURFACE', '▦', 'Surface', 'Choose a structural surface and place it on the canvas.'],
   ['PROP', '◆', 'Prop', 'Choose a prop or item and place copies on the canvas.'],
@@ -3958,7 +3958,7 @@ function updateRoomPlacementGhostDom() {
 
 function roomCanvasHintText(variant, ghost = currentRoomPlacementGhost()) {
   if (variant.lifecycle !== 'DRAFT') return `${variant.lifecycle} versions are read-only. Fork a FINAL version to continue authoring.`;
-  if (state.roomUi.activeTool.startsWith('PAINT_')) return 'Click a cell, or focus it and press Enter/Space, to paint the active class. Existing content is ghosted while painting.';
+  if (state.roomUi.activeTool.startsWith('PAINT_')) return 'Click a cell, or focus it and press Enter/Space, to paint the active class. Save shape keeps these edits; Discard / reload restores the saved shape. Artwork is dimmed while painting, not removed.';
   if (state.roomUi.pendingPlacementAdd) return `Placement at ${state.roomUi.pendingPlacementAdd.anchor.x},${state.roomUi.pendingPlacementAdd.anchor.y} is not yet confirmed. Choose that same cell again to retry safely; Studio will not create a duplicate.`;
   if (state.roomUi.placementGesture) return `${ghost?.allowed ? '✓' : '×'} ${ghost?.message ?? 'Drag the placement to a snapped cell.'} Server validation remains authoritative.`;
   if (state.roomUi.selectedPlacementId) return 'Drag the selected placement, use the arrow keys, press R to rotate, or Delete to remove it. Inspector controls remain available.';
@@ -3969,7 +3969,7 @@ function roomCanvasHintText(variant, ghost = currentRoomPlacementGhost()) {
   if (state.roomUi.activeTool === 'SURFACE') return 'Choose an exact-version surface in the tool options, then place it on as many free canvas cells as needed.';
   if (state.roomUi.activeTool === 'PROP') return 'Choose a prop or item in the tool options to arm it immediately, then place copies on free canvas cells.';
   if (state.roomUi.activeTool === 'CLEAR') return 'Choose a prop or surface on the canvas to remove it. Studio asks for confirmation before changing the room.';
-  return 'Select a placement or entrance on the canvas, or choose another tool from the left toolbar.';
+  return 'To change a cell: choose Room floor, Outside room or Blocked in room on the left, then click the cell. To move an asset: choose Select, then drag it. Hover or select an asset or entrance to see its label.';
 }
 
 function roomControl(label, value, dataset = {}) {
@@ -4166,7 +4166,9 @@ function renderRoomCanvas(variant, snapshot) {
       clearance.dataset.selected = String(state.roomUi.selectedConnectorId === connector.connectorId);
       clearance.style.left = `calc(${geometry.left} * var(--room-cell))`; clearance.style.top = `calc(${geometry.top} * var(--room-cell))`;
       clearance.style.width = `calc(${geometry.width} * var(--room-cell))`; clearance.style.height = `calc(${geometry.height} * var(--room-cell))`;
-      clearance.textContent = connector.connectorId; clearance.setAttribute('aria-label', `${connector.side} connector ${connector.connectorId}, clearance ${connector.clearanceInside} cells`);
+      const label = document.createElement('span'); label.className = 'room-connector-label'; label.textContent = `${connector.side} entrance`;
+      clearance.append(label); clearance.title = `${connector.side} entrance · ${connector.connectorId}`;
+      clearance.setAttribute('aria-label', `${connector.side} connector ${connector.connectorId}, clearance ${connector.clearanceInside} cells`);
       board.append(clearance);
     }
   }
@@ -4182,7 +4184,8 @@ function renderRoomCanvas(variant, snapshot) {
     placed.style.left = `calc(${placement.anchor.x} * var(--room-cell))`; placed.style.top = `calc(${placement.anchor.y} * var(--room-cell))`;
     placed.style.width = `calc(${span.width} * var(--room-cell))`; placed.style.height = `calc(${span.height} * var(--room-cell))`;
     if (asset) placed.append(roomPlacementVisual(asset, placement.rotation));
-    const label = document.createElement('span'); label.textContent = asset?.name ?? placement.assetId; placed.append(label);
+    const label = document.createElement('span'); label.className = 'room-placement-label'; label.textContent = asset?.name ?? placement.assetId; placed.append(label);
+    placed.title = `${label.textContent} · ${span.width}×${span.height} occupied cells · ${placement.rotation}°`;
     placed.setAttribute('aria-label', `${label.textContent} at ${placement.anchor.x}, ${placement.anchor.y}, rotation ${placement.rotation}`);
     board.append(placed);
   }
@@ -4258,6 +4261,14 @@ function renderRoomInspector(variant, snapshot) {
       const dt = document.createElement('dt'); dt.textContent = key; const dd = document.createElement('dd'); dd.textContent = value; summary.append(dt, dd);
     }
     panel.append(summary);
+    const footprint = roomAssetSpan(asset, selected.rotation);
+    const visualHint = document.createElement('p'); visualHint.className = 'room-selection-summary';
+    visualHint.textContent = footprint
+      ? `Occupies ${footprint.width}×${footprint.height} cells. This is one placement, not a separate copy in each cell.`
+      : 'The exact saved footprint is unavailable; no replacement geometry is used.';
+    if (asset?.metadata?.spatial) visualHint.textContent += ' Artwork can extend beyond the occupied cells; its visible size does not enlarge the footprint.';
+    else if (asset?.metadata?.extensions?.['studio.preview.presentation']) visualHint.textContent += ' Here the image is fitted inside its footprint. Studio preview also shows its authored overhang and elevation, so it may look larger there without occupying more cells.';
+    panel.append(visualHint);
     const movement = document.createElement('div'); movement.className = 'room-move-controls';
     for (const [label, dx, dy] of [['←', -1, 0], ['↑', 0, -1], ['↓', 0, 1], ['→', 1, 0]]) movement.append(roomControl(label, 'move-placement', { dx: String(dx), dy: String(dy), placementId: selected.placementId }));
     movement.append(roomControl('Rotate', 'rotate-placement', { placementId: selected.placementId }), roomControl('Remove', 'remove-placement', { placementId: selected.placementId }));
@@ -5381,13 +5392,37 @@ function renderTaskReview(entry) {
   for (const item of review.items) {
     const row = document.createElement('li'); row.dataset.changeId = item.changeId;
     const copy = document.createElement('div');
-    const strong = document.createElement('strong'); strong.textContent = item.summary;
+    const roomTemplate = item.commandType === 'room.archetype.create'
+      ? item.changes?.find((change) => change.entityType === 'room_archetype' && change.operation === 'created')
+      : null;
+    const strong = document.createElement('strong');
+    // Legacy review items retain the exact ID, not the template's display name.
+    // Never substitute today's project name for the item reviewed in this task.
+    strong.textContent = roomTemplate ? `Add room template: ${roomTemplate.entityId}` : item.summary;
     const technical = document.createElement('small'); technical.className = 'task-inline-meta';
-    technical.textContent = `Recorded action: ${item.commandType}`; copy.append(strong, technical);
+    technical.textContent = `Recorded action: ${item.commandType}`;
+    copy.append(strong);
+    if (roomTemplate) {
+      const explanation = document.createElement('p'); explanation.className = 'task-review-description';
+      explanation.textContent = !reviewEditable
+        ? 'A reusable starting point for new rooms, not a finished room. The badge records your saved decision.'
+        : recordedConflicts.length
+          ? 'A reusable starting point for new rooms, not a finished room. You can record a decision, but this conflicting result cannot be added.'
+          : 'A reusable starting point for new rooms, not a finished room. Accept selects this task proposal; completing the task adds it to the project.';
+      copy.append(explanation);
+    }
+    copy.append(technical);
     let disposition;
     if (levelCandidateReview) {
       disposition = document.createElement('span'); disposition.className = 'task-review-disposition-readonly';
       disposition.textContent = item.disposition === 'PENDING' ? 'Pending · read-only' : item.disposition.replaceAll('_', ' ').toLowerCase();
+    } else if (!reviewEditable || item.disposition === 'AUTO_ACCEPTED_BY_POLICY') {
+      disposition = document.createElement('span'); disposition.className = 'task-review-disposition-readonly';
+      disposition.dataset.disposition = item.disposition;
+      disposition.textContent = {
+        PENDING: 'Not reviewed', USER_ACCEPTED: 'Accepted', USER_REJECTED: 'Rejected',
+        CHANGES_REQUESTED: 'Changes requested', AUTO_ACCEPTED_BY_POLICY: 'Accepted automatically under your task settings',
+      }[item.disposition] ?? item.disposition.replaceAll('_', ' ').toLowerCase();
     } else {
       disposition = document.createElement('select'); disposition.dataset.taskReviewDisposition = item.changeId;
       disposition.dataset.taskFocusKey = `review-disposition-${item.changeId}`;
@@ -5396,13 +5431,7 @@ function renderTaskReview(entry) {
       ]) {
         const option = document.createElement('option'); option.value = value; option.textContent = label; disposition.append(option);
       }
-      if (item.disposition === 'AUTO_ACCEPTED_BY_POLICY') {
-        disposition.replaceChildren();
-        const option = document.createElement('option'); option.value = item.disposition; option.textContent = 'Accepted automatically under your task settings'; disposition.append(option); disposition.disabled = true;
-      } else {
-        disposition.value = item.disposition;
-        disposition.disabled = !reviewEditable;
-      }
+      disposition.value = item.disposition;
     }
     if (reviewEditable && item.disposition !== 'AUTO_ACCEPTED_BY_POLICY') {
       const label = document.createElement('label'); label.className = 'task-feedback-field task-item-feedback';

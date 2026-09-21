@@ -114,13 +114,13 @@ test('Saved room errors are visible before deep detail and finding navigation ke
 
 test('Checkpoint 3 canvas and review surfaces remain bounded at 1440 and protected 1060 widths', async () => {
   const styles = await readFile(stylesUrl, 'utf8');
-  assert.match(styles, /\.room-editor-shell \{[^}]*grid-template-columns: 92px minmax\(360px, 1fr\) minmax\(255px, \.72fr\)/);
+  assert.match(styles, /\.room-editor-shell \{[^}]*grid-template-columns: 122px minmax\(360px, 1fr\) minmax\(255px, \.72fr\)/);
   assert.match(styles, /\.room-canvas-scroll \{[^}]*overflow: auto/);
   assert.match(styles, /\.room-canvas-scroll\[data-panning="true"\]/);
   assert.match(styles, /calc\(var\(--room-cell\) \* \.16\)/);
   assert.match(styles, /\.room-palette-list \{[^}]*overflow: auto/);
   assert.match(styles, /\.room-placement-list \{[^}]*overflow: auto/);
-  assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: 82px minmax\(300px, 1fr\)/);
+  assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: 116px minmax\(300px, 1fr\)/);
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: 1fr/);
 });
 
