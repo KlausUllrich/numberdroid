@@ -155,6 +155,12 @@ automation and source integration do not change the `REVISE` live result.
 
 ## VT-001 — CP4.5 desktop designer gate
 
+- **2026-09-21 permanent pilot:** Klaus reported **“Final room preview: pass”**
+  for the real Family room pilot. Saved readback: Family room 01 v17 / project
+  r34, 4×4, 16 placements, zero ERROR findings. Preserve its permanent data and
+  do not repeat the passed Preview merely for reassurance. This is a bounded
+  result, not overall VT-001 acceptance; the creation-layout finding is tracked
+  under VT-018 below.
 - **2026-09-21 return:** Klaus passed the saved Preview / editor-return checks
   (project r37 / Room v8, retained unsaved shape draft and Prop tool, no jumps).
   He subsequently passed Task decision badges/template explanations, Room
@@ -1473,6 +1479,15 @@ test convenience.
 
 ## VT-018 — Room creation and current editor context
 
+- **2026-09-21 permanent pilot:** first template/Room creation reached a saved
+  4×4 Room and explicitly passed final Preview. Klaus requested separate
+  full-width creation rows and larger field text after finding the layout
+  unclear. The bounded CSS repair implements those requirements, including a
+  natural-height closed template and readable unwrapped Create actions; its
+  visual retest is pending. Preserve the permanent Family room pilot. Use an
+  isolated test project to inspect empty-state layout, never delete his Room
+  to recover an empty screen. Second-Room selection and reopen remain separate
+  human gates; no complete VT-018 acceptance is inferred.
 - **Implementation:** `agent/studio-room-creation-context`; candidate
   local full/focused checks, native browser/restart proof and independent
   reviews passed. Exact source and CI belong in its PR.

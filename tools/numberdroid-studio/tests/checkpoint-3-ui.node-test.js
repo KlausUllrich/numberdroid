@@ -392,6 +392,32 @@ test('empty Rooms open the next creation form while existing Room controls remai
   }
 });
 
+test('Room creation avoids side-by-side stretched cards and retains browser geometry proof for empty and existing projects', async () => {
+  const styles = await readFile(stylesUrl, 'utf8');
+  const evidence = await readFile(new URL('../scripts/capture-room-creation-evidence.js', import.meta.url), 'utf8');
+  const creationRule = styles.match(/\.room-creation \{([^}]+)\}/)?.[1] ?? '';
+  const cardRule = styles.match(/\.room-creation(?: >)? details \{([^}]+)\}/)?.[1] ?? '';
+  assert.ok(creationRule && cardRule, 'Creation layout and card rules must exist');
+  assert.doesNotMatch(creationRule, /display: flex;[^}]*flex-wrap: wrap/);
+  assert.doesNotMatch(cardRule, /flex: 1 1 280px/);
+  assert.match(creationRule, /display: grid/);
+  assert.match(creationRule, /grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(creationRule, /align-items: start/);
+  const fieldRule = styles.match(/\.room-creation \.room-form input, \.room-creation \.room-form select \{([^}]+)\}/)?.[1] ?? '';
+  const labelRule = styles.match(/\.room-creation \.room-form label \{([^}]+)\}/)?.[1] ?? '';
+  const buttonRule = styles.match(/\.room-creation \.room-form button \{([^}]+)\}/)?.[1] ?? '';
+  assert.match(fieldRule, /min-height: 40px/); assert.match(fieldRule, /font-size: 16px/);
+  assert.match(labelRule, /font-size: 13px/);
+  assert.match(buttonRule, /grid-column: 1 \/ -1/); assert.match(buttonRule, /white-space: nowrap/);
+  for (const stage of ['empty-project-template', 'template-saved-first-room', 'existing-room-dock']) {
+    assert.ok(evidence.includes(`captureCreationLayout('${stage}')`));
+  }
+  assert.match(evidence, /card\.bounds\.height - card\.collapsedHeight/);
+  assert.match(evidence, /field\.font >= 16 && field\.height >= 40 && field\.contained/);
+  assert.match(evidence, /label\.font >= 13/);
+  assert.match(evidence, /card\.form\.button\.textLines, 1/);
+});
+
 
 test('successful creation lands focus on the exact new Room identity without moving focus on failure', async () => {
   const app = await readFile(appUrl, 'utf8');
