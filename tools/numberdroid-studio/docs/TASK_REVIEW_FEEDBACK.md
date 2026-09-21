@@ -21,7 +21,11 @@ immutable review projection contains the template ID but not its display name:
 the UI retains that exact ID rather than substituting a current project name or
 inventing a historical one. A name-bearing historical read projection is a
 remaining clarity improvement, not implemented by this presentation repair.
-Focused UI tests pass; repair integration and human retest remain separate gates.
+Klaus subsequently passed the focused read-only decision badges, Changes undone
+history, and reusable-template explanation checks on 2026-09-21. This records
+the bounded readability acceptance, not the remaining historical display-name
+projection or overall VT-001/VT-016 acceptance. Source integration remains a
+separate gate.
 
 ## Product promise
 

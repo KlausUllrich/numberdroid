@@ -157,8 +157,11 @@ automation and source integration do not change the `REVISE` live result.
 
 - **2026-09-21 return:** Klaus passed the saved Preview / editor-return checks
   (project r37 / Room v8, retained unsaved shape draft and Prop tool, no jumps).
-  Task decision badges/template explanations and Room labels/tool readability
-  received concrete findings; their bounded repair needs a focused retest.
+  He subsequently passed Task decision badges/template explanations, Room
+  labels/wider toolbar, and the temporary cell-paint check with unsaved status
+  and enabled Save. The new finding is tiny Save/Discard and right-hand controls;
+  their standard-size/primary-Save correction needs a visual check. Discard the
+  temporary cell edit before refreshing; do not save it or reset live fixtures.
   Historical Task display names and full legacy overhang parity are not supplied
   by this presentation-only repair. Do not repeat the passed return checks or
   infer overall acceptance. See [Room status](ROOM_EDITOR_L3_STATUS.md) and
@@ -1548,11 +1551,11 @@ test convenience.
   Send back / Remove component. These close those bounded repair retests. Preserve
   the saved project and passed checks; no overall VT-021 acceptance is inferred.
 - **2026-09-21 navigation follow-up:** Klaus reported inconsistent Back controls,
-  specifically in Agent tasks. Apply the shared upper-left, destination-labelled
-  secondary button from the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md#consistent-navigation-and-actions).
-  Check the return to Agent tasks and the matching editor/inspection pattern as
-  one focused live batch. This finding is not a Task review pass and does not
-  reopen the explicit Assembly persistence, scale or component-label passes.
+  specifically in Agent tasks. The shared upper-left, destination-labelled
+  secondary button from the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md#consistent-navigation-and-actions)
+  is implemented, and Klaus passed its focused live return check. Preserve this
+  bounded pass alongside the explicit Assembly persistence, scale and
+  component-label passes; no overall VT-021 acceptance is inferred.
 - **Status:** implemented candidate, 2026-09-09. Integration, automated evidence
   and Klaus's explicit implementation decision are separate gates.
 - **Clarity batch:** **USER PASSED — 2026-09-10.** Klaus replied **“pass”** to

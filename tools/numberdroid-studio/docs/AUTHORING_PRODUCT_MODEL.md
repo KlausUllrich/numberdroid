@@ -175,6 +175,12 @@ and Backups, including nested inspection views.
 - Related actions use the same names and order on cards and detail screens.
   Tool tabs, ordinary buttons, review decisions and read-only status badges
   retain distinct, consistent meanings. New screens must reuse these patterns.
+- Save and other ordinary actions retain standard readable text and at least
+  40 px height, including inside editor toolbars and right-hand panels. The
+  primary Save action uses the filled treatment; Discard remains secondary.
+  Panel tabs use the Source Images / Image Workbench selected-underline pattern
+  with readable text and wrapping when needed, not miniature pill buttons.
+  Compact technical metadata must not determine action-button sizing.
 
 The [Library navigation design](LIBRARY_NAVIGATION_DESIGN.md) and
 [Sources navigation design](SOURCES_NAVIGATION_DESIGN.md) specialize this rule;

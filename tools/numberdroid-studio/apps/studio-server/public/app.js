@@ -3686,7 +3686,7 @@ function renderRoomToolOptions(variant) {
   else status.textContent = `Saved · room version ${variant.version}`;
   status.dataset.dirty = String(draft.dirty); status.dataset.conflict = String(Boolean(state.roomUi.shapeConflict));
   const actions = document.createElement('div'); actions.className = 'room-tool-actions';
-  const save = roomControl('Save shape', 'shape-save'); save.disabled = !draft.dirty || Boolean(state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT';
+  const save = roomControl('Save shape', 'shape-save'); save.classList.remove('secondary'); save.disabled = !draft.dirty || Boolean(state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT';
   const reset = roomControl(draft.dirty || state.roomUi.shapeConflict ? 'Discard / reload' : 'Reload shape', 'shape-reset');
   reset.disabled = (!draft.dirty && !state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT'; actions.append(save, reset);
   const lastEdit = document.createElement('span'); lastEdit.className = 'room-last-edit'; lastEdit.textContent = state.roomUi.lastShapeEdit ?? '';

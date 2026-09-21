@@ -404,8 +404,8 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .room-tool-options > div:first-child { display: grid; gap: 3px; min-width: 0; }
 .room-tool-options > div:first-child strong { color: #e7fff6; font-size: 11px; }
 .room-tool-options > div:first-child span { overflow-wrap: anywhere; color: var(--muted); font-size: 9px; }
-.room-tool-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 6px; }
-.room-tool-actions button { padding: 6px 8px; font-size: 9px; }
+.room-tool-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 8px; }
+.room-tool-actions button { min-height: 40px; padding: 9px 13px; font-size: 16px; line-height: 20px; }
 .room-editor-status { padding: 5px 8px; border: 1px solid #3b6559; border-radius: 999px; color: #cfe5dd; font: 8px ui-monospace, monospace; white-space: nowrap; }
 .room-editor-status[data-dirty="true"] { border-color: var(--amber); background: #2a2112; color: #ffe0a3; }
 .room-editor-status[data-conflict="true"] { border-color: #b36652; background: #341c17; color: #ffc2b1; }
@@ -419,9 +419,9 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .room-tool-icon { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid #426b5e; border-radius: 4px; background: #091511; color: var(--cyan); font-size: 14px; }
 .room-tool[data-selected="true"] .room-tool-icon { border-color: var(--mint); color: var(--mint); }
 .room-editor-dock { display: grid; gap: 10px; min-width: 0; max-height: 78vh; padding-right: 3px; overflow: auto; overscroll-behavior: contain; }
-.room-dock-navigation { position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 5px; border: 1px solid #315046; border-radius: 8px; background: #0b1714; }
-.room-dock-navigation button { min-width: 0; padding: 5px 3px; overflow: hidden; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
-.room-dock-navigation button[data-selected="true"] { border-color: var(--mint); color: var(--mint); }
+.room-dock-navigation { position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; border-bottom: 1px solid #315046; background: #0b1714; }
+.room-dock-navigation button { min-width: 0; min-height: 44px; padding: 11px 8px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: #a9c2b7; font-size: 14px; line-height: 20px; white-space: normal; }
+.room-dock-navigation button[data-selected="true"] { border-bottom-color: #83d3af; color: #e6fff0; background: #203a30; }
 .room-designer-layout { display: grid; grid-template-columns: minmax(170px, .55fr) minmax(360px, 1.5fr) minmax(225px, .75fr); gap: 10px; align-items: start; }
 .room-focused-layout { display: grid; grid-template-columns: minmax(360px, 1.5fr) minmax(225px, .75fr); gap: 10px; align-items: start; }
 .room-panel, .room-authoring, .room-lifecycle { min-width: 0; padding: 12px; border: 1px solid #315046; border-radius: 10px; background: #0b1714; }
@@ -495,8 +495,8 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .room-inspector { display: grid; gap: 10px; }
 .room-selection-summary { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .room-property-list { grid-template-columns: 58px minmax(0, 1fr); margin: 0; font-size: 9px; }
-.room-move-controls, .room-lifecycle-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.room-move-controls button, .room-lifecycle-actions button { padding: 6px 8px; font-size: 9px; }
+.room-move-controls, .room-lifecycle-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.room-move-controls button, .room-lifecycle-actions button { min-height: 40px; padding: 9px 13px; font-size: 16px; line-height: 20px; }
 .room-inspector details { min-width: 0; }
 .room-inspector summary { color: #b7d1c8; cursor: pointer; font-size: 10px; }
 .room-placement-list { display: grid; gap: 4px; max-height: 180px; margin: 8px 0 0; padding: 0; overflow: auto; list-style: none; }
