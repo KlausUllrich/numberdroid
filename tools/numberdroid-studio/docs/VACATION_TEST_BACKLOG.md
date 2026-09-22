@@ -34,6 +34,23 @@ Keep these states distinct:
 
 ## Current queue
 
+### 2026-09-22 real Family Table input compatibility
+
+An isolated actual-UI source-to-Room proof found that the existing accepted
+`public/assets/deck/family-table-props.png` uses an 8-bit indexed PNG palette;
+source import/review succeeded but cutting rejected `PLTE`. The bounded repair
+adds validated palette/transparency decoding, not a new editing operation.
+RGB/RGBA output goldens, canonical encoding and saved identities remain fixed.
+Focused decoder/crop/result tests pass. Actual UI proof completed import, review,
+cut generation, Library save, 3×2 placement with recipe-authored blocking,
+four cardinal orientations in a separate 6×6 Room and identical saved state after
+server restart. Its floor-coverage finding is expected: no floor was authored.
+Full integration evidence must be recorded in the repair PR before merge. This is engineering
+evidence, not additional Klaus acceptance. The permanent Family room pilot and
+its existing accepted navigation/Preview results are untouched. A useful later
+human batch is to inspect this real prop's saved Library image, placement scale,
+cardinal rotation and reopened Room; do not repeat unrelated accepted fixtures.
+
 | ID | Candidate | State | Depends on | User gate |
 | --- | --- | --- | --- | --- |
 | VT-000 | Protected Studio baseline and restart | AUTOMATED GREEN | accepted CP1–4 | Quick safety/regression confirmation at session start |

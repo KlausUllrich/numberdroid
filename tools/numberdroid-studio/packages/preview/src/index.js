@@ -172,13 +172,16 @@ export function decodeSupportedPng(bytes, {
   invariant(input.length >= 33 && input.subarray(0, 8).equals(PNG_SIGNATURE), 'ATLAS_PNG_INVALID', 'Atlas source is not a PNG file.');
   let offset = 8;
   let ihdr = null;
+  let palette = null;
+  let transparency = null;
   const idat = [];
   let idatEnded = false;
   let sawEnd = false;
   let chunkIndex = 0;
   while (offset + 12 <= input.length) {
     const length = input.readUInt32BE(offset);
-    const type = input.toString('ascii', offset + 4, offset + 8);
+    // latin1 preserves high bits so malformed bytes cannot alias ASCII names.
+    const type = input.toString('latin1', offset + 4, offset + 8);
     invariant(/^[A-Za-z]{4}$/.test(type) && /[A-Z]/.test(type[2]), 'ATLAS_PNG_INVALID', 'PNG chunk type is structurally invalid.');
     const dataStart = offset + 8;
     const dataEnd = dataStart + length;
@@ -189,14 +192,24 @@ export function decodeSupportedPng(bytes, {
     if (type === 'IHDR') {
       invariant(chunkIndex === 0 && ihdr === null && length === 13, 'ATLAS_PNG_INVALID', 'PNG requires one valid first IHDR chunk.');
       ihdr = Buffer.from(data);
+    } else if (type === 'PLTE') {
+      invariant(ihdr !== null, 'ATLAS_PNG_INVALID', 'PNG palette must follow IHDR.');
+      invariant(ihdr[9] === 3, 'ATLAS_PNG_UNSUPPORTED', 'PNG palettes are supported only for indexed-color sources.');
+      invariant(palette === null && idat.length === 0 && length >= 3 && length <= 768 && length % 3 === 0, 'ATLAS_PNG_INVALID', 'Indexed PNG requires one 1–256-entry palette before image data.');
+      palette = Buffer.from(data);
+    } else if (type === 'tRNS') {
+      invariant(ihdr !== null, 'ATLAS_PNG_INVALID', 'PNG transparency must follow IHDR.');
+      invariant(ihdr[9] === 3, 'ATLAS_PNG_UNSUPPORTED', 'PNG tRNS transparency is supported only for indexed-color sources.');
+      invariant(palette !== null && transparency === null && idat.length === 0 && length <= palette.length / 3, 'ATLAS_PNG_INVALID', 'Indexed PNG transparency must follow its palette, precede image data, and fit its palette entries.');
+      transparency = Buffer.from(data);
     } else if (type === 'IDAT') {
       invariant(ihdr !== null && !idatEnded, 'ATLAS_PNG_INVALID', 'PNG IDAT chunks must follow IHDR and be consecutive.');
+      invariant(ihdr[9] !== 3 || palette !== null, 'ATLAS_PNG_INVALID', 'Indexed PNG image data requires a preceding palette.');
       idat.push(Buffer.from(data));
     } else if (type === 'IEND') {
       invariant(ihdr !== null && idat.length > 0 && length === 0, 'ATLAS_PNG_INVALID', 'PNG IEND must follow image data and be empty.');
       sawEnd = true; offset = dataEnd + 4; break;
     }
-    else if (type === 'tRNS') invariant(false, 'ATLAS_PNG_UNSUPPORTED', 'PNG tRNS transparency is outside the audited RGB/RGBA cutter subset.');
     else if ((type.charCodeAt(0) & 0x20) === 0) invariant(false, 'ATLAS_PNG_UNSUPPORTED', `Unsupported critical PNG chunk ${type}.`);
     else if (idat.length > 0) idatEnded = true;
     offset = dataEnd + 4;
@@ -208,9 +221,11 @@ export function decodeSupportedPng(bytes, {
   const bitDepth = ihdr[8];
   const colorType = ihdr[9];
   invariant(width > 0 && height > 0 && width <= maxWidth && height <= maxHeight, 'ATLAS_PNG_UNSUPPORTED', 'PNG dimensions exceed the audited cutter bounds.', { width, height, maxWidth, maxHeight });
-  invariant(bitDepth === 8 && (colorType === 2 || colorType === 6), 'ATLAS_PNG_UNSUPPORTED', 'Checkpoint 2B cuts only non-interlaced 8-bit RGB or RGBA PNG sources.', { bitDepth, colorType });
+  invariant(bitDepth === 8 && (colorType === 2 || colorType === 3 || colorType === 6), 'ATLAS_PNG_UNSUPPORTED', 'The cutter supports only non-interlaced 8-bit RGB, RGBA, or indexed-color PNG sources.', { bitDepth, colorType });
   invariant(ihdr[10] === 0 && ihdr[11] === 0 && ihdr[12] === 0, 'ATLAS_PNG_UNSUPPORTED', 'PNG compression, filter method, or interlace mode is unsupported.');
-  const bytesPerPixel = colorType === 6 ? 4 : 3;
+  const bytesPerPixel = colorType === 3 ? 1 : (colorType === 6 ? 4 : 3);
+  const rgbaByteLength = width * height * 4;
+  invariant(Number.isSafeInteger(rgbaByteLength) && rgbaByteLength <= MAX_ATLAS_OUTPUT_PIXELS * 4, 'ATLAS_PNG_UNSUPPORTED', 'PNG expanded RGBA size exceeds the audited cutter bound.');
   const expectedInflated = height * (width * bytesPerPixel + 1);
   invariant(Number.isSafeInteger(expectedInflated) && expectedInflated <= MAX_ATLAS_OUTPUT_PIXELS * 4 + maxHeight, 'ATLAS_PNG_UNSUPPORTED', 'PNG decoded size exceeds the audited cutter bound.');
   let inflated;
@@ -220,8 +235,17 @@ export function decodeSupportedPng(bytes, {
     invariant(false, 'ATLAS_PNG_INVALID', 'PNG compressed data could not be decoded safely.');
   }
   const scanlines = unfilterScanlines(inflated, width, height, bytesPerPixel);
-  const rgba = Buffer.alloc(width * height * 4);
+  const rgba = Buffer.alloc(rgbaByteLength);
   for (let source = 0, target = 0; source < scanlines.length; source += bytesPerPixel, target += 4) {
+    if (colorType === 3) {
+      const index = scanlines[source];
+      invariant(index < palette.length / 3, 'ATLAS_PNG_INVALID', 'Indexed PNG pixel refers to a missing palette entry.');
+      rgba[target] = palette[index * 3];
+      rgba[target + 1] = palette[index * 3 + 1];
+      rgba[target + 2] = palette[index * 3 + 2];
+      rgba[target + 3] = transparency?.[index] ?? 255;
+      continue;
+    }
     rgba[target] = scanlines[source];
     rgba[target + 1] = scanlines[source + 1];
     rgba[target + 2] = scanlines[source + 2];
