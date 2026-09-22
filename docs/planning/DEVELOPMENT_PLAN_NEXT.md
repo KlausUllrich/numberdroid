@@ -1,5 +1,17 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-22 Rooms navigation user acceptance
+
+Klaus reported **“all pass”** for the presented production
+[Rooms navigation](../../tools/numberdroid-studio/docs/ROOMS_NAVIGATION_DESIGN.md)
+batch on local `ee27480`: collection entry, existing Room/Back, stable tabs,
+template rules and second-Room creation with the first preserved. This bounded
+block is USER ACCEPTED. Klaus authorized publishing and integration after the
+earlier declined write; exact-head PR/CI gates still apply. Unpresented second-Room edit/reopen checks
+remain separate in [VT-018](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#vt-018--room-creation-and-current-editor-context).
+Preserve the permanent pilot and existing acceptances; no broader milestone or
+agent/runtime authority follows from this pass.
+
 ## 2026-09-18 Source-to-Library and Cutter user acceptance
 
 The approved [workflow](../../tools/numberdroid-studio/docs/SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md)
@@ -12,8 +24,9 @@ Klaus explicitly passed the bundled VT-025 workflow on build `53885f5` on
 2026-09-18, then passed all five bounded Cutter repairs on `b1dbff3` (remote
 `9189b795`, identical tree). VT-025 is **USER ACCEPTED — PASS**; keep Save layout
 and Generate separate. Builds2488 and2490 are independently green; PR #256 is
-not merged. Pause here at Klaus's request and resume from the
-[tested workspace and integration handoff](../history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md).
+now merged. The earlier session pause ended; the
+[tested workspace and integration handoff](../history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md)
+is historical recovery evidence, not a current stop instruction.
 Reconcile current PR/CI state before selecting any next block; do not repeat the
 accepted batches without a concrete regression. Migration19 supplies recovery receipts; it does not
 authorize new agent tools, deletion, source cleanup, automatic cut-layout copying,

@@ -41,6 +41,13 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
   })()`);
   const navigation = libraryNavigation({ evaluate, click, waitFor });
   const project = () => evaluate(`fetch('/api/projects/${PROJECT_ID}').then((response) => { if (!response.ok) throw new Error('Project read failed'); return response.json(); })`);
+  const openSavedRoom = async () => {
+    const saved = await project(); const rooms = saved.snapshot.roomLibrary.variants;
+    assert.equal(rooms.length, 1, 'The authoring proof must identify its one exact saved Room');
+    const selector = `[data-room-nav-action="open-room"][data-room-nav-id="${rooms[0].roomVariantId}"]`;
+    await waitFor(`Boolean(document.querySelector(${JSON.stringify(selector)}))`, 'Saved Room collection card');
+    await click(selector);
+  };
   const editorAction = (action, value) => `[data-asset-editor-action="${action}"]${value === undefined ? '' : `[data-value="${value}"]`}`;
   const editorField = async (name, value) => {
     await evaluate(`(() => { const field = document.querySelector('[data-asset-editor-field="' + ${JSON.stringify(name)} + '"]'); if (!field || field.disabled) throw new Error('Missing Asset editor field'); field.focus({preventScroll:true}); field.value = ${JSON.stringify(String(value))}; field.dispatchEvent(new Event('input', {bubbles:true})); field.dispatchEvent(new Event('change', {bubbles:true})); })()`);
@@ -202,9 +209,12 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
     await click(editorAction('back')); await click('[data-workspace="assets"]'); await navigation.assets(); await waitFor("document.querySelectorAll('.asset-v2-card').length === 1", 'Saved DRAFT Asset');
     await capture('asset', '.asset-v2-card');
     await click('[data-workspace="rooms"]');
+    await click('[data-room-nav-action="new-template"]');
     await waitFor("Boolean(document.querySelector('[data-room-form=" + JSON.stringify('archetype') + "]'))", 'Room archetype form');
     await fill('[data-room-form="archetype"]', { displayName: 'Human authoring test template', kind: 'room', width: '8', height: '6' });
     await click('[data-room-form="archetype"] button[type="submit"]');
+    await waitFor('Boolean(document.querySelector(\'[data-room-nav-action="from-template"]\'))', 'Saved room template rules');
+    await click('[data-room-nav-action="from-template"]');
     await waitFor("document.querySelector('[data-room-form=" + JSON.stringify('variant') + "] [name=" + JSON.stringify('roomArchetypeId') + "]')?.options.length === 1", 'Saved room template');
     await fill('[data-room-form="variant"]', { displayName: 'Human authoring test room', width: '8', height: '6' });
     await click('[data-room-form="variant"] button[type="submit"]');
@@ -226,8 +236,10 @@ export async function captureHumanAssetAuthoring({ devtools, sessionId, width, h
     await waitFor("document.querySelector('[data-asset-editor-saved-state]')?.textContent.startsWith('Saved Asset v2')", 'Direct owner Asset revision');
     assert.equal((await project()).revision,beforeUpdate+1);
     await click(editorAction('back')); await click('[data-workspace="rooms"]');
+    await openSavedRoom();
     await waitFor("Boolean(document.querySelector('[data-room-board]')) && document.querySelectorAll('.room-placement').length === 1", 'Room keeps original Asset pin after Library edit');
   } else {
+    await openSavedRoom();
     await waitFor("Boolean(document.querySelector('[data-room-board]')) && document.querySelectorAll('.room-placement').length === 1", 'Read-only reopened Room');
   }
   const saved = await project();

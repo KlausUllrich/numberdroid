@@ -1,5 +1,6 @@
 import { createLibraryUiState, librarySetProject, libraryInventory, libraryProposedAdditions, libraryReviewGroups, libraryAssetPin, findLibraryItem, libraryRouteKey, libraryNavigate, libraryBack } from './library-state.js';
 import { renderLibraryNavigation, renderLibraryCard, renderLibraryHistory } from './library-view.js';
+import { renderRoomsCollection, renderRoomTemplateDetail } from './rooms-navigation-view.js';
 import { renderLibraryDetail, createLibraryPreviewDocument } from './library-detail-view.js';
 import { createReviewController } from './review-controller.js';
 import { renderActivityRows } from './activity-view.js';
@@ -125,6 +126,7 @@ const state = {
   },
   roomMutationPending: false,
   roomOperationKeys: new Map(),
+  roomNavigation: createRoomNavigationState(),
   roomUi: {
     view: 'editor',
     pinnedAssets: { key: null, status: 'idle', assets: [] },
@@ -1116,7 +1118,7 @@ function restoreAssetDomState() {
 }
 
 function captureRoomDomState({ activeElement = document.activeElement, preserveActiveKey = false } = {}) {
-  if (state.workspace !== 'rooms') return;
+  if (state.workspace !== 'rooms' || state.roomNavigation?.route !== 'editor') return;
   const active = activeElement?.closest?.('[data-room-focus-key], [data-room-control]');
   const scroll = {};
   for (const element of elements['workspace-content'].querySelectorAll('[data-room-scroll]')) {
@@ -1136,6 +1138,7 @@ function captureRoomDomState({ activeElement = document.activeElement, preserveA
 }
 
 function restoreRoomDomState() {
+  if (state.workspace !== 'rooms' || state.roomNavigation?.route !== 'editor') return;
   const saved = state.roomUi.domState;
   if (!saved || saved.context !== `${state.project?.projectId ?? 'none'}:${state.roomUi.selectedRoomVariantId ?? 'none'}:${state.roomUi.selectedProposalId ?? 'none'}`) return;
   for (const element of elements['workspace-content'].querySelectorAll('[data-room-scroll]')) {
@@ -3523,6 +3526,7 @@ function openAssetEditor({ asset = null, slice = null, trigger = null }) {
 }
 
 window.addEventListener('beforeunload', (event) => {
+  if (state.roomNavigation.creation && (state.roomNavigation.creation.attempt || JSON.stringify(state.roomNavigation.creation.values) !== state.roomNavigation.creation.initial)) { event.preventDefault(); event.returnValue = ''; }
   if (activeAnimationEditor || [...animationReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status)) || activeAssetEditor || activeAssemblyEditor || [...assemblyReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status))) { event.preventDefault(); event.returnValue = ''; }
 });
 elements['workspace-content'].addEventListener('click', libraryHandleClick);
@@ -4007,6 +4011,172 @@ function roomCreationBlockedReason() {
   return null;
 }
 
+function createRoomNavigationState(projectId = null) {
+  return { projectId, route: 'list', tab: 'rooms', search: { rooms: '', templates: '' }, status: 'all', kind: 'all',
+    templateId: null, templateVersion: null, creation: null, origin: null, listContext: null, dom: null, lastCreated: null };
+}
+
+function roomNavigationKey() {
+  const nav = state.roomNavigation;
+  return `${state.project?.projectId}:${nav.route}:${nav.tab}:${nav.templateId ?? ''}`;
+}
+
+function captureRoomNavigationDom() {
+  const root = elements['workspace-content'];
+  if (state.workspace !== 'rooms' || !root.dataset.roomsRoute || state.roomNavigation.route === 'editor') return null;
+  const active = document.activeElement;
+  return { key: root.dataset.roomsRoute, x: window.scrollX, y: window.scrollY,
+    action: active?.dataset.roomNavAction, id: active?.dataset.roomNavId, filter: active?.dataset.roomNavFilter,
+    field: active?.closest('[data-room-form]') ? active.name : null,
+    start: Number.isInteger(active?.selectionStart) ? active.selectionStart : null,
+    end: Number.isInteger(active?.selectionEnd) ? active.selectionEnd : null };
+}
+
+function restoreRoomNavigationDom(saved) {
+  if (!saved || saved.key !== roomNavigationKey() || state.workspace !== 'rooms') return;
+  const controls = [...elements['workspace-content'].querySelectorAll('button,input,select,textarea')];
+  const active = controls.find(control => saved.field ? control.name === saved.field
+    : saved.filter ? control.dataset.roomNavFilter === saved.filter
+      : saved.action && control.dataset.roomNavAction === saved.action && control.dataset.roomNavId === saved.id);
+  active?.focus({ preventScroll: true });
+  if (active && saved.start !== null && typeof active.setSelectionRange === 'function') active.setSelectionRange(saved.start, saved.end);
+  window.scrollTo(saved.x, saved.y);
+}
+
+function askRoomCreationDiscard(onDiscard) {
+  if (document.querySelector('[data-room-creation-discard]')) return;
+  const creation = state.roomNavigation.creation, projectId = state.project?.projectId, active = document.activeElement;
+  const dialog = document.createElement('dialog'); dialog.className = 'room-navigation-discard'; dialog.dataset.roomCreationDiscard = 'true';
+  const title = document.createElement('h2'); title.id = 'room-discard-title'; title.textContent = 'Discard this unfinished form?';
+  dialog.setAttribute('aria-labelledby', title.id);
+  const copy = document.createElement('p'); copy.textContent = 'Your entered details have not been submitted. Saved rooms and templates stay unchanged.';
+  const actions = document.createElement('div'); actions.className = 'room-navigation-actions';
+  const keep = document.createElement('button'); keep.type = 'button'; keep.textContent = 'Keep editing'; keep.autofocus = true;
+  const discard = document.createElement('button'); discard.type = 'button'; discard.className = 'secondary'; discard.textContent = 'Discard form';
+  keep.addEventListener('click', () => dialog.close());
+  discard.addEventListener('click', () => {
+    if (state.project?.projectId !== projectId || state.roomNavigation.creation !== creation || state.roomMutationPending) { dialog.close(); return; }
+    state.roomNavigation.creation = null; dialog.close(); onDiscard?.();
+  });
+  dialog.addEventListener('close', () => { dialog.remove(); if (active?.isConnected) active.focus({ preventScroll: true }); }, { once: true });
+  actions.append(keep, discard); dialog.append(title, copy, actions); document.body.append(dialog); dialog.showModal();
+}
+
+function mayLeaveRoomNavigation(onDiscard = null) {
+  if (state.roomMutationPending) return false;
+  if (state.roomUi.pendingPlacementAdd) { showToast('Resolve the unconfirmed placement at its original cell before leaving this room.'); return false; }
+  if (state.roomUi.placementGesture || state.roomUi.canvasPan) { showToast('Finish or cancel the canvas gesture before leaving this room.'); return false; }
+  const creation = state.roomNavigation.creation;
+  if (creation?.attempt) { showToast('Creation is not yet confirmed. Retry the same creation request before leaving; it cannot create a duplicate.'); return false; }
+  if (creation && JSON.stringify(creation.values) !== creation.initial) { askRoomCreationDiscard(onDiscard); return false; }
+  if ((state.roomUi.shapeDraft?.dirty || state.roomUi.dirty)
+      && !window.confirm('Discard the unsaved room draft and return to the room list? Saved room content stays unchanged.')) return false;
+  if (state.roomUi.shapeDraft?.dirty || state.roomUi.dirty) {
+    const selected = state.roomUi.selectedRoomVariantId;
+    resetRoomUiProjectContext(); state.roomUi.selectedRoomVariantId = selected;
+  }
+  return true;
+}
+
+function roomNavigate(action, id, version) {
+  if (state.roomMutationPending) return;
+  const nav = state.roomNavigation, library = currentRoomLibrary();
+  if (action === 'clear-filters') {
+    nav.search[nav.tab] = ''; if (nav.tab === 'rooms') nav.status = 'all'; else nav.kind = 'all';
+    renderWorkspace(); return;
+  }
+  if (action === 'tab') {
+    if (!['rooms', 'templates'].includes(id) || nav.route !== 'list') return;
+    nav.tab = id; renderWorkspace();
+    [...elements['workspace-content'].querySelectorAll('[data-room-nav-action="tab"]')].find(button => button.dataset.roomNavId === id)?.focus({ preventScroll: true }); return;
+  }
+  if (!mayLeaveRoomNavigation(() => roomNavigate(action, id, version))) return;
+  if (action === 'back') {
+    const origin = nav.origin;
+    nav.creation = null;
+    nav.route = origin?.route === 'template' ? 'template' : 'list';
+    nav.templateId = origin?.templateId ?? null; nav.templateVersion = origin?.templateVersion ?? null; nav.origin = null;
+    cancelRoomPreviewLoad(); state.roomUi.view = 'editor';
+    renderWorkspace(); restoreRoomNavigationDom(nav.route === 'list' ? nav.listContext : origin?.dom); return;
+  }
+  if (nav.route === 'list') nav.listContext = captureRoomNavigationDom();
+  const origin = { route: nav.route, templateId: nav.templateId, templateVersion: nav.templateVersion, dom: captureRoomNavigationDom() };
+  if (action === 'open-room') {
+    if (!library.variants.some(entry => entry.roomVariantId === id)) return;
+    if (state.roomUi.selectedRoomVariantId !== id) resetRoomUiProjectContext();
+    state.roomUi.selectedRoomVariantId = id; state.roomUi.view = 'editor';
+    nav.route = 'editor'; nav.tab = 'rooms'; nav.origin = null; nav.creation = null;
+  } else if (action === 'view-template') {
+    nav.route = 'template'; nav.templateId = id; nav.templateVersion = version; nav.origin = null;
+  } else if (['new-room', 'from-template', 'new-template'].includes(action)) {
+    const blocked = roomCreationBlockedReason(); if (blocked) { showToast(blocked); return; }
+    const templateId = id ?? library.archetypes[0]?.roomArchetypeId;
+    const templates = library.archetypes.filter(entry => entry.roomArchetypeId === templateId).sort((a, b) => b.version - a.version);
+    const template = version == null ? templates[0] : templates.find(entry => entry.version === version);
+    if (action !== 'new-template' && !template) { showToast('Create a room template first. It supplies the reusable size and placement rules.'); return; }
+    nav.route = action === 'new-template' ? 'create-template' : 'create-room'; nav.origin = origin;
+    const values = { displayName: '', kind: 'room', roomArchetypeId: template?.roomArchetypeId ?? '',
+      width: String(action === 'new-template' ? 10 : template.dimensionPolicy.width.preferred),
+      height: String(action === 'new-template' ? 8 : template.dimensionPolicy.height.preferred) };
+    nav.creation = { values, initial: JSON.stringify(values), templateVersion: template?.version ?? null };
+  } else return;
+  renderWorkspace(); window.scrollTo(0, 0);
+  (elements['workspace-content'].querySelector('[data-room-form] input')
+    ?? elements['workspace-content'].querySelector('.room-header h2, h1, h2'))?.focus({ preventScroll: true });
+}
+
+function roomNavigationBack() {
+  const nav = state.roomNavigation, template = currentRoomLibrary().archetypes.find(entry => entry.roomArchetypeId === nav.origin?.templateId);
+  const button = document.createElement('button'); button.type = 'button'; button.className = 'studio-back-button secondary';
+  button.dataset.roomNavAction = 'back'; button.textContent = `Back to ${nav.origin?.route === 'template' ? template?.displayName ?? 'template' : nav.route === 'editor' || nav.tab === 'rooms' ? 'Rooms' : 'Templates'}`;
+  button.addEventListener('click', () => roomNavigate('back')); return button;
+}
+
+function renderRoomNavigation(library) {
+  const nav = state.roomNavigation;
+  if (nav.route === 'list') return renderRoomsCollection({ document, library, ui: nav, onAction: roomNavigate,
+    onFilter: (name, value) => {
+      const dom = captureRoomNavigationDom();
+      if (name === 'search') nav.search[nav.tab] = value;
+      else if (name === 'status') nav.status = value;
+      else if (name === 'kind') nav.kind = value;
+      renderWorkspace(); restoreRoomNavigationDom(dom);
+    } });
+  const fragment = document.createDocumentFragment(); fragment.append(roomNavigationBack());
+  if (nav.route === 'template') {
+    const template = library.archetypes.find(entry => entry.roomArchetypeId === nav.templateId && (nav.templateVersion == null || entry.version === nav.templateVersion));
+    fragment.append(template ? renderRoomTemplateDetail({ document, template, onAction: roomNavigate })
+      : emptyState('Template unavailable', 'Return to Rooms and choose a saved template.')); return fragment;
+  }
+  const isTemplate = nav.route === 'create-template', creation = nav.creation;
+  if (!creation) { fragment.append(emptyState('Creation form unavailable', 'Return to Rooms to start a new form.')); return fragment; }
+  const panel = document.createElement('section'); panel.className = 'room-navigation-form';
+  panel.append(sectionHeading(isTemplate ? 'New template' : 'New room', isTemplate
+    ? 'Save reusable size and placement rules. A template contains no placed furniture.' : 'Start a separate editable room from a saved template.'));
+  const form = renderRoomCreation(library).querySelector(`[data-room-form="${isTemplate ? 'archetype' : 'variant'}"]`);
+  for (const control of form.elements) if (control.name in creation.values) control.value = creation.values[control.name];
+  if (!isTemplate) {
+    const select = form.elements.namedItem('roomArchetypeId');
+    select.selectedIndex = [...select.options].findIndex(option => option.value === creation.values.roomArchetypeId
+      && Number(option.dataset.version) === creation.templateVersion);
+  }
+  for (const input of form.querySelectorAll('input[type="number"]')) { input.required = true; input.step = '1'; }
+  const help = document.createElement('p'); help.className = 'room-navigation-consequence'; help.dataset.roomCreationConsequence = 'true';
+  const template = library.archetypes.find(entry => entry.roomArchetypeId === creation.values.roomArchetypeId && entry.version === creation.templateVersion);
+  help.textContent = isTemplate ? 'Create template saves rules only. It does not create or change any room.'
+    : `Create room saves a new empty Draft with ${template?.kind === 'hallway' ? 'west and east entrances' : 'a north entrance'}. It opens immediately. Existing rooms and their furniture stay unchanged; nothing is published.`;
+  if (!isTemplate && (!template || template.version !== creation.templateVersion)) {
+    help.textContent = 'The selected template changed or is unavailable. Choose a current template again before creating the room.';
+    form.querySelector('button[type="submit"]').disabled = true;
+  }
+  if (creation.attempt) {
+    for (const input of form.querySelectorAll('input,select')) input.disabled = true;
+    const submit = form.querySelector('button[type="submit"]'); submit.textContent = 'Retry same creation'; submit.disabled = state.roomMutationPending;
+    help.textContent = 'Creation is not yet confirmed. Retry sends the identical original request, including its name, template and dimensions, so it cannot create a duplicate. Keep this page open until the saved result is confirmed.';
+  }
+  panel.append(form, help); fragment.append(panel); return fragment;
+}
+
 function openCreatedRoom(projectId, roomVariantId) {
   if (state.project?.projectId !== projectId) return false;
   const entry = currentRoomLibrary().variants.find((candidate) => candidate.roomVariantId === roomVariantId);
@@ -4015,6 +4185,8 @@ function openCreatedRoom(projectId, roomVariantId) {
   }
   resetRoomUiProjectContext();
   state.roomUi.selectedRoomVariantId = roomVariantId;
+  state.roomNavigation.route = 'editor'; state.roomNavigation.tab = 'rooms'; state.roomNavigation.creation = null; state.roomNavigation.origin = null;
+  state.roomNavigation.lastCreated = { tab: 'rooms', id: roomVariantId, name: exactRoomHead(entry).displayName };
   // Selection and its fresh DOM become visible together; old room context is not restored.
   renderWorkspace();
   const selector = elements['workspace-content'].querySelector('[data-room-variant-select]');
@@ -4334,7 +4506,7 @@ function renderRoomShapeControls(variant) {
 function renderRoomEditorDock(variant, snapshot, library) {
   const dock = document.createElement('aside'); dock.className = 'room-editor-dock'; dock.dataset.roomScroll = 'dock'; dock.append(renderRoomDockNavigation(), renderRoomLayers());
   if (state.roomUi.dockPanel === 'properties') {
-    dock.append(renderRoomEditForms(variant, 'purpose'), renderRoomCreation(library));
+    dock.append(renderRoomEditForms(variant, 'purpose'));
   } else if (state.roomUi.dockPanel === 'check') {
     dock.append(renderRoomLifecycle(variant), renderRoomFindings(variant));
   } else if (state.roomUi.activeTool.startsWith('PAINT_')) {
@@ -4871,11 +5043,10 @@ function renderRoomStudioPreview(variant) {
 
 function renderRooms(snapshot) {
   const fragment = document.createDocumentFragment(); const library = currentRoomLibrary(snapshot);
-  if (!library.variants.length) {
-    fragment.append(renderRoomCreation(library));
-    fragment.append(emptyState('No rooms yet', 'New rooms are editable drafts. Creating one does not finalize or publish anything.'));
-    return fragment;
-  }
+  if (state.roomNavigation.projectId !== state.project.projectId) state.roomNavigation = createRoomNavigationState(state.project.projectId);
+  if (state.roomNavigation.route !== 'editor') return renderRoomNavigation(library);
+  fragment.append(roomNavigationBack());
+  if (!library.variants.length) { fragment.append(emptyState('Room unavailable', 'Return to Rooms to choose or create a room.')); return fragment; }
   if (!library.variants.some(({ roomVariantId }) => roomVariantId === state.roomUi.selectedRoomVariantId)) state.roomUi.selectedRoomVariantId = library.variants[0].roomVariantId;
   const selectedEntry = library.variants.find(({ roomVariantId }) => roomVariantId === state.roomUi.selectedRoomVariantId);
   const variant = exactRoomHead(selectedEntry);
@@ -4895,6 +5066,7 @@ function renderRooms(snapshot) {
   }
   selector.value = selectedEntry.roomVariantId; selectorLabel.append(selectorCaption, selector);
   const identity = document.createElement('div'); const heading = document.createElement('h2'); heading.textContent = variant?.displayName ?? selectedEntry.roomVariantId;
+  heading.tabIndex = -1;
   const detail = document.createElement('p');
   const archetype = variant
     ? library.archetypes.find(({ roomArchetypeId, version }) => roomArchetypeId === variant.roomArchetypeId && version === variant.archetypeVersion)
@@ -6204,6 +6376,7 @@ function renderWorkspace({
   preserveTaskContext = false,
   preserveBackupContext = false,
 } = {}) {
+  const roomNavigationDom = captureRoomNavigationDom();
   if (activeAssemblyEditor?.getState().gesture || activeEmbeddedAssetEditor?.getState().gesture) { assemblyDeferredRender = true; return; }
   if (activeAssetEditor?.getState().gesture) { assetEditorDeferredRender = true; return; }
   if (cutterDrag) {
@@ -6242,6 +6415,7 @@ function renderWorkspace({
   renderWorkspaceHeader();
   document.body.dataset.libraryWorkspace = String(['assets', 'activity'].includes(state.workspace) && !libraryHasEditor());
   document.body.dataset.sourcesWorkspace = String(state.workspace === 'sources' && !state.cutter);
+  document.body.dataset.roomsWorkspace = String(state.workspace === 'rooms');
   const selectedSourceFile = sourceIntakeFormCache?.querySelector('[data-source-file]');
   if (state.workspace === 'sources' && sourceIntakeFormCache?.isConnected
       && (state.sourceFileChooserActive || selectedSourceFile?.files?.length > 0)) {
@@ -6338,6 +6512,8 @@ function renderWorkspace({
   syncCurrentCutterCanvas();
   elements['workspace-content'].dataset.renderedProjectId = state.project.projectId;
   elements['workspace-content'].dataset.renderedWorkspace = state.workspace;
+  if (state.workspace === 'rooms') elements['workspace-content'].dataset.roomsRoute = roomNavigationKey();
+  else delete elements['workspace-content'].dataset.roomsRoute;
   restoreCutterScroll();
   if (preserveCutterDraft) restoreCutterDomDraft();
   else if (cutterFocusKey && state.cutter) { const controls = elements['workspace-content'].querySelectorAll('input,select,button,[data-cutter-move],[data-cutter-resize]'); [...controls].find(control => cutterControlKey(control) === cutterFocusKey)?.focus({ preventScroll: true }); }
@@ -6357,6 +6533,7 @@ function renderWorkspace({
     });
   }
   if (state.workspace === 'rooms' && state.roomUi.zoom === 'fit') requestAnimationFrame(applyRoomCanvasFit);
+  restoreRoomNavigationDom(roomNavigationDom);
 }
 
 function applyRoomCanvasFit() {
@@ -6659,6 +6836,11 @@ async function loadProjects(preferredProjectId, { preserveWorkspaceIfUnchanged =
 let projectLoadGeneration = 0;
 async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, signal = null, canApply = null } = {}) {
   if (!projectId || signal?.aborted || (canApply && !canApply())) return false;
+  if (state.project?.projectId && state.project.projectId !== projectId && !mayLeaveRoomNavigation(() => {
+    elements['project-select'].value = projectId; void loadProject(projectId);
+  })) {
+    elements['project-select'].value = state.project.projectId; return false;
+  }
   if (state.project?.projectId && state.project.projectId !== projectId) {
     const unsent = [...new Set(sharedReviewControllers.values())].some(controller => {
       const review = controller.getState(); return review.projectId === state.project.projectId && review.feedback?.editing
@@ -6746,6 +6928,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
     resetSourceIntakeForm();
   }
   state.project = project;
+  if (state.roomNavigation.projectId !== project.projectId) state.roomNavigation = createRoomNavigationState(project.projectId);
   const selectedProjectOption = [...elements['project-select'].options].find(option => option.value === projectId);
   if (selectedProjectOption) selectedProjectOption.textContent = `${project.snapshot.project.name} · r${project.revision}`;
   state.activity = Array.isArray(activity?.events) ? activity.events : [];
@@ -7429,7 +7612,7 @@ function stableUiId(prefix, name = '') {
   return `${prefix}:${slug}:${crypto.randomUUID().slice(0, 8)}`;
 }
 
-async function executeRoomMutation({ operation, target, path, body, successMessage, onBeforeReload = null }) {
+async function executeRoomMutation({ operation, target, path, body, successMessage, onBeforeReload = null, capturedRequest = null, onFailure = null }) {
   if (!state.project || !state.agentAccessCsrf || state.roomMutationPending) return false;
   if (!['room-archetype-create', 'room-variant-create'].includes(operation) && !roomPinnedAssetsReady(currentRoomVariant().variant)) {
     showToast('Wait for the exact saved Asset versions before editing this Room.'); return false;
@@ -7437,27 +7620,66 @@ async function executeRoomMutation({ operation, target, path, body, successMessa
   if (operation !== 'room-shape-set' && state.roomUi.shapeDraft?.dirty) {
     showToast('Save or discard shape changes before changing other room data.'); return false;
   }
-  const projectId = state.project.projectId; const revision = state.project.revision; const csrf = state.agentAccessCsrf;
+  if (capturedRequest && capturedRequest.projectId !== state.project.projectId) return false;
+  const projectId = state.project.projectId; const revision = capturedRequest?.revision ?? state.project.revision; const csrf = state.agentAccessCsrf;
+  let postConfirmed = false;
   setRoomMutationPending(true);
   try {
     const response = await api(path, {
       method: 'POST', headers: { 'x-numberdroid-studio-csrf': csrf },
-      body: JSON.stringify({ expectedRevision: revision, idempotencyKey: roomOperationKey(operation, target, projectId), ...body }),
+      body: JSON.stringify({ expectedRevision: revision, idempotencyKey: capturedRequest?.idempotencyKey ?? roomOperationKey(operation, target, projectId), ...body }),
     });
     if (response.projectId !== projectId || response.revision !== revision + 1 || state.project?.projectId !== projectId) {
       const error = new Error('The room mutation response did not match the captured project and revision context.');
       error.code = 'ROOM_CONTEXT_CHANGED'; throw error;
     }
+    postConfirmed = true;
     clearRoomOperationKey(operation, target, projectId);
     onBeforeReload?.();
     await loadProject(projectId, { preserveWorkspaceIfUnchanged: true }); showToast(successMessage); return true;
   } catch (error) {
+    onFailure?.(error, { postConfirmed });
     showToast(`${error.code || 'ERROR'}: ${error.message}`);
     if (state.project?.projectId === projectId) await loadProject(projectId, { preserveWorkspaceIfUnchanged: true }).catch(() => {});
     return false;
   } finally {
     setRoomMutationPending(false); renderWorkspace({ preserveRoomDraft: true });
   }
+}
+
+async function executeRoomCreation(request = null) {
+  const nav = state.roomNavigation, creation = nav.creation;
+  if (!creation || !state.project || state.roomMutationPending) return false;
+  if (!state.agentAccessCsrf) { showToast('Creation requires a local Studio session. Refresh the connection before trying again.'); return false; }
+  if (!creation.attempt) {
+    if (!request) return false;
+    creation.attempt = { ...structuredClone(request), capturedRequest: {
+      projectId: state.project.projectId, revision: state.project.revision,
+      idempotencyKey: roomOperationKey(request.operation, request.target, state.project.projectId),
+    } };
+  }
+  const attempt = creation.attempt; const wasUncertain = creation.uncertain === true;
+  let definitelyRejected = false;
+  const result = await executeRoomMutation({ ...attempt, onFailure(error, { postConfirmed }) {
+    definitelyRejected = !wasUncertain && !postConfirmed && Number.isInteger(error.status) && error.status >= 400 && error.status < 500;
+  } });
+  if (state.project?.projectId !== attempt.capturedRequest.projectId || state.roomNavigation !== nav || nav.creation !== creation) return false;
+  const library = currentRoomLibrary();
+  const saved = attempt.operation === 'room-variant-create'
+    ? exactRoomHead(library.variants.find(entry => entry.roomVariantId === attempt.target))
+    : library.archetypes.find(entry => entry.roomArchetypeId === attempt.target && entry.version === 1);
+  if (saved) {
+    clearRoomOperationKey(attempt.operation, attempt.target, attempt.capturedRequest.projectId);
+    if (attempt.operation === 'room-variant-create') return openCreatedRoom(attempt.capturedRequest.projectId, attempt.target);
+    nav.creation = null; nav.tab = 'templates'; nav.route = 'template'; nav.templateId = attempt.target; nav.templateVersion = saved.version; nav.origin = null;
+    nav.lastCreated = { tab: 'templates', id: attempt.target, name: saved.displayName };
+    renderWorkspace(); window.scrollTo(0, 0); return true;
+  }
+  if (definitelyRejected && !result) {
+    clearRoomOperationKey(attempt.operation, attempt.target, attempt.capturedRequest.projectId);
+    creation.attempt = null; creation.uncertain = false;
+  } else creation.uncertain = true;
+  renderWorkspace(); return false;
 }
 
 function roomManipulationContext(variant, placement = null) {
@@ -7636,12 +7858,13 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
   if (['archetype', 'variant'].includes(form.dataset.roomForm)) {
     const blockedReason = roomCreationBlockedReason();
     if (blockedReason) { showToast(blockedReason); return; }
+    if (state.roomNavigation.creation?.attempt) { await executeRoomCreation(); return; }
   }
   const data = new FormData(form); const projectId = state.project.projectId; const { variant } = currentRoomVariant();
   if (form.dataset.roomForm === 'archetype') {
     const displayName = String(data.get('displayName')); const kind = String(data.get('kind')); const preferredWidth = Number(data.get('width')); const preferredHeight = Number(data.get('height'));
     const roomArchetypeId = stableUiId('archetype', displayName);
-    await executeRoomMutation({ operation: 'room-archetype-create', target: roomArchetypeId, path: `/api/projects/${encodeURIComponent(projectId)}/room-archetypes`, body: {
+    await executeRoomCreation({ operation: 'room-archetype-create', target: roomArchetypeId, path: `/api/projects/${encodeURIComponent(projectId)}/room-archetypes`, body: {
       roomArchetypeId, kind, displayName, tags: [],
       dimensionPolicy: { width: { min: 3, preferred: preferredWidth, max: 64 }, height: { min: 3, preferred: preferredHeight, max: 64 } },
       structuralBands: { left: 0, right: 0, top: 0, bottom: 0 }, orientation: kind === 'hallway' ? 'horizontal' : 'any',
@@ -7651,7 +7874,8 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
     return;
   }
   if (form.dataset.roomForm === 'variant') {
-    const roomArchetypeId = String(data.get('roomArchetypeId')); const archetype = currentRoomLibrary().archetypes.find((candidate) => candidate.roomArchetypeId === roomArchetypeId);
+    const roomArchetypeId = String(data.get('roomArchetypeId')); const archetype = currentRoomLibrary().archetypes.find((candidate) => candidate.roomArchetypeId === roomArchetypeId && candidate.version === state.roomNavigation.creation?.templateVersion);
+    if (!archetype) { showToast('Choose a current saved template before creating the room.'); return; }
     const displayName = String(data.get('displayName')); const roomVariantId = stableUiId('room', displayName);
     const width = Number(data.get('width')); const height = Number(data.get('height'));
     const connectors = archetype?.kind === 'hallway' ? [
@@ -7659,10 +7883,10 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
       { connectorId: stableUiId('connector', 'east'), side: 'east', offset: 1, width: 1, kind: 'opening', clearanceInside: 1, clearanceOutside: 1, required: true, tags: [], compatibilityProfile: null },
     ] : [{ connectorId: stableUiId('connector', 'north'), side: 'north', offset: Math.max(0, Math.floor(width / 2)), width: 1, kind: 'opening', clearanceInside: 1, clearanceOutside: 1, required: true, tags: [], compatibilityProfile: null }];
     const intentTrace = ['game_design', 'level_design', 'room_design'].map((layer) => ({ layer, ruleId: `ui:${layer}`, summary: `Owner-authored ${layer.replace('_', ' ')} intent`, disposition: 'governing' }));
-    const created = await executeRoomMutation({ operation: 'room-variant-create', target: roomVariantId, path: `/api/projects/${encodeURIComponent(projectId)}/rooms`, body: {
+    await executeRoomCreation({ operation: 'room-variant-create', target: roomVariantId, path: `/api/projects/${encodeURIComponent(projectId)}/rooms`, body: {
       roomVariantId, roomArchetypeId, archetypeVersion: archetype.version, displayName, width, height, intentTrace, connectors, placements: [],
     }, successMessage: 'Editable room created.' });
-    if (created) openCreatedRoom(projectId, roomVariantId); return;
+    return;
   }
   if (!variant || !roomPinnedAssetsReady(variant)) return;
   const basePath = `/api/projects/${encodeURIComponent(projectId)}/rooms/${encodeURIComponent(variant.roomVariantId)}`;
@@ -7707,6 +7931,23 @@ elements['workspace-content'].addEventListener('submit', async (event) => {
     await executeRoomMutation({ operation: 'room-intent-set', target: `${variant.roomVariantId}:${variant.version}`, path: `${basePath}/intent`, body: { expectedRoomVariantVersion: variant.version, intentTrace }, successMessage: 'Three-layer room intent trace saved.' });
   }
 });
+
+function captureRoomCreationInput(event) {
+  const form = event.target.closest('[data-room-form="archetype"], [data-room-form="variant"]');
+  const creation = state.roomNavigation.creation;
+  if (!form || !creation || creation.attempt || state.roomMutationPending || !(event.target.name in creation.values)) return;
+  creation.values[event.target.name] = event.target.value;
+  if (event.target.name === 'roomArchetypeId') {
+    const option = event.target.selectedOptions[0];
+    const template = currentRoomLibrary().archetypes.find(entry => entry.roomArchetypeId === event.target.value && entry.version === Number(option?.dataset.version));
+    if (!template) return;
+    creation.templateVersion = template.version;
+    creation.values.width = String(template.dimensionPolicy.width.preferred); creation.values.height = String(template.dimensionPolicy.height.preferred);
+    renderWorkspace();
+  }
+}
+elements['workspace-content'].addEventListener('input', captureRoomCreationInput);
+elements['workspace-content'].addEventListener('change', captureRoomCreationInput);
 
 elements['workspace-content'].addEventListener('click', (event) => {
   if (state.workspace !== 'rooms') return;
@@ -8038,6 +8279,8 @@ elements['workspace-content'].addEventListener('click', (event) => {
   if (state.roomUi.pendingPlacementAdd && state.roomUi.selectedRoomVariantId !== open.dataset.roomVariantId) {
     showToast('A placement is not yet confirmed. Choose its original cell again before switching rooms.'); return;
   }
+  cancelRoomPreviewLoad(); state.roomUi.view = 'editor';
+  state.roomNavigation.route = 'editor'; state.roomNavigation.tab = 'rooms'; state.roomNavigation.creation = null; state.roomNavigation.origin = null;
   state.roomUi.selectedRoomVariantId = open.dataset.roomVariantId;
   state.roomUi.dockPanel = 'check'; state.roomUi.selectedPlacementId = null; state.roomUi.selectedConnectorId = null;
   state.roomUi.selectedFinding = null; clearRoomPaletteAsset(); state.roomUi.previewAssetId = null;
@@ -8060,6 +8303,12 @@ elements['workspace-nav'].addEventListener('click', (event) => {
   if (state.sourceMutationPending || state.assetMutationPending || state.roomMutationPending
       || state.taskMutationPending || state.backupMutationPending) { event.preventDefault(); return; }
   if (link.dataset.workspace !== state.workspace && !mayAbandonAssetAuthoring()) { event.preventDefault(); return; }
+  if (state.workspace === 'rooms' && !mayLeaveRoomNavigation(() => link.click())) { event.preventDefault(); return; }
+  if (state.workspace === 'rooms') state.roomNavigation.creation = null;
+  if (link.dataset.workspace === 'rooms') {
+    state.roomNavigation.route = state.roomUi.pendingPlacementAdd || state.roomUi.shapeDraft?.dirty || state.roomUi.dirty ? 'editor' : 'list';
+    state.roomNavigation.origin = null;
+  }
   if (state.workspace === 'tasks' && link.dataset.workspace !== 'tasks') {
     taskSelectionGeneration += 1;
     cancelTaskAdoptionLoad({ channel: 'selection' });
@@ -9142,6 +9391,12 @@ window.addEventListener('hashchange', () => {
   }
   if (nextWorkspace === state.workspace) { void publishVisualEvidence(); return; }
   if (!mayAbandonAssetAuthoring()) { history.replaceState(null, '', `#${state.workspace}`); return; }
+  if (state.workspace === 'rooms' && !mayLeaveRoomNavigation(() => { location.hash = nextWorkspace; })) { history.replaceState(null, '', '#rooms'); return; }
+  if (state.workspace === 'rooms') state.roomNavigation.creation = null;
+  if (nextWorkspace === 'rooms') {
+    state.roomNavigation.route = state.roomUi.pendingPlacementAdd || state.roomUi.shapeDraft?.dirty || state.roomUi.dirty ? 'editor' : 'list';
+    state.roomNavigation.origin = null;
+  }
   cancelPinnedAssetsOnWorkspaceExit(nextWorkspace);
   if (state.workspace === 'tasks' && nextWorkspace !== 'tasks') {
     taskSelectionGeneration += 1;

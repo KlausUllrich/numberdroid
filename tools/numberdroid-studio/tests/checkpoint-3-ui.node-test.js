@@ -276,26 +276,26 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
 
 
 function roomTestElement(tag = 'div') {
-  return { tag, dataset: {}, children: [], append(...children) { this.children.push(...children); } };
+  return { tag, dataset: {}, children: [], addEventListener() {}, append(...children) { this.children.push(...children); } };
 }
 const roomTestNodes = (node) => [node, ...(node.children ?? []).filter((child) => typeof child === 'object').flatMap(roomTestNodes)];
 
-async function roomCreationHarness({ failure = false, omitCreatedHead = false, roomUi = {} } = {}) {
+async function roomCreationHarness({ failure = false, omitCreatedHead = false, roomUi = {}, templateVersions = [1], templateVersion = 1 } = {}) {
   const app = await readFile(appUrl, 'utf8');
   const fragment = (start, end) => app.slice(app.indexOf(start), app.indexOf(end, app.indexOf(start)));
   const head = { roomVariantId: 'room.first', roomArchetypeId: 'template.one', archetypeVersion: 1,
     displayName: 'First room', width: 8, height: 6, version: 1, lifecycle: 'DRAFT', placements: [], connectors: [], findings: [] };
-  const library = { archetypes: [{ roomArchetypeId: 'template.one', version: 1, kind: 'room', displayName: 'Template' }],
+  const library = { archetypes: templateVersions.map(version => ({ roomArchetypeId: 'template.one', version, kind: 'room', displayName: `Template v${version}` })),
     variants: [{ roomVariantId: 'room.first', headVersion: 1, versions: [head] }], proposals: [] };
   const state = { project: { projectId: 'project.test', revision: 3, snapshot: { roomLibrary: library } }, agentAccessCsrf: 'csrf',
-    roomMutationPending: false, roomUi: { view: 'editor', selectedRoomVariantId: 'room.first', selectedPlacementId: 'placement.old',
+    roomMutationPending: false, roomNavigation: { projectId: 'project.test', route: 'editor', search: { rooms: 'First', templates: '' }, status: 'draft', origin: null, creation: { templateVersion } }, roomUi: { view: 'editor', selectedRoomVariantId: 'room.first', selectedPlacementId: 'placement.old',
       selectedConnectorId: 'connector.old', activeTool: 'PROP', zoom: '200', layers: { SET_DRESSING: false }, ...roomUi } };
   const observations = []; const requests = []; const messages = [];
   const createStart = app.indexOf("  const form = event.target.closest('[data-room-form]');");
   const createBody = app.slice(createStart, app.indexOf('  if (!variant || !roomPinnedAssetsReady(variant)) return;', createStart));
   const resizeStart = app.indexOf("  if (form.dataset.roomForm === 'resize') {");
   const resizeBody = app.slice(resizeStart, app.indexOf("  if (form.dataset.roomForm === 'connector')", resizeStart));
-  const sandbox = { state, elements: { 'workspace-content': { querySelector: () => null } }, document: { createElement: roomTestElement, createDocumentFragment: roomTestElement },
+  const sandbox = { state, structuredClone, elements: { 'workspace-content': { querySelector: () => null } }, document: { createElement: roomTestElement, createDocumentFragment: roomTestElement },
     currentRoomLibrary: () => library, roomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion),
     exactRoomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion) ?? null,
     roomHeadFindingProjection: () => ({ errors: [] }), findingSummary: () => 'No findings',
@@ -354,6 +354,9 @@ test('second Room creation synchronizes visible header/canvas and immediate edit
   assert.equal(fixture.state.roomUi.selectedPlacementId, null); assert.equal(fixture.state.roomUi.selectedConnectorId, null);
   assert.equal(fixture.state.roomUi.activeTool, 'SELECT'); assert.equal(fixture.state.roomUi.zoom, 'fit');
   assert.equal(fixture.state.roomUi.domState, null);
+  assert.equal(fixture.state.roomNavigation.route, 'editor');
+  assert.equal(fixture.state.roomNavigation.search.rooms, 'First', 'Creating another Room must preserve collection filters');
+  assert.equal(fixture.state.roomNavigation.status, 'draft');
   await fixture.resize(12, 7);
   assert(fixture.requests.at(-1).path.endsWith('/rooms/room.second/resize'));
   assert.deepEqual([fixture.selected().width, fixture.selected().height], [12, 7]);
@@ -368,6 +371,15 @@ test('failed or unavailable created Room head preserves previous selection and i
   }
 });
 
+test('Room creation posts the selected immutable template version when imported history contains duplicate IDs', async () => {
+  const fixture = await roomCreationHarness({ templateVersions: [1, 2], templateVersion: 2 });
+  await fixture.create();
+  assert.equal(fixture.requests.length, 1);
+  assert.equal(fixture.requests[0].body.roomArchetypeId, 'template.one');
+  assert.equal(fixture.requests[0].body.archetypeVersion, 2, 'The command must not silently choose the first historical version');
+  assert.equal(fixture.state.roomUi.selectedRoomVariantId, 'room.second');
+});
+
 test('Room and template creation preserve unsaved and unresolved prior work without sending a command', async () => {
   for (const roomUi of [{ shapeDraft: { dirty: true } }, { dirty: true }, { pendingPlacementAdd: { placementId: 'pending' } },
     { placementGesture: { captured: true } }, { canvasPan: { pointerId: 1 } }]) {
@@ -379,40 +391,50 @@ test('Room and template creation preserve unsaved and unresolved prior work with
   }
 });
 
-test('empty Rooms open the next creation form while existing Room controls remain compact', async () => {
+test('Rooms collection and focused creation replace the old inline editor disclosures', async () => {
   const app = await readFile(appUrl, 'utf8');
-  const source = app.slice(app.indexOf('function roomField('), app.indexOf('function renderRoomPalette('));
-  const render = runInNewContext(`${source}; renderRoomCreation;`, { state: { roomUi: {} }, document: { createElement: roomTestElement } });
-  const template = { roomArchetypeId: 'template.one', version: 1, displayName: 'Template', kind: 'room', dimensionPolicy: { width: { preferred: 8 }, height: { preferred: 6 } } };
-  for (const [archetypes, variants, expected] of [[[], [], [true, false]], [[template], [], [false, true]], [[template], [{}], [false, false]]]) {
-    const nodes = roomTestNodes(render({ archetypes, variants }));
-    assert.deepEqual(nodes.filter(({ tag }) => tag === 'details').map(({ open }) => open), expected);
-    assert(nodes.some(({ textContent }) => textContent === 'New room template'));
-    assert(nodes.some(({ textContent }) => textContent === 'Create room'));
-  }
+  const stateSource = app.slice(app.indexOf('function createRoomNavigationState('), app.indexOf('function roomNavigationKey('));
+  const initial = runInNewContext(`${stateSource}; createRoomNavigationState('project.one');`);
+  assert.equal(initial.route, 'list'); assert.equal(initial.tab, 'rooms');
+  const rooms = app.slice(app.indexOf('function renderRooms('), app.indexOf('const TASK_STATE_LABELS'));
+  assert.match(rooms, /state\.roomNavigation\.route !== 'editor'/);
+  assert.match(rooms, /renderRoomNavigation\(library\)/);
+  assert.match(rooms, /roomNavigationBack\(\)/);
+  const dock = app.slice(app.indexOf('function renderRoomEditorDock('), app.indexOf('function renderRoomEditForms('));
+  assert.doesNotMatch(dock, /renderRoomCreation/);
+  const formView = app.slice(app.indexOf('function renderRoomNavigation('), app.indexOf('function openCreatedRoom('));
+  assert.match(formView, /data-room-form/);
+  assert.match(formView, /new empty Draft/);
+  assert.match(formView, /Existing rooms and their furniture stay unchanged/);
+  assert.match(formView, /template\.version !== creation\.templateVersion/);
 });
 
-test('Room creation avoids side-by-side stretched cards and retains browser geometry proof for empty and existing projects', async () => {
+test('Room navigation preserves unresolved commands, gestures and declined dirty drafts', async () => {
+  const app = await readFile(appUrl, 'utf8');
+  const source = app.slice(app.indexOf('function mayLeaveRoomNavigation('), app.indexOf('function roomNavigate('));
+  for (const roomUi of [{ pendingPlacementAdd: { placementId: 'pending', idempotencyKey: 'exact-retry' } },
+    { placementGesture: { pointerId: 3 } }, { canvasPan: { pointerId: 4 } }, { shapeDraft: { dirty: true, voidCells: [{ x: 1, y: 1 }] } },
+    { dirty: true, decisionDrafts: { proposal: { decision: 'REJECTED', reason: 'Keep this' } } }]) {
+    const state = { roomMutationPending: false, roomUi, roomNavigation: { route: 'editor' } };
+    const before = JSON.stringify(state); let resetCount = 0;
+    const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, window: { confirm: () => false }, showToast() {}, resetRoomUiProjectContext() { resetCount += 1; } });
+    assert.equal(leave(), false); assert.equal(JSON.stringify(state), before); assert.equal(resetCount, 0);
+  }
+  const values = { displayName: 'Unsaved room' };
+  const state = { roomMutationPending: false, roomUi: {}, roomNavigation: { route: 'create-room', creation: { values, initial: '{}' } } };
+  const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, window: { confirm: () => false }, showToast() {}, askRoomCreationDiscard() {} });
+  assert.equal(leave(), false); assert.equal(state.roomNavigation.creation.values.displayName, 'Unsaved room');
+});
+
+test('focused Room creation retains readable fields and actual browser geometry proof', async () => {
   const styles = await readFile(stylesUrl, 'utf8');
   const evidence = await readFile(new URL('../scripts/capture-room-creation-evidence.js', import.meta.url), 'utf8');
-  const creationRule = styles.match(/\.room-creation \{([^}]+)\}/)?.[1] ?? '';
-  const cardRule = styles.match(/\.room-creation(?: >)? details \{([^}]+)\}/)?.[1] ?? '';
-  assert.ok(creationRule && cardRule, 'Creation layout and card rules must exist');
-  assert.doesNotMatch(creationRule, /display: flex;[^}]*flex-wrap: wrap/);
-  assert.doesNotMatch(cardRule, /flex: 1 1 280px/);
-  assert.match(creationRule, /display: grid/);
-  assert.match(creationRule, /grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(creationRule, /align-items: start/);
-  const fieldRule = styles.match(/\.room-creation \.room-form input, \.room-creation \.room-form select \{([^}]+)\}/)?.[1] ?? '';
-  const labelRule = styles.match(/\.room-creation \.room-form label \{([^}]+)\}/)?.[1] ?? '';
-  const buttonRule = styles.match(/\.room-creation \.room-form button \{([^}]+)\}/)?.[1] ?? '';
-  assert.match(fieldRule, /min-height: 40px/); assert.match(fieldRule, /font-size: 16px/);
-  assert.match(labelRule, /font-size: 13px/);
-  assert.match(buttonRule, /grid-column: 1 \/ -1/); assert.match(buttonRule, /white-space: nowrap/);
-  for (const stage of ['empty-project-template', 'template-saved-first-room', 'existing-room-dock']) {
+  assert.match(styles, /\.room-navigation-form/);
+  for (const stage of ['empty-project-template', 'template-saved-first-room', 'collection-second-room']) {
     assert.ok(evidence.includes(`captureCreationLayout('${stage}')`));
   }
-  assert.match(evidence, /card\.bounds\.height - card\.collapsedHeight/);
+  assert.match(evidence, /layout\.focusedFormCount, 1/);
+  assert.match(evidence, /layout\.inDock, false/);
   assert.match(evidence, /field\.font >= 16 && field\.height >= 40 && field\.contained/);
   assert.match(evidence, /label\.font >= 13/);
   assert.match(evidence, /card\.form\.button\.textLines, 1/);
@@ -423,7 +445,7 @@ test('successful creation lands focus on the exact new Room identity without mov
   const app = await readFile(appUrl, 'utf8');
   const source = app.slice(app.indexOf('function openCreatedRoom('), app.indexOf('function renderRoomCreation('));
   function scenario({ headAvailable = true, selectorMatches = true } = {}) {
-    const calls = []; const state = { project: { projectId: 'project.one' }, roomUi: { selectedRoomVariantId: 'room.old' } };
+    const calls = []; const state = { project: { projectId: 'project.one' }, roomNavigation: { route: 'create-room' }, roomUi: { selectedRoomVariantId: 'room.old' } };
     const selector = { value: selectorMatches ? 'room.new' : 'room.old',
       focus(options) { calls.push(['focus', options.preventScroll]); },
       closest(name) { assert.equal(name, '.room-header'); return { scrollIntoView(options) { calls.push(['land', options.block, options.inline]); } }; } };

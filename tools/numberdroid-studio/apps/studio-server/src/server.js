@@ -91,6 +91,7 @@ const staticFiles = new Map([
   ['/animation-cut.css', ['../public/animation-cut.css', 'text/css; charset=utf-8']],
   ['/library-state.js', ['../public/library-state.js', 'text/javascript; charset=utf-8']],
   ['/library-view.js', ['../public/library-view.js', 'text/javascript; charset=utf-8']],
+  ['/rooms-navigation-view.js', ['../public/rooms-navigation-view.js', 'text/javascript; charset=utf-8']],
   ['/library-detail-view.js', ['../public/library-detail-view.js', 'text/javascript; charset=utf-8']],
   ['/library.css', ['../public/library.css', 'text/css; charset=utf-8']],
   ...['review-state.js','review-controller.js','review-view.js','activity-view.js'].map(name => ['/'+name, ['../public/'+name, 'text/javascript; charset=utf-8']]),

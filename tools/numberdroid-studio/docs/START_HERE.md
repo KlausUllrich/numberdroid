@@ -1,17 +1,26 @@
 # Numberdroid Studio — Start here
 
-Status date: 2026-09-18. This is the current task router; linked contracts own
+Status date: 2026-09-22. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
-Current pause point (2026-09-18): **VT-025 USER ACCEPTED — PASS**. Klaus passed
-the Source-to-Library batch on `53885f5`, then the five Cutter follow-ups on
-`b1dbff3` (remote `9189b795`, identical tree; Build2490 green). PR #256 is still
-unmerged. Keep **Save layout → Generate** as separate actions. Resume with the
-[accepted-workspace handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md):
-reverify integration state and reopen the exact retained workspace, without
-recreating its fixture or repeating accepted tests. No further development was
-authorized by the end-of-day pause request.
+Current block (2026-09-22): Klaus approved the
+[Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md) and authorized its
+implementation. Collection-first Rooms/Templates, top-level creation and
+contextual Back replace creation buried inside an existing editor. Klaus then
+reported **“all pass”** for the presented production navigation batch on local
+`ee27480`; that bounded block is user accepted. Klaus authorized publishing and
+integration after the earlier declined write; exact-head PR/CI gates still apply.
+Preserve the permanent Family room pilot and its
+explicitly passed Preview, reopen and creation-readability checks; the
+[Room status](ROOM_EDITOR_L3_STATUS.md) and [VT-018](VACATION_TEST_BACKLOG.md#vt-018--room-creation-and-current-editor-context)
+record the remaining bounded human gate.
+
+**VT-025 remains USER ACCEPTED — PASS**, including all five Cutter follow-ups;
+PR #256 is merged. Keep **Save layout → Generate** separate. Its
+[September 18 handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md)
+is historical recovery evidence, not a current pause or instruction to recreate
+fixtures/repeat accepted tests.
 
 Previous milestone result (2026-09-16): Klaus explicitly reported PASS for the
 complete [VT-024](VACATION_TEST_BACKLOG.md#vt-024--shared-review-feedback-and-activity)
@@ -140,7 +149,7 @@ saved-output comparison and a second Image-authoring step are superseded;
 accepted Animation/frame authoring remains intact. Klaus reported “all pass.”
 for the complete VT-025 workflow on build `53885f5` on 2026-09-18, then “pass.”
 for all five Cutter follow-ups on `b1dbff3`. Both bounded blocks are accepted;
-the candidate is not merged.
+the candidate was subsequently merged through PR #256.
 No deletion or
 source cleanup is included; do not open the preserved pre-pause workspace with
 the new schema19 writer.

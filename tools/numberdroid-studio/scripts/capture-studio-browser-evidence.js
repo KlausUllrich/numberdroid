@@ -748,6 +748,17 @@ try {
     }
   }
   if (mode === 'checkpoint-3' && expectedWorkspace === 'rooms') {
+    const opened = await devtools.send('Runtime.evaluate', {
+      expression: `(async () => {
+        const card = document.querySelector('[data-room-nav-action="open-room"][data-room-nav-id="room.family-gathering"]');
+        if (!card) throw new Error('The Rooms collection must expose the gathering Room.');
+        card.click();
+        const deadline = Date.now() + 10_000;
+        while (!document.querySelector('[data-room-board]') && Date.now() < deadline) await new Promise(done => setTimeout(done, 25));
+        return document.querySelector('[data-room-variant-select]')?.value;
+      })()`, awaitPromise: true, returnByValue: true,
+    }, sessionId);
+    assert.equal(opened.result?.value, 'room.family-gathering', 'Checkpoint 3 must deliberately open its exact Room from the collection');
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]')?.click()`,
       returnByValue: true,
@@ -1124,7 +1135,13 @@ try {
             selectedFindingCount: document.querySelectorAll('.room-findings [data-selected="true"]').length,
             findingsVisible: document.querySelector('.room-findings')?.getBoundingClientRect().height > 0,
           };
-        } else await navigate('rooms');
+        } else {
+          await navigate('rooms');
+          const card = document.querySelector('[data-room-nav-action="open-room"][data-room-nav-id="' + roomId + '"]');
+          if (!card) throw new Error('The Rooms collection must expose ' + roomId);
+          card.click();
+          await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
+        }
         const selector = document.querySelector('[data-room-variant-select]');
         if (selector.value !== roomId) {
           selector.value = roomId;

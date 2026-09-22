@@ -78,26 +78,33 @@ This projection changes no accepted room command, CAS, immutable-version, propos
 
 ### Room creation and current editor context
 
+The approved 2026-09-22 [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md)
+places **New room** and **New template** at the top of their collection tabs.
+Opening Rooms starts at that collection; opening a saved Room enters the focused
+editor with **Back to Rooms** at the upper left. Creation controls no longer
+belong inside the current Room's dock. This supersedes their earlier compact
+disclosure placement, not the command or state-protection semantics below.
+
 Creating a Room must immediately align the selector, header, canvas and command
 target with that exact saved Room. After confirmed creation and reload, verify
 the new Room exists, clear the previous Room's interaction context, select the
-new Room and render it without carrying old Room DOM state. Focus its selector
-and bring the new Room header into view. A failed creation
+new Room and render it without carrying old Room DOM state. Focus its heading
+and bring the new Room header into view, even when collection filters would hide
+it. A failed creation
 or unavailable exact new head preserves the previous selection; it does not
 select an unseen fallback. Dirty shape/review drafts and unresolved placement
 or gesture state cannot be discarded implicitly by starting another Room.
 
-An empty Rooms workspace explains the two steps in plain language: create a
-reusable **Room template**, then create an editable Room from it. Open the
-template form when no template exists, then the Room form when templates exist
-but no Room does. Creation controls in an existing Room remain compact.
-The explanation occupies its own row above the two full-width, vertically
-stacked creation disclosures. A closed disclosure keeps its natural height;
-it must not stretch beside the open form. Creation labels are at least 13px,
-entered text and numbers are 16px, and the Create action has its own row without
-wrapping its label. Narrow views and the existing Room dock use two field
-columns while keeping both creation disclosures full-width.
-These UI rules change no Room validation or saved command semantics.
+An empty Rooms collection explains the two steps in plain language: create a
+reusable **Room template**, then create an editable Room from it. Offer template
+creation when none exists and Room creation when a template exists but no Room
+does. Each creation action opens one focused form with contextual Back, readable
+labels of at least 13px, entered text/numbers of 16px and a separate action row
+whose label does not wrap. Explain that a new Room has no placed assets, retains
+the existing default entrances and leaves other Rooms unchanged. Preserve list
+filters, focus and scroll on return; protect unfinished forms and existing
+editor drafts before leaving. These UI rules change no Room validation or saved
+command semantics. Design approval does not establish production acceptance.
 
 ## 4. Irregular-room semantics
 
