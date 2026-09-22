@@ -32,6 +32,9 @@ asset/rotation tools. The [Surface batch](VACATION_TEST_BACKLOG.md#2026-09-22-ne
 records observations, source-confirmed behavior, proposed semantics and the
 bundled test scope. New tool UI still needs its compact design/mockup gate;
 these requests do not authorize silent deletion of overlapping placements.
+The [Surface interaction proposal](SURFACE_AUTHORING_DESIGN.md) now records
+Paint/Fill, visible overlap repair, stable preview and atomic recovery semantics;
+it remains proposed, not approved or implemented.
 
 Previous completed block (2026-09-22): Klaus approved the
 [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md) and authorized its

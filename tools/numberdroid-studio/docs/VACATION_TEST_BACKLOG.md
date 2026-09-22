@@ -43,6 +43,15 @@ assets. He also observed apparently stacked Surfaces and an unclear error whose
 wording is no longer available. This is a planning request, not acceptance of a
 new mockup or implementation.
 
+Klaus subsequently said **“go”** for the next block. The
+[interaction proposal](SURFACE_AUTHORING_DESIGN.md) and isolated performance
+diagnosis are underway; production changes still follow the compact mockup
+review. The clickable draft simulates 1×1 Surface painting/replacement, visible
+overlap repair, room/selected fill, mixed assets, legal cardinal rotation,
+stable preview/shuffle and undo. Larger-footprint, authoritative save/retry and
+capacity behavior remain specified production requirements, not demonstrated
+by the mockup. No live project or server is changed by this design work.
+
 Source inspection confirms one placement POST currently waits for the broad
 project/activity/agent-access/intake/task refresh and Room re-render. It does not
 show an explicit browser-page reload in that path. Measure POST, refresh reads,
