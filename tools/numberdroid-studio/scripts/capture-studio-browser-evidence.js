@@ -758,7 +758,7 @@ try {
         return document.querySelector('[data-room-variant-select]')?.value;
       })()`, awaitPromise: true, returnByValue: true,
     }, sessionId);
-    assert.equal(opened.result?.value, 'room.family-gathering', 'Checkpoint 3 must deliberately open its exact Room from the collection');
+    assert(opened.result?.value === 'room.family-gathering', 'Checkpoint 3 must deliberately open its exact Room from the collection');
     await devtools.send('Runtime.evaluate', {
       expression: `document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PROP"]')?.click()`,
       returnByValue: true,
