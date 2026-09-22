@@ -43,14 +43,17 @@ assets. He also observed apparently stacked Surfaces and an unclear error whose
 wording is no longer available. This is a planning request, not acceptance of a
 new mockup or implementation.
 
-Klaus subsequently said **“go”** for the next block. The
-[interaction proposal](SURFACE_AUTHORING_DESIGN.md) and isolated performance
-diagnosis are underway; production changes still follow the compact mockup
-review. The clickable draft simulates 1×1 Surface painting/replacement, visible
+Klaus subsequently said **“go”** for the next block, then **“nice, approved”**
+for the [interactive design](SURFACE_AUTHORING_DESIGN.md). **DESIGN APPROVED
+2026-09-22; production implementation not started.** He requested session close
+and shutdown preparation; the
+[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
+is the continuation entry. Do not ask him to repeat this design approval.
+The clickable mockup simulates 1×1 Surface painting/replacement, visible
 overlap repair, room/selected fill, mixed assets, legal cardinal rotation,
 stable preview/shuffle and undo. Larger-footprint, authoritative save/retry and
 capacity behavior remain specified production requirements, not demonstrated
-by the mockup. No live project or server is changed by this design work.
+by the mockup. No live project or server was changed by this design work.
 
 Source inspection confirms one placement POST currently waits for the broad
 project/activity/agent-access/intake/task refresh and Room re-render. It does not
@@ -85,7 +88,7 @@ Plan one coherent Surface-authoring batch, in this order:
    that exact arrangement, not generate a different one.
 
 Implementation is expected L3 (visible interaction plus bulk mutation/recovery).
-Agree the compact interaction mockup before new tool UI; retain the existing
+The compact interaction mockup is now approved; retain the existing
 engine-neutral Preview and no-runtime/publication boundary. Plan atomic bulk
 save and one-step undo/recovery explicitly rather than a loop of per-cell
 requests or remove-then-add partial commits. Use a fresh disposable fixture,

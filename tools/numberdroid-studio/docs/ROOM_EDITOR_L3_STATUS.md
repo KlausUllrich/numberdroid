@@ -1,5 +1,16 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+## Surface tools design approved — 2026-09-22 session pause
+
+Klaus said **“nice, approved”** for the
+[Surface interaction mockup](SURFACE_AUTHORING_DESIGN.md), then requested server
+shutdown preparation. Design approval is complete; production Surface changes
+are not implemented. Continue via the
+[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
+with the approved L3 batch and one bundled live check. VT-001's overall state
+is unchanged. Preserve live sandbox project r111 and pilot r34 observed before
+shutdown; do not restore earlier test snapshots. Windows remains opt-in only.
+
 ## Rooms collection navigation user acceptance — 2026-09-22
 
 Klaus approved the [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md),

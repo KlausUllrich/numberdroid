@@ -1,5 +1,14 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
+## 2026-09-22 Surface tools design approved — session pause
+
+Klaus approved the [Surface painting/fill design](SURFACE_AUTHORING_DESIGN.md),
+then requested shutdown preparation. Production implementation has not started.
+Next session implements the bounded responsive paint/replace, overlap repair,
+room/selection fill, mixed-asset/cardinal variation and atomic recovery batch.
+Use the [resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md).
+Do not repeat design approval or infer product acceptance; keep Windows opt-in.
+
 ## 2026-09-22 Rooms navigation user acceptance
 
 Klaus reported **“all pass”** for the presented production

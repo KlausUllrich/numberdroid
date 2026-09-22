@@ -1,5 +1,16 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-22 Surface tools design approved — session pause
+
+Klaus approved the [Surface painting/fill design](../../tools/numberdroid-studio/docs/SURFACE_AUTHORING_DESIGN.md)
+and requested shutdown preparation. Next session may implement the bounded L3
+Surface batch without repeating mockup approval: responsive paint/replacement,
+visible overlaps, room/selection fill, compatible random assets/rotations,
+stable preview and atomic save/retry/undo. Production code is not yet changed.
+The [resume handoff](../history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
+protects current pilot/sandbox data and records the next gate. Production and
+overall Studio acceptance remain separate; no Windows run is requested.
+
 ## 2026-09-22 Rooms navigation user acceptance
 
 Klaus reported **“all pass”** for the presented production
