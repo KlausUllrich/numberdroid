@@ -113,10 +113,16 @@ validation behavior; no schema, authority, lifecycle or UI operation changes.
 Review found a legacy portable-import compatibility requirement, escalating
 verification to L3: preserve old v2 finding hashes only when the full semantic
 finding list matches the old deterministic algorithm, without rewriting history
-or accepting arbitrary IDs. Domain, SQLite save/restart/integrity and
-accepted-subset merge/replay/revert checks pass; export/import compatibility
-regressions and the remaining selected gates are being verified. Windows was
-not requested and is not run. No new human retest is required for this internal
+or accepting arbitrary IDs. Six focused regressions pass, including SQLite
+save/restart/integrity, accepted-subset merge/replay/revert, old/current bundle
+round trips, v1 compatibility, tamper rejection and stable surviving connector
+findings. Final local Studio: 1,278 total, 1,273 passed, five expected skips,
+zero failures. Room creation/reopen after real server restart passes at 1440
+and 1060 pixels. An earlier full run hit an unrelated remote-process restart
+fetch failure; its focused rerun and the final full run both passed. Keep that
+attempt distinct from the final green result. Build/syntax and protected 1A
+evidence pass; the associated PR/CI records exact integration and reviews.
+Windows was not requested and is not run. No new human retest is required for this internal
 identity repair unless a visible regression is found.
 
 | ID | Candidate | State | Depends on | User gate |
