@@ -1,6 +1,6 @@
 # Source to Library — live implementation contract
 
-Status: **USER ACCEPTED — PASS; NOT MERGED — 2026-09-18**.
+Status: **USER ACCEPTED — PASS 2026-09-18; MERGED through PR #256**.
 
 Klaus approved the [workflow design](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md) and
 requested the live version, explicitly retaining the original image and precise

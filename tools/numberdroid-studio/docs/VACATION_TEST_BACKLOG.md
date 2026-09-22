@@ -45,11 +45,35 @@ Focused decoder/crop/result tests pass. Actual UI proof completed import, review
 cut generation, Library save, 3×2 placement with recipe-authored blocking,
 four cardinal orientations in a separate 6×6 Room and identical saved state after
 server restart. Its floor-coverage finding is expected: no floor was authored.
-Full integration evidence must be recorded in the repair PR before merge. This is engineering
-evidence, not additional Klaus acceptance. The permanent Family room pilot and
-its existing accepted navigation/Preview results are untouched. A useful later
-human batch is to inspect this real prop's saved Library image, placement scale,
-cardinal rotation and reopened Room; do not repeat unrelated accepted fixtures.
+PR [#262](https://github.com/KlausUllrich/numberdroid/pull/262) is merged at
+`d4c8dab72d7a4b600a72a834ccaeb0c8e6cb90bc`, tree
+`79f256ebf9be17873b513c2f1fabff210184266e`. Exact-head Build2512
+(`35726966604`) and post-merge Build2513 (`35727989792`) passed all selected
+gates; five independent review axes passed. Windows was not requested or run.
+Klaus subsequently said **“ok, pass, or what do you want from me?”** for the
+presented real Family Table visual check. Record that bounded human pass only;
+it does not accept all PNG formats, overall Studio or outstanding VT gates.
+
+Further engineering proof used ordinary Studio UI to import the approved Family
+Hygiene source, save its four exact floor cuts as Library Images, author the
+Calm floor's boundary suitability, and create **Family room — real artwork**.
+At project revision 67 / Room version 41, that separate 6×6 Room contains 36
+unique floor placements and one moved/90°-rotated Family Table, each pinned to
+Asset v2 / Metadata v2, with zero ERROR findings. Draft-asset warnings and
+Studio-only information remain; this is not runtime eligibility or finalization.
+Exact saved Preview and browser reload passed. This later furnished-room check
+does not claim a new server-restart test or human visual acceptance.
+
+The original passed **Family table furnishing proof** remains v5 with its one
+placement, and the permanent Family room pilot remains revision 34. Evidence is
+retained in thread storage under `numberdroid-furnished-room-proof-20260922.RcqNEX`
+(`furnished-result.json`, `furnished-preview.png`, and
+`reopened-furnished-preview.png`); earlier failed harness captures are not the
+passing result. The live sandbox's Rooms collection exposes both named Rooms.
+Do not repeat unrelated accepted fixtures. Next: exercise the existing real
+agent Room-task/review/correction loop in a fresh disposable project, without
+changing either retained project's grants or claiming Klaus acceptance from
+synthetic owner decisions.
 
 | ID | Candidate | State | Depends on | User gate |
 | --- | --- | --- | --- | --- |
