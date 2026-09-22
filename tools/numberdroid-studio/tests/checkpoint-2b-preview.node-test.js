@@ -137,13 +137,13 @@ test('tiny independent pixel oracle proves exact top-left, interior, one-pixel, 
   ]);
 });
 
-test('audited cutter fails closed for WebP, palette PNG, CRC corruption, and right/bottom +1', () => {
+test('audited cutter fails closed for WebP, missing PNG palette, CRC corruption, and right/bottom +1', () => {
   const webp = Buffer.from('RIFFxxxxWEBP', 'ascii');
   assert.throws(() => cropSupportedPng(webp, [baseRect()], { expectedSource: { digest: createHash('sha256').update(webp).digest('hex'), mediaType: 'image/png', width: 1, height: 1 } }), (error) => error.code === 'ATLAS_PNG_INVALID');
   const source = independentPng(2, 2, Buffer.alloc(16, 255));
   const paletteHeader = Buffer.alloc(13); paletteHeader.writeUInt32BE(1, 0); paletteHeader.writeUInt32BE(1, 4); paletteHeader[8] = 8; paletteHeader[9] = 3;
   const palette = Buffer.concat([source.subarray(0, 8), independentChunk('IHDR', paletteHeader), independentChunk('IDAT', deflateSync(Buffer.from([0, 0]))), independentChunk('IEND', Buffer.alloc(0))]);
-  assert.throws(() => decodeSupportedPng(palette), (error) => error.code === 'ATLAS_PNG_UNSUPPORTED');
+  assert.throws(() => decodeSupportedPng(palette), (error) => error.code === 'ATLAS_PNG_INVALID');
   const rgbHeader = Buffer.alloc(13); rgbHeader.writeUInt32BE(1, 0); rgbHeader.writeUInt32BE(1, 4); rgbHeader[8] = 8; rgbHeader[9] = 2;
   const rgbTransparency = Buffer.concat([
     source.subarray(0, 8), independentChunk('IHDR', rgbHeader), independentChunk('tRNS', Buffer.from([0, 1, 0, 2, 0, 3])),
