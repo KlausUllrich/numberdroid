@@ -1813,10 +1813,12 @@ try {
           // Deliberate focus handoff must not scroll an off-screen dock into view
           // before the action whose canvas/page preservation is being measured.
           const baseRect = board.getBoundingClientRect(); const states = [];
+          const baselineGeometry = { pageY: window.scrollY, documentTop: baseRect.top + window.scrollY, optionsHeight: document.querySelector('.room-tool-options')?.getBoundingClientRect().height };
           const observe = (kind, value) => {
             const currentBoard = document.querySelector('[data-room-board]'); const currentScroller = document.querySelector('.room-canvas-scroll'); const rect = currentBoard?.getBoundingClientRect();
             states.push({ kind, value, sameBoard: currentBoard === board, boardCount: document.querySelectorAll('[data-room-board]').length,
               visible: Boolean(rect?.width > 0 && rect?.height > 0), leftDrift: Math.abs((rect?.left ?? 0) - baseRect.left), topDrift: Math.abs((rect?.top ?? 0) - baseRect.top),
+              pageY: window.scrollY, documentTop: (rect?.top ?? 0) + window.scrollY, optionsHeight: document.querySelector('.room-tool-options')?.getBoundingClientRect().height,
               activeTool: document.querySelector('[data-room-control="editor-tool"][data-selected="true"]')?.dataset.editorTool ?? null,
               activePanel: document.querySelector('[data-room-control="editor-panel"][data-selected="true"]')?.dataset.editorPanel ?? null,
               focused: document.activeElement?.dataset.roomFocusKey ?? null, scrollLeft: currentScroller?.scrollLeft ?? null, scrollTop: currentScroller?.scrollTop ?? null });
@@ -1844,7 +1846,7 @@ try {
             scrollTop: document.querySelector('.room-canvas-scroll')?.scrollTop ?? null, checked: document.querySelector('[data-room-layer="SET_DRESSING"]')?.checked ?? null };
           document.querySelector('[data-room-layer="SET_DRESSING"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-          return { expectedScroll, states, focusHandoffState, layerState, finalBoardCount: document.querySelectorAll('[data-room-board]').length };
+          return { expectedScroll, baselineGeometry, states, focusHandoffState, layerState, finalBoardCount: document.querySelectorAll('[data-room-board]').length };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId);
       checkpoint45EditorContinuity = continuity.result?.value ?? null;

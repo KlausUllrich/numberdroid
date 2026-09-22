@@ -424,7 +424,7 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .room-tool[data-selected="true"] { border-color: var(--mint); background: #214438; color: #f2fff9; box-shadow: inset 3px 0 var(--mint); }
 .room-tool-icon { display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid #426b5e; border-radius: 4px; background: #091511; color: var(--cyan); font-size: 14px; }
 .room-tool[data-selected="true"] .room-tool-icon { border-color: var(--mint); color: var(--mint); }
-.room-editor-dock { display: grid; gap: 10px; min-width: 0; max-height: 78vh; padding-right: 3px; overflow: auto; overscroll-behavior: contain; }
+.room-editor-dock { display: grid; gap: 10px; min-width: 0; height: 78vh; max-height: 78vh; align-content: start; padding-right: 3px; overflow: auto; overscroll-behavior: contain; }
 .room-dock-navigation { position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; border-bottom: 1px solid #315046; background: #0b1714; }
 .room-dock-navigation button { min-width: 0; min-height: 44px; padding: 11px 8px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: transparent; color: #a9c2b7; font-size: 14px; line-height: 20px; white-space: normal; }
 .room-dock-navigation button[data-selected="true"] { border-bottom-color: #83d3af; color: #e6fff0; background: #203a30; }

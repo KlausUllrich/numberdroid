@@ -223,6 +223,27 @@ test('CP4.5 focused layouts remain bounded at the protected widths', async () =>
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-toolbox \{[^}]*grid-template-columns: repeat\(4/);
 });
 
+test('CP4.5 desktop dock keeps a stable height and top-aligned controls when panels change', async () => {
+  const styles = await readFile(stylesUrl, 'utf8');
+  const mediaStart = styles.search(/@media\b/);
+  assert.ok(mediaStart > 0, 'The base desktop rules precede the responsive overrides');
+  // Inspect only the unconditional base rule. The pre-existing <=1200px
+  // override must not mask a missing height at the 1440px desktop width.
+  const baseRules = styles.slice(0, mediaStart);
+  const dockRules = [...baseRules.matchAll(/(?:^|\n)\.room-editor-dock\s*\{([^}]*)\}/g)];
+  assert.equal(dockRules.length, 1, 'Identify the standalone desktop dock rule');
+  const declarations = Object.fromEntries(dockRules[0][1].split(';').filter(value => value.trim()).map(value => {
+    const separator = value.indexOf(':');
+    return [value.slice(0, separator).trim(), value.slice(separator + 1).trim()];
+  }));
+  assert.equal(declarations.display, 'grid');
+  assert.equal(declarations.height, '78vh', 'A maximum alone allows shorter panels to shrink the page and clamp scroll');
+  assert.equal(declarations['max-height'], declarations.height);
+  assert.equal(declarations['align-content'], 'start', 'Stable dock height must not distribute blank space between controls');
+  assert.equal(declarations.overflow, 'auto', 'Long panels remain reachable through their own scrollbar');
+  assert.equal(declarations['overscroll-behavior'], 'contain');
+});
+
 test('CP4.5 room editor keeps paint drafts exclusive, visible, recoverable, and mutation-safe', async () => {
   const app = await readFile(appUrl, 'utf8');
   assert.match(app, /activeTool: 'SELECT'/);
