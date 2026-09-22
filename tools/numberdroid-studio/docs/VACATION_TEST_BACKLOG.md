@@ -41,10 +41,14 @@ An isolated actual-UI source-to-Room proof found that the existing accepted
 source import/review succeeded but cutting rejected `PLTE`. The bounded repair
 adds validated palette/transparency decoding, not a new editing operation.
 RGB/RGBA output goldens, canonical encoding and saved identities remain fixed.
-Focused decoder/crop/result tests pass. Actual UI proof completed import, review,
+Focused decoder/crop/result tests pass. The earlier indexed-PNG repair proof
+completed actual UI import, review,
 cut generation, Library save, 3×2 placement with recipe-authored blocking,
-four cardinal orientations in a separate 6×6 Room and identical saved state after
-server restart. Its floor-coverage finding is expected: no floor was authored.
+four cardinal orientations in the original, unfloored 6×6 Room and identical
+saved state after server restart. That earlier result is retained at
+`numberdroid-family-table-proof.sqKYgO/result.json`; its floor-coverage finding
+is expected because no floor was authored. The later furnished-room proof below
+is a separate test with browser reload only.
 PR [#262](https://github.com/KlausUllrich/numberdroid/pull/262) is merged at
 `d4c8dab72d7a4b600a72a834ccaeb0c8e6cb90bc`, tree
 `79f256ebf9be17873b513c2f1fabff210184266e`. Exact-head Build2512
