@@ -15,6 +15,14 @@
 
 This record describes the frozen Checkpoint 2B contract and its explicit user acceptance. Acceptance grants no merge, release, publication, provider, Checkpoint 2C, room, export, or materialization authority.
 
+**Later input compatibility (2026-09-22):** the current decoder additionally
+supports bounded non-interlaced 8-bit indexed-color PNG input with validated
+palette transparency. The RGB/RGBA-only statements below describe the accepted
+2026-08-22 snapshot, not the current input-format list; see the current
+[decoder contract](ARCHITECTURE.md#checkpoint-2b-atlas-definitions-and-durable-jobs).
+Canonical output bytes, processor identity and this historical acceptance stay
+unchanged. The additional format is not retroactively user-accepted by this record.
+
 ## Outcome
 
 The accepted slice turns one approved PNG source into deterministic, inspectable slice versions without repository editing:
