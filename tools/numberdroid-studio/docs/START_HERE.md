@@ -4,7 +4,22 @@ Status date: 2026-09-22. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
-Current block (2026-09-22): Klaus approved the
+Current direction (2026-09-22): real-asset Room authoring, followed by a bounded
+real-agent Room task in a separate disposable project. PR #262's indexed-PNG
+input repair is merged; exact-head Build2512 and post-merge Build2513 passed.
+Klaus passed the bounded real Family Table visual check. Subsequent native-UI
+engineering proof saved four approved floor-image cuts into the Library and
+furnished a new 6×6 Room with 36 floor tiles and that table: no Room errors,
+exact-version Preview and unchanged state after browser reload. This is not
+Klaus acceptance of the new furnished Room or overall Studio. Preserve both the
+earlier passed Room and permanent pilot; see the
+[bounded record](VACATION_TEST_BACKLOG.md#2026-09-22-real-family-table-input-compatibility).
+The next agent proof must use a fresh fixture, explicit narrow task authority,
+synthetic owner review and private HostBinding; never grant access to the pilot
+as a test setup shortcut. No new screen or authority-policy implementation is
+required before exercising the existing Room-task path.
+
+Previous completed block (2026-09-22): Klaus approved the
 [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md) and authorized its
 implementation. Collection-first Rooms/Templates, top-level creation and
 contextual Back replace creation buried inside an existing editor. Klaus then
