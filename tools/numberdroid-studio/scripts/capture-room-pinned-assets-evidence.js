@@ -112,7 +112,7 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   };
   const visual = () => evaluate(`[...document.querySelectorAll('.room-placement')].map((node) => ({ placementId: node.dataset.placementId, width: node.style.width, height: node.style.height, label: node.getAttribute('aria-label'), image: node.querySelector('img')?.getAttribute('src'), ready: node.querySelector('.asset-preview')?.dataset.previewState }))`);
   await mkdir(dirname(outputPath), { recursive: true });
-  await waitFor(`document.getElementById('connection-label')?.textContent === 'Live' && document.getElementById('workspace-content')?.dataset.renderedProjectId === '${PROJECT}' && Boolean(document.querySelector('[data-room-variant-select]'))`, 'Pinned Room project');
+  await waitFor(`document.getElementById('connection-label')?.textContent === 'Live' && document.getElementById('workspace-content')?.dataset.renderedProjectId === '${PROJECT}' && Boolean(document.querySelector('[data-room-nav-action="open-room"][data-room-nav-id="${OLD_ROOM}"]'))`, 'Pinned Room collection');
   await evaluate(`(() => {
     const original = window.fetch.bind(window);
     window.__pinnedAudit = { posts: [], holdMixed: false, held: false, release: null, holdOld: false, oldHeld: false, oldReads: 0, releaseOld: null, rejectOld: null };
@@ -143,6 +143,7 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
   const expectedOldImage = oldPin.assets[0].preview.resourceUri;
   assert.notEqual(expectedOldImage, latestImage, 'Fixture versions must have different image URLs');
   const mixedBefore = structuredClone(initial.snapshot.roomLibrary.variants.find((room) => room.roomVariantId === MIXED_ROOM));
+  await click(`[data-room-nav-action="open-room"][data-room-nav-id="${OLD_ROOM}"]`);
   await selectRoom(OLD_ROOM, 1); const oldVisual = await visual();
   assert.ok(oldVisual[0].width.includes('2 *')); assert.ok(oldVisual[0].height.includes('1 *')); assert.match(oldVisual[0].label, /^Metadata test prop at /); assert.equal(oldVisual[0].ready, 'READY');
   assert.equal(oldVisual[0].image, expectedOldImage);
@@ -277,7 +278,10 @@ export async function captureRoomPinnedAssets({ devtools, sessionId, width, heig
     assert.equal(await evaluate("document.querySelector('[data-room-pinned-assets-state]') === null"), true);
     const readsBeforeReturn = await evaluate('window.__pinnedAudit.oldReads');
     await click('[data-workspace="rooms"]');
-    await waitFor(`window.__pinnedAudit.oldReads > ${readsBeforeReturn}`, 'Returning to Rooms starts a fresh exact-Asset read');
+    await waitFor(`Boolean(document.querySelector('[data-room-nav-action="open-room"][data-room-nav-id="${OLD_ROOM}"]'))`, 'Returning to the Rooms collection');
+    assert.equal(await evaluate('window.__pinnedAudit.oldReads'), readsBeforeReturn, 'Opening the collection must not fetch an arbitrary Room');
+    await click(`[data-room-nav-action="open-room"][data-room-nav-id="${OLD_ROOM}"]`);
+    await waitFor(`window.__pinnedAudit.oldReads > ${readsBeforeReturn}`, 'Opening the old Room starts a fresh exact-Asset read');
     await selectRoom(OLD_ROOM, 1);
     assert.deepEqual(await visual(), oldVisual, 'Normal workspace return lost the exact old Asset image or footprint');
     workspaceNavigation = { completionWhileAway: completion, usedNormalNavigation: true, readsBeforeReturn, readsAfterReturn: await evaluate('window.__pinnedAudit.oldReads'), freshReadReady: true, oldGeometryPreserved: true };

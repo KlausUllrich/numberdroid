@@ -277,6 +277,13 @@ and other spatial rules. That module may still be called **Rooms** for
 Numberdroid. A cluster of props can remain an ordinary assembly. Renaming the
 existing Room editor to Assembly would not make its assumptions universal.
 
+The [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md), approved on
+2026-09-22, makes Rooms a collection with **Rooms** and **Templates** tabs and
+top-level creation actions. A template contains reusable starting rules, not a
+furnished Room copy. Opening a Room enters its focused editor; contextual Back
+returns to the collection without losing filters or compatible drafts. Mockup
+approval and production implementation/live acceptance remain separate.
+
 | Design check | Optional authoring content |
 | --- | --- |
 | Numberdroid | Rooms, corridors, Levels, actors/routes, encounters, objectives and supported events. |

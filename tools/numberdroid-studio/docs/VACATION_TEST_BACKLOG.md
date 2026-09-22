@@ -1479,14 +1479,36 @@ test convenience.
 
 ## VT-018 — Room creation and current editor context
 
+- **2026-09-22 production navigation PASS:** Klaus reported “all pass” for the
+  actual presented batch on local `ee2748053aad08a2867ac266cf896997d70108c6`:
+  Rooms collection, Family room 01/Back, stable Rooms/Templates tabs, template
+  rules, creation of Family room 02, and both independent Rooms with the first
+  unchanged. This bounded navigation block is USER ACCEPTED; Klaus authorized
+  publishing and integration, subject to exact-head PR/CI gates. Do not repeat it
+  without a regression. Differently sized second-Room editing and reopening both
+  Rooms were not in that batch and remain separate checks, not inferred passes.
+- **2026-09-22 bounded passes:** Klaus replied “both pass” for the retained
+  Family room after reopen and the stacked/readable creation repair. Preserve
+  these and the final Preview pass; the second-Room gate remains separate.
+- **Approved navigation / candidate:** [Rooms Navigation Design](ROOMS_NAVIGATION_DESIGN.md)
+  was approved on 2026-09-22, then implementation authorized. Rooms opens a
+  collection with Rooms/Templates tabs; New actions belong there, not in the
+  editor. Template rules are read-only and contain no placed furniture.
+- **Bundled navigation retest:** from Rooms, open Family room 01 and return
+  using Back to Rooms; confirm search/status and position return. Inspect the
+  Family room template under Templates and its creation consequence. In a
+  disposable project, create a differently sized second Room, edit/save it,
+  and inspect the unchanged first Room. An unfinished creation form must allow
+  cancelling Back without losing its values. No permanent Room deletion or
+  repetition of the accepted Preview/reopen walkthrough is needed.
 - **2026-09-21 permanent pilot:** first template/Room creation reached a saved
   4×4 Room and explicitly passed final Preview. Klaus requested separate
   full-width creation rows and larger field text after finding the layout
   unclear. The bounded CSS repair implements those requirements, including a
   natural-height closed template and readable unwrapped Create actions; its
-  visual retest is pending. Preserve the permanent Family room pilot. Use an
+  visual retest passed on 2026-09-22. Preserve the permanent Family room pilot. Use an
   isolated test project to inspect empty-state layout, never delete his Room
-  to recover an empty screen. Second-Room selection and reopen remain separate
+  to recover an empty screen. Second-Room selection remains a separate
   human gates; no complete VT-018 acceptance is inferred.
 - **Implementation:** `agent/studio-room-creation-context`; candidate
   local full/focused checks, native browser/restart proof and independent
@@ -1500,7 +1522,8 @@ test convenience.
   confirm the first Room is unchanged. Reopen the saved project and inspect both.
 - **Preservation check:** unsaved shape/review decisions or an unresolved
   placement must prevent an implicit switch. Failed creation must preserve the
-  old Room selection. Existing editor creation disclosures remain compact.
+  old Room selection. Creation is now a focused collection action, not an
+  unrelated disclosure inside the existing editor.
 - **Status:** deferred and nonblocking for authorized development. Record a
   later explicit ACCEPT or REVISE from Klaus. This is separate from VT-001 and
   grants no finalization, runtime materialization, publication or release.
@@ -1778,7 +1801,7 @@ Assembly acceptance and later Sources design retain their separate status.
 
 ## VT-025 — Source Images and Image Workbench
 
-Status: **USER ACCEPTED — PASS; NOT MERGED — 2026-09-18**.
+Status: **USER ACCEPTED — PASS 2026-09-18; PR #256 merged (reverified 2026-09-22)**.
 
 Klaus explicitly reported “all pass.” for the complete fresh-fixture batch on
 local build `53885f5` (remote candidate `e89e459`, identical tree). Build2488
@@ -1798,10 +1821,12 @@ local `b1dbff3e99ba18d976966e672ebf490f90394169` / remote
 Generate readiness after correction/Undo, separate muted-clean Save before
 Generate, shared tab styling and Animation-action spacing are accepted.
 Final-code Build2490 / run35332417113 is independently green, including Linux
-full browser, Windows and final CI gate. PR #256 remains open/unmerged.
-The user requested a session pause, not another development block. Preserve the
-exact tested workspace at revision27 (last read 2026-09-18); use the
-[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md).
+full browser, Windows and final CI gate. PR #256 subsequently merged at
+`495526cb8bef08385f3e7aa785261919211d566b`. This historical Windows run does not
+authorize later Windows testing. The earlier session pause ended. Preserve the
+tested workspace at revision27 (last read 2026-09-18); the
+[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md)
+is historical recovery evidence, not a current pause instruction.
 Do not repeat either accepted batch without a concrete regression or changed risk.
 
 The earlier decisions and completed checklist below explain the acceptance scope.

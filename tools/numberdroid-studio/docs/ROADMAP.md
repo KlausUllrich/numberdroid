@@ -1,5 +1,16 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
+## 2026-09-22 Rooms navigation user acceptance
+
+Klaus reported **“all pass”** for the presented production
+[Rooms navigation](ROOMS_NAVIGATION_DESIGN.md) batch on local `ee27480`.
+Collection-first Rooms/Templates, contextual Back, stable tab alignment, template
+inspection and second-Room creation with the original preserved are accepted.
+Klaus authorized publishing and integration after the earlier declined write;
+exact-head PR/CI gates still apply. The [backlog](VACATION_TEST_BACKLOG.md#vt-018--room-creation-and-current-editor-context)
+keeps unpresented edit/reopen checks separate. No overall VT-001/VT-021 or new
+agent/runtime authority is inferred. Preserve the permanent Family room pilot.
+
 ## 2026-09-18 Source-to-Library and Cutter user acceptance
 
 Klaus approved the [Source-to-Library workflow](SOURCE_TO_LIBRARY_WORKFLOW_DESIGN.md)
@@ -12,9 +23,9 @@ Klaus reported **“all pass.”** for the VT-025 batch on build `53885f5` on
 2026-09-18, then **“pass.”** for all five Cutter follow-ups on build `b1dbff3`
 (remote `9189b795`, identical tree). VT-025 is **USER ACCEPTED — PASS**.
 Save layout → Generate remain separate actions. Builds2488 and2490 passed
-independently; PR #256 remains unmerged. The user requested a session pause;
-follow the [resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md)
-and preserve the tested workspace. Schema19 adds recovery receipts, not agent authority.
+independently; PR #256 is now merged. The earlier requested session pause ended;
+the [resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-18_VT025_ACCEPTED_RESUME.md)
+is historical recovery evidence. Preserve the tested workspace. Schema19 adds recovery receipts, not agent authority.
 Deletion, source cleanup, automatic layout copying and runtime/publication work
 are excluded. The preserved pre-pause workspace must remain untouched.
 

@@ -55,37 +55,45 @@ test('fully current placement pins avoid a historical GET', async () => {
 });
 
 
-test('normal navigation cancels a pending pin read and returning Rooms starts a fresh owned read', async () => {
+test('normal navigation cancels a pending pin read and opening its Room again starts a fresh owned read', async () => {
   const app = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
   const loaderStart = app.indexOf('let roomPinnedAssetsRequest =');
   const loader = app.slice(loaderStart, app.indexOf("elements['workspace-content'].addEventListener('click', (event) => {", loaderStart));
   const navStart = app.indexOf("elements['workspace-nav'].addEventListener('click', (event) => {");
   const nav = app.slice(navStart, app.indexOf("elements['project-select'].addEventListener", navStart));
+  const roomNavigate = app.slice(app.indexOf('function roomNavigate('), app.indexOf('function roomNavigationBack('));
   const flush = () => new Promise((resolve) => setImmediate(resolve));
   for (const completion of ['resolve-away', 'reject-away', 'resolve-after-new-ready']) {
     const variant = { roomVariantId: context.roomVariantId, version: context.roomVersion, placements: [asset] };
     const state = { project: { projectId: context.projectId, revision: context.projectRevision, snapshot: {} }, workspace: 'rooms',
-      roomUi: { pinnedAssets: { key: null, status: 'idle', assets: [] } }, taskUi: { view: 'list' } };
+      roomNavigation: { route: 'editor' },
+      roomUi: { selectedRoomVariantId: context.roomVariantId, pinnedAssets: { key: null, status: 'idle', assets: [] } }, taskUi: { view: 'list' } };
     const requests = []; let navigate;
     const sandbox = { state, AbortController, setTimeout, clearTimeout, structuredClone, roomPinnedAssetsContext, roomPinnedAssetsKey,
       roomPinnedAssetsPath, roomAssetPinKey, normalizeRoomPinnedAssets, currentRoomVariant: () => ({ variant }),
       currentAssetLibrary: () => ({ assets: [{ ...asset, assetVersion: 2 }] }),
-      elements: { 'workspace-nav': { addEventListener(_type, callback) { navigate = callback; } } }, location: { hash: 'rooms' },
+      elements: { 'workspace-nav': { addEventListener(_type, callback) { navigate = callback; } }, 'workspace-content': { querySelector: () => null } }, location: { hash: 'rooms' },
       api(_path, { signal }) { return new Promise((resolve, reject) => requests.push({ resolve, reject, signal })); },
       publishVisualEvidence() {}, renderWorkspace() {}, restoreRoomPreviewDomState() {},
-      mayAbandonAssetAuthoring: () => true,
+      mayAbandonAssetAuthoring: () => true, mayLeaveRoomNavigation: () => true,
+      currentRoomLibrary: () => ({ variants: [variant], archetypes: [] }), captureRoomNavigationDom: () => null,
+      window: { scrollTo() {} },
     };
-    const ensure = runInNewContext(`${loader}
+    const actions = runInNewContext(`${loader}
 ${nav}
-ensureRoomPinnedAssets;`, sandbox);
-    sandbox.renderWorkspace = () => { if (state.workspace === 'rooms') ensure(variant, state.project.snapshot); };
+${roomNavigate}
+({ ensure: ensureRoomPinnedAssets, open: roomNavigate });`, sandbox);
+    const ensure = actions.ensure;
+    sandbox.renderWorkspace = () => { if (state.workspace === 'rooms' && state.roomNavigation.route === 'editor') ensure(variant, state.project.snapshot); };
     const go = (workspace) => navigate({ target: { closest: () => ({ dataset: { workspace } }) }, preventDefault() {} });
     ensure(variant, state.project.snapshot); assert.equal(requests.length, 1); assert.equal(state.roomUi.pinnedAssets.status, 'loading');
     go('assets'); assert.equal(requests[0].signal.aborted, true); assert.equal(state.roomUi.pinnedAssets.key, null);
     if (completion === 'resolve-away') requests[0].resolve(response());
     if (completion === 'reject-away') requests[0].reject(new Error('Late failure away from Rooms'));
     await flush(); assert.equal(state.workspace, 'assets'); assert.equal(state.roomUi.pinnedAssets.status, 'idle');
-    go('rooms'); assert.equal(requests.length, 2); assert.equal(state.roomUi.pinnedAssets.status, 'loading');
+    go('rooms'); assert.equal(state.roomNavigation.route, 'list'); assert.equal(requests.length, 1, 'A collection does not fetch an arbitrary Room');
+    actions.open('open-room', variant.roomVariantId);
+    assert.equal(requests.length, 2); assert.equal(state.roomUi.pinnedAssets.status, 'loading');
     requests[1].resolve(response()); await flush();
     const resolved = state.roomUi.pinnedAssets; assert.equal(resolved.status, 'ready');
     assert.equal(resolved.assets[0].metadata.spanTiles.width, 2);

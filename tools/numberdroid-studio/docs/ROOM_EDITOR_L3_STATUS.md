@@ -1,5 +1,28 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+## Rooms collection navigation user acceptance — 2026-09-22
+
+Klaus approved the [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md),
+including stable Rooms/Templates tab alignment, and authorized implementation.
+The candidate opens Rooms as a collection, moves creation to focused top-level
+actions, and gives the existing editor a standard upper-left Back to Rooms.
+Template inspection states that templates contain reusable rules, not furniture.
+Commands, exact saved versions, validation, Preview and authority are unchanged.
+Klaus reported **“all pass”** for the presented production navigation batch at
+local `ee2748053aad08a2867ac266cf896997d70108c6`: collection entry, existing
+Room/Back, stable tabs, template rules, second-Room creation and preservation of
+the first. This bounded block is **USER ACCEPTED**. Klaus authorized publishing
+and integration after the earlier declined write; exact-head PR/CI gates still
+apply. Local tests
+passed (1,251 passed, five expected skips), native browser/restart checks passed
+at 1440/1060, and five independent reviews returned GO. Windows was not requested.
+Do not infer the unpresented VT-018 edit/reopen checks or complete VT-001 acceptance.
+
+Klaus also explicitly replied **“both pass”** after reopening the permanent
+Family room pilot and inspecting the stacked/readable creation repair. Those
+bounded gates and the earlier final Preview pass are accepted; do not repeat
+them without a regression. The broader VT-001/VT-018 decisions remain separate.
+
 ## Permanent Family room pilot — 2026-09-21
 
 Klaus explicitly reported **“Final room preview: pass”** after creating a real
@@ -15,7 +38,7 @@ width, puts the explanation above them, preserves a closed disclosure's natural
 height, and uses readable labels, entered values and unwrapped Create actions.
 Narrow views and the existing editor dock use two field columns. Commands,
 selection guards and saved data are unchanged. The layout repair's human check
-remains pending; source, automated verification and human acceptance are
+was passed on 2026-09-22; source, automated verification and human acceptance are
 separate. Windows testing is not requested for this repair.
 
 ## Bounded return batch — 2026-09-21
