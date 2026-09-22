@@ -74,10 +74,50 @@ retained in thread storage under `numberdroid-furnished-room-proof-20260922.RcqN
 (`furnished-result.json`, `furnished-preview.png`, and
 `reopened-furnished-preview.png`); earlier failed harness captures are not the
 passing result. The live sandbox's Rooms collection exposes both named Rooms.
-Do not repeat unrelated accepted fixtures. Next: exercise the existing real
-agent Room-task/review/correction loop in a fresh disposable project, without
-changing either retained project's grants or claiming Klaus acceptance from
-synthetic owner decisions.
+Do not repeat unrelated accepted fixtures. The separate agent proof below
+leaves both retained projects and their grants unchanged.
+
+### 2026-09-22 real-agent Room proof and finding-identity repair
+
+Engineering proof completed in fresh disposable `project.real-room-agent-proof`,
+using the production official MCP adapter and one real semantic agent, with
+private HostBinding, task-only Room commands, a 12-command budget, no jobs and
+auto-accept disabled. No permanent pilot or visual sandbox grant was created.
+The agent authored an exact 6×6 Room with 36 floor placements and one Table,
+read persisted owner feedback, and moved that same Table from (2,2) to (1,2)
+without changing the other placements, entrance or pinned asset versions.
+
+Synthetic owner review rejected earlier attempts and applied only the final
+Room creation and correction. Main stayed unchanged until that explicit apply.
+The resulting project r20 contains only `room.agent-family-final` v2, DRAFT,
+37 exact A1/M1 placements and zero ERROR findings. Draft-asset warnings and
+Studio-only information remain. After completion, the agent's read and dry-run
+command both failed `GRANT_REVOKED` before grant expiry. All fixture listeners
+and writers were closed before reopening its database: exact Room/project/task
+state and the 37-image saved Preview survived the real server restart. An
+independent review verified the evidence. This is not Klaus acceptance.
+
+Evidence remains in `numberdroid-room-agent-proof.2FAd6G` (`applied.json`,
+`restart-proof.json`, `agent-room-restarted-preview.png`) and
+`numberdroid-real-room-author.JQC32s` (persisted feedback, same-ID comparison,
+post-revocation denials). Earlier attempts exposed two distinct issues: an
+incomplete Room's repeated findings shared an ID, while committed validation
+correctly made a different Room non-editable. Task resume does not demote a
+VALIDATED Room. During correction, use validation with `dryRun: true` and keep
+the Room DRAFT; this checks without persisting or charging a command.
+
+The bounded repair gives repeated ERROR causes distinct deterministic IDs
+without rewriting historical versions, warning identities or healthy Room
+fingerprints. MCP descriptions clarify the existing three-layer intent and
+validation behavior; no schema, authority, lifecycle or UI operation changes.
+Review found a legacy portable-import compatibility requirement, escalating
+verification to L3: preserve old v2 finding hashes only when the full semantic
+finding list matches the old deterministic algorithm, without rewriting history
+or accepting arbitrary IDs. Domain, SQLite save/restart/integrity and
+accepted-subset merge/replay/revert checks pass; export/import compatibility
+regressions and the remaining selected gates are being verified. Windows was
+not requested and is not run. No new human retest is required for this internal
+identity repair unless a visible regression is found.
 
 | ID | Candidate | State | Depends on | User gate |
 | --- | --- | --- | --- | --- |

@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { AgentTaskService, StudioService } from '../packages/application/src/index.js';
+import { fingerprint } from '../packages/application/src/value-utils.js';
 import { ROOM_VALIDATOR_VERSION, validateRoomVariant } from '../packages/domain/src/index.js';
 import {
   ContentAddressedArtifactStore, SqliteAgentTaskStore, SqliteProjectStore, TaskBranchProjectStore,
-  verifyWorkspaceIntegrity,
+  canonicalBundleJson, createSqliteProjectBundle, importSqliteProjectBundle, projectSqlitePortableDocument,
+  validateSqlitePortableProject, verifyWorkspaceIntegrity,
 } from '../packages/persistence/src/index.js';
 import { AGENT, OWNER, OWNER_CONTEXT, PROJECT_ID, command, createProject } from './test-helpers.js';
 import { afterTestCleanup, nodeSqliteDatabaseFactory } from './persistence-test-helpers.js';
@@ -35,7 +37,7 @@ function intent(layer, disposition = 'governing') {
 }
 
 function connector(connectorId, side = 'west', offset = 1) {
-  return { connectorId, side, offset, width: 1, kind: 'standard-door', clearanceInside: 0,
+  return { connectorId, side, offset, width: 1, kind: 'standard-door', clearanceInside: 1,
     clearanceOutside: 0, required: true, tags: [], compatibilityProfile: 'door.standard' };
 }
 
@@ -124,17 +126,58 @@ test('required sides, required tags, and multiway overlaps never share finding I
   assert.equal(new Set(findings.map(({ findingId }) => findingId)).size, findings.length);
 });
 
+test('connector-clearance identity follows connector ID occurrence, not unrelated array position', () => {
+  const placements = [...floor(), placement('prop.blocker', 'asset.prop', 0, 1, 'SET_DRESSING')];
+  const withPrior = findingsFor({ variant: variant({ connectors: [connector('connector.a'), connector('connector.b')], placements }) }).findings;
+  const before = withPrior.find(finding => finding.ruleId === 'studio.room.connector.clearance_blocked'
+    && finding.explanation.includes('connector.b'));
+  const withoutPrior = findingsFor({ variant: variant({ connectors: [connector('connector.b')], placements }) }).findings;
+  const after = withoutPrior.find(finding => finding.ruleId === 'studio.room.connector.clearance_blocked'
+    && finding.explanation.includes('connector.b'));
+  assert.ok(before && after);
+  assert.equal(after.findingId, before.findingId);
+
+  const duplicates = findingsFor({ variant: variant({ connectors: [connector('connector.duplicate'), connector('connector.duplicate')], placements }) }).findings
+    .filter(({ ruleId }) => ruleId === 'studio.room.connector.clearance_blocked');
+  assert.equal(duplicates.length, 2);
+  assert.equal(new Set(duplicates.map(({ findingId }) => findingId)).size, 2);
+});
+
 function archetypeCommand(expectedVersion, id = 'archetype.finding-identity') {
   const { projectId: _projectId, version: _version, ...payload } = archetype({ roomArchetypeId: id });
   return command({ commandId: `cmd.${id}.${expectedVersion}`, idempotencyKey: `idem.${id}.${expectedVersion}`,
     type: 'room.archetype.create', expectedVersion, payload });
 }
 
-function variantCommand(expectedVersion) {
-  const payload = variant({ intentTrace: [intent('game_design')], placements: [] });
+function variantCommand(expectedVersion, intentTrace = [intent('game_design')]) {
+  const payload = variant({ intentTrace, placements: [] });
   for (const key of ['projectId', 'version', 'lifecycle', 'origin', 'voidCells', 'blockedCells', 'acceptedWarningFindingIds', 'parentVariantVersion', 'parentFinalVersion']) delete payload[key];
   return command({ commandId: `cmd.room.finding-identity.${expectedVersion}`, idempotencyKey: `idem.room.finding-identity.${expectedVersion}`,
     type: 'room.variant.create', expectedVersion, payload });
+}
+
+function rewriteRoomContentFingerprint(project) {
+  const version = project.roomLibrary.variants[0].versions[0];
+  const { findings, contentFingerprint: _contentFingerprint, createdAt: _createdAt, createdBy: _createdBy,
+    createdRevision: _createdRevision, proposalId: _proposalId, ...portableVariant } = version;
+  version.contentFingerprint = fingerprint({ variant: portableVariant, findings });
+  return project;
+}
+
+function legacyFindingId(finding, validatorVersion = finding.validatorVersion) {
+  return fingerprint({ validatorVersion, ruleId: finding.ruleId, targetKind: finding.targetKind,
+    targetId: finding.targetId, path: finding.path });
+}
+
+async function resignBundle(bundleDirectory, project) {
+  const projectBytes = Buffer.from(canonicalBundleJson(project));
+  const manifestPath = join(bundleDirectory, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestPath));
+  manifest.project = { sha256: createHash('sha256').update(projectBytes).digest('hex'), byteSize: projectBytes.length };
+  const manifestBytes = Buffer.from(canonicalBundleJson(manifest));
+  await writeFile(join(bundleDirectory, 'project.json'), projectBytes);
+  await writeFile(manifestPath, manifestBytes);
+  await writeFile(join(bundleDirectory, 'manifest.sha256'), createHash('sha256').update(manifestBytes).digest('hex'));
 }
 
 async function sqliteFixture(context, prefix) {
@@ -165,6 +208,73 @@ test('an invalid owner-authored Room with two missing intent layers survives SQL
   const artifactStore = new ContentAddressedArtifactStore({ rootDirectory: join(fixture.directory, 'artifacts') });
   await artifactStore.initialize();
   assert.equal((await verifyWorkspaceIntegrity({ projectStore: fixture.store, artifactStore })).rooms.ok, true);
+});
+
+test('portable Room bundles accept exact historical v2 and v1 finding hashes but reject re-fingerprinted semantic tampering', async context => {
+  const fixture = await sqliteFixture(context, 'numberdroid-room-finding-bundle-');
+  await fixture.studio.execute(archetypeCommand(1), OWNER_CONTEXT);
+  await fixture.studio.execute(variantCommand(2, [intent('game_design'), intent('level_design')]), OWNER_CONTEXT);
+  const artifactStore = new ContentAddressedArtifactStore({ rootDirectory: join(fixture.directory, 'source-artifacts') });
+  await artifactStore.initialize();
+  const currentBundle = join(fixture.directory, 'current-bundle');
+  await createSqliteProjectBundle({ destinationDirectory: currentBundle, projectStore: fixture.store,
+    artifactStore, projectId: PROJECT_ID });
+  const currentProject = JSON.parse(await readFile(join(currentBundle, 'project.json')));
+  assert.equal(currentProject.schemaVersion, 2);
+  const currentVersion = currentProject.roomLibrary.variants[0].versions[0];
+  const affected = currentVersion.findings.filter(({ ruleId }) => ruleId === 'studio.room.intent.layer_required');
+  assert.equal(affected.length, 1);
+
+  const currentDestination = join(fixture.directory, 'current-import');
+  await importSqliteProjectBundle({ bundleDirectory: currentBundle, destinationDirectory: currentDestination,
+    databaseFactory: nodeSqliteDatabaseFactory });
+  const currentImported = await SqliteProjectStore.open({ filename: join(currentDestination, 'studio.sqlite'),
+    databaseFactory: nodeSqliteDatabaseFactory });
+  afterTestCleanup(context, () => currentImported.close());
+  assert.deepEqual(projectSqlitePortableDocument({ projectStore: currentImported, projectId: PROJECT_ID }).project, currentProject);
+
+  const legacyProject = structuredClone(currentProject);
+  const legacyFinding = legacyProject.roomLibrary.variants[0].versions[0].findings
+    .find(({ ruleId }) => ruleId === 'studio.room.intent.layer_required');
+  legacyFinding.findingId = legacyFindingId(legacyFinding);
+  rewriteRoomContentFingerprint(legacyProject);
+  assert.doesNotThrow(() => validateSqlitePortableProject(legacyProject));
+  const legacyBundle = join(fixture.directory, 'legacy-v2-bundle');
+  await cp(currentBundle, legacyBundle, { recursive: true });
+  await resignBundle(legacyBundle, legacyProject);
+  const legacyDestination = join(fixture.directory, 'legacy-v2-import');
+  await importSqliteProjectBundle({ bundleDirectory: legacyBundle, destinationDirectory: legacyDestination,
+    databaseFactory: nodeSqliteDatabaseFactory });
+  const legacyImported = await SqliteProjectStore.open({ filename: join(legacyDestination, 'studio.sqlite'),
+    databaseFactory: nodeSqliteDatabaseFactory });
+  afterTestCleanup(context, () => legacyImported.close());
+  const importedLegacyVersion = (await new StudioService({ store: legacyImported }).queryRooms({ schemaVersion: 1,
+    projectId: PROJECT_ID, roomVariantId: 'room.finding-identity', includeVersions: true }, OWNER_CONTEXT)).variants[0].versions[0];
+  assert.deepEqual(importedLegacyVersion.findings, legacyProject.roomLibrary.variants[0].versions[0].findings);
+
+  const legacyV1 = structuredClone(currentProject);
+  for (const finding of legacyV1.roomLibrary.variants[0].versions[0].findings) {
+    finding.validatorVersion = 'numberdroid-studio.room-validator.v1';
+    finding.findingId = legacyFindingId(finding, finding.validatorVersion);
+  }
+  rewriteRoomContentFingerprint(legacyV1);
+  assert.doesNotThrow(() => validateSqlitePortableProject(legacyV1));
+
+  const tamperCases = [
+    ['arbitrary finding ID', finding => { finding.findingId = 'f'.repeat(64); }],
+    ['changed explanation', finding => { finding.explanation = 'Different English must not become identity.'; }],
+    ['changed severity', finding => { finding.severity = 'WARNING'; }],
+    ['changed path', finding => { finding.path = '/intentTrace/forged'; }],
+    ['omitted finding', (_finding, findings) => { findings.length = 0; }],
+    ['additional finding', (finding, findings) => { findings.push({ ...finding, findingId: 'e'.repeat(64) }); }],
+  ];
+  for (const [label, mutate] of tamperCases) {
+    const tampered = structuredClone(legacyProject);
+    const findings = tampered.roomLibrary.variants[0].versions[0].findings;
+    mutate(findings[0], findings);
+    rewriteRoomContentFingerprint(tampered);
+    assert.throws(() => validateSqlitePortableProject(tampered), error => error.code === 'BUNDLE_SEMANTIC_INVALID', label);
+  }
 });
 
 test('an isolated task can merge an accepted Room subset with every finding retained, replay idempotently, and revert without rewriting history', async context => {

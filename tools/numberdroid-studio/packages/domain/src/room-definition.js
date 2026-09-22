@@ -295,6 +295,16 @@ function findingSorter(left, right) {
     || left.findingId.localeCompare(right.findingId);
 }
 
+function occurrenceIdentities(values, idOf) {
+  const counts = new Map();
+  return values.map((value) => {
+    const id = idOf(value);
+    const occurrence = counts.get(id) ?? 0;
+    counts.set(id, occurrence + 1);
+    return [id, occurrence];
+  });
+}
+
 function rectIntersects(left, right) {
   return left.x < right.x + right.width && left.x + left.width > right.x
     && left.y < right.y + right.height && left.y + left.height > right.y;
@@ -405,6 +415,7 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
   };
 
   const findings = [];
+  const connectorIdentities = occurrenceIdentities(connectors, (connector) => connector.connectorId);
   const add = (ruleId, path, explanation, remediation, severity = 'ERROR', targetId = normalized.roomVariantId, targetKind = 'roomVariant', identity = null) => findings.push(roomFinding({ severity, ruleId, targetId, targetKind, path, explanation, remediation, identity }));
   const seenConnectorIds = new Set();
   for (const [index, connector] of connectors.entries()) {
@@ -415,7 +426,7 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     if (unavailable.length) add('studio.room.connector.shape_blocked', `/connectors/${index}`, 'The connector aperture or inside approach crosses an outside or blocked cell.', 'Move the connector or restore ordinary room cells for its complete approach.', 'ERROR', connector.connectorId, 'roomConnector');
     for (const [priorIndex, prior] of connectors.slice(0, index).entries()) {
       if (prior.side === connector.side && prior.offset < connector.offset + connector.width && prior.offset + prior.width > connector.offset) {
-        add('studio.room.connector.overlap', `/connectors/${index}`, 'Two connector apertures overlap on the same room edge.', `Move ${connector.connectorId} or ${prior.connectorId}.`, 'ERROR', connector.connectorId, 'roomConnector', [prior.connectorId, priorIndex]);
+        add('studio.room.connector.overlap', `/connectors/${index}`, 'Two connector apertures overlap on the same room edge.', `Move ${connector.connectorId} or ${prior.connectorId}.`, 'ERROR', connector.connectorId, 'roomConnector', connectorIdentities[priorIndex]);
       }
     }
   }
@@ -483,7 +494,7 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
         spatialGeometry = transformAssetSpatialGeometry(resolveAssetSpatialGeometry(asset), { origin: placement.anchor, rotation: placement.rotation });
         const invalid = spatialGeometry.findings.filter((entry) => entry.severity === 'ERROR');
         if (invalid.length) {
-          for (const entry of invalid) add('studio.room.placement.spatial_invalid', `${path}/asset${entry.path}`, entry.explanation, entry.remediation, 'ERROR', placement.placementId, 'roomPlacement', entry.ruleId);
+          for (const entry of invalid) add('studio.room.placement.spatial_invalid', `${path}/asset${entry.path}`, entry.explanation, entry.remediation, 'ERROR', placement.placementId, 'roomPlacement');
           continue;
         }
       } catch (error) {
@@ -547,9 +558,10 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     }
   }
 
+  const placementIdentities = occurrenceIdentities(resolved, ({ placement }) => placement.placementId);
   for (const [index, current] of resolved.entries()) {
     for (const [priorIndex, prior] of resolved.slice(0, index).entries()) {
-      const counterpart = [prior.placement.placementId, priorIndex];
+      const counterpart = placementIdentities[priorIndex];
       if (current.placement.layer === 'SET_DRESSING' && prior.placement.layer === 'SET_DRESSING' && rectIntersects(current.envelope, prior.envelope)) add('studio.room.placement.overlap', `/placements/${index}`, 'Set-dressing placement envelopes overlap.', `Move ${current.placement.placementId} or ${prior.placement.placementId}.`, 'ERROR', current.placement.placementId, 'roomPlacement', counterpart);
       const pairs = current.collisionShapes.flatMap((left) => prior.collisionShapes.map((right) => classifyBlockingPair(left, right)));
       if (pairs.includes('INTERSECTS')) add('studio.room.collision.overlap', `/placements/${index}`, 'Physical collision geometry overlaps another placement.', `Move ${current.placement.placementId} or ${prior.placement.placementId}.`, 'ERROR', current.placement.placementId, 'roomPlacement', counterpart);
@@ -557,7 +569,7 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     }
     for (const [connectorIndex, connector] of connectors.entries()) {
       const clearance = connectorInsideRect(connector, width, height);
-      if (current.collisionShapes.some((shape) => shapeIntersectsRect(shape, clearance))) add('studio.room.connector.clearance_blocked', `/placements/${index}`, `Placement blocks the inside clearance of connector ${connector.connectorId}.`, 'Move the blocking placement away from the connector approach.', 'ERROR', current.placement.placementId, 'roomPlacement', [connector.connectorId, connectorIndex]);
+      if (current.collisionShapes.some((shape) => shapeIntersectsRect(shape, clearance))) add('studio.room.connector.clearance_blocked', `/placements/${index}`, `Placement blocks the inside clearance of connector ${connector.connectorId}.`, 'Move the blocking placement away from the connector approach.', 'ERROR', current.placement.placementId, 'roomPlacement', connectorIdentities[connectorIndex]);
     }
   }
 
