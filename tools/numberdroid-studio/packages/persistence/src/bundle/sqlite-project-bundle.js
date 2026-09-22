@@ -340,18 +340,26 @@ function portableRoomVersion(version, schemaVersion) {
 
 function compatibleRoomFindings(findings, validatedFindings) {
   const validatorVersions = new Set(findings.map(({ validatorVersion }) => validatorVersion));
-  if (validatorVersions.size === 1 && validatorVersions.has('numberdroid-studio.room-validator.v1')) {
-    return validatedFindings.map((finding) => ({
+  const legacyVersion = validatorVersions.size === 1 ? [...validatorVersions][0] : null;
+  if (legacyVersion === 'numberdroid-studio.room-validator.v1'
+    || legacyVersion === 'numberdroid-studio.room-validator.v2') {
+    const legacy = validatedFindings.map((finding) => ({
       ...finding,
       findingId: fingerprint({
-        validatorVersion: 'numberdroid-studio.room-validator.v1',
+        validatorVersion: legacyVersion,
         ruleId: finding.ruleId,
         targetKind: finding.targetKind,
         targetId: finding.targetId,
         path: finding.path,
       }),
-      validatorVersion: 'numberdroid-studio.room-validator.v1',
+      validatorVersion: legacyVersion,
     }));
+    // Before the repeated-cause repair, v2 hashed only rule/target/path. Accept
+    // that historical algorithm only when the ENTIRE deterministic finding
+    // list matches, including semantic fields and order. Never trust supplied
+    // IDs, drop findings, or rewrite the immutable imported version.
+    if (legacyVersion === 'numberdroid-studio.room-validator.v1'
+      || fingerprint(findings) === fingerprint(legacy)) return legacy;
   }
   return validatedFindings;
 }

@@ -396,6 +396,14 @@ The fifth resource is `studio://projects/{projectId}/task`. The task identity co
 
 Warning disposition, asset/room finalization, grant issue/revoke, review decision, task control, merge, compensating revert, portable bundle operations, Numberdroid export, materialization, and publish remain absent from agent discovery. The branch rejects `source.intake.commit`, `atlas.preview.slices`, and `atlas.commit.slices` because those commands consume shared CAS/job state whose accepted v8 foreign keys are main-revision-bound. An agent task may consume already committed atlas/slice results; Checkpoint 2B jobs retain their separate scoped read/cancel/retry/discard surface.
 
+Room creation may save an incomplete DRAFT, but clearing validation requires
+intent entries for each of `game_design`, `level_design`, and `room_design`.
+Use `studio_room_variant_validate` with `dryRun: true` during feedback work:
+it checks without a saved revision or command charge and leaves the Room DRAFT.
+A successful committed validation creates a VALIDATED version; that head is
+no longer content-editable. Resuming the task does not change Room lifecycle.
+These are existing semantics, not new tools, grants or lifecycle transitions.
+
 ### Requirements, level, actor, and logic tools — Authoring v2
 
 The final names and grouping are frozen only with their DTO schemas. The required

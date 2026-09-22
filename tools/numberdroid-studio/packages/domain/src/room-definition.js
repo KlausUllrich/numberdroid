@@ -271,9 +271,11 @@ function envelopeTouchesRoomBoundary(envelope, width, height, voidCellKeys) {
   return false;
 }
 
-function roomFinding({ severity = 'ERROR', ruleId, targetKind = 'roomVariant', targetId, path, explanation, remediation }) {
+function roomFinding({ severity = 'ERROR', ruleId, targetKind = 'roomVariant', targetId, path, explanation, remediation, identity = null }) {
   return Object.freeze({
-    findingId: stableHash({ validatorVersion: ROOM_VALIDATOR_VERSION, ruleId, targetKind, targetId, path }),
+    // Repeated causes at one location need semantic identity, not English copy
+    // or sibling count. Omit it entirely for unaffected legacy finding hashes.
+    findingId: stableHash({ validatorVersion: ROOM_VALIDATOR_VERSION, ruleId, targetKind, targetId, path, ...(identity === null ? {} : { identity }) }),
     severity,
     ruleId,
     targetKind,
@@ -289,7 +291,18 @@ function findingSorter(left, right) {
   return (SEVERITY_ORDER[left.severity] - SEVERITY_ORDER[right.severity])
     || left.ruleId.localeCompare(right.ruleId)
     || left.targetId.localeCompare(right.targetId)
-    || left.path.localeCompare(right.path);
+    || left.path.localeCompare(right.path)
+    || left.findingId.localeCompare(right.findingId);
+}
+
+function occurrenceIdentities(values, idOf) {
+  const counts = new Map();
+  return values.map((value) => {
+    const id = idOf(value);
+    const occurrence = counts.get(id) ?? 0;
+    counts.set(id, occurrence + 1);
+    return [id, occurrence];
+  });
 }
 
 function rectIntersects(left, right) {
@@ -402,7 +415,8 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
   };
 
   const findings = [];
-  const add = (ruleId, path, explanation, remediation, severity = 'ERROR', targetId = normalized.roomVariantId, targetKind = 'roomVariant') => findings.push(roomFinding({ severity, ruleId, targetId, targetKind, path, explanation, remediation }));
+  const connectorIdentities = occurrenceIdentities(connectors, (connector) => connector.connectorId);
+  const add = (ruleId, path, explanation, remediation, severity = 'ERROR', targetId = normalized.roomVariantId, targetKind = 'roomVariant', identity = null) => findings.push(roomFinding({ severity, ruleId, targetId, targetKind, path, explanation, remediation, identity }));
   const seenConnectorIds = new Set();
   for (const [index, connector] of connectors.entries()) {
     if (seenConnectorIds.has(connector.connectorId)) add('studio.room.connector.duplicate', `/connectors/${index}/connectorId`, 'Connector IDs must be unique within a room variant.', 'Choose a stable unique connector ID.', 'ERROR', connector.connectorId, 'roomConnector');
@@ -412,15 +426,14 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     if (unavailable.length) add('studio.room.connector.shape_blocked', `/connectors/${index}`, 'The connector aperture or inside approach crosses an outside or blocked cell.', 'Move the connector or restore ordinary room cells for its complete approach.', 'ERROR', connector.connectorId, 'roomConnector');
     for (const [priorIndex, prior] of connectors.slice(0, index).entries()) {
       if (prior.side === connector.side && prior.offset < connector.offset + connector.width && prior.offset + prior.width > connector.offset) {
-        add('studio.room.connector.overlap', `/connectors/${index}`, 'Two connector apertures overlap on the same room edge.', `Move ${connector.connectorId} or ${prior.connectorId}.`, 'ERROR', connector.connectorId, 'roomConnector');
+        add('studio.room.connector.overlap', `/connectors/${index}`, 'Two connector apertures overlap on the same room edge.', `Move ${connector.connectorId} or ${prior.connectorId}.`, 'ERROR', connector.connectorId, 'roomConnector', connectorIdentities[priorIndex]);
       }
-      void priorIndex;
     }
   }
   if (connectors.length < normalizedArchetype.connectorPolicy.min) add('studio.room.connector.minimum', '/connectors', 'The archetype requires more connectors.', `Author at least ${normalizedArchetype.connectorPolicy.min} connectors.`);
   if (connectors.length > normalizedArchetype.connectorPolicy.max) add('studio.room.connector.maximum', '/connectors', 'The archetype permits fewer connectors.', `Keep at most ${normalizedArchetype.connectorPolicy.max} connectors.`);
   for (const side of normalizedArchetype.connectorPolicy.requiredSides) {
-    if (!connectors.some((connector) => connector.side === side)) add('studio.room.connector.required_side', '/connectors', `The archetype requires a connector on the ${side} edge.`, `Add a nonoverlapping ${side} connector.`);
+    if (!connectors.some((connector) => connector.side === side)) add('studio.room.connector.required_side', '/connectors', `The archetype requires a connector on the ${side} edge.`, `Add a nonoverlapping ${side} connector.`, 'ERROR', normalized.roomVariantId, 'roomVariant', side);
   }
   if (normalizedArchetype.kind === 'hallway') {
     const validEnds = normalizedArchetype.orientation === 'vertical' ? ['north', 'south'] : ['east', 'west'];
@@ -428,13 +441,13 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
   }
 
   for (const layer of INTENT_LAYERS) {
-    if (!intentTrace.some((entry) => entry.layer === layer)) add('studio.room.intent.layer_required', '/intentTrace', `Intent trace is missing ${layer}.`, `Cite or propose one ${layer} rule.`);
+    if (!intentTrace.some((entry) => entry.layer === layer)) add('studio.room.intent.layer_required', '/intentTrace', `Intent trace is missing ${layer}.`, `Cite or propose one ${layer} rule.`, 'ERROR', normalized.roomVariantId, 'roomVariant', layer);
   }
   for (const [index, intent] of intentTrace.entries()) {
     if (intent.disposition === 'proposed') add('studio.room.intent.proposed', `/intentTrace/${index}/disposition`, 'A room intent rule remains proposed rather than governing.', 'Review and explicitly disposition this warning before finalization.', 'WARNING', intent.ruleId, 'roomIntent');
   }
   for (const requiredTag of normalizedArchetype.requiredTags) {
-    if (!normalizedArchetype.tags.includes(requiredTag)) add('studio.room.archetype.required_tag', '/roomArchetype/tags', `Required archetype tag ${requiredTag} is absent.`, 'Update the archetype before validating this variant.');
+    if (!normalizedArchetype.tags.includes(requiredTag)) add('studio.room.archetype.required_tag', '/roomArchetype/tags', `Required archetype tag ${requiredTag} is absent.`, 'Update the archetype before validating this variant.', 'ERROR', normalized.roomVariantId, 'roomVariant', requiredTag);
   }
   for (const proposalId of boundedStrings(unresolvedProposalIds, 'unresolvedProposalIds', { maxItems: 128, maxLength: 128 })) {
     add('studio.room.proposal.unresolved', '/proposals', 'A placement proposal is still pending owner decision or application.', 'Decide and apply/reject the proposal before finalization.', 'ERROR', proposalId, 'roomProposal');
@@ -505,7 +518,7 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     if (asset.metadata.runtimeEligible === false) add('studio.room.placement.runtime_ineligible', `${path}/assetId`, 'The asset is explicitly not runtime-eligible.', 'Retain as a Studio-only choice or revise the asset before Numberdroid export.', 'INFO', placement.placementId, 'roomPlacement');
     const placementTags = new Set(asset.metadata.tags ?? []);
     for (const requiredTag of normalizedArchetype.requiredTags) {
-      if (!placementTags.has(requiredTag)) add('studio.room.placement.required_tag_missing', `${path}/assetId`, `The asset lacks required tag ${requiredTag}.`, 'Choose a compatible asset or revise the archetype tag policy.', 'ERROR', placement.placementId, 'roomPlacement');
+      if (!placementTags.has(requiredTag)) add('studio.room.placement.required_tag_missing', `${path}/assetId`, `The asset lacks required tag ${requiredTag}.`, 'Choose a compatible asset or revise the archetype tag policy.', 'ERROR', placement.placementId, 'roomPlacement', requiredTag);
     }
     const collisionRects = [];
     const collision = asset.metadata.collision;
@@ -545,16 +558,18 @@ export function validateRoomVariant({ variant, archetype, assets, unresolvedProp
     }
   }
 
+  const placementIdentities = occurrenceIdentities(resolved, ({ placement }) => placement.placementId);
   for (const [index, current] of resolved.entries()) {
-    for (const prior of resolved.slice(0, index)) {
-      if (current.placement.layer === 'SET_DRESSING' && prior.placement.layer === 'SET_DRESSING' && rectIntersects(current.envelope, prior.envelope)) add('studio.room.placement.overlap', `/placements/${index}`, 'Set-dressing placement envelopes overlap.', `Move ${current.placement.placementId} or ${prior.placement.placementId}.`, 'ERROR', current.placement.placementId, 'roomPlacement');
+    for (const [priorIndex, prior] of resolved.slice(0, index).entries()) {
+      const counterpart = placementIdentities[priorIndex];
+      if (current.placement.layer === 'SET_DRESSING' && prior.placement.layer === 'SET_DRESSING' && rectIntersects(current.envelope, prior.envelope)) add('studio.room.placement.overlap', `/placements/${index}`, 'Set-dressing placement envelopes overlap.', `Move ${current.placement.placementId} or ${prior.placement.placementId}.`, 'ERROR', current.placement.placementId, 'roomPlacement', counterpart);
       const pairs = current.collisionShapes.flatMap((left) => prior.collisionShapes.map((right) => classifyBlockingPair(left, right)));
-      if (pairs.includes('INTERSECTS')) add('studio.room.collision.overlap', `/placements/${index}`, 'Physical collision geometry overlaps another placement.', `Move ${current.placement.placementId} or ${prior.placement.placementId}.`, 'ERROR', current.placement.placementId, 'roomPlacement');
-      else if (pairs.includes('UNSUPPORTED') && !(current.placement.layer === 'SET_DRESSING' && prior.placement.layer === 'SET_DRESSING' && rectIntersects(current.envelope, prior.envelope))) add('studio.room.collision.comparison_unsupported', `/placements/${index}`, 'Studio cannot yet verify overlapping nonrectangular blocking across these placement layers.', 'Separate the blocking regions or use a supported rectangle comparison before validating this Room.', 'ERROR', current.placement.placementId, 'roomPlacement');
+      if (pairs.includes('INTERSECTS')) add('studio.room.collision.overlap', `/placements/${index}`, 'Physical collision geometry overlaps another placement.', `Move ${current.placement.placementId} or ${prior.placement.placementId}.`, 'ERROR', current.placement.placementId, 'roomPlacement', counterpart);
+      else if (pairs.includes('UNSUPPORTED') && !(current.placement.layer === 'SET_DRESSING' && prior.placement.layer === 'SET_DRESSING' && rectIntersects(current.envelope, prior.envelope))) add('studio.room.collision.comparison_unsupported', `/placements/${index}`, 'Studio cannot yet verify overlapping nonrectangular blocking across these placement layers.', 'Separate the blocking regions or use a supported rectangle comparison before validating this Room.', 'ERROR', current.placement.placementId, 'roomPlacement', counterpart);
     }
-    for (const connector of connectors) {
+    for (const [connectorIndex, connector] of connectors.entries()) {
       const clearance = connectorInsideRect(connector, width, height);
-      if (current.collisionShapes.some((shape) => shapeIntersectsRect(shape, clearance))) add('studio.room.connector.clearance_blocked', `/placements/${index}`, `Placement blocks the inside clearance of connector ${connector.connectorId}.`, 'Move the blocking placement away from the connector approach.', 'ERROR', current.placement.placementId, 'roomPlacement');
+      if (current.collisionShapes.some((shape) => shapeIntersectsRect(shape, clearance))) add('studio.room.connector.clearance_blocked', `/placements/${index}`, `Placement blocks the inside clearance of connector ${connector.connectorId}.`, 'Move the blocking placement away from the connector approach.', 'ERROR', current.placement.placementId, 'roomPlacement', connectorIdentities[connectorIndex]);
     }
   }
 

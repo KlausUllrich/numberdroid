@@ -14,10 +14,17 @@ exact-version Preview and unchanged state after browser reload. This is not
 Klaus acceptance of the new furnished Room or overall Studio. Preserve both the
 earlier passed Room and permanent pilot; see the
 [bounded record](VACATION_TEST_BACKLOG.md#2026-09-22-real-family-table-input-compatibility).
-The next agent proof must use a fresh fixture, explicit narrow task authority,
-synthetic owner review and private HostBinding; never grant access to the pilot
-as a test setup shortcut. No new screen or authority-policy implementation is
-required before exercising the existing Room-task path.
+The separate real-agent Room proof now passes: narrowly scoped semantic tools,
+persisted feedback, same-placement correction, explicit synthetic-owner subset
+apply, revoked-access denial, and identical Room/task state after server restart.
+The pilot and visual sandbox received no agent grants. This is engineering
+evidence, not Klaus's product acceptance; see the
+[agent proof and repair record](VACATION_TEST_BACKLOG.md#2026-09-22-real-agent-room-proof-and-finding-identity-repair).
+It exposed a bounded finding-ID collision in invalid Rooms. The repair separates
+those identities, retains exact historical portable imports, and clarifies the
+existing validation-tool instructions. Local Studio and Room browser/restart
+checks pass; exact-head integration evidence belongs to the associated PR/CI
+record. No new screen, permission or lifecycle transition is part of that block.
 
 Previous completed block (2026-09-22): Klaus approved the
 [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md) and authorized its
