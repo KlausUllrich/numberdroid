@@ -1,7 +1,7 @@
 # Studio — Rooms Navigation Design
 
 Status: **design approved and bounded production navigation batch USER ACCEPTED
-by Klaus on 2026-09-22; source integration remains pending**.
+by Klaus on 2026-09-22; source-integrated through PR #260 with green post-merge CI**.
 
 Klaus approved the populated Rooms/Templates navigation mockup, requested stable
 vertical alignment when switching tabs, then authorized implementation. This
