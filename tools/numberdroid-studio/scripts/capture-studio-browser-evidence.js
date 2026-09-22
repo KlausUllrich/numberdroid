@@ -2166,14 +2166,25 @@ try {
           await waitFor(() => document.querySelector(surfaceSelector + ' .asset-preview.ready')?.dataset.previewState === 'READY', 'the exact surface image');
           document.querySelector(surfaceSelector)?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-          document.querySelector('.room-cell[data-x="' + widthBefore + '"][data-y="0"]')?.click();
+          // The preceding Escape test deliberately suppresses clicks while its cancelled drag settles.
+          await waitFor(() => window.__numberdroidStudioVisualTest.roomDirectManipulationState().suppressCanvasClick === false,
+            'surface canvas click suppression to settle');
+          const surfaceCell = document.querySelector('.room-cell[data-x="' + widthBefore + '"][data-y="0"]');
+          const surfaceState = window.__numberdroidStudioVisualTest.roomDirectManipulationState();
+          const surfaceReady = { pin: surfaceState.selectedPaletteAssetPin,
+            suppressed: surfaceState.suppressCanvasClick, cellEnabled: Boolean(surfaceCell && !surfaceCell.disabled) };
+          if (!surfaceReady.cellEnabled || surfaceReady.suppressed
+              || surfaceReady.pin?.assetId !== 'asset.family-hygiene.1') {
+            throw new Error('The first Surface target is not ready: ' + JSON.stringify(surfaceReady));
+          }
+          surfaceCell.click();
           await waitFor(() => window.__roomDirectManipulationEvidence.requests.length >= 1
             && !document.querySelector('#refresh-button')?.disabled, 'the first surface placement');
           document.querySelector('.room-cell[data-x="' + (widthBefore + 1) + '"][data-y="0"]')?.click();
           await waitFor(() => window.__roomDirectManipulationEvidence.requests.length >= 2
             && !document.querySelector('#refresh-button')?.disabled, 'the second surface placement');
           const surfaceRequests = window.__roomDirectManipulationEvidence.requests.slice(0, 2);
-          const surfaceResize = { resizeBefore, resizeAfter,
+          const surfaceResize = { resizeBefore, resizeAfter, surfaceReady,
             resizeRequests: window.__roomDirectManipulationEvidence.resizeRequests.slice(), requests: surfaceRequests,
             state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() };
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="PAINT_VOID"]')?.click();
@@ -2207,6 +2218,8 @@ try {
             useControlPresent: Boolean(document.querySelector('[data-room-control="use-preview-asset"]')) };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
+      assert(!directSetup.exceptionDetails && directSetup.result?.value?.surfaceResize,
+        `Checkpoint 4.5 direct-manipulation setup failed: ${JSON.stringify(directSetup.exceptionDetails ?? directSetup.result)}`);
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'r', code: 'KeyR' }, sessionId);
       await devtools.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'r', code: 'KeyR' }, sessionId);
       const directPoints = await devtools.send('Runtime.evaluate', {
@@ -2362,12 +2375,18 @@ try {
             state: window.__numberdroidStudioVisualTest.roomDirectManipulationState() };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
+      assert(!exactAddRetry.exceptionDetails && exactAddRetry.result?.value?.requests?.length === 2
+        && exactAddRetry.result.value.sameBody === true
+        && exactAddRetry.result.value.state?.pendingPlacementAdd === null,
+      `Checkpoint 4.5 exact retry must settle before the next brush check: ${JSON.stringify({ exception: exactAddRetry.exceptionDetails, retry: exactAddRetry.result?.value, point: exactRetryPoint.result?.value, first: firstUnknownAdd.result?.value, preview: previewFailure.result?.value })}`);
       const persistentBrush = await devtools.send('Runtime.evaluate', {
         expression: `(async () => {
           const paletteSelector = '[data-room-control="palette-asset"][data-palette-asset-id="asset.transfer-apparatus-cp45"]';
+          if (!document.querySelector(paletteSelector)) throw new Error('The retry returned without its Prop palette: ' + JSON.stringify({ route: document.getElementById('workspace-content')?.dataset.roomsRoute, tool: document.querySelector('[data-active-room-tool]')?.dataset.activeRoomTool, dock: document.querySelector('.room-editor-dock')?.textContent.slice(0, 250) }));
           const deadlineForImage = Date.now() + 10_000;
           while (document.querySelector(paletteSelector + ' .asset-preview.ready')?.dataset.previewState !== 'READY'
               && Date.now() < deadlineForImage) await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+          if (document.querySelector(paletteSelector + ' .asset-preview.ready')?.dataset.previewState !== 'READY') throw new Error('The recovered palette image did not become READY.');
           document.querySelector(paletteSelector)?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           const before = window.__numberdroidStudioVisualTest.roomDirectManipulationState();
@@ -2381,6 +2400,7 @@ try {
           return { before, after: window.__numberdroidStudioVisualTest.roomDirectManipulationState(), requests };
         })()`, awaitPromise: true, returnByValue: true,
       }, sessionId, 20_000);
+      assert(!persistentBrush.exceptionDetails && persistentBrush.result?.value?.before, `Checkpoint 4.5 brush continuation failed: ${JSON.stringify(persistentBrush.exceptionDetails ?? persistentBrush)}`);
       const authoritativeAddRecovery = await devtools.send('Runtime.evaluate', {
         expression: `window.__numberdroidStudioVisualTest.exerciseRoomPlacementAddRecovery()`, returnByValue: true,
       }, sessionId);
