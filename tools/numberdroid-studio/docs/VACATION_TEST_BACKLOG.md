@@ -34,6 +34,57 @@ Keep these states distinct:
 
 ## Current queue
 
+### 2026-09-22 next Room batch — responsive Surface painting and fill tools
+
+Klaus reported that single-cell Surface placement felt like a whole-site reload
+with several seconds of checks, requested whole-room fill, multi-cell selection
+and fill, random cardinal rotation, and random distribution from selected
+assets. He also observed apparently stacked Surfaces and an unclear error whose
+wording is no longer available. This is a planning request, not acceptance of a
+new mockup or implementation.
+
+Source inspection confirms one placement POST currently waits for the broad
+project/activity/agent-access/intake/task refresh and Room re-render. It does not
+show an explicit browser-page reload in that path. Measure POST, refresh reads,
+asset readiness and rendering independently before attributing the reported
+seconds to one layer. Draft validation permits overlapping surfaces and emits
+the aggregate `studio.room.surface.coverage_overlap` finding; a count without
+visible affected cells is inadequate guidance. Do not invent the lost wording.
+
+Plan one coherent Surface-authoring batch, in this order:
+
+1. Responsive paint with immediate visible pending/saved feedback and retained
+   brush, viewport and selection. Remove unnecessary broad refresh/rebuild work
+   based on measurements; preserve authoritative validation, exact pins, stale
+   revision checks and exact unknown-result replay. No silently dropped clicks.
+2. Clear occupancy: highlight affected cells and list the Surfaces occupying
+   them. Proposed paint semantics are replace, not silently stack, with an
+   unchanged same-asset placement treated as a no-op. Multi-cell Surface images
+   remain whole: show the complete affected footprint and any whole-placement
+   replacement consequence, never silently crop or remove neighboring content.
+   Existing overlaps need an explicit visible repair choice, not automatic
+   deletion or arbitrary selection of a winner.
+3. Fill room, rectangular/additive cell selection and Fill selection. Clearly
+   distinguish filling empty cells from replacing existing Surfaces; show the
+   scope and affected count before a bulk change. Props, entrances and cells
+   outside the room are not overwritten. Room coverage still includes blocked
+   in-room cells and respects structural boundaries and complete footprints.
+4. A selectable Surface palette pool, optional random distribution and optional
+   0/90/180/270-degree rotation. Respect each asset's rotation and fit rules;
+   start with compatible footprints and explain exclusions. Show a stable
+   preview, with an explicit shuffle action. Confirmation and retry must use
+   that exact arrangement, not generate a different one.
+
+Implementation is expected L3 (visible interaction plus bulk mutation/recovery).
+Agree the compact interaction mockup before new tool UI; retain the existing
+engine-neutral Preview and no-runtime/publication boundary. Plan atomic bulk
+save and one-step undo/recovery explicitly rather than a loop of per-cell
+requests or remove-then-add partial commits. Use a fresh disposable fixture,
+never modify Klaus's current test Room to reproduce the defect. Deliver a
+bundled live test covering rapid paint, replacement/overlap visibility,
+fill/selection, mixed assets/rotation, failure/retry, undo and saved Preview;
+do not ask Klaus to retest each small adjustment. Windows remains opt-in only.
+
 ### 2026-09-22 real Family Table input compatibility
 
 An isolated actual-UI source-to-Room proof found that the existing accepted

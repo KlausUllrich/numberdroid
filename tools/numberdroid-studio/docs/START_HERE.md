@@ -26,6 +26,13 @@ existing validation-tool instructions. Local Studio and Room browser/restart
 checks pass; exact-head integration evidence belongs to the associated PR/CI
 record. No new screen, permission or lifecycle transition is part of that block.
 
+Next requested planning block: Klaus's Surface-painting responsiveness,
+overlap visibility/replacement, room/selection fill, and controlled random
+asset/rotation tools. The [Surface batch](VACATION_TEST_BACKLOG.md#2026-09-22-next-room-batch--responsive-surface-painting-and-fill-tools)
+records observations, source-confirmed behavior, proposed semantics and the
+bundled test scope. New tool UI still needs its compact design/mockup gate;
+these requests do not authorize silent deletion of overlapping placements.
+
 Previous completed block (2026-09-22): Klaus approved the
 [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md) and authorized its
 implementation. Collection-first Rooms/Templates, top-level creation and
