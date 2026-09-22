@@ -698,7 +698,7 @@ const definitions = [
   {
     type: 'room.variant.create',
     toolName: 'studio_room_variant_create',
-    description: 'Create one DRAFT room variant against an exact archetype version; agents require an isolated task branch.',
+    description: 'Create one editable DRAFT room variant against an exact archetype version; agents require an isolated task branch. Clear validation requires intentTrace entries for game_design, level_design and room_design. Incomplete DRAFTs are allowed and retain findings.',
     requiredScope: 'room.variant.create',
     ownerOnly: false,
     requiresTaskBranch: true,
@@ -865,7 +865,7 @@ const definitions = [
   {
     type: 'room.variant.validate',
     toolName: 'studio_room_variant_validate',
-    description: 'Promote one room version to VALIDATED after deterministic checks; agents require an isolated task branch.',
+    description: 'Check one room version; agents require an isolated task branch. Use dryRun:true to check without saving, charging a command or locking an editable DRAFT. A successful dryRun:false commits a VALIDATED version that no longer allows content edits. Keep feedback/review work DRAFT until corrections are complete.',
     requiredScope: 'room.variant.validate', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
     payloadSchema: {
       type: 'object', additionalProperties: false, required: ['roomVariantId', 'expectedRoomVariantVersion'],

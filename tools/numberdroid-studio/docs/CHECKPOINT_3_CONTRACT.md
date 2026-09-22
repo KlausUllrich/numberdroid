@@ -182,6 +182,16 @@ Set dressing validates pinned attachment/rotation policy, footprint, placement t
 
 Room findings use the existing exact finding envelope and stable `studio.room.*` rule IDs. Ordering is deterministic by severity, rule, target, and path.
 
+Identity repair (2026-09-22): repeated ERROR causes at the same rule/target/path
+also use their semantic cause (missing layer, side or tag, counterpart identity
+and occurrence, or upstream spatial rule) when computing `findingId`. English
+wording and sibling count are not identity. The ID breaks otherwise equal sort
+keys. Newly evaluated affected errors receive the corrected IDs; unrelated
+findings, warning IDs/dispositions and healthy Room fingerprints remain unchanged.
+Stored immutable Room versions and their findings are never rewritten or
+reinterpreted during load, integrity checking or history inspection. No finding
+DTO, schema migration, authority or lifecycle transition is added by this repair.
+
 Required rule families include:
 
 - dimensions/origin/layer/asset-version integrity;
