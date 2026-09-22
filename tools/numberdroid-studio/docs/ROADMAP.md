@@ -6,8 +6,9 @@ Klaus reported **“all pass”** for the presented production
 [Rooms navigation](ROOMS_NAVIGATION_DESIGN.md) batch on local `ee27480`.
 Collection-first Rooms/Templates, contextual Back, stable tab alignment, template
 inspection and second-Room creation with the original preserved are accepted.
-Klaus authorized publishing and integration after the earlier declined write;
-exact-head PR/CI gates still apply. The [backlog](VACATION_TEST_BACKLOG.md#vt-018--room-creation-and-current-editor-context)
+PR #260 is merged with exact-head and post-merge CI green; the
+[Room status](ROOM_EDITOR_L3_STATUS.md) records source and verification identities.
+The [backlog](VACATION_TEST_BACKLOG.md#vt-018--room-creation-and-current-editor-context)
 keeps unpresented edit/reopen checks separate. No overall VT-001/VT-021 or new
 agent/runtime authority is inferred. Preserve the permanent Family room pilot.
 

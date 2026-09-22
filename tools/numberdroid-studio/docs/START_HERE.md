@@ -9,8 +9,9 @@ Current block (2026-09-22): Klaus approved the
 implementation. Collection-first Rooms/Templates, top-level creation and
 contextual Back replace creation buried inside an existing editor. Klaus then
 reported **“all pass”** for the presented production navigation batch on local
-`ee27480`; that bounded block is user accepted. Klaus authorized publishing and
-integration after the earlier declined write; exact-head PR/CI gates still apply.
+`ee27480`; that bounded block is user accepted. PR #260 is merged; exact-head
+Build2508 and post-merge Build2509 passed all selected gates. The
+[Room status](ROOM_EDITOR_L3_STATUS.md) records the exact source and CI identities.
 Preserve the permanent Family room pilot and its
 explicitly passed Preview, reopen and creation-readability checks; the
 [Room status](ROOM_EDITOR_L3_STATUS.md) and [VT-018](VACATION_TEST_BACKLOG.md#vt-018--room-creation-and-current-editor-context)

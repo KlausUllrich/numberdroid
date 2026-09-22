@@ -6,8 +6,9 @@ Klaus reported **“all pass”** for the presented production
 [Rooms navigation](../../tools/numberdroid-studio/docs/ROOMS_NAVIGATION_DESIGN.md)
 batch on local `ee27480`: collection entry, existing Room/Back, stable tabs,
 template rules and second-Room creation with the first preserved. This bounded
-block is USER ACCEPTED. Klaus authorized publishing and integration after the
-earlier declined write; exact-head PR/CI gates still apply. Unpresented second-Room edit/reopen checks
+block is USER ACCEPTED. PR #260 is merged with exact-head and post-merge CI green;
+the [Room status](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md)
+records source and verification identities. Unpresented second-Room edit/reopen checks
 remain separate in [VT-018](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#vt-018--room-creation-and-current-editor-context).
 Preserve the permanent pilot and existing acceptances; no broader milestone or
 agent/runtime authority follows from this pass.

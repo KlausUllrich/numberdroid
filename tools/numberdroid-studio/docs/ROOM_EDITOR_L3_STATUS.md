@@ -4,18 +4,26 @@
 
 Klaus approved the [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md),
 including stable Rooms/Templates tab alignment, and authorized implementation.
-The candidate opens Rooms as a collection, moves creation to focused top-level
+The implementation opens Rooms as a collection, moves creation to focused top-level
 actions, and gives the existing editor a standard upper-left Back to Rooms.
 Template inspection states that templates contain reusable rules, not furniture.
 Commands, exact saved versions, validation, Preview and authority are unchanged.
 Klaus reported **“all pass”** for the presented production navigation batch at
 local `ee2748053aad08a2867ac266cf896997d70108c6`: collection entry, existing
 Room/Back, stable tabs, template rules, second-Room creation and preservation of
-the first. This bounded block is **USER ACCEPTED**. Klaus authorized publishing
-and integration after the earlier declined write; exact-head PR/CI gates still
-apply. Local tests
-passed (1,251 passed, five expected skips), native browser/restart checks passed
-at 1440/1060, and five independent reviews returned GO. Windows was not requested.
+the first. This bounded block is **USER ACCEPTED**. Following Klaus's integration
+authorization, PR #260 merged exact head
+`0210049bcb471d8fea1bb65d0b2a0eccd086b9c3` as
+`163610d906153e7848f064c38d058419c4b1aaf0`, preserving tree
+`6115e956458562c051f3ffa793dd812d7d2766ef`. Exact-head Build2508 / run35723344638
+and post-merge Build2509 / run35724190027 passed every selected gate.
+Final CI Studio tests: 1,263 total, 1,258 passed, five expected skips, zero
+failures. Native verification includes four CP3 and ten CP4.5 captures, plus the
+earlier navigation/creation/restart evidence at 1440/1060; five independent
+reviews returned GO with affected fixes rechecked. Windows was not requested
+and was skipped; root build and Pages were also correctly unselected.
+These integration results preserve the original bounded human acceptance,
+not a new or expanded live pass.
 Do not infer the unpresented VT-018 edit/reopen checks or complete VT-001 acceptance.
 
 Klaus also explicitly replied **“both pass”** after reopening the permanent

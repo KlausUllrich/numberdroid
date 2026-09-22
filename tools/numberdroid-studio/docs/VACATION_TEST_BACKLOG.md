@@ -1483,14 +1483,15 @@ test convenience.
   actual presented batch on local `ee2748053aad08a2867ac266cf896997d70108c6`:
   Rooms collection, Family room 01/Back, stable Rooms/Templates tabs, template
   rules, creation of Family room 02, and both independent Rooms with the first
-  unchanged. This bounded navigation block is USER ACCEPTED; Klaus authorized
-  publishing and integration, subject to exact-head PR/CI gates. Do not repeat it
+  unchanged. This bounded navigation block is USER ACCEPTED and source-integrated
+  through PR #260, with exact-head Build2508 and post-merge Build2509 green; see
+  [Room status](ROOM_EDITOR_L3_STATUS.md) for exact identities. Do not repeat it
   without a regression. Differently sized second-Room editing and reopening both
   Rooms were not in that batch and remain separate checks, not inferred passes.
 - **2026-09-22 bounded passes:** Klaus replied “both pass” for the retained
   Family room after reopen and the stacked/readable creation repair. Preserve
   these and the final Preview pass; the second-Room gate remains separate.
-- **Approved navigation / candidate:** [Rooms Navigation Design](ROOMS_NAVIGATION_DESIGN.md)
+- **Approved navigation / source-integrated:** [Rooms Navigation Design](ROOMS_NAVIGATION_DESIGN.md)
   was approved on 2026-09-22, then implementation authorized. Rooms opens a
   collection with Rooms/Templates tabs; New actions belong there, not in the
   editor. Template rules are read-only and contain no placed furniture.
