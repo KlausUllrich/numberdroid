@@ -479,6 +479,36 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .room-board[data-erase-editing="true"] .room-placement { cursor: crosshair; }
 .room-placement.structural_surface { --room-placement-frame: #4d8876; z-index: 1; background: #23473ddd; }
 .room-placement[data-selected="true"] { z-index: 5; outline: 3px solid #ffe09a; outline-offset: 1px; }
+.room-board[data-surface-editing="true"] .room-placement,
+.room-board[data-surface-editing="true"] .room-connector { pointer-events: none; }
+.room-board[data-surface-editing="true"] .room-cell { cursor: crosshair; touch-action: none; }
+.room-cell[data-surface-selected="true"]::after,
+.room-cell[data-surface-overlap="true"]::before { content: ''; position: absolute; inset: 2px; pointer-events: none; z-index: 8; }
+.room-cell[data-surface-selected="true"]::after { outline: 3px solid #91f0c9; background: #5fbf9e33; }
+.room-cell[data-surface-overlap="true"]::before { outline: 3px dashed #ffb76b; background: repeating-linear-gradient(135deg, #ec992044 0 5px, transparent 5px 10px); }
+.room-surface-preview { position: absolute; z-index: 6; pointer-events: none; overflow: hidden; border: 2px dashed #91f0c9; opacity: .88; }
+.room-surface-tools { display: grid; gap: 14px; }
+.room-surface-tools h3, .room-surface-tools h4, .room-surface-tools p { margin: 0; }
+.room-surface-tabs { display: flex; border-bottom: 1px solid var(--line, #34564a); }
+.room-surface-tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; min-height: 44px; }
+.room-surface-tabs button[data-selected="true"] { border-bottom-color: #91d7b5; background: #28473b; }
+.room-surface-options { display: grid; gap: 12px; }
+.room-surface-options label { display: grid; gap: 6px; min-width: 0; }
+.room-surface-options select { width: 100%; min-height: 42px; font-size: 14px; }
+.room-surface-checkbox, .room-surface-choice { display: flex !important; align-items: center; gap: 10px; }
+.room-surface-checkbox input, .room-surface-choice input { width: 20px; height: 20px; flex: 0 0 20px; }
+.room-surface-pool { display: grid; gap: 8px; max-height: 280px; overflow: auto; scrollbar-gutter: stable; }
+.room-surface-choice { padding: 10px; border: 1px solid #365b4e; border-radius: 6px; font-size: 14px; }
+.room-surface-choice[data-selected="true"] { background: #254f40; border-color: #91d7b5; }
+.room-surface-choice .asset-preview { width: 48px; height: 48px; min-height: 0; flex: 0 0 48px; }
+.room-surface-marker { position: absolute; width: var(--room-cell); height: var(--room-cell); z-index: 9; pointer-events: none; }
+.room-surface-marker.selected { border: 3px solid #91f0c9; background: #5fbf9e22; }
+.room-surface-marker.overlap { border: 3px dashed #ffb76b; background: repeating-linear-gradient(135deg, #ec992033 0 5px, transparent 5px 10px); }
+.room-surface-status { padding: 10px; border-left: 3px solid #91d7b5; background: #20382f; font-size: 14px; }
+.room-surface-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.room-surface-actions button, .room-surface-overlaps button { min-height: 42px; font-size: 14px; padding: 9px 12px; }
+.room-surface-overlaps { display: grid; gap: 10px; border-top: 1px solid #b98150; padding-top: 14px; }
+.room-surface-overlaps > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .room-placement .asset-preview { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; opacity: .86; }
 .room-placement > .room-placement-visual { inset: auto; top: 50%; left: 50%; width: var(--room-placement-visual-width); height: var(--room-placement-visual-height); transform: translate(-50%, -50%) rotate(var(--room-placement-visual-rotation)); transform-origin: center; }
 .room-placement .asset-preview.fallback { display: none; }

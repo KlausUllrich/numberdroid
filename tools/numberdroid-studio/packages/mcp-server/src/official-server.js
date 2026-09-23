@@ -125,9 +125,10 @@ export function buildOfficialMcpServer({
   assemblyV1 = null,
   animationV1 = null,
   reviewV1 = null,
+  protocolFeatureSet = null,
 } = {}) {
   if (!studioGateway) throw new TypeError('studioGateway is required.');
-  const catalog = createAgentToolCatalog(studioGateway, { contextProvider, authoringV2, assemblyV1, animationV1, reviewV1 });
+  const catalog = createAgentToolCatalog(studioGateway, { contextProvider, authoringV2, assemblyV1, animationV1, reviewV1, protocolFeatureSet });
   const authoringV2Surface = authoringV2 === null || authoringV2 === undefined
     ? null
     : createAuthoringV2McpSurface(studioGateway, authoringV2, {

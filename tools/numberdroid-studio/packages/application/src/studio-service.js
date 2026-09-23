@@ -25,6 +25,7 @@ import {
   validateRoomPlacementProposal,
   validateRoomVariant,
 } from '../../domain/src/room-definition.js';
+import { planRoomSurfaces } from '../../domain/src/room-surface-plan.js';
 import { StudioError, invariant } from '../../domain/src/errors.js';
 import {
   projectCapabilityManifestSha256,
@@ -838,6 +839,32 @@ function exactRoomAssetVersions(document, placements, { maxProjectRevision = Num
     assets.set(coordinate, resolved);
   }
   return assets;
+}
+
+function authoritativeRoomSurfacePlan({ document, current, archetype, payload }) {
+  const exactAssets = exactRoomAssetVersions(document, [
+    ...current.placements,
+    ...payload.pool.map(({ assetId, assetVersion, metadataVersion }) => ({ assetId, assetVersion, metadataVersion })),
+  ]);
+  try {
+    return planRoomSurfaces({
+      room: roomVariantValue(current),
+      archetype: roomArchetypeValue(archetype),
+      assets: [...exactAssets.values()],
+      plannerVersion: payload.plannerVersion,
+      scopeCells: deepClone(payload.scopeCells),
+      policy: payload.policy,
+      pool: deepClone(payload.pool),
+      baseRotation: payload.baseRotation,
+      randomRotation: payload.randomRotation,
+      seed: payload.seed,
+      placementIdPrefix: payload.placementIdPrefix,
+      overlapKeepPlacementIds: deepClone(payload.overlapKeepPlacementIds),
+    });
+  } catch (error) {
+    if (typeof error?.code === 'string') throw new StudioError(error.code, error.message, error.details ?? {});
+    throw error;
+  }
 }
 
 function validatedRoomVersion({ candidate, archetype, document, findingsUnresolvedProposalIds = [], now, actorId, createdRevision, proposalId = null }) {
@@ -1926,6 +1953,146 @@ function applyCommand(command, snapshot, now, {
         result: { roomVariantId, roomVariantVersion: 1, lifecycle: 'DRAFT', findingCount: version.findings.length, contentFingerprint: version.contentFingerprint },
         summary: `DRAFT room variant ${roomVariantId} created.`,
         changes: [{ entityType: 'room_variant', entityId: roomVariantId, operation: 'created' }],
+      };
+    }
+    case 'room.variant.surfaces.apply': {
+      assertExactFields(payload, new Set([
+        'roomVariantId', 'expectedRoomVariantVersion', 'plannerVersion', 'scopeCells',
+        'policy', 'pool', 'baseRotation', 'randomRotation', 'seed',
+        'placementIdPrefix', 'overlapKeepPlacementIds', 'planFingerprint',
+      ]), 'payload');
+      invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
+      const library = roomLibrary(next);
+      const { entry, variant: current } = roomVariantHead(library, requireId(payload.roomVariantId, 'payload.roomVariantId'));
+      assertRoomVersion(current, payload.expectedRoomVariantVersion);
+      assertRoomDraft(current);
+      assertNoActiveRoomProposal(library, current);
+      const archetype = roomArchetypeHead(library, current.roomArchetypeId, current.archetypeVersion);
+      const surfacePlan = authoritativeRoomSurfacePlan({ document: projectDocument, current, archetype, payload });
+      invariant(surfacePlan.fingerprint === payload.planFingerprint, 'ROOM_SURFACE_PLAN_DRIFT', 'The Surface preview no longer matches the authoritative plan.', {
+        expectedPlanFingerprint: payload.planFingerprint,
+        actualPlanFingerprint: surfacePlan.fingerprint,
+      });
+      invariant(command.dryRun || !surfacePlan.noOp, 'ROOM_SURFACE_NO_CHANGES', 'The Surface plan contains no saved changes.');
+      invariant(Array.isArray(surfacePlan.removals) && surfacePlan.removals.length <= 256, 'ROOM_PLACEMENT_LIMIT', 'A Surface plan may remove at most 256 placements.');
+      invariant(Array.isArray(surfacePlan.additions) && surfacePlan.additions.length <= 256, 'ROOM_PLACEMENT_LIMIT', 'A Surface plan may add at most 256 placements.');
+      const removeIds = new Set(surfacePlan.removals.map((removal) => requireId(removal.placementId, 'surfacePlan.removals[].placementId')));
+      invariant(removeIds.size === surfacePlan.removals.length, 'ROOM_PLACEMENT_DUPLICATE', 'A Surface plan may remove each placement only once.');
+      for (const removal of surfacePlan.removals) {
+        const existing = current.placements.find(({ placementId }) => placementId === removal.placementId);
+        invariant(existing && existing.layer === 'STRUCTURAL_SURFACE', 'ROOM_SURFACE_REMOVAL_INVALID', 'Surface plans may remove only existing structural Surface placements.', { placementId: removal.placementId });
+        invariant(existing.assetId === removal.assetId
+          && existing.assetVersion === removal.assetVersion
+          && existing.metadataVersion === removal.metadataVersion,
+        'ENTITY_VERSION_CONFLICT', 'A Surface selected for replacement changed after preview.', { placementId: removal.placementId });
+      }
+      for (const addition of surfacePlan.additions) {
+        invariant(addition?.layer === 'STRUCTURAL_SURFACE', 'ROOM_SURFACE_ADDITION_INVALID', 'Surface plans may add only structural Surface placements.');
+        invariant(addition?.proposalId === null && addition?.proposalItemId === null, 'UNTRUSTED_AUTHORITY_FIELD', 'Direct Surface placement provenance must be null.');
+      }
+      const placements = [
+        ...current.placements.filter(({ placementId }) => !removeIds.has(placementId)),
+        ...deepClone(surfacePlan.additions),
+      ];
+      invariant(placements.length <= 256, 'ROOM_PLACEMENT_LIMIT', 'A room variant may contain at most 256 placements after a Surface change.', { placementCount: placements.length, limit: 256 });
+      const candidate = {
+        ...roomVariantValue(current),
+        version: current.version + 1,
+        parentVariantVersion: current.version,
+        placements,
+        acceptedWarningFindingIds: [],
+      };
+      const version = validatedRoomVersion({
+        candidate, archetype, document: projectDocument, now, actorId: command.actor.id,
+        createdRevision: command.baseRevision + 1,
+      });
+      const existingFindingIds = new Set(current.findings.map(({ findingId }) => findingId));
+      const addedPlacementIds = new Set(surfacePlan.additions.map(({ placementId }) => placementId));
+      const operationErrors = version.findings.filter((finding) => finding.severity === 'ERROR'
+        && !existingFindingIds.has(finding.findingId)
+        && (finding.ruleId.startsWith('studio.room.surface.') || addedPlacementIds.has(finding.targetId)));
+      invariant(operationErrors.length === 0, 'ROOM_SURFACE_PLAN_INVALID', 'The Surface plan would create invalid room content.', {
+        findingIds: operationErrors.map(({ findingId }) => findingId),
+      });
+      appendRoomVersion(entry, version);
+      const undoReceipt = {
+        roomVariantId: current.roomVariantId,
+        appliedRoomVariantVersion: version.version,
+        parentRoomVariantVersion: current.version,
+        appliedPlanFingerprint: surfacePlan.fingerprint,
+      };
+      return {
+        snapshot: next,
+        result: {
+          roomVariantId: current.roomVariantId,
+          roomVariantVersion: version.version,
+          lifecycle: version.lifecycle,
+          findingCount: version.findings.length,
+          contentFingerprint: version.contentFingerprint,
+          roomVariant: deepClone(version),
+          surfacePlan: deepClone(surfacePlan),
+          undoReceipt,
+        },
+        summary: `Surface plan ${surfacePlan.fingerprint} created room variant ${current.roomVariantId} version ${version.version}.`,
+        changes: [{ entityType: 'room_variant', entityId: current.roomVariantId, operation: 'versioned' }],
+      };
+    }
+    case 'room.variant.surfaces.undo': {
+      assertExactFields(payload, new Set([
+        'roomVariantId', 'expectedRoomVariantVersion', 'appliedRoomVariantVersion', 'appliedPlanFingerprint',
+      ]), 'payload');
+      invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
+      const library = roomLibrary(next);
+      const { entry, variant: current } = roomVariantHead(library, requireId(payload.roomVariantId, 'payload.roomVariantId'));
+      assertRoomVersion(current, payload.expectedRoomVariantVersion);
+      assertRoomDraft(current);
+      assertNoActiveRoomProposal(library, current);
+      invariant(current.version === requireInteger(payload.appliedRoomVariantVersion, 'payload.appliedRoomVariantVersion', { min: 1 }),
+        'ROOM_SURFACE_UNDO_STALE', 'Undo is available only while the exact applied Surface version remains the Room head.');
+      const appliedRevision = projectDocument.revisions.find(({ number }) => number === current.createdRevision);
+      invariant(appliedRevision?.command?.type === 'room.variant.surfaces.apply'
+        && appliedRevision.result?.roomVariantId === current.roomVariantId
+        && appliedRevision.result?.roomVariantVersion === current.version,
+      'ROOM_SURFACE_UNDO_INVALID', 'The current Room head was not created by a Surface apply operation.');
+      const appliedPlan = appliedRevision.result.surfacePlan;
+      invariant(appliedPlan?.fingerprint === payload.appliedPlanFingerprint,
+        'ROOM_SURFACE_UNDO_INVALID', 'The Surface undo receipt does not match the applied plan.');
+      const parent = entry.versions.find(({ version }) => version === current.parentVariantVersion);
+      invariant(parent, 'ROOM_SURFACE_UNDO_INVALID', 'The immutable parent Room version required for undo is missing.');
+      const archetype = roomArchetypeHead(library, current.roomArchetypeId, current.archetypeVersion);
+      const candidate = {
+        ...roomVariantValue(parent),
+        version: current.version + 1,
+        lifecycle: 'DRAFT',
+        parentVariantVersion: current.version,
+        acceptedWarningFindingIds: [],
+      };
+      const version = validatedRoomVersion({
+        candidate, archetype, document: projectDocument, now, actorId: command.actor.id,
+        createdRevision: command.baseRevision + 1,
+      });
+      appendRoomVersion(entry, version);
+      const undoReceipt = {
+        roomVariantId: current.roomVariantId,
+        appliedRoomVariantVersion: current.version,
+        compensatedRoomVariantVersion: version.version,
+        restoredRoomVariantVersion: parent.version,
+        appliedPlanFingerprint: appliedPlan.fingerprint,
+      };
+      return {
+        snapshot: next,
+        result: {
+          roomVariantId: current.roomVariantId,
+          roomVariantVersion: version.version,
+          lifecycle: version.lifecycle,
+          findingCount: version.findings.length,
+          contentFingerprint: version.contentFingerprint,
+          roomVariant: deepClone(version),
+          surfacePlan: deepClone(appliedPlan),
+          undoReceipt,
+        },
+        summary: `Surface plan ${appliedPlan.fingerprint} was undone by room variant ${current.roomVariantId} version ${version.version}.`,
+        changes: [{ entityType: 'room_variant', entityId: current.roomVariantId, operation: 'versioned' }],
       };
     }
     case 'room.variant.intent.set':

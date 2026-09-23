@@ -233,6 +233,16 @@ const roomPlacement = {
   },
 };
 
+const roomSurfacePoolEntry = {
+  type: 'object', additionalProperties: false,
+  required: ['assetId', 'assetVersion', 'metadataVersion'],
+  properties: {
+    assetId: id,
+    assetVersion: { type: 'integer', minimum: 1 },
+    metadataVersion: { type: 'integer', minimum: 1 },
+  },
+};
+
 const roomPlacementProposalItem = {
   type: 'object', additionalProperties: false,
   required: ['itemId', 'operation', 'placement', 'placementId', 'expectedAssetId', 'anchor', 'rotation'],
@@ -809,6 +819,52 @@ const definitions = [
           type: 'object', additionalProperties: false, required: ['placementId', 'expectedAssetId'],
           properties: { placementId: id, expectedAssetId: id },
         } },
+      },
+    },
+  },
+  {
+    type: 'room.variant.surfaces.apply',
+    toolName: 'studio_room_variant_surfaces_apply',
+    description: 'Atomically apply one exact deterministic Surface paint or fill plan to a DRAFT room.',
+    requiredScope: 'room.edit', ownerOnly: false, requiresTaskBranch: true, requiresDurableRoomStore: true,
+    mcpProfile: 'surfaces-v1',
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: [
+        'roomVariantId', 'expectedRoomVariantVersion', 'plannerVersion', 'scopeCells',
+        'policy', 'pool', 'baseRotation', 'randomRotation', 'seed',
+        'placementIdPrefix', 'overlapKeepPlacementIds', 'planFingerprint',
+      ],
+      properties: {
+        roomVariantId: id,
+        expectedRoomVariantVersion: { type: 'integer', minimum: 1 },
+        plannerVersion: { type: 'string', minLength: 1, maxLength: 128 },
+        scopeCells: { type: 'array', minItems: 1, maxItems: 4096, uniqueItems: true, items: roomCell },
+        policy: { type: 'string', enum: ['empty_only', 'replace'] },
+        pool: { type: 'array', minItems: 1, maxItems: 64, uniqueItems: true, items: roomSurfacePoolEntry },
+        baseRotation: { type: 'integer', enum: [0, 90, 180, 270] },
+        randomRotation: { type: 'boolean' },
+        seed: { type: 'string', minLength: 1, maxLength: 128 },
+        placementIdPrefix: id,
+        overlapKeepPlacementIds: { type: 'array', maxItems: 256, uniqueItems: true, items: id },
+        planFingerprint: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+      },
+    },
+  },
+  {
+    type: 'room.variant.surfaces.undo',
+    toolName: 'studio_room_variant_surfaces_undo',
+    description: 'Create an owner-controlled compensating room version for the immediately preceding Surface apply.',
+    requiredScope: 'room.edit', ownerOnly: true, requiresDurableRoomStore: true,
+    mcpProfile: 'surfaces-v1',
+    payloadSchema: {
+      type: 'object', additionalProperties: false,
+      required: ['roomVariantId', 'expectedRoomVariantVersion', 'appliedRoomVariantVersion', 'appliedPlanFingerprint'],
+      properties: {
+        roomVariantId: id,
+        expectedRoomVariantVersion: { type: 'integer', minimum: 1 },
+        appliedRoomVariantVersion: { type: 'integer', minimum: 1 },
+        appliedPlanFingerprint: { type: 'string', pattern: '^[a-f0-9]{64}$' },
       },
     },
   },

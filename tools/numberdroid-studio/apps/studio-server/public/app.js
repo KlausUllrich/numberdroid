@@ -1,4 +1,5 @@
 import { createLibraryUiState, librarySetProject, libraryInventory, libraryProposedAdditions, libraryReviewGroups, libraryAssetPin, findLibraryItem, libraryRouteKey, libraryNavigate, libraryBack } from './library-state.js';
+import { createRoomSurfaceTools } from './room-surface-editor.js';
 import { renderLibraryNavigation, renderLibraryCard, renderLibraryHistory } from './library-view.js';
 import { renderRoomsCollection, renderRoomTemplateDetail } from './rooms-navigation-view.js';
 import { renderLibraryDetail, createLibraryPreviewDocument } from './library-detail-view.js';
@@ -3628,7 +3629,7 @@ const ROOM_EDITOR_TOOLS = Object.freeze([
   ['PAINT_VOID', '▧', 'Outside room', 'Click a cell to exclude it from the room. This edits the shape draft; choose Save shape to keep it.'],
   ['PAINT_BLOCKED', '⊠', 'Blocked in room', 'Click a cell to keep it inside the room but block passage. This edits the shape draft; choose Save shape to keep it.'],
   ['ENTRANCE', '⇥', 'Entrance', 'Add and inspect openings on the room edge.'],
-  ['SURFACE', '▦', 'Surface', 'Choose a structural surface and place it on the canvas.'],
+  ['SURFACE', '▦', 'Surface', 'Paint replaces an existing Surface. Fill previews a complete arrangement before saving. Orange cells need an explicit overlap choice.'],
   ['PROP', '◆', 'Prop', 'Choose a prop or item and place copies on the canvas.'],
   ['CLEAR', '⌫', 'Clear', 'Choose a prop or surface on the canvas to remove it after confirmation.'],
 ]);
@@ -3653,6 +3654,100 @@ function roomCellKind(variant, x, y) {
   if (draft?.voidCells.some((cell) => `${cell.x},${cell.y}` === key)) return 'VOID';
   if (draft?.blockedCells.some((cell) => `${cell.x},${cell.y}` === key)) return 'BLOCKED';
   return 'ROOM';
+}
+
+function roomSurfaceContext() {
+  const { variant } = currentRoomVariant();
+  if (!variant || !state.project) return null;
+  const palette = currentAssetLibrary().assets;
+  const assets = [...new Map([...palette, ...state.roomUi.pinnedAssets.assets].map(asset => [roomAssetPinKey(asset), asset])).values()];
+  return {
+    projectId: state.project.projectId, revision: state.project.revision, room: variant,
+    archetype: currentRoomLibrary().archetypes.find(value => value.roomArchetypeId === variant.roomArchetypeId && value.version === variant.archetypeVersion),
+    assets, palette, active: state.workspace === 'rooms' && state.roomUi.activeTool === 'SURFACE' && state.roomUi.view === 'editor',
+    dirtyShape: Boolean(state.roomUi.shapeDraft?.dirty), pinsReady: roomPinnedAssetsReady(variant),
+    readOnly: !state.agentAccessCsrf || state.uiMode === 'remote',
+    otherPending: Boolean(state.roomUi.pendingPlacementAdd),
+  };
+}
+
+function refreshRoomSurfaceDom({ placements = false } = {}) {
+  if (state.workspace !== 'rooms') return;
+  const root = elements['workspace-content'];
+  const previousPanel = root.querySelector('[data-surface-tools]');
+  if (previousPanel) {
+    const focused = document.activeElement;
+    const focusAction = focused?.dataset.surfaceAction, focusPin = focused?.dataset.surfacePoolPin;
+    const scroll = root.querySelector('.room-editor-dock')?.scrollTop;
+    previousPanel.replaceWith(roomSurfaceTools.render());
+    const nextFocus = [...root.querySelectorAll('[data-surface-action], [data-surface-pool-pin]')]
+      .find(value => (focusAction && value.dataset.surfaceAction === focusAction) || (focusPin && value.dataset.surfacePoolPin === focusPin));
+    nextFocus?.focus({ preventScroll: true });
+    if (scroll !== undefined) root.querySelector('.room-editor-dock').scrollTop = scroll;
+  }
+  const board = root.querySelector('[data-room-board]');
+  if (board && placements) {
+    const { variant } = currentRoomVariant();
+    const replacement = renderRoomCanvas(variant, state.project.snapshot);
+    // Preserve the actual grid, viewport, cell focus and pointer target. Only
+    // confirmed placement images change after the semantic command succeeds.
+    board.querySelectorAll('.room-placement').forEach(value => value.remove());
+    for (const value of replacement.querySelectorAll('.room-placement')) board.append(value);
+    root.querySelector('.room-tool-options')?.replaceWith(renderRoomToolOptions(variant));
+    const previousAttention = root.querySelector('.room-error-attention');
+    const attention = renderRoomErrorAttention(currentRoomVariant().entry);
+    if (previousAttention) previousAttention.replaceWith(attention ?? document.createTextNode(''));
+    renderWorkspaceHeader();
+  }
+  if (board) roomSurfaceTools.decorate(board);
+}
+
+const roomSurfaceTools = createRoomSurfaceTools({
+  getContext: roomSurfaceContext, spanOf: roomAssetSpan, visual: roomPlacementVisual, thumbnail: safeV2Preview,
+  changed: refreshRoomSurfaceDom,
+  busyChanged(pending) {
+    if (pending) projectLoadGeneration += 1;
+    setRoomMutationPending(pending);
+    // Surface paint accepts a bounded queue of clicks while a preceding click
+    // saves. Other room commands and navigation remain locked.
+    if (pending && state.roomUi.activeTool === 'SURFACE') {
+      for (const cell of elements['workspace-content'].querySelectorAll('[data-room-control="cell"]')) cell.disabled = false;
+    }
+  },
+  send(operation, request) {
+    return api(`/api/projects/${encodeURIComponent(request.projectId)}/rooms/${encodeURIComponent(request.roomVariantId)}/${operation}`, {
+      method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: JSON.stringify(request.body),
+    });
+  },
+  saved(response, request) {
+    if (state.project?.projectId !== request.projectId || state.project.revision > response.revision) throw new Error('The project context changed. Retry to resolve the saved result.');
+    const room = response.value.roomVariant;
+    const entry = currentRoomLibrary().variants.find(value => value.roomVariantId === request.roomVariantId);
+    if (!entry || room.roomVariantId !== entry.roomVariantId || room.version !== request.body.expectedRoomVariantVersion + 1) throw new Error('The exact saved room could not be verified. Retry the same change.');
+    if (!entry.versions.some(value => value.version === room.version)) entry.versions.push(room);
+    entry.headVersion = room.version; state.project.revision = response.revision;
+    state.roomUi.shapeDraft = null; state.roomUi.selectedPlacementId = null; state.roomUi.selectedFinding = null;
+    if (response.event && !state.activity.some(value => value.eventId === response.event.eventId)) state.activity.push(response.event);
+    const option = [...elements['project-select'].options].find(value => value.value === request.projectId);
+    if (option) option.textContent = `${state.project.snapshot.project.name} · r${response.revision}`;
+    cancelRoomPreviewLoad();
+    refreshRoomSurfaceDom({ placements: true });
+  },
+});
+
+elements['workspace-content'].addEventListener('click', event => {
+  if (!roomSurfaceContext()?.active) return;
+  const cell = event.target.closest('[data-room-control="cell"]');
+  if (!cell) return;
+  event.stopImmediatePropagation();
+  roomSurfaceTools.clickCell({ x: Number(cell.dataset.x), y: Number(cell.dataset.y) });
+}, true);
+for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'lostpointercapture']) {
+  elements['workspace-content'].addEventListener(type, event => {
+    if (!roomSurfaceContext()?.active) return;
+    const board = event.target.closest('[data-room-board]'); if (!board) return;
+    if (roomSurfaceTools.pointer(event, roomCellFromPointer(board, event), board)) event.stopImmediatePropagation();
+  }, true);
 }
 
 function roomShapeDraftChanged(variant, draft) {
@@ -3970,6 +4065,7 @@ function updateRoomPlacementGhostDom() {
 }
 
 function roomCanvasHintText(variant, ghost = currentRoomPlacementGhost()) {
+  if (state.roomUi.activeTool === 'SURFACE') return 'Paint replaces Surfaces. In Fill, click cells or drag a rectangle; Shift-drag adds an area. Preview before applying. Orange cells contain overlaps.';
   if (variant.lifecycle !== 'DRAFT') return `${variant.lifecycle} versions are read-only. Fork a FINAL version to continue authoring.`;
   if (state.roomUi.activeTool.startsWith('PAINT_')) return 'Click a cell, or focus it and press Enter/Space, to paint the active class. Save shape keeps these edits; Discard / reload restores the saved shape. Artwork is dimmed while painting, not removed.';
   if (state.roomUi.pendingPlacementAdd) return `Placement at ${state.roomUi.pendingPlacementAdd.anchor.x},${state.roomUi.pendingPlacementAdd.anchor.y} is not yet confirmed. Choose that same cell again to retry safely; Studio will not create a duplicate.`;
@@ -4063,6 +4159,7 @@ function askRoomCreationDiscard(onDiscard) {
 }
 
 function mayLeaveRoomNavigation(onDiscard = null) {
+  if (roomSurfaceTools.hasUnresolved() || roomSurfaceTools.isLocked()) { showToast('Resolve the current Surface save and queued clicks before leaving this room.'); return false; }
   if (state.roomMutationPending) return false;
   if (state.roomUi.pendingPlacementAdd) { showToast('Resolve the unconfirmed placement at its original cell before leaving this room.'); return false; }
   if (state.roomUi.placementGesture || state.roomUi.canvasPan) { showToast('Finish or cancel the canvas gesture before leaving this room.'); return false; }
@@ -4371,6 +4468,7 @@ function renderRoomCanvas(variant, snapshot) {
     board.append(placed);
   }
   const ghost = roomPinnedAssetsReady(variant, snapshot) ? currentRoomPlacementGhost() : null; if (ghost?.footprint) board.append(renderRoomPlacementGhost(ghost));
+  roomSurfaceTools.decorate(board);
   scroll.append(board); panel.append(scroll);
   const hint = document.createElement('p'); hint.className = 'room-canvas-hint'; hint.setAttribute('role', 'status'); hint.setAttribute('aria-live', 'polite');
   hint.textContent = roomCanvasHintText(variant, ghost);
@@ -4514,7 +4612,7 @@ function renderRoomEditorDock(variant, snapshot, library) {
   } else if (state.roomUi.activeTool === 'ENTRANCE') {
     dock.append(renderRoomEditForms(variant, 'entrances'), renderRoomInspector(variant, snapshot));
   } else if (state.roomUi.activeTool === 'SURFACE') {
-    dock.append(renderRoomPalette(variant, snapshot, { kinds: ['surface'] }), renderRoomInspector(variant, snapshot));
+    dock.append(roomSurfaceTools.render());
   } else if (state.roomUi.activeTool === 'PROP') {
     dock.append(renderRoomPalette(variant, snapshot, { kinds: ['prop', 'item'] }), renderRoomPlacementPreview(variant, snapshot), renderRoomInspector(variant, snapshot), renderRoomProposalReview(variant, library.proposals));
   } else dock.append(renderRoomInspector(variant, snapshot));
@@ -6504,6 +6602,7 @@ function renderWorkspace({
       const replacementHint = replacementCanvas.querySelector('.room-canvas-hint');
       if (retainedHint && replacementHint) retainedHint.textContent = replacementHint.textContent;
       replacementCanvas.replaceWith(retainedRoomCanvas);
+      if (retainedBoard) roomSurfaceTools.decorate(retainedBoard);
     }
   }
   const replacementCutterMain = content.querySelector?.('[data-cutter-main]');
@@ -6927,6 +7026,7 @@ async function loadProject(projectId, { preserveWorkspaceIfUnchanged = false, si
     state.sourcesUi = createSourcesUiState();
     resetSourceIntakeForm();
   }
+  if (state.project?.projectId === projectId && (project.revision < state.project.revision || roomSurfaceTools.isBusy())) return false;
   state.project = project;
   if (state.roomNavigation.projectId !== project.projectId) state.roomNavigation = createRoomNavigationState(project.projectId);
   const selectedProjectOption = [...elements['project-select'].options].find(option => option.value === projectId);
@@ -7049,6 +7149,7 @@ async function requestAgentAccess(mode, {
 }
 
 async function refresh({ quiet = false, passive = false } = {}) {
+  if (roomSurfaceTools.isLocked() || roomSurfaceTools.hasUnresolved() || roomSurfaceTools.isSelecting()) return;
   if (state.refreshing || state.cutterPending || state.sourceMutationPending || state.assetMutationPending
       || state.roomMutationPending || state.taskMutationPending || state.backupMutationPending) return;
   state.refreshing = true; elements['refresh-button'].disabled = true;
@@ -7613,6 +7714,7 @@ function stableUiId(prefix, name = '') {
 }
 
 async function executeRoomMutation({ operation, target, path, body, successMessage, onBeforeReload = null, capturedRequest = null, onFailure = null }) {
+  if (roomSurfaceTools.hasUnresolved() || roomSurfaceTools.isLocked()) { showToast('Resolve the current Surface operation first.'); return false; }
   if (!state.project || !state.agentAccessCsrf || state.roomMutationPending) return false;
   if (!['room-archetype-create', 'room-variant-create'].includes(operation) && !roomPinnedAssetsReady(currentRoomVariant().variant)) {
     showToast('Wait for the exact saved Asset versions before editing this Room.'); return false;
