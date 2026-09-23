@@ -4,7 +4,39 @@ Status date: 2026-09-23. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
-Current direction (2026-09-22): real-asset Room authoring, followed by a bounded
+## Production direction — 2026-09-23
+
+Klaus explicitly changed the working mode: **“Ab jetzt werden wir das Tool
+weiter verbessern, aber ab jetzt gehen wir live.”** Studio is now used to author
+durable Numberdroid production content. Produce useful game Assets, Rooms and
+level contributions; improve Studio from concrete production needs. Bundle minor
+usability findings and fix blockers under the existing verification policy.
+
+Use a named persistent production project outside repository/worktree and
+temporary storage. Keep test workspaces separate; never run fixtures, resets,
+migration experiments or fault injection against production data. Earlier test
+levels remain references and evidence, not automatically the final game's
+layout. Approved art and its provenance/acceptance remain protected. Agent work
+stays task-scoped and reviewable; owner decisions remain with Klaus.
+
+Here **live means production authoring**, not public deployment or acceptance of
+every milestone. Image generation, agent admission, runtime materialization and
+publication retain their explicit gates. Studio Preview is not game-runtime
+output. The [current plan](../../../docs/planning/DEVELOPMENT_PLAN_NEXT.md#2026-09-23-production-authoring-begins)
+owns this sequence; another generic pilot is not a prerequisite for content work.
+The installed manual Room Save bundle is user-passed; see [Room status](ROOM_EDITOR_L3_STATUS.md).
+
+Session continuation: use the [production resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-23_PRODUCTION_AUTHORING_RESUME.md)
+after the current role documents. The persistent **Numberdroid** project already
+contains Klaus's work; it is no longer the initially empty project. Reopen the
+same verified directory, never recreate it or seed a fixture. Establish and
+verify a backup before further valuable authoring or administration; automatic
+backups have not been configured. Then continue from the saved content and agree
+the first real game-content brief, rather than starting another generic pilot.
+
+## Earlier real-asset proof — 2026-09-22
+
+Earlier direction: real-asset Room authoring, followed by a bounded
 real-agent Room task in a separate disposable project. PR #262's indexed-PNG
 input repair is merged; exact-head Build2512 and post-merge Build2513 passed.
 Klaus passed the bounded real Family Table visual check. Subsequent native-UI
@@ -229,7 +261,7 @@ Room/Preview fixtures and the separate `review-feedback` fixture. See the [launc
 and VT-015 in the [return backlog](VACATION_TEST_BACKLOG.md).
 Fixture helpers must never target a personal or existing workspace, backup or
 restored copy. Preserve uncertain local data and unrelated dirty worktrees.
-A future real production pilot needs an explicitly selected source and a named
+Production content work needs an explicitly selected source and a named
 persistent data directory outside the repository and outside `/tmp`.
 
 ## Read for the actual task

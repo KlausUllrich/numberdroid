@@ -5,13 +5,20 @@
 After PR272's exact-head and post-merge green integration and same-data restart,
 Klaus reported **“immer noch langsam”** and explicitly required the same manual
 save philosophy for all Room tools: shared local draft, top `Unsaved changes`
-bar, user-triggered Save, full Room check before storing. Responsiveness remains
-**REVISE**. No automated result or prior practice pass accepts this candidate.
+bar, user-triggered Save, full Room check before storing. The bounded manual-save
+and responsiveness gate is now **USER ACCEPTED — PASS**: after installation,
+Klaus explicitly replied **“pass!”** to repeated local Move/Rotate without
+autosave, `Unsaved changes`, Discard, explicit checked Save and reload retention,
+including whether editing now feels pleasantly fast. This does not accept overall
+VT-001/CP4.5 or unpresented tool-specific live checks.
 
 The [updated contract](CHECKPOINT_4_5_CONTRACT.md#responsive-placement-editing--approved-direction-2026-09-23)
 supersedes per-move autosave and the earlier proposed persisted unchecked model.
-The unified implementation is a locally verified source candidate on a separate
-branch; the live project has not been edited, reset or replaced. Native browser
+PR #273 merged as `5409bc81da84e34842244d36dd802fd20431584b`, tree
+`edaeb6559f8811d952e82b1319527edfedfb7e52`; exact-head Build2543 and post-merge
+Build2544 passed. Klaus authorized the same-data restart before his live pass.
+Full saved API/snapshot bytes were identical before/after installation; no
+project was reset or replaced. Native browser
 evidence at 1440×900 and 1060×900 covers mixed tools with zero writes before Save,
 one checked atomic revision despite an intentionally lost successful response,
 exact replay, Discard/no-op, historical pins and identical saved state after
@@ -24,11 +31,21 @@ findings. Syntax/build checks cover 432 JavaScript files; Checkpoint 1A evidence
 is `VERIFIED`; documentation/classifier checks pass. Independent authority,
 persistence, recovery, UI-state, UX and test-scope reviews found no remaining
 blocker after the affected fixes. Exact-head CI, integration and Klaus's live
-acceptance remain separate gates in the focused PR; none is inferred here.
+acceptance are separately recorded in [PR #273](https://github.com/KlausUllrich/numberdroid/pull/273);
+the human result is his explicit reply, not an inference from engineering evidence.
 Existing Surface planning,
 agent commands, saved schema and finalization rules stay protected. Windows is
 not requested. Earlier entries below retain historical evidence, not current
 manual-save integration or acceptance.
+
+The 2026-09-23 session now continues into real content authoring. The new
+persistent Numberdroid project already has owner-authored content; its observed
+Room v1 is an unfinished 4×4 Room with no placements and one missing
+Surface-coverage error. That is saved authoring state, not another accepted
+Room or a reported product defect. Preserve it and newer saves. The
+[production resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-23_PRODUCTION_AUTHORING_RESUME.md)
+records the separate project and safe restart procedure; private identity/path
+details remain local.
 
 ## Responsive Room editing direction — 2026-09-23
 

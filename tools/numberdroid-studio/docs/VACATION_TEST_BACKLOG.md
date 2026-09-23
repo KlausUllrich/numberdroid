@@ -36,13 +36,13 @@ Keep these states distinct:
 
 ### 2026-09-23 Unified manual Room save
 
-**LOCALLY VERIFIED SOURCE CANDIDATE; NEEDS INTEGRATION AND KLAUS LIVE; responsiveness REVISE.** Klaus
+**USER ACCEPTED — PASS for the presented manual-save/responsiveness bundle.** Klaus
 reported PR272 still slow, then required manual saving for every Room tool.
 One shared draft and top `Unsaved changes` / `Save changes` / `Discard changes`
 bar replaces per-action autosave. Save checks the complete Room before one
 atomic version; the earlier persisted unchecked/check proposal is superseded.
 
-After the whole candidate is ready, present one mixed-tool test bundle, not a
+The implementation gate required one mixed-tool test bundle, not a
 Move-only halfway implementation: change shape, surfaces, prop position/rotation
 and entrance/settings without a write; inspect the dirty bar; discard once;
 repeat and explicitly Save; verify findings and exact saved Preview/reopen.
@@ -51,8 +51,15 @@ no-op, exact retries, no partial save and conflict/draft protection. Resolve
 current fixture state before giving precise user instructions; do not reset
 either live project. The mixed-tool native/SQLite proof, response-loss replay,
 historical-pin proof and server restart checks now pass at both supported test
-widths. See [Room status](ROOM_EDITOR_L3_STATUS.md) for engineering evidence;
-this does not accept responsiveness or authorize replacing the running server.
+widths. See [Room status](ROOM_EDITOR_L3_STATUS.md) for engineering evidence.
+After PR #273 and its green post-merge CI, Klaus authorized the same-data
+installation and explicitly replied **“pass!”** to the presented live bundle:
+repeated local Move/Rotate without autosave, dirty bar, Discard, explicit checked
+Save and reload retention, including pleasant editing responsiveness. Do not
+repeat those checks without a regression. Other tool-specific manual checks and
+overall VT-001/CP4.5 are not accepted by this reply. The new
+[production direction](START_HERE.md#production-direction--2026-09-23) makes real
+content work primary without waiving relevant automated or human gates.
 
 ### 2026-09-23 Responsive Room editing
 
