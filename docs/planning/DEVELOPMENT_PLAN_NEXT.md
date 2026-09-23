@@ -1,5 +1,36 @@
 # Numberdroid — Current Development Plan
 
+## 2026-09-23 Production authoring begins
+
+Klaus explicitly directed **production now, with Studio improved during real
+content work**: “Ab jetzt werden wir das Tool weiter verbessern, aber ab jetzt
+gehen wir live.” This supersedes test/pilot-first sequencing as a prerequisite
+for ordinary Numberdroid content authoring. Existing test levels and workspaces
+remain preserved references, not automatically a frozen final production layout.
+Approved art, source provenance and individual acceptances remain valid; no
+blanket regeneration or rewrite is implied.
+
+Work from a concrete game-content brief to reusable Assets and authored Rooms
+or levels, using scoped agent proposals and human review where useful. Keep
+production content in a named persistent project outside repository/temporary
+storage; never use it for fixtures, resets or failure injection. Protect valuable
+work before migrations/administration. Bundle minor tooling findings and repair
+blockers directly with risk-selected verification.
+
+“Live” means durable production authoring, not public deployment, publication,
+release, broad agent activation or automatic milestone acceptance. Runtime
+materialization still needs a concrete separately scoped implementation and
+authority decision; it is not an existing Studio capability. The first room
+brief remains a design choice: this decision does not silently select the
+previously suggested Family-room pilot or freeze TS-01 as the final game layout.
+The [Studio entrypoint](../../tools/numberdroid-studio/docs/START_HERE.md#production-direction--2026-09-23)
+routes practical work.
+
+Klaus explicitly passed the installed manual Room Save/responsiveness bundle
+on main `5409bc8` (PR #273): local Move/Rotate, dirty state, Discard, explicit
+checked Save and reload retention. See [Room status](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md).
+That bounded acceptance does not accept overall VT-001/CP4.5.
+
 ## 2026-09-23 Surface production user acceptance
 
 Klaus approved the [Surface painting/fill design](../../tools/numberdroid-studio/docs/SURFACE_AUTHORING_DESIGN.md)
