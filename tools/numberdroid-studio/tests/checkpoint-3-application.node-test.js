@@ -202,7 +202,31 @@ test('atomic editor Save fails closed on authority, CAS, duplicate operations, p
   await attempt(value => { value.addPlacements = [{ ...placement({ placementId: 'new.bad', assetId: 'asset.table', x: 2, y: 1, layer: 'SET_DRESSING' }), proposalId: 'forged.proposal' }]; }, 'UNTRUSTED_AUTHORITY_FIELD');
   await attempt(value => { value.moves = Array.from({ length: 257 }, () => ({ placementId: 'floor.1.0', expectedAssetId: 'asset.floor', anchor: { x: 2, y: 0 }, rotation: 0 })); }, 'ROOM_PLACEMENT_LIMIT');
   await attempt(value => { value.width = 3; }, 'ROOM_RESIZE_CLIPS_CONTENT');
+  await attempt(value => { value.addPlacements = Array.from({ length: 245 }, (_, index) => placement({ placementId: `too.many.${index}`, assetId: 'asset.table', x: 2, y: 1, layer: 'SET_DRESSING' })); }, 'ROOM_PLACEMENT_LIMIT');
+  await attempt(value => { value.voidCells = [{ x: 0, y: 0 }]; value.blockedCells = [{ x: 0, y: 0 }]; }, 'ROOM_SHAPE_CELL_CONFLICT');
+  await attempt(value => { value.width = 65; }, 'VALIDATION_ERROR');
   assert.equal(payload.addPlacements.length, 0);
+});
+
+test('atomic editor Save cannot modify checked/final Rooms or an unresolved proposal', async () => {
+  const { studio, store, command: save } = await editorFixture();
+  await studio.execute(roomCommand({ type: 'room.variant.validate', expectedVersion: 4,
+    payload: { roomVariantId: 'room.family-table', expectedRoomVariantVersion: 1 } }), OWNER_CONTEXT);
+  let before = await store.loadProject(PROJECT_ID);
+  await assert.rejects(studio.execute({ ...save, baseRevision: 5, expectedVersion: 5,
+    payload: { ...save.payload, expectedRoomVariantVersion: 2 } }, OWNER_CONTEXT), error => error.code === 'ROOM_EDIT_REQUIRES_DRAFT');
+  assert.deepEqual(await store.loadProject(PROJECT_ID), before);
+  await studio.execute(roomCommand({ type: 'room.variant.finalize', expectedVersion: 5,
+    payload: { roomVariantId: 'room.family-table', expectedRoomVariantVersion: 2 } }), OWNER_CONTEXT);
+  before = await store.loadProject(PROJECT_ID);
+  await assert.rejects(studio.execute({ ...save, baseRevision: 6, expectedVersion: 6,
+    payload: { ...save.payload, expectedRoomVariantVersion: 3 } }, OWNER_CONTEXT), error => error.code === 'ROOM_EDIT_REQUIRES_DRAFT');
+  assert.deepEqual(await store.loadProject(PROJECT_ID), before);
+  const fresh = await editorFixture();
+  await fresh.studio.execute(proposal(), AGENT_CONTEXT);
+  before = await fresh.store.loadProject(PROJECT_ID);
+  await assert.rejects(fresh.studio.execute({ ...fresh.command, baseRevision: 5, expectedVersion: 5 }, OWNER_CONTEXT), error => error.code === 'ROOM_PROPOSAL_UNRESOLVED');
+  assert.deepEqual(await fresh.store.loadProject(PROJECT_ID), before);
 });
 
 test('atomic editor Save evaluates final Surface swaps, not intermediate overlap', async () => {

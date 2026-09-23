@@ -47,6 +47,7 @@ test('Checkpoint 4 MCP exposes the complete branch-safe room path and bound task
     'studio_room_variant_finalize', 'studio_room_variant_warning_disposition_set',
     'studio_asset_lifecycle_set', 'studio_grant_issue', 'studio_grant_revoke',
     'studio_task_merge_revert',
+    'studio_room_variant_editor_save',
   ]) assert.ok(!names.has(name), `${name} must remain human-only.`);
 
   const resize = tools.find(({ name }) => name === 'studio_room_variant_resize');
@@ -80,6 +81,7 @@ test('Checkpoint 3 MCP surface stays unchanged when no task branch is bound', ()
   assert.equal(tools.length, 19);
   assert.ok(!tools.some(({ name }) => name.startsWith('studio_task_')));
   assert.ok(!tools.some(({ name }) => name === 'studio_room_variant_resize'));
+  assert.ok(!tools.some(({ name }) => name === 'studio_room_variant_editor_save'));
 });
 
 test('Checkpoint 4 official discovery adds one bound task resource and keeps task identity out of its URI', async (context) => {

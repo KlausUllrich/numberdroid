@@ -85,6 +85,7 @@ test('Surface mapping is an exact explicit 32-tool extension; 19/30/31 remain un
   assert.deepEqual(selected.map(t => t.name).sort(), [...v2.map(t => t.name), TOOL].sort());
   for (const catalog of [legacy, task, v2, selected]) {
     assert.equal(catalog.some(t => t.name === 'studio_room_variant_surfaces_undo'), false);
+    assert.equal(catalog.some(t => t.name === 'studio_room_variant_editor_save'), false);
   }
   for (const catalog of [legacy, task, v2]) assert.equal(catalog.some(t => t.name === TOOL), false);
   const definitions = await selected.find(t => t.name === 'studio_command_catalog_list').execute({ projectId: PROJECT_ID });
