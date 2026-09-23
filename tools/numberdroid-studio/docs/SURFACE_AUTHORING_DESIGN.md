@@ -1,7 +1,14 @@
 # Studio — Surface Painting and Fill Design
 
-Status: **PROPOSED — interactive mockup awaiting Klaus's design review,
-2026-09-22. Not implemented or user accepted.**
+Status: **DESIGN APPROVED by Klaus on 2026-09-22. Production implementation
+not started; session closed at the user's request.**
+
+Klaus said **“nice, approved. However, we need to close the session now.
+Please prepare for server shutdown”** after the interactive mockup. The next
+session may implement this bounded design without repeating its approval gate.
+This is not production-feature or overall Studio acceptance. Use the
+[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
+to recover the protected live projects and next implementation block.
 
 This is the bounded follow-up to the
 [Surface-authoring observations](VACATION_TEST_BACKLOG.md#2026-09-22-next-room-batch--responsive-surface-painting-and-fill-tools).
@@ -11,7 +18,7 @@ It specializes the [Authoring Product Model](AUTHORING_PRODUCT_MODEL.md),
 The compact mockup uses decorative 1×1 Surfaces and simulated saves only.
 It does not connect to a Studio server or alter a project. Its interactive
 artifact is retained in the current BB thread storage as
-`surface-tools-proposal.html`; this document retains the proposed semantics
+`surface-tools-proposal.html`; this document retains the approved design semantics
 independently of that local artifact.
 
 ## One focused Surface tool

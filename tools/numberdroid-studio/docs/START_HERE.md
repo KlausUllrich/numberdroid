@@ -26,15 +26,18 @@ existing validation-tool instructions. Local Studio and Room browser/restart
 checks pass; exact-head integration evidence belongs to the associated PR/CI
 record. No new screen, permission or lifecycle transition is part of that block.
 
-Next requested planning block: Klaus's Surface-painting responsiveness,
-overlap visibility/replacement, room/selection fill, and controlled random
-asset/rotation tools. The [Surface batch](VACATION_TEST_BACKLOG.md#2026-09-22-next-room-batch--responsive-surface-painting-and-fill-tools)
-records observations, source-confirmed behavior, proposed semantics and the
-bundled test scope. New tool UI still needs its compact design/mockup gate;
-these requests do not authorize silent deletion of overlapping placements.
-The [Surface interaction proposal](SURFACE_AUTHORING_DESIGN.md) now records
-Paint/Fill, visible overlap repair, stable preview and atomic recovery semantics;
-it remains proposed, not approved or implemented.
+Session pause, 2026-09-22: Klaus approved the interactive
+[Surface design](SURFACE_AUTHORING_DESIGN.md) with **“nice, approved”**, then
+requested shutdown preparation. Next session: implement responsive painting,
+visible overlap repair/replacement, room/selection fill, mixed assets, legal
+cardinal rotation, stable preview and atomic save/retry/undo as one bounded L3
+batch. Do not repeat the mockup approval or infer production acceptance.
+The [Surface batch](VACATION_TEST_BACKLOG.md#2026-09-22-next-room-batch--responsive-surface-painting-and-fill-tools)
+owns the bundled live test; the
+[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
+records exact projects, restart instructions and engineering constraints.
+No Surface production code changed before this pause. Preserve the newer
+sandbox edits (project r111 observed before shutdown), not older QA snapshots.
 
 Previous completed block (2026-09-22): Klaus approved the
 [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md) and authorized its
