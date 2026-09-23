@@ -75,6 +75,7 @@ export function createRoomMoveEditor({ context, check, send, adopt, changed, key
   }
   function enqueue(intent) {
     const current = context();
+    if (!pending()) owner = identity(current);
     if (!current || current.blocked) { message = current?.blocked || 'No editable Room is open.'; notify(); return false; }
     if (attempt && ['uncertain', 'refresh'].includes(attempt.phase) && !running) { notify(); return false; }
     if (pending() && !owns()) { message = 'Resolve the original Room save before editing another Room.'; notify(); return false; }

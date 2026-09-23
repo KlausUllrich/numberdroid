@@ -1869,6 +1869,8 @@ export class SqliteProjectStore extends ProjectStore {
   }
 
   async loadRoomMoveAssetVersions(projectId, head, roomVariantId) {
+    invariant(head?.snapshot?.project?.id === projectId, 'CORRUPT_PROJECT',
+      'Exact Room Asset reads require the captured same-project head.', { projectId });
     const entry = head.snapshot.roomLibrary?.variants.find(room => room.roomVariantId === roomVariantId);
     const room = entry?.versions.find(version => version.version === entry.headVersion);
     const assets = new Map();
@@ -1894,7 +1896,10 @@ export class SqliteProjectStore extends ProjectStore {
             SELECT revision_json FROM revisions WHERE project_id = ? AND revision_number = ?
           `).get(projectId, number);
           invariant(revision, 'CORRUPT_PROJECT', 'An exact Asset creation revision is missing.', { projectId, revision: number });
-          historicalRevisions.set(number, parseJson(revision.revision_json, 'revisions.revision_json'));
+          const historical = parseJson(revision.revision_json, 'revisions.revision_json');
+          invariant(historical.number === number && historical.snapshot?.project?.id === projectId,
+            'CORRUPT_PROJECT', 'An exact Asset creation revision has inconsistent identity.', { projectId, revision: number });
+          historicalRevisions.set(number, historical);
         }
         asset = historicalRevisions.get(number).snapshot.assetLibrary?.assets.find(matches);
       }

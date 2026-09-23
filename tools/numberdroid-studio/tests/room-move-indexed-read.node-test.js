@@ -91,9 +91,34 @@ test('indexed owner Move preserves exact historical pins, ledger precedence, rol
       try { await assert.rejects(studio.execute(move('missing-pin', 18, 3), OWNER), error => error.code === 'ROOM_ASSET_VERSION_NOT_FOUND'); }
       finally { store.loadRoomMoveAssetVersions = pinRead; }
       const head = await store.loadProjectHead(PROJECT_ID);
+      assert.deepEqual((await store.loadRoomMoveContext(PROJECT_ID, {
+        commandId: 'indexed.context', idempotencyKey: 'indexed.context', dryRun: false,
+      })).head, head, 'The indexed context retains authoritative live-grant overlay state.');
+      assert.equal(await store.loadRoomMoveContext('project.absent', {
+        commandId: 'indexed.context', idempotencyKey: 'indexed.context', dryRun: false,
+      }), null);
+      await assert.rejects(store.loadRoomMoveAssetVersions('project.foreign', head, MIXED_ROOM_ID),
+        error => error.code === 'CORRUPT_PROJECT');
       const room = head.snapshot.roomLibrary.variants.find(room => room.roomVariantId === MIXED_ROOM_ID).versions.at(-1);
       room.placements[0].metadataVersion = 99;
       assert.equal((await store.loadRoomMoveAssetVersions(PROJECT_ID, head, MIXED_ROOM_ID)).has(`${ASSET_ID}@1:99`), false);
+    });
+
+    await context.test('partial capability and task-branch stores use the ordinary full-history path', async () => {
+      const document = await fullRead(PROJECT_ID);
+      const legacy = new InMemoryProjectStore();
+      legacy.supportsAtomicRoomDesigner = true;
+      await legacy.createProject(document);
+      let legacyReads = 0;
+      const legacyRead = legacy.loadProject.bind(legacy);
+      legacy.loadProject = async projectId => { legacyReads += 1; return legacyRead(projectId); };
+      legacy.loadRoomMoveContext = () => { throw new Error('Partial adapter selected'); };
+      await new StudioService({ store: legacy, clock }).execute(move('legacy', 18, 3, { dryRun: true }), OWNER);
+      assert.equal(legacyReads, 1);
+      legacy.isTaskBranchStore = true;
+      legacy.loadRoomMoveAssetVersions = () => { throw new Error('Task adapter selected'); };
+      await new StudioService({ store: legacy, clock }).execute(move('task', 18, 3, { dryRun: true }), OWNER);
+      assert.equal(legacyReads, 2);
     });
 
     await context.test('every Move transaction stage rolls back without changing authoritative history', async () => {

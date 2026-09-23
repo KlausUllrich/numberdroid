@@ -101,8 +101,19 @@ test('manual refresh or dirty shape rejects input before preview, key or POST', 
 test('queue is bounded and immediate preflight rejects out-of-room display', async () => {
   const h = harness({ limit: 2 }); assert.equal(h.move(-1), false);
   h.move(1); assert.equal(h.move(2), true); assert.equal(h.move(3), true); assert.equal(h.move(4), false);
+  assert.match(h.editor.getState().message, /queue is full/);
   assert.equal(h.editor.project(h.context().room).placements[0].anchor.x, 3);
   for (let i = 0; i < 3; i += 1) { h.complete(i); await tick(); }
+});
+
+test('forced context switch never paints another Room or sends the queued request', async () => {
+  const h = harness(); h.move(1); h.move(2); h.setProject('other');
+  assert.equal(h.editor.project(h.context().room).placements[0].anchor.x, 0);
+  h.deferred[0].reject(new Error('Connection lost')); await tick();
+  assert.equal(h.editor.canInput(), false); assert.equal(h.move(3), false);
+  await h.editor.retry(); assert.equal(h.calls.length, 1);
+  h.setProject('project'); const retry = h.editor.retry(); h.complete(1); await retry; await tick();
+  h.complete(2); await tick(); assert.equal(h.context().revision, 5);
 });
 
 test('malformed confirmation cannot become saved; exact retry remains available', async () => {

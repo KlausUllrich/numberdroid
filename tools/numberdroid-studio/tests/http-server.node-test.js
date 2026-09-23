@@ -50,6 +50,10 @@ test('visual shell is clickable, creates the demo through commands, and exposes 
   assert.equal(favicon.status, 200);
   assert.match(favicon.headers.get('content-type'), /^image\/svg\+xml/);
   const clientScript = await fetch(`${base}/app.js`).then((response) => response.text());
+  const roomMoveScript = await fetch(`${base}/room-move-editor.js`);
+  assert.equal(roomMoveScript.status, 200);
+  assert.match(roomMoveScript.headers.get('content-type'), /^text\/javascript/);
+  assert.match(await roomMoveScript.text(), /export function createRoomMoveEditor/);
   assert.match(clientScript, /idempotent-retry/);
   assert.match(clientScript, /post-revoke-attempt/);
   assert.match(clientScript, /PROCESSING: 'Preview processing'/);
