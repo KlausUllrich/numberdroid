@@ -94,12 +94,16 @@ export function createAgentToolCatalog(studioService, {
   assemblyV1 = null,
   animationV1 = null,
   reviewV1 = null,
+  protocolFeatureSet = null,
 } = {}) {
   if (!studioService) {
     throw new StudioError('VALIDATION_ERROR', 'A StudioService is required.');
   }
   if (typeof contextProvider !== 'function') {
     throw new StudioError('VALIDATION_ERROR', 'A trusted MCP host contextProvider is required.');
+  }
+  if (protocolFeatureSet !== null && protocolFeatureSet !== 'surfaces-v1') {
+    throw new StudioError('MCP_FEATURE_SET_UNSUPPORTED', 'Select a supported explicit MCP feature set.');
   }
 
   async function authority(invocationContext, requestedProjectId) {
@@ -127,6 +131,10 @@ export function createAgentToolCatalog(studioService, {
     ? createAuthoringV2McpSurface(studioService, authoringV2, { authorizeProject: authority })
     : null;
   const authoringV2Ready = authoringV2Surface !== null;
+  const surfacesReady = protocolFeatureSet === 'surfaces-v1';
+  if (surfacesReady && !authoringV2Ready) {
+    throw new StudioError('SURFACES_NEGOTIATION_REQUIRED', 'Surface authoring requires a positively negotiated Authoring-v2 task branch.');
+  }
   const agentAttemptAuditReady = studioService.agentAttemptAuditReady === true || authoringV2Ready;
   const durableJobStoreReady = studioService.durableJobStoreReady === true || authoringV2Ready;
   const durableAssetStoreReady = studioService.durableAssetStoreReady === true || authoringV2Ready;
@@ -140,6 +148,9 @@ export function createAgentToolCatalog(studioService, {
   const agentDefinitions = studioService.commandCatalog.filter(
     (definition) => !definition.ownerOnly
       && definition.type !== 'project.create'
+      && (definition.mcpProfile === undefined || (surfacesReady
+        && definition.mcpProfile === 'surfaces-v1'
+        && definition.type === 'room.variant.surfaces.apply'))
       && (!definition.requiresReviewProfile || reviewReady)
       && (!definition.requiresDurableReviewStore || (reviewReady && studioService.durableReviewStoreReady === true))
       && (!definition.requiresAssemblyProfile || assemblyReady)
@@ -169,6 +180,9 @@ export function createAgentToolCatalog(studioService, {
     },
     execute: async (input, invocationContext) => {
       const context = await authority(invocationContext, input.projectId);
+      if (definition.mcpProfile === 'surfaces-v1' && input.projectId !== authoringV2Surface.negotiation.projectId) {
+        throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Surface authoring must use the negotiated project.');
+      }
       if ((definition.requiresReviewProfile || definition.requiresAssemblyProfile || definition.requiresAnimationProfile) && input.projectId !== surfaceProject) throw new StudioError('CONTEXT_PROJECT_MISMATCH', 'Assembly submission must use the negotiated project.');
       if (!animationReady && input.payload?.assembly?.schemaVersion === 2) throw new StudioError('ANIMATION_NEGOTIATION_REQUIRED', 'Assembly v2 requires animation-v1.');
       const targetService = definition.requiresTaskBranch && agentTaskService ? agentTaskService : studioService;
@@ -409,11 +423,21 @@ export function createAgentToolCatalog(studioService, {
       ...(reviewReady ? [queryTool('studio_review_query', 'Read shared Review versions, dependencies, feedback and decisions', REVIEW_QUERY_SCHEMA, 'queryReviews')] : [])];
   }
   if (!authoringV2Surface) return legacyTools;
-  if (legacyTools.length !== 30) {
+  if (surfacesReady) {
+    const surfaceDefinition = agentDefinitions.find((definition) => definition.type === 'room.variant.surfaces.apply');
+    if (!surfaceDefinition || surfaceDefinition.toolName !== 'studio_room_variant_surfaces_apply'
+      || surfaceDefinition.mcpProfile !== 'surfaces-v1'
+      || surfaceDefinition.requiredScope !== 'room.variant.surfaces.apply' || surfaceDefinition.requiresTaskBranch !== true
+      || surfaceDefinition.requiresDurableRoomStore !== true) {
+      throw new StudioError('SURFACES_SURFACE_BASELINE_MISMATCH', 'Surface authoring requires the exact scoped task-branch Apply definition.');
+    }
+  }
+  const expectedToolCount = surfacesReady ? 31 : 30;
+  if (legacyTools.length !== expectedToolCount) {
     throw new StudioError(
       'AUTHORING_V2_SURFACE_BASELINE_MISMATCH',
-      'Authoring v2 requires the exact 30-tool matching-task baseline.',
-      { expectedToolCount: 30, actualToolCount: legacyTools.length },
+      'Authoring v2 requires its exact matching-task tool baseline.',
+      { expectedToolCount, actualToolCount: legacyTools.length },
     );
   }
   return [...legacyTools, authoringV2Surface.tool];

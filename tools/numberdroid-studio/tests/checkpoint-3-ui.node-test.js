@@ -120,7 +120,7 @@ test('Checkpoint 3 canvas and review surfaces remain bounded at 1440 and protect
   assert.match(styles, /calc\(var\(--room-cell\) \* \.16\)/);
   assert.match(styles, /\.room-palette-list \{[^}]*overflow: auto/);
   assert.match(styles, /\.room-placement-list \{[^}]*overflow: auto/);
-  assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: 116px minmax\(300px, 1fr\)/);
+  assert.match(styles, /@media \(max-width: 1200px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: minmax\(0, 1fr\) minmax\(280px, \.8fr\)/);
   assert.match(styles, /@media \(max-width: 820px\)[\s\S]*\.room-editor-shell \{ grid-template-columns: 1fr/);
 });
 
@@ -260,7 +260,8 @@ test('Room repair keeps an exact persistent brush, clear tool, resize guidance, 
   assert.match(styles, /\.room-canvas-scroll \{[^}]*overflow: auto;[^}]*scrollbar-gutter: stable/);
   assert.match(evidence, /persistentBrush/);
   assert.match(evidence, /surfaceResize/);
-  assert.match(evidence, /layer === 'STRUCTURAL_SURFACE'/);
+  assert.match(evidence, /surfaces-apply/);
+  assert.match(evidence, /planRoomSurfaces/);
   assert.match(evidence, /attempted\?\.join\(','\) === 'placement-select,connector-select'/);
   assert.match(evidence, /previewFailure\.placementRotation === 0/);
   assert.match(evidence, /dirtyGuard\.state\?\.pendingPlacementAdd === null/);
@@ -296,6 +297,7 @@ async function roomCreationHarness({ failure = false, omitCreatedHead = false, r
   const resizeStart = app.indexOf("  if (form.dataset.roomForm === 'resize') {");
   const resizeBody = app.slice(resizeStart, app.indexOf("  if (form.dataset.roomForm === 'connector')", resizeStart));
   const sandbox = { state, structuredClone, elements: { 'workspace-content': { querySelector: () => null } }, document: { createElement: roomTestElement, createDocumentFragment: roomTestElement },
+    roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false },
     currentRoomLibrary: () => library, roomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion),
     exactRoomHead: (entry) => entry?.versions.find(({ version }) => version === entry.headVersion) ?? null,
     roomHeadFindingProjection: () => ({ errors: [] }), findingSummary: () => 'No findings',
@@ -417,12 +419,12 @@ test('Room navigation preserves unresolved commands, gestures and declined dirty
     { dirty: true, decisionDrafts: { proposal: { decision: 'REJECTED', reason: 'Keep this' } } }]) {
     const state = { roomMutationPending: false, roomUi, roomNavigation: { route: 'editor' } };
     const before = JSON.stringify(state); let resetCount = 0;
-    const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, window: { confirm: () => false }, showToast() {}, resetRoomUiProjectContext() { resetCount += 1; } });
+    const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false }, window: { confirm: () => false }, showToast() {}, resetRoomUiProjectContext() { resetCount += 1; } });
     assert.equal(leave(), false); assert.equal(JSON.stringify(state), before); assert.equal(resetCount, 0);
   }
   const values = { displayName: 'Unsaved room' };
   const state = { roomMutationPending: false, roomUi: {}, roomNavigation: { route: 'create-room', creation: { values, initial: '{}' } } };
-  const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, window: { confirm: () => false }, showToast() {}, askRoomCreationDiscard() {} });
+  const leave = runInNewContext(`${source}; mayLeaveRoomNavigation;`, { state, roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false }, window: { confirm: () => false }, showToast() {}, askRoomCreationDiscard() {} });
   assert.equal(leave(), false); assert.equal(state.roomNavigation.creation.values.displayName, 'Unsaved room');
 });
 

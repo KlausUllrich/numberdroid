@@ -1,15 +1,29 @@
 # Numberdroid — Current Development Plan
 
-## 2026-09-22 Surface tools design approved — session pause
+## 2026-09-23 Surface implementation candidate
 
 Klaus approved the [Surface painting/fill design](../../tools/numberdroid-studio/docs/SURFACE_AUTHORING_DESIGN.md)
-and requested shutdown preparation. Next session may implement the bounded L3
-Surface batch without repeating mockup approval: responsive paint/replacement,
-visible overlaps, room/selection fill, compatible random assets/rotations,
-stable preview and atomic save/retry/undo. Production code is not yet changed.
-The [resume handoff](../history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
-protects current pilot/sandbox data and records the next gate. Production and
-overall Studio acceptance remain separate; no Windows run is requested.
+on 2026-09-22. The bounded L3 result is an **IMPLEMENTED CANDIDATE — NEEDS KLAUS
+LIVE; not user accepted**. It covers responsive queued Paint,
+replacement/no-op, visible overlap repair, room/selection Fill, compatible
+mix/rotation, stable preview, atomic Apply/exact retry and human-only Undo.
+Existing usable-origin macro alignment and Room semantics remain unchanged.
+Local engineering gates and five independent review axes are complete.
+Exact-head integration status and CI evidence belong to
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); do not infer
+an unobserved merge or CI pass. Run the
+[bundled live test](../../tools/numberdroid-studio/docs/VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
+on the prepared disposable **Surface tools room** / **Overlap repair room**
+fixture after verifying its served build and URL. The
+[Room status](../../tools/numberdroid-studio/docs/ROOM_EDITOR_L3_STATUS.md)
+owns the candidate evidence; do not infer Klaus's decision from automation.
+Explicit `surfaces-v1` MCP mapping provides 32 tools / six existing resources,
+requires the new `room.variant.surfaces.apply` task capability, and activates
+neither a runtime selector nor a live host or existing grant. Preserve pilot r34
+and sandbox r111 untouched; the prior resume handoff retains recovery context.
+Windows was not requested and is not run. Prior accepted blocks and VT-001's
+separate REVISE state remain unchanged; no later milestone or publication work
+is sequenced by this update.
 
 ## 2026-09-22 Rooms navigation user acceptance
 

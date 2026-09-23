@@ -404,6 +404,40 @@ A successful committed validation creates a VALIDATED version; that head is
 no longer content-editable. Resuming the task does not change Room lifecycle.
 These are existing semantics, not new tools, grants or lifecycle transitions.
 
+### Explicit Surface authoring mapping — candidate `surfaces-v1`
+
+The transport-neutral catalog and official server builder accept the trusted
+configuration `protocolFeatureSet: 'surfaces-v1'` only alongside a positively
+negotiated Authoring-v2 matching task branch. This is an explicit adapter feature
+selection, never a tool argument, grant, or replacement for current per-call
+authorization. Unknown selections and absent/invalid v2 negotiation fail closed.
+With no selection, accepted default 19/four, matching-task 30/five, Authoring-v2
+31/six, and the existing shared-head profiles remain unchanged.
+
+The selected surface is exactly **32 tools/six resource templates**: Authoring v2
+plus only `studio_room_variant_surfaces_apply`, mapped to the shared semantic
+`room.variant.surfaces.apply` command. It uses the ordinary schema-v1 mutation
+envelope, exact Room/asset/metadata pins, deterministic plan fingerprint, and
+explicit `room.variant.surfaces.apply` task capability and isolated task branch.
+Existing grants gain no Surface authority. The command catalog adds two definitions
+and one narrow scope (48 definitions / 36 scopes); Undo is owner-only and adds no
+agent scope. `dryRun: true`
+uses the same semantic planning/validation path without a saved revision or
+durable command charge; omitted `dryRun` retains the common `false` default.
+Committed changes remain branch-local and enter the existing immutable
+accepted-subset owner-review flow. Discovery never grants permission to merge,
+finalize, publish, or change task authority.
+
+Existing Room query/detail and task resources carry the results; no Surface
+resource is added. Compensating `room.variant.surfaces.undo` remains owner-only
+and is never advertised. The profile marker does not expose arbitrary future
+commands: only the exact scoped Apply definition is admitted.
+
+This block supplies a tested mapping only. Runtime startup/environment selectors,
+launcher activation, and live-host exposure of `surfaces-v1` are explicitly
+deferred; the existing `NUMBERDROID_STUDIO_MCP_PROFILE` selector is unchanged.
+No running host or task is activated by this source change.
+
 ### Requirements, level, actor, and logic tools — Authoring v2
 
 The final names and grouping are frozen only with their DTO schemas. The required

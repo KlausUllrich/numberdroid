@@ -1,13 +1,26 @@
 # Numberdroid Studio — Roadmap and Verification Loop
 
-## 2026-09-22 Surface tools design approved — session pause
+## 2026-09-23 Surface implementation candidate
 
-Klaus approved the [Surface painting/fill design](SURFACE_AUTHORING_DESIGN.md),
-then requested shutdown preparation. Production implementation has not started.
-Next session implements the bounded responsive paint/replace, overlap repair,
-room/selection fill, mixed-asset/cardinal variation and atomic recovery batch.
-Use the [resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md).
-Do not repeat design approval or infer product acceptance; keep Windows opt-in.
+Klaus approved the [Surface painting/fill design](SURFACE_AUTHORING_DESIGN.md)
+on 2026-09-22. The bounded L3 block is an **IMPLEMENTED CANDIDATE — NEEDS KLAUS
+LIVE; not user accepted**: responsive queued Paint,
+replacement/no-op, visible overlap repair, room/selection Fill, stable exact
+preview and atomic Apply/retry with human-only Undo. Existing macro alignment
+and the Room contract remain binding. The
+[Room status](ROOM_EDITOR_L3_STATUS.md) owns candidate evidence; the
+[bundled retest](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
+records the prepared disposable two-Room fixture and six human checks. Local
+engineering gates and five independent review axes are complete; exact-head
+integration status and CI evidence belong to
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268), not an inferred
+merge or CI pass here. Klaus's decision remains pending.
+The opt-in `surfaces-v1` MCP mapping is 32 tools / six resources and requires
+the new narrow `room.variant.surfaces.apply` task capability. It activates no
+runtime selector, live host or existing grant. Preserve pilot r34 and sandbox
+r111 untouched. Do not repeat design approval or infer overall VT-001/Studio
+acceptance; Windows was not requested and is not run. This block does not
+sequence a later milestone or authorize runtime/publication work.
 
 ## 2026-09-22 Rooms navigation user acceptance
 

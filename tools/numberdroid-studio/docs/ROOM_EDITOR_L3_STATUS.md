@@ -1,15 +1,38 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
-## Surface tools design approved — 2026-09-22 session pause
+## Surface implementation candidate — 2026-09-23
 
 Klaus said **“nice, approved”** for the
 [Surface interaction mockup](SURFACE_AUTHORING_DESIGN.md), then requested server
-shutdown preparation. Design approval is complete; production Surface changes
-are not implemented. Continue via the
-[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
-with the approved L3 batch and one bundled live check. VT-001's overall state
-is unchanged. Preserve live sandbox project r111 and pilot r34 observed before
-shutdown; do not restore earlier test snapshots. Windows remains opt-in only.
+shutdown preparation on 2026-09-22. The result is now an
+**IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE; not user accepted**.
+The candidate adds the shared deterministic Surface planner, atomic Apply,
+human-only immediate-head Undo, explicit paint queue and exact same-request
+recovery. Fill uses a stable complete-footprint preview; unchanged Paint is a
+no-op. Existing usable-origin macro alignment, logical footprints, exact asset
+pins, DRAFT guards and owner-review boundaries are not relaxed.
+
+The explicit `surfaces-v1` MCP adapter mapping selects 32 tools / six existing
+resources only with negotiated Authoring-v2 task authority. Apply requires the
+new narrow `room.variant.surfaces.apply` capability; existing grants gain no
+rights. Undo remains human-only; runtime/launcher/live-host activation is
+deferred. Local engineering evidence: Studio 1,313 total / 1,308 passed / five
+expected skips / zero failures; syntax 421 files; Checkpoint 1A `VERIFIED`;
+documentation 427 links / 250 files green; CP3/CP4.5 browser evidence plus native
+Surface checks at 1440/1060 and restart green. All five independent review axes
+returned GO. Exact-head integration status and CI evidence belong to
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); this document
+does not claim an unobserved merge or CI pass. The
+[bundled human test](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
+remains pending on the prepared disposable **Surface tools room** / **Overlap
+repair room** fixture. Its exact identity is recorded in the backlog; verify
+the served build and URL before presenting it to Klaus.
+
+VT-001's overall REVISE state is unchanged. The permanent pilot r34 and sandbox
+r111 remain untouched; do not restore earlier snapshots or restart either live
+instance beneath unsaved edits. The
+[prior handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
+retains recovery context. Windows testing was not requested and is not run.
 
 ## Rooms collection navigation user acceptance — 2026-09-22
 

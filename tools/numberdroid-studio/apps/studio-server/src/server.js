@@ -104,6 +104,9 @@ const staticFiles = new Map([
   ['/o1b-backups-state.js', ['o1b-backups-state.js', 'text/javascript; charset=utf-8']],
   ['/remote-ui-mode.js', ['remote-ui-mode.js', 'text/javascript; charset=utf-8']],
   ['/room-preview-state.js', ['room-preview-state.js', 'text/javascript; charset=utf-8']],
+  ['/room-surface-editor.js', ['room-surface-editor.js', 'text/javascript; charset=utf-8']],
+  ['/room-surface-plan.js', ['../../../packages/domain/src/room-surface-plan.js', 'text/javascript; charset=utf-8']],
+  ['/packages/domain/src/room-surface-plan.js', ['../../../packages/domain/src/room-surface-plan.js', 'text/javascript; charset=utf-8']],
   ['/room-pinned-assets-state.js', ['room-pinned-assets-state.js', 'text/javascript; charset=utf-8']],
   ['/cutter-editor-state.js', ['cutter-editor-state.js', 'text/javascript; charset=utf-8']],
   ['/cutter-editor-view.js', ['cutter-editor-view.js', 'text/javascript; charset=utf-8']],
@@ -465,7 +468,7 @@ function assetProposalRoute(pathname) {
 }
 
 function roomRoute(pathname) {
-  const commandMatch = /^\/api\/projects\/([^/]+)\/rooms\/([^/]+)\/(intent|shape|resize|connectors|placements-add|placements-move|placements-remove|warning-dispositions|validate|finalize|fork)$/.exec(pathname);
+  const commandMatch = /^\/api\/projects\/([^/]+)\/rooms\/([^/]+)\/(intent|shape|resize|connectors|placements-add|placements-move|placements-remove|surfaces-preview|surfaces-apply|surfaces-undo|warning-dispositions|validate|finalize|fork)$/.exec(pathname);
   if (commandMatch) return {
     projectId: decodeURIComponent(commandMatch[1]),
     roomVariantId: decodeURIComponent(commandMatch[2]),
@@ -1750,6 +1753,18 @@ export function createStudioHttpServer({
           'placements-add': { type: 'room.variant.placements.add', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'placements'] },
           'placements-move': { type: 'room.variant.placements.move', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'moves'] },
           'placements-remove': { type: 'room.variant.placements.remove', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'placements'] },
+          'surfaces-preview': {
+            type: 'room.variant.surfaces.apply', dryRun: true,
+            keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'plannerVersion', 'scopeCells', 'policy', 'pool', 'baseRotation', 'randomRotation', 'seed', 'placementIdPrefix', 'overlapKeepPlacementIds', 'planFingerprint'],
+          },
+          'surfaces-apply': {
+            type: 'room.variant.surfaces.apply', dryRun: false,
+            keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'plannerVersion', 'scopeCells', 'policy', 'pool', 'baseRotation', 'randomRotation', 'seed', 'placementIdPrefix', 'overlapKeepPlacementIds', 'planFingerprint'],
+          },
+          'surfaces-undo': {
+            type: 'room.variant.surfaces.undo', dryRun: false,
+            keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'appliedRoomVariantVersion', 'appliedPlanFingerprint'],
+          },
           'warning-dispositions': { type: 'room.variant.warning.disposition.set', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'acceptedWarningFindingIds'] },
           validate: { type: 'room.variant.validate', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'confirm'], confirm: true },
           finalize: { type: 'room.variant.finalize', keys: ['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'confirm'], confirm: true },
@@ -1762,8 +1777,10 @@ export function createStudioHttpServer({
           if (!['expectedRevision', 'idempotencyKey', 'expectedRoomVariantVersion', 'confirm'].includes(key)) payload[key] = body[key];
         }
         const projectView = await studioService.readProjectTrusted(roomRequest.projectId);
+        const command = humanCommandDto(roomRequest.projectId, body, actionContract.type, payload);
+        command.dryRun = actionContract.dryRun === true;
         sendJson(response, 200, await studioService.execute(
-          humanCommandDto(roomRequest.projectId, body, actionContract.type, payload),
+          command,
           humanOwnerContext(projectView),
           { signal: requestAbort.signal },
         ));

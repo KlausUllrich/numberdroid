@@ -34,6 +34,87 @@ Keep these states distinct:
 
 ## Current queue
 
+### 2026-09-23 Surface candidate bundled retest
+
+State: **DESIGN APPROVED 2026-09-22; IMPLEMENTED CANDIDATE — NEEDS KLAUS LIVE;
+not user accepted.** Exact-head integration status and CI evidence reside in
+[PR #268](https://github.com/KlausUllrich/numberdroid/pull/268); no unobserved
+merge or CI pass is claimed here. The
+[approved design](SURFACE_AUTHORING_DESIGN.md) and [Room status](ROOM_EDITOR_L3_STATUS.md)
+own behavior and candidate evidence. Earlier accepted/frozen blocks are not
+reopened; VT-001 / CP4.5 remains REVISE. This is the implementation continuation
+of the September 22 request below, not another mockup-approval gate.
+
+The candidate uses shared semantic planning and atomic Apply, human-only
+immediate-head Undo, an explicit bounded Paint queue, same-pin/anchor/rotation
+no-ops, and exact original-request replay after an uncertain result. Existing
+Room macro alignment and whole logical footprints remain binding. The explicit
+`surfaces-v1` MCP adapter mapping has 32 tools / six existing resources, requires
+the new narrow `room.variant.surfaces.apply` task capability, and retains isolated
+task changes plus owner review. Existing grants gain nothing; runtime selectors,
+launcher activation and live-host exposure are deferred. No Windows run was
+requested or performed for this block.
+
+**Prepared disposable fixture — never use the pilot or sandbox for this batch.**
+Data: `/home/klaus/.bb/thread-storage/numberdroid-surface-live-20260923.tHOzlw/data`.
+Project `numberdroid-studio-checkpoint-2b`, starting revision **r13**:
+
+- **Surface tools room** (`room.surface.empty`), DRAFT v1, no placements.
+- **Overlap repair room** (`room.surface.overlap`), DRAFT v1, two Surfaces
+  overlapping at cell **(1, 1)**.
+- **Surface 1** (`asset.surface.0`) and **Surface 2** (`asset.surface.1`), each
+  exact asset version 1 / metadata version 1, are the prepared 1×1 choices.
+
+The sibling `start-studio.sh` starts the candidate checkout with this data.
+Port **4317** is planned for presentation after integration, not claimed running
+here. The testing agent must verify the served build and reachable URL before
+handing the batch to Klaus. Retain the fixture until his result is recorded.
+Pilot r34 and real-artwork sandbox r111 remain untouched; do not restore older
+snapshots or restart their live servers beneath unsaved edits.
+
+Run these six human checks together:
+
+1. **Quick Paint.** Open **Surface tools room**, choose Surface → Paint and
+   **Surface 1**, then click several empty cells quickly. All clicks should save;
+   the selected Surface, canvas position and zoom should stay stable.
+2. **Replace and Undo.** Choose **Surface 2** and repaint one of those cells.
+   It should replace Surface 1, not stack on top. Paint Surface 2 there again:
+   nothing changes and no new Room version is saved. Use Undo on the last saved
+   change; the cell should return to Surface 1 in a new saved version.
+3. **Fill the empty floor.** Choose Fill → Whole room, **Surface 1**, and
+   **Keep existing — fill empty cells only**. Preview, cancel once, then preview
+   and apply. Existing painted cells stay; the preview and saved floor agree.
+4. **Replace a selected area.** Choose Selected cells and **Surface 2**.
+   Try selecting cells and dragging a rectangle (Shift-drag adds another area;
+   Space toggles a focused cell). Choose **Replace existing Surfaces**, preview,
+   and apply. Only the selected area changes. Undo should restore that area.
+5. **Mix and rotation.** Select both **Surface 1** and **Surface 2** with random
+   legal rotation and preview a replacement fill. The arrangement stays fixed
+   until **Shuffle**; apply saves the shown result. Open saved Preview and return:
+   the floor should agree and controls should remain readable at wide/narrow sizes.
+6. **Repair the intentional overlap.** Open **Overlap repair room** and select
+   cell **(1, 1)**. Read the two occupying Surface names and choose which to keep.
+   Cancel once, then confirm. The explanation should clearly distinguish removing
+   a placement from deleting a Library asset. Only one Surface remains at that
+   cell, and **Surface tools room** is unaffected. Report accept or revise for
+   this bounded batch; a pass does not close all of VT-001.
+
+**Separate completed engineering coverage (not extra human fixture steps):**
+larger-footprint usable-origin alignment and complete-selection replacement;
+dirty-shape guards; unchanged non-Surface placements and unrelated rooms;
+atomic rollback and full 256-removal/256-addition capacity; no-op and rejection;
+denied authority, task-branch isolation and effect-free granted dryRun; exact
+lost-response retry, queued-click preservation, stale preview/Undo rejection;
+historical pins and replay/Undo after restart; unchanged legacy MCP profiles.
+Fault injection, restart and boundary cases were engineering tests, not requests
+for Klaus to break a server or invent assets absent from this human fixture.
+Local Studio: 1,313 total, 1,308 passed, five expected skips, zero failures;
+syntax 421; CP1A `VERIFIED`; docs 427 links / 250 files green; CP3/CP4.5 plus
+native Surface 1440/1060/restart checks green; five independent review axes GO.
+Stop writers/listeners before cleaning up only the uniquely allocated fixture.
+Exact-head integration/CI evidence remains in PR #268, separate from the live
+decision and from this local engineering evidence.
+
 ### 2026-09-22 next Room batch — responsive Surface painting and fill tools
 
 Klaus reported that single-cell Surface placement felt like a whole-site reload
@@ -45,10 +126,11 @@ new mockup or implementation.
 
 Klaus subsequently said **“go”** for the next block, then **“nice, approved”**
 for the [interactive design](SURFACE_AUTHORING_DESIGN.md). **DESIGN APPROVED
-2026-09-22; production implementation not started.** He requested session close
-and shutdown preparation; the
+2026-09-22; production implementation had not started at that pause.** He
+requested session close and shutdown preparation; the
 [resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
-is the continuation entry. Do not ask him to repeat this design approval.
+retains the pause/recovery record. Implementation resumed on 2026-09-23 as the
+candidate above. Do not ask him to repeat this design approval.
 The clickable mockup simulates 1×1 Surface painting/replacement, visible
 overlap repair, room/selected fill, mixed assets, legal cardinal rotation,
 stable preview/shuffle and undo. Larger-footprint, authoritative save/retry and

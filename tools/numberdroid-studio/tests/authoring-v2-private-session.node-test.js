@@ -1020,7 +1020,12 @@ test('production startup keeps the private v2 runtime hidden, write-free, and ab
   const origin = `http://127.0.0.1:${running.address.port}`;
   const catalogResponse = await fetch(`${origin}/api/catalog`);
   const catalog = await catalogResponse.json();
-  assert.equal(catalog.commands.length, 46);
+  // The full owner/application catalog includes Surface Apply and human Undo;
+  // neither belongs to this process's unchanged default MCP discovery below.
+  assert.equal(catalog.commands.length, 48);
+  assert.deepEqual(catalog.commands.filter(({ mcpProfile }) => mcpProfile === 'surfaces-v1').map(({ type }) => type).sort(), [
+    'room.variant.surfaces.apply', 'room.variant.surfaces.undo',
+  ]);
   assert.equal(catalog.commands.some(({ type }) => type === PROCESSING_RESULT_ADOPTION_COMMAND_TYPE), false);
   const absentRoute = await fetch(`${origin}/internal/authoring-v2/capabilities`);
   assert.equal(absentRoute.status, 404);
@@ -1038,6 +1043,7 @@ test('production startup keeps the private v2 runtime hidden, write-free, and ab
     contextProvider: async () => ({ projectId: PROJECT_ID }),
   });
   assert.equal(defaultTools.length, 19);
+  assert.equal(defaultTools.some(({ name }) => name.startsWith('studio_room_variant_surfaces_')), false);
   assert.equal(defaultTools.some(({ name }) => name === AUTHORING_V2_PROCESSING_RESULT_ADOPTION_TOOL), false);
   assert.equal(NUMBERDROID_PROJECT_CAPABILITY_FINGERPRINT, '826a8b7942ccba97393f55efa356525529994ad34189446992a7dff58fe97049');
   assert.equal(NUMBERDROID_AUTHORING_V2_PROJECT_CAPABILITY_FINGERPRINT, '5488df72b2e45c738735d90046cd3c4a7a560a99922936cfeb5a3e84c63fc106');
