@@ -1850,6 +1850,64 @@ export class SqliteProjectStore extends ProjectStore {
     return head;
   }
 
+  async loadRoomMoveContext(projectId, { commandId, idempotencyKey, dryRun }) {
+    const head = await this.loadProjectHead(projectId);
+    if (!head) return null;
+    // Use immutable ledger indexes, not the rebuildable idempotency projection.
+    // Replay is checked before command-ID conflict, just as in loadProject.
+    const priorRow = dryRun ? null : this.#workspace.database.prepare(`
+      SELECT revision_json FROM revisions WHERE project_id = ? AND idempotency_key = ?
+    `).get(projectId, idempotencyKey);
+    const duplicateRow = priorRow ? null : this.#workspace.database.prepare(`
+      SELECT revision_json FROM revisions WHERE project_id = ? AND command_id = ?
+    `).get(projectId, commandId);
+    return {
+      head,
+      prior: priorRow ? parseJson(priorRow.revision_json, 'revisions.revision_json') : null,
+      duplicateCommand: duplicateRow ? parseJson(duplicateRow.revision_json, 'revisions.revision_json') : null,
+    };
+  }
+
+  async loadRoomMoveAssetVersions(projectId, head, roomVariantId) {
+    invariant(head?.snapshot?.project?.id === projectId, 'CORRUPT_PROJECT',
+      'Exact Room Asset reads require the captured same-project head.', { projectId });
+    const entry = head.snapshot.roomLibrary?.variants.find(room => room.roomVariantId === roomVariantId);
+    const room = entry?.versions.find(version => version.version === entry.headVersion);
+    const assets = new Map();
+    const historicalRevisions = new Map();
+    // Missing Room/pin errors are raised by the ordinary application validation
+    // at its original point. Only bounded, already-saved placement pins are read.
+    for (const pin of room?.placements ?? []) {
+      const key = `${pin.assetId}@${pin.assetVersion}:${pin.metadataVersion}`;
+      if (assets.has(key)) continue;
+      const matches = asset => asset.assetId === pin.assetId && asset.assetVersion === pin.assetVersion
+        && asset.metadataVersion === pin.metadataVersion;
+      let asset = head.snapshot.assetLibrary?.assets.find(matches);
+      if (!asset) {
+        const row = this.#workspace.database.prepare(`
+          SELECT created_revision FROM asset_versions
+          WHERE project_id = ? AND asset_id = ? AND asset_version = ? AND metadata_version = ?
+            AND created_revision <= ?
+        `).get(projectId, pin.assetId, pin.assetVersion, pin.metadataVersion, head.number);
+        if (!row) continue;
+        const number = Number(row.created_revision);
+        if (!historicalRevisions.has(number)) {
+          const revision = this.#workspace.database.prepare(`
+            SELECT revision_json FROM revisions WHERE project_id = ? AND revision_number = ?
+          `).get(projectId, number);
+          invariant(revision, 'CORRUPT_PROJECT', 'An exact Asset creation revision is missing.', { projectId, revision: number });
+          const historical = parseJson(revision.revision_json, 'revisions.revision_json');
+          invariant(historical.number === number && historical.snapshot?.project?.id === projectId,
+            'CORRUPT_PROJECT', 'An exact Asset creation revision has inconsistent identity.', { projectId, revision: number });
+          historicalRevisions.set(number, historical);
+        }
+        asset = historicalRevisions.get(number).snapshot.assetLibrary?.assets.find(matches);
+      }
+      if (asset) assets.set(key, asset);
+    }
+    return assets;
+  }
+
   #applyLiveGrantStatus(projectId, head) {
     const grantRows = this.#workspace.database.prepare(`
       SELECT grant_id, authorization_status, issued_at, revoked_at, revoke_reason

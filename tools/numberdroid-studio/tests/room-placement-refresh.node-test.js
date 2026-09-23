@@ -5,7 +5,8 @@ import { runInNewContext } from 'node:vm';
 import { roomPinnedAssetsContext, roomPinnedAssetsKey } from '../apps/studio-server/public/room-pinned-assets-state.js';
 
 const source = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
-const block = source.slice(source.indexOf('function confirmedRoomMoveProjection('), source.indexOf('async function executeRoomCreation('));
+const block = source.slice(source.indexOf('function confirmedRoomMoveProjection('), source.indexOf('function renderRoomMoveDisplay('))
+  + source.slice(source.indexOf('async function executeRoomMutation('), source.indexOf('async function executeRoomCreation('));
 
 function fixture() {
   const previous = { roomVariantId: 'room.test', version: 3, lifecycle: 'DRAFT', createdRevision: 4,
@@ -33,7 +34,7 @@ function harness(f = fixture(), options = {}) {
     workspace: 'rooms', roomNavigation: { route: 'editor' }, roomMutationPending: false,
     agentAccessCsrf: 'local-token', activity: [], roomUi: { view: 'editor', selectedPlacementId: 'table',
       shapeDraft: { dirty: false }, pinnedAssets: { status: 'ready', key: roomPinnedAssetsKey(roomPinnedAssetsContext(f.projectId, f.revision, f.previous)), assets: [{ assetId: 'historical.table' }] } } };
-  const context = { state, roomPinnedAssetsContext, roomPinnedAssetsKey, JSON, Map, manualProjectRefreshActive: false,
+  const context = { state, roomPinnedAssetsContext, roomPinnedAssetsKey, JSON, Map, AbortSignal, manualProjectRefreshActive: false,
     currentRoomVariant: () => ({ variant: entry.versions.find(value => value.version === entry.headVersion) }),
     currentRoomLibrary: () => library, roomPinnedAssetsReady: () => true,
     roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false },
@@ -166,7 +167,7 @@ test('non-Move Room commands keep their prior full refresh path', async () => {
 });
 
 test('confirmed Move renderer preserves canvas ownership, refreshes Inspector/findings and restores exact arrow focus', () => {
-  const renderer = source.slice(source.indexOf('function refreshConfirmedRoomMoveDom('), source.indexOf('async function executeRoomMutation('));
+  const renderer = source.slice(source.indexOf('function refreshConfirmedRoomMoveDom('), source.indexOf('function renderRoomMoveDisplay('));
   assert.match(renderer, /refreshRoomSurfaceDom\(\{ placements: true \}\)/);
   assert.match(renderer, /renderRoomInspector\(variant, state\.project\.snapshot\)/);
   assert.match(renderer, /renderRoomLifecycle\(variant\)/); assert.match(renderer, /renderRoomFindings\(variant\)/);

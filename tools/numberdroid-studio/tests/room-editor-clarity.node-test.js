@@ -30,10 +30,12 @@ test('Room labels occupy separate edges and leave continuous multi-cell images u
     assert.match(css, new RegExp(`\\.room-${kind}\\[data-selected="true"\\] > \\.room-${kind}-label`));
   }
   const canvas = app.slice(app.indexOf('function renderRoomCanvas'), app.indexOf('function renderRoomLayers'));
-  assert.match(canvas, /placed\.style\.width = `calc\(\$\{span\.width\}/);
-  assert.match(canvas, /placed\.style\.height = `calc\(\$\{span\.height\}/);
-  assert.equal(canvas.match(/placed\.append\(roomPlacementVisual/g)?.length, 1);
-  assert.match(canvas, /placed\.setAttribute\('aria-label'/);
+  const placement = app.slice(app.indexOf('function renderRoomPlacement('), app.indexOf('function renderRoomCanvas'));
+  assert.match(canvas, /renderRoomPlacement\(placement, snapshot\)/);
+  assert.match(placement, /placed\.style\.width = `calc\(\$\{span\.width\}/);
+  assert.match(placement, /placed\.style\.height = `calc\(\$\{span\.height\}/);
+  assert.equal(placement.match(/placed\.append\(roomPlacementVisual/g)?.length, 1);
+  assert.match(placement, /placed\.setAttribute\('aria-label'/);
   assert.match(canvas, /clearance\.setAttribute\('aria-label'/);
   assert.match(css, /scrollbar-gutter: stable/);
 });

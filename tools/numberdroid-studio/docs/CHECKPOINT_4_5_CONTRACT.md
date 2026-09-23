@@ -76,6 +76,50 @@ Every cell projects exactly one visible editor class: ordinary room floor, outsi
 
 This projection changes no accepted room command, CAS, immutable-version, proposal, lifecycle, or agent-authority semantic.
 
+### Responsive placement editing — approved direction, 2026-09-23
+
+Klaus approved separating immediate editing, automatic saving and an explicit
+full Room check after reporting that the integrated latency repair was only
+slightly faster. Implementation is split at the durable validation boundary:
+
+1. The first bounded block adds immediate **display-only** Move/Rotate intent,
+   serialized background saving and targeted authoritative command reads. It
+   keeps every existing saved Room finding, fingerprint, lifecycle, portable
+   bundle and agent command semantic. Full Room validation still runs during
+   each save in this block; it no longer gates visual movement.
+2. A separate L3 data-contract block must introduce persisted unchecked/check
+   identity and a distinct Check command before full diagnostics can move to an
+   explicit trigger. Historical fingerprints, import/export, integrity/rebuild,
+   restart, warning disposition and task semantics must agree. This is approved
+   direction, not implemented by the display queue. Never substitute empty or
+   copied historical findings for a current full check, and never call an
+   unchecked Room error-free. Validate/finalize must still check current content.
+
+For the first block, the saved Room snapshot remains immutable authority. A
+separate display projection applies pending Move/Rotate intents to canvas and
+Inspector immediately, using the same exact asset pins and placement preflight.
+Rapid arrows, rotation and drag compose from the displayed position. Only one
+frozen semantic request is in flight; subsequent requests acquire their project
+and Room CAS versions only after the preceding save is confirmed. The bounded
+queue must not silently drop or coalesce accepted user inputs.
+
+Status distinguishes saving, queued changes, saved state, unknown save outcome
+and confirmed-save refresh recovery without depending on color. Unknown results
+retain the exact original request/key and pause later intents; retry never
+creates a new mutation identity. A later error cannot retroactively prove that
+an earlier lost-response request failed. Definitive rejection preserves earlier
+confirmed saves and explains which later intentions were not saved. A confirmed
+POST with an unavailable read is saved-but-refreshing, not a new unsaved write.
+
+Selection, Move/Rotate, pan and zoom may continue while saving. Incompatible
+Room edits, Surface operations, lifecycle actions, Preview, project/Room
+navigation and explicit refresh cannot discard the queue or show pending content
+as saved. Recovery remains reachable if imagery fails. Passive reads cannot
+overwrite queued display or confirmed state; an already active manual Refresh
+keeps ownership. Browser proof must distinguish input-to-visible feedback from
+input-to-confirmed-save latency and verify rapid input, failure/replay, focus,
+canvas identity, exact pins and reopening at 1440/1060.
+
 ### Confirmed placement refresh
 
 After a confirmed Move or Rotate, the editor may read only the affected Room
@@ -88,7 +132,8 @@ an uncertain POST retains the existing idempotency/recovery behavior.
 The success path retains the actual canvas and cells, selection, focus and
 viewport while refreshing placement imagery, Inspector coordinates, saved
 findings and version labels. It invalidates stale in-flight reads and the old
-Preview binding. This is confirmed saved state, never optimistic persistence.
+Preview binding. This is confirmed saved state, never optimistic persistence;
+the separately approved pending display projection must not replace this state.
 Other Room commands keep their existing reload paths. SQLite summary projection
 may use the already committed head without reading all historical snapshots;
 the complete immutable history, public store return and transaction remain intact.
@@ -97,7 +142,13 @@ Current-only trusted project reads and Room queries may use an internal exact
 head reader instead of decoding every historical project revision. It reads the
 authoritative revision and reapplies the same live grant status as a full read;
 legacy and task stores fall back to their complete-document reader. Move
-execution still resolves historical Asset pins from complete history. Its
+execution resolves historical Asset pins from immutable authority. The first
+responsive block may use a private owner-only shared-SQLite command context with
+indexed replay/command-ID lookup and exact historical Asset reads instead of
+decoding the complete ledger. It must preserve replay/collision/CAS/authorization
+precedence, dry-run behavior and live grant overlays. Legacy, agent and task
+stores retain the complete-document fallback. A partial document must never
+masquerade as the full history. Its
 atomic append may explicitly omit the unused document return; default callers
 retain the complete return, and no transaction, replay or CAS check is skipped.
 Passive status refreshes are cancellable and cannot resume their summary-to-full

@@ -34,6 +34,35 @@ Keep these states distinct:
 
 ## Current queue
 
+### 2026-09-23 Responsive Room editing
+
+**Design approved; implemented and locally verified; NEEDS KLAUS LIVE after integration.**
+Klaus described PR271 as only slightly faster and approved immediate visual
+movement, automatic background save and explicit full Room checks. The first
+implementation block covers Move/Rotate display/queue/recovery and faster exact
+command reads. Full saved-Room validation stays active; on-demand checks and a
+durable unchecked state are a separate required data-contract block, not a
+completed feature or a local-only badge.
+
+Engineering evidence now covers immediate movement under delayed responses,
+serial cumulative input, truthful saving/saved/error status, two exact retries
+after a committed write loses its response, safe Preview/navigation/refresh
+guards, historical asset pins and saved state after restart. Native capture
+also exercises a save acknowledgment during a drag/rotation and the subsequent
+unsaved shape status. The [Room status](ROOM_EDITOR_L3_STATUS.md) records the
+source checkpoint and local test counts. CI and merge remain distinct from
+Klaus's pending responsiveness decision.
+
+After explicit merge/restart authorization, retain the existing real-artwork
+project and give Klaus one bounded bundle: immediate Table movement, several
+quick cumulative moves/rotation, visible Saving→Saved without canvas jumps,
+then saved Preview and reopen. Resolve the current room/placement coordinates
+before giving exact click instructions; do not reuse stale positions from an
+earlier session. Fault injection belongs only in uniquely allocated disposable
+fixtures, never Klaus's project. No pass is inferred from the approved design,
+engineering evidence or earlier practice. Deferred full checking remains the
+next separately implemented data-contract block.
+
 ### 2026-09-23 Real Room practice and Move latency
 
 **Practice PASS; latency repair REVISE.** Klaus passed the four-step

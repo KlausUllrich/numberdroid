@@ -1,5 +1,50 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
+## Responsive Room editing direction — 2026-09-23
+
+After PR271 and the verified same-data restart, Klaus reported **“ja, ein bischen
+schneller”**, then approved immediate visible movement, background autosave and
+explicit full Room checking. This is design/implementation authorization, not
+acceptance of responsiveness or of the still-unimplemented deferred checks.
+
+The first bounded L3 block is implemented: separate pending Move/Rotate
+display, serialized exact save/recovery and indexed owner Move reads. Complete
+validation of saved versions remains unchanged in this block. The separate
+durable unchecked/check model requires its own data/portable/integrity evolution;
+see the [implementation boundary](CHECKPOINT_4_5_CONTRACT.md#responsive-placement-editing--approved-direction-2026-09-23).
+No new schema, agent access, MCP authority or Windows execution is implied by
+the first block. Existing live projects and accepted Surface tools stay intact.
+Local verification is green; remote CI, integration and user acceptance remain
+separate gates recorded in the focused PR. No new candidate has been installed
+over Klaus's running Studio or saved projects.
+
+The exact product source checkpoint is local `a87daf416434572472a387b2601dd8af43f3991f`.
+Verification for its unchanged JavaScript/backend and affected layout:
+
+- Full Studio: 1,356 tests, 1,351 passed, five expected platform skips, zero
+  failures; build/syntax: 427 files; Checkpoint 1A evidence: `VERIFIED`.
+- Native Chrome at 1440×900 and 1060×900: immediate display before transmission,
+  serial cumulative saves, retained canvas/focus and saved-only Preview guards.
+  Two lost responses after a real committed write replay the same body/key
+  without duplicate versions; keyboard Retry resumes the remaining queue.
+- A save acknowledgment during an active drag/rotation retains the gesture.
+  A subsequent unsaved shape edit remains visibly unsaved. Reopen and a real
+  server restart preserve the saved semantic hash.
+- Wrapping recovery guidance uses readable text. Saved/Saving share the same
+  toolbar row; tool guidance reserves consistent space. The official 1060px
+  CP4.5 capture verifies all seven tool/panel transitions without canvas drift,
+  cumulative Move/Rotate/nudge/remove CAS, and restoration of the real fixture
+  after page-local interaction evidence.
+- Independent authority, persistence/idempotency, client-state, UX and
+  test/coverage reviews cover the actual change. Review findings were repaired
+  before presenting the candidate. No Windows tests were requested or run.
+
+The original complete saved-Room validation still runs on each successful save.
+Indexed reads avoid decoding unrelated history, but appending a saved project
+still costs work; this is not a claim of constant-time persistence. Immediate
+display does not mean saved or checked. Uncertain saves retain the exact
+request and block conflicting actions until resolved.
+
 ## Real Room practice pass and placement latency candidate — 2026-09-23
 
 Klaus reported **“pass. Aber das Verschieben des Tischs nach rechts hat recht
