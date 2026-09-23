@@ -1895,12 +1895,13 @@ export class SqliteProjectStore extends ProjectStore {
         writeRoomDesignerRevision(database, projectId, revision, (point) => this.#workspace.fault(point));
         this.#workspace.fault('after_room_designer_revision');
 
+        // The summary uses only the new head. Do not decode every historical
+        // snapshot inside the write transaction merely to select this revision.
         const document = {
           formatVersion: 1,
           projectId,
           createdAt: revision.snapshot.project.createdAt,
-          revisions: database.prepare('SELECT revision_json FROM revisions WHERE project_id = ? ORDER BY revision_number')
-            .all(projectId).map((row) => parseJson(row.revision_json, 'revisions.revision_json')),
+          revisions: [revision],
         };
         const summary = projectSummary(document);
         const updated = database.prepare(`
