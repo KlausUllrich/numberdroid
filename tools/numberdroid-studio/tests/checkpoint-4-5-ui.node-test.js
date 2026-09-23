@@ -6,19 +6,18 @@ import { readFile } from 'node:fs/promises';
 const appUrl = new URL('../apps/studio-server/public/app.js', import.meta.url);
 const stylesUrl = new URL('../apps/studio-server/public/styles.css', import.meta.url);
 
-test('CP4.5 synthetic placement evidence uses exact cumulative acknowledgments and restores persisted context', async () => {
+test('CP4.5 synthetic explicit-save evidence proves local drafts, exact replay and restored persisted context', async () => {
   const capture = await readFile(new URL('../scripts/capture-studio-browser-evidence.js', import.meta.url), 'utf8');
-  assert.match(capture, /Synthetic placement CAS mismatch/);
-  assert.match(capture, /Synthetic placement identity mismatch/);
-  assert.match(capture, /roomVariantId: room\.roomVariantId, roomVariantVersion: room\.version, contentFingerprint: room\.contentFingerprint/);
-  assert.match(capture, /room\.family-gathering\?includeVersions=false&includeProposals=false/);
-  assert.match(capture, /headVersion: projection\.room\.version, current: projection\.room/);
-  assert.match(capture, /body\.expectedRevision === checkpoint45DirectManipulation\.afterDrag\.requests\[index\]\.body\.expectedRevision \+ 1/);
-  assert.match(capture, /body\.expectedRoomVariantVersion === checkpoint45DirectManipulation\.afterDrag\.requests\[index\]\.body\.expectedRoomVariantVersion \+ 1/);
-  assert.match(capture, /requests\[1\]\.body\.moves\?\.\[0\]\?\.rotation === 180/);
-  assert.match(capture, /requests\[2\]\.body\.moves\?\.\[0\]\?\.anchor\?\.y === 1/);
+  assert.match(capture, /Synthetic editor-save CAS mismatch/);
+  assert.match(capture, /A Room tool wrote before explicit Save changes/);
+  assert.match(capture, /roomVariant: room, roomVariantId: roomId, roomVariantVersion: room\.version, contentFingerprint: room\.contentFingerprint/);
+  assert.match(capture, /mixed\.persistentBrush\.requestCount === 0/);
+  assert.match(capture, /JSON\.stringify\(mixed\.exactSaveRetry\.requests\[0\]\.body\) === JSON\.stringify\(mixed\.exactSaveRetry\.requests\[1\]\.body\)/);
+  assert.match(capture, /mixed\.afterDrag\.requests\.length === 1/);
+  assert.match(capture, /draftPlacement\(mixed\.rotatedDraft, 'prop\.family-table'\)\?\.rotation === 180/);
+  assert.match(capture, /draftPlacement\(mixed\.inspectorDraft, 'prop\.family-table'\)\?\.anchor\.y === 1/);
   assert.match(capture, /window\.fetch = evidence\.originalFetch/);
-  assert.match(capture, /syntheticRoomProjection = null; evidence\.syntheticPlacementProjection = null/);
+  assert.match(capture, /evidence\.projections\.clear\(\)/);
   assert.match(capture, /Page\.reload', \{ ignoreCache: true \}/);
   assert.match(capture, /restoredRoom\.result\.value\.roomVersion === checkpoint45DirectManipulation\.pan\.originalRoomVersion/);
   assert.match(capture, /restoredRoom\.result\.value\.tool === 'PAINT_ROOM' && restoredRoom\.result\.value\.syntheticProjectionAbsent/);
@@ -276,7 +275,7 @@ test('CP4.5 desktop dock keeps a stable height and top-aligned controls when pan
   assert.equal(declarations['overscroll-behavior'], 'contain');
 });
 
-test('CP4.5 room editor keeps paint drafts exclusive, visible, recoverable, and mutation-safe', async () => {
+test('CP4.5 room editor combines tool drafts while protecting lifecycle and review actions', async () => {
   const app = await readFile(appUrl, 'utf8');
   assert.match(app, /activeTool: 'SELECT'/);
   assert.match(app, /button\.setAttribute\('aria-pressed', String\(state\.roomUi\.activeTool === value\)\)/);
@@ -286,8 +285,8 @@ test('CP4.5 room editor keeps paint drafts exclusive, visible, recoverable, and 
   assert.match(app, /if \(state\.roomUi\.shapeConflict\).*role', 'alert'/s);
   assert.match(app, /Discard the unsaved shape changes and reload the saved room version/);
   assert.match(app, /applyRoomShapeDraftLock/);
-  assert.match(app, /form\[data-room-form\]:not\(\[data-room-form="shape-coordinates"\]\)/);
-  assert.match(app, /operation !== 'room-shape-set' && state\.roomUi\.shapeDraft\?\.dirty/);
+  assert.match(app, /if \(!roomMoveTools\.hasPending\(\)\) return/);
+  assert.match(app, /\['proposal-decide', 'proposal-apply', 'validate', 'finalize', 'fork', 'warning-save'\]/);
   assert.match(app, /preserveRoomCanvas = false/);
   assert.match(app, /replacementCanvas\.replaceWith\(retainedRoomCanvas\)/);
   assert.match(app, /function settleRoomEditorControlFocus/);
@@ -299,7 +298,8 @@ test('CP4.5 room editor keeps paint drafts exclusive, visible, recoverable, and 
   assert.match(app, /variant\.lifecycle !== 'DRAFT'\) \{ showToast\(`\$\{variant\.lifecycle\} room versions are read-only/);
   assert.match(app, /\['CLEAR', '⌫', 'Clear'/);
   assert.match(app, /activeTool === 'CLEAR'.*removeRoomPlacement\(placement\)/s);
-  assert.match(app, /state\.roomUi\.shapeDraft\?\.dirty.*Save or discard the room-shape changes before placing assets/s);
+  assert.match(app, /roomMoveTools\.apply\('room-shape-set'/);
+  assert.match(app, /roomMoveTools\.apply\('room-placement-add'/);
 });
 
 

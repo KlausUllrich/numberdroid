@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createStudioHttpServer } from '../apps/studio-server/src/server.js';
+import { StudioError } from '../packages/domain/src/index.js';
 
 test('Room editor Save HTTP is strict local-owner/CSRF and carries only editable fields', { timeout: 10_000 }, async () => {
-  const calls = [];
+  const calls = []; let rejectedCode = null;
   const service = {
     commandCatalog: [],
     async readProjectTrusted(projectId) { return { projectId, revision: 7, snapshot: { project: { ownerId: 'designer.one' }, grants: [] } }; },
-    async execute(command, context) { calls.push({ command, context }); return { projectId: command.projectId, revision: 8, value: {} }; },
+    async execute(command, context) {
+      if (rejectedCode) throw new StudioError(rejectedCode, 'Draft rejected before commit.');
+      calls.push({ command, context }); return { projectId: command.projectId, revision: 8, value: {} };
+    },
   };
   const server = createStudioHttpServer({ studioService: service });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
@@ -34,6 +38,17 @@ test('Room editor Save HTTP is strict local-owner/CSRF and carries only editable
     assert.equal(calls[0].command.baseRevision, expectedRevision);
     assert.equal(calls[0].command.idempotencyKey, idempotencyKey);
     assert.equal((await fetch(`${base}/room-editor-draft.js`)).status, 200);
+    for (const code of ['ROOM_SHAPE_CELL_LIMIT', 'ROOM_SHAPE_CELL_DUPLICATE', 'ROOM_SHAPE_CELL_CONFLICT',
+      'ROOM_SHAPE_EMPTY', 'ROOM_SHAPE_DISCONNECTED', 'ROOM_PLACEMENT_LIMIT', 'ROOM_PLACEMENT_DUPLICATE',
+      'ROOM_CONNECTOR_LIMIT', 'ROOM_INTENT_DUPLICATE', 'UNTRUSTED_AUTHORITY_FIELD']) {
+      rejectedCode = code;
+      const response = await post(body);
+      assert.equal(response.status, 400, code);
+      assert.equal((await response.json()).error.code, code);
+    }
+    rejectedCode = 'UNEXPECTED_WRITER_FAILURE';
+    assert.equal((await post(body)).status, 500, 'Unknown failures must remain uncertain, not pretend rejection.');
+    assert.equal(calls.length, 1);
   } finally {
     await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }

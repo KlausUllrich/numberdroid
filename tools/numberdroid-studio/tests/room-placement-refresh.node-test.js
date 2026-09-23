@@ -38,6 +38,7 @@ function harness(f = fixture(), options = {}) {
     currentRoomVariant: () => ({ variant: entry.versions.find(value => value.version === entry.headVersion) }),
     currentRoomLibrary: () => library, roomPinnedAssetsReady: () => true,
     roomSurfaceTools: { hasUnresolved: () => false, isLocked: () => false },
+    roomMoveTools: { hasPending: () => false, apply: () => true },
     elements: { 'project-select': { options: [{ value: f.projectId }] } },
     api: async (path, config) => { calls.push({ path, config }); return options.api ? options.api(path, config, state) : config?.method === 'POST' ? f.response : f.query; },
     setRoomMutationPending: pending => { state.roomMutationPending = pending; },
@@ -159,10 +160,10 @@ test('a stale historical pin cache is never rebound as exact evidence for the ne
   assert.equal(h.state.roomUi.pinnedAssets.assets.length, 0);
 });
 
-test('non-Move Room commands keep their prior full refresh path', async () => {
+test('ordinary Room tool commands stage without any request or saved version', async () => {
   const h = harness();
   assert.equal(await h.context.execute({ operation: 'room-shape-set', target: 'room.test', path: '/shape', body: {}, successMessage: 'Saved' }), true);
-  assert.equal(h.calls.length, 1); assert.equal(h.stats.fullLoads, 1); assert.equal(h.stats.fullRenders, 1);
+  assert.equal(h.calls.length, 0); assert.equal(h.stats.fullLoads, 0); assert.equal(h.stats.fullRenders, 0);
   assert.equal(h.stats.narrowRenders, 0); assert.equal(h.context.generation(), 10);
 });
 

@@ -11,7 +11,7 @@ test('Room instructions name the cell tools and distinguish draft edits from sav
   const hint = (activeTool, lifecycle = 'DRAFT') => runInNewContext(`(${source})({ lifecycle: '${lifecycle}' }, null)`, { state: { roomUi: { activeTool } } });
   assert.match(hint('SELECT'), /choose Room floor, Outside room or Blocked in room on the left, then click the cell/);
   for (const tool of ['PAINT_ROOM', 'PAINT_VOID', 'PAINT_BLOCKED']) {
-    assert.match(hint(tool), /Save shape keeps these edits; Discard \/ reload restores the saved shape/);
+    assert.match(hint(tool), /Save changes keeps all Room edits; Discard changes restores the saved Room/);
     assert.match(hint(tool), /Enter\/Space/);
     assert.match(hint(tool), /Artwork is dimmed.*not removed/);
   }
@@ -51,8 +51,8 @@ test('Room Inspector distinguishes footprint, modern image overhang and legacy P
 
 test('Room save/discard and dock controls retain readable action sizing without weakening draft guards', () => {
   const options = app.slice(app.indexOf('function renderRoomToolOptions'), app.indexOf('function renderRoomDockNavigation'));
-  assert.match(options, /save\.disabled = !draft\.dirty \|\| Boolean\(state\.roomUi\.shapeConflict\) \|\| variant\.lifecycle !== 'DRAFT'/);
-  assert.match(options, /reset\.disabled = \(!draft\.dirty && !state\.roomUi\.shapeConflict\) \|\| variant\.lifecycle !== 'DRAFT'/);
+  assert.match(options, /save\.disabled = !moveState\.dirty \|\| moveState\.locked \|\| variant\.lifecycle !== 'DRAFT'/);
+  assert.match(options, /reset\.disabled = !moveState\.dirty \|\| moveState\.locked/);
   assert.match(options, /actions\.append\(save, reset\)/);
   assert.match(options, /save\.classList\.remove\('secondary'\)/);
   const actionRule = css.match(/\.room-tool-actions button \{([^}]+)\}/)?.[1];

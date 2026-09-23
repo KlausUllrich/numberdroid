@@ -390,8 +390,8 @@ test('A1.3 produces a deterministic immutable non-authorizing closure receipt', 
 
   // This is the full application catalog, including the two Surface commands,
   // not the frozen default or matching-task MCP discovery surface.
-  assert.equal(listCommandDefinitions().length, 48);
-  assert.equal(implementedCommandTypes().length, 48);
+  assert.equal(listCommandDefinitions().length, 49);
+  assert.equal(implementedCommandTypes().length, 49);
 });
 
 test('current Numberdroid capability profile v1 fails closed before asset or CAS reads', async () => {

@@ -272,6 +272,7 @@ test('loadProject discards a late aborted project response before applying share
   const state = { project: original, workspace: 'overview', uiMode: 'local' }; const controller = new AbortController();
   let resolveProject; const signals = [];
   const load = runInNewContext(`let projectLoadGeneration = 0; ${source}; loadProject;`, { state,
+    roomMoveTools: { hasPending: () => false },
     elements: { 'project-select': { value: 'project.test' }, 'workspace-content': { dataset: {} } }, cancelTaskAdoptionLoad() {},
     api(path, options) { signals.push(options.signal); return path === '/api/projects/project.test'
       ? new Promise((resolve) => { resolveProject = resolve; }) : Promise.resolve(path.endsWith('/tasks') ? { tasks: [] } : {}); },

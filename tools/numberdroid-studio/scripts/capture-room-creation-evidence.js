@@ -247,8 +247,13 @@ export async function captureRoomCreation({ devtools, sessionId, width, height, 
     await capture('second-room', '[data-room-board]');
     await click('[data-room-control="editor-panel"][data-editor-panel="properties"]');
     await fill('resize', { width: '12', height: '7' });
+    const postsBeforeResize = await evaluate('window.__roomCreationAudit.posts.length');
     await click('[data-room-form="resize"] button[type="submit"]');
-    await waitFor(`document.getElementById('revision-label')?.textContent === 'Revision 5' && document.querySelectorAll('.room-cell').length === 84`, 'Immediate second Room edit');
+    await waitFor(`document.getElementById('revision-label')?.textContent === 'Revision 4' && document.querySelectorAll('.room-cell').length === 84 && document.querySelector('[data-room-control="editor-save"]')?.disabled === false`, 'Immediate local second Room edit');
+    assert.equal(await evaluate('window.__roomCreationAudit.posts.length'), postsBeforeResize, 'Resize must remain local until explicit Save');
+    assert.equal((await read()).revision, 4);
+    await click('[data-room-control="editor-save"]');
+    await waitFor(`document.getElementById('revision-label')?.textContent === 'Revision 5' && document.querySelector('[data-room-control="editor-save"]')?.disabled === true`, 'One explicit checked Room save');
     saved = await read();
     assert.deepEqual(saved.snapshot.roomLibrary.variants.find((entry) => entry.roomVariantId === firstRoomBefore.roomVariantId), firstRoomBefore, 'The immediate edit altered Room1');
     await click('[data-room-control="editor-tool"][data-editor-tool="PAINT_VOID"]');
@@ -259,11 +264,11 @@ export async function captureRoomCreation({ devtools, sessionId, width, height, 
     await click('[data-room-nav-action="back"]');
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
     dirtyGuard = { postsBefore, postsAfter: await evaluate('window.__roomCreationAudit.posts.length'), revision: (await read()).revision,
-      shapeStillDirty: await evaluate(`document.querySelector('[data-room-control="shape-save"]')?.disabled === false`) };
+      shapeStillDirty: await evaluate(`document.querySelector('[data-room-control="editor-save"]')?.disabled === false`) };
     assert.equal(dirtyGuard.postsAfter, postsBefore); assert.equal(dirtyGuard.revision, 5);
     assert.equal(dirtyGuard.shapeStillDirty, true, 'Back must retain the unsaved shape when leaving is not confirmed');
     await evaluate(`window.confirm = message => { window.__roomCreationAudit.confirms.push(message); return true; }`);
-    await click('[data-room-control="shape-reset"]');
+    await click('[data-room-control="editor-discard"]');
   } else {
     const saved = await read(); const second = saved.snapshot.roomLibrary.variants.find((entry) => entry.versions.at(-1).displayName === 'Second browser Room');
     await click(`[data-room-nav-action="open-room"][data-room-nav-id="${second.roomVariantId}"]`);

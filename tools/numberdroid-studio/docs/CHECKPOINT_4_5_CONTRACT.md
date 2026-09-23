@@ -133,6 +133,11 @@ format change is implied.
 
 ### Confirmed placement refresh
 
+**Compatibility background for the existing per-command transport.** The
+human Room editor now uses the unified explicit Save described above, including
+its exact complete-Room receipt and read-only recovery. The following does not
+authorize automatic Move/Rotate saves or per-tool reloads in that editor.
+
 After a confirmed Move or Rotate, the editor may read only the affected Room
 through the existing Room query. It adopts that projection only when the
 captured project/Room context, command result, query revision, saved version,
