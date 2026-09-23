@@ -1,5 +1,6 @@
 import { createLibraryUiState, librarySetProject, libraryInventory, libraryProposedAdditions, libraryReviewGroups, libraryAssetPin, findLibraryItem, libraryRouteKey, libraryNavigate, libraryBack } from './library-state.js';
 import { createRoomSurfaceTools } from './room-surface-editor.js';
+import { createRoomMoveEditor } from './room-move-editor.js';
 import { renderLibraryNavigation, renderLibraryCard, renderLibraryHistory } from './library-view.js';
 import { renderRoomsCollection, renderRoomTemplateDetail } from './rooms-navigation-view.js';
 import { renderLibraryDetail, createLibraryPreviewDocument } from './library-detail-view.js';
@@ -349,7 +350,7 @@ function setRoomMutationPending(pending) {
   state.roomMutationPending = pending;
   updateMutationControls();
   const editorStatus = elements['workspace-content'].querySelector('.room-editor-status');
-  if (pending && editorStatus) { editorStatus.textContent = 'Saving…'; editorStatus.dataset.pending = 'true'; }
+  if (pending && editorStatus) { editorStatus.textContent = roomMoveTools?.hasPending() ? roomMoveTools.getState().message : 'Saving…'; editorStatus.dataset.pending = 'true'; }
   for (const control of elements['workspace-content'].querySelectorAll('[data-room-control], [data-room-form] input, [data-room-form] select, [data-room-form] textarea, [data-room-form] button')) {
     if (pending) {
       if (!control.hasAttribute('data-room-pending-was-disabled')) control.dataset.roomPendingWasDisabled = String(control.disabled);
@@ -357,6 +358,10 @@ function setRoomMutationPending(pending) {
     } else if (control.hasAttribute('data-room-pending-was-disabled')) {
       control.disabled = control.dataset.roomPendingWasDisabled === 'true'; delete control.dataset.roomPendingWasDisabled;
     }
+  }
+  if (pending && roomMoveTools?.canInput()) {
+    for (const control of elements['workspace-content'].querySelectorAll('[data-room-control="move-placement"], [data-room-control="rotate-placement"], [data-room-control="placement-select"], [data-room-control="zoom"], [data-room-zoom-slider]')) control.disabled = false;
+    if (state.roomUi.activeTool === 'SELECT') for (const control of elements['workspace-content'].querySelectorAll('[data-room-control="cell"]')) control.disabled = false;
   }
 }
 
@@ -3527,6 +3532,7 @@ function openAssetEditor({ asset = null, slice = null, trigger = null }) {
 }
 
 window.addEventListener('beforeunload', (event) => {
+  if (roomMoveTools.hasPending()) { event.preventDefault(); event.returnValue = ''; }
   if (state.roomNavigation.creation && (state.roomNavigation.creation.attempt || JSON.stringify(state.roomNavigation.creation.values) !== state.roomNavigation.creation.initial)) { event.preventDefault(); event.returnValue = ''; }
   if (activeAnimationEditor || [...animationReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status)) || activeAssetEditor || activeAssemblyEditor || [...assemblyReviewControllers.values()].some(controller => ['saving', 'uncertain'].includes(controller.getState().status))) { event.preventDefault(); event.returnValue = ''; }
 });
@@ -3625,6 +3631,11 @@ function currentRoomVariant(snapshot = state.project?.snapshot) {
   const entry = library.variants.find(({ roomVariantId }) => roomVariantId === state.roomUi.selectedRoomVariantId)
     ?? library.variants[0];
   return { entry, variant: roomHead(entry) };
+}
+
+function displayedRoomVariant() {
+  const { variant } = currentRoomVariant();
+  return variant ? roomMoveTools.project(variant) : variant;
 }
 
 const ROOM_EDITOR_TOOLS = Object.freeze([
@@ -3807,11 +3818,19 @@ function renderRoomToolOptions(variant) {
   else if (state.roomUi.shapeConflict) status.textContent = 'Conflict · reload the saved shape';
   else if (draft.dirty) status.textContent = 'Unsaved shape changes';
   else status.textContent = `Saved · room version ${variant.version}`;
+  const moveState = roomMoveTools.getState();
+  if (moveState.message) status.textContent = moveState.message === 'Saved' ? `Saved · room version ${variant.version}` : moveState.message;
+  status.dataset.movePhase = moveState.phase;
   status.dataset.dirty = String(draft.dirty); status.dataset.conflict = String(Boolean(state.roomUi.shapeConflict));
   const actions = document.createElement('div'); actions.className = 'room-tool-actions';
   const save = roomControl('Save shape', 'shape-save'); save.classList.remove('secondary'); save.disabled = !draft.dirty || Boolean(state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT';
   const reset = roomControl(draft.dirty || state.roomUi.shapeConflict ? 'Discard / reload' : 'Reload shape', 'shape-reset');
   reset.disabled = (!draft.dirty && !state.roomUi.shapeConflict) || variant.lifecycle !== 'DRAFT'; actions.append(save, reset);
+  if (['uncertain', 'refresh'].includes(moveState.phase)) {
+    const retry = document.createElement('button'); retry.type = 'button'; retry.dataset.roomMoveRetry = '';
+    retry.textContent = moveState.phase === 'uncertain' ? 'Retry same move' : 'Read saved Room again';
+    retry.disabled = moveState.running; retry.addEventListener('click', () => { void roomMoveTools.retry(); }); actions.append(retry);
+  }
   const lastEdit = document.createElement('span'); lastEdit.className = 'room-last-edit'; lastEdit.textContent = state.roomUi.lastShapeEdit ?? '';
   bar.append(copy, status, actions, lastEdit); return bar;
 }
@@ -4033,7 +4052,7 @@ function roomPlacementGhostModel({ variant, snapshot, asset, anchor, rotation, l
 }
 
 function currentRoomPlacementGhost() {
-  const { variant } = currentRoomVariant();
+  const variant = displayedRoomVariant();
   if (!variant || !roomPinnedAssetsReady(variant)) return null;
   const pending = state.roomUi.pendingPlacementAdd;
   if (pending) {
@@ -4421,6 +4440,7 @@ function connectorGeometry(connector, variant) {
 }
 
 function renderRoomCanvas(variant, snapshot) {
+  variant = roomMoveTools.project(variant);
   const panel = document.createElement('section'); panel.className = 'room-canvas-panel room-panel';
   const toolbar = document.createElement('div'); toolbar.className = 'room-canvas-toolbar';
   const origin = document.createElement('strong'); origin.textContent = `Origin 0,0 · ${variant.width}×${variant.height}`;
@@ -4553,6 +4573,7 @@ function renderRoomFindings(variant) {
 }
 
 function renderRoomInspector(variant, snapshot) {
+  variant = roomMoveTools.project(variant);
   const panel = document.createElement('aside'); panel.className = 'room-panel room-inspector';
   const title = document.createElement('h3'); title.textContent = 'Inspector'; panel.append(title);
   const selected = variant.placements.find(({ placementId }) => placementId === state.roomUi.selectedPlacementId);
@@ -7453,10 +7474,10 @@ function cancelRoomPlacementGesture({ announce = false, suppressClick = false } 
 }
 
 elements['workspace-content'].addEventListener('pointerdown', (event) => {
-  if (state.workspace !== 'rooms' || event.button !== 0 || state.roomMutationPending) return;
+  if (state.workspace !== 'rooms' || event.button !== 0 || (state.roomMutationPending && !roomMoveTools.canInput())) return;
   const target = event.target.closest('.room-placement[data-room-control="placement-select"]');
   if (!target || !target.closest('[data-room-board]')) return;
-  const { variant } = currentRoomVariant();
+  const variant = displayedRoomVariant();
   const placement = variant?.placements.find(({ placementId }) => placementId === target.dataset.placementId);
   if (!variant || variant.lifecycle !== 'DRAFT' || !placement || state.roomUi.activeTool !== 'SELECT' || !roomPinnedAssetsReady(variant)) return;
   const board = target.closest('[data-room-board]'); const pointerCell = roomCellFromPointer(board, event);
@@ -7524,7 +7545,7 @@ elements['workspace-content'].addEventListener('focusin', (event) => {
 elements['workspace-content'].addEventListener('pointerup', async (event) => {
   const gesture = state.roomUi.placementGesture;
   if (!gesture || gesture.pointerId !== event.pointerId) return;
-  const { variant } = currentRoomVariant();
+  const variant = displayedRoomVariant();
   const placement = variant?.placements.find(({ placementId }) => placementId === gesture.placementId);
   const shouldMove = gesture.moved && !gesture.outsideBoard
     && (gesture.anchor.x !== gesture.originalAnchor.x || gesture.anchor.y !== gesture.originalAnchor.y);
@@ -7549,7 +7570,7 @@ elements['workspace-content'].addEventListener('lostpointercapture', (event) => 
 });
 
 document.addEventListener('keydown', async (event) => {
-  if (state.workspace !== 'rooms' || event.defaultPrevented || state.roomMutationPending) return;
+  if (state.workspace !== 'rooms' || event.defaultPrevented || (state.roomMutationPending && !roomMoveTools.canInput())) return;
   if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
   if (state.roomUi.activeTool === 'SURFACE' && ['r', 'R'].includes(event.key)) {
     event.preventDefault(); roomSurfaceTools.rotateBrush(); return;
@@ -7583,7 +7604,7 @@ document.addEventListener('keydown', async (event) => {
   }
   const placementShortcutSurface = event.target.closest('[data-room-board], .room-inspector, [data-room-control="rotate-placement-ghost"]');
   if (!placementShortcutSurface) return;
-  const { variant } = currentRoomVariant(); if (!variant || variant.lifecycle !== 'DRAFT' || !roomPinnedAssetsReady(variant)) return;
+  const variant = displayedRoomVariant(); if (!variant || variant.lifecycle !== 'DRAFT' || !roomPinnedAssetsReady(variant)) return;
   if ((event.key === 'r' || event.key === 'R') && state.roomUi.selectedPaletteAssetId) {
     event.preventDefault();
     const asset = exactSelectedRoomPaletteAsset();
@@ -7597,6 +7618,7 @@ document.addEventListener('keydown', async (event) => {
     event.preventDefault(); await moveRoomPlacement(placement, placement.anchor, (placement.rotation + 90) % 360); return;
   }
   if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (roomMoveTools.hasPending()) { event.preventDefault(); return; }
     event.preventDefault(); await removeRoomPlacement(placement); return;
   }
   const delta = { ArrowLeft: [-1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowRight: [1, 0] }[event.key];
@@ -7842,6 +7864,99 @@ function refreshConfirmedRoomMoveDom() {
   restoreRoomDomState();
 }
 
+function renderRoomMoveDisplay() {
+  if (state.workspace !== 'rooms' || state.roomNavigation.route !== 'editor') return;
+  captureRoomDomState();
+  const root = elements['workspace-content'], { variant } = currentRoomVariant();
+  const board = root.querySelector('[data-room-board]');
+  if (board && variant) {
+    // Keep existing placement nodes too: an acknowledgement must not destroy
+    // pointer capture while the next drag is already under way.
+    for (const placement of roomMoveTools.project(variant).placements) {
+      if (!state.roomUi.layers[placement.layer]) continue;
+      const next = renderRoomPlacement(placement, state.project.snapshot);
+      if (!next) continue;
+      const old = [...board.querySelectorAll('.room-placement')].find(value => value.dataset.placementId === next.dataset.placementId);
+      if (!old) { board.append(next); continue; }
+      old.style.cssText = next.style.cssText;
+      for (const attribute of next.attributes) if (attribute.name !== 'style') old.setAttribute(attribute.name, attribute.value);
+      // Cardinal imagery needs its inner visual transform as well as bounds.
+      if (old.innerHTML !== next.innerHTML) old.innerHTML = next.innerHTML;
+    }
+    root.querySelector('.room-inspector')?.replaceWith(renderRoomInspector(variant, state.project.snapshot));
+    root.querySelector('.room-tool-options')?.replaceWith(renderRoomToolOptions(variant));
+    root.querySelector('.room-lifecycle')?.replaceWith(renderRoomLifecycle(variant));
+    for (const findings of root.querySelectorAll('.room-findings')) {
+      if (!findings.closest('.room-inspector')) findings.replaceWith(renderRoomFindings(variant));
+    }
+    const previousAttention = root.querySelector('.room-error-attention');
+    const attention = renderRoomErrorAttention(currentRoomVariant().entry);
+    if (previousAttention) previousAttention.replaceWith(attention ?? document.createTextNode(''));
+    else if (attention) root.querySelector('.room-header')?.after(attention);
+    const header = root.querySelector('.room-header'), archetype = roomSurfaceContext().archetype;
+    const errors = variant.findings.filter(value => value.severity === 'ERROR').length;
+    const option = header?.querySelector('select')?.selectedOptions[0];
+    if (option) option.textContent = `${variant.displayName} · ${archetype.kind} · ${variant.lifecycle} v${variant.version}${errors ? ` · ${errors} saved errors` : ''}`;
+    const detail = header?.querySelector('h2 + p');
+    if (detail) detail.textContent = `${archetype.displayName} · ${findingSummary(variant.findings)}`;
+    const technical = header?.querySelector('.room-header-technical code');
+    if (technical) technical.textContent = `${variant.roomVariantId} · archetype ${variant.roomArchetypeId}@${variant.archetypeVersion} · room version ${variant.version} · ${variant.lifecycle}`;
+    renderWorkspaceHeader();
+  }
+  setRoomMutationPending(roomMoveTools.hasPending());
+  restoreRoomDomState();
+  updateRoomPlacementGhostDom();
+}
+
+const roomMoveTools = createRoomMoveEditor({
+  context() {
+    const { variant } = currentRoomVariant();
+    if (!variant || !state.project) return null;
+    const blocked = manualProjectRefreshActive ? 'Wait for Refresh live status to finish. Nothing was changed.'
+      : !state.agentAccessCsrf || state.uiMode === 'remote' ? 'Editing is available in the local Studio session only.'
+      : state.workspace !== 'rooms' || state.roomNavigation.route !== 'editor' || state.roomUi.view !== 'editor' ? 'Open the Room editor first.'
+      : variant.lifecycle !== 'DRAFT' ? 'Only an editable draft Room can be changed.'
+      : state.roomUi.shapeDraft?.dirty ? 'Save or discard shape changes first.'
+      : state.roomUi.pendingPlacementAdd || roomSurfaceTools.hasUnresolved() || roomSurfaceTools.isLocked() ? 'Resolve the current Room operation first.'
+      : state.roomMutationPending && !roomMoveTools.hasPending() ? 'Wait for the current Room operation to finish.'
+      : !roomPinnedAssetsReady(variant) ? 'Wait for the exact saved Asset versions to load.' : '';
+    return { projectId: state.project.projectId, revision: state.project.revision, room: variant, blocked };
+  },
+  check(variant, move) {
+    const placement = variant.placements.find(value => value.placementId === move.placementId);
+    const model = roomPlacementGhostModel({ variant, snapshot: state.project.snapshot,
+      asset: placement ? exactRoomAsset(placement) : null, anchor: move.anchor, rotation: move.rotation,
+      layer: placement?.layer, ignorePlacementId: move.placementId });
+    return model.allowed ? '' : model.message;
+  },
+  send(request) {
+    return api(`/api/projects/${encodeURIComponent(request.projectId)}/rooms/${encodeURIComponent(request.roomVariantId)}/placements-move`, {
+      method: 'POST', headers: { 'x-numberdroid-studio-csrf': state.agentAccessCsrf }, body: request.serialized,
+    });
+  },
+  async adopt(response, request, previous) {
+    if (state.project?.projectId !== request.projectId || currentRoomVariant().variant?.roomVariantId !== request.roomVariantId) throw new Error('Return to the original Room to confirm the saved move.');
+    const context = { projectId: request.projectId, revision: request.body.expectedRevision, previous };
+    if (await refreshConfirmedRoomMove(response, context, request.body)) {
+      const gesture = state.roomUi.placementGesture;
+      if (gesture?.projectId === request.projectId && gesture.roomVariantId === request.roomVariantId
+          && gesture.projectRevision === request.body.expectedRevision) {
+        gesture.projectRevision = response.revision; gesture.roomVersion = response.value.roomVariantVersion;
+      }
+      return true;
+    }
+    // Confirmed POST, but the head advanced independently. Refresh is read-only;
+    // queued intentions stop rather than being silently applied to new work.
+    await loadProject(request.projectId, { preserveWorkspaceIfUnchanged: true });
+    if (state.project?.projectId !== request.projectId || state.project.revision < response.revision) throw new Error('The saved Room could not be read yet.');
+    return false;
+  },
+  changed() {
+    if (roomMoveTools.hasPending()) { cancelPassiveProjectRefresh(); projectLoadGeneration += 1; }
+    renderRoomMoveDisplay();
+  },
+});
+
 async function executeRoomMutation({ operation, target, path, body, successMessage, onBeforeReload = null, capturedRequest = null, onFailure = null }) {
   if (operation === 'room-placement-move' && manualProjectRefreshActive) {
     showToast('Wait for Refresh live status to finish, then move or rotate the placement. Nothing was changed.'); return false;
@@ -7952,19 +8067,7 @@ async function moveRoomPlacement(placement, anchor, rotation, context = null) {
     showToast('ROOM_CONTEXT_CHANGED: The placement was not changed because its rendered room context is stale.');
     return false;
   }
-  const model = roomPlacementGhostModel({
-    variant, snapshot: state.project.snapshot, asset: exactRoomAsset(placement), anchor, rotation,
-    layer: placement.layer, ignorePlacementId: placement.placementId,
-  });
-  if (!model.allowed) { showToast(`PLACEMENT_PREFLIGHT_BLOCKED: ${model.message}`); return false; }
-  const basePath = `/api/projects/${encodeURIComponent(captured.projectId)}/rooms/${encodeURIComponent(captured.roomVariantId)}`;
-  return executeRoomMutation({
-    operation: 'room-placement-move', target: `${placement.placementId}:${captured.roomVersion}`,
-    path: `${basePath}/placements-move`,
-    body: { expectedRoomVariantVersion: captured.roomVersion, moves: [{ placementId: placement.placementId, expectedAssetId: captured.expectedAssetId, anchor, rotation }] },
-    successMessage: rotation !== placement.rotation ? 'Placement rotated.' : `Placement moved to ${anchor.x},${anchor.y}.`,
-    onBeforeReload: () => { state.roomUi.selectedPlacementId = placement.placementId; },
-  });
+  return roomMoveTools.enqueue({ placementId: placement.placementId, expectedAssetId: placement.assetId, anchor, rotation });
 }
 
 async function removeRoomPlacement(placement, context = null) {
@@ -8236,12 +8339,13 @@ elements['workspace-content'].addEventListener('click', (event) => {
 elements['workspace-content'].addEventListener('click', async (event) => {
   const control = event.target.closest('[data-room-control]'); if (!control || state.workspace !== 'rooms') return;
   const action = control.dataset.roomControl;
+  if (roomMoveTools.hasPending() && !['move-placement', 'rotate-placement', 'placement-select', 'cell', 'zoom'].includes(action)) return;
   if (['palette-search', 'layer', 'room-select', 'proposal-select', 'proposal-disposition', 'proposal-reason'].includes(action)) return;
   if (state.roomUi.pendingPlacementAdd
       && ['editor-tool', 'palette-asset', 'close-preview-asset', 'placement-select', 'connector-select'].includes(action)) {
     showToast('A placement is not yet confirmed. Choose its original cell again before changing placement tools, assets, or selections.'); return;
   }
-  const { variant } = currentRoomVariant();
+  const variant = displayedRoomVariant();
   if (action === 'show-findings') {
     state.roomUi.dockPanel = 'check'; renderWorkspace({ preserveRoomDraft: true });
     requestAnimationFrame(() => elements['workspace-content'].querySelector('.room-findings')?.scrollIntoView({ block: 'nearest' }));
@@ -8300,7 +8404,8 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     }
     if (state.roomUi.activeTool !== 'SELECT' && control.closest('[data-room-board]')) return;
     state.roomUi.selectedPlacementId = control.dataset.placementId; clearRoomPaletteAsset(); state.roomUi.selectedConnectorId = null;
-    state.roomUi.selectedFinding = null; state.roomUi.placementHover = null; state.roomUi.placementRotation = 0; renderWorkspace({ preserveRoomDraft: true }); return;
+    state.roomUi.selectedFinding = null; state.roomUi.placementHover = null; state.roomUi.placementRotation = 0;
+    if (roomMoveTools.hasPending()) renderRoomMoveDisplay(); else renderWorkspace({ preserveRoomDraft: true }); return;
   }
   if (action === 'connector-select') { state.roomUi.selectedConnectorId = control.dataset.connectorId; state.roomUi.selectedPlacementId = null; state.roomUi.selectedFinding = null; clearRoomPaletteAsset(); renderWorkspace({ preserveRoomDraft: true }); return; }
   if (action === 'finding') {
@@ -8309,7 +8414,7 @@ elements['workspace-content'].addEventListener('click', async (event) => {
     selectRoomFinding(variant, finding);
     renderWorkspace({ preserveRoomDraft: true }); return;
   }
-  if (!variant || !state.project || state.roomMutationPending || !roomPinnedAssetsReady(variant)) return;
+  if (!variant || !state.project || (state.roomMutationPending && !roomMoveTools.canInput()) || !roomPinnedAssetsReady(variant)) return;
   const projectId = state.project.projectId; const basePath = `/api/projects/${encodeURIComponent(projectId)}/rooms/${encodeURIComponent(variant.roomVariantId)}`;
   if (action === 'shape-save') {
     const draft = roomShapeDraft(variant); if (!draft?.dirty || state.roomUi.shapeConflict) return;

@@ -35,6 +35,16 @@ export async function loadProjectHead(store, projectId) {
   return document ? headRevision(document) : null;
 }
 
+// A bounded execution context is deliberately not a ProjectDocument. Only the
+// owner Move command may opt in; task/legacy adapters retain the complete ledger.
+export function supportsOwnerRoomMoveReads(store, command) {
+  return command.type === 'room.variant.placements.move'
+    && command.actor.kind === 'human'
+    && store.isTaskBranchStore !== true
+    && typeof store.loadRoomMoveContext === 'function'
+    && typeof store.loadRoomMoveAssetVersions === 'function';
+}
+
 export function projectSummary(document) {
   const head = headRevision(document);
   return {

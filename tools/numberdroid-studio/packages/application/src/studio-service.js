@@ -31,7 +31,7 @@ import {
   projectCapabilityManifestSha256,
   validateProjectCapabilityManifest,
 } from '../../domain/src/project-capability-manifest.js';
-import { headRevision, loadProjectHead } from './project-store.js';
+import { headRevision, loadProjectHead, supportsOwnerRoomMoveReads } from './project-store.js';
 import {
   projectCapabilitySelection,
   validateProjectCapabilityProvider,
@@ -867,11 +867,22 @@ function authoritativeRoomSurfacePlan({ document, current, archetype, payload })
   }
 }
 
-function validatedRoomVersion({ candidate, archetype, document, findingsUnresolvedProposalIds = [], now, actorId, createdRevision, proposalId = null }) {
+function validatedRoomVersion({ candidate, archetype, document, roomAssetVersions = null, findingsUnresolvedProposalIds = [], now, actorId, createdRevision, proposalId = null }) {
+  if (roomAssetVersions) {
+    for (const placement of candidate.placements) {
+      const asset = roomAssetVersions.get(`${placement.assetId}@${placement.assetVersion}:${placement.metadataVersion}`);
+      invariant(asset && asset.assetId === placement.assetId && asset.assetVersion === placement.assetVersion
+        && asset.metadataVersion === placement.metadataVersion, 'ROOM_ASSET_VERSION_NOT_FOUND',
+      'A placement must pin an existing exact V2 asset and metadata version.', {
+        assetId: placement.assetId, assetVersion: placement.assetVersion, metadataVersion: placement.metadataVersion,
+        coordinate: `${placement.assetId}:${placement.assetVersion}:${placement.metadataVersion}`,
+      });
+    }
+  }
   const validated = validateRoomVariant({
     variant: candidate,
     archetype: roomArchetypeValue(archetype),
-    assets: exactRoomAssetVersions(document, candidate.placements),
+    assets: roomAssetVersions ?? exactRoomAssetVersions(document, candidate.placements),
     unresolvedProposalIds: findingsUnresolvedProposalIds,
   });
   return {
@@ -1007,6 +1018,7 @@ function applyCommand(command, snapshot, now, {
   preparedAssetProposal = null,
   preparedRoomProposal = null,
   projectDocument = null,
+  roomAssetVersions = null,
   grantScopes = KNOWN_GRANT_SCOPES,
   skipGrantCharge = false,
   prospectiveAssets = [],
@@ -2124,7 +2136,8 @@ function applyCommand(command, snapshot, now, {
     case 'room.variant.placements.add':
     case 'room.variant.placements.move':
     case 'room.variant.placements.remove': {
-      invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
+      invariant(projectDocument || (command.type === 'room.variant.placements.move' && roomAssetVersions instanceof Map),
+        'ROOM_STORE_DISABLED', 'Room authoring requires authoritative project and exact Asset records.');
       const fieldsByType = {
         'room.variant.intent.set': ['roomVariantId', 'expectedRoomVariantVersion', 'intentTrace'],
         'room.variant.shape.set': ['roomVariantId', 'expectedRoomVariantVersion', 'voidCells', 'blockedCells'],
@@ -2210,8 +2223,14 @@ function applyCommand(command, snapshot, now, {
         candidate.placements = current.placements.filter((placement) => !removeIds.has(placement.placementId));
       }
       const archetype = roomArchetypeHead(library, current.roomArchetypeId, current.archetypeVersion);
+      if (roomAssetVersions) {
+        for (const placement of candidate.placements) {
+          invariant(!next.assemblyLibrary?.assets.some(asset => asset.assetId === placement.assetId),
+            'ASSEMBLY_ROOM_UNSUPPORTED', 'Room placement currently supports leaf Assets. Assembly placement requires a separate supported capability.');
+        }
+      }
       const version = validatedRoomVersion({
-        candidate, archetype, document: projectDocument, now, actorId: command.actor.id,
+        candidate, archetype, document: projectDocument, roomAssetVersions, now, actorId: command.actor.id,
         createdRevision: command.baseRevision + 1,
       });
       if (command.type === 'room.variant.resize') {
@@ -2550,18 +2569,23 @@ export class StudioService {
     }
     const definition = getCommandDefinition(command.type);
     const commandHash = commandFingerprint(command);
-    const existing = await this.#store.loadProject(command.projectId);
+    const indexedRoomMove = supportsOwnerRoomMoveReads(this.#store, command);
+    const moveContext = indexedRoomMove ? await this.#store.loadRoomMoveContext(command.projectId, {
+      commandId: command.commandId, idempotencyKey: command.idempotencyKey, dryRun: command.dryRun,
+    }) : null;
+    const existing = indexedRoomMove ? null : await this.#store.loadProject(command.projectId);
+    const head = indexedRoomMove ? moveContext?.head ?? null : existing ? headRevision(existing) : null;
     signal?.throwIfAborted();
 
-    if (existing) {
+    if (head) {
       if (!command.dryRun) {
-        const prior = findIdempotentRevision(existing, command.idempotencyKey);
+        const prior = indexedRoomMove ? moveContext.prior : findIdempotentRevision(existing, command.idempotencyKey);
         if (prior) {
           assertReplayMatches(prior, commandHash);
           return replayResult(prior);
         }
       }
-      const duplicateCommand = findCommandRevision(existing, command.commandId);
+      const duplicateCommand = indexedRoomMove ? moveContext.duplicateCommand : findCommandRevision(existing, command.commandId);
       invariant(!duplicateCommand, 'COMMAND_ID_CONFLICT', 'The command ID was already committed.', {
         commandId: command.commandId,
         originalRevision: duplicateCommand?.number,
@@ -2591,7 +2615,7 @@ export class StudioService {
       }
     }
 
-    invariant(existing, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId: command.projectId });
+    invariant(head, 'PROJECT_NOT_FOUND', 'The project does not exist.', { projectId: command.projectId });
     if (command.actor.kind === 'agent' && definition.requiresTaskBranch) {
       invariant(
         this.#store.isTaskBranchStore === true,
@@ -2634,13 +2658,15 @@ export class StudioService {
         'Room and hallway authoring requires the authoritative SQLite v10 store.',
       );
     }
-    const head = headRevision(existing);
     invariant(command.baseRevision === head.number, 'REVISION_CONFLICT', 'The project changed after the command was prepared.', {
       projectId: command.projectId,
       expectedRevision: command.baseRevision,
       actualRevision: head.number,
     });
     assertAuthorized(command, head.snapshot, definition, now);
+    const roomAssetVersions = indexedRoomMove
+      ? await this.#store.loadRoomMoveAssetVersions(command.projectId, head, command.payload.roomVariantId)
+      : null;
     const atlasJob = ['atlas.commit.slices', 'slice.revision.commit'].includes(command.type)
       ? this.#jobStore.get(command.projectId, requireId(command.payload.jobId, 'payload.jobId'))
       : null;
@@ -2662,6 +2688,7 @@ export class StudioService {
       preparedAssetProposal,
       preparedRoomProposal,
       projectDocument: existing,
+      roomAssetVersions,
       grantScopes: this.#grantScopes,
     });
     const revision = createRevision({

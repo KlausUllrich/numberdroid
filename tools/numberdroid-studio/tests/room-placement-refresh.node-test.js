@@ -5,7 +5,8 @@ import { runInNewContext } from 'node:vm';
 import { roomPinnedAssetsContext, roomPinnedAssetsKey } from '../apps/studio-server/public/room-pinned-assets-state.js';
 
 const source = await readFile(new URL('../apps/studio-server/public/app.js', import.meta.url), 'utf8');
-const block = source.slice(source.indexOf('function confirmedRoomMoveProjection('), source.indexOf('async function executeRoomCreation('));
+const block = source.slice(source.indexOf('function confirmedRoomMoveProjection('), source.indexOf('function renderRoomMoveDisplay('))
+  + source.slice(source.indexOf('async function executeRoomMutation('), source.indexOf('async function executeRoomCreation('));
 
 function fixture() {
   const previous = { roomVariantId: 'room.test', version: 3, lifecycle: 'DRAFT', createdRevision: 4,
