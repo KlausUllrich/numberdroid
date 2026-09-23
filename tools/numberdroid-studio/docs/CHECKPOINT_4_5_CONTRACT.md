@@ -76,6 +76,23 @@ Every cell projects exactly one visible editor class: ordinary room floor, outsi
 
 This projection changes no accepted room command, CAS, immutable-version, proposal, lifecycle, or agent-authority semantic.
 
+### Confirmed placement refresh
+
+After a confirmed Move or Rotate, the editor may read only the affected Room
+through the existing Room query. It adopts that projection only when the
+captured project/Room context, command result, query revision, saved version,
+fingerprint, exact asset pins and requested placement changes agree. A newer,
+unavailable or mismatched result uses the ordinary authoritative project reload;
+an uncertain POST retains the existing idempotency/recovery behavior.
+
+The success path retains the actual canvas and cells, selection, focus and
+viewport while refreshing placement imagery, Inspector coordinates, saved
+findings and version labels. It invalidates stale in-flight reads and the old
+Preview binding. This is confirmed saved state, never optimistic persistence.
+Other Room commands keep their existing reload paths. SQLite summary projection
+may use the already committed head without reading all historical snapshots;
+the complete immutable history, public store return and transaction remain intact.
+
 ### Room creation and current editor context
 
 The approved 2026-09-22 [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md)
