@@ -841,7 +841,7 @@ const definitions = [
         plannerVersion: { type: 'string', minLength: 1, maxLength: 128 },
         scopeCells: { type: 'array', minItems: 1, maxItems: 4096, uniqueItems: true, items: roomCell },
         policy: { type: 'string', enum: ['emptyOnly', 'replace'] },
-        pool: { type: 'array', maxItems: 64, uniqueItems: true, items: roomSurfacePoolEntry },
+        pool: { type: 'array', maxItems: 256, uniqueItems: true, items: roomSurfacePoolEntry },
         baseRotation: { type: 'integer', enum: [0, 90, 180, 270] },
         randomRotation: { type: 'boolean' },
         seed: { type: 'string', minLength: 1, maxLength: 128 },

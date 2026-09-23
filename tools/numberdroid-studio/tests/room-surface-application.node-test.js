@@ -166,6 +166,33 @@ test('Surface apply rejects drift and no-op writes without changing project hist
   assert.equal((await store.loadProject(PROJECT_ID)).revisions.length, 3);
 });
 
+test('Surface apply rejects noncanonical nested DTOs and command-only seed shapes before planning', async () => {
+  const { store, studio } = await fixture();
+  const { payload } = await plannedPayload(store);
+  const without = (field) => {
+    const copy = structuredClone(payload);
+    delete copy[field];
+    return copy;
+  };
+  const invalidPayloads = [
+    without('plannerVersion'),
+    without('policy'),
+    { ...payload, scopeCells: [{ x: 0, y: 0, actor: 'forged' }] },
+    { ...payload, pool: [{ ...payload.pool[0], fallbackVersion: 2 }] },
+    { ...payload, pool: null },
+    { ...payload, seed: '' },
+    { ...payload, seed: 7 },
+    { ...payload, seed: 's'.repeat(129) },
+  ];
+  for (const [index, invalid] of invalidPayloads.entries()) {
+    await assert.rejects(
+      studio.execute(studioCommand('room.variant.surfaces.apply', 3, invalid, `surface.invalid.${index}`), OWNER_CONTEXT),
+      error => error.code === 'VALIDATION_ERROR',
+    );
+  }
+  assert.equal((await store.loadProject(PROJECT_ID)).revisions.length, 3);
+});
+
 test('Surface undo is an exact head-gated compensating version and replays idempotently', async () => {
   const { store, studio } = await fixture();
   const { payload } = await plannedPayload(store);
@@ -230,4 +257,22 @@ test('Surface replacement at the 256-placement room cap removes before adding an
   assert.equal(result.value.surfacePlan.counts.finalPlacements, 256);
   assert.equal(result.value.roomVariant.placements.length, 256);
   assert.equal(result.value.roomVariant.placements.find(({ anchor }) => anchor.x === 63 && anchor.y === 3).assetId, 'asset.alt');
+});
+
+test('one Surface command replaces all 256 placements in one version and exact retry replays it', async () => {
+  const { store, studio } = await fixture({ width: 64, height: 4 });
+  const scopeCells = Array.from({ length: 256 }, (_, index) => ({ x: index % 64, y: Math.floor(index / 64) }));
+  const { payload } = await plannedPayload(store, { scopeCells, placementIdPrefix: 'surface.full-cap' });
+  const request = studioCommand('room.variant.surfaces.apply', 3, payload, 'surface.full-cap');
+  const result = await studio.execute(request, OWNER_CONTEXT);
+  assert.equal(result.value.surfacePlan.counts.removals, 256);
+  assert.equal(result.value.surfacePlan.counts.additions, 256);
+  assert.equal(result.value.surfacePlan.counts.finalPlacements, 256);
+  assert.equal(result.value.roomVariant.version, 2);
+  assert.equal(result.value.roomVariant.placements.every(({ assetId }) => assetId === 'asset.alt'), true);
+  assert.equal((await store.loadProject(PROJECT_ID)).revisions.length, 4);
+  const replay = await studio.execute(request, OWNER_CONTEXT);
+  assert.equal(replay.replayed, true);
+  assert.deepEqual(replay.value, result.value);
+  assert.equal((await store.loadProject(PROJECT_ID)).revisions.length, 4);
 });

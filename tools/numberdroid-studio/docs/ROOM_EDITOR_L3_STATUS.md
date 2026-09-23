@@ -1,15 +1,32 @@
 # Numberdroid Studio — Room Editor L3 completion status
 
-## Surface tools design approved — 2026-09-22 session pause
+## Surface implementation candidate — 2026-09-23
 
 Klaus said **“nice, approved”** for the
 [Surface interaction mockup](SURFACE_AUTHORING_DESIGN.md), then requested server
-shutdown preparation. Design approval is complete; production Surface changes
-are not implemented. Continue via the
-[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
-with the approved L3 batch and one bundled live check. VT-001's overall state
-is unchanged. Preserve live sandbox project r111 and pilot r34 observed before
-shutdown; do not restore earlier test snapshots. Windows remains opt-in only.
+shutdown preparation on 2026-09-22. Implementation has resumed as an
+**IMPLEMENTATION CANDIDATE IN PROGRESS — not merged and not user accepted**.
+The candidate adds the shared deterministic Surface planner, atomic Apply,
+human-only immediate-head Undo, explicit paint queue and exact same-request
+recovery. Fill uses a stable complete-footprint preview; unchanged Paint is a
+no-op. Existing usable-origin macro alignment, logical footprints, exact asset
+pins, DRAFT guards and owner-review boundaries are not relaxed.
+
+The explicit `surfaces-v1` MCP adapter mapping selects 32 tools / six existing
+resources only with negotiated Authoring-v2 task authority. Apply requires the
+new narrow `room.variant.surfaces.apply` capability; existing grants gain no
+rights. Undo remains human-only; runtime/launcher/live-host activation is
+deferred. Local focused evidence is work-in-progress evidence, not a final
+unchanged-head integration result. Final selected gates and independent reviews
+must precede integration; the
+[bundled human test](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
+remains pending on a disposable fixture whose names/URL are TBD.
+
+VT-001's overall REVISE state is unchanged. The permanent pilot r34 and sandbox
+r111 remain untouched; do not restore earlier snapshots or restart either live
+instance beneath unsaved edits. The
+[prior handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
+retains recovery context. Windows testing was not requested and is not run.
 
 ## Rooms collection navigation user acceptance — 2026-09-22
 

@@ -58,6 +58,32 @@ function compareCell(left, right) {
   return left.y - right.y || left.x - right.x;
 }
 
+// IDs are protocol data, never locale-sensitive display labels.
+function compareId(left, right) { return left < right ? -1 : left > right ? 1 : 0; }
+
+function hasDirectionalMeaning(asset) {
+  const metadata = asset.metadata ?? {}, extensions = metadata.extensions ?? {};
+  const directionalFields = ['arrowDirection', 'directionalMeaning', 'thresholdSide', 'boundaryMeaning', 'topologyClass'];
+  const pending = [extensions], seen = new Set();
+  let extensionDirection = false;
+  while (pending.length && !extensionDirection) {
+    const value = pending.pop();
+    if (!value || typeof value !== 'object' || seen.has(value)) continue;
+    seen.add(value);
+    // Unknown excessively deep metadata is not proof of random-fill safety.
+    if (seen.size > 4096) { extensionDirection = true; break; }
+    for (const [key, child] of Object.entries(value)) {
+      if (/arrow|direction|threshold|topology|boundary/i.test(key)
+          || (key === 'role' && /straight|corner|junction|terminal|threshold|arrow|route|perimeter|fringe|border|edge/i.test(String(child)))) extensionDirection = true;
+      if (child && typeof child === 'object') pending.push(child);
+    }
+  }
+  return (metadata.connectors ?? []).length > 0
+    || /(?:straight|corner|junction|terminal|threshold|arrow|route|perimeter|fringe|border|edge)/i.test(metadata.role ?? '')
+    || directionalFields.some(key => metadata[key] != null || extensions[key] != null)
+    || extensionDirection;
+}
+
 function cellKey(cell) {
   return `${cell.x},${cell.y}`;
 }
@@ -239,7 +265,10 @@ function normalizePool(pool, assets, options) {
     const eligibility = surfacePlanAssetEligibility(asset, options);
     if (!eligibility.eligible) fail('ROOM_SURFACE_ASSET_INELIGIBLE', 'A selected Asset cannot be used by this Surface plan.', { ...pin, reasons: eligibility.reasons });
     return { pin, asset, eligibility };
-  }).sort((left, right) => pinKey(left.pin).localeCompare(pinKey(right.pin)));
+  }).sort((left, right) => compareId(pinKey(left.pin), pinKey(right.pin)));
+  if ((candidates.length > 1 || options.randomRotation) && candidates.some(({ asset }) => hasDirectionalMeaning(asset))) {
+    fail('ROOM_SURFACE_POOL_INCOMPATIBLE', 'Directional, route and boundary Surfaces need deliberate placement. Use one Surface at a fixed chosen orientation; random mixing and rotation need a topology-aware plan.', { pins: candidates.map(({ pin }) => pin) });
+  }
   if (candidates.length > 1) {
     const first = candidates[0].eligibility;
     const incompatible = candidates.filter(candidate => candidate.eligibility.semanticKey !== first.semanticKey
@@ -351,7 +380,8 @@ export function planRoomSurfaces({
       if (selectedSpan.width !== footprint.width || selectedSpan.height !== footprint.height) fail('ROOM_SURFACE_POOL_INCOMPATIBLE', 'The selected rotation changed the planned footprint class.', { pin: candidate.pin, selectedRotation });
       const atBoundary = anchor.x === normalizedRoom.usable.x || anchor.y === normalizedRoom.usable.y
         || anchor.x + footprint.width === normalizedRoom.usable.x + normalizedRoom.usable.width
-        || anchor.y + footprint.height === normalizedRoom.usable.y + normalizedRoom.usable.height;
+        || anchor.y + footprint.height === normalizedRoom.usable.y + normalizedRoom.usable.height
+        || cells.some(cell => [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dx, dy]) => normalizedRoom.voidKeys.has(cellKey({ x: cell.x + dx, y: cell.y + dy }))));
       if (atBoundary && candidate.asset.metadata.placement?.wallSafe !== true) fail('ROOM_SURFACE_ASSET_INELIGIBLE', 'A selected Surface is not authored as safe at this usable-domain boundary.', { ...candidate.pin, anchor });
       const occupying = new Map();
       for (const cell of cells) for (const entry of effectiveOccupancy.get(cellKey(cell)) ?? []) occupying.set(entry.placement.placementId, entry);
@@ -383,6 +413,9 @@ export function planRoomSurfaces({
   }
 
   const removedIds = new Set(removals.keys());
+  for (const placementId of keepIds) {
+    if (removedIds.has(placementId)) fail('ROOM_SURFACE_OVERLAP_KEEP_INVALID', 'This plan would replace a Surface explicitly chosen to keep. Repair the overlap first, then preview a separate replacement.', { placementId });
+  }
   const finalPlacementIds = new Set(normalizedRoom.value.placements.filter(placement => !removedIds.has(placement.placementId)).map(placement => placement.placementId));
   for (const addition of additions) {
     if (finalPlacementIds.has(addition.placementId)) fail('ROOM_SURFACE_PLACEMENT_ID_CONFLICT', 'A deterministic Surface placement ID already exists.', { placementId: addition.placementId });
@@ -401,8 +434,8 @@ export function planRoomSurfaces({
     }
   }
 
-  const removalList = [...removals.values()].sort((left, right) => left.placement.placementId.localeCompare(right.placement.placementId)).map(removalRef);
-  additions.sort((left, right) => compareCell(left.anchor, right.anchor) || left.placementId.localeCompare(right.placementId));
+  const removalList = [...removals.values()].sort((left, right) => compareId(left.placement.placementId, right.placement.placementId)).map(removalRef);
+  additions.sort((left, right) => compareCell(left.anchor, right.anchor) || compareId(left.placementId, right.placementId));
   const affectedKeys = new Set([...filledCells, ...replacedCells]);
   for (const entry of removals.values()) for (const cell of entry.cells) affectedKeys.add(cellKey(cell));
   const affectedCells = [...affectedKeys].map(key => {

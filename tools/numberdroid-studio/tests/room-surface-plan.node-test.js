@@ -57,6 +57,32 @@ test('canonical plans are deterministic across input order and exact seed retry,
   assert.notDeepEqual(shuffled.additions.map(({ assetId, rotation }) => [assetId, rotation]), planned.additions.map(({ assetId, rotation }) => [assetId, rotation]));
 });
 
+test('plan ordering is protocol-stable rather than locale-sensitive', () => {
+  const assets = ['surface.I', 'surface.i', 'surface.a-b', 'surface.a_b', 'surface.Z'].map(value => asset(value));
+  const baseline = planRoomSurfaces(input({ assets, pool: assets }));
+  const original = String.prototype.localeCompare;
+  try {
+    String.prototype.localeCompare = function () { throw new Error('Locale-dependent canonical ordering is forbidden.'); };
+    assert.deepEqual(planRoomSurfaces(input({ assets: [...assets].reverse(), pool: [...assets].reverse() })), baseline);
+  } finally { String.prototype.localeCompare = original; }
+});
+
+test('random pools cannot infer directional or boundary topology from role or extension metadata', () => {
+  for (const marker of [{ role: 'arrow' }, { role: 'threshold' }, { extensions: { directionalMeaning: 'north' } }, { extensions: { floorTopology: { kind: 'route' } } }, { extensions: { 'numberdroid.floor': { arrowDirection: 'north' } } }, { extensions: { nested: { role: 'corner' } } }]) {
+    const first = asset('surface.first'), second = asset('surface.second');
+    first.metadata = { ...first.metadata, ...marker }; second.metadata = { ...second.metadata, ...marker };
+    assert.throws(() => planRoomSurfaces(input({ assets: [first, second], pool: [first, second] })), error => error.code === 'ROOM_SURFACE_POOL_INCOMPATIBLE');
+    assert.throws(() => planRoomSurfaces(input({ assets: [first], pool: [first], randomRotation: true })), error => error.code === 'ROOM_SURFACE_POOL_INCOMPATIBLE');
+    assert.doesNotThrow(() => planRoomSurfaces(input({ assets: [first], pool: [first] })));
+  }
+});
+
+test('internal VOID edges are boundaries for authored wall suitability', () => {
+  const unsafe = asset('surface.unsafe', { wallSafe: false });
+  assert.throws(() => planRoomSurfaces(input({ room: room({ voidCells: [{ x: 2, y: 1 }] }), assets: [unsafe], pool: [unsafe], scopeCells: [{ x: 1, y: 1 }] })), error => error.code === 'ROOM_SURFACE_ASSET_INELIGIBLE');
+  assert.doesNotThrow(() => planRoomSurfaces(input({ assets: [unsafe], pool: [unsafe], scopeCells: [{ x: 1, y: 1 }] })));
+});
+
 test('reapplying an exact pin, anchor and rotation is a true no-op', () => {
   const base = asset('surface.base');
   const existing = cells(4, 4).map(({ x, y }) => placement(`fill.${y}.${x}`, base, x, y));
@@ -145,4 +171,17 @@ test('preflight rejects operation overlap, partial replacement and the 256 place
 
   const props = Array.from({ length: 256 }, (_, index) => ({ ...placement(`prop.${index}`, base, 0, 0, 0, 'SET_DRESSING') }));
   assert.throws(() => planRoomSurfaces(input({ room: room({ width: 1, height: 1, placements: props }), assets: [base], scopeCells: [{ x: 0, y: 0 }] })), error => error.code === 'ROOM_SURFACE_CAPACITY_EXCEEDED');
+});
+
+test('bounded asset resolution accepts 256 existing exact pins plus a distinct 256-pin candidate pool', () => {
+  const existingAssets = Array.from({ length: 256 }, (_, index) => asset(`surface.existing.${index}`));
+  const poolAssets = Array.from({ length: 256 }, (_, index) => asset(`surface.pool.${index}`));
+  const existing = existingAssets.map((value, index) => placement(`surface.existing.${index}`, value, index % 16, Math.floor(index / 16)));
+  const plan = planRoomSurfaces(input({
+    room: room({ width: 16, height: 16, placements: existing }),
+    assets: [...existingAssets, ...poolAssets], pool: poolAssets,
+    scopeCells: [{ x: 0, y: 0 }], policy: 'emptyOnly',
+  }));
+  assert.equal(plan.noOp, true);
+  assert.equal(plan.counts.existingCellsRetained, 1);
 });

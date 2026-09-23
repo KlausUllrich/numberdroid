@@ -7,7 +7,7 @@ const app = await readFile(new URL('../apps/studio-server/public/app.js', import
 function harness({ roomUi = {}, creation = null, accept = false } = {}) {
   const state = { roomMutationPending: false, roomUi, roomNavigation: { creation } };
   const prompts = [], messages = [], resets = [], dialogs = [];
-  const sandbox = { state, showToast: message => messages.push(message),
+  const sandbox = { state, roomSurfaceTools: { isLocked: () => false, hasUnresolved: () => false }, showToast: message => messages.push(message),
     window: { confirm: message => { prompts.push(message); return accept; } },
     askRoomCreationDiscard(onDiscard) { dialogs.push(onDiscard); },
     resetRoomUiProjectContext() { resets.push(true); state.roomUi = {}; } };
@@ -132,7 +132,7 @@ function creationFaultHarness({ lostResponse = false, failedReads = 0, rejectSta
   let library = { variants: [], archetypes: [] }, commits = 0, keySequence = 0;
   const durable = new Map(), keys = new Map(), posts = [], opened = [], messages = [], discardDialogs = [];
   const settings = { lostResponse, failedReads, rejectStatus };
-  const sandbox = { state, structuredClone, showToast: message => messages.push(message), renderWorkspace() {},
+  const sandbox = { state, structuredClone, roomSurfaceTools: { isLocked: () => false, hasUnresolved: () => false }, showToast: message => messages.push(message), renderWorkspace() {},
     setRoomMutationPending: value => { state.roomMutationPending = value; }, currentRoomLibrary: () => library,
     exactRoomHead: entry => entry?.versions.find(head => head.version === entry.headVersion),
     roomOperationKey(operation, target, project) { const key = `${operation}:${target}:${project}`; if (!keys.has(key)) keys.set(key, `key-${++keySequence}`); return keys.get(key); },

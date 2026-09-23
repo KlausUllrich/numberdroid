@@ -388,8 +388,10 @@ test('A1.3 produces a deterministic immutable non-authorizing closure receipt', 
   artifactEvidenceByRole.get('selected-output').physical.width = 1;
   assert.equal(canonicalProcessingAdoptionPreflightReceiptJson(receipt), stableReceiptJson);
 
-  assert.equal(listCommandDefinitions().length, 46);
-  assert.equal(implementedCommandTypes().length, 46);
+  // This is the full application catalog, including the two Surface commands,
+  // not the frozen default or matching-task MCP discovery surface.
+  assert.equal(listCommandDefinitions().length, 48);
+  assert.equal(implementedCommandTypes().length, 48);
 });
 
 test('current Numberdroid capability profile v1 fails closed before asset or CAS reads', async () => {

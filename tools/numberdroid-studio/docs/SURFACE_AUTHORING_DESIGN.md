@@ -1,11 +1,11 @@
 # Studio — Surface Painting and Fill Design
 
-Status: **DESIGN APPROVED by Klaus on 2026-09-22. Production implementation
-not started; session closed at the user's request.**
+Status, 2026-09-23: **DESIGN APPROVED by Klaus on 2026-09-22;
+IMPLEMENTATION CANDIDATE IN PROGRESS — not merged and not user accepted.**
 
 Klaus said **“nice, approved. However, we need to close the session now.
 Please prepare for server shutdown”** after the interactive mockup. The next
-session may implement this bounded design without repeating its approval gate.
+session resumed implementation without repeating that design-approval gate.
 This is not production-feature or overall Studio acceptance. Use the
 [resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
 to recover the protected live projects and next implementation block.
@@ -20,6 +20,32 @@ It does not connect to a Studio server or alter a project. Its interactive
 artifact is retained in the current BB thread storage as
 `surface-tools-proposal.html`; this document retains the approved design semantics
 independently of that local artifact.
+
+## Implementation candidate — 2026-09-23
+
+The current source candidate implements one deterministic shared Surface planner,
+atomic `room.variant.surfaces.apply`, human-only compensating Undo, and the Paint /
+Fill editor. Rapid Paint retains an explicit bounded queue; each saved click has
+its own mutation identity, while an uncertain result retains the exact original
+request and idempotency key. Fill previews and saves one complete plan, not a
+loop of per-cell mutations. Same-pin/anchor/rotation no-ops create no saved
+version. Stale saved state requires a fresh preview; it is not an uncertain-result
+retry. Final actual-diff verification, integration and Klaus's bundled live
+decision remain open; no aggregate green or acceptance is claimed here.
+
+The [MCP contract](MCP_CONTRACT.md#explicit-surface-authoring-mapping--candidate-surfaces-v1)
+defines an explicit `surfaces-v1` adapter mapping: 32 tools / six existing
+resources, selected only with positively negotiated Authoring-v2 task authority.
+Apply requires the new narrow `room.variant.surfaces.apply` task capability;
+existing grants gain nothing. Agent changes remain on their isolated task branch
+until the existing owner-review/apply gate. Undo is never an agent tool.
+Startup/environment/launcher activation and live host exposure are deferred.
+
+Use the [bundled retest](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
+after the candidate is ready. Its disposable fixture identity is still TBD;
+do not invent a project/Room/asset name or repurpose the live pilot r34 or sandbox
+r111. Both protected projects remain untouched by this implementation block.
+Windows testing was not requested and is not run.
 
 ## One focused Surface tool
 
@@ -75,8 +101,12 @@ between 2×3 and 3×2 without a separately designed packing algorithm. Explain
 ineligible choices rather than silently substituting a different asset/version.
 
 A fill must contain complete Surface footprints aligned to their usable-domain
-origin. Show cells that cannot be filled and how to correct the selection or
-pool. Never clip a larger Surface or hide part of it under a structural band.
+origin. Existing Room macro alignment also constrains Paint: larger Surface
+anchors must use the usable-domain origin plus whole rotated-footprint steps.
+Explain a rejected anchor and the legal steps; never silently move the requested
+placement or relax the Room contract. Show cells that cannot be filled and how
+to correct the selection or pool. Never clip a larger Surface or hide part of it
+under a structural band.
 If replacement would remove a whole placement extending outside the selection,
 show that footprint and require explicit selection expansion before applying.
 The 1×1 mockup does not claim to demonstrate these larger-footprint cases.
@@ -106,10 +136,11 @@ while its exact saved result is still the current Room head. Another Room
 mutation disables that undo with a clear reason. Undo itself needs stale-head
 and exact unknown-result replay handling.
 
-The production command/API/MCP mapping is an implementation design task under
-the existing agent-first contract. Browser and agent callers must use the same
-semantic validation and existing scoped authority; this proposal grants no
-agent access, new role, autonomous acceptance or publication authority.
+The production command/API/MCP mapping follows the existing agent-first contract.
+Browser and agent callers use the same semantic validation. The candidate's
+new narrow Apply capability must be explicitly granted to an admitted task;
+neither the design nor its opt-in mapping grants live agent access, a new role,
+autonomous acceptance or publication authority.
 
 ## Diagnosis and production verification
 

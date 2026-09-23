@@ -1956,11 +1956,29 @@ function applyCommand(command, snapshot, now, {
       };
     }
     case 'room.variant.surfaces.apply': {
-      assertExactFields(payload, new Set([
+      const requiredSurfaceApplyFields = new Set([
         'roomVariantId', 'expectedRoomVariantVersion', 'plannerVersion', 'scopeCells',
         'policy', 'pool', 'baseRotation', 'randomRotation', 'seed',
         'placementIdPrefix', 'overlapKeepPlacementIds', 'planFingerprint',
-      ]), 'payload');
+      ]);
+      assertExactFields(payload, requiredSurfaceApplyFields, 'payload');
+      for (const field of requiredSurfaceApplyFields) {
+        invariant(Object.hasOwn(payload, field), 'VALIDATION_ERROR', `payload.${field} is required.`, { field });
+      }
+      invariant(Array.isArray(payload.scopeCells) && payload.scopeCells.length >= 1 && payload.scopeCells.length <= 4096,
+        'VALIDATION_ERROR', 'payload.scopeCells must contain 1 to 4096 exact cells.');
+      payload.scopeCells.forEach((cell, index) => {
+        invariant(cell && typeof cell === 'object' && !Array.isArray(cell), 'VALIDATION_ERROR', `payload.scopeCells[${index}] must be an exact cell.`);
+        assertExactFields(cell, new Set(['x', 'y']), `payload.scopeCells[${index}]`);
+      });
+      invariant(Array.isArray(payload.pool) && payload.pool.length <= 256,
+        'VALIDATION_ERROR', 'payload.pool must contain at most 256 exact Asset pins.');
+      payload.pool.forEach((pin, index) => {
+        invariant(pin && typeof pin === 'object' && !Array.isArray(pin), 'VALIDATION_ERROR', `payload.pool[${index}] must be an exact Asset pin.`);
+        assertExactFields(pin, new Set(['assetId', 'assetVersion', 'metadataVersion']), `payload.pool[${index}]`);
+      });
+      invariant(typeof payload.seed === 'string' && payload.seed.length >= 1 && payload.seed.length <= 128,
+        'VALIDATION_ERROR', 'payload.seed must be a string from 1 to 128 characters.');
       invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
       const library = roomLibrary(next);
       const { entry, variant: current } = roomVariantHead(library, requireId(payload.roomVariantId, 'payload.roomVariantId'));
@@ -2038,9 +2056,13 @@ function applyCommand(command, snapshot, now, {
       };
     }
     case 'room.variant.surfaces.undo': {
-      assertExactFields(payload, new Set([
+      const requiredSurfaceUndoFields = new Set([
         'roomVariantId', 'expectedRoomVariantVersion', 'appliedRoomVariantVersion', 'appliedPlanFingerprint',
-      ]), 'payload');
+      ]);
+      assertExactFields(payload, requiredSurfaceUndoFields, 'payload');
+      for (const field of requiredSurfaceUndoFields) {
+        invariant(Object.hasOwn(payload, field), 'VALIDATION_ERROR', `payload.${field} is required.`, { field });
+      }
       invariant(projectDocument, 'ROOM_STORE_DISABLED', 'Room authoring requires the authoritative project document.');
       const library = roomLibrary(next);
       const { entry, variant: current } = roomVariantHead(library, requireId(payload.roomVariantId, 'payload.roomVariantId'));

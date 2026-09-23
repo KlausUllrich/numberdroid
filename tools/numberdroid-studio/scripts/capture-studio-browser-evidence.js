@@ -2126,10 +2126,29 @@ try {
               const projection = window.__roomDirectManipulationEvidence.syntheticRoomProjection;
               const entry = project.snapshot.roomLibrary.variants.find(({ roomVariantId }) => roomVariantId === 'hall.service-east-west');
               const head = entry.versions.find(({ version }) => version === entry.headVersion);
-              entry.versions.push({ ...head, version: projection.roomVersion, width: projection.width, height: projection.height });
+              entry.versions.push(projection.room ?? { ...head, version: projection.roomVersion, width: projection.width, height: projection.height });
               entry.headVersion = projection.roomVersion;
               project.revision = projection.revision;
               return new Response(JSON.stringify(project), { status: 200, headers: { 'content-type': 'application/json' } });
+            }
+            if (url.endsWith('/surfaces-apply') && method === 'POST') {
+              const body = JSON.parse(init.body ?? '{}');
+              window.__roomDirectManipulationEvidence.requests.push({ url, method, body });
+              const project = await (await originalFetch('/api/projects/numberdroid-studio-checkpoint-2c')).json();
+              const entry = project.snapshot.roomLibrary.variants.find(value => value.roomVariantId === 'hall.service-east-west');
+              const projection = window.__roomDirectManipulationEvidence.syntheticRoomProjection;
+              const old = projection.room ?? { ...entry.versions.find(value => value.version === entry.headVersion),
+                version: projection.roomVersion, width: projection.width, height: projection.height };
+              const archetype = project.snapshot.roomLibrary.archetypes.find(value => value.roomArchetypeId === old.roomArchetypeId && value.version === old.archetypeVersion);
+              const { planRoomSurfaces } = await import('/room-surface-plan.js');
+              const plan = planRoomSurfaces({ ...body, room: old, archetype, assets: project.snapshot.assetLibrary.assets });
+              if (plan.fingerprint !== body.planFingerprint) throw new Error('Synthetic Surface response must match the exact client preview.');
+              const remove = new Set(plan.removals.map(value => value.placementId));
+              const room = { ...old, version: old.version + 1, placements: [...old.placements.filter(value => !remove.has(value.placementId)), ...plan.additions] };
+              window.__roomDirectManipulationEvidence.syntheticRoomProjection = { ...projection, room, roomVersion: room.version, revision: body.expectedRevision + 1 };
+              return new Response(JSON.stringify({ projectId: project.projectId, revision: body.expectedRevision + 1,
+                value: { roomVariant: room, surfacePlan: plan, undoReceipt: { appliedRoomVariantVersion: room.version, appliedPlanFingerprint: plan.fingerprint } } }),
+              { status: 200, headers: { 'content-type': 'application/json' } });
             }
             if (url.includes('/placements-')) {
               const body = JSON.parse(init.body ?? '{}');
@@ -2162,8 +2181,8 @@ try {
             revision: window.__numberdroidStudioVisualTest.roomDirectManipulationState().projectRevision };
           document.querySelector('[data-room-control="editor-tool"][data-editor-tool="SURFACE"]')?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
-          const surfaceSelector = '[data-room-control="palette-asset"][data-palette-asset-id="asset.family-hygiene.1"]';
-          await waitFor(() => document.querySelector(surfaceSelector + ' .asset-preview.ready')?.dataset.previewState === 'READY', 'the exact surface image');
+          const surfaceSelector = '[data-surface-pool-pin="asset.family-hygiene.1@1:1"]';
+          await waitFor(() => document.querySelector(surfaceSelector) && !document.querySelector(surfaceSelector).disabled, 'the exact surface image');
           document.querySelector(surfaceSelector)?.click();
           await new Promise((resolveFrame) => requestAnimationFrame(() => requestAnimationFrame(resolveFrame)));
           // The preceding Escape test deliberately suppresses clicks while its cancelled drag settles.
@@ -2700,17 +2719,17 @@ try {
         && checkpoint45DirectManipulation.setup.surfaceResize.resizeRequests[0].body.width
           === checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.width + 2
         && checkpoint45DirectManipulation.setup.surfaceResize.requests?.length === 2
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests.every(({ url, body }) => url.endsWith('/placements-add')
-          && body.placements?.[0]?.layer === 'STRUCTURAL_SURFACE'
-          && body.placements[0].assetId === 'asset.family-hygiene.1')
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests[0].body.placements[0].anchor.x
+        && checkpoint45DirectManipulation.setup.surfaceResize.requests.every(({ url, body }) => url.endsWith('/surfaces-apply')
+          && body.policy === 'replace'
+          && body.pool[0].assetId === 'asset.family-hygiene.1')
+        && checkpoint45DirectManipulation.setup.surfaceResize.requests[0].body.scopeCells[0].x
           === checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.width
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests[1].body.placements[0].anchor.x
+        && checkpoint45DirectManipulation.setup.surfaceResize.requests[1].body.scopeCells[0].x
           === checkpoint45DirectManipulation.setup.surfaceResize.resizeBefore.width + 1
         && checkpoint45DirectManipulation.setup.surfaceResize.requests[0].body.idempotencyKey
           !== checkpoint45DirectManipulation.setup.surfaceResize.requests[1].body.idempotencyKey
-        && checkpoint45DirectManipulation.setup.surfaceResize.requests[0].body.placements[0].placementId
-          !== checkpoint45DirectManipulation.setup.surfaceResize.requests[1].body.placements[0].placementId
+        && checkpoint45DirectManipulation.setup.surfaceResize.requests[0].body.placementIdPrefix
+          !== checkpoint45DirectManipulation.setup.surfaceResize.requests[1].body.placementIdPrefix
         && checkpoint45DirectManipulation.setup.surfaceResize.state?.selectedPaletteAssetId === 'asset.family-hygiene.1'
         && checkpoint45DirectManipulation.setup.directSelection?.selectedPaletteAssetId === 'asset.transfer-apparatus-cp45'
         && checkpoint45DirectManipulation.setup.directSelection.selectedPaletteAssetPin?.assetVersion

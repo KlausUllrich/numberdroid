@@ -26,6 +26,10 @@ export function surfaceFootprintCells(placement, asset, spanOf) {
   }) : [];
 }
 
+export function surfacePlacementLabel(placement, asset, index) {
+  return `${asset?.name ?? placement.assetId} · copy ${index + 1} (${placement.anchor.x},${placement.anchor.y}, ${placement.rotation}°; …${placement.placementId.slice(-6)})`;
+}
+
 // The controller owns only unsaved planning state. Its adapter commits through
 // the same semantic HTTP command as all other Studio clients.
 export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyChanged, changed, visual, thumbnail }) {
@@ -76,7 +80,10 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
     const button = node('button', label, primary ? '' : 'secondary'); button.type = 'button';
     button.dataset.surfaceAction = label.toLowerCase().replaceAll(' ', '-');
     button.disabled = Boolean(disabledReason); button.title = disabledReason || label;
-    if (disabledReason) button.setAttribute('aria-description', disabledReason);
+    if (disabledReason) {
+      button.setAttribute('aria-description', disabledReason);
+      button.dataset.surfaceDisabledReason = disabledReason;
+    }
     button.addEventListener('click', handler); return button;
   }
 
@@ -213,8 +220,9 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
     const context = sync(); if (reason(context) || busy) return;
     try {
       const cells = [...new Map(group.flatMap(item => surfaceFootprintCells(item, assetFor(item, context), spanOf)).map(cell => [cellKey(cell), cell])).values()];
-      const names = group.filter(item => item.placementId !== keep.placementId).map(item => assetFor(item, context)?.name ?? item.assetId);
-      if (!window.confirm(`Keep ${assetFor(keep, context)?.name ?? keep.assetId} and remove these whole room placements: ${names.join(', ')}? Library assets are not deleted.`)) return;
+      const names = group.flatMap((item, index) => item.placementId === keep.placementId ? [] : [surfacePlacementLabel(item, assetFor(item, context), index)]);
+      const keptLabel = surfacePlacementLabel(keep, assetFor(keep, context), group.indexOf(keep));
+      if (!window.confirm(`Keep ${keptLabel} and remove these whole room placements: ${names.join(', ')}? Library assets are not deleted.`)) return;
       await commit(requestFrom(context, { cells, pool: [], keepIds: [keep.placementId], policy: 'emptyOnly' }));
     } catch (error) { report(error); }
   }
@@ -302,10 +310,28 @@ export function createRoomSurfaceTools({ getContext, spanOf, send, saved, busyCh
       section.append(node('h4', `${overlaps.length} cell(s) have overlapping Surfaces`), node('p', 'Orange marks show where Surfaces are stacked. Choose a cell and explicitly keep one placement. The other whole room placements will be removed; Library assets remain.'));
       for (const [key, items] of overlaps) {
         const row = node('div'); row.append(action(`Cell ${key} · ${items.length} Surfaces`, () => { overlapCell = key; changed(); }));
-        if (overlapCell === key) for (const item of items) row.append(action(`Keep ${assetFor(item, context)?.name ?? item.assetId}`, () => void repair(item, items), locked ? 'Resolve the current save first.' : blocked));
+        if (overlapCell === key) for (const [index, item] of items.entries()) {
+          const choice = node('div', undefined, 'room-surface-overlap-choice');
+          choice.append(node('small', `Placement ${item.placementId} · A${item.assetVersion}/M${item.metadataVersion}`));
+          choice.append(action(`Keep ${surfacePlacementLabel(item, assetFor(item, context), index)}`, () => void repair(item, items), locked ? 'Resolve the current save first.' : blocked));
+          row.append(choice);
+        }
         section.append(row);
       }
       panel.append(section);
+    }
+    // Native disabled buttons cannot receive keyboard focus. Keep their reasons
+    // visible as ordinary readable text as well as the pointer tooltip.
+    const unavailable = [...panel.querySelectorAll('[data-surface-disabled-reason]')];
+    if (unavailable.length) {
+      const reasons = node('div', undefined, 'room-surface-disabled-reasons');
+      for (const [index, button] of unavailable.entries()) {
+        const description = node('p', `${button.textContent}: ${button.dataset.surfaceDisabledReason}`);
+        description.id = `surface-action-reason-${index}`;
+        button.setAttribute('aria-describedby', description.id);
+        reasons.append(description);
+      }
+      panel.append(reasons);
     }
     return panel;
   }

@@ -76,6 +76,11 @@ test('Surface apply rolls back atomically, retries exactly, and preserves histor
     name: 'Alternative v2', kind: 'surface', metadata: surfaceMetadata(), image: { mode: 'retain' },
   }));
   await f.restart();
+  const revisionBeforeRestartReplay = (await f.studio.readProjectTrusted(projectId)).revision;
+  const restartedReplay = await f.studio.execute({ ...request, commandId: `${request.commandId}.restart-replay` }, owner);
+  assert.equal(restartedReplay.replayed, true);
+  assert.deepEqual(restartedReplay.value, applied.value);
+  assert.equal((await f.studio.readProjectTrusted(projectId)).revision, revisionBeforeRestartReplay);
   const restarted = await f.studio.queryRooms({
     schemaVersion: 1, projectId, roomVariantId: 'room.surface.persistence', includeVersions: true,
   }, owner);
@@ -84,4 +89,16 @@ test('Surface apply rolls back atomically, retries exactly, and preserves histor
   assert.equal(Number(f.store.workspace.database.prepare(
     "SELECT count(*) AS count FROM room_variant_versions WHERE project_id = ? AND room_variant_id = 'room.surface.persistence'",
   ).get(projectId).count), 2);
+  const undone = await f.execute('room.variant.surfaces.undo', {
+    roomVariantId: 'room.surface.persistence', expectedRoomVariantVersion: 2,
+    appliedRoomVariantVersion: 2, appliedPlanFingerprint: surfacePlan.fingerprint,
+  });
+  assert.equal(undone.value.roomVariant.version, 3);
+  assert.equal(undone.value.roomVariant.placements.length, 9);
+  assert.equal(undone.value.roomVariant.placements.every(({ assetId, assetVersion, metadataVersion }) => (
+    assetId === 'surface.floor' && assetVersion === 1 && metadataVersion === 1
+  )), true);
+  assert.equal(Number(f.store.workspace.database.prepare(
+    "SELECT count(*) AS count FROM room_variant_versions WHERE project_id = ? AND room_variant_id = 'room.surface.persistence'",
+  ).get(projectId).count), 3);
 });

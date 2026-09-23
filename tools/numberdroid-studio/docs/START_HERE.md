@@ -1,6 +1,6 @@
 # Numberdroid Studio — Start here
 
-Status date: 2026-09-22. This is the current task router; linked contracts own
+Status date: 2026-09-23. This is the current task router; linked contracts own
 semantics, status records own evidence, and current source owns implementation.
 Reverify remote `main`, relevant PRs and Actions through the GitHub connector.
 
@@ -26,18 +26,24 @@ existing validation-tool instructions. Local Studio and Room browser/restart
 checks pass; exact-head integration evidence belongs to the associated PR/CI
 record. No new screen, permission or lifecycle transition is part of that block.
 
-Session pause, 2026-09-22: Klaus approved the interactive
-[Surface design](SURFACE_AUTHORING_DESIGN.md) with **“nice, approved”**, then
-requested shutdown preparation. Next session: implement responsive painting,
-visible overlap repair/replacement, room/selection fill, mixed assets, legal
-cardinal rotation, stable preview and atomic save/retry/undo as one bounded L3
-batch. Do not repeat the mockup approval or infer production acceptance.
-The [Surface batch](VACATION_TEST_BACKLOG.md#2026-09-22-next-room-batch--responsive-surface-painting-and-fill-tools)
-owns the bundled live test; the
-[resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
-records exact projects, restart instructions and engineering constraints.
-No Surface production code changed before this pause. Preserve the newer
-sandbox edits (project r111 observed before shutdown), not older QA snapshots.
+Current Surface block, 2026-09-23: **IMPLEMENTATION CANDIDATE IN PROGRESS —
+not merged and not user accepted.** Klaus approved the interactive
+[Surface design](SURFACE_AUTHORING_DESIGN.md) on 2026-09-22; implementation has
+now resumed. The bounded L3 batch covers responsive queued Paint/replacement,
+visible overlap repair, room/selection Fill, compatible mixed assets and legal
+rotations, stable preview, atomic Apply, exact uncertain-result replay and
+human-only Undo. Existing macro alignment and Room validation remain binding;
+same-pin/anchor/rotation no-ops save no version. Do not repeat mockup approval.
+The [bundled retest](VACATION_TEST_BACKLOG.md#2026-09-23-surface-candidate-bundled-retest)
+has a disposable fixture identity TBD; present its exact names and URL before
+asking Klaus to test. Final verification/integration and his decision remain open.
+The opt-in `surfaces-v1` MCP mapping adds Apply only (32 tools / six resources),
+requires the new `room.variant.surfaces.apply` task capability and does not
+activate startup, a live host or an existing grant. Windows was not requested.
+Preserve the pilot r34 and newer sandbox r111; neither is implementation test
+data. The [earlier resume handoff](../../../docs/history/handoffs/HANDOFF_2026-09-22_SURFACE_DESIGN_APPROVED_RESUME.md)
+retains their recovery instructions, not a current instruction to pause work or
+restore an older snapshot.
 
 Previous completed block (2026-09-22): Klaus approved the
 [Rooms navigation design](ROOMS_NAVIGATION_DESIGN.md) and authorized its

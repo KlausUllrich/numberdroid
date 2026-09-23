@@ -509,6 +509,9 @@ body[data-sources-workspace="true"] #workspace > .workspace-content { padding-to
 .room-surface-actions button, .room-surface-overlaps button { min-height: 42px; font-size: 14px; padding: 9px 12px; }
 .room-surface-overlaps { display: grid; gap: 10px; border-top: 1px solid #b98150; padding-top: 14px; }
 .room-surface-overlaps > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.room-surface-overlap-choice { display: grid; gap: 4px; width: 100%; }
+.room-surface-overlap-choice small { overflow-wrap: anywhere; color: var(--muted); }
+.room-surface-disabled-reasons { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
 .room-placement .asset-preview { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; opacity: .86; }
 .room-placement > .room-placement-visual { inset: auto; top: 50%; left: 50%; width: var(--room-placement-visual-width); height: var(--room-placement-visual-height); transform: translate(-50%, -50%) rotate(var(--room-placement-visual-rotation)); transform-origin: center; }
 .room-placement .asset-preview.fallback { display: none; }
@@ -767,7 +770,10 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .asset-conflict { grid-template-columns: 1fr; }
   .overview-attention-item, .room-error-attention { grid-template-columns: 1fr; }
   .overview-attention-item button, .room-error-attention button { justify-self: start; }
-  .room-editor-shell { grid-template-columns: 116px minmax(300px, 1fr); }
+  .room-editor-shell { grid-template-columns: minmax(0, 1fr) minmax(280px, .8fr); }
+  .room-toolbox { position: static; grid-column: 1 / -1; display: flex; flex-wrap: wrap; }
+  .room-toolbox > strong { width: 100%; }
+  .room-toolbox .room-tool { width: auto; flex: 1 1 80px; }
   .room-preview-layout { grid-template-columns: 1fr; }
   .room-preview-objects { max-height: none; }
   .room-editor-dock { grid-column: 2; height: 78vh; min-height: 0; max-height: 78vh; overflow: auto; align-content: start; }
@@ -796,7 +802,7 @@ html[data-visual-task-scroll-probe="true"] .task-detail { max-height: 420px; ove
   .room-editor-shell { grid-template-columns: 1fr; }
   .room-preview-stage { min-height: 330px; }
   .room-preview-stage svg { height: min(500px, 58vh); }
-  .room-toolbox { position: static; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .room-toolbox { position: static; display: grid; grid-column: 1; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .room-toolbox > strong { grid-column: 1 / -1; }
   .room-tool { grid-template-columns: 22px minmax(0, 1fr); }
   .room-editor-dock { grid-column: 1; }
